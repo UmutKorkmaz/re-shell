@@ -1,0 +1,13 @@
+{
+  "timestamp": "2025-06-26T05:12:58.706Z",
+  "version": "0.15.0",
+  "djangoRestTest": {
+    "templateName": "Django REST Framework",
+    "templateFile": "django-rest-py.ts",
+    "exists": false,
+    "features": {},
+    "featureCount": 0,
+    "passedFeatures": 0,
+    "failedFeatures": 0
+  }
+}

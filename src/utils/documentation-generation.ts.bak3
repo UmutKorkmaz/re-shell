@@ -1,0 +1,816 @@
+/**
+ * Unified Documentation Generation for Polyglot Projects
+ *
+ * Generates documentation tools with:
+ * - Cross-language API documentation
+ * - Auto-generated code examples in multiple languages
+ * - Cross-references between services
+ * - Interactive documentation with search
+ * - Markdown and HTML output formats
+ */
+
+import chalk from 'chalk';
+import path from 'path';
+import fs from 'fs-extra';
+
+export type DocumentationLanguage = 'typescript' | 'python';
+
+export interface DocumentationConfig {
+  projectName: string;
+  language: DocumentationLanguage;
+  outputDir: string;
+  includeExamples: boolean;
+  includeCrossRefs: boolean;
+  outputFormat: 'markdown' | 'html' | 'both';
+}
+
+export interface APIDocumentation {
+  name: string;
+  description: string;
+  endpoint: string;
+  method: string;
+  parameters: ParameterDoc[];
+  responses: ResponseDoc[];
+  examples: CodeExample[];
+}
+
+export interface ParameterDoc {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+}
+
+export interface ResponseDoc {
+  statusCode: number;
+  description: string;
+  schema?: any;
+}
+
+export interface CodeExample {
+  language: string;
+  code: string;
+}
+
+// TypeScript Documentation Generator
+export function generateTypeScriptDocumentation(config: DocumentationConfig): string {
+  return `// Auto-generated Documentation Tools for ${config.projectName}
+// Generated at: ${new Date().toISOString()}
+
+import fs from 'fs';
+import path from 'path';
+import { marked } from 'marked';
+
+interface APIDoc {
+  name: string;
+  description: string;
+  endpoint: string;
+  method: string;
+  parameters: ParameterDoc[];
+  responses: ResponseDoc[];
+  examples: CodeExample[];
+}
+
+interface ParameterDoc {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+}
+
+interface ResponseDoc {
+  statusCode: number;
+  description: string;
+  schema?: any;
+}
+
+interface CodeExample {
+  language: string;
+  code: string;
+}
+
+class DocumentationGenerator {
+  private projectRoot: string;
+  private outputDir: string;
+  private includeExamples: boolean;
+  private includeCrossRefs: boolean;
+  private outputFormat: 'markdown' | 'html' | 'both';
+
+  constructor(options: any = {}) {
+    this.projectRoot = options.projectRoot || process.cwd();
+    this.outputDir = options.outputDir || './docs';
+    this.includeExamples = options.includeExamples !== false;
+    this.includeCrossRefs = options.includeCrossRefs !== false;
+    this.outputFormat = options.outputFormat || 'both';
+  }
+
+  // Generate API documentation
+  generateAPIDocumentation(apis: APIDoc[]): string {
+    let markdown = '# API Documentation\\n\\n';
+
+    apis.forEach(api => {
+      markdown += '## ' + api.name + '\\n\\n';
+      markdown += api.description + '\\n\\n';
+
+      markdown += '**Endpoint:** ' + api.method.toUpperCase() + ' ' + api.endpoint + '\\n\\n';
+
+      // Parameters
+      if (api.parameters.length > 0) {
+        markdown += '### Parameters\\n\\n';
+        markdown += '| Name | Type | Required | Description |\\n';
+        markdown += '|------|------|----------|-------------|\\n';
+
+        api.parameters.forEach(param => {
+          const req = param.required ? 'Yes' : 'No';
+          markdown += '| ' + param.name + ' | ' + param.type + ' | ' + req + ' | ' + param.description + ' |\\n';
+        });
+
+        markdown += '\\n';
+      }
+
+      // Responses
+      if (api.responses.length > 0) {
+        markdown += '### Responses\\n\\n';
+
+        api.responses.forEach(response => {
+          markdown += '#### ' + response.statusCode + '\\n\\n';
+          markdown += response.description + '\\n\\n';
+
+          if (response.schema) {
+            markdown += '**Schema:**\\n\\n';
+            markdown += '```json\\n' + JSON.stringify(response.schema, null, 2) + '\\n```\\n\\n';
+          }
+        });
+      }
+
+      // Examples
+      if (this.includeExamples && api.examples.length > 0) {
+        markdown += '### Examples\\n\\n';
+
+        api.examples.forEach(example => {
+          markdown += '#### ' + example.language + '\\n\\n';
+          markdown += '```' + example.language + '\\n';
+          markdown += example.code + '\\n';
+          markdown += '```\\n\\n';
+        });
+      }
+
+      markdown += '---\\n\\n';
+    });
+
+    return markdown;
+  }
+
+  // Generate cross-reference documentation
+  generateCrossReferences(services: any[]): string {
+    if (!this.includeCrossRefs) {
+      return '';
+    }
+
+    let markdown = '# Service Cross-References\\n\\n';
+    markdown += 'This document shows how services interact with each other.\\n\\n';
+
+    services.forEach(service => {
+      markdown += '## ' + service.name + '\\n\\n';
+      markdown += service.description + '\\n\\n';
+
+      if (service.dependencies && service.dependencies.length > 0) {
+        markdown += '### Dependencies\\n\\n';
+        service.dependencies.forEach((dep: string) => {
+          markdown += '- [' + dep + '](#' + dep.toLowerCase().replace(/\\s+/g, '-') + ')\\n';
+        });
+        markdown += '\\n';
+      }
+
+      if (service.endpoints && service.endpoints.length > 0) {
+        markdown += '### Endpoints\\n\\n';
+        service.endpoints.forEach((endpoint: any) => {
+          markdown += '- ' + endpoint.method.toUpperCase() + ' ' + endpoint.path + '\\n';
+        });
+        markdown += '\\n';
+      }
+    });
+
+    return markdown;
+  }
+
+  // Generate code examples in multiple languages
+  generateCodeExamples(api: APIDoc): CodeExample[] {
+    const examples: CodeExample[] = [];
+
+    // TypeScript example
+    examples.push({
+      language: 'typescript',
+      code: this.generateTypeScriptExample(api),
+    });
+
+    // Python example
+    examples.push({
+      language: 'python',
+      code: this.generatePythonExample(api),
+    });
+
+    // cURL example
+    examples.push({
+      language: 'bash',
+      code: this.generateCurlExample(api),
+    });
+
+    return examples;
+  }
+
+  private generateTypeScriptExample(api: APIDoc): string {
+    let code = 'import { APIClient } from \'./api-client\';\\n\\n';
+    code += 'const client = new APIClient();\\n\\n';
+    code += '// ' + api.name + '\\n';
+    code += 'async function ' + this.toCamelCase(api.name) + '(';
+
+    const params = api.parameters.filter(p => p.required);
+    const paramNames = params.map(p => p.name);
+    code += paramNames.join(', ');
+
+    code += ') {\\n';
+    code += '  const response = await client.' + api.method.toLowerCase() + '(`' + api.endpoint + '`';
+
+    if (params.length > 0) {
+      code += ', {\\n';
+      params.forEach((param, index) => {
+        code += '    ' + param.name + ',\\n';
+      });
+      code += '  }';
+    }
+
+    code += ');\\n';
+    code += '  return response.data;\\n';
+    code += '}\\n';
+
+    return code;
+  }
+
+  private generatePythonExample(api: APIDoc): string {
+    let code = 'import requests\\n\\n';
+    code += '# ' + api.name + '\\n';
+    code += 'def ' + this.toSnakeCase(api.name) + '(';
+
+    const params = api.parameters.filter(p => p.required);
+    const paramNames = params.map(p => p.name);
+    code += paramNames.join(', ');
+
+    code += '):\\n';
+    code += '    url = \'' + api.endpoint + '\\'\\n';
+
+    if (params.length > 0) {
+      code += '    params = {\\n';
+      params.forEach((param) => {
+        code += '        \'' + param.name + '\': ' + param.name + ',\\n';
+      });
+      code += '    }\\n';
+    }
+
+    code += '    response = requests.' + api.method.toLowerCase() + '(url';
+
+    if (params.length > 0) {
+      code += ', params=params';
+    }
+
+    code += ')\\n';
+    code += '    return response.json()\\n';
+
+    return code;
+  }
+
+  private generateCurlExample(api: APIDoc): string {
+    let code = 'curl -X ' + api.method.toUpperCase() + ' \\\\\\n';
+    code += '  ' + this.addQuotes(api.endpoint) + ' \\\\\\n';
+
+    if (api.parameters.length > 0) {
+      code += '  -H \\'Content-Type: application/json\\' \\\\\\n';
+      code += '  -d \\'{\\n';
+
+      api.parameters.forEach((param, index) => {
+        const comma = index < api.parameters.length - 1 ? ',' : '';
+        code += '    \\"' + param.name + '\\": \\"<value>\\"' + comma + '\\n';
+      });
+
+      code += '  }\\'\\n';
+    }
+
+    return code;
+  }
+
+  // Generate HTML documentation
+  async generateHTML(markdown: string): Promise<string> {
+    const html = marked(markdown);
+
+    let fullHtml = '<!DOCTYPE html>\\n';
+    fullHtml += '<html>\\n';
+    fullHtml += '<head>\\n';
+    fullHtml += '  <meta charset="UTF-8">\\n';
+    fullHtml += '  <meta name="viewport" content="width=device-width, initial-scale=1.0">\\n';
+    fullHtml += '  <title>API Documentation</title>\\n';
+    fullHtml += '  <style>\\n';
+    fullHtml += '    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }\\n';
+    fullHtml += '    h1 { color: #333; border-bottom: 2px solid #333; }\\n';
+    fullHtml += '    h2 { color: #555; margin-top: 30px; }\\n';
+    fullHtml += '    table { border-collapse: collapse; width: 100%; }\\n';
+    fullHtml += '    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\\n';
+    fullHtml += '    th { background-color: #4CAF50; color: white; }\\n';
+    fullHtml += '    pre { background-color: #f4f4f4; padding: 10px; border-radius: 5px; }\\n';
+    fullHtml += '    code { background-color: #f4f4f4; padding: 2px 5px; border-radius: 3px; }\\n';
+    fullHtml += '  </style>\\n';
+    fullHtml += '</head>\\n';
+    fullHtml += '<body>\\n';
+    fullHtml += html;
+    fullHtml += '</body>\\n';
+    fullHtml += '</html>\\n';
+
+    return fullHtml;
+  }
+
+  // Generate full documentation
+  async generate(apis: APIDoc[], services: any[] = []): Promise<void> {
+    // Generate API documentation
+    const apiDocs = this.generateAPIDocumentation(apis);
+
+    // Generate cross-references
+    const crossRefs = this.generateCrossReferences(services);
+
+    // Combine all documentation
+    let fullDocs = apiDocs;
+
+    if (crossRefs) {
+      fullDocs += '\\n' + crossRefs;
+    }
+
+    // Output based on format
+    if (this.outputFormat === 'markdown' || this.outputFormat === 'both') {
+      const mdPath = path.join(this.outputDir, 'API.md');
+      fs.ensureDirSync(this.outputDir);
+      fs.writeFileSync(mdPath, fullDocs);
+      console.log('[Docs] Generated API.md');
+    }
+
+    if (this.outputFormat === 'html' || this.outputFormat === 'both') {
+      const html = await this.generateHTML(fullDocs);
+      const htmlPath = path.join(this.outputDir, 'API.html');
+      fs.ensureDirSync(this.outputDir);
+      fs.writeFileSync(htmlPath, html);
+      console.log('[Docs] Generated API.html');
+    }
+  }
+
+  // Utility functions
+  private toCamelCase(str: string): string {
+    return str.replace(/[^a-zA-Z0-9]/g, ' ').split(' ').map((word, index) =>
+      index === 0 ? word.toLowerCase() : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join('');
+  }
+
+  private toSnakeCase(str: string): string {
+    return str.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  }
+
+  private addQuotes(str: string): string {
+    return '\\'' + str + '\\'';
+  }
+}
+
+const docGenerator = new DocumentationGenerator({
+  includeExamples: ${config.includeExamples},
+  includeCrossRefs: ${config.includeCrossRefs},
+  outputFormat: '${config.outputFormat}',
+});
+
+export default docGenerator;
+export { DocumentationGenerator, APIDoc, ParameterDoc, ResponseDoc, CodeExample };
+`;
+}
+
+// Python Documentation Generator
+export function generatePythonDocumentation(config: DocumentationConfig): string {
+  return `# Auto-generated Documentation Tools for ${config.projectName}
+# Generated at: ${new Date().toISOString()}
+
+import os
+import json
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from pathlib import Path
+
+@dataclass
+class ParameterDoc:
+    name: str
+    type: str
+    required: bool
+    description: str
+
+@dataclass
+class ResponseDoc:
+    status_code: int
+    description: str
+    schema: Optional[Dict[str, Any]] = None
+
+@dataclass
+class CodeExample:
+    language: str
+    code: str
+
+@dataclass
+class APIDoc:
+    name: str
+    description: str
+    endpoint: str
+    method: str
+    parameters: List[ParameterDoc]
+    responses: List[ResponseDoc]
+    examples: List[CodeExample]
+
+class DocumentationGenerator:
+    def __init__(self, project_root: str = None, output_dir: str = './docs',
+                 include_examples: bool = True, include_cross_refs: bool = True,
+                 output_format: str = 'both'):
+        self.project_root = Path(project_root or os.getcwd())
+        self.output_dir = Path(output_dir)
+        self.include_examples = include_examples
+        self.include_cross_refs = include_cross_refs
+        self.output_format = output_format
+
+    def generate_api_documentation(self, apis: List[APIDoc]) -> str:
+        """Generate API documentation in markdown format."""
+        markdown = '# API Documentation\\n\\n'
+
+        for api in apis:
+            markdown += f'## {api.name}\\n\\n'
+            markdown += f'{api.description}\\n\\n'
+            markdown += f'**Endpoint:** {api.method.upper()} {api.endpoint}\\n\\n'
+
+            # Parameters
+            if api.parameters:
+                markdown += '### Parameters\\n\\n'
+                markdown += '| Name | Type | Required | Description |\\n'
+                markdown += '|------|------|----------|-------------|\\n'
+
+                for param in api.parameters:
+                    req = 'Yes' if param.required else 'No'
+                    markdown += f'| {param.name} | {param.type} | {req} | {param.description} |\\n'
+
+                markdown += '\\n'
+
+            # Responses
+            if api.responses:
+                markdown += '### Responses\\n\\n'
+
+                for response in api.responses:
+                    markdown += f'#### {response.status_code}\\n\\n'
+                    markdown += f'{response.description}\\n\\n'
+
+                    if response.schema:
+                        markdown += '**Schema:**\\n\\n'
+                        markdown += f'```json\\n{json.dumps(response.schema, indent=2)}\\n```\\n\\n'
+
+            # Examples
+            if self.include_examples and api.examples:
+                markdown += '### Examples\\n\\n'
+
+                for example in api.examples:
+                    markdown += f'#### {example.language}\\n\\n'
+                    markdown += f'\`\`\`{example.language}\\n'
+                    markdown += f'{example.code}\\n'
+                    markdown += f'\`\`\`\\n\\n'
+
+            markdown += '---\\n\\n'
+
+        return markdown
+
+    def generate_cross_references(self, services: List[Dict[str, Any]]) -> str:
+        """Generate cross-reference documentation."""
+        if not self.include_cross_refs:
+            return ''
+
+        markdown = '# Service Cross-References\\n\\n'
+        markdown += 'This document shows how services interact with each other.\\n\\n'
+
+        for service in services:
+            markdown += f'## {service["name"]}\\n\\n'
+            markdown += f'{service.get("description", "")}\\n\\n'
+
+            if service.get('dependencies'):
+                markdown += '### Dependencies\\n\\n'
+                for dep in service['dependencies']:
+                    slug = dep.lower().replace(' ', '-')
+                    markdown += f'- [{dep}](#{slug})\\n'
+                markdown += '\\n'
+
+            if service.get('endpoints'):
+                markdown += '### Endpoints\\n\\n'
+                for endpoint in service['endpoints']:
+                    markdown += f'- {endpoint["method"].upper()} {endpoint["path"]}\\n'
+                markdown += '\\n'
+
+        return markdown
+
+    def generate_code_examples(self, api: APIDoc) -> List[CodeExample]:
+        """Generate code examples in multiple languages."""
+        examples = []
+
+        # TypeScript example
+        examples.append(CodeExample(
+            language='typescript',
+            code=self._generate_typescript_example(api)
+        ))
+
+        # Python example
+        examples.append(CodeExample(
+            language='python',
+            code=self._generate_python_example(api)
+        ))
+
+        # cURL example
+        examples.append(CodeExample(
+            language='bash',
+            code=self._generate_curl_example(api)
+        ))
+
+        return examples
+
+    def _generate_typescript_example(self, api: APIDoc) -> str:
+        code = 'import { APIClient } from \'./api-client\';\\n\\n'
+        code += 'const client = new APIClient();\\n\\n'
+        code += f'// {api.name}\\n'
+        code += f'async function {self._to_camel_case(api.name)}('
+
+        params = [p for p in api.parameters if p.required]
+        param_names = [p.name for p in params]
+        code += ', '.join(param_names)
+
+        code += ') {\\n'
+        code += f'  const response = await client.{api.method.lower()}(`{api.endpoint}`'
+
+        if params:
+            code += ', {\\n'
+            for param in params:
+                code += f'    {param.name},\\n'
+            code += '  }'
+
+        code += ');\\n  return response.data;\\n}\\n'
+
+        return code
+
+    def _generate_python_example(self, api: APIDoc) -> str:
+        code = 'import requests\\n\\n'
+        code += f'# {api.name}\\n'
+        code += f'def {self._to_snake_case(api.name)}('
+
+        params = [p for p in api.parameters if p.required]
+        param_names = [p.name for p in params]
+        code += ', '.join(param_names)
+
+        code += '):\\n'
+        code += f'    url = \\'{api.endpoint}\\'\\n'
+
+        if params:
+            code += '    params = {\\n'
+            for param in params:
+                code += f'        \\'{param.name}\\': {param.name},\\n'
+            code += '    }\\n'
+
+        code += f'    response = requests.{api.method.lower()}(url'
+
+        if params:
+            code += ', params=params'
+
+        code += ')\\n    return response.json()\\n'
+
+        return code
+
+    def _generate_curl_example(self, api: APIDoc) -> str:
+        code = f'curl -X {api.method.upper()} \\\\\\n'
+        code += f'  \\"{api.endpoint}\\" \\\\\\n'
+
+        if api.parameters:
+            code += '  -H "Content-Type: application/json" \\\\\\n'
+            code += '  -d \\'{\\n'
+
+            for i, param in enumerate(api.parameters):
+                comma = ',' if i < len(api.parameters) - 1 else ''
+                code += f'    \\"{param.name}\\": \\"<value>\\"{comma}\\n'
+
+            code += '  }\\'\\n'
+
+        return code
+
+    async def generate(self, apis: List[APIDoc], services: List[Dict[str, Any]] = None):
+        """Generate full documentation."""
+        if services is None:
+            services = []
+
+        api_docs = self.generate_api_documentation(apis)
+        cross_refs = self.generate_cross_references(services)
+
+        full_docs = api_docs
+        if cross_refs:
+            full_docs += '\\n' + cross_refs
+
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        if self.output_format in ('markdown', 'both'):
+            md_path = self.output_dir / 'API.md'
+            md_path.write_text(full_docs)
+            print('[Docs] Generated API.md')
+
+        if self.output_format in ('html', 'both'):
+            from markdown import markdown
+            html_content = markdown(full_docs)
+
+            full_html = '<!DOCTYPE html>\\n<html>\\n<head>\\n'
+            full_html += '  <meta charset="UTF-8">\\n'
+            full_html += '  <title>API Documentation</title>\\n'
+            full_html += '  <style>\\n'
+            full_html += '    body { font-family: Arial; max-width: 1200px; margin: 0 auto; padding: 20px; }\\n'
+            full_html += '    table { border-collapse: collapse; width: 100%; }\\n'
+            full_html += '    th, td { border: 1px solid #ddd; padding: 8px; }\\n'
+            full_html += '  </style>\\n'
+            full_html += '</head>\\n<body>\\n' + html_content + '\\n</body>\\n</html>'
+
+            html_path = self.output_dir / 'API.html'
+            html_path.write_text(full_html)
+            print('[Docs] Generated API.html')
+
+doc_generator = DocumentationGenerator(
+    include_examples=' + config.includeExamples + ',
+    include_cross_refs=' + config.includeCrossRefs + ',
+    output_format=' + '"' + config.outputFormat + '"' + ',
+)
+`;
+}
+
+// Display configuration
+export function displayDocumentationConfig(config: DocumentationConfig): void {
+  console.log(chalk.cyan('\n✨ Unified Documentation Generation\n'));
+  console.log(chalk.gray('─'.repeat(60)));
+
+  console.log(chalk.yellow('Project Name:'), chalk.white(config.projectName));
+  console.log(chalk.yellow('Language:'), chalk.white(config.language));
+  console.log(chalk.yellow('Include Examples:'), chalk.white(config.includeExamples ? 'Enabled' : 'Disabled'));
+  console.log(chalk.yellow('Cross-References:'), chalk.white(config.includeCrossRefs ? 'Enabled' : 'Disabled'));
+  console.log(chalk.yellow('Output Format:'), chalk.white(config.outputFormat));
+
+  console.log(chalk.gray('─'.repeat(60)));
+  console.log(chalk.cyan('\n🎯 Features:\n'));
+
+  const features = [
+    'Cross-language API documentation',
+    'Auto-generated code examples',
+    'Cross-references between services',
+    'Markdown and HTML output',
+    'Interactive search support',
+    'Multi-format documentation',
+  ];
+
+  features.slice(0, 5).forEach((feature, index) => {
+    console.log('  ' + chalk.green('✓') + ' ' + chalk.white(feature));
+  });
+
+  if (features.length > 5) {
+    console.log('  ' + chalk.gray('... and ' + (features.length - 5) + ' more'));
+  }
+
+  console.log(chalk.gray('\n' + '─'.repeat(60) + '\n'));
+}
+
+// Generate BUILD.md
+export function generateBuildMD(config: DocumentationConfig): string {
+  let content = '# Unified Documentation Generation for ' + config.projectName + '\n\n';
+  content += 'Cross-language documentation tools for **' + config.projectName + '**.\n\n';
+
+  content += '## 📋 Configuration\n\n';
+  content += '- **Project**: ' + config.projectName + '\n';
+  content += '- **Language**: ' + config.language + '\n';
+  content += '- **Examples**: ' + (config.includeExamples ? 'Enabled' : 'Disabled') + '\n';
+  content += '- **Cross-References**: ' + (config.includeCrossRefs ? 'Enabled' : 'Disabled') + '\n';
+  content += '- **Format**: ' + config.outputFormat + '\n\n';
+
+  content += '## 💻 Usage\n\n';
+
+  if (config.language === 'typescript') {
+    content += 'Code block:typescript';
+    content += 'import docGenerator from \'./documentation-generation\';\n\n';
+    content += 'const apis = [{\n';
+    content += '  name: \'Get User\',\n';
+    content += '  description: \'Retrieve user information\',\n';
+    content += '  endpoint: \'/api/users/:id\',\n';
+    content += '  method: \'get\',\n';
+    content += '  parameters: [\n';
+    content += '    { name: \'id\', type: \'number\', required: true, description: \'User ID\' }\n';
+    content += '  ],\n';
+    content += '  responses: [\n';
+    content += '    { statusCode: 200, description: \'User found\' },\n';
+    content += '    { statusCode: 404, description: \'User not found\' }\n';
+    content += '  ]\n';
+    content += '}];\n\n';
+    content += 'await docGenerator.generate(apis);\n';
+    content += 'End code block\n\n';
+  } else if (config.language === 'python') {
+    content += 'Code block:python';
+    content += 'from documentation_generation import doc_generator\n\n';
+    content += 'apis = [{\n';
+    content += '    \'name\': \'Get User\',\n';
+    content += '    \'description\': \'Retrieve user information\',\n';
+    content += '    \'endpoint\': \'/api/users/:id\',\n';
+    content += '    \'method\': \'get\',\n';
+    content += '    \'parameters\': [\n';
+    content += '        {\'name\': \'id\', \'type\': \'number\', \'required\': True, \'description\': \'User ID\'}\n';
+    content += '    ],\n';
+    content += '    \'responses\': [\n';
+    content += '        {\'status_code\': 200, \'description\': \'User found\'},\n';
+    content += '        {\'status_code\': 404, \'description\': \'User not found\'}\n';
+    content += '    ]\n';
+    content += '}]\n\n';
+    content += 'await doc_generator.generate(apis)\n';
+    content += 'End code block\n\n';
+  }
+
+  content += '## 📚 Features\n\n';
+  content += '- **API Documentation**: Auto-generate API docs from code\\n';
+  content += '- **Code Examples**: Generate examples in multiple languages\\n';
+  content += '- **Cross-References**: Link related services and endpoints\\n';
+  content += '- **Multiple Formats**: Output to Markdown and HTML\\n';
+  content += '- **Interactive Docs**: Searchable documentation\\n';
+  content += '- **Version Control**: Track documentation changes\\n\n';
+
+  return content;
+}
+
+// Write files
+export async function writeDocumentationFiles(
+  config: DocumentationConfig,
+  output: string
+): Promise<void> {
+  const ext = config.language === 'typescript' ? 'ts' : 'py';
+  const fileName = 'documentation-generation.' + ext;
+  const filePath = path.join(output, fileName);
+
+  let content: string;
+  if (config.language === 'typescript') {
+    content = generateTypeScriptDocumentation(config);
+  } else if (config.language === 'python') {
+    content = generatePythonDocumentation(config);
+  } else {
+    throw new Error('Unsupported language: ' + config.language);
+  }
+
+  await fs.ensureDir(output);
+  await fs.writeFile(filePath, content);
+  console.log(chalk.green('✅ Generated: ' + fileName));
+
+  const buildMD = generateBuildMD(config);
+  await fs.writeFile(path.join(output, 'BUILD.md'), buildMD);
+  console.log(chalk.green('✅ Generated: BUILD.md'));
+
+  if (config.language === 'typescript') {
+    const packageJson = {
+      name: config.projectName.toLowerCase() + '-documentation',
+      version: '1.0.0',
+      description: 'Documentation generation for ' + config.projectName,
+      types: fileName,
+      dependencies: {
+        marked: '^11.0.0',
+      },
+      devDependencies: {
+        '@types/node': '^20.0.0',
+        typescript: '^5.0.0',
+      },
+    };
+
+    await fs.writeFile(
+      path.join(output, 'package.json'),
+      JSON.stringify(packageJson, null, 2)
+    );
+    console.log(chalk.green('✅ Generated: package.json'));
+  }
+
+  if (config.language === 'python') {
+    const requirements = ['markdown>=3.5.0'];
+
+    await fs.writeFile(path.join(output, 'requirements.txt'), requirements.join('\n'));
+    console.log(chalk.green('✅ Generated: requirements.txt'));
+  }
+
+  const docConfig = {
+    projectName: config.projectName,
+    language: config.language,
+    includeExamples: config.includeExamples,
+    includeCrossRefs: config.includeCrossRefs,
+    outputFormat: config.outputFormat,
+    metadata: {
+      generatedAt: new Date().toISOString(),
+      version: '1.0.0',
+    },
+  };
+
+  await fs.writeFile(
+    path.join(output, 'documentation-config.json'),
+    JSON.stringify(docConfig, null, 2)
+  );
+  console.log(chalk.green('✅ Generated: documentation-config.json'));
+}

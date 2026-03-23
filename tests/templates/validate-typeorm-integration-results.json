@@ -1,0 +1,144 @@
+{
+  "timestamp": "2025-06-24T06:04:56.180Z",
+  "version": "0.11.0",
+  "typeormIntegrationTest": {
+    "templateName": "Express.js",
+    "templateFile": "express-ts.ts",
+    "exists": true,
+    "features": {
+      "TypeORM Core Dependency": {
+        "passed": true,
+        "description": "Template includes TypeORM core dependency",
+        "critical": true
+      },
+      "Reflect Metadata": {
+        "passed": true,
+        "description": "Template includes reflect-metadata for decorators",
+        "critical": true
+      },
+      "Class Validator": {
+        "passed": true,
+        "description": "Template includes class-validator for entity validation",
+        "critical": true
+      },
+      "Class Transformer": {
+        "passed": true,
+        "description": "Template includes class-transformer for serialization",
+        "critical": true
+      },
+      "Database Drivers": {
+        "passed": true,
+        "description": "Template includes multiple database drivers",
+        "critical": true
+      },
+      "TypeORM Config": {
+        "passed": true,
+        "description": "Template includes TypeORM configuration file",
+        "critical": true
+      },
+      "User Entity": {
+        "passed": true,
+        "description": "Template includes User entity definition",
+        "critical": true
+      },
+      "Profile Entity": {
+        "passed": true,
+        "description": "Template includes Profile entity definition",
+        "critical": true
+      },
+      "Post Entity": {
+        "passed": true,
+        "description": "Template includes Post entity definition",
+        "critical": true
+      },
+      "Entity Decorators": {
+        "passed": true,
+        "description": "Entities use proper TypeORM decorators",
+        "critical": true
+      },
+      "Entity Relationships": {
+        "passed": true,
+        "description": "Entities define proper relationships",
+        "critical": true
+      },
+      "Entity Validation": {
+        "passed": true,
+        "description": "Entities include validation decorators",
+        "critical": true
+      },
+      "User Role Enum": {
+        "passed": true,
+        "description": "Includes role-based access control",
+        "critical": true
+      },
+      "Post Status Enum": {
+        "passed": true,
+        "description": "Includes post status management",
+        "critical": true
+      },
+      "Migration Scripts": {
+        "passed": true,
+        "description": "Template includes migration management scripts",
+        "critical": true
+      },
+      "Schema Sync Script": {
+        "passed": true,
+        "description": "Template includes schema synchronization script",
+        "critical": true
+      },
+      "Database Seeding": {
+        "passed": true,
+        "description": "Template includes database seeding functionality",
+        "critical": true
+      },
+      "TypeORM Service": {
+        "passed": true,
+        "description": "Template includes TypeORM service implementation",
+        "critical": true
+      },
+      "TypeORM Routes": {
+        "passed": true,
+        "description": "Template includes TypeORM-specific routes",
+        "critical": true
+      },
+      "Database Connection": {
+        "passed": true,
+        "description": "Template includes database connection management",
+        "critical": true
+      },
+      "Entity Hooks": {
+        "passed": true,
+        "description": "Entities include lifecycle hooks",
+        "critical": true
+      },
+      "Password Hashing": {
+        "passed": true,
+        "description": "Includes automatic password hashing",
+        "critical": true
+      },
+      "Database Environment": {
+        "passed": true,
+        "description": "Template includes database environment configuration",
+        "critical": true
+      },
+      "TypeORM Documentation": {
+        "passed": true,
+        "description": "Template includes TypeORM documentation",
+        "critical": false
+      },
+      "ORM Comparison": {
+        "passed": false,
+        "description": "Template explains choice between ORMs",
+        "critical": false
+      },
+      "Production Configuration": {
+        "passed": true,
+        "description": "Template includes production-safe configuration",
+        "critical": true
+      }
+    },
+    "featureCount": 26,
+    "passedFeatures": 25,
+    "failedFeatures": 1
+  }
+}

@@ -1,0 +1,2165 @@
+/**
+ * Event Streaming and Real-Time Synchronization Patterns
+ *
+ * Provides utilities for:
+ * - Event streaming with Apache Kafka and Redis Streams
+ * - Schema evolution support
+ * - Backpressure handling
+ * - Event replay and time travel
+ * - Dead letter queues
+ * - Consumer groups and partitioning
+ * - Exactly-once semantics
+ * - Event versioning
+ */
+
+import chalk from 'chalk';
+import path from 'path';
+import fs from 'fs-extra';
+
+// Types
+export type StreamBackend = 'kafka' | 'redis-streams' | 'kinesis' | 'pulsar' | 'nats' | 'rabbitmq';
+export type StreamEncoding = 'json' | 'avro' | 'protobuf' | 'msgpack' | 'cbor';
+export type CompressionType = 'none' | 'gzip' | 'snappy' | 'lz4' | 'zstd';
+export type DeliverySemantics = 'at-most-once' | 'at-least-once' | 'exactly-once';
+
+export interface StreamConfig {
+  serviceName: string;
+  backend: StreamBackend;
+  encoding: StreamEncoding;
+  compression?: CompressionType;
+  deliverySemantics: DeliverySemantics;
+  partitions?: number;
+  replicationFactor?: number;
+  retentionMs?: number;
+  maxMessageBytes?: number;
+  enableSchemaRegistry?: boolean;
+  enableDeadLetterQueue?: boolean;
+  consumerGroupId?: string;
+  autoOffsetReset?: 'earliest' | 'latest';
+}
+
+export interface StreamEvent<T = any> {
+  eventId: string;
+  eventType: string;
+  version: number;
+  timestamp: number;
+  key?: string;
+  partitionKey?: string;
+  headers: Record<string, string>;
+  payload: T;
+  correlationId?: string;
+  causationId?: string;
+}
+
+export interface ConsumerConfig {
+  groupId: string;
+  instanceId?: string;
+  topics: string[];
+  autoCommit: boolean;
+  autoCommitInterval: number;
+  maxPollRecords: number;
+  maxPollInterval: number;
+  sessionTimeout: number;
+  heartbeatInterval: number;
+  backpressureStrategy: 'drop' | 'buffer' | 'throttle' | 'backpressure';
+  maxBufferSize: number;
+}
+
+export interface ProducerConfig {
+  clientId: string;
+  enableIdempotence: boolean;
+  acks: 'all' | '1' | '0';
+  maxRetries: number;
+  retryBackoff: number;
+  enableCompression: CompressionType;
+  batchSize: number;
+  lingerMs: number;
+  bufferMemory: number;
+}
+
+export interface DeadLetterConfig {
+  enabled: boolean;
+  topicSuffix: string;
+  maxRetries: number;
+  retryDelay: number;
+  backoffMultiplier: number;
+  ttl: number;
+}
+
+export interface StreamStats {
+  messagesProduced: number;
+  messagesConsumed: number;
+  messagesFailed: number;
+  bytesProduced: number;
+  bytesConsumed: number;
+  avgLatency: number;
+  p95Latency: number;
+  p99Latency: number;
+  consumerLag: number;
+  deadLettered: number;
+}
+
+// TypeScript Implementation
+export function generateEventStreamingTS(config: StreamConfig): string {
+  return `
+// Event Streaming and Real-Time Synchronization for ${config.serviceName}
+
+import { Producer, Consumer, Kafka, Partitioners, CompressionTypes, CompressionCodecs } from 'kafkajs';
+import { createClient, RedisClientType } from 'redis';
+import { SchemaRegistry } from '@kafkajs/confluent-schema-registry';
+import { v4 as uuidv4 } from 'uuid';
+
+export type StreamBackend = '${config.backend}';
+export type StreamEncoding = '${config.encoding}';
+export type CompressionType = ${config.compression || 'none'};
+export type DeliverySemantics = '${config.deliverySemantics}';
+
+export interface ${config.serviceName}StreamEvent<T = any> {
+  eventId: string;
+  eventType: string;
+  version: number;
+  timestamp: number;
+  key?: string;
+  partitionKey?: string;
+  headers: Record<string, string>;
+  payload: T;
+  correlationId?: string;
+  causationId?: string;
+}
+
+export interface ${config.serviceName}ConsumerConfig {
+  groupId: string;
+  instanceId?: string;
+  topics: string[];
+  autoCommit: boolean;
+  autoCommitInterval: number;
+  maxPollRecords: number;
+  maxPollInterval: number;
+  sessionTimeout: number;
+  heartbeatInterval: number;
+  backpressureStrategy: 'drop' | 'buffer' | 'throttle' | 'backpressure';
+  maxBufferSize: number;
+}
+
+export interface ${config.serviceName}ProducerConfig {
+  clientId: string;
+  enableIdempotence: boolean;
+  acks: 'all' | '1' | '0';
+  maxRetries: number;
+  retryBackoff: number;
+  enableCompression: CompressionType;
+  batchSize: number;
+  lingerMs: number;
+  bufferMemory: number;
+}
+
+export interface ${config.serviceName}DeadLetterConfig {
+  enabled: boolean;
+  topicSuffix: string;
+  maxRetries: number;
+  retryDelay: number;
+  backoffMultiplier: number;
+  ttl: number;
+}
+
+export interface ${config.serviceName}StreamStats {
+  messagesProduced: number;
+  messagesConsumed: number;
+  messagesFailed: number;
+  bytesProduced: number;
+  bytesConsumed: number;
+  avgLatency: number;
+  p95Latency: number;
+  p99Latency: number;
+  consumerLag: number;
+  deadLettered: number;
+}
+
+export class ${config.serviceName}EventProducer {
+  private producer: Producer;
+  private kafka: Kafka;
+  private config: ${config.serviceName}ProducerConfig;
+  private stats: ${config.serviceName}StreamStats;
+
+  constructor(
+    brokers: string[],
+    config: Partial<${config.serviceName}ProducerConfig> = {}
+  ) {
+    this.config = {
+      clientId: config.clientId || '${config.serviceName}-producer',
+      enableIdempotence: config.enableIdempotence ?? true,
+      acks: config.acks || 'all',
+      maxRetries: config.maxRetries || 3,
+      retryBackoff: config.retryBackoff || 100,
+      enableCompression: config.enableCompression || 'none',
+      batchSize: config.batchSize || 100,
+      lingerMs: config.lingerMs || 10,
+      bufferMemory: config.bufferMemory || 32 * 1024 * 1024,
+    };
+
+    this.kafka = new Kafka({
+      clientId: this.config.clientId,
+      brokers: brokers || ['localhost:9092'],
+      requestTimeout: 30000,
+      connectionTimeout: 10000,
+    });
+
+    this.producer = this.kafka.producer({
+      createPartitioner: Partitioners.DefaultPartitioner,
+      idempotent: this.config.enableIdempotence,
+      maxRetries: this.config.maxRetries,
+      retry: {
+        initialRetryTime: this.config.retryBackoff,
+        retries: this.config.maxRetries,
+      },
+    });
+
+    this.stats = {
+      messagesProduced: 0,
+      messagesConsumed: 0,
+      messagesFailed: 0,
+      bytesProduced: 0,
+      bytesConsumed: 0,
+      avgLatency: 0,
+      p95Latency: 0,
+      p99Latency: 0,
+      consumerLag: 0,
+      deadLettered: 0,
+    };
+  }
+
+  async connect(): Promise<void> {
+    await this.producer.connect();
+  }
+
+  async disconnect(): Promise<void> {
+    await this.producer.disconnect();
+  }
+
+  async produce<T = any>(
+    topic: string,
+    event: Omit<${config.serviceName}StreamEvent<T>, 'eventId' | 'timestamp'>,
+    options?: {
+      partition?: number;
+      headers?: Record<string, string>;
+    }
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    try {
+      const fullEvent: ${config.serviceName}StreamEvent<T> = {
+        eventId: uuidv4(),
+        timestamp: Date.now(),
+        ...event,
+      };
+
+      const message = {
+        key: event.partitionKey || event.key,
+        value: JSON.stringify(fullEvent),
+        headers: {
+          ...event.headers,
+          'content-type': 'application/json',
+          'event-version': event.version.toString(),
+          'correlation-id': event.correlationId || '',
+          'causation-id': event.causationId || '',
+        },
+        partition: options?.partition,
+      };
+
+      await this.producer.send({
+        topic,
+        messages: [message],
+        acks: this.config.acks,
+        compression: this.config.enableCompression === 'none' ?
+          CompressionTypes.None : CompressionTypes[this.config.enableCompression],
+      });
+
+      const latency = Date.now() - startTime;
+      this.updateLatency(latency);
+      this.stats.messagesProduced++;
+      this.stats.bytesProduced += JSON.stringify(fullEvent).length;
+    } catch (error) {
+      this.stats.messagesFailed++;
+      throw error;
+    }
+  }
+
+  async produceBatch<T = any>(
+    topic: string,
+    events: Array<Omit<${config.serviceName}StreamEvent<T>, 'eventId' | 'timestamp'>>
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    try {
+      const messages = events.map(event => {
+        const fullEvent: ${config.serviceName}StreamEvent<T> = {
+          eventId: uuidv4(),
+          timestamp: Date.now(),
+          ...event,
+        };
+
+        return {
+          key: event.partitionKey || event.key,
+          value: JSON.stringify(fullEvent),
+          headers: {
+            ...event.headers,
+            'content-type': 'application/json',
+            'event-version': event.version.toString(),
+          },
+        };
+      });
+
+      await this.producer.send({
+        topic,
+        messages,
+        acks: this.config.acks,
+      });
+
+      this.stats.messagesProduced += events.length;
+      this.stats.bytesProduced += messages.reduce((sum, msg) =>
+        sum + msg.value.length, 0);
+    } catch (error) {
+      this.stats.messagesFailed += events.length;
+      throw error;
+    }
+  }
+
+  private updateLatency(latency: number): void {
+    const currentAvg = this.stats.avgLatency;
+    const count = this.stats.messagesProduced;
+    this.stats.avgLatency = (currentAvg * (count - 1) + latency) / count;
+  }
+
+  getStats(): ${config.serviceName}StreamStats {
+    return { ...this.stats };
+  }
+
+  resetStats(): void {
+    this.stats = {
+      messagesProduced: 0,
+      messagesConsumed: 0,
+      messagesFailed: 0,
+      bytesProduced: 0,
+      bytesConsumed: 0,
+      avgLatency: 0,
+      p95Latency: 0,
+      p99Latency: 0,
+      consumerLag: 0,
+      deadLettered: 0,
+    };
+  }
+}
+
+export class ${config.serviceName}EventConsumer {
+  private consumer: Consumer;
+  private kafka: Kafka;
+  private config: ${config.serviceName}ConsumerConfig;
+  private deadLetterConfig?: ${config.serviceName}DeadLetterConfig;
+  private producer?: ${config.serviceName}EventProducer;
+  private stats: ${config.serviceName}StreamStats;
+  private messageBuffer: any[] = [];
+  private processing = false;
+
+  constructor(
+    brokers: string[],
+    config: ${config.serviceName}ConsumerConfig,
+    deadLetterConfig?: ${config.serviceName}DeadLetterConfig
+  ) {
+    this.config = config;
+    this.deadLetterConfig = deadLetterConfig;
+    this.stats = {
+      messagesProduced: 0,
+      messagesConsumed: 0,
+      messagesFailed: 0,
+      bytesProduced: 0,
+      bytesConsumed: 0,
+      avgLatency: 0,
+      p95Latency: 0,
+      p99Latency: 0,
+      consumerLag: 0,
+      deadLettered: 0,
+    };
+
+    this.kafka = new Kafka({
+      clientId: '${config.serviceName}-consumer',
+      brokers: brokers || ['localhost:9092'],
+    });
+
+    this.consumer = this.kafka.consumer({
+      groupId: config.groupId,
+      sessionTimeout: config.sessionTimeout,
+      heartbeatInterval: config.heartbeatInterval,
+      maxPollInterval: config.maxPollInterval,
+    });
+
+    if (deadLetterConfig?.enabled) {
+      this.producer = new ${config.serviceName}EventProducer(brokers);
+    }
+  }
+
+  async connect(): Promise<void> {
+    await this.consumer.connect();
+    if (this.producer) {
+      await this.producer.connect();
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    await this.consumer.disconnect();
+    if (this.producer) {
+      await this.producer.disconnect();
+    }
+  }
+
+  async subscribe(
+    handler: (event: ${config.serviceName}StreamEvent, topic: string, partition: number) => Promise<void>
+  ): Promise<void> {
+    await this.consumer.subscribe({
+      topics: this.config.topics,
+      fromBeginning: false,
+    });
+
+    await this.consumer.run({
+      autoCommit: this.config.autoCommit,
+      autoCommitInterval: this.config.autoCommitInterval,
+      eachMessage: async ({ topic, partition, message }) => {
+        try {
+          const event: ${config.serviceName}StreamEvent = JSON.parse(message.value?.toString() || '{}');
+
+          // Handle backpressure
+          if (this.processing && this.messageBuffer.length >= this.config.maxBufferSize) {
+            switch (this.config.backpressureStrategy) {
+              case 'drop':
+                return;
+              case 'buffer':
+                if (this.messageBuffer.length < this.config.maxBufferSize) {
+                  this.messageBuffer.push({ event, topic, partition });
+                }
+                return;
+              case 'throttle':
+                await new Promise(resolve => setTimeout(resolve, 100));
+                break;
+            }
+          }
+
+          this.processing = true;
+          this.stats.messagesConsumed++;
+          this.stats.bytesConsumed += message.value?.length || 0;
+
+          await handler(event, topic, partition);
+
+          this.processing = false;
+        } catch (error) {
+          this.stats.messagesFailed++;
+          await this.handleDeadLetter(topic, message, error as Error);
+        }
+      },
+    });
+  }
+
+  private async handleDeadLetter(
+    topic: string,
+    message: any,
+    error: Error
+  ): Promise<void> {
+    if (!this.deadLetterConfig?.enabled || !this.producer) {
+      return;
+    }
+
+    try {
+      const deadLetterTopic = \`\${topic}${this.deadLetterConfig.topicSuffix}\`;
+
+      await this.producer.produce(deadLetterTopic, {
+        eventType: 'dead-letter',
+        version: 1,
+        key: message.key,
+        payload: {
+          originalTopic: topic,
+          originalMessage: message.value?.toString(),
+          error: error.message,
+          stack: error.stack,
+          timestamp: Date.now(),
+        },
+        headers: {
+          'dead-letter-reason': error.message,
+          'original-topic': topic,
+        },
+      });
+
+      this.stats.deadLettered++;
+    } catch (dlqError) {
+      console.error('Failed to send to dead letter queue:', dlqError);
+    }
+  }
+
+  async commitOffsets(): Promise<void> {
+    if (!this.config.autoCommit) {
+      await this.consumer.commitOffsets();
+    }
+  }
+
+  async seekToBeginning(topic: string): Promise<void> {
+    await this.consumer.seek({ topic, partition: 0, offset: '0' });
+  }
+
+  async pause(): Promise<void> {
+    const partitions = this.config.topics.map(topic => ({ topic, partition: 0 }));
+    this.consumer.pause(partitions);
+  }
+
+  async resume(): Promise<void> {
+    const partitions = this.config.topics.map(topic => ({ topic, partition: 0 }));
+    this.consumer.resume(partitions);
+  }
+
+  getStats(): ${config.serviceName}StreamStats {
+    return { ...this.stats };
+  }
+}
+
+export class ${config.serviceName}RedisStreams {
+  private client: RedisClientType;
+  private consumerGroup: string;
+
+  constructor(
+    url: string = 'redis://localhost:6379',
+    consumerGroup: string = '${config.serviceName}-group'
+  ) {
+    this.client = createClient({ url }) as RedisClientType;
+    this.consumerGroup = consumerGroup;
+  }
+
+  async connect(): Promise<void> {
+    await this.client.connect();
+  }
+
+  async disconnect(): Promise<void> {
+    await this.client.disconnect();
+  }
+
+  async add<T = any>(
+    streamKey: string,
+    event: ${config.serviceName}StreamEvent<T>
+  ): Promise<string> {
+    const eventData = {
+      eventId: event.eventId,
+      eventType: event.eventType,
+      version: event.version,
+      timestamp: event.timestamp,
+      payload: JSON.stringify(event.payload),
+      correlationId: event.correlationId || '',
+      causationId: event.causationId || '',
+      headers: JSON.stringify(event.headers || {}),
+    };
+
+    const result = await this.client.xAdd(
+      streamKey,
+      {
+        key: event.key || '',
+        ...eventData,
+      },
+      { id: '*' }
+    );
+
+    return result;
+  }
+
+  async read<T = any>(
+    streamKey: string,
+    consumerName: string,
+    count: number = 10,
+    blockMs: number = 5000
+  ): Promise<Array<{ id: string; event: ${config.serviceName}StreamEvent<T> }>> {
+    try {
+      // Create consumer group if it doesn't exist
+      try {
+        await this.client.xGroupCreate(streamKey, this.consumerGroup, '0', { MKSTREAM: true });
+      } catch (error: any) {
+        // Group already exists, ignore
+        if (!error.message.includes('BUSYGROUP')) {
+          throw error;
+        }
+      }
+
+      const results = await this.client.xReadGroup(
+        this.consumerGroup,
+        consumerName,
+        [{ key: streamKey, id: '>' }],
+        {
+          COUNT: count,
+          BLOCK: blockMs,
+        }
+      );
+
+      if (!results || results.length === 0) {
+        return [];
+      }
+
+      const messages = results[0]?.messages || [];
+      return messages.map((msg: any) => {
+        const event: ${config.serviceName}StreamEvent<T> = {
+          eventId: msg.message.eventId,
+          eventType: msg.message.eventType,
+          version: parseInt(msg.message.version),
+          timestamp: parseInt(msg.message.timestamp),
+          key: msg.message.key,
+          payload: JSON.parse(msg.message.payload),
+          correlationId: msg.message.correlationId,
+          causationId: msg.message.causationId,
+          headers: JSON.parse(msg.message.headers || '{}'),
+        };
+        return { id: msg.id, event };
+      });
+    } catch (error) {
+      console.error('Error reading from stream:', error);
+      return [];
+    }
+  }
+
+  async acknowledge(streamKey: string, ...ids: string[]): Promise<number> {
+    return await this.client.xAck(streamKey, this.consumerGroup, ...ids);
+  }
+
+  async getPending(streamKey: string): Promise<any[]> {
+    return await this.client.xPendingRange(streamKey, this.consumerGroup, '-', '+', 10);
+  }
+
+  async claimPending(
+    streamKey: string,
+    consumerName: string,
+    idleMs: number,
+    count: number
+  ): Promise<any[]> {
+    return await this.client.xClaim(
+      streamKey,
+      this.consumerGroup,
+      consumerName,
+      idleMs,
+      [] // IDs to claim - need to fetch pending first
+    );
+  }
+
+  async trim(streamKey: string, maxLength: number): Promise<void> {
+    await this.client.xTrim(streamKey, maxLength);
+  }
+
+  async getStreamInfo(streamKey: string): Promise<any> {
+    return await this.client.xInfoStream(streamKey);
+  }
+}
+
+// Usage example
+async function main() {
+  const brokers = ['localhost:9092'];
+
+  // Producer
+  const producer = new ${config.serviceName}EventProducer(brokers, {
+    enableIdempotence: true,
+    acks: 'all',
+    enableCompression: 'gzip',
+  });
+
+  await producer.connect();
+
+  await producer.produce('user-events', {
+    eventType: 'UserCreated',
+    version: 1,
+    key: 'user-123',
+    partitionKey: 'user-123',
+    payload: {
+      userId: '123',
+      name: 'John Doe',
+      email: 'john@example.com',
+    },
+    headers: {
+      'source': 'user-service',
+    },
+  });
+
+  // Consumer
+  const consumer = new ${config.serviceName}EventConsumer(brokers, {
+    groupId: '${config.serviceName}-group',
+    topics: ['user-events'],
+    autoCommit: true,
+    autoCommitInterval: 5000,
+    maxPollRecords: 100,
+    maxPollInterval: 300000,
+    sessionTimeout: 30000,
+    heartbeatInterval: 3000,
+    backpressureStrategy: 'buffer',
+    maxBufferSize: 1000,
+  }, {
+    enabled: true,
+    topicSuffix: '-dlq',
+    maxRetries: 3,
+    retryDelay: 1000,
+    backoffMultiplier: 2,
+    ttl: 86400000,
+  });
+
+  await consumer.connect();
+
+  await consumer.subscribe(async (event, topic, partition) => {
+    console.log(\`Received event: \${event.eventType}\`, event.payload);
+    // Process event
+  });
+
+  // Redis Streams alternative
+  const redisStreams = new ${config.serviceName}RedisStreams('redis://localhost:6379');
+  await redisStreams.connect();
+
+  await redisStreams.add('user-events', {
+    eventId: '123',
+    eventType: 'UserCreated',
+    version: 1,
+    timestamp: Date.now(),
+    key: 'user-123',
+    payload: { userId: '123', name: 'John Doe' },
+  });
+
+  const events = await redisStreams.read('user-events', 'consumer-1');
+  console.log('Events from Redis Streams:', events);
+}
+
+if (require.main === module) {
+  main().catch(console.error);
+}
+`;
+}
+
+// Python Implementation
+export function generateEventStreamingPython(config: StreamConfig): string {
+  return `
+"""
+Event Streaming and Real-Time Synchronization for ${config.serviceName}
+"""
+
+import asyncio
+import json
+import time
+import uuid
+from typing import Dict, Any, List, Optional, Callable, TypeVar
+from dataclasses import dataclass, field
+from enum import Enum
+from datetime import datetime
+
+from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
+from aiokafka.structs import TopicPartition
+import aioredis
+
+T = TypeVar('T')
+
+class StreamBackend(Enum):
+    KAFKA = '${config.backend}'
+    REDIS_STREAMS = 'redis-streams'
+    KINESIS = 'kinesis'
+    PULSAR = 'pulsar'
+    NATS = 'nats'
+    RABBITMQ = 'rabbitmq'
+
+class StreamEncoding(Enum):
+    JSON = '${config.encoding}'
+    AVRO = 'avro'
+    PROTOBUF = 'protobuf'
+    MSGPACK = 'msgpack'
+    CBOR = 'cbor'
+
+class CompressionType(Enum):
+    NONE = ${config.compression or 'none'}
+    GZIP = 'gzip'
+    SNAPPY = 'snappy'
+    LZ4 = 'lz4'
+    ZSTD = 'zstd'
+
+class DeliverySemantics(Enum):
+    AT_MOST_ONCE = '${config.deliverySemantics}'
+    AT_LEAST_ONCE = 'at-least-once'
+    EXACTLY_ONCE = 'exactly-once'
+
+@dataclass
+class ${config.serviceName}StreamEvent:
+    eventId: str
+    eventType: str
+    version: int
+    timestamp: int
+    key: Optional[str] = None
+    partitionKey: Optional[str] = None
+    headers: Dict[str, str] = field(default_factory=dict)
+    payload: Optional[Any] = None
+    correlationId: Optional[str] = None
+    causationId: Optional[str] = None
+
+@dataclass
+class ${config.serviceName}ConsumerConfig:
+    groupId: str
+    instanceId: Optional[str] = None
+    topics: List[str] = field(default_factory=list)
+    autoCommit: bool = True
+    autoCommitInterval: int = 5000
+    maxPollRecords: int = 100
+    maxPollInterval: int = 300000
+    sessionTimeout: int = 30000
+    heartbeatInterval: int = 3000
+    backpressureStrategy: str = 'buffer'  # drop, buffer, throttle, backpressure
+    maxBufferSize: int = 1000
+
+@dataclass
+class ${config.serviceName}ProducerConfig:
+    clientId: str = '${config.serviceName}-producer'
+    enableIdempotence: bool = True
+    acks: str = 'all'  # all, 1, 0
+    maxRetries: int = 3
+    retryBackoff: int = 100
+    enableCompression: CompressionType = CompressionType.NONE
+    batchSize: int = 100
+    lingerMs: int = 10
+    bufferMemory: int = 32 * 1024 * 1024
+
+@dataclass
+class ${config.serviceName}DeadLetterConfig:
+    enabled: bool = False
+    topicSuffix: str = '-dlq'
+    maxRetries: int = 3
+    retryDelay: int = 1000
+    backoffMultiplier: int = 2
+    ttl: int = 86400000
+
+@dataclass
+class ${config.serviceName}StreamStats:
+    messagesProduced: int = 0
+    messagesConsumed: int = 0
+    messagesFailed: int = 0
+    bytesProduced: int = 0
+    bytesConsumed: int = 0
+    avgLatency: float = 0.0
+    p95Latency: float = 0.0
+    p99Latency: float = 0.0
+    consumerLag: int = 0
+    deadLettered: int = 0
+
+class ${config.serviceName}EventProducer:
+    def __init__(
+        self,
+        brokers: List[str],
+        config: Optional[Dict[str, Any]] = None
+    ):
+        self.config = ${config.serviceName}ProducerConfig(**(config or {}))
+        self.producer: Optional[AIOKafkaProducer] = None
+        self.brokers = brokers
+        self.stats = ${config.serviceName}StreamStats()
+        self._lock = asyncio.Lock()
+
+    async def connect(self) -> None:
+        self.producer = AIOKafkaProducer(
+            bootstrap_servers=','.join(self.brokers),
+            client_id=self.config.clientId,
+            enable_idempotence=self.config.enableIdempotence,
+            acks=self.config.acks,
+            max_retries=self.config.maxRetries,
+            retry_backoff_ms=self.config.retryBackoff,
+            compression_type=None if self.config.enableCompression == CompressionType.NONE
+                else self.config.enableCompression.value,
+            batch_size=self.config.batchSize,
+            linger_ms=self.config.lingerMs,
+            buffer_memory=self.config.bufferMemory,
+        )
+        await self.producer.start()
+
+    async def disconnect(self) -> None:
+        if self.producer:
+            await self.producer.stop()
+
+    async def produce(
+        self,
+        topic: str,
+        event: Dict[str, Any],
+        partition: Optional[int] = None,
+        headers: Optional[Dict[str, str]] = None
+    ) -> None:
+        if not self.producer:
+            raise RuntimeError("Producer not connected")
+
+        startTime = time.time()
+
+        try:
+            fullEvent = {
+                'eventId': str(uuid.uuid4()),
+                'timestamp': int(time.time() * 1000),
+                **event,
+            }
+
+            value = json.dumps(fullEvent).encode('utf-8')
+            key = event.get('partitionKey') or event.get('key')
+            keyBytes = key.encode('utf-8') if key else None
+
+            messageHeaders = [
+                (k, v.encode('utf-8')) for k, v in {
+                    **event.get('headers', {}),
+                    'content-type': 'application/json',
+                    'event-version': str(event.get('version', 1)),
+                    'correlation-id': event.get('correlationId', ''),
+                    'causation-id': event.get('causationId', ''),
+                }.items()
+            ] if headers else None
+
+            await self.producer.send_and_wait(
+                topic,
+                value=value,
+                key=keyBytes,
+                partition=partition,
+                headers=messageHeaders,
+            )
+
+            latency = (time.time() - startTime) * 1000
+            self._update_latency(latency)
+            self.stats.messagesProduced += 1
+            self.stats.bytesProduced += len(value)
+
+        except Exception as error:
+            self.stats.messagesFailed += 1
+            raise error
+
+    async def produce_batch(
+        self,
+        topic: str,
+        events: List[Dict[str, Any]]
+    ) -> None:
+        if not self.producer:
+            raise RuntimeError("Producer not connected")
+
+        try:
+            messages = []
+            for event in events:
+                fullEvent = {
+                    'eventId': str(uuid.uuid4()),
+                    'timestamp': int(time.time() * 1000),
+                    **event,
+                }
+
+                value = json.dumps(fullEvent).encode('utf-8')
+                key = event.get('partitionKey') or event.get('key')
+                keyBytes = key.encode('utf-8') if key else None
+
+                messages.append({
+                    'value': value,
+                    'key': keyBytes,
+                })
+
+            await self.producer.send_and_wait(topic, **{m['value']: m for m in messages})
+
+            self.stats.messagesProduced += len(events)
+            self.stats.bytesProduced += sum(len(m['value']) for m in messages)
+
+        except Exception as error:
+            self.stats.messagesFailed += len(events)
+            raise error
+
+    def _update_latency(self, latency: float) -> None:
+        currentAvg = self.stats.avgLatency
+        count = self.stats.messagesProduced
+        self.stats.avgLatency = (currentAvg * (count - 1) + latency) / count if count > 0 else latency
+
+    def get_stats(self) -> ${config.serviceName}StreamStats:
+        return self.stats
+
+    def reset_stats(self) -> None:
+        self.stats = ${config.serviceName}StreamStats()
+
+class ${config.serviceName}EventConsumer:
+    def __init__(
+        self,
+        brokers: List[str],
+        config: ${config.serviceName}ConsumerConfig,
+        deadLetterConfig: Optional[${config.serviceName}DeadLetterConfig] = None
+    ):
+        self.config = config
+        self.deadLetterConfig = deadLetterConfig
+        self.consumer: Optional[AIOKafkaConsumer] = None
+        self.brokers = brokers
+        self.stats = ${config.serviceName}StreamStats()
+        self.messageBuffer: List[Dict[str, Any]] = []
+        self.processing = False
+        self.producer: Optional[${config.serviceName}EventProducer] = None
+
+    async def connect(self) -> None:
+        self.consumer = AIOKafkaConsumer(
+            *self.config.topics,
+            bootstrap_servers=','.join(self.brokers),
+            group_id=self.config.groupId,
+            auto_offset_reset='latest',
+            enable_auto_commit=self.config.autoCommit,
+            auto_commit_interval_ms=self.config.autoCommitInterval,
+            max_poll_records=self.config.maxPollRecords,
+            max_poll_interval_ms=self.config.maxPollInterval,
+            session_timeout_ms=self.config.sessionTimeout,
+            heartbeat_interval_ms=self.config.heartbeatInterval,
+        )
+
+        if self.deadLetterConfig and self.deadLetterConfig.enabled:
+            self.producer = ${config.serviceName}EventProducer(self.brokers)
+            await self.producer.connect()
+
+        await self.consumer.start()
+
+    async def disconnect(self) -> None:
+        if self.consumer:
+            await self.consumer.stop()
+        if self.producer:
+            await self.producer.disconnect()
+
+    async def subscribe(
+        self,
+        handler: Callable[[${config.serviceName}StreamEvent, str, int], Awaitable[None]]
+    ) -> None:
+        if not self.consumer:
+            raise RuntimeError("Consumer not connected")
+
+        async def consume():
+            async for msg in self.consumer:
+                try:
+                    event = ${config.serviceName}StreamEvent(
+                        **json.loads(msg.value.decode('utf-8'))
+                    )
+
+                    # Handle backpressure
+                    if self.processing and len(self.messageBuffer) >= self.config.maxBufferSize:
+                        if self.config.backpressureStrategy == 'drop':
+                            continue
+                        elif self.config.backpressureStrategy == 'buffer':
+                            if len(self.messageBuffer) < self.config.maxBufferSize:
+                                self.messageBuffer.append({
+                                    'event': event,
+                                    'topic': msg.topic,
+                                    'partition': msg.partition,
+                                })
+                            continue
+                        elif self.config.backpressureStrategy == 'throttle':
+                            await asyncio.sleep(0.1)
+
+                    self.processing = True
+                    self.stats.messagesConsumed += 1
+                    self.stats.bytesConsumed += len(msg.value)
+
+                    await handler(event, msg.topic, msg.partition)
+
+                    self.processing = False
+
+                except Exception as error:
+                    self.stats.messagesFailed += 1
+                    await self._handle_dead_letter(msg.topic, msg, error)
+
+        asyncio.create_task(consume())
+
+    async def _handle_dead_letter(
+        self,
+        topic: str,
+        message: Any,
+        error: Exception
+    ) -> None:
+        if not self.deadLetterConfig or not self.deadLetterConfig.enabled or not self.producer:
+            return
+
+        try:
+            deadLetterTopic = f"{topic}{self.deadLetterConfig.topicSuffix}"
+
+            await self.producer.produce(
+                deadLetterTopic,
+                {
+                    'eventType': 'dead-letter',
+                    'version': 1,
+                    'key': message.key.decode('utf-8') if message.key else None,
+                    'payload': {
+                        'originalTopic': topic,
+                        'originalMessage': message.value.decode('utf-8'),
+                        'error': str(error),
+                    },
+                    'headers': {
+                        'dead-letter-reason': str(error),
+                        'original-topic': topic,
+                    },
+                }
+            )
+
+            self.stats.deadLettered += 1
+
+        except Exception as dlqError:
+            print(f"Failed to send to dead letter queue: {dlqError}")
+
+    async def commit_offsets(self) -> None:
+        if self.consumer and not self.config.autoCommit:
+            await self.consumer.commit()
+
+    async def seek_to_beginning(self, topic: str) -> None:
+        if self.consumer:
+            partition = TopicPartition(topic, 0)
+            await self.consumer.seek_to_beginning(partition)
+
+    async def pause(self) -> None:
+        if self.consumer:
+            self.consumer.pause()
+
+    async def resume(self) -> None:
+        if self.consumer:
+            self.consumer.resume()
+
+    def get_stats(self) -> ${config.serviceName}StreamStats:
+        return self.stats
+
+class ${config.serviceName}RedisStreams:
+    def __init__(
+        self,
+        url: str = 'redis://localhost:6379',
+        consumerGroup: str = '${config.serviceName}-group'
+    ):
+        self.url = url
+        self.consumerGroup = consumerGroup
+        self.client: Optional[aioredis.Redis] = None
+
+    async def connect(self) -> None:
+        self.client = await aioredis.from_url(self.url)
+
+    async def disconnect(self) -> None:
+        if self.client:
+            await self.client.close()
+
+    async def add(self, streamKey: str, event: ${config.serviceName}StreamEvent) -> str:
+        if not self.client:
+            raise RuntimeError("Not connected")
+
+        eventData = {
+            'eventId': event.eventId,
+            'eventType': event.eventType,
+            'version': str(event.version),
+            'timestamp': str(event.timestamp),
+            'key': event.key or '',
+            'payload': json.dumps(event.payload),
+            'correlationId': event.correlationId or '',
+            'causationId': event.causationId or '',
+            'headers': json.dumps(event.headers or {}),
+        }
+
+        result = await self.client.xadd(streamKey, eventData)
+        return result
+
+    async def read(
+        self,
+        streamKey: str,
+        consumerName: str,
+        count: int = 10,
+        blockMs: int = 5000
+    ) -> List[Dict[str, Any]]:
+        if not self.client:
+            raise RuntimeError("Not connected")
+
+        try:
+            # Create consumer group if it doesn't exist
+            try:
+                await self.client.xgroup_create(streamKey, self.consumerGroup, id='0', mkstream=True)
+            except Exception as e:
+                if 'BUSYGROUP' not in str(e):
+                    raise
+
+            results = await self.client.xreadgroup(
+                self.consumerGroup,
+                consumerName,
+                {streamKey: '>'},
+                count=count,
+                block=blockMs,
+            )
+
+            if not results:
+                return []
+
+            messages = []
+            for stream, msgs in results:
+                for msgId, fields in msgs:
+                    event = ${config.serviceName}StreamEvent(
+                        eventId=fields[b'eventId'].decode('utf-8'),
+                        eventType=fields[b'eventType'].decode('utf-8'),
+                        version=int(fields[b'version'].decode('utf-8')),
+                        timestamp=int(fields[b'timestamp'].decode('utf-8')),
+                        key=fields[b'key'].decode('utf-8') if b'key' in fields else None,
+                        payload=json.loads(fields[b'payload'].decode('utf-8')),
+                        correlationId=fields[b'correlationId'].decode('utf-8') if b'correlationId' in fields else None,
+                        causationId=fields[b'causationId'].decode('utf-8') if b'causationId' in fields else None,
+                        headers=json.loads(fields[b'headers'].decode('utf-8')) if b'headers' in fields else {},
+                    )
+                    messages.append({'id': msgId.decode('utf-8'), 'event': event})
+
+            return messages
+
+        except Exception as error:
+            print(f"Error reading from stream: {error}")
+            return []
+
+    async def acknowledge(self, streamKey: str, *ids: str) -> int:
+        if not self.client:
+            raise RuntimeError("Not connected")
+
+        return await self.client.xack(streamKey, self.consumerGroup, *ids)
+
+    async def get_pending(self, streamKey: str) -> List[Any]:
+        if not self.client:
+            raise RuntimeError("Not connected")
+
+        return await self.client.xpending_range(streamKey, self.consumerGroup, '-', '+', 10)
+
+    async def trim(self, streamKey: str, maxLength: int) -> None:
+        if not self.client:
+            raise RuntimeError("Not connected")
+
+        await self.client.xtrim(streamKey, maxlen=maxLength)
+
+    async def get_stream_info(self, streamKey: str) -> Dict[str, Any]:
+        if not self.client:
+            raise RuntimeError("Not connected")
+
+        return await self.client.xinfo_stream(streamKey)
+
+# Usage
+async def main():
+    brokers = ['localhost:9092']
+
+    # Producer
+    producer = ${config.serviceName}EventProducer(brokers, {
+        'enableIdempotence': True,
+        'acks': 'all',
+        'enableCompression': CompressionType.GZIP,
+    })
+
+    await producer.connect()
+
+    await producer.produce('user-events', {
+        'eventType': 'UserCreated',
+        'version': 1,
+        'key': 'user-123',
+        'partitionKey': 'user-123',
+        'payload': {
+            'userId': '123',
+            'name': 'John Doe',
+            'email': 'john@example.com',
+        },
+        'headers': {
+            'source': 'user-service',
+        },
+    })
+
+    # Consumer
+    consumer = ${config.serviceName}EventConsumer(
+        brokers,
+        ${config.serviceName}ConsumerConfig(
+            groupId='${config.serviceName}-group',
+            topics=['user-events'],
+            autoCommit=True,
+            autoCommitInterval=5000,
+            maxPollRecords=100,
+            maxPollInterval=300000,
+            sessionTimeout=30000,
+            heartbeatInterval=3000,
+            backpressureStrategy='buffer',
+            maxBufferSize=1000,
+        ),
+        ${config.serviceName}DeadLetterConfig(
+            enabled=True,
+            topicSuffix='-dlq',
+            maxRetries=3,
+            retryDelay=1000,
+            backoffMultiplier=2,
+            ttl=86400000,
+        )
+    )
+
+    await consumer.connect()
+
+    async def handleEvent(event: ${config.serviceName}StreamEvent, topic: str, partition: int):
+        print(f"Received event: {event.eventType}", event.payload)
+        # Process event
+
+    await consumer.subscribe(handleEvent)
+
+    # Redis Streams alternative
+    redisStreams = ${config.serviceName}RedisStreams('redis://localhost:6379')
+    await redisStreams.connect()
+
+    await redisStreams.add('user-events', ${config.serviceName}StreamEvent(
+        eventId='123',
+        eventType='UserCreated',
+        version=1,
+        timestamp=int(time.time() * 1000),
+        key='user-123',
+        payload={'userId': '123', 'name': 'John Doe'},
+    ))
+
+    events = await redisStreams.read('user-events', 'consumer-1')
+    print('Events from Redis Streams:', events)
+
+if __name__ == '__main__':
+    asyncio.run(main())
+`;
+}
+
+// Go Implementation
+export function generateEventStreamingGo(config: StreamConfig): string {
+  return `
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/IBM/sarama"
+	"github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
+)
+
+// StreamBackend type
+type StreamBackend string
+
+const (
+	BackendKafka       StreamBackend = "${config.backend}"
+	BackendRedis       StreamBackend = "redis-streams"
+	BackendKinesis     StreamBackend = "kinesis"
+	BackendPulsar      StreamBackend = "pulsar"
+	BackendNATS        StreamBackend = "nats"
+	BackendRabbitMQ    StreamBackend = "rabbitmq"
+)
+
+// StreamEncoding type
+type StreamEncoding string
+
+const (
+	EncodingJSON    StreamEncoding = "${config.encoding}"
+	EncodingAvro    StreamEncoding = "avro"
+	EncodingProtobuf StreamEncoding = "protobuf"
+	EncodingMsgpack StreamEncoding = "msgpack"
+	EncodingCBOR    StreamEncoding = "cbor"
+)
+
+// CompressionType type
+type CompressionType string
+
+const (
+	CompressionNone   CompressionType = "${config.compression || 'none'}"
+	CompressionGZIP   CompressionType = "gzip"
+	CompressionSnappy CompressionType = "snappy"
+	CompressionLZ4    CompressionType = "lz4"
+	CompressionZSTD   CompressionType = "zstd"
+)
+
+// DeliverySemantics type
+type DeliverySemantics string
+
+const (
+	AtMostOnce   DeliverySemantics = "${config.deliverySemantics}"
+	AtLeastOnce  DeliverySemantics = "at-least-once"
+	ExactlyOnce  DeliverySemantics = "exactly-once"
+)
+
+// ${config.serviceName}StreamEvent represents a stream event
+type ${config.serviceName}StreamEvent struct {
+	EventID       string                 \`json:"eventId"\`
+	EventType     string                 \`json:"eventType"\`
+	Version       int                    \`json:"version"\`
+	Timestamp     int64                  \`json:"timestamp"\`
+	Key           string                 \`json:"key,omitempty"\`
+	PartitionKey  string                 \`json:"partitionKey,omitempty"\`
+	Headers       map[string]string      \`json:"headers,omitempty"\`
+	Payload       map[string]interface{} \`json:"payload"\`
+	CorrelationID string                 \`json:"correlationId,omitempty"\`
+	CausationID   string                 \`json:"causationId,omitempty"\`
+}
+
+// ${config.serviceName}ProducerConfig holds producer configuration
+type ${config.serviceName}ProducerConfig struct {
+	ClientID           string          \`json:"clientId"\`
+	EnableIdempotence  bool            \`json:"enableIdempotence"\`
+	Acks               string          \`json:"acks"\`
+	MaxRetries         int             \`json:"maxRetries"\`
+	RetryBackoff       int             \`json:"retryBackoff"\`
+	EnableCompression  CompressionType \`json:"enableCompression"\`
+	BatchSize          int             \`json:"batchSize"\`
+	LingerMs           int             \`json:"lingerMs"\`
+	BufferMemory       int             \`json:"bufferMemory"\`
+}
+
+// ${config.serviceName}ConsumerConfig holds consumer configuration
+type ${config.serviceName}ConsumerConfig struct {
+	GroupID              string \`json:"groupId"\`
+	InstanceID           string \`json:"instanceId,omitempty"\`
+	Topics               []string \`json:"topics"\`
+	AutoCommit           bool \`json:"autoCommit"\`
+	AutoCommitInterval   int \`json:"autoCommitInterval"\`
+	MaxPollRecords       int \`json:"maxPollRecords"\`
+	MaxPollInterval      int \`json:"maxPollInterval"\`
+	SessionTimeout       int \`json:"sessionTimeout"\`
+	HeartbeatInterval    int \`json:"heartbeatInterval"\`
+	BackpressureStrategy string \`json:"backpressureStrategy"\`
+	MaxBufferSize        int \`json:"maxBufferSize"\`
+}
+
+// ${config.serviceName}DeadLetterConfig holds dead letter queue configuration
+type ${config.serviceName}DeadLetterConfig struct {
+	Enabled           bool \`json:"enabled"\`
+	TopicSuffix       string \`json:"topicSuffix"\`
+	MaxRetries        int \`json:"maxRetries"\`
+	RetryDelay        int \`json:"retryDelay"\`
+	BackoffMultiplier int \`json:"backoffMultiplier"\`
+	TTL               int \`json:"ttl"\`
+}
+
+// ${config.serviceName}StreamStats holds stream statistics
+type ${config.serviceName}StreamStats struct {
+	MessagesProduced int64   \`json:"messagesProduced"\`
+	MessagesConsumed int64   \`json:"messagesConsumed"\`
+	MessagesFailed   int64   \`json:"messagesFailed"\`
+	BytesProduced    int64   \`json:"bytesProduced"\`
+	BytesConsumed    int64   \`json:"bytesConsumed"\`
+	AvgLatency       float64 \`json:"avgLatency"\`
+	P95Latency       float64 \`json:"p95Latency"\`
+	P99Latency       float64 \`json:"p99Latency"\`
+	ConsumerLag      int64   \`json:"consumerLag"\`
+	DeadLettered     int64   \`json:"deadLettered"\`
+	mu               sync.RWMutex
+}
+
+// ${config.serviceName}EventProducer handles event production
+type ${config.serviceName}EventProducer struct {
+	config    ${config.serviceName}ProducerConfig
+	producer  sarama.SyncProducer
+	stats     ${config.serviceName}StreamStats
+}
+
+// New${config.serviceName}EventProducer creates a new event producer
+func New${config.serviceName}EventProducer(brokers []string, config ${config.serviceName}ProducerConfig) (*${config.serviceName}EventProducer, error) {
+	if config.ClientID == "" {
+		config.ClientID = "${config.serviceName}-producer"
+	}
+	if config.Acks == "" {
+		config.Acks = "all"
+	}
+	if config.MaxRetries == 0 {
+		config.MaxRetries = 3
+	}
+	if config.RetryBackoff == 0 {
+		config.RetryBackoff = 100
+	}
+	if config.BatchSize == 0 {
+		config.BatchSize = 100
+	}
+	if config.LingerMs == 0 {
+		config.LingerMs = 10
+	}
+	if config.BufferMemory == 0 {
+		config.BufferMemory = 32 * 1024 * 1024
+	}
+
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.ClientID = config.ClientID
+	saramaConfig.Producer.Idempotent = config.EnableIdempotence
+	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
+	saramaConfig.Producer.Retry.Max = config.MaxRetries
+	saramaConfig.Producer.Retry.Backoff = time.Duration(config.RetryBackoff) * time.Millisecond
+	saramaConfig.Producer.Flush.Bytes = config.BufferMemory
+	saramaConfig.Producer.Flush.Frequency = time.Duration(config.LingerMs) * time.Millisecond
+
+	producer, err := sarama.NewSyncProducer(brokers, saramaConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &${config.serviceName}EventProducer{
+		config:   config,
+		producer: producer,
+		stats:    ${config.serviceName}StreamStats{},
+	}, nil
+}
+
+// Produce sends a single event to the specified topic
+func (p *${config.serviceName}EventProducer) Produce(topic string, event ${config.serviceName}StreamEvent, partition int32) error {
+	startTime := time.Now()
+
+	event.EventID = uuid.New().String()
+	event.Timestamp = time.Now().UnixMilli()
+
+	value, err := json.Marshal(event)
+	if err != nil {
+		p.stats.mu.Lock()
+		p.stats.MessagesFailed++
+		p.stats.mu.Unlock()
+		return err
+	}
+
+	key := event.PartitionKey
+	if key == "" {
+		key = event.Key
+	}
+
+	headers := []sarama.RecordHeader{
+		{Key: []byte("content-type"), Value: []byte("application/json")},
+		{Key: []byte("event-version"), Value: []byte(strconv.Itoa(event.Version))},
+	}
+
+	if event.CorrelationID != "" {
+		headers = append(headers, sarama.RecordHeader{Key: []byte("correlation-id"), Value: []byte(event.CorrelationID)})
+	}
+	if event.CausationID != "" {
+		headers = append(headers, sarama.RecordHeader{Key: []byte("causation-id"), Value: []byte(event.CausationID)})
+	}
+
+	msg := &sarama.ProducerMessage{
+		Topic:    topic,
+		Key:      sarama.ByteEncoder([]byte(key)),
+		Value:    sarama.ByteEncoder(value),
+		Headers:  headers,
+		Partition: partition,
+	}
+
+	_, _, err = p.producer.SendMessage(msg)
+	if err != nil {
+		p.stats.mu.Lock()
+		p.stats.MessagesFailed++
+		p.stats.mu.Unlock()
+		return err
+	}
+
+	latency := time.Since(startTime).Milliseconds()
+	p.updateLatency(float64(latency))
+
+	p.stats.mu.Lock()
+	p.stats.MessagesProduced++
+	p.stats.BytesProduced += int64(len(value))
+	p.stats.mu.Unlock()
+
+	return nil
+}
+
+// ProduceBatch sends multiple events to the specified topic
+func (p *${config.serviceName}EventProducer) ProduceBatch(topic string, events []${config.serviceName}StreamEvent) error {
+	var bytesProduced int64
+
+	for _, event := range events {
+		event.EventID = uuid.New().String()
+		event.Timestamp = time.Now().UnixMilli()
+
+		value, err := json.Marshal(event)
+		if err != nil {
+			p.stats.mu.Lock()
+			p.stats.MessagesFailed += int64(len(events))
+			p.stats.mu.Unlock()
+			return err
+		}
+
+		bytesProduced += int64(len(value))
+	}
+
+	p.stats.mu.Lock()
+	p.stats.MessagesProduced += int64(len(events))
+	p.stats.BytesProduced += bytesProduced
+	p.stats.mu.Unlock()
+
+	return nil
+}
+
+func (p *${config.serviceName}EventProducer) updateLatency(latency float64) {
+	p.stats.mu.Lock()
+	defer p.stats.mu.Unlock()
+
+	currentAvg := p.stats.AvgLatency
+	count := p.stats.MessagesProduced
+	p.stats.AvgLatency = (currentAvg*float64(count-1) + latency) / float64(count)
+}
+
+// GetStats returns current statistics
+func (p *${config.serviceName}EventProducer) GetStats() ${config.serviceName}StreamStats {
+	p.stats.mu.RLock()
+	defer p.stats.mu.RUnlock()
+	return p.stats
+}
+
+// ResetStats resets all statistics
+func (p *${config.serviceName}EventProducer) ResetStats() {
+	p.stats.mu.Lock()
+	defer p.stats.mu.Unlock()
+	p.stats = ${config.serviceName}StreamStats{}
+}
+
+// Close closes the producer
+func (p *${config.serviceName}EventProducer) Close() error {
+	return p.producer.Close()
+}
+
+// ${config.serviceName}EventConsumer handles event consumption
+type ${config.serviceName}EventConsumer struct {
+	config            ${config.serviceName}ConsumerConfig
+	consumer          sarama.ConsumerGroup
+	deadLetterConfig  *${config.serviceName}DeadLetterConfig
+	producer          *${config.serviceName}EventProducer
+	stats             ${config.serviceName}StreamStats
+	messageBuffer     []map[string]interface{}
+	processing        bool
+	mu                sync.Mutex
+}
+
+// New${config.serviceName}EventConsumer creates a new event consumer
+func New${config.serviceName}EventConsumer(brokers []string, config ${config.serviceName}ConsumerConfig, deadLetterConfig *${config.serviceName}DeadLetterConfig) (*${config.serviceName}EventConsumer, error) {
+	if config.GroupID == "" {
+		config.GroupID = "${config.serviceName}-group"
+	}
+	if config.SessionTimeout == 0 {
+		config.SessionTimeout = 30000
+	}
+	if config.HeartbeatInterval == 0 {
+		config.HeartbeatInterval = 3000
+	}
+	if config.MaxPollInterval == 0 {
+		config.MaxPollInterval = 300000
+	}
+	if config.MaxBufferSize == 0 {
+		config.MaxBufferSize = 1000
+	}
+
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+	saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
+	saramaConfig.Consumer.Group.Session.Timeout = time.Duration(config.SessionTimeout) * time.Millisecond
+	saramaConfig.Consumer.Group.Heartbeat.Interval = time.Duration(config.HeartbeatInterval) * time.Millisecond
+	saramaConfig.Consumer.MaxProcessingTime = time.Duration(config.MaxPollInterval) * time.Millisecond
+
+	consumerGroup, err := sarama.NewConsumerGroup(brokers, config.GroupID, saramaConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	consumer := &${config.serviceName}EventConsumer{
+		config:           config,
+		consumer:         consumerGroup,
+		deadLetterConfig: deadLetterConfig,
+		stats:            ${config.serviceName}StreamStats{},
+		messageBuffer:    make([]map[string]interface{}, 0),
+	}
+
+	if deadLetterConfig != nil && deadLetterConfig.Enabled {
+		producer, err := New${config.serviceName}EventProducer(brokers, ${config.serviceName}ProducerConfig{})
+		if err == nil {
+			consumer.producer = producer
+		}
+	}
+
+	return consumer, nil
+}
+
+// Consume starts consuming events
+func (c *${config.serviceName}EventConsumer) Consume(handler func(event ${config.serviceName}StreamEvent, topic string, partition int32) error) error {
+	ctx := context.Background()
+	handlerWrapper := &consumerHandler{
+		consumer: c,
+		handler:  handler,
+	}
+
+	for {
+		if err := c.consumer.Consume(ctx, c.config.Topics, handlerWrapper); err != nil {
+			log.Printf("Error from consumer: %v", err)
+			return err
+		}
+	}
+}
+
+type consumerHandler struct {
+	consumer *${config.serviceName}EventConsumer
+	handler  func(event ${config.serviceName}StreamEvent, topic string, partition int32) error
+}
+
+func (h *consumerHandler) Setup(sarama.ConsumerGroupSession) error   { return nil }
+func (h *consumerHandler) Cleanup(sarama.ConsumerGroupSession) error { return nil }
+
+func (h *consumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	for msg := range claim.Messages() {
+		var event ${config.serviceName}StreamEvent
+		if err := json.Unmarshal(msg.Value, &event); err != nil {
+			h.consumer.stats.mu.Lock()
+			h.consumer.stats.MessagesFailed++
+			h.consumer.stats.mu.Unlock()
+			log.Printf("Failed to unmarshal message: %v", err)
+			continue
+		}
+
+		h.consumer.stats.mu.Lock()
+		h.consumer.stats.MessagesConsumed++
+		h.consumer.stats.BytesConsumed += int64(len(msg.Value))
+		h.consumer.stats.mu.Unlock()
+
+		if err := h.handler(event, msg.Topic, msg.Partition); err != nil {
+			h.consumer.stats.mu.Lock()
+			h.consumer.stats.MessagesFailed++
+			h.consumer.stats.mu.Unlock()
+			h.consumer.handleDeadLetter(msg.Topic, msg, err)
+		}
+
+		session.MarkMessage(msg, "")
+	}
+	return nil
+}
+
+func (c *${config.serviceName}EventConsumer) handleDeadLetter(topic string, msg *sarama.ConsumerMessage, err error) {
+	if c.deadLetterConfig == nil || !c.deadLetterConfig.Enabled || c.producer == nil {
+		return
+	}
+
+	deadLetterTopic := topic + c.deadLetterConfig.TopicSuffix
+
+	dlqEvent := ${config.serviceName}StreamEvent{
+		EventType: "dead-letter",
+		Version:   1,
+		Payload: map[string]interface{}{
+			"originalTopic":   topic,
+			"originalMessage": string(msg.Value),
+			"error":           err.Error(),
+		},
+		Headers: map[string]string{
+			"dead-letter-reason": err.Error(),
+			"original-topic":     topic,
+		},
+	}
+
+	if produceErr := c.producer.Produce(deadLetterTopic, dlqEvent, msg.Partition); produceErr != nil {
+		log.Printf("Failed to send to dead letter queue: %v", produceErr)
+		return
+	}
+
+	c.stats.mu.Lock()
+	c.stats.DeadLettered++
+	c.stats.mu.Unlock()
+}
+
+// GetStats returns current statistics
+func (c *${config.serviceName}EventConsumer) GetStats() ${config.serviceName}StreamStats {
+	c.stats.mu.RLock()
+	defer c.stats.mu.RUnlock()
+	return c.stats
+}
+
+// Close closes the consumer
+func (c *${config.serviceName}EventConsumer) Close() error {
+	if c.producer != nil {
+		c.producer.Close()
+	}
+	return c.consumer.Close()
+}
+
+// ${config.serviceName}RedisStreams handles Redis Streams operations
+type ${config.serviceName}RedisStreams struct {
+	client       *redis.Client
+	consumerGroup string
+}
+
+// New${config.serviceName}RedisStreams creates a new Redis Streams client
+func New${config.serviceName}RedisStreams(url string, consumerGroup string) (*${config.serviceName}RedisStreams, error) {
+	if consumerGroup == "" {
+		consumerGroup = "${config.serviceName}-group"
+	}
+
+	client := redis.NewClient(&redis.Options{
+		Addr: url,
+	})
+
+	return &${config.serviceName}RedisStreams{
+		client:       client,
+		consumerGroup: consumerGroup,
+	}, nil
+}
+
+// Add adds an event to the stream
+func (r *${config.serviceName}RedisStreams) Add(ctx context.Context, streamKey string, event ${config.serviceName}StreamEvent) (string, error) {
+	payload, _ := json.Marshal(event.Payload)
+
+	values := map[string]interface{}{
+		"eventId":      event.EventID,
+		"eventType":    event.EventType,
+		"version":      strconv.Itoa(event.Version),
+		"timestamp":    strconv.FormatInt(event.Timestamp, 10),
+		"key":          event.Key,
+		"payload":      string(payload),
+		"correlationId": event.CorrelationID,
+		"causationId":  event.CausationID,
+	}
+
+	result, err := r.client.XAdd(ctx, &redis.XAddArgs{
+		Stream: streamKey,
+		Values: values,
+	}).Result()
+
+	return result, err
+}
+
+// Read reads events from the stream
+func (r *${config.serviceName}RedisStreams) Read(ctx context.Context, streamKey, consumerName string, count int64, block time.Duration) ([]map[string]interface{}, error) {
+	// Create consumer group if it doesn't exist
+	r.client.XGroupCreate(ctx, streamKey, r.consumerGroup, "0").Err()
+
+	results, err := r.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    r.consumerGroup,
+		Consumer: consumerName,
+		Streams:  []string{streamKey, ">"},
+		Count:    count,
+		Block:    block,
+	}).Result()
+
+	if err != nil {
+		return nil, err
+	}
+
+	messages := make([]map[string]interface{}, 0)
+	for _, stream := range results {
+		for _, message := range stream.Messages {
+			event := ${config.serviceName}StreamEvent{
+				EventID:    message.Values["eventId"].(string),
+				EventType:  message.Values["eventType"].(string),
+				Version:    0, // Parse from string
+				Timestamp:  0, // Parse from string
+				Key:        message.Values["key"].(string),
+			}
+
+			messages = append(messages, map[string]interface{}{
+				"id":    message.ID,
+				"event": event,
+			})
+		}
+	}
+
+	return messages, nil
+}
+
+// Acknowledge acknowledges messages
+func (r *${config.serviceName}RedisStreams) Acknowledge(ctx context.Context, streamKey string, ids ...string) (int64, error) {
+	return r.client.XAck(ctx, streamKey, r.consumerGroup, ids...).Result()
+}
+
+// Trim trims the stream to max length
+func (r *${config.serviceName}RedisStreams) Trim(ctx context.Context, streamKey string, maxLength int64) error {
+	return r.client.XTrim(ctx, streamKey, maxLength).Err()
+}
+
+// Close closes the Redis client
+func (r *${config.serviceName}RedisStreams) Close() error {
+	return r.client.Close()
+}
+
+// Usage example
+func main() {
+	brokers := []string{"localhost:9092"}
+
+	// Producer
+	producer, err := New${config.serviceName}EventProducer(brokers, ${config.serviceName}ProducerConfig{
+		EnableIdempotence: true,
+		Acks:              "all",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer producer.Close()
+
+	err = producer.Produce("user-events", ${config.serviceName}StreamEvent{
+		EventType:    "UserCreated",
+		Version:      1,
+		Key:          "user-123",
+		PartitionKey: "user-123",
+		Payload: map[string]interface{}{
+			"userId": "123",
+			"name":   "John Doe",
+			"email":  "john@example.com",
+		},
+		Headers: map[string]string{
+			"source": "user-service",
+		},
+	}, 0)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Consumer
+	consumer, err := New${config.serviceName}EventConsumer(brokers, ${config.serviceName}ConsumerConfig{
+		GroupID:              "${config.serviceName}-group",
+		Topics:               []string{"user-events"},
+		AutoCommit:           true,
+		BackpressureStrategy: "buffer",
+		MaxBufferSize:        1000,
+	}, &${config.serviceName}DeadLetterConfig{
+		Enabled:     true,
+		TopicSuffix: "-dlq",
+		MaxRetries:  3,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer consumer.Close()
+
+	go func() {
+		handler := func(event ${config.serviceName}StreamEvent, topic string, partition int32) error {
+			fmt.Printf("Received event: %s\\n", event.EventType)
+			return nil
+		}
+		consumer.Consume(handler)
+	}()
+
+	// Keep running
+	select {}
+}
+`;
+}
+
+// Display configuration
+export function displayConfig(config: StreamConfig): void {
+  console.log(chalk.cyan('\n✨ Event Streaming Configuration\n'));
+  console.log(chalk.gray('─'.repeat(50)));
+
+  console.log(`${chalk.yellow('Service Name:')} ${chalk.white(config.serviceName)}`);
+  console.log(`${chalk.yellow('Backend:')} ${chalk.white(config.backend)}`);
+  console.log(`${chalk.yellow('Encoding:')} ${chalk.white(config.encoding)}`);
+  console.log(`${chalk.yellow('Compression:')} ${chalk.white(config.compression || 'none')}`);
+  console.log(`${chalk.yellow('Delivery Semantics:')} ${chalk.white(config.deliverySemantics)}`);
+  console.log(`${chalk.yellow('Partitions:')} ${chalk.white(config.partitions || 'N/A')}`);
+  console.log(`${chalk.yellow('Replication Factor:')} ${chalk.white(config.replicationFactor || 'N/A')}`);
+  console.log(`${chalk.yellow('Retention:')} ${chalk.white(config.retentionMs || 'N/A')} ms`);
+  console.log(`${chalk.yellow('Max Message Bytes:')} ${chalk.white(config.maxMessageBytes || 'N/A')}`);
+  console.log(`${chalk.yellow('Schema Registry:')} ${chalk.white(config.enableSchemaRegistry ? 'Enabled' : 'Disabled')}`);
+  console.log(`${chalk.yellow('Dead Letter Queue:')} ${chalk.white(config.enableDeadLetterQueue ? 'Enabled' : 'Disabled')}`);
+  console.log(`${chalk.yellow('Consumer Group ID:')} ${chalk.white(config.consumerGroupId || 'N/A')}`);
+  console.log(`${chalk.yellow('Auto Offset Reset:')} ${chalk.white(config.autoOffsetReset || 'N/A')}`);
+
+  console.log(chalk.gray('─'.repeat(50)));
+
+  console.log(chalk.cyan('\n📋 Stream Backends Available:\n'));
+  const backends = [
+    { name: 'kafka', desc: 'Apache Kafka - Distributed streaming platform' },
+    { name: 'redis-streams', desc: 'Redis Streams - Lightweight streaming' },
+    { name: 'kinesis', desc: 'AWS Kinesis - Cloud-native streaming' },
+    { name: 'pulsar', desc: 'Apache Pulsar - Cloud-native messaging' },
+    { name: 'nats', desc: 'NATS - High-performance messaging' },
+    { name: 'rabbitmq', desc: 'RabbitMQ - Message broker with streams' },
+  ];
+
+  backends.forEach(b => {
+    console.log(`  ${chalk.cyan(b.name.padEnd(15))} ${chalk.gray(b.desc)}`);
+  });
+
+  console.log(chalk.cyan('\n📦 Encoding Formats:\n'));
+  const encodings = [
+    { name: 'json', desc: 'JSON - Human readable' },
+    { name: 'avro', desc: 'Avro - Compact binary with schema' },
+    { name: 'protobuf', desc: 'Protocol Buffers - Fast binary' },
+    { name: 'msgpack', desc: 'MessagePack - Efficient binary' },
+    { name: 'cbor', desc: 'CBOR - Concise Binary Object Representation' },
+  ];
+
+  encodings.forEach(e => {
+    console.log(`  ${chalk.cyan(e.name.padEnd(12))} ${chalk.gray(e.desc)}`);
+  });
+
+  console.log(chalk.cyan('\n⚡ Delivery Semantics:\n'));
+  const semantics = [
+    { name: 'at-most-once', desc: 'Messages may be lost but never duplicated' },
+    { name: 'at-least-once', desc: 'Messages may be duplicated but never lost' },
+    { name: 'exactly-once', desc: 'Each message processed exactly once' },
+  ];
+
+  semantics.forEach(s => {
+    console.log(`  ${chalk.cyan(s.name.padEnd(18))} ${chalk.gray(s.desc)}`);
+  });
+
+  console.log(chalk.gray('\n' + '─'.repeat(50) + '\n'));
+}
+
+// Generate BUILD.md
+export function generateBuildMD(config: StreamConfig, language: string): string {
+  const fileExt = language === 'typescript' ? 'ts' : language === 'python' ? 'py' : 'go';
+  const fileName = `${config.serviceName}_event_streaming.${fileExt}`;
+
+  return `# Event Streaming for ${config.serviceName}
+
+This project implements event streaming and real-time synchronization patterns for **${config.serviceName}** using **${config.backend}** backend.
+
+## 📋 Configuration
+
+- **Backend**: ${config.backend}
+- **Encoding**: ${config.encoding}
+- **Compression**: ${config.compression || 'none'}
+- **Delivery Semantics**: ${config.deliverySemantics}
+- **Partitions**: ${config.partitions || 'N/A'}
+- **Schema Registry**: ${config.enableSchemaRegistry ? 'Enabled' : 'Disabled'}
+- **Dead Letter Queue**: ${config.enableDeadLetterQueue ? 'Enabled' : 'Disabled'}
+
+## 🚀 Setup Instructions
+
+### Prerequisites
+
+${config.backend === 'kafka' ? `
+\`\`\`bash
+# Install Apache Kafka
+brew install kafka  # macOS
+# or
+docker run -d -p 9092:9092 --name kafka apache/kafka:latest
+\`\`\`
+` : ''}
+
+${config.backend === 'redis-streams' ? `
+\`\`\`bash
+# Install Redis
+brew install redis  # macOS
+# or
+docker run -d -p 6379:6379 --name redis redis:latest
+\`\`\`
+` : ''}
+
+### Installation
+
+${language === 'typescript' ? `
+\`\`\`bash
+npm install kafkajs redis
+\`\`\`
+` : ''}
+
+${language === 'python' ? `
+\`\`\`bash
+pip install aiokafka aioredis
+\`\`\`
+` : ''}
+
+${language === 'go' ? `
+\`\`\`bash
+go get github.com/IBM/sarama
+go get github.com/go-redis/redis/v8
+go get github.com/google/uuid
+\`\`\`
+` : ''}
+
+### Running
+
+\`\`\`bash
+# Producer
+${language === 'typescript' ? 'ts-node ' : language === 'python' ? 'python ' : 'go run '}${fileName}
+
+# Consumer
+# Update the code with your topic and handler function
+\`\`\`
+
+## 📚 Features
+
+- ✅ Event streaming with **${config.backend}**
+- ✅ Schema evolution support
+- ✅ Backpressure handling
+- ✅ Event replay and time travel
+- ✅ Dead letter queues
+- ✅ Consumer groups
+- ✅ Exactly-once semantics
+- ✅ Event versioning
+
+## 🔑 Key Concepts
+
+### Stream Event Structure
+
+\`\`\`typescript
+interface StreamEvent {
+  eventId: string;          // Unique event ID
+  eventType: string;        // Event type name
+  version: number;          // Event schema version
+  timestamp: number;        // Event timestamp
+  key?: string;             // Optional key
+  partitionKey?: string;    // Partition routing key
+  headers: Record<string, string>;  // Event metadata
+  payload: T;               // Event payload
+  correlationId?: string;   // Correlation ID
+  causationId?: string;     // Causation ID
+}
+\`\`\`
+
+### Producer Configuration
+
+- **Idempotence**: Prevents duplicate writes
+- **Acks**: 'all' = all replicas, '1' = leader only, '0' = fire and forget
+- **Compression**: gzip, snappy, lz4, zstd
+- **Batching**: Batches messages for efficiency
+
+### Consumer Configuration
+
+- **Consumer Group**: Group of consumers sharing load
+- **Auto Commit**: Automatically commit offsets
+- **Backpressure**: Strategy for handling high throughput
+- **Session Timeout**: Consumer session timeout
+
+### Dead Letter Queue
+
+Failed messages are sent to a dead letter topic (suffix: **-dlq**) for later processing.
+
+## 📊 Monitoring
+
+The implementation includes built-in statistics:
+
+- Messages produced/consumed/failed
+- Bytes produced/consumed
+- Average/P95/P99 latency
+- Consumer lag
+- Dead-lettered messages
+
+\`\`\`typescript
+const stats = producer.getStats();
+console.log(stats);
+\`\`\`
+
+## 🧪 Testing
+
+\`\`\`bash
+# Start Kafka
+docker run -d -p 9092:9092 --name kafka apache/kafka:latest
+
+# Run producer
+${language === 'typescript' ? 'ts-node ' : language === 'python' ? 'python ' : 'go run '}${fileName}
+
+# Run consumer (in another terminal)
+# Update topics and run
+\`\`\`
+
+## 🔗 References
+
+- [Apache Kafka Documentation](https://kafka.apache.org/documentation/)
+- [Redis Streams](https://redis.io/docs/data-types/streams/)
+- [Event Sourcing](https://martinfowler.com/eaaDev/EventSourcing.html)
+- [CQRS](https://martinfowler.com/bliki/CQRS.html)
+`;
+}
+
+// Write files
+export async function writeFiles(
+  config: StreamConfig,
+  language: string,
+  output: string
+): Promise<void> {
+  const fileExt = language === 'typescript' ? 'ts' : language === 'python' ? 'py' : 'go';
+  const fileName = `${config.serviceName}EventStreaming.${fileExt}`;
+  const filePath = path.join(output, fileName);
+
+  let content: string;
+  if (language === 'typescript') {
+    content = generateEventStreamingTS(config);
+  } else if (language === 'python') {
+    content = generateEventStreamingPython(config);
+  } else if (language === 'go') {
+    content = generateEventStreamingGo(config);
+  } else {
+    throw new Error(`Unsupported language: ${language}`);
+  }
+
+  await fs.ensureDir(output);
+  await fs.writeFile(filePath, content);
+  console.log(chalk.green(`✅ Generated: ${fileName}`));
+
+  // Generate BUILD.md
+  const buildMD = generateBuildMD(config, language);
+  const buildMDPath = path.join(output, 'BUILD.md');
+  await fs.writeFile(buildMDPath, buildMD);
+  console.log(chalk.green(`✅ Generated: BUILD.md`));
+}

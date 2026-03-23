@@ -1,0 +1,13 @@
+{
+  "timestamp": "2025-06-26T05:12:58.747Z",
+  "version": "0.14.0",
+  "fastApiTest": {
+    "templateName": "FastAPI + Python",
+    "templateFile": "fastapi-py.ts",
+    "exists": false,
+    "features": {},
+    "featureCount": 0,
+    "passedFeatures": 0,
+    "failedFeatures": 0
+  }
+}

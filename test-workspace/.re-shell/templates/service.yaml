@@ -1,0 +1,23 @@
+name: service
+description: Backend service template
+version: 1.0.0
+extends: base
+variables:
+  - name: name
+    type: string
+    required: true
+    description: Service name
+  - name: runtime
+    type: string
+    default: node
+    enum:
+      - node
+      - deno
+      - bun
+    description: JavaScript runtime
+workspaceDefaults:
+  type: service
+scripts:
+  dev: nodemon src/index.ts
+  build: tsc
+  start: node dist/index.js

@@ -1,0 +1,305 @@
+{
+  "version": "1.0.0",
+  "templates": {
+    "microfrontend": {
+      "name": "microfrontend",
+      "description": "Standard microfrontend application template",
+      "version": "1.0.0",
+      "variables": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Microfrontend name",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        {
+          "name": "framework",
+          "type": "string",
+          "default": "react",
+          "enum": [
+            "react",
+            "vue",
+            "angular",
+            "svelte"
+          ],
+          "description": "Frontend framework"
+        },
+        {
+          "name": "port",
+          "type": "number",
+          "default": 5173,
+          "description": "Development server port"
+        }
+      ],
+      "workspaceDefaults": {
+        "type": "app"
+      },
+      "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "test": "vitest",
+        "lint": "eslint src --ext ts,tsx"
+      },
+      "dependencies": {
+        "react": "^18.0.0",
+        "react-dom": "^18.0.0",
+        "vite": "^4.0.0"
+      }
+    },
+    "library": {
+      "name": "library",
+      "description": "Shared library template",
+      "version": "1.0.0",
+      "variables": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Library name"
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "default": "utils",
+          "enum": [
+            "utils",
+            "components",
+            "hooks",
+            "services"
+          ],
+          "description": "Library type"
+        }
+      ],
+      "workspaceDefaults": {
+        "type": "lib"
+      },
+      "scripts": {
+        "build": "tsc",
+        "test": "vitest",
+        "lint": "eslint src --ext ts,tsx"
+      }
+    },
+    "service": {
+      "name": "service",
+      "description": "Backend service template",
+      "version": "1.0.0",
+      "extends": "base",
+      "variables": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Service name"
+        },
+        {
+          "name": "runtime",
+          "type": "string",
+          "default": "node",
+          "enum": [
+            "node",
+            "deno",
+            "bun"
+          ],
+          "description": "JavaScript runtime"
+        }
+      ],
+      "workspaceDefaults": {
+        "type": "service"
+      },
+      "scripts": {
+        "dev": "nodemon src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js"
+      }
+    },
+    "monorepo": {
+      "name": "monorepo",
+      "description": "Full monorepo setup template",
+      "version": "1.0.0",
+      "variables": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Project name"
+        },
+        {
+          "name": "packageManager",
+          "type": "string",
+          "default": "pnpm",
+          "enum": [
+            "npm",
+            "yarn",
+            "pnpm"
+          ],
+          "description": "Package manager"
+        }
+      ],
+      "patterns": [
+        "apps/*",
+        "packages/*",
+        "services/*"
+      ],
+      "scripts": {
+        "dev": "{{packageManager}} run dev",
+        "build": "{{packageManager}} run build",
+        "test": "{{packageManager}} run test",
+        "lint": "{{packageManager}} run lint"
+      },
+      "typeDefaults": {
+        "app": {
+          "framework": "react",
+          "build": {
+            "command": "vite build"
+          }
+        },
+        "lib": {
+          "framework": "typescript",
+          "build": {
+            "command": "tsc"
+          }
+        },
+        "service": {
+          "framework": "node",
+          "build": {
+            "command": "esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js"
+          }
+        }
+      }
+    },
+    "my-project": {
+      "name": "my-project",
+      "description": "Template exported from test-workspace",
+      "version": "1.0.0",
+      "variables": [
+        {
+          "name": "projectName",
+          "type": "string",
+          "required": true,
+          "description": "Project name"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "description": "Project description"
+        }
+      ],
+      "patterns": [
+        "apps/*",
+        "packages/*",
+        "libs/*",
+        "tools/*"
+      ],
+      "typeDefaults": {
+        "app": {
+          "name": "Application",
+          "description": "Frontend applications",
+          "framework": "react",
+          "build": {
+            "command": "npm run build",
+            "outputDir": "dist"
+          },
+          "dev": {
+            "command": "npm run dev",
+            "port": 3000
+          },
+          "test": {
+            "command": "npm run test"
+          },
+          "patterns": {
+            "source": [
+              "src/**/*"
+            ],
+            "test": [
+              "**/*.test.*",
+              "**/*.spec.*"
+            ],
+            "config": [
+              "*.config.*",
+              "config/*"
+            ],
+            "assets": [
+              "public/**/*",
+              "assets/**/*"
+            ]
+          },
+          "requiredFiles": [
+            "package.json"
+          ],
+          "detection": {
+            "files": [
+              "src/index.tsx",
+              "src/App.tsx"
+            ],
+            "packageJsonFields": [
+              "scripts.dev",
+              "scripts.build"
+            ]
+          }
+        },
+        "package": {
+          "name": "Package",
+          "description": "Shared packages and libraries",
+          "build": {
+            "command": "npm run build",
+            "outputDir": "dist"
+          },
+          "test": {
+            "command": "npm run test"
+          },
+          "patterns": {
+            "source": [
+              "src/**/*",
+              "lib/**/*"
+            ],
+            "test": [
+              "**/*.test.*",
+              "**/*.spec.*"
+            ]
+          },
+          "requiredFiles": [
+            "package.json"
+          ],
+          "detection": {
+            "files": [
+              "src/index.ts",
+              "lib/index.js"
+            ],
+            "packageJsonFields": [
+              "main",
+              "module",
+              "types"
+            ]
+          }
+        }
+      },
+      "scripts": {
+        "build:all": {
+          "description": "Build all workspaces",
+          "command": "npm run build",
+          "workspaces": "all",
+          "parallel": true
+        },
+        "test:all": {
+          "description": "Test all workspaces",
+          "command": "npm run test",
+          "workspaces": "all",
+          "parallel": true,
+          "continueOnError": true
+        }
+      },
+      "metadata": {
+        "exportedFrom": "test-workspace",
+        "exportedAt": "2025-06-19T10:04:09.371Z"
+      }
+    }
+  },
+  "metadata": {
+    "created": "2025-06-19T10:01:37.368Z",
+    "modified": "2025-06-19T10:04:09.378Z",
+    "count": 5
+  }
+}

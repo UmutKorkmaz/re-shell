@@ -1,0 +1,34 @@
+name: microfrontend
+description: Standard microfrontend application template
+version: 1.0.0
+variables:
+  - name: name
+    type: string
+    required: true
+    description: Microfrontend name
+    pattern: ^[a-z][a-z0-9-]*$
+  - name: framework
+    type: string
+    default: react
+    enum:
+      - react
+      - vue
+      - angular
+      - svelte
+    description: Frontend framework
+  - name: port
+    type: number
+    default: 5173
+    description: Development server port
+workspaceDefaults:
+  type: app
+scripts:
+  dev: vite
+  build: vite build
+  preview: vite preview
+  test: vitest
+  lint: eslint src --ext ts,tsx
+dependencies:
+  react: ^18.0.0
+  react-dom: ^18.0.0
+  vite: ^4.0.0

@@ -1,0 +1,311 @@
+// Cross-Language Dependency Resolver
+// Handle dependencies between services in different languages
+
+import { dependencyGraphEngine, GraphNode } from '../graph/dependency-graph-engine';
+
+export interface CrossLanguageDependency {
+  fromService: string;
+  fromLanguage: string;
+  toService: string;
+  toLanguage: string;
+  protocol: 'rest' | 'grpc' | 'graphql' | 'websocket' | 'message-queue';
+  definition?: string;
+  client?: string;
+}
+
+export interface ProtocolDefinition {
+  protocol: string;
+  definitionFile: string;
+  languages: string[];
+  generateClient: boolean;
+}
+
+export interface ResolutionResult {
+  resolved: boolean;
+  protocols: Map<string, ProtocolDefinition>;
+  clients: Map<string, string>;
+  errors: string[];
+}
+
+export class CrossLanguageResolver {
+  private supportedProtocols: Map<string, string[]> = new Map();
+
+  constructor() {
+    this.initializeProtocolSupport();
+  }
+
+  private initializeProtocolSupport(): void {
+    // REST API - All languages
+    this.supportedProtocols.set('rest', [
+      'typescript', 'javascript', 'python', 'go', 'rust', 'java',
+      'kotlin', 'ruby', 'php', 'csharp', 'swift', 'dart'
+    ]);
+
+    // gRPC - Most languages
+    this.supportedProtocols.set('grpc', [
+      'typescript', 'go', 'rust', 'java', 'kotlin', 'python',
+      'ruby', 'php', 'csharp', 'swift'
+    ]);
+
+    // GraphQL - Many languages
+    this.supportedProtocols.set('graphql', [
+      'typescript', 'javascript', 'python', 'go', 'rust', 'java',
+      'kotlin', 'ruby', 'php', 'csharp', 'swift', 'dart'
+    ]);
+
+    // WebSocket - Most languages
+    this.supportedProtocols.set('websocket', [
+      'typescript', 'javascript', 'python', 'go', 'rust', 'java',
+      'ruby', 'php', 'csharp'
+    ]);
+
+    // Message Queues - All languages
+    this.supportedProtocols.set('message-queue', [
+      'typescript', 'javascript', 'python', 'go', 'rust', 'java',
+      'kotlin', 'ruby', 'php', 'csharp'
+    ]);
+  }
+
+  /**
+   * Resolve cross-language dependencies
+   */
+  resolveDependencies(graph: any): ResolutionResult {
+    const result: ResolutionResult = {
+      resolved: true,
+      protocols: new Map(),
+      clients: new Map(),
+      errors: [],
+    };
+
+    const services = graph.nodes;
+
+    for (const [serviceId, service] of services.entries()) {
+      const serviceNode = service as GraphNode;
+
+      // For each dependency, check if languages differ
+      for (const depId of serviceNode.dependencies || []) {
+        const depService = services.get(depId);
+
+        if (!depService) continue;
+
+        const depNode = depService as GraphNode;
+
+        // Skip if same language
+        if (serviceNode.language === depNode.language) {
+          continue;
+        }
+
+        // Need cross-language resolution
+        const resolution = this.resolveCrossLanguageDependency(
+          serviceId,
+          serviceNode.language || 'unknown',
+          depId,
+          depNode.language || 'unknown'
+        );
+
+        if (!resolution.resolved) {
+          result.resolved = false;
+          result.errors.push(...resolution.errors);
+        } else {
+          // Merge protocols and clients
+          for (const [key, protocol] of resolution.protocols) {
+            result.protocols.set(key, protocol);
+          }
+          for (const [key, client] of resolution.clients) {
+            result.clients.set(key, client);
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Resolve a single cross-language dependency
+   */
+  private resolveCrossLanguageDependency(
+    fromService: string,
+    fromLang: string,
+    toService: string,
+    toLang: string
+  ): ResolutionResult {
+    const result: ResolutionResult = {
+      resolved: true,
+      protocols: new Map(),
+      clients: new Map(),
+      errors: [],
+    };
+
+    // Determine best protocol
+    const protocol = this.selectBestProtocol(fromLang, toLang);
+
+    if (!protocol) {
+      result.resolved = false;
+      result.errors.push(
+        `No compatible protocol found between \${fromLang} and \${toLang} for services \${fromService} -> \${toService}`
+      );
+      return result;
+    }
+
+    // Generate protocol definition
+    const protocolDef = this.generateProtocolDefinition(protocol, toService);
+    result.protocols.set(`\${fromService}-\${toService}`, protocolDef);
+
+    // Generate client code
+    const client = this.generateClientCode(protocol, fromLang, toService);
+    result.clients.set(`\${fromService}-\${toService}`, client);
+
+    return result;
+  }
+
+  /**
+   * Select best protocol for cross-language communication
+   */
+  private selectBestProtocol(fromLang: string, toLang: string): string | null {
+    // Priority order: grpc > graphql > rest > websocket > message-queue
+
+    const protocols = ['grpc', 'graphql', 'rest', 'websocket', 'message-queue'];
+
+    for (const protocol of protocols) {
+      const supportedLangs = this.supportedProtocols.get(protocol);
+
+      if (
+        supportedLangs &&
+        supportedLangs.includes(fromLang) &&
+        supportedLangs.includes(toLang)
+      ) {
+        return protocol;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Generate protocol definition (e.g., .proto file for gRPC)
+   */
+  private generateProtocolDefinition(protocol: string, serviceName: string): ProtocolDefinition {
+    switch (protocol) {
+      case 'grpc':
+        return {
+          protocol: 'grpc',
+          definitionFile: `proto/\${serviceName}.proto`,
+          languages: Array.from(this.supportedProtocols.get('grpc') || []),
+          generateClient: true,
+        };
+
+      case 'graphql':
+        return {
+          protocol: 'graphql',
+          definitionFile: `graphql/\${serviceName}.graphql`,
+          languages: Array.from(this.supportedProtocols.get('graphql') || []),
+          generateClient: true,
+        };
+
+      case 'rest':
+        return {
+          protocol: 'rest',
+          definitionFile: `openapi/\${serviceName}.yaml`,
+          languages: Array.from(this.supportedProtocols.get('rest') || []),
+          generateClient: true,
+        };
+
+      default:
+        return {
+          protocol,
+          definitionFile: '',
+          languages: [],
+          generateClient: false,
+        };
+    }
+  }
+
+  /**
+   * Generate client code stubs
+   */
+  private generateClientCode(protocol: string, language: string, serviceName: string): string {
+    const clientTemplates: Record<string, Record<string, string>> = {
+      grpc: {
+        typescript: `import * as grpc from '@grpc/grpc-js';\nconst client = new grpc.Client('\${serviceName}:50051', grpc.credentials.createInsecure());`,
+        python: `import grpc\nchannel = grpc.insecure_channel('\${serviceName}:50051')`,
+        go: `conn, err := grpc.Dial("\${serviceName}:50051", grpc.WithInsecure())`,
+        java: `ManagedChannel channel = ManagedChannelBuilder.forAddress("\${serviceName}", 50051).usePlaintext().build();`,
+      },
+      graphql: {
+        typescript: `import { ApolloClient, InMemoryCache } from '@apollo/client';\nconst client = new ApolloClient({ uri: 'http://\${serviceName}:4000/graphql', cache: new InMemoryCache() });`,
+        python: `from graphene import Client\nclient = Client('http://\${serviceName}:4000/graphql')`,
+      },
+      rest: {
+        typescript: `import axios from 'axios';\nconst api = axios.create({ baseURL: 'http://\${serviceName}:3000/api' });`,
+        python: `import requests\napi = requests.get('http://\${serviceName}:3000/api')`,
+      },
+    };
+
+    return clientTemplates[protocol]?.[language] || `// Client for \${serviceName} in \${language}`;
+  }
+
+  /**
+   * Validate cross-language compatibility
+   */
+  validateCompatibility(fromLang: string, toLang: string): { compatible: boolean; protocols: string[] } {
+    const compatibleProtocols: string[] = [];
+
+    for (const [protocol, languages] of this.supportedProtocols.entries()) {
+      if (languages.includes(fromLang) && languages.includes(toLang)) {
+        compatibleProtocols.push(protocol);
+      }
+    }
+
+    return {
+      compatible: compatibleProtocols.length > 0,
+      protocols: compatibleProtocols,
+    };
+  }
+
+  /**
+   * Get recommended protocol for language pair
+   */
+  getRecommendedProtocol(fromLang: string, toLang: string): string | null {
+    // gRPC for high-performance (Go, Rust, Java)
+    const highPerfLangs = ['go', 'rust', 'java', 'csharp'];
+    if (highPerfLangs.includes(fromLang) && highPerfLangs.includes(toLang)) {
+      return 'grpc';
+    }
+
+    // GraphQL for type-safe APIs
+    const typeSafeLangs = ['typescript', 'java', 'kotlin', 'csharp'];
+    if (typeSafeLangs.includes(fromLang) && typeSafeLangs.includes(toLang)) {
+      return 'graphql';
+    }
+
+    // REST as fallback
+    if (this.supportedProtocols.get('rest')?.includes(fromLang) &&
+        this.supportedProtocols.get('rest')?.includes(toLang)) {
+      return 'rest';
+    }
+
+    return null;
+  }
+
+  /**
+   * Generate bridge code for async communication
+   */
+  generateBridgeCode(protocol: string, fromLang: string, toLang: string): string {
+    const bridgeCode: Record<string, Record<string, string>> = {
+      'typescript-python': {
+        grpc: `// TypeScript calling Python gRPC service\nconst client = new proto.ServiceClient('localhost:50051', grpc.credentials.createInsecure());`,
+        rest: `// TypeScript calling Python REST API\nconst response = await fetch('http://python-service:8000/api/data');`,
+      },
+      'node-go': {
+        grpc: `// Node.js calling Go gRPC service\nconst PROTO_PATH = path.join(__dirname, '/protos/service.proto');\nconst serviceProto = grpc.load(PROTO_PATH).service;\n`,
+        rest: `// Node.js calling Go REST API\nconst axios = require('axios');\nconst response = await axios.get('http://go-service:8080/api/data');`,
+      },
+    };
+
+    const key = `\${fromLang}-\${toLang}`;
+    return bridgeCode[key]?.[protocol] || `// Bridge: \${fromLang} -> \${toLang} via \${protocol}`;
+  }
+}
+
+export const crossLanguageResolver = new CrossLanguageResolver();

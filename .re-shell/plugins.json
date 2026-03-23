@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "plugins": {},
+  "disabled": [],
+  "settings": {
+    "autoUpdate": false,
+    "security": {
+      "allowUnverified": false,
+      "trustedSources": [
+        "npm",
+        "builtin"
+      ]
+    }
+  }
+}

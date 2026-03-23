@@ -1,0 +1,5 @@
+workspaces:
+  test-app:
+    path: "."
+    type: "app"
+    framework: "react"

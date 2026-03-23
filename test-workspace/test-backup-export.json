@@ -1,0 +1,50 @@
+{
+  "metadata": {
+    "id": "backup-1750254641699-81msgc",
+    "name": "test-backup",
+    "description": "Testing backup functionality",
+    "createdAt": "2025-06-18T13:50:41.699Z",
+    "size": 0,
+    "type": "full",
+    "version": "1.2.0",
+    "contents": {
+      "global": true,
+      "project": false,
+      "workspaces": [],
+      "templates": false,
+      "environments": false
+    },
+    "checksum": "",
+    "tags": []
+  },
+  "configurations": {
+    "global": {
+      "version": "1.2.0",
+      "packageManager": "yarn",
+      "defaultFramework": "react-ts",
+      "defaultTemplate": "blank",
+      "presets": {},
+      "user": {},
+      "cli": {
+        "autoUpdate": true,
+        "telemetry": true,
+        "verbose": false,
+        "theme": "auto"
+      },
+      "paths": {
+        "templates": "/Users/dtumkorkmaz/.re-shell/templates",
+        "cache": "/Users/dtumkorkmaz/.re-shell/cache",
+        "plugins": "/Users/dtumkorkmaz/.re-shell/plugins",
+        "workspace": "/Users/dtumkorkmaz/.re-shell/cache/workspaces",
+        "logs": "/Users/dtumkorkmaz/.re-shell/cache/logs"
+      },
+      "plugins": {
+        "enabled": [],
+        "marketplace": {
+          "registry": "https://registry.npmjs.org",
+          "autoUpdate": false
+        }
+      }
+    }
+  }
+}

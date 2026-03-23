@@ -1,0 +1,23 @@
+name: library
+description: Shared library template
+version: 1.0.0
+variables:
+  - name: name
+    type: string
+    required: true
+    description: Library name
+  - name: type
+    type: string
+    default: utils
+    enum:
+      - utils
+      - components
+      - hooks
+      - services
+    description: Library type
+workspaceDefaults:
+  type: lib
+scripts:
+  build: tsc
+  test: vitest
+  lint: eslint src --ext ts,tsx

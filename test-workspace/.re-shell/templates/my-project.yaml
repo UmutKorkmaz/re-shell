@@ -1,0 +1,91 @@
+name: my-project
+description: Template exported from test-workspace
+version: 1.0.0
+variables:
+  - name: projectName
+    type: string
+    required: true
+    description: Project name
+  - name: description
+    type: string
+    required: false
+    description: Project description
+patterns:
+  - apps/*
+  - packages/*
+  - libs/*
+  - tools/*
+typeDefaults:
+  app:
+    name: Application
+    description: Frontend applications
+    framework: react
+    build:
+      command: npm run build
+      outputDir: dist
+    dev:
+      command: npm run dev
+      port: 3000
+    test:
+      command: npm run test
+    patterns:
+      source:
+        - src/**/*
+      test:
+        - "**/*.test.*"
+        - "**/*.spec.*"
+      config:
+        - "*.config.*"
+        - config/*
+      assets:
+        - public/**/*
+        - assets/**/*
+    requiredFiles:
+      - package.json
+    detection:
+      files:
+        - src/index.tsx
+        - src/App.tsx
+      packageJsonFields:
+        - scripts.dev
+        - scripts.build
+  package:
+    name: Package
+    description: Shared packages and libraries
+    build:
+      command: npm run build
+      outputDir: dist
+    test:
+      command: npm run test
+    patterns:
+      source:
+        - src/**/*
+        - lib/**/*
+      test:
+        - "**/*.test.*"
+        - "**/*.spec.*"
+    requiredFiles:
+      - package.json
+    detection:
+      files:
+        - src/index.ts
+        - lib/index.js
+      packageJsonFields:
+        - main
+        - module
+        - types
+scripts:
+  build:all:
+    description: Build all workspaces
+    command: npm run build
+    workspaces: all
+    parallel: true
+  test:all:
+    description: Test all workspaces
+    command: npm run test
+    workspaces: all
+    parallel: true
+    continueOnError: true
+metadata:
+  exportedFrom: test-workspace
+  exportedAt: 2025-06-19T10:04:09.371Z

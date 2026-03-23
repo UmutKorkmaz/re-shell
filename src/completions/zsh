@@ -1,0 +1,90 @@
+#compdef re-shell
+# zsh completion for re-shell
+# Install to ~/.zfunc/_re-shell and add to ~/.zshrc:
+#   fpath=(~/.zfunc $fpath)
+#   autoload -U compinit && compinit
+
+_re_shell() {
+  local -a commands
+  commands=(
+    'init:Initialize a new re-shell workspace'
+    'create:Create a new microfrontend or service'
+    'add:Add a new app or service to the workspace'
+    'list:List all apps and services'
+    'dev:Start development mode'
+    'build:Build the workspace'
+    'generate:Generate code or configuration'
+    'migrate:Migrate workspace configuration'
+    'doctor:Run workspace health checks'
+    'completion:Install shell completion'
+    'schema:Manage JSON schemas for IDE autocompletion'
+    'intellisense:Setup code completion and LSP integration'
+    'config:Manage workspace configuration'
+    'environment:Manage environments'
+    'plugin:Manage plugins'
+    'analyze:Analyze workspace'
+    'backup:Backup workspace'
+  )
+
+  local -a schema_subcommands
+  schema_subcommands=(
+    'publish:Publish schema to project and configure IDE'
+    'validate:Validate a workspace YAML file against the schema'
+  )
+
+  local -a plugin_subcommands
+  plugin_subcommands=(
+    'install:Install a plugin'
+    'uninstall:Uninstall a plugin'
+    'list:List installed plugins'
+  )
+
+  local -a config_subcommands
+  config_subcommands=(
+    'get:Get a configuration value'
+    'set:Set a configuration value'
+    'list:List all configuration values'
+  )
+
+  local -a environment_subcommands
+  environment_subcommands=(
+    'create:Create a new environment'
+    'switch:Switch to an environment'
+    'list:List all environments'
+    'delete:Delete an environment'
+  )
+
+  local -a shells
+  shells=('bash' 'zsh')
+
+  _arguments -C \
+    '1: :->command' \
+    '*: :->args'
+
+  case $state in
+    command)
+      _describe 're-shell commands' commands
+      ;;
+    args)
+      case $words[2] in
+        completion)
+          _arguments '--shell[Shell type]:shell:(bash zsh)'
+          ;;
+        schema)
+          _describe 'schema subcommands' schema_subcommands
+          ;;
+        plugin)
+          _describe 'plugin subcommands' plugin_subcommands
+          ;;
+        config)
+          _describe 'config subcommands' config_subcommands
+          ;;
+        environment)
+          _describe 'environment subcommands' environment_subcommands
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_re_shell "$@"

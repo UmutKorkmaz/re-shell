@@ -1,0 +1,45 @@
+# bash completion for re-shell
+# Source this file or add to ~/.bashrc:
+#   . ~/.re-shell/completion.bash
+
+_re_shell_completion() {
+  local cur prev words cword
+  _init_completion || return
+
+  local commands="init create add list dev build generate migrate doctor completion schema intellisense config environment plugin analyze backup"
+
+  case "$prev" in
+    re-shell)
+      COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+      return 0
+      ;;
+    completion)
+      COMPREPLY=($(compgen -W "--shell" -- "$cur"))
+      return 0
+      ;;
+    --shell)
+      COMPREPLY=($(compgen -W "bash zsh" -- "$cur"))
+      return 0
+      ;;
+    schema)
+      COMPREPLY=($(compgen -W "publish validate" -- "$cur"))
+      return 0
+      ;;
+    plugin)
+      COMPREPLY=($(compgen -W "install uninstall list" -- "$cur"))
+      return 0
+      ;;
+    config)
+      COMPREPLY=($(compgen -W "get set list" -- "$cur"))
+      return 0
+      ;;
+    environment)
+      COMPREPLY=($(compgen -W "create switch list delete" -- "$cur"))
+      return 0
+      ;;
+  esac
+
+  COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+}
+
+complete -F _re_shell_completion re-shell

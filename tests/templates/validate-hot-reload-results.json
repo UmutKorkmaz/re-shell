@@ -1,0 +1,13 @@
+{
+  "timestamp": "2025-06-26T05:12:58.909Z",
+  "version": "0.13.0",
+  "hotReloadTest": {
+    "templateName": "Express.js",
+    "templateFile": "express-ts.ts",
+    "exists": false,
+    "features": {},
+    "featureCount": 0,
+    "passedFeatures": 0,
+    "failedFeatures": 0
+  }
+}

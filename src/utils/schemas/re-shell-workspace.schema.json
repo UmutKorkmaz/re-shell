@@ -1,0 +1,244 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://re-shell.dev/schemas/workspace.schema.json",
+  "title": "Re-Shell Workspace Configuration",
+  "description": "Schema for re-shell.workspaces.yaml workspace configuration files",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Configuration schema version",
+      "examples": ["1.0", "2.0"]
+    },
+    "name": {
+      "type": "string",
+      "description": "Workspace name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Workspace description"
+    },
+    "packageManager": {
+      "type": "string",
+      "enum": ["npm", "yarn", "pnpm"],
+      "description": "Package manager to use"
+    },
+    "apps": {
+      "type": "object",
+      "description": "Application entries in the workspace",
+      "additionalProperties": {
+        "$ref": "#/definitions/appEntry"
+      }
+    },
+    "packages": {
+      "type": "object",
+      "description": "Shared package entries in the workspace",
+      "additionalProperties": {
+        "$ref": "#/definitions/packageEntry"
+      }
+    },
+    "services": {
+      "type": "object",
+      "description": "Backend service entries in the workspace",
+      "additionalProperties": {
+        "$ref": "#/definitions/serviceEntry"
+      }
+    },
+    "shell": {
+      "$ref": "#/definitions/shellConfig",
+      "description": "Shell application configuration"
+    },
+    "federation": {
+      "$ref": "#/definitions/federationConfig",
+      "description": "Module federation configuration"
+    },
+    "docker": {
+      "$ref": "#/definitions/dockerConfig",
+      "description": "Docker/container configuration"
+    },
+    "ci": {
+      "$ref": "#/definitions/ciConfig",
+      "description": "CI/CD configuration"
+    }
+  },
+  "definitions": {
+    "appEntry": {
+      "type": "object",
+      "required": ["port"],
+      "properties": {
+        "port": {
+          "type": "integer",
+          "description": "Development server port",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "framework": {
+          "type": "string",
+          "enum": ["react", "vue", "svelte", "angular", "solid", "preact"],
+          "description": "Frontend framework"
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to the application directory"
+        },
+        "exposes": {
+          "type": "object",
+          "description": "Module federation exposed modules",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "remotes": {
+          "type": "object",
+          "description": "Module federation remote references",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "shared": {
+          "type": "array",
+          "description": "Shared dependencies for module federation",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "build": {
+          "$ref": "#/definitions/buildConfig"
+        }
+      }
+    },
+    "packageEntry": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path to the package directory"
+        },
+        "build": {
+          "$ref": "#/definitions/buildConfig"
+        }
+      }
+    },
+    "serviceEntry": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": "integer",
+          "description": "Service port",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "language": {
+          "type": "string",
+          "enum": ["node", "python", "go", "rust", "java", "dotnet"],
+          "description": "Backend language/runtime"
+        },
+        "framework": {
+          "type": "string",
+          "description": "Backend framework"
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to the service directory"
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "buildConfig": {
+      "type": "object",
+      "properties": {
+        "outDir": {
+          "type": "string",
+          "description": "Build output directory"
+        },
+        "sourcemap": {
+          "type": "boolean",
+          "description": "Generate source maps"
+        },
+        "minify": {
+          "type": "boolean",
+          "description": "Minify output"
+        }
+      }
+    },
+    "shellConfig": {
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string",
+          "description": "Name of the shell application"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Shell application port",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    },
+    "federationConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable module federation"
+        },
+        "shared": {
+          "type": "array",
+          "description": "Global shared dependencies",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "dockerConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Docker support"
+        },
+        "registry": {
+          "type": "string",
+          "description": "Docker registry URL"
+        },
+        "network": {
+          "type": "string",
+          "description": "Docker network name"
+        }
+      }
+    },
+    "ciConfig": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["github", "gitlab", "jenkins", "circleci", "travis"],
+          "description": "CI/CD provider"
+        },
+        "buildCommand": {
+          "type": "string",
+          "description": "Build command"
+        },
+        "testCommand": {
+          "type": "string",
+          "description": "Test command"
+        }
+      }
+    }
+  }
+}

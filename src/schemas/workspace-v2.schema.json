@@ -1,0 +1,452 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://re-shell.dev/schemas/workspace-v2.schema.json",
+  "title": "Re-Shell Workspace Configuration v2.0",
+  "description": "Comprehensive workspace configuration for multi-language, multi-framework microservices projects",
+  "type": "object",
+  "required": ["name", "version", "services"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Workspace name",
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+      "minLength": 1,
+      "maxLength": 63
+    },
+    "version": {
+      "type": "string",
+      "description": "Configuration version",
+      "pattern": "^2\\.0\\.[0-9]+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Workspace description"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Workspace metadata",
+      "properties": {
+        "author": { "type": "string" },
+        "license": { "type": "string" },
+        "repository": { "type": "string", "format": "uri" },
+        "homepage": { "type": "string", "format": "uri" },
+        "keywords": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "tags": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "variables": {
+      "type": "object",
+      "description": "Global environment variables",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "number" },
+          { "type": "boolean" }
+        ]
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "Global configuration settings",
+      "properties": {
+        "defaultRegion": {
+          "type": "string",
+          "description": "Default cloud region"
+        },
+        "defaultRuntime": {
+          "type": "string",
+          "description": "Default runtime environment"
+        },
+        "network": {
+          "type": "object",
+          "description": "Network configuration",
+          "properties": {
+            "vpcCidr": { "type": "string", "pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]+$" },
+            "subnetCidr": { "type": "string", "pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]+$" },
+            "enableServiceMesh": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "services": {
+      "type": "object",
+      "description": "Service definitions",
+      "additionalProperties": {
+        "$ref": "#/definitions/service"
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "External dependencies",
+      "properties": {
+        "databases": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/database" }
+        },
+        "caches": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/cache" }
+        },
+        "queues": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/queue" }
+        },
+        "storage": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/storage" }
+        }
+      }
+    },
+    "deployment": {
+      "$ref": "#/definitions/deployment"
+    },
+    "monitoring": {
+      "$ref": "#/definitions/monitoring"
+    }
+  },
+  "definitions": {
+    "service": {
+      "type": "object",
+      "required": ["name", "language", "framework"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+        },
+        "displayName": { "type": "string" },
+        "description": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["frontend", "backend", "worker", "function"]
+        },
+        "language": {
+          "type": "string",
+          "enum": [
+            "typescript", "javascript",
+            "python", "go", "rust",
+            "java", "kotlin", "scala",
+            "csharp", "fsharp",
+            "php", "ruby",
+            "elixir", "clojure",
+            "haskell", "f#",
+            "swift", "dart",
+            "crystal", "zig", "nim", "v",
+            "deno", "bun"
+          ]
+        },
+        "framework": {
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "object",
+              "required": ["name", "version"],
+              "properties": {
+                "name": { "type": "string" },
+                "version": { "type": "string" },
+                "config": { "type": "object" }
+              }
+            }
+          ]
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to service code"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "env": {
+          "type": "object",
+          "description": "Service-specific environment variables",
+          "additionalProperties": { "type": "string" }
+        },
+        "dependencies": {
+          "type": "object",
+          "description": "Service dependencies (language packages)",
+          "properties": {
+            "production": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "development": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        },
+        "scripts": {
+          "type": "object",
+          "properties": {
+            "build": { "type": "string" },
+            "start": { "type": "string" },
+            "dev": { "type": "string" },
+            "test": { "type": "string" },
+            "lint": { "type": "string" }
+          },
+          "additionalProperties": { "type": "string" }
+        },
+        "build": {
+          "$ref": "#/definitions/buildConfig"
+        },
+        "scaling": {
+          "$ref": "#/definitions/scalingConfig"
+        },
+        "resources": {
+          "$ref": "#/definitions/resourceConfig"
+        },
+        "healthCheck": {
+          "$ref": "#/definitions/healthCheck"
+        },
+        "routes": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/route" }
+        },
+        "middleware": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "config": { "type": "object" }
+                }
+              }
+            ]
+          }
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "authentication", "authorization", "database", "caching",
+              "logging", "monitoring", "testing", "documentation",
+              "security", "validation", "rate-limiting", "cors",
+              "compression", "session-management", "file-upload",
+              "email", "websockets", "graphql", "rest-api"
+            ]
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["postgresql", "mysql", "mongodb", "redis", "dynamodb", "cassandra"]
+        },
+        "version": { "type": "string" },
+        "host": { "type": "string" },
+        "port": { "type": "integer" },
+        "database": { "type": "string" },
+        "ssl": { "type": "boolean" },
+        "poolSize": { "type": "integer" },
+        "connectionTimeout": { "type": "integer" }
+      }
+    },
+    "cache": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["redis", "memcached", "dynamodb"]
+        },
+        "host": { "type": "string" },
+        "port": { "type": "integer" },
+        "ttl": { "type": "integer" },
+        "maxMemory": { "type": "string" }
+      }
+    },
+    "queue": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["sqs", "rabbitmq", "kafka", "redis"]
+        },
+        "maxRetries": { "type": "integer" },
+        "timeout": { "type": "integer" }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["s3", "gcs", "azure-blob", "local"]
+        },
+        "bucket": { "type": "string" },
+        "region": { "type": "string" }
+      }
+    },
+    "buildConfig": {
+      "type": "object",
+      "properties": {
+        "output": { "type": "string" },
+        "dockerfile": { "type": "string" },
+        "context": { "type": "string" },
+        "args": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "cacheFrom": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "scalingConfig": {
+      "type": "object",
+      "properties": {
+        "min": { "type": "integer", "minimum": 0 },
+        "max": { "type": "integer", "minimum": 1 },
+        "target": {
+          "type": "number",
+          "minimum": 1
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": {
+                "enum": ["cpu", "memory", "requests", "custom"]
+              },
+              "value": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "resourceConfig": {
+      "type": "object",
+      "properties": {
+        "cpu": {
+          "type": "object",
+          "properties": {
+            "request": { "type": "string", "pattern": "^[0-9]+m$" },
+            "limit": { "type": "string", "pattern": "^[0-9]+m$" }
+          }
+        },
+        "memory": {
+          "type": "object",
+          "properties": {
+            "request": { "type": "string", "pattern": "^[0-9]+(Mi|Gi)$" },
+            "limit": { "type": "string", "pattern": "^[0-9]+(Mi|Gi)$" }
+          }
+        }
+      }
+    },
+    "healthCheck": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "interval": { "type": "integer", "minimum": 1 },
+        "timeout": { "type": "integer", "minimum": 1 },
+        "retries": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "route": {
+      "type": "object",
+      "required": ["path", "target"],
+      "properties": {
+        "path": { "type": "string" },
+        "target": { "type": "string" },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
+        },
+        "middleware": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "type": "string",
+          "enum": ["kubernetes", "docker-compose", "aws", "gcp", "azure"]
+        },
+        "strategy": {
+          "type": "string",
+          "enum": ["rolling", "blue-green", "canary"]
+        },
+        "replicas": { "type": "integer", "minimum": 1 },
+        "env": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "value": { "type": "string" },
+              "secret": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["cpu", "memory", "disk", "network", "requests", "errors", "latency"]
+          }
+        },
+        "alerts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "metric", "threshold"],
+            "properties": {
+              "name": { "type": "string" },
+              "metric": { "type": "string" },
+              "threshold": { "type": "number" },
+              "comparison": {
+                "enum": ["greater-than", "less-than", "equals"]
+              },
+              "severity": {
+                "enum": ["info", "warning", "critical"]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

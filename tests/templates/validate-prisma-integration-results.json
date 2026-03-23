@@ -1,0 +1,689 @@
+{
+  "timestamp": "2025-06-24T05:52:09.292Z",
+  "version": "0.10.0",
+  "prismaIntegrationTests": {
+    "express-ts": {
+      "templateName": "Express.js",
+      "templateFile": "express-ts.ts",
+      "exists": true,
+      "features": {
+        "Prisma Client Dependency": {
+          "passed": true,
+          "description": "Template includes @prisma/client dependency",
+          "critical": true
+        },
+        "Prisma CLI Dependency": {
+          "passed": true,
+          "description": "Template includes prisma CLI in devDependencies",
+          "critical": true
+        },
+        "Bcrypt Dependency": {
+          "passed": true,
+          "description": "Template includes bcrypt for password hashing",
+          "critical": true
+        },
+        "UUID Dependency": {
+          "passed": true,
+          "description": "Template includes uuid for unique identifiers",
+          "critical": true
+        },
+        "Database Generate Script": {
+          "passed": false,
+          "description": "Template includes database generation script",
+          "critical": true
+        },
+        "Database Push Script": {
+          "passed": false,
+          "description": "Template includes database push script",
+          "critical": true
+        },
+        "Database Migration Script": {
+          "passed": false,
+          "description": "Template includes database migration scripts",
+          "critical": true
+        },
+        "Database Studio Script": {
+          "passed": false,
+          "description": "Template includes Prisma Studio script",
+          "critical": false
+        },
+        "Database Seed Script": {
+          "passed": true,
+          "description": "Template includes database seeding script",
+          "critical": true
+        },
+        "Prisma Schema File": {
+          "passed": false,
+          "description": "Template includes Prisma schema file",
+          "critical": true
+        },
+        "Prisma Schema Content": {
+          "passed": false,
+          "description": "Prisma schema has proper generator and datasource",
+          "critical": true
+        },
+        "User Model": {
+          "passed": false,
+          "description": "Prisma schema includes User model with proper fields",
+          "critical": true
+        },
+        "Profile Model": {
+          "passed": false,
+          "description": "Prisma schema includes Profile model",
+          "critical": true
+        },
+        "Post Model": {
+          "passed": false,
+          "description": "Prisma schema includes Post model",
+          "critical": true
+        },
+        "Role Enum": {
+          "passed": false,
+          "description": "Prisma schema includes Role enum",
+          "critical": true
+        },
+        "Database Relations": {
+          "passed": false,
+          "description": "Prisma schema includes proper relations",
+          "critical": true
+        },
+        "Prisma Seed File": {
+          "passed": false,
+          "description": "Template includes Prisma seed file",
+          "critical": true
+        },
+        "Seed File Content": {
+          "passed": false,
+          "description": "Seed file has proper Prisma operations and password hashing",
+          "critical": true
+        },
+        "Prisma Client Library": {
+          "passed": false,
+          "description": "Template includes Prisma client library file",
+          "critical": true
+        },
+        "Prisma Client Singleton": {
+          "passed": false,
+          "description": "Prisma client uses singleton pattern",
+          "critical": true
+        },
+        "Database URL Environment": {
+          "passed": true,
+          "description": "Template includes DATABASE_URL environment variable",
+          "critical": true
+        },
+        "PostgreSQL Support": {
+          "passed": true,
+          "description": "Template supports PostgreSQL database",
+          "critical": true
+        },
+        "Prisma Generate PostInstall": {
+          "passed": true,
+          "description": "Template includes Prisma generate in post-install",
+          "critical": true
+        },
+        "Database Setup Instructions": {
+          "passed": true,
+          "description": "Template includes database setup instructions",
+          "critical": false
+        },
+        "Graceful Disconnect": {
+          "passed": false,
+          "description": "Prisma client includes graceful disconnect",
+          "critical": true
+        }
+      },
+      "featureCount": 25,
+      "passedFeatures": 9,
+      "failedFeatures": 16
+    },
+    "fastify-ts": {
+      "templateName": "Fastify",
+      "templateFile": "fastify-ts.ts",
+      "exists": true,
+      "features": {
+        "Prisma Client Dependency": {
+          "passed": true,
+          "description": "Template includes @prisma/client dependency",
+          "critical": true
+        },
+        "Prisma CLI Dependency": {
+          "passed": true,
+          "description": "Template includes prisma CLI in devDependencies",
+          "critical": true
+        },
+        "Bcrypt Dependency": {
+          "passed": true,
+          "description": "Template includes bcrypt for password hashing",
+          "critical": true
+        },
+        "UUID Dependency": {
+          "passed": true,
+          "description": "Template includes uuid for unique identifiers",
+          "critical": true
+        },
+        "Database Generate Script": {
+          "passed": false,
+          "description": "Template includes database generation script",
+          "critical": true
+        },
+        "Database Push Script": {
+          "passed": false,
+          "description": "Template includes database push script",
+          "critical": true
+        },
+        "Database Migration Script": {
+          "passed": false,
+          "description": "Template includes database migration scripts",
+          "critical": true
+        },
+        "Database Studio Script": {
+          "passed": false,
+          "description": "Template includes Prisma Studio script",
+          "critical": false
+        },
+        "Database Seed Script": {
+          "passed": true,
+          "description": "Template includes database seeding script",
+          "critical": true
+        },
+        "Prisma Schema File": {
+          "passed": false,
+          "description": "Template includes Prisma schema file",
+          "critical": true
+        },
+        "Prisma Schema Content": {
+          "passed": false,
+          "description": "Prisma schema has proper generator and datasource",
+          "critical": true
+        },
+        "User Model": {
+          "passed": false,
+          "description": "Prisma schema includes User model with proper fields",
+          "critical": true
+        },
+        "Profile Model": {
+          "passed": false,
+          "description": "Prisma schema includes Profile model",
+          "critical": true
+        },
+        "Post Model": {
+          "passed": false,
+          "description": "Prisma schema includes Post model",
+          "critical": true
+        },
+        "Role Enum": {
+          "passed": false,
+          "description": "Prisma schema includes Role enum",
+          "critical": true
+        },
+        "Database Relations": {
+          "passed": false,
+          "description": "Prisma schema includes proper relations",
+          "critical": true
+        },
+        "Prisma Seed File": {
+          "passed": false,
+          "description": "Template includes Prisma seed file",
+          "critical": true
+        },
+        "Seed File Content": {
+          "passed": false,
+          "description": "Seed file has proper Prisma operations and password hashing",
+          "critical": true
+        },
+        "Prisma Client Library": {
+          "passed": false,
+          "description": "Template includes Prisma client library file",
+          "critical": true
+        },
+        "Prisma Client Singleton": {
+          "passed": false,
+          "description": "Prisma client uses singleton pattern",
+          "critical": true
+        },
+        "Database URL Environment": {
+          "passed": true,
+          "description": "Template includes DATABASE_URL environment variable",
+          "critical": true
+        },
+        "PostgreSQL Support": {
+          "passed": true,
+          "description": "Template supports PostgreSQL database",
+          "critical": true
+        },
+        "Prisma Generate PostInstall": {
+          "passed": true,
+          "description": "Template includes Prisma generate in post-install",
+          "critical": true
+        },
+        "Database Setup Instructions": {
+          "passed": true,
+          "description": "Template includes database setup instructions",
+          "critical": false
+        },
+        "Graceful Disconnect": {
+          "passed": false,
+          "description": "Prisma client includes graceful disconnect",
+          "critical": true
+        }
+      },
+      "featureCount": 25,
+      "passedFeatures": 9,
+      "failedFeatures": 16
+    },
+    "nestjs-ts": {
+      "templateName": "NestJS",
+      "templateFile": "nestjs-ts.ts",
+      "exists": true,
+      "features": {
+        "Prisma Client Dependency": {
+          "passed": true,
+          "description": "Template includes @prisma/client dependency",
+          "critical": true
+        },
+        "Prisma CLI Dependency": {
+          "passed": true,
+          "description": "Template includes prisma CLI in devDependencies",
+          "critical": true
+        },
+        "Bcrypt Dependency": {
+          "passed": true,
+          "description": "Template includes bcrypt for password hashing",
+          "critical": true
+        },
+        "UUID Dependency": {
+          "passed": true,
+          "description": "Template includes uuid for unique identifiers",
+          "critical": true
+        },
+        "Database Generate Script": {
+          "passed": false,
+          "description": "Template includes database generation script",
+          "critical": true
+        },
+        "Database Push Script": {
+          "passed": false,
+          "description": "Template includes database push script",
+          "critical": true
+        },
+        "Database Migration Script": {
+          "passed": false,
+          "description": "Template includes database migration scripts",
+          "critical": true
+        },
+        "Database Studio Script": {
+          "passed": false,
+          "description": "Template includes Prisma Studio script",
+          "critical": false
+        },
+        "Database Seed Script": {
+          "passed": true,
+          "description": "Template includes database seeding script",
+          "critical": true
+        },
+        "Prisma Schema File": {
+          "passed": false,
+          "description": "Template includes Prisma schema file",
+          "critical": true
+        },
+        "Prisma Schema Content": {
+          "passed": false,
+          "description": "Prisma schema has proper generator and datasource",
+          "critical": true
+        },
+        "User Model": {
+          "passed": false,
+          "description": "Prisma schema includes User model with proper fields",
+          "critical": true
+        },
+        "Profile Model": {
+          "passed": false,
+          "description": "Prisma schema includes Profile model",
+          "critical": true
+        },
+        "Post Model": {
+          "passed": false,
+          "description": "Prisma schema includes Post model",
+          "critical": true
+        },
+        "Role Enum": {
+          "passed": false,
+          "description": "Prisma schema includes Role enum",
+          "critical": true
+        },
+        "Database Relations": {
+          "passed": false,
+          "description": "Prisma schema includes proper relations",
+          "critical": true
+        },
+        "Prisma Seed File": {
+          "passed": false,
+          "description": "Template includes Prisma seed file",
+          "critical": true
+        },
+        "Seed File Content": {
+          "passed": false,
+          "description": "Seed file has proper Prisma operations and password hashing",
+          "critical": true
+        },
+        "Prisma Client Library": {
+          "passed": false,
+          "description": "Template includes Prisma client library file",
+          "critical": true
+        },
+        "Prisma Client Singleton": {
+          "passed": false,
+          "description": "Prisma client uses singleton pattern",
+          "critical": true
+        },
+        "Database URL Environment": {
+          "passed": true,
+          "description": "Template includes DATABASE_URL environment variable",
+          "critical": true
+        },
+        "PostgreSQL Support": {
+          "passed": true,
+          "description": "Template supports PostgreSQL database",
+          "critical": true
+        },
+        "Prisma Generate PostInstall": {
+          "passed": true,
+          "description": "Template includes Prisma generate in post-install",
+          "critical": true
+        },
+        "Database Setup Instructions": {
+          "passed": true,
+          "description": "Template includes database setup instructions",
+          "critical": false
+        },
+        "Graceful Disconnect": {
+          "passed": false,
+          "description": "Prisma client includes graceful disconnect",
+          "critical": true
+        }
+      },
+      "featureCount": 25,
+      "passedFeatures": 9,
+      "failedFeatures": 16
+    },
+    "koa-ts": {
+      "templateName": "Koa.js",
+      "templateFile": "koa-ts.ts",
+      "exists": true,
+      "features": {
+        "Prisma Client Dependency": {
+          "passed": true,
+          "description": "Template includes @prisma/client dependency",
+          "critical": true
+        },
+        "Prisma CLI Dependency": {
+          "passed": true,
+          "description": "Template includes prisma CLI in devDependencies",
+          "critical": true
+        },
+        "Bcrypt Dependency": {
+          "passed": true,
+          "description": "Template includes bcrypt for password hashing",
+          "critical": true
+        },
+        "UUID Dependency": {
+          "passed": true,
+          "description": "Template includes uuid for unique identifiers",
+          "critical": true
+        },
+        "Database Generate Script": {
+          "passed": false,
+          "description": "Template includes database generation script",
+          "critical": true
+        },
+        "Database Push Script": {
+          "passed": false,
+          "description": "Template includes database push script",
+          "critical": true
+        },
+        "Database Migration Script": {
+          "passed": false,
+          "description": "Template includes database migration scripts",
+          "critical": true
+        },
+        "Database Studio Script": {
+          "passed": false,
+          "description": "Template includes Prisma Studio script",
+          "critical": false
+        },
+        "Database Seed Script": {
+          "passed": true,
+          "description": "Template includes database seeding script",
+          "critical": true
+        },
+        "Prisma Schema File": {
+          "passed": false,
+          "description": "Template includes Prisma schema file",
+          "critical": true
+        },
+        "Prisma Schema Content": {
+          "passed": false,
+          "description": "Prisma schema has proper generator and datasource",
+          "critical": true
+        },
+        "User Model": {
+          "passed": false,
+          "description": "Prisma schema includes User model with proper fields",
+          "critical": true
+        },
+        "Profile Model": {
+          "passed": false,
+          "description": "Prisma schema includes Profile model",
+          "critical": true
+        },
+        "Post Model": {
+          "passed": false,
+          "description": "Prisma schema includes Post model",
+          "critical": true
+        },
+        "Role Enum": {
+          "passed": false,
+          "description": "Prisma schema includes Role enum",
+          "critical": true
+        },
+        "Database Relations": {
+          "passed": false,
+          "description": "Prisma schema includes proper relations",
+          "critical": true
+        },
+        "Prisma Seed File": {
+          "passed": false,
+          "description": "Template includes Prisma seed file",
+          "critical": true
+        },
+        "Seed File Content": {
+          "passed": false,
+          "description": "Seed file has proper Prisma operations and password hashing",
+          "critical": true
+        },
+        "Prisma Client Library": {
+          "passed": false,
+          "description": "Template includes Prisma client library file",
+          "critical": true
+        },
+        "Prisma Client Singleton": {
+          "passed": false,
+          "description": "Prisma client uses singleton pattern",
+          "critical": true
+        },
+        "Database URL Environment": {
+          "passed": true,
+          "description": "Template includes DATABASE_URL environment variable",
+          "critical": true
+        },
+        "PostgreSQL Support": {
+          "passed": true,
+          "description": "Template supports PostgreSQL database",
+          "critical": true
+        },
+        "Prisma Generate PostInstall": {
+          "passed": true,
+          "description": "Template includes Prisma generate in post-install",
+          "critical": true
+        },
+        "Database Setup Instructions": {
+          "passed": true,
+          "description": "Template includes database setup instructions",
+          "critical": false
+        },
+        "Graceful Disconnect": {
+          "passed": false,
+          "description": "Prisma client includes graceful disconnect",
+          "critical": true
+        }
+      },
+      "featureCount": 25,
+      "passedFeatures": 9,
+      "failedFeatures": 16
+    },
+    "hapi-ts": {
+      "templateName": "Hapi.js",
+      "templateFile": "hapi-ts.ts",
+      "exists": true,
+      "features": {
+        "Prisma Client Dependency": {
+          "passed": true,
+          "description": "Template includes @prisma/client dependency",
+          "critical": true
+        },
+        "Prisma CLI Dependency": {
+          "passed": true,
+          "description": "Template includes prisma CLI in devDependencies",
+          "critical": true
+        },
+        "Bcrypt Dependency": {
+          "passed": true,
+          "description": "Template includes bcrypt for password hashing",
+          "critical": true
+        },
+        "UUID Dependency": {
+          "passed": true,
+          "description": "Template includes uuid for unique identifiers",
+          "critical": true
+        },
+        "Database Generate Script": {
+          "passed": true,
+          "description": "Template includes database generation script",
+          "critical": true
+        },
+        "Database Push Script": {
+          "passed": true,
+          "description": "Template includes database push script",
+          "critical": true
+        },
+        "Database Migration Script": {
+          "passed": true,
+          "description": "Template includes database migration scripts",
+          "critical": true
+        },
+        "Database Studio Script": {
+          "passed": true,
+          "description": "Template includes Prisma Studio script",
+          "critical": false
+        },
+        "Database Seed Script": {
+          "passed": true,
+          "description": "Template includes database seeding script",
+          "critical": true
+        },
+        "Prisma Schema File": {
+          "passed": true,
+          "description": "Template includes Prisma schema file",
+          "critical": true
+        },
+        "Prisma Schema Content": {
+          "passed": true,
+          "description": "Prisma schema has proper generator and datasource",
+          "critical": true
+        },
+        "User Model": {
+          "passed": true,
+          "description": "Prisma schema includes User model with proper fields",
+          "critical": true
+        },
+        "Profile Model": {
+          "passed": true,
+          "description": "Prisma schema includes Profile model",
+          "critical": true
+        },
+        "Post Model": {
+          "passed": true,
+          "description": "Prisma schema includes Post model",
+          "critical": true
+        },
+        "Role Enum": {
+          "passed": true,
+          "description": "Prisma schema includes Role enum",
+          "critical": true
+        },
+        "Database Relations": {
+          "passed": true,
+          "description": "Prisma schema includes proper relations",
+          "critical": true
+        },
+        "Prisma Seed File": {
+          "passed": true,
+          "description": "Template includes Prisma seed file",
+          "critical": true
+        },
+        "Seed File Content": {
+          "passed": true,
+          "description": "Seed file has proper Prisma operations and password hashing",
+          "critical": true
+        },
+        "Prisma Client Library": {
+          "passed": true,
+          "description": "Template includes Prisma client library file",
+          "critical": true
+        },
+        "Prisma Client Singleton": {
+          "passed": true,
+          "description": "Prisma client uses singleton pattern",
+          "critical": true
+        },
+        "Database URL Environment": {
+          "passed": true,
+          "description": "Template includes DATABASE_URL environment variable",
+          "critical": true
+        },
+        "PostgreSQL Support": {
+          "passed": true,
+          "description": "Template supports PostgreSQL database",
+          "critical": true
+        },
+        "Prisma Generate PostInstall": {
+          "passed": true,
+          "description": "Template includes Prisma generate in post-install",
+          "critical": true
+        },
+        "Database Setup Instructions": {
+          "passed": true,
+          "description": "Template includes database setup instructions",
+          "critical": false
+        },
+        "Graceful Disconnect": {
+          "passed": true,
+          "description": "Prisma client includes graceful disconnect",
+          "critical": true
+        }
+      },
+      "featureCount": 25,
+      "passedFeatures": 25,
+      "failedFeatures": 0
+    }
+  },
+  "summary": {
+    "totalTemplates": 5,
+    "passedTemplates": 1,
+    "failedTemplates": 4,
+    "totalFeatures": 125,
+    "passedFeatures": 61,
+    "failedFeatures": 64
+  }
+}

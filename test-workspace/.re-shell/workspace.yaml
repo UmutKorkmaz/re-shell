@@ -1,0 +1,19 @@
+name: test-workspace
+type: app
+framework: react-ts
+packageManager: yarn
+build:
+  target: es2020
+  optimize: true
+  analyze: false
+dev:
+  port: 3000
+  host: localhost
+  open: false
+  hmr: true
+quality:
+  linting: true
+  testing: true
+  coverage:
+    enabled: true
+    threshold: 80

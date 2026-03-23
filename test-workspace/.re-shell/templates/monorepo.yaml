@@ -1,0 +1,38 @@
+name: monorepo
+description: Full monorepo setup template
+version: 1.0.0
+variables:
+  - name: name
+    type: string
+    required: true
+    description: Project name
+  - name: packageManager
+    type: string
+    default: pnpm
+    enum:
+      - npm
+      - yarn
+      - pnpm
+    description: Package manager
+patterns:
+  - apps/*
+  - packages/*
+  - services/*
+scripts:
+  dev: "{{packageManager}} run dev"
+  build: "{{packageManager}} run build"
+  test: "{{packageManager}} run test"
+  lint: "{{packageManager}} run lint"
+typeDefaults:
+  app:
+    framework: react
+    build:
+      command: vite build
+  lib:
+    framework: typescript
+    build:
+      command: tsc
+  service:
+    framework: node
+    build:
+      command: esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js

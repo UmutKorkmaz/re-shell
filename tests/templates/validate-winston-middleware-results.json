@@ -1,0 +1,129 @@
+{
+  "timestamp": "2025-06-24T06:38:56.369Z",
+  "version": "0.13.0",
+  "middlewareTest": {
+    "templateName": "Express.js",
+    "templateFile": "express-ts.ts",
+    "exists": true,
+    "features": {
+      "Winston Core Dependency": {
+        "passed": true,
+        "description": "Template includes Winston for structured logging",
+        "critical": true
+      },
+      "Winston Daily Rotate File": {
+        "passed": true,
+        "description": "Template includes winston-daily-rotate-file for log rotation",
+        "critical": true
+      },
+      "Custom Log Levels": {
+        "passed": true,
+        "description": "Defines custom log levels with priorities",
+        "critical": true
+      },
+      "Log Colors Configuration": {
+        "passed": true,
+        "description": "Configures colored console output for different log levels",
+        "critical": true
+      },
+      "Daily Log Rotation": {
+        "passed": true,
+        "description": "Implements daily log file rotation",
+        "critical": true
+      },
+      "Log Size Management": {
+        "passed": true,
+        "description": "Configures log file size limits and retention",
+        "critical": true
+      },
+      "Separate Error Logs": {
+        "passed": true,
+        "description": "Creates separate error log files",
+        "critical": true
+      },
+      "HTTP Request Logs": {
+        "passed": true,
+        "description": "Creates separate HTTP request log files",
+        "critical": true
+      },
+      "Exception Handling": {
+        "passed": true,
+        "description": "Handles uncaught exceptions in logs",
+        "critical": true
+      },
+      "Promise Rejection Handling": {
+        "passed": true,
+        "description": "Handles unhandled promise rejections in logs",
+        "critical": true
+      },
+      "Environment-Based Console Logging": {
+        "passed": true,
+        "description": "Adds console logging only in non-production environments",
+        "critical": true
+      },
+      "HTTP Logger Middleware": {
+        "passed": true,
+        "description": "Provides HTTP request logging middleware",
+        "critical": true
+      },
+      "Performance Monitoring": {
+        "passed": true,
+        "description": "Optional performance monitoring logs",
+        "critical": false
+      },
+      "Request Duration Tracking": {
+        "passed": true,
+        "description": "Tracks and logs request processing time",
+        "critical": true
+      },
+      "Helmet Security": {
+        "passed": true,
+        "description": "Implements Helmet.js security middleware",
+        "critical": true
+      },
+      "CORS Configuration": {
+        "passed": true,
+        "description": "Configures CORS with environment-based origins",
+        "critical": true
+      },
+      "Rate Limiting": {
+        "passed": true,
+        "description": "Implements rate limiting to prevent abuse",
+        "critical": true
+      },
+      "Compression Middleware": {
+        "passed": true,
+        "description": "Enables gzip compression for responses",
+        "critical": true
+      },
+      "Request Body Parsing": {
+        "passed": true,
+        "description": "Configures request body parsing with size limits",
+        "critical": true
+      },
+      "Error Handling Middleware": {
+        "passed": true,
+        "description": "Handles async errors and provides error middleware",
+        "critical": true
+      },
+      "Environment Variables": {
+        "passed": true,
+        "description": "Includes logging environment configuration",
+        "critical": true
+      },
+      "Graceful Shutdown": {
+        "passed": true,
+        "description": "Implements graceful server shutdown",
+        "critical": true
+      },
+      "Production Safety": {
+        "passed": true,
+        "description": "Has production-specific configurations",
+        "critical": true
+      }
+    },
+    "featureCount": 23,
+    "passedFeatures": 23,
+    "failedFeatures": 0
+  }
+}

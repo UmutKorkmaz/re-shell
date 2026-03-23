@@ -1,0 +1,124 @@
+{
+  "templateName": "Hapi.js",
+  "templatePath": "/Users/dtumkorkmaz/Projects/Re-Shell/reshell-monorepo/packages/cli/src/templates/backend/hapi-ts.ts",
+  "exists": true,
+  "features": {
+    "Template Export": {
+      "passed": true,
+      "description": "Template properly exports itself",
+      "critical": true
+    },
+    "Framework Property": {
+      "passed": true,
+      "description": "Template defines framework property",
+      "critical": true
+    },
+    "Language Property": {
+      "passed": true,
+      "description": "Template defines language as typescript",
+      "critical": true
+    },
+    "Dependencies": {
+      "passed": true,
+      "description": "Template includes dependencies object",
+      "critical": true
+    },
+    "DevDependencies": {
+      "passed": true,
+      "description": "Template includes devDependencies",
+      "critical": true
+    },
+    "Package.json File": {
+      "passed": "{\n  \"name\": \"{{serviceName}}\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Hapi.js TypeScript API server with built-in validation, caching, and security\",\n  \"main\": \"dist/server.js\",\n  \"scripts\": {\n    \"build\": \"tsc\",\n    \"start\": \"node dist/server.js\",\n    \"dev\": \"nodemon --exec ts-node src/server.ts\",\n    \"test\": \"lab -v --reporter console --output stdout --coverage --threshold 80\",\n    \"test:watch\": \"lab -v --reporter console --output stdout --watch\",\n    \"lint\": \"tsc --noEmit\",\n    \"clean\": \"rimraf dist\",\n    \"db:generate\": \"prisma generate\",\n    \"db:push\": \"prisma db push\",\n    \"db:migrate\": \"prisma migrate dev\",\n    \"db:migrate:deploy\": \"prisma migrate deploy\",\n    \"db:migrate:reset\": \"prisma migrate reset\",\n    \"db:studio\": \"prisma studio\",\n    \"db:seed\": \"tsx prisma/seed.ts\"\n      },\n  \"keywords\": [\"hapi\", \"typescript\", \"api\", \"validation\", \"caching\", \"security\"],\n  \"author\": \"{{author}}\",\n  \"license\": \"MIT\"\n}",
+      "description": "Template includes package.json configuration",
+      "critical": true
+    },
+    "TypeScript Config": {
+      "passed": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2020\",\n    \"module\": \"commonjs\",\n    \"lib\": [\"ES2020\"],\n    \"outDir\": \"./dist\",\n    \"rootDir\": \"./src\",\n    \"strict\": true,\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true,\n    \"forceConsistentCasingInFileNames\": true,\n    \"declaration\": true,\n    \"declarationMap\": true,\n    \"sourceMap\": true,\n    \"removeComments\": true,\n    \"noImplicitAny\": true,\n    \"strictNullChecks\": true,\n    \"strictFunctionTypes\": true,\n    \"noImplicitReturns\": true,\n    \"noFallthroughCasesInSwitch\": true,\n    \"noImplicitOverride\": true,\n    \"experimentalDecorators\": true,\n    \"emitDecoratorMetadata\": true,\n    \"resolveJsonModule\": true\n  },\n  \"include\": [\"src/**/*\"],\n  \"exclude\": [\"node_modules\", \"dist\", \"test\"]\n}",
+      "description": "Template includes TypeScript configuration",
+      "critical": true
+    },
+    "Main Entry Point": {
+      "passed": "import Hapi from '@hapi/hapi';\nimport { configureServer } from './config/server';\nimport { logger } from './utils/logger';\nimport { gracefulShutdown } from './utils/gracefulShutdown';\n\nconst init = async (): Promise<Hapi.Server> => {\n  const server = await configureServer();\n  \n  await server.start();\n  logger.info(`Server running on ${server.info.uri}`);\n  \n  return server;\n};\n\nprocess.on('unhandledRejection', (err) => {\n  logger.error('Unhandled rejection:', err);\n  process.exit(1);\n});\n\nprocess.on('SIGTERM', () => gracefulShutdown());\nprocess.on('SIGINT', () => gracefulShutdown());\n\ninit().catch((error) => {\n  logger.error('Failed to start server:', error);\n  process.exit(1);\n});",
+      "description": "Template includes main entry point file",
+      "critical": true
+    },
+    "Authentication": {
+      "passed": true,
+      "description": "Template includes authentication features",
+      "critical": false
+    },
+    "Health Checks": {
+      "passed": true,
+      "description": "Template includes health check endpoints",
+      "critical": false
+    },
+    "Docker Support": {
+      "passed": "# Build stage\nFROM node:20-alpine AS builder\n\nWORKDIR /app\n\n# Copy package files\nCOPY package*.json ./\nCOPY tsconfig.json ./\n\n# Install dependencies\nRUN npm ci --only=production && npm cache clean --force\n\n# Copy source code\nCOPY src ./src\n\n# Build the application\nRUN npm run build\n\n# Production stage\nFROM node:20-alpine AS production\n\nWORKDIR /app\n\n# Create non-root user\nRUN addgroup -g 1001 -S nodejs && adduser -S hapi -u 1001\n\n# Copy package files\nCOPY package*.json ./\n\n# Install production dependencies only\nRUN npm ci --only=production && npm cache clean --force\n\n# Copy built application\nCOPY --from=builder /app/dist ./dist\n\n# Create logs directory\nRUN mkdir -p logs && chown -R hapi:nodejs logs\n\n# Switch to non-root user\nUSER hapi\n\n# Health check\nHEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\\n  CMD node -e \"require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })\"\n\nEXPOSE 3000\n\nCMD [\"node\", \"dist/server.js\"]",
+      "description": "Template includes Docker configuration",
+      "critical": false
+    },
+    "Environment Config": {
+      "passed": "NODE_ENV=development\nPORT=3000\nHOST=localhost\n\n# JWT Configuration\nJWT_SECRET=your-super-secret-jwt-key-change-in-production\nJWT_EXPIRATION=24h\n\n# Redis Configuration\nREDIS_URL=redis://localhost:6379\n\n# Cache Configuration\nCACHE_TTL=300000\n\n# Rate Limiting\nAPI_RATE_LIMIT=100\n\n# Logging\nLOG_LEVEL=info\n\n# Database Configuration\nDATABASE_URL=\"postgresql://username:password@localhost:5432/mydb?schema=public\"\n\n# Prisma Configuration\nPRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=\"1\"",
+      "description": "Template includes environment configuration",
+      "critical": false
+    },
+    "Testing Setup": {
+      "passed": true,
+      "description": "Template includes testing configuration",
+      "critical": false
+    },
+    "README Documentation": {
+      "passed": "# {{serviceName}}\n\nEnterprise-grade Hapi.js API server with TypeScript, built-in validation, caching, security, and plugin architecture.\n\n## Features\n\n- **🚀 Hapi.js Framework**: High-performance, configuration-centric framework\n- **📝 TypeScript**: Full type safety with strict configuration  \n- **✅ Built-in Validation**: Joi schema validation for all inputs\n- **🔒 Security**: JWT authentication, rate limiting, CORS, Helmet\n- **💾 Caching**: Redis-based caching with configurable TTL\n- **📊 Health Checks**: Kubernetes-ready health endpoints\n- **🔌 Plugin Architecture**: Extensible plugin system\n- **📚 API Documentation**: Auto-generated Swagger documentation\n- **🧪 Testing**: Lab testing framework with high coverage\n- **🐳 Docker**: Production-ready containerization\n\n- **🗄️ Database Integration**: Prisma ORM with PostgreSQL, MySQL, SQLite support\n- **🌱 Database Seeding**: Comprehensive seed data with users, profiles, and posts\n\n## Quick Start\n\n### Prerequisites\n\n- Node.js 20+\n- PostgreSQL, MySQL, or SQLite database\n- Redis server\n- npm/yarn/pnpm\n\n### Installation\n\n```bash\n# Install dependencies\nnpm install\n\n# Copy environment file\ncp .env.example .env\n\n# Edit environment variables (set DATABASE_URL)\nnano .env\n\n# Generate Prisma client\nnpm run db:generate\n\n# Push database schema\nnpm run db:push\n\n# Seed the database with sample data\nnpm run db:seed\n```\n\n### Development\n\n```bash\n# Start development server\nnpm run dev\n\n# Run tests\nnpm test\n\n# Build for production\nnpm run build\n\n# Start production server\nnpm start\n```\n\n### Docker\n\n```bash\n# Build and run with Docker Compose\ndocker-compose up --build\n\n# Or build and run manually\ndocker build -t {{serviceName}} .\ndocker run -p 3000:3000 {{serviceName}}\n```\n\n## API Documentation\n\nOnce the server is running, visit:\n- **Swagger UI**: http://localhost:3000/docs\n- **Health Check**: http://localhost:3000/health\n\n## Architecture\n\n### Project Structure\n\n```\nsrc/\n├── config/          # Server configuration\n│   ├── server.ts    # Main server setup\n│   ├── plugins.ts   # Plugin registration\n│   ├── routes.ts    # Route configuration\n│   ├── cache.ts     # Cache setup\n│   └── environment.ts # Environment validation\n├── routes/          # Route definitions\n│   ├── auth.ts      # Authentication routes\n│   ├── users.ts     # User management routes\n│   └── health.ts    # Health check routes\n├── controllers/     # Request handlers\n│   ├── authController.ts\n│   ├── userController.ts\n│   └── healthController.ts\n├── services/        # Business logic\n│   ├── authService.ts\n│   ├── userService.ts\n│   └── healthService.ts\n├── auth/           # Authentication strategies\n│   └── strategies.ts\n└── utils/          # Utilities\n    ├── logger.ts\n    └── gracefulShutdown.ts\n```\n\n### Key Features\n\n#### Built-in Validation\n- Joi schema validation for all endpoints\n- Type-safe request/response handling\n- Automatic error responses for invalid data\n\n#### Caching System\n- Redis-based caching with configurable TTL\n- Multiple cache segments (sessions, users, etc.)\n- Cache policies for different data types\n\n#### Security Features\n- JWT authentication with refresh tokens\n- Role-based access control (RBAC)\n- Rate limiting with user and IP-based limits\n- CORS configuration\n- Helmet security headers\n\n#### Plugin Architecture\n- Modular plugin system\n- Easy extension and customization\n- Built-in plugins for common functionality\n\n## Authentication\n\n### JWT Authentication\n\nThe API uses JWT tokens for authentication:\n\n```bash\n# Login to get token\ncurl -X POST http://localhost:3000/auth/login \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"email\": \"user@example.com\", \"password\": \"password\"}'\n\n# Use token in requests\ncurl -X GET http://localhost:3000/users/me \\\n  -H \"Authorization: Bearer YOUR_JWT_TOKEN\"\n```\n\n### Role-Based Access Control\n\nThe API supports role-based access control:\n\n- `user`: Standard user access\n- `admin`: Administrative access\n\n## Environment Variables\n\n| Variable | Description | Default |\n|----------|-------------|---------|\n| `NODE_ENV` | Environment mode | `development` |\n| `PORT` | Server port | `3000` |\n| `HOST` | Server host | `localhost` |\n| `JWT_SECRET` | JWT signing secret | Required |\n| `JWT_EXPIRATION` | JWT expiration time | `24h` |\n| `REDIS_URL` | Redis connection URL | `redis://localhost:6379` |\n| `CACHE_TTL` | Cache TTL in milliseconds | `300000` |\n| `API_RATE_LIMIT` | Rate limit per user | `100` |\n| `LOG_LEVEL` | Logging level | `info` |\n| `DATABASE_URL` | Database connection string | Required |\n\n## Database\n\nThis project uses Prisma ORM for database operations. The schema includes:\n\n- **Users**: Authentication and user management\n- **Profiles**: Extended user information\n- **Posts**: Content management with draft/published states\n- **Roles**: USER, ADMIN, MODERATOR role system\n\n### Database Commands\n\n```bash\n# Generate Prisma client\nnpm run db:generate\n\n# Push schema changes to database\nnpm run db:push\n\n# Run migrations (production)\nnpm run db:migrate\n\n# Reset database\nnpm run db:migrate:reset\n\n# Open Prisma Studio\nnpm run db:studio\n\n# Seed database with sample data\nnpm run db:seed\n```\n\n### Sample Users\n\nAfter running the seed script, you can login with:\n\n- **Admin**: admin@example.com / admin123\n- **User**: user@example.com / user123  \n- **Moderator**: moderator@example.com / moderator123\n\n## Health Checks\n\nThe service provides multiple health check endpoints:\n\n- `GET /health` - Basic health status\n- `GET /health/detailed` - Detailed health information\n- `GET /health/ready` - Kubernetes readiness probe\n- `GET /health/live` - Kubernetes liveness probe\n\n## Testing\n\n```bash\n# Run all tests\nnpm test\n\n# Run tests in watch mode\nnpm run test:watch\n\n# Generate coverage report\nnpm run test:coverage\n```\n\n## Performance\n\n### Benchmarks\n\nHapi.js provides excellent performance characteristics:\n\n- **High Throughput**: Optimized for high concurrent requests\n- **Low Memory**: Efficient memory usage patterns\n- **Built-in Caching**: Redis-based caching reduces database load\n- **Connection Pooling**: Efficient resource management\n\n### Optimization Tips\n\n1. **Enable Caching**: Use Redis caching for frequently accessed data\n2. **Rate Limiting**: Protect against abuse with rate limiting\n3. **Compression**: Enable gzip compression for responses\n4. **Connection Pooling**: Use connection pooling for databases\n5. **Monitoring**: Monitor performance with health endpoints\n\n## Deployment\n\n### Docker Deployment\n\n```bash\n# Build image\ndocker build -t {{serviceName}} .\n\n# Run container\ndocker run -d \\\n  --name {{serviceName}} \\\n  -p 3000:3000 \\\n  -e JWT_SECRET=your-secret \\\n  -e REDIS_URL=redis://redis:6379 \\\n  {{serviceName}}\n```\n\n### Kubernetes Deployment\n\n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: {{serviceName}}\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: {{serviceName}}\n  template:\n    metadata:\n      labels:\n        app: {{serviceName}}\n    spec:\n      containers:\n      - name: {{serviceName}}\n        image: {{serviceName}}:latest\n        ports:\n        - containerPort: 3000\n        env:\n        - name: JWT_SECRET\n          valueFrom:\n            secretKeyRef:\n              name: {{serviceName}}-secrets\n              key: jwt-secret\n        - name: REDIS_URL\n          value: \"redis://redis-service:6379\"\n        livenessProbe:\n          httpGet:\n            path: /health/live\n            port: 3000\n          initialDelaySeconds: 30\n          periodSeconds: 10\n        readinessProbe:\n          httpGet:\n            path: /health/ready\n            port: 3000\n          initialDelaySeconds: 5\n          periodSeconds: 5\n```\n\n## Contributing\n\n1. Fork the repository\n2. Create a feature branch\n3. Make your changes\n4. Add tests for new functionality\n5. Ensure all tests pass\n6. Submit a pull request\n\n## License\n\nMIT License - see LICENSE file for details.",
+      "description": "Template includes README documentation",
+      "critical": false
+    },
+    "Post Install Commands": {
+      "description": "Template includes post-installation commands",
+      "critical": false
+    },
+    "Hapi Framework": {
+      "passed": "^21.3.9",
+      "description": "Uses Hapi.js framework",
+      "critical": true
+    },
+    "Built-in Validation": {
+      "passed": true,
+      "description": "Includes built-in Joi validation",
+      "critical": true
+    },
+    "Plugin Architecture": {
+      "passed": true,
+      "description": "Includes plugin architecture",
+      "critical": true
+    },
+    "Caching System": {
+      "passed": true,
+      "description": "Includes Redis caching system",
+      "critical": true
+    },
+    "Security Features": {
+      "passed": "import Hapi from '@hapi/hapi';\nimport Boom from '@hapi/boom';\nimport { Role } from '@prisma/client';\nimport { UserService } from '../services/userService';\n\nexport interface JWTPayload {\n  id: string;\n  email: string;\n  role: Role;\n  iat: number;\n  exp: number;\n}\n\nexport const validateUser = async (\n  decoded: JWTPayload,\n  request: Hapi.Request,\n  h: Hapi.ResponseToolkit\n) => {\n  try {\n    const userService = new UserService();\n    const user = await userService.findById(decoded.id);\n    \n    if (!user) {\n      return { isValid: false };\n    }\n    \n    return {\n      isValid: true,\n      credentials: {\n        id: user.id,\n        email: user.email,\n        role: user.role,\n        scope: [user.role.toLowerCase()] // For role-based access control\n      }\n    };\n  } catch (error) {\n    return { isValid: false };\n  }\n};\n\nexport const requireRole = (role: Role | string) => {\n  return (request: Hapi.Request, h: Hapi.ResponseToolkit) => {\n    const { credentials } = request.auth;\n    const requiredRole = typeof role === 'string' ? role.toLowerCase() : role.toLowerCase();\n    \n    if (!credentials?.scope?.includes(requiredRole)) {\n      throw Boom.forbidden('Insufficient permissions');\n    }\n    \n    return h.continue;\n  };\n};",
+      "description": "Includes comprehensive security features",
+      "critical": true
+    },
+    "Rate Limiting": {
+      "passed": true,
+      "description": "Includes rate limiting functionality",
+      "critical": true
+    },
+    "Swagger Documentation": {
+      "passed": true,
+      "description": "Includes auto-generated API documentation",
+      "critical": true
+    },
+    "Lab Testing Framework": {
+      "passed": "import { expect } from '@hapi/code';\nimport Lab from '@hapi/lab';\nimport { configureServer } from '../src/config/server';\n\nconst { describe, it, before, after } = exports.lab = Lab.script();\n\ndescribe('Authentication', () => {\n  let server: any;\n\n  before(async () => {\n    server = await configureServer();\n  });\n\n  after(async () => {\n    await server.stop();\n  });\n\n  it('should register a new user', async () => {\n    const response = await server.inject({\n      method: 'POST',\n      url: '/auth/register',\n      payload: {\n        email: 'test@example.com',\n        password: 'password123',\n        name: 'Test User'\n      }\n    });\n\n    expect(response.statusCode).to.equal(201);\n    expect(response.result.user.email).to.equal('test@example.com');\n  });\n\n  it('should login with valid credentials', async () => {\n    // First register a user\n    await server.inject({\n      method: 'POST',\n      url: '/auth/register',\n      payload: {\n        email: 'login@example.com',\n        password: 'password123',\n        name: 'Login User'\n      }\n    });\n\n    const response = await server.inject({\n      method: 'POST',\n      url: '/auth/login',\n      payload: {\n        email: 'login@example.com',\n        password: 'password123'\n      }\n    });\n\n    expect(response.statusCode).to.equal(200);\n    expect(response.result.token).to.exist();\n    expect(response.result.user.email).to.equal('login@example.com');\n  });\n\n  it('should reject invalid credentials', async () => {\n    const response = await server.inject({\n      method: 'POST',\n      url: '/auth/login',\n      payload: {\n        email: 'nonexistent@example.com',\n        password: 'wrongpassword'\n      }\n    });\n\n    expect(response.statusCode).to.equal(401);\n  });\n});",
+      "description": "Uses Hapi Lab testing framework",
+      "critical": true
+    }
+  },
+  "featureCount": 23,
+  "passedFeatures": 22,
+  "failedFeatures": 1
+}

@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "backups": {
+    "68709c3fe7526298": {
+      "id": "68709c3fe7526298",
+      "name": "test-backup",
+      "description": "Test backup for validation",
+      "timestamp": "2025-06-19T10:58:55.920Z",
+      "workspaceFile": "re-shell.workspaces.yaml",
+      "version": "1.0.0",
+      "size": 11219,
+      "hash": "08c6eda00d5015900ee920aef579d55784c24db4ca2656bc03a91ba962bcc484",
+      "includeState": true,
+      "includeCache": false,
+      "includeTemplates": true
+    }
+  },
+  "metadata": {
+    "created": "2025-06-19T10:58:55.917Z",
+    "lastModified": "2025-06-19T10:58:55.935Z",
+    "totalBackups": 1,
+    "totalSize": 11219
+  }
+}

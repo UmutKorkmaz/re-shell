@@ -1,0 +1,16 @@
+name: test-project
+type: monorepo
+packageManager: npm
+framework: react
+template: blank
+dev:
+  port: 4000
+  host: localhost
+  open: true
+  hmr: true
+quality:
+  linting: true
+  testing: false
+  coverage:
+    enabled: false
+    threshold: 60
