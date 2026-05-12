@@ -82,6 +82,7 @@ import { listMicrofrontends } from './commands/list';
 import { buildMicrofrontend } from './commands/build';
 import { serveMicrofrontend } from './commands/serve';
 import { launchTUI } from './commands/tui';
+import { launchUi } from './commands/ui';
 
 // Command group registrations
 import { registerWorkspaceGroup } from './groups/workspace.group';
@@ -389,6 +390,25 @@ program
           });
         }, 300000); // 5 minute timeout for TUI session
       }
+    })
+  );
+
+// UI command - local web dashboard
+program
+  .command('ui')
+  .description('Launch the local Re-Shell UI dashboard')
+  .option('--ui-path <path>', 'Path to the standalone re-shell-ui repo or dashboard app')
+  .option('--ui-root <path>', 'Alias for --ui-path')
+  .option('--workspace <path>', 'Workspace path to inspect', process.cwd())
+  .option('--port <port>', 'Dashboard port', '3333')
+  .option('--host <host>', 'Dashboard host', '127.0.0.1')
+  .option('--package-manager <pm>', 'Package manager to run (pnpm, npm, yarn, bun)')
+  .option('--dry-run', 'Print the launch plan without starting the dashboard')
+  .option('--json', 'Print the launch plan as JSON without starting the dashboard')
+  .option('--no-open', 'Do not open the browser after launching')
+  .action(
+    createAsyncCommand(async (options) => {
+      await launchUi(options);
     })
   );
 
