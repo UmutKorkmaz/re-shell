@@ -165,14 +165,15 @@ function detectPackageManager(uiRoot: string, appPath: string, explicitPackageMa
 
 function createPackageManagerArgs(packageManager: string, host: string, port: string): string[] {
   switch (packageManager) {
-    case 'yarn':
-      return ['run', 'dev', '--host', host, '--port', port];
-    case 'bun':
-      return ['run', 'dev', '--', '--host', host, '--port', port];
-    case 'npm':
     case 'pnpm':
+      return ['exec', 'vite', '--host', host, '--port', port];
+    case 'yarn':
+      return ['vite', '--host', host, '--port', port];
+    case 'bun':
+      return ['x', 'vite', '--host', host, '--port', port];
+    case 'npm':
     default:
-      return ['run', 'dev', '--', '--host', host, '--port', port];
+      return ['exec', 'vite', '--', '--host', host, '--port', port];
   }
 }
 
