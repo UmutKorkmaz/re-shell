@@ -116,6 +116,9 @@ re-shell create demo-app --framework react-ts --route /demo --dry-run --verbose
 # Machine-readable health output
 re-shell workspace health --json
 
+# Launch the standalone shadcn web dashboard
+re-shell ui --ui-path /Users/dtumkorkmaz/Projects/github/UmutKorkmaz/re-shell-ui
+
 # Generate tests for an app workspace path
 re-shell generate test apps/my-react
 ```
@@ -945,6 +948,7 @@ re-shell logging setup --provider elk-stack
 | `dev` | Start development | `re-shell dev --all` |
 | `build` | Build services | `re-shell build --optimize` |
 | `test` | Run tests | `re-shell test --coverage` |
+| `ui` | Launch local web dashboard | `re-shell ui --ui-path ../re-shell-ui` |
 | `deploy` | Deploy to environment | `re-shell deploy --target production` |
 
 ### Advanced Commands
