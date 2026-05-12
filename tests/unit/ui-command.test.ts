@@ -43,7 +43,7 @@ describe('ui command launch plan', () => {
     expect(plan.appPath).toBe(join(uiRoot, 'apps', 'web'));
     expect(plan.packageManager).toBe('pnpm');
     expect(plan.command).toBe('pnpm');
-    expect(plan.args).toEqual(['run', 'dev', '--', '--host', '127.0.0.1', '--port', '3334']);
+    expect(plan.args).toEqual(['exec', 'vite', '--host', '127.0.0.1', '--port', '3334']);
     expect(plan.url).toBe('http://127.0.0.1:3334');
     expect(plan.env.VITE_RE_SHELL_WORKSPACE).toBe(workspace);
     expect(plan.env.RE_SHELL_UI_OPEN).toBe('0');
