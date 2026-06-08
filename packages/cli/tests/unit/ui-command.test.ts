@@ -78,3 +78,57 @@ describe('ui command launch plan', () => {
     );
   });
 });
+
+describe('ui command static-mode selection', () => {
+  it('selects static mode when a bundled dashboard is present and no override is given', () => {
+    // Point resolveBundledDashboard() at a temp fixture via the env override so
+    // the test does not depend on whether the CLI runs from src or dist.
+    const bundledDir = mkdtempSync(join(tmpdir(), 're-shell-bundle-'));
+    mkdirSync(join(bundledDir, 'assets'), { recursive: true });
+    writeFileSync(
+      join(bundledDir, 'index.html'),
+      '<!doctype html><html><head>' +
+        '<script type="module" src="/assets/app.js"></script></head>' +
+        '<body><div id="root"></div></body></html>'
+    );
+    writeFileSync(join(bundledDir, 'hub-server.js'), '// test hub bundle\n');
+    process.env.RE_SHELL_BUNDLED_DASHBOARD_DIR = bundledDir;
+
+    try {
+      const plan = createUiLaunchPlan({ open: false, port: '3333' });
+
+      expect(plan.mode).toBe('static');
+      expect(plan.command).toBe('node');
+      expect(plan.dashboardDir).toBe(bundledDir);
+      expect(plan.hubBundlePath).toBe(join(bundledDir, 'hub-server.js'));
+      // Per-launch token: 32 random bytes rendered as 64 hex chars.
+      expect(plan.hubToken).toMatch(/^[0-9a-f]{64}$/);
+      expect(plan.env.RE_SHELL_UI_HUB_TOKEN).toBe(plan.hubToken);
+      // Static mode must not shell out to vite.
+      expect(plan.args).not.toContain('vite');
+    } finally {
+      delete process.env.RE_SHELL_BUNDLED_DASHBOARD_DIR;
+      rmSync(bundledDir, { recursive: true, force: true });
+    }
+  });
+
+  it('forces vite-dev mode when an explicit --ui-path override is provided', () => {
+    const uiRoot = mkdtempSync(join(tmpdir(), 're-shell-ui-override-'));
+    mkdirSync(join(uiRoot, 'apps', 'web'), { recursive: true });
+    writeFileSync(join(uiRoot, 'package.json'), JSON.stringify({ name: 're-shell-ui' }));
+    writeFileSync(
+      join(uiRoot, 'apps', 'web', 'package.json'),
+      JSON.stringify({ name: 're-shell-dashboard' })
+    );
+
+    try {
+      const plan = createUiLaunchPlan({ uiPath: uiRoot, open: false, port: '3333' });
+
+      expect(plan.mode).toBe('vite-dev');
+      expect(plan.args).toContain('vite');
+      expect(plan.uiRoot).toBe(uiRoot);
+    } finally {
+      rmSync(uiRoot, { recursive: true, force: true });
+    }
+  });
+});

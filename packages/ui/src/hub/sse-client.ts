@@ -1,5 +1,6 @@
 import { sseEventSchema, type SseEvent } from 're-shell-contracts';
 import { JsonReassembler } from './json-reassembler.js';
+import { resolveHubToken } from '../hooks/config.js';
 
 export interface SseClientOptions {
   url: string;
@@ -20,23 +21,10 @@ export interface SseClientOptions {
   retries?: number;
   /**
    * Per-launch session token enforced by the hub on every route. When omitted,
-   * it is read from the VITE_RE_SHELL_UI_HUB_TOKEN build-time env var.
+   * it is resolved by {@link resolveHubToken} from the runtime global
+   * (`window.__RE_SHELL_HUB__`) or the VITE_RE_SHELL_UI_HUB_TOKEN build env.
    */
   token?: string;
-}
-
-/**
- * Resolve the hub session token from an explicit option or the Vite build env.
- * Returns undefined when neither is available.
- */
-function resolveHubToken(explicit?: string): string | undefined {
-  if (explicit) {
-    return explicit;
-  }
-  // Direct member access so Vite inlines the value at build time; indirecting
-  // through a local var defeats the static replacement (value would be undefined).
-  const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env;
-  return env === undefined ? undefined : import.meta.env.VITE_RE_SHELL_UI_HUB_TOKEN;
 }
 
 export class SseClient {

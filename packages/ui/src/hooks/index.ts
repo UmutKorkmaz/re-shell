@@ -1,10 +1,11 @@
 export {
   resolveHubToken,
   resolveHubBaseUrl,
+  getRuntimeHubConfig,
   buildEventsUrl,
   buildJobsUrl,
 } from './config';
-export type { HubConnectionOptions } from './config';
+export type { HubConnectionOptions, RuntimeHubConfig } from './config';
 
 export { redactSecrets } from './redact';
 

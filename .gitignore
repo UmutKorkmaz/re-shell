@@ -91,3 +91,4 @@ AGENTS.md
 
 # Editor/backup files
 *.bak
+*.tsbuildinfo
