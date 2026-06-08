@@ -2,7 +2,7 @@
 
 > **Status:** Authoritative implementation plan. Supersedes `docs/RE_SHELL_MASTER_PLAN.md` (the earlier DRAFT) and the scattered legacy plan/TODO files.
 > **Produced:** 2026-06-06, from a 41-agent workflow: **18 parallel empirical-audit agents** (read source + ran the built CLI/tests) → **18 adversarial verifiers** (each tried to *refute* the audit's CRITICAL/HIGH findings against the live working tree) → **5 domain-synthesis agents**. Every claim below is verified-against-code, with the verifier corrections folded in.
-> **Repos audited:** `re-shell-cli` (`@umutkorkmaz/re-shell-cli@0.28.0`, branch `codex/re-shell-ui-integration`), `re-shell-ui` (branch `codex/bootstrap-re-shell-ui`, **no git remote**), legacy `re-shell` (`codex/recreate-shadcn-re-shell-ui`, broken build, to be archived).
+> **Repos audited:** `re-shell-cli` (`@umutkorkmaz/re-shell-cli@0.28.0`, branch `the working branch`), `re-shell-ui` (branch `the UI working branch`, **no git remote**), legacy `re-shell` (`the legacy working branch`, broken build, to be archived).
 
 ---
 
@@ -103,7 +103,7 @@ The **working tree** is an **uncommitted Web-Components regression** layered on 
 This phase establishes the foundation every later phase depends on: a backed-up, single pnpm monorepo with one consistent `@umutkorkmaz/*` scope, `@umutkorkmaz/contracts` as the single typed source of truth (with zod), and a regenerated, conformance-tested contract surface. Nothing in P2+ (CLI producers, transport hardening, UI fork) is safe to start until P0 safety and P1 contract-lock land.
 
 **Verified preconditions (ground truth at plan time):**
-- `re-shell-ui` has **NO git remote** (`git remote -v` empty) and sits on branch `codex/bootstrap-re-shell-ui` with uncommitted changes — a single `git clean`/disk loss destroys it. This is the highest-priority safety gap.
+- `re-shell-ui` has **NO git remote** (`git remote -v` empty) and sits on branch `the UI working branch` with uncommitted changes — a single `git clean`/disk loss destroys it. This is the highest-priority safety gap.
 - `re-shell-cli` remote is `https://github.com/UmutKorkmaz/re-shell-cli.git`; package is already `@umutkorkmaz/re-shell-cli@0.28.0`, bin `re-shell`, but uses **npm** (`package-lock.json`, no `packageManager` field).
 - UI is already a pnpm workspace (`pnpm-workspace.yaml`: `apps/*`, `packages/*`) with `packages/contracts` (`@re-shell/contracts`), `packages/ui` (`@re-shell/ui`), `apps/web`.
 - CLI `src/` has `@re-shell/` in **15 files** (line-level count 53); CLI has **no zod**, but `ajv@^8.17.1` is present.
@@ -116,8 +116,8 @@ This phase establishes the foundation every later phase depends on: a backed-up,
 #### P0-01 — Create remote for `re-shell-ui` and push all branches/tags
 **Effort:** XS · **Deps:** none · **Parallel:** yes (with P0-02)
 - Create `https://github.com/UmutKorkmaz/re-shell-ui` via `gh repo create UmutKorkmaz/re-shell-ui --private --source . --remote origin` from `/Users/umut/Projects/github/UmutKorkmaz/re-shell-ui`.
-- Commit the current working-tree changes on `codex/bootstrap-re-shell-ui` first (do NOT discard), then `git push -u origin --all && git push origin --tags`.
-- **Acceptance:** `gh repo view UmutKorkmaz/re-shell-ui` resolves; `git ls-remote origin` lists `codex/bootstrap-re-shell-ui`; remote HEAD commit == local HEAD; no uncommitted work lost.
+- Commit the current working-tree changes on `the UI working branch` first (do NOT discard), then `git push -u origin --all && git push origin --tags`.
+- **Acceptance:** `gh repo view UmutKorkmaz/re-shell-ui` resolves; `git ls-remote origin` lists `the UI working branch`; remote HEAD commit == local HEAD; no uncommitted work lost.
 
 #### P0-02 — Snapshot/tag CLI pre-merge state
 **Effort:** XS · **Deps:** none · **Parallel:** yes
@@ -127,7 +127,7 @@ This phase establishes the foundation every later phase depends on: a backed-up,
 #### P0-03 — Commit untracked authoritative docs in CLI; remove memory-dump artifact
 **Effort:** XS · **Deps:** none · **Parallel:** yes
 - Files: `re-shell-cli/docs/**` (currently `?? docs/`), `re-shell-cli/AGENTS.md`.
-- `git add docs/` (commits `RE_SHELL_MASTER_PLAN.md`, `CLI-CONTRACTS.md`, the design spec). DELETE `re-shell-cli/AGENTS.md` (it is a `claude-mem` auto-dump, opens `<claude-mem-context>`), and add `AGENTS.md` + `.agents/` to `.gitignore` if not already ignored.
+- `git add docs/` (commits `RE_SHELL_MASTER_PLAN.md`, `CLI-CONTRACTS.md`, the design spec). DELETE `re-shell-cli/AGENTS.md` (it is a `agent-context auto-dump` auto-dump, opens `<agent-context auto-dump-context>`), and add `AGENTS.md` + `.agents/` to `.gitignore` if not already ignored.
 - **Acceptance:** `git status` shows no untracked `docs/`; `AGENTS.md` gone and gitignored; master plan + contract doc are in history (not just working tree).
 
 #### P0-04 — Archive-after-salvage marker for legacy `re-shell`
@@ -1340,7 +1340,7 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 ### Phase 8 — Docs Consolidation + Legacy Salvage and Read-Only Archive
 
 #### P8-01 — Commit the untracked CLI docs tree; decide AGENTS.md [XS] [BLOCKER for all P8]
-- **Files:** `git add docs/` (commits `RE_SHELL_MASTER_PLAN.md`, `CLI-CONTRACTS.md`, `docs/superpowers/specs/2026-05-29-…design.md`). **DELETE** `re-shell-cli/AGENTS.md` (it is a claude-mem `<claude-mem-context>` auto-dump, NOT authored docs — corrects §8 "KEEP"); add `AGENTS.md` to `.gitignore` (it is currently NOT ignored). Optionally `.gitignore` `/.agents/` handoff dumps if not already.
+- **Files:** `git add docs/` (commits `RE_SHELL_MASTER_PLAN.md`, `CLI-CONTRACTS.md`, `docs/superpowers/specs/2026-05-29-…design.md`). **DELETE** `re-shell-cli/AGENTS.md` (it is a agent-context auto-dump auto-dump, NOT authored docs — corrects §8 "KEEP"); add `AGENTS.md` to `.gitignore` (it is currently NOT ignored). Optionally `.gitignore` `/.agents/` handoff dumps if not already.
 - **Acceptance:** master plan, contracts doc, design spec tracked in git; `AGENTS.md` deleted + ignored; `git status` clean of these.
 - **Deps:** none. **Everything else in P8 depends on this.**
 
@@ -1379,7 +1379,7 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 - **Deps:** P1-contract, P8-06.
 
 #### P8-08 — Delete byte-duplicate + empty files [XS] [parallel-safe]
-- **Do:** delete `re-shell/docs/RE_SHELL_UI_EXECUTION_PLAN.md` (md5 `71c602734…`, byte-identical to the UI copy — keep the UI copy as spine); delete empty `re-shell/packages/CLAUDE.md` (0 bytes).
+- **Do:** delete `re-shell/docs/RE_SHELL_UI_EXECUTION_PLAN.md` (md5 `71c602734…`, byte-identical to the UI copy — keep the UI copy as spine); delete empty the empty package memory file (0 bytes).
 - **Acceptance:** only one execution-plan copy remains; empty file gone.
 - **Deps:** P8-06 (salvage from the canonical copy first).
 

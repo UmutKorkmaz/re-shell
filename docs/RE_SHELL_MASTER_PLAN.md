@@ -39,9 +39,9 @@ Key facts after consolidation:
 
 | Repo | Package | Version | Branch | Role |
 |------|---------|---------|--------|------|
-| `re-shell-cli` | `@umutkorkmaz/re-shell-cli` | 0.28.0 | `codex/re-shell-ui-integration` (+ uncommitted) | The real, published CLI / engine. ~67 command files, group architecture. |
-| `re-shell-ui` | `re-shell-ui` (pnpm ws) | 0.1.0 | `codex/bootstrap-re-shell-ui` | Standalone dashboard + `@re-shell/ui` + `@re-shell/contracts`. **No git remote.** |
-| `re-shell` | `re-shell-monorepo` | 0.2.2 | `codex/recreate-shadcn-re-shell-ui` (+ uncommitted) | Legacy umbrella. `packages/cli` was a *submodule* of re-shell-cli (single-sourced, not a fork). Broken build. Now archived. |
+| `re-shell-cli` | `@umutkorkmaz/re-shell-cli` | 0.28.0 | `the working branch` (+ uncommitted) | The real, published CLI / engine. ~67 command files, group architecture. |
+| `re-shell-ui` | `re-shell-ui` (pnpm ws) | 0.1.0 | `the UI working branch` | Standalone dashboard + `@re-shell/ui` + `@re-shell/contracts`. **No git remote.** |
+| `re-shell` | `re-shell-monorepo` | 0.2.2 | `the legacy working branch` (+ uncommitted) | Legacy umbrella. `packages/cli` was a *submodule* of re-shell-cli (single-sourced, not a fork). Broken build. Now archived. |
 
 These three were merged into the single workspace above; the table is retained only to explain
 where the consolidated code and salvaged references came from.
@@ -84,7 +84,7 @@ Concrete breakages (CRITICAL unless noted):
 
 - **`re-shell-ui` has NO git remote** → all UI work is local-only, unbacked-up. (CRITICAL data-loss risk.)
 - **Scope split:** CLI ships as `@umutkorkmaz/*` but its source (plugin-system, service-integration, config-client) hardcodes `@re-shell/*` for generated/installed packages; UI packages are `@re-shell/ui` + `@re-shell/contracts`. No coherent scope.
-- **Three diverged unmerged `codex/*` branches**, all with uncommitted work, none tracking upstream.
+- **Three diverged unmerged feature branches branches**, all with uncommitted work, none tracking upstream.
 - **Legacy `re-shell` is broken:** `package.json` depends on a `file:` tarball at an absolute path that doesn't exist (install fails); the `packages/cli` submodule checkout is **gutted** (all files staged-deleted) and 2 commits stale; `packages/core` submodule uninitialized; a tracked `Users/dtumkorkmaz/Projects/Re-Shell/...` absolute-path directory leaks local layout into git.
 - GitHub org casing inconsistent (`umutkorkmaz` in metadata/.gitmodules vs `UmutKorkmaz` remotes).
 
@@ -151,11 +151,11 @@ These genuinely change the plan's shape. Recommendations given; final call is th
 > cleanup. Effort sizes are rough.
 
 ### Phase 0 — Stop the bleeding (repo safety) — DONE *(superseded by the monorepo merge)*
-The original repo-safety steps below assumed three separate repos on unmerged `codex/*`
+The original repo-safety steps below assumed three separate repos on unmerged feature branches
 branches. They have been **superseded** by consolidating everything into the single pnpm
 monorepo (Decision 3) on the `@umutkorkmaz/*` scope (Decision 2):
-- ~~Create a git remote for `re-shell-ui` and push `codex/bootstrap-re-shell-ui`.~~ → folded into the monorepo; no separate UI repo remains.
-- ~~Set upstream tracking on all three `codex/*` branches; record the merge order.~~ → all code now lives on `re-shell-cli`.
+- ~~Create a git remote for `re-shell-ui` and push `the UI working branch`.~~ → folded into the monorepo; no separate UI repo remains.
+- ~~Set upstream tracking on all three feature branches branches; record the merge order.~~ → all code now lives on `re-shell-cli`.
 - ~~Legacy `re-shell`: do not commit the dirty submodule; remove the broken `file:` `@re-shell/core` dep; detach the submodule.~~ → legacy repo archived read-only after salvage (§7/§8); salvaged refs in [`docs/legacy/`](./legacy/).
 - Scope (Decision 2) + org-casing applied across `package.json` repository/bugs/homepage — **done** (scope is `@umutkorkmaz/*`).
 
@@ -227,7 +227,7 @@ Overview · Workspace Graph (React Flow) · Templates (filters + dry-run) · Com
 ## 5. Recommended merge / branch order
 1. `re-shell-cli` engine + contract work (Phases 1–3 CLI side) → merge to `main`.
 2. `@re-shell/contracts` locked and (if 2-repo) published.
-3. `re-shell-ui` consumes the released contract; merge `codex/bootstrap-re-shell-ui`.
+3. `re-shell-ui` consumes the released contract; merge `the UI working branch`.
 4. Legacy `re-shell` archived last.
 
 ---
@@ -271,8 +271,8 @@ Legend: **DELETE** (remove; after salvage where noted) · **MERGE** (fold into a
 | `BACKEND_TEMPLATES_DEMO.md` | **DELETE** (after salvage §7) | Selection matrix worth porting. |
 | `HOW_TO_USE_BACKEND_TEMPLATES.md` | **DELETE** (after salvage §7) | Framework matrix worth porting. |
 | `PACKAGE_MANAGERS.md` | **DELETE** | Legacy monorepo build (manager.sh). |
-| `AGENTS.md` | **DELETE** | claude-mem auto-dump; gitignore it. |
-| `packages/CLAUDE.md` | **DELETE** | Empty 0-byte file. |
+| `AGENTS.md` | **DELETE** | agent-context auto-dump; gitignore it. |
+| the empty package memory file | **DELETE** | Empty 0-byte file. |
 | `docs/PROJECT_PLAN.md` | **DELETE/REWRITE** | Predates the standalone split; layout stale. |
 | `docs/README.md` | **DELETE/REWRITE** | Conflicts with root README; broken links. |
 | `INTEGRATION.md` + `docs/INTEGRATION.md` | **MERGE** → one | Two overlapping integration guides. |
@@ -292,7 +292,7 @@ plan/contract docs live under `/docs` (see [`docs/README.md`](./README.md) for t
 | `docs/legacy/CLI-CONTRACTS.old.md` | **ARCHIVED** | The pre-rewrite contract, kept for history under `docs/legacy/`. |
 | `docs/superpowers/specs/2026-05-29-…design.md` | **KEEP** | The UI design spec; package name updated to `@umutkorkmaz/*`. Flip "Draft"→"Implemented" where shipped. |
 | `packages/cli/README.md` | **REWRITE** | CI badge, org casing (`@umutkorkmaz`), template-ID mismatch; thin pointer to `/docs`. |
-| `AGENTS.md` | **DELETE** | claude-mem auto-dump (opens `<claude-mem-context>`); now gitignored (`AGENTS.md`, `.agents/`). **Removed.** |
+| `AGENTS.md` | **DELETE** | agent-context auto-dump (opens `<agent-context auto-dump-context>`); now gitignored (`AGENTS.md`, `.agents/`). **Removed.** |
 | `src/groups/_middle_commands.md` | **KEEP** | Migration map; delete once migration done. |
 | `packages/cli/tests/README.md`, `packages/cli/EXAMPLES.md`, `packages/cli/examples/*.md`, `packages/cli/CHANGELOG.md` | **KEEP** | Accurate / usage refs (live under `packages/cli`). |
 | `docs/RE_SHELL_MASTER_PLAN.md` (this file) | **KEEP (historical)** | Audit record; superseded by `docs/RE_SHELL_ULTIMATE_PLAN.md`. |
