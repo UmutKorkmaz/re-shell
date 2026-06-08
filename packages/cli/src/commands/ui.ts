@@ -5,6 +5,7 @@ import * as path from 'path';
 import chalk from 'chalk';
 import { GENERATED_PKG_SCOPE, RECOGNIZED_PKG_SCOPES } from '../utils/scope';
 import { processManager } from '../utils/error-handler';
+import { startStaticServer, type StaticServer } from '../utils/ui-static-server';
 
 // Recognized package names for the standalone UI app. Includes the legacy
 // scope so already-installed dashboards still resolve.
@@ -30,9 +31,23 @@ export interface UiCommandOptions {
   open?: boolean;
 }
 
+/**
+ * How the dashboard is launched:
+ *  - "static": serve the prebuilt SPA bundled into the CLI (dist/dashboard) via
+ *    the dependency-light static server, plus the bundled hub. No Vite, no
+ *    apps/web source. This is the mode for an npm-installed CLI.
+ *  - "vite-dev": run the apps/web Vite dev server from the monorepo source.
+ */
+export type UiLaunchMode = 'static' | 'vite-dev';
+
 export interface UiLaunchPlan {
+  mode: UiLaunchMode;
   uiRoot: string;
   appPath: string;
+  /** In static mode, the bundled dashboard directory (dist/dashboard). */
+  dashboardDir?: string;
+  /** Path to the hub bundle to spawn with `node` (both modes when available). */
+  hubBundlePath?: string;
   workspace: string;
   packageManager: string;
   command: string;
@@ -169,6 +184,27 @@ export function resolveUiProject(uiPath?: string, cwd = process.cwd()): { uiRoot
   );
 }
 
+/**
+ * Resolve the dashboard bundle shipped inside the published CLI. The compiled
+ * CLI runs from dist/commands, so the bundled dashboard lives one level up at
+ * dist/dashboard. Returns the directory only when a built index.html + hub are
+ * present (i.e. `bundle:dashboard` ran and it shipped in the tarball).
+ */
+export function resolveBundledDashboard(): { dashboardDir: string; hubBundlePath: string } | undefined {
+  // RE_SHELL_BUNDLED_DASHBOARD_DIR overrides the location (used in tests, and as
+  // an escape hatch to point at a custom prebuilt dashboard bundle).
+  const override = process.env.RE_SHELL_BUNDLED_DASHBOARD_DIR;
+  const dashboardDir = override ? path.resolve(override) : path.resolve(__dirname, '../dashboard');
+  const indexHtml = path.join(dashboardDir, 'index.html');
+  const hubBundlePath = path.join(dashboardDir, 'hub-server.js');
+
+  if (pathExists(indexHtml) && pathExists(hubBundlePath)) {
+    return { dashboardDir, hubBundlePath };
+  }
+
+  return undefined;
+}
+
 function detectPackageManager(uiRoot: string, appPath: string, explicitPackageManager?: string): string {
   if (explicitPackageManager) {
     if (!PACKAGE_MANAGERS.has(explicitPackageManager)) {
@@ -235,15 +271,73 @@ export function createUiLaunchPlan(options: UiCommandOptions = {}): UiLaunchPlan
   const port = normalizePort(options.port);
   const hubPort = String(parseInt(port) + 1);
   const workspace = path.resolve(options.workspace || process.cwd());
-  const { uiRoot, appPath } = resolveUiProject(options.uiPath || options.uiRoot);
-  const packageManager = detectPackageManager(uiRoot, appPath, options.packageManager);
-  const args = createPackageManagerArgs(packageManager, host, port);
   const url = `http://${host}:${port}`;
   const hubUrl = `http://${host}:${hubPort}`;
   const cliPath = process.argv[1] ? path.resolve(process.argv[1]) : 're-shell';
   const hubToken = generateHubToken();
 
+  // An explicit --ui-path / RE_SHELL_UI_PATH override always selects a source
+  // (vite-dev) project; the override is meaningless for a prebuilt bundle.
+  const explicitPath = options.uiPath || options.uiRoot || process.env.RE_SHELL_UI_PATH;
+
+  // Shared env for both modes. The dashboard SPA resolves the hub url + token at
+  // runtime; in static mode they are injected into index.html, in vite-dev mode
+  // they are read from these VITE_* vars at build/serve time.
+  const env: Record<string, string> = {
+    RE_SHELL_WORKSPACE: workspace,
+    RE_SHELL_CLI_BIN: cliPath,
+    RE_SHELL_UI_OPEN: options.open === false ? '0' : '1',
+    RE_SHELL_UI_HUB_PORT: hubPort,
+    // Hub session token: enforced server-side on every route.
+    RE_SHELL_UI_HUB_TOKEN: hubToken,
+    // Signals to the vite dev plugin that the CLI already owns and runs the
+    // hub, so the plugin must NOT start a second in-process hub on the same
+    // port (which would EADDRINUSE and create a second lifecycle owner).
+    RE_SHELL_UI_HUB_MANAGED: '1',
+    VITE_RE_SHELL_WORKSPACE: workspace,
+    VITE_RE_SHELL_CLI: cliPath,
+    VITE_RE_SHELL_UI_PORT: port,
+    VITE_RE_SHELL_UI_HOST: host,
+    VITE_RE_SHELL_LAUNCHER: 're-shell ui',
+    VITE_RE_SHELL_UI_HUB_PORT: hubPort,
+    // Full hub URL so the dashboard health poll has a concrete target and does
+    // not short-circuit on a missing URL.
+    VITE_RE_SHELL_UI_HUB_URL: hubUrl,
+    // Exposed to the dashboard build so the SSE/WS clients can attach it.
+    VITE_RE_SHELL_UI_HUB_TOKEN: hubToken
+  };
+
+  // Prefer the bundled static dashboard for installed CLIs, unless an explicit
+  // source path override was given (which forces vite-dev). Fall back to the
+  // monorepo apps/web vite-dev flow when no bundle is present.
+  const bundled = explicitPath ? undefined : resolveBundledDashboard();
+
+  if (bundled) {
+    return {
+      mode: 'static',
+      uiRoot: bundled.dashboardDir,
+      appPath: bundled.dashboardDir,
+      dashboardDir: bundled.dashboardDir,
+      hubBundlePath: bundled.hubBundlePath,
+      workspace,
+      packageManager: 'node',
+      command: 'node',
+      args: ['<static-server>'],
+      url,
+      hubUrl,
+      hubPort,
+      hubToken,
+      open: options.open !== false,
+      env
+    };
+  }
+
+  const { uiRoot, appPath } = resolveUiProject(explicitPath);
+  const packageManager = detectPackageManager(uiRoot, appPath, options.packageManager);
+  const args = createPackageManagerArgs(packageManager, host, port);
+
   return {
+    mode: 'vite-dev',
     uiRoot,
     appPath,
     workspace,
@@ -255,29 +349,7 @@ export function createUiLaunchPlan(options: UiCommandOptions = {}): UiLaunchPlan
     hubPort,
     hubToken,
     open: options.open !== false,
-    env: {
-      RE_SHELL_WORKSPACE: workspace,
-      RE_SHELL_CLI_BIN: cliPath,
-      RE_SHELL_UI_OPEN: options.open === false ? '0' : '1',
-      RE_SHELL_UI_HUB_PORT: hubPort,
-      // Hub session token: enforced server-side on every route.
-      RE_SHELL_UI_HUB_TOKEN: hubToken,
-      // Signals to the vite dev plugin that the CLI already owns and runs the
-      // hub, so the plugin must NOT start a second in-process hub on the same
-      // port (which would EADDRINUSE and create a second lifecycle owner).
-      RE_SHELL_UI_HUB_MANAGED: '1',
-      VITE_RE_SHELL_WORKSPACE: workspace,
-      VITE_RE_SHELL_CLI: cliPath,
-      VITE_RE_SHELL_UI_PORT: port,
-      VITE_RE_SHELL_UI_HOST: host,
-      VITE_RE_SHELL_LAUNCHER: 're-shell ui',
-      VITE_RE_SHELL_UI_HUB_PORT: hubPort,
-      // Full hub URL so the dashboard health poll has a concrete target and does
-      // not short-circuit on a missing URL.
-      VITE_RE_SHELL_UI_HUB_URL: hubUrl,
-      // Exposed to the dashboard build so the SSE/WS clients can attach it.
-      VITE_RE_SHELL_UI_HUB_TOKEN: hubToken
-    }
+    env
   };
 }
 
@@ -339,75 +411,112 @@ function teardownHub(hub: ChildProcess | null): void {
   hub.once('exit', () => clearTimeout(escalate));
 }
 
-export async function launchUi(options: UiCommandOptions = {}): Promise<void> {
-  const plan = createUiLaunchPlan(options);
+/**
+ * Spawn the bundled hub server with plain `node`. The hub hard-pins itself to
+ * 127.0.0.1 and reads its port + per-launch token from the environment; no host
+ * override is forwarded. Returns the child, or null when no bundle is available.
+ */
+function spawnHub(plan: UiLaunchPlan, hubBundlePath: string): ChildProcess {
+  const hubEnv = {
+    ...process.env,
+    RE_SHELL_WORKSPACE: plan.workspace,
+    RE_SHELL_CLI_BIN: plan.env.RE_SHELL_CLI_BIN,
+    RE_SHELL_UI_HUB_PORT: plan.hubPort,
+    RE_SHELL_UI_HUB_TOKEN: plan.hubToken,
+    // Dashboard origin info so the hub can build its exact-origin allowlist.
+    VITE_RE_SHELL_UI_HOST: plan.env.VITE_RE_SHELL_UI_HOST,
+    VITE_RE_SHELL_UI_PORT: plan.env.VITE_RE_SHELL_UI_PORT
+  };
 
-  if (options.json) {
-    console.log(JSON.stringify(plan, null, 2));
-    return;
+  const hubProcess = spawn('node', [hubBundlePath], {
+    cwd: path.dirname(hubBundlePath),
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: hubEnv
+  });
+
+  hubProcess.stdout?.on('data', (data: Buffer) => {
+    process.stdout.write(data);
+  });
+  hubProcess.stderr?.on('data', (data: Buffer) => {
+    process.stderr.write(data);
+  });
+  hubProcess.on('error', err => {
+    console.warn(chalk.yellow(`Hub server failed to start: ${err.message}`));
+  });
+
+  return hubProcess;
+}
+
+/**
+ * Static mode: serve the prebuilt SPA bundled into the CLI (dist/dashboard) via
+ * the dependency-light static server, with the per-launch hub url + token
+ * injected into index.html at request time, plus the bundled hub. No Vite, no
+ * apps/web source. Resolves only when interrupted/terminated.
+ */
+async function launchStatic(plan: UiLaunchPlan): Promise<void> {
+  const dashboardDir = plan.dashboardDir;
+  if (!dashboardDir) {
+    throw new Error('Static launch mode requires a bundled dashboard directory.');
   }
-
-  if (options.dryRun) {
-    console.log(chalk.cyan('Re-Shell UI launch plan'));
-    console.log(`  UI root: ${plan.uiRoot}`);
-    console.log(`  Dashboard app: ${plan.appPath}`);
-    console.log(`  Workspace: ${plan.workspace}`);
-    console.log(`  Command: ${plan.command} ${plan.args.join(' ')}`);
-    console.log(`  Dashboard: ${plan.url}`);
-    console.log(`  Hub: ${plan.hubUrl} (loopback-only, token-protected)`);
-    console.log(`  Hub token: ${plan.hubToken}`);
-    return;
-  }
-
-  console.log(chalk.cyan('Launching Re-Shell UI'));
-  console.log(`  Dashboard: ${plan.url}`);
-  console.log(`  Hub: ${plan.hubUrl} (loopback-only, token-protected)`);
-  console.log(`  Hub token: ${plan.hubToken}`);
-  console.log(`  Workspace: ${plan.workspace}`);
-  console.log(`  UI root: ${plan.uiRoot}`);
 
   if (plan.open) {
     setTimeout(() => openBrowser(plan.url), 1500);
   }
 
-  // Start the hub server as a background process. The hub is a single,
-  // dependency-free bundle compiled by esbuild and run with plain `node` — no
-  // ts-node/tsx. It is built on demand when missing.
-  let hubProcess: ChildProcess | null = null;
-  const hubBundlePath = ensureHubBundle(plan.uiRoot, plan.packageManager);
+  const hubProcess: ChildProcess | null = plan.hubBundlePath
+    ? spawnHub(plan, plan.hubBundlePath)
+    : null;
+  if (!hubProcess) {
+    console.log(chalk.yellow('  Hub server bundle unavailable - launching without the hub'));
+  }
 
-  if (hubBundlePath) {
-    // Note: no host override is forwarded. The hub hard-pins itself to
-    // 127.0.0.1 and ignores any caller-supplied host.
-    const hubEnv = {
-      ...process.env,
-      RE_SHELL_WORKSPACE: plan.workspace,
-      RE_SHELL_CLI_BIN: plan.env.RE_SHELL_CLI_BIN,
-      RE_SHELL_UI_HUB_PORT: plan.hubPort,
-      RE_SHELL_UI_HUB_TOKEN: plan.hubToken,
-      // Dashboard origin info so the hub can build its exact-origin allowlist.
-      VITE_RE_SHELL_UI_HOST: plan.env.VITE_RE_SHELL_UI_HOST,
-      VITE_RE_SHELL_UI_PORT: plan.env.VITE_RE_SHELL_UI_PORT
+  const host = plan.env.VITE_RE_SHELL_UI_HOST;
+  const port = Number(plan.env.VITE_RE_SHELL_UI_PORT);
+  const staticServer: StaticServer = await startStaticServer({
+    rootDir: dashboardDir,
+    host,
+    port,
+    hubUrl: plan.hubUrl,
+    hubToken: plan.hubToken
+  });
+
+  let closed = false;
+  const teardown = (): void => {
+    if (!closed) {
+      closed = true;
+      void staticServer.close();
+    }
+    teardownHub(hubProcess);
+  };
+  processManager.addCleanup(teardown);
+
+  await new Promise<void>(resolve => {
+    const onSignal = (signal: NodeJS.Signals): void => {
+      teardown();
+      setTimeout(() => process.exit(signal === 'SIGINT' ? 130 : 143), 50).unref();
+      resolve();
     };
+    process.once('SIGINT', () => onSignal('SIGINT'));
+    process.once('SIGTERM', () => onSignal('SIGTERM'));
+    staticServer.server.once('close', () => resolve());
+  });
+}
 
-    hubProcess = spawn('node', [hubBundlePath], {
-      cwd: path.dirname(hubBundlePath),
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: hubEnv
-    });
+/**
+ * Vite-dev mode: run the apps/web Vite dev server from the monorepo source plus
+ * the on-demand-built hub bundle. The dashboard SPA reads the hub url + token
+ * from VITE_* vars at serve time.
+ */
+async function launchViteDev(plan: UiLaunchPlan): Promise<void> {
+  if (plan.open) {
+    setTimeout(() => openBrowser(plan.url), 1500);
+  }
 
-    hubProcess.stdout?.on('data', (data: Buffer) => {
-      process.stdout.write(data);
-    });
-
-    hubProcess.stderr?.on('data', (data: Buffer) => {
-      process.stderr.write(data);
-    });
-
-    hubProcess.on('error', (err) => {
-      console.warn(chalk.yellow(`Hub server failed to start: ${err.message}`));
-    });
-  } else {
+  // The hub is a single, dependency-free esbuild bundle run with plain `node`.
+  // It is built on demand when missing from the monorepo checkout.
+  const hubBundlePath = ensureHubBundle(plan.uiRoot, plan.packageManager);
+  const hubProcess: ChildProcess | null = hubBundlePath ? spawnHub(plan, hubBundlePath) : null;
+  if (!hubProcess) {
     console.log(chalk.yellow('  Hub server bundle unavailable - launching without the hub'));
   }
 
@@ -466,4 +575,45 @@ export async function launchUi(options: UiCommandOptions = {}): Promise<void> {
     process.removeListener('SIGTERM', sigtermHandler);
     teardown();
   }
+}
+
+export async function launchUi(options: UiCommandOptions = {}): Promise<void> {
+  const plan = createUiLaunchPlan(options);
+
+  if (options.json) {
+    console.log(JSON.stringify(plan, null, 2));
+    return;
+  }
+
+  if (options.dryRun) {
+    console.log(chalk.cyan('Re-Shell UI launch plan'));
+    console.log(`  Mode: ${plan.mode}`);
+    console.log(`  UI root: ${plan.uiRoot}`);
+    console.log(`  Dashboard app: ${plan.appPath}`);
+    console.log(`  Workspace: ${plan.workspace}`);
+    if (plan.mode === 'static') {
+      console.log(`  Static server: serving ${plan.dashboardDir}`);
+    } else {
+      console.log(`  Command: ${plan.command} ${plan.args.join(' ')}`);
+    }
+    console.log(`  Dashboard: ${plan.url}`);
+    console.log(`  Hub: ${plan.hubUrl} (loopback-only, token-protected)`);
+    console.log(`  Hub token: ${plan.hubToken}`);
+    return;
+  }
+
+  console.log(chalk.cyan('Launching Re-Shell UI'));
+  console.log(`  Mode: ${plan.mode}`);
+  console.log(`  Dashboard: ${plan.url}`);
+  console.log(`  Hub: ${plan.hubUrl} (loopback-only, token-protected)`);
+  console.log(`  Hub token: ${plan.hubToken}`);
+  console.log(`  Workspace: ${plan.workspace}`);
+  console.log(`  UI root: ${plan.uiRoot}`);
+
+  if (plan.mode === 'static') {
+    await launchStatic(plan);
+    return;
+  }
+
+  await launchViteDev(plan);
 }
