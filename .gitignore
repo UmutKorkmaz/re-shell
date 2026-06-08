@@ -86,7 +86,7 @@ test-project/
 /.agents/
 .agents/
 
-# claude-mem / agent context auto-dumps (never track)
+# agent context auto-dumps (never track)
 AGENTS.md
 **/AGENTS.md
 
