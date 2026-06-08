@@ -118,7 +118,6 @@ npm-debug.log*
 packages/
 .mobile-local-build
 *.tgz
-.claude/
 dist/
 `,
 
