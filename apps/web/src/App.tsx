@@ -1,4 +1,4 @@
-import { Button } from '@umutkorkmaz/ui';
+import { Button } from 're-shell-ui';
 import { SCREENS, type ScreenDef, type ScreenId } from './shell/screens';
 import { useScreenRoute } from './shell/useScreenRoute';
 import { OverviewScreen } from './screens/OverviewScreen';

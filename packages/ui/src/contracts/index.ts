@@ -1,1 +1,1 @@
-export type * from '@umutkorkmaz/contracts';
+export type * from 're-shell-contracts';

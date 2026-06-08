@@ -1,8 +1,8 @@
 import * as React from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Badge } from '@umutkorkmaz/ui';
+import { Badge } from 're-shell-ui';
 import { Boxes, Server } from 'lucide-react';
-import type { WorkspaceNodeStatus } from '@umutkorkmaz/contracts';
+import type { WorkspaceNodeStatus } from 're-shell-contracts';
 import type { GraphNodeKind } from '../shared/feedSchemas';
 
 /** Data carried on each React Flow node; status drives the accent color. */

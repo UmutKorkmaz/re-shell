@@ -91,7 +91,7 @@ function isGitUrl(id: string): boolean {
  * Validate a plugin manifest. A valid plugin must have name + version and one of:
  *  - a `reshell` / `reshell-plugin` / `reshell-cli` manifest key,
  *  - the `reshell-plugin` keyword,
- *  - a recognized scope (`@umutkorkmaz/` new, or legacy `@re-shell/`),
+ *  - a recognized scope (`@re-shell/`),
  *  - a `reshell-plugin-` name prefix.
  *
  * Returns a normalized {name, version}. Throws PluginInstallError otherwise.
@@ -121,8 +121,8 @@ export function validatePluginManifest(data: unknown): { name: string; version: 
 }
 
 /**
- * Scope-aware plugin detection (P9-F4). Recognizes BOTH the new
- * `@umutkorkmaz/*` scope and the legacy `@re-shell/*` scope, plus the
+ * Scope-aware plugin detection (P9-F4). Recognizes the
+ * `@re-shell/*` scope, plus the
  * `reshell`/`reshell-plugin`/`reshell-cli` manifest keys and the
  * `reshell-plugin` keyword / name prefix.
  */
@@ -157,7 +157,7 @@ export function isRecognizedPlugin(manifest: PluginManifestData): boolean {
   return false;
 }
 
-/** Strip a scope so `@umutkorkmaz/foo` -> `foo` for the on-disk dir name. */
+/** Strip a scope so `@re-shell/foo` -> `foo` for the on-disk dir name. */
 export function pluginDirName(pluginName: string): string {
   const slash = pluginName.lastIndexOf('/');
   return slash >= 0 ? pluginName.slice(slash + 1) : pluginName;

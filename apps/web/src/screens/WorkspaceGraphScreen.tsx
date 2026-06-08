@@ -16,7 +16,7 @@ import {
   CardTitle,
   CommandPreview,
   formatCommand,
-} from '@umutkorkmaz/ui';
+} from 're-shell-ui';
 import { Boxes, Server } from 'lucide-react';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';
 import { EmptyPanel, EnvelopeErrorPanel, ErrorPanel, LoadingPanel } from './shared/StatePanels';

@@ -33,7 +33,7 @@ apps/web/src-tauri/
 
 - `tauri.conf.json` → `build.frontendDist: "../dist"` points the production
   window at the Vite build output (`apps/web/dist`).
-- `build.beforeBuildCommand` runs `pnpm --filter @umutkorkmaz/ui-web run build`
+- `build.beforeBuildCommand` runs `pnpm --filter re-shell-dashboard run build`
   so the dashboard is built before bundling.
 - `build.beforeDevCommand` + `devUrl: http://localhost:5173` run the Vite dev
   server for `tauri dev`.
@@ -58,7 +58,7 @@ Added to `apps/web/package.json`:
 | `tauri:dev`        | `tauri dev`   | Build dashboard + launch dev window.     |
 | `tauri:build`      | `tauri build` | Build + bundle the desktop installer.    |
 
-Run from the repo root, e.g. `pnpm --filter @umutkorkmaz/ui-web tauri:dev`.
+Run from the repo root, e.g. `pnpm --filter re-shell-dashboard tauri:dev`.
 
 ## 4. Toolchain & build/sign (NOT run here)
 
@@ -71,7 +71,7 @@ Building/signing requires:
 3. **Platform SDKs** — Xcode (macOS / `.dmg`, `.app`), WebView2 + MSVC
    (Windows / `.msi`, `.exe`), `libwebkit2gtk` + friends (Linux / `.deb`,
    `.AppImage`).
-4. **Icons** — generate with `pnpm --filter @umutkorkmaz/ui-web tauri icon
+4. **Icons** — generate with `pnpm --filter re-shell-dashboard tauri icon
    source.png` (placeholders only are committed).
 
 ### Code signing (deployment concern, not done here)

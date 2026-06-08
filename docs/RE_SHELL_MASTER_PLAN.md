@@ -3,7 +3,7 @@
 > **Status: implemented through Phase 8.** The four binding decisions in §2 were made by the
 > owner and executed; the repos described in §0 have since been consolidated into the **single
 > pnpm monorepo** at `re-shell-cli` (`packages/cli` + `packages/ui` + `packages/contracts` +
-> `apps/web`), all on the `@umutkorkmaz/*` scope. This file is kept as the **historical audit
+> `apps/web`), all on the `@re-shell/*` scope. This file is kept as the **historical audit
 > record** of the original three-repo reality and the disposition decisions.
 >
 > **Canonical plan:** see [`docs/RE_SHELL_ULTIMATE_PLAN.md`](./RE_SHELL_ULTIMATE_PLAN.md),
@@ -18,20 +18,20 @@
 ## 0. Topology — RESOLVED: one pnpm monorepo
 
 > **This section is now history.** Decision 3 (single pnpm monorepo) and Decision 2
-> (`@umutkorkmaz/*` everywhere) have been executed. The three separate repos have been
+> (`@re-shell/*` everywhere) have been executed. The three separate repos have been
 > consolidated into the **single pnpm workspace** rooted at `re-shell-cli`.
 
 ### Current (post-consolidation) topology
 
 | Workspace package | Name | Role |
 |-------------------|------|------|
-| `packages/cli` | `@umutkorkmaz/re-shell-cli` | The published CLI / engine. Group architecture, backend template registry, `re-shell ui` launcher. |
-| `packages/ui` | `@umutkorkmaz/ui` | shadcn-React component library (primitives + domain components), the single UI system. |
-| `packages/contracts` | `@umutkorkmaz/contracts` | Authoritative TS + zod contract shapes shared by CLI and UI. |
-| `apps/web` | `@umutkorkmaz/ui-web` | The dashboard app + token-authed hub-server (SSE `/events`, WS `/jobs`). |
+| `packages/cli` | `re-shell-cli` | The published CLI / engine. Group architecture, backend template registry, `re-shell ui` launcher. |
+| `packages/ui` | `re-shell-ui` | shadcn-React component library (primitives + domain components), the single UI system. |
+| `packages/contracts` | `re-shell-contracts` | Authoritative TS + zod contract shapes shared by CLI and UI. |
+| `apps/web` | `re-shell-dashboard` | The dashboard app + token-authed hub-server (SSE `/events`, WS `/jobs`). |
 
 Key facts after consolidation:
-- There is **one repo, one pnpm workspace, one `@umutkorkmaz/*` scope** — no submodules, no divergent CLI fork, no separate UI repo.
+- There is **one repo, one pnpm workspace, one `@re-shell/*` scope** — no submodules, no divergent CLI fork, no separate UI repo.
 - The legacy `re-shell` umbrella is **archived read-only** after salvage (see §7/§8); the salvaged contract + service-bridge references live under [`docs/legacy/`](./legacy/).
 - The Web Components layer has been **retired** in favour of the single shadcn-React system (Decision 1).
 
@@ -39,7 +39,7 @@ Key facts after consolidation:
 
 | Repo | Package | Version | Branch | Role |
 |------|---------|---------|--------|------|
-| `re-shell-cli` | `@umutkorkmaz/re-shell-cli` | 0.28.0 | `the working branch` (+ uncommitted) | The real, published CLI / engine. ~67 command files, group architecture. |
+| `re-shell-cli` | `re-shell-cli` | 0.28.0 | `the working branch` (+ uncommitted) | The real, published CLI / engine. ~67 command files, group architecture. |
 | `re-shell-ui` | `re-shell-ui` (pnpm ws) | 0.1.0 | `the UI working branch` | Standalone dashboard + `@re-shell/ui` + `@re-shell/contracts`. **No git remote.** |
 | `re-shell` | `re-shell-monorepo` | 0.2.2 | `the legacy working branch` (+ uncommitted) | Legacy umbrella. `packages/cli` was a *submodule* of re-shell-cli (single-sourced, not a fork). Broken build. Now archived. |
 
@@ -83,7 +83,7 @@ Concrete breakages (CRITICAL unless noted):
 ### 1.4 Repo / scope / branch hygiene
 
 - **`re-shell-ui` has NO git remote** → all UI work is local-only, unbacked-up. (CRITICAL data-loss risk.)
-- **Scope split:** CLI ships as `@umutkorkmaz/*` but its source (plugin-system, service-integration, config-client) hardcodes `@re-shell/*` for generated/installed packages; UI packages are `@re-shell/ui` + `@re-shell/contracts`. No coherent scope.
+- **Scope split:** CLI ships as `@re-shell/*` but its source (plugin-system, service-integration, config-client) hardcodes `@re-shell/*` for generated/installed packages; UI packages are `@re-shell/ui` + `@re-shell/contracts`. No coherent scope.
 - **Three diverged unmerged feature branches branches**, all with uncommitted work, none tracking upstream.
 - **Legacy `re-shell` is broken:** `package.json` depends on a `file:` tarball at an absolute path that doesn't exist (install fails); the `packages/cli` submodule checkout is **gutted** (all files staged-deleted) and 2 commits stale; `packages/core` submodule uninitialized; a tracked `Users/dtumkorkmaz/Projects/Re-Shell/...` absolute-path directory leaks local layout into git.
 - GitHub org casing inconsistent (`umutkorkmaz` in metadata/.gitmodules vs `UmutKorkmaz` remotes).
@@ -123,8 +123,8 @@ These genuinely change the plan's shape. Recommendations given; final call is th
 1. **UI delivery model — React vs Web Components.**
    *Recommendation: shadcn React.* It's the plan's hard requirement (§2.1), the primitives/domain components already exist and are well-formed, and it unlocks TanStack Router/Query + React Flow per the plan. Export them from `@re-shell/ui`, refactor `apps/web` to consume them, retire the Web Components stubs (keep a thin custom-element wrapper *only* if embedding in non-React hosts is a real requirement).
 
-2. **npm scope unification — `@umutkorkmaz/*` vs `@re-shell/*`.**
-   *Recommendation: pick one and apply everywhere.* The CLI is *published* as `@umutkorkmaz/re-shell-cli`, but the CLI *source* and the UI packages assume `@re-shell/*`. Either unify on `@umutkorkmaz/*` (rename UI packages + fix CLI source emitters) or reclaim `@re-shell/*` (rename the CLI). Do not ship half-and-half.
+2. **npm scope unification — `@re-shell/*` vs `@re-shell/*`.**
+   *Recommendation: pick one and apply everywhere.* The CLI is *published* as `re-shell-cli`, but the CLI *source* and the UI packages assume `@re-shell/*`. Either unify on `@re-shell/*` (rename UI packages + fix CLI source emitters) or reclaim `@re-shell/*` (rename the CLI). Do not ship half-and-half.
 
 3. **Repo strategy — single monorepo vs 2-repo split.**
    *Recommendation: a single pnpm monorepo* (`cli` + `ui` + `contracts` as workspace packages) retiring the submodule composition — unless independent release cadence for the UI is a hard requirement, in which case keep the 2-repo split and **publish `@re-shell/contracts` to npm** as the shared seam.
@@ -144,7 +144,7 @@ These genuinely change the plan's shape. Recommendations given; final call is th
 > **Historical.** This phased plan has been carried out (through Phase 8) under the consolidated
 > single-monorepo model in §0. The phase text below is preserved as the original record; the
 > repo-safety / multi-repo framing in Phase 0 no longer applies because there is now **one repo,
-> one workspace, one `@umutkorkmaz/*` scope**. The canonical, up-to-date plan with the
+> one workspace, one `@re-shell/*` scope**. The canonical, up-to-date plan with the
 > post-consolidation task breakdown is [`docs/RE_SHELL_ULTIMATE_PLAN.md`](./RE_SHELL_ULTIMATE_PLAN.md).
 >
 > Phases 0–6 were the critical path to a working, safe MVP. Phases 7–8 were parallelizable
@@ -153,11 +153,11 @@ These genuinely change the plan's shape. Recommendations given; final call is th
 ### Phase 0 — Stop the bleeding (repo safety) — DONE *(superseded by the monorepo merge)*
 The original repo-safety steps below assumed three separate repos on unmerged feature branches
 branches. They have been **superseded** by consolidating everything into the single pnpm
-monorepo (Decision 3) on the `@umutkorkmaz/*` scope (Decision 2):
+monorepo (Decision 3) on the `@re-shell/*` scope (Decision 2):
 - ~~Create a git remote for `re-shell-ui` and push `the UI working branch`.~~ → folded into the monorepo; no separate UI repo remains.
 - ~~Set upstream tracking on all three feature branches branches; record the merge order.~~ → all code now lives on `re-shell-cli`.
 - ~~Legacy `re-shell`: do not commit the dirty submodule; remove the broken `file:` `@re-shell/core` dep; detach the submodule.~~ → legacy repo archived read-only after salvage (§7/§8); salvaged refs in [`docs/legacy/`](./legacy/).
-- Scope (Decision 2) + org-casing applied across `package.json` repository/bugs/homepage — **done** (scope is `@umutkorkmaz/*`).
+- Scope (Decision 2) + org-casing applied across `package.json` repository/bugs/homepage — **done** (scope is `@re-shell/*`).
 
 ### Phase 1 — Lock the contract — ~1–2 days  *(gates everything UI)*
 - Make `@re-shell/contracts` authoritative (Decision 4). Fix the `CommandSpecInput` no-op `Omit`; add an error-envelope type; consider a `schemaVersion` on `WorkspaceSummary`.
@@ -288,10 +288,10 @@ plan/contract docs live under `/docs` (see [`docs/README.md`](./README.md) for t
 
 | File | Verdict | Note |
 |------|---------|------|
-| `docs/CLI-CONTRACTS.md` | **DONE (REWRITE)** | Regenerated from real output in Wave 2; conforms to `@umutkorkmaz/contracts`; documents the SSE/WS transport + error-code vocabulary; backed by `packages/cli/tests/contract-conformance.test.ts`. |
+| `docs/CLI-CONTRACTS.md` | **DONE (REWRITE)** | Regenerated from real output in Wave 2; conforms to `re-shell-contracts`; documents the SSE/WS transport + error-code vocabulary; backed by `packages/cli/tests/contract-conformance.test.ts`. |
 | `docs/legacy/CLI-CONTRACTS.old.md` | **ARCHIVED** | The pre-rewrite contract, kept for history under `docs/legacy/`. |
-| `docs/superpowers/specs/2026-05-29-…design.md` | **KEEP** | The UI design spec; package name updated to `@umutkorkmaz/*`. Flip "Draft"→"Implemented" where shipped. |
-| `packages/cli/README.md` | **REWRITE** | CI badge, org casing (`@umutkorkmaz`), template-ID mismatch; thin pointer to `/docs`. |
+| `docs/superpowers/specs/2026-05-29-…design.md` | **KEEP** | The UI design spec; package name updated to `@re-shell/*`. Flip "Draft"→"Implemented" where shipped. |
+| `packages/cli/README.md` | **REWRITE** | CI badge, org casing (`@re-shell`), template-ID mismatch; thin pointer to `/docs`. |
 | `AGENTS.md` | **DELETE** | agent-context auto-dump (opens `<agent-context auto-dump-context>`); now gitignored (`AGENTS.md`, `.agents/`). **Removed.** |
 | `src/groups/_middle_commands.md` | **KEEP** | Migration map; delete once migration done. |
 | `packages/cli/tests/README.md`, `packages/cli/EXAMPLES.md`, `packages/cli/examples/*.md`, `packages/cli/CHANGELOG.md` | **KEEP** | Accurate / usage refs (live under `packages/cli`). |
@@ -303,7 +303,7 @@ plan/contract docs live under `/docs` (see [`docs/README.md`](./README.md) for t
 
 The standalone UI repo has been folded into the monorepo. **Web Components are retired**
 (Decision 1): the single UI system is shadcn-React in `packages/ui`. Package names are now
-`@umutkorkmaz/ui`, `@umutkorkmaz/contracts`, and `@umutkorkmaz/ui-web`.
+`re-shell-ui`, `re-shell-contracts`, and `re-shell-dashboard`.
 
 | File | Verdict | Note |
 |------|---------|------|
@@ -311,9 +311,9 @@ The standalone UI repo has been folded into the monorepo. **Web Components are r
 | hub-server / security doc | **KEEP** | The token-authed SSE `/events` + WS `/jobs` transport in `apps/web/src/hub-server.ts`; the prior `shell:true`/no-auth RCE risk is fixed. Transport + error vocabulary documented in `docs/CLI-CONTRACTS.md`. |
 | `docs/cli-integration.md` | **MERGED** | Stale endpoint table; folded into the hub-server/contracts docs. |
 | `docs/web-components-usage.md` | **DELETE** | Web Components layer retired (Decision 1). |
-| `packages/ui/README.md` | **REWRITE** | shadcn-React exports under `@umutkorkmaz/ui`; thin pointer to `/docs`. |
-| `packages/contracts/README.md` | **REWRITE** | Correct package name `@umutkorkmaz/contracts` (authoritative contract source); thin pointer to `docs/CLI-CONTRACTS.md`. |
-| `apps/web/README.md` | **REWRITE** | `@umutkorkmaz/ui-web` dashboard; describes the React panels it actually renders; thin pointer to `/docs`. |
+| `packages/ui/README.md` | **REWRITE** | shadcn-React exports under `re-shell-ui`; thin pointer to `/docs`. |
+| `packages/contracts/README.md` | **REWRITE** | Correct package name `re-shell-contracts` (authoritative contract source); thin pointer to `docs/CLI-CONTRACTS.md`. |
+| `apps/web/README.md` | **REWRITE** | `re-shell-dashboard` dashboard; describes the React panels it actually renders; thin pointer to `/docs`. |
 
 ---
 

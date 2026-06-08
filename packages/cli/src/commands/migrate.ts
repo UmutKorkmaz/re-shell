@@ -338,7 +338,7 @@ async function importMonorepo(sourcePath: string, config: ProjectConfig, options
   // Add Re-Shell specific configurations
   packageJson.devDependencies = {
     ...packageJson.devDependencies,
-    '@umutkorkmaz/re-shell-cli': 'latest'
+    're-shell-cli': 'latest'
   };
   
   packageJson.scripts = {

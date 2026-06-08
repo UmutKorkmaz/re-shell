@@ -4,10 +4,10 @@
 
 The most comprehensive and powerful command-line interface for building complete full-stack applications with distributed microservices and microfrontend architectures. Re-Shell unites backend and frontend development under a single CLI, providing enterprise-grade reliability, seamless integration, and exceptional developer experience.
 
-[![Version](https://img.shields.io/npm/v/@umutkorkmaz/re-shell-cli.svg)](https://www.npmjs.com/package/@umutkorkmaz/re-shell-cli)
-[![License](https://img.shields.io/npm/l/@umutkorkmaz/re-shell-cli.svg)](https://github.com/umutkorkmaz/re-shell-cli/blob/main/LICENSE)
+[![Version](https://img.shields.io/npm/v/re-shell-cli.svg)](https://www.npmjs.com/package/re-shell-cli)
+[![License](https://img.shields.io/npm/l/re-shell-cli.svg)](https://github.com/umutkorkmaz/re-shell-cli/blob/main/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/umutkorkmaz/re-shell-cli/ci.yml?branch=main)](https://github.com/umutkorkmaz/re-shell-cli/actions/workflows/ci.yml)
-[![Downloads](https://img.shields.io/npm/dm/@umutkorkmaz/re-shell-cli.svg)](https://www.npmjs.com/package/@umutkorkmaz/re-shell-cli)
+[![Downloads](https://img.shields.io/npm/dm/re-shell-cli.svg)](https://www.npmjs.com/package/re-shell-cli)
 
 > This package lives in the [Re-Shell monorepo](https://github.com/umutkorkmaz/re-shell-cli). See [`/docs`](../../docs) for the full documentation index and the [`CLI-CONTRACTS.md`](../../docs/CLI-CONTRACTS.md) JSON contract.
 
@@ -27,7 +27,7 @@ Re-Shell CLI is a comprehensive full-stack development platform that revolutioni
 
 ### 🆕 What's New in v0.28.0
 
-- **📦 New npm Package Scope**: the CLI now publishes as `@umutkorkmaz/re-shell-cli`
+- **📦 New npm Package Scope**: the CLI now publishes as `re-shell-cli`
 - **🔄 Updated Upgrade Flow**: self-update prompts and generated monorepos now point at the new package name
 - **🔗 Personal GitHub Metadata**: badges, links, and package metadata now resolve to the personal `umutkorkmaz/re-shell-cli` repository
 
@@ -93,13 +93,13 @@ Re-Shell CLI is a comprehensive full-stack development platform that revolutioni
 
 ```bash
 # Install globally using npm
-npm install -g @umutkorkmaz/re-shell-cli
+npm install -g re-shell-cli
 
 # Using yarn
-yarn global add @umutkorkmaz/re-shell-cli
+yarn global add re-shell-cli
 
 # Using pnpm
-pnpm add -g @umutkorkmaz/re-shell-cli
+pnpm add -g re-shell-cli
 
 # Verify installation
 re-shell --version
@@ -154,7 +154,7 @@ re-shell completion --shell zsh
 
 Introspection commands (`doctor`, `analyze`, `templates`, `commands`,
 `workspace health`, `list`, …) share one stable wire envelope, authored as zod
-schemas in [`@umutkorkmaz/contracts`](../contracts) and documented in
+schemas in [`re-shell-contracts`](../contracts) and documented in
 [`docs/CLI-CONTRACTS.md`](../../docs/CLI-CONTRACTS.md):
 
 ```jsonc
@@ -1149,13 +1149,13 @@ cd re-shell-cli
 pnpm install
 
 # Build this package
-pnpm --filter @umutkorkmaz/re-shell-cli build
+pnpm --filter re-shell-cli build
 
 # Run this package's tests
-pnpm --filter @umutkorkmaz/re-shell-cli test
+pnpm --filter re-shell-cli test
 
 # Watch-build during development
-pnpm --filter @umutkorkmaz/re-shell-cli dev
+pnpm --filter re-shell-cli dev
 ```
 
 ### Contribution Areas

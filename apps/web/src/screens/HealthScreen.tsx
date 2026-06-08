@@ -11,8 +11,8 @@ import {
   Separator,
   createReShellCommand,
   formatCommand,
-} from '@umutkorkmaz/ui';
-import type { HealthCheck, HealthSummary } from '@umutkorkmaz/contracts';
+} from 're-shell-ui';
+import type { HealthCheck, HealthSummary } from 're-shell-contracts';
 import { AlertCircle, CheckCircle2, Info, TriangleAlert } from 'lucide-react';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';
 import { EnvelopeErrorPanel, ErrorPanel, LoadingPanel } from './shared/StatePanels';

@@ -12,8 +12,8 @@ import {
   WorkspaceSummaryPanel,
   createReShellCommand,
   formatCommand,
-} from '@umutkorkmaz/ui';
-import type { HealthCheck, WorkspaceSummary } from '@umutkorkmaz/contracts';
+} from 're-shell-ui';
+import type { HealthCheck, WorkspaceSummary } from 're-shell-contracts';
 import { Activity, AlertCircle, ArrowRight, Boxes, History, Play, Server } from 'lucide-react';
 import type { ScreenId } from '../shell/screens';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';

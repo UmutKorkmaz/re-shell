@@ -531,7 +531,7 @@ export class PluginRegistry extends EventEmitter {
       const isPlugin = manifestData.keywords?.includes('reshell-plugin') ||
                       manifestData.name?.startsWith('reshell-plugin-') ||
                       manifestData.reshell ||
-                      // Accept both '@umutkorkmaz/' and legacy '@re-shell/' scopes
+                      // Accept the '@re-shell/' scope
                       RECOGNIZED_PKG_SCOPES.some((scope) => manifestData.name?.startsWith(scope));
       
       if (!isPlugin) {

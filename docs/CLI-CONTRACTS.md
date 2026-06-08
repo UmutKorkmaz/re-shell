@@ -13,10 +13,10 @@ consumers (the UI hub server, scripts, CI) parse.
 
 ---
 
-## Source of truth: `@umutkorkmaz/contracts`
+## Source of truth: `re-shell-contracts`
 
 The **wire envelope** and the **error-code vocabulary** are defined once, as
-zod schemas, in the `@umutkorkmaz/contracts` package. The CLI imports them (it
+zod schemas, in the `re-shell-contracts` package. The CLI imports them (it
 no longer re-declares its own copies):
 
 - `envelope.ts` — `JsonResponse<T>` / `JsonSuccess<T>` / `JsonError`,
@@ -81,7 +81,7 @@ With optional `details`:
 
 ## Error code vocabulary (`ErrorCode`)
 
-Closed set, defined by `errorCodeSchema` in `@umutkorkmaz/contracts`. Emitting a
+Closed set, defined by `errorCodeSchema` in `re-shell-contracts`. Emitting a
 code outside this union is a compile error in the CLI.
 
 | Code | Emitted by |
@@ -110,7 +110,7 @@ Each section lists the exact invocation, the data-payload keys, and a real
 captured sample. Reproduce any sample with:
 
 ```bash
-pnpm --filter @umutkorkmaz/re-shell-cli run build
+pnpm --filter re-shell-cli run build
 node packages/cli/dist/index.js <command> --json
 ```
 
@@ -140,12 +140,12 @@ dependency graph projection, and a health roll-up.
     "packageManager": "pnpm",
     "workspaces": [
       {
-        "name": "@umutkorkmaz/ui",
+        "name": "re-shell-ui",
         "path": "packages/ui",
         "type": "package",
         "framework": "react-ts",
         "version": "0.2.2",
-        "dependencies": ["@umutkorkmaz/contracts", "react", "..."]
+        "dependencies": ["re-shell-contracts", "react", "..."]
       }
     ],
     "graph": { "apps": [], "services": [] },
@@ -170,10 +170,10 @@ node's `dependencies` lists only internal workspace-to-workspace edges.
   "ok": true,
   "data": {
     "apps": [
-      { "name": "@umutkorkmaz/ui-web", "path": "apps/web", "framework": "react-ts", "dependencies": ["@umutkorkmaz/contracts", "@umutkorkmaz/ui"] }
+      { "name": "re-shell-dashboard", "path": "apps/web", "framework": "react-ts", "dependencies": ["re-shell-contracts", "re-shell-ui"] }
     ],
     "services": [
-      { "name": "@umutkorkmaz/contracts", "path": "packages/contracts", "framework": null, "dependencies": [] }
+      { "name": "re-shell-contracts", "path": "packages/contracts", "framework": null, "dependencies": [] }
     ]
   },
   "warnings": []
@@ -196,7 +196,7 @@ Health diagnostics for the workspace. `warnings[]` mirrors the non-fatal checks.
     "score": 83,
     "status": "degraded",
     "checks": [
-      { "name": "Workspaces", "status": "healthy", "message": "6 workspace(s) detected", "details": ["@umutkorkmaz/ui (package)"] },
+      { "name": "Workspaces", "status": "healthy", "message": "6 workspace(s) detected", "details": ["re-shell-ui (package)"] },
       { "name": "File Structure", "status": "warning", "message": "Workspace structure could be improved", "details": ["Missing recommended files: README.md"] },
       { "name": "Package Manager", "status": "healthy", "message": "Using pnpm" }
     ]
@@ -398,7 +398,7 @@ interactive terminal.
 {
   "ok": true,
   "data": [
-    { "name": "@umutkorkmaz/contracts", "path": "packages/contracts", "type": "package", "version": "0.1.0", "dependencies": ["zod", "typescript"] }
+    { "name": "re-shell-contracts", "path": "packages/contracts", "type": "package", "version": "0.1.0", "dependencies": ["zod", "typescript"] }
   ],
   "warnings": []
 }
@@ -411,7 +411,7 @@ interactive terminal.
 `packages/cli/tests/contract-conformance.test.ts` is the executable counterpart
 to this document. For every command it spawns the built CLI, asserts stdout is
 exactly one `JSON.parse`-able line, and validates the payload against
-`jsonResponseSchema(<dataSchema>)` from `@umutkorkmaz/contracts`:
+`jsonResponseSchema(<dataSchema>)` from `re-shell-contracts`:
 
 - **ok-path:** `workspace summary`, `workspace graph`, `workspace health`,
   `templates list`, `templates show express`, `commands list`, `doctor`, `list`.
@@ -425,6 +425,6 @@ exactly one `JSON.parse`-able line, and validates the payload against
 Run it (the package build must produce a fresh `dist/` first):
 
 ```bash
-pnpm --filter @umutkorkmaz/re-shell-cli run build
+pnpm --filter re-shell-cli run build
 cd packages/cli && npx vitest run tests/contract-conformance.test.ts
 ```

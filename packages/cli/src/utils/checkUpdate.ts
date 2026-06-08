@@ -54,7 +54,7 @@ export async function checkForUpdates(currentVersion: string): Promise<void> {
     }
 
     // Fetch latest version from npm registry
-    const latestVersion = await fetchLatestVersion('@umutkorkmaz/re-shell-cli');
+    const latestVersion = await fetchLatestVersion('re-shell-cli');
     
     if (isNewerVersion(latestVersion, currentVersion)) {
       // Cache the update check result
@@ -118,7 +118,7 @@ function showUpdateNotification(currentVersion: string, latestVersion: string): 
   const notification = [
     `${chalk.bold.white('Update available!')} ${chalk.gray(currentVersion)} ${chalk.gray('→')} ${chalk.green.bold(latestVersion)}`,
     '',
-    `Run ${chalk.cyan.bold('npm install -g @umutkorkmaz/re-shell-cli@latest')} to update`,
+    `Run ${chalk.cyan.bold('npm install -g re-shell-cli@latest')} to update`,
     '',
     chalk.gray('Changelog: https://github.com/umutkorkmaz/re-shell-cli/releases'),
   ].join('\n');
@@ -154,7 +154,7 @@ export async function runUpdateCommand(): Promise<void> {
     const packageJson = await fs.readJson(packageJsonPath);
     const currentVersion = packageJson.version;
 
-    const latestVersion = await fetchLatestVersion('@umutkorkmaz/re-shell-cli');
+    const latestVersion = await fetchLatestVersion('re-shell-cli');
 
     if (!latestVersion) {
       spinner.fail(chalk.red('Unable to check for updates. Please check your internet connection.'));
@@ -176,20 +176,20 @@ export async function runUpdateCommand(): Promise<void> {
       if (response.shouldUpdate) {
         // Detect package manager
         const packageManager = detectPackageManager();
-        const updateSpinner = createSpinner(`Updating @umutkorkmaz/re-shell-cli using ${packageManager}...`).start();
+        const updateSpinner = createSpinner(`Updating re-shell-cli using ${packageManager}...`).start();
         
         try {
           await performUpdate(packageManager);
-          updateSpinner.succeed(chalk.green(`Successfully updated to @umutkorkmaz/re-shell-cli@${latestVersion}!`));
+          updateSpinner.succeed(chalk.green(`Successfully updated to re-shell-cli@${latestVersion}!`));
           console.log();
           console.log(chalk.green('🎉 Update completed! You can now use the latest features.'));
         } catch (error) {
           updateSpinner.fail(chalk.red('Update failed'));
           console.log();
           console.log(chalk.yellow('Please update manually using one of these commands:'));
-          console.log(chalk.bold('  npm install -g @umutkorkmaz/re-shell-cli@latest'));
-          console.log('  yarn global add @umutkorkmaz/re-shell-cli@latest');
-          console.log('  pnpm add -g @umutkorkmaz/re-shell-cli@latest');
+          console.log(chalk.bold('  npm install -g re-shell-cli@latest'));
+          console.log('  yarn global add re-shell-cli@latest');
+          console.log('  pnpm add -g re-shell-cli@latest');
         }
       } else {
         console.log();
@@ -243,15 +243,15 @@ function performUpdate(packageManager: string): Promise<void> {
     switch (packageManager) {
       case 'pnpm':
         command = 'pnpm';
-        args = ['add', '-g', '@umutkorkmaz/re-shell-cli@latest'];
+        args = ['add', '-g', 're-shell-cli@latest'];
         break;
       case 'yarn':
         command = 'yarn';
-        args = ['global', 'add', '@umutkorkmaz/re-shell-cli@latest'];
+        args = ['global', 'add', 're-shell-cli@latest'];
         break;
       default:
         command = 'npm';
-        args = ['install', '-g', '@umutkorkmaz/re-shell-cli@latest'];
+        args = ['install', '-g', 're-shell-cli@latest'];
     }
     
     const child = spawn(command, args, {

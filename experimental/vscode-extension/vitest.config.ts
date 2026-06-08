@@ -11,7 +11,7 @@ const packageRoot = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
-      '@umutkorkmaz/contracts': resolve(packageRoot, '../../packages/contracts/src/index.ts'),
+      're-shell-contracts': resolve(packageRoot, '../../packages/contracts/src/index.ts'),
     },
   },
   test: {

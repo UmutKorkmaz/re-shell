@@ -297,7 +297,7 @@ export class ChangeImpactAnalyzer {
   private extractWorkspaceDependencies(deps: Record<string, string>): string[] {
     return Object.keys(deps).filter(dep => {
       // Check if it's a workspace dependency (starts with workspace name pattern)
-      // Accept both '@umutkorkmaz/' and legacy '@re-shell/' scopes
+      // Accept the '@re-shell/' scope
       return this.dependencyGraph.nodes.has(dep) || RECOGNIZED_PKG_SCOPES.some((scope) => dep.startsWith(scope));
     });
   }

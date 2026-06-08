@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Button } from '@umutkorkmaz/ui';
+import { Button } from 're-shell-ui';
 import { ShieldAlert, X } from 'lucide-react';
 
 interface ConfirmModalProps {

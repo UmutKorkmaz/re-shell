@@ -1,5 +1,5 @@
 {
-  "name": "@umutkorkmaz/contracts",
+  "name": "re-shell-contracts",
   "version": "0.1.0",
   "description": "Shared TypeScript contracts for Re-Shell UI and CLI integration.",
   "license": "MIT",

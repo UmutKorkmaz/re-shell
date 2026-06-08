@@ -2,7 +2,7 @@ import {
   wsServerMessageSchema,
   type WsServerMessage,
   type WsClientMessage,
-} from '@umutkorkmaz/contracts';
+} from 're-shell-contracts';
 import { JsonReassembler } from './json-reassembler.js';
 
 // Sec-WebSocket-Protocol prefix used to smuggle the session token on the

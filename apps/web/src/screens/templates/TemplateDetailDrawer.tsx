@@ -9,7 +9,7 @@ import {
   SheetHeader,
   SheetTitle,
   formatCommand,
-} from '@umutkorkmaz/ui';
+} from 're-shell-ui';
 import { Loader2 } from 'lucide-react';
 import { useEnvelopeQuery } from '../shared/useEnvelopeQuery';
 import { templateFeedSchema, type TemplateFeed } from '../shared/feedSchemas';

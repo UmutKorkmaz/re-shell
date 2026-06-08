@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CommandSpec } from '@umutkorkmaz/contracts';
+import type { CommandSpec } from 're-shell-contracts';
 
 /**
  * Typed, allow-listed command registry.

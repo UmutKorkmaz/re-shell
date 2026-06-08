@@ -1,4 +1,4 @@
-# @umutkorkmaz/ui
+# re-shell-ui
 
 Shadcn-first React component library for Re-Shell interfaces. This is the **single
 UI system** for the monorepo — `apps/web` consumes it instead of building a parallel
@@ -10,7 +10,7 @@ component layer. There is no Web Components surface.
 ## Install
 
 ```bash
-pnpm add @umutkorkmaz/ui
+pnpm add re-shell-ui
 ```
 
 Peer dependencies: `react` and `react-dom` (`^18.2.0 || ^19.0.0`).
@@ -22,13 +22,13 @@ hub data hooks (`useHubQuery`, `useJob`).
 Import components from the package root and the stylesheet from `./styles.css`:
 
 ```tsx
-import { WorkspaceSummaryPanel, Button, HealthStatus } from '@umutkorkmaz/ui';
-import '@umutkorkmaz/ui/styles.css';
+import { WorkspaceSummaryPanel, Button, HealthStatus } from 're-shell-ui';
+import 're-shell-ui/styles.css';
 ```
 
 ## Exports
 
-Everything is re-exported from the package root (`@umutkorkmaz/ui`). Subpath entry
+Everything is re-exported from the package root (`re-shell-ui`). Subpath entry
 points exist for type discovery, but their runtime resolves to the same bundle.
 
 ### shadcn primitives — `./components/ui`
@@ -54,7 +54,7 @@ Hub connection + data hooks: `resolveHubToken`, `resolveHubBaseUrl`,
 
 ### Contracts re-export — `./contracts`
 
-Type-only re-export of [`@umutkorkmaz/contracts`](../contracts) so consumers can
+Type-only re-export of [`re-shell-contracts`](../contracts) so consumers can
 import the shared wire types from one place.
 
 ### Styles — `./styles.css`
@@ -94,9 +94,9 @@ shadcn/ui is mandatory from bottom to top:
 ## Scripts
 
 ```bash
-pnpm --filter @umutkorkmaz/ui build
-pnpm --filter @umutkorkmaz/ui typecheck
-pnpm --filter @umutkorkmaz/ui dev        # vite build --watch
-pnpm --filter @umutkorkmaz/ui test
-pnpm --filter @umutkorkmaz/ui shadcn     # shadcn CLI
+pnpm --filter re-shell-ui build
+pnpm --filter re-shell-ui typecheck
+pnpm --filter re-shell-ui dev        # vite build --watch
+pnpm --filter re-shell-ui test
+pnpm --filter re-shell-ui shadcn     # shadcn CLI
 ```
