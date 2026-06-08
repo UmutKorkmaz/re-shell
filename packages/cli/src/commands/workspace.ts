@@ -296,7 +296,7 @@ export async function generateWorkspaceGraph(options: WorkspaceGraphOptions = {}
       spinner.setText('Building dependency graph...');
     }
 
-    const graph = await buildDependencyGraph(workspaces);
+    const graph = await buildDependencyGraph(workspaces, monorepoRoot);
 
     if (spinner) {
       spinner.stop();
@@ -369,7 +369,7 @@ export async function generateWorkspaceGraph(options: WorkspaceGraphOptions = {}
   }
 }
 
-async function buildDependencyGraph(workspaces: WorkspaceInfo[]): Promise<any> {
+async function buildDependencyGraph(workspaces: WorkspaceInfo[], rootPath: string): Promise<any> {
   const graph = {
     nodes: workspaces.map(ws => ({
       id: ws.name,
@@ -382,7 +382,7 @@ async function buildDependencyGraph(workspaces: WorkspaceInfo[]): Promise<any> {
 
   // Build edges based on package.json dependencies
   for (const workspace of workspaces) {
-    const packageJsonPath = path.join(workspace.path, 'package.json');
+    const packageJsonPath = path.join(rootPath, workspace.path, 'package.json');
 
     try {
       const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
@@ -704,6 +704,57 @@ interface WorkspaceSummaryOptions {
   spinner?: ProgressSpinner;
 }
 
+async function createWorkspaceSummary(monorepoRoot: string): Promise<WorkspaceSummary> {
+  const workspaces = await getWorkspaces(monorepoRoot);
+  const graphSource = await buildDependencyGraph(workspaces, monorepoRoot);
+  const graph = buildContractGraph(workspaces, graphSource.edges);
+  const packageManager = await detectPackageManager(monorepoRoot);
+  const configPath = path.join(monorepoRoot, 're-shell.workspaces.yaml');
+  const healthChecks = fs.existsSync(configPath)
+    ? await runHealthChecks(configPath)
+    : await runMonorepoHealthChecks(monorepoRoot);
+
+  const overall = healthChecks.every(c => c.status === 'healthy' || c.status === 'warning')
+    ? 'healthy'
+    : healthChecks.some(c => c.status === 'critical')
+      ? 'critical'
+      : 'degraded';
+
+  return {
+    root: monorepoRoot,
+    packageManager,
+    workspaces,
+    graph,
+    health: normalizeHealth({ checks: healthChecks, overall }),
+  };
+}
+
+export async function buildWorkspaceSummary(startPath: string = process.cwd()): Promise<WorkspaceSummary> {
+  const monorepoRoot = await findMonorepoRoot(startPath);
+  if (!monorepoRoot) {
+    throw new Error('Not in a monorepo. Run this command from a monorepo root or workspace.');
+  }
+
+  return createWorkspaceSummary(monorepoRoot);
+}
+
+/**
+ * Compute the canonical, normalized health for a specific
+ * `re-shell.workspaces.yaml` config. Reuses the same {@link runHealthChecks}
+ * pass and {@link normalizeHealth} mapping that powers the `workspace summary`
+ * --json surface, so callers (e.g. the TUI) get the real, scoped health for a
+ * single workspace config rather than the whole discovered monorepo.
+ */
+export async function buildConfigHealth(configPath: string): Promise<CanonicalHealth> {
+  const healthChecks = await runHealthChecks(configPath);
+  const overall = healthChecks.every(c => c.status === 'healthy' || c.status === 'warning')
+    ? 'healthy'
+    : healthChecks.some(c => c.status === 'critical')
+      ? 'critical'
+      : 'degraded';
+  return normalizeHealth({ checks: healthChecks, overall });
+}
+
 /**
  * Produce a {@link WorkspaceSummary} and emit it as a JSON envelope.
  *
@@ -734,41 +785,11 @@ export async function produceWorkspaceSummary(
       spinner.setText('Loading workspace information...');
     }
 
-    const workspaces = await getWorkspaces(monorepoRoot);
-
     if (spinner) {
-      spinner.setText('Building dependency graph...');
+      spinner.setText('Building workspace summary...');
     }
 
-    const graphSource = await buildDependencyGraph(workspaces);
-    const graph = buildContractGraph(workspaces, graphSource.edges);
-
-    if (spinner) {
-      spinner.setText('Analyzing workspace health...');
-    }
-
-    const packageManager = await detectPackageManager(monorepoRoot);
-
-    // Reuse the P2-06 health pass: prefer the rich re-shell.workspaces.yaml
-    // checks when present, otherwise derive checks from the discovered monorepo.
-    const configPath = path.join(monorepoRoot, 're-shell.workspaces.yaml');
-    const healthChecks = fs.existsSync(configPath)
-      ? await runHealthChecks(configPath)
-      : await runMonorepoHealthChecks(monorepoRoot);
-
-    const overall = healthChecks.every(c => c.status === 'healthy' || c.status === 'warning')
-      ? 'healthy'
-      : healthChecks.some(c => c.status === 'critical')
-        ? 'critical'
-        : 'degraded';
-
-    const summary: WorkspaceSummary = {
-      root: monorepoRoot,
-      packageManager,
-      workspaces,
-      graph,
-      health: normalizeHealth({ checks: healthChecks, overall }),
-    };
+    const summary = await createWorkspaceSummary(monorepoRoot);
 
     if (spinner) spinner.stop();
 

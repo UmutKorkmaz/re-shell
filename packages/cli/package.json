@@ -15,7 +15,7 @@
     "re-shell": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc && mkdir -p dist/utils/schemas && cp src/schemas/workspace-v2.schema.json dist/utils/schemas/re-shell-workspace.schema.json && mkdir -p dist/completions && cp src/completions/bash dist/completions/bash && cp src/completions/zsh dist/completions/zsh && mkdir -p dist/tui && cp -R src/tui/. dist/tui/",
+    "build": "tsc && mkdir -p dist/utils/schemas && cp src/schemas/workspace-v2.schema.json dist/utils/schemas/re-shell-workspace.schema.json && mkdir -p dist/completions && cp src/completions/bash dist/completions/bash && cp src/completions/zsh dist/completions/zsh",
     "dev": "tsc --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",

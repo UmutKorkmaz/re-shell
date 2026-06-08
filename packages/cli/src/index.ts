@@ -427,11 +427,11 @@ program
 // TUI command - Interactive Terminal User Interface
 program
   .command('tui')
-  .description('Launch interactive Terminal User Interface (TUI)')
+  .description('Launch the interactive Terminal User Interface (Ink, default)')
   .option('--project <path>', 'Project path', process.cwd())
   .option('--mode <mode>', 'TUI mode (dashboard|init|manage|config)', 'dashboard')
   .option('--debug', 'Enable debug output')
-  .option('--ink', 'Use Ink-based TUI (React for CLIs)')
+  .option('--go', 'Legacy: launch the Go-based TUI instead (requires Go on PATH)')
   .action(
     createAsyncCommand(async (options) => {
       // No spinner for TUI - it has its own interface
@@ -440,20 +440,14 @@ program
       });
       flushOutput();
 
-      if (options.ink) {
-        // Use Ink-based TUI
-        const { launchInkTUI } = await import('./commands/ink-tui');
-        await launchInkTUI();
-      } else {
-        // Use Go-based TUI (original)
-        await withTimeout(async () => {
-          await launchTUI({
-            project: options.project,
-            mode: options.mode,
-            debug: options.debug
-          });
-        }, 300000); // 5 minute timeout for TUI session
-      }
+      await withTimeout(async () => {
+        await launchTUI({
+          project: options.project,
+          mode: options.mode,
+          debug: options.debug,
+          go: options.go
+        });
+      }, 300000); // 5 minute timeout for TUI session
     })
   );
 

@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'vitest';
 import * as React from 'react';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { render } from 'ink-testing-library';
-import { InkTUI } from '../../src/commands/ink-tui';
+import { InkTUI, loadInkRuntime } from '../../src/commands/ink-tui';
 
 /**
  * TUI (ink) interactive flow.
@@ -18,6 +21,12 @@ import { InkTUI } from '../../src/commands/ink-tui';
  * and handles input without crashing.
  */
 describe('TUI (ink) interactive', () => {
+  const fixtureWorkspace = path.resolve(__dirname, '../fixtures/k8s-workspace');
+
+  beforeAll(async () => {
+    await loadInkRuntime();
+  });
+
   it('renders an initial frame', async () => {
     const { lastFrame, unmount } = render(React.createElement(InkTUI));
     await new Promise((r) => setTimeout(r, 200));
@@ -32,6 +41,67 @@ describe('TUI (ink) interactive', () => {
     expect(reachedKnownState).toBe(true);
 
     unmount();
+  });
+
+  it('loads a workspace from the supplied project path', async () => {
+    const { lastFrame, unmount } = render(React.createElement(InkTUI, { projectPath: fixtureWorkspace }));
+    await new Promise((r) => setTimeout(r, 250));
+
+    const frame = lastFrame() ?? '';
+    // Real workspace name + node count derived from the fixture's
+    // re-shell.workspaces.yaml (k8s-demo, services: api + worker).
+    expect(frame).toContain('k8s-demo');
+    expect(frame).toContain('Nodes: 2/2');
+
+    unmount();
+  });
+
+  it('renders the fixture\'s real service data, not mock placeholders', async () => {
+    const { lastFrame, stdin, unmount } = render(
+      React.createElement(InkTUI, { projectPath: fixtureWorkspace }),
+    );
+    await new Promise((r) => setTimeout(r, 250));
+
+    // Select the first node (Tab) then open its details view (Enter). The
+    // details view echoes the service's real name/language/framework parsed
+    // from the fixture YAML, proving the TUI is wired to real producers
+    // rather than the old Math.random()/hardcoded-version mocks.
+    stdin.write('\t'); // tab -> select a node
+    await new Promise((r) => setTimeout(r, 60));
+    stdin.write('\r'); // enter -> details
+    await new Promise((r) => setTimeout(r, 80));
+
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Service Details:');
+    // The fixture defines exactly two services: api (typescript/express)
+    // and worker (python/celery). Whichever node is selected first, its
+    // real name must appear in the details view.
+    const showsRealService = frame.includes('api') || frame.includes('worker');
+    expect(showsRealService).toBe(true);
+    // Real, parsed metadata (no hardcoded '4.17.0' / Math.random() values).
+    const showsRealLanguage = frame.includes('typescript') || frame.includes('python');
+    expect(showsRealLanguage).toBe(true);
+    expect(frame).not.toContain('4.17.0');
+
+    unmount();
+  });
+
+  it('shows a clear error for non-workspace directories', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 're-shell-tui-'));
+    const { lastFrame, unmount } = render(React.createElement(InkTUI, { projectPath: tempDir }));
+    await new Promise((r) => setTimeout(r, 250));
+
+    const frame = lastFrame() ?? '';
+    // W10-1 empty state: a clear "not a workspace" message scoped to the
+    // resolved path, NOT a placeholder graph with Version 0.0.0 / Type unknown.
+    expect(frame).toContain('Not a Re-Shell workspace');
+    expect(frame).toContain('NOT_IN_MONOREPO');
+    expect(frame).toContain(tempDir);
+    expect(frame).not.toContain('0.0.0');
+    expect(frame).not.toContain('Nodes:');
+
+    unmount();
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   it('handles arrow / tab keystrokes without crashing', async () => {
@@ -49,17 +119,52 @@ describe('TUI (ink) interactive', () => {
     unmount();
   });
 
-  it('accepts Escape and unmounts cleanly', async () => {
+  it('opens help with h without crashing (regression for the raw-string render crash)', async () => {
+    const { lastFrame, stdin, unmount } = render(React.createElement(InkTUI, { projectPath: fixtureWorkspace }));
+    await new Promise((r) => setTimeout(r, 250));
+
+    stdin.write('h');
+    await new Promise((r) => setTimeout(r, 100));
+
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Keyboard Shortcuts');
+    expect(frame).toContain('Navigation:');
+
+    unmount();
+  });
+
+  it('opens help with ? without crashing', async () => {
+    const { lastFrame, stdin, unmount } = render(React.createElement(InkTUI, { projectPath: fixtureWorkspace }));
+    await new Promise((r) => setTimeout(r, 250));
+
+    stdin.write('?');
+    await new Promise((r) => setTimeout(r, 100));
+
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Keyboard Shortcuts');
+    expect(frame).toContain('Navigation:');
+
+    unmount();
+  });
+
+  it('exits cleanly on quit (Escape) — handler runs and tree tears down', async () => {
+    let exitedCleanly = false;
     const { lastFrame, stdin, unmount } = render(React.createElement(InkTUI));
     await new Promise((r) => setTimeout(r, 150));
 
-    // InkTUI's useInput calls exit() on key.escape. ink-testing-library does not
-    // expose waitUntilExit, so we assert the keystroke is handled and the tree
-    // tears down without throwing.
-    stdin.write('\x1b'); // escape
+    // InkTUI's useInput calls exit() on key.escape / Ctrl+C (graph-mode quit).
+    // ink-testing-library does not expose waitUntilExit, so we assert the
+    // keystroke is handled and the tree tears down without throwing.
+    stdin.write('\x1b'); // escape -> exit()
     await new Promise((r) => setTimeout(r, 150));
 
     expect(lastFrame()).toBeTruthy();
-    expect(() => unmount()).not.toThrow();
+    try {
+      unmount();
+      exitedCleanly = true;
+    } catch {
+      exitedCleanly = false;
+    }
+    expect(exitedCleanly).toBe(true);
   });
 });
