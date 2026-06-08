@@ -1,0 +1,5 @@
+{
+  "name": "@acme/api-server",
+  "projectType": "application",
+  "sourceRoot": "apps/api-server/src"
+}

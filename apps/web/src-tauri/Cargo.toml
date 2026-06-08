@@ -1,0 +1,26 @@
+[package]
+name = "re-shell-desktop"
+version = "1.0.0"
+description = "Tauri desktop shell wrapping the Re-Shell dashboard (apps/web)."
+authors = ["Umut Korkmaz"]
+edition = "2021"
+rust-version = "1.77.2"
+
+# ENV-LIMITED SCAFFOLD: this manifest is structurally valid but NOT built here.
+# Building/signing requires the Rust + Tauri toolchain (cargo present, tauri CLI
+# absent in this environment). See docs/desktop.md.
+
+[lib]
+name = "re_shell_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.0", features = [] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

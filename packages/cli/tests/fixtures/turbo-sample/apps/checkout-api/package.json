@@ -1,0 +1,10 @@
+{
+  "name": "@shop/checkout-api",
+  "version": "1.0.0",
+  "dependencies": {
+    "fastify": "^4.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

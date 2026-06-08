@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "tsBuildInfoFile": "./tsconfig.node.tsbuildinfo",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "types": ["node"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "vite.config.ts",
+    "src/hub-server.ts",
+    "src/hub-server-main.ts",
+    "src/hub/**/*.ts",
+    "scripts/**/*.mjs"
+  ]
+}

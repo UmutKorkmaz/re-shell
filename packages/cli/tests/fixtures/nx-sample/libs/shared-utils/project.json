@@ -1,0 +1,5 @@
+{
+  "name": "@acme/shared-utils",
+  "projectType": "library",
+  "sourceRoot": "libs/shared-utils/src"
+}

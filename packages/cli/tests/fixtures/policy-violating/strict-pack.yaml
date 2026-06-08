@@ -1,0 +1,13 @@
+name: strict-test
+description: Strict test pack requiring a test script everywhere
+rules:
+  - id: require-test-script
+    type: required-scripts
+    severity: error
+    scripts:
+      - test
+  - id: require-mit-license
+    type: license
+    severity: warning
+    allowed:
+      - MIT

@@ -1,0 +1,11 @@
+{
+  "name": "@fixture/api",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@fixture/ui-kit": "1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

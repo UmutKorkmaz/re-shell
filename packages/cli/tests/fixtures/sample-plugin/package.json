@@ -1,0 +1,12 @@
+{
+  "name": "@umutkorkmaz/sample-plugin",
+  "version": "1.0.0",
+  "description": "A minimal Re-Shell sample plugin fixture for install tests",
+  "main": "index.js",
+  "keywords": ["reshell-plugin"],
+  "reshell-plugin": {
+    "compatibility": ">=0.7.0",
+    "hooks": [],
+    "commands": []
+  }
+}
