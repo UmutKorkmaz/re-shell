@@ -1,15 +1,43 @@
 // Ink-based TUI with Interactive Graph Visualization
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-// @ts-ignore - Ink module resolution issue with CommonJS
-import { render, Box, Text, useInput, useApp } from 'ink';
-// @ts-ignore - ink-spinner module resolution issue
-import Spinner from 'ink-spinner';
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { workspaceParser, WorkspaceConfig, ServiceConfig, ValidationResult } from '../parsers/workspace-parser';
+import { buildWorkspaceSummary, buildConfigHealth, WorkspaceSummary as MonorepoWorkspaceSummary } from './workspace';
+import { CanonicalHealth, CanonicalHealthStatus } from '../utils/health-normalizer';
 import { exec } from 'child_process';
 import * as chokidar from 'chokidar';
+
+let inkRender: any;
+let Box: any;
+let Text: any;
+let useInput: any;
+let useApp: any;
+let Spinner: any;
+
+function nativeImport<T = any>(specifier: string): Promise<T> {
+  if (process.env.VITEST) {
+    return import(specifier) as Promise<T>;
+  }
+  return new Function('specifier', 'return import(specifier)')(specifier);
+}
+
+export async function loadInkRuntime(): Promise<void> {
+  if (inkRender && Box && Text && useInput && useApp && Spinner) {
+    return;
+  }
+
+  const ink = await nativeImport<any>('ink');
+  const spinnerModule = await nativeImport<any>('ink-spinner');
+
+  inkRender = ink.render;
+  Box = ink.Box;
+  Text = ink.Text;
+  useInput = ink.useInput;
+  useApp = ink.useApp;
+  Spinner = spinnerModule.default || spinnerModule;
+}
 
 // Helper function to open URL in default browser
 function openUrl(url: string): void {
@@ -62,31 +90,34 @@ function getServiceDocsUrl(service: ServiceConfig): string | null {
 }
 
 // Types for TUI state
+type GraphNodeType =
+  | 'frontend'
+  | 'backend'
+  | 'worker'
+  | 'database'
+  | 'queue'
+  | 'cache'
+  | 'function'
+  | 'app'
+  | 'package'
+  | 'lib'
+  | 'tool'
+  | 'unknown';
+
 interface GraphNode {
   id: string;
   name: string;
-  type: 'frontend' | 'backend' | 'worker' | 'database' | 'queue' | 'cache';
+  type: GraphNodeType;
   status: 'healthy' | 'warning' | 'error' | 'unknown';
   framework?: string;
   language?: string;
+  version?: string;
+  path?: string;
+  dependencies?: string[];
+  scripts?: Record<string, string>;
   port?: number;
   x: number;
   y: number;
-  // Performance metrics
-  metrics?: {
-    cpu: number; // Percentage
-    memory: number; // MB
-    responseTime: number; // ms
-    throughput: number; // requests per second
-  };
-  // Historical metrics for trends
-  metricsHistory?: Array<{
-    timestamp: number;
-    cpu: number;
-    memory: number;
-    responseTime: number;
-    throughput: number;
-  }>;
   // Animation state
   animating?: boolean;
   animationProgress?: number; // 0 to 1
@@ -99,22 +130,6 @@ interface GraphEdge {
   type: 'dependency' | 'api' | 'event' | 'data';
 }
 
-interface LogEntry {
-  timestamp: string;
-  level: 'info' | 'warn' | 'error' | 'debug';
-  message: string;
-  source?: string;
-}
-
-interface RemoteCursor {
-  id: string;
-  name: string;
-  color: string;
-  x: number;
-  y: number;
-  selectedNode: string | null;
-}
-
 interface TUIState {
   mode: 'graph' | 'details' | 'help' | 'search' | 'bookmarks' | 'analysis';
   nodes: GraphNode[];
@@ -124,7 +139,7 @@ interface TUIState {
   scrollOffset: { x: number; y: number };
   zoom: number; // Zoom level (0.1 to 5.0, where 1.0 is 100%)
   workspaceConfig: WorkspaceConfig | null;
-  filter: 'all' | 'frontend' | 'backend' | 'worker' | 'database' | 'queue' | 'cache' | 'network' | 'services';
+  filter: 'all' | GraphNodeType | 'network' | 'services';
   searchQuery: string; // Search query for filtering nodes
   filterLanguage: string; // Filter by language
   filterFramework: string; // Filter by framework
@@ -134,22 +149,23 @@ interface TUIState {
   layoutMode: 'force-directed' | 'hierarchical' | 'circular' | 'organic'; // Graph layout algorithm
   loading: boolean;
   error: string | null;
-  animationFrame: number; // For pulsing animations
-  serviceLogs: Record<string, LogEntry[]>; // Logs for each service
   detailsScrollOffset: number; // Scroll offset for details view
-  showMetrics: boolean; // Toggle metrics charts in details view
   bookmarks: GraphBookmark[]; // Saved graph views
   selectedBookmark: number | null; // Currently selected bookmark index
+  workspaceRoot: string;
+  workspaceName: string;
+  workspaceVersion: string;
+  workspaceDescription: string;
+  packageManager: string;
   workspaceReloading: boolean; // True when workspace is being reloaded
   lastModifiedTime: number | null; // Last modification time of workspace file
-  collaborativeMode: boolean; // Whether collaborative mode is enabled
-  remoteCursors: RemoteCursor[]; // Simulated remote users' cursors
   userName: string; // Current user's name
   tourActive: boolean; // Whether tour mode is active
   tourStep: number; // Current tour step (0-based)
   tourCompleted: boolean; // Whether user has completed the tour
   dependencyAnalysis: DependencyAnalysis | null; // Dependency analysis results
   analysisServiceFilter: string | null; // Filter analysis by service
+  workspaceHealth: CanonicalHealth | null; // Real, normalized workspace health
 }
 
 interface GraphBookmark {
@@ -157,7 +173,7 @@ interface GraphBookmark {
   timestamp: number;
   zoom: number;
   scrollOffset: { x: number; y: number };
-  filter: 'all' | 'frontend' | 'backend' | 'worker' | 'database' | 'queue' | 'cache' | 'network' | 'services';
+  filter: TUIState['filter'];
   filterLanguage: string;
   filterFramework: string;
   filterStatus: 'all' | 'healthy' | 'warning' | 'error' | 'unknown';
@@ -165,6 +181,12 @@ interface GraphBookmark {
   clusteringEnabled: boolean;
   clusteringBy: 'language' | 'framework' | 'type' | 'team';
   selectedNode: string | null;
+}
+
+interface InkTUIProps {
+  projectPath?: string;
+  mode?: 'dashboard' | 'init' | 'manage' | 'config';
+  debug?: boolean;
 }
 
 // Tour step definitions for guided onboarding
@@ -192,7 +214,7 @@ const tourSteps: TourStep[] = [
   {
     id: 'selection',
     title: 'Service Selection',
-    description: 'Press Enter on a selected node to view detailed information including metrics, logs, dependencies, and configuration.',
+    description: 'Press Enter on a selected node to view detailed information including dependencies and configuration.',
     action: 'Enter',
     highlightArea: 'details',
   },
@@ -241,18 +263,6 @@ const tourSteps: TourStep[] = [
     action: 'o / e / D',
   },
   {
-    id: 'service-control',
-    title: 'Service Control',
-    description: 'Control services directly from the graph: Ctrl+S to start, Ctrl+X to stop, Ctrl+R to restart, Ctrl+L to view logs.',
-    action: 'Ctrl+S / Ctrl+X / Ctrl+R / Ctrl+L',
-  },
-  {
-    id: 'collaborative',
-    title: 'Collaborative Mode',
-    description: 'Press Ctrl+Shift+C to toggle collaborative mode. This shows simulated remote cursors for multi-user viewing scenarios.',
-    action: 'Ctrl+Shift+C',
-  },
-  {
     id: 'realtime-updates',
     title: 'Real-time Updates',
     description: 'The TUI automatically watches your workspace file. Changes are detected and the graph reloads with smooth animations.',
@@ -299,82 +309,63 @@ interface DependencyAnalysis {
 function analyzeDependencies(state: TUIState): DependencyAnalysis {
   const issues: DependencyIssue[] = [];
   let totalDependencies = 0;
-  const servicesAnalyzed = state.nodes.length;
+  let servicesAnalyzed = 0;
+  const dependencyVersions = new Map<string, Set<string>>();
 
   state.nodes.forEach(node => {
-    // Simulate dependency analysis
-    // In production, this would parse package.json, requirements.txt, etc.
-
-    // Security vulnerabilities
-    if (node.framework === 'express' && Math.random() > 0.7) {
-      issues.push({
-        type: 'security',
-        severity: 'critical',
-        service: node.id,
-        dependency: 'express',
-        currentVersion: '4.17.0',
-        recommendedVersion: '4.18.2',
-        description: 'Known security vulnerabilities in Express < 4.18.2',
-        recommendation: 'Update Express to 4.18.2 or later to fix CVE-2022-24999',
-      });
+    if (!node.path || !state.workspaceRoot) {
+      return;
     }
 
-    // Performance issues
-    if (node.type === 'database' && node.framework === 'mongodb' && Math.random() > 0.6) {
-      issues.push({
-        type: 'performance',
-        severity: 'high',
-        service: node.id,
-        dependency: 'mongodb-driver',
-        currentVersion: '3.6.0',
-        recommendedVersion: '4.12.0',
-        description: 'Outdated MongoDB driver with performance issues',
-        recommendation: 'Upgrade to MongoDB Driver 4.x for 40% better performance',
-      });
+    const packageJsonPath = path.join(state.workspaceRoot, node.path, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+      return;
     }
 
-    // Outdated dependencies
-    if (Math.random() > 0.5) {
-      const deps = ['react', 'lodash', 'axios', 'moment', 'typescript'];
-      const dep = deps[Math.floor(Math.random() * deps.length)];
+    servicesAnalyzed++;
+
+    try {
+      const packageJson = fs.readJsonSync(packageJsonPath);
+      const dependencyGroups = [
+        packageJson.dependencies || {},
+        packageJson.devDependencies || {},
+        packageJson.peerDependencies || {},
+        packageJson.optionalDependencies || {},
+      ];
+
+      for (const dependencies of dependencyGroups) {
+        for (const [dependency, version] of Object.entries(dependencies)) {
+          totalDependencies++;
+          if (!dependencyVersions.has(dependency)) {
+            dependencyVersions.set(dependency, new Set<string>());
+          }
+          dependencyVersions.get(dependency)!.add(String(version));
+        }
+      }
+    } catch (error: any) {
       issues.push({
-        type: 'outdated',
-        severity: 'medium',
+        type: 'missing',
+        severity: 'low',
         service: node.id,
-        dependency: dep,
-        currentVersion: `${Math.floor(Math.random() * 5) + 1}.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 10)}`,
-        recommendedVersion: 'latest',
-        description: `${dep} is outdated and missing bug fixes`,
-        recommendation: `Update ${dep} to the latest version`,
+        dependency: 'package.json',
+        description: `Could not read dependency manifest: ${error.message}`,
+        recommendation: 'Fix the package.json file so dependency inventory can include this workspace.',
       });
     }
+  });
 
-    // Duplicate dependencies
-    if (Math.random() > 0.8) {
+  for (const [dependency, versions] of dependencyVersions.entries()) {
+    if (versions.size > 1) {
       issues.push({
         type: 'duplicate',
         severity: 'low',
-        service: node.id,
-        dependency: 'lodash',
-        description: 'Multiple versions of lodash detected in dependency tree',
-        recommendation: 'Deduplicate lodash versions to reduce bundle size',
+        service: 'workspace',
+        dependency,
+        description: `Multiple declared versions found: ${Array.from(versions).join(', ')}`,
+        recommendation: 'Review whether the workspace should align this dependency version.',
       });
     }
-
-    // Missing dependencies
-    if (Math.random() > 0.85) {
-      issues.push({
-        type: 'missing',
-        severity: 'high',
-        service: node.id,
-        dependency: '@types/node',
-        description: 'Type definitions are missing for Node.js',
-        recommendation: 'Install @types/node for better TypeScript support',
-      });
-    }
-
-    totalDependencies += Math.floor(Math.random() * 50) + 10;
-  });
+  }
 
   const summary = {
     critical: issues.filter(i => i.severity === 'critical').length,
@@ -412,6 +403,22 @@ function getIssueTypeIcon(type: string): string {
   }
 }
 
+function initialNodePosition(index: number, total: number, width: number, height: number): { x: number; y: number } {
+  if (total <= 1) {
+    return { x: width / 2, y: height / 2 };
+  }
+
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const radius = Math.max(4, Math.min(width, height) / 2 - 8);
+  const angle = (2 * Math.PI * index) / total;
+
+  return {
+    x: centerX + radius * Math.cos(angle),
+    y: centerY + radius * Math.sin(angle),
+  };
+}
+
 // Force-directed graph layout algorithm
 function calculateLayout(nodes: GraphNode[], edges: GraphEdge[], width: number, height: number): GraphNode[] {
   const positionedNodes = [...nodes];
@@ -420,10 +427,10 @@ function calculateLayout(nodes: GraphNode[], edges: GraphEdge[], width: number, 
   const attraction = 0.01;
   const damping = 0.9;
 
-  // Initialize random positions
-  positionedNodes.forEach(node => {
-    node.x = Math.random() * width;
-    node.y = Math.random() * height;
+  positionedNodes.forEach((node, index) => {
+    const position = initialNodePosition(index, positionedNodes.length, width, height);
+    node.x = position.x;
+    node.y = position.y;
   });
 
   // Force-directed layout
@@ -591,13 +598,13 @@ function calculateOrganicLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
   const iterations = 100;
   const optimalDistance = Math.sqrt((width * height) / nodes.length);
 
-  // Initialize with random positions
-  positionedNodes.forEach(node => {
-    node.x = Math.random() * width;
-    node.y = Math.random() * height;
+  positionedNodes.forEach((node, index) => {
+    const position = initialNodePosition(index, positionedNodes.length, width, height);
+    node.x = position.x;
+    node.y = position.y;
   });
 
-  // Simulated annealing-like approach
+  // Cooling layout pass.
   for (let iter = 0; iter < iterations; iter++) {
     const temperature = 1 - iter / iterations; // Cooling factor
 
@@ -656,6 +663,32 @@ function calculateOrganicLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
   return positionedNodes;
 }
 
+// Map the canonical, workspace-level health status onto the per-node health
+// tri-state used by the graph. Health is computed for the whole workspace (the
+// normalizer does not produce per-service scores yet), so every node reflects
+// the same real workspace health rather than a fabricated per-node value. When
+// no health has been computed, nodes stay 'unknown' (honest empty state).
+function nodeStatusFromHealth(
+  health: CanonicalHealth | null
+): GraphNode['status'] {
+  if (!health) {
+    return 'unknown';
+  }
+  const map: Record<CanonicalHealthStatus, GraphNode['status']> = {
+    healthy: 'healthy',
+    degraded: 'warning',
+    critical: 'error',
+  };
+  return map[health.status];
+}
+
+// Apply a single workspace-level health status to every node, returning new
+// node objects (no mutation).
+function applyHealthToNodes(nodes: GraphNode[], health: CanonicalHealth | null): GraphNode[] {
+  const status = nodeStatusFromHealth(health);
+  return nodes.map(node => ({ ...node, status }));
+}
+
 // Convert workspace config to graph nodes
 function workspaceToGraph(config: WorkspaceConfig): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const nodes: GraphNode[] = [];
@@ -666,42 +699,194 @@ function workspaceToGraph(config: WorkspaceConfig): { nodes: GraphNode[]; edges:
       nodes.push({
         id,
         name: service.name || id,
-        type: service.type || 'frontend',
+        type: normalizeNodeType(service.type || 'unknown'),
         status: 'unknown',
-        framework: service.framework,
+        framework: normalizeFramework(service.framework),
         language: service.language,
+        path: service.path,
         port: service.port,
+        dependencies: findInternalServiceDependencies(service, config.services),
         x: 0,
         y: 0,
       });
     });
   }
 
-  if (config.dependencies) {
-    Object.entries(config.dependencies).forEach(([fromId, deps]: [string, any]) => {
-      if (Array.isArray(deps)) {
-        deps.forEach((toId: string) => {
-          edges.push({ from: fromId, to: toId, type: 'dependency' });
-        });
-      }
-    });
+  for (const node of nodes) {
+    for (const dependency of node.dependencies || []) {
+      edges.push({ from: node.id, to: dependency, type: 'dependency' });
+    }
   }
 
   return { nodes, edges };
 }
 
-// Check health status of a service (simulated)
-async function checkServiceHealth(service: any): Promise<'healthy' | 'warning' | 'error' | 'unknown'> {
-  // In a real implementation, this would make HTTP requests to health endpoints
-  // For now, simulate health status based on service properties
-  if (service.port) {
-    // Simulate health check - in production, would ping the service
-    const random = Math.random();
-    if (random > 0.8) return 'healthy';
-    if (random > 0.6) return 'warning';
-    if (random > 0.4) return 'error';
+function summaryToGraph(summary: MonorepoWorkspaceSummary): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const workspaceByName = new Map(summary.workspaces.map(workspace => [workspace.name, workspace]));
+  const graphEntries = [...summary.graph.apps, ...summary.graph.services];
+  const entries = graphEntries.length > 0
+    ? graphEntries
+    : summary.workspaces.map(workspace => ({
+        name: workspace.name,
+        path: workspace.path,
+        framework: workspace.framework ?? null,
+        dependencies: workspace.dependencies.filter(dependency => workspaceByName.has(dependency)),
+      }));
+
+  const nodes = entries.map(entry => {
+    const workspace = workspaceByName.get(entry.name);
+    return {
+      id: entry.name,
+      name: entry.name,
+      type: normalizeNodeType(workspace?.type || 'unknown'),
+      status: 'unknown' as const,
+      framework: entry.framework || workspace?.framework,
+      version: workspace?.version,
+      path: entry.path,
+      dependencies: entry.dependencies,
+      x: 0,
+      y: 0,
+    };
+  });
+
+  const edges = entries.flatMap(entry =>
+    entry.dependencies.map(dependency => ({
+      from: entry.name,
+      to: dependency,
+      type: 'dependency' as const,
+    }))
+  );
+
+  return { nodes, edges };
+}
+
+function normalizeFramework(framework: ServiceConfig['framework'] | string | null | undefined): string | undefined {
+  if (!framework) {
+    return undefined;
   }
-  return 'unknown';
+  if (typeof framework === 'string') {
+    return framework;
+  }
+  return framework.name;
+}
+
+function normalizeNodeType(type: string): GraphNodeType {
+  const allowed: GraphNodeType[] = [
+    'frontend',
+    'backend',
+    'worker',
+    'database',
+    'queue',
+    'cache',
+    'function',
+    'app',
+    'package',
+    'lib',
+    'tool',
+    'unknown',
+  ];
+  return allowed.includes(type as GraphNodeType) ? type as GraphNodeType : 'unknown';
+}
+
+function findInternalServiceDependencies(service: ServiceConfig, services: WorkspaceConfig['services']): string[] {
+  const declaredDependencies = {
+    ...(service.dependencies?.production || {}),
+    ...(service.dependencies?.development || {}),
+  };
+  return Object.keys(declaredDependencies).filter(dependency => Boolean(services[dependency]));
+}
+
+async function findWorkspaceConfig(startPath: string): Promise<string | null> {
+  let currentPath = path.resolve(startPath);
+  try {
+    const stats = await fs.stat(currentPath);
+    if (!stats.isDirectory()) {
+      currentPath = path.dirname(currentPath);
+    }
+  } catch {
+    currentPath = path.dirname(currentPath);
+  }
+
+  const rootPath = path.parse(currentPath).root;
+  let depth = 0;
+  while (currentPath !== rootPath && depth < 20) {
+    const candidate = path.join(currentPath, 're-shell.workspaces.yaml');
+    if (await fs.pathExists(candidate)) {
+      return candidate;
+    }
+    currentPath = path.dirname(currentPath);
+    depth++;
+  }
+
+  return null;
+}
+
+interface LoadedWorkspaceData {
+  root: string;
+  name: string;
+  version: string;
+  description: string;
+  packageManager: string;
+  config: WorkspaceConfig | null;
+  configPath: string | null;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  health: CanonicalHealth | null;
+}
+
+async function loadWorkspaceData(projectPath: string): Promise<LoadedWorkspaceData> {
+  const resolvedProjectPath = path.resolve(projectPath);
+  const configPath = await findWorkspaceConfig(resolvedProjectPath);
+
+  if (configPath) {
+    const result: ValidationResult = workspaceParser.parse(configPath);
+    if (!result.valid || !result.config) {
+      throw new Error(result.errors.map(error => error.message).join(', ') || 'Workspace configuration is invalid');
+    }
+
+    const { nodes, edges } = workspaceToGraph(result.config);
+    // Real health, scoped to this workspace config, via the shared normalizer.
+    // Failure here must not block the graph from rendering, so fall back to
+    // 'unknown' node status on error.
+    let health: CanonicalHealth | null = null;
+    try {
+      health = await buildConfigHealth(configPath);
+    } catch {
+      health = null;
+    }
+    return {
+      root: path.dirname(configPath),
+      name: result.config.name,
+      version: result.config.version,
+      description: result.config.description || '',
+      packageManager: 'workspace',
+      config: result.config,
+      configPath,
+      nodes: applyHealthToNodes(nodes, health),
+      edges,
+      health,
+    };
+  }
+
+  try {
+    const summary = await buildWorkspaceSummary(resolvedProjectPath);
+    const { nodes, edges } = summaryToGraph(summary);
+    return {
+      root: summary.root,
+      name: path.basename(summary.root),
+      version: '',
+      description: '',
+      packageManager: summary.packageManager,
+      config: null,
+      configPath: null,
+      // summary.health is the normalized, real workspace health.
+      nodes: applyHealthToNodes(nodes, summary.health),
+      edges,
+      health: summary.health,
+    };
+  } catch {
+    throw new Error('NOT_IN_MONOREPO: Not in a monorepo. Run this command from a monorepo root or workspace.');
+  }
 }
 
 // Get color for health status
@@ -721,85 +906,6 @@ function getHealthSymbol(status: 'healthy' | 'warning' | 'error' | 'unknown'): s
     case 'warning': return '⚠';
     case 'error': return '✗';
     case 'unknown': return '?';
-  }
-}
-
-// Simulate collecting performance metrics for a service
-function collectServiceMetrics(service: any): { cpu: number; memory: number; responseTime: number; throughput: number } {
-  // In production, this would query actual metrics from:
-  // - Docker stats API
-  // - Kubernetes metrics API
-  // - Cloud provider monitoring APIs
-  // - Application performance monitoring (APM) tools
-
-  // For now, simulate realistic metrics based on service properties
-  const random = Math.random();
-
-  return {
-    cpu: Math.floor(random * 80) + 5, // 5-85% CPU usage
-    memory: Math.floor(random * 512) + 64, // 64-576 MB memory
-    responseTime: Math.floor(random * 200) + 10, // 10-210ms response time
-    throughput: Math.floor(random * 1000) + 50, // 50-1050 requests/sec
-  };
-}
-
-// Generate simulated log entries for a service
-function generateServiceLogs(serviceId: string, count: number = 20): LogEntry[] {
-  const levels: Array<'info' | 'warn' | 'error' | 'debug'> = ['info', 'info', 'info', 'warn', 'debug', 'error'];
-  const messages = [
-    'Starting service...',
-    'Database connection established',
-    'Health check passed',
-    'Processing request',
-    'Cache hit for key',
-    'API response sent',
-    'Background job completed',
-    'Memory usage within limits',
-    'High response time detected',
-    'Connection pool exhausted',
-    'Authentication failed',
-    'Database query slow',
-    'Service registered',
-    'Configuration loaded',
-    'Metrics updated',
-  ];
-
-  const logs: LogEntry[] = [];
-  const now = Date.now();
-
-  for (let i = 0; i < count; i++) {
-    const level = levels[Math.floor(Math.random() * levels.length)];
-    const message = messages[Math.floor(Math.random() * messages.length)];
-    const timestamp = new Date(now - (count - i) * 5000).toISOString();
-
-    logs.push({
-      timestamp,
-      level,
-      message,
-      source: serviceId,
-    });
-  }
-
-  return logs;
-}
-
-// Get color for log level
-function getLogLevelColor(level: 'info' | 'warn' | 'error' | 'debug'): string {
-  switch (level) {
-    case 'info': return 'blue';
-    case 'warn': return 'yellow';
-    case 'error': return 'red';
-    case 'debug': return 'gray';
-  }
-}
-
-// Get symbol for log level
-function getLogLevelSymbol(level: 'info' | 'warn' | 'error' | 'debug'): string {
-  switch (level) {
-    case 'info': return 'ℹ';
-    case 'warn': return '⚠';
-    case 'error': return '✗';
-    case 'debug': return '◉';
   }
 }
 
@@ -930,9 +1036,17 @@ function applyLayout(
   }
 }
 
+const ShortcutLine: React.FC<{ keys: string; label: string }> = ({ keys, label }) => (
+  <Box>
+    <Text bold>{keys}</Text>
+    <Text> - {label}</Text>
+  </Box>
+);
+
 // Main TUI Component
-export const InkTUI: React.FC = () => {
+export const InkTUI: React.FC<InkTUIProps> = ({ projectPath }) => {
   const { exit } = useApp();
+  const targetProjectPath = useMemo(() => path.resolve(projectPath || process.cwd()), [projectPath]);
   const [state, setState] = useState<TUIState>({
     mode: 'graph',
     nodes: [],
@@ -952,22 +1066,23 @@ export const InkTUI: React.FC = () => {
     layoutMode: 'force-directed',
     loading: true,
     error: null,
-    animationFrame: 0,
-    serviceLogs: {},
     detailsScrollOffset: 0,
-    showMetrics: true,
     bookmarks: [],
     selectedBookmark: null,
+    workspaceRoot: targetProjectPath,
+    workspaceName: '',
+    workspaceVersion: '',
+    workspaceDescription: '',
+    packageManager: '',
     workspaceReloading: false,
     lastModifiedTime: null,
-    collaborativeMode: false,
-    remoteCursors: [],
     userName: 'You',
     tourActive: false,
     tourStep: 0,
     tourCompleted: false,
     dependencyAnalysis: null,
     analysisServiceFilter: null,
+    workspaceHealth: null,
   });
 
   const terminalWidth = process.stdout.columns || 80;
@@ -977,23 +1092,23 @@ export const InkTUI: React.FC = () => {
   useEffect(() => {
     const loadWorkspace = async () => {
       try {
-        const configPath = path.join(process.cwd(), 're-shell.workspaces.yaml');
-        const result: ValidationResult = workspaceParser.parse(configPath);
-
-        if (!result.valid || !result.config) {
-          setState(prev => ({ ...prev, loading: false, error: result.errors.map(e => e.message).join(', ') }));
-          return;
-        }
-
-        const { nodes, edges } = workspaceToGraph(result.config);
+        const workspaceData = await loadWorkspaceData(targetProjectPath);
+        const { nodes, edges } = workspaceData;
         const layoutNodes = calculateLayout(nodes, edges, terminalWidth - 40, terminalHeight - 10);
 
         setState(prev => ({
           ...prev,
           nodes: layoutNodes,
           edges,
-          workspaceConfig: result.config,
+          workspaceConfig: workspaceData.config,
+          workspaceRoot: workspaceData.root,
+          workspaceName: workspaceData.name,
+          workspaceVersion: workspaceData.version,
+          workspaceDescription: workspaceData.description,
+          packageManager: workspaceData.packageManager,
+          workspaceHealth: workspaceData.health,
           loading: false,
+          error: null,
         }));
       } catch (error: any) {
         setState(prev => ({ ...prev, loading: false, error: error.message }));
@@ -1001,93 +1116,89 @@ export const InkTUI: React.FC = () => {
     };
 
     loadWorkspace();
-  }, []);
+  }, [targetProjectPath, terminalWidth, terminalHeight]);
 
   // Watch workspace file for changes and reload automatically
   useEffect(() => {
-    const configPath = path.join(process.cwd(), 're-shell.workspaces.yaml');
+    let watcher: chokidar.FSWatcher | null = null;
+    let cancelled = false;
 
-    // Check if file exists before watching
-    if (!fs.existsSync(configPath)) {
-      return;
-    }
+    const startWatcher = async () => {
+      const configPath = await findWorkspaceConfig(targetProjectPath);
+      if (!configPath || cancelled || !fs.existsSync(configPath)) {
+        return;
+      }
 
-    const watcher = chokidar.watch(configPath, {
-      persistent: true,
-      ignoreInitial: true,
-      awaitWriteFinish: {
-        stabilityThreshold: 200,
-        pollInterval: 100,
-      },
-    });
+      watcher = chokidar.watch(configPath, {
+        persistent: true,
+        ignoreInitial: true,
+        awaitWriteFinish: {
+          stabilityThreshold: 200,
+          pollInterval: 100,
+        },
+      });
 
-    watcher.on('change', async () => {
-      // Debounce rapid changes
-      await new Promise(resolve => setTimeout(resolve, 300));
+      watcher.on('change', async () => {
+        // Debounce rapid changes
+        await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Trigger reload with animation
-      setState(prev => ({ ...prev, workspaceReloading: true }));
+        // Trigger reload with animation
+        setState(prev => ({ ...prev, workspaceReloading: true }));
 
-      // Trigger animation for all nodes
-      setState(prev => ({
-        ...prev,
-        nodes: prev.nodes.map(node => ({
-          ...node,
-          animating: true,
-          animationProgress: 0,
-          animationType: 'appearing',
-        })),
-      }));
+        // Trigger animation for all nodes
+        setState(prev => ({
+          ...prev,
+          nodes: prev.nodes.map(node => ({
+            ...node,
+            animating: true,
+            animationProgress: 0,
+            animationType: 'appearing',
+          })),
+        }));
 
-      // Reload workspace
-      try {
-        const result: ValidationResult = workspaceParser.parse(configPath);
-
-        if (result.valid && result.config) {
-          const { nodes, edges } = workspaceToGraph(result.config);
-          const layoutNodes = calculateLayout(nodes, edges, terminalWidth - 40, terminalHeight - 10);
+        // Reload workspace
+        try {
+          const workspaceData = await loadWorkspaceData(targetProjectPath);
+          const layoutNodes = calculateLayout(workspaceData.nodes, workspaceData.edges, terminalWidth - 40, terminalHeight - 10);
 
           setTimeout(() => {
             setState(prev => ({
               ...prev,
               nodes: layoutNodes,
-              edges,
-              workspaceConfig: result.config,
+              edges: workspaceData.edges,
+              workspaceConfig: workspaceData.config,
+              workspaceRoot: workspaceData.root,
+              workspaceName: workspaceData.name,
+              workspaceVersion: workspaceData.version,
+              workspaceDescription: workspaceData.description,
+              packageManager: workspaceData.packageManager,
+              workspaceHealth: workspaceData.health,
               workspaceReloading: false,
               lastModifiedTime: Date.now(),
+              error: null,
             }));
           }, 500); // Wait for animation to partially complete
-        } else {
+        } catch (error: any) {
           setState(prev => ({
             ...prev,
-            error: result.errors.map(e => e.message).join(', '),
+            error: error.message,
             workspaceReloading: false,
           }));
         }
-      } catch (error: any) {
-        setState(prev => ({
-          ...prev,
-          error: error.message,
-          workspaceReloading: false,
-        }));
-      }
-    });
-
-    return () => {
-      watcher.close().catch(() => {
-        // Ignore cleanup errors
       });
     };
-  }, []);
 
-  // Animation frame updates for pulsing effects
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setState(prev => ({ ...prev, animationFrame: prev.animationFrame + 1 }));
-    }, 100); // Update 10 times per second
+    startWatcher();
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      cancelled = true;
+      if (watcher) {
+        watcher.close().catch(() => {
+          // Ignore cleanup errors
+        });
+      }
+    };
+  }, [targetProjectPath, terminalWidth, terminalHeight]);
 
   // Animation progress updates
   useEffect(() => {
@@ -1113,107 +1224,6 @@ export const InkTUI: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [state.nodes.some(n => n.animating)]);
-
-  // Simulate collaborative cursors
-  useEffect(() => {
-    if (!state.collaborativeMode) {
-      setState(prev => ({ ...prev, remoteCursors: [] }));
-      return;
-    }
-
-    // Create simulated remote users
-    const simulatedUsers: RemoteCursor[] = [
-      { id: 'user1', name: 'Alice', color: 'magenta', x: 10, y: 5, selectedNode: null },
-      { id: 'user2', name: 'Bob', color: 'cyan', x: 20, y: 10, selectedNode: null },
-    ];
-
-    setState(prev => ({ ...prev, remoteCursors: simulatedUsers }));
-
-    // Animate remote cursors
-    const interval = setInterval(() => {
-      setState(prev => ({
-        ...prev,
-        remoteCursors: prev.remoteCursors.map(cursor => ({
-          ...cursor,
-          x: Math.max(0, Math.min(terminalWidth - 40, cursor.x + (Math.random() - 0.5) * 5)),
-          y: Math.max(0, Math.min(terminalHeight - 10, cursor.y + (Math.random() - 0.5) * 3)),
-        })),
-      }));
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [state.collaborativeMode, terminalWidth, terminalHeight]);
-
-  // Trigger demo animations on startup
-  useEffect(() => {
-    if (!state.loading && state.nodes.length > 0) {
-      // Randomly animate some nodes to demonstrate the feature
-      setTimeout(() => {
-        setState(prev => ({
-          ...prev,
-          nodes: prev.nodes.map((node, index) => {
-            // Animate first 3 nodes as demo
-            if (index < 3) {
-              return {
-                ...node,
-                animating: true,
-                animationProgress: 0,
-                animationType: 'appearing',
-              };
-            }
-            return node;
-          }),
-        }));
-      }, 500);
-    }
-  }, [state.loading]);
-
-  // Periodic health checks and metrics collection
-  useEffect(() => {
-    if (!state.workspaceConfig || state.loading) return;
-
-    const checkHealthAndCollectMetrics = async () => {
-      const config = state.workspaceConfig;
-      if (!config.services) return;
-
-      const updatedNodes = await Promise.all(state.nodes.map(async (node) => {
-        const service = config.services![node.id];
-        if (service) {
-          const healthStatus = await checkServiceHealth(service);
-          const metrics = collectServiceMetrics(service);
-
-          // Add metrics history (keep last 20 data points)
-          const historyEntry = {
-            timestamp: Date.now(),
-            ...metrics,
-          };
-
-          const updatedHistory = [
-            ...(node.metricsHistory || []),
-            historyEntry,
-          ].slice(-20);
-
-          return {
-            ...node,
-            status: healthStatus,
-            metrics,
-            metricsHistory: updatedHistory,
-          };
-        }
-        return node;
-      }));
-
-      setState(prev => ({ ...prev, nodes: updatedNodes }));
-    };
-
-    // Initial health check and metrics collection
-    checkHealthAndCollectMetrics();
-
-    // Update health and metrics every 5 seconds
-    const interval = setInterval(checkHealthAndCollectMetrics, 5000);
-
-    return () => clearInterval(interval);
-  }, [state.workspaceConfig, state.loading]);
 
   // Handle keyboard input
   useInput((input, key) => {
@@ -1257,8 +1267,8 @@ export const InkTUI: React.FC = () => {
         setState(prev => ({ ...prev, zoom: 1.0, scrollOffset: { x: 0, y: 0 } }));
       } else if (input === 'f') {
         // Cycle through all filter types
-        const filters: Array<'all' | 'frontend' | 'backend' | 'worker' | 'database' | 'queue' | 'cache' | 'network' | 'services'> =
-          ['all', 'frontend', 'backend', 'worker', 'database', 'queue', 'cache', 'network', 'services'];
+        const filters: Array<TUIState['filter']> =
+          ['all', 'frontend', 'backend', 'worker', 'database', 'queue', 'cache', 'app', 'package', 'lib', 'tool', 'network', 'services'];
         const currentFilterIndex = filters.indexOf(state.filter as any);
         const nextFilter = filters[(currentFilterIndex + 1) % filters.length];
         setState(prev => ({ ...prev, filter: nextFilter as any, selectedNode: null }));
@@ -1283,13 +1293,14 @@ export const InkTUI: React.FC = () => {
       } else if (input === 'h') {
         setState(prev => ({ ...prev, mode: 'help' }));
       } else if (input === 'r') {
-        // Recalculate layout
+        // Recalculate layout, preserving the already-loaded real workspace health.
         if (state.workspaceConfig) {
           const { nodes, edges } = workspaceToGraph(state.workspaceConfig);
-          const layoutNodes = applyLayout(nodes, edges, state.layoutMode, terminalWidth - 40, terminalHeight - 10);
+          const healthyNodes = applyHealthToNodes(nodes, state.workspaceHealth);
+          const layoutNodes = applyLayout(healthyNodes, edges, state.layoutMode, terminalWidth - 40, terminalHeight - 10);
           setState(prev => ({ ...prev, nodes: layoutNodes }));
         }
-      } else if (input === 'o') {
+      } else if (input === 'O') {
         // Cycle through layout algorithms
         const layouts: Array<'force-directed' | 'hierarchical' | 'circular' | 'organic'> =
           ['force-directed', 'hierarchical', 'circular', 'organic'];
@@ -1540,9 +1551,6 @@ export const InkTUI: React.FC = () => {
             animationType: 'appearing',
           })),
         }));
-      } else if (input === 'C' && key.ctrl) {
-        // Toggle collaborative mode (Ctrl+C but not exit)
-        setState(prev => ({ ...prev, collaborativeMode: !prev.collaborativeMode }));
       } else if (input === 'o' && state.selectedNode) {
         // Open service URL in browser
         const service = state.workspaceConfig?.services?.[state.selectedNode];
@@ -1576,121 +1584,6 @@ export const InkTUI: React.FC = () => {
           } else {
             console.log(`\nNo documentation URL available for ${service.framework || 'this service'}`);
           }
-        }
-      } else if (input === 's' && key.ctrl && state.selectedNode) {
-        // Start service (Ctrl+s)
-        const service = state.workspaceConfig?.services?.[state.selectedNode];
-        if (service) {
-          console.log(`\nStarting service: ${state.selectedNode}`);
-          console.log(`  Path: ${service.path || 'N/A'}`);
-          console.log(`  Command: npm run dev\n`);
-
-          // Mark service as deploying with animation
-          setState(prev => ({
-            ...prev,
-            nodes: prev.nodes.map(node => {
-              if (node.id === state.selectedNode) {
-                return {
-                  ...node,
-                  status: 'warning',
-                  animating: true,
-                  animationProgress: 0,
-                  animationType: 'deploying',
-                };
-              }
-              return node;
-            }),
-          }));
-
-          // Simulate service starting
-          setTimeout(() => {
-            setState(prev => ({
-              ...prev,
-              nodes: prev.nodes.map(node => {
-                if (node.id === state.selectedNode) {
-                  return { ...node, status: 'healthy', animating: false };
-                }
-                return node;
-              }),
-            }));
-          }, 3000);
-        }
-      } else if (input === 'x' && key.ctrl && state.selectedNode) {
-        // Stop service (Ctrl+x)
-        const service = state.workspaceConfig?.services?.[state.selectedNode];
-        if (service) {
-          console.log(`\nStopping service: ${state.selectedNode}\n`);
-
-          // Mark service as stopped
-          setState(prev => ({
-            ...prev,
-            nodes: prev.nodes.map(node => {
-              if (node.id === state.selectedNode) {
-                return {
-                  ...node,
-                  status: 'error',
-                  animating: true,
-                  animationProgress: 0,
-                  animationType: 'disappearing',
-                };
-              }
-              return node;
-            }),
-          }));
-
-          setTimeout(() => {
-            setState(prev => ({
-              ...prev,
-              nodes: prev.nodes.map(node => {
-                if (node.id === state.selectedNode) {
-                  return { ...node, animating: false };
-                }
-                return node;
-              }),
-            }));
-          }, 1000);
-        }
-      } else if (input === 'r' && key.ctrl && state.selectedNode) {
-        // Restart service (Ctrl+r)
-        const service = state.workspaceConfig?.services?.[state.selectedNode];
-        if (service) {
-          console.log(`\nRestarting service: ${state.selectedNode}\n`);
-
-          // Animate restart
-          setState(prev => ({
-            ...prev,
-            nodes: prev.nodes.map(node => {
-              if (node.id === state.selectedNode) {
-                return {
-                  ...node,
-                  status: 'warning',
-                  animating: true,
-                  animationProgress: 0,
-                  animationType: 'scaling',
-                };
-              }
-              return node;
-            }),
-          }));
-
-          setTimeout(() => {
-            setState(prev => ({
-              ...prev,
-              nodes: prev.nodes.map(node => {
-                if (node.id === state.selectedNode) {
-                  return { ...node, status: 'healthy', animating: false };
-                }
-                return node;
-              }),
-            }));
-          }, 2000);
-        }
-      } else if (input === 'l' && key.ctrl && state.selectedNode) {
-        // View service logs (Ctrl+l)
-        const service = state.workspaceConfig?.services?.[state.selectedNode];
-        if (service) {
-          console.log(`\nShowing logs for: ${state.selectedNode}`);
-          console.log(`  (In production, this would tail service logs)\n`);
         }
       } else if (input === 't') {
         // Start tour mode
@@ -1800,18 +1693,6 @@ export const InkTUI: React.FC = () => {
       } else if (state.mode === 'details') {
         if (key.escape || key.return || input === 'q') {
           setState(prev => ({ ...prev, mode: 'graph', detailsScrollOffset: 0 }));
-        } else if (input === 'm') {
-          // Toggle metrics display
-          setState(prev => ({ ...prev, showMetrics: !prev.showMetrics }));
-        } else if (input === 'l') {
-          // Generate logs for selected service
-          if (state.selectedNode && !state.serviceLogs[state.selectedNode]) {
-            const logs = generateServiceLogs(state.selectedNode);
-            setState(prev => ({
-              ...prev,
-              serviceLogs: { ...prev.serviceLogs, [state.selectedNode]: logs },
-            }));
-          }
         } else if (key.upArrow) {
           // Scroll up in details
           setState(prev => ({ ...prev, detailsScrollOffset: Math.max(0, prev.detailsScrollOffset - 1) }));
@@ -1874,8 +1755,8 @@ export const InkTUI: React.FC = () => {
       if (state.filter === 'all') {
         // Show all
       } else if (state.filter === 'services') {
-        // Show services only (frontend + backend + worker)
-        if (!['frontend', 'backend', 'worker'].includes(node.type)) {
+        // Show product workspaces and services, excluding infrastructure nodes.
+        if (!['frontend', 'backend', 'worker', 'function', 'app', 'package', 'lib', 'tool'].includes(node.type)) {
           return false;
         }
       } else if (state.filter === 'network') {
@@ -1930,10 +1811,33 @@ export const InkTUI: React.FC = () => {
     }
 
     if (state.error) {
+      const isNotWorkspace = state.error.startsWith('NOT_IN_MONOREPO');
+
+      if (isNotWorkspace) {
+        return (
+          <Box flexDirection="column" padding={2}>
+            <Text color="yellow" bold>
+              Not a Re-Shell workspace
+            </Text>
+            <Text color="gray">{targetProjectPath}</Text>
+            <Box marginTop={1} flexDirection="column">
+              <Text color="cyan">No re-shell.workspaces.yaml or package.json workspaces found here.</Text>
+              <Text color="gray">- cd into an existing Re-Shell workspace, or</Text>
+              <Text color="gray">- run `re-shell create &lt;name&gt;` to scaffold a new monorepo, or</Text>
+              <Text color="gray">- run `re-shell init` to initialize the current directory.</Text>
+            </Box>
+            <Box marginTop={1}>
+              <Text color="gray">Press Esc or Ctrl+C to exit ({state.error})</Text>
+            </Box>
+          </Box>
+        );
+      }
+
       return (
-        <Box padding={2}>
+        <Box flexDirection="column" padding={2}>
           <Text color="red">Error: {state.error}</Text>
-          <Text color="gray">Press Ctrl+C to exit</Text>
+          <Text color="gray">Project path: {targetProjectPath}</Text>
+          <Text color="gray">Press Esc or Ctrl+C to exit</Text>
         </Box>
       );
     }
@@ -2035,14 +1939,6 @@ export const InkTUI: React.FC = () => {
             }
           }
 
-          // Pulsing effect for animation frame counter (subtle continuous animation)
-          if (!animating && nodeAtPos.status === 'healthy') {
-            const pulse = Math.sin(state.animationFrame * 0.1 + nodeAtPos.x) * 0.3 + 0.7;
-            if (pulse > 0.9) {
-              symbol = '◉'; // Slightly larger when pulsing
-            }
-          }
-
           lineCells.push(<Text key={`${x}-${y}`} color={healthColor} bold={isSelected}>{symbol}</Text>);
         } else if (graphBuffer[y] && graphBuffer[y][x] !== ' ') {
           lineCells.push(<Text key={`${x}-${y}`} color="blue">{graphBuffer[y][x]}</Text>);
@@ -2058,43 +1954,36 @@ export const InkTUI: React.FC = () => {
         {/* Header */}
         <Box borderStyle="double" borderColor="cyan" padding={1} marginBottom={1}>
           <Text bold color="cyan">
-            Re-Shell Workspace TUI - Interactive Graph
+            Re-Shell Workspace TUI
           </Text>
         </Box>
 
-        {/* Status bar with zoom level, health summary, metrics, active filters, and path info */}
-        <Box marginBottom={1}>
+        {/* Status bar with zoom level, active filters, and path info */}
+        <Box flexDirection="column" marginBottom={1}>
           {state.workspaceReloading ? (
             <Text color="yellow">⟳ Reloading workspace... </Text>
           ) : (
             <Text color="gray">
-              Nodes: {visibleNodes.length}/{state.nodes.length} | Filter: {state.filter} | Layout: {state.layoutMode} | Zoom: {(state.zoom * 100).toFixed(0)}%
+              Workspace: {state.workspaceName || path.basename(state.workspaceRoot)} | Source: {state.packageManager || 'workspace'}
+              {state.workspaceHealth
+                ? ` | Health: ${state.workspaceHealth.status} (${state.workspaceHealth.score}/100)`
+                : ''}
             </Text>
           )}
-          {state.lastModifiedTime && !state.workspaceReloading && <Text color="green"> ✓ Auto-reloaded</Text>}
-          {state.searchQuery && <Text color="cyan"> | Search: "{state.searchQuery}"</Text>}
-          {state.filterLanguage && <Text color="magenta"> | Lang: {state.filterLanguage}</Text>}
-          {state.filterFramework && <Text color="blue"> | Framework: {state.filterFramework}</Text>}
-          {state.filterStatus !== 'all' && <Text color={getHealthColor(state.filterStatus)}> | Status: {state.filterStatus}</Text>}
-          {state.targetNode && <Text color="cyan"> | Path: {state.selectedNode || '?'} → {state.targetNode} ({pathNodes.size - 1 || 0} hops)</Text>}
-          <Text color="gray"> | </Text>
-          <Text color="green">✓ {visibleNodes.filter(n => n.status === 'healthy').length} </Text>
-          <Text color="yellow">⚠ {visibleNodes.filter(n => n.status === 'warning').length} </Text>
-          <Text color="red">✗ {visibleNodes.filter(n => n.status === 'error').length}</Text>
-          {visibleNodes.some(n => n.animating) && <Text color="cyan"> | Animating: {visibleNodes.filter(n => n.animating).length}</Text>}
-          {state.collaborativeMode && <Text color="magenta"> | 👥 Collaborative: {state.remoteCursors.length + 1}</Text>}
-          {/* Aggregate metrics display */}
-          {visibleNodes.length > 0 && visibleNodes.some(n => n.metrics) && (
-            <>
-              <Text color="gray"> | </Text>
-              <Text color="cyan">Avg CPU: {calculateAverageMetric(visibleNodes, 'cpu').toFixed(0)}% </Text>
-              <Text color="magenta">Mem: {calculateAverageMetric(visibleNodes, 'memory').toFixed(0)}MB </Text>
-              <Text color="yellow">Resp: {calculateAverageMetric(visibleNodes, 'responseTime').toFixed(0)}ms</Text>
-            </>
+          <Text color="gray">
+            Nodes: {visibleNodes.length}/{state.nodes.length} | Filter: {state.filter} | Layout: {state.layoutMode} | Zoom: {(state.zoom * 100).toFixed(0)}% | Selected: {state.selectedNode || 'None'}
+          </Text>
+          {(state.searchQuery || state.filterLanguage || state.filterFramework || state.filterStatus !== 'all' || state.targetNode || state.bookmarks.length > 0) && (
+            <Text color="gray">
+              {state.searchQuery ? `Search: "${state.searchQuery}" ` : ''}
+              {state.filterLanguage ? `Lang: ${state.filterLanguage} ` : ''}
+              {state.filterFramework ? `Framework: ${state.filterFramework} ` : ''}
+              {state.filterStatus !== 'all' ? `Status: ${state.filterStatus} ` : ''}
+              {state.targetNode ? `Path: ${state.selectedNode || '?'} -> ${state.targetNode} (${pathNodes.size - 1 || 0} hops) ` : ''}
+              {state.bookmarks.length > 0 ? `Bookmarks: ${state.bookmarks.length}` : ''}
+            </Text>
           )}
-          <Text color="gray"> | Selected: {state.selectedNode || 'None'}</Text>
-          {state.bookmarks.length > 0 && <Text color="magenta"> | Bookmarks: {state.bookmarks.length}</Text>}
-          {!state.tourCompleted && <Text color="cyan"> | Press t for tour</Text>}
+          {state.lastModifiedTime && !state.workspaceReloading && <Text color="green">Auto-reloaded</Text>}
         </Box>
 
         {/* Graph area */}
@@ -2112,20 +2001,16 @@ export const InkTUI: React.FC = () => {
         </Box>
 
         {/* Legend */}
-        <Box marginBottom={1}>
-          <Text color="gray">● Service  · Dependency  █ Selected  </Text>
-          <Text color="green">✓ Healthy  </Text>
-          <Text color="yellow">⚠ Warning  </Text>
-          <Text color="red">✗ Error  </Text>
-          <Text color="gray">| /: Search  L: Lang  W: Framework  S: Status  P: Path  C: Cluster  M: Mode  O: Layout  B: Bookmarks | Arrows: Pan  +/-: Zoom  0: Reset  F: Filter  H: Help</Text>
+        <Box flexDirection="column" marginBottom={1}>
+          <Text color="gray">● Node  · Dependency  █ Selected</Text>
+          <Text color="gray">Tab select | Enter details | / search | F filter | O layout | H help | Esc quit</Text>
         </Box>
 
         {/* Hot-links hint */}
         {state.selectedNode && (
           <Box marginBottom={1}>
             <Text color="cyan">Actions: </Text>
-            <Text color="gray">o: Open URL  e: Edit  D: Docs | </Text>
-            <Text color="yellow">Ctrl+S: Start  Ctrl+X: Stop  Ctrl+R: Restart  Ctrl+L: Logs</Text>
+            <Text color="gray">o: Open URL  e: Edit  D: Docs</Text>
           </Box>
         )}
 
@@ -2143,9 +2028,8 @@ export const InkTUI: React.FC = () => {
   if (state.mode === 'details') {
     const selectedNode = state.nodes.find(n => n.id === state.selectedNode);
     const service = state.workspaceConfig?.services?.[state.selectedNode || ''];
-    const serviceLogs = state.serviceLogs[state.selectedNode || ''] || [];
 
-    if (!selectedNode || !service) {
+    if (!selectedNode) {
       return (
         <Box padding={2}>
           <Text color="red">Node not found</Text>
@@ -2154,24 +2038,13 @@ export const InkTUI: React.FC = () => {
       );
     }
 
-    // Generate sparkline for metrics history
-    const renderSparkline = (history: typeof selectedNode.metricsHistory, metricKey: 'cpu' | 'memory' | 'responseTime' | 'throughput', width: number = 30): React.ReactNode => {
-      if (!history || history.length < 2) return <Text color="gray">N/A</Text>;
-
-      const values = history.map(h => h[metricKey]);
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-      const range = max - min || 1;
-
-      const blocks = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-      const sparkline = values.map(v => {
-        const normalized = (v - min) / range;
-        const blockIndex = Math.floor(normalized * (blocks.length - 1));
-        return blocks[blockIndex];
-      }).join('');
-
-      return <Text color="cyan">{sparkline}</Text>;
-    };
+    const serviceName = service?.name || selectedNode.name;
+    const serviceType = normalizeNodeType(service?.type || selectedNode.type);
+    const serviceFramework = normalizeFramework(service?.framework) || selectedNode.framework || 'N/A';
+    const serviceLanguage = service?.language || selectedNode.language || 'N/A';
+    const servicePath = service?.path || selectedNode.path || 'N/A';
+    const servicePort = service?.port || selectedNode.port;
+    const serviceDependencies = selectedNode.dependencies || [];
 
     return (
       <Box flexDirection="column" padding={1}>
@@ -2182,15 +2055,17 @@ export const InkTUI: React.FC = () => {
         <Box flexDirection="column" marginLeft={2}>
           <Box>
             <Text bold color="white">Name: </Text>
-            <Text>{service.name || selectedNode.name}</Text>
+            <Text>{serviceName}</Text>
           </Box>
-          <Box>
-            <Text bold color="white">Display Name: </Text>
-            <Text>{service.displayName || 'N/A'}</Text>
-          </Box>
+          {service?.displayName && (
+            <Box>
+              <Text bold color="white">Display Name: </Text>
+              <Text>{service.displayName}</Text>
+            </Box>
+          )}
           <Box>
             <Text bold color="white">Type: </Text>
-            <Text color={getTypeColor(service.type)}>{service.type}</Text>
+            <Text color={getTypeColor(serviceType)}>{serviceType}</Text>
           </Box>
           <Box>
             <Text bold color="white">Health Status: </Text>
@@ -2198,112 +2073,38 @@ export const InkTUI: React.FC = () => {
           </Box>
           <Box>
             <Text bold color="white">Language: </Text>
-            <Text>{service.language || 'N/A'}</Text>
+            <Text>{serviceLanguage}</Text>
           </Box>
           <Box>
             <Text bold color="white">Framework: </Text>
-            <Text>{service.framework || 'N/A'}</Text>
+            <Text>{serviceFramework}</Text>
           </Box>
-          {service.port && (
+          {selectedNode.version && (
+            <Box>
+              <Text bold color="white">Version: </Text>
+              <Text>{selectedNode.version}</Text>
+            </Box>
+          )}
+          {servicePort && (
             <Box>
               <Text bold color="white">Port: </Text>
-              <Text>{service.port}</Text>
+              <Text>{servicePort}</Text>
             </Box>
           )}
           <Box>
             <Text bold color="white">Path: </Text>
-            <Text>{service.path || 'N/A'}</Text>
+            <Text>{servicePath}</Text>
           </Box>
-
-          {/* Performance metrics section */}
-          {selectedNode.metrics && state.showMetrics && (
-            <>
-              <Box marginTop={1}>
-                <Text bold color="cyan">────────────────────────────────</Text>
-              </Box>
-              <Box marginTop={1}>
-                <Text bold color="cyan">Performance Metrics (Last 5 min)</Text>
-              </Box>
-              <Box>
-                <Text bold color="white">CPU Usage: </Text>
-                <Text color={getMetricColor(selectedNode.metrics.cpu, 'cpu')}>
-                  {selectedNode.metrics.cpu}%
-                </Text>
-                <Text color="gray"> - {getMetricStatus(selectedNode.metrics.cpu, 'cpu')} </Text>
-                {renderSparkline(selectedNode.metricsHistory, 'cpu')}
-              </Box>
-              <Box>
-                <Text bold color="white">Memory: </Text>
-                <Text color={getMetricColor(selectedNode.metrics.memory, 'memory')}>
-                  {selectedNode.metrics.memory} MB
-                </Text>
-                <Text color="gray"> - {getMetricStatus(selectedNode.metrics.memory, 'memory')} </Text>
-                {renderSparkline(selectedNode.metricsHistory, 'memory')}
-              </Box>
-              <Box>
-                <Text bold color="white">Response Time: </Text>
-                <Text color={getMetricColor(selectedNode.metrics.responseTime, 'responseTime')}>
-                  {selectedNode.metrics.responseTime} ms
-                </Text>
-                <Text color="gray"> - {getMetricStatus(selectedNode.metrics.responseTime, 'responseTime')} </Text>
-                {renderSparkline(selectedNode.metricsHistory, 'responseTime')}
-              </Box>
-              <Box>
-                <Text bold color="white">Throughput: </Text>
-                <Text color={getMetricColor(selectedNode.metrics.throughput, 'throughput')}>
-                  {selectedNode.metrics.throughput} req/s
-                </Text>
-                <Text color="gray"> - {getMetricStatus(selectedNode.metrics.throughput, 'throughput')} </Text>
-                {renderSparkline(selectedNode.metricsHistory, 'throughput')}
-              </Box>
-            </>
-          )}
-
-          {/* Logs section */}
-          {serviceLogs.length > 0 && (
-            <>
-              <Box marginTop={1}>
-                <Text bold color="cyan">────────────────────────────────</Text>
-              </Box>
-              <Box marginTop={1} marginBottom={1}>
-                <Text bold color="cyan">Recent Logs (Last 20 entries)</Text>
-              </Box>
-
-              <Box
-                borderStyle="single"
-                borderColor="blue"
-                padding={1}
-                flexDirection="column"
-                height={Math.min(15, serviceLogs.length + 2)}
-              >
-                {serviceLogs
-                  .slice(state.detailsScrollOffset, state.detailsScrollOffset + 15)
-                  .map((log, idx) => (
-                    <Box key={idx}>
-                      <Text color="gray">[{log.timestamp.slice(11, 19)}] </Text>
-                      <Text color={getLogLevelColor(log.level)}>
-                        {getLogLevelSymbol(log.level)} {log.level.toUpperCase()}
-                      </Text>
-                      <Text color="gray">: </Text>
-                      <Text>{log.message}</Text>
-                    </Box>
-                  ))}
-              </Box>
-              <Box marginTop={1}>
-                <Text color="gray">Showing {Math.min(15, serviceLogs.length - state.detailsScrollOffset)} of {serviceLogs.length} logs | Use ↑↓ to scroll</Text>
-              </Box>
-            </>
-          )}
-
-          {serviceLogs.length === 0 && (
-            <Box marginTop={1}>
-              <Text color="gray">Press L to load logs for this service</Text>
+          {serviceDependencies.length > 0 && (
+            <Box>
+              <Text bold color="white">Internal Dependencies: </Text>
+              <Text>{serviceDependencies.join(', ')}</Text>
             </Box>
           )}
         </Box>
 
         <Box marginTop={2}>
-          <Text color="gray">Esc/Q: Return | M: Toggle metrics | L: Load logs | ↑↓: Scroll logs</Text>
+          <Text color="gray">Esc/Q: Return</Text>
         </Box>
       </Box>
     );
@@ -2319,72 +2120,61 @@ export const InkTUI: React.FC = () => {
 
         <Box flexDirection="column" marginLeft={2}>
           <Box><Text bold color="yellow">Navigation:</Text></Box>
-          <Box><Text bold>Tab / j / k</Text> - Cycle through nodes (vim-style j/k)</Box>
-          <Box><Text bold>Arrow Keys / h,j,k,l</Text> - Pan the graph view</Box>
-          <Box><Text bold>g</Text> - Go to first node (vim-style gg)</Box>
-          <Box><Text bold>Shift+G (G)</Text> - Go to last node</Box>
-          <Box><Text bold>b</Text> - Go to previous node</Box>
-          <Box><Text bold>Space</Text> - Toggle node selection</Box>
-          <Box><Text bold>Enter / d</Text> - View node details</Box>
+          <ShortcutLine keys="Tab / j / k" label="Cycle through nodes" />
+          <ShortcutLine keys="Arrow Keys" label="Pan the graph view" />
+          <ShortcutLine keys="g" label="Go to first node" />
+          <ShortcutLine keys="Shift+G (G)" label="Go to last node" />
+          <ShortcutLine keys="b" label="Go to previous node" />
+          <ShortcutLine keys="Space" label="Toggle node selection" />
+          <ShortcutLine keys="Enter / d" label="View node details" />
 
           <Box marginTop={1}><Text bold color="yellow">Zoom & View:</Text></Box>
-          <Box><Text bold>+/-</Text> - Zoom in/out</Box>
-          <Box><Text bold>Ctrl+W / Ctrl+Z</Text> - Zoom in/out (vim-style)</Box>
-          <Box><Text bold>0 / u</Text> - Reset zoom to 100%</Box>
+          <ShortcutLine keys="+/-" label="Zoom in/out" />
+          <ShortcutLine keys="Ctrl+W / Ctrl+Z" label="Zoom in/out" />
+          <ShortcutLine keys="0 / u" label="Reset zoom to 100%" />
 
           <Box marginTop={1}><Text bold color="yellow">Search & Filter:</Text></Box>
-          <Box><Text bold>/ / :</Text> - Search services / Open command mode</Box>
-          <Box><Text bold>n / Shift+N (N)</Text> - Next/previous unhealthy node</Box>
-          <Box><Text bold>* / #</Text> - Next/previous node by name</Box>
-          <Box><Text bold>F</Text> - Cycle filter (All/Services/DB/Queue/Cache/Network/etc)</Box>
-          <Box><Text bold>1-5</Text> - Quick views (1:Services, 2:DB, 3:Queue, 4:Cache, 5:Network)</Box>
-          <Box><Text bold>Ctrl+0</Text> - Reset filter to All</Box>
-          <Box><Text bold>L</Text> - Filter by language</Box>
-          <Box><Text bold>W</Text> - Filter by framework</Box>
-          <Box><Text bold>S</Text> - Filter by health status</Box>
+          <ShortcutLine keys="/ / :" label="Search services / Open command mode" />
+          <ShortcutLine keys="n / Shift+N (N)" label="Next/previous non-healthy node" />
+          <ShortcutLine keys="* / #" label="Next/previous node by name" />
+          <ShortcutLine keys="F" label="Cycle filter" />
+          <ShortcutLine keys="1-5" label="Quick views" />
+          <ShortcutLine keys="Ctrl+0" label="Reset filter to All" />
+          <ShortcutLine keys="L" label="Filter by language" />
+          <ShortcutLine keys="W" label="Filter by framework" />
+          <ShortcutLine keys="S" label="Filter by health status" />
 
           <Box marginTop={1}><Text bold color="yellow">Bookmarks:</Text></Box>
-          <Box><Text bold>B</Text> - Open bookmarks view</Box>
-          <Box><Text bold>Ctrl+B</Text> - Save current view as bookmark</Box>
-          <Box><Text bold>1-9</Text> - Quick load bookmark by number</Box>
+          <ShortcutLine keys="B" label="Open bookmarks view" />
+          <ShortcutLine keys="Ctrl+B" label="Save current view as bookmark" />
+          <ShortcutLine keys="1-9" label="Quick load bookmark by number" />
 
           <Box marginTop={1}><Text bold color="yellow">Hot-Links (requires selection):</Text></Box>
-          <Box><Text bold>o</Text> - Open service URL in browser</Box>
-          <Box><Text bold>e</Text> - Open service code in editor</Box>
-          <Box><Text bold>Shift+D (D)</Text> - Open framework documentation</Box>
-
-          <Box marginTop={1}><Text bold color="yellow">Service Control (requires selection):</Text></Box>
-          <Box><Text bold>Ctrl+S</Text> - Start service (with animation)</Box>
-          <Box><Text bold>Ctrl+X</Text> - Stop service (with animation)</Box>
-          <Box><Text bold>Ctrl+R</Text> - Restart service (with animation)</Box>
-          <Box><Text bold>Ctrl+L</Text> - View service logs</Box>
+          <ShortcutLine keys="o" label="Open service URL in browser" />
+          <ShortcutLine keys="e" label="Open service code in editor" />
+          <ShortcutLine keys="Shift+D (D)" label="Open framework documentation" />
 
           <Box marginTop={1}><Text bold color="yellow">Graph Features:</Text></Box>
-          <Box><Text bold>P</Text> - Set target node for dependency path</Box>
-          <Box><Text bold>C / v</Text> - Toggle clustering mode</Box>
-          <Box><Text bold>M</Text> - Cycle clustering mode (Language/Framework/Type/Team)</Box>
-          <Box><Text bold>O</Text> - Cycle layout algorithms (Force-directed/Hierarchical/Circular/Organic)</Box>
-          <Box><Text bold>R</Text> - Recalculate graph layout</Box>
+          <ShortcutLine keys="P" label="Set target node for dependency path" />
+          <ShortcutLine keys="C / v" label="Toggle clustering mode" />
+          <ShortcutLine keys="M" label="Cycle clustering mode" />
+          <ShortcutLine keys="O" label="Cycle layout algorithms" />
+          <ShortcutLine keys="R" label="Recalculate graph layout" />
 
           <Box marginTop={1}><Text bold color="yellow">Animations:</Text></Box>
-          <Box><Text bold>a</Text> - Animate selected node (deployment)</Box>
-          <Box><Text bold>Shift+A (A)</Text> - Animate all nodes (appearing)</Box>
+          <ShortcutLine keys="a" label="Animate selected node" />
+          <ShortcutLine keys="Shift+A (A)" label="Animate all nodes" />
 
           <Box marginTop={1}><Text bold color="yellow">Analysis:</Text></Box>
-          <Box><Text bold>I</Text> - Run dependency analysis (security & performance)</Box>
-          <Box><Text bold color="gray">  Shows vulnerabilities, outdated packages, and recommendations</Text></Box>
-
-          <Box marginTop={1}><Text bold color="yellow">Collaboration:</Text></Box>
-          <Box><Text bold>Ctrl+Shift+C (C)</Text> - Toggle collaborative mode</Box>
-          <Box><Text bold color="gray">  Shows remote cursors and simulates multi-user viewing</Text></Box>
+          <ShortcutLine keys="I" label="Run dependency inventory" />
 
           <Box marginTop={1}><Text bold color="yellow">Tour & Help:</Text></Box>
-          <Box><Text bold>t</Text> - Start guided tour</Box>
-          <Box><Text bold>H / ?</Text> - Show this help</Box>
+          <ShortcutLine keys="t" label="Start guided tour" />
+          <ShortcutLine keys="H / ?" label="Show this help" />
 
           <Box marginTop={1}><Text bold color="yellow">General:</Text></Box>
-          <Box><Text bold>Esc / q</Text> - Exit / Go back</Box>
-          <Box><Text bold>Ctrl+C</Text> - Quit TUI</Box>
+          <ShortcutLine keys="Esc / q" label="Exit / Go back" />
+          <ShortcutLine keys="Ctrl+C" label="Quit TUI" />
         </Box>
 
         <Box marginTop={2}>
@@ -2704,70 +2494,27 @@ function getTypeColor(type: string): string {
     frontend: 'green',
     backend: 'blue',
     worker: 'yellow',
+    function: 'yellow',
+    app: 'green',
+    package: 'blue',
+    lib: 'magenta',
+    tool: 'cyan',
     database: 'red',
     queue: 'magenta',
     cache: 'cyan',
+    unknown: 'gray',
   };
   return colors[type] || 'white';
 }
 
-// Helper function to calculate average metric across visible nodes
-function calculateAverageMetric(nodes: GraphNode[], metricKey: keyof NonNullable<GraphNode['metrics']>): number {
-  const nodesWithMetrics = nodes.filter(n => n.metrics && n.metrics[metricKey] !== undefined);
-  if (nodesWithMetrics.length === 0) return 0;
-
-  const sum = nodesWithMetrics.reduce((acc, node) => acc + (node.metrics?.[metricKey] || 0), 0);
-  return sum / nodesWithMetrics.length;
-}
-
-// Helper function to get color based on metric value
-function getMetricColor(value: number, metricType: 'cpu' | 'memory' | 'responseTime' | 'throughput'): string {
-  switch (metricType) {
-    case 'cpu':
-      if (value < 50) return 'green';
-      if (value < 80) return 'yellow';
-      return 'red';
-    case 'memory':
-      if (value < 256) return 'green';
-      if (value < 512) return 'yellow';
-      return 'red';
-    case 'responseTime':
-      if (value < 100) return 'green';
-      if (value < 200) return 'yellow';
-      return 'red';
-    case 'throughput':
-      if (value > 500) return 'green';
-      if (value > 200) return 'yellow';
-      return 'red';
-  }
-}
-
-// Helper function to get status text based on metric value
-function getMetricStatus(value: number, metricType: 'cpu' | 'memory' | 'responseTime' | 'throughput'): string {
-  switch (metricType) {
-    case 'cpu':
-      if (value < 50) return 'Good';
-      if (value < 80) return 'Moderate';
-      return 'High';
-    case 'memory':
-      if (value < 256) return 'Good';
-      if (value < 512) return 'Moderate';
-      return 'High';
-    case 'responseTime':
-      if (value < 100) return 'Fast';
-      if (value < 200) return 'Moderate';
-      return 'Slow';
-    case 'throughput':
-      if (value > 500) return 'Excellent';
-      if (value > 200) return 'Good';
-      return 'Low';
-  }
-}
-
 // Export function to launch TUI
-export async function launchInkTUI(): Promise<void> {
+export async function launchInkTUI(options: InkTUIProps = {}): Promise<void> {
   try {
-    render(<InkTUI />);
+    await loadInkRuntime();
+    const instance = inkRender(<InkTUI {...options} />);
+    if (instance?.waitUntilExit) {
+      await instance.waitUntilExit();
+    }
   } catch (error: any) {
     console.error(chalk.red('Failed to launch TUI:', error.message));
     process.exit(1);
