@@ -1,5 +1,5 @@
-import type { TemplateSummary } from '@umutkorkmaz/contracts';
-import { createReShellCommand } from '@umutkorkmaz/ui';
+import type { TemplateSummary } from 're-shell-contracts';
+import { createReShellCommand } from 're-shell-ui';
 import type { TemplateFeed } from '../shared/feedSchemas';
 
 /** Coarse template domain (mirrors the contracts `templateDomainSchema` enum). */

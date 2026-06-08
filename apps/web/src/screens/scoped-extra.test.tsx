@@ -15,8 +15,8 @@ import { act, renderHook } from '@testing-library/react';
 
 // useHubQuery is the seam the screens mock; do the same for the shared helper.
 const useHubQueryMock = vi.fn();
-vi.mock('@umutkorkmaz/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@umutkorkmaz/ui')>();
+vi.mock('re-shell-ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('re-shell-ui')>();
   return { ...actual, useHubQuery: (...args: unknown[]) => useHubQueryMock(...args) };
 });
 

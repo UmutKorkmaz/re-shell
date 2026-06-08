@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { jsonResponseSchema } from '@umutkorkmaz/contracts';
+import { jsonResponseSchema } from 're-shell-contracts';
 
 /**
  * PURE module. No VS Code, no Node side effects.
@@ -7,7 +7,7 @@ import { jsonResponseSchema } from '@umutkorkmaz/contracts';
  * Parses the `re-shell commands list --json` payload into a validated catalog
  * the extension can render as a tree. The CLI emits the canonical envelope
  * ({ ok, data, warnings } | { ok:false, error, warnings }) from
- * @umutkorkmaz/contracts, so we validate against that exact shape and never
+ * re-shell-contracts, so we validate against that exact shape and never
  * trust the raw stdout blob.
  */
 

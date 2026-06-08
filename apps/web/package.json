@@ -1,6 +1,6 @@
 {
-  "name": "@umutkorkmaz/ui-web",
-  "version": "1.0.0",
+  "name": "re-shell-dashboard",
+  "version": "0.1.0",
   "private": true,
   "description": "Local Re-Shell dashboard launched by the CLI.",
   "scripts": {
@@ -20,8 +20,8 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.0.0",
-    "@umutkorkmaz/contracts": "workspace:*",
-    "@umutkorkmaz/ui": "workspace:*",
+    "re-shell-contracts": "workspace:*",
+    "re-shell-ui": "workspace:*",
     "@xyflow/react": "^12.11.0",
     "lucide-react": "^1.14.0",
     "react": "^18.2.0",

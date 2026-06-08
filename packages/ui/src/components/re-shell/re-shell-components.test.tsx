@@ -9,7 +9,7 @@ import type {
   WorkspaceApp,
   WorkspaceService,
   WorkspaceSummary,
-} from '@umutkorkmaz/contracts';
+} from 're-shell-contracts';
 
 import { CommandPreview } from './command-preview';
 import { HealthStatus } from './health-status';

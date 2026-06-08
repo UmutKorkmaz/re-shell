@@ -5,7 +5,7 @@ import {
   Card,
   CardContent,
   Label,
-} from '@umutkorkmaz/ui';
+} from 're-shell-ui';
 import { FilterX } from 'lucide-react';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';
 import { EmptyPanel, EnvelopeErrorPanel, ErrorPanel, LoadingPanel } from './shared/StatePanels';

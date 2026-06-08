@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Authoritative reachability index for @umutkorkmaz/re-shell-cli.
+// Authoritative reachability index for re-shell-cli.
 // BFS from the single live root (src/index.ts). Resolves static `import`,
 // dynamic `import()`, and CommonJS `require()` specifiers. Extension-normalized.
 // Emits orphans.json (path list + counts) and prints live-vs-orphan stats.

@@ -19,7 +19,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@umutkorkmaz/contracts': resolve(
+      're-shell-contracts': resolve(
         packageRoot,
         '../../packages/contracts/src/index.ts'
       ),

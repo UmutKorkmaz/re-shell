@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Badge, Input, Label } from '@umutkorkmaz/ui';
+import { Badge, Input, Label } from 're-shell-ui';
 import {
   DRY_RUN_FLAG,
   JSON_FLAG,

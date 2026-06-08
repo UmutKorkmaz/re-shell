@@ -10,7 +10,7 @@ import {
   SheetTitle,
   createReShellCommand,
   formatCommand,
-} from '@umutkorkmaz/ui';
+} from 're-shell-ui';
 import { Boxes, Server } from 'lucide-react';
 import type { KindedGraphNode } from '../shared/feedSchemas';
 

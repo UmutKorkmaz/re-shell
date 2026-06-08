@@ -2,7 +2,7 @@
 
 > **Status:** Authoritative implementation plan. Supersedes `docs/RE_SHELL_MASTER_PLAN.md` (the earlier DRAFT) and the scattered legacy plan/TODO files.
 > **Produced:** 2026-06-06, from a 41-agent workflow: **18 parallel empirical-audit agents** (read source + ran the built CLI/tests) → **18 adversarial verifiers** (each tried to *refute* the audit's CRITICAL/HIGH findings against the live working tree) → **5 domain-synthesis agents**. Every claim below is verified-against-code, with the verifier corrections folded in.
-> **Repos audited:** `re-shell-cli` (`@umutkorkmaz/re-shell-cli@0.28.0`, branch `the working branch`), `re-shell-ui` (branch `the UI working branch`, **no git remote**), legacy `re-shell` (`the legacy working branch`, broken build, to be archived).
+> **Repos audited:** `re-shell-cli` (`re-shell-cli@0.28.0`, branch `the working branch`), `re-shell-ui` (branch `the UI working branch`, **no git remote**), legacy `re-shell` (`the legacy working branch`, broken build, to be archived).
 
 ---
 
@@ -13,7 +13,7 @@ These four decisions were made by the owner and are baked into every task below.
 | # | Decision | Consequence |
 |---|----------|-------------|
 | 1 | **UI delivery model = shadcn React** | Export `components/ui` + `components/re-shell` from the UI package; refactor `apps/web` to consume React; **retire the Web Components layer** (keep at most a thin custom-element wrapper *only* if a real non-React embedder appears — none today). |
-| 2 | **npm scope = `@umutkorkmaz/*` everywhere** | Rename `@re-shell/contracts → @umutkorkmaz/contracts`, `@re-shell/ui → @umutkorkmaz/ui`; fix the CLI source emitters that hardcode `@re-shell/*` for generated/installed packages. |
+| 2 | **npm scope = `@re-shell/*` everywhere** | Rename `@re-shell/contracts → re-shell-contracts`, `@re-shell/ui → re-shell-ui`; fix the CLI source emitters that hardcode `@re-shell/*` for generated/installed packages. |
 | 3 | **Repo strategy = single pnpm monorepo** | Merge `cli` + `ui` + `contracts` into one pnpm workspace; retire the legacy submodule composition. |
 | 4 | **Legacy `re-shell` = archive read-only after salvage; plan covers ALL features** | This is a **full** plan: the MVP critical path (Phases 0–6) **and** every post-MVP feature fully specced (Phase 9). |
 
@@ -100,11 +100,11 @@ The **working tree** is an **uncommitted Web-Components regression** layered on 
 
 ## Phase 0–1 — Repo Unification, Safety, Scope & Contract Lock
 
-This phase establishes the foundation every later phase depends on: a backed-up, single pnpm monorepo with one consistent `@umutkorkmaz/*` scope, `@umutkorkmaz/contracts` as the single typed source of truth (with zod), and a regenerated, conformance-tested contract surface. Nothing in P2+ (CLI producers, transport hardening, UI fork) is safe to start until P0 safety and P1 contract-lock land.
+This phase establishes the foundation every later phase depends on: a backed-up, single pnpm monorepo with one consistent `@re-shell/*` scope, `re-shell-contracts` as the single typed source of truth (with zod), and a regenerated, conformance-tested contract surface. Nothing in P2+ (CLI producers, transport hardening, UI fork) is safe to start until P0 safety and P1 contract-lock land.
 
 **Verified preconditions (ground truth at plan time):**
 - `re-shell-ui` has **NO git remote** (`git remote -v` empty) and sits on branch `the UI working branch` with uncommitted changes — a single `git clean`/disk loss destroys it. This is the highest-priority safety gap.
-- `re-shell-cli` remote is `https://github.com/UmutKorkmaz/re-shell-cli.git`; package is already `@umutkorkmaz/re-shell-cli@0.28.0`, bin `re-shell`, but uses **npm** (`package-lock.json`, no `packageManager` field).
+- `re-shell-cli` remote is `https://github.com/UmutKorkmaz/re-shell-cli.git`; package is already `re-shell-cli@0.28.0`, bin `re-shell`, but uses **npm** (`package-lock.json`, no `packageManager` field).
 - UI is already a pnpm workspace (`pnpm-workspace.yaml`: `apps/*`, `packages/*`) with `packages/contracts` (`@re-shell/contracts`), `packages/ui` (`@re-shell/ui`), `apps/web`.
 - CLI `src/` has `@re-shell/` in **15 files** (line-level count 53); CLI has **no zod**, but `ajv@^8.17.1` is present.
 - CLI `docs/` and `AGENTS.md` are git-**untracked**; `docs/CLI-CONTRACTS.md` exists (564 lines, aspirational/inaccurate per findings).
@@ -147,9 +147,9 @@ This phase establishes the foundation every later phase depends on: a backed-up,
   ```
   /                      (root: pnpm-workspace.yaml, package.json w/ packageManager, tsconfig.base.json)
   ├─ packages/
-  │   ├─ cli/            (← current re-shell-cli src/, dist/, tests/, bin → @umutkorkmaz/re-shell-cli)
-  │   ├─ contracts/      (← re-shell-ui/packages/contracts → @umutkorkmaz/contracts)
-  │   └─ ui/             (← re-shell-ui/packages/ui → @umutkorkmaz/ui)
+  │   ├─ cli/            (← current re-shell-cli src/, dist/, tests/, bin → re-shell-cli)
+  │   ├─ contracts/      (← re-shell-ui/packages/contracts → re-shell-contracts)
+  │   └─ ui/             (← re-shell-ui/packages/ui → re-shell-ui)
   ├─ apps/
   │   └─ web/            (← re-shell-ui/apps/web)
   └─ docs/               (master plan, CLI-CONTRACTS.md, ROADMAP.md, legacy/)
@@ -160,10 +160,10 @@ This phase establishes the foundation every later phase depends on: a backed-up,
 #### P1-02 — Move CLI into the monorepo and convert npm→pnpm
 **Effort:** L · **Deps:** P1-01 · **Parallel:** no
 - Move current CLI tree into `packages/cli/`; delete `package-lock.json`; remove npm-specific lock assumptions.
-- Reconcile `packages/cli/package.json`: keep `name: @umutkorkmaz/re-shell-cli`, bin `re-shell` → `dist/index.js`; ensure its build script and the `dist/utils/schemas` copy step still resolve from the new path.
+- Reconcile `packages/cli/package.json`: keep `name: re-shell-cli`, bin `re-shell` → `dist/index.js`; ensure its build script and the `dist/utils/schemas` copy step still resolve from the new path.
 - Use `git mv` (or `git subtree`/`git filter-repo` if preserving UI history into this repo) so CLI history is retained; UI history preservation is best-effort via subtree merge from the now-remote `re-shell-ui` (P0-01).
 - Run `pnpm install` at root; resolve any hoisting/peer issues.
-- **Acceptance:** `pnpm -w install` succeeds; `pnpm --filter @umutkorkmaz/re-shell-cli build` produces `packages/cli/dist/index.js`; `node packages/cli/dist/index.js --version` prints `0.28.0`; no `package-lock.json` remains; `pnpm-lock.yaml` committed.
+- **Acceptance:** `pnpm -w install` succeeds; `pnpm --filter re-shell-cli build` produces `packages/cli/dist/index.js`; `node packages/cli/dist/index.js --version` prints `0.28.0`; no `package-lock.json` remains; `pnpm-lock.yaml` committed.
 
 #### P1-03 — Move contracts, ui, apps/web into the monorepo
 **Effort:** M · **Deps:** P1-01 · **Parallel:** yes (with P1-02)
@@ -176,33 +176,33 @@ This phase establishes the foundation every later phase depends on: a backed-up,
 - Remove any `.gitmodules` / submodule wiring tying the old multi-repo composition together; delete dead CLI entrypoints surfaced by findings (`packages/cli/src/index-optimized.ts`, `packages/cli/src/minimal-index.ts`) and `.bak*` util files — these are unreferenced and diverge from the live `src/index.ts` bin.
 - **Acceptance:** no submodules remain (`git submodule status` empty); `grep -rl "index-optimized\|minimal-index" packages/cli/src` returns nothing importing them; build still green.
 
-#### P1-05 — Rename UI packages to `@umutkorkmaz/*`
+#### P1-05 — Rename UI packages to `@re-shell/*`
 **Effort:** S · **Deps:** P1-03 · **Parallel:** no (gates downstream rename verification)
-- Edit `packages/contracts/package.json:name` → `@umutkorkmaz/contracts`; `packages/ui/package.json:name` → `@umutkorkmaz/ui` (and `@re-shell/ui-web`/`@re-shell/ui-dashboard` → `@umutkorkmaz/*` if present).
-- Update all consumer references: `apps/web/package.json` deps (`@re-shell/contracts`, `@re-shell/ui` → `@umutkorkmaz/*`), `packages/ui/package.json` dep on contracts, `packages/ui/src/contracts/index.ts` (`export type * from '@re-shell/contracts'`), direct imports in `packages/ui/src/components/domain/health.ts`, `topology.ts`, `packages/ui/src/hub/ws-client.ts`, all `components/re-shell/*.tsx` (`@/contracts` alias may shield some — verify), `vite.config.ts` aliases, `tsconfig` paths, and root build/test script filters.
+- Edit `packages/contracts/package.json:name` → `re-shell-contracts`; `packages/ui/package.json:name` → `re-shell-ui` (and `@re-shell/ui-web`/`@re-shell/ui-dashboard` → `@re-shell/*` if present).
+- Update all consumer references: `apps/web/package.json` deps (`@re-shell/contracts`, `@re-shell/ui` → `@re-shell/*`), `packages/ui/package.json` dep on contracts, `packages/ui/src/contracts/index.ts` (`export type * from '@re-shell/contracts'`), direct imports in `packages/ui/src/components/domain/health.ts`, `topology.ts`, `packages/ui/src/hub/ws-client.ts`, all `components/re-shell/*.tsx` (`@/contracts` alias may shield some — verify), `vite.config.ts` aliases, `tsconfig` paths, and root build/test script filters.
 - Do as one atomic commit; `pnpm install` to refresh links.
-- **Acceptance:** `pnpm -r ls --depth -1` shows `@umutkorkmaz/contracts`, `@umutkorkmaz/ui`; zero remaining `@re-shell/contracts`/`@re-shell/ui` in any `package.json` or import (`grep -rn "@re-shell/\(contracts\|ui\)" packages apps` empty); all packages still build.
+- **Acceptance:** `pnpm -r ls --depth -1` shows `re-shell-contracts`, `re-shell-ui`; zero remaining `@re-shell/contracts`/`@re-shell/ui` in any `package.json` or import (`grep -rn "@re-shell/\(contracts\|ui\)" packages apps` empty); all packages still build.
 
 #### P1-06 — Fix CLI source emitters that hardcode `@re-shell/*` for generated/installed packages
 **Effort:** M · **Deps:** P1-02 · **Parallel:** yes (with P1-05)
-- Introduce a single constant/config (e.g. `packages/cli/src/utils/scope.ts` exporting `GENERATED_PKG_SCOPE = '@umutkorkmaz'`) and replace hardcoded `@re-shell/*` literals across the **15 files**: `src/utils/plugin-system.ts`, `service-integration.ts`, `config-client-frameworks.ts`, `change-impact-analyzer.ts`, `src/templates/index.ts`, `src/templates/backend/{microfrontend-orchestration,cross-framework-component-sharing,api-contract-testing,frontend-service-mesh-client,shared-config-server,realtime-data-sync,comprehensive-auth-service,universal-state-management}.ts`, `src/commands/ui.ts`, `src/commands/add.ts`.
+- Introduce a single constant/config (e.g. `packages/cli/src/utils/scope.ts` exporting `GENERATED_PKG_SCOPE = '@re-shell'`) and replace hardcoded `@re-shell/*` literals across the **15 files**: `src/utils/plugin-system.ts`, `service-integration.ts`, `config-client-frameworks.ts`, `change-impact-analyzer.ts`, `src/templates/index.ts`, `src/templates/backend/{microfrontend-orchestration,cross-framework-component-sharing,api-contract-testing,frontend-service-mesh-client,shared-config-server,realtime-data-sync,comprehensive-auth-service,universal-state-management}.ts`, `src/commands/ui.ts`, `src/commands/add.ts`.
 - Note: `service-integration.ts` is dead code (unimported) — change or delete per the config/service section; do not block on it. For plugin-detection contract (`@re-shell/` prefix, `reshell-cli`/`reshell-plugin` manifest keys in `plugin-system.ts`), decide rebrand vs backward-compat detection here and document it (default: accept legacy AND new prefixes during transition).
-- **Acceptance:** `grep -rn '@re-shell/' packages/cli/src` returns only intentional backward-compat detection (if any), each annotated; generated SDK imports emitted by `config-client-frameworks.ts`/templates use `@umutkorkmaz/*`; CLI build green; a smoke generate (one backend template) produces code with `@umutkorkmaz/*` imports.
+- **Acceptance:** `grep -rn '@re-shell/' packages/cli/src` returns only intentional backward-compat detection (if any), each annotated; generated SDK imports emitted by `config-client-frameworks.ts`/templates use `@re-shell/*`; CLI build green; a smoke generate (one backend template) produces code with `@re-shell/*` imports.
 
 #### P1-07 — Org-casing & branding-token sweep
 **Effort:** S · **Deps:** P1-05, P1-06 · **Parallel:** no
-- Normalize casing/branding tokens flagged across findings: contracts `README.md` title (`@re-shell/ui-contracts` → `@umutkorkmaz/contracts`), root/UI README scope references, root build/test script `--filter` names. Defer the `re-shell.dev` domain replacements and `.re-shell` dir naming to their owning sections (docs/config) — record them as out-of-scope-for-P1 to avoid scope creep.
-- **Acceptance:** no `@re-shell/ui-contracts` token anywhere; contracts README title matches its `package.json` name; root scripts filter on `@umutkorkmaz/*`.
+- Normalize casing/branding tokens flagged across findings: contracts `README.md` title (`@re-shell/ui-contracts` → `re-shell-contracts`), root/UI README scope references, root build/test script `--filter` names. Defer the `re-shell.dev` domain replacements and `.re-shell` dir naming to their owning sections (docs/config) — record them as out-of-scope-for-P1 to avoid scope creep.
+- **Acceptance:** no `@re-shell/ui-contracts` token anywhere; contracts README title matches its `package.json` name; root scripts filter on `@re-shell/*`.
 
 #### P1-08 — Update CLI hub adapter to local entrypoint + envelope-aware (rename reconciliation)
 **Effort:** S · **Deps:** P1-02, P1-05, P1-13 · **Parallel:** no
 - File: `packages/cli/src/utils/cli-adapters.ts:88,96,104,112`. Replace the literal `'re-shell'` PATH spawn with the locally-built entrypoint (`packages/cli/dist/index.js` resolved relative path) so the hub runs the monorepo build, not a globally-installed bin.
-- Parse the `{ok,data,warnings}` envelope (consume `JsonResponse<T>` from `@umutkorkmaz/contracts`, P1-13) instead of raw line streaming. (Command-string correctness — `templates list`, `workspace graph --json` etc. — is fixed in P2; this task only fixes bin resolution + envelope parsing. Note `cli-adapters.ts` is currently test-only/dead per findings; reconcile or delete in P2 when the live invocation paths are fixed.)
-- **Acceptance:** adapter no longer references `'re-shell'` from PATH; imports `JsonResponse` from `@umutkorkmaz/contracts`; `tests/unit/cli-adapters.test.ts` updated to reflect local-path spawn and passes.
+- Parse the `{ok,data,warnings}` envelope (consume `JsonResponse<T>` from `re-shell-contracts`, P1-13) instead of raw line streaming. (Command-string correctness — `templates list`, `workspace graph --json` etc. — is fixed in P2; this task only fixes bin resolution + envelope parsing. Note `cli-adapters.ts` is currently test-only/dead per findings; reconcile or delete in P2 when the live invocation paths are fixed.)
+- **Acceptance:** adapter no longer references `'re-shell'` from PATH; imports `JsonResponse` from `re-shell-contracts`; `tests/unit/cli-adapters.test.ts` updated to reflect local-path spawn and passes.
 
 ---
 
-### P1 — Contract Lock: `@umutkorkmaz/contracts` as single source of truth + zod
+### P1 — Contract Lock: `re-shell-contracts` as single source of truth + zod
 
 > All of the following depend on the package being renamed (P1-05) and in the monorepo (P1-03). P1-09 gates P1-10/P1-11/P1-13/P1-14.
 
@@ -211,23 +211,23 @@ This phase establishes the foundation every later phase depends on: a backed-up,
 - File: `packages/contracts/src/re-shell.ts` (split into modules under `packages/contracts/src/` if it grows). Add `zod` as a real dependency (currently only `typescript` devDep).
 - For every type that crosses a process boundary, author a zod schema and derive the TS type via `export type X = z.infer<typeof xSchema>` so types/validators cannot drift: `WorkspaceSummary`, `WorkspaceApp`, `WorkspaceService`, `GitSummary`, `TemplateSummary`, `HealthSummary`, `HealthCheck`, `JobRecord`, `CommandSpec`, `WorkspaceNodeStatus`/`PackageManager` enums.
 - Add a shared `Argv = z.array(z.string())` reused by `TemplateSummary.command` and `CommandSpec.command`.
-- **Acceptance:** `@umutkorkmaz/contracts` builds with `zod` dependency declared; each listed type is `z.infer`-derived; `tsc --noEmit` clean; `dist/` emits both runtime schemas and `.d.ts`.
+- **Acceptance:** `re-shell-contracts` builds with `zod` dependency declared; each listed type is `z.infer`-derived; `tsc --noEmit` clean; `dist/` emits both runtime schemas and `.d.ts`.
 
 #### P1-10 — Add the JSON response envelope to contracts (canonical wire format)
 **Effort:** M · **Deps:** P1-09 · **Parallel:** yes (with P1-11)
 - File: `packages/contracts/src/re-shell.ts` (or `envelope.ts`). Define `JsonSuccess<T> = { ok: true; data: T; warnings: string[] }`, `JsonError = { ok: false; error: { code: ErrorCode; message: string; details?: Record<string,unknown> } }`, `JsonResponse<T>`, and a generic `jsonResponseSchema(dataSchema)` helper, mirroring `packages/cli/src/utils/json-output.ts:3-18`.
-- **Acceptance:** envelope types + generic schema exported from `@umutkorkmaz/contracts`; `jsonResponseSchema(workspaceSummarySchema).safeParse(...)` round-trips a valid envelope and rejects a malformed one in a unit test.
+- **Acceptance:** envelope types + generic schema exported from `re-shell-contracts`; `jsonResponseSchema(workspaceSummarySchema).safeParse(...)` round-trips a valid envelope and rejects a malformed one in a unit test.
 
 #### P1-11 — Centralize the error-code taxonomy in contracts
 **Effort:** S · **Deps:** P1-09 · **Parallel:** yes (with P1-10)
-- Create the canonical `ErrorCode` union from the **9** distinct codes actually emitted (verified, not 10): `NOT_IN_MONOREPO`, `LIST_WORKSPACES_ERROR`, `GRAPH_GENERATION_ERROR`, `WORKSPACE_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `INVALID_VARIABLES`, `NOT_IN_RESHELL_PROJECT`, `APPS_DIR_NOT_FOUND`, `LIST_MICROFRONTENDS_ERROR`. Export as a zod enum + TS union from `@umutkorkmaz/contracts`.
+- Create the canonical `ErrorCode` union from the **9** distinct codes actually emitted (verified, not 10): `NOT_IN_MONOREPO`, `LIST_WORKSPACES_ERROR`, `GRAPH_GENERATION_ERROR`, `WORKSPACE_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `INVALID_VARIABLES`, `NOT_IN_RESHELL_PROJECT`, `APPS_DIR_NOT_FOUND`, `LIST_MICROFRONTENDS_ERROR`. Export as a zod enum + TS union from `re-shell-contracts`.
 - **Acceptance:** `ErrorCode` exported; new codes are added here, not ad hoc. (Wiring `jsonError`'s `code` param to this type is done in P1-12.)
 
 #### P1-12 — Make the CLI consume contracts instead of re-declaring the envelope
 **Effort:** S · **Deps:** P1-10, P1-11 · **Parallel:** no
-- File: `packages/cli/src/utils/json-output.ts`. Replace the locally-declared `JsonSuccess`/`JsonError`/`JsonResponse` (lines 3-18) with imports from `@umutkorkmaz/contracts`; type `jsonError`'s `code` to `ErrorCode`. Add `@umutkorkmaz/contracts` as a CLI dependency.
+- File: `packages/cli/src/utils/json-output.ts`. Replace the locally-declared `JsonSuccess`/`JsonError`/`JsonResponse` (lines 3-18) with imports from `re-shell-contracts`; type `jsonError`'s `code` to `ErrorCode`. Add `re-shell-contracts` as a CLI dependency.
 - Do NOT re-implement the `enableJsonMode` behavioral fixes here (those are P2/P0-safety in other sections) — this task is purely the type-source switch.
-- **Acceptance:** `packages/cli/src/utils/json-output.ts` imports envelope + `ErrorCode` from `@umutkorkmaz/contracts`; no duplicate envelope `interface`/`type` definitions remain in CLI; `jsonError('BAD_CODE', ...)` is a type error; CLI build green.
+- **Acceptance:** `packages/cli/src/utils/json-output.ts` imports envelope + `ErrorCode` from `re-shell-contracts`; no duplicate envelope `interface`/`type` definitions remain in CLI; `jsonError('BAD_CODE', ...)` is a type error; CLI build green.
 
 #### P1-13 — Replace blind casts with zod parse at live UI boundaries
 **Effort:** S · **Deps:** P1-09, P1-10 · **Parallel:** yes
@@ -247,12 +247,12 @@ This phase establishes the foundation every later phase depends on: a backed-up,
 #### P1-15 — Regenerate `CLI-CONTRACTS.md` from real CLI output
 **Effort:** S · **Deps:** P1-12, and the P2 producer fixes (cross-section dependency) · **Parallel:** no
 - File: `packages/cli/docs/CLI-CONTRACTS.md` (currently 564 lines, aspirational — documents `templates list`, category-based `HealthSummary`, `workspace graph --json` with `{nodes,edges}` that don't match reality).
-- Regenerate by running each `--json` command against the built `dist/index.js` and capturing actual envelope output; document the envelope contract (single-line `JsonResponse<T>`, `warnings[]`, no stderr in JSON mode), the 9-code error table, and the `@umutkorkmaz/contracts` types as the source of truth. Archive the old aspirational version.
+- Regenerate by running each `--json` command against the built `dist/index.js` and capturing actual envelope output; document the envelope contract (single-line `JsonResponse<T>`, `warnings[]`, no stderr in JSON mode), the 9-code error table, and the `re-shell-contracts` types as the source of truth. Archive the old aspirational version.
 - **Acceptance:** every shape/command in `CLI-CONTRACTS.md` is reproducible by running the documented command and `JSON.parse`-ing stdout; no documented command/flag is unregistered; the error-code table matches `ErrorCode`. (This task is sequenced AFTER P2 producers conform; listed here because the doc is part of the contract-lock deliverable.)
 
 #### P1-16 — Add the contract-conformance regression test
 **Effort:** M · **Deps:** P1-09, P1-10, P1-11, P1-12, and P2 producers · **Parallel:** no
-- Add `packages/cli/tests/contract-conformance.test.ts` (vitest): for each `--json` command, spawn the built CLI in a fixture workspace, capture stdout, `JSON.parse` it (assert single-line/NDJSON), and validate against `jsonResponseSchema(<typeSchema>)` from `@umutkorkmaz/contracts` (`safeParse(...).success === true`). Include the spinner-leak regression: run `workspace list --json` (or its renamed equivalent) with `isTTY=true` and assert stdout is parseable (no `\x1b[?25l` prefix).
+- Add `packages/cli/tests/contract-conformance.test.ts` (vitest): for each `--json` command, spawn the built CLI in a fixture workspace, capture stdout, `JSON.parse` it (assert single-line/NDJSON), and validate against `jsonResponseSchema(<typeSchema>)` from `re-shell-contracts` (`safeParse(...).success === true`). Include the spinner-leak regression: run `workspace list --json` (or its renamed equivalent) with `isTTY=true` and assert stdout is parseable (no `\x1b[?25l` prefix).
 - Add `packages/contracts/__tests__/*.test.ts`: valid-fixture parses + malformed-rejects per schema; assert `z.infer` type identity.
 - Wire both into the root `pnpm test` (which currently only ran the UI package filter) so CI runs them by default.
 - **Acceptance:** every `--json` command output passes its contract schema in CI; malformed fixtures are rejected; `workspace list --json` TTY test passes; `pnpm -w test` (root) executes contracts + CLI conformance suites; failing a contract shape fails CI.
@@ -269,7 +269,7 @@ This phase establishes the foundation every later phase depends on: a backed-up,
 
 ## Phase 2 — Make the CLI satisfy the contract (engine work)
 
-This phase makes the shipped binary (`dist/index.js` ← `src/index.ts`) actually emit the machine-readable contract that the UI hub, Command Builder, and IDE tooling depend on. Every task here is grounded in verified live-run behavior, not source-reading assumptions. Phase 2 depends on the Phase 1 contract module (`P1-contract`) being available; tasks that touch generated-package scope assume the `@umutkorkmaz/*` rename constant exists.
+This phase makes the shipped binary (`dist/index.js` ← `src/index.ts`) actually emit the machine-readable contract that the UI hub, Command Builder, and IDE tooling depend on. Every task here is grounded in verified live-run behavior, not source-reading assumptions. Phase 2 depends on the Phase 1 contract module (`P1-contract`) being available; tasks that touch generated-package scope assume the `@re-shell/*` rename constant exists.
 
 **Cross-cutting invariants for every task below (the "JSON contract"):**
 - A `--json` command emits exactly one single-line `JsonResponse<T>` envelope to **stdout** and nothing else on stdout.
@@ -416,7 +416,7 @@ Verified: bare `workspace` has only `.description()`, no `.action()` → `worksp
 ```
 { root, packageManager, workspaces: WorkspaceInfo[], graph: {apps, services}, health: {score, status, checks[]} }
 ```
-Source it from `getWorkspaces()` + the P2-05 graph projection + a yaml-free P2-06 health pass — zero-config, derived purely from package metadata (`getWorkspaces()` reads `package.json#workspaces`/`pnpm-workspace.yaml`). The `WorkspaceSummary` type lives in `@umutkorkmaz/contracts` (P1) and is imported here.
+Source it from `getWorkspaces()` + the P2-05 graph projection + a yaml-free P2-06 health pass — zero-config, derived purely from package metadata (`getWorkspaces()` reads `package.json#workspaces`/`pnpm-workspace.yaml`). The `WorkspaceSummary` type lives in `re-shell-contracts` (P1) and is imported here.
 
 **Acceptance:**
 - `workspace --json` (or `workspace summary --json`) emits a single-line `{ok:true,data:WorkspaceSummary}` envelope.
@@ -549,13 +549,13 @@ Derive `supportsJson`/`supportsDryRun` from declared options; mark `destructive:
 **Depends on:** P2-05, P2-07, P2-09, P2-04/P2-06, P1-contract (scope/bin rename)
 **Parallel:** No — depends on the producer tasks landing.
 
-Verified: 3 of 4 adapter calls target non-existent commands/flags — `workspace graph --json` (real: `--format json` / now `--json` via P2-05), `templates list --json` (no such command until P2-09), `workspace --json` (no producer until P2-07). Only `workspace health --json` resolves, and it's broken (P2-04). Also the adapter hardcodes the literal `'re-shell'` bin (`:88,96,104,112`); reconcile with the `@umutkorkmaz/*` rename and prefer the local built entrypoint over a globally-installed bin. Rewrite all four adapters to the corrected commands, switch from raw line streaming to parsing the `{ok,data,error}` envelope (checking exit code AND `ok`), and add real tests.
+Verified: 3 of 4 adapter calls target non-existent commands/flags — `workspace graph --json` (real: `--format json` / now `--json` via P2-05), `templates list --json` (no such command until P2-09), `workspace --json` (no producer until P2-07). Only `workspace health --json` resolves, and it's broken (P2-04). Also the adapter hardcodes the literal `'re-shell'` bin (`:88,96,104,112`); reconcile with the `@re-shell/*` rename and prefer the local built entrypoint over a globally-installed bin. Rewrite all four adapters to the corrected commands, switch from raw line streaming to parsing the `{ok,data,error}` envelope (checking exit code AND `ok`), and add real tests.
 
 **Acceptance:**
 - All four adapters invoke commands/flags that exist and return parseable envelopes.
 - Adapters surface `{ok:false}` (and non-zero exit) as a typed error, not a silent empty result.
 - `cli-adapters.test.ts` passes (note: 4 of 10 existing tests currently FAIL — `echo -e` portability bug on macOS — fix those too).
-- Bin resolution targets the renamed `@umutkorkmaz` bin / local build, not a literal global `re-shell`.
+- Bin resolution targets the renamed `@re-shell` bin / local build, not a literal global `re-shell`.
 
 ---
 
@@ -638,7 +638,7 @@ Lock the contract with tests covering the exact failure modes verified this phas
 
 ## Phase 3–4 — Secure Transport + UI Fork Resolution + Package Build
 
-This section closes the local-RCE transport surface, builds a typed allow-listed command adapter, reconciles the React/shadcn fork with the Web Components layer, and produces a publishable `@umutkorkmaz/ui` build. It assumes the locked owner decisions: shadcn React is the delivery model, `@umutkorkmaz/*` scope everywhere, single pnpm monorepo, Web Components retired.
+This section closes the local-RCE transport surface, builds a typed allow-listed command adapter, reconciles the React/shadcn fork with the Web Components layer, and produces a publishable `re-shell-ui` build. It assumes the locked owner decisions: shadcn React is the delivery model, `@re-shell/*` scope everywhere, single pnpm monorepo, Web Components retired.
 
 > **Working-tree caveat (load-bearing).** The adversarial verdicts established that the committed `HEAD` of the UI repo is already React-first and correctly exported (`packages/ui/src/index.ts` exports `./components/ui`, `./components/re-shell`, `./contracts`, `./lib`; `package.json` is `0.2.2`, "Shadcn-first React component library"; `vite.config.ts` uses `@vitejs/plugin-react` + `vite-plugin-dts`). The Web-Components-only state (entry exports custom elements, `version 0.1.0`, broken build) is an **uncommitted working-tree regression** plus untracked overlay files. Task **P3-00** resolves this divergence first; every later task targets the reconciled tree. Do not treat the WC-only state as the baseline to rebuild from — it is a regression to discard or reconcile.
 
@@ -752,13 +752,13 @@ Four hardening fixes flagged by the verdicts as missed/under-addressed:
 **Effort:** M · **Deps:** P3-00 · **Parallel:** yes (independent of P3-01..P3-04; gates P3-05 consumers)
 **Files:** `packages/contracts/src/re-shell.ts` (`WsServerMessage`/`SseEvent`/`WsClientMessage` `:85-109`, no-op `Omit` `:123`), `packages/ui/src/components/domain/terminal.ts` (local `JobMessage` `:7-12`, handler `:397`) — or its React successor, `packages/ui/src/hub/sse-client.ts` (`:47-48` double-stringify), `packages/ui/src/hub/ws-client.ts`, consumers `topology.ts:477-489` / `health.ts:367-375` (or React hook successors)
 
-Make the contracts envelope (`{ type: 'stdout'|'stderr'|'exit'|'heartbeat'|'error', content?, code?, id?, ts? }`) the only message shape. Delete any local `JobMessage` re-declaration and import from `@umutkorkmaz/contracts`. The hub double-wraps each stdout line and consumers do bare `JSON.parse(event.data)` (reading the wrapper, so `response.apps` is always undefined) and the terminal expects `{type:'output',output}` while the server emits `{type:'stdout',content}` — align all of these. Add an unwrap + multi-line reassembly helper in the hub clients: buffer `content` across `stdout` events keyed by `id`, expose `onJson(parsed)` only after a complete JSON document or on `exit`. Fix `sse-client.ts:47-48` re-stringify and the no-op `Omit<CommandSpec, 'commandText'>` at `re-shell.ts:123`.
+Make the contracts envelope (`{ type: 'stdout'|'stderr'|'exit'|'heartbeat'|'error', content?, code?, id?, ts? }`) the only message shape. Delete any local `JobMessage` re-declaration and import from `re-shell-contracts`. The hub double-wraps each stdout line and consumers do bare `JSON.parse(event.data)` (reading the wrapper, so `response.apps` is always undefined) and the terminal expects `{type:'output',output}` while the server emits `{type:'stdout',content}` — align all of these. Add an unwrap + multi-line reassembly helper in the hub clients: buffer `content` across `stdout` events keyed by `id`, expose `onJson(parsed)` only after a complete JSON document or on `exit`. Fix `sse-client.ts:47-48` re-stringify and the no-op `Omit<CommandSpec, 'commandText'>` at `re-shell.ts:123`.
 
 **Acceptance:**
 - Topology/health consumers receive a single parsed domain object (`response.apps` is defined), not the `{type,content}` wrapper.
 - A pretty-printed / chunk-split `--json` payload reassembles into one valid parsed object.
 - Terminal renders stdout (reads `msg.content`, handles `stdout`/`stderr`).
-- No component re-declares the envelope type; all import from `@umutkorkmaz/contracts`.
+- No component re-declares the envelope type; all import from `re-shell-contracts`.
 - The `Omit` no-op is resolved (either `commandText` added to `CommandSpec` or the `Omit` dropped); consumers re-typecheck clean.
 
 ### P3-09 — Make the hub actually launchable + SSE keepalive
@@ -791,7 +791,7 @@ Per the open question in the findings: under the single-monorepo strategy, move 
 
 These tasks assume the reconciled React-first baseline (P3-00). The committed `HEAD` already has correct exports and a React vite config; the work here is the **scope rename**, the **build-dependency/CSS/types fixes** (which were broken even before the WC regression), and the **Web Components deletion + apps/web React refactor**.
 
-### P4-01 — Rename `@re-shell/contracts` → `@umutkorkmaz/contracts`
+### P4-01 — Rename `@re-shell/contracts` → `re-shell-contracts`
 **Effort:** S · **Deps:** P3-00 · **Parallel:** yes (with P4-02 once both name fields land; sequence the package-name field before consumers)
 **Files:** `packages/contracts/package.json` (`name` `:2`), `packages/ui/package.json` (workspace dep `:46`), `packages/ui/src/contracts/index.ts` (`:1`), `packages/ui/src/hub/ws-client.ts` (`:1`), `packages/ui/src/components/domain/{health,topology}.ts` (or React successors), `apps/web/package.json`, root `package.json` build/test filter scripts
 
@@ -800,9 +800,9 @@ Rename the contracts package and update every importer. Note from the verdict: t
 **Acceptance:**
 - `grep -r '@re-shell/contracts'` over source returns zero hits.
 - `pnpm install` resolves the renamed workspace dep; `tsc --noEmit` passes.
-- Root `build`/`test` filter scripts reference `@umutkorkmaz/contracts`.
+- Root `build`/`test` filter scripts reference `re-shell-contracts`.
 
-### P4-02 — Rename `@re-shell/ui` → `@umutkorkmaz/ui` (incl. aliases + scripts)
+### P4-02 — Rename `@re-shell/ui` → `re-shell-ui` (incl. aliases + scripts)
 **Effort:** S · **Deps:** P3-00, P4-01 · **Parallel:** no (touches root scripts shared with P4-01)
 **Files:** `packages/ui/package.json` (`name` `:2`), root `package.json` filter scripts (`--filter @re-shell/...`), `apps/web/package.json`, `apps/web/src/main.tsx` (`:8`,`:11`), `apps/web/vite.config.ts` (alias `find:` strings `:60-66`), root + `packages/ui` `components.json` aliases (`:13-19`), `apps/web/tsconfig.json` path mappings, `README.md`, docs
 
@@ -811,7 +811,7 @@ Rename the UI package everywhere it is referenced: package name, root filter scr
 **Acceptance:**
 - `grep -r '@re-shell/ui'` (and `@re-shell/ui-web`, `@re-shell/ui-contracts`) over source returns zero hits.
 - Root `pnpm build` runs both package builds (no silent no-op from a stale filter).
-- apps/web dev server resolves `@umutkorkmaz/ui`.
+- apps/web dev server resolves `re-shell-ui`.
 
 ### P4-03 — Fix build dependencies (tailwindcss/autoprefixer/postcss) + `@/` alias
 **Effort:** M · **Deps:** P3-00 · **Parallel:** yes (independent of rename)
@@ -820,7 +820,7 @@ Rename the UI package everywhere it is referenced: package name, root filter scr
 `vite build` crashes with `Cannot find module 'tailwindcss'` because `postcss.config.cjs` requires `tailwindcss`/`autoprefixer` that aren't declared in `packages/ui`. Add `tailwindcss`, `autoprefixer`, `postcss` to devDeps. **Critical missed prerequisite from the verdict:** `vite.config.ts` has no `resolve.alias` for `@/*`, but all 16 `.tsx` files import `@/lib/utils` — add `resolve.alias = { '@': resolve(__dirname, 'src') }` or the React entry bundle fails at build time with unresolved `@/lib/utils`. Note the root `build` is partially failing today (contracts builds, ui crashes); this fixes the whole chain.
 
 **Acceptance:**
-- `pnpm --filter @umutkorkmaz/ui build` exits 0 in isolation.
+- `pnpm --filter re-shell-ui build` exits 0 in isolation.
 - `@/lib/utils` and other `@/` imports resolve in the bundle.
 - Root `pnpm build` completes both packages.
 
@@ -828,11 +828,11 @@ Rename the UI package everywhere it is referenced: package name, root filter scr
 **Effort:** M · **Deps:** P4-03 · **Parallel:** no (same build config as P4-03)
 **Files:** `packages/ui/vite.config.ts` (add/confirm `vite-plugin-dts`, externals, CSS import), `packages/ui/package.json` (`exports`, `main`/`module`/`types`)
 
-Ensure the library build emits `.d.ts` (via `vite-plugin-dts` with `insertTypesEntry`, or `tsc --emitDeclarationOnly` — `tsconfig.json` already has `declaration: true`, `outDir: dist`, so it is one step away). Import `src/styles/globals.css` from the entry so `cssCodeSplit:false` flushes `dist/re-shell-ui.css` (the `exports["./styles.css"]` target that currently does not exist and which `apps/web/src/main.tsx:11` imports). Externalize `react`, `react-dom`, `react/jsx-runtime`, all `@radix-ui/*`, `lucide-react`, `class-variance-authority`, `clsx`, `tailwind-merge`, `@umutkorkmaz/contracts` so React isn't duplicated in consumers. Add a `"types"` condition to every `exports` entry and a top-level `"types"`. Fix the masquerading metadata: `react`/`react-dom` are marked `peerDependenciesMeta.optional: true` (wrong for a React-only library — make them required) and move `@testing-library/react` from `dependencies` to `devDependencies`.
+Ensure the library build emits `.d.ts` (via `vite-plugin-dts` with `insertTypesEntry`, or `tsc --emitDeclarationOnly` — `tsconfig.json` already has `declaration: true`, `outDir: dist`, so it is one step away). Import `src/styles/globals.css` from the entry so `cssCodeSplit:false` flushes `dist/re-shell-ui.css` (the `exports["./styles.css"]` target that currently does not exist and which `apps/web/src/main.tsx:11` imports). Externalize `react`, `react-dom`, `react/jsx-runtime`, all `@radix-ui/*`, `lucide-react`, `class-variance-authority`, `clsx`, `tailwind-merge`, `re-shell-contracts` so React isn't duplicated in consumers. Add a `"types"` condition to every `exports` entry and a top-level `"types"`. Fix the masquerading metadata: `react`/`react-dom` are marked `peerDependenciesMeta.optional: true` (wrong for a React-only library — make them required) and move `@testing-library/react` from `dependencies` to `devDependencies`.
 
 **Acceptance:**
 - `dist/` contains `index.js`, an `index.d.ts` (+ per-module declarations), and `re-shell-ui.css`.
-- `import '@umutkorkmaz/ui/styles.css'` resolves against the built package.
+- `import 're-shell-ui/styles.css'` resolves against the built package.
 - Built bundle does not inline React/Radix/lucide (externals verified by grep on `dist`).
 - Every `exports` entry has a `types` condition; `react`/`react-dom` are required peers; `@testing-library/react` is a devDep.
 
@@ -872,12 +872,12 @@ Before deleting, port the domain Web Components' fetch/transport logic into Reac
 
 ### P4-08 — Refactor apps/web to consume React + TanStack Query
 **Effort:** L · **Deps:** P4-02, P4-04, P4-07 · **Parallel:** no
-**Files:** `apps/web/src/App.tsx`, `apps/web/src/main.tsx`, `apps/web/src/styles.css` (Tailwind entry), `apps/web/tailwind.config.ts`, remove vite source aliases for `@umutkorkmaz/ui` once the built package is correct, empty `apps/web/src/{components,data}/` dirs
+**Files:** `apps/web/src/App.tsx`, `apps/web/src/main.tsx`, `apps/web/src/styles.css` (Tailwind entry), `apps/web/tailwind.config.ts`, remove vite source aliases for `re-shell-ui` once the built package is correct, empty `apps/web/src/{components,data}/` dirs
 
-Refactor apps/web to render React shadcn components from `@umutkorkmaz/ui` (`WorkspaceSummaryPanel`, `HealthStatus`, `TopologyNodeCard`, `JobLogPanel`, `CommandPreview`, `TemplateCatalogCard`) composed into a real React app shell (sidebar/tabs via shadcn `Tabs`/`Sheet`). Wire **TanStack Query** as the server-state layer over the P4-07 hooks (stale-while-revalidate, no duplicated server state in client stores). Convert `apps/web/src/styles.css` to a Tailwind entry (`@tailwind base/components/utilities`) using the existing `tailwind.config.ts` (which already scans `../../packages/ui/src`); import `@umutkorkmaz/ui/styles.css`. Remove the empty `apps/web/src/components/` and `apps/web/src/data/` dirs. The committed `HEAD` App.tsx is already React — this reconciles it onto the secure transport and the renamed/built package, not a from-scratch rebuild.
+Refactor apps/web to render React shadcn components from `re-shell-ui` (`WorkspaceSummaryPanel`, `HealthStatus`, `TopologyNodeCard`, `JobLogPanel`, `CommandPreview`, `TemplateCatalogCard`) composed into a real React app shell (sidebar/tabs via shadcn `Tabs`/`Sheet`). Wire **TanStack Query** as the server-state layer over the P4-07 hooks (stale-while-revalidate, no duplicated server state in client stores). Convert `apps/web/src/styles.css` to a Tailwind entry (`@tailwind base/components/utilities`) using the existing `tailwind.config.ts` (which already scans `../../packages/ui/src`); import `re-shell-ui/styles.css`. Remove the empty `apps/web/src/components/` and `apps/web/src/data/` dirs. The committed `HEAD` App.tsx is already React — this reconciles it onto the secure transport and the renamed/built package, not a from-scratch rebuild.
 
 **Acceptance:**
-- apps/web renders zero custom elements; all UI comes from React components imported from `@umutkorkmaz/ui`.
+- apps/web renders zero custom elements; all UI comes from React components imported from `re-shell-ui`.
 - Server state (health/topology/jobs) flows through TanStack Query over the P4-07 hooks.
 - `apps/web/src/styles.css` is a Tailwind entry; shadcn tokens render correctly.
 - apps/web dev and build both succeed resolving the built (not source-aliased) package.
@@ -913,7 +913,7 @@ Rewrite the hub tests so all assertions are **awaited** (the current suite repor
 **Effort:** M · **Deps:** P4-T1, P4-04, P4-07, P4-08 · **Parallel:** no
 **Files:** `packages/ui/src/components/**/*.test.tsx`, replace `re-shell-ui/tests/components.test.ts` (mock-shadow-DOM WC tests), new built-package integration test, apps/web render test
 
-Replace the mock-shadow-DOM WC tests with RTL tests for the promoted React components (cva variants, `asChild`, callbacks, copied-state timers) — reuse `button.test.tsx` as the pattern. Add a render test for the refactored apps/web dashboard. Add an integration test that imports the **built** `@umutkorkmaz/ui` via the exports map (not the source alias) and verifies `index.js`, `index.d.ts`, and `styles.css` all resolve. Target ≥80% per repo rules.
+Replace the mock-shadow-DOM WC tests with RTL tests for the promoted React components (cva variants, `asChild`, callbacks, copied-state timers) — reuse `button.test.tsx` as the pattern. Add a render test for the refactored apps/web dashboard. Add an integration test that imports the **built** `re-shell-ui` via the exports map (not the source alias) and verifies `index.js`, `index.d.ts`, and `styles.css` all resolve. Target ≥80% per repo rules.
 
 **Acceptance:**
 - RTL tests cover all 16 components and the apps/web shell; coverage ≥80%.
@@ -924,7 +924,7 @@ Replace the mock-shadow-DOM WC tests with RTL tests for the promoted React compo
 **Effort:** S · **Deps:** P3-09 (auto-start true), P3-05 (allow-list), P4-04, P4-07, P4-08 · **Parallel:** yes (after its deps)
 **Files:** `re-shell-ui/docs/hub-server.md` (`:19` false auto-start claim), `packages/ui/README.md`, `README.md`, `docs/RE_SHELL_UI_EXECUTION_PLAN.md`, `docs/cli-integration.md`, `docs/web-components-usage.md` (archive)
 
-Correct `docs/hub-server.md:19` once the hub genuinely auto-starts; document the token handshake, allow-listed command IDs, envelope shape, and 127.0.0.1-only bind, and mark the free-form `command`/`args` API as removed. Rewrite the UI README + execution plan Milestone 0 to reflect the React-export reality (real `dist` filenames, `@umutkorkmaz/*` scope, externals). Archive `docs/web-components-usage.md` (describes the retired layer).
+Correct `docs/hub-server.md:19` once the hub genuinely auto-starts; document the token handshake, allow-listed command IDs, envelope shape, and 127.0.0.1-only bind, and mark the free-form `command`/`args` API as removed. Rewrite the UI README + execution plan Milestone 0 to reflect the React-export reality (real `dist` filenames, `@re-shell/*` scope, externals). Archive `docs/web-components-usage.md` (describes the retired layer).
 
 **Acceptance:**
 - Docs describe auto-start, the token model, allow-list IDs, the envelope, and the loopback-only bind.
@@ -947,11 +947,11 @@ Correct `docs/hub-server.md:19` once the hub genuinely auto-starts; document the
 
 ## Phase 5–6 — MVP Screens + Tests/CI/E2E
 
-This phase delivers the seven MVP screens as React shadcn components consuming the secure hub contract, then makes both repos honestly green: real test scripts, fixed runners, an enforced 80% coverage bar, Playwright E2E for the core flow, and per-package CI. It assumes the merged single pnpm monorepo and the `@umutkorkmaz/*` scope from Phases 1–4; every screen and test references the canonical machine contract (`commands list --json`, `{ok,data,warnings}` envelope, allow-listed hub adapter) established earlier. Tasks here depend on the contract module (P1-contract), the React export rewrite (P4-ui-fork), the secure hub (P0-safety/P3-transport-security), and the `commands list --json` catalog (P2-cli) from prior phases.
+This phase delivers the seven MVP screens as React shadcn components consuming the secure hub contract, then makes both repos honestly green: real test scripts, fixed runners, an enforced 80% coverage bar, Playwright E2E for the core flow, and per-package CI. It assumes the merged single pnpm monorepo and the `@re-shell/*` scope from Phases 1–4; every screen and test references the canonical machine contract (`commands list --json`, `{ok,data,warnings}` envelope, allow-listed hub adapter) established earlier. Tasks here depend on the contract module (P1-contract), the React export rewrite (P4-ui-fork), the secure hub (P0-safety/P3-transport-security), and the `commands list --json` catalog (P2-cli) from prior phases.
 
 ### Dependency overview
 
-- **P5 screens** depend on: React layer exported and consumed (`P4-ui-fork`), contract types in `@umutkorkmaz/contracts` (`P1-contract`), secure hub envelope + allow-list (`P0-safety`, `P3-transport-security`), `commands list --json` catalog (`P2-cli`), and the hub client unwrap/reassembly helper.
+- **P5 screens** depend on: React layer exported and consumed (`P4-ui-fork`), contract types in `re-shell-contracts` (`P1-contract`), secure hub envelope + allow-list (`P0-safety`, `P3-transport-security`), `commands list --json` catalog (`P2-cli`), and the hub client unwrap/reassembly helper.
 - **P6 tests/CI** depend on: green screens (P5), the vitest/vite pin fix, and the contract being settled.
 - Within P5, screens are largely parallel once the shared app shell (P5-01) and shared hub data hooks (P5-02) land.
 
@@ -963,23 +963,23 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 
 - **Effort:** M
 - **Files:** `apps/web/src/App.tsx`, `apps/web/src/main.tsx`, `apps/web/src/styles.css`, new `apps/web/src/app/AppShell.tsx`, `apps/web/src/app/routes.tsx`, `apps/web/src/app/nav.ts`
-- **Depends on:** P4-ui-fork (React export rewrite), P1-contract (scope rename to `@umutkorkmaz/*`), the `apps/web` Tailwind/shadcn token wiring task
-- **Description:** Replace the custom-element shell in `App.tsx`/`main.tsx` with a React app shell that consumes `@umutkorkmaz/ui`. Convert `apps/web/src/styles.css` to a Tailwind entry (`@tailwind base/components/utilities`) and import `@umutkorkmaz/ui/styles.css`. Define a 7-route navigation (Overview, Workspace Graph, Templates, Command Builder, Jobs & Logs, Health, Settings) using a lightweight router (route-as-state via search params per repo patterns). Build a persistent left nav using `components/ui` primitives + lucide icons; no `<re-shell-*>` custom elements remain.
+- **Depends on:** P4-ui-fork (React export rewrite), P1-contract (scope rename to `@re-shell/*`), the `apps/web` Tailwind/shadcn token wiring task
+- **Description:** Replace the custom-element shell in `App.tsx`/`main.tsx` with a React app shell that consumes `re-shell-ui`. Convert `apps/web/src/styles.css` to a Tailwind entry (`@tailwind base/components/utilities`) and import `re-shell-ui/styles.css`. Define a 7-route navigation (Overview, Workspace Graph, Templates, Command Builder, Jobs & Logs, Health, Settings) using a lightweight router (route-as-state via search params per repo patterns). Build a persistent left nav using `components/ui` primitives + lucide icons; no `<re-shell-*>` custom elements remain.
 - **Acceptance criteria:**
   - `apps/web` renders an all-React shell; `grep -c "re-shell-" apps/web/src/App.tsx` returns 0.
   - All 7 routes navigable; active route reflected in the URL (`?screen=overview` etc.).
-  - `main.tsx` imports `@umutkorkmaz/ui/styles.css`; Tailwind directives present in `apps/web/src/styles.css`.
-  - `pnpm --filter @umutkorkmaz/web build` (or apps/web build) exits 0.
+  - `main.tsx` imports `re-shell-ui/styles.css`; Tailwind directives present in `apps/web/src/styles.css`.
+  - `pnpm --filter @re-shell/web build` (or apps/web build) exits 0.
 - **Parallel:** No (gating for all other P5 screens).
 
 #### P5-02 — Shared hub data layer (SSE/WS hooks with envelope unwrap + reassembly)
 
 - **Effort:** M
 - **Files:** new `apps/web/src/hub/useHubStream.ts`, `apps/web/src/hub/useJob.ts`, `apps/web/src/hub/client.ts`, `apps/web/src/hub/token.ts`
-- **Depends on:** P1-contract (typed envelope in `@umutkorkmaz/contracts`), the hub-client unwrap/reassembly helper task, P3-transport-security (bearer token handshake), P0-safety (allow-list adapter)
-- **Description:** Provide React hooks wrapping the real `SseClient`/`WsClient` from `@umutkorkmaz/ui`. `useHubStream(commandId, params)` buffers `content` across `stdout` events keyed by `id` and parses one complete JSON document on `exit` (fixes the SSE double-wrap + multiline-reassembly defects). `useJob(commandId, params)` drives the WS lifecycle (start/stdout/stderr/exit/cancel) reading `msg.content` (not `output`). Both attach the per-session bearer token from `token.ts` (read from CLI-injected `import.meta.env`). All command invocations are by `{commandId, params}` against the allow-list — never raw `command`/`args`.
+- **Depends on:** P1-contract (typed envelope in `re-shell-contracts`), the hub-client unwrap/reassembly helper task, P3-transport-security (bearer token handshake), P0-safety (allow-list adapter)
+- **Description:** Provide React hooks wrapping the real `SseClient`/`WsClient` from `re-shell-ui`. `useHubStream(commandId, params)` buffers `content` across `stdout` events keyed by `id` and parses one complete JSON document on `exit` (fixes the SSE double-wrap + multiline-reassembly defects). `useJob(commandId, params)` drives the WS lifecycle (start/stdout/stderr/exit/cancel) reading `msg.content` (not `output`). Both attach the per-session bearer token from `token.ts` (read from CLI-injected `import.meta.env`). All command invocations are by `{commandId, params}` against the allow-list — never raw `command`/`args`.
 - **Acceptance criteria:**
-  - Hooks return typed data from `@umutkorkmaz/contracts` (no `any`).
+  - Hooks return typed data from `re-shell-contracts` (no `any`).
   - Unit test proves a chunk-split / pretty-printed JSON payload across multiple `stdout` events reassembles into one parsed object.
   - Unit test proves terminal/log output reads `content` and renders (regression guard for the `output` vs `content` mismatch).
   - No call path constructs raw `command`/`args`; only `{commandId, params}`.
@@ -988,7 +988,7 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 #### P5-03 — Overview screen
 
 - **Effort:** M
-- **Files:** new `apps/web/src/screens/OverviewScreen.tsx`; reuses `@umutkorkmaz/ui` `WorkspaceSummaryPanel`, `HealthStatus`, `CommandPreview`
+- **Files:** new `apps/web/src/screens/OverviewScreen.tsx`; reuses `re-shell-ui` `WorkspaceSummaryPanel`, `HealthStatus`, `CommandPreview`
 - **Depends on:** P5-01, P5-02; data source = `workspace list --json` (the corrected `runWorkspaceInspect` adapter, not the broken bare `workspace --json`)
 - **Description:** Compose `WorkspaceSummaryPanel` (metrics grid, git status) + `HealthStatus` summary into a dashboard landing screen. Include a copy-CLI-command affordance: a `CommandPreview` showing the exact `re-shell workspace list --json` (and refresh) command behind the panel, with copy/dry-run/run.
 - **Acceptance criteria:**
@@ -1026,7 +1026,7 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 #### P5-06 — Command Builder screen (from `commands list --json`)
 
 - **Effort:** L
-- **Files:** new `apps/web/src/screens/CommandBuilderScreen.tsx`; new `@umutkorkmaz/ui` `components/re-shell/CommandBuilderForm.tsx`; reuses `CommandPreview`, `lib/command.ts`
+- **Files:** new `apps/web/src/screens/CommandBuilderScreen.tsx`; new `re-shell-ui` `components/re-shell/CommandBuilderForm.tsx`; reuses `CommandPreview`, `lib/command.ts`
 - **Depends on:** P5-01, P5-02; P2-cli (the `commands list --json` catalog with per-command `{path, aliases, args, flags:[{name,description,default,takesValue}], supportsJson, supportsDryRun, destructive}`); P1-contract (`CommandSpec` typing — and the `commandText` Omit fix)
 - **Description:** Build `CommandBuilderForm` that renders an options form generated from the `commands list --json` catalog: a command picker, typed flag inputs (driven by `takesValue`/`default`), positional args preserving order, a `--json` toggle, a `--dry-run` toggle, and a required confirmation gate for `destructive: true` commands. Live-preview the assembled command via `CommandPreview` (copy/dry-run/run through the allow-listed hub adapter).
 - **Acceptance criteria:**
@@ -1064,7 +1064,7 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 #### P5-09 — Settings screen
 
 - **Effort:** M
-- **Files:** new `apps/web/src/screens/SettingsScreen.tsx`; new `@umutkorkmaz/ui` `components/re-shell/SettingsPanel.tsx`
+- **Files:** new `apps/web/src/screens/SettingsScreen.tsx`; new `re-shell-ui` `components/re-shell/SettingsPanel.tsx`
 - **Depends on:** P5-01; P5-02 (for CLI/daemon path defaults)
 - **Description:** Build `SettingsPanel` for: workspace path, CLI binary path, daemon port, telemetry opt-in, theme (light/dark), and safety mode (require confirmation for destructive). Persist locally (localStorage) with schema validation; values feed the hub token/connection config and Command Builder destructive gate.
 - **Acceptance criteria:**
@@ -1106,7 +1106,7 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 - **Effort:** S
 - **Files:** `packages/ui/package.json` scripts, root `package.json` scripts, `apps/web/package.json`; CLI repo `package.json`
 - **Depends on:** P6-01
-- **Description:** Add `"test": "vitest run"` (+ `"test:watch"`) to `@umutkorkmaz/ui`. Fix the root delegate so `pnpm test` actually runs something: run package vitest AND the integration suite (`vitest run --config tests/vitest.config.ts`) — or relocate `tests/hub.test.ts` under `apps/web` with its own `test` script. Update all hardcoded `--filter @re-shell/ui` references to `@umutkorkmaz/ui`. Add a guard so an empty/misrouted runner fails loudly (assert a minimum test count; keep vitest default `--passWithNoTests=false`).
+- **Description:** Add `"test": "vitest run"` (+ `"test:watch"`) to `re-shell-ui`. Fix the root delegate so `pnpm test` actually runs something: run package vitest AND the integration suite (`vitest run --config tests/vitest.config.ts`) — or relocate `tests/hub.test.ts` under `apps/web` with its own `test` script. Update all hardcoded `--filter @re-shell/ui` references to `re-shell-ui`. Add a guard so an empty/misrouted runner fails loudly (assert a minimum test count; keep vitest default `--passWithNoTests=false`).
 - **Acceptance criteria:**
   - `pnpm test` at the root runs a non-zero number of tests and fails if zero tests execute.
   - The previously orphaned `tests/` suite runs via a script (not only manual invocation).
@@ -1233,9 +1233,9 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 
 ## Phase 7–9 — CLI Cleanup, Docs/Legacy Archive, and the FULL Post-MVP Feature Roadmap
 
-> Scope: this section assumes the LOCKED owner decisions (shadcn React UI; `@umutkorkmaz/*` scope everywhere; single pnpm monorepo; legacy `re-shell` archived read-only after salvage). Tasks below are grounded only in verified findings; refuted claims (e.g. "all `src/core/` keep 6 live files", "workspace `state/merge/backup` modules are live", "apps/web README has a wrong path") are corrected here. Effort: XS<2h, S<½d, M~1–2d, L~3–5d, XL>1wk.
+> Scope: this section assumes the LOCKED owner decisions (shadcn React UI; `@re-shell/*` scope everywhere; single pnpm monorepo; legacy `re-shell` archived read-only after salvage). Tasks below are grounded only in verified findings; refuted claims (e.g. "all `src/core/` keep 6 live files", "workspace `state/merge/backup` modules are live", "apps/web README has a wrong path") are corrected here. Effort: XS<2h, S<½d, M~1–2d, L~3–5d, XL>1wk.
 >
-> Cross-phase deps referenced by ID: **P1-contract** (`@umutkorkmaz/contracts` + envelope), **P2-cli** (command registration + scope-emitter fix + JSON contracts), **P3-transport-security** (hub auth hardening), **P4-ui-fork** (React export refactor), **P6-tests** (test suite). This section owns **P7-xx** (cleanup), **P8-xx** (docs/legacy archive), **P9-xx** (post-MVP features).
+> Cross-phase deps referenced by ID: **P1-contract** (`re-shell-contracts` + envelope), **P2-cli** (command registration + scope-emitter fix + JSON contracts), **P3-transport-security** (hub auth hardening), **P4-ui-fork** (React export refactor), **P6-tests** (test suite). This section owns **P7-xx** (cleanup), **P8-xx** (docs/legacy archive), **P9-xx** (post-MVP features).
 
 ---
 
@@ -1346,7 +1346,7 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 
 #### P8-02 — Correct master-plan §8 disposition in place [S]
 - **Files:** `docs/RE_SHELL_MASTER_PLAN.md` (§0, §3, §8 ~lines 218-273).
-- **Do:** add the 16+ unlisted files (4 `.agents/handoff/*.md`, the 12 `re-shell/tools/fullstack-demo/fullstack-app/**` generated READMEs, `re-shell/tools/comprehensive-platform/README.md`, `CLI_FUTURE_PLANS.txt`); flip `AGENTS.md` KEEP→DELETE; flip `web-components-usage.md` REWRITE→DELETE-AFTER-SALVAGE (Web Components retired, decision 1); change contracts target `@re-shell/contracts`→`@umutkorkmaz/contracts` (decision 2); reframe §0/§3 from "submodule/2-repo" to single pnpm monorepo (decision 3).
+- **Do:** add the 16+ unlisted files (4 `.agents/handoff/*.md`, the 12 `re-shell/tools/fullstack-demo/fullstack-app/**` generated READMEs, `re-shell/tools/comprehensive-platform/README.md`, `CLI_FUTURE_PLANS.txt`); flip `AGENTS.md` KEEP→DELETE; flip `web-components-usage.md` REWRITE→DELETE-AFTER-SALVAGE (Web Components retired, decision 1); change contracts target `@re-shell/contracts`→`re-shell-contracts` (decision 2); reframe §0/§3 from "submodule/2-repo" to single pnpm monorepo (decision 3).
 - **Acceptance:** §8 table covers all 65 md + 1 txt; no stale scope/repo framing remains.
 - **Deps:** P8-01.
 
@@ -1373,9 +1373,9 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 - **Deps:** P8-02.
 
 #### P8-07 — Reconcile `RE_SHELL_UI_EXECUTION_PLAN.md` to locked decisions [M]
-- **Files:** the salvaged plan + new `@umutkorkmaz/contracts`.
-- **Do:** rename `@re-shell/ui-contracts`→`@umutkorkmaz/contracts`, `packages/ui`→`@umutkorkmaz/ui`; fix the 10 stale `/Users/dtumkorkmaz/...` paths → `/Users/umut/...`; adopt its `WorkspaceSummary`/`CommandSpec`/`JobRecord` contract types verbatim into the contracts package.
-- **Acceptance:** plan has zero `@re-shell/`/`dtumkorkmaz` references; contract types live in `@umutkorkmaz/contracts`.
+- **Files:** the salvaged plan + new `re-shell-contracts`.
+- **Do:** rename `@re-shell/ui-contracts`→`re-shell-contracts`, `packages/ui`→`re-shell-ui`; fix the 10 stale `/Users/dtumkorkmaz/...` paths → `/Users/umut/...`; adopt its `WorkspaceSummary`/`CommandSpec`/`JobRecord` contract types verbatim into the contracts package.
+- **Acceptance:** plan has zero `@re-shell/`/`dtumkorkmaz` references; contract types live in `re-shell-contracts`.
 - **Deps:** P1-contract, P8-06.
 
 #### P8-08 — Delete byte-duplicate + empty files [XS] [parallel-safe]
@@ -1389,9 +1389,9 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 - **Deps:** P4-ui-fork (so README describes the actual React surface).
 
 #### P8-10 — Rewrite UI package READMEs after React export refactor [S]
-- **Files:** `packages/ui/README.md` (current claims `dist/index.{js,cjs,d.ts,css}` + `WorkspaceSummaryPanel` export — both false: dist emits `re-shell-ui.js`/`re-shell-ui.umd.cjs`, and `WorkspaceSummaryPanel` lives in the ORPHANED `components/re-shell/index.ts` barrel never wired into `components/index.ts`), `apps/web/README.md` (describe the actually-rendered surface; the `<re-shell-layout>` Web Component is being retired), `packages/contracts/README.md` (title `@re-shell/ui-contracts` → `@umutkorkmaz/contracts`).
+- **Files:** `packages/ui/README.md` (current claims `dist/index.{js,cjs,d.ts,css}` + `WorkspaceSummaryPanel` export — both false: dist emits `re-shell-ui.js`/`re-shell-ui.umd.cjs`, and `WorkspaceSummaryPanel` lives in the ORPHANED `components/re-shell/index.ts` barrel never wired into `components/index.ts`), `apps/web/README.md` (describe the actually-rendered surface; the `<re-shell-layout>` Web Component is being retired), `packages/contracts/README.md` (title `@re-shell/ui-contracts` → `re-shell-contracts`).
 - **Important:** the orphaned `components/re-shell/index.ts` barrel (exports `command-preview`, `health-status`, `job-log-panel`, `template-catalog-card`, `topology-node-card`, `workspace-summary-panel`) is a real **packaging bug**, not just a doc error — flag to P4-ui-fork to wire it into the package root, then document the true exports here.
-- **Acceptance:** READMEs match real exports/dist filenames post-P4; titles use `@umutkorkmaz/*`.
+- **Acceptance:** READMEs match real exports/dist filenames post-P4; titles use `@re-shell/*`.
 - **Deps:** P4-ui-fork (export wiring + scope rename).
 
 #### P8-11 — Annotate hub-server.md security; merge cli-integration.md [XS]
@@ -1430,7 +1430,7 @@ This phase delivers the seven MVP screens as React shadcn components consuming t
 
 ### Phase 9 — FULL Post-MVP Feature Roadmap
 
-> Each feature is a self-contained mini-plan (phased tasks → deps → acceptance). All `@umutkorkmaz/*`. **DROPPED, do not spec** (per `CLI_FUTURE_PLANS.txt:519-544`): quantum computing, VR/AR dev environments, neural self-healing infra, blockchain/Web3/dApp/cross-chain. Every Phase-9 feature depends on Phase-7 cleanup landing (no dead-stub confusion) and the P1-contract envelope (`{ok,data,warnings}` / `{ok,error{code,message,details}}`).
+> Each feature is a self-contained mini-plan (phased tasks → deps → acceptance). All `@re-shell/*`. **DROPPED, do not spec** (per `CLI_FUTURE_PLANS.txt:519-544`): quantum computing, VR/AR dev environments, neural self-healing infra, blockchain/Web3/dApp/cross-chain. Every Phase-9 feature depends on Phase-7 cleanup landing (no dead-stub confusion) and the P1-contract envelope (`{ok,data,warnings}` / `{ok,error{code,message,details}}`).
 
 #### P9-A — AI/NLP Command Interface [XL]
 Source: `CLI_IMPLEMENTATION_TODO.md:944-1010`; UI surface plan §19.
@@ -1469,7 +1469,7 @@ Source: plan §5 + `CLI_IMPLEMENTATION_TODO.md:95,167`; current `plugin install`
 - **P9-F1 [L]** Real `plugin install` (`commands/plugin.ts:141`): resolve npm/git/local id, install into `.re-shell/plugins`, validate manifest, register. Replace the `setTimeout` simulation. *Acceptance:* installing a real npm plugin makes its commands available; failure surfaces an error. *Deps:* P2-cli.
 - **P9-F2 [XL]** Real marketplace client (replace all `mock*` in `plugin-marketplace.ts`): search/download/install against an owned registry (or npm keyword `reshell-plugin` as MVP source); reviews/ratings. *Acceptance:* search returns live results; download fetches a real archive. *Deps:* P9-F1, P8-05.
 - **P9-F3 [M]** Real signature verification gated behind config; security-scan/security-fix of plugins; version pinning. *Acceptance:* an unsigned plugin is rejected when `verifySignatures:true`; verification is no longer hardcoded. *Deps:* P9-F2.
-- **P9-F4 [S]** Plugin-detection contract decision: rebrand prefix `@re-shell/`→`@umutkorkmaz/` and manifest keys `reshell-cli`/`reshell-plugin`, with backward-compat detection of legacy-published plugins. *Acceptance:* both legacy and new-scope plugins are discovered. *Deps:* P9-F1, P1-contract.
+- **P9-F4 [S]** Plugin-detection contract decision: rebrand prefix `@re-shell/`→`@re-shell/` and manifest keys `reshell-cli`/`reshell-plugin`, with backward-compat detection of legacy-published plugins. *Acceptance:* both legacy and new-scope plugins are discovered. *Deps:* P9-F1, P1-contract.
 
 #### P9-G — Policy Packs + Repo Readiness Score + Dependency Drift [M]
 Source: `RE_SHELL_UI_EXECUTION_PLAN.md:880-884`.
@@ -1508,7 +1508,7 @@ Source: `CLI_IMPLEMENTATION_TODO.md:1411-1460`.
 ---
 
 ### Open Questions carried into Phase 9 (decide before the relevant feature starts)
-- **Emitted SDK packages** (`@umutkorkmaz/config-client`, `shared-config`, `auth-client`, `service-mesh-client`, `microfrontend-client`, …): will these actually exist in the monorepo, or are they aspirational? If aspirational, the live emitters (`commands/add.ts`, `templates/index.ts`, `templates/backend/*`) currently produce broken user code regardless of scope — blocks P2-cli scope fix and P9-B/P9-F acceptance.
+- **Emitted SDK packages** (`@re-shell/config-client`, `shared-config`, `auth-client`, `service-mesh-client`, `microfrontend-client`, …): will these actually exist in the monorepo, or are they aspirational? If aspirational, the live emitters (`commands/add.ts`, `templates/index.ts`, `templates/backend/*`) currently produce broken user code regardless of scope — blocks P2-cli scope fix and P9-B/P9-F acceptance.
 - **Marketplace source of truth** (P9-F): owned registry vs npm keyword `reshell-plugin` for MVP.
 - **Legacy plugin back-compat** (P9-F4): keep accepting `@re-shell/` / `reshell-cli` plugins post-rebrand, or clean break.
 - **`packages/core` submodule** (P8-16): unique runtime code worth salvaging, or fully superseded by shadcn React.
@@ -1546,7 +1546,7 @@ Every Phase-9 feature depends on Phase-7 cleanup + the `P1-contract` envelope. T
 ### Recommended branch/merge order
 
 1. `re-shell-cli` engine + contract work (Phases 1–3 CLI side) → `main`.
-2. `@umutkorkmaz/contracts` locked (+ published if the 2-repo fallback is ever chosen — not under Decision 3).
+2. `re-shell-contracts` locked (+ published if the 2-repo fallback is ever chosen — not under Decision 3).
 3. `re-shell-ui` consumes the locked contract; reconciled React baseline merged.
 4. Monorepo merge lands (Decision 3); hub relocates into the CLI package (`P3-10`).
 5. Legacy `re-shell` archived last.
@@ -1558,7 +1558,7 @@ Every Phase-9 feature depends on Phase-7 cleanup + the `P1-contract` envelope. T
 - `re-shell ui` from any workspace opens a dashboard showing **real** workspace data (overview, graph, templates, health) sourced from the CLI through a **token-authenticated, 127.0.0.1-only** hub.
 - Every action shows/copies its equivalent `re-shell` command; destructive actions confirm; dry-run supported.
 - **No `shell:true`, no arbitrary-command path, `cwd` constrained to the workspace; token required on every endpoint.**
-- **One** UI system (shadcn React), **one** contract source of truth (`@umutkorkmaz/contracts` with zod), `CLI-CONTRACTS.md` generated from real output and CI-verified by the conformance test.
+- **One** UI system (shadcn React), **one** contract source of truth (`re-shell-contracts` with zod), `CLI-CONTRACTS.md` generated from real output and CI-verified by the conformance test.
 - All `--json` commands emit a single parseable `{ok,data,warnings}` line on stdout and **exit non-zero on `ok:false`**.
 - `pnpm test` runs real suites that pass with **≥80%** coverage on the agreed scope; `pnpm -r typecheck` is honest (no masked errors); the git tree stays clean after a test run.
 - Playwright covers the core flow (open → inspect → filter templates → build command → dry-run → run → live logs → cancel). Fresh clone → demo in <5 min.

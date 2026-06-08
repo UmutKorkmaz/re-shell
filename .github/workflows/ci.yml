@@ -97,13 +97,24 @@ jobs:
         continue-on-error: false
 
       # ── Security guard greps ───────────────────────────────────────────────
+      - name: Guard - no legacy author scope anywhere in tracked files
+        run: |
+          # Build the forbidden scope literal at runtime so this guard file does
+          # not itself contain the token it forbids.
+          FORBIDDEN="@$(printf 'umutkorkmaz')"
+          if git grep -nI "$FORBIDDEN" -- . ':(exclude)pnpm-lock.yaml' 2>/dev/null; then
+            echo "FAIL: legacy author scope found in tracked files"
+            exit 1
+          fi
+          echo "PASS: no legacy author scope"
+
       - name: Guard - no @re-shell/(contracts|ui) scope in source
         run: |
           if grep -r '@re-shell/\(contracts\|ui\)' packages/cli/src packages/cli/package.json 2>/dev/null; then
-            echo "FAIL: legacy @re-shell/ scope found"
+            echo "FAIL: scoped @re-shell/(contracts|ui) reference found (use unscoped re-shell-contracts / re-shell-ui)"
             exit 1
           fi
-          echo "PASS: no legacy @re-shell/ scope"
+          echo "PASS: no scoped @re-shell/(contracts|ui) references"
 
       - name: Guard - no shell:true in hub-server
         run: |

@@ -14,8 +14,8 @@ import type {
   SseEvent,
   WsServerMessage,
   WsClientMessage,
-} from '@umutkorkmaz/contracts';
-import { sseEventSchema, wsServerMessageSchema } from '@umutkorkmaz/contracts';
+} from 're-shell-contracts';
+import { sseEventSchema, wsServerMessageSchema } from 're-shell-contracts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const STUB_CLI = path.join(HERE, 'fixtures', 'stub-cli.mjs');

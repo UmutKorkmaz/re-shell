@@ -59,7 +59,7 @@ const SEARCH_PAYLOAD = {
   objects: [
     {
       package: {
-        name: '@umutkorkmaz/sample-plugin',
+        name: '@re-shell/sample-plugin',
         version: '1.2.0',
         description: 'A sample re-shell plugin',
         keywords: ['reshell-plugin', 'testing'],
@@ -86,7 +86,7 @@ afterEach(() => {
 
 describe('isValidPluginId', () => {
   it('accepts scoped and plain npm names', () => {
-    expect(isValidPluginId('@umutkorkmaz/sample-plugin')).toBe(true);
+    expect(isValidPluginId('@re-shell/sample-plugin')).toBe(true);
     expect(isValidPluginId('reshell-plugin-deploy')).toBe(true);
   });
   it('rejects empty / illegal names', () => {
@@ -102,7 +102,7 @@ describe('RegistryClient.search (mocked fetch)', () => {
 
     const hits = await client.search('deploy', 10);
     expect(hits).toHaveLength(2);
-    expect(hits[0].name).toBe('@umutkorkmaz/sample-plugin');
+    expect(hits[0].name).toBe('@re-shell/sample-plugin');
 
     // The query string carried the keyword qualifier.
     const calledUrl = (fetchImpl as unknown as { mock: { calls: string[][] } }).mock.calls[0][0];
@@ -133,7 +133,7 @@ describe('PluginMarketplace.searchPlugins (mocked registry)', () => {
     const result = await marketplace.searchPlugins({ limit: 10 });
     expect(result.total).toBe(2);
     const first = result.plugins[0];
-    expect(first.name).toBe('@umutkorkmaz/sample-plugin');
+    expect(first.name).toBe('@re-shell/sample-plugin');
     expect(first.version).toBe('1.2.0');
     expect(first.author).toBe('Umut');
     expect(first.homepage).toBe('https://example.com');
@@ -153,12 +153,12 @@ describe('PluginMarketplace.searchPlugins (mocked registry)', () => {
 
 describe('PluginMarketplace.getPlugin (mocked registry)', () => {
   const PACKUMENT = {
-    name: '@umutkorkmaz/sample-plugin',
+    name: '@re-shell/sample-plugin',
     'dist-tags': { latest: '1.2.0' },
     time: { created: '2025-01-01T00:00:00Z', modified: '2026-01-01T00:00:00Z' },
     versions: {
       '1.2.0': {
-        name: '@umutkorkmaz/sample-plugin',
+        name: '@re-shell/sample-plugin',
         version: '1.2.0',
         description: 'A sample re-shell plugin',
         license: 'MIT',
@@ -172,7 +172,7 @@ describe('PluginMarketplace.getPlugin (mocked registry)', () => {
   it('maps the packument latest version to a plugin', async () => {
     const fetchImpl = makeFetch({ 'sample-plugin': () => jsonResponse(PACKUMENT) });
     const marketplace = new PluginMarketplace({ fetchImpl });
-    const plugin = await marketplace.getPlugin('@umutkorkmaz/sample-plugin');
+    const plugin = await marketplace.getPlugin('@re-shell/sample-plugin');
     expect(plugin).not.toBeNull();
     expect(plugin?.version).toBe('1.2.0');
     expect(plugin?.license).toBe('MIT');
@@ -191,7 +191,7 @@ describe('PluginMarketplace.getPlugin (mocked registry)', () => {
 describe('verifyRegistrySignature (real crypto, no network)', () => {
   function makeSignedVersion(): { version: RegistryVersion; keys: RegistryKey[] } {
     const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
-    const name = '@umutkorkmaz/sample-plugin';
+    const name = '@re-shell/sample-plugin';
     const ver = '1.2.0';
     const integrity = 'sha512-deadbeef';
     const message = Buffer.from(`${name}@${ver}:${integrity}`);
@@ -243,7 +243,7 @@ describe('verifyRegistrySignature (real crypto, no network)', () => {
 describe('PluginMarketplace.installPlugin signature gating (mocked registry)', () => {
   function signedPackument() {
     const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
-    const name = '@umutkorkmaz/sample-plugin';
+    const name = '@re-shell/sample-plugin';
     const ver = '1.2.0';
     const integrity = 'sha512-deadbeef';
     const message = Buffer.from(`${name}@${ver}:${integrity}`);
@@ -267,11 +267,11 @@ describe('PluginMarketplace.installPlugin signature gating (mocked registry)', (
 
   it('verifySignatures:true + unsigned => REJECTED (not installed)', async () => {
     const packument = {
-      name: '@umutkorkmaz/sample-plugin',
+      name: '@re-shell/sample-plugin',
       'dist-tags': { latest: '1.2.0' },
       versions: {
         '1.2.0': {
-          name: '@umutkorkmaz/sample-plugin',
+          name: '@re-shell/sample-plugin',
           version: '1.2.0',
           // No signatures => unsigned.
           dist: { tarball: 'https://r/t.tgz', integrity: 'sha512-x' },
@@ -284,7 +284,7 @@ describe('PluginMarketplace.installPlugin signature gating (mocked registry)', (
     });
     const marketplace = new PluginMarketplace({ fetchImpl, verifySignatures: true });
 
-    const result = await marketplace.installPlugin('@umutkorkmaz/sample-plugin');
+    const result = await marketplace.installPlugin('@re-shell/sample-plugin');
     expect(result.success).toBe(false);
     expect(result.errors.join(' ')).toMatch(/unverified|unsigned/i);
     // The installer must NOT have been invoked for a rejected plugin.
@@ -303,22 +303,22 @@ describe('PluginMarketplace.installPlugin signature gating (mocked registry)', (
       workspaceRoot: '/tmp/ws',
     });
 
-    const result = await marketplace.installPlugin('@umutkorkmaz/sample-plugin');
+    const result = await marketplace.installPlugin('@re-shell/sample-plugin');
     expect(result.success).toBe(true);
     expect(result.signature.verified).toBe(true);
     expect(installPluginFromIdentifier).toHaveBeenCalledWith(
-      '@umutkorkmaz/sample-plugin@1.2.0',
+      '@re-shell/sample-plugin@1.2.0',
       expect.objectContaining({ workspaceRoot: '/tmp/ws' })
     );
   });
 
   it('verifySignatures:false => installs unsigned but warns honestly', async () => {
     const packument = {
-      name: '@umutkorkmaz/sample-plugin',
+      name: '@re-shell/sample-plugin',
       'dist-tags': { latest: '1.2.0' },
       versions: {
         '1.2.0': {
-          name: '@umutkorkmaz/sample-plugin',
+          name: '@re-shell/sample-plugin',
           version: '1.2.0',
           dist: { tarball: 'https://r/t.tgz', integrity: 'sha512-x' },
         },
@@ -327,7 +327,7 @@ describe('PluginMarketplace.installPlugin signature gating (mocked registry)', (
     const fetchImpl = makeFetch({ 'sample-plugin': () => jsonResponse(packument) });
     const marketplace = new PluginMarketplace({ fetchImpl, verifySignatures: false });
 
-    const result = await marketplace.installPlugin('@umutkorkmaz/sample-plugin');
+    const result = await marketplace.installPlugin('@re-shell/sample-plugin');
     expect(result.success).toBe(true);
     expect(result.signature.gated).toBe(false);
     expect(result.warnings.join(' ')).toMatch(/disabled/i);
@@ -339,7 +339,7 @@ describe('PluginMarketplace.installPlugin signature gating (mocked registry)', (
       throw new Error('offline');
     });
     const marketplace = new PluginMarketplace({ fetchImpl, verifySignatures: true });
-    await expect(marketplace.installPlugin('@umutkorkmaz/sample-plugin')).rejects.toBeInstanceOf(
+    await expect(marketplace.installPlugin('@re-shell/sample-plugin')).rejects.toBeInstanceOf(
       RegistryUnreachableError
     );
   });

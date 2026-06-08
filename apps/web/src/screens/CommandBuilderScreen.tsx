@@ -9,7 +9,7 @@ import {
   CommandPreview,
   Label,
   Separator,
-} from '@umutkorkmaz/ui';
+} from 're-shell-ui';
 import { Info, ShieldAlert } from 'lucide-react';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';
 import { EmptyPanel, EnvelopeErrorPanel, ErrorPanel, LoadingPanel } from './shared/StatePanels';

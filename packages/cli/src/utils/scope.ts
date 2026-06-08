@@ -1,13 +1,12 @@
 /**
  * The npm scope used when the CLI builds names for generated/installed
- * packages (e.g. `@umutkorkmaz/core`). Centralized here so the scope can be
+ * packages (e.g. `@re-shell/core`). Centralized here so the scope can be
  * changed in one place.
  */
-export const GENERATED_PKG_SCOPE = '@umutkorkmaz';
+export const GENERATED_PKG_SCOPE = '@re-shell';
 
 /**
  * Scope prefixes recognized when DETECTING Re-Shell-related packages.
- * Includes the legacy `@re-shell/` scope so packages published under the old
- * scope still resolve.
+ * Uses the `@re-shell/` brand scope for scaffolded/generated packages.
  */
-export const RECOGNIZED_PKG_SCOPES = ['@umutkorkmaz/', '@re-shell/'] as const;
+export const RECOGNIZED_PKG_SCOPES = ['@re-shell/'] as const;

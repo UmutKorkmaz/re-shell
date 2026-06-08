@@ -10,7 +10,7 @@ const external = [
   'react-dom',
   'react/jsx-runtime',
   '@tanstack/react-query',
-  '@umutkorkmaz/contracts',
+  're-shell-contracts',
   '@radix-ui/react-dialog',
   '@radix-ui/react-label',
   '@radix-ui/react-scroll-area',

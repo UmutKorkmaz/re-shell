@@ -1,5 +1,5 @@
 {
-  "name": "@umutkorkmaz/sample-plugin",
+  "name": "@re-shell/sample-plugin",
   "version": "1.0.0",
   "description": "A minimal Re-Shell sample plugin fixture for install tests",
   "main": "index.js",

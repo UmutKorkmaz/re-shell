@@ -76,8 +76,8 @@ describe('plugin-installer: manifest validation + scope detection', () => {
     ).toEqual({ name: 'foo', version: '1.0.0' });
   });
 
-  it('accepts the new @umutkorkmaz/ scope', () => {
-    expect(isRecognizedPlugin({ name: '@umutkorkmaz/x', version: '1.0.0' })).toBe(true);
+  it('accepts the new @re-shell/ scope', () => {
+    expect(isRecognizedPlugin({ name: '@re-shell/x', version: '1.0.0' })).toBe(true);
   });
 
   it('accepts the LEGACY @re-shell/ scope (legacy-compat path)', () => {
@@ -100,7 +100,7 @@ describe('plugin-installer: manifest validation + scope detection', () => {
   });
 
   it('strips the scope for the on-disk dir name', () => {
-    expect(pluginDirName('@umutkorkmaz/sample-plugin')).toBe('sample-plugin');
+    expect(pluginDirName('@re-shell/sample-plugin')).toBe('sample-plugin');
     expect(pluginDirName('plain')).toBe('plain');
   });
 
@@ -121,7 +121,7 @@ describe('plugin-installer: install from a local fixture into a tmp workspace', 
     const result = await installPluginFromIdentifier(SAMPLE_FIXTURE, { workspaceRoot: ws });
 
     expect(result).toMatchObject({
-      name: '@umutkorkmaz/sample-plugin',
+      name: '@re-shell/sample-plugin',
       version: '1.0.0',
       source: 'local',
       dryRun: false,
@@ -135,7 +135,7 @@ describe('plugin-installer: install from a local fixture into a tmp workspace', 
 
     // Registered in the registry and therefore listable.
     const registry = await readPluginRegistry(ws);
-    expect(registry['@umutkorkmaz/sample-plugin']).toMatchObject({
+    expect(registry['@re-shell/sample-plugin']).toMatchObject({
       version: '1.0.0',
       source: 'local',
     });
@@ -150,7 +150,7 @@ describe('plugin-installer: install from a local fixture into a tmp workspace', 
     });
 
     expect(result.dryRun).toBe(true);
-    expect(result.name).toBe('@umutkorkmaz/sample-plugin');
+    expect(result.name).toBe('@re-shell/sample-plugin');
 
     // Nothing written.
     expect(existsSync(join(ws, '.re-shell', 'plugins', 'sample-plugin'))).toBe(false);
@@ -170,7 +170,7 @@ describe('plugin-installer: install from a local fixture into a tmp workspace', 
       workspaceRoot: ws,
       force: true,
     });
-    expect(forced.name).toBe('@umutkorkmaz/sample-plugin');
+    expect(forced.name).toBe('@re-shell/sample-plugin');
   });
 
   it('detects and installs a LEGACY @re-shell/ scoped plugin', async () => {
@@ -222,7 +222,7 @@ describe('plugin install command (--json envelope + exit code)', () => {
     const env = parseEnvelope(out);
     expect(env.ok).toBe(true);
     expect(env.data).toMatchObject({
-      name: '@umutkorkmaz/sample-plugin',
+      name: '@re-shell/sample-plugin',
       source: 'local',
       dryRun: false,
     });

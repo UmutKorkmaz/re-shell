@@ -1,7 +1,7 @@
 {
-  "name": "@umutkorkmaz/vscode-re-shell",
+  "name": "re-shell-vscode",
   "displayName": "Re-Shell",
-  "description": "Browse, build, and run vetted Re-Shell CLI commands from inside VS Code, backed by the shared @umutkorkmaz/contracts envelopes and the local hub allow-list.",
+  "description": "Browse, build, and run vetted Re-Shell CLI commands from inside VS Code, backed by the shared re-shell-contracts envelopes and the local hub allow-list.",
   "version": "0.1.0",
   "license": "MIT",
   "publisher": "umutkorkmaz",
@@ -98,7 +98,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@umutkorkmaz/contracts": "workspace:*",
+    "re-shell-contracts": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

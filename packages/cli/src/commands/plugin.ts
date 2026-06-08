@@ -147,7 +147,7 @@ export async function discoverPlugins(options: PluginCommandOptions = {}): Promi
 //
 // Real installer: resolves the identifier from a local path/dir, a git URL, or
 // an npm package name; validates the plugin manifest (scope-aware, recognizing
-// both @umutkorkmaz/* and legacy @re-shell/*); copies it into
+// the @re-shell/* scope); copies it into
 // <workspace>/.re-shell/plugins/<name>; and registers it in plugins.json.
 // Supports --json and --dry-run (resolve + validate, no writes).
 export async function installPlugin(

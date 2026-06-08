@@ -8,7 +8,7 @@ Draft — awaiting user review before implementation.
 
 ## 1. Goal
 
-Transform `re-shell-ui` into a **framework-agnostic UI component library** shippable as a single package (`@umutkorkmaz/re-shell-ui`) that works in React, Vue, Angular, Svelte, Solid, and vanilla HTML — without requiring any adapter layer per framework.
+Transform `re-shell-ui` into a **framework-agnostic UI component library** shippable as a single package (`re-shell-ui`) that works in React, Vue, Angular, Svelte, Solid, and vanilla HTML — without requiring any adapter layer per framework.
 
 The `re-shell ui` command serves as a **local IPC hub** that bridges CLI commands (Node.js) to the browser via Server-Sent Events (SSE) and WebSockets.
 

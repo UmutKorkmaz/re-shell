@@ -9,7 +9,7 @@ import {
   Input,
   Label,
   Separator,
-} from '@umutkorkmaz/ui';
+} from 're-shell-ui';
 import { Check, Moon, Sun } from 'lucide-react';
 import {
   PORT_BOUNDS,

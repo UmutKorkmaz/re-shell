@@ -1,4 +1,4 @@
-# @umutkorkmaz/vscode-re-shell
+# re-shell-vscode
 
 A VS Code extension that surfaces the Re-Shell JSON contracts and a command
 builder inside the editor.
@@ -6,7 +6,7 @@ builder inside the editor.
 ## What it does
 
 - **Commands tree view** — sourced from `re-shell commands list --json`. The raw
-  stdout is validated against the shared `@umutkorkmaz/contracts` envelope before
+  stdout is validated against the shared `re-shell-contracts` envelope before
   anything is rendered; a malformed or `ok:false` payload surfaces an error
   instead of trusting the blob.
 - **Re-Shell: Build Command** — prompts for a catalog entry's args, then
@@ -25,7 +25,7 @@ lives in pure, host-free modules under `src/core`:
 
 | Module | Responsibility |
 | --- | --- |
-| `core/catalog.ts` | Parse + validate the `commands.list` envelope via `@umutkorkmaz/contracts`. |
+| `core/catalog.ts` | Parse + validate the `commands.list` envelope via `re-shell-contracts`. |
 | `core/command-builder.ts` | Assemble a vetted argv from a `CatalogEntry` + params, preserving flag/arg order. |
 | `core/hub-client.ts` | Map an entry to the hub allow-list + shape the SSE/health request descriptors. |
 

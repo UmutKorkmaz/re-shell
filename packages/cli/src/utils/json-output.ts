@@ -4,12 +4,12 @@ import type {
   JsonError,
   JsonResponse,
   JsonSuccess,
-} from '@umutkorkmaz/contracts';
+} from 're-shell-contracts';
 
 /**
  * Re-export the canonical wire-envelope types from the contracts package so the
  * CLI exposes a stable surface to its own modules. These are the single source
- * of truth (zod-backed in @umutkorkmaz/contracts); the CLI no longer declares
+ * of truth (zod-backed in re-shell-contracts); the CLI no longer declares
  * its own copies.
  */
 export type { ErrorCode, JsonError, JsonResponse, JsonSuccess };

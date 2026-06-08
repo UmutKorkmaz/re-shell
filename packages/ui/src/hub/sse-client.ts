@@ -1,4 +1,4 @@
-import { sseEventSchema, type SseEvent } from '@umutkorkmaz/contracts';
+import { sseEventSchema, type SseEvent } from 're-shell-contracts';
 import { JsonReassembler } from './json-reassembler.js';
 
 export interface SseClientOptions {
