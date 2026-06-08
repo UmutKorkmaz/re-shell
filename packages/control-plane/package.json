@@ -1,0 +1,35 @@
+{
+  "name": "@umutkorkmaz/control-plane",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ENV-LIMITED scaffold: pure, testable multi-tenant control-plane logic (tenant isolation, authz, request validation) for a hosted extension of the local Re-Shell hub. No live server, no DB, single-process logic only.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@umutkorkmaz/contracts": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

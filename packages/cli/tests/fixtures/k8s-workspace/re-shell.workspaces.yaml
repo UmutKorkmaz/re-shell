@@ -1,0 +1,23 @@
+name: k8s-demo
+version: 2.0.0
+description: Fixture workspace for K8s manifest generation tests
+services:
+  api:
+    name: api
+    type: backend
+    language: typescript
+    framework: express
+    path: services/api
+    port: 3000
+    env:
+      NODE_ENV: production
+      LOG_LEVEL: info
+  worker:
+    name: worker
+    type: worker
+    language: python
+    framework: celery
+    path: services/worker
+    port: 8080
+    env:
+      QUEUE_URL: redis://redis:6379

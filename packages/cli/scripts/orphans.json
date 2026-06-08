@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-06-08T06:00:44.412Z",
+  "root": "src/index.ts",
+  "totals": {
+    "universeFiles": 581,
+    "liveFiles": 578,
+    "orphanFiles": 3,
+    "liveLines": 539552,
+    "orphanLines": 1191
+  },
+  "orphans": [
+    "src/commands/template.ts",
+    "src/utils/cli-adapters.ts",
+    "src/utils/workspace-definition-adapter.ts"
+  ]
+}

@@ -1,0 +1,181 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+env:
+  PNPM_VERSION: 9.15.9
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build, typecheck, test, coverage
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-and-test:
+    name: Build / Typecheck / Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Build ──────────────────────────────────────────────────────────────
+      - name: Build all packages
+        run: pnpm -r run build
+
+      # ── Typecheck ─────────────────────────────────────────────────────────
+      - name: Typecheck all packages
+        run: pnpm -r run typecheck
+
+      # ── Unit + Integration + Conformance tests ─────────────────────────────
+      - name: Test packages/contracts
+        run: |
+          # contracts has no test script; typecheck covers it
+          echo "contracts: typecheck only (no test suite)"
+
+      - name: Test packages/cli (unit + integration + conformance)
+        working-directory: packages/cli
+        run: npx vitest run
+
+      - name: Test packages/ui
+        working-directory: packages/ui
+        run: npx vitest run
+
+      - name: Test apps/web (hub security + ui render)
+        working-directory: apps/web
+        run: pnpm run test
+
+      # ── Coverage (per-package 80% gate, scoped) ───────────────────────────
+      - name: Coverage packages/cli
+        working-directory: packages/cli
+        run: npx vitest run --coverage
+
+      - name: Coverage packages/ui
+        working-directory: packages/ui
+        run: npx vitest run --coverage
+
+      - name: Coverage apps/web
+        working-directory: apps/web
+        run: pnpm run test:coverage
+
+      # ── Interactive tests (child_process pool) ─────────────────────────────
+      - name: Interactive tests packages/cli
+        working-directory: packages/cli
+        run: npx vitest run tests/interactive
+
+      # ── Smoke the binary ───────────────────────────────────────────────────
+      - name: Smoke test - templates list
+        run: node packages/cli/dist/index.js templates list --json | head -c 60
+
+      - name: Smoke test - workspace summary (valid workspace)
+        run: node packages/cli/dist/index.js workspace summary --json | head -c 100
+
+      - name: Smoke test - workspace health exits non-zero outside workspace
+        run: |
+          cd /tmp
+          node "$GITHUB_WORKSPACE/packages/cli/dist/index.js" workspace health --json
+          if [ $? -eq 0 ]; then
+            echo "ERROR: workspace health should exit non-zero outside a workspace"
+            exit 1
+          fi
+          echo "OK: exited non-zero as expected"
+        continue-on-error: false
+
+      # ── Security guard greps ───────────────────────────────────────────────
+      - name: Guard - no @re-shell/(contracts|ui) scope in source
+        run: |
+          if grep -r '@re-shell/\(contracts\|ui\)' packages/cli/src packages/cli/package.json 2>/dev/null; then
+            echo "FAIL: legacy @re-shell/ scope found"
+            exit 1
+          fi
+          echo "PASS: no legacy @re-shell/ scope"
+
+      - name: Guard - no shell:true in hub-server
+        run: |
+          if grep -E 'shell:\s*true' apps/web/src/hub-server.ts; then
+            echo "FAIL: shell:true found in hub-server.ts"
+            exit 1
+          fi
+          echo "PASS: no shell:true"
+
+      - name: Guard - no wildcard CORS in hub-server
+        run: |
+          if grep -E 'Access-Control-Allow-Origin:\s*\*' apps/web/src/hub-server.ts; then
+            echo "FAIL: wildcard CORS found in hub-server.ts"
+            exit 1
+          fi
+          echo "PASS: no wildcard CORS"
+
+      - name: Guard - no custom elements in apps/web/src
+        run: |
+          count=$(grep -r '<re-shell-' apps/web/src 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$count" -gt 0 ]; then
+            echo "FAIL: found $count <re-shell- custom element usages"
+            exit 1
+          fi
+          echo "PASS: 0 custom element usages"
+
+      # ── Clean tree check ───────────────────────────────────────────────────
+      - name: Check for unexpected file modifications
+        run: git diff --exit-code
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Playwright E2E (gated, requires RUN_E2E=true)
+  # ─────────────────────────────────────────────────────────────────────────────
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    if: ${{ vars.RUN_E2E == 'true' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Build all packages (required for e2e)
+        run: pnpm -r run build
+
+      - name: Run Playwright E2E
+        working-directory: apps/web
+        run: npx playwright test
+        env:
+          CI: true
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/test-results/
+          retention-days: 7

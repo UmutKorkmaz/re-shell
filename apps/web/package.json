@@ -1,0 +1,53 @@
+{
+  "name": "@umutkorkmaz/ui-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local Re-Shell dashboard launched by the CLI.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && pnpm run build:hub",
+    "build:hub": "node scripts/build-hub.mjs",
+    "preview": "vite preview",
+    "test": "vitest run && vitest run --config vitest.ui.config.ts",
+    "test:coverage": "vitest run --coverage --config vitest.coverage.config.ts",
+    "test:hub": "vitest run",
+    "test:ui": "vitest run --config vitest.ui.config.ts",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.0.0",
+    "@umutkorkmaz/contracts": "workspace:*",
+    "@umutkorkmaz/ui": "workspace:*",
+    "@xyflow/react": "^12.11.0",
+    "lucide-react": "^1.14.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "ws": "^8.21.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^16.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "autoprefixer": "^10.4.0",
+    "esbuild": "^0.21.5",
+    "jsdom": "^25.0.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.0.0",
+    "vite": "^5.4.21",
+    "vitest": "^2.1.9"
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "name": "@umutkorkmaz/vscode-re-shell",
+  "displayName": "Re-Shell",
+  "description": "Browse, build, and run vetted Re-Shell CLI commands from inside VS Code, backed by the shared @umutkorkmaz/contracts envelopes and the local hub allow-list.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "publisher": "umutkorkmaz",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0",
+    "node": ">=18.0.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "reShell",
+          "title": "Re-Shell",
+          "icon": "media/re-shell.svg"
+        }
+      ]
+    },
+    "views": {
+      "reShell": [
+        {
+          "id": "reShell.commands",
+          "name": "Commands",
+          "contextualTitle": "Re-Shell Commands"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "reShell.refreshCommands",
+        "title": "Re-Shell: Refresh Commands",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "reShell.buildCommand",
+        "title": "Re-Shell: Build Command"
+      },
+      {
+        "command": "reShell.runViaHub",
+        "title": "Re-Shell: Run via hub"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "reShell.refreshCommands",
+          "when": "view == reShell.commands",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "reShell.buildCommand",
+          "when": "view == reShell.commands && viewItem == reShellCommand",
+          "group": "inline"
+        },
+        {
+          "command": "reShell.runViaHub",
+          "when": "view == reShell.commands && viewItem == reShellCommand"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Re-Shell",
+      "properties": {
+        "reShell.cliBin": {
+          "type": "string",
+          "default": "re-shell",
+          "description": "Path or name of the Re-Shell CLI binary used for `commands list --json`."
+        },
+        "reShell.hub.url": {
+          "type": "string",
+          "default": "http://127.0.0.1:5179",
+          "description": "Base URL of the local Re-Shell UI hub server."
+        },
+        "reShell.hub.token": {
+          "type": "string",
+          "default": "",
+          "description": "Session token for the local hub (sent as the x-re-shell-ui-hub-token header)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@umutkorkmaz/contracts": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.9"
+  }
+}

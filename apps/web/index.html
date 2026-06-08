@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Re-Shell UI</title>
+    <!--
+      Web Components Note:
+      This app uses @re-shell/ui Web Components which require native customElements support.
+      For browsers without native customElements (e.g., IE11, older Edge), add a polyfill:
+      <script src="https://cdn.jsdelivr.net/npm/@webcomponents/custom-elements@1.6.0/custom-elements.min.js"></script>
+      The polyfill should be loaded before the main.tsx script.
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
