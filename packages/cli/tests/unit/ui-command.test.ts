@@ -69,10 +69,12 @@ describe('ui command launch plan', () => {
     expect(() => createUiLaunchPlan({ uiPath: uiRoot, port: '70000' })).toThrow(/Invalid UI port/);
   });
 
-  it('requires a re-shell-ui checkout or dashboard app', () => {
-    const emptyRoot = mkdtempSync(join(tmpdir(), 'not-re-shell-ui-'));
+  it('throws when the given --ui-path has no dashboard app', () => {
+    const emptyRoot = mkdtempSync(join(tmpdir(), 'not-a-dashboard-'));
     tempRoots.push(emptyRoot);
 
-    expect(() => createUiLaunchPlan({ uiPath: emptyRoot })).toThrow(/Could not locate re-shell-ui/);
+    expect(() => createUiLaunchPlan({ uiPath: emptyRoot })).toThrow(
+      /Could not locate the Re-Shell dashboard app/
+    );
   });
 });

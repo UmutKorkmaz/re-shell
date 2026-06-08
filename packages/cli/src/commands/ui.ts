@@ -130,15 +130,20 @@ function resolveCandidate(candidate: string): { uiRoot: string; appPath: string 
 }
 
 export function resolveUiProject(uiPath?: string, cwd = process.cwd()): { uiRoot: string; appPath: string } {
+  // In the merged monorepo the dashboard lives at <root>/apps/web. The compiled
+  // CLI runs from <root>/packages/cli/dist/commands, so the monorepo root is four
+  // levels up. We resolve the in-repo dashboard first, then fall back to the
+  // legacy standalone-repo layout for backwards compatibility.
+  const monorepoRoot = path.resolve(__dirname, '../../../..');
   const candidates = uiPath
     ? [uiPath]
     : ([
         process.env.RE_SHELL_UI_PATH,
         cwd,
-        path.join(cwd, 're-shell-ui'),
+        monorepoRoot,
+        // legacy 2-repo fallbacks: a standalone re-shell-ui checkout
         path.resolve(cwd, '../re-shell-ui'),
-        path.resolve(__dirname, '../../../re-shell-ui'),
-        path.resolve(__dirname, '../../re-shell-ui')
+        path.join(cwd, 're-shell-ui')
       ].filter(Boolean) as string[]);
 
   const seen = new Set<string>();
@@ -157,9 +162,9 @@ export function resolveUiProject(uiPath?: string, cwd = process.cwd()): { uiRoot
 
   throw new Error(
     [
-      'Could not locate re-shell-ui.',
-      'Pass --ui-path /path/to/re-shell-ui or set RE_SHELL_UI_PATH.',
-      'Expected a dashboard app at apps/web/package.json.'
+      'Could not locate the Re-Shell dashboard app.',
+      'Expected a dashboard at apps/web/package.json in the monorepo root.',
+      'Run from the monorepo, pass --ui-path /path/to/dashboard, or set RE_SHELL_UI_PATH.'
     ].join(' ')
   );
 }
