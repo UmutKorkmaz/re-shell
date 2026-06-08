@@ -1092,7 +1092,7 @@ export function registerLearnGroup(program: Command): void {
   .description('Generate technical documentation with AI assistance')
   .argument('<name>', 'Name of the documentation project')
   .option('--ai-provider <provider>', 'AI provider (openai, anthropic, custom)', 'anthropic')
-  .option('--ai-model <model>', 'AI model to use', 'claude-3-opus')
+  .option('--ai-model <model>', 'AI model to use', 'auto')
   .option('--enable-content-generation', 'Enable AI content generation')
   .option('--enable-review', 'Enable AI review and suggestions')
   .option('--enable-suggestions', 'Enable AI suggestions')

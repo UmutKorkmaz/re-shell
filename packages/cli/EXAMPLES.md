@@ -299,7 +299,7 @@ folder structure for your product category.
 ### `ai-app` — AI-Native Application
 
 Streaming chat UI, LLM proxy with tool use, RAG pipeline, knowledge-base embedding, admin panel.
-Pre-wired with the Anthropic SDK (Claude claude-sonnet-4-6 default).
+Pre-wired with an LLM provider SDK (model configurable).
 
 ```bash
 # Initialize an AI application

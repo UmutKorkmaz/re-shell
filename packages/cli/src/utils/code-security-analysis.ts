@@ -278,7 +278,7 @@ export interface AIModel {
   name: string;
   type: AIModelType;
   language: Language;
-  model: string; // GPT-4, Claude, custom
+  model: string; // e.g. gpt-4, custom
   version: string;
   accuracy: number; // 0-1
   precision: number;
