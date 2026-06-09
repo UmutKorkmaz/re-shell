@@ -133,5 +133,9 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "homepage": "https://umutkorkmaz.github.io/re-shell/",
+  "bugs": {
+    "url": "https://github.com/UmutKorkmaz/re-shell/issues"
   }
 }
