@@ -85,15 +85,22 @@ describe('TUI (ink) interactive', () => {
     // Wait for the graph to actually load before navigating.
     await waitForFrame(lastFrame, (f) => f.includes('k8s-demo') && f.includes('Nodes: 2/2'));
 
-    // Select the first node (Tab) then open its details view (Enter). The
-    // details view echoes the service's real name/language/framework parsed
-    // from the fixture YAML, proving the TUI is wired to real producers
-    // rather than the old Math.random()/hardcoded-version mocks.
-    stdin.write('\t'); // tab -> select a node
-    await new Promise((r) => setTimeout(r, 200));
-    stdin.write('\r'); // enter -> details
-
-    const frame = await waitForFrame(lastFrame, (f) => f.includes('Service Details:'), 8000);
+    // Select a node (Tab) then open its details view (Enter). The details view
+    // echoes the service's real name/language/framework parsed from the fixture
+    // YAML, proving the TUI is wired to real producers rather than the old
+    // Math.random()/hardcoded-version mocks. Under CI's simulated stdin a single
+    // keystroke can be dropped, so drive Tab+Enter repeatedly until the details
+    // view appears (or time out).
+    let frame = '';
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      stdin.write('\t'); // tab -> select a node
+      await new Promise((r) => setTimeout(r, 120));
+      stdin.write('\r'); // enter -> details
+      await new Promise((r) => setTimeout(r, 200));
+      frame = lastFrame() ?? '';
+      if (frame.includes('Service Details:')) break;
+    }
     expect(frame).toContain('Service Details:');
     // The fixture defines exactly two services: api (typescript/express)
     // and worker (python/celery). Whichever node is selected first, its
