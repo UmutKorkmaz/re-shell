@@ -1,17 +1,11 @@
 import * as React from 'react';
 import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   CommandPreview,
+  cn,
   createReShellCommand,
   formatCommand,
 } from '@re-shell/ui';
-import { Play, Terminal } from 'lucide-react';
+import { Play, Radio, Terminal } from 'lucide-react';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';
 import { EmptyPanel, EnvelopeErrorPanel, ErrorPanel, LoadingPanel } from './shared/StatePanels';
 import {
@@ -67,7 +61,11 @@ export function JobsLogsScreen(): React.ReactElement {
     return <EmptyPanel title="No commands" description="The hub returned an empty command catalog." />;
   }
 
-  return <JobsContent catalog={data} />;
+  return (
+    <div className="screen-enter">
+      <JobsContent catalog={data} />
+    </div>
+  );
 }
 
 function JobsContent({ catalog }: { catalog: CommandCatalogEntry[] }): React.ReactElement {
@@ -87,42 +85,56 @@ function JobsContent({ catalog }: { catalog: CommandCatalogEntry[] }): React.Rea
   }, []);
 
   return (
-    <div className="grid gap-4">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Terminal className="size-4" />
-              Launch a job
-            </CardTitle>
-            <CardDescription>
-              Run a vetted command through the hub allow-list and stream its output live. Multiple jobs
-              run concurrently.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
+    <div className="stagger-children grid gap-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
+        {/* Launcher — terminal-styled command tray. */}
+        <div className="surface flex flex-col">
+          <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
+            <Terminal className="size-4 text-signal" />
+            <div>
+              <h2 className="font-display text-base font-semibold tracking-tight">Launch a job</h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Run a vetted command through the hub allow-list and stream its output live. Multiple jobs
+                run concurrently.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 p-4">
             {runnable.map((entry) => (
-              <Button
+              <button
                 key={entry.path}
                 type="button"
-                variant="secondary"
-                size="sm"
-                className="justify-start gap-2"
                 onClick={() => launch(entry)}
+                className={cn(
+                  'group inline-flex items-center gap-2 rounded-md border border-border bg-bg-0 px-3 py-1.5',
+                  'font-mono text-[0.8125rem] text-foreground/90 shadow-elev-1 outline-none transition-all duration-fast',
+                  'hover:-translate-y-0.5 hover:border-signal/50 hover:text-foreground hover:shadow-glow-signal',
+                  'focus-visible:shadow-focus-ring'
+                )}
               >
-                <Play className="size-3.5" />
+                <Play className="size-3.5 text-signal transition-transform group-hover:scale-110" />
                 {entry.path}
-              </Button>
+              </button>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         <CommandPreview spec={COMMANDS_LIST_SPEC} />
       </div>
 
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold tracking-tight">Jobs</h2>
-        <Badge variant="secondary">{jobs.length} active</Badge>
+        <h2 className="inline-flex items-center gap-2 font-display text-base font-semibold tracking-tight">
+          <Radio className={cn('size-4', jobs.length > 0 ? 'animate-pulse-live text-signal' : 'text-muted-foreground')} />
+          Jobs
+        </h2>
+        <span
+          className={cn(
+            'status-badge',
+            jobs.length > 0 ? 'status-info' : 'border-border bg-bg-1 text-muted-foreground'
+          )}
+        >
+          {jobs.length} active
+        </span>
       </div>
 
       {jobs.length === 0 ? (

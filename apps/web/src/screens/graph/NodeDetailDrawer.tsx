@@ -1,6 +1,5 @@
 import * as React from 'react';
 import {
-  Badge,
   CommandPreview,
   Separator,
   Sheet,
@@ -8,6 +7,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  cn,
   createReShellCommand,
   formatCommand,
 } from '@re-shell/ui';
@@ -41,20 +41,24 @@ export function NodeDetailDrawer({
         {node ? (
           <>
             <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
-                <span className="rounded-md bg-muted p-1.5">
+              <SheetTitle className="flex items-center gap-2.5">
+                <span className="grid size-8 shrink-0 place-items-center rounded-md border border-border bg-bg-0 text-signal">
                   <Icon className="size-4" />
                 </span>
-                <span className="min-w-0 truncate">{node.name}</span>
+                <span className="min-w-0 truncate font-mono tracking-tight">{node.name}</span>
               </SheetTitle>
               <SheetDescription className="re-shell-mono break-all">{node.path || '—'}</SheetDescription>
             </SheetHeader>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={node.kind === 'app' ? 'default' : 'secondary'}>
+              <span className={cn('status-badge', node.kind === 'app' ? 'status-info' : 'status-healthy')}>
                 {node.kind === 'app' ? 'App' : 'Service'}
-              </Badge>
-              {node.framework ? <Badge variant="outline">{node.framework}</Badge> : null}
+              </span>
+              {node.framework ? (
+                <span className="rounded-md border border-border bg-bg-2/60 px-2 py-0.5 font-mono text-xs text-muted-foreground">
+                  {node.framework}
+                </span>
+              ) : null}
             </div>
 
             <Separator />
@@ -69,7 +73,7 @@ export function NodeDetailDrawer({
             <Separator />
 
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold tracking-tight">Inspect topology</h3>
+              <h3 className="font-display text-sm font-semibold tracking-tight">Inspect topology</h3>
               <CommandPreview
                 spec={{
                   title: 'Workspace graph',
@@ -100,7 +104,7 @@ function DepList({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+        <h3 className="font-display text-sm font-semibold tracking-tight">{title}</h3>
         <span className="text-xs text-muted-foreground">{names.length}</span>
       </div>
       {names.length === 0 ? (

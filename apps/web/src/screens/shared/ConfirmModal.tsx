@@ -47,16 +47,16 @@ export function ConfirmModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg-0/80 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-modal-title"
     >
-      <div className="w-full max-w-md rounded-lg border border-destructive/50 bg-card shadow-lg">
+      <div className="w-full max-w-md rounded-lg border border-critical/50 bg-popover shadow-elev-3 shadow-glow-critical">
         <div className="flex items-start justify-between gap-3 border-b border-border p-4">
           <h2
             id="confirm-modal-title"
-            className="flex items-center gap-2 text-base font-semibold text-destructive"
+            className="flex items-center gap-2 font-display text-base font-semibold tracking-tight text-critical"
           >
             <ShieldAlert className="size-4" />
             {title}
@@ -64,7 +64,7 @@ export function ConfirmModal({
           <button
             type="button"
             aria-label="Close"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="rounded-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:shadow-focus-ring"
             onClick={onCancel}
           >
             <X className="size-4" />
@@ -75,7 +75,7 @@ export function ConfirmModal({
             <p className="text-sm text-muted-foreground">{description}</p>
           ) : null}
           {commandText ? (
-            <pre className="re-shell-mono overflow-x-auto rounded-md border bg-muted/50 p-3 text-xs text-foreground">
+            <pre className="re-shell-mono overflow-x-auto rounded-md border border-border bg-bg-0 p-3 pl-7 text-xs text-foreground shadow-elev-1 before:absolute before:left-3 before:select-none before:text-signal before:content-['$'] relative">
               {commandText}
             </pre>
           ) : null}

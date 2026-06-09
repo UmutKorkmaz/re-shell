@@ -7,17 +7,9 @@ import {
   type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import {
-  Badge,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CommandPreview,
-  formatCommand,
-} from '@re-shell/ui';
-import { Boxes, Server } from 'lucide-react';
+import './graph/graph-theme.css';
+import { CommandPreview, cn, formatCommand } from '@re-shell/ui';
+import { Boxes, GitFork, Server } from 'lucide-react';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';
 import { EmptyPanel, EnvelopeErrorPanel, ErrorPanel, LoadingPanel } from './shared/StatePanels';
 import {
@@ -84,7 +76,11 @@ export function WorkspaceGraphScreen(): React.ReactElement {
     );
   }
 
-  return <GraphContent graph={data} />;
+  return (
+    <div className="screen-enter">
+      <GraphContent graph={data} />
+    </div>
+  );
 }
 
 function GraphContent({ graph }: { graph: WorkspaceGraph }): React.ReactElement {
@@ -170,42 +166,40 @@ function GraphContent({ graph }: { graph: WorkspaceGraph }): React.ReactElement 
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Badge variant="outline" className="gap-1">
-          <Boxes className="size-3" />
-          {graph.apps.length} apps
-        </Badge>
-        <Badge variant="outline" className="gap-1">
-          <Server className="size-3" />
-          {graph.services.length} services
-        </Badge>
-        <Badge variant="secondary">{rfEdges.length} dependencies</Badge>
+      <div className="flex flex-wrap items-center gap-2.5">
+        <GraphStat icon={<Boxes className="size-3.5" />} label="apps" value={graph.apps.length} tone="text-signal" />
+        <GraphStat icon={<Server className="size-3.5" />} label="services" value={graph.services.length} tone="text-info" />
+        <GraphStat icon={<GitFork className="size-3.5" />} label="dependencies" value={rfEdges.length} tone="text-muted-foreground" />
         <span className="text-sm text-muted-foreground">Click a node for details.</span>
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Dependency graph</CardTitle>
-          <CardDescription>Internal workspace-to-workspace edges from the --json feed.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[28rem] w-full rounded-md border" data-testid="graph-canvas">
-            <ReactFlow
-              nodes={rfNodes}
-              edges={rfEdges}
-              nodeTypes={NODE_TYPES}
-              fitView
-              proOptions={{ hideAttribution: true }}
-              nodesDraggable={false}
-              nodesConnectable={false}
-              elementsSelectable
-            >
-              <Background />
-              <Controls showInteractive={false} />
-            </ReactFlow>
+      <div className="surface overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <div>
+            <h2 className="font-display text-base font-semibold tracking-tight">Dependency graph</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Internal workspace-to-workspace edges from the --json feed.
+            </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="h-[30rem] w-full bg-bg-0" data-testid="graph-canvas">
+          <ReactFlow
+            className="rf-mission-control"
+            nodes={rfNodes}
+            edges={rfEdges}
+            nodeTypes={NODE_TYPES}
+            fitView
+            proOptions={{ hideAttribution: true }}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable
+            defaultEdgeOptions={{ type: 'smoothstep' }}
+          >
+            <Background variant={'dots' as never} gap={20} size={1.2} />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        </div>
+      </div>
 
       <NodeDetailDrawer
         node={selected}
@@ -215,5 +209,25 @@ function GraphContent({ graph }: { graph: WorkspaceGraph }): React.ReactElement 
         }}
       />
     </div>
+  );
+}
+
+function GraphStat({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  tone: string;
+}): React.ReactElement {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-md border border-border bg-bg-1 px-2.5 py-1.5 shadow-elev-1">
+      <span className={cn('inline-flex items-center', tone)}>{icon}</span>
+      <span className="font-mono text-sm font-semibold tabular-nums">{value}</span>
+      <span className="label-eyebrow normal-case text-muted-foreground">{label}</span>
+    </span>
   );
 }

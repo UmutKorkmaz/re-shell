@@ -1,20 +1,23 @@
 import * as React from 'react';
 import {
-  Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   CommandPreview,
-  Separator,
   WorkspaceSummaryPanel,
+  cn,
   createReShellCommand,
   formatCommand,
 } from '@re-shell/ui';
 import type { HealthCheck, WorkspaceSummary } from '@re-shell/contracts';
-import { Activity, AlertCircle, ArrowRight, Boxes, History, Play, Server } from 'lucide-react';
+import {
+  Activity,
+  AlertCircle,
+  ArrowRight,
+  Boxes,
+  History,
+  Play,
+  Server,
+  TriangleAlert,
+} from 'lucide-react';
 import type { ScreenId } from '../shell/screens';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';
 import { EmptyPanel, EnvelopeErrorPanel, ErrorPanel, LoadingPanel } from './shared/StatePanels';
@@ -91,7 +94,11 @@ export function OverviewScreen({ onNavigate }: OverviewScreenProps): React.React
     );
   }
 
-  return <OverviewContent summary={feedToWorkspaceSummary(data)} onNavigate={onNavigate} />;
+  return (
+    <div className="screen-enter">
+      <OverviewContent summary={feedToWorkspaceSummary(data)} onNavigate={onNavigate} />
+    </div>
+  );
 }
 
 function OverviewContent({
@@ -104,28 +111,58 @@ function OverviewContent({
   const failedChecks = summary.health.checks.filter((c) => c.level === 'fail' || c.level === 'warn');
 
   return (
-    <div className="grid gap-4">
-      <WorkspaceSummaryPanel
-        workspace={summary}
-        onRunHealth={() => onNavigate('health')}
-        onOpenSettings={() => onNavigate('settings')}
-      />
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <FailedChecksPanel checks={failedChecks} onViewHealth={() => onNavigate('health')} />
-        <CountsPanel summary={summary} onViewGraph={() => onNavigate('graph')} />
+    <div className="stagger-children grid auto-rows-min grid-cols-1 gap-4 lg:grid-cols-12">
+      {/* Hero: workspace identity + summary metrics — the widest tile. */}
+      <div className="lg:col-span-8 lg:row-span-2">
+        <WorkspaceSummaryPanel
+          className="h-full"
+          workspace={summary}
+          onRunHealth={() => onNavigate('health')}
+          onOpenSettings={() => onNavigate('settings')}
+        />
       </div>
 
-      <RecentJobsPanel onViewJobs={() => onNavigate('jobs')} />
+      {/* Health-score tile — tall, status-driven. */}
+      <div className="lg:col-span-4 lg:row-span-2">
+        <HealthScoreTile summary={summary} onViewHealth={() => onNavigate('health')} />
+      </div>
 
-      <section aria-labelledby="overview-actions" className="grid gap-3">
-        <div className="flex items-center justify-between">
-          <h2 id="overview-actions" className="text-sm font-semibold tracking-tight">
+      {/* Count tiles — compact, mono numerals. */}
+      <MetricTile
+        className="lg:col-span-3"
+        icon={<Boxes className="size-4" />}
+        label="Apps"
+        value={summary.apps.length}
+        onClick={() => onNavigate('graph')}
+      />
+      <MetricTile
+        className="lg:col-span-3"
+        icon={<Server className="size-4" />}
+        label="Services"
+        value={summary.services.length}
+        onClick={() => onNavigate('graph')}
+      />
+      <GitTile className="lg:col-span-6" summary={summary} />
+
+      {/* Failing checks — spans half, status color. */}
+      <div className="lg:col-span-6">
+        <FailingChecksTile checks={failedChecks} onViewHealth={() => onNavigate('health')} />
+      </div>
+
+      {/* Recent jobs — spans half. */}
+      <div className="lg:col-span-6">
+        <RecentJobsTile onViewJobs={() => onNavigate('jobs')} />
+      </div>
+
+      {/* Primary actions — full width, copy-CLI affordances. */}
+      <section aria-labelledby="overview-actions" className="lg:col-span-12">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 id="overview-actions" className="font-display text-base font-semibold tracking-tight">
             Primary actions
           </h2>
           <span className="text-sm text-muted-foreground">Copy any command to run it in your terminal.</span>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <CommandPreview spec={ACTION_SPECS.inspect} />
           <CommandPreview spec={ACTION_SPECS.health} />
           <CommandPreview spec={ACTION_SPECS.create} />
@@ -136,7 +173,107 @@ function OverviewContent({
   );
 }
 
-function FailedChecksPanel({
+const SCORE_TONE = (score: number): { ring: string; text: string; label: string; badge: string } => {
+  if (score >= 80) return { ring: 'shadow-glow-healthy', text: 'text-healthy', label: 'Healthy', badge: 'status-healthy' };
+  if (score >= 50) return { ring: 'shadow-glow-warn', text: 'text-warn', label: 'Degraded', badge: 'status-warn' };
+  return { ring: 'shadow-glow-critical', text: 'text-critical', label: 'Critical', badge: 'status-critical' };
+};
+
+function HealthScoreTile({
+  summary,
+  onViewHealth,
+}: {
+  summary: WorkspaceSummary;
+  onViewHealth: () => void;
+}): React.ReactElement {
+  const tone = SCORE_TONE(summary.health.score);
+  return (
+    <div className="surface flex h-full flex-col p-5">
+      <div className="flex items-center justify-between">
+        <span className="label-eyebrow inline-flex items-center gap-2">
+          <Activity className="size-3.5" />
+          Health score
+        </span>
+        <span className={cn('status-badge', tone.badge)}>{tone.label}</span>
+      </div>
+
+      <div className="my-auto flex flex-col items-center py-4 text-center">
+        <span
+          className={cn(
+            'inline-grid size-28 place-items-center rounded-full border border-border-strong bg-bg-0',
+            tone.ring
+          )}
+        >
+          <span className={cn('font-mono text-4xl font-bold tabular-nums tracking-tight', tone.text)}>
+            {summary.health.score}
+          </span>
+        </span>
+        <span className="label-eyebrow mt-3">Readiness · out of 100</span>
+      </div>
+
+      <Button type="button" variant="outline" size="sm" className="w-full justify-between" onClick={onViewHealth}>
+        View health report
+        <ArrowRight className="size-4" />
+      </Button>
+    </div>
+  );
+}
+
+function MetricTile({
+  icon,
+  label,
+  value,
+  onClick,
+  className,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'surface group flex flex-col items-start p-4 text-left outline-none transition-all duration-fast',
+        'hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elev-2 focus-visible:shadow-focus-ring',
+        className
+      )}
+    >
+      <span className="label-eyebrow inline-flex items-center gap-2 text-muted-foreground transition-colors group-hover:text-foreground">
+        <span className="text-signal">{icon}</span>
+        {label}
+      </span>
+      <span className="mt-2 font-mono text-3xl font-bold tabular-nums tracking-tight">{value}</span>
+    </button>
+  );
+}
+
+function GitTile({ summary, className }: { summary: WorkspaceSummary; className?: string }): React.ReactElement {
+  return (
+    <div className={cn('surface flex flex-col justify-between gap-3 p-4', className)}>
+      <span className="label-eyebrow inline-flex items-center gap-2">
+        <span className="text-signal">@</span>
+        Package manager
+      </span>
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-2xl font-bold tracking-tight">{summary.packageManager}</span>
+        {summary.git ? (
+          <span className="flex items-center gap-2">
+            <span className="font-mono text-sm text-muted-foreground">{summary.git.branch}</span>
+            <span className={cn('status-badge', summary.git.dirty ? 'status-warn' : 'status-healthy')}>
+              {summary.git.dirty ? 'Dirty' : 'Clean'}
+            </span>
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function FailingChecksTile({
   checks,
   onViewHealth,
 }: {
@@ -144,30 +281,36 @@ function FailedChecksPanel({
   onViewHealth: () => void;
 }): React.ReactElement {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+    <div className="surface flex h-full flex-col p-5">
+      <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <AlertCircle className="size-4 text-red-600" />
+          <h3 className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
+            <AlertCircle className="size-4 text-critical" />
             Failing checks
-          </CardTitle>
-          <CardDescription>Errors and warnings from the latest health run.</CardDescription>
+          </h3>
+          <p className="mt-0.5 text-sm text-muted-foreground">Errors and warnings from the latest health run.</p>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={onViewHealth}>
           Health
           <ArrowRight className="size-4" />
         </Button>
-      </CardHeader>
-      <CardContent>
-        {checks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No failing checks. Workspace looks healthy.</p>
-        ) : (
-          <ul className="space-y-2">
-            {checks.slice(0, 4).map((check) => (
-              <li key={check.id} className="flex items-start gap-2 rounded-md border p-3">
-                <Badge variant={check.level === 'fail' ? 'destructive' : 'warning'} className="shrink-0">
-                  {check.level === 'fail' ? 'Error' : 'Warn'}
-                </Badge>
+      </div>
+
+      {checks.length === 0 ? (
+        <p className="my-auto text-sm text-muted-foreground">No failing checks. Workspace looks healthy.</p>
+      ) : (
+        <ul className="space-y-2">
+          {checks.slice(0, 4).map((check) => {
+            const isFail = check.level === 'fail';
+            return (
+              <li
+                key={check.id}
+                className="flex items-start gap-2.5 rounded-md border border-border bg-bg-2/40 p-3"
+              >
+                <span className={cn('status-badge shrink-0', isFail ? 'status-critical' : 'status-warn')}>
+                  {isFail ? <AlertCircle className="size-3" /> : <TriangleAlert className="size-3" />}
+                  {isFail ? 'Error' : 'Warn'}
+                </span>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">{check.title}</div>
                   {check.message ? (
@@ -175,96 +318,36 @@ function FailedChecksPanel({
                   ) : null}
                 </div>
               </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
-function CountsPanel({
-  summary,
-  onViewGraph,
-}: {
-  summary: WorkspaceSummary;
-  onViewGraph: () => void;
-}): React.ReactElement {
+function RecentJobsTile({ onViewJobs }: { onViewJobs: () => void }): React.ReactElement {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+    <div className="surface flex h-full flex-col p-5">
+      <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <CardTitle className="text-base">Topology</CardTitle>
-          <CardDescription>Apps, services, and package manager.</CardDescription>
-        </div>
-        <Button type="button" variant="ghost" size="sm" onClick={onViewGraph}>
-          Graph
-          <ArrowRight className="size-4" />
-        </Button>
-      </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-3">
-        <Metric icon={<Boxes className="size-4" />} label="Apps" value={summary.apps.length} />
-        <Metric icon={<Server className="size-4" />} label="Services" value={summary.services.length} />
-        <Metric icon={<Activity className="size-4" />} label="Health score" value={summary.health.score} />
-        <Metric label="Package manager" value={summary.packageManager} />
-        {summary.git ? (
-          <div className="col-span-2">
-            <Separator className="mb-3" />
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="font-medium">{summary.git.branch}</span>
-              <Badge variant={summary.git.dirty ? 'warning' : 'success'}>
-                {summary.git.dirty ? 'Dirty' : 'Clean'}
-              </Badge>
-            </div>
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function RecentJobsPanel({ onViewJobs }: { onViewJobs: () => void }): React.ReactElement {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <div>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <History className="size-4" />
+          <h3 className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
+            <History className="size-4 text-info" />
             Recent jobs
-          </CardTitle>
-          <CardDescription>Live command runs are streamed in Jobs &amp; Logs.</CardDescription>
+          </h3>
+          <p className="mt-0.5 text-sm text-muted-foreground">Live command runs are streamed in Jobs &amp; Logs.</p>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={onViewJobs}>
           <Play className="size-4" />
           Jobs &amp; Logs
         </Button>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">
-          No jobs from this session yet. Start one from the Command Builder or open Jobs &amp; Logs to
-          watch live output.
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function Metric({
-  icon,
-  label,
-  value,
-}: {
-  icon?: React.ReactNode;
-  label: string;
-  value: React.ReactNode;
-}): React.ReactElement {
-  return (
-    <div className="rounded-md border bg-muted/30 p-3">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        {icon}
-        {label}
       </div>
-      <div className="mt-1 text-lg font-semibold tracking-normal">{value}</div>
+      <div className="my-auto rounded-md border border-dashed border-border bg-bg-0/60 p-4">
+        <p className="text-sm text-muted-foreground">
+          No jobs from this session yet. Start one from the Command Builder or open Jobs &amp; Logs to watch live
+          output.
+        </p>
+      </div>
     </div>
   );
 }

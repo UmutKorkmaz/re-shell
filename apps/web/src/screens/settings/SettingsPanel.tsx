@@ -1,16 +1,6 @@
 import * as React from 'react';
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Input,
-  Label,
-  Separator,
-} from '@re-shell/ui';
-import { Check, Moon, Sun } from 'lucide-react';
+import { Button, Input, cn } from '@re-shell/ui';
+import { Check, Moon, Plug, Settings2, Sun } from 'lucide-react';
 import {
   PORT_BOUNDS,
   settingsSchema,
@@ -66,19 +56,16 @@ export function SettingsPanel({
 
   return (
     <div className="grid gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Connection</CardTitle>
-          <CardDescription>Where the dashboard finds the workspace and CLI.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <Field
-            id="workspacePath"
-            label="Workspace path"
-            hint="Absolute path to the monorepo root."
-          >
+      <Panel
+        icon={<Plug className="size-3.5 text-signal" />}
+        title="Connection"
+        description="Where the dashboard finds the workspace and CLI."
+      >
+        <div className="grid gap-4">
+          <Field id="workspacePath" label="Workspace path" hint="Absolute path to the monorepo root.">
             <Input
               id="workspacePath"
+              className="font-mono"
               value={draft.workspacePath}
               placeholder="/path/to/workspace"
               onChange={(e) => setDraft((d) => ({ ...d, workspacePath: e.target.value }))}
@@ -87,6 +74,7 @@ export function SettingsPanel({
           <Field id="cliBinaryPath" label="CLI binary path" hint="Path or bare command for re-shell.">
             <Input
               id="cliBinaryPath"
+              className="font-mono"
               value={draft.cliBinaryPath}
               placeholder="re-shell"
               onChange={(e) => setDraft((d) => ({ ...d, cliBinaryPath: e.target.value }))}
@@ -100,21 +88,22 @@ export function SettingsPanel({
           >
             <Input
               id="daemonPort"
+              className="font-mono"
               inputMode="numeric"
               value={portText}
               aria-invalid={portError !== null}
               onChange={(e) => setPortText(e.target.value)}
             />
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Preferences</CardTitle>
-          <CardDescription>Appearance, safety, and telemetry.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-1">
+      <Panel
+        icon={<Settings2 className="size-3.5 text-signal" />}
+        title="Preferences"
+        description="Appearance, safety, and telemetry."
+      >
+        <div className="grid">
           <ToggleRow
             label="Theme"
             description="Switch the dashboard between light and dark tokens."
@@ -122,7 +111,7 @@ export function SettingsPanel({
               <ThemeToggle theme={draft.theme} onChange={(theme) => applyImmediate('theme', theme)} />
             }
           />
-          <Separator />
+          <div className="hairline" />
           <ToggleRow
             label="Safety mode"
             description="Require confirmation before running destructive commands."
@@ -134,7 +123,7 @@ export function SettingsPanel({
               />
             }
           />
-          <Separator />
+          <div className="hairline" />
           <ToggleRow
             label="Telemetry"
             description="Send anonymous usage data. Off by default."
@@ -146,8 +135,8 @@ export function SettingsPanel({
               />
             }
           />
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
       <div className="flex items-center gap-2">
         <Button type="button" onClick={handleSave} disabled={!canSave}>
@@ -179,6 +168,31 @@ function validatePort(value: string): string | null {
   return null;
 }
 
+function Panel({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <section className="surface overflow-hidden">
+      <div className="border-b border-border px-5 py-3.5">
+        <h2 className="inline-flex items-center gap-2 font-display text-base font-semibold tracking-tight">
+          {icon}
+          {title}
+        </h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
 interface FieldProps {
   id: string;
   label: string;
@@ -190,10 +204,12 @@ interface FieldProps {
 function Field({ id, label, hint, error, children }: FieldProps): React.ReactElement {
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <label htmlFor={id} className="label-eyebrow normal-case tracking-[0.04em]">
+        {label}
+      </label>
       {children}
       {error ? (
-        <p className="text-sm text-destructive">{error}</p>
+        <p className="text-sm text-critical">{error}</p>
       ) : hint ? (
         <p className="text-sm text-muted-foreground">{hint}</p>
       ) : null}
@@ -211,7 +227,7 @@ function ToggleRow({
   control: React.ReactNode;
 }): React.ReactElement {
   return (
-    <div className="flex items-center justify-between gap-4 py-3">
+    <div className="flex items-center justify-between gap-4 py-3.5">
       <div className="min-w-0">
         <div className="text-sm font-medium">{label}</div>
         <p className="text-sm text-muted-foreground">{description}</p>
@@ -259,14 +275,17 @@ function Switch({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-        checked ? 'bg-primary' : 'bg-input'
-      }`}
+      className={cn(
+        'relative inline-flex h-6 w-11 items-center rounded-full outline-none transition-colors duration-fast',
+        'focus-visible:shadow-focus-ring',
+        checked ? 'bg-signal' : 'bg-input'
+      )}
     >
       <span
-        className={`inline-block size-5 transform rounded-full bg-background shadow transition-transform ${
+        className={cn(
+          'inline-block size-5 transform rounded-full bg-background shadow transition-transform duration-fast',
           checked ? 'translate-x-5' : 'translate-x-0.5'
-        }`}
+        )}
       />
     </button>
   );

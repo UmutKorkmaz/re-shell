@@ -1,12 +1,6 @@
 import * as React from 'react';
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  Label,
-} from '@re-shell/ui';
-import { FilterX } from 'lucide-react';
+import { Button, cn } from '@re-shell/ui';
+import { FilterX, LayoutGrid, SlidersHorizontal } from 'lucide-react';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';
 import { EmptyPanel, EnvelopeErrorPanel, ErrorPanel, LoadingPanel } from './shared/StatePanels';
 import { templateListSchema, type TemplateFeed } from './shared/feedSchemas';
@@ -45,7 +39,11 @@ export function TemplatesScreen(): React.ReactElement {
     );
   }
 
-  return <TemplatesContent templates={data} />;
+  return (
+    <div className="screen-enter">
+      <TemplatesContent templates={data} />
+    </div>
+  );
 }
 
 function TemplatesContent({ templates }: { templates: TemplateFeed[] }): React.ReactElement {
@@ -76,62 +74,78 @@ function TemplatesContent({ templates }: { templates: TemplateFeed[] }): React.R
   );
 
   const hasActiveFilters = FILTER_KEYS.some((key) => filters[key] !== '');
+  const clearAll = (): void =>
+    setFilters(Object.fromEntries(FILTER_KEYS.map((k) => [k, ''])));
 
   return (
-    <div className="grid gap-4">
-      <Card>
-        <CardContent className="flex flex-wrap items-end gap-4 p-4">
-          {FILTER_KEYS.map((key) => (
-            <FilterSelect
-              key={key}
-              id={`filter-${key}`}
-              label={key}
-              value={filters[key]}
-              options={options[key]}
-              onChange={(value) => setFilters({ [key]: value })}
-            />
-          ))}
-          <div className="ml-auto flex items-center gap-3">
-            <Badge variant="secondary">
-              {filtered.length} / {templates.length}
-            </Badge>
+    <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      {/* Filter rail — sticky, dense, distinct from the card grid. */}
+      <aside className="lg:sticky lg:top-6 lg:self-start">
+        <div className="surface flex flex-col">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <span className="label-eyebrow inline-flex items-center gap-2">
+              <SlidersHorizontal className="size-3.5 text-signal" />
+              Filters
+            </span>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
+              className="h-7 px-2 text-xs"
               disabled={!hasActiveFilters}
-              onClick={() => setFilters(Object.fromEntries(FILTER_KEYS.map((k) => [k, ''])))}
+              onClick={clearAll}
             >
-              <FilterX className="size-4" />
+              <FilterX className="size-3.5" />
               Clear
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {filtered.length === 0 ? (
-        <EmptyPanel
-          title="No templates match these filters"
-          description="Adjust or clear the filters to see more templates."
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setFilters(Object.fromEntries(FILTER_KEYS.map((k) => [k, ''])))}
-            >
-              <FilterX className="size-4" />
-              Clear filters
-            </Button>
-          }
-        />
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((template) => (
-            <TemplateCard key={template.id} template={template} onShowDetails={setSelected} />
-          ))}
+          <div className="grid gap-3.5 p-4">
+            {FILTER_KEYS.map((key) => (
+              <FilterSelect
+                key={key}
+                id={`filter-${key}`}
+                label={key}
+                value={filters[key]}
+                options={options[key]}
+                onChange={(value) => setFilters({ [key]: value })}
+              />
+            ))}
+          </div>
         </div>
-      )}
+      </aside>
+
+      {/* Result grid + count header. */}
+      <section className="grid auto-rows-min gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="inline-flex items-center gap-2 font-display text-base font-semibold tracking-tight">
+            <LayoutGrid className="size-4 text-signal" />
+            Template catalog
+          </h2>
+          <span className="cli-chip py-1 text-xs">
+            <span className="font-semibold text-foreground tabular-nums">{filtered.length}</span>
+            <span className="text-muted-foreground">/ {templates.length}</span>
+          </span>
+        </div>
+
+        {filtered.length === 0 ? (
+          <EmptyPanel
+            title="No templates match these filters"
+            description="Adjust or clear the filters to see more templates."
+            action={
+              <Button type="button" variant="outline" size="sm" onClick={clearAll}>
+                <FilterX className="size-4" />
+                Clear filters
+              </Button>
+            }
+          />
+        ) : (
+          <div className="stagger-children grid auto-rows-min gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {filtered.map((template) => (
+              <TemplateCard key={template.id} template={template} onShowDetails={setSelected} />
+            ))}
+          </div>
+        )}
+      </section>
 
       <TemplateDetailDrawer
         template={selected}
@@ -158,14 +172,19 @@ function FilterSelect({
 }): React.ReactElement {
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={id} className="text-xs capitalize text-muted-foreground">
+      <label htmlFor={id} className="label-eyebrow normal-case tracking-[0.04em]">
         {label}
-      </Label>
+      </label>
       <select
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9 w-40 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        className={cn(
+          'h-9 w-full rounded-md border border-border bg-bg-0 px-2.5 font-mono text-[0.8125rem] text-foreground/90',
+          'shadow-elev-1 transition-colors duration-fast outline-none',
+          'hover:border-border-strong focus-visible:border-signal focus-visible:shadow-focus-ring',
+          value ? 'text-foreground' : 'text-muted-foreground'
+        )}
       >
         <option value="">All</option>
         {options.map((option) => (

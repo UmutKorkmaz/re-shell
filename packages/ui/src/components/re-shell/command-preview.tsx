@@ -62,7 +62,7 @@ export function CommandPreview({
             {spec.description ? <CardDescription>{spec.description}</CardDescription> : null}
           </div>
           {spec.destructive ? (
-            <Badge variant="destructive" className="w-fit gap-1">
+            <Badge variant="critical" className="w-fit gap-1">
               <ShieldAlert className="size-3" />
               {spec.requiresConfirmation ? 'Confirmation required' : 'Destructive'}
             </Badge>
@@ -70,12 +70,14 @@ export function CommandPreview({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ScrollArea className="max-h-32 rounded-md border bg-muted/50">
-          <pre className="re-shell-mono min-w-max p-3 text-foreground">{commandText}</pre>
+        <ScrollArea className="max-h-32 rounded-md border border-border bg-bg-0 shadow-elev-1">
+          <pre className="re-shell-mono min-w-max p-3 pl-7 text-foreground before:absolute before:left-3 before:select-none before:text-signal before:content-['$'] relative">
+            {commandText}
+          </pre>
         </ScrollArea>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="justify-start">
-            {copied ? <Check className="size-4" /> : <Clipboard className="size-4" />}
+            {copied ? <Check className="size-4 text-signal" /> : <Clipboard className="size-4" />}
             {copied ? 'Copied' : 'Copy command'}
           </Button>
           {spec.dryRunSupported ? (

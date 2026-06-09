@@ -1,13 +1,53 @@
 import * as React from 'react';
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@re-shell/ui';
+import { Button, cn } from '@re-shell/ui';
 import { AlertTriangle, FolderOpen, Loader2, PlugZap } from 'lucide-react';
+
+/** A shimmering skeleton placeholder block. */
+export function SkeletonBlock({
+  className,
+}: {
+  className?: string;
+}): React.ReactElement {
+  return <div aria-hidden className={cn('skeleton h-4 w-full', className)} />;
+}
+
+/**
+ * A structured skeleton loading screen — used as a polished loading state in
+ * place of a plain spinner while data is fetching. Rendered alongside (above)
+ * the accessible `LoadingPanel` so screen-readers still see the loading
+ * announcement.
+ */
+export function SkeletonScreen({
+  rows = 3,
+  cols = 1,
+}: {
+  rows?: number;
+  cols?: number;
+}): React.ReactElement {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        'grid gap-4',
+        cols === 2 && 'md:grid-cols-2',
+        cols === 3 && 'md:grid-cols-3',
+        cols === 4 && 'md:grid-cols-4'
+      )}
+    >
+      {Array.from({ length: cols * rows }, (_, i) => (
+        <div key={i} className="surface overflow-hidden p-5">
+          <div className="mb-4 flex items-center gap-3">
+            <SkeletonBlock className="h-3 w-20" />
+            <SkeletonBlock className="h-3 w-10 opacity-60" />
+          </div>
+          <SkeletonBlock className="mb-2 h-7 w-3/4" />
+          <SkeletonBlock className="h-3 w-full opacity-70" />
+          <SkeletonBlock className="mt-1 h-3 w-5/6 opacity-50" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface BasePanelProps {
   title: string;
@@ -32,32 +72,37 @@ function MessagePanel({
 }): React.ReactElement {
   const toneClass =
     tone === 'destructive'
-      ? 'text-destructive'
+      ? 'text-critical'
       : tone === 'muted'
         ? 'text-muted-foreground'
         : 'text-foreground';
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className={`flex items-center gap-2 text-base ${toneClass}`}>
-          {icon}
-          {title}
-        </CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
-      {action ? <CardContent>{action}</CardContent> : null}
-    </Card>
+    <div className="surface p-5">
+      <h2 className={cn('flex items-center gap-2 font-display text-base font-semibold tracking-tight', toneClass)}>
+        {icon}
+        {title}
+      </h2>
+      {description ? <p className="mt-1.5 text-sm text-muted-foreground">{description}</p> : null}
+      {action ? <div className="mt-4">{action}</div> : null}
+    </div>
   );
 }
 
-export function LoadingPanel({ title, description }: BasePanelProps): React.ReactElement {
+export function LoadingPanel({
+  title,
+  description,
+  skeleton,
+}: BasePanelProps & { skeleton?: React.ReactNode }): React.ReactElement {
   return (
-    <MessagePanel
-      icon={<Loader2 className="size-4 animate-spin" />}
-      title={title}
-      description={description}
-      tone="muted"
-    />
+    <div className="grid gap-4">
+      {skeleton ?? <SkeletonScreen />}
+      <MessagePanel
+        icon={<Loader2 className="size-4 animate-spin" />}
+        title={title}
+        description={description}
+        tone="muted"
+      />
+    </div>
   );
 }
 

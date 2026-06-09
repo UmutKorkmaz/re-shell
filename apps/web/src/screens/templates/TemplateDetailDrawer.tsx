@@ -10,7 +10,7 @@ import {
   SheetTitle,
   formatCommand,
 } from '@re-shell/ui';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Terminal } from 'lucide-react';
 import { useEnvelopeQuery } from '../shared/useEnvelopeQuery';
 import { templateFeedSchema, type TemplateFeed } from '../shared/feedSchemas';
 import { scaffoldCommand } from './templateAdapters';
@@ -31,7 +31,7 @@ export function TemplateDetailDrawer({
 }: TemplateDetailDrawerProps): React.ReactElement {
   return (
     <Sheet open={template !== null} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col gap-4 overflow-y-auto sm:max-w-md">
+      <SheetContent side="right" className="flex w-full flex-col gap-5 overflow-y-auto sm:max-w-md">
         {template ? <DetailBody template={template} /> : null}
       </SheetContent>
     </Sheet>
@@ -50,19 +50,23 @@ function DetailBody({ template }: { template: TemplateFeed }): React.ReactElemen
 
   return (
     <>
-      <SheetHeader>
-        <SheetTitle className="flex items-center gap-2">
+      <SheetHeader className="gap-1.5">
+        <SheetTitle className="flex items-center gap-2 font-display tracking-tight">
           <span className="min-w-0 truncate">{detail.displayName ?? detail.name}</span>
-          {isLoading ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : null}
+          {isLoading ? <Loader2 className="size-4 animate-spin text-signal" /> : null}
         </SheetTitle>
         <SheetDescription>{detail.description || 'No description provided.'}</SheetDescription>
       </SheetHeader>
 
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge variant="secondary">{detail.language}</Badge>
-        <Badge variant="outline">{detail.framework}</Badge>
-        {detail.version ? <Badge variant="outline">v{detail.version}</Badge> : null}
-        {typeof detail.port === 'number' ? <Badge variant="outline">:{detail.port}</Badge> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary" className="normal-case tracking-normal">{detail.language}</Badge>
+        <Badge variant="outline" className="normal-case tracking-normal">{detail.framework}</Badge>
+        {detail.version ? (
+          <span className="cli-chip py-1 text-xs">v{detail.version}</span>
+        ) : null}
+        {typeof detail.port === 'number' ? (
+          <span className="cli-chip py-1 text-xs text-signal">:{detail.port}</span>
+        ) : null}
       </div>
 
       {envelopeError ? (
@@ -78,8 +82,11 @@ function DetailBody({ template }: { template: TemplateFeed }): React.ReactElemen
 
       <Separator />
 
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold tracking-tight">Scaffold</h3>
+      <div className="space-y-2.5">
+        <h3 className="label-eyebrow inline-flex items-center gap-2">
+          <Terminal className="size-3.5 text-signal" />
+          Scaffold
+        </h3>
         <CommandPreview
           spec={{
             title: 'Create from template',
@@ -106,15 +113,18 @@ function Facet({
 }): React.ReactElement {
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+      <h3 className="label-eyebrow">{title}</h3>
       {values.length === 0 ? (
         <p className="text-sm text-muted-foreground">{empty}</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {values.map((value) => (
-            <Badge key={value} variant="outline" className="font-normal">
+            <span
+              key={value}
+              className="rounded-sm border border-border bg-bg-0 px-1.5 py-0.5 font-mono text-[0.6875rem] text-muted-foreground"
+            >
               {value}
-            </Badge>
+            </span>
           ))}
         </div>
       )}

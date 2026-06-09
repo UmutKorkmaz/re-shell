@@ -15,7 +15,7 @@
     "re-shell": "dist/index.js"
   },
   "scripts": {
-    "build": "rimraf dist && tsc && mkdir -p dist/utils/schemas && cp src/schemas/workspace-v2.schema.json dist/utils/schemas/re-shell-workspace.schema.json && mkdir -p dist/completions && cp src/completions/bash dist/completions/bash && cp src/completions/zsh dist/completions/zsh",
+    "build": "tsc && mkdir -p dist/utils/schemas && cp src/schemas/workspace-v2.schema.json dist/utils/schemas/re-shell-workspace.schema.json && mkdir -p dist/completions && cp src/completions/bash dist/completions/bash && cp src/completions/zsh dist/completions/zsh",
     "bundle:dashboard": "node scripts/bundle-dashboard.mjs",
     "build:dist": "npm run build && npm run bundle:dashboard",
     "dev": "tsc --watch",
@@ -29,7 +29,7 @@
     "test:plan": "node tests/run-cli-plan.mjs --suite=all",
     "lint": "eslint src --ext ts",
     "clean": "rimraf dist",
-    "prepublishOnly": "npm run build && npm run bundle:dashboard"
+    "prepublishOnly": "rimraf dist && npm run build && npm run bundle:dashboard"
   },
   "keywords": [
     "microfrontend",
