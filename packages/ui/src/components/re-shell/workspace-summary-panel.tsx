@@ -24,8 +24,10 @@ export function WorkspaceSummaryPanel({
       <CardHeader className="space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-2">
-            <CardTitle className="truncate text-xl">{workspace.name}</CardTitle>
-            <div className="truncate text-sm text-muted-foreground">{workspace.path}</div>
+            <CardTitle className="truncate font-display text-xl font-semibold tracking-tight">
+              {workspace.name}
+            </CardTitle>
+            <div className="truncate font-mono text-[0.8125rem] text-muted-foreground">{workspace.path}</div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" onClick={onRunHealth} disabled={!onRunHealth}>
@@ -57,12 +59,20 @@ export function WorkspaceSummaryPanel({
             <Separator className="my-4" />
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <GitBranch className="size-4 text-muted-foreground" />
-              <span>{workspace.git.branch ?? 'unknown'}</span>
-              <Badge variant={workspace.git.dirty ? 'warning' : 'success'}>
+              <span className="font-mono text-[0.8125rem]">{workspace.git.branch ?? 'unknown'}</span>
+              <Badge variant={workspace.git.dirty ? 'warn' : 'healthy'}>
                 {workspace.git.dirty ? 'Dirty workspace' : 'Clean workspace'}
               </Badge>
-              {workspace.git.ahead ? <Badge variant="outline">ahead {workspace.git.ahead}</Badge> : null}
-              {workspace.git.behind ? <Badge variant="outline">behind {workspace.git.behind}</Badge> : null}
+              {workspace.git.ahead ? (
+                <Badge variant="outline" className="font-mono tracking-normal">
+                  ahead {workspace.git.ahead}
+                </Badge>
+              ) : null}
+              {workspace.git.behind ? (
+                <Badge variant="outline" className="font-mono tracking-normal">
+                  behind {workspace.git.behind}
+                </Badge>
+              ) : null}
             </div>
           </>
         ) : null}
@@ -81,12 +91,12 @@ function SummaryMetric({
   value: React.ReactNode;
 }): React.ReactElement {
   return (
-    <div className="rounded-md border bg-muted/30 p-4">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="surface-raised p-4">
+      <div className="label-eyebrow flex items-center gap-2">
         {icon}
         {label}
       </div>
-      <div className="mt-2 text-xl font-semibold tracking-normal">{value}</div>
+      <div className="mt-2 font-mono text-xl font-bold tabular-nums tracking-tight">{value}</div>
     </div>
   );
 }

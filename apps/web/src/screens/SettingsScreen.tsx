@@ -23,7 +23,7 @@ export function SettingsScreen(): React.ReactElement {
   const { settings, updateSettings, setSettings, resetSettings } = useSettings();
 
   return (
-    <div className="grid gap-4">
+    <div className="stagger-children screen-enter grid gap-4">
       <SettingsPanel
         settings={settings}
         onChange={updateSettings}

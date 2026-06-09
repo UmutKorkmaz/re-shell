@@ -5,21 +5,31 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-display text-[0.6875rem] font-semibold uppercase tracking-[0.04em] transition-colors duration-fast focus:outline-none focus-visible:shadow-focus-ring",
   {
     variants: {
       variant: {
         default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+          "border-transparent bg-primary text-primary-foreground",
         destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground",
+          "border-destructive/40 bg-destructive/10 text-destructive shadow-glow-critical",
+        outline: "border-border bg-bg-1 text-foreground",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "border-border bg-secondary text-secondary-foreground",
+        // semantic status variants (token-driven, with subtle glow)
+        healthy:
+          "border-healthy/40 bg-healthy/10 text-healthy shadow-glow-healthy",
+        warn:
+          "border-warn/40 bg-warn/10 text-warn shadow-glow-warn",
+        critical:
+          "border-critical/40 bg-critical/10 text-critical shadow-glow-critical",
+        info:
+          "border-info/40 bg-info/10 text-info shadow-glow-info",
+        // legacy emerald/amber variants kept for stable behavior
         success:
-          "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
+          "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-glow-healthy",
         warning:
-          "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
+          "border-amber-500/40 bg-amber-500/10 text-amber-400 shadow-glow-warn",
       },
     },
     defaultVariants: {

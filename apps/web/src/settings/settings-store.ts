@@ -105,9 +105,15 @@ export function saveSettings(settings: Settings): void {
 }
 
 /**
- * Apply the theme to the document by toggling the `.dark` class on the root
+ * Apply the theme to the document by toggling the theme classes on the root
  * element and syncing `color-scheme`. This is what makes the toggle flip the
- * shadcn tokens live (the `.dark` selector in globals.css redefines them).
+ * design-system tokens live.
+ *
+ * The token system is DARK-FIRST: plain `:root` resolves to the dark elevation
+ * stack, so the dashboard renders dark out of the box. Selecting the light
+ * theme opts in via the `.light` class (which redefines the tokens), while the
+ * dark theme keeps/sets `.dark` for explicitness. We toggle both classes so the
+ * active theme is unambiguous regardless of the dark-first default.
  */
 export function applyTheme(theme: Theme): void {
   if (typeof document === 'undefined') {
@@ -115,6 +121,7 @@ export function applyTheme(theme: Theme): void {
   }
   const root = document.documentElement;
   root.classList.toggle('dark', theme === 'dark');
+  root.classList.toggle('light', theme === 'light');
   root.style.colorScheme = theme;
 }
 

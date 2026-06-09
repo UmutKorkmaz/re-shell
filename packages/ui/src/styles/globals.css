@@ -1,51 +1,242 @@
+/* ---------------------------------------------------------------------------
+ * Self-hosted fonts (offline-safe — bundled via @fontsource, NO Google CDN).
+ * Body: Inter · Display/labels: Space Grotesk · Data/mono: JetBrains Mono.
+ * ------------------------------------------------------------------------- */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/600.css';
+@import '@fontsource/space-grotesk/700.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/700.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+ * Color tokens — dark mission-control.
+ *
+ * DARK is the default: plain `:root` and `.dark` both resolve to the dark
+ * elevation stack so the dashboard renders dark out of the box even before any
+ * JS runs. The `.light` class (toggled by the settings store) opts into the
+ * refined light companion. Values are OKLCH with a hex fallback block below.
+ * ------------------------------------------------------------------------- */
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+  :root,
+  .dark {
+    color-scheme: dark;
+
+    /* Elevation stack (near-black, each step +lightness) */
+    --bg-0: oklch(0.16 0.012 265); /* base canvas   */
+    --bg-1: oklch(0.19 0.013 265); /* panel / card  */
+    --bg-2: oklch(0.23 0.014 265); /* raised / hover */
+    --bg-3: oklch(0.27 0.015 265); /* popover / overlay */
+
+    /* shadcn surface roles mapped onto the stack */
+    --background: oklch(0.16 0.012 265);
+    --foreground: oklch(0.96 0.006 265);
+    --card: oklch(0.19 0.013 265);
+    --card-foreground: oklch(0.96 0.006 265);
+    --popover: oklch(0.23 0.014 265);
+    --popover-foreground: oklch(0.96 0.006 265);
+
+    --muted: oklch(0.23 0.014 265);
+    --muted-foreground: oklch(0.66 0.012 265);
+
+    --secondary: oklch(0.23 0.014 265);
+    --secondary-foreground: oklch(0.96 0.006 265);
+
+    /* The ONE signal accent */
+    --signal: oklch(0.86 0.21 130);
+    --signal-foreground: oklch(0.18 0.04 130);
+    --signal-glow: oklch(0.86 0.21 130 / 0.35);
+
+    /* primary == signal so shadcn buttons use the accent */
+    --primary: oklch(0.86 0.21 130);
+    --primary-foreground: oklch(0.18 0.04 130);
+
+    /* accent role = subtle tinted hover surface, NOT the bright signal */
+    --accent: oklch(0.24 0.02 130);
+    --accent-foreground: oklch(0.92 0.12 130);
+
+    /* lines & fields */
+    --border: oklch(0.3 0.012 265 / 0.55);
+    --border-strong: oklch(0.4 0.014 265 / 0.7);
+    --input: oklch(0.27 0.014 265);
+    --ring: oklch(0.86 0.21 130);
+
+    /* status colors + foreground + glow */
+    --status-healthy: oklch(0.8 0.17 150);
+    --status-healthy-foreground: oklch(0.18 0.04 150);
+    --status-healthy-glow: oklch(0.8 0.17 150 / 0.3);
+
+    --status-warn: oklch(0.83 0.16 85);
+    --status-warn-foreground: oklch(0.2 0.05 85);
+    --status-warn-glow: oklch(0.83 0.16 85 / 0.3);
+
+    --status-critical: oklch(0.66 0.21 25);
+    --status-critical-foreground: oklch(0.97 0.01 25);
+    --status-critical-glow: oklch(0.66 0.21 25 / 0.32);
+
+    --status-info: oklch(0.75 0.13 235);
+    --status-info-foreground: oklch(0.18 0.04 235);
+    --status-info-glow: oklch(0.75 0.13 235 / 0.3);
+
+    /* destructive == critical for shadcn */
+    --destructive: oklch(0.66 0.21 25);
+    --destructive-foreground: oklch(0.97 0.01 25);
+
+    /* inner top highlight used in elevation shadows */
+    --hairline-top: oklch(1 0 0 / 0.06);
+
+    /* radius + motion */
+    --radius: 0.625rem;
+    --dur-fast: 120ms;
+    --dur-normal: 200ms;
+    --dur-slow: 360ms;
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+  .light {
+    color-scheme: light;
+
+    --bg-0: oklch(0.97 0.004 265);
+    --bg-1: oklch(0.99 0.002 265);
+    --bg-2: oklch(1 0 265);
+    --bg-3: oklch(1 0 265);
+
+    --background: oklch(0.97 0.004 265);
+    --foreground: oklch(0.21 0.015 265);
+    --card: oklch(0.99 0.002 265);
+    --card-foreground: oklch(0.21 0.015 265);
+    --popover: oklch(1 0 265);
+    --popover-foreground: oklch(0.21 0.015 265);
+
+    --muted: oklch(0.95 0.005 265);
+    --muted-foreground: oklch(0.46 0.012 265);
+
+    --secondary: oklch(0.95 0.005 265);
+    --secondary-foreground: oklch(0.21 0.015 265);
+
+    --signal: oklch(0.74 0.18 130);
+    --signal-foreground: oklch(0.18 0.04 130);
+    --signal-glow: oklch(0.74 0.18 130 / 0.28);
+
+    --primary: oklch(0.74 0.18 130);
+    --primary-foreground: oklch(0.16 0.03 130);
+
+    --accent: oklch(0.94 0.05 130);
+    --accent-foreground: oklch(0.35 0.1 130);
+
+    --border: oklch(0.86 0.008 265 / 0.9);
+    --border-strong: oklch(0.78 0.01 265);
+    --input: oklch(0.9 0.006 265);
+    --ring: oklch(0.74 0.18 130);
+
+    --status-healthy: oklch(0.62 0.16 150);
+    --status-healthy-foreground: oklch(0.99 0.01 150);
+    --status-healthy-glow: oklch(0.62 0.16 150 / 0.22);
+
+    --status-warn: oklch(0.7 0.15 75);
+    --status-warn-foreground: oklch(0.99 0.01 75);
+    --status-warn-glow: oklch(0.7 0.15 75 / 0.22);
+
+    --status-critical: oklch(0.55 0.21 25);
+    --status-critical-foreground: oklch(0.99 0.01 25);
+    --status-critical-glow: oklch(0.55 0.21 25 / 0.22);
+
+    --status-info: oklch(0.58 0.15 235);
+    --status-info-foreground: oklch(0.99 0.01 235);
+    --status-info-glow: oklch(0.58 0.15 235 / 0.22);
+
+    --destructive: oklch(0.55 0.21 25);
+    --destructive-foreground: oklch(0.99 0.01 25);
+
+    --hairline-top: oklch(1 0 0 / 0.8);
+  }
+
+  /* Hex fallback for engines without OKLCH support */
+  @supports not (color: oklch(0 0 0)) {
+    :root,
+    .dark {
+      --bg-0: #0c0e12;
+      --bg-1: #14171d;
+      --bg-2: #1c2028;
+      --bg-3: #262b35;
+      --background: #0c0e12;
+      --foreground: #f0f1f4;
+      --card: #14171d;
+      --card-foreground: #f0f1f4;
+      --popover: #1c2028;
+      --popover-foreground: #f0f1f4;
+      --muted: #1c2028;
+      --muted-foreground: #9aa0ab;
+      --secondary: #1c2028;
+      --secondary-foreground: #f0f1f4;
+      --signal: #c4f042;
+      --signal-foreground: #14180a;
+      --signal-glow: rgba(196, 240, 66, 0.35);
+      --primary: #c4f042;
+      --primary-foreground: #14180a;
+      --accent: #1f240f;
+      --accent-foreground: #dbe9a0;
+      --border: rgba(53, 58, 68, 0.55);
+      --border-strong: rgba(78, 84, 96, 0.7);
+      --input: #262b35;
+      --ring: #c4f042;
+      --status-healthy: #5fd49a;
+      --status-healthy-foreground: #0a160f;
+      --status-healthy-glow: rgba(95, 212, 154, 0.3);
+      --status-warn: #f0c64a;
+      --status-warn-foreground: #1a1404;
+      --status-warn-glow: rgba(240, 198, 74, 0.3);
+      --status-critical: #f0584e;
+      --status-critical-foreground: #fdeceb;
+      --status-critical-glow: rgba(240, 88, 78, 0.32);
+      --status-info: #5fb6ec;
+      --status-info-foreground: #08151f;
+      --status-info-glow: rgba(95, 182, 236, 0.3);
+      --destructive: #f0584e;
+      --destructive-foreground: #fdeceb;
+      --hairline-top: rgba(255, 255, 255, 0.06);
+    }
+    .light {
+      --bg-0: #f4f5f7;
+      --bg-1: #fbfbfc;
+      --bg-2: #ffffff;
+      --bg-3: #ffffff;
+      --background: #f4f5f7;
+      --foreground: #1d2129;
+      --card: #fbfbfc;
+      --card-foreground: #1d2129;
+      --popover: #ffffff;
+      --popover-foreground: #1d2129;
+      --muted: #eceef1;
+      --muted-foreground: #646b76;
+      --secondary: #eceef1;
+      --secondary-foreground: #1d2129;
+      --signal: #8fb834;
+      --signal-foreground: #14180a;
+      --signal-glow: rgba(143, 184, 52, 0.28);
+      --primary: #8fb834;
+      --primary-foreground: #11140a;
+      --accent: #e9f2cf;
+      --accent-foreground: #4d5e1f;
+      --border: #d4d7dd;
+      --border-strong: #b6bbc4;
+      --input: #e1e3e8;
+      --ring: #8fb834;
+      --status-healthy: #2f9e6a;
+      --status-warn: #c98a16;
+      --status-critical: #d23b32;
+      --status-info: #2b82c4;
+      --destructive: #d23b32;
+      --hairline-top: rgba(255, 255, 255, 0.8);
+    }
   }
 
   * {
@@ -53,17 +244,135 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    font-variant-numeric: normal;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Component utilities — the dark mission-control surface system.
+ * ------------------------------------------------------------------------- */
 @layer components {
+  /* base panels (elevation stack + hairline + inner top highlight) */
+  .surface {
+    @apply rounded-lg border border-border bg-card shadow-elev-1;
+  }
+  .surface-raised {
+    @apply rounded-lg border border-border bg-bg-2 shadow-elev-2;
+  }
+  .surface-pop {
+    @apply rounded-md border border-border-strong bg-popover shadow-elev-3;
+  }
+
+  /* hairline divider */
+  .hairline {
+    @apply border-t border-border;
+  }
+
+  /* uppercase tracked micro-label */
+  .label-eyebrow {
+    @apply font-display text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground;
+  }
+
+  /* terminal/CLI chip (copy affordance) */
+  .cli-chip {
+    @apply inline-flex items-center gap-2 rounded-md border border-border bg-bg-0 px-2.5 py-1.5 font-mono text-[0.8125rem] text-foreground/90 shadow-elev-1 transition-colors duration-fast;
+  }
+  .cli-chip:hover {
+    @apply border-border-strong;
+  }
+
+  /* status badge base — color comes from the variants below */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-display text-[0.6875rem] font-semibold uppercase tracking-[0.06em];
+  }
+  .status-healthy {
+    @apply border-healthy/40 bg-healthy/10 text-healthy shadow-glow-healthy;
+  }
+  .status-warn {
+    @apply border-warn/40 bg-warn/10 text-warn shadow-glow-warn;
+  }
+  .status-critical {
+    @apply border-critical/40 bg-critical/10 text-critical shadow-glow-critical;
+  }
+  .status-info {
+    @apply border-info/40 bg-info/10 text-info shadow-glow-info;
+  }
+
+  /* legacy helpers kept for callers */
   .re-shell-grid {
     @apply grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3;
   }
-
   .re-shell-mono {
-    @apply font-mono text-[0.8125rem] leading-5;
+    @apply font-mono text-[0.8125rem] leading-5 tabular-nums;
+  }
+
+  /* skeleton shimmer block — use as a placeholder for loading content */
+  .skeleton {
+    @apply rounded-md bg-bg-2;
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      oklch(1 0 0 / 0.04) 40%,
+      oklch(1 0 0 / 0.07) 50%,
+      oklch(1 0 0 / 0.04) 60%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.8s linear infinite;
+  }
+
+  /* stagger container — children get sequential fade-in via CSS counter */
+  .stagger-children > * {
+    animation: stagger-in 360ms var(--ease-out-expo, cubic-bezier(0.16,1,0.3,1)) both;
+  }
+  .stagger-children > *:nth-child(1)  { animation-delay:   0ms; }
+  .stagger-children > *:nth-child(2)  { animation-delay:  40ms; }
+  .stagger-children > *:nth-child(3)  { animation-delay:  80ms; }
+  .stagger-children > *:nth-child(4)  { animation-delay: 120ms; }
+  .stagger-children > *:nth-child(5)  { animation-delay: 160ms; }
+  .stagger-children > *:nth-child(6)  { animation-delay: 200ms; }
+  .stagger-children > *:nth-child(7)  { animation-delay: 240ms; }
+  .stagger-children > *:nth-child(8)  { animation-delay: 280ms; }
+  .stagger-children > *:nth-child(9)  { animation-delay: 320ms; }
+  .stagger-children > *:nth-child(10) { animation-delay: 360ms; }
+  .stagger-children > *:nth-child(n+11) { animation-delay: 400ms; }
+
+  /* page-load entry animation for main screen containers */
+  .screen-enter {
+    animation: fade-in 220ms var(--ease-out-expo, cubic-bezier(0.16,1,0.3,1)) both;
+  }
+}
+
+/* Respect reduced-motion: kill transforms/animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-pulse-live {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .skeleton {
+    animation: none !important;
+    background-image: none !important;
+  }
+  .stagger-children > * {
+    animation: none !important;
+    animation-delay: 0ms !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .screen-enter {
+    animation: none !important;
+    opacity: 1 !important;
   }
 }

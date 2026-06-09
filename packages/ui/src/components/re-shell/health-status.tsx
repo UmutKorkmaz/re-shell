@@ -8,18 +8,18 @@ type HealthLevel = HealthSummary['checks'][number]['level'];
 
 const statusMap: Record<
   HealthSummary['status'],
-  { label: string; className: string; variant: 'success' | 'warning' | 'destructive' | 'outline' }
+  { label: string; className: string; variant: 'healthy' | 'warn' | 'critical' }
 > = {
-  pass: { label: 'Healthy', className: 'text-emerald-600', variant: 'success' },
-  warn: { label: 'Warning', className: 'text-amber-600', variant: 'warning' },
-  fail: { label: 'Critical', className: 'text-red-600', variant: 'destructive' }
+  pass: { label: 'Healthy', className: 'text-healthy', variant: 'healthy' },
+  warn: { label: 'Warning', className: 'text-warn', variant: 'warn' },
+  fail: { label: 'Critical', className: 'text-critical', variant: 'critical' }
 };
 
 function LevelIcon({ level }: { level: HealthLevel }): React.ReactElement {
-  if (level === 'pass') return <CheckCircle2 className="size-4 text-emerald-600" />;
-  if (level === 'warn') return <TriangleAlert className="size-4 text-amber-600" />;
-  if (level === 'fail') return <AlertCircle className="size-4 text-red-600" />;
-  return <Info className="size-4 text-muted-foreground" />;
+  if (level === 'pass') return <CheckCircle2 className="size-4 text-healthy" />;
+  if (level === 'warn') return <TriangleAlert className="size-4 text-warn" />;
+  if (level === 'fail') return <AlertCircle className="size-4 text-critical" />;
+  return <Info className="size-4 text-info" />;
 }
 
 export interface HealthStatusProps {
@@ -33,17 +33,19 @@ export function HealthStatus({ health, className }: HealthStatusProps): React.Re
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">Workspace health</CardTitle>
+        <CardTitle className="label-eyebrow !text-muted-foreground">Workspace health</CardTitle>
         <Badge variant={status.variant}>{status.label}</Badge>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <div className={cn('text-3xl font-semibold tracking-normal', status.className)}>{health.score}</div>
-          <div className="text-sm text-muted-foreground">Readiness score</div>
+          <div className={cn('font-mono text-[1.75rem] font-bold tabular-nums tracking-tight', status.className)}>
+            {health.score}
+          </div>
+          <div className="label-eyebrow mt-0.5">Readiness score</div>
         </div>
         <div className="space-y-2">
           {health.checks.slice(0, 5).map((check) => (
-            <div key={check.id} className="flex items-start gap-2 rounded-md border p-3">
+            <div key={check.id} className="flex items-start gap-2 rounded-md border border-border bg-bg-2/40 p-3">
               <LevelIcon level={check.level} />
               <div className="min-w-0">
                 <div className="text-sm font-medium">{check.title}</div>

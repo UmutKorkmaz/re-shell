@@ -1,0 +1,79 @@
+/* ---------------------------------------------------------------------------
+ * React Flow — dark mission-control theming.
+ *
+ * Restyle the canvas chrome (background dots, controls, edges) onto the design
+ * system surface stack + signal accent. Scoped to `.rf-mission-control` so it
+ * never leaks onto other React Flow instances.
+ * ------------------------------------------------------------------------- */
+.rf-mission-control {
+  --xy-background-color: var(--bg-0);
+  --xy-edge-stroke-default: var(--border-strong);
+  --xy-edge-stroke-width-default: 1.5;
+  --xy-edge-stroke-selected-default: var(--signal);
+  --xy-attribution-background-color-default: transparent;
+}
+
+.rf-mission-control .react-flow__background {
+  background-color: var(--bg-0);
+}
+
+/* Dotted grid uses the muted hairline tone */
+.rf-mission-control .react-flow__background-pattern.dots {
+  color: var(--border-strong);
+}
+
+/* Edges: subtle by default, signal + animated when hovered/selected */
+.rf-mission-control .react-flow__edge-path {
+  stroke: var(--border-strong);
+  transition: stroke 200ms var(--ease-out-expo);
+}
+.rf-mission-control .react-flow__edge:hover .react-flow__edge-path,
+.rf-mission-control .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--signal);
+  stroke-width: 2;
+}
+.rf-mission-control .react-flow__edge:hover .react-flow__edge-path {
+  stroke-dasharray: 6;
+  animation: rf-dashdraw 0.6s linear infinite;
+}
+
+@keyframes rf-dashdraw {
+  from {
+    stroke-dashoffset: 12;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Controls: surface chip, hairline borders, accent on hover */
+.rf-mission-control .react-flow__controls {
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow:
+    0 4px 12px -2px rgb(0 0 0 / 0.4),
+    inset 0 1px 0 0 var(--hairline-top);
+  border: 1px solid var(--border);
+}
+.rf-mission-control .react-flow__controls-button {
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  transition:
+    background 120ms var(--ease-out-expo),
+    color 120ms var(--ease-out-expo);
+}
+.rf-mission-control .react-flow__controls-button:hover {
+  background: var(--bg-2);
+  color: var(--signal);
+}
+.rf-mission-control .react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rf-mission-control .react-flow__edge:hover .react-flow__edge-path {
+    animation: none !important;
+    stroke-dasharray: none;
+  }
+}
