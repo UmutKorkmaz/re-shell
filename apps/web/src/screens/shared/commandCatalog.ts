@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { formatCommand } from 're-shell-ui';
+import { formatCommand } from '@re-shell/ui';
 
 /**
  * Web-side zod schema + helpers for the `re-shell commands list --json` feed

@@ -90,7 +90,7 @@ export async function initializeMonorepo(
       'workspace:update': 're-shell workspace update',
     },
     devDependencies: {
-      're-shell-cli': getRecommendedCliVersion(),
+      '@re-shell/cli': getRecommendedCliVersion(),
     },
     engines: {
       node: '>=16.0.0',

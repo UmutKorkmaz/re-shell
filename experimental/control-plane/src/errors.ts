@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * Closed set of error codes the control plane can return.
  *
- * Mirrors the CLI's `ErrorCode` discipline in re-shell-contracts: a stable,
+ * Mirrors the CLI's `ErrorCode` discipline in @re-shell/contracts: a stable,
  * documented vocabulary authored as a zod enum so it validates at runtime and
  * the TS union can never drift. The control plane is a hosted, multi-tenant
  * extension of the local hub, so its failure modes are auth/tenant-shaped rather

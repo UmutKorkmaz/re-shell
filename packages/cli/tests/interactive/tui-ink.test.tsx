@@ -7,6 +7,26 @@ import { render } from 'ink-testing-library';
 import { InkTUI, loadInkRuntime } from '../../src/commands/ink-tui';
 
 /**
+ * Poll the rendered frame until `predicate` is satisfied (or timeout). The TUI
+ * loads workspace data asynchronously, so a fixed delay is flaky under load;
+ * polling makes the data-dependent assertions robust regardless of scheduling.
+ */
+async function waitForFrame(
+  getFrame: () => string | undefined,
+  predicate: (frame: string) => boolean,
+  timeoutMs = 5000
+): Promise<string> {
+  const start = Date.now();
+  let frame = getFrame() ?? '';
+  while (!predicate(frame)) {
+    if (Date.now() - start > timeoutMs) break;
+    await new Promise((r) => setTimeout(r, 25));
+    frame = getFrame() ?? '';
+  }
+  return frame;
+}
+
+/**
  * TUI (ink) interactive flow.
  *
  * Renders the real `<InkTUI />` workspace-graph component with ink-testing-library,
@@ -45,11 +65,13 @@ describe('TUI (ink) interactive', () => {
 
   it('loads a workspace from the supplied project path', async () => {
     const { lastFrame, unmount } = render(React.createElement(InkTUI, { projectPath: fixtureWorkspace }));
-    await new Promise((r) => setTimeout(r, 250));
 
-    const frame = lastFrame() ?? '';
     // Real workspace name + node count derived from the fixture's
     // re-shell.workspaces.yaml (k8s-demo, services: api + worker).
+    const frame = await waitForFrame(
+      lastFrame,
+      (f) => f.includes('k8s-demo') && f.includes('Nodes: 2/2')
+    );
     expect(frame).toContain('k8s-demo');
     expect(frame).toContain('Nodes: 2/2');
 
@@ -60,7 +82,8 @@ describe('TUI (ink) interactive', () => {
     const { lastFrame, stdin, unmount } = render(
       React.createElement(InkTUI, { projectPath: fixtureWorkspace }),
     );
-    await new Promise((r) => setTimeout(r, 250));
+    // Wait for the graph to actually load before navigating.
+    await waitForFrame(lastFrame, (f) => f.includes('k8s-demo') && f.includes('Nodes: 2/2'));
 
     // Select the first node (Tab) then open its details view (Enter). The
     // details view echoes the service's real name/language/framework parsed
@@ -69,9 +92,8 @@ describe('TUI (ink) interactive', () => {
     stdin.write('\t'); // tab -> select a node
     await new Promise((r) => setTimeout(r, 60));
     stdin.write('\r'); // enter -> details
-    await new Promise((r) => setTimeout(r, 80));
 
-    const frame = lastFrame() ?? '';
+    const frame = await waitForFrame(lastFrame, (f) => f.includes('Service Details:'));
     expect(frame).toContain('Service Details:');
     // The fixture defines exactly two services: api (typescript/express)
     // and worker (python/celery). Whichever node is selected first, its
@@ -89,9 +111,7 @@ describe('TUI (ink) interactive', () => {
   it('shows a clear error for non-workspace directories', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 're-shell-tui-'));
     const { lastFrame, unmount } = render(React.createElement(InkTUI, { projectPath: tempDir }));
-    await new Promise((r) => setTimeout(r, 250));
-
-    const frame = lastFrame() ?? '';
+    const frame = await waitForFrame(lastFrame, (f) => f.includes('Not a Re-Shell workspace'));
     // W10-1 empty state: a clear "not a workspace" message scoped to the
     // resolved path, NOT a placeholder graph with Version 0.0.0 / Type unknown.
     expect(frame).toContain('Not a Re-Shell workspace');
@@ -121,12 +141,10 @@ describe('TUI (ink) interactive', () => {
 
   it('opens help with h without crashing (regression for the raw-string render crash)', async () => {
     const { lastFrame, stdin, unmount } = render(React.createElement(InkTUI, { projectPath: fixtureWorkspace }));
-    await new Promise((r) => setTimeout(r, 250));
+    await waitForFrame(lastFrame, (f) => f.includes('k8s-demo') || f.includes('Workspace'));
 
     stdin.write('h');
-    await new Promise((r) => setTimeout(r, 100));
-
-    const frame = lastFrame() ?? '';
+    const frame = await waitForFrame(lastFrame, (f) => f.includes('Keyboard Shortcuts'));
     expect(frame).toContain('Keyboard Shortcuts');
     expect(frame).toContain('Navigation:');
 
@@ -135,12 +153,10 @@ describe('TUI (ink) interactive', () => {
 
   it('opens help with ? without crashing', async () => {
     const { lastFrame, stdin, unmount } = render(React.createElement(InkTUI, { projectPath: fixtureWorkspace }));
-    await new Promise((r) => setTimeout(r, 250));
+    await waitForFrame(lastFrame, (f) => f.includes('k8s-demo') || f.includes('Workspace'));
 
     stdin.write('?');
-    await new Promise((r) => setTimeout(r, 100));
-
-    const frame = lastFrame() ?? '';
+    const frame = await waitForFrame(lastFrame, (f) => f.includes('Keyboard Shortcuts'));
     expect(frame).toContain('Keyboard Shortcuts');
     expect(frame).toContain('Navigation:');
 

@@ -6,7 +6,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from 're-shell-ui';
+} from '@re-shell/ui';
 import { AlertTriangle, FolderOpen, Loader2, PlugZap } from 'lucide-react';
 
 interface BasePanelProps {

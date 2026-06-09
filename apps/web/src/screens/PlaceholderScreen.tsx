@@ -1,4 +1,4 @@
-import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from 're-shell-ui';
+import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@re-shell/ui';
 import type { ScreenDef } from '../shell/screens';
 
 interface PlaceholderScreenProps {

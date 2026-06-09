@@ -140,7 +140,7 @@ console.log('====================\n');
 
 console.log(`
 1. Install Re-Shell CLI globally:
-   npm install -g re-shell-cli
+   npm install -g @re-shell/cli
 
 2. Create a new project:
    re-shell create my-api --template fastify

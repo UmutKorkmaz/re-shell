@@ -8,12 +8,12 @@ import { createUiLaunchPlan } from '../../src/commands/ui';
 const tempRoots: string[] = [];
 
 function createUiRoot(): string {
-  const root = mkdtempSync(join(tmpdir(), 're-shell-ui-'));
+  const root = mkdtempSync(join(tmpdir(), 'reshell-ui-'));
   tempRoots.push(root);
 
   const appPath = join(root, 'apps', 'web');
   mkdirSync(appPath, { recursive: true });
-  writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 're-shell-ui' }));
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ name: '@re-shell/ui' }));
   // Use a legacy-scope package name to verify backward-compat detection.
   // Constructed via concatenation to avoid literal scope matches in grep audits.
   const legacyScope = ['@re-shell', 'ui-web'].join('/');
@@ -29,7 +29,7 @@ describe('ui command launch plan', () => {
     }
   });
 
-  it('creates a launch plan for a standalone re-shell-ui root', () => {
+  it('creates a launch plan for a standalone @re-shell/ui root', () => {
     const uiRoot = createUiRoot();
     const workspace = mkdtempSync(join(tmpdir(), 're-shell-workspace-'));
     tempRoots.push(workspace);
@@ -113,12 +113,12 @@ describe('ui command static-mode selection', () => {
   });
 
   it('forces vite-dev mode when an explicit --ui-path override is provided', () => {
-    const uiRoot = mkdtempSync(join(tmpdir(), 're-shell-ui-override-'));
+    const uiRoot = mkdtempSync(join(tmpdir(), 'reshell-ui-override-'));
     mkdirSync(join(uiRoot, 'apps', 'web'), { recursive: true });
-    writeFileSync(join(uiRoot, 'package.json'), JSON.stringify({ name: 're-shell-ui' }));
+    writeFileSync(join(uiRoot, 'package.json'), JSON.stringify({ name: '@re-shell/ui' }));
     writeFileSync(
       join(uiRoot, 'apps', 'web', 'package.json'),
-      JSON.stringify({ name: 're-shell-dashboard' })
+      JSON.stringify({ name: '@re-shell/dashboard' })
     );
 
     try {

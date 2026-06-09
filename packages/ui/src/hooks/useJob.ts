@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { JobStatus, WsServerMessage } from 're-shell-contracts';
+import type { JobStatus, WsServerMessage } from '@re-shell/contracts';
 import { WsClient } from '@/hub/ws-client';
 import {
   buildJobsUrl,

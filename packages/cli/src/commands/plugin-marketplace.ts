@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { ok, fail, enableJsonMode } from '../utils/json-output';
-import type { ErrorCode } from 're-shell-contracts';
+import type { ErrorCode } from '@re-shell/contracts';
 import { RegistryUnreachableError } from '../utils/registry-client';
 import {
   createMarketplace,

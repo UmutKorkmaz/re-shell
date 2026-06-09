@@ -1,5 +1,5 @@
 /**
- * re-shell-control-plane
+ * @re-shell/control-plane
  *
  * ENV-LIMITED SCAFFOLD. Pure, single-process, in-memory multi-tenant
  * control-plane logic that extends the local Re-Shell hub model to an

@@ -4,7 +4,7 @@ import {
   CommandPreview,
   TemplateCatalogCard,
   formatCommand,
-} from 're-shell-ui';
+} from '@re-shell/ui';
 import { Info } from 'lucide-react';
 import type { TemplateFeed } from '../shared/feedSchemas';
 import { feedToTemplateSummary, scaffoldCommand } from './templateAdapters';

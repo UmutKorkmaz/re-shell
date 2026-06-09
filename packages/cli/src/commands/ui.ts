@@ -12,6 +12,9 @@ import { startStaticServer, type StaticServer } from '../utils/ui-static-server'
 const UI_APP_PACKAGE_NAMES = new Set([
   `${GENERATED_PKG_SCOPE}/ui-web`,
   `${GENERATED_PKG_SCOPE}/ui-dashboard`,
+  // The in-repo dashboard app (apps/web) now publishes under @re-shell/dashboard,
+  // so name-based resolution must match it (path-based resolution already does).
+  '@re-shell/dashboard',
   // legacy-compat: build names from the recognized-scopes list to avoid hard-coding the old scope
   ...RECOGNIZED_PKG_SCOPES.filter(s => s !== `${GENERATED_PKG_SCOPE}/`).flatMap(s => [
     `${s}ui-web`,

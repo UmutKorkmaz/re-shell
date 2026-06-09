@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { CommandPreview, createReShellCommand, formatCommand } from 're-shell-ui';
+import { CommandPreview, createReShellCommand, formatCommand } from '@re-shell/ui';
 import { useSettings } from '../settings/useSettings';
 import { SettingsPanel } from './settings/SettingsPanel';
 

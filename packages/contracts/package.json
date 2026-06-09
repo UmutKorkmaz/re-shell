@@ -1,9 +1,21 @@
 {
-  "name": "re-shell-contracts",
+  "name": "@re-shell/contracts",
   "version": "0.1.0",
   "description": "Shared TypeScript contracts for Re-Shell UI and CLI integration.",
   "license": "MIT",
   "author": "Re-Shell Organization",
+  "keywords": [
+    "re-shell",
+    "contracts",
+    "typescript",
+    "zod",
+    "schemas"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UmutKorkmaz/re-shell.git",
+    "directory": "packages/contracts"
+  },
   "type": "module",
   "files": [
     "dist",

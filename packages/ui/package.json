@@ -1,9 +1,14 @@
 {
-  "name": "re-shell-ui",
+  "name": "@re-shell/ui",
   "version": "0.3.0",
   "description": "Shadcn-first React component library for Re-Shell interfaces.",
   "license": "MIT",
   "author": "Re-Shell Organization",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UmutKorkmaz/re-shell.git",
+    "directory": "packages/ui"
+  },
   "type": "module",
   "sideEffects": [
     "**/*.css"
@@ -90,7 +95,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "re-shell-contracts": "workspace:*",
+    "@re-shell/contracts": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.14.0",

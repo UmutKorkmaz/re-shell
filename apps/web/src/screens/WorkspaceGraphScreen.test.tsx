@@ -7,8 +7,8 @@ import type { WorkspaceGraph } from './shared/feedSchemas';
 
 const useHubQueryMock = vi.fn();
 
-vi.mock('re-shell-ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('re-shell-ui')>();
+vi.mock('@re-shell/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@re-shell/ui')>();
   return { ...actual, useHubQuery: (...args: unknown[]) => useHubQueryMock(...args) };
 });
 

@@ -10,7 +10,7 @@ import {
   CommandPreview,
   createReShellCommand,
   formatCommand,
-} from 're-shell-ui';
+} from '@re-shell/ui';
 import { Play, Terminal } from 'lucide-react';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';
 import { EmptyPanel, EnvelopeErrorPanel, ErrorPanel, LoadingPanel } from './shared/StatePanels';
