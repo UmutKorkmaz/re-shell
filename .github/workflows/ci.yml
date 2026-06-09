@@ -88,8 +88,9 @@ jobs:
       - name: Smoke test - workspace health exits non-zero outside workspace
         run: |
           cd /tmp
-          node "$GITHUB_WORKSPACE/packages/cli/dist/index.js" workspace health --json
-          if [ $? -eq 0 ]; then
+          # The command is EXPECTED to exit non-zero outside a workspace. Guard
+          # it in `if` so its expected failure does not trip the shell's `set -e`.
+          if node "$GITHUB_WORKSPACE/packages/cli/dist/index.js" workspace health --json; then
             echo "ERROR: workspace health should exit non-zero outside a workspace"
             exit 1
           fi
