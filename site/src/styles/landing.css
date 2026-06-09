@@ -85,8 +85,13 @@ a {
 
 /* Shared shell width */
 .lp-shell {
-  width: min(100% - 2.5rem, 76rem);
+  width: min(100% - 2rem, 76rem);
   margin-inline: auto;
+}
+@media (min-width: 480px) {
+  .lp-shell {
+    width: min(100% - 2.5rem, 76rem);
+  }
 }
 
 /* Eyebrow micro-label (mirrors dashboard .label-eyebrow) */
@@ -158,12 +163,18 @@ a {
   border-radius: calc(var(--radius) - 3px);
   font-size: 0.875rem;
   color: var(--muted-foreground);
+  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
   transition: color var(--dur-fast) var(--ease-out-expo),
     background var(--dur-fast) var(--ease-out-expo);
 }
 .lp-nav a:hover {
   color: var(--foreground);
   background: var(--bg-2);
+}
+.lp-nav a:active {
+  background: var(--bg-3);
 }
 .lp-nav .lp-nav-cta {
   color: var(--signal);
@@ -221,6 +232,7 @@ a {
   font-family: 'Space Grotesk', sans-serif;
   letter-spacing: -0.01em;
   cursor: pointer;
+  min-height: 2.75rem;
   transition: transform var(--dur-fast) var(--ease-out-expo),
     box-shadow var(--dur-normal) var(--ease-out-expo),
     background var(--dur-fast), border-color var(--dur-fast);
@@ -235,6 +247,10 @@ a {
   transform: translateY(-1px);
   box-shadow: 0 0 30px -2px var(--signal-glow);
 }
+.lp-btn--primary:active {
+  transform: translateY(0);
+  box-shadow: 0 0 12px -3px var(--signal-glow);
+}
 .lp-btn--ghost {
   background: var(--bg-2);
   color: var(--foreground);
@@ -242,18 +258,22 @@ a {
 }
 .lp-btn--ghost:hover {
   border-color: var(--border-strong);
+  background: var(--bg-3);
   transform: translateY(-1px);
+}
+.lp-btn--ghost:active {
+  transform: translateY(0);
 }
 
 /* --------------------------------------------------------------------------
  * Hero
  * ------------------------------------------------------------------------ */
 .lp-hero {
-  padding-block: clamp(3rem, 6vw, 6rem) clamp(2.5rem, 5vw, 4.5rem);
+  padding-block: clamp(2.5rem, 6vw, 6rem) clamp(2rem, 5vw, 4.5rem);
 }
 .lp-hero__grid {
   display: grid;
-  gap: clamp(2rem, 5vw, 3.5rem);
+  gap: clamp(1.75rem, 5vw, 3.5rem);
   align-items: center;
 }
 @media (min-width: 1024px) {
@@ -269,8 +289,10 @@ a {
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.04;
-  font-size: clamp(2.4rem, 1.4rem + 4.2vw, 4.2rem);
+  font-size: clamp(2rem, 1.2rem + 4.2vw, 4.2rem);
   margin: 1.1rem 0 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 .lp-h1 .lp-accent {
   color: var(--signal);
@@ -286,7 +308,7 @@ a {
   margin-top: 1.8rem;
   display: flex;
   align-items: stretch;
-  max-width: 24rem;
+  max-width: min(24rem, 100%);
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) - 2px);
   background: var(--bg-0);
@@ -314,6 +336,7 @@ a {
   display: inline-grid;
   place-items: center;
   width: 2.9rem;
+  min-height: 2.75rem;
   border: none;
   border-left: 1px solid var(--border);
   background: var(--bg-2);
@@ -324,6 +347,9 @@ a {
 .lp-copy:hover {
   color: var(--signal);
   background: var(--bg-3);
+}
+.lp-copy:active {
+  background: var(--bg-2);
 }
 .lp-copy[data-copied='true'] {
   color: var(--status-healthy);
@@ -347,7 +373,7 @@ a {
   margin-top: 2rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem 2rem;
+  gap: 1rem 1.75rem;
   border-top: 1px solid var(--border);
   padding-top: 1.4rem;
 }
@@ -655,6 +681,375 @@ a {
 }
 
 /* --------------------------------------------------------------------------
+ * Browser-framed dashboard (interactive, tabbed hero visual)
+ *
+ * Extends .lp-window depth/glow with realistic browser chrome (traffic lights,
+ * URL bar + lock + live), a tablist viewport, and three panels:
+ * Overview (bento) / Graph (SVG topology) / Jobs & Logs (table + log stream).
+ * ------------------------------------------------------------------------ */
+.lp-vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.lp-browser {
+  position: relative;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: calc(var(--radius) + 4px);
+  background: var(--bg-1);
+  box-shadow: 0 32px 70px -24px rgb(0 0 0 / 0.7),
+    inset 0 1px 0 0 var(--hairline-top);
+  overflow: hidden;
+  /* parallax drift driven by JS transform; will-change kept narrow */
+  will-change: transform;
+}
+.lp-browser::after {
+  /* signal edge glow */
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 60px -18px var(--signal-glow);
+}
+
+/* --- chrome bar --- */
+.lp-browser__chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  height: 2.45rem;
+  padding-inline: 0.85rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.lp-traffic {
+  display: inline-flex;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+.lp-browser__tab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 1.65rem;
+  padding-inline: 0.7rem;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: calc(var(--radius) - 4px) calc(var(--radius) - 4px) 0 0;
+  background: var(--bg-1);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  white-space: nowrap;
+  margin-bottom: -1px;
+}
+.lp-browser__url {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  height: 1.55rem;
+  padding-inline: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-0);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+}
+.lp-lock {
+  flex-shrink: 0;
+  color: var(--status-healthy);
+}
+.lp-browser__host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lp-browser__url .lp-win-live {
+  margin-left: auto;
+}
+
+/* --- tablist --- */
+.lp-browser__viewport {
+  background: var(--bg-0);
+}
+.lp-tabs {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.5rem 0.65rem 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-0);
+}
+.lp-tab {
+  position: relative;
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0.5rem 0.85rem 0.6rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  border-radius: calc(var(--radius) - 5px) calc(var(--radius) - 5px) 0 0;
+  transition: color var(--dur-fast) var(--ease-out-expo),
+    background var(--dur-fast) var(--ease-out-expo);
+}
+.lp-tab:hover {
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--bg-2) 60%, transparent);
+}
+.lp-tab[aria-selected='true'] {
+  color: var(--signal);
+}
+.lp-tab[aria-selected='true']::after {
+  /* active underline indicator (mirrors dashboard active-row treatment) */
+  content: '';
+  position: absolute;
+  left: 0.6rem;
+  right: 0.6rem;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--signal);
+  box-shadow: 0 0 8px -1px var(--signal-glow);
+}
+
+/* --- panels --- */
+.lp-panel {
+  min-height: 19rem;
+}
+.lp-panel[hidden] {
+  display: none;
+}
+/* enter transition only when JS-enhanced (otherwise no flicker on static load) */
+.lp-browser[data-enhanced='true'] .lp-panel.is-shown {
+  animation: lp-panel-in var(--dur-normal) var(--ease-out-expo);
+}
+@keyframes lp-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lp-panel--overview .lp-win-main {
+  min-height: 19rem;
+}
+
+/* --- Graph panel --- */
+.lp-panel--graph {
+  display: flex;
+}
+.lp-graph {
+  position: relative;
+  flex: 1;
+  margin: 0;
+  padding: 1rem 1.1rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  /* faint dot-grid backdrop */
+  background-image: radial-gradient(
+    var(--border) 1px,
+    transparent 1px
+  );
+  background-size: 18px 18px;
+  background-position: -1px -1px;
+}
+.lp-graph__svg {
+  width: 100%;
+  height: auto;
+  flex: 1;
+}
+.lp-edge {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+.lp-edge--active {
+  stroke: var(--signal);
+  stroke-width: 1.6;
+  stroke-dasharray: 5 4;
+  filter: drop-shadow(0 0 3px var(--signal-glow));
+  animation: lp-dash 1.1s linear infinite;
+}
+@keyframes lp-dash {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+.lp-node rect {
+  fill: var(--bg-2);
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+.lp-node--hub rect {
+  stroke: color-mix(in oklch, var(--signal) 55%, var(--border-strong));
+  fill: color-mix(in oklch, var(--signal) 9%, var(--bg-2));
+}
+.lp-node text {
+  fill: var(--foreground);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+}
+.lp-node__dot--ok {
+  fill: var(--status-healthy);
+}
+.lp-node__dot--warn {
+  fill: var(--status-warn);
+}
+.lp-graph__legend {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--muted-foreground);
+}
+.lp-graph__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.lp-leg {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+}
+.lp-leg--ok {
+  background: var(--status-healthy);
+}
+.lp-leg--warn {
+  background: var(--status-warn);
+}
+.lp-graph__hint {
+  margin-left: auto;
+}
+
+/* --- Jobs & Logs panel --- */
+.lp-jobgrid {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.95rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 600px) {
+  .lp-jobgrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  }
+}
+.lp-jobtable {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-1);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.66rem;
+}
+.lp-jobtable th {
+  text-align: left;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.56rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.lp-jobtable td {
+  padding: 0.42rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  vertical-align: middle;
+}
+.lp-jobtable tr:last-child td {
+  border-bottom: none;
+}
+.lp-jobtable .lp-job-id {
+  color: var(--foreground);
+}
+.lp-jobtable .lp-job-dur {
+  text-align: right;
+}
+.lp-jobtable__running {
+  background: color-mix(in oklch, var(--status-info) 7%, transparent);
+}
+.lp-live-dot--sm {
+  width: 0.4rem;
+  height: 0.4rem;
+  display: inline-block;
+}
+.lp-logs {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #07090c;
+  padding: 0.65rem 0.8rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.64rem;
+  line-height: 1.75;
+  overflow: hidden;
+}
+.lp-log {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: oklch(0.9 0.01 265);
+}
+.lp-log__t {
+  color: var(--muted-foreground);
+  margin-right: 0.4rem;
+}
+.lp-log--ok {
+  color: var(--status-healthy);
+}
+.lp-log--warn {
+  color: var(--status-warn);
+}
+.lp-log--info {
+  color: var(--status-info);
+}
+.lp-log--live .lp-prompt {
+  color: var(--signal);
+}
+.lp-caret {
+  display: inline-block;
+  width: 6px;
+  height: 0.85em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--signal);
+  box-shadow: 0 0 6px -1px var(--signal-glow);
+  animation: lp-blink 1s steps(2, start) infinite;
+}
+@keyframes lp-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
  * Section scaffolding
  * ------------------------------------------------------------------------ */
 .lp-section {
@@ -787,11 +1182,11 @@ a {
 .lp-tour {
   display: grid;
   gap: 1.1rem;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 @media (min-width: 880px) {
   .lp-tour {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 .lp-term {
@@ -803,6 +1198,7 @@ a {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .lp-term__bar {
   display: flex;
@@ -823,13 +1219,14 @@ a {
 .lp-term__body {
   padding: 0.95rem 1.05rem;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.78rem;
+  font-size: clamp(0.68rem, 0.6rem + 0.4vw, 0.78rem);
   line-height: 1.65;
   overflow-x: auto;
   margin: 0;
   white-space: pre;
   color: oklch(0.9 0.01 265);
   flex: 1;
+  min-width: 0;
 }
 .lp-term__body .lp-prompt {
   color: var(--signal);
@@ -854,6 +1251,457 @@ a {
 }
 .lp-term__body .lp-str {
   color: var(--signal);
+}
+
+/* --------------------------------------------------------------------------
+ * Terminal playground — chips + progress + typewriter terminal
+ *
+ * Reuses the .lp-term terminal chrome from the command tour, paired with a
+ * control panel of command chips and a gamified exploration meter.
+ * ------------------------------------------------------------------------ */
+.lp-play {
+  display: grid;
+  gap: 1.1rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 940px) {
+  .lp-play {
+    grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+  }
+}
+
+/* --- control panel --- */
+.lp-play__panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--sl-shadow-sm, 0 1px 2px 0 rgb(0 0 0 / 0.3)),
+    inset 0 1px 0 0 var(--hairline-top);
+  padding: 1.1rem 1.15rem 1.25rem;
+}
+.lp-play__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+.lp-play__eyebrow {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted-foreground);
+}
+
+/* progress meter */
+.lp-play__progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+.lp-play__meter {
+  position: relative;
+  display: inline-block;
+  width: 4.5rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.lp-play__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  background: var(--signal);
+  box-shadow: 0 0 8px -1px var(--signal-glow);
+  transition: width var(--dur-normal) var(--ease-out-expo);
+}
+.lp-play__count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted-foreground);
+}
+.lp-play__n,
+.lp-play__total {
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+/* chips */
+.lp-play__chips {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.lp-play__chip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 3px);
+  background: var(--bg-0);
+  padding: 0.6rem 0.7rem;
+  min-height: 2.75rem;
+  color: var(--foreground);
+  transition: border-color var(--dur-fast) var(--ease-out-expo),
+    background var(--dur-fast) var(--ease-out-expo),
+    transform var(--dur-fast) var(--ease-out-expo);
+}
+.lp-play__chip:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-2);
+  transform: translateX(2px);
+}
+.lp-play__chip:active {
+  background: var(--bg-3);
+  transform: translateX(1px);
+}
+.lp-play__chip[aria-current='true'] {
+  border-color: color-mix(in oklch, var(--signal) 55%, var(--border));
+  background: color-mix(in oklch, var(--signal) 10%, var(--bg-0));
+}
+.lp-play__chip-dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  transition: background var(--dur-fast) var(--ease-out-expo),
+    border-color var(--dur-fast) var(--ease-out-expo),
+    box-shadow var(--dur-fast) var(--ease-out-expo);
+}
+.lp-play__chip.is-explored .lp-play__chip-dot {
+  background: var(--signal);
+  border-color: var(--signal);
+  box-shadow: 0 0 8px -1px var(--signal-glow);
+}
+.lp-play__chip[aria-current='true'] .lp-play__chip-dot {
+  background: var(--signal);
+  border-color: var(--signal);
+}
+.lp-play__chip-cmd {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  letter-spacing: -0.01em;
+}
+.lp-play__chip.is-explored .lp-play__chip-cmd {
+  color: var(--muted-foreground);
+}
+
+.lp-play__hint {
+  margin: 0.85rem 0 0;
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}
+
+/* reward badge */
+.lp-play__reward {
+  margin-top: 0.85rem;
+}
+.lp-play__reward-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--signal);
+  border: 1px solid color-mix(in oklch, var(--signal) 45%, transparent);
+  background: color-mix(in oklch, var(--signal) 12%, transparent);
+  border-radius: 999px;
+  padding: 0.32rem 0.7rem;
+  animation: lp-reward-pop var(--dur-normal) var(--ease-out-expo);
+}
+.lp-play[data-complete='true'] .lp-play__reward-badge {
+  box-shadow: 0 0 0 0 var(--signal-glow);
+  animation: lp-reward-pop var(--dur-normal) var(--ease-out-expo),
+    lp-reward-pulse 2.4s var(--ease-out-expo) 1;
+}
+@keyframes lp-reward-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes lp-reward-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--signal-glow);
+  }
+  70% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* --- terminal screen --- */
+.lp-play__term {
+  min-height: 18rem;
+}
+.lp-play__term .lp-term__bar {
+  position: relative;
+}
+.lp-play__copy {
+  position: absolute;
+  right: 0.6rem;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 5px);
+  background: var(--bg-0);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color var(--dur-fast), border-color var(--dur-fast),
+    background var(--dur-fast);
+}
+.lp-play__copy:hover {
+  color: var(--signal);
+  border-color: var(--border-strong);
+  background: var(--bg-3);
+}
+.lp-play__copy:active {
+  background: var(--bg-2);
+}
+.lp-play__copy[data-copied='true'] {
+  color: var(--status-healthy);
+  border-color: color-mix(in oklch, var(--status-healthy) 45%, transparent);
+}
+.lp-play__copy .lp-icon-check {
+  display: none;
+}
+.lp-play__copy[data-copied='true'] .lp-icon-check {
+  display: block;
+}
+.lp-play__copy[data-copied='true'] .lp-icon-copy {
+  display: none;
+}
+.lp-play__screen {
+  min-height: 15rem;
+}
+/* typewriter caret while a command is being typed */
+.lp-play__caret {
+  display: inline-block;
+  width: 7px;
+  height: 0.95em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--signal);
+  box-shadow: 0 0 6px -1px var(--signal-glow);
+  animation: lp-blink 1s steps(2, start) infinite;
+}
+
+/* --------------------------------------------------------------------------
+ * Count-up stats band
+ *
+ * A hairline-bracketed strip of mono metrics that count from 0 to target on
+ * scroll. The number reads in signal/foreground mono; labels in muted grotesk.
+ * ------------------------------------------------------------------------ */
+.lp-statband {
+  padding-block: clamp(1rem, 2vw, 1.75rem);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.lp-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--border);
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 0 var(--hairline-top);
+}
+@media (min-width: 720px) {
+  .lp-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.lp-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: clamp(0.85rem, 2vw, 1.15rem) clamp(0.9rem, 2.5vw, 1.25rem);
+  background: var(--bg-1);
+  min-width: 0;
+  /* faint corner glow so the band reads layered, not flat */
+  background-image: radial-gradient(
+    120% 140% at 0% 0%,
+    color-mix(in oklch, var(--signal) 4%, transparent),
+    transparent 60%
+  );
+}
+.lp-stat__num {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: clamp(1.55rem, 1rem + 2.2vw, 2.6rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.lp-stat__num.lp-accent {
+  color: var(--signal);
+  text-shadow: 0 0 26px var(--signal-glow);
+}
+.lp-stat__label {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(0.62rem, 0.55rem + 0.35vw, 0.74rem);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--muted-foreground);
+}
+
+/* --------------------------------------------------------------------------
+ * Build-your-stack — segmented selectors + live composed-command terminal
+ * ------------------------------------------------------------------------ */
+.lp-stack {
+  display: grid;
+  gap: 1.1rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 940px) {
+  .lp-stack {
+    grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+  }
+}
+
+.lp-stack__panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--sl-shadow-sm, 0 1px 2px 0 rgb(0 0 0 / 0.3)),
+    inset 0 1px 0 0 var(--hairline-top);
+  padding: 1.2rem 1.25rem 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+.lp-stack__group {
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+.lp-stack__legend {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0;
+  margin-bottom: 0.6rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted-foreground);
+}
+.lp-stack__legend-note {
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  text-transform: lowercase;
+}
+.lp-stack__opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.lp-stack__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  appearance: none;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  background: var(--bg-0);
+  color: var(--foreground);
+  padding: 0.48rem 0.75rem;
+  min-height: 2.5rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: border-color var(--dur-fast) var(--ease-out-expo),
+    background var(--dur-fast) var(--ease-out-expo),
+    color var(--dur-fast) var(--ease-out-expo),
+    transform var(--dur-fast) var(--ease-out-expo);
+}
+.lp-stack__opt:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-2);
+  transform: translateY(-1px);
+}
+.lp-stack__opt:active {
+  transform: translateY(0);
+  background: var(--bg-3);
+}
+.lp-stack__opt-lang {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.lp-stack__opt[aria-checked='true'] {
+  border-color: color-mix(in oklch, var(--signal) 60%, var(--border));
+  background: color-mix(in oklch, var(--signal) 14%, var(--bg-0));
+  color: var(--signal);
+  box-shadow: 0 0 14px -4px var(--signal-glow);
+}
+.lp-stack__opt[aria-checked='true'] .lp-stack__opt-lang {
+  color: color-mix(in oklch, var(--signal) 70%, var(--muted-foreground));
+}
+
+/* the composed-command terminal */
+.lp-stack__term {
+  min-height: 12rem;
+  min-width: 0;
+  position: sticky;
+  top: 4.5rem;
+}
+.lp-stack__copy {
+  position: absolute;
+  right: 0.6rem;
+}
+.lp-stack__screen {
+  min-height: 8.5rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.lp-stack__screen--flash {
+  animation: lp-stack-flash 700ms var(--ease-out-expo) 1;
+}
+@keyframes lp-stack-flash {
+  from {
+    background: color-mix(in oklch, var(--signal) 10%, transparent);
+  }
+  to {
+    background: transparent;
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -1069,4 +1917,86 @@ a {
   .lp-live-dot {
     animation: none !important;
   }
+  /* Browser-hero motion: instant tab swap, static graph/caret. */
+  .lp-edge--active,
+  .lp-caret,
+  .lp-play__caret,
+  .lp-panel.is-shown {
+    animation: none !important;
+  }
+  /* Playground: no reward pulse/pop, no chip nudge under reduced motion. */
+  .lp-play__reward-badge {
+    animation: none !important;
+  }
+  .lp-play__chip:hover {
+    transform: none !important;
+  }
+  .lp-tab[aria-selected='true']::after {
+    transition: none !important;
+  }
+  /* Stats are static (JS skips count-up); neutralize the rest of the motion. */
+  .lp-stack__screen--flash {
+    animation: none !important;
+    background: transparent !important;
+  }
+  .lp-stack__opt:hover {
+    transform: none !important;
+  }
+  /* Hero parallax never engages, but reset any inherited transform defensively. */
+  .lp-browser {
+    transform: none !important;
+    will-change: auto;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Light theme — intentional adjustments
+ *
+ * Terminal blocks keep the near-black background (that's the aesthetic;
+ * text colors are already AA-contrast on dark surfaces). The browser-frame
+ * and card surfaces get a visible hairline in light mode.
+ * ------------------------------------------------------------------------ */
+[data-theme='light'] .lp-bento__cell {
+  box-shadow: 0 2px 8px -3px rgb(0 0 0 / 0.12),
+    inset 0 1px 0 0 rgb(255 255 255 / 1);
+}
+[data-theme='light'] .lp-bento__cell:hover {
+  box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.18),
+    inset 0 1px 0 0 rgb(255 255 255 / 1);
+}
+[data-theme='light'] .lp-browser,
+[data-theme='light'] .lp-cta {
+  box-shadow: 0 12px 40px -16px rgb(0 0 0 / 0.18),
+    inset 0 1px 0 0 rgb(255 255 255 / 0.9);
+}
+[data-theme='light'] .lp-why__item {
+  border-top-color: var(--border);
+}
+[data-theme='light'] .lp-statband {
+  background: var(--bg-1);
+}
+[data-theme='light'] .lp-stat {
+  background-image: radial-gradient(
+    120% 140% at 0% 0%,
+    color-mix(in oklch, var(--signal) 6%, transparent),
+    transparent 60%
+  );
+}
+/* The atmospheric backdrop is purely decorative; tone it down in light mode */
+[data-theme='light'] body {
+  background-image:
+    radial-gradient(
+      120% 80% at 80% -10%,
+      color-mix(in oklch, var(--signal) 7%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      90% 60% at 0% 0%,
+      color-mix(in oklch, var(--status-info) 4%, transparent),
+      transparent 55%
+    );
+}
+/* Tour tour section separator */
+[data-theme='light'] .lp-term {
+  border-color: var(--border-strong);
 }

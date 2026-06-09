@@ -25,6 +25,61 @@ const trust = [
   { num: '127.0.0.1', label: 'local-only dashboard' },
 ] as const;
 
+/* ---------------------------------------------------------------------------
+ * Count-up stats strip — each value animates from 0 to target on scroll. The
+ * `value` is the final rendered text (also the JS-off static state); `to` is
+ * the numeric target the island counts toward; `prefix`/`suffix` decorate it.
+ * ------------------------------------------------------------------------- */
+type Stat = {
+  to: number;
+  value: string;
+  prefix?: string;
+  suffix?: string;
+  label: string;
+  accent?: boolean;
+};
+const stats: Stat[] = [
+  { to: 205, value: '205', label: 'framework templates', accent: true },
+  { to: 36, value: '36', label: 'languages' },
+  { to: 27, value: '27', label: 'command groups' },
+  { to: 43, value: '43', prefix: '~', suffix: 'ms', label: 'cold startup' },
+];
+
+/* ---------------------------------------------------------------------------
+ * Build-your-stack — three on-brand selector groups that live-compose real
+ * Re-Shell commands. Frontend/backend are single-select; infra is multi-select.
+ * The `cmd` factory shows the exact command the chosen template maps to.
+ * ------------------------------------------------------------------------- */
+type StackOpt = { id: string; label: string; template: string; lang: string };
+const stackFrontend: StackOpt[] = [
+  { id: 'react', label: 'React', template: 'react', lang: 'typescript' },
+  { id: 'vue', label: 'Vue', template: 'vue', lang: 'typescript' },
+  { id: 'svelte', label: 'Svelte', template: 'svelte', lang: 'typescript' },
+  { id: 'angular', label: 'Angular', template: 'angular', lang: 'typescript' },
+];
+const stackBackend: StackOpt[] = [
+  { id: 'fastapi', label: 'FastAPI', template: 'fastapi', lang: 'python' },
+  { id: 'express', label: 'Express', template: 'express', lang: 'typescript' },
+  { id: 'nestjs', label: 'NestJS', template: 'nestjs', lang: 'typescript' },
+  { id: 'spring-boot', label: 'Spring Boot', template: 'spring-boot', lang: 'java' },
+  { id: 'gin', label: 'Gin', template: 'gin', lang: 'go' },
+  { id: 'actix-web', label: 'Actix-Web', template: 'actix-web', lang: 'rust' },
+];
+const stackInfra: StackOpt[] = [
+  { id: 'k8s', label: 'Kubernetes', template: 'k8s', lang: 'yaml' },
+  { id: 'helm', label: 'Helm', template: 'helm', lang: 'yaml' },
+  { id: 'gitops', label: 'GitOps', template: 'gitops', lang: 'yaml' },
+];
+
+/** Default selection (the JS-off static composed command reflects this). */
+const STACK_DEFAULT = { frontend: 'react', backend: 'fastapi', infra: [] as string[] };
+const STACK_DATA = {
+  frontend: stackFrontend,
+  backend: stackBackend,
+  infra: stackInfra,
+  defaults: STACK_DEFAULT,
+};
+
 const features = [
   {
     title: 'One CLI, the whole stack',
@@ -100,6 +155,206 @@ const why = [
   },
 ] as const;
 
+/* ---------------------------------------------------------------------------
+ * Terminal playground — deterministic, hard-coded command recordings.
+ *
+ * Each entry is a real CLI command paired with canned, realistic output. The
+ * output is authored as token segments ({ t: text, c?: colorClass }) so the
+ * vanilla-TS island can render the same markup it builds at runtime, and the
+ * server can pre-render the FIRST command for a valid JS-off static state.
+ * Nothing here executes — it is a recording.
+ * ------------------------------------------------------------------------- */
+type Seg = { t: string; c?: string };
+type Line = Seg[];
+type PlayCmd = {
+  /** chip label (short) */
+  label: string;
+  /** command after the `re-shell` binary, e.g. "workspace summary --json" */
+  cmd: string;
+  /** colorized output lines */
+  out: Line[];
+};
+
+const seg = (t: string, c?: string): Seg => (c ? { t, c } : { t });
+
+const PLAYGROUND: PlayCmd[] = [
+  {
+    label: 'workspace summary --json',
+    cmd: 'workspace summary --json',
+    out: [
+      [seg('{', 'lp-mute')],
+      [seg('  '), seg('"ok"', 'lp-key'), seg(': '), seg('true', 'lp-ok'), seg(',')],
+      [seg('  '), seg('"data"', 'lp-key'), seg(': '), seg('{', 'lp-mute')],
+      [seg('    '), seg('"root"', 'lp-key'), seg(': '), seg('"./acme-platform"', 'lp-str'), seg(',')],
+      [seg('    '), seg('"packageManager"', 'lp-key'), seg(': '), seg('"pnpm"', 'lp-str'), seg(',')],
+      [seg('    '), seg('"workspaces"', 'lp-key'), seg(': '), seg('12', 'lp-ok'), seg(',')],
+      [seg('    '), seg('"graph"', 'lp-key'), seg(': '), seg('{ "nodes": 12, "edges": 19 }', 'lp-mute'), seg(',')],
+      [seg('    '), seg('"health"', 'lp-key'), seg(': '), seg('"healthy"', 'lp-str')],
+      [seg('  '), seg('}', 'lp-mute'), seg(',')],
+      [seg('  '), seg('"warnings"', 'lp-key'), seg(': '), seg('[]', 'lp-mute')],
+      [seg('}', 'lp-mute')],
+    ],
+  },
+  {
+    label: 'templates list',
+    cmd: 'templates list',
+    out: [
+      [seg('📋 Templates (', 'lp-mute'), seg('205', 'lp-ok'), seg(')', 'lp-mute')],
+      [],
+      [seg('  frontend', 'lp-mute')],
+      [seg('  ● ', 'lp-str'), seg('react       '), seg('[typescript]', 'lp-mute'), seg(' Module-Federation shell')],
+      [seg('  ● ', 'lp-str'), seg('vue         '), seg('[typescript]', 'lp-mute'), seg(' composition-API app')],
+      [seg('  ● ', 'lp-str'), seg('svelte      '), seg('[typescript]', 'lp-mute'), seg(' compiled, reactive')],
+      [],
+      [seg('  backend', 'lp-mute')],
+      [seg('  ● ', 'lp-str'), seg('fastify     '), seg('[typescript]', 'lp-mute'), seg(' schema-based, fast')],
+      [seg('  ● ', 'lp-str'), seg('actix-web   '), seg('[rust]', 'lp-mute'), seg('       high-performance async')],
+      [seg('  ● ', 'lp-str'), seg('phoenix     '), seg('[elixir]', 'lp-mute'), seg('     real-time, fault-tolerant')],
+      [],
+      [seg('  … 36 languages · 171 frameworks', 'lp-mute')],
+    ],
+  },
+  {
+    label: 'doctor',
+    cmd: 'doctor',
+    out: [
+      [seg('✓', 'lp-ok'), seg(' workspace config valid')],
+      [seg('✓', 'lp-ok'), seg(' package manager resolved '), seg('(pnpm)', 'lp-mute')],
+      [seg('✓', 'lp-ok'), seg(' dependency graph acyclic '), seg('(12 nodes)', 'lp-mute')],
+      [seg('!', 'lp-warn'), seg(' 1 minor version drift '), seg('(run --fix)', 'lp-mute')],
+      [seg('✓', 'lp-ok'), seg(' 36 / 36 health checks passed')],
+      [],
+      [seg('Run with ', 'lp-mute'), seg('--fix', 'lp-flag'), seg(' to apply safe repairs.', 'lp-mute')],
+    ],
+  },
+  {
+    label: 'create web-shell --framework react',
+    cmd: 'create web-shell --framework react',
+    out: [
+      [seg('▸ scaffolding ', 'lp-mute'), seg('web-shell', 'lp-cmd'), seg(' ', 'lp-mute'), seg('[react]', 'lp-flag')],
+      [seg('✓', 'lp-ok'), seg(' template resolved '), seg('react@ts', 'lp-str')],
+      [seg('✓', 'lp-ok'), seg(' wrote 18 files '), seg('(apps/web-shell)', 'lp-mute')],
+      [seg('✓', 'lp-ok'), seg(' registered in workspace graph')],
+      [seg('✓', 'lp-ok'), seg(' installed dependencies '), seg('(pnpm)', 'lp-mute')],
+      [],
+      [seg('Next: ', 'lp-mute'), seg('re-shell dev web-shell', 'lp-cmd')],
+    ],
+  },
+  {
+    label: 'workspace graph',
+    cmd: 'workspace graph',
+    out: [
+      [seg('workspace graph ', 'lp-mute'), seg('(12 nodes · 19 edges)', 'lp-mute')],
+      [],
+      [seg('  web-shell', 'lp-cmd'), seg(' ─▶ ', 'lp-str'), seg('gateway', 'lp-cmd')],
+      [seg('  admin', 'lp-cmd'), seg('     ─▶ ', 'lp-str'), seg('gateway', 'lp-cmd')],
+      [seg('  gateway', 'lp-cmd'), seg('   ─▶ ', 'lp-str'), seg('api · auth · ', 'lp-cmd'), seg('payments', 'lp-warn')],
+      [],
+      [seg('✓', 'lp-ok'), seg(' acyclic  '), seg('!', 'lp-warn'), seg(' payments: minor drift', 'lp-mute')],
+    ],
+  },
+  {
+    label: 'ui',
+    cmd: 'ui',
+    out: [
+      [seg('▸ launching local dashboard…', 'lp-mute')],
+      [seg('  host    '), seg('127.0.0.1', 'lp-str'), seg('  (loopback only)', 'lp-mute')],
+      [seg('  port    '), seg('3333', 'lp-ok')],
+      [seg('  auth    '), seg('token', 'lp-str'), seg('      (shell-free)', 'lp-mute')],
+      [seg('✓', 'lp-ok'), seg(' ready  '), seg('http://127.0.0.1:3333', 'lp-str')],
+      [seg('Opening browser…  Ctrl+C to stop.', 'lp-mute')],
+    ],
+  },
+];
+
+/** Render one command (prompt line + output) to static HTML for SSR + JS-off. */
+const renderPlay = (c: PlayCmd): string => {
+  const escape = (s: string): string =>
+    s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  const span = (s: Seg): string =>
+    s.c ? `<span class="${s.c}">${escape(s.t)}</span>` : escape(s.t);
+  const prompt = `<span class="lp-prompt">$</span> <span class="lp-cmd">re-shell ${escape(
+    c.cmd
+  )}</span>`;
+  const body = c.out.map((line) => line.map(span).join('')).join('\n');
+  return `${prompt}\n${body}`;
+};
+
+/** Serialize the deck for the client island (typed; no runtime DOM scraping). */
+const PLAY_DATA = PLAYGROUND.map((c) => ({ cmd: c.cmd, out: c.out }));
+
+/* ---------------------------------------------------------------------------
+ * Stack-builder command composition — the SAME logic the island runs at
+ * runtime, used here to pre-render the default static command block (JS-off).
+ * ------------------------------------------------------------------------- */
+type StackSel = { frontend: string; backend: string; infra: string[] };
+const composeStack = (sel: StackSel): Line[] => {
+  const lines: Line[] = [];
+  const fe = stackFrontend.find((o) => o.id === sel.frontend);
+  const be = stackBackend.find((o) => o.id === sel.backend);
+  if (fe) {
+    lines.push([
+      seg('$ ', 'lp-prompt'),
+      seg('re-shell create ', 'lp-cmd'),
+      seg('web ', 'lp-cmd'),
+      seg('--template ', 'lp-flag'),
+      seg(fe.template, 'lp-str'),
+    ]);
+  }
+  if (be) {
+    lines.push([
+      seg('$ ', 'lp-prompt'),
+      seg('re-shell generate service ', 'lp-cmd'),
+      seg('--template ', 'lp-flag'),
+      seg(be.template, 'lp-str'),
+    ]);
+  }
+  sel.infra.forEach((id) => {
+    const inf = stackInfra.find((o) => o.id === id);
+    if (inf) {
+      lines.push([
+        seg('$ ', 'lp-prompt'),
+        seg(`re-shell ${inf.template} generate`, 'lp-cmd'),
+      ]);
+    }
+  });
+  if (lines.length === 0) {
+    lines.push([seg('# pick a frontend or backend to compose a command', 'lp-mute')]);
+  }
+  return lines;
+};
+/** Render composed command lines to static HTML (SSR + JS-off). */
+const renderStack = (sel: StackSel): string => {
+  const escape = (s: string): string =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const span = (s: Seg): string =>
+    s.c ? `<span class="${s.c}">${escape(s.t)}</span>` : escape(s.t);
+  return composeStack(sel)
+    .map((line) => line.map(span).join(''))
+    .join('\n');
+};
+const STACK_DEFAULT_HTML = renderStack({
+  frontend: STACK_DEFAULT.frontend,
+  backend: STACK_DEFAULT.backend,
+  infra: STACK_DEFAULT.infra,
+});
+/** Plain text of the default composed command(s) for the static copy button. */
+const STACK_DEFAULT_COPY = composeStack({
+  frontend: STACK_DEFAULT.frontend,
+  backend: STACK_DEFAULT.backend,
+  infra: STACK_DEFAULT.infra,
+})
+  .map((line) =>
+    line
+      .map((s) => s.t)
+      .join('')
+      .replace(/^\$ /, '')
+  )
+  .join('\n');
+
 /** Inline stroke icons for the feature bento (no icon dependency). */
 const ICONS: Record<string, string> = {
   rocket:
@@ -174,6 +429,7 @@ const icon = (name: string) => ICONS[name] ?? '';
         <nav class="lp-nav" aria-label="Primary">
           <a class="lp-nav-hide" href="#features">Features</a>
           <a class="lp-nav-hide" href="#commands">Commands</a>
+          <a class="lp-nav-hide" href="#build">Build</a>
           <a class="lp-nav-hide" href={docs('roadmap')}>Roadmap</a>
           <a href={docs('getting-started/install')} class="lp-nav-cta"
             >Docs</a
@@ -182,7 +438,8 @@ const icon = (name: string) => ICONS[name] ?? '';
             class="lp-theme-toggle"
             type="button"
             id="lp-theme"
-            aria-label="Toggle color theme"
+            aria-label="Switch to light theme"
+            aria-pressed="false"
           >
             <svg
               class="lp-icon-moon"
@@ -218,7 +475,7 @@ const icon = (name: string) => ICONS[name] ?? '';
       </div>
     </header>
 
-    <main id="main">
+    <main id="main" aria-label="Re-Shell product overview">
       <!-- ============================= HERO ============================= -->
       <section class="lp-hero">
         <div class="lp-shell lp-hero__grid">
@@ -321,117 +578,329 @@ const icon = (name: string) => ICONS[name] ?? '';
             </dl>
           </div>
 
-          <!-- ===== DASHBOARD RECREATION (hero visual) ===== -->
-          <div class="lp-window lp-reveal" role="img"
-            aria-label="Re-Shell dashboard: sidebar with active Overview nav, a bento of workspace, health, and jobs tiles, and a terminal block.">
-            <div class="lp-win-bar">
-              <span class="lp-dot lp-dot--r"></span>
-              <span class="lp-dot lp-dot--y"></span>
-              <span class="lp-dot lp-dot--g"></span>
-              <span class="lp-win-path">re-shell ui · 127.0.0.1:3333</span>
-              <span class="lp-win-live"
-                ><span class="lp-live-dot"></span>live</span
+          <!-- ===== BROWSER-FRAMED DASHBOARD (interactive, tabbed) ===== -->
+          <figure
+            class="lp-browser lp-reveal"
+            id="lp-browser"
+            role="group"
+            aria-label="Re-Shell local dashboard preview"
+          >
+            <!-- realistic browser chrome -->
+            <div class="lp-browser__chrome">
+              <span class="lp-traffic" aria-hidden="true">
+                <span class="lp-dot lp-dot--r"></span>
+                <span class="lp-dot lp-dot--y"></span>
+                <span class="lp-dot lp-dot--g"></span>
+              </span>
+              <span class="lp-browser__tab" id="lp-browser-tab" aria-hidden="true"
+                >Re-Shell — overview</span
               >
+              <div class="lp-browser__url" aria-hidden="true">
+                <svg
+                  class="lp-lock"
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                >
+                  <rect x="5" y="11" width="14" height="9" rx="2"></rect>
+                  <path d="M8 11V8a4 4 0 0 1 8 0v3" stroke-linecap="round"></path>
+                </svg>
+                <span class="lp-browser__host">https://localhost:3333</span>
+                <span class="lp-win-live"
+                  ><span class="lp-live-dot"></span>live</span
+                >
+              </div>
             </div>
-            <div class="lp-win-body">
-              <aside class="lp-win-side" aria-hidden="true">
-                <span class="lp-side-grp">Control</span>
-                <span class="lp-side-item lp-side-item--active"
-                  ><span class="lp-mark">◆</span>Overview</span
+
+            <!-- viewport: tablist + panels -->
+            <div class="lp-browser__viewport">
+              <div
+                class="lp-tabs"
+                role="tablist"
+                aria-label="Dashboard views"
+                aria-orientation="horizontal"
+              >
+                <button
+                  class="lp-tab"
+                  role="tab"
+                  id="tab-overview"
+                  aria-selected="true"
+                  aria-controls="panel-overview"
+                  tabindex="0"
+                  type="button"
                 >
-                <span class="lp-side-item"
-                  ><span class="lp-mark">◇</span>Workspace</span
+                  Overview
+                </button>
+                <button
+                  class="lp-tab"
+                  role="tab"
+                  id="tab-graph"
+                  aria-selected="false"
+                  aria-controls="panel-graph"
+                  tabindex="-1"
+                  type="button"
                 >
-                <span class="lp-side-item"
-                  ><span class="lp-mark">◇</span>Templates</span
+                  Graph
+                </button>
+                <button
+                  class="lp-tab"
+                  role="tab"
+                  id="tab-jobs"
+                  aria-selected="false"
+                  aria-controls="panel-jobs"
+                  tabindex="-1"
+                  type="button"
                 >
-                <span class="lp-side-item"
-                  ><span class="lp-mark">◇</span>Jobs</span
-                >
-                <span class="lp-side-item"
-                  ><span class="lp-mark">◇</span>Health</span
-                >
-                <span class="lp-side-grp">System</span>
-                <span class="lp-side-item"
-                  ><span class="lp-mark">◇</span>Settings</span
-                >
-              </aside>
-              <div class="lp-win-main" aria-hidden="true">
-                <div class="lp-tile lp-tile--hero">
-                  <div>
-                    <div class="lp-tile__label">Workspaces</div>
-                    <div class="lp-tile__metric">
-                      12<span class="lp-accent"> ✓</span>
+                  Jobs &amp; Logs
+                </button>
+              </div>
+
+              <!-- ===== Overview panel (default; visible with JS off) ===== -->
+              <div
+                class="lp-panel lp-panel--overview"
+                id="panel-overview"
+                role="tabpanel"
+                aria-labelledby="tab-overview"
+                tabindex="0"
+              >
+                <div class="lp-win-main">
+                  <div class="lp-tile lp-tile--hero">
+                    <div>
+                      <div class="lp-tile__label">Workspaces</div>
+                      <div class="lp-tile__metric">
+                        12<span class="lp-accent"> ✓</span>
+                      </div>
+                      <div class="lp-tile__sub">8 apps · 4 services · synced</div>
                     </div>
-                    <div class="lp-tile__sub">8 apps · 4 services · synced</div>
+                    <div class="lp-spark" aria-hidden="true">
+                      <span style="height:40%"></span>
+                      <span style="height:55%"></span>
+                      <span style="height:48%"></span>
+                      <span style="height:70%"></span>
+                      <span style="height:62%"></span>
+                      <span style="height:85%"></span>
+                      <span style="height:100%"></span>
+                    </div>
                   </div>
-                  <div class="lp-spark">
-                    <span style="height:40%"></span>
-                    <span style="height:55%"></span>
-                    <span style="height:48%"></span>
-                    <span style="height:70%"></span>
-                    <span style="height:62%"></span>
-                    <span style="height:85%"></span>
-                    <span style="height:100%"></span>
+                  <div class="lp-tile">
+                    <div class="lp-tile__label">Health</div>
+                    <div style="margin-top:.5rem">
+                      <span class="lp-badge lp-badge--healthy"
+                        ><i></i>Healthy</span
+                      >
+                    </div>
+                    <div class="lp-tile__sub">36/36 checks</div>
+                  </div>
+                  <div class="lp-tile">
+                    <div class="lp-tile__label">Drift</div>
+                    <div style="margin-top:.5rem">
+                      <span class="lp-badge lp-badge--warn"><i></i>2 warn</span>
+                    </div>
+                    <div class="lp-tile__sub">deps · 1 minor</div>
+                  </div>
+                  <div class="lp-tile lp-jobs">
+                    <div class="lp-tile__label" style="margin-bottom:.3rem">
+                      Recent jobs
+                    </div>
+                    <div class="lp-job-row">
+                      <span class="lp-badge lp-badge--healthy"><i></i>ok</span>
+                      <span class="lp-job-id">build · web-shell</span>
+                      <span class="lp-job-dur">4.2s</span>
+                    </div>
+                    <div class="lp-job-row">
+                      <span class="lp-badge lp-badge--healthy"><i></i>ok</span>
+                      <span class="lp-job-id">generate · api</span>
+                      <span class="lp-job-dur">1.1s</span>
+                    </div>
+                    <div class="lp-job-row">
+                      <span class="lp-badge lp-badge--info"><i></i>run</span>
+                      <span class="lp-job-id">doctor --fix</span>
+                      <span class="lp-job-dur">…</span>
+                    </div>
+                  </div>
+                  <div class="lp-mini-term">
+                    <div>
+                      <span class="lp-prompt">$</span> re-shell workspace summary
+                      <span class="lp-mute">--json</span>
+                    </div>
+                    <div><span class="lp-mute">{`{ "ok": `}</span><span
+                        class="lp-ok">true</span
+                      ><span class="lp-mute">{`, "data": { … } }`}</span></div>
                   </div>
                 </div>
-                <div class="lp-tile">
-                  <div class="lp-tile__label">Health</div>
-                  <div style="margin-top:.5rem">
-                    <span class="lp-badge lp-badge--healthy"
-                      ><i></i>Healthy</span
-                    >
+              </div>
+
+              <!-- ===== Graph panel — SVG workspace topology ===== -->
+              <div
+                class="lp-panel lp-panel--graph"
+                id="panel-graph"
+                role="tabpanel"
+                aria-labelledby="tab-graph"
+                tabindex="0"
+                hidden
+              >
+                <figure class="lp-graph" aria-label="Workspace topology: web-shell and admin frontends depend on the gateway, which routes to the api, auth, and payments services.">
+                  <svg
+                    class="lp-graph__svg"
+                    viewBox="0 0 360 240"
+                    role="img"
+                    preserveAspectRatio="xMidYMid meet"
+                    aria-hidden="true"
+                  >
+                    <!-- edges -->
+                    <g class="lp-graph__edges">
+                      <path class="lp-edge" d="M92 56 H180 V108" />
+                      <path class="lp-edge" d="M92 184 H180 V132" />
+                      <path class="lp-edge lp-edge--active" d="M232 120 H300 V64" />
+                      <path class="lp-edge lp-edge--active" d="M232 120 H300" />
+                      <path class="lp-edge lp-edge--active" d="M232 120 H300 V176" />
+                    </g>
+                    <!-- nodes -->
+                    <g class="lp-graph__nodes">
+                      <g class="lp-node" transform="translate(20,40)">
+                        <rect width="72" height="32" rx="7"></rect>
+                        <circle class="lp-node__dot lp-node__dot--ok" cx="12" cy="16" r="3"></circle>
+                        <text x="24" y="20">web-shell</text>
+                      </g>
+                      <g class="lp-node" transform="translate(20,168)">
+                        <rect width="72" height="32" rx="7"></rect>
+                        <circle class="lp-node__dot lp-node__dot--ok" cx="12" cy="16" r="3"></circle>
+                        <text x="24" y="20">admin</text>
+                      </g>
+                      <g class="lp-node lp-node--hub" transform="translate(176,104)">
+                        <rect width="60" height="32" rx="7"></rect>
+                        <circle class="lp-node__dot lp-node__dot--ok" cx="12" cy="16" r="3"></circle>
+                        <text x="22" y="20">gateway</text>
+                      </g>
+                      <g class="lp-node" transform="translate(296,48)">
+                        <rect width="56" height="32" rx="7"></rect>
+                        <circle class="lp-node__dot lp-node__dot--ok" cx="12" cy="16" r="3"></circle>
+                        <text x="22" y="20">api</text>
+                      </g>
+                      <g class="lp-node" transform="translate(296,104)">
+                        <rect width="56" height="32" rx="7"></rect>
+                        <circle class="lp-node__dot lp-node__dot--ok" cx="12" cy="16" r="3"></circle>
+                        <text x="22" y="20">auth</text>
+                      </g>
+                      <g class="lp-node" transform="translate(296,160)">
+                        <rect width="56" height="32" rx="7"></rect>
+                        <circle class="lp-node__dot lp-node__dot--warn" cx="12" cy="16" r="3"></circle>
+                        <text x="20" y="20">payments</text>
+                      </g>
+                    </g>
+                  </svg>
+                  <figcaption class="lp-graph__legend">
+                    <span><i class="lp-leg lp-leg--ok"></i>healthy</span>
+                    <span><i class="lp-leg lp-leg--warn"></i>drift</span>
+                    <span class="lp-graph__hint">6 nodes · 19 edges</span>
+                  </figcaption>
+                </figure>
+              </div>
+
+              <!-- ===== Jobs & Logs panel — table + live log stream ===== -->
+              <div
+                class="lp-panel lp-panel--jobs"
+                id="panel-jobs"
+                role="tabpanel"
+                aria-labelledby="tab-jobs"
+                tabindex="0"
+                hidden
+              >
+                <div class="lp-jobgrid">
+                  <table class="lp-jobtable">
+                    <caption class="lp-vh">Recent jobs</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Status</th>
+                        <th scope="col">Job</th>
+                        <th scope="col">Dur</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><span class="lp-badge lp-badge--healthy"><i></i>ok</span></td>
+                        <td class="lp-job-id">build · web-shell</td>
+                        <td class="lp-job-dur">4.2s</td>
+                      </tr>
+                      <tr>
+                        <td><span class="lp-badge lp-badge--healthy"><i></i>ok</span></td>
+                        <td class="lp-job-id">generate · api</td>
+                        <td class="lp-job-dur">1.1s</td>
+                      </tr>
+                      <tr>
+                        <td><span class="lp-badge lp-badge--healthy"><i></i>ok</span></td>
+                        <td class="lp-job-id">test · auth</td>
+                        <td class="lp-job-dur">2.7s</td>
+                      </tr>
+                      <tr class="lp-jobtable__running">
+                        <td><span class="lp-badge lp-badge--info"><i></i>run</span></td>
+                        <td class="lp-job-id">doctor --fix</td>
+                        <td class="lp-job-dur"
+                          ><span class="lp-live-dot lp-live-dot--sm"></span
+                          ></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div class="lp-logs" aria-label="Live log stream">
+                    <div class="lp-log lp-log--info">
+                      <span class="lp-log__t">12:04:01</span> ▸ doctor: scanning workspace
+                    </div>
+                    <div class="lp-log lp-log--ok">
+                      <span class="lp-log__t">12:04:01</span> ✓ config valid
+                    </div>
+                    <div class="lp-log lp-log--ok">
+                      <span class="lp-log__t">12:04:02</span> ✓ graph acyclic · 12 nodes
+                    </div>
+                    <div class="lp-log lp-log--warn">
+                      <span class="lp-log__t">12:04:02</span> ! payments: minor drift
+                    </div>
+                    <div class="lp-log lp-log--ok">
+                      <span class="lp-log__t">12:04:03</span> ✓ applied safe fix
+                    </div>
+                    <div class="lp-log lp-log--live">
+                      <span class="lp-log__t">12:04:03</span>
+                      <span class="lp-prompt">$</span> 36/36 checks<span
+                        class="lp-caret"
+                        aria-hidden="true"></span>
+                    </div>
                   </div>
-                  <div class="lp-tile__sub">36/36 checks</div>
-                </div>
-                <div class="lp-tile">
-                  <div class="lp-tile__label">Drift</div>
-                  <div style="margin-top:.5rem">
-                    <span class="lp-badge lp-badge--warn"><i></i>2 warn</span>
-                  </div>
-                  <div class="lp-tile__sub">deps · 1 minor</div>
-                </div>
-                <div class="lp-tile lp-jobs">
-                  <div class="lp-tile__label" style="margin-bottom:.3rem">
-                    Recent jobs
-                  </div>
-                  <div class="lp-job-row">
-                    <span class="lp-badge lp-badge--healthy"><i></i>ok</span>
-                    <span class="lp-job-id">build · web-shell</span>
-                    <span class="lp-job-dur">4.2s</span>
-                  </div>
-                  <div class="lp-job-row">
-                    <span class="lp-badge lp-badge--healthy"><i></i>ok</span>
-                    <span class="lp-job-id">generate · api</span>
-                    <span class="lp-job-dur">1.1s</span>
-                  </div>
-                  <div class="lp-job-row">
-                    <span class="lp-badge lp-badge--info"><i></i>run</span>
-                    <span class="lp-job-id">doctor --fix</span>
-                    <span class="lp-job-dur">…</span>
-                  </div>
-                </div>
-                <div class="lp-mini-term">
-                  <div>
-                    <span class="lp-prompt">$</span> re-shell workspace summary
-                    <span class="lp-mute">--json</span>
-                  </div>
-                  <div><span class="lp-mute">{`{ "ok": `}</span><span
-                      class="lp-ok">true</span
-                    ><span class="lp-mute">{`, "data": { … } }`}</span></div>
                 </div>
               </div>
             </div>
-          </div>
+          </figure>
+        </div>
+      </section>
+
+      <!-- ========================== COUNT-UP STATS ========================== -->
+      <section class="lp-statband" aria-label="Re-Shell at a glance">
+        <div class="lp-shell">
+          <dl class="lp-stats lp-reveal" id="lp-stats">
+            {
+              stats.map((s) => (
+                <div class="lp-stat">
+                  <dt
+                    class={`lp-stat__num${s.accent ? ' lp-accent' : ''}`}
+                    data-to={String(s.to)}
+                    data-prefix={s.prefix ?? ''}
+                    data-suffix={s.suffix ?? ''}
+                  >{`${s.prefix ?? ''}${s.value}${s.suffix ?? ''}`}</dt>
+                  <dd class="lp-stat__label">{s.label}</dd>
+                </div>
+              ))
+            }
+          </dl>
         </div>
       </section>
 
       <!-- ============================ FEATURES ============================ -->
-      <section class="lp-section" id="features">
+      <section class="lp-section" id="features" aria-labelledby="features-heading">
         <div class="lp-shell">
           <div class="lp-section__head lp-reveal">
             <span class="lp-eyebrow">What you get</span>
-            <h2 class="lp-h2">A full-stack platform, not a pile of scripts.</h2>
+            <h2 class="lp-h2" id="features-heading">A full-stack platform, not a pile of scripts.</h2>
             <p>
               Every Re-Shell surface — CLI, dashboard, and contract — is built on
               the same workspace model. Here is what that buys you.
@@ -474,11 +943,11 @@ const icon = (name: string) => ICONS[name] ?? '';
       </section>
 
       <!-- ========================= COMMAND TOUR ========================= -->
-      <section class="lp-section" id="commands">
+      <section class="lp-section" id="commands" aria-labelledby="commands-heading">
         <div class="lp-shell">
           <div class="lp-section__head lp-reveal">
             <span class="lp-eyebrow">Command tour</span>
-            <h2 class="lp-h2">Real commands, real output.</h2>
+            <h2 class="lp-h2" id="commands-heading">Real commands, real output.</h2>
             <p>
               Inspect your workspace, browse the catalog, run health checks, and
               launch the dashboard. Data commands speak the typed envelope.
@@ -492,7 +961,7 @@ const icon = (name: string) => ICONS[name] ?? '';
                 <span class="lp-dot lp-dot--g"></span>
                 <span class="lp-term__title">workspace summary --json</span>
               </div>
-<pre class="lp-term__body"><span class="lp-prompt">$</span> <span class="lp-cmd">re-shell workspace summary</span> <span class="lp-flag">--json</span>
+<pre class="lp-term__body" aria-label="re-shell workspace summary --json output"><span class="lp-prompt">$</span> <span class="lp-cmd">re-shell workspace summary</span> <span class="lp-flag">--json</span>
 <span class="lp-mute">{`{`}</span>
   <span class="lp-key">"ok"</span>: <span class="lp-ok">true</span>,
   <span class="lp-key">"data"</span>: <span class="lp-mute">{`{`}</span>
@@ -513,7 +982,7 @@ const icon = (name: string) => ICONS[name] ?? '';
                 <span class="lp-dot lp-dot--g"></span>
                 <span class="lp-term__title">templates list</span>
               </div>
-<pre class="lp-term__body"><span class="lp-prompt">$</span> <span class="lp-cmd">re-shell templates list</span>
+<pre class="lp-term__body" aria-label="re-shell templates list output"><span class="lp-prompt">$</span> <span class="lp-cmd">re-shell templates list</span>
 <span class="lp-mute">📋 Templates (</span><span class="lp-ok">205</span><span class="lp-mute">)</span>
 
   <span class="lp-str">●</span> express   <span class="lp-mute">[typescript]</span> minimalist Node.js web framework
@@ -531,7 +1000,7 @@ const icon = (name: string) => ICONS[name] ?? '';
                 <span class="lp-dot lp-dot--g"></span>
                 <span class="lp-term__title">doctor</span>
               </div>
-<pre class="lp-term__body"><span class="lp-prompt">$</span> <span class="lp-cmd">re-shell doctor</span>
+<pre class="lp-term__body" aria-label="re-shell doctor output"><span class="lp-prompt">$</span> <span class="lp-cmd">re-shell doctor</span>
 <span class="lp-ok">✓</span> workspace config valid
 <span class="lp-ok">✓</span> package manager resolved <span class="lp-mute">(pnpm)</span>
 <span class="lp-ok">✓</span> dependency graph acyclic
@@ -548,7 +1017,7 @@ const icon = (name: string) => ICONS[name] ?? '';
                 <span class="lp-dot lp-dot--g"></span>
                 <span class="lp-term__title">ui</span>
               </div>
-<pre class="lp-term__body"><span class="lp-prompt">$</span> <span class="lp-cmd">re-shell ui</span>
+<pre class="lp-term__body" aria-label="re-shell ui output"><span class="lp-prompt">$</span> <span class="lp-cmd">re-shell ui</span>
 <span class="lp-mute">▸ launching local dashboard…</span>
   host    <span class="lp-str">127.0.0.1</span>  <span class="lp-mute">(loopback only)</span>
   port    <span class="lp-ok">3333</span>
@@ -560,12 +1029,303 @@ const icon = (name: string) => ICONS[name] ?? '';
         </div>
       </section>
 
+      <!-- ======================= TERMINAL PLAYGROUND ======================= -->
+      <section class="lp-section" id="playground" aria-labelledby="playground-heading">
+        <div class="lp-shell">
+          <div class="lp-section__head lp-reveal">
+            <span class="lp-eyebrow">Try it</span>
+            <h2 class="lp-h2" id="playground-heading">Run the CLI without installing.</h2>
+            <p>
+              Pick a command — Re-Shell types it and returns the exact output you
+              would see in your shell. Explore every command to clear the board.
+            </p>
+          </div>
+
+          <div
+            class="lp-play lp-reveal"
+            id="lp-play"
+            data-total={PLAYGROUND.length}
+          >
+            <!-- command chips + progress -->
+            <div class="lp-play__panel">
+              <div class="lp-play__head">
+                <span class="lp-play__eyebrow">Commands</span>
+                <div
+                  class="lp-play__progress"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Commands explored"
+                >
+                  <span class="lp-play__meter" aria-hidden="true">
+                    <span class="lp-play__fill" id="lp-play-fill"></span>
+                  </span>
+                  <span class="lp-play__count">
+                    explored
+                    <span class="lp-play__n" id="lp-play-n">0</span>/<span
+                      class="lp-play__total">{PLAYGROUND.length}</span
+                    >
+                  </span>
+                </div>
+              </div>
+
+              <div class="lp-play__chips" role="group" aria-label="Sample commands">
+                {
+                  PLAYGROUND.map((c, i) => (
+                    <button
+                      class="lp-play__chip"
+                      type="button"
+                      data-cmd={String(i)}
+                      aria-pressed="false"
+                      aria-controls="lp-play-screen"
+                    >
+                      <span class="lp-play__chip-dot" aria-hidden="true" />
+                      <span class="lp-play__chip-cmd">{c.label}</span>
+                    </button>
+                  ))
+                }
+              </div>
+
+              <p class="lp-play__hint" id="lp-play-hint">
+                Output is a deterministic recording — nothing executes on your
+                machine.
+              </p>
+
+              <!-- reward badge (revealed when all explored) -->
+              <div
+                class="lp-play__reward"
+                id="lp-play-reward"
+                role="status"
+                aria-live="polite"
+                hidden
+              >
+                <span class="lp-play__reward-badge">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.6"
+                    aria-hidden="true"
+                    ><path
+                      d="M5 13l4 4L19 7"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"></path></svg
+                  >
+                  All commands explored
+                </span>
+              </div>
+            </div>
+
+            <!-- the terminal screen -->
+            <div class="lp-term lp-play__term">
+              <div class="lp-term__bar">
+                <span class="lp-dot lp-dot--r"></span>
+                <span class="lp-dot lp-dot--y"></span>
+                <span class="lp-dot lp-dot--g"></span>
+                <span class="lp-term__title" id="lp-play-title"
+                  >re-shell — playground</span
+                >
+                <button
+                  class="lp-play__copy"
+                  type="button"
+                  id="lp-play-copy"
+                  data-copy={`re-shell ${PLAYGROUND[0].cmd}`}
+                  aria-label="Copy current command"
+                  hidden
+                >
+                  <svg
+                    class="lp-icon-copy"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                    ><rect x="9" y="9" width="11" height="11" rx="2"></rect><path
+                      d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg
+                  >
+                  <svg
+                    class="lp-icon-check"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                    ><path
+                      d="M5 13l4 4L19 7"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"></path></svg
+                  >
+                </button>
+              </div>
+              <pre
+                class="lp-term__body lp-play__screen"
+                id="lp-play-screen"
+                aria-live="polite"
+                aria-atomic="false"
+                aria-label="Terminal output"
+                set:html={renderPlay(PLAYGROUND[0])}
+              ></pre>
+            </div>
+
+            <!-- typed command deck for the client island (no DOM scraping) -->
+            <script
+              type="application/json"
+              id="lp-play-data"
+              set:html={JSON.stringify(PLAY_DATA)}
+            ></script>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= BUILD YOUR STACK ======================= -->
+      <section class="lp-section" id="build" aria-labelledby="build-heading">
+        <div class="lp-shell">
+          <div class="lp-section__head lp-reveal">
+            <span class="lp-eyebrow">Build your stack</span>
+            <h2 class="lp-h2" id="build-heading">Pick a stack. Get the exact commands.</h2>
+            <p>
+              Choose a frontend, a backend, and any infrastructure targets —
+              Re-Shell composes the real scaffolding commands you would run,
+              live, ready to copy.
+            </p>
+          </div>
+
+          <div class="lp-stack lp-reveal" id="lp-stack">
+            <div class="lp-stack__panel">
+              <fieldset class="lp-stack__group" data-group="frontend">
+                <legend class="lp-stack__legend">Frontend</legend>
+                <div class="lp-stack__opts" role="radiogroup" aria-label="Frontend framework">
+                  {
+                    stackFrontend.map((o) => (
+                      <button
+                        class="lp-stack__opt"
+                        type="button"
+                        role="radio"
+                        data-value={o.id}
+                        aria-checked={o.id === STACK_DEFAULT.frontend ? 'true' : 'false'}
+                      >
+                        {o.label}
+                      </button>
+                    ))
+                  }
+                </div>
+              </fieldset>
+
+              <fieldset class="lp-stack__group" data-group="backend">
+                <legend class="lp-stack__legend">Backend</legend>
+                <div class="lp-stack__opts" role="radiogroup" aria-label="Backend framework">
+                  {
+                    stackBackend.map((o) => (
+                      <button
+                        class="lp-stack__opt"
+                        type="button"
+                        role="radio"
+                        data-value={o.id}
+                        aria-checked={o.id === STACK_DEFAULT.backend ? 'true' : 'false'}
+                      >
+                        {o.label}
+                        <span class="lp-stack__opt-lang">{o.lang}</span>
+                      </button>
+                    ))
+                  }
+                </div>
+              </fieldset>
+
+              <fieldset class="lp-stack__group" data-group="infra">
+                <legend class="lp-stack__legend">
+                  Infra <span class="lp-stack__legend-note">multi-select</span>
+                </legend>
+                <div class="lp-stack__opts" role="group" aria-label="Infrastructure targets">
+                  {
+                    stackInfra.map((o) => (
+                      <button
+                        class="lp-stack__opt"
+                        type="button"
+                        role="checkbox"
+                        data-value={o.id}
+                        aria-checked={
+                          STACK_DEFAULT.infra.includes(o.id) ? 'true' : 'false'
+                        }
+                      >
+                        {o.label}
+                      </button>
+                    ))
+                  }
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="lp-term lp-stack__term">
+              <div class="lp-term__bar">
+                <span class="lp-dot lp-dot--r"></span>
+                <span class="lp-dot lp-dot--y"></span>
+                <span class="lp-dot lp-dot--g"></span>
+                <span class="lp-term__title">composed command</span>
+                <button
+                  class="lp-play__copy lp-stack__copy"
+                  type="button"
+                  id="lp-stack-copy"
+                  data-copy={STACK_DEFAULT_COPY}
+                  aria-label="Copy composed command"
+                >
+                  <svg
+                    class="lp-icon-copy"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                    ><rect x="9" y="9" width="11" height="11" rx="2"></rect><path
+                      d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg
+                  >
+                  <svg
+                    class="lp-icon-check"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                    ><path
+                      d="M5 13l4 4L19 7"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"></path></svg
+                  >
+                </button>
+              </div>
+              <pre
+                class="lp-term__body lp-stack__screen"
+                id="lp-stack-screen"
+                aria-live="polite"
+                aria-label="Composed command"
+                set:html={STACK_DEFAULT_HTML}
+              ></pre>
+            </div>
+
+            <!-- typed stack deck for the client island (no DOM scraping) -->
+            <script
+              type="application/json"
+              id="lp-stack-data"
+              set:html={JSON.stringify(STACK_DATA)}
+            ></script>
+          </div>
+        </div>
+      </section>
+
       <!-- ============================== WHY ============================== -->
-      <section class="lp-section">
+      <section class="lp-section" id="why" aria-labelledby="why-heading">
         <div class="lp-shell">
           <div class="lp-section__head lp-reveal">
             <span class="lp-eyebrow">Why Re-Shell</span>
-            <h2 class="lp-h2">One model, end to end.</h2>
+            <h2 class="lp-h2" id="why-heading">One model, end to end.</h2>
           </div>
           <div class="lp-why lp-stagger">
             {
@@ -607,7 +1367,7 @@ const icon = (name: string) => ICONS[name] ?? '';
                   </a>
                 </div>
               </div>
-              <div class="lp-quick" aria-label="Quickstart commands">
+              <div class="lp-quick" role="region" aria-label="Quickstart commands">
                 <div>
                   <span class="lp-prompt">$</span> npm i -g @re-shell/cli
                 </div>
@@ -632,7 +1392,7 @@ const icon = (name: string) => ICONS[name] ?? '';
     </main>
 
     <!-- ============================= FOOTER ============================= -->
-    <footer class="lp-footer">
+    <footer class="lp-footer" aria-label="Site footer">
       <div class="lp-shell">
         <div class="lp-footer__grid">
           <div class="lp-footer__brand">
@@ -696,6 +1456,13 @@ const icon = (name: string) => ICONS[name] ?? '';
     <script>
       // Theme toggle — writes the same storage key the docs read.
       const toggle = document.getElementById('lp-theme');
+      const syncToggleAriaLabel = (): void => {
+        if (!toggle) return;
+        const isDark = document.documentElement.dataset.theme === 'dark';
+        toggle.setAttribute('aria-label', isDark ? 'Switch to light theme' : 'Switch to dark theme');
+        toggle.setAttribute('aria-pressed', isDark ? 'false' : 'true');
+      };
+      syncToggleAriaLabel();
       toggle?.addEventListener('click', () => {
         const root = document.documentElement;
         const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -703,6 +1470,7 @@ const icon = (name: string) => ICONS[name] ?? '';
         try {
           localStorage.setItem('starlight-theme', next);
         } catch {}
+        syncToggleAriaLabel();
       });
 
       // Copy buttons (install + any [data-copy]).
@@ -721,7 +1489,547 @@ const icon = (name: string) => ICONS[name] ?? '';
 
       // Scroll reveal (progressive enhancement; reduced-motion handled in CSS).
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-      const items = document.querySelectorAll('.lp-reveal');
+
+      // ===== Browser-hero tabbed dashboard (vanilla TS island) =====
+      (() => {
+        const tablist = document.querySelector<HTMLElement>('.lp-tabs');
+        if (!tablist) return;
+        const tabs = Array.from(
+          tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+        );
+        const tabEl = document.getElementById('lp-browser-tab');
+        if (tabs.length === 0) return;
+
+        // Mark JS as available so panels can cross-fade rather than swap.
+        tablist.closest('.lp-browser')?.setAttribute('data-enhanced', 'true');
+
+        const panelFor = (tab: HTMLButtonElement): HTMLElement | null => {
+          const id = tab.getAttribute('aria-controls');
+          return id ? document.getElementById(id) : null;
+        };
+
+        // Lower-cased label for the chrome tab per view (e.g. "graph").
+        const tabLabel = (tab: HTMLButtonElement): string =>
+          (tab.textContent ?? '').trim().toLowerCase();
+
+        let auto = 0;
+        const stopAuto = (): void => {
+          if (auto) {
+            window.clearInterval(auto);
+            auto = 0;
+          }
+        };
+
+        const selectTab = (tab: HTMLButtonElement, focus = true): void => {
+          tabs.forEach((t) => {
+            const selected = t === tab;
+            t.setAttribute('aria-selected', selected ? 'true' : 'false');
+            t.tabIndex = selected ? 0 : -1;
+            const panel = panelFor(t);
+            if (panel) {
+              panel.hidden = !selected;
+              if (selected) {
+                // re-trigger the enter transition (no-op under reduced-motion CSS)
+                panel.classList.remove('is-shown');
+                // force reflow so the animation restarts
+                void panel.offsetWidth;
+                panel.classList.add('is-shown');
+              }
+            }
+          });
+          if (tabEl) tabEl.textContent = `Re-Shell — ${tabLabel(tab)}`;
+          if (focus) tab.focus();
+        };
+
+        tabs.forEach((tab) => {
+          tab.addEventListener('click', () => {
+            stopAuto();
+            selectTab(tab, false);
+          });
+          tab.addEventListener('keydown', (ev: KeyboardEvent) => {
+            const idx = tabs.indexOf(tab);
+            let next = -1;
+            if (ev.key === 'ArrowRight') next = (idx + 1) % tabs.length;
+            else if (ev.key === 'ArrowLeft')
+              next = (idx - 1 + tabs.length) % tabs.length;
+            else if (ev.key === 'Home') next = 0;
+            else if (ev.key === 'End') next = tabs.length - 1;
+            if (next !== -1) {
+              ev.preventDefault();
+              stopAuto();
+              selectTab(tabs[next]);
+            }
+          });
+        });
+
+        // Mark the initial panel as shown for the enter transition.
+        const initial = tabs.find((t) => t.getAttribute('aria-selected') === 'true');
+        const initialPanel = initial ? panelFor(initial) : null;
+        initialPanel?.classList.add('is-shown');
+
+        // Ambient auto-advance (8s); stops permanently on first interaction,
+        // and never runs under reduced-motion.
+        if (!reduce.matches) {
+          auto = window.setInterval(() => {
+            const cur = tabs.findIndex(
+              (t) => t.getAttribute('aria-selected') === 'true'
+            );
+            selectTab(tabs[(cur + 1) % tabs.length], false);
+          }, 8000);
+          ['pointerdown', 'keydown', 'focusin'].forEach((evt) =>
+            tablist.addEventListener(evt, stopAuto, { once: true })
+          );
+        }
+      })();
+      // ===== Terminal playground (vanilla TS island) =====
+      (() => {
+        type Seg = { t: string; c?: string };
+        type PlayCmd = { cmd: string; out: Seg[][] };
+
+        const root = document.getElementById('lp-play');
+        const screen = document.getElementById('lp-play-screen');
+        const dataEl = document.getElementById('lp-play-data');
+        if (!root || !screen || !dataEl) return;
+
+        let deck: PlayCmd[] = [];
+        try {
+          deck = JSON.parse(dataEl.textContent ?? '[]') as PlayCmd[];
+        } catch {
+          return;
+        }
+        if (deck.length === 0) return;
+
+        const chips = Array.from(
+          root.querySelectorAll<HTMLButtonElement>('.lp-play__chip')
+        );
+        const fill = document.getElementById('lp-play-fill');
+        const countEl = document.getElementById('lp-play-n');
+        const reward = document.getElementById('lp-play-reward');
+        const title = document.getElementById('lp-play-title');
+        const copyBtn = document.getElementById(
+          'lp-play-copy'
+        ) as HTMLButtonElement | null;
+        const total = deck.length;
+
+        // ---- exploration state (memory + best-effort sessionStorage) ----
+        const STORE_KEY = 're-shell:playground:explored';
+        const explored = new Set<number>();
+        try {
+          const raw = sessionStorage.getItem(STORE_KEY);
+          if (raw) {
+            (JSON.parse(raw) as number[]).forEach((n) => {
+              if (n >= 0 && n < total) explored.add(n);
+            });
+          }
+        } catch {
+          /* storage blocked — memory only */
+        }
+        const persist = (): void => {
+          try {
+            sessionStorage.setItem(STORE_KEY, JSON.stringify([...explored]));
+          } catch {
+            /* no-op */
+          }
+        };
+
+        const syncProgress = (): void => {
+          const n = explored.size;
+          if (countEl) countEl.textContent = String(n);
+          if (fill) fill.style.width = `${(n / total) * 100}%`;
+          if (reward) {
+            const done = n >= total;
+            reward.hidden = !done;
+            if (done) root.setAttribute('data-complete', 'true');
+          }
+        };
+
+        const markExplored = (i: number, chip: HTMLButtonElement): void => {
+          const fresh = !explored.has(i);
+          explored.add(i);
+          chip.setAttribute('aria-pressed', 'true');
+          chip.classList.add('is-explored');
+          if (fresh) {
+            persist();
+            syncProgress();
+          }
+        };
+
+        // ---- DOM helpers ----
+        const promptHTML = (cmd: string): string => {
+          const esc = (s: string): string =>
+            s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `<span class="lp-prompt">$</span> <span class="lp-cmd">re-shell ${esc(
+            cmd
+          )}</span>`;
+        };
+        const appendSeg = (s: Seg): void => {
+          const node = s.c
+            ? document.createElement('span')
+            : document.createTextNode(s.t);
+          if (s.c && node instanceof HTMLElement) {
+            node.className = s.c;
+            node.textContent = s.t;
+          }
+          screen.appendChild(node);
+        };
+        const renderOutput = (out: Seg[][]): void => {
+          out.forEach((line, li) => {
+            if (li > 0) screen.appendChild(document.createTextNode('\n'));
+            line.forEach(appendSeg);
+          });
+        };
+
+        // ---- typewriter ----
+        const reduceMo = window.matchMedia('(prefers-reduced-motion: reduce)');
+        let runToken = 0;
+        const sleep = (ms: number): Promise<void> =>
+          new Promise((r) => window.setTimeout(r, ms));
+
+        const showInstant = (cmd: PlayCmd): void => {
+          screen.innerHTML = promptHTML(cmd.cmd);
+          screen.appendChild(document.createTextNode('\n'));
+          renderOutput(cmd.out);
+        };
+
+        const typeAndReveal = async (cmd: PlayCmd, idx: number): Promise<void> => {
+          const token = ++runToken;
+          screen.innerHTML = '';
+          const prompt = document.createElement('span');
+          prompt.innerHTML = '<span class="lp-prompt">$</span> ';
+          screen.appendChild(prompt);
+          const typed = document.createElement('span');
+          typed.className = 'lp-cmd';
+          screen.appendChild(typed);
+          const caret = document.createElement('span');
+          caret.className = 'lp-play__caret';
+          caret.setAttribute('aria-hidden', 'true');
+          screen.appendChild(caret);
+
+          const full = `re-shell ${cmd.cmd}`;
+          for (let i = 0; i < full.length; i += 1) {
+            if (token !== runToken) return; // superseded by a newer run
+            typed.textContent = full.slice(0, i + 1);
+            await sleep(28);
+          }
+          if (token !== runToken) return;
+          caret.remove();
+          screen.appendChild(document.createTextNode('\n'));
+          await sleep(160);
+          if (token !== runToken) return;
+          renderOutput(cmd.out);
+        };
+
+        const run = (i: number, chip: HTMLButtonElement): void => {
+          const cmd = deck[i];
+          if (!cmd) return;
+          if (title) title.textContent = `re-shell ${cmd.cmd}`;
+          if (copyBtn) {
+            copyBtn.hidden = false;
+            copyBtn.dataset.copy = `re-shell ${cmd.cmd}`;
+            copyBtn.dataset.copied = 'false';
+          }
+          chips.forEach((c) =>
+            c.setAttribute('aria-current', c === chip ? 'true' : 'false')
+          );
+          if (reduceMo.matches) {
+            runToken += 1; // cancel any in-flight typing
+            showInstant(cmd);
+          } else {
+            void typeAndReveal(cmd, i);
+          }
+          markExplored(i, chip);
+        };
+
+        chips.forEach((chip) => {
+          const i = Number(chip.dataset.cmd);
+          chip.addEventListener('click', () => run(i, chip));
+        });
+
+        // copy current command
+        copyBtn?.addEventListener('click', async () => {
+          const text = copyBtn.dataset.copy ?? '';
+          try {
+            await navigator.clipboard.writeText(text);
+            copyBtn.dataset.copied = 'true';
+            window.setTimeout(() => (copyBtn.dataset.copied = 'false'), 1600);
+          } catch {
+            /* clipboard blocked — no-op */
+          }
+        });
+
+        // restore prior exploration state for chips + meter
+        explored.forEach((i) => {
+          const chip = chips.find((c) => Number(c.dataset.cmd) === i);
+          if (chip) {
+            chip.setAttribute('aria-pressed', 'true');
+            chip.classList.add('is-explored');
+          }
+        });
+        syncProgress();
+
+        // autoplay the first command once, when scrolled into view (reduced-
+        // motion-safe: it still reveals output instantly). Stops after firing.
+        let autoplayed = false;
+        const autoplay = (): void => {
+          if (autoplayed) return;
+          autoplayed = true;
+          run(0, chips[0]);
+        };
+        if (!('IntersectionObserver' in window)) {
+          autoplay();
+        } else {
+          const io = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((e) => {
+                if (e.isIntersecting) {
+                  autoplay();
+                  io.disconnect();
+                }
+              });
+            },
+            { threshold: 0.4 }
+          );
+          io.observe(root);
+        }
+      })();
+
+      // ===== Count-up stats (vanilla TS island) =====
+      (() => {
+        const strip = document.getElementById('lp-stats');
+        if (!strip) return;
+        const nums = Array.from(
+          strip.querySelectorAll<HTMLElement>('.lp-stat__num')
+        );
+        if (nums.length === 0) return;
+
+        // Final static values are already rendered server-side. Under reduced
+        // motion (or no IO support) we simply leave them — no animation.
+        if (reduce.matches || !('IntersectionObserver' in window)) return;
+
+        const DURATION = 1100; // ms
+        const easeOutExpo = (t: number): number =>
+          t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+
+        const countUp = (el: HTMLElement): void => {
+          const to = Number(el.dataset.to ?? '0');
+          if (!Number.isFinite(to) || to <= 0) return;
+          const prefix = el.dataset.prefix ?? '';
+          const suffix = el.dataset.suffix ?? '';
+          const start = performance.now();
+          const step = (now: number): void => {
+            const p = Math.min((now - start) / DURATION, 1);
+            const v = Math.round(to * easeOutExpo(p));
+            el.textContent = `${prefix}${v}${suffix}`;
+            if (p < 1) requestAnimationFrame(step);
+            else el.textContent = `${prefix}${to}${suffix}`;
+          };
+          // seed at zero, then animate
+          el.textContent = `${prefix}0${suffix}`;
+          requestAnimationFrame(step);
+        };
+
+        let fired = false;
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((e) => {
+              if (e.isIntersecting && !fired) {
+                fired = true;
+                nums.forEach(countUp);
+                io.disconnect();
+              }
+            });
+          },
+          { threshold: 0.4 }
+        );
+        io.observe(strip);
+      })();
+
+      // ===== Build-your-stack composer (vanilla TS island) =====
+      (() => {
+        type StackOpt = { id: string; label: string; template: string; lang: string };
+        type StackData = {
+          frontend: StackOpt[];
+          backend: StackOpt[];
+          infra: StackOpt[];
+          defaults: { frontend: string; backend: string; infra: string[] };
+        };
+
+        const root = document.getElementById('lp-stack');
+        const screen = document.getElementById('lp-stack-screen');
+        const dataEl = document.getElementById('lp-stack-data');
+        const copyBtn = document.getElementById(
+          'lp-stack-copy'
+        ) as HTMLButtonElement | null;
+        if (!root || !screen || !dataEl) return;
+
+        let data: StackData;
+        try {
+          data = JSON.parse(dataEl.textContent ?? '') as StackData;
+        } catch {
+          return;
+        }
+
+        const sel = {
+          frontend: data.defaults.frontend,
+          backend: data.defaults.backend,
+          infra: new Set<string>(data.defaults.infra),
+        };
+
+        type Seg = { t: string; c?: string };
+        const lineFor = (opt: StackOpt, kind: 'fe' | 'be' | 'infra'): Seg[] => {
+          if (kind === 'fe')
+            return [
+              { t: '$ ', c: 'lp-prompt' },
+              { t: 're-shell create web ', c: 'lp-cmd' },
+              { t: '--template ', c: 'lp-flag' },
+              { t: opt.template, c: 'lp-str' },
+            ];
+          if (kind === 'be')
+            return [
+              { t: '$ ', c: 'lp-prompt' },
+              { t: 're-shell generate service ', c: 'lp-cmd' },
+              { t: '--template ', c: 'lp-flag' },
+              { t: opt.template, c: 'lp-str' },
+            ];
+          return [
+            { t: '$ ', c: 'lp-prompt' },
+            { t: `re-shell ${opt.template} generate`, c: 'lp-cmd' },
+          ];
+        };
+
+        const compose = (): Seg[][] => {
+          const lines: Seg[][] = [];
+          const fe = data.frontend.find((o) => o.id === sel.frontend);
+          const be = data.backend.find((o) => o.id === sel.backend);
+          if (fe) lines.push(lineFor(fe, 'fe'));
+          if (be) lines.push(lineFor(be, 'be'));
+          data.infra.forEach((o) => {
+            if (sel.infra.has(o.id)) lines.push(lineFor(o, 'infra'));
+          });
+          if (lines.length === 0)
+            lines.push([
+              { t: '# pick a frontend or backend to compose a command', c: 'lp-mute' },
+            ]);
+          return lines;
+        };
+
+        const render = (): void => {
+          const lines = compose();
+          screen.textContent = '';
+          lines.forEach((line, li) => {
+            if (li > 0) screen.appendChild(document.createTextNode('\n'));
+            line.forEach((s) => {
+              if (s.c) {
+                const span = document.createElement('span');
+                span.className = s.c;
+                span.textContent = s.t;
+                screen.appendChild(span);
+              } else {
+                screen.appendChild(document.createTextNode(s.t));
+              }
+            });
+          });
+          // brief signal flash on update (reduced-motion-guarded in CSS)
+          screen.classList.remove('lp-stack__screen--flash');
+          void screen.offsetWidth;
+          screen.classList.add('lp-stack__screen--flash');
+          // refresh copy payload (plain text, no leading "$ ")
+          if (copyBtn) {
+            copyBtn.dataset.copy = lines
+              .map((line) =>
+                line
+                  .map((s) => s.t)
+                  .join('')
+                  .replace(/^\$ /, '')
+              )
+              .join('\n');
+            copyBtn.dataset.copied = 'false';
+          }
+        };
+
+        const groups = Array.from(
+          root.querySelectorAll<HTMLElement>('.lp-stack__group')
+        );
+        groups.forEach((group) => {
+          const kind = group.dataset.group;
+          const opts = Array.from(
+            group.querySelectorAll<HTMLButtonElement>('.lp-stack__opt')
+          );
+          const isMulti = kind === 'infra';
+          opts.forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const value = btn.dataset.value ?? '';
+              if (isMulti) {
+                const on = btn.getAttribute('aria-checked') === 'true';
+                btn.setAttribute('aria-checked', on ? 'false' : 'true');
+                if (on) sel.infra.delete(value);
+                else sel.infra.add(value);
+              } else {
+                opts.forEach((o) =>
+                  o.setAttribute(
+                    'aria-checked',
+                    o === btn ? 'true' : 'false'
+                  )
+                );
+                if (kind === 'frontend') sel.frontend = value;
+                else if (kind === 'backend') sel.backend = value;
+              }
+              render();
+            });
+            // keyboard: arrows move within a radiogroup; space toggles checkbox
+            btn.addEventListener('keydown', (ev: KeyboardEvent) => {
+              if (!isMulti && (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')) {
+                ev.preventDefault();
+                const i = opts.indexOf(btn);
+                const dir = ev.key === 'ArrowRight' ? 1 : -1;
+                const next = opts[(i + dir + opts.length) % opts.length];
+                next.focus();
+                next.click();
+              }
+            });
+          });
+        });
+
+        // render once to bind the copy payload (markup already matches default)
+        render();
+
+        copyBtn?.addEventListener('click', async () => {
+          const text = copyBtn.dataset.copy ?? '';
+          try {
+            await navigator.clipboard.writeText(text);
+            copyBtn.dataset.copied = 'true';
+            window.setTimeout(() => (copyBtn.dataset.copied = 'false'), 1600);
+          } catch {
+            /* clipboard blocked — no-op */
+          }
+        });
+      })();
+
+      // ===== Hero depth parallax (subtle; reduced-motion-safe) =====
+      (() => {
+        if (reduce.matches) return;
+        const browser = document.getElementById('lp-browser');
+        if (!browser) return;
+        let ticking = false;
+        const onScroll = (): void => {
+          if (ticking) return;
+          ticking = true;
+          requestAnimationFrame(() => {
+            const y = window.scrollY;
+            // only drift while the hero is plausibly in view
+            if (y < 900) {
+              browser.style.transform = `translate3d(0, ${(y * -0.04).toFixed(
+                2
+              )}px, 0)`;
+            }
+            ticking = false;
+          });
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+      })();
+
+      // ===== Staggered scroll-reveal across sections =====
+      const items = document.querySelectorAll<HTMLElement>('.lp-reveal');
       if (reduce.matches || !('IntersectionObserver' in window)) {
         items.forEach((el) => el.classList.add('is-in'));
       } else {
@@ -729,8 +2037,19 @@ const icon = (name: string) => ICONS[name] ?? '';
           (entries) => {
             entries.forEach((e) => {
               if (e.isIntersecting) {
-                e.target.classList.add('is-in');
-                io.unobserve(e.target);
+                const el = e.target as HTMLElement;
+                // stagger siblings that reveal together within one container
+                const siblings = el.parentElement
+                  ? Array.from(
+                      el.parentElement.querySelectorAll<HTMLElement>(
+                        ':scope > .lp-reveal'
+                      )
+                    )
+                  : [el];
+                const idx = Math.max(0, siblings.indexOf(el));
+                el.style.transitionDelay = `${Math.min(idx, 6) * 70}ms`;
+                el.classList.add('is-in');
+                io.unobserve(el);
               }
             });
           },
