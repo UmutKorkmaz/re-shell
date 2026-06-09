@@ -5,6 +5,14 @@ All notable changes to the `@re-shell/cli` package will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.2] - 2026-06-09
+
+### Changed
+- Redesigned the bundled web dashboard (`re-shell ui`) into a dark "mission-control" surface: layered near-black elevations with hairline borders + glow, an electric-lime signal accent used semantically, status-driven color, self-hosted typography (Space Grotesk + JetBrains Mono + Inter, no CDN), a bento Overview, a themed dependency graph, and reworked screens with depth, skeletons, empty/error states, page-load motion, and a prefers-reduced-motion guard. Presentation only — CLI behavior unchanged.
+
+### Fixed
+- Moved `rimraf dist` from the everyday `build` into `prepublishOnly`, removing an intermittent test race (the build no longer wipes `dist` mid-suite) while still shipping a clean tarball.
+
 ## [0.29.1] - 2026-06-09
 
 ### Fixed
