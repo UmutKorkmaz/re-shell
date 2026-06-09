@@ -5,6 +5,31 @@ All notable changes to the `@re-shell/cli` package will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.1] - 2026-06-09
+
+### Fixed
+- Correct stale version references in the README/docs (the title no longer hardcodes a version; an npm badge shows it live).
+- Clean `dist/` before building so removed dead-code artifacts are no longer shipped in the npm tarball (1543 → 1225 files).
+
+## [0.29.0] - 2026-06-09
+
+### Added
+- **Bundled web dashboard**: `re-shell ui` ships and serves a React dashboard (overview, workspace graph, templates, command builder, jobs & logs, health, settings) via a dependency-light static server — works for npm-installed users with no extra setup.
+- **New commands**: `doctor`, `analyze`, `completion`, `templates` (`list`/`show`/`matrix`), `commands list`, `workspace summary`, `workspace migrate-monorepo` (Nx/Turbo import), `workspace policy`, `workspace drift`, `k8s generate`, `k8s helm generate`, `k8s gitops generate`, `service bridge generate`, and `ai`.
+- **Stable JSON contract**: machine-readable commands emit a `{ok,data,warnings}` / `{ok,error}` envelope (typed + zod-validated in `@re-shell/contracts`); `--json` errors exit non-zero.
+- **Interactive TUI**: `re-shell tui` now defaults to the ink TUI rendering real workspace data (the legacy Go TUI moved behind `--go`).
+- Real `workspace.yaml` v2 JSON-Schema validation (ajv), template compatibility matrix, `create --dry-run` visual diff, real plugin install, and a registry-backed plugin marketplace.
+
+### Changed
+- Consolidated the CLI, UI component library, contracts, and dashboard into a single pnpm monorepo published under the **`@re-shell/*`** scope.
+- The `re-shell ui` launcher resolves the in-monorepo / bundled dashboard (no external `re-shell-ui` checkout required).
+
+### Security
+- The local dashboard hub is now token-authenticated, bound to `127.0.0.1`, origin-allow-listed, and executes only allow-listed commands with no shell — closing the previous arbitrary-command execution path.
+
+### Removed
+- ~142k lines of unreachable dead code (orphan modules, alternate entrypoints, stale duplicates).
+
 ## [0.28.0] - 2026-03-23
 
 ### Changed

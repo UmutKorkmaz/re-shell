@@ -1,4 +1,4 @@
-# Re-Shell CLI v0.28.0
+# Re-Shell CLI
 
 **Full-Stack Development Platform - Microservices & Microfrontends United**
 
@@ -25,13 +25,21 @@ Re-Shell CLI is a comprehensive full-stack development platform that revolutioni
 - **🛡️ Enterprise Security**: JWT authentication, OAuth2, API gateways, and compliance features
 - **☁️ Production Ready**: Docker orchestration, Kubernetes manifests, and cloud provider configs
 
-### 🆕 What's New in v0.28.0
+### 🆕 What's New in v0.29.0
 
+- **🖥️ Bundled Web Dashboard**: `re-shell ui` ships and serves a full React dashboard (overview, workspace graph, templates, command builder, jobs & logs, health, settings) with no extra install.
+- **🔒 Hardened Local Hub**: the dashboard↔CLI bridge is token-authenticated, bound to `127.0.0.1`, allow-listed, and shell-free (no arbitrary command execution).
+- **🧩 Stable JSON Contract**: `workspace summary/graph/health`, `templates list/show/matrix`, `commands list`, `doctor`, and `analyze` emit a `{ok,data,warnings}` envelope (typed in `@re-shell/contracts`); errors exit non-zero.
+- **🆕 New Commands**: `doctor`, `analyze`, `completion`, `templates`, `commands`, `workspace migrate-monorepo` (Nx/Turbo import), `workspace policy` / `workspace drift`, `k8s generate` / `helm generate` / `gitops generate`, `service bridge generate`, and `ai`.
+- **🤖 Interactive TUI**: `re-shell tui` defaults to the ink TUI rendering real workspace data.
+- **🧹 Leaner Package**: ~142k lines of dead code removed; the tarball ships only live code, templates, and the dashboard.
+
+### Previous Releases
+
+#### v0.28.0
 - **📦 New npm Package Scope**: the CLI now publishes as `@re-shell/cli`
 - **🔄 Updated Upgrade Flow**: self-update prompts and generated monorepos now point at the new package name
 - **🔗 Personal GitHub Metadata**: badges, links, and package metadata now resolve to the personal `umutkorkmaz/re-shell-cli` repository
-
-### Previous Releases
 
 #### v0.27.5
 - **📚 Structured Example Library**: the CLI now ships with focused guides in `examples/` for every major command area instead of a single monolithic reference only

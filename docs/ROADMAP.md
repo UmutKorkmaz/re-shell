@@ -9,7 +9,7 @@
 
 ## Status legend
 
-- **MVP-done** — shipped in the current monorepo (CLI is at `0.28.0`).
+- **MVP-done** — shipped in the current monorepo (CLI is at `0.29.0`).
 - **DONE+tested** — Phase 9 feature implemented AND verified by unit/integration tests in this wave.
 - **SCAFFOLD/SPEC** — code structure and types are present, but live-environment requirements (network, running cluster, LLM backend, Rust toolchain) make the feature env-limited; unit tests pass with controlled doubles.
 - **post-MVP-planned** — carried forward as a real, scoped intention.
@@ -175,4 +175,4 @@ CLI↔UI contract).
 | `service bridge generate` | service | P9-B: cross-language client scaffold |
 | `commands list` | commands | catalog introspection (543 total commands) |
 
-Total registered commands at CLI v0.28.0: **543**.
+Total registered commands at CLI 0.29.0: **543**.
