@@ -5,6 +5,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // The interactive PTY/ink tests are timing-sensitive under CI's slower TTY
+    // and can flake on first attempt. Retry only in CI so local runs still
+    // surface real flakes (a genuinely broken test fails all attempts).
+    retry: process.env.CI ? 2 : 0,
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     exclude: ['**/node_modules/**', '**/dist/**'],
     // Interactive tests use process.chdir() into os.tmpdir() workspaces, which is

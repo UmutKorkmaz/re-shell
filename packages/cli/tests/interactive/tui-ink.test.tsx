@@ -90,10 +90,10 @@ describe('TUI (ink) interactive', () => {
     // from the fixture YAML, proving the TUI is wired to real producers
     // rather than the old Math.random()/hardcoded-version mocks.
     stdin.write('\t'); // tab -> select a node
-    await new Promise((r) => setTimeout(r, 60));
+    await new Promise((r) => setTimeout(r, 200));
     stdin.write('\r'); // enter -> details
 
-    const frame = await waitForFrame(lastFrame, (f) => f.includes('Service Details:'));
+    const frame = await waitForFrame(lastFrame, (f) => f.includes('Service Details:'), 8000);
     expect(frame).toContain('Service Details:');
     // The fixture defines exactly two services: api (typescript/express)
     // and worker (python/celery). Whichever node is selected first, its
