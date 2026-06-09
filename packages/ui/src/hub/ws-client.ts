@@ -2,7 +2,7 @@ import {
   wsServerMessageSchema,
   type WsServerMessage,
   type WsClientMessage,
-} from 're-shell-contracts';
+} from '@re-shell/contracts';
 import { JsonReassembler } from './json-reassembler.js';
 import { resolveHubToken } from '../hooks/config.js';
 

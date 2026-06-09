@@ -7,7 +7,7 @@ ENV-LIMITED: real binary icon assets are NOT committed in this scaffold.
 from a single source image once the Tauri toolchain is available:
 
 ```bash
-pnpm --filter re-shell-dashboard tauri icon path/to/source-1024.png
+pnpm --filter @re-shell/dashboard tauri icon path/to/source-1024.png
 ```
 
 `tauri icon` writes all required sizes/formats into this directory. Until then,

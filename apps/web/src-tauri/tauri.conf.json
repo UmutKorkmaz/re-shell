@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "identifier": "com.umutkorkmaz.reshell",
   "build": {
-    "beforeDevCommand": "pnpm --filter re-shell-dashboard run dev",
+    "beforeDevCommand": "pnpm --filter @re-shell/dashboard run dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm --filter re-shell-dashboard run build",
+    "beforeBuildCommand": "pnpm --filter @re-shell/dashboard run build",
     "frontendDist": "../dist"
   },
   "app": {

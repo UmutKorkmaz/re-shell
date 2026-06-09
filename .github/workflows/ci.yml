@@ -108,13 +108,22 @@ jobs:
           fi
           echo "PASS: no legacy author scope"
 
-      - name: Guard - no @re-shell/(contracts|ui) scope in source
+      - name: Guard - no unscoped re-shell-(contracts|ui) specifiers in source
         run: |
-          if grep -r '@re-shell/\(contracts\|ui\)' packages/cli/src packages/cli/package.json 2>/dev/null; then
-            echo "FAIL: scoped @re-shell/(contracts|ui) reference found (use unscoped re-shell-contracts / re-shell-ui)"
+          # The workspace publishes under the @re-shell/* npm scope. Forbid the
+          # old unscoped names as import/require specifiers (src) or dependency
+          # keys (package.json) so imports and deps stay on @re-shell/*. Legacy
+          # filesystem paths such as the standalone "../re-shell-ui" checkout
+          # fallback are intentionally not matched (directory names, not specifiers).
+          if grep -rEn "(from|require\()\s*['\"]re-shell-(contracts|ui)(/[^'\"]*)?['\"]" packages/cli/src 2>/dev/null; then
+            echo "FAIL: unscoped re-shell-(contracts|ui) import specifier found (use scoped @re-shell/contracts / @re-shell/ui)"
             exit 1
           fi
-          echo "PASS: no scoped @re-shell/(contracts|ui) references"
+          if grep -En "\"re-shell-(contracts|ui)\"\s*:" packages/cli/package.json 2>/dev/null; then
+            echo "FAIL: unscoped re-shell-(contracts|ui) dependency key found (use scoped @re-shell/contracts / @re-shell/ui)"
+            exit 1
+          fi
+          echo "PASS: no unscoped re-shell-(contracts|ui) specifiers"
 
       - name: Guard - no shell:true in hub-server
         run: |

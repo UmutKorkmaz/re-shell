@@ -1,4 +1,4 @@
-# re-shell-contracts
+# @re-shell/contracts
 
 Shared zod schemas and TypeScript types that define every shape crossing a process
 boundary between the Re-Shell CLI and the UI. This package is the **single source of
@@ -12,22 +12,22 @@ truth**: each contract is authored as a zod schema and its TS type is derived vi
 ## Install
 
 ```bash
-pnpm add re-shell-contracts
+pnpm add @re-shell/contracts
 ```
 
 ESM-only. Requires `zod` (`^4`).
 
 ## What it exports
 
-Everything is re-exported from the package root (`re-shell-contracts`).
+Everything is re-exported from the package root (`@re-shell/contracts`).
 
 ### The JSON wire envelope
 
 The canonical envelope every `--json` CLI command emits:
 
 ```ts
-import type { JsonResponse, JsonSuccess, JsonError } from 're-shell-contracts';
-import { jsonResponseSchema } from 're-shell-contracts';
+import type { JsonResponse, JsonSuccess, JsonError } from '@re-shell/contracts';
+import { jsonResponseSchema } from '@re-shell/contracts';
 
 // success: { ok: true,  data: T,                     warnings: string[] }
 // error:   { ok: false, error: JsonErrorBody,         warnings: string[] }
@@ -43,8 +43,8 @@ A **closed** set of error codes (zod enum) the CLI is allowed to emit, e.g.
 `DOCTOR_ERROR`, `ANALYZE_ERROR`, `HEALTH_CHECK_ERROR`. Typos cannot leak into output.
 
 ```ts
-import { errorCodeSchema } from 're-shell-contracts';
-import type { ErrorCode } from 're-shell-contracts';
+import { errorCodeSchema } from '@re-shell/contracts';
+import type { ErrorCode } from '@re-shell/contracts';
 ```
 
 ### Domain schemas
@@ -77,6 +77,6 @@ emit side (hub) and consume side (browser) against one schema:
 ## Scripts
 
 ```bash
-pnpm --filter re-shell-contracts build      # tsc -> dist/
-pnpm --filter re-shell-contracts typecheck
+pnpm --filter @re-shell/contracts build      # tsc -> dist/
+pnpm --filter @re-shell/contracts typecheck
 ```

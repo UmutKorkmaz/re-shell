@@ -16,8 +16,8 @@ import { SseClient } from '../../../packages/ui/src/hub/sse-client.js';
 import type {
   WsClientMessage,
   WsServerMessage,
-} from 're-shell-contracts';
-import { wsServerMessageSchema } from 're-shell-contracts';
+} from '@re-shell/contracts';
+import { wsServerMessageSchema } from '@re-shell/contracts';
 
 // ---------------------------------------------------------------------------
 // Wiring

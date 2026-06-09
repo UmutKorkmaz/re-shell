@@ -1,6 +1,6 @@
-import { useHubQuery } from 're-shell-ui';
-import type { ErrorCode, JsonResponse } from 're-shell-contracts';
-import { jsonResponseSchema } from 're-shell-contracts';
+import { useHubQuery } from '@re-shell/ui';
+import type { ErrorCode, JsonResponse } from '@re-shell/contracts';
+import { jsonResponseSchema } from '@re-shell/contracts';
 import type { z } from 'zod';
 
 /**

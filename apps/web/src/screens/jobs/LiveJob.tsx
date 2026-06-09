@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { JobLogPanel, useJob, type JobLine } from 're-shell-ui';
-import type { JobRecord } from 're-shell-contracts';
+import { JobLogPanel, useJob, type JobLine } from '@re-shell/ui';
+import type { JobRecord } from '@re-shell/contracts';
 
 /**
  * One live, self-contained streaming job. Owns a single `useJob` instance keyed

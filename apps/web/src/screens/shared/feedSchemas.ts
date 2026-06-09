@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /**
  * Web-side zod schemas for the hub feeds whose stdout shape differs from the
- * coarse `re-shell-contracts` domain types.
+ * coarse `@re-shell/contracts` domain types.
  *
  * The contracts package types (`WorkspaceApp`, `TemplateSummary`) describe the
  * RICH internal model. The CLI's `--json` projections that the hub forwards are

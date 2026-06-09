@@ -6,7 +6,7 @@ import type {
   WorkspaceApp,
   WorkspaceService,
   WorkspaceSummary,
-} from 're-shell-contracts';
+} from '@re-shell/contracts';
 
 export type { HealthSummary };
 

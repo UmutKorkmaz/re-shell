@@ -10,10 +10,10 @@
     "cssVariables": true
   },
   "aliases": {
-    "components": "re-shell-ui/components",
-    "ui": "re-shell-ui/components/ui",
-    "lib": "re-shell-ui/lib",
-    "utils": "re-shell-ui/lib/utils",
-    "hooks": "re-shell-ui/hooks"
+    "components": "@re-shell/ui/components",
+    "ui": "@re-shell/ui/components/ui",
+    "lib": "@re-shell/ui/lib",
+    "utils": "@re-shell/ui/lib/utils",
+    "hooks": "@re-shell/ui/hooks"
   }
 }

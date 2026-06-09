@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { z } from 'zod';
-import { jsonResponseSchema } from 're-shell-contracts';
+import { jsonResponseSchema } from '@re-shell/contracts';
 
 /**
  * Contract conformance regression suite.
@@ -14,7 +14,7 @@ import { jsonResponseSchema } from 're-shell-contracts';
  *   1. stdout is exactly one JSON.parse-able line (the single-line envelope
  *      contract), and
  *   2. the parsed payload validates against `jsonResponseSchema(<dataSchema>)`
- *      from re-shell-contracts — the canonical, zod-backed wire envelope.
+ *      from @re-shell/contracts — the canonical, zod-backed wire envelope.
  *
  * The envelope (`{ ok, data, warnings }` / `{ ok:false, error, warnings }`) is
  * the enforced cross-process contract and is validated for every command. Each
@@ -186,7 +186,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     // fail loudly with an actionable message if it is missing.
     if (!fs.existsSync(CLI_PATH)) {
       throw new Error(
-        `Built CLI not found at ${CLI_PATH}. Run \`pnpm --filter re-shell-cli run build\` first.`
+        `Built CLI not found at ${CLI_PATH}. Run \`pnpm --filter @re-shell/cli run build\` first.`
       );
     }
   });

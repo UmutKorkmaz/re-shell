@@ -1936,7 +1936,7 @@ re-shell generate test apps/my-react
 
 ```bash
 # Install Re-Shell CLI globally
-npm install -g re-shell-cli
+npm install -g @re-shell/cli
 
 # Verify installation
 re-shell --version

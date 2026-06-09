@@ -7,8 +7,8 @@ const useHubQueryMock = vi.fn();
 
 // Mock only the transport hook; keep the real components and lib helpers so the
 // CommandPreview / WorkspaceSummaryPanel render exactly as in production.
-vi.mock('re-shell-ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('re-shell-ui')>();
+vi.mock('@re-shell/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@re-shell/ui')>();
   return { ...actual, useHubQuery: (...args: unknown[]) => useHubQueryMock(...args) };
 });
 

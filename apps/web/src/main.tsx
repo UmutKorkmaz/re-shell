@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { SettingsProvider } from './settings/useSettings';
-import 're-shell-ui/styles.css';
+import '@re-shell/ui/styles.css';
 import './styles.css';
 
 const queryClient = new QueryClient({

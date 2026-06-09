@@ -5,10 +5,10 @@ workspace holds four packages on the `@re-shell/*` scope:
 
 | Package | Name | Role |
 |---------|------|------|
-| `packages/cli` | `re-shell-cli` | The published CLI / engine + `re-shell ui` launcher. |
-| `packages/ui` | `re-shell-ui` | shadcn-React component library (the single UI system). |
-| `packages/contracts` | `re-shell-contracts` | Authoritative TS + zod contract shapes shared by CLI and UI. |
-| `apps/web` | `re-shell-dashboard` | Dashboard app + token-authed hub-server (SSE `/events`, WS `/jobs`). |
+| `packages/cli` | `@re-shell/cli` | The published CLI / engine + `re-shell ui` launcher. |
+| `packages/ui` | `@re-shell/ui` | shadcn-React component library (the single UI system). |
+| `packages/contracts` | `@re-shell/contracts` | Authoritative TS + zod contract shapes shared by CLI and UI. |
+| `apps/web` | `@re-shell/dashboard` | Dashboard app + token-authed hub-server (SSE `/events`, WS `/jobs`). |
 
 > The Web Components layer has been **retired**; shadcn-React in `packages/ui` is the one UI system.
 
@@ -20,7 +20,7 @@ workspace holds four packages on the `@re-shell/*` scope:
 |-----|------------|
 | [`RE_SHELL_ULTIMATE_PLAN.md`](./RE_SHELL_ULTIMATE_PLAN.md) | **The canonical implementation plan.** Authoritative; supersedes the master-plan draft and the scattered legacy plans. |
 | [`RE_SHELL_MASTER_PLAN.md`](./RE_SHELL_MASTER_PLAN.md) | **Historical audit record** (the earlier DRAFT). Documents the original three-repo reality and the document-disposition decisions. Implemented through Phase 8; kept for provenance. |
-| [`CLI-CONTRACTS.md`](./CLI-CONTRACTS.md) | The CLI↔UI JSON contract: response envelope, error-code vocabulary, per-command `--json` shapes, and the SSE `/events` + WS `/jobs` hub transport. Regenerated from real CLI output in Wave 2 and conformance-tested. Source of truth: `re-shell-contracts`. |
+| [`CLI-CONTRACTS.md`](./CLI-CONTRACTS.md) | The CLI↔UI JSON contract: response envelope, error-code vocabulary, per-command `--json` shapes, and the SSE `/events` + WS `/jobs` hub transport. Regenerated from real CLI output in Wave 2 and conformance-tested. Source of truth: `@re-shell/contracts`. |
 | hub-server / security | The token-authed transport that fronts the CLI for the dashboard (`apps/web/src/hub-server.ts`): SSE `/events`, WS `/jobs`, 127.0.0.1 bind, session token, no arbitrary shell. Documented in [`CLI-CONTRACTS.md`](./CLI-CONTRACTS.md) (transport + error vocabulary). |
 | [`superpowers/specs/2026-05-29-re-shell-ui-web-components-design.md`](./superpowers/specs/2026-05-29-re-shell-ui-web-components-design.md) | The UI design spec (component system, tokens, layout primitives). |
 
@@ -32,9 +32,9 @@ install/usage notes — they should not duplicate the canonical plan or contract
 | File | Scope |
 |------|-------|
 | `packages/cli/README.md` | CLI install / quick-start; points to `/docs`. |
-| `packages/ui/README.md` | `re-shell-ui` exports / usage; points to `/docs`. |
-| `packages/contracts/README.md` | `re-shell-contracts`; points to `CLI-CONTRACTS.md`. |
-| `apps/web/README.md` | `re-shell-dashboard` dashboard; points to `/docs`. |
+| `packages/ui/README.md` | `@re-shell/ui` exports / usage; points to `/docs`. |
+| `packages/contracts/README.md` | `@re-shell/contracts`; points to `CLI-CONTRACTS.md`. |
+| `apps/web/README.md` | `@re-shell/dashboard` dashboard; points to `/docs`. |
 
 ### CLI usage examples (accurate, kept)
 
@@ -64,5 +64,5 @@ pre-rewrite contract:
 ## Conventions
 
 - The **canonical plan** is `RE_SHELL_ULTIMATE_PLAN.md`. When plans conflict, it wins.
-- `re-shell-contracts` is the **single source of truth** for CLI↔UI shapes; `CLI-CONTRACTS.md` documents it and is conformance-tested.
+- `@re-shell/contracts` is the **single source of truth** for CLI↔UI shapes; `CLI-CONTRACTS.md` documents it and is conformance-tested.
 - `AGENTS.md` and `.agents/` are agent-context auto-dumps and are **gitignored** — never tracked.

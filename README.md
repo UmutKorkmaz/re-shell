@@ -2,20 +2,20 @@
 
 A single **pnpm monorepo** that pairs a full-stack scaffolding CLI with a local,
 token-authed dashboard. The CLI is the engine; the dashboard, component library,
-and shared contracts are built on top of it — published as unscoped `re-shell-*` packages.
+and shared contracts are built on top of it — published under the `@re-shell/*` npm scope.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/umutkorkmaz/re-shell-cli/ci.yml?branch=main)](https://github.com/umutkorkmaz/re-shell-cli/actions/workflows/ci.yml)
-[![CLI version](https://img.shields.io/npm/v/re-shell-cli.svg?label=cli)](https://www.npmjs.com/package/re-shell-cli)
-[![License](https://img.shields.io/npm/l/re-shell-cli.svg)](https://github.com/umutkorkmaz/re-shell-cli/blob/main/LICENSE)
+[![CLI version](https://img.shields.io/npm/v/@re-shell/cli.svg?label=cli)](https://www.npmjs.com/package/@re-shell/cli)
+[![License](https://img.shields.io/npm/l/@re-shell/cli.svg)](https://github.com/umutkorkmaz/re-shell-cli/blob/main/LICENSE)
 
 ## Packages
 
 | Path | Name | Role |
 |------|------|------|
-| [`packages/cli`](./packages/cli) | `re-shell-cli` | The published CLI / scaffolding engine, plus the `re-shell ui` launcher. |
-| [`packages/ui`](./packages/ui) | `re-shell-ui` | shadcn-first React component library (the single UI system). |
-| [`packages/contracts`](./packages/contracts) | `re-shell-contracts` | Shared zod schemas + the CLI↔UI JSON envelope and `ErrorCode` vocabulary. |
-| [`apps/web`](./apps/web) | `re-shell-dashboard` | Local React dashboard + the token-authed hub-server the CLI launches. |
+| [`packages/cli`](./packages/cli) | `@re-shell/cli` | The published CLI / scaffolding engine, plus the `re-shell ui` launcher. |
+| [`packages/ui`](./packages/ui) | `@re-shell/ui` | shadcn-first React component library (the single UI system). |
+| [`packages/contracts`](./packages/contracts) | `@re-shell/contracts` | Shared zod schemas + the CLI↔UI JSON envelope and `ErrorCode` vocabulary. |
+| [`apps/web`](./apps/web) | `@re-shell/dashboard` | Local React dashboard + the token-authed hub-server the CLI launches. |
 
 > There is **no Web Components surface**. shadcn-React in `packages/ui` is the one UI system.
 
@@ -32,7 +32,7 @@ npx pnpm@9.15.9 -r build
 node packages/cli/dist/index.js --help
 
 # …or use the published CLI globally
-npm install -g re-shell-cli
+npm install -g @re-shell/cli
 re-shell --help
 
 # Launch the local dashboard (React app + token-authed hub on 127.0.0.1)

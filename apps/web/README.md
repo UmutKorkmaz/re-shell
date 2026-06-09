@@ -1,9 +1,9 @@
-# re-shell-dashboard
+# @re-shell/dashboard
 
 The local Re-Shell dashboard. A React (Vite) single-page app that the CLI launches
 with `re-shell ui`, fronted by a token-authed **hub-server** that proxies a vetted
 slice of the CLI. It is built entirely from shadcn-React components in
-[`re-shell-ui`](../../packages/ui) — there is **no Web Components layer**.
+[`@re-shell/ui`](../../packages/ui) — there is **no Web Components layer**.
 
 > Part of the [Re-Shell monorepo](https://github.com/umutkorkmaz/re-shell-cli). See
 > [`/docs`](../../docs) for the documentation index and
@@ -38,21 +38,21 @@ the CLI. It does **not** expose an arbitrary shell:
     (`re-shell-token.<token>`).
 - **Transport**: SSE `/events` for streamed state, WS `/jobs` for live job output.
   Both validate payloads against the zod schemas in
-  [`re-shell-contracts`](../../packages/contracts).
+  [`@re-shell/contracts`](../../packages/contracts).
 - Only commands resolvable through `src/hub/command-registry.ts` can run.
 
 ## Local development
 
 ```bash
 # Dashboard dev server (Vite)
-pnpm --filter re-shell-dashboard dev
+pnpm --filter @re-shell/dashboard dev
 
 # Production build (app + bundled hub-server)
-pnpm --filter re-shell-dashboard build
+pnpm --filter @re-shell/dashboard build
 
 # Tests (hub + UI suites) and typecheck
-pnpm --filter re-shell-dashboard test
-pnpm --filter re-shell-dashboard typecheck
+pnpm --filter @re-shell/dashboard test
+pnpm --filter @re-shell/dashboard typecheck
 ```
 
 In normal use you do not run these directly — `re-shell ui` launches the app and the
@@ -63,8 +63,8 @@ hub together. Use `re-shell ui --dry-run` (or `--json`) to print the launch plan
 The dashboard consumes the component library through its public entry points:
 
 ```ts
-import { WorkspaceSummaryPanel } from 're-shell-ui';
-import 're-shell-ui/styles.css';
+import { WorkspaceSummaryPanel } from '@re-shell/ui';
+import '@re-shell/ui/styles.css';
 ```
 
 Keep that boundary intact so the dashboard stays decoupled from the library internals.
