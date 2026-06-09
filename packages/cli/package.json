@@ -1,6 +1,6 @@
 {
   "name": "@re-shell/cli",
-  "version": "0.29.2",
+  "version": "0.29.3",
   "description": "Full-stack development platform uniting microservices and microfrontends. Build complete applications with .NET (ASP.NET Core Web API, Minimal API), Java (Spring Boot, Quarkus, Micronaut, Vert.x), Rust (Actix-Web, Warp, Rocket, Axum), Python (FastAPI, Django, Flask) and Node.js backends alongside React, Vue, Svelte frontends - all managed through one powerful CLI",
   "main": "dist/index.js",
   "files": [
@@ -55,9 +55,9 @@
     "directory": "packages/cli"
   },
   "bugs": {
-    "url": "https://github.com/umutkorkmaz/re-shell-cli/issues"
+    "url": "https://github.com/UmutKorkmaz/re-shell/issues"
   },
-  "homepage": "https://github.com/umutkorkmaz/re-shell-cli#readme",
+  "homepage": "https://umutkorkmaz.github.io/re-shell/",
   "publishConfig": {
     "access": "public"
   },

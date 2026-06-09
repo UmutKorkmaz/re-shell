@@ -45,5 +45,9 @@
   },
   "dependencies": {
     "zod": "^4.4.3"
+  },
+  "homepage": "https://umutkorkmaz.github.io/re-shell/",
+  "bugs": {
+    "url": "https://github.com/UmutKorkmaz/re-shell/issues"
   }
 }

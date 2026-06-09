@@ -449,7 +449,15 @@ const icon = (name: string) => ICONS[name] ?? '';
                   style={`--i:${i}`}
                 >
                   <span class="lp-bento__icon" aria-hidden="true">
-                    <Fragment set:html={icon(f.icon)} />
+                    <svg
+                      class="lp-bento__icon-svg"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      height="24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      set:html={icon(f.icon)}
+                    />
                   </span>
                   <h3 class="lp-bento__title">{f.title}</h3>
                   <p class="lp-bento__body">{f.body}</p>
