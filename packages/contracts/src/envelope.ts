@@ -50,6 +50,8 @@ export const errorCodeSchema = z.enum([
   'BRIDGE_GENERATE_ERROR',
   // Code introduced by the offline AI/NLP command-intent slice (W9d-1)
   'AI_INTENT_ERROR',
+  // Code introduced by the semantic-ish `find` search slice (issue #6)
+  'FIND_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

@@ -159,6 +159,48 @@ export const commandSpecInputSchema = commandSpecSchema.extend({
 export type CommandSpecInput = z.infer<typeof commandSpecInputSchema>;
 
 // ---------------------------------------------------------------------------
+// Find / search results
+//
+// `re-shell find "<query>"` performs an offline, deterministic search across
+// the command catalogue and the template registry. Each hit is a
+// {@link FindResult}; the command returns a {@link FindResponse}. Authored as
+// zod so the CLI and any UI consuming `find --json` validate one shape.
+// ---------------------------------------------------------------------------
+
+export const findResultTypeSchema = z.enum(['command', 'template']);
+export type FindResultType = z.infer<typeof findResultTypeSchema>;
+
+/**
+ * A single ranked search hit. `score` is a normalised relevance in [0, 1].
+ * `matched` lists the query terms that contributed to the score (explainability).
+ * `usage` is present for commands (the invocation string), `path` for templates
+ * is omitted — templates carry no filesystem path, so the optional `path` field
+ * exists for forward-compatibility and is left unset by the current emitters.
+ */
+export const findResultSchema = z.object({
+  type: findResultTypeSchema,
+  id: z.string(),
+  title: z.string(),
+  score: z.number(),
+  matched: z.array(z.string()),
+  usage: z.string().optional(),
+  path: z.string().optional(),
+});
+export type FindResult = z.infer<typeof findResultSchema>;
+
+/**
+ * Envelope payload for `find --json`: the ranked result list plus the echoed
+ * query and the requested limit, so consumers can render context without
+ * re-parsing argv.
+ */
+export const findResponseSchema = z.object({
+  query: z.string(),
+  limit: z.number(),
+  results: z.array(findResultSchema),
+});
+export type FindResponse = z.infer<typeof findResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // SSE / WS wire messages
 //
 // Authored as zod schemas so both the hub (emit side) and the browser clients

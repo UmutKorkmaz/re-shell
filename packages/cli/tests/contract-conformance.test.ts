@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { z } from 'zod';
-import { jsonResponseSchema } from '@re-shell/contracts';
+import { jsonResponseSchema, findResponseSchema } from '@re-shell/contracts';
 
 /**
  * Contract conformance regression suite.
@@ -257,6 +257,97 @@ describe('contract conformance: --json envelope + data shapes', () => {
     expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
   });
 
+  it('find --json conforms to the envelope + findResponse shape with relevant hits', () => {
+    const { stdout } = runCli(['find', 'kubernetes manifests', '--json']);
+    const env = parseSingleLine(stdout);
+    expect(env.ok).toBe(true);
+    const parsed = jsonResponseSchema(findResponseSchema).safeParse(env);
+    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    // The k8s manifest generator is the most relevant real command for this query.
+    const data = (env as { data: { results: Array<{ id: string }> } }).data;
+    expect(data.results.length).toBeGreaterThan(0);
+    expect(data.results.some(r => r.id === 'k8s manifests')).toBe(true);
+  });
+
+  // --- Relevance: real corpus, real ranking (offline keyword path) -------
+  //
+  // These drive the FULL registered program (all command groups + the live
+  // template registry) via the built CLI, exactly as `re-shell find` ships.
+  // They assert the offline keyword/fuzzy ranker surfaces the right real
+  // commands/templates for natural-language queries. No embeddings env is set,
+  // so they also pin the keyword-fallback (default) path.
+
+  /** Run `find <query> --json` and return the typed result list. */
+  function findResults(
+    query: string,
+    extraArgs: string[] = []
+  ): Array<{ type: string; id: string; score: number; matched: string[] }> {
+    const { stdout, status } = runCli(['find', query, '--json', ...extraArgs]);
+    const env = parseSingleLine(stdout);
+    expect(env.ok, `find "${query}" should succeed`).toBe(true);
+    expect(status).toBe(0);
+    const parsed = jsonResponseSchema(findResponseSchema).safeParse(env);
+    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    return (env as { data: { results: Array<{ type: string; id: string; score: number; matched: string[] }> } })
+      .data.results;
+  }
+
+  it('find "rotate a secret in k8s" surfaces the k8s + secret-related commands/templates', () => {
+    const results = findResults('rotate a secret in k8s', ['--limit', '8']);
+    const ids = results.map(r => r.id);
+    // The K8s commands and the secrets-management template are the on-topic hits.
+    expect(ids.some(id => id.startsWith('k8s'))).toBe(true);
+    expect(
+      ids.includes('security secret-detection') || ids.includes('secrets-management'),
+      `expected a secret-related hit, got: ${ids.join(', ')}`
+    ).toBe(true);
+  });
+
+  it('find "high-throughput async API" ranks real API templates at the top', () => {
+    const results = findResults('high-throughput async API', ['--limit', '8']);
+    expect(results.length).toBeGreaterThan(0);
+    // Every top hit should have matched the load-bearing "api"/"async" terms.
+    expect(results.some(r => r.id.includes('api'))).toBe(true);
+    // The websocket-api-docs template is the strongest async+api match.
+    expect(results.some(r => r.id === 'websocket-api-docs')).toBe(true);
+    expect(results[0].matched).toContain('api');
+  });
+
+  it('find "generate helm chart" ranks the helm generator command first', () => {
+    const results = findResults('generate helm chart');
+    expect(results[0].id).toBe('k8s helm generate');
+    expect(results[0].type).toBe('command');
+    // All three load-bearing terms contributed to the top hit.
+    expect(results[0].matched).toEqual(
+      expect.arrayContaining(['generate', 'helm', 'chart'])
+    );
+  });
+
+  it('find honours --limit', () => {
+    const results = findResults('api', ['--limit', '3']);
+    expect(results.length).toBe(3);
+  });
+
+  it('find --type template returns only templates; --type command only commands', () => {
+    const templatesOnly = findResults('generate', ['--type', 'template', '--limit', '10']);
+    expect(templatesOnly.length).toBeGreaterThan(0);
+    expect(templatesOnly.every(r => r.type === 'template')).toBe(true);
+
+    const commandsOnly = findResults('generate', ['--type', 'command', '--limit', '10']);
+    expect(commandsOnly.length).toBeGreaterThan(0);
+    expect(commandsOnly.every(r => r.type === 'command')).toBe(true);
+  });
+
+  it('find returns an empty (but valid) result set for an unmatchable query', () => {
+    const results = findResults('zxqwvbjkmpfgvqxz');
+    expect(results).toEqual([]);
+  });
+
+  it('find returns an empty result set for a stop-words-only query', () => {
+    const results = findResults('the a of to');
+    expect(results).toEqual([]);
+  });
+
   // --- Error-path conformance --------------------------------------------
 
   it('templates show <bad> --json emits {ok:false} envelope and exits non-zero', () => {
@@ -285,6 +376,17 @@ describe('contract conformance: --json envelope + data shapes', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  it('find --type <bad> --json emits {ok:false} FIND_ERROR + non-zero exit', () => {
+    const { stdout, status } = runCli(['find', 'anything', '--type', '__nope__', '--json']);
+    const env = parseSingleLine(stdout);
+    expect(env.ok).toBe(false);
+    expect(status).not.toBe(0);
+    const parsed = jsonResponseSchema(z.unknown()).safeParse(env);
+    expect(parsed.success).toBe(true);
+    const error = (env as { error: { code: string } }).error;
+    expect(error.code).toBe('FIND_ERROR');
   });
 
   // --- Faked-TTY spinner regression --------------------------------------
