@@ -129,6 +129,7 @@ export function registerWorkspaceGroup(program: Command): void {
     .command('health')
     .description('Check workspace health with comprehensive diagnostics')
     .option('--json', 'Output health results as JSON')
+    .option('--explain', 'Explain the cause of each failing/warning check and suggest a fix')
     .option('--verbose', 'Show detailed health information')
     .action(
       createAsyncCommand(async options => {

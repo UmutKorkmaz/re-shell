@@ -5,6 +5,13 @@ import { execSync } from 'child_process';
 import { globSync } from 'glob';
 import { findMonorepoRoot } from '../utils/monorepo';
 import { jsonSuccess, enableJsonMode } from '../utils/json-output';
+import {
+  buildSuggestions,
+  buildFixPlan,
+  isAllowedFixCommand,
+  type RemediableCheck,
+} from '../utils/doctor-remediation';
+import type { Suggestion, FixPlan } from '@re-shell/contracts';
 
 interface HealthCheck {
   name: string;
@@ -18,6 +25,8 @@ interface DoctorOptions {
   verbose?: boolean;
   spinner?: any;
   json?: boolean;
+  explain?: boolean;
+  yes?: boolean;
 }
 
 export async function runDoctorCheck(options: DoctorOptions = {}) {
@@ -34,7 +43,7 @@ export async function runDoctorCheck(options: DoctorOptions = {}) {
         message: 'Not in a monorepo workspace',
         suggestion: 'Run this command from within a monorepo or use "re-shell init" to create one'
       });
-      return displayResults(checks, options);
+      return displayResults(checks, process.cwd(), options);
     }
 
     if (options.spinner) {
@@ -65,12 +74,12 @@ export async function runDoctorCheck(options: DoctorOptions = {}) {
     // Check 8: File system health
     checks.push(...(await checkFileSystemHealth(monorepoRoot)));
 
-    // Auto-fix issues if requested
+    // --fix: compose (and optionally apply) a remediation plan.
     if (options.fix) {
-      await autoFixIssues(checks, monorepoRoot, options);
+      return await runFixPlan(checks, monorepoRoot, options);
     }
 
-    return displayResults(checks, options);
+    return displayResults(checks, monorepoRoot, options);
 
   } catch (error) {
     checks.push({
@@ -79,7 +88,7 @@ export async function runDoctorCheck(options: DoctorOptions = {}) {
       message: `Doctor check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       suggestion: 'Try running with --verbose for more details'
     });
-    return displayResults(checks, options);
+    return displayResults(checks, process.cwd(), options);
   } finally {
     restoreJson();
   }
@@ -589,53 +598,117 @@ async function checkFileSystemHealth(monorepoRoot: string): Promise<HealthCheck[
   return checks;
 }
 
-async function autoFixIssues(checks: HealthCheck[], monorepoRoot: string, options: DoctorOptions) {
+/**
+ * Map the doctor's internal HealthCheck onto the loose RemediableCheck shape the
+ * remediation util consumes. Pure adapter.
+ */
+function toRemediableChecks(checks: HealthCheck[]): RemediableCheck[] {
+  return checks.map(c => ({ name: c.name, status: c.status, message: c.message }));
+}
+
+/**
+ * `doctor --fix`. Default (no --yes) = DRY RUN: compose and print the plan,
+ * writing NOTHING. With --yes, only the allow-listed fix commands are executed.
+ */
+async function runFixPlan(
+  checks: HealthCheck[],
+  monorepoRoot: string,
+  options: DoctorOptions
+) {
+  const packageManager = getPackageManager(monorepoRoot);
+  const suggestions = buildSuggestions(toRemediableChecks(checks), packageManager);
+
+  const shouldApply = options.fix === true && options.yes === true;
+
   if (options.spinner) {
-    options.spinner.text = 'Auto-fixing issues...';
+    options.spinner.stop();
   }
 
-  const fixableIssues = checks.filter(check => 
-    check.status === 'warning' || check.status === 'error'
+  // Build the dry-run plan first. We only flip individual steps to applied as we
+  // actually run them, so the emitted plan always reflects reality.
+  const plan: FixPlan = buildFixPlan(suggestions, false);
+
+  if (!shouldApply) {
+    return emitFixPlan(plan, suggestions, options, /* applied */ false);
+  }
+
+  // Apply only allow-listed commands. Anything else stays a documented manual
+  // step. We mutate a fresh copy of the steps to record what was applied.
+  const appliedSteps = await Promise.all(
+    plan.steps.map(async step => {
+      if (!step.command || !isAllowedFixCommand(step.command)) {
+        return { ...step, applied: false };
+      }
+      try {
+        execSync(step.command, { cwd: monorepoRoot, stdio: 'pipe' });
+        return { ...step, applied: true };
+      } catch (error) {
+        if (options.verbose && !options.json) {
+          console.log(
+            chalk.yellow(
+              `Failed to apply "${step.command}": ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
+          );
+        }
+        return { ...step, applied: false };
+      }
+    })
   );
 
-  for (const issue of fixableIssues) {
-    try {
-      switch (issue.name) {
-        case 'security-audit':
-          if (issue.message.includes('vulnerabilities')) {
-            const packageManager = getPackageManager(monorepoRoot);
-            execSync(`${packageManager} audit fix`, { cwd: monorepoRoot, stdio: 'pipe' });
-            issue.status = 'success';
-            issue.message = 'Security vulnerabilities fixed automatically';
-          }
-          break;
-        
-        case 'git-config':
-          if (issue.message.includes('missing .gitignore')) {
-            const gitignoreContent = `node_modules/
-dist/
-build/
-.env
-.env.local
-.DS_Store
-*.log
-coverage/
-.nyc_output/
-*.tgz
-*.tar.gz
-`;
-            await fs.writeFile(path.join(monorepoRoot, '.gitignore'), gitignoreContent);
-            issue.status = 'success';
-            issue.message = 'Created .gitignore file';
-          }
-          break;
-      }
-    } catch (error) {
-      if (options.verbose) {
-        console.log(chalk.yellow(`Failed to auto-fix ${issue.name}: ${error instanceof Error ? error.message : 'Unknown error'}`));
-      }
-    }
+  const appliedPlan: FixPlan = { applied: true, steps: appliedSteps };
+  return emitFixPlan(appliedPlan, suggestions, options, /* applied */ true);
+}
+
+function emitFixPlan(
+  plan: FixPlan,
+  suggestions: Suggestion[],
+  options: DoctorOptions,
+  applied: boolean
+) {
+  if (options.json) {
+    jsonSuccess({ plan, suggestions });
+    return;
   }
+
+  console.log('\n' + chalk.bold('🩺 Re-Shell Doctor — Fix Plan'));
+  if (!applied) {
+    console.log(
+      chalk.dim('Dry run: nothing was changed. Re-run with --yes to apply allow-listed fixes.\n')
+    );
+  } else {
+    console.log(chalk.dim('Applied allow-listed fixes.\n'));
+  }
+
+  if (plan.steps.length === 0) {
+    console.log(chalk.green('✓ No remediable issues found. Nothing to do.'));
+    return;
+  }
+
+  plan.steps.forEach((step, i) => {
+    const executable = Boolean(step.command);
+    const icon = !executable
+      ? chalk.cyan('✎')
+      : step.applied
+        ? chalk.green('✓')
+        : chalk.yellow('▶');
+    const tag = executable
+      ? step.applied
+        ? chalk.green('[applied]')
+        : chalk.yellow('[would run]')
+      : chalk.cyan('[manual]');
+    console.log(`${icon} ${chalk.bold(`${i + 1}.`)} ${tag} ${chalk.dim(step.checkId)}`);
+    console.log(`   ${step.description}`);
+  });
+
+  const executableCount = plan.steps.filter(s => s.command).length;
+  const manualCount = plan.steps.length - executableCount;
+  console.log();
+  console.log(
+    chalk.dim(
+      `${executableCount} command fix(es), ${manualCount} manual step(s).` +
+        (applied ? '' : ' Use --yes to run the command fixes.')
+    )
+  );
 }
 
 async function getWorkspaces(monorepoRoot: string): Promise<string[]> {
@@ -690,10 +763,17 @@ function getPackageManager(monorepoRoot: string): 'npm' | 'yarn' | 'pnpm' | 'bun
   return 'npm';
 }
 
-function displayResults(checks: HealthCheck[], options: DoctorOptions) {
+function displayResults(checks: HealthCheck[], monorepoRoot: string, options: DoctorOptions) {
+  // Remediation suggestions are computed when --explain is set (cheap + offline).
+  const packageManager = getPackageManager(monorepoRoot);
+  const suggestions: Suggestion[] = options.explain
+    ? buildSuggestions(toRemediableChecks(checks), packageManager)
+    : [];
+
   if (options.json) {
     const warnings = checks.filter(c => c.status === 'warning').map(c => c.message);
-    jsonSuccess({ checks }, warnings);
+    const payload = options.explain ? { checks, suggestions } : { checks };
+    jsonSuccess(payload, warnings);
     return;
   }
 
@@ -746,9 +826,23 @@ function displayResults(checks: HealthCheck[], options: DoctorOptions) {
   }
 
   console.log(chalk.bold(`Overall Health: ${healthColor(healthScore + '%')} (${healthStatus})`));
-  
+
+  // --explain: print cause + suggested fix for every failing/warning check.
+  if (options.explain && suggestions.length > 0) {
+    console.log('\n' + chalk.bold('💡 Explanations & Suggested Fixes'));
+    for (const s of suggestions) {
+      const marker = s.fixable ? chalk.green('[auto-fixable]') : chalk.dim('[manual]');
+      console.log(`\n${chalk.bold(s.checkId)} ${marker}`);
+      console.log(`  ${chalk.dim('Cause:')} ${s.cause}`);
+      console.log(`  ${chalk.dim('Fix:')}   ${s.suggestion}`);
+      if (s.fixable && s.fixCommand) {
+        console.log(`  ${chalk.dim('Run:')}   ${chalk.cyan(s.fixCommand)}`);
+      }
+    }
+  }
+
   if (warningCount > 0 || errorCount > 0) {
-    console.log('\n' + chalk.dim('Run with --fix to automatically fix some issues'));
-    console.log(chalk.dim('Run with --verbose to see detailed suggestions'));
+    console.log('\n' + chalk.dim('Run with --explain to see causes and suggested fixes'));
+    console.log(chalk.dim('Run with --fix to preview an auto-fix plan (dry run; --yes to apply)'));
   }
 }

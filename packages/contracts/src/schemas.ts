@@ -100,6 +100,48 @@ export const healthSummarySchema = z.object({
 });
 export type HealthSummary = z.infer<typeof healthSummarySchema>;
 
+// ---------------------------------------------------------------------------
+// Remediation / suggestion types
+//
+// Emitted by `doctor --explain` / `workspace health --explain`. Each failing or
+// warning health check is mapped to a plain-language cause and a concrete,
+// actionable suggestion. When `fixable` is true, `fixCommand` carries an
+// allow-listed shell command the `--fix` planner may compose into a dry-run plan.
+// ---------------------------------------------------------------------------
+
+export const suggestionSchema = z.object({
+  // The health check id/code this suggestion remediates (e.g. "security-audit").
+  checkId: z.string(),
+  // Plain-language explanation of why the check failed.
+  cause: z.string(),
+  // Concrete next step: a command to run or an edit to make.
+  suggestion: z.string(),
+  // Whether `doctor --fix` can apply this automatically.
+  fixable: z.boolean(),
+  // Allow-listed shell command to run when applying the fix. Present only when
+  // `fixable` is true and the fix is a command (edits carry no fixCommand).
+  fixCommand: z.string().optional(),
+});
+export type Suggestion = z.infer<typeof suggestionSchema>;
+
+// A single step in a fix plan. `command` is the allow-listed shell command the
+// step would run (empty for edit-only steps). `apply` reflects whether the step
+// was actually executed (false in the default dry-run path).
+export const fixPlanStepSchema = z.object({
+  checkId: z.string(),
+  description: z.string(),
+  command: z.string().optional(),
+  applied: z.boolean(),
+});
+export type FixPlanStep = z.infer<typeof fixPlanStepSchema>;
+
+export const fixPlanSchema = z.object({
+  // True when steps were actually executed; false for the default dry-run plan.
+  applied: z.boolean(),
+  steps: z.array(fixPlanStepSchema),
+});
+export type FixPlan = z.infer<typeof fixPlanSchema>;
+
 export const workspaceSummarySchema = z.object({
   path: z.string(),
   name: z.string(),

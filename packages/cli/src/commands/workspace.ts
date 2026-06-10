@@ -9,6 +9,8 @@ import { getWorkspaces, findMonorepoRoot, WorkspaceInfo } from '../utils/monorep
 import { ProgressSpinner } from '../utils/spinner';
 import { jsonSuccess, jsonError, enableJsonMode, ok, fail } from '../utils/json-output';
 import { normalizeHealth, CanonicalHealth } from '../utils/health-normalizer';
+import { buildSuggestions } from '../utils/doctor-remediation';
+import type { Suggestion } from '@re-shell/contracts';
 
 const execAsync = promisify(exec);
 
@@ -1471,7 +1473,7 @@ async function attemptAutoFix(result: any, configPath: string): Promise<boolean>
  * Check workspace health
  */
 export async function checkWorkspaceHealth(options: any = {}): Promise<void> {
-  const { spinner, json = false, verbose = false } = options;
+  const { spinner, json = false, verbose = false, explain = false } = options;
 
   try {
     if (!json) {
@@ -1516,8 +1518,18 @@ export async function checkWorkspaceHealth(options: any = {}): Promise<void> {
       spinner.stop();
     }
 
+    // Remediation suggestions (cheap + offline) when --explain is set. Shares the
+    // same deterministic util as `doctor --explain`.
+    const packageManager = await detectPackageManager(monorepoRoot ?? process.cwd());
+    const suggestions: Suggestion[] = explain
+      ? buildSuggestions(
+          healthChecks.map(c => ({ name: c.name, status: c.status, message: c.message })),
+          packageManager
+        )
+      : [];
+
     // Display results
-    displayHealthResults(healthChecks, json, verbose);
+    displayHealthResults(healthChecks, json, verbose, explain, suggestions);
 
     // Overall health status
     if (!json) {
@@ -1926,7 +1938,13 @@ async function checkPackageManagerHealth(configPath: string): Promise<HealthChec
 /**
  * Display health results
  */
-function displayHealthResults(checks: HealthCheck[], json: boolean, verbose: boolean): void {
+function displayHealthResults(
+  checks: HealthCheck[],
+  json: boolean,
+  verbose: boolean,
+  explain = false,
+  suggestions: Suggestion[] = []
+): void {
   if (json) {
     const warnings = checks.filter(c => c.status === 'warning').map(c => c.message);
     const overall = checks.every(c => c.status === 'healthy' || c.status === 'warning')
@@ -1934,7 +1952,12 @@ function displayHealthResults(checks: HealthCheck[], json: boolean, verbose: boo
       : checks.some(c => c.status === 'critical')
         ? 'critical'
         : 'degraded';
-    jsonSuccess(normalizeHealth({ checks, overall }), warnings);
+    const health = normalizeHealth({ checks, overall });
+    // Explain adds a structured suggestions array alongside the normalized health
+    // shape so consumers opting into --explain get remediation without changing
+    // the default health envelope.
+    const payload = explain ? { ...health, suggestions } : health;
+    jsonSuccess(payload, warnings);
     return;
   }
 
@@ -1957,8 +1980,21 @@ function displayHealthResults(checks: HealthCheck[], json: boolean, verbose: boo
     }
   }
 
+  if (explain && suggestions.length > 0) {
+    console.log('\n' + chalk.bold('💡 Explanations & Suggested Fixes'));
+    for (const s of suggestions) {
+      const marker = s.fixable ? chalk.green('[auto-fixable]') : chalk.gray('[manual]');
+      console.log(`\n${chalk.bold(s.checkId)} ${marker}`);
+      console.log(`  ${chalk.gray('Cause:')} ${s.cause}`);
+      console.log(`  ${chalk.gray('Fix:')}   ${s.suggestion}`);
+      if (s.fixable && s.fixCommand) {
+        console.log(`  ${chalk.gray('Run:')}   ${chalk.cyan(s.fixCommand)}`);
+      }
+    }
+  }
+
   if (!verbose) {
-    console.log(chalk.gray('\nTip: Use --verbose for more details'));
+    console.log(chalk.gray('\nTip: Use --verbose for more details, or --explain for suggested fixes'));
   }
 }
 
