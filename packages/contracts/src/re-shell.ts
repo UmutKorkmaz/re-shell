@@ -27,6 +27,10 @@ export {
   // command spec
   commandSpecSchema,
   commandSpecInputSchema,
+  // find / search
+  findResultTypeSchema,
+  findResultSchema,
+  findResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -50,6 +54,10 @@ export type {
   JobRecord,
   CommandSpec,
   CommandSpecInput,
+  // find / search
+  FindResultType,
+  FindResult,
+  FindResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

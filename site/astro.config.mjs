@@ -48,6 +48,7 @@ export default defineConfig({
           label: 'CLI Reference',
           items: [
             { label: 'Overview', slug: 'cli/overview' },
+            { label: 'find', slug: 'cli/find' },
             { label: 'workspace', slug: 'cli/workspace' },
             { label: 'templates', slug: 'cli/templates' },
             { label: 'generate', slug: 'cli/generate' },
