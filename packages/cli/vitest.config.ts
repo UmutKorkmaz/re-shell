@@ -9,6 +9,9 @@ export default defineConfig({
     // and can flake on first attempt. Retry only in CI so local runs still
     // surface real flakes (a genuinely broken test fails all attempts).
     retry: process.env.CI ? 2 : 0,
+    // Build the CLI once before the worker pool starts so integration/PTY tests
+    // never spawn a binary that a sibling test is mid-rebuild of.
+    globalSetup: './tests/global-setup.ts',
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     exclude: ['**/node_modules/**', '**/dist/**'],
     // Interactive tests use process.chdir() into os.tmpdir() workspaces, which is
