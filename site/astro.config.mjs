@@ -73,6 +73,7 @@ export default defineConfig({
             { label: 'Dashboard', slug: 'dashboard/overview' },
             { label: 'Template Catalog', slug: 'templates/catalog' },
             { label: 'Compatibility Matrix', slug: 'templates/matrix' },
+            { label: 'MCP Server (AI agents)', slug: 'integrations/mcp' },
           ],
         },
         {

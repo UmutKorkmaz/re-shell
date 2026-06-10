@@ -56,6 +56,10 @@ jobs:
         working-directory: packages/ui
         run: npx vitest run
 
+      - name: Test packages/mcp
+        working-directory: packages/mcp
+        run: npx vitest run
+
       - name: Test apps/web (hub security + ui render)
         working-directory: apps/web
         run: pnpm run test
