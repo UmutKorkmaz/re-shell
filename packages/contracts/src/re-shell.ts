@@ -38,6 +38,12 @@ export {
   // template recommendations
   templateRecommendationSchema,
   recommendResponseSchema,
+  // ai scaffold plan
+  scaffoldIntentSlotSchema,
+  scaffoldIntentSchema,
+  scaffoldPlanStepSchema,
+  scaffoldPlanSchema,
+  aiPlanResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -72,6 +78,12 @@ export type {
   // template recommendations
   TemplateRecommendation,
   RecommendResponse,
+  // ai scaffold plan
+  ScaffoldIntentSlot,
+  ScaffoldIntent,
+  ScaffoldPlanStep,
+  ScaffoldPlan,
+  AiPlanResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

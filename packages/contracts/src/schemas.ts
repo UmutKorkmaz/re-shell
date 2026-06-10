@@ -287,6 +287,106 @@ export const recommendResponseSchema = z.object({
 export type RecommendResponse = z.infer<typeof recommendResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// AI scaffold plan
+//
+// `re-shell ai create "<description>"` turns a free-text project description
+// into a REVIEWABLE, dry-run-by-default PLAN of REAL re-shell commands. The
+// description is parsed OFFLINE + deterministically into a structured intent
+// (frontend framework, backend services, datastores, infra), each slot is
+// resolved to a REAL template id via the same ranker `find`/`recommend` use,
+// and the plan is composed from commands/flags that actually exist
+// (`create`, `generate backend|service`, `k8s generate`).
+//
+// The shape mirrors the {@link FixPlan} discipline (a dry-run-first plan of
+// ordered steps with an `applied` flag) so consumers that already render fix
+// plans can render scaffold plans without new machinery. It gets its own shape
+// rather than overloading FixPlan because every scaffold step is a structured
+// argv (not an allow-listed shell string) and may carry the resolved template
+// id + a "why" rationale for explainability.
+// ---------------------------------------------------------------------------
+
+/**
+ * A single resolved intent slot: one component the description asked for, mapped
+ * to a REAL template/framework id by the offline ranker. `kind` is the role the
+ * component plays; `id` is the resolved REAL id; `matched` lists the description
+ * terms that drove the match (explainability); `score` is the ranker relevance.
+ */
+export const scaffoldIntentSlotSchema = z.object({
+  kind: z.enum(['frontend', 'backend', 'datastore', 'infra']),
+  // The raw phrase from the description that triggered this slot.
+  term: z.string(),
+  // The resolved REAL template id / framework id (never an invented value).
+  id: z.string(),
+  // Human title for the resolved template (registry display name or id).
+  title: z.string(),
+  score: z.number(),
+  matched: z.array(z.string()),
+});
+export type ScaffoldIntentSlot = z.infer<typeof scaffoldIntentSlotSchema>;
+
+/**
+ * The structured intent extracted from the description: the model of what the
+ * user asked for, before it is composed into commands. Every slot references a
+ * REAL id; unresolvable mentions are dropped, never fabricated.
+ */
+export const scaffoldIntentSchema = z.object({
+  // Echoed, normalised description the intent was extracted from.
+  description: z.string(),
+  // Project name slug derived from the description (safe identifier charset).
+  projectName: z.string(),
+  // At most one frontend framework slot (the shell app's framework).
+  frontend: scaffoldIntentSlotSchema.optional(),
+  // Zero or more backend service slots.
+  backends: z.array(scaffoldIntentSlotSchema),
+  // Zero or more datastore slots.
+  datastores: z.array(scaffoldIntentSlotSchema),
+  // Zero or more infra slots (k8s/helm/gitops).
+  infra: z.array(scaffoldIntentSlotSchema),
+});
+export type ScaffoldIntent = z.infer<typeof scaffoldIntentSchema>;
+
+/**
+ * A single step in a scaffold plan. `command` is the ordered argv the step would
+ * run (the binary `re-shell` is implicit and NOT included), every token of which
+ * originates from a real command/flag or a sanitised value slot. `template` is
+ * the REAL resolved id the step scaffolds (absent for infra steps). `why`
+ * explains the step. `applied` reflects whether it actually ran (false on the
+ * default dry-run path).
+ */
+export const scaffoldPlanStepSchema = z.object({
+  command: z.array(z.string()),
+  description: z.string(),
+  template: z.string().optional(),
+  why: z.string().optional(),
+  applied: z.boolean(),
+});
+export type ScaffoldPlanStep = z.infer<typeof scaffoldPlanStepSchema>;
+
+/**
+ * A full, reviewable scaffold plan. `applied` is false for the default dry-run
+ * plan and true only when `--yes` actually executed the steps. `resolved` is the
+ * flat list of every resolved template id surfaced for quick inspection.
+ */
+export const scaffoldPlanSchema = z.object({
+  applied: z.boolean(),
+  steps: z.array(scaffoldPlanStepSchema),
+  // The flat list of REAL resolved template/framework ids this plan references.
+  resolved: z.array(z.string()),
+});
+export type ScaffoldPlan = z.infer<typeof scaffoldPlanSchema>;
+
+/**
+ * Envelope payload for `ai create --json`: the extracted intent plus the
+ * composed plan. Consumers render the plan and, on the dry-run path, the
+ * `intent` model that produced it.
+ */
+export const aiPlanResponseSchema = z.object({
+  intent: scaffoldIntentSchema,
+  plan: scaffoldPlanSchema,
+});
+export type AiPlanResponse = z.infer<typeof aiPlanResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // SSE / WS wire messages
 //
 // Authored as zod schemas so both the hub (emit side) and the browser clients
