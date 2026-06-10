@@ -245,6 +245,63 @@ export type CommandId = keyof typeof REGISTRY;
 /** The list of registered command ids, for introspection and error messages. */
 export const REGISTERED_COMMAND_IDS: readonly string[] = Object.keys(REGISTRY);
 
+/**
+ * The public, read-only metadata for a single allow-listed command. Derived from
+ * (and only from) {@link REGISTRY}, so any natural-language resolver matching
+ * against this set can never drift from the actual hub allow-list — there is one
+ * source of truth. Carries the human-facing identity fields a matcher scores on,
+ * never the builder or schema.
+ */
+export interface RegisteredCommandMeta {
+  readonly id: CommandId;
+  readonly title: string;
+  readonly description: string;
+  readonly destructive: boolean;
+  readonly requiresConfirmation: boolean;
+  /**
+   * True when the command resolves to a valid argv with NO caller-supplied
+   * params (only the optional `cwd`). The assistant offers only these so a
+   * natural-language query can run a command without inventing required params.
+   */
+  readonly runnableWithoutParams: boolean;
+  /**
+   * The argv the hub would run for the no-param invocation (excluding the CLI
+   * binary itself), derived from the SAME builder the hub uses — so the echoed
+   * command can never diverge from what actually executes. Empty when the
+   * command requires params (`runnableWithoutParams === false`).
+   */
+  readonly displayArgs: readonly string[];
+}
+
+/**
+ * The full allow-list, as plain metadata, derived live from {@link REGISTRY}.
+ *
+ * This is the canonical surface for any UI (e.g. the assistant resolver) that
+ * needs to know WHICH commands exist and what they mean. It deliberately omits
+ * the `resolve`/`buildArgs` internals: a caller can match against and display
+ * these, but can only ever EXECUTE a command by routing `{ commandId, params }`
+ * back through {@link resolveCommand} + the hub. The displayed argv is produced
+ * by the real builder, so it stays faithful to what the hub will spawn.
+ */
+export function listRegisteredCommands(): RegisteredCommandMeta[] {
+  return REGISTERED_COMMAND_IDS.map((id) => {
+    const entry = REGISTRY[id as CommandId];
+    // Probe the builder with no params: a command that resolves is runnable from
+    // a bare natural-language query; one that errors needs explicit params and is
+    // surfaced as not-no-param-runnable (assistant skips it).
+    const probe = entry.resolve({});
+    return {
+      id: entry.id as CommandId,
+      title: entry.title,
+      description: entry.description,
+      destructive: entry.destructive,
+      requiresConfirmation: entry.requiresConfirmation,
+      runnableWithoutParams: probe.ok,
+      displayArgs: probe.ok ? probe.args : [],
+    };
+  });
+}
+
 /** True when `id` is a registered command id. */
 export function isRegisteredCommandId(id: string): id is CommandId {
   return Object.prototype.hasOwnProperty.call(REGISTRY, id);

@@ -100,6 +100,7 @@ Live output streams to the browser over **SSE** (`/events`) and a **WebSocket**
 | **Command Builder** | A two-pane form that builds an allow-listed command and shows a live, copyable preview. |
 | **Jobs & Logs** | A jobs table plus a streaming log console — output arrives live over SSE/WS. |
 | **Health** | The scored health roll-up and per-check rows, grouped by severity. |
+| **Assistant** | Plain-language requests mapped to a single allow-listed hub command — offline-first, refuses out-of-scope asks. See [Assistant Panel](/re-shell/dashboard/assistant/). |
 | **Settings** | Theme toggle (dark default / refined light) and dashboard preferences. |
 
 Every numeric, path, command, and log line is rendered in mono; titles and labels
@@ -109,4 +110,5 @@ in Space Grotesk — the same design system as this site.
 
 - [JSON Contract](/re-shell/contract/json-contract/) — the envelope the hub streams.
 - [Secure Hub](/re-shell/architecture/secure-hub/) — token auth, binding, allow-list.
+- [Assistant Panel](/re-shell/dashboard/assistant/) — natural language to one allow-listed command.
 - [`templates`](/re-shell/cli/templates/) — the catalog the dashboard browses.

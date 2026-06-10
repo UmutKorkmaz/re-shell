@@ -72,6 +72,7 @@ export default defineConfig({
           items: [
             { label: 'JSON Contract', slug: 'contract/json-contract' },
             { label: 'Dashboard', slug: 'dashboard/overview' },
+            { label: 'Assistant Panel', slug: 'dashboard/assistant' },
             { label: 'Template Catalog', slug: 'templates/catalog' },
             { label: 'Compatibility Matrix', slug: 'templates/matrix' },
             { label: 'MCP Server (AI agents)', slug: 'integrations/mcp' },

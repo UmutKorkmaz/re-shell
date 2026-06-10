@@ -25,6 +25,7 @@ export default defineConfig({
       reporter: ['text', 'text-summary', 'json', 'html'],
       all: true,
       include: [
+        'src/assistant/**',
         'src/components/**',
         'src/hooks/**',
         'src/hub/**',
