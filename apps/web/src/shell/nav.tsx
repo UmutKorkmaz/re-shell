@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  Bot,
   GitBranch,
   HeartPulse,
   LayoutDashboard,
@@ -39,6 +40,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
     items: [
       { id: 'templates', icon: ListTree },
       { id: 'commands', icon: SquareTerminal },
+      { id: 'assistant', icon: Bot },
     ],
   },
   {

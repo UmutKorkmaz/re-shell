@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   REGISTERED_COMMAND_IDS,
   isRegisteredCommandId,
+  listRegisteredCommands,
   resolveCommand,
   toCommandSpec,
 } from './command-registry';
@@ -20,6 +21,33 @@ describe('command-registry', () => {
       'analyze',
       'run',
     ]);
+  });
+
+  describe('listRegisteredCommands', () => {
+    it('derives metadata for every registered id (single source of truth)', () => {
+      const ids = listRegisteredCommands().map((c) => c.id);
+      expect(ids).toEqual(REGISTERED_COMMAND_IDS);
+    });
+
+    it('echoes the real builder argv for no-param commands', () => {
+      const health = listRegisteredCommands().find((c) => c.id === 'workspace.health');
+      expect(health?.runnableWithoutParams).toBe(true);
+      expect(health?.displayArgs).toEqual(['workspace', 'health', '--json']);
+    });
+
+    it('flags param-requiring commands as not no-param-runnable', () => {
+      const list = listRegisteredCommands();
+      // `run` needs a `subcommand`; `templates.show` needs an `id`.
+      expect(list.find((c) => c.id === 'run')?.runnableWithoutParams).toBe(false);
+      expect(list.find((c) => c.id === 'templates.show')?.runnableWithoutParams).toBe(false);
+      expect(list.find((c) => c.id === 'run')?.displayArgs).toEqual([]);
+    });
+
+    it('carries through title/description from the registry', () => {
+      const doctor = listRegisteredCommands().find((c) => c.id === 'doctor');
+      expect(doctor?.title).toBe('Doctor');
+      expect(doctor?.description).toContain('health checks');
+    });
   });
 
   describe('isRegisteredCommandId', () => {

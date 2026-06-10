@@ -15,6 +15,7 @@ export type ScreenId =
   | 'graph'
   | 'templates'
   | 'commands'
+  | 'assistant'
   | 'jobs'
   | 'health'
   | 'settings';
@@ -24,6 +25,12 @@ export const SCREENS: readonly ScreenDef[] = [
   { id: 'graph', label: 'Workspace Graph', description: 'Dependency graph across apps and services.' },
   { id: 'templates', label: 'Templates', description: 'Browse and scaffold from the template catalog.' },
   { id: 'commands', label: 'Command Builder', description: 'Compose and preview vetted CLI commands.' },
+  {
+    id: 'assistant',
+    label: 'Assistant',
+    description:
+      'Ask in plain language; the assistant resolves it to a single allow-listed hub command and streams the result.',
+  },
   { id: 'jobs', label: 'Jobs & Logs', description: 'Live job output streamed from the hub.' },
   { id: 'health', label: 'Health', description: 'Workspace health checks and diagnostics.' },
   { id: 'settings', label: 'Settings', description: 'Hub connection and dashboard preferences.' },

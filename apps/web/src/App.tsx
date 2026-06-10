@@ -6,6 +6,7 @@ import { OverviewScreen } from './screens/OverviewScreen';
 import { WorkspaceGraphScreen } from './screens/WorkspaceGraphScreen';
 import { TemplatesScreen } from './screens/TemplatesScreen';
 import { CommandBuilderScreen } from './screens/CommandBuilderScreen';
+import { AssistantScreen } from './screens/AssistantScreen';
 import { JobsLogsScreen } from './screens/JobsLogsScreen';
 import { HealthScreen } from './screens/HealthScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
@@ -21,6 +22,8 @@ function renderScreen(screen: ScreenDef, navigate: (next: ScreenId) => void): Re
       return <TemplatesScreen />;
     case 'commands':
       return <CommandBuilderScreen />;
+    case 'assistant':
+      return <AssistantScreen />;
     case 'jobs':
       return <JobsLogsScreen />;
     case 'health':
