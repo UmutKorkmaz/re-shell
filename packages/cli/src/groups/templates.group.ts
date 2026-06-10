@@ -11,6 +11,21 @@ import {
 } from '../templates/backend';
 import { buildTemplateMatrix } from '../utils/template-matrix';
 import { computeBackendDryRun } from '../utils/template-dry-run';
+import { recommendTemplates } from '../utils/recommend';
+import type { RecommendResponse } from '@re-shell/contracts';
+
+/** Default number of recommendations when `--limit` is not supplied. */
+const DEFAULT_RECOMMEND_LIMIT = 5;
+
+/**
+ * Parse and clamp the recommend `--limit` option. Falls back to
+ * {@link DEFAULT_RECOMMEND_LIMIT} for missing/invalid input; never returns < 1.
+ */
+function parseRecommendLimit(raw: unknown): number {
+  const n = typeof raw === 'string' ? Number.parseInt(raw, 10) : Number(raw);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_RECOMMEND_LIMIT;
+  return Math.floor(n);
+}
 
 /**
  * `templates` group: expose the backend framework template registry so it can
@@ -256,6 +271,69 @@ export function registerTemplatesGroup(program: Command): void {
             fail(code, message, { id });
           } else {
             console.log(chalk.red(`\n✗ ${message}\n`));
+            process.exitCode = 1;
+          }
+        } finally {
+          restoreJson();
+        }
+      })
+    );
+
+  templatesCommand
+    .command('recommend <query>')
+    .description('Recommend templates for a free-text query, with rationale (offline, ranked)')
+    .option('--json', 'Output the ranked recommendations as a JSON envelope')
+    .option('--limit <n>', 'Maximum number of recommendations', String(DEFAULT_RECOMMEND_LIMIT))
+    .action(
+      createAsyncCommand(async (query: string, options) => {
+        const restoreJson = options.json ? enableJsonMode() : () => {};
+        const spinner = options.json
+          ? undefined
+          : createSpinner('Recommending templates...').start();
+        if (spinner) {
+          processManager.addCleanup(() => spinner.stop());
+          flushOutput();
+        }
+
+        try {
+          const limit = parseRecommendLimit(options.limit);
+          const results = recommendTemplates(query, { limit });
+
+          if (options.json) {
+            const payload: RecommendResponse = { query, limit, results };
+            ok(payload);
+            return;
+          }
+
+          if (spinner) spinner.stop();
+
+          console.log(
+            chalk.cyan.bold(`\n✨ Recommendations for "${query}" (${results.length})\n`)
+          );
+          if (results.length === 0) {
+            console.log(
+              chalk.yellow('No templates match. Try fewer or different keywords.\n')
+            );
+            return;
+          }
+          for (const r of results) {
+            const pct = `${Math.round(r.score * 100)}%`;
+            console.log(
+              `  ${chalk.green('●')} ${chalk.bold(r.title)} ${chalk.gray(`(${pct})`)}`
+            );
+            console.log(`    ${chalk.gray(r.rationale)}`);
+            console.log(
+              `    ${chalk.blue(`re-shell create <name> --template ${r.id}`)}`
+            );
+          }
+          console.log();
+        } catch (error) {
+          if (spinner) spinner.stop();
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          if (options.json) {
+            fail('FIND_ERROR', `Error recommending templates: ${message}`);
+          } else {
+            console.log(chalk.red(`\n✗ Error recommending templates: ${message}\n`));
             process.exitCode = 1;
           }
         } finally {

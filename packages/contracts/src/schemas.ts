@@ -201,6 +201,50 @@ export const findResponseSchema = z.object({
 export type FindResponse = z.infer<typeof findResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// Template recommendations
+//
+// `re-shell templates recommend "<query>"` ranks the TEMPLATE-only corpus with
+// the same offline ranker `find` uses, then attaches a deterministic, offline
+// `rationale` derived from the matched query terms plus the template's
+// language/framework/category. It is a focused, explainable flavour of `find`
+// scoped to templates, so it gets its own result shape rather than overloading
+// {@link FindResult}: every recommendation carries a rationale and the metadata
+// fields the rationale is built from.
+// ---------------------------------------------------------------------------
+
+/**
+ * A single ranked template recommendation. `score` is a normalised relevance in
+ * [0, 1] (identical scale to {@link FindResult}); `matched` lists the query
+ * terms that contributed (explainability); `rationale` is a human-readable,
+ * deterministic, offline sentence explaining *why* this template was suggested.
+ * `language`/`framework`/`category` are the registry metadata the rationale is
+ * derived from, exposed so consumers can render or re-derive it without a lookup.
+ */
+export const templateRecommendationSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  score: z.number(),
+  rationale: z.string(),
+  matched: z.array(z.string()),
+  language: z.string().optional(),
+  framework: z.string().optional(),
+  category: z.string().optional(),
+});
+export type TemplateRecommendation = z.infer<typeof templateRecommendationSchema>;
+
+/**
+ * Envelope payload for `templates recommend --json`: the ranked recommendation
+ * list plus the echoed query and requested limit, mirroring {@link FindResponse}
+ * so consumers can render context without re-parsing argv.
+ */
+export const recommendResponseSchema = z.object({
+  query: z.string(),
+  limit: z.number(),
+  results: z.array(templateRecommendationSchema),
+});
+export type RecommendResponse = z.infer<typeof recommendResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // SSE / WS wire messages
 //
 // Authored as zod schemas so both the hub (emit side) and the browser clients

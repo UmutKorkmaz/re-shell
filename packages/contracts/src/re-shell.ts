@@ -31,6 +31,9 @@ export {
   findResultTypeSchema,
   findResultSchema,
   findResponseSchema,
+  // template recommendations
+  templateRecommendationSchema,
+  recommendResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -58,6 +61,9 @@ export type {
   FindResultType,
   FindResult,
   FindResponse,
+  // template recommendations
+  TemplateRecommendation,
+  RecommendResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,
