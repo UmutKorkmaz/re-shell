@@ -40,15 +40,8 @@ describe('CLI Integration Tests', () => {
 
   // Setup test directory
   beforeAll(() => {
-    // Ensure CLI is built
-    try {
-      execSync('npm run build', { stdio: 'ignore', shell: true as any });
-    } catch (error) {
-      console.error('Failed to build CLI:', error);
-      throw error;
-    }
-
-    // Create test directory
+    // The CLI is built once by the vitest globalSetup (tests/global-setup.ts);
+    // rebuilding here would race sibling workers that spawn the binary.
     fs.ensureDirSync(testDir);
   });
 
