@@ -21,6 +21,10 @@ export {
   templateSummarySchema,
   healthCheckSchema,
   healthSummarySchema,
+  // remediation / fix plan
+  suggestionSchema,
+  fixPlanStepSchema,
+  fixPlanSchema,
   workspaceSummarySchema,
   // jobs
   jobRecordSchema,
@@ -53,6 +57,10 @@ export type {
   TemplateSummary,
   HealthCheck,
   HealthSummary,
+  // remediation / fix plan
+  Suggestion,
+  FixPlanStep,
+  FixPlan,
   WorkspaceSummary,
   JobRecord,
   CommandSpec,

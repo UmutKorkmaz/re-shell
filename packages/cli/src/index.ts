@@ -520,7 +520,9 @@ program
 program
   .command('doctor')
   .description('Run health checks on the current monorepo and optionally auto-fix issues')
-  .option('--fix', 'Automatically fix detected issues where possible')
+  .option('--explain', 'Explain the cause of each failing/warning check and suggest a fix')
+  .option('--fix', 'Compose a remediation plan (dry run by default; requires --yes to apply)')
+  .option('--yes', 'With --fix, actually apply the allow-listed fix commands')
   .option('--verbose', 'Show detailed suggestions for each check')
   .option('--json', 'Output results as JSON')
   .action(
