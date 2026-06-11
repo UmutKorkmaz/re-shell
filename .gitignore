@@ -87,6 +87,8 @@ test-project/
 # agent context auto-dumps (never track)
 AGENTS.md
 **/AGENTS.md
+llms.txt
+**/llms.txt
 
 # Editor/backup files
 *.bak

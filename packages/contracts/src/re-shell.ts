@@ -44,6 +44,11 @@ export {
   scaffoldPlanStepSchema,
   scaffoldPlanSchema,
   aiPlanResponseSchema,
+  // agent-readiness docs
+  agentsDocFileSchema,
+  agentsDocResponseSchema,
+  agentsDriftFileSchema,
+  agentsCheckResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -84,6 +89,11 @@ export type {
   ScaffoldPlanStep,
   ScaffoldPlan,
   AiPlanResponse,
+  // agent-readiness docs
+  AgentsDocFile,
+  AgentsDocResponse,
+  AgentsDriftFile,
+  AgentsCheckResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,
