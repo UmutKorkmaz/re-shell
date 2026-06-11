@@ -181,6 +181,96 @@ describe('captureOutputs / restoreOutputs', () => {
   });
 });
 
+describe('LocalFsCache.put() path-traversal guard', () => {
+  it('rejects an artifact whose path escapes the cache directory', async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-put-guard-'));
+    const cache = new LocalFsCache({ root: dir, secret: SECRET });
+    const key = 'f1'.repeat(32);
+    const malicious: CachedResult = {
+      exitCode: 0,
+      outputs: ['../escape.js'],
+      logs: '',
+      files: [{ path: '../escape.js', content: Buffer.from('evil') }],
+    };
+    await expect(cache.put(key, malicious)).rejects.toThrow(
+      /outside the cache directory/
+    );
+  });
+
+  it('rejects a deeply nested traversal (../../etc/passwd)', async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-put-guard-'));
+    const cache = new LocalFsCache({ root: dir, secret: SECRET });
+    const key = 'f2'.repeat(32);
+    const malicious: CachedResult = {
+      exitCode: 0,
+      outputs: ['../../etc/passwd'],
+      logs: '',
+      files: [{ path: '../../etc/passwd', content: Buffer.from('evil') }],
+    };
+    await expect(cache.put(key, malicious)).rejects.toThrow(
+      /outside the cache directory/
+    );
+  });
+});
+
+describe('stableStringify record round-trip verification', () => {
+  it('still verifies after a round-trip through JSON (key-order invariant)', async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-stable-'));
+    const cache = new LocalFsCache({ root: dir, secret: SECRET });
+    const key = 'aa'.repeat(32);
+    await cache.put(key, sampleResult());
+
+    // Read the raw record.json back, re-parse, and re-write with keys in a
+    // different order to simulate a proxy that reorders JSON keys.
+    const recordPath = path.join(cache.entryDir(key), 'record.json');
+    const raw = JSON.parse(await fs.readFile(recordPath, 'utf8'));
+    // Reconstruct the object with keys in reverse alphabetical order.
+    const reordered: Record<string, unknown> = {};
+    for (const k of Object.keys(raw).sort().reverse()) {
+      reordered[k] = raw[k];
+    }
+    // Because get() re-signs with stableStringify, the stored sig was computed
+    // over the stable form too — so writing the reordered JSON must NOT affect
+    // verification (stableStringify normalises order on both sides).
+    await fs.writeFile(recordPath, JSON.stringify(reordered));
+
+    const got = await cache.get(key);
+    expect(got).toBeDefined();
+    expect(got!.exitCode).toBe(0);
+  });
+
+  it('RemoteCache round-trip still verifies after key-order normalisation', async () => {
+    function memoryTransport(): { transport: CacheHttpTransport; store: Map<string, RemoteEnvelope> } {
+      const store = new Map<string, RemoteEnvelope>();
+      const transport: CacheHttpTransport = {
+        async head(k) { return store.has(k); },
+        async getRaw(k) { return store.get(k); },
+        async putRaw(k, env) { store.set(k, env); },
+      };
+      return { transport, store };
+    }
+
+    const { transport, store } = memoryTransport();
+    const cache = new RemoteCache({ secret: SECRET, transport });
+    const key = 'ab'.repeat(32);
+    await cache.put(key, sampleResult());
+
+    // Reorder the record keys in the stored envelope without touching sigs.
+    const env = store.get(key)!;
+    const rawRecord = env.record as Record<string, unknown>;
+    const reorderedRecord: Record<string, unknown> = {};
+    for (const k of Object.keys(rawRecord).sort().reverse()) {
+      reorderedRecord[k] = rawRecord[k];
+    }
+    // Cast: we intentionally store a reordered-key variant to test normalisation.
+    store.set(key, { ...env, record: reorderedRecord as RemoteEnvelope['record'] });
+
+    const got = await cache.get(key);
+    expect(got).toBeDefined();
+    expect(got!.exitCode).toBe(0);
+  });
+});
+
 describe('computeCacheStats / cleanCache', () => {
   it('reports entry count + size, then clean prunes everything', async () => {
     dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-stats-'));

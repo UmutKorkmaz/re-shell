@@ -16,6 +16,7 @@ import {
   resolveCacheRoot,
   resolveCacheSecret,
   resolveRemoteCacheSettings,
+  CACHE_SECRET_ENV,
 } from '../utils/cache-config';
 import { RemoteCache, createHttpCacheTransport } from '../utils/cache-store';
 
@@ -190,6 +191,18 @@ function buildCacheConfig(
   const root = resolveCacheRoot(rootPath, cacheDir);
   const secret = resolveCacheSecret();
   const remoteSettings = resolveRemoteCacheSettings();
+
+  // Warn when a remote cache is in use but no explicit secret has been set.
+  // The default secret is machine-local and trivially forgeable by any process
+  // with the same home directory — shared/remote caches MUST use a strong secret.
+  if (remoteSettings && !process.env[CACHE_SECRET_ENV]) {
+    process.stderr.write(
+      'Warning: RE_SHELL_REMOTE_CACHE is set but RE_SHELL_CACHE_SECRET is not. ' +
+      'The default secret is not safe for shared remote caches. ' +
+      'Set RE_SHELL_CACHE_SECRET to a strong random value.\n'
+    );
+  }
+
   const remote = remoteSettings
     ? new RemoteCache({
         secret,

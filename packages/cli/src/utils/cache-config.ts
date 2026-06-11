@@ -58,12 +58,28 @@ export interface RemoteCacheSettings {
 /**
  * Resolve remote-cache settings from the environment. Returns undefined (remote
  * OFF) unless {@link REMOTE_CACHE_ENV} is set to a non-empty URL.
+ * Throws a clear error when the URL scheme is not http or https.
  */
 export function resolveRemoteCacheSettings(
   source: Readonly<Record<string, string | undefined>> = process.env
 ): RemoteCacheSettings | undefined {
   const baseUrl = source[REMOTE_CACHE_ENV];
   if (!baseUrl || baseUrl.trim().length === 0) return undefined;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(baseUrl.trim());
+  } catch {
+    throw new Error(
+      `RE_SHELL_REMOTE_CACHE is not a valid URL: "${baseUrl}"`
+    );
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(
+      `RE_SHELL_REMOTE_CACHE scheme must be http or https, got "${parsed.protocol.replace(/:$/, '')}"`
+    );
+  }
+
   const token = source[REMOTE_CACHE_TOKEN_ENV];
-  return { baseUrl: baseUrl.replace(/\/+$/, ''), token: token || undefined };
+  return { baseUrl: baseUrl.trim().replace(/\/+$/, ''), token: token || undefined };
 }

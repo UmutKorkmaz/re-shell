@@ -166,15 +166,17 @@ export class LocalFsCache implements CacheBackend {
       return undefined; // missing signature sidecar -> not trustable
     }
 
-    // 1) Verify the record signature before parsing untrusted JSON contents.
-    if (!verifyHex(recordSig, sign(this.secret, recordBytes))) {
-      return undefined;
-    }
-
+    // 1) Parse the record first so we can re-serialize with stableStringify for
+    //    verification — this is consistent with how put() signs the record.
     let record: CachedRecord;
     try {
       record = JSON.parse(recordBytes.toString('utf8')) as CachedRecord;
     } catch {
+      return undefined;
+    }
+
+    // Verify using stableStringify so key order never affects the HMAC.
+    if (!verifyHex(recordSig, sign(this.secret, Buffer.from(stableStringify(record), 'utf8')))) {
       return undefined;
     }
     if (!record || record.v !== 1 || typeof record.exitCode !== 'number') {
@@ -224,7 +226,13 @@ export class LocalFsCache implements CacheBackend {
 
     const fileHashes: Record<string, string> = {};
     for (const file of result.files) {
-      const dest = path.join(tmpFilesDir, file.path);
+      const dest = path.resolve(tmpFilesDir, file.path);
+      // Path containment guard: reject any artifact that would escape tmpFilesDir.
+      if (dest !== tmpFilesDir && !dest.startsWith(tmpFilesDir + path.sep)) {
+        throw new Error(
+          `Security: refusing to write artifact "${file.path}" outside the cache directory`
+        );
+      }
       await fs.ensureDir(path.dirname(dest));
       await fs.writeFile(dest, file.content);
       fileHashes[file.path] = sha256Hex(file.content);
@@ -237,7 +245,7 @@ export class LocalFsCache implements CacheBackend {
       logs: result.logs,
       fileHashes,
     };
-    const recordBytes = Buffer.from(JSON.stringify(record), 'utf8');
+    const recordBytes = Buffer.from(stableStringify(record), 'utf8');
     await fs.writeFile(path.join(tmpDir, 'record.json'), recordBytes);
     await fs.writeFile(path.join(tmpDir, 'record.sig'), sign(this.secret, recordBytes));
     await fs.writeFile(
@@ -322,7 +330,7 @@ export class RemoteCache implements CacheBackend {
       logs: result.logs,
       fileHashes,
     };
-    const recordBytes = Buffer.from(JSON.stringify(record), 'utf8');
+    const recordBytes = Buffer.from(stableStringify(record), 'utf8');
     const envelope: RemoteEnvelope = {
       record,
       recordSig: sign(this.secret, recordBytes),
@@ -346,7 +354,7 @@ function verifyEnvelope(
     return undefined;
   }
 
-  const recordBytes = Buffer.from(JSON.stringify(record), 'utf8');
+  const recordBytes = Buffer.from(stableStringify(record), 'utf8');
   if (!verifyHex(recordSig, sign(secret, recordBytes))) return undefined;
   if (!verifyHex(filesSig, sign(secret, canonicalFilesDigest(record.fileHashes ?? {})))) {
     return undefined;
