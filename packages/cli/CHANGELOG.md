@@ -5,6 +5,11 @@ All notable changes to the `@re-shell/cli` package will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.1] - 2026-06-11
+
+### Fixed
+- Declare `ajv` as a runtime dependency. It resolved transitively inside the monorepo (so local builds/tests passed) but was absent from the published package, making a standalone `npm i -g @re-shell/cli` crash with `Cannot find module 'ajv'` on nearly every command. Affected 0.29.x–0.30.0.
+
 ## [0.30.0] - 2026-06-11
 
 ### Added
