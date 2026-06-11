@@ -109,6 +109,7 @@ import { registerTemplatesGroup } from './groups/templates.group';
 import { registerCommandsGroup } from './groups/commands.group';
 import { registerAiGroup } from './groups/ai.group';
 import { registerFindGroup } from './groups/find.group';
+import { registerAgentsGroup } from './groups/agents.group';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -602,6 +603,7 @@ registerTemplatesGroup(program);
 registerCommandsGroup(program);
 registerAiGroup(program);
 registerFindGroup(program);
+registerAgentsGroup(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 

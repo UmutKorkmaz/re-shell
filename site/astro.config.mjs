@@ -55,6 +55,7 @@ export default defineConfig({
             { label: 'doctor & analyze', slug: 'cli/doctor-analyze' },
             { label: 'completion', slug: 'cli/completion' },
             { label: 'ai', slug: 'cli/ai' },
+            { label: 'agents (AGENTS.md)', slug: 'cli/agents' },
             { label: 'api', slug: 'cli/api' },
             { label: 'service & bridge', slug: 'cli/service-bridge' },
             { label: 'k8s / Helm / GitOps', slug: 'cli/k8s-helm-gitops' },

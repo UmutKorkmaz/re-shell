@@ -52,6 +52,8 @@ export const errorCodeSchema = z.enum([
   'AI_INTENT_ERROR',
   // Code introduced by the semantic-ish `find` search slice (issue #6)
   'FIND_ERROR',
+  // Code introduced by the agent-readiness docs slice (issue #19)
+  'AGENTS_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
