@@ -55,6 +55,9 @@ export {
   taskRunStatusSchema,
   taskRunResultSchema,
   runResponseSchema,
+  // build cache
+  cacheStatsResponseSchema,
+  cacheCleanResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -106,6 +109,9 @@ export type {
   TaskRunStatus,
   TaskRunResult,
   RunResponse,
+  // build cache
+  CacheStatsResponse,
+  CacheCleanResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

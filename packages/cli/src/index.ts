@@ -111,6 +111,7 @@ import { registerAiGroup } from './groups/ai.group';
 import { registerFindGroup } from './groups/find.group';
 import { registerAgentsGroup } from './groups/agents.group';
 import { registerRunGroup } from './groups/run.group';
+import { registerCacheGroup } from './groups/cache.group';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -606,6 +607,7 @@ registerAiGroup(program);
 registerFindGroup(program);
 registerAgentsGroup(program);
 registerRunGroup(program);
+registerCacheGroup(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 

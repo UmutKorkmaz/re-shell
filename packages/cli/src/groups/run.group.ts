@@ -10,7 +10,15 @@ import {
   runTask,
   discoverWorkspace,
   resolveAffectedPackages,
+  type RunCacheConfig,
 } from '../utils/task-runner';
+import {
+  resolveCacheRoot,
+  resolveCacheSecret,
+  resolveRemoteCacheSettings,
+  CACHE_SECRET_ENV,
+} from '../utils/cache-config';
+import { RemoteCache, createHttpCacheTransport } from '../utils/cache-store';
 
 /**
  * Parse the `--concurrency` option. Returns undefined for missing/invalid input
@@ -55,6 +63,11 @@ export function registerRunGroup(program: Command): void {
     .option(
       '--continue',
       'Continue scheduling unaffected branches after a failure'
+    )
+    .option('--no-cache', 'Disable the content-addressed build cache')
+    .option(
+      '--cache-dir <dir>',
+      'Override the cache directory (default: <root>/.re-shell/cache)'
     )
     .action(
       createAsyncCommand(async (task: string, options) => {
@@ -103,6 +116,13 @@ export function registerRunGroup(program: Command): void {
             }
           }
 
+          // Commander maps `--no-cache` to `options.cache === false`; caching is
+          // ON by default. Build the cache config unless explicitly disabled.
+          const cacheConfig: RunCacheConfig | undefined =
+            options.cache === false
+              ? undefined
+              : buildCacheConfig(rootPath, options.cacheDir);
+
           const result = await runTask({
             rootPath,
             task,
@@ -110,6 +130,7 @@ export function registerRunGroup(program: Command): void {
             filter,
             affectedPackages,
             continueOnError: Boolean(options.continue),
+            cacheConfig,
             onOutput: options.json
               ? undefined
               : line => process.stdout.write(line + '\n'),
@@ -158,6 +179,42 @@ export function registerRunGroup(program: Command): void {
     );
 }
 
+/**
+ * Build the declarative cache config for a run: the local cache root + HMAC
+ * secret, plus a remote backend when RE_SHELL_REMOTE_CACHE is configured. The
+ * remote is OFF unless explicitly set, so a default run is purely local.
+ */
+function buildCacheConfig(
+  rootPath: string,
+  cacheDir: string | undefined
+): RunCacheConfig {
+  const root = resolveCacheRoot(rootPath, cacheDir);
+  const secret = resolveCacheSecret();
+  const remoteSettings = resolveRemoteCacheSettings();
+
+  // Warn when a remote cache is in use but no explicit secret has been set.
+  // The default secret is machine-local and trivially forgeable by any process
+  // with the same home directory — shared/remote caches MUST use a strong secret.
+  if (remoteSettings && !process.env[CACHE_SECRET_ENV]) {
+    process.stderr.write(
+      'Warning: RE_SHELL_REMOTE_CACHE is set but RE_SHELL_CACHE_SECRET is not. ' +
+      'The default secret is not safe for shared remote caches. ' +
+      'Set RE_SHELL_CACHE_SECRET to a strong random value.\n'
+    );
+  }
+
+  const remote = remoteSettings
+    ? new RemoteCache({
+        secret,
+        transport: createHttpCacheTransport({
+          baseUrl: remoteSettings.baseUrl,
+          token: remoteSettings.token,
+        }),
+      })
+    : undefined;
+  return { root, secret, remote };
+}
+
 /** Emit an error consistently in JSON or human mode. */
 function emitError(
   json: boolean,
@@ -193,25 +250,30 @@ function renderHuman(
     const icon =
       r.status === 'success'
         ? chalk.green('✓')
-        : r.status === 'failed'
-          ? chalk.red('✗')
-          : chalk.gray('○');
+        : r.status === 'cached'
+          ? chalk.cyan('⚡')
+          : r.status === 'failed'
+            ? chalk.red('✗')
+            : chalk.gray('○');
     const dur = r.status === 'skipped' ? '' : chalk.gray(` (${r.durationMs}ms)`);
     const label = `${r.package}:${r.task}`;
     const statusText =
       r.status === 'skipped'
         ? chalk.gray('skipped (no script)')
-        : r.status === 'failed'
-          ? chalk.red(`failed (exit ${r.exitCode})`)
-          : chalk.green('success');
+        : r.status === 'cached'
+          ? chalk.cyan('cached')
+          : r.status === 'failed'
+            ? chalk.red(`failed (exit ${r.exitCode})`)
+            : chalk.green('success');
     console.log(`  ${icon} ${chalk.bold(label)} — ${statusText}${dur}`);
   }
 
   const failed = results.filter(r => r.status === 'failed').length;
   const succeeded = results.filter(r => r.status === 'success').length;
+  const cached = results.filter(r => r.status === 'cached').length;
   const skipped = results.filter(r => r.status === 'skipped').length;
   console.log(
-    `\n  ${chalk.green(`${succeeded} ok`)}, ${
+    `\n  ${chalk.green(`${succeeded} ok`)}, ${chalk.cyan(`${cached} cached`)}, ${
       failed > 0 ? chalk.red(`${failed} failed`) : chalk.gray('0 failed')
     }, ${chalk.gray(`${skipped} skipped`)}\n`
   );
