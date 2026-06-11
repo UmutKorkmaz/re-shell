@@ -52,6 +52,7 @@ export default defineConfig({
             { label: 'workspace', slug: 'cli/workspace' },
             { label: 'templates', slug: 'cli/templates' },
             { label: 'generate', slug: 'cli/generate' },
+            { label: 'run (task runner)', slug: 'cli/run' },
             { label: 'doctor & analyze', slug: 'cli/doctor-analyze' },
             { label: 'completion', slug: 'cli/completion' },
             { label: 'ai', slug: 'cli/ai' },
