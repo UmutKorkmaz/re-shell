@@ -87,6 +87,12 @@ test-project/
 # agent context auto-dumps (never track)
 AGENTS.md
 **/AGENTS.md
+llms.txt
+**/llms.txt
+# ...but Starlight docs pages/source under site/ are real tracked content. On a
+# case-insensitive filesystem the rules above would otherwise hide docs like
+# site/src/content/docs/cli/agents.md — keep all site sources tracked.
+!site/src/content/docs/**
 
 # Editor/backup files
 *.bak

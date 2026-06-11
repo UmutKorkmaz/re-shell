@@ -387,6 +387,68 @@ export const aiPlanResponseSchema = z.object({
 export type AiPlanResponse = z.infer<typeof aiPlanResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// Agent-readiness docs
+//
+// `re-shell agents init|sync|check` make a repo "agent-ready by construction":
+// they generate a ROOT AGENTS.md, PER-PACKAGE AGENTS.md, and an llms.txt-style
+// machine index from the workspace graph + each package's scripts + the command
+// catalogue. The generator is PURE (no I/O): the command layer discovers the
+// workspace on disk, feeds the surface to the generator, then writes/compares
+// the returned files. These schemas describe the --json shapes for `init`/`sync`
+// (which files were written) and `check` (the drift report for CI).
+// ---------------------------------------------------------------------------
+
+/**
+ * A single generated agent-doc artifact. `path` is repo-relative (e.g.
+ * "AGENTS.md", "packages/cli/AGENTS.md", "llms.txt"); `kind` is its role.
+ * `bytes` is the UTF-8 byte length of the freshly-generated content.
+ */
+export const agentsDocFileSchema = z.object({
+  path: z.string(),
+  kind: z.enum(['root', 'package', 'index']),
+  bytes: z.number(),
+});
+export type AgentsDocFile = z.infer<typeof agentsDocFileSchema>;
+
+/**
+ * Envelope payload for `agents init --json` / `agents sync --json`: the list of
+ * files written (or that would be written) plus whether they were actually
+ * persisted. `written` is true once the files hit disk; the generator itself is
+ * pure, so consumers can render the plan before anything is touched.
+ */
+export const agentsDocResponseSchema = z.object({
+  // Always true: there is no dry-run path; files are always written to disk.
+  written: z.literal(true),
+  files: z.array(agentsDocFileSchema),
+});
+export type AgentsDocResponse = z.infer<typeof agentsDocResponseSchema>;
+
+/**
+ * A single drift entry from `agents check`: one artifact whose on-disk content
+ * does not byte-match the freshly-generated content. `reason` distinguishes a
+ * missing file from a stale (content-mismatch) one, so CI logs are actionable.
+ */
+export const agentsDriftFileSchema = z.object({
+  path: z.string(),
+  kind: z.enum(['root', 'package', 'index']),
+  reason: z.enum(['missing', 'stale']),
+});
+export type AgentsDriftFile = z.infer<typeof agentsDriftFileSchema>;
+
+/**
+ * Envelope payload for `agents check --json`: the drift report for CI. `drift`
+ * is true when any expected artifact is missing or stale; `files` enumerates
+ * exactly which ones (empty when in sync). `checked` is the total number of
+ * expected artifacts compared.
+ */
+export const agentsCheckResponseSchema = z.object({
+  drift: z.boolean(),
+  checked: z.number(),
+  files: z.array(agentsDriftFileSchema),
+});
+export type AgentsCheckResponse = z.infer<typeof agentsCheckResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // SSE / WS wire messages
 //
 // Authored as zod schemas so both the hub (emit side) and the browser clients
