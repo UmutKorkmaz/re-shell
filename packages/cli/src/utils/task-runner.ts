@@ -27,6 +27,8 @@ import {
   nodeId,
   type WorkspaceDepGraph,
 } from './task-scheduler';
+import { CacheController } from './cache-runner';
+import { LocalFsCache, type CacheBackend } from './cache-store';
 
 /** Conventional monorepo workspace roots scanned for packages. */
 const WORKSPACE_DIRS = ['apps', 'packages', 'libs', 'tools'] as const;
@@ -42,6 +44,8 @@ export interface DiscoveredPackage {
   dir: string;
   /** Script names defined in package.json `scripts`. */
   scripts: ReadonlySet<string>;
+  /** Script bodies keyed by name (the command text folded into cache keys). */
+  scriptBodies: ReadonlyMap<string, string>;
   /** Names of OTHER discovered packages this one directly depends on. */
   workspaceDeps: string[];
 }
@@ -95,7 +99,10 @@ export function buildRunArgv(pm: PackageManager, script: string): { cmd: string;
  */
 export async function discoverWorkspace(rootPath: string): Promise<WorkspaceDiscovery> {
   const root = path.resolve(rootPath);
-  const byName = new Map<string, { dir: string; scripts: Set<string>; deps: string[] }>();
+  const byName = new Map<
+    string,
+    { dir: string; scripts: Set<string>; scriptBodies: Map<string, string>; deps: string[] }
+  >();
 
   for (const wsDir of WORKSPACE_DIRS) {
     const dirPath = path.join(root, wsDir);
@@ -109,12 +116,16 @@ export async function discoverWorkspace(rootPath: string): Promise<WorkspaceDisc
       try {
         const pkgJson = await fs.readJson(pkgJsonPath);
         const name: string = pkgJson.name ?? entry.name;
-        const scripts = new Set<string>(Object.keys(pkgJson.scripts ?? {}));
+        const scriptsRecord: Record<string, string> = pkgJson.scripts ?? {};
+        const scripts = new Set<string>(Object.keys(scriptsRecord));
+        const scriptBodies = new Map<string, string>(
+          Object.entries(scriptsRecord).map(([k, v]) => [k, String(v)])
+        );
         const deps = [
           ...Object.keys(pkgJson.dependencies ?? {}),
           ...Object.keys(pkgJson.devDependencies ?? {}),
         ];
-        byName.set(name, { dir: pkgDir, scripts, deps });
+        byName.set(name, { dir: pkgDir, scripts, scriptBodies, deps });
       } catch {
         // A malformed package.json is skipped rather than aborting discovery.
       }
@@ -134,6 +145,7 @@ export async function discoverWorkspace(rootPath: string): Promise<WorkspaceDisc
       name,
       dir: info.dir,
       scripts: info.scripts,
+      scriptBodies: info.scriptBodies,
       workspaceDeps,
     });
     graph.set(name, workspaceDeps);
@@ -267,28 +279,63 @@ export function parseTasksConfig(value: unknown): TasksConfig {
         `Invalid "tasks.${taskName}" in ${WORKSPACE_CONFIG_FILE}: expected an object`
       );
     }
-    const { dependsOn } = taskValue as { dependsOn?: unknown };
-    if (dependsOn === undefined) {
-      out[taskName] = {};
-      continue;
-    }
-    if (!Array.isArray(dependsOn) || !dependsOn.every(d => typeof d === 'string')) {
-      throw new Error(
-        `Invalid "tasks.${taskName}.dependsOn" in ${WORKSPACE_CONFIG_FILE}: expected an array of strings`
-      );
-    }
-    for (const dep of dependsOn as string[]) {
-      const effectiveName = dep.startsWith('^') ? dep.slice(1) : dep;
-      if (effectiveName.length === 0) {
+    const { dependsOn, inputs, outputs } = taskValue as {
+      dependsOn?: unknown;
+      inputs?: unknown;
+      outputs?: unknown;
+    };
+
+    const entry: TasksConfig[string] = {};
+
+    if (dependsOn !== undefined) {
+      if (!Array.isArray(dependsOn) || !dependsOn.every(d => typeof d === 'string')) {
         throw new Error(
-          `Invalid "tasks.${taskName}.dependsOn" in ${WORKSPACE_CONFIG_FILE}: ` +
-            `dependency entry "${dep}" has an empty task name`
+          `Invalid "tasks.${taskName}.dependsOn" in ${WORKSPACE_CONFIG_FILE}: expected an array of strings`
         );
       }
+      for (const dep of dependsOn as string[]) {
+        const effectiveName = dep.startsWith('^') ? dep.slice(1) : dep;
+        if (effectiveName.length === 0) {
+          throw new Error(
+            `Invalid "tasks.${taskName}.dependsOn" in ${WORKSPACE_CONFIG_FILE}: ` +
+              `dependency entry "${dep}" has an empty task name`
+          );
+        }
+      }
+      entry.dependsOn = dependsOn as string[];
     }
-    out[taskName] = { dependsOn: dependsOn as string[] };
+
+    entry.inputs = parseGlobList(inputs, `tasks.${taskName}.inputs`);
+    entry.outputs = parseGlobList(outputs, `tasks.${taskName}.outputs`);
+    // Drop undefined keys so the merged shape stays minimal/comparable.
+    if (entry.inputs === undefined) delete entry.inputs;
+    if (entry.outputs === undefined) delete entry.outputs;
+
+    out[taskName] = entry;
   }
   return out;
+}
+
+/**
+ * Validate an optional globs array (`inputs`/`outputs`). Returns undefined when
+ * the value is absent, or a string[] when present and valid. Throws on a
+ * non-array or a non-string/empty entry so config errors surface immediately.
+ */
+function parseGlobList(value: unknown, label: string): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.every(v => typeof v === 'string')) {
+    throw new Error(
+      `Invalid "${label}" in ${WORKSPACE_CONFIG_FILE}: expected an array of strings`
+    );
+  }
+  for (const glob of value as string[]) {
+    if (glob.trim().length === 0) {
+      throw new Error(
+        `Invalid "${label}" in ${WORKSPACE_CONFIG_FILE}: glob entries must be non-empty`
+      );
+    }
+  }
+  return value as string[];
 }
 
 /** Options controlling a single `re-shell run` invocation. */
@@ -309,11 +356,44 @@ export interface RunTaskOptions {
   spawnTask?: SpawnTask;
   /** Merged task config; defaults to workspace `tasks` merged over defaults. */
   tasksConfig?: TasksConfig;
+  /**
+   * Content-addressed cache controller. When provided, each node is checked
+   * against the cache before spawning (HIT -> restore + replay, no spawn) and a
+   * successful MISS is stored. When absent, caching is off (the `--no-cache`
+   * path and all existing tests). Injectable so tests can supply an in-memory
+   * backend and never touch a real cache dir or remote server.
+   *
+   * Takes precedence over {@link RunTaskOptions.cacheConfig}.
+   */
+  cache?: CacheController;
+  /**
+   * Declarative cache configuration. When set (and `cache` is not injected),
+   * `runTask` constructs a {@link CacheController} backed by a {@link LocalFsCache}
+   * (plus an optional remote) after the plan is built. This is the path the CLI
+   * uses; tests typically inject `cache` directly instead.
+   */
+  cacheConfig?: RunCacheConfig;
+}
+
+/** Declarative cache setup the CLI hands to {@link runTask}. */
+export interface RunCacheConfig {
+  /** Absolute cache root for the local backend. */
+  root: string;
+  /** HMAC secret for signing/verifying artifacts. */
+  secret: string;
+  /** Optional remote backend (CI hydration / push). OFF by default. */
+  remote?: CacheBackend;
 }
 
 /** Outcome of running one (package, task) node. */
 export interface SpawnOutcome {
   exitCode: number;
+  /**
+   * The combined stdout/stderr the child produced, captured so it can be stored
+   * in the cache and replayed verbatim on a later cache HIT. Optional so test
+   * spawners need not provide it.
+   */
+  logs?: string;
 }
 
 /** Spawns one script and resolves with its exit code. Injectable for tests. */
@@ -346,16 +426,19 @@ const defaultSpawnTask: SpawnTask = ({ pkg, task, pm, onOutput }) =>
       shell: false,
     });
     const prefix = `[${pkg.name}:${task}] `;
+    let logs = '';
     const emit = (chunk: Buffer): void => {
+      const text = chunk.toString();
+      logs += text;
       if (!onOutput) return;
-      for (const line of chunk.toString().split('\n')) {
+      for (const line of text.split('\n')) {
         if (line.length > 0) onOutput(prefix + line);
       }
     };
     child.stdout?.on('data', emit);
     child.stderr?.on('data', emit);
-    child.on('error', () => resolve({ exitCode: 1 }));
-    child.on('close', code => resolve({ exitCode: code ?? 1 }));
+    child.on('error', () => resolve({ exitCode: 1, logs }));
+    child.on('close', code => resolve({ exitCode: code ?? 1, logs }));
   });
 
 /**
@@ -373,6 +456,7 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
     onOutput,
     spawnTask = defaultSpawnTask,
     continueOnError = false,
+    cache,
   } = options;
   const concurrency =
     options.concurrency && options.concurrency > 0
@@ -420,6 +504,26 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
     return pm;
   };
 
+  // Resolve the active cache controller: an injected one wins; otherwise build
+  // one from cacheConfig (the CLI path). When neither is set, caching is off.
+  const cacheController: CacheController | undefined =
+    cache ??
+    (options.cacheConfig
+      ? new CacheController({
+          workspaceRoot: rootPath,
+          packages,
+          dependencies: planResult.plan.dependencies,
+          tasksConfig,
+          pmFor,
+          local: new LocalFsCache({
+            root: options.cacheConfig.root,
+            secret: options.cacheConfig.secret,
+          }),
+          remote: options.cacheConfig.remote,
+          localRoot: options.cacheConfig.root,
+        })
+      : undefined);
+
   const recordSkip = (id: string): void => {
     const node = scheduler.node(id)!;
     results.set(id, {
@@ -429,6 +533,53 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
       exitCode: null,
       durationMs: 0,
     });
+  };
+
+  /**
+   * Process one ready node: on a cache HIT, restore + replay logs + record
+   * `cached` WITHOUT spawning; on a MISS, spawn, then store the successful
+   * result under its key. Cache lookup/store failures degrade gracefully to a
+   * normal run rather than failing the node. Returns the scheduler-facing status
+   * (`cached` is reported to the scheduler as `success` so dependents proceed).
+   */
+  const processNode = async (
+    pkg: DiscoveredPackage,
+    node: { id: string; package: string; task: string }
+  ): Promise<'success' | 'failed' | 'cached'> => {
+    const startedAt = Date.now();
+
+    if (cacheController) {
+      const hit = await tryCacheRestore(cacheController, node);
+      if (hit) {
+        if (hit.logs && onOutput) {
+          for (const line of hit.logs.split('\n')) {
+            if (line.length > 0) onOutput(`[${node.package}:${node.task}] ${line}`);
+          }
+        }
+        results.set(node.id, {
+          package: node.package,
+          task: node.task,
+          status: 'cached',
+          exitCode: hit.exitCode,
+          durationMs: Date.now() - startedAt,
+        });
+        return 'cached';
+      }
+    }
+
+    const outcome = await spawnTask({ pkg, task: node.task, pm: pmFor(pkg), onOutput });
+    const status = outcome.exitCode === 0 ? 'success' : 'failed';
+    results.set(node.id, {
+      package: node.package,
+      task: node.task,
+      status,
+      exitCode: outcome.exitCode,
+      durationMs: Date.now() - startedAt,
+    });
+    if (cacheController && status === 'success') {
+      await safeCacheStore(cacheController, node, outcome.exitCode, outcome.logs ?? '');
+    }
+    return status;
   };
 
   // Event-loop driven worker pool: keep launching ready nodes up to the
@@ -455,18 +606,10 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
           continue;
         }
 
-        const startedAt = Date.now();
-        void spawnTask({ pkg, task: node.task, pm: pmFor(pkg), onOutput })
-          .then(outcome => {
-            const status = outcome.exitCode === 0 ? 'success' : 'failed';
-            results.set(node.id, {
-              package: node.package,
-              task: node.task,
-              status,
-              exitCode: outcome.exitCode,
-              durationMs: Date.now() - startedAt,
-            });
-            scheduler.complete(node.id, status);
+        void processNode(pkg, node)
+          .then(status => {
+            // `cached` satisfies dependents exactly like `success` does.
+            scheduler.complete(node.id, status === 'cached' ? 'success' : status);
             pump();
           })
           .catch(() => {
@@ -475,7 +618,7 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
               task: node.task,
               status: 'failed',
               exitCode: 1,
-              durationMs: Date.now() - startedAt,
+              durationMs: 0,
             });
             scheduler.complete(node.id, 'failed');
             pump();
@@ -497,6 +640,15 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
     pump();
   });
 
+  // Persist cumulative hit/miss telemetry (best-effort; never fails the run).
+  if (cacheController) {
+    try {
+      await cacheController.flushTelemetry();
+    } catch {
+      // telemetry is advisory
+    }
+  }
+
   const ordered = orderResults(planResult.plan.nodes, results);
   const hadFailure = ordered.some(r => r.status === 'failed');
 
@@ -507,6 +659,35 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
     affected: affectedPackages,
     hadFailure,
   };
+}
+
+/**
+ * Restore a node from the cache, swallowing any controller error as a miss so a
+ * broken cache never fails a build (it just falls back to a real run).
+ */
+async function tryCacheRestore(
+  cache: CacheController,
+  node: { package: string; task: string }
+): Promise<{ exitCode: number; logs: string } | undefined> {
+  try {
+    return await cache.tryRestore(node);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Store a node result, swallowing controller errors (caching is best-effort). */
+async function safeCacheStore(
+  cache: CacheController,
+  node: { package: string; task: string },
+  exitCode: number,
+  logs: string
+): Promise<void> {
+  try {
+    await cache.store(node, exitCode, logs);
+  } catch {
+    // A cache write failure must never fail the underlying (successful) task.
+  }
 }
 
 /**

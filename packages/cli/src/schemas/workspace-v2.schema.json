@@ -120,7 +120,7 @@
   "definitions": {
     "taskConfig": {
       "type": "object",
-      "description": "Dependencies for a single task in the task graph.",
+      "description": "Dependencies and cache hints for a single task in the task graph.",
       "properties": {
         "dependsOn": {
           "type": "array",
@@ -129,6 +129,16 @@
             "type": "string",
             "pattern": "^\\^?[a-zA-Z0-9][a-zA-Z0-9:_-]*$"
           }
+        },
+        "inputs": {
+          "type": "array",
+          "description": "Globs (relative to the package directory) defining the file set hashed into this task's content-addressed cache key. When omitted, the whole package directory (minus declared outputs, node_modules, and dist) is hashed.",
+          "items": { "type": "string" }
+        },
+        "outputs": {
+          "type": "array",
+          "description": "Globs (relative to the package directory) defining the artifacts captured on a cache miss and restored on a cache hit by the build cache.",
+          "items": { "type": "string" }
         }
       },
       "additionalProperties": false
