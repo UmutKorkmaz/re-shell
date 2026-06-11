@@ -54,6 +54,8 @@ export const errorCodeSchema = z.enum([
   'FIND_ERROR',
   // Code introduced by the agent-readiness docs slice (issue #19)
   'AGENTS_ERROR',
+  // Code introduced by the dependency-aware task runner slice (issue #7)
+  'RUN_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

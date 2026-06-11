@@ -507,3 +507,70 @@ export const hubServerConfigSchema = z.object({
   cliBin: z.string(),
 });
 export type HubServerConfig = z.infer<typeof hubServerConfigSchema>;
+
+// ---------------------------------------------------------------------------
+// Task runner (`re-shell run <task>`)
+//
+// The workspace config may carry an optional `tasks` section mapping a task
+// name (e.g. "build", "test") to its dependencies. A dependency string is one
+// of two forms:
+//   - "build"   — a sibling task in the SAME package (intra-package edge),
+//   - "^build"  — the same task name on this package's workspace DEPENDENCIES
+//                 (upstream-package edge: run upstream's `build` first).
+// When no config is present the runner falls back to sensible defaults
+// (build -> ^build; test -> build), so a bare monorepo still gets correct
+// dependency-aware ordering without authoring any config.
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-task dependency declaration. `dependsOn` entries are either a sibling
+ * task name (intra-package) or a `^`-prefixed task name (the same edge applied
+ * to every upstream workspace dependency of the package).
+ */
+export const taskConfigSchema = z.object({
+  dependsOn: z.array(z.string()).optional(),
+});
+export type TaskConfig = z.infer<typeof taskConfigSchema>;
+
+/**
+ * The optional `tasks` map: task name -> {@link TaskConfig}. Authored in the
+ * workspace config; consumed by the scheduler to build the execution DAG.
+ */
+export const tasksConfigSchema = z.record(z.string(), taskConfigSchema);
+export type TasksConfig = z.infer<typeof tasksConfigSchema>;
+
+/**
+ * Terminal status of a single (package, task) execution.
+ *   - "success" — the script ran and exited 0,
+ *   - "failed"  — the script ran and exited non-zero (or could not be spawned),
+ *   - "skipped" — the package does not define that task script, OR an upstream
+ *                 dependency failed and the runner did not reach this node.
+ */
+export const taskRunStatusSchema = z.enum(['success', 'failed', 'skipped']);
+export type TaskRunStatus = z.infer<typeof taskRunStatusSchema>;
+
+/**
+ * Result of one scheduled (package, task) node. `exitCode` is the child
+ * process exit code (null when the node was skipped and never spawned).
+ */
+export const taskRunResultSchema = z.object({
+  package: z.string(),
+  task: z.string(),
+  status: taskRunStatusSchema,
+  exitCode: z.number().nullable(),
+  durationMs: z.number(),
+});
+export type TaskRunResult = z.infer<typeof taskRunResultSchema>;
+
+/**
+ * Envelope payload for `re-shell run <task> --json`: the per-node results plus
+ * the resolved concurrency and, when `--affected` was used, the changed-set the
+ * targets were scoped to.
+ */
+export const runResponseSchema = z.object({
+  task: z.string(),
+  concurrency: z.number(),
+  results: z.array(taskRunResultSchema),
+  affected: z.array(z.string()).optional(),
+});
+export type RunResponse = z.infer<typeof runResponseSchema>;

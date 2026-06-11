@@ -49,6 +49,12 @@ export {
   agentsDocResponseSchema,
   agentsDriftFileSchema,
   agentsCheckResponseSchema,
+  // task runner
+  taskConfigSchema,
+  tasksConfigSchema,
+  taskRunStatusSchema,
+  taskRunResultSchema,
+  runResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -94,6 +100,12 @@ export type {
   AgentsDocResponse,
   AgentsDriftFile,
   AgentsCheckResponse,
+  // task runner
+  TaskConfig,
+  TasksConfig,
+  TaskRunStatus,
+  TaskRunResult,
+  RunResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,
