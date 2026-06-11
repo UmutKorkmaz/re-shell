@@ -523,12 +523,21 @@ export type HubServerConfig = z.infer<typeof hubServerConfigSchema>;
 // ---------------------------------------------------------------------------
 
 /**
- * Per-task dependency declaration. `dependsOn` entries are either a sibling
- * task name (intra-package) or a `^`-prefixed task name (the same edge applied
- * to every upstream workspace dependency of the package).
+ * Per-task dependency declaration plus optional content-addressed cache hints.
+ *
+ *   - `dependsOn` entries are either a sibling task name (intra-package) or a
+ *     `^`-prefixed task name (the same edge applied to every upstream workspace
+ *     dependency of the package).
+ *   - `inputs` is an optional list of globs (relative to the package dir) that
+ *     define the file set hashed into the cache key. When omitted the runner
+ *     hashes the whole package dir minus declared outputs/node_modules.
+ *   - `outputs` is an optional list of globs (relative to the package dir) that
+ *     define the artifacts captured on a cache MISS and restored on a HIT.
  */
 export const taskConfigSchema = z.object({
   dependsOn: z.array(z.string()).optional(),
+  inputs: z.array(z.string()).optional(),
+  outputs: z.array(z.string()).optional(),
 });
 export type TaskConfig = z.infer<typeof taskConfigSchema>;
 
@@ -545,8 +554,15 @@ export type TasksConfig = z.infer<typeof tasksConfigSchema>;
  *   - "failed"  — the script ran and exited non-zero (or could not be spawned),
  *   - "skipped" — the package does not define that task script, OR an upstream
  *                 dependency failed and the runner did not reach this node.
+ *   - "cached"  — a content-addressed cache HIT: the declared outputs were
+ *                 restored from the cache and the script was NOT spawned.
  */
-export const taskRunStatusSchema = z.enum(['success', 'failed', 'skipped']);
+export const taskRunStatusSchema = z.enum([
+  'success',
+  'failed',
+  'skipped',
+  'cached',
+]);
 export type TaskRunStatus = z.infer<typeof taskRunStatusSchema>;
 
 /**
@@ -574,3 +590,47 @@ export const runResponseSchema = z.object({
   affected: z.array(z.string()).optional(),
 });
 export type RunResponse = z.infer<typeof runResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Build cache (`re-shell cache stats|clean`)
+//
+// The content-addressed build cache stores one record per (package,task) cache
+// KEY: an exit code, the list of captured output files, and the captured logs,
+// alongside the signed output artifacts. These schemas describe the
+// command-layer envelope payloads only; the on-disk record format lives in the
+// CLI's cache-store implementation.
+// ---------------------------------------------------------------------------
+
+/**
+ * Envelope payload for `re-shell cache stats --json`: a point-in-time view of
+ * the local cache store. `hitRate` is null when no run has recorded any
+ * hit/miss telemetry yet (so the consumer can distinguish "0%" from "unknown").
+ */
+export const cacheStatsResponseSchema = z.object({
+  /** Absolute path to the active cache directory. */
+  location: z.string(),
+  /** Number of cached (package,task) entries. */
+  entries: z.number(),
+  /** Total size of all cached artifacts + records, in bytes. */
+  sizeBytes: z.number(),
+  /** Cumulative recorded cache hits across runs (telemetry). */
+  hits: z.number(),
+  /** Cumulative recorded cache misses across runs (telemetry). */
+  misses: z.number(),
+  /** hits / (hits + misses) in [0,1], or null when no telemetry recorded. */
+  hitRate: z.number().nullable(),
+});
+export type CacheStatsResponse = z.infer<typeof cacheStatsResponseSchema>;
+
+/**
+ * Envelope payload for `re-shell cache clean --json`: what the prune removed.
+ */
+export const cacheCleanResponseSchema = z.object({
+  /** Absolute path to the cache directory that was pruned. */
+  location: z.string(),
+  /** Number of entries removed. */
+  removedEntries: z.number(),
+  /** Bytes reclaimed by the prune. */
+  reclaimedBytes: z.number(),
+});
+export type CacheCleanResponse = z.infer<typeof cacheCleanResponseSchema>;

@@ -28,6 +28,8 @@ Options:
   --filter <pkg...>     Restrict to specific package name(s)
   --json                Output the run summary as a JSON envelope
   --continue            Continue scheduling unaffected branches after a failure
+  --no-cache            Disable the content-addressed build cache
+  --cache-dir <dir>     Override the cache directory (default: <root>/.re-shell/cache)
 ```
 
 ## How ordering works
@@ -108,6 +110,37 @@ The exit code is non-zero and no script is spawned. In `--json` mode this is a
 `RUN_ERROR` envelope (see below). Cycles are detected across both intra-package
 and upstream edges.
 
+## Caching and outputs
+
+`run` is backed by a **content-addressed build cache** that is on by default.
+When a task's inputs are unchanged, its result is replayed from the cache —
+declared `outputs` are restored to disk and logs are replayed — and the node is
+reported as `cached` with **no spawn**:
+
+```bash
+re-shell run build     # 1st run spawns + caches each task
+re-shell run build     # 2nd run: unchanged tasks are `cached`
+```
+
+Declare each task's `inputs`/`outputs` globs in the `tasks` config so the cache
+knows what to hash and what to restore:
+
+```yaml
+tasks:
+  build:
+    dependsOn: ["^build"]
+    inputs: ["src/**", "package.json"]
+    outputs: ["dist/**"]
+```
+
+Cache keys fold in the script body, input file hashes, the dependency closure's
+keys, an offline toolchain fingerprint, and an allow-listed env subset, so any
+real change busts the cache. Only successful (exit-0) runs are cached, every
+artifact is HMAC-signed and re-verified before it is trusted, and a tampered
+entry degrades to a normal run. Use `--no-cache` to bypass it and `--cache-dir`
+to relocate it. See [cache](/re-shell/cli/cache/) for keys, local vs remote
+(hub) backends, CI hydration, and `cache stats` / `cache clean`.
+
 ## `--affected`
 
 `run <task> --affected` scopes the target packages to those impacted by your
@@ -166,8 +199,11 @@ task names are never interpreted by a shell.
 ```
 
 - `results` is ordered for stable display. Each entry's `status` is one of
-  `"success"`, `"failed"`, or `"skipped"`. `exitCode` is `null` for skipped
-  nodes (the package had no such script, or an upstream dependency failed).
+  `"success"`, `"cached"`, `"failed"`, or `"skipped"`. A `"cached"` node was
+  replayed from the [build cache](/re-shell/cli/cache/) instead of being spawned
+  (its outputs were restored and its logs replayed). `exitCode` is `null` for
+  skipped nodes (the package had no such script, or an upstream dependency
+  failed).
 - `affected` is present only when `--affected` was used.
 - A failing task still produces `ok: true` (the run completed) with the failure
   recorded in `results`; the **process exit code** is non-zero so CI fails.

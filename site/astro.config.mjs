@@ -53,6 +53,7 @@ export default defineConfig({
             { label: 'templates', slug: 'cli/templates' },
             { label: 'generate', slug: 'cli/generate' },
             { label: 'run (task runner)', slug: 'cli/run' },
+            { label: 'cache (build cache)', slug: 'cli/cache' },
             { label: 'doctor & analyze', slug: 'cli/doctor-analyze' },
             { label: 'completion', slug: 'cli/completion' },
             { label: 'ai', slug: 'cli/ai' },
