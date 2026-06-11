@@ -142,3 +142,76 @@ describe('ReadySetScheduler', () => {
     expect(sched.isDone()).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// continueOnError scheduler unit tests
+// ---------------------------------------------------------------------------
+
+describe('ReadySetScheduler — continueOnError', () => {
+  // Graph: a (leaf), b (dep: a), c (independent leaf).
+  // This is the canonical "independent branch" scenario.
+  const A_B_C_GRAPH: WorkspaceDepGraph = new Map([
+    ['a', []],
+    ['b', ['a']],
+    ['c', []],
+  ]);
+
+  it('continueOnError=false: after a fails, independent c is cascaded to skipped immediately', () => {
+    const res = buildExecutionPlan(A_B_C_GRAPH, mergeTasksConfig(), [
+      { package: 'a', task: 'build' },
+      { package: 'b', task: 'build' },
+      { package: 'c', task: 'build' },
+    ]);
+    if (!res.ok) throw new Error('expected plan');
+    const sched = new ReadySetScheduler(res.plan, false);
+
+    // a is the first ready node; start and fail it.
+    sched.start(nodeId('a', 'build'));
+    sched.complete(nodeId('a', 'build'), 'failed');
+
+    // With continueOnError=false, ready() must return [] and cascade ALL
+    // remaining pending nodes (b and c) to skipped.
+    expect(sched.ready()).toEqual([]);
+    expect(sched.isDone()).toBe(true);
+  });
+
+  it('continueOnError=true: after a fails, b (dep on a) is skipped but c (independent) is still ready', () => {
+    const res = buildExecutionPlan(A_B_C_GRAPH, mergeTasksConfig(), [
+      { package: 'a', task: 'build' },
+      { package: 'b', task: 'build' },
+      { package: 'c', task: 'build' },
+    ]);
+    if (!res.ok) throw new Error('expected plan');
+    const sched = new ReadySetScheduler(res.plan, true);
+
+    sched.start(nodeId('a', 'build'));
+    sched.complete(nodeId('a', 'build'), 'failed');
+
+    // b depends on a (failed) → cascaded to skipped.
+    // c is independent → still ready.
+    const ready = sched.ready().map(n => n.id);
+    expect(ready).toContain(nodeId('c', 'build'));
+    expect(ready).not.toContain(nodeId('b', 'build'));
+
+    // Drain c.
+    sched.start(nodeId('c', 'build'));
+    sched.complete(nodeId('c', 'build'), 'success');
+    expect(sched.isDone()).toBe(true);
+  });
+
+  it('continueOnError=true: b (dep on a) is skipped regardless when a fails', () => {
+    const res = buildExecutionPlan(A_B_GRAPH, mergeTasksConfig(), [
+      { package: 'a', task: 'build' },
+      { package: 'b', task: 'build' },
+    ]);
+    if (!res.ok) throw new Error('expected plan');
+    const sched = new ReadySetScheduler(res.plan, true);
+
+    sched.start(nodeId('a', 'build'));
+    sched.complete(nodeId('a', 'build'), 'failed');
+
+    // b directly depends on a (failed) → cascaded to skipped.
+    expect(sched.ready()).toEqual([]);
+    expect(sched.isDone()).toBe(true);
+  });
+});

@@ -80,10 +80,27 @@ export function registerRunGroup(program: Command): void {
           const concurrency = parseConcurrency(options.concurrency);
           const filter = parseFilter(options.filter);
 
+          // Discover the workspace once; reuse for both --filter validation and
+          // --affected resolution so we never call discoverWorkspace twice.
           let affectedPackages: string[] | undefined;
-          if (options.affected) {
+          if (options.affected || (filter && filter.length > 0)) {
             const discovery = await discoverWorkspace(rootPath);
-            affectedPackages = await resolveAffectedPackages(rootPath, discovery);
+
+            // Validate filter names — unknown names are a hard error (non-zero exit).
+            if (filter && filter.length > 0) {
+              const knownNames = new Set(discovery.packages.keys());
+              const unknown = filter.filter(n => !knownNames.has(n));
+              if (unknown.length > 0) {
+                if (spinner) spinner.stop();
+                const message = `Unknown package(s) in --filter: ${unknown.join(', ')}`;
+                emitError(options.json, message, { task, unknown });
+                return;
+              }
+            }
+
+            if (options.affected) {
+              affectedPackages = await resolveAffectedPackages(rootPath, discovery);
+            }
           }
 
           const result = await runTask({
@@ -107,7 +124,7 @@ export function registerRunGroup(program: Command): void {
                 cycle: result.cycleError.cycle,
               });
             } else {
-              console.log(
+              process.stderr.write(
                 chalk.red(`\n✗ ${result.cycleError.message}\n`)
               );
               process.exitCode = 1;
@@ -150,7 +167,7 @@ function emitError(
   if (json) {
     fail('RUN_ERROR', message, details);
   } else {
-    console.log(chalk.red(`\n✗ ${message}\n`));
+    process.stderr.write(chalk.red(`\n✗ ${message}\n`));
     process.exitCode = 1;
   }
 }

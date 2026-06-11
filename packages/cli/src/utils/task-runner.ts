@@ -170,7 +170,9 @@ export async function resolveAffectedPackages(
 
   const directlyChanged = new Set<string>();
   for (const file of changed) {
-    const rel = file.split(path.sep).join(path.sep);
+    // git always emits '/' separators; normalise to the OS separator before
+    // prefix-matching so this works correctly on Windows too.
+    const rel = file.split('/').join(path.sep);
     for (const d of dirs) {
       if (rel.startsWith(d.rel)) directlyChanged.add(d.name);
     }
@@ -275,6 +277,15 @@ export function parseTasksConfig(value: unknown): TasksConfig {
         `Invalid "tasks.${taskName}.dependsOn" in ${WORKSPACE_CONFIG_FILE}: expected an array of strings`
       );
     }
+    for (const dep of dependsOn as string[]) {
+      const effectiveName = dep.startsWith('^') ? dep.slice(1) : dep;
+      if (effectiveName.length === 0) {
+        throw new Error(
+          `Invalid "tasks.${taskName}.dependsOn" in ${WORKSPACE_CONFIG_FILE}: ` +
+            `dependency entry "${dep}" has an empty task name`
+        );
+      }
+    }
     out[taskName] = { dependsOn: dependsOn as string[] };
   }
   return out;
@@ -361,6 +372,7 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
     affectedPackages,
     onOutput,
     spawnTask = defaultSpawnTask,
+    continueOnError = false,
   } = options;
   const concurrency =
     options.concurrency && options.concurrency > 0
@@ -395,7 +407,7 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
     };
   }
 
-  const scheduler = new ReadySetScheduler(planResult.plan);
+  const scheduler = new ReadySetScheduler(planResult.plan, continueOnError);
   const results = new Map<string, TaskRunResult>();
   const pmCache = new Map<string, PackageManager>();
 
@@ -498,9 +510,8 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
 }
 
 /**
- * Produce a stable, dependency-respecting ordering of results for display: a
- * topological sort of the plan so a package appears after its dependencies.
- * Falls back to insertion order for any node not in the sort (defensive).
+ * Produce a stable, deterministic alphabetical ordering of results for display.
+ * Note: this is NOT a topological sort — it is alphabetical by node id.
  */
 function orderResults(
   nodes: ReadonlyMap<string, { id: string; package: string; task: string }>,

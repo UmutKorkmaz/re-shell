@@ -225,13 +225,21 @@ function findCycle(
  */
 export class ReadySetScheduler {
   private readonly plan: ExecutionPlan;
+  private readonly continueOnError: boolean;
   private readonly running = new Set<string>();
   private readonly succeeded = new Set<string>();
   private readonly failed = new Set<string>();
   private readonly skipped = new Set<string>();
 
-  constructor(plan: ExecutionPlan) {
+  /**
+   * @param plan           The verified, acyclic execution plan.
+   * @param continueOnError When true, only nodes that transitively DEPEND on a
+   *   failed node are cascaded to `skipped`; independent branches still run.
+   *   When false (default), any failed/skipped dependency blocks the node.
+   */
+  constructor(plan: ExecutionPlan, continueOnError = false) {
     this.plan = plan;
+    this.continueOnError = continueOnError;
   }
 
   /** All node ids in the plan. */
@@ -254,12 +262,30 @@ export class ReadySetScheduler {
 
   /**
    * Nodes that may start now: not yet started, with every dependency already
-   * succeeded. Side-effect free; call {@link start} before spawning.
+   * succeeded. Call {@link start} before spawning.
    *
-   * Nodes with a failed/skipped dependency are proactively cascaded into
-   * `skipped` here so they never appear ready and the plan can complete.
+   * When `continueOnError` is false (default): once any node has failed, no new
+   * nodes are scheduled (return []); nodes whose deps directly failed/were
+   * skipped are cascaded to `skipped` so the plan can drain.
+   *
+   * When `continueOnError` is true: only nodes that TRANSITIVELY depend on a
+   * failed/skipped node are cascaded; independent branches whose deps are all
+   * succeeded (or have no deps) become ready and run normally.
    */
   ready(): TaskNode[] {
+    // In strict mode (continueOnError=false), stop scheduling any new work once
+    // a failure has occurred.  Cascade ALL remaining pending nodes to skipped
+    // (including independent ones) so isDone() can converge without a deadlock
+    // and no independent branches start after a failure.
+    const anyFailed = this.failed.size > 0;
+    if (!this.continueOnError && anyFailed) {
+      for (const [id] of this.plan.nodes) {
+        if (this.isStartedOrTerminal(id)) continue;
+        this.skipped.add(id);
+      }
+      return [];
+    }
+
     const result: TaskNode[] = [];
     for (const [id, node] of this.plan.nodes) {
       if (this.isStartedOrTerminal(id)) continue;
@@ -278,6 +304,7 @@ export class ReadySetScheduler {
       }
 
       if (blockedByFailure) {
+        // Cascade nodes whose direct deps failed/were skipped.
         this.skipped.add(id);
         continue;
       }

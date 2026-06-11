@@ -301,4 +301,23 @@ describe('run <task> (built CLI): topological order, --affected, cycles, --json'
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it('--filter with an unknown package name exits non-zero with RUN_ERROR', () => {
+    const { root, orderFile } = makeWorkspace({});
+    try {
+      const { stdout, status } = runCli(
+        ['run', 'build', '--filter', 'no-such-package', '--json'],
+        root,
+        orderFile
+      );
+      expect(status).not.toBe(0);
+      const env = parseSingleLine(stdout);
+      expect(env.ok).toBe(false);
+      expect((env as { error: { code: string } }).error.code).toBe('RUN_ERROR');
+      // Nothing was spawned.
+      expect(readOrder(orderFile)).toEqual([]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

@@ -343,3 +343,219 @@ describe('runTask — JSON envelope shape', () => {
     expect(runResponseSchema.safeParse(payload).success).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// HIGH fix tests
+// ---------------------------------------------------------------------------
+
+describe('runTask — --continue (continueOnError)', () => {
+  /**
+   * Integration tests for continueOnError via runTask.
+   *
+   * The scheduler-level semantics (independent c skipped vs. run) are verified
+   * directly and deterministically in task-scheduler.test.ts.  Here we check
+   * the end-to-end wiring: continueOnError is correctly threaded through from
+   * RunTaskOptions to ReadySetScheduler, and the pool drains without deadlock
+   * in both modes.
+   */
+
+  it('continueOnError=true: a fails, b (dep on a) is skipped, run drains cleanly', async () => {
+    root = await makeWorkspace({});
+    const order: string[] = [];
+    const result = await runTask({
+      rootPath: root,
+      task: 'build',
+      concurrency: 1,
+      continueOnError: true,
+      spawnTask: failingSpawner('a', order),
+    });
+    expect(result.hadFailure).toBe(true);
+    const statuses = Object.fromEntries(
+      result.results.map(r => [r.package, r.status])
+    );
+    expect(statuses['a']).toBe('failed');
+    // b depends on a → skipped even with continueOnError=true.
+    expect(statuses['b']).toBe('skipped');
+    // Run must drain without deadlock.
+    expect(result.results).toHaveLength(2);
+  });
+
+  it('continueOnError=false: a fails, b (dep on a) is skipped, run drains cleanly', async () => {
+    root = await makeWorkspace({});
+    const order: string[] = [];
+    const result = await runTask({
+      rootPath: root,
+      task: 'build',
+      concurrency: 1,
+      continueOnError: false,
+      spawnTask: failingSpawner('a', order),
+    });
+    expect(result.hadFailure).toBe(true);
+    const statuses = Object.fromEntries(
+      result.results.map(r => [r.package, r.status])
+    );
+    expect(statuses['a']).toBe('failed');
+    expect(statuses['b']).toBe('skipped');
+    expect(result.results).toHaveLength(2);
+  });
+
+  it('continueOnError=true with independent c: c runs and succeeds while b (dep on a) is skipped', async () => {
+    // Workspace: a (leaf, gated — fails after yield), b (dep: a), c (independent).
+    // With high concurrency, a and c start simultaneously.  a is gated behind
+    // a Promise so c resolves FIRST.  When a fails, b is skipped; c already
+    // ran successfully.
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'run-continue-'));
+    root = dir;
+    await fs.writeJson(path.join(dir, 'package.json'), {
+      name: 'fixture-root', private: true,
+    });
+    const mkPkg = async (name: string, deps: Record<string, string>) => {
+      const p = path.join(dir, 'packages', name);
+      await fs.ensureDir(p);
+      await fs.writeJson(path.join(p, 'package.json'), {
+        name,
+        scripts: { build: `echo ${name}` },
+        ...(Object.keys(deps).length > 0 ? { dependencies: deps } : {}),
+      });
+    };
+    await mkPkg('a', {});
+    await mkPkg('b', { a: 'workspace:*' });
+    await mkPkg('c', {});
+
+    const order: string[] = [];
+    let releaseA!: () => void;
+    const aGate = new Promise<void>(r => { releaseA = r; });
+
+    const spawner: SpawnTask = async ({ pkg }) => {
+      if (pkg.name === 'a') {
+        await aGate;
+        order.push('a:build');
+        return { exitCode: 1 };
+      }
+      order.push(`${pkg.name}:build`);
+      return { exitCode: 0 };
+    };
+
+    const runPromise = runTask({
+      rootPath: dir,
+      task: 'build',
+      // High concurrency so a and c both launch in the same pump() call.
+      concurrency: 4,
+      continueOnError: true,
+      spawnTask: spawner,
+    });
+
+    // Yield to the event loop so both a and c are in-flight, then release a.
+    await Promise.resolve();
+    releaseA();
+    const result = await runPromise;
+
+    expect(result.hadFailure).toBe(true);
+    const statuses = Object.fromEntries(
+      result.results.map(r => [r.package, r.status])
+    );
+    expect(statuses['a']).toBe('failed');
+    expect(statuses['b']).toBe('skipped');
+    // c was launched before a failed → it ran and succeeded.
+    expect(statuses['c']).toBe('success');
+    expect(order).toContain('c:build');
+  });
+
+  it('continueOnError=false: after a failure, at most one task beyond the failing one is spawned', async () => {
+    // With continueOnError=false and concurrency=1, once a task fails no new
+    // tasks are launched.  Total spawned count must be exactly 1 (only a ran)
+    // when a is the FIRST scheduled node, or ≤ 2 if an independent package
+    // happened to run first.  b must NEVER run regardless of scheduling order.
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'run-continue-'));
+    root = dir;
+    await fs.writeJson(path.join(dir, 'package.json'), {
+      name: 'fixture-root', private: true,
+    });
+    const mkPkg = async (name: string, deps: Record<string, string>) => {
+      const p = path.join(dir, 'packages', name);
+      await fs.ensureDir(p);
+      await fs.writeJson(path.join(p, 'package.json'), {
+        name,
+        scripts: { build: `echo ${name}` },
+        ...(Object.keys(deps).length > 0 ? { dependencies: deps } : {}),
+      });
+    };
+    await mkPkg('a', {});
+    await mkPkg('b', { a: 'workspace:*' });
+    await mkPkg('c', {});
+
+    const order: string[] = [];
+    const spawner: SpawnTask = async ({ pkg }) => {
+      order.push(`${pkg.name}:build`);
+      return { exitCode: pkg.name === 'a' ? 1 : 0 };
+    };
+
+    const result = await runTask({
+      rootPath: dir,
+      task: 'build',
+      concurrency: 1,
+      continueOnError: false,
+      spawnTask: spawner,
+    });
+
+    expect(result.hadFailure).toBe(true);
+    // b is a dependent of a and must NEVER be spawned.
+    expect(order).not.toContain('b:build');
+    // At most 2 spawns: one before a (if c ran first) and a itself.
+    expect(order.length).toBeLessThanOrEqual(2);
+    // The run must drain (no deadlock).
+    expect(result.results).toHaveLength(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HIGH fix tests — --filter unknown package
+// ---------------------------------------------------------------------------
+
+describe('runTask — filter unknown package (unit-level)', () => {
+  /**
+   * The filter-unknown error is surfaced by the command layer (run.group.ts),
+   * not by runTask itself, so we test the observable: passing a filter name
+   * that resolves to zero packages means runTask receives an empty target set
+   * and returns results with no entries (the command layer would have already
+   * bailed in the real CLI path). The integration-level --filter error is
+   * tested in the integration suite.
+   */
+  it('running with a non-matching filter produces an empty result set', async () => {
+    root = await makeWorkspace({});
+    const order: string[] = [];
+    const result = await runTask({
+      rootPath: root,
+      task: 'build',
+      filter: ['does-not-exist'],
+      concurrency: 1,
+      spawnTask: recordingSpawner(order),
+    });
+    expect(result.results).toHaveLength(0);
+    expect(order).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MEDIUM fix tests — bare "^" dep validation
+// ---------------------------------------------------------------------------
+
+describe('parseTasksConfig — bare "^" dep validation', () => {
+  it('throws a clear error for a bare "^" dependsOn entry', () => {
+    expect(() =>
+      parseTasksConfig({ build: { dependsOn: ['^'] } })
+    ).toThrow(/empty task name/);
+  });
+
+  it('throws a clear error for an empty string dependsOn entry', () => {
+    expect(() =>
+      parseTasksConfig({ build: { dependsOn: [''] } })
+    ).toThrow(/empty task name/);
+  });
+
+  it('accepts valid entries with a "^" prefix that have a non-empty task name', () => {
+    expect(() =>
+      parseTasksConfig({ build: { dependsOn: ['^build', 'lint'] } })
+    ).not.toThrow();
+  });
+});
