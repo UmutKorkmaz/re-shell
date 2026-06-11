@@ -1,6 +1,6 @@
 {
   "name": "@re-shell/cli",
-  "version": "0.29.3",
+  "version": "0.30.0",
   "description": "Full-stack development platform uniting microservices and microfrontends. Build complete applications with .NET (ASP.NET Core Web API, Minimal API), Java (Spring Boot, Quarkus, Micronaut, Vert.x), Rust (Actix-Web, Warp, Rocket, Axum), Python (FastAPI, Django, Flask) and Node.js backends alongside React, Vue, Svelte frontends - all managed through one powerful CLI",
   "main": "dist/index.js",
   "files": [
