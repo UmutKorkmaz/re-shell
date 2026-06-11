@@ -4,7 +4,6 @@
   "description": "Stdio MCP server exposing Re-Shell's read-only JSON commands as agent tools.",
   "license": "MIT",
   "author": "Umut Korkmaz",
-  "private": true,
   "type": "module",
   "keywords": [
     "re-shell",
@@ -52,5 +51,12 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://umutkorkmaz.github.io/re-shell/",
+  "bugs": {
+    "url": "https://github.com/UmutKorkmaz/re-shell/issues"
   }
 }

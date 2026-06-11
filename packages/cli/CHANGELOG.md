@@ -5,6 +5,20 @@ All notable changes to the `@re-shell/cli` package will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.0] - 2026-06-11
+
+### Added
+- **`re-shell find "<query>"`** — offline, deterministic semantic search across the command catalog + template registry (field-weighted ranking, JSON envelope, optional embedding reranker that can only reorder vetted hits).
+- **`re-shell templates recommend "<query>"`** — ranked template suggestions, each with a rationale, reusing the find ranker.
+- **`re-shell doctor --explain` / `--fix`** — every failing check mapped to a plain-language cause + concrete suggestion; `--fix` composes a dry-run remediation plan that writes nothing without `--yes` (only allow-listed commands ever run). `workspace health --explain` shares the same engine.
+- **`re-shell ai create "<description>"`** — turns a natural-language description into a dry-run scaffold plan of real commands (resolved to real templates); writes nothing without `--yes`.
+- New typed schemas in `@re-shell/contracts` for all of the above (find/recommend/suggestion/fix-plan/scaffold-plan).
+
+Companion packages released alongside: **`@re-shell/mcp`** (MCP server exposing the JSON commands as agent tools) and the dashboard **assistant panel** (`@re-shell/ui` 0.4.0). All AI features are offline-first with the model layer behind an off-by-default, allow-list-filtered hook.
+
+### Changed
+- Point `homepage` at the documentation site (https://umutkorkmaz.github.io/re-shell/) and fix the `bugs` URL to the live repository (was the deleted `re-shell-cli` repo). (Carried over from the unreleased 0.29.3.)
+
 ## [0.29.3] - 2026-06-09
 
 ### Changed
