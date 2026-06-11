@@ -224,3 +224,72 @@ describe('agents sync', () => {
     expect(runCli(['agents', 'check'], root).status).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fix 1 – root-dir collision: a glob that resolves to "." must not overwrite
+//         the root AGENTS.md with a per-package doc.
+// ---------------------------------------------------------------------------
+
+describe('agents init – root-dir collision guard (Fix 1)', () => {
+  let collisionRoot = '';
+
+  beforeEach(() => {
+    // Build a workspace whose pnpm-workspace.yaml includes "." so that fast-glob
+    // would find the root package.json and — without the fix — try to emit a
+    // per-package AGENTS.md at path "AGENTS.md", colliding with the root doc.
+    collisionRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'rs-fix1-collision-'));
+    fs.writeFileSync(
+      path.join(collisionRoot, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'collision-workspace',
+          description: 'A workspace that globs itself.',
+          scripts: { build: 'pnpm -r build', test: 'pnpm -r test' },
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(path.join(collisionRoot, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n");
+    // Include '.' in the workspace glob — the root itself — to trigger the collision.
+    fs.writeFileSync(
+      path.join(collisionRoot, 'pnpm-workspace.yaml'),
+      "packages:\n  - '.'\n  - 'packages/*'\n"
+    );
+    // A normal sub-package to ensure per-package docs are still generated.
+    const pkgDir = path.join(collisionRoot, 'packages', 'core');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(pkgDir, 'package.json'),
+      JSON.stringify(
+        { name: '@collision/core', scripts: { build: 'tsc', test: 'vitest run' } },
+        null,
+        2
+      )
+    );
+  });
+
+  afterEach(() => {
+    if (collisionRoot) fs.rmSync(collisionRoot, { recursive: true, force: true });
+  });
+
+  it('init exits 0 and root AGENTS.md is the ROOT doc, not overwritten by per-package', () => {
+    const res = runCli(['agents', 'init'], collisionRoot);
+    expect(res.status).toBe(0);
+
+    const rootDoc = path.join(collisionRoot, 'AGENTS.md');
+    expect(fs.existsSync(rootDoc)).toBe(true);
+
+    const content = fs.readFileSync(rootDoc, 'utf8');
+    // The root doc contains '## Project overview'; a per-package doc would
+    // contain '# AGENTS.md — <name>' without the project overview section.
+    expect(content).toContain('## Project overview');
+    expect(content).toContain('collision-workspace');
+  });
+
+  it('check passes immediately after init (no collision-induced drift)', () => {
+    runCli(['agents', 'init'], collisionRoot);
+    const res = runCli(['agents', 'check'], collisionRoot);
+    expect(res.status).toBe(0);
+  });
+});

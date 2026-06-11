@@ -43,12 +43,28 @@ async function generate(root: string, program: Command): Promise<GeneratedAgents
   return generateAllAgentsDocs(ws);
 }
 
-/** Write every generated artifact to disk (creating parent dirs as needed). */
+/**
+ * Resolve all write targets and validate path containment BEFORE writing any
+ * file (atomicity: a bad path fails before any partial writes occur).
+ * Refuses to write anything outside the workspace root.
+ */
 async function writeFiles(root: string, files: GeneratedAgentsFile[]): Promise<void> {
-  for (const file of files) {
-    const abs = path.join(root, file.path);
+  const absRoot = path.resolve(root);
+  // Pre-compute and validate every target path before touching the filesystem.
+  const targets: Array<{ abs: string; content: string }> = files.map(file => {
+    const abs = path.resolve(root, file.path);
+    if (abs !== absRoot && !abs.startsWith(absRoot + path.sep)) {
+      throw new Error(
+        `Security: refusing to write "${file.path}" outside the workspace root "${absRoot}". ` +
+          `Run \`re-shell agents sync\` to repair.`
+      );
+    }
+    return { abs, content: file.content };
+  });
+  // All paths validated — now write.
+  for (const { abs, content } of targets) {
     await fs.ensureDir(path.dirname(abs));
-    await fs.writeFile(abs, file.content, 'utf8');
+    await fs.writeFile(abs, content, 'utf8');
   }
 }
 
@@ -60,9 +76,15 @@ async function detectDrift(
   root: string,
   files: GeneratedAgentsFile[]
 ): Promise<AgentsDriftFile[]> {
+  const absRoot = path.resolve(root);
   const drift: AgentsDriftFile[] = [];
   for (const file of files) {
-    const abs = path.join(root, file.path);
+    const abs = path.resolve(root, file.path);
+    if (abs !== absRoot && !abs.startsWith(absRoot + path.sep)) {
+      throw new Error(
+        `Security: refusing to read "${file.path}" outside the workspace root "${absRoot}".`
+      );
+    }
     if (!(await fs.pathExists(abs))) {
       drift.push({ path: file.path, kind: file.kind, reason: 'missing' });
       continue;

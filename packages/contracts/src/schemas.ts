@@ -417,7 +417,8 @@ export type AgentsDocFile = z.infer<typeof agentsDocFileSchema>;
  * pure, so consumers can render the plan before anything is touched.
  */
 export const agentsDocResponseSchema = z.object({
-  written: z.boolean(),
+  // Always true: there is no dry-run path; files are always written to disk.
+  written: z.literal(true),
   files: z.array(agentsDocFileSchema),
 });
 export type AgentsDocResponse = z.infer<typeof agentsDocResponseSchema>;

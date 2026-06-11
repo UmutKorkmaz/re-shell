@@ -300,7 +300,7 @@ export function generateLlmsIndex(ws: AgentsWorkspaceInput): string {
   for (const pkg of ws.packages) {
     const deps = sortedUnique(pkg.internalDeps);
     lines.push(
-      `- ${pkg.name} (${pkg.dir})${deps.length ? ` -> ${deps.join(', ')}` : ''}: ${pkg.dir}/${PACKAGE_AGENTS_FILE}`
+      `- ${pkg.name}${deps.length ? ` -> ${deps.join(', ')}` : ''}: ${pkg.dir}/${PACKAGE_AGENTS_FILE}`
     );
   }
   lines.push('');
@@ -333,10 +333,21 @@ export function byteLength(content: string): number {
   return Buffer.byteLength(content, 'utf8');
 }
 
-/** Join a package dir and the package AGENTS.md filename using POSIX separators. */
+/**
+ * Join a package dir and the package AGENTS.md filename using POSIX separators.
+ * Throws for empty or root-dir ("" / ".") to prevent collisions with the root
+ * AGENTS.md — callers must exclude workspace-root packages before calling this.
+ */
 function packageDocPath(dir: string): string {
   const clean = dir.replace(/\/+$/, '');
-  return clean.length > 0 ? `${clean}/${PACKAGE_AGENTS_FILE}` : PACKAGE_AGENTS_FILE;
+  if (clean.length === 0 || clean === '.') {
+    throw new Error(
+      `packageDocPath: refusing to generate a per-package doc for an empty or root dir ("${dir}"). ` +
+        `A package at the workspace root only gets the root AGENTS.md. ` +
+        `Exclude root-dir packages before calling generateAllAgentsDocs.`
+    );
+  }
+  return `${clean}/${PACKAGE_AGENTS_FILE}`;
 }
 
 /**

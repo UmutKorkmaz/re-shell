@@ -137,12 +137,16 @@ export async function discoverWorkspace(
   matches.sort((a, b) => a.localeCompare(b));
 
   // First pass: read raw packages and index by name for internal-edge resolution.
+  // Exclude any package whose resolved directory is the workspace root itself
+  // (relative dir "" or "."). A root-dir package only gets the root AGENTS.md.
   const raw: Array<{ dir: string; pkg: RawPackageJson }> = [];
   const namesInWorkspace = new Set<string>();
   for (const file of matches) {
     const pkg = await readJsonSafe(file);
     if (!pkg || typeof pkg.name !== 'string') continue;
-    raw.push({ dir: relPosix(root, path.dirname(file)), pkg });
+    const dir = relPosix(root, path.dirname(file));
+    if (dir === '' || dir === '.') continue;
+    raw.push({ dir, pkg });
     namesInWorkspace.add(pkg.name);
   }
 
@@ -159,9 +163,20 @@ export async function discoverWorkspace(
     };
   });
 
-  // Locate the contracts package entry, if one exists, for the JSON-contract note.
-  const contractsPkg = packages.find(p => /contracts/.test(p.name));
-  const contractsPath = contractsPkg ? `${contractsPkg.dir}/src/index.ts` : undefined;
+  // Locate the contracts package entry for the JSON-contract note. Match by
+  // name that ends with "/contracts" or equals "contracts" (not just a substring
+  // hit like "@scope/re-contracts-util"). Only emit the path if the file exists.
+  const contractsPkg = packages.find(p => {
+    const n = p.name;
+    return n === 'contracts' || n.endsWith('/contracts');
+  });
+  const contractsCandidate = contractsPkg
+    ? path.join(root, contractsPkg.dir, 'src', 'index.ts')
+    : undefined;
+  const contractsPath =
+    contractsCandidate && (await fs.pathExists(contractsCandidate))
+      ? `${contractsPkg!.dir}/src/index.ts`
+      : undefined;
 
   // Do-not-touch zones: well-known build dirs at the root + inside each package.
   const doNotTouch = new Set<string>();
