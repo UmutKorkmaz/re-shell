@@ -19,6 +19,7 @@ export type ScreenId =
   | 'jobs'
   | 'health'
   | 'scorecard'
+  | 'catalog'
   | 'settings';
 
 export const SCREENS: readonly ScreenDef[] = [
@@ -38,6 +39,11 @@ export const SCREENS: readonly ScreenDef[] = [
     id: 'scorecard',
     label: 'Scorecard',
     description: 'Weighted production-readiness grades per service and a monorepo rollup.',
+  },
+  {
+    id: 'catalog',
+    label: 'Catalog',
+    description: 'Auto-discovered software catalog with Backstage interop (no hand-written YAML).',
   },
   { id: 'settings', label: 'Settings', description: 'Hub connection and dashboard preferences.' },
 ];

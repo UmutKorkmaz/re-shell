@@ -66,6 +66,8 @@ export const errorCodeSchema = z.enum([
   'RELEASE_ERROR',
   // Code introduced by the version-scoped migration/codemod slice (issue #10)
   'MIGRATE_ERROR',
+  // Code introduced by the software-catalog auto-discovery slice (issue #11)
+  'CATALOG_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

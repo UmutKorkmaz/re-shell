@@ -10,6 +10,7 @@ import { AssistantScreen } from './screens/AssistantScreen';
 import { JobsLogsScreen } from './screens/JobsLogsScreen';
 import { HealthScreen } from './screens/HealthScreen';
 import { ScorecardScreen } from './screens/ScorecardScreen';
+import { CatalogScreen } from './screens/CatalogScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 
@@ -31,6 +32,8 @@ function renderScreen(screen: ScreenDef, navigate: (next: ScreenId) => void): Re
       return <HealthScreen />;
     case 'scorecard':
       return <ScorecardScreen />;
+    case 'catalog':
+      return <CatalogScreen />;
     case 'settings':
       return <SettingsScreen />;
     default:

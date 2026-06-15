@@ -984,3 +984,113 @@ export const migrateResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type MigrateResponse = z.infer<typeof migrateResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// software catalog  (`re-shell catalog|catalog sync`)  — issue #11
+//
+// Auto-discovers every service / microfrontend / API / package from the real
+// workspace graph and serializes it into a typed catalog model. Emits native
+// catalog entities AND Backstage `catalog-info.yaml` for interop with the
+// dominant IDP — no hand-written YAML, no catalog drift. `catalog sync` writes
+// the catalog-info.yaml files and is idempotent (re-running after a graph
+// change updates entities with no manual edits). Building the model is pure
+// data and never touches disk or the network.
+// ---------------------------------------------------------------------------
+
+/** The Backstage entity kinds the catalog emits. */
+export const catalogEntityKindSchema = z.enum([
+  'Component',
+  'API',
+  'Resource',
+  'Group',
+  'System',
+  'Domain',
+]);
+export type CatalogEntityKind = z.infer<typeof catalogEntityKindSchema>;
+
+/** A generated metadata block shared by every catalog entity. */
+export const catalogMetadataSchema = z.object({
+  /** Entity name (slug, lowercase, unique per kind). */
+  name: z.string(),
+  /** Optional display title. */
+  title: z.string().optional(),
+  /** Optional human description. */
+  description: z.string().optional(),
+  /** Optional free-form tags (language, framework, domain). */
+  tags: z.array(z.string()).optional(),
+  /** Optional k8s-style labels. */
+  labels: z.record(z.string(), z.string()).optional(),
+  /** Optional k8s-style annotations (e.g. re-shell.io/* provenance). */
+  annotations: z.record(z.string(), z.string()).optional(),
+  /** Optional external links. */
+  links: z
+    .array(
+      z.object({
+        url: z.string(),
+        title: z.string().optional(),
+        type: z.string().optional(),
+      })
+    )
+    .optional(),
+});
+export type CatalogMetadata = z.infer<typeof catalogMetadataSchema>;
+
+/**
+ * A single catalog entity. `apiVersion` is always `backstage.io/v1alpha1` for
+ * the emitted kinds; `spec` is an opaque record whose shape depends on `kind`
+ * (Component/API/Resource/Group/System) — authored as a passthrough so the
+ * serializer owns the per-kind spec, not the contract.
+ */
+export const catalogEntitySchema = z.object({
+  apiVersion: z.string(),
+  kind: catalogEntityKindSchema,
+  metadata: catalogMetadataSchema,
+  spec: z.record(z.string(), z.unknown()),
+});
+export type CatalogEntity = z.infer<typeof catalogEntitySchema>;
+
+/** Per-kind counts in the catalog rollup. */
+export const catalogCountsSchema = z.object({
+  components: z.number(),
+  apis: z.number(),
+  resources: z.number(),
+  groups: z.number(),
+  systems: z.number(),
+});
+export type CatalogCounts = z.infer<typeof catalogCountsSchema>;
+
+/**
+ * One Backstage catalog-info.yaml file the sync would write (or wrote): its
+ * repo-relative `path`, the entity `kind` + `name` it contains, and whether it
+ * was actually written to disk (`written`).
+ */
+export const catalogSyncFileSchema = z.object({
+  path: z.string(),
+  kind: catalogEntityKindSchema,
+  name: z.string(),
+  written: z.boolean(),
+});
+export type CatalogSyncFile = z.infer<typeof catalogSyncFileSchema>;
+
+/**
+ * Envelope payload for `re-shell catalog --json` (and `catalog sync --json`):
+ * the workspace `system` name, the discovered `entities`, per-kind `counts`,
+ * whether the sync was a `dryRun` (always true for `catalog`, false only for
+ * `catalog sync --no-dry-run`), the files written (sync only), and any
+ * `warnings` surfaced while building the model.
+ */
+export const catalogResponseSchema = z.object({
+  /** The System entity name the catalog is scoped to (the workspace name). */
+  system: z.string(),
+  /** True when nothing was written (the safe default for `catalog`). */
+  dryRun: z.boolean(),
+  /** The discovered catalog entities (native model). */
+  entities: z.array(catalogEntitySchema),
+  /** Per-kind entity counts. */
+  counts: catalogCountsSchema,
+  /** Files written by `catalog sync` (empty for the default `catalog` view). */
+  files: z.array(catalogSyncFileSchema),
+  /** Model/sync-level warnings (unknown owners, missing manifests, etc). */
+  warnings: z.array(z.string()),
+});
+export type CatalogResponse = z.infer<typeof catalogResponseSchema>;

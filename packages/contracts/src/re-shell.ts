@@ -80,6 +80,13 @@ export {
   migrationStatusSchema,
   migrationDescriptorSchema,
   migrateResponseSchema,
+  // software catalog auto-discovery
+  catalogEntityKindSchema,
+  catalogMetadataSchema,
+  catalogEntitySchema,
+  catalogCountsSchema,
+  catalogSyncFileSchema,
+  catalogResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -156,6 +163,13 @@ export type {
   MigrationStatus,
   MigrationDescriptor,
   MigrateResponse,
+  // software catalog auto-discovery
+  CatalogEntityKind,
+  CatalogMetadata,
+  CatalogEntity,
+  CatalogCounts,
+  CatalogSyncFile,
+  CatalogResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

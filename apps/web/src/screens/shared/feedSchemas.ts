@@ -116,3 +116,43 @@ export const scorecardFeedSchema = z.object({
   warnings: z.array(z.string()).default([]),
 });
 export type ScorecardFeed = z.infer<typeof scorecardFeedSchema>;
+
+// ---------------------------------------------------------------------------
+// software catalog  (`re-shell catalog --json`)
+// ---------------------------------------------------------------------------
+
+export const catalogEntityFeedSchema = z.object({
+  kind: z.string(),
+  metadata: z.object({
+    name: z.string(),
+    description: z.string().optional(),
+    tags: z.array(z.string()).default([]),
+  }),
+  spec: z
+    .object({
+      type: z.string().optional(),
+      owner: z.string().optional(),
+      lifecycle: z.string().optional(),
+      system: z.string().optional(),
+    })
+    .catchall(z.unknown())
+    .default({}),
+});
+export type CatalogEntityFeed = z.infer<typeof catalogEntityFeedSchema>;
+
+export const catalogFeedSchema = z.object({
+  system: z.string(),
+  dryRun: z.boolean().default(true),
+  entities: z.array(catalogEntityFeedSchema).default([]),
+  counts: z
+    .object({
+      components: z.number().default(0),
+      apis: z.number().default(0),
+      resources: z.number().default(0),
+      groups: z.number().default(0),
+      systems: z.number().default(0),
+    })
+    .default({}),
+  warnings: z.array(z.string()).default([]),
+});
+export type CatalogFeed = z.infer<typeof catalogFeedSchema>;

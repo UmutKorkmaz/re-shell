@@ -116,6 +116,7 @@ import { registerDevGroup } from './groups/dev.group';
 import { registerScorecardGroup } from './groups/scorecard.group';
 import { registerReleaseGroup } from './groups/release.group';
 import { registerMigrateGroup } from './groups/migrate.group';
+import { registerCatalogGroup } from './groups/catalog.group';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -616,6 +617,7 @@ registerDevGroup(program);
 registerScorecardGroup(program);
 registerReleaseGroup(program);
 registerMigrateGroup(program);
+registerCatalogGroup(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 
