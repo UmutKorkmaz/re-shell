@@ -904,3 +904,83 @@ export const releaseResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type ReleaseResponse = z.infer<typeof releaseResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// migrate  (`re-shell migrate [<to-version>] [--json] [--no-dry-run] [--filter]`)
+//   — issue #10
+//
+// A version-scoped migration/codemod engine. It selects the recipes whose
+// `fromVersionRange` satisfies the workspace's current version and whose
+// `toVersion` is at or below the requested target, resolves their concrete
+// target files across the discovered packages in dependency-graph (topological)
+// order, and either LISTS them for review (the safe default, dry-run) or APPLIES
+// them — rewriting each outdated config/YAML scaffold to the new schema after
+// writing a `.bak` backup. Source transforms (ast-grep kind) are gated behind an
+// injectable runner and degrade to `skipped` when ast-grep is not installed.
+// Computing the plan is pure data and never touches disk or the network.
+// ---------------------------------------------------------------------------
+
+/** The transform mechanism a migration recipe uses against its target file. */
+export const migrationKindSchema = z.enum(['config', 'yaml', 'json', 'ast-grep']);
+export type MigrationKind = z.infer<typeof migrationKindSchema>;
+
+/**
+ * Terminal status of a single migration descriptor:
+ *   - "pending" — listed for review; nothing applied (the dry-run default),
+ *   - "applied" — the transform was written to every resolved target,
+ *   - "skipped" — intentionally not applied (e.g. ast-grep not installed),
+ *   - "failed"  — applying the transform raised an error.
+ */
+export const migrationStatusSchema = z.enum([
+  'pending',
+  'applied',
+  'skipped',
+  'failed',
+]);
+export type MigrationStatus = z.infer<typeof migrationStatusSchema>;
+
+/**
+ * One migration in the plan: its identity + the version window it bridges, the
+ * transform `kind`, a human title/description, the concrete resolved `targets`
+ * (repo-relative file paths in DEPENDENCY-GRAPH/topological order so deps are
+ * migrated before dependents), and its terminal `status`/`applied` flag.
+ */
+export const migrationDescriptorSchema = z.object({
+  /** Stable recipe id (e.g. "workspace-v1-to-v2"). */
+  id: z.string(),
+  /** The workspace version the migration applies from. */
+  fromVersion: z.string(),
+  /** The version the migration brings the workspace to. */
+  toVersion: z.string(),
+  /** Transform mechanism. */
+  kind: migrationKindSchema,
+  /** Short human title. */
+  title: z.string(),
+  /** Human description of what the migration does. */
+  description: z.string(),
+  /** Resolved target file paths, ordered deps-before-dependents (topological). */
+  targets: z.array(z.string()),
+  /** Terminal status. */
+  status: migrationStatusSchema,
+  /** True only when the transform was actually written to disk. */
+  applied: z.boolean(),
+});
+export type MigrationDescriptor = z.infer<typeof migrationDescriptorSchema>;
+
+/**
+ * Envelope payload for `re-shell migrate --json`: the resolved target
+ * `toVersion`, whether the run was a `dryRun` (the safe default), the per-recipe
+ * migration descriptors, and any `warnings` surfaced while planning/applying
+ * (skipped source transforms, dependency-graph cycles, unknown filters, etc).
+ */
+export const migrateResponseSchema = z.object({
+  /** The version the plan migrates the workspace to. */
+  toVersion: z.string(),
+  /** True when nothing was written (the safe default). */
+  dryRun: z.boolean(),
+  /** Per-recipe migration descriptors. */
+  migrations: z.array(migrationDescriptorSchema),
+  /** Plan/apply-level warnings. */
+  warnings: z.array(z.string()),
+});
+export type MigrateResponse = z.infer<typeof migrateResponseSchema>;

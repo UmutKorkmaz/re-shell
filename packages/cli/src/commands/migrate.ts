@@ -1,547 +1,362 @@
-import * as fs from 'fs-extra';
+// `re-shell migrate <to-version>` — version-scoped migration/codemod command.
+//
+// Orchestrates the migration engine to select recipes, resolve candidate targets
+// in topological order (deps before dependents), and either list them for review
+// (the safe dry-run default) or apply them with `.bak` backups. Source transforms
+// degrade to `skipped` when ast-grep is not installed (never a hard failure).
+
 import * as path from 'path';
 import chalk from 'chalk';
-import { execSync } from 'child_process';
+import { ok, fail } from '../utils/json-output';
 import { createSpinner } from '../utils/spinner';
-import { findMonorepoRoot } from '../utils/monorepo';
+import {
+  getRecipes,
+  selectPendingMigrations,
+  planMigrations,
+  topoSort,
+  LATEST_TARGET_VERSION,
+  type MigrationDescriptorLite,
+  type RecipeCandidateTargets,
+} from '../utils/migrate-engine';
+import {
+  resolveCandidateTargets,
+  applyRecipeToFile,
+  type PackageDir,
+  type AstGrepRunner,
+  defaultAstGrepRunner,
+} from '../utils/migrate-runner';
+import { discoverWorkspace } from '../utils/task-runner';
 
-interface MigrateOptions {
-  spinner?: any;
-  verbose?: boolean;
-  dryRun?: boolean;
-  force?: boolean;
-  backup?: boolean;
+/** Candidate filenames for the workspace config, in discovery order. */
+const CONFIG_CANDIDATES = ['re-shell.workspaces.yaml', 're-shell.workspaces.yml'];
+
+/** Options accepted by the `migrate` command. */
+export interface MigrateCommandOptions {
+  json?: boolean;
+  /** Target version (default LATEST_TARGET_VERSION). */
+  toVersion?: string;
+  /** When false (the safe default), only list the plan; when true, apply. */
+  noDryRun?: boolean;
+  /** Optional package filter (comma-separated names). */
+  filter?: string;
+  /** Working directory override (tests). */
+  cwd?: string;
+  /** Inject ast-grep runner (tests). */
+  runner?: AstGrepRunner;
 }
 
-interface ProjectConfig {
-  name: string;
-  type: 'standalone' | 'monorepo';
-  framework: string;
-  packageManager: 'npm' | 'yarn' | 'pnpm' | 'bun';
-  workspaces?: string[];
-  dependencies: Record<string, string>;
-  devDependencies: Record<string, string>;
-  scripts: Record<string, string>;
-  hasGit: boolean;
-  hasTypeScript: boolean;
-  hasESLint: boolean;
-  hasPrettier: boolean;
-  hasTesting: boolean;
+/** Resolve the workspace config path under `cwd`, or undefined if absent. */
+function resolveConfigPath(cwd: string): string | undefined {
+  for (const candidate of CONFIG_CANDIDATES) {
+    const full = path.join(cwd, candidate);
+    if (require('fs').existsSync(full)) return full;
+  }
+  return undefined;
 }
 
-export async function importProject(sourcePath: string, options: MigrateOptions = {}) {
+/** Read the current workspace version from the config, or null if missing. */
+function readWorkspaceVersion(configPath: string): string | null {
+  const fs = require('fs');
+  const yaml = require('js-yaml');
   try {
-    if (options.spinner) {
-      options.spinner.text = 'Analyzing source project...';
+    const content = fs.readFileSync(configPath, 'utf8');
+    const doc = yaml.load(content);
+    if (doc && typeof doc === 'object' && doc.version !== undefined && doc.version !== null) {
+      // js-yaml parses an unquoted `version: 1.0` as the number 1; coerce to a
+      // string so the downstream semver range check sees a usable version.
+      return String(doc.version);
     }
-
-    // Validate source path
-    const resolvedSource = path.resolve(sourcePath);
-    if (!await fs.pathExists(resolvedSource)) {
-      throw new Error(`Source path does not exist: ${sourcePath}`);
-    }
-
-    // Analyze the source project
-    const projectConfig = await analyzeProject(resolvedSource, options);
-    
-    if (options.verbose) {
-      console.log('\n' + chalk.blue('Project Analysis:'));
-      console.log(`  Name: ${projectConfig.name}`);
-      console.log(`  Type: ${projectConfig.type}`);
-      console.log(`  Framework: ${projectConfig.framework}`);
-      console.log(`  Package Manager: ${projectConfig.packageManager}`);
-      console.log(`  Workspaces: ${projectConfig.workspaces?.length || 0}`);
-    }
-
-    // Create backup if requested
-    if (options.backup) {
-      await createProjectBackup(resolvedSource, options);
-    }
-
-    // Import to Re-Shell structure
-    if (projectConfig.type === 'monorepo') {
-      await importMonorepo(resolvedSource, projectConfig, options);
-    } else {
-      await importStandaloneProject(resolvedSource, projectConfig, options);
-    }
-
-    if (options.spinner) {
-      options.spinner.succeed(chalk.green('Project imported successfully!'));
-    }
-
-    // Display next steps
-    console.log('\n' + chalk.bold('Next Steps:'));
-    console.log('1. Review the imported project structure');
-    console.log('2. Install dependencies: pnpm install');
-    console.log('3. Run health check: re-shell doctor');
-    console.log('4. Start development: re-shell serve');
-
-  } catch (error) {
-    if (options.spinner) {
-      options.spinner.fail(chalk.red('Import failed'));
-    }
-    throw error;
-  }
+  } catch {}
+  return null;
 }
 
-export async function exportProject(targetPath: string, options: MigrateOptions = {}) {
-  try {
-    if (options.spinner) {
-      options.spinner.text = 'Preparing export...';
-    }
-
-    const monorepoRoot = await findMonorepoRoot(process.cwd());
-    if (!monorepoRoot) {
-      throw new Error('Not in a Re-Shell monorepo. Run this command from within a monorepo.');
-    }
-
-    const resolvedTarget = path.resolve(targetPath);
-    
-    // Check if target exists
-    if (await fs.pathExists(resolvedTarget) && !options.force) {
-      throw new Error(`Target path already exists: ${targetPath}. Use --force to overwrite.`);
-    }
-
-    // Create export structure
-    await createExportStructure(monorepoRoot, resolvedTarget, options);
-
-    if (options.spinner) {
-      options.spinner.succeed(chalk.green('Project exported successfully!'));
-    }
-
-    console.log('\n' + chalk.bold('Export Complete:'));
-    console.log(`  Location: ${resolvedTarget}`);
-    console.log(`  Includes: Source code, configurations, documentation`);
-
-  } catch (error) {
-    if (options.spinner) {
-      options.spinner.fail(chalk.red('Export failed'));
-    }
-    throw error;
-  }
+/** Check if a filter name matches a discovered package (exact match or subdir). */
+function matchesFilter(name: string, pkgName: string): boolean {
+  return name === pkgName || pkgName.startsWith(`${name}/`);
 }
 
-export async function backupProject(options: MigrateOptions = {}) {
-  try {
-    const monorepoRoot = await findMonorepoRoot(process.cwd());
-    if (!monorepoRoot) {
-      throw new Error('Not in a Re-Shell monorepo');
-    }
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    const backupName = `re-shell-backup-${timestamp}`;
-    const backupPath = path.join(path.dirname(monorepoRoot), backupName);
-
-    if (options.spinner) {
-      options.spinner.text = 'Creating backup...';
-    }
-
-    await createProjectBackup(monorepoRoot, { ...options, customPath: backupPath });
-
-    if (options.spinner) {
-      options.spinner.succeed(chalk.green('Backup created successfully!'));
-    }
-
-    console.log('\n' + chalk.bold('Backup Details:'));
-    console.log(`  Location: ${backupPath}`);
-    console.log(`  Size: ${await getDirectorySize(backupPath)}`);
-
-  } catch (error) {
-    if (options.spinner) {
-      options.spinner.fail(chalk.red('Backup failed'));
-    }
-    throw error;
-  }
-}
-
-export async function restoreProject(backupPath: string, targetPath: string, options: MigrateOptions = {}) {
-  try {
-    if (options.spinner) {
-      options.spinner.text = 'Restoring from backup...';
-    }
-
-    const resolvedBackup = path.resolve(backupPath);
-    const resolvedTarget = path.resolve(targetPath);
-
-    if (!await fs.pathExists(resolvedBackup)) {
-      throw new Error(`Backup path does not exist: ${backupPath}`);
-    }
-
-    if (await fs.pathExists(resolvedTarget) && !options.force) {
-      throw new Error(`Target path already exists: ${targetPath}. Use --force to overwrite.`);
-    }
-
-    // Copy backup to target
-    await fs.copy(resolvedBackup, resolvedTarget, {
-      overwrite: options.force,
-      filter: (src) => {
-        const relative = path.relative(resolvedBackup, src);
-        return !relative.includes('node_modules') && !relative.includes('.git');
-      }
-    });
-
-    if (options.spinner) {
-      options.spinner.succeed(chalk.green('Project restored successfully!'));
-    }
-
-    console.log('\n' + chalk.bold('Restore Complete:'));
-    console.log(`  Location: ${resolvedTarget}`);
-    console.log('  Remember to run: pnpm install');
-
-  } catch (error) {
-    if (options.spinner) {
-      options.spinner.fail(chalk.red('Restore failed'));
-    }
-    throw error;
-  }
-}
-
-async function analyzeProject(projectPath: string, options: MigrateOptions): Promise<ProjectConfig> {
-  const packageJsonPath = path.join(projectPath, 'package.json');
-  
-  if (!await fs.pathExists(packageJsonPath)) {
-    throw new Error('No package.json found in the source project');
-  }
-
-  const packageJson = await fs.readJson(packageJsonPath);
-  
-  // Detect project type
-  const isMonorepo = !!(packageJson.workspaces || 
-    await fs.pathExists(path.join(projectPath, 'lerna.json')) ||
-    await fs.pathExists(path.join(projectPath, 'nx.json')) ||
-    await fs.pathExists(path.join(projectPath, 'turbo.json')));
-
-  // Detect framework
-  const framework = detectFramework(packageJson);
-  
-  // Detect package manager
-  const packageManager = detectPackageManager(projectPath);
-
-  // Get workspaces for monorepos
-  let workspaces: string[] = [];
-  if (isMonorepo) {
-    workspaces = await getWorkspaces(projectPath, packageJson);
-  }
-
-  // Check for common tools
-  const hasGit = await fs.pathExists(path.join(projectPath, '.git'));
-  const hasTypeScript = !!(packageJson.devDependencies?.typescript || packageJson.dependencies?.typescript ||
-    await fs.pathExists(path.join(projectPath, 'tsconfig.json')));
-  const hasESLint = !!(packageJson.devDependencies?.eslint || packageJson.dependencies?.eslint);
-  const hasPrettier = !!(packageJson.devDependencies?.prettier || packageJson.dependencies?.prettier);
-  const hasTesting = !!(packageJson.devDependencies?.jest || packageJson.devDependencies?.vitest || 
-    packageJson.devDependencies?.['@testing-library/react']);
-
+/** Map a pure descriptor to the wire MigrationDescriptor shape. */
+function toWireDescriptor(lite: MigrationDescriptorLite) {
   return {
-    name: packageJson.name || 'imported-project',
-    type: isMonorepo ? 'monorepo' : 'standalone',
-    framework,
-    packageManager,
-    workspaces,
-    dependencies: packageJson.dependencies || {},
-    devDependencies: packageJson.devDependencies || {},
-    scripts: packageJson.scripts || {},
-    hasGit,
-    hasTypeScript,
-    hasESLint,
-    hasPrettier,
-    hasTesting
+    id: lite.id,
+    fromVersion: lite.fromVersion,
+    toVersion: lite.toVersion,
+    kind: lite.kind,
+    title: lite.title,
+    description: lite.description,
+    targets: [...lite.targets],
+    status: lite.status,
+    applied: lite.applied,
   };
 }
 
-function detectFramework(packageJson: any): string {
-  const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-  
-  if (deps.react) {
-    return deps.typescript ? 'react-ts' : 'react';
-  }
-  if (deps.vue) {
-    return deps.typescript ? 'vue-ts' : 'vue';
-  }
-  if (deps.svelte) {
-    return deps.typescript ? 'svelte-ts' : 'svelte';
-  }
-  if (deps.next) {
-    return 'next';
-  }
-  if (deps.nuxt) {
-    return 'nuxt';
-  }
-  if (deps.angular || deps['@angular/core']) {
-    return 'angular';
-  }
-  
-  return 'vanilla';
-}
+/**
+ * `re-shell migrate [<to-version>]` — version-scoped migration/codemod.
+ *
+ * Selects recipes whose `fromVersionRange` matches the current workspace version
+ * and whose `toVersion` is at or below the requested target, resolves their
+ * concrete target files in dependency-graph (topological) order, and either lists
+ * them for review (dry-run, the safe default) or applies them — rewriting each
+ * outdated config/YAML scaffold to the new schema after writing a `.bak` backup.
+ *
+ * Source transforms (ast-grep) degrade to `skipped` when ast-grep is not installed.
+ * Computing the plan is pure data and never touches disk or the network.
+ */
+export async function runMigrate(options: MigrateCommandOptions): Promise<void> {
+  const json = Boolean(options.json);
+  const cwd = options.cwd ?? process.cwd();
+  const rootDir = path.resolve(cwd);
+  const dryRun = !options.noDryRun;
+  const runner = options.runner ?? defaultAstGrepRunner;
 
-function detectPackageManager(projectPath: string): 'npm' | 'yarn' | 'pnpm' | 'bun' {
-  if (fs.existsSync(path.join(projectPath, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (fs.existsSync(path.join(projectPath, 'yarn.lock'))) return 'yarn';
-  if (fs.existsSync(path.join(projectPath, 'bun.lockb'))) return 'bun';
-  return 'npm';
-}
+  const spinner = json
+    ? null
+    : createSpinner('Planning migrations…', undefined, { json });
+  spinner?.start();
 
-async function getWorkspaces(projectPath: string, packageJson: any): Promise<string[]> {
-  if (packageJson.workspaces) {
-    if (Array.isArray(packageJson.workspaces)) {
-      return packageJson.workspaces;
-    } else if (packageJson.workspaces.packages) {
-      return packageJson.workspaces.packages;
+  try {
+    // ── Discover workspace ───────────────────────────────────────────────────────
+    const configPath = resolveConfigPath(rootDir);
+    if (!configPath) {
+      emitError(
+        json,
+        `No workspace config found (looked for ${CONFIG_CANDIDATES.join(', ')} in ${cwd}). ` +
+          'Run `re-shell init` or create a re-shell.workspaces.yaml first.'
+      );
+      return;
     }
-  }
 
-  // Check for Lerna
-  const lernaPath = path.join(projectPath, 'lerna.json');
-  if (await fs.pathExists(lernaPath)) {
-    const lernaConfig = await fs.readJson(lernaPath);
-    return lernaConfig.packages || ['packages/*'];
-  }
+    const currentVersion = readWorkspaceVersion(configPath);
+    // A config with no version field is implicitly v1 (the legacy schema), so a
+    // missing version is treated as 1.0.0 — the earliest version the v1→v2
+    // recipe's `1.x` range can satisfy.
+    const fromVersion = currentVersion ?? '1.0.0';
 
-  // Check for Nx
-  const nxPath = path.join(projectPath, 'nx.json');
-  if (await fs.pathExists(nxPath)) {
-    // Nx uses workspace.json or project.json files
-    return ['apps/*', 'libs/*'];
-  }
+    const toVersion = options.toVersion ?? LATEST_TARGET_VERSION;
 
-  return [];
-}
-
-async function importMonorepo(sourcePath: string, config: ProjectConfig, options: MigrateOptions) {
-  const targetPath = path.join(process.cwd(), config.name);
-  
-  if (options.dryRun) {
-    console.log(chalk.blue('DRY RUN - Would import monorepo:'));
-    console.log(`  Source: ${sourcePath}`);
-    console.log(`  Target: ${targetPath}`);
-    console.log(`  Workspaces: ${config.workspaces?.join(', ')}`);
-    return;
-  }
-
-  // Create Re-Shell monorepo structure
-  await fs.ensureDir(targetPath);
-  
-  // Copy root files
-  const rootFiles = ['package.json', '.gitignore', 'README.md', 'tsconfig.json', '.eslintrc.js'];
-  for (const file of rootFiles) {
-    const srcFile = path.join(sourcePath, file);
-    const destFile = path.join(targetPath, file);
-    if (await fs.pathExists(srcFile)) {
-      await fs.copy(srcFile, destFile);
+    // ── Discover packages for topological ordering ────────────────────────────────
+    let discovery;
+    try {
+      discovery = await discoverWorkspace(rootDir);
+    } catch {
+      discovery = { packages: new Map(), graph: new Map() };
     }
-  }
 
-  // Update package.json for Re-Shell
-  const packageJsonPath = path.join(targetPath, 'package.json');
-  const packageJson = await fs.readJson(packageJsonPath);
-  
-  // Add Re-Shell specific configurations
-  packageJson.devDependencies = {
-    ...packageJson.devDependencies,
-    '@re-shell/cli': 'latest'
-  };
-  
-  packageJson.scripts = {
-    ...packageJson.scripts,
-    'dev': 're-shell serve',
-    'build': 're-shell build',
-    'lint': 're-shell workspace list --json | jq -r ".[] | .path" | xargs -I {} pnpm --filter {} lint'
-  };
+    // Convert discovery graph to the topoSort shape (Map<string, readonly string[]>).
+    const graph = discovery.graph;
+    const topoOrder = topoSort(graph);
 
-  await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
-
-  // Copy workspaces
-  if (config.workspaces) {
-    for (const workspace of config.workspaces) {
-      const sourceDirs = await expandGlob(path.join(sourcePath, workspace));
-      for (const sourceDir of sourceDirs) {
-        const relativePath = path.relative(sourcePath, sourceDir);
-        const targetDir = path.join(targetPath, relativePath);
-        
-        await fs.copy(sourceDir, targetDir, {
-          filter: (src) => {
-            const relative = path.relative(sourceDir, src);
-            return !relative.includes('node_modules') && !relative.includes('dist');
-          }
-        });
+    // Build PackageDir list in topological order (deps before dependents).
+    const packagesTopo: PackageDir[] = [];
+    const seen = new Set<string>();
+    for (const name of topoOrder) {
+      if (seen.has(name)) continue;
+      const pkg = discovery.packages.get(name);
+      if (pkg && typeof pkg === 'object' && 'dir' in pkg) {
+        seen.add(name);
+        packagesTopo.push({ name, dir: String(pkg.dir) });
       }
     }
-  }
 
-  if (options.verbose) {
-    console.log(chalk.green(`✓ Imported monorepo with ${config.workspaces?.length || 0} workspaces`));
-  }
-}
-
-async function importStandaloneProject(sourcePath: string, config: ProjectConfig, options: MigrateOptions) {
-  const monorepoRoot = await findMonorepoRoot(process.cwd());
-  
-  if (!monorepoRoot) {
-    throw new Error('Not in a Re-Shell monorepo. Create one first with "re-shell init"');
-  }
-
-  const targetPath = path.join(monorepoRoot, 'apps', config.name);
-  
-  if (options.dryRun) {
-    console.log(chalk.blue('DRY RUN - Would import standalone project:'));
-    console.log(`  Source: ${sourcePath}`);
-    console.log(`  Target: ${targetPath}`);
-    console.log(`  Framework: ${config.framework}`);
-    return;
-  }
-
-  // Copy project to apps directory
-  await fs.copy(sourcePath, targetPath, {
-    filter: (src) => {
-      const relative = path.relative(sourcePath, src);
-      return !relative.includes('node_modules') && !relative.includes('dist');
-    }
-  });
-
-  // Update package.json for workspace
-  const packageJsonPath = path.join(targetPath, 'package.json');
-  const packageJson = await fs.readJson(packageJsonPath);
-  
-  packageJson.name = `@${path.basename(monorepoRoot)}/${config.name}`;
-  packageJson.private = true;
-  
-  await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
-
-  // Update root package.json workspaces
-  const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
-  const rootPackageJson = await fs.readJson(rootPackageJsonPath);
-  
-  if (!rootPackageJson.workspaces) {
-    rootPackageJson.workspaces = [];
-  }
-  
-  const workspacePattern = `apps/${config.name}`;
-  if (!rootPackageJson.workspaces.includes(workspacePattern)) {
-    rootPackageJson.workspaces.push(workspacePattern);
-  }
-  
-  await fs.writeJson(rootPackageJsonPath, rootPackageJson, { spaces: 2 });
-
-  if (options.verbose) {
-    console.log(chalk.green(`✓ Imported standalone project as workspace`));
-  }
-}
-
-async function createProjectBackup(sourcePath: string, options: MigrateOptions & { customPath?: string }) {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-  const backupName = `backup-${timestamp}`;
-  const backupPath = options.customPath || path.join(path.dirname(sourcePath), backupName);
-
-  await fs.copy(sourcePath, backupPath, {
-    filter: (src) => {
-      const relative = path.relative(sourcePath, src);
-      return !relative.includes('node_modules') && 
-             !relative.includes('.git') && 
-             !relative.includes('dist') &&
-             !relative.includes('build');
-    }
-  });
-
-  // Create backup manifest
-  const manifest = {
-    created: new Date().toISOString(),
-    source: sourcePath,
-    backup: backupPath,
-    version: '1.0.0'
-  };
-
-  await fs.writeJson(path.join(backupPath, '.backup-manifest.json'), manifest, { spaces: 2 });
-
-  if (options.verbose) {
-    console.log(chalk.green(`✓ Backup created: ${backupPath}`));
-  }
-}
-
-async function createExportStructure(sourcePath: string, targetPath: string, options: MigrateOptions) {
-  await fs.ensureDir(targetPath);
-
-  // Copy essential files and directories
-  const itemsToCopy = [
-    'package.json',
-    'apps',
-    'packages',
-    'libs',
-    'tools',
-    '.gitignore',
-    'README.md',
-    'tsconfig.json',
-    '.eslintrc.js',
-    'turbo.json',
-    'nx.json'
-  ];
-
-  for (const item of itemsToCopy) {
-    const srcPath = path.join(sourcePath, item);
-    const destPath = path.join(targetPath, item);
-    
-    if (await fs.pathExists(srcPath)) {
-      await fs.copy(srcPath, destPath, {
-        filter: (src) => {
-          const relative = path.relative(srcPath, src);
-          return !relative.includes('node_modules') && 
-                 !relative.includes('.git') && 
-                 !relative.includes('dist') &&
-                 !relative.includes('build');
+    // Apply optional package filter.
+    let packagesInScope = packagesTopo;
+    if (options.filter) {
+      const filters = options.filter.split(',').map(f => f.trim());
+      const matched = new Set<string>();
+      for (const pkg of packagesTopo) {
+        for (const f of filters) {
+          if (matchesFilter(f, pkg.name)) {
+            matched.add(pkg.name);
+            break;
+          }
         }
+      }
+      packagesInScope = packagesTopo.filter(p => matched.has(p.name));
+    }
+
+    // ── Select pending recipes ───────────────────────────────────────────────────
+    const allRecipes = getRecipes();
+    const selected = selectPendingMigrations(allRecipes, fromVersion, toVersion);
+
+    if (selected.length === 0) {
+      const payload = {
+        toVersion,
+        dryRun,
+        migrations: [],
+        warnings: [`No migrations needed from ${fromVersion} to ${toVersion}.`],
+      };
+      if (json) {
+        ok(payload);
+      } else {
+        process.stdout.write(chalk.cyan.bold('\n▶ migrate\n\n'));
+        process.stdout.write(chalk.green(`✓ Workspace already at ${toVersion}\n\n`));
+      }
+      return;
+    }
+
+    // ── Resolve candidate targets for each recipe (in topological order) ───────────
+    const candidateTargets: RecipeCandidateTargets[] = [];
+    const warnings: string[] = [];
+
+    for (const recipe of selected) {
+      const resolved = resolveCandidateTargets(recipe, rootDir, packagesInScope);
+      candidateTargets.push({ recipeId: recipe.id, targets: resolved.map(r => r.path) });
+    }
+
+    // ── Build the plan ───────────────────────────────────────────────────────────
+    const plan = planMigrations(selected, fromVersion, toVersion, candidateTargets);
+
+    // ── Apply (or list) ───────────────────────────────────────────────────────────
+    if (dryRun) {
+      const payload = {
+        toVersion,
+        dryRun: true,
+        migrations: plan.migrations.map(toWireDescriptor),
+        warnings: [...plan.warnings, ...warnings],
+      };
+
+      if (json) {
+        ok(payload);
+      } else {
+        renderHuman(payload);
+        process.stdout.write(
+          chalk.yellow('\n  Dry run: use --no-dry-run to apply these migrations.\n\n')
+        );
+      }
+      return;
+    }
+
+    // Apply phase: run each migration against its resolved targets.
+    const applied: MigrationDescriptorLite[] = [];
+
+    for (const recipe of selected) {
+      const resolved = resolveCandidateTargets(recipe, rootDir, packagesInScope);
+      const descriptor = plan.migrations.find(m => m.id === recipe.id);
+      if (!descriptor) continue;
+
+      // A recipe selected by the version window but resolving to ZERO target
+      // files wrote nothing to disk — it must NOT be reported as 'applied'
+      // (the schema contract: applied means "written to every resolved target").
+      if (resolved.length === 0) {
+        warnings.push(`recipe "${recipe.id}" resolved no targets; skipped`);
+        applied.push({ ...descriptor, status: 'skipped', applied: false });
+        continue;
+      }
+
+      let recipeStatus: 'applied' | 'skipped' | 'failed' = 'applied';
+      const recipeWarnings: string[] = [];
+
+      for (const target of resolved) {
+        const result = await applyRecipeToFile(recipe, target.path, runner);
+        if (result.outcome === 'failed') {
+          recipeStatus = 'failed';
+        }
+        if (result.outcome === 'skipped' && recipeStatus === 'applied') {
+          recipeStatus = 'skipped';
+        }
+        recipeWarnings.push(...result.warnings);
+      }
+
+      warnings.push(...recipeWarnings);
+      applied.push({
+        ...descriptor,
+        status: recipeStatus,
+        applied: recipeStatus === 'applied',
       });
     }
-  }
 
-  // Create export manifest
-  const manifest = {
-    exported: new Date().toISOString(),
-    source: sourcePath,
-    export: targetPath,
-    version: '1.0.0',
-    tool: 'Re-Shell CLI'
-  };
-
-  await fs.writeJson(path.join(targetPath, '.export-manifest.json'), manifest, { spaces: 2 });
-
-  if (options.verbose) {
-    console.log(chalk.green(`✓ Export created: ${targetPath}`));
-  }
-}
-
-async function expandGlob(pattern: string): Promise<string[]> {
-  const baseDir = path.dirname(pattern);
-  const globPattern = path.basename(pattern);
-
-  if (!globPattern.includes('*')) {
-    const fullPath = path.resolve(pattern);
-    return await fs.pathExists(fullPath) ? [fullPath] : [];
-  }
-
-  try {
-    const items = await fs.readdir(baseDir, { withFileTypes: true });
-    const matches = [];
-
-    for (const item of items) {
-      if (item.isDirectory()) {
-        const fullPath = path.join(baseDir, item.name);
-        if (await fs.pathExists(path.join(fullPath, 'package.json'))) {
-          matches.push(fullPath);
-        }
-      }
+    // Surface a partial/failed apply explicitly: each rewritten file has a .bak
+    // the user can restore from. A non-zero exit code (mirroring the scorecard
+    // gate) ensures CI never treats a partially-applied migration as success.
+    const appliedCount = applied.filter(m => m.status === 'applied').length;
+    const failedCount = applied.filter(m => m.status === 'failed').length;
+    const partial = appliedCount > 0 && (failedCount > 0 || applied.length > appliedCount + failedCount);
+    if (appliedCount > 0) {
+      warnings.push(
+        `${appliedCount} migration(s) applied — each rewritten file has a .bak backup alongside it.`
+      );
+    }
+    if (failedCount > 0 || partial) {
+      warnings.push(
+        `Migration incomplete: ${appliedCount} applied, ${failedCount} failed` +
+          `${partial ? ', some skipped' : ''}. Restore rewritten files from their *.bak if needed.`
+      );
     }
 
-    return matches;
-  } catch (error) {
-    return [];
+    const payload = {
+      toVersion,
+      dryRun: false,
+      migrations: applied.map(toWireDescriptor),
+      warnings,
+    };
+
+    if (json) {
+      ok(payload);
+    } else {
+      renderHuman(payload);
+    }
+
+    // Gate: any non-applied recipe in the apply path is a failure condition.
+    if (applied.some(m => m.status !== 'applied')) {
+      process.exitCode = 1;
+    }
+  } finally {
+    spinner?.stop();
   }
 }
 
-async function getDirectorySize(dirPath: string): Promise<string> {
-  try {
-    // Simple estimation - actual recursive calculation would be too slow
-    const stats = await fs.stat(dirPath);
-    return '< 1MB (estimated)';
-  } catch (error) {
-    return 'Unknown';
+/** Emit a MIGRATE_ERROR envelope (json) or red message + non-zero exit. */
+function emitError(json: boolean, message: string): void {
+  if (json) {
+    fail('MIGRATE_ERROR', message);
+  } else {
+    process.stderr.write(chalk.red(`\n✗ ${message}\n`));
+    process.exitCode = 1;
+  }
+}
+
+/** Human-readable render of the migration plan. */
+function renderHuman(payload: {
+  toVersion: string;
+  dryRun: boolean;
+  migrations: Array<{
+    id: string;
+    fromVersion: string;
+    toVersion: string;
+    kind: string;
+    title: string;
+    description: string;
+    targets: string[];
+    status: string;
+    applied: boolean;
+  }>;
+  warnings: string[];
+}): void {
+  process.stdout.write(chalk.cyan.bold('\n▶ migrate\n\n'));
+
+  for (const mig of payload.migrations) {
+    const statusColour =
+      mig.status === 'applied'
+        ? chalk.green
+        : mig.status === 'skipped'
+          ? chalk.yellow
+          : mig.status === 'failed'
+            ? chalk.red
+            : chalk.gray;
+    process.stdout.write(
+      `  ${statusColour(`[${mig.status.toUpperCase()}]`)} ${chalk.bold(mig.title)}\n`
+    );
+    process.stdout.write(`    ${mig.description}\n`);
+    if (mig.targets.length > 0) {
+      process.stdout.write(`    Targets: ${mig.targets.length} file(s)\n`);
+    }
+    process.stdout.write('\n');
+  }
+
+  if (payload.warnings.length > 0) {
+    for (const warning of payload.warnings) {
+      process.stdout.write(chalk.yellow(`  ! ${warning}\n`));
+    }
+    process.stdout.write('\n');
   }
 }

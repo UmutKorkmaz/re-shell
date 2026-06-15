@@ -115,6 +115,7 @@ import { registerCacheGroup } from './groups/cache.group';
 import { registerDevGroup } from './groups/dev.group';
 import { registerScorecardGroup } from './groups/scorecard.group';
 import { registerReleaseGroup } from './groups/release.group';
+import { registerMigrateGroup } from './groups/migrate.group';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -614,6 +615,7 @@ registerCacheGroup(program);
 registerDevGroup(program);
 registerScorecardGroup(program);
 registerReleaseGroup(program);
+registerMigrateGroup(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 

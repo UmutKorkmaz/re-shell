@@ -64,6 +64,8 @@ export const errorCodeSchema = z.enum([
   'SCORECARD_ERROR',
   // Code introduced by the graph-aware release slice (issue #9)
   'RELEASE_ERROR',
+  // Code introduced by the version-scoped migration/codemod slice (issue #10)
+  'MIGRATE_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

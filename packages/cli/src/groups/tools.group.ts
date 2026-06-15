@@ -7,7 +7,7 @@ import {
   addGitSubmodule, removeGitSubmodule, updateGitSubmodules,
   showSubmoduleStatus, initSubmodules, manageSubmodules,
 } from '../commands/submodule';
-import { importProject, exportProject, backupProject, restoreProject } from '../commands/migrate';
+import { importProject, exportProject, backupProject, restoreProject } from '../commands/migrate-project';
 import { generateCICDConfig, generateDeployConfig } from '../commands/cicd';
 import { manageDevMode } from '../commands/dev-mode';
 

@@ -75,6 +75,11 @@ export {
   releaseReasonSchema,
   releaseUnitPlanSchema,
   releaseResponseSchema,
+  // version-scoped migration/codemod
+  migrationKindSchema,
+  migrationStatusSchema,
+  migrationDescriptorSchema,
+  migrateResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -146,6 +151,11 @@ export type {
   ReleaseReason,
   ReleaseUnitPlan,
   ReleaseResponse,
+  // version-scoped migration/codemod
+  MigrationKind,
+  MigrationStatus,
+  MigrationDescriptor,
+  MigrateResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,
