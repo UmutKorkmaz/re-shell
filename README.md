@@ -4,9 +4,9 @@ A single **pnpm monorepo** that pairs a full-stack scaffolding CLI with a local,
 token-authed dashboard. The CLI is the engine; the dashboard, component library,
 and shared contracts are built on top of it — published under the `@re-shell/*` npm scope.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/umutkorkmaz/re-shell-cli/ci.yml?branch=main)](https://github.com/umutkorkmaz/re-shell-cli/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/UmutKorkmaz/re-shell/ci.yml?branch=main)](https://github.com/UmutKorkmaz/re-shell/actions/workflows/ci.yml)
 [![CLI version](https://img.shields.io/npm/v/@re-shell/cli.svg?label=cli)](https://www.npmjs.com/package/@re-shell/cli)
-[![License](https://img.shields.io/npm/l/@re-shell/cli.svg)](https://github.com/umutkorkmaz/re-shell-cli/blob/main/LICENSE)
+[![License](https://img.shields.io/npm/l/@re-shell/cli.svg)](https://github.com/UmutKorkmaz/re-shell/blob/main/LICENSE)
 
 ## Packages
 
