@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { createAsyncCommand } from '../utils/error-handler';
 import { runDevCluster } from '../commands/dev-cluster';
+import { runRestartPlan } from '../commands/dev-restart-plan';
 
 /**
  * Default changed-file source for affected-scoping: git working-tree changes
@@ -42,14 +43,26 @@ async function gitChangedFiles(root: string): Promise<string[]> {
 export function registerDevGroup(program: Command): void {
   program
     .command('dev')
-    .description('Local development runtime (use --cluster for the k8s inner loop)')
+    .description('Local development runtime (use --cluster for the k8s inner loop, --restart-plan for graph-aware propagation)')
     .option('--cluster', 'Run the Skaffold-backed Kubernetes inner-loop dev runtime')
     .option('--dry-run', 'Generate the config + plan without touching a cluster')
     .option('--namespace <ns>', 'Target Kubernetes namespace')
     .option('--filter <svc...>', 'Restrict to specific service name(s)')
     .option('--json', 'Output the config + plan as a JSON envelope')
+    .option('--restart-plan', 'Resolve and print the graph-aware restart plan (changed → ordered dependents) without restarting')
+    .option('--changed <pkgs...>', 'Explicit changed package names for --restart-plan (overrides git detection)')
     .action(
       createAsyncCommand(async (options) => {
+        // Graph-aware restart plan: pure/offline, never restarts. Short-circuit
+        // before the cluster path so it is safe and fast.
+        if (options.restartPlan) {
+          await runRestartPlan({
+            json: Boolean(options.json),
+            changed: options.changed,
+            getChangedFiles: options.changed ? undefined : gitChangedFiles,
+          });
+          return;
+        }
         if (!options.cluster) {
           // The non-cluster dev runtime is provided by the existing tools group
           // (`re-shell tools dev`). Steer the user there rather than no-op.

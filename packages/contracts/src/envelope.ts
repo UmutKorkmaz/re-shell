@@ -72,6 +72,8 @@ export const errorCodeSchema = z.enum([
   'FEDERATION_ERROR',
   // Code introduced by the JSON-mode generate-service slice (issue #17)
   'GENERATE_ERROR',
+  // Code introduced by the graph-aware dev-fusion slice (issue #14)
+  'DEV_FUSION_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
