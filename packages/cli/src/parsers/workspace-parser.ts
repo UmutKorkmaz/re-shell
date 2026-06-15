@@ -35,6 +35,11 @@ export interface ServiceConfig {
   path?: string;
   port?: number;
   env?: Record<string, string>;
+  /**
+   * Names of other services in the same workspace this service depends on at
+   * runtime. Drives affected-sync scoping in `re-shell dev --cluster`.
+   */
+  dependsOn?: string[];
   dependencies?: {
     production?: Record<string, string>;
     development?: Record<string, string>;

@@ -58,6 +58,13 @@ export {
   // build cache
   cacheStatsResponseSchema,
   cacheCleanResponseSchema,
+  // dev cluster (skaffold inner-loop)
+  devClusterSyncRuleSchema,
+  devClusterArtifactSchema,
+  devClusterPortForwardSchema,
+  devClusterConfigSchema,
+  devClusterPlanSchema,
+  devClusterResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -112,6 +119,13 @@ export type {
   // build cache
   CacheStatsResponse,
   CacheCleanResponse,
+  // dev cluster (skaffold inner-loop)
+  DevClusterSyncRule,
+  DevClusterArtifact,
+  DevClusterPortForward,
+  DevClusterConfig,
+  DevClusterPlan,
+  DevClusterResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

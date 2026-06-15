@@ -634,3 +634,112 @@ export const cacheCleanResponseSchema = z.object({
   reclaimedBytes: z.number(),
 });
 export type CacheCleanResponse = z.infer<typeof cacheCleanResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Skaffold-backed k8s inner-loop dev runtime (`re-shell dev --cluster`)
+//
+// The CLI generates a Skaffold config from the workspace graph and drives the
+// inner development loop (build-watch + in-cluster file-sync + port-forwards).
+// All cluster/skaffold operations go through an injectable backend; these
+// schemas describe ONLY the offline, deterministic config + plan envelope that
+// `--dry-run --json` emits (and that the dashboard reads for status). No live
+// cluster is required to produce or validate them.
+// ---------------------------------------------------------------------------
+
+/**
+ * One file-sync rule for a Skaffold artifact: edits matching `src` are copied
+ * straight into the running container at `dest` WITHOUT a rebuild, which is the
+ * core of the fast inner loop. `src` is a glob relative to the artifact context.
+ */
+export const devClusterSyncRuleSchema = z.object({
+  /** Glob (relative to the artifact context) selecting files to sync. */
+  src: z.string(),
+  /** Destination directory inside the running container. */
+  dest: z.string(),
+});
+export type DevClusterSyncRule = z.infer<typeof devClusterSyncRuleSchema>;
+
+/**
+ * A single buildable artifact in the generated Skaffold config — one per
+ * workspace service. `image` is the local dev image name, `context` the build
+ * context (the service directory), and `sync` the inner-loop file-sync rules.
+ */
+export const devClusterArtifactSchema = z.object({
+  /** Owning workspace service name (the graph key). */
+  service: z.string(),
+  /** Local dev image name Skaffold builds and the manifests reference. */
+  image: z.string(),
+  /** Build context directory, relative to the workspace root. */
+  context: z.string(),
+  /** Dockerfile path relative to `context`. */
+  dockerfile: z.string(),
+  /** In-cluster file-sync rules driving the no-rebuild fast path. */
+  sync: z.array(devClusterSyncRuleSchema),
+});
+export type DevClusterArtifact = z.infer<typeof devClusterArtifactSchema>;
+
+/**
+ * A generated port-forward: maps a local port to a service's container port so
+ * the developer can reach the in-cluster service from localhost.
+ */
+export const devClusterPortForwardSchema = z.object({
+  /** Service the forward targets. */
+  service: z.string(),
+  /** Kubernetes resource type (always "service" for the generated forwards). */
+  resourceType: z.literal('service'),
+  /** In-cluster container/service port. */
+  port: z.number(),
+  /** Local port bound on the developer's machine. */
+  localPort: z.number(),
+});
+export type DevClusterPortForward = z.infer<typeof devClusterPortForwardSchema>;
+
+/**
+ * The generated, offline Skaffold dev config: artifacts (one per service),
+ * port-forwards, and the manifest globs Skaffold deploys. This is pure data —
+ * producing it never touches a cluster, skaffold, or the network.
+ */
+export const devClusterConfigSchema = z.object({
+  /** Skaffold config apiVersion the generator targets. */
+  apiVersion: z.string(),
+  /** Always "Config" for a Skaffold config document. */
+  kind: z.literal('Config'),
+  /** Target Kubernetes namespace for the dev deploy. */
+  namespace: z.string(),
+  /** One build artifact per service. */
+  artifacts: z.array(devClusterArtifactSchema),
+  /** Kubernetes manifest globs Skaffold applies on deploy. */
+  manifests: z.array(z.string()),
+  /** Generated port-forwards for local access. */
+  portForwards: z.array(devClusterPortForwardSchema),
+});
+export type DevClusterConfig = z.infer<typeof devClusterConfigSchema>;
+
+/**
+ * The plan `re-shell dev --cluster --dry-run` would execute: which services are
+ * in scope, the affected-set the scope was derived from (when `--filter` or
+ * affected-scoping narrowed it), and whether the run is a dry-run. `dryRun` is
+ * true for any `--dry-run` invocation; the cluster is never touched in that case.
+ */
+export const devClusterPlanSchema = z.object({
+  /** Services that would be built/deployed/watched, in stable order. */
+  services: z.array(z.string()),
+  /**
+   * The changed/requested set the in-scope services were derived from, when
+   * scoping was applied (filter or affected). Omitted for a full-workspace run.
+   */
+  affected: z.array(z.string()).optional(),
+  /** True when no cluster/skaffold action will be taken. */
+  dryRun: z.boolean(),
+});
+export type DevClusterPlan = z.infer<typeof devClusterPlanSchema>;
+
+/**
+ * Envelope payload for `re-shell dev --cluster --dry-run --json`: the generated
+ * Skaffold config plus the execution plan. Validating this requires no cluster.
+ */
+export const devClusterResponseSchema = z.object({
+  config: devClusterConfigSchema,
+  plan: devClusterPlanSchema,
+});
+export type DevClusterResponse = z.infer<typeof devClusterResponseSchema>;

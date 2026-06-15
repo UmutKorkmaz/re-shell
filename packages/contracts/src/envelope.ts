@@ -58,6 +58,8 @@ export const errorCodeSchema = z.enum([
   'RUN_ERROR',
   // Code introduced by the content-addressed build cache slice (issue #8)
   'CACHE_ERROR',
+  // Code introduced by the Skaffold-backed k8s inner-loop dev runtime (issue #13)
+  'DEV_CLUSTER_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

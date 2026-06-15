@@ -200,6 +200,14 @@
           "description": "Service-specific environment variables",
           "additionalProperties": { "type": "string" }
         },
+        "dependsOn": {
+          "type": "array",
+          "description": "Names of other services in this workspace that this service depends on at runtime. Used by `re-shell dev --cluster` to scope affected re-syncs: editing a service re-syncs it plus every service that (transitively) dependsOn it.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+          }
+        },
         "dependencies": {
           "type": "object",
           "description": "Service dependencies (language packages)",
