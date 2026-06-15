@@ -113,6 +113,7 @@ import { registerAgentsGroup } from './groups/agents.group';
 import { registerRunGroup } from './groups/run.group';
 import { registerCacheGroup } from './groups/cache.group';
 import { registerDevGroup } from './groups/dev.group';
+import { registerScorecardGroup } from './groups/scorecard.group';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -610,6 +611,7 @@ registerAgentsGroup(program);
 registerRunGroup(program);
 registerCacheGroup(program);
 registerDevGroup(program);
+registerScorecardGroup(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 

@@ -18,6 +18,7 @@ export type ScreenId =
   | 'assistant'
   | 'jobs'
   | 'health'
+  | 'scorecard'
   | 'settings';
 
 export const SCREENS: readonly ScreenDef[] = [
@@ -33,6 +34,11 @@ export const SCREENS: readonly ScreenDef[] = [
   },
   { id: 'jobs', label: 'Jobs & Logs', description: 'Live job output streamed from the hub.' },
   { id: 'health', label: 'Health', description: 'Workspace health checks and diagnostics.' },
+  {
+    id: 'scorecard',
+    label: 'Scorecard',
+    description: 'Weighted production-readiness grades per service and a monorepo rollup.',
+  },
   { id: 'settings', label: 'Settings', description: 'Hub connection and dashboard preferences.' },
 ];
 

@@ -65,6 +65,11 @@ export {
   devClusterConfigSchema,
   devClusterPlanSchema,
   devClusterResponseSchema,
+  // production-readiness scorecard
+  scorecardGradeSchema,
+  scorecardDimensionSchema,
+  scorecardServiceSchema,
+  scorecardResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -126,6 +131,11 @@ export type {
   DevClusterConfig,
   DevClusterPlan,
   DevClusterResponse,
+  // production-readiness scorecard
+  ScorecardGrade,
+  ScorecardDimension,
+  ScorecardService,
+  ScorecardResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

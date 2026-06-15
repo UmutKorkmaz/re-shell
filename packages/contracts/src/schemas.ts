@@ -743,3 +743,91 @@ export const devClusterResponseSchema = z.object({
   plan: devClusterPlanSchema,
 });
 export type DevClusterResponse = z.infer<typeof devClusterResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// scorecard  (`re-shell scorecard [--json] [--threshold n]`)  — issue #12
+//
+// A weighted production-readiness score computed over EXISTING signals
+// (workspace health, policy-pack evaluation, dependency drift) plus per-service
+// build/test/health-endpoint presence. Every dimension is normalised to 0-100,
+// weighted, and summed into a per-service total with a letter grade; the
+// monorepo rollup averages the per-service totals. Producing the score is pure
+// data — it never touches a cluster or the network.
+// ---------------------------------------------------------------------------
+
+/** Letter grade derived from a 0-100 score (A best, F worst). */
+export const scorecardGradeSchema = z.enum(['A', 'B', 'C', 'D', 'F']);
+export type ScorecardGrade = z.infer<typeof scorecardGradeSchema>;
+
+/**
+ * One weighted dimension of a service's scorecard: a normalised 0-100 `score`,
+ * its `weight` in the rollup (weights sum to 1.0), the `weighted` contribution
+ * (score * weight), whether it `pass`es its threshold, and an optional human
+ * `detail` (e.g. "not-applicable" when a signal does not apply to the workspace).
+ */
+export const scorecardDimensionSchema = z.object({
+  /** Stable dimension id (e.g. "health", "policy", "has-build"). */
+  id: z.string(),
+  /** Human-readable dimension label. */
+  label: z.string(),
+  /** Weight of this dimension in the rollup (0-1; all weights sum to 1.0). */
+  weight: z.number(),
+  /** Normalised dimension score, 0-100. */
+  score: z.number(),
+  /** Weighted contribution to the total (score * weight). */
+  weighted: z.number(),
+  /** True when the dimension meets its pass threshold. */
+  pass: z.boolean(),
+  /** Optional human explanation (e.g. why a dimension is not-applicable). */
+  detail: z.string().optional(),
+});
+export type ScorecardDimension = z.infer<typeof scorecardDimensionSchema>;
+
+/**
+ * A single service's production-readiness scorecard: its weighted `totalScore`
+ * (0-100), the derived letter `grade`, the per-dimension breakdown, and any
+ * service-scoped `warnings` surfaced while scoring.
+ */
+export const scorecardServiceSchema = z.object({
+  /** Workspace service name (the graph key). */
+  service: z.string(),
+  /** Service directory path (relative to the workspace root), or "". */
+  path: z.string(),
+  /** Weighted total score across all dimensions, 0-100. */
+  totalScore: z.number(),
+  /** Letter grade derived from `totalScore`. */
+  grade: scorecardGradeSchema,
+  /** Per-dimension breakdown driving the total. */
+  dimensions: z.array(scorecardDimensionSchema),
+  /** Service-scoped warnings (e.g. degraded signal sources). */
+  warnings: z.array(z.string()),
+});
+export type ScorecardService = z.infer<typeof scorecardServiceSchema>;
+
+/**
+ * Envelope payload for `re-shell scorecard --json`: the monorepo rollup
+ * `score` (average of per-service totals) and `grade`, the `threshold` the
+ * rollup is gated against, whether it `pass`es, the per-service scorecards, and
+ * the shared monorepo signal context (drift entry count, policy score) plus any
+ * rollup-level `warnings`. When `pass` is false the command still emits this
+ * payload (ok:true) AND exits non-zero — the gate is advisory data, not an error.
+ */
+export const scorecardResponseSchema = z.object({
+  /** Monorepo rollup score (average of per-service totals), 0-100. */
+  score: z.number(),
+  /** Letter grade derived from the rollup `score`. */
+  grade: scorecardGradeSchema,
+  /** Threshold the rollup score is gated against. */
+  threshold: z.number(),
+  /** True when `score >= threshold`. */
+  pass: z.boolean(),
+  /** Per-service scorecards. */
+  services: z.array(scorecardServiceSchema),
+  /** Number of drifting dependencies detected across the monorepo. */
+  driftEntries: z.number(),
+  /** Monorepo policy-pack score, 0-100. */
+  policyScore: z.number(),
+  /** Rollup-level warnings (e.g. degraded signals, gate failure, no services). */
+  warnings: z.array(z.string()),
+});
+export type ScorecardResponse = z.infer<typeof scorecardResponseSchema>;

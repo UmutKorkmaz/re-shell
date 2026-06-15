@@ -16,6 +16,7 @@ describe('command-registry', () => {
       'workspace.health',
       'templates.list',
       'templates.show',
+      'scorecard',
       'commands.list',
       'doctor',
       'analyze',

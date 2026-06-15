@@ -38,6 +38,7 @@ const INTENT_KEYWORDS: Partial<Record<CommandId, readonly string[]>> = {
   'workspace.summary': ['overview', 'summary', 'glance', 'state'],
   'workspace.graph': ['graph', 'deps', 'dependencies', 'dependency', 'topology', 'tree'],
   'templates.list': ['templates', 'template', 'scaffold', 'starter', 'frameworks', 'boilerplate'],
+  scorecard: ['scorecard', 'readiness', 'grade', 'score', 'production-ready'],
   'commands.list': ['commands', 'catalog', 'available', 'list'],
   doctor: ['doctor', 'diagnose', 'checkup', 'fix', 'monorepo'],
   analyze: ['analyze', 'analysis', 'bundle', 'performance', 'security', 'audit', 'size'],

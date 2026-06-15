@@ -70,3 +70,49 @@ export type TemplateFeed = z.infer<typeof templateFeedSchema>;
 
 export const templateListSchema = z.array(templateFeedSchema);
 export type TemplateList = z.infer<typeof templateListSchema>;
+
+// ---------------------------------------------------------------------------
+// scorecard  (`re-shell scorecard --json` → ScorecardResponse)
+// ---------------------------------------------------------------------------
+
+/**
+ * The exact wire shape of `ScorecardResponse` (mirrors the contracts
+ * `scorecardResponseSchema`). Validated here so the dashboard panel never
+ * crashes on a sparse/slightly-off feed while still failing fast on genuinely
+ * malformed data. Missing collections default to empty for robustness.
+ */
+export const scorecardGradeSchema = z.enum(['A', 'B', 'C', 'D', 'F']);
+export type ScorecardGradeFeed = z.infer<typeof scorecardGradeSchema>;
+
+export const scorecardDimensionFeedSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  weight: z.number(),
+  score: z.number(),
+  weighted: z.number(),
+  pass: z.boolean(),
+  detail: z.string().optional(),
+});
+export type ScorecardDimensionFeed = z.infer<typeof scorecardDimensionFeedSchema>;
+
+export const scorecardServiceFeedSchema = z.object({
+  service: z.string(),
+  path: z.string().default(''),
+  totalScore: z.number(),
+  grade: scorecardGradeSchema,
+  dimensions: z.array(scorecardDimensionFeedSchema).default([]),
+  warnings: z.array(z.string()).default([]),
+});
+export type ScorecardServiceFeed = z.infer<typeof scorecardServiceFeedSchema>;
+
+export const scorecardFeedSchema = z.object({
+  score: z.number(),
+  grade: scorecardGradeSchema,
+  threshold: z.number(),
+  pass: z.boolean(),
+  services: z.array(scorecardServiceFeedSchema).default([]),
+  driftEntries: z.number().default(0),
+  policyScore: z.number().default(0),
+  warnings: z.array(z.string()).default([]),
+});
+export type ScorecardFeed = z.infer<typeof scorecardFeedSchema>;

@@ -200,6 +200,15 @@ const REGISTRY = {
     buildArgs: (params) => ['templates', 'show', params.id, '--json'],
   }),
 
+  scorecard: defineCommand({
+    id: 'scorecard',
+    title: 'Production-readiness scorecard',
+    description:
+      'Weighted production-readiness score with per-service grades and a monorepo rollup.',
+    schema: noParamsSchema,
+    buildArgs: () => ['scorecard', '--json'],
+  }),
+
   'commands.list': defineCommand({
     id: 'commands.list',
     title: 'List commands',
