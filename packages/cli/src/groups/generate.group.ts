@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { createAsyncCommand, withTimeout, processManager } from '../utils/error-handler';
 import { createSpinner, flushOutput } from '../utils/spinner';
+import { enableJsonMode, ok, fail } from '../utils/json-output';
 import chalk from 'chalk';
 import { generateCode, generateTests, generateDocumentation } from '../commands/generate';
 import { createFeature } from '../commands/create-feature';
@@ -55,8 +56,27 @@ export function registerGenerateGroup(program: Command): void {
     .description('Generate a service class')
     .option('--workspace <workspace>', 'Target workspace')
     .option('--verbose', 'Show detailed information')
+    .option('--json', 'Emit the result as a JSON envelope to stdout')
     .action(
       createAsyncCommand(async (name, options) => {
+        // JSON mode: suppress the spinner/human output and emit the canonical
+        // envelope so the MCP server (and other machines) get a typed result.
+        if (options.json) {
+          const restoreJson = enableJsonMode();
+          try {
+            await withTimeout(async () => {
+              await generateCode(name, { ...options, type: 'service' });
+            }, 60000);
+            ok({ type: 'service', name, framework: options.framework ?? null });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            fail('GENERATE_ERROR', message);
+          } finally {
+            restoreJson();
+          }
+          return;
+        }
+
         const spinner = createSpinner(`Generating service ${name}...`).start();
         processManager.addCleanup(() => spinner.stop());
         flushOutput();

@@ -70,6 +70,8 @@ export const errorCodeSchema = z.enum([
   'CATALOG_ERROR',
   // Code introduced by the module-federation contract-enforcement slice (issue #15)
   'FEDERATION_ERROR',
+  // Code introduced by the JSON-mode generate-service slice (issue #17)
+  'GENERATE_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
