@@ -1238,3 +1238,65 @@ export const apiVerifyResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type ApiVerifyResponse = z.infer<typeof apiVerifyResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// fix --ci  (`re-shell fix --ci`)  — issue #18
+//
+// An autonomous CI fixer: a bounded, gate-locked loop that drives remediation
+// to green and opens a PR after gates pass (merge/push stay human-controlled).
+// These schemas describe the durable --json run log + outcome.
+// ---------------------------------------------------------------------------
+
+/** Why the fix loop terminated. */
+export const fixLoopOutcomeSchema = z.enum([
+  'pr-ready',
+  'no-progress',
+  'bounded-out',
+  'already-green',
+]);
+export type FixLoopOutcome = z.infer<typeof fixLoopOutcomeSchema>;
+
+/** One iteration in the durable fix-loop log. */
+export const fixLoopIterationSchema = z.object({
+  iteration: z.number(),
+  gatesBefore: z.object({
+    passed: z.boolean(),
+    failingGates: z.array(z.string()),
+  }),
+  fix: z
+    .object({
+      fixId: z.string(),
+      description: z.string(),
+      changed: z.boolean(),
+    })
+    .optional(),
+  gatesAfter: z
+    .object({
+      passed: z.boolean(),
+      failingGates: z.array(z.string()),
+    })
+    .optional(),
+});
+export type FixLoopIteration = z.infer<typeof fixLoopIterationSchema>;
+
+/**
+ * Envelope payload for `re-shell fix --ci --json`: the loop `outcome`, the
+ * durable per-iteration `iterations`, whether `gatesPassed`, the `appliedFixes`,
+ * a human `summary`, whether a `prOpened` was attempted (only under
+ * `--no-dry-run` AND `pr-ready`; never auto-merged), and any `warnings`.
+ */
+export const fixCiResponseSchema = z.object({
+  outcome: fixLoopOutcomeSchema,
+  gatesPassed: z.boolean(),
+  iterations: z.array(fixLoopIterationSchema),
+  appliedFixes: z.array(
+    z.object({ fixId: z.string(), description: z.string(), changed: z.boolean() })
+  ),
+  summary: z.string(),
+  /** True only when the loop opened a PR (requires --no-dry-run + pr-ready). */
+  prOpened: z.boolean(),
+  /** The PR URL when one was opened, else "". */
+  prUrl: z.string(),
+  warnings: z.array(z.string()),
+});
+export type FixCiResponse = z.infer<typeof fixCiResponseSchema>;

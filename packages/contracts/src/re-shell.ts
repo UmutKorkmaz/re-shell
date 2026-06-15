@@ -98,6 +98,10 @@ export {
   apiBreakingKindSchema,
   apiFindingSchema,
   apiVerifyResponseSchema,
+  // autonomous fix loop
+  fixLoopOutcomeSchema,
+  fixLoopIterationSchema,
+  fixCiResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -192,6 +196,10 @@ export type {
   ApiBreakingKind,
   ApiFinding,
   ApiVerifyResponse,
+  // autonomous fix loop
+  FixLoopOutcome,
+  FixLoopIteration,
+  FixCiResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

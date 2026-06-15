@@ -119,6 +119,7 @@ import { registerMigrateGroup } from './groups/migrate.group';
 import { registerCatalogGroup } from './groups/catalog.group';
 import { registerFederationGroup } from './groups/federation.group';
 import { registerApiVerifyGroup } from './groups/api-verify.group';
+import { registerFixCiGroup } from './groups/fix-ci.group';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -622,6 +623,7 @@ registerMigrateGroup(program);
 registerCatalogGroup(program);
 registerFederationGroup(program);
 registerApiVerifyGroup(program);
+registerFixCiGroup(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 

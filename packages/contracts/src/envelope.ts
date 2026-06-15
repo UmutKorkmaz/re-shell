@@ -76,6 +76,8 @@ export const errorCodeSchema = z.enum([
   'DEV_FUSION_ERROR',
   // Code introduced by the api-contract verify slice (issue #16)
   'API_VERIFY_ERROR',
+  // Code introduced by the autonomous fix-loop slice (issue #18)
+  'FIX_CI_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
