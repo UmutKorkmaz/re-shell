@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "description": "Shared TypeScript contracts for Re-Shell UI and CLI integration.",
   "license": "MIT",
-  "author": "Re-Shell Organization",
+  "author": "Umut Korkmaz",
   "keywords": [
     "re-shell",
     "contracts",

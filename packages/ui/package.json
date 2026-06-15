@@ -3,7 +3,7 @@
   "version": "0.5.0",
   "description": "Shadcn-first React component library for Re-Shell interfaces.",
   "license": "MIT",
-  "author": "Re-Shell Organization",
+  "author": "Umut Korkmaz",
   "repository": {
     "type": "git",
     "url": "https://github.com/UmutKorkmaz/re-shell.git",
