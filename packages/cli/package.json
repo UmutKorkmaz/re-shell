@@ -65,9 +65,6 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@types/inquirer": "^9.0.9",
-    "@types/js-yaml": "^4.0.9",
-    "@types/react": "^18.3.31",
     "@re-shell/contracts": "workspace:^",
     "boxen": "^8.0.1",
     "chalk": "^4.1.2",
@@ -98,8 +95,11 @@
   "devDependencies": {
     "@types/fs-extra": "^11.0.0",
     "@types/glob": "^8.1.0",
+    "@types/inquirer": "^9.0.9",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.17.46",
     "@types/prompts": "^2.0.0",
+    "@types/react": "^18.3.31",
     "@types/semver": "^7.7.0",
     "@types/uuid": "^9.0.0",
     "@vitest/coverage-v8": "^0.34.6",
