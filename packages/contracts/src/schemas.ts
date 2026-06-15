@@ -1189,3 +1189,52 @@ export const federationResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type FederationResponse = z.infer<typeof federationResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// api verify  (`re-shell api verify`)  — issue #16
+//
+// API contract testing + cross-service spec-drift detection. Normalizes an
+// OpenAPI-ish spec, diffs it against a baseline for backward-incompatible
+// changes, and uses the workspace dependency graph to compute the cross-service
+// blast radius (which consumers break when a producer's spec changes). The
+// verify command gates CI on backward-incompatible changes. Pure/offline.
+// ---------------------------------------------------------------------------
+
+/** The kind of a breaking API spec change. */
+export const apiBreakingKindSchema = z.enum([
+  'operation-removed',
+  'response-field-removed',
+  'param-became-required',
+  'response-type-narrowed',
+]);
+export type ApiBreakingKind = z.infer<typeof apiBreakingKindSchema>;
+
+/** One finding from `api verify`: a breaking spec change with its blast radius. */
+export const apiFindingSchema = z.object({
+  severity: z.enum(['breaking', 'skew', 'info']),
+  kind: apiBreakingKindSchema,
+  message: z.string(),
+  operation: z.string().optional(),
+  /** The consuming services impacted by this change (cross-service blast radius). */
+  consumers: z.array(z.string()),
+});
+export type ApiFinding = z.infer<typeof apiFindingSchema>;
+
+/**
+ * Envelope payload for `re-shell api verify --json`: the producer API `name`,
+ * whether the check `pass`es (no breaking changes), the per-finding `findings`
+ * with their blast radius, whether a baseline was diffed, the total consumer
+ * count impacted, and any `warnings`. When `pass` is false the command still
+ * emits this payload (ok:true) AND exits non-zero — the gate is advisory data.
+ */
+export const apiVerifyResponseSchema = z.object({
+  api: z.string(),
+  pass: z.boolean(),
+  hasBaseline: z.boolean(),
+  breakingCount: z.number(),
+  findings: z.array(apiFindingSchema),
+  /** Total distinct consuming services impacted across all findings. */
+  impactedConsumers: z.number(),
+  warnings: z.array(z.string()),
+});
+export type ApiVerifyResponse = z.infer<typeof apiVerifyResponseSchema>;

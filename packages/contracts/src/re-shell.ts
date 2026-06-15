@@ -94,6 +94,10 @@ export {
   federationSharedSchema,
   federationRemoteSchema,
   federationResponseSchema,
+  // api contract verify
+  apiBreakingKindSchema,
+  apiFindingSchema,
+  apiVerifyResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -184,6 +188,10 @@ export type {
   FederationShared,
   FederationRemote,
   FederationResponse,
+  // api contract verify
+  ApiBreakingKind,
+  ApiFinding,
+  ApiVerifyResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,
