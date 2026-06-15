@@ -15,6 +15,7 @@ and shared contracts are built on top of it — published under the `@re-shell/*
 | [`packages/cli`](./packages/cli) | `@re-shell/cli` | The published CLI / scaffolding engine, plus the `re-shell ui` launcher. |
 | [`packages/ui`](./packages/ui) | `@re-shell/ui` | shadcn-first React component library (the single UI system). |
 | [`packages/contracts`](./packages/contracts) | `@re-shell/contracts` | Shared zod schemas + the CLI↔UI JSON envelope and `ErrorCode` vocabulary. |
+| [`packages/mcp`](./packages/mcp) | `@re-shell/mcp` | Stdio MCP server exposing Re-Shell's read-only JSON commands as agent tools. |
 | [`apps/web`](./apps/web) | `@re-shell/dashboard` | Local React dashboard + the token-authed hub-server the CLI launches. |
 
 > There is **no Web Components surface**. shadcn-React in `packages/ui` is the one UI system.
