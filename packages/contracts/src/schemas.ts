@@ -1094,3 +1094,98 @@ export const catalogResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type CatalogResponse = z.infer<typeof catalogResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// module federation  (`re-shell federation check`)  — issue #15
+//
+// Continuous Module-Federation contract & type enforcement. Parses MF
+// manifests to extract exposed-module types and shared-dependency ranges, diffs
+// the current manifest against a baseline for breaking export/type changes,
+// detects shared-dependency version skew across remotes, and emits a CI report
+// that fails (non-zero) on incompatibility. Computing the report is pure data
+// and never touches the network.
+// ---------------------------------------------------------------------------
+
+/** Severity of a single federation finding. */
+export const federationSeveritySchema = z.enum(['breaking', 'skew', 'info']);
+export type FederationSeverity = z.infer<typeof federationSeveritySchema>;
+
+/**
+ * One finding from `federation check`: a breaking export/type change
+ * (`breaking`), a shared-dependency version skew across remotes (`skew`), or an
+ * informational note (`info`). `remote` is the remote the finding is about
+ * (absent for cross-remote skew entries that list multiple remotes in `detail`).
+ */
+export const federationFindingSchema = z.object({
+  severity: federationSeveritySchema,
+  /** Stable kind id (e.g. "expose-removed", "type-narrowed", "shared-skew"). */
+  kind: z.string(),
+  /** Human-readable description. */
+  message: z.string(),
+  /** The remote (federation container) the finding is scoped to, when applicable. */
+  remote: z.string().optional(),
+  /** Structured detail (both versions, the exposed id, etc). */
+  detail: z.record(z.string(), z.unknown()).optional(),
+});
+export type FederationFinding = z.infer<typeof federationFindingSchema>;
+
+/** One exposed module discovered from a federation manifest. */
+export const federationExposeSchema = z.object({
+  /** The expose id (e.g. "./Counter"). */
+  id: z.string(),
+  /** Internal source path, when the manifest carries it. */
+  path: z.string().optional(),
+  /** Declared types path/file, when the manifest carries it. */
+  types: z.string().optional(),
+});
+export type FederationExpose = z.infer<typeof federationExposeSchema>;
+
+/** One shared dependency declared in a federation manifest. */
+export const federationSharedSchema = z.object({
+  /** Shared dependency name (e.g. "react"). */
+  name: z.string(),
+  /** Resolved version, when the manifest carries it. */
+  version: z.string().optional(),
+  /** Required version range, when declared. */
+  requiredVersion: z.string().optional(),
+  /** Whether the dep is a singleton. */
+  singleton: z.boolean().optional(),
+});
+export type FederationShared = z.infer<typeof federationSharedSchema>;
+
+/** One remote (federation container) parsed from a manifest. */
+export const federationRemoteSchema = z.object({
+  /** The remote/federation name (the container `name`). */
+  name: z.string(),
+  /** Repo-relative manifest path the remote was parsed from. */
+  manifest: z.string(),
+  exposes: z.array(federationExposeSchema),
+  shared: z.array(federationSharedSchema),
+});
+export type FederationRemote = z.infer<typeof federationRemoteSchema>;
+
+/**
+ * Envelope payload for `re-shell federation check --json`: the parsed `remotes`,
+ * the per-finding `findings`, the breaking/skew counts, whether the check `pass`
+ * es (true when there are no breaking changes or skew), and any `warnings`
+ * surfaced while parsing/diffing. When `pass` is false the command still emits
+ * this payload (ok:true) AND exits non-zero — the gate is advisory data, not an
+ * error.
+ */
+export const federationResponseSchema = z.object({
+  /** True when there are no breaking changes and no shared-dep skew. */
+  pass: z.boolean(),
+  /** Number of breaking-change findings. */
+  breakingCount: z.number(),
+  /** Number of shared-dependency skew findings. */
+  skewCount: z.number(),
+  /** True when the run diffed against a baseline (absent → only skew check ran). */
+  hasBaseline: z.boolean(),
+  /** The parsed remotes. */
+  remotes: z.array(federationRemoteSchema),
+  /** The findings (breaking first, then skew, then info). */
+  findings: z.array(federationFindingSchema),
+  /** Parse/diff-level warnings (unparseable manifests, etc). */
+  warnings: z.array(z.string()),
+});
+export type FederationResponse = z.infer<typeof federationResponseSchema>;

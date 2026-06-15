@@ -68,6 +68,8 @@ export const errorCodeSchema = z.enum([
   'MIGRATE_ERROR',
   // Code introduced by the software-catalog auto-discovery slice (issue #11)
   'CATALOG_ERROR',
+  // Code introduced by the module-federation contract-enforcement slice (issue #15)
+  'FEDERATION_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

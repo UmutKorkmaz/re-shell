@@ -87,6 +87,13 @@ export {
   catalogCountsSchema,
   catalogSyncFileSchema,
   catalogResponseSchema,
+  // module federation contract enforcement
+  federationSeveritySchema,
+  federationFindingSchema,
+  federationExposeSchema,
+  federationSharedSchema,
+  federationRemoteSchema,
+  federationResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -170,6 +177,13 @@ export type {
   CatalogCounts,
   CatalogSyncFile,
   CatalogResponse,
+  // module federation contract enforcement
+  FederationSeverity,
+  FederationFinding,
+  FederationExpose,
+  FederationShared,
+  FederationRemote,
+  FederationResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,
