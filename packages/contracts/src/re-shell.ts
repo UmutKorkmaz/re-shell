@@ -102,6 +102,10 @@ export {
   fixLoopOutcomeSchema,
   fixLoopIterationSchema,
   fixCiResponseSchema,
+  // module boundaries
+  boundaryViolationKindSchema,
+  boundaryViolationSchema,
+  boundariesResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -200,6 +204,10 @@ export type {
   FixLoopOutcome,
   FixLoopIteration,
   FixCiResponse,
+  // module boundaries
+  BoundaryViolationKind,
+  BoundaryViolation,
+  BoundariesResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

@@ -120,6 +120,7 @@ import { registerCatalogGroup } from './groups/catalog.group';
 import { registerFederationGroup } from './groups/federation.group';
 import { registerApiVerifyGroup } from './groups/api-verify.group';
 import { registerFixCiGroup } from './groups/fix-ci.group';
+import { registerBoundariesGroup } from './groups/boundaries.group';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -624,6 +625,7 @@ registerCatalogGroup(program);
 registerFederationGroup(program);
 registerApiVerifyGroup(program);
 registerFixCiGroup(program);
+registerBoundariesGroup(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 

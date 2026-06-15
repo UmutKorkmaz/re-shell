@@ -78,6 +78,8 @@ export const errorCodeSchema = z.enum([
   'API_VERIFY_ERROR',
   // Code introduced by the autonomous fix-loop slice (issue #18)
   'FIX_CI_ERROR',
+  // Code introduced by the module-boundary enforcement slice (issue #20)
+  'BOUNDARIES_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

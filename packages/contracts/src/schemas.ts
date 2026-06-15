@@ -1300,3 +1300,46 @@ export const fixCiResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type FixCiResponse = z.infer<typeof fixCiResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// boundaries  (`re-shell boundaries`)  — issue #20
+//
+// Module-boundary / dependency-constraint enforcement. Tags packages
+// (scope/type/layer) and evaluates declarative import rules over those tags to
+// flag disallowed cross-package imports and undeclared runtime dependencies.
+// Polyglot-agnostic (operates on tag + edge data, not source). CI-gatable.
+// ---------------------------------------------------------------------------
+
+/** The kind of a boundary violation. */
+export const boundaryViolationKindSchema = z.enum([
+  'disallowed-import',
+  'undeclared-dependency',
+]);
+export type BoundaryViolationKind = z.infer<typeof boundaryViolationKindSchema>;
+
+/** One boundary violation: a disallowed import or an undeclared dependency. */
+export const boundaryViolationSchema = z.object({
+  kind: boundaryViolationKindSchema,
+  ruleId: z.string().optional(),
+  from: z.string(),
+  to: z.string(),
+  file: z.string().optional(),
+  message: z.string(),
+});
+export type BoundaryViolation = z.infer<typeof boundaryViolationSchema>;
+
+/**
+ * Envelope payload for `re-shell boundaries --json`: whether the check `pass`es
+ * (no violations), the violation count per kind, the `violations`, the number of
+ * `rules` evaluated, and any `warnings`. When `pass` is false the command still
+ * emits this payload (ok:true) AND exits non-zero — the gate is advisory data.
+ */
+export const boundariesResponseSchema = z.object({
+  pass: z.boolean(),
+  disallowedCount: z.number(),
+  undeclaredCount: z.number(),
+  rules: z.number(),
+  violations: z.array(boundaryViolationSchema),
+  warnings: z.array(z.string()),
+});
+export type BoundariesResponse = z.infer<typeof boundariesResponseSchema>;
