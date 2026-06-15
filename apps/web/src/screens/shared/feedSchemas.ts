@@ -152,7 +152,7 @@ export const catalogFeedSchema = z.object({
       groups: z.number().default(0),
       systems: z.number().default(0),
     })
-    .default({}),
+    .default({ components: 0, apis: 0, resources: 0, groups: 0, systems: 0 }),
   warnings: z.array(z.string()).default([]),
 });
 export type CatalogFeed = z.infer<typeof catalogFeedSchema>;

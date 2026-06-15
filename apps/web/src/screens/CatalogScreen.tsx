@@ -157,7 +157,6 @@ function EntityGroup({
   kind: string;
   entities: CatalogEntityFeed[];
 }): React.ReactElement {
-  const tone = toneFor(kind);
   return (
     <div className="surface overflow-hidden">
       <div className="flex items-center justify-between gap-3 px-5 py-3.5">
