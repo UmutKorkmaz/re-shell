@@ -1,13 +1,14 @@
 # Re-Shell Docs
 
-This is the documentation index for the **single pnpm monorepo** at `re-shell-cli`. The
-workspace holds four packages on the `@re-shell/*` scope:
+This is the documentation index for the **single pnpm monorepo** at `re-shell`. The
+workspace holds five packages on the `@re-shell/*` scope:
 
 | Package | Name | Role |
 |---------|------|------|
 | `packages/cli` | `@re-shell/cli` | The published CLI / engine + `re-shell ui` launcher. |
 | `packages/ui` | `@re-shell/ui` | shadcn-React component library (the single UI system). |
 | `packages/contracts` | `@re-shell/contracts` | Authoritative TS + zod contract shapes shared by CLI and UI. |
+| `packages/mcp` | `@re-shell/mcp` | Stdio MCP server exposing Re-Shell's read-only JSON commands as agent tools. |
 | `apps/web` | `@re-shell/dashboard` | Dashboard app + token-authed hub-server (SSE `/events`, WS `/jobs`). |
 
 > The Web Components layer has been **retired**; shadcn-React in `packages/ui` is the one UI system.
@@ -34,6 +35,7 @@ install/usage notes — they should not duplicate the canonical plan or contract
 | `packages/cli/README.md` | CLI install / quick-start; points to `/docs`. |
 | `packages/ui/README.md` | `@re-shell/ui` exports / usage; points to `/docs`. |
 | `packages/contracts/README.md` | `@re-shell/contracts`; points to `CLI-CONTRACTS.md`. |
+| `packages/mcp/README.md` | `@re-shell/mcp`; points to `/docs`. |
 | `apps/web/README.md` | `@re-shell/dashboard` dashboard; points to `/docs`. |
 
 ### CLI usage examples (accurate, kept)
