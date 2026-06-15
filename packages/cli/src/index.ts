@@ -121,6 +121,7 @@ import { registerFederationGroup } from './groups/federation.group';
 import { registerApiVerifyGroup } from './groups/api-verify.group';
 import { registerFixCiGroup } from './groups/fix-ci.group';
 import { registerBoundariesGroup } from './groups/boundaries.group';
+import { registerEnvGroup } from './groups/env.group';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -626,6 +627,7 @@ registerFederationGroup(program);
 registerApiVerifyGroup(program);
 registerFixCiGroup(program);
 registerBoundariesGroup(program);
+registerEnvGroup(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 

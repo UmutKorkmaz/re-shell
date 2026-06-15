@@ -106,6 +106,9 @@ export {
   boundaryViolationKindSchema,
   boundaryViolationSchema,
   boundariesResponseSchema,
+  // reproducible dev environment
+  envFileSchema,
+  envResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -208,6 +211,9 @@ export type {
   BoundaryViolationKind,
   BoundaryViolation,
   BoundariesResponse,
+  // reproducible dev environment
+  EnvFile,
+  EnvResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

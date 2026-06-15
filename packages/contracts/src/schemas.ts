@@ -1343,3 +1343,39 @@ export const boundariesResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type BoundariesResponse = z.infer<typeof boundariesResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// env init  (`re-shell env init|verify`)  — issue #21
+//
+// Reproducible dev-environment generation: emits devbox.json +
+// .devcontainer/devcontainer.json from detected toolchains, and verifies a
+// generated config against current detection (drift). Serialization-only; pure.
+// ---------------------------------------------------------------------------
+
+/** One generated dev-environment file. */
+export const envFileSchema = z.object({
+  /** Repo-relative path, e.g. "devbox.json" or ".devcontainer/devcontainer.json". */
+  path: z.string(),
+  /** "devbox" or "devcontainer". */
+  kind: z.enum(['devbox', 'devcontainer']),
+  /** True only when the file was actually written (sync, --no-dry-run). */
+  written: z.boolean(),
+});
+export type EnvFile = z.infer<typeof envFileSchema>;
+
+/**
+ * Envelope payload for `re-shell env init --json` / `env verify --json`: the
+ * detected `languages`, whether it was a `dryRun`, the generated `files`, the
+ * config-vs-detection `drift` (verify), and any `warnings`.
+ */
+export const envResponseSchema = z.object({
+  languages: z.array(z.string()),
+  dryRun: z.boolean(),
+  files: z.array(envFileSchema),
+  drift: z.object({
+    missing: z.array(z.string()),
+    extra: z.array(z.string()),
+  }),
+  warnings: z.array(z.string()),
+});
+export type EnvResponse = z.infer<typeof envResponseSchema>;

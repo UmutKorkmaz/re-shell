@@ -80,6 +80,8 @@ export const errorCodeSchema = z.enum([
   'FIX_CI_ERROR',
   // Code introduced by the module-boundary enforcement slice (issue #20)
   'BOUNDARIES_ERROR',
+  // Code introduced by the reproducible dev-environment slice (issue #21)
+  'ENV_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
