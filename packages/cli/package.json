@@ -67,7 +67,7 @@
   "dependencies": {
     "@types/inquirer": "^9.0.9",
     "@types/js-yaml": "^4.0.9",
-    "@types/react": "^19.2.8",
+    "@types/react": "^18.3.31",
     "@re-shell/contracts": "workspace:^",
     "boxen": "^8.0.1",
     "chalk": "^4.1.2",
