@@ -37,7 +37,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "echo 'mcp: no linter configured'"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

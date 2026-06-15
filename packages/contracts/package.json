@@ -32,7 +32,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'contracts: no test suite (typecheck covers it)'",
+    "lint": "echo 'contracts: no linter configured'"
   },
   "devDependencies": {
     "typescript": "^5.0.0"
