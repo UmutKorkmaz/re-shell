@@ -62,6 +62,8 @@ export const errorCodeSchema = z.enum([
   'DEV_CLUSTER_ERROR',
   // Code introduced by the production-readiness scorecard slice (issue #12)
   'SCORECARD_ERROR',
+  // Code introduced by the graph-aware release slice (issue #9)
+  'RELEASE_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

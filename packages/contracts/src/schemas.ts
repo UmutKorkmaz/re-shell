@@ -831,3 +831,76 @@ export const scorecardResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type ScorecardResponse = z.infer<typeof scorecardResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// release  (`re-shell release [--json] [--no-dry-run] [--publish] [--bump l]`)
+//   — issue #9
+//
+// Graph-aware semantic-version bump propagation across internal workspace
+// dependencies. The set of CHANGED packages (since a git ref) is bumped at the
+// requested level; their transitive internal DEPENDENTS are bumped `patch` with
+// reason `dependent` (unless a dependent is itself changed with a higher bump).
+// The command writes bumped manifests + a CHANGELOG fragment + annotated git
+// tags only under `--no-dry-run`; registry publish runs only under BOTH
+// `--no-dry-run` AND `--publish`. Computing the plan is pure data and never
+// touches git or the network.
+// ---------------------------------------------------------------------------
+
+/** Semantic-version bump level applied to a releasable unit. */
+export const releaseBumpLevelSchema = z.enum(['major', 'minor', 'patch']);
+export type ReleaseBumpLevel = z.infer<typeof releaseBumpLevelSchema>;
+
+/**
+ * Why a unit is in the release plan: `changed` (a file under it changed since
+ * the base ref) or `dependent` (a transitive internal dependent of a changed
+ * unit, propagated a `patch`).
+ */
+export const releaseReasonSchema = z.enum(['changed', 'dependent']);
+export type ReleaseReason = z.infer<typeof releaseReasonSchema>;
+
+/**
+ * One unit's entry in the release plan: its identity + detected manifest type +
+ * current version, the computed `nextVersion`/`bumpLevel`/`reason`, the rendered
+ * markdown `changelogEntry`, the target `registry`, and whether it was actually
+ * `published` (always false on the dry-run path and when `--publish` is absent).
+ */
+export const releaseUnitPlanSchema = z.object({
+  /** Package name (the graph key). */
+  name: z.string(),
+  /** Package directory path (relative to the workspace root), or "". */
+  path: z.string(),
+  /** Detected language (e.g. "typescript", "rust"). */
+  language: z.string(),
+  /** Detected manifest type (e.g. "package.json", "Cargo.toml"). */
+  manifestType: z.string(),
+  /** Current version read from the manifest. */
+  currentVersion: z.string(),
+  /** Computed next version after the bump. */
+  nextVersion: z.string(),
+  /** Bump level applied to reach `nextVersion`. */
+  bumpLevel: releaseBumpLevelSchema,
+  /** Why this unit is in the plan. */
+  reason: releaseReasonSchema,
+  /** Rendered markdown changelog fragment for this unit. */
+  changelogEntry: z.string(),
+  /** Target registry the unit publishes to (e.g. "npm", "crates.io"). */
+  registry: z.string(),
+  /** True only when the unit was actually published to its registry. */
+  published: z.boolean(),
+});
+export type ReleaseUnitPlan = z.infer<typeof releaseUnitPlanSchema>;
+
+/**
+ * Envelope payload for `re-shell release --json`: whether the run was a
+ * `dryRun` (the safe default), the per-unit release plan, and any `warnings`
+ * surfaced while planning/applying (unknown registries, skipped units, etc).
+ */
+export const releaseResponseSchema = z.object({
+  /** True when nothing was written, tagged, or published (the safe default). */
+  dryRun: z.boolean(),
+  /** Per-unit release plan. */
+  units: z.array(releaseUnitPlanSchema),
+  /** Plan/apply-level warnings. */
+  warnings: z.array(z.string()),
+});
+export type ReleaseResponse = z.infer<typeof releaseResponseSchema>;

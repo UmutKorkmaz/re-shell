@@ -70,6 +70,11 @@ export {
   scorecardDimensionSchema,
   scorecardServiceSchema,
   scorecardResponseSchema,
+  // graph-aware release
+  releaseBumpLevelSchema,
+  releaseReasonSchema,
+  releaseUnitPlanSchema,
+  releaseResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -136,6 +141,11 @@ export type {
   ScorecardDimension,
   ScorecardService,
   ScorecardResponse,
+  // graph-aware release
+  ReleaseBumpLevel,
+  ReleaseReason,
+  ReleaseUnitPlan,
+  ReleaseResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,
