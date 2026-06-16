@@ -356,15 +356,28 @@ describe('cli-adapters runJsonCommand', () => {
     // The real `re-shell` binary is unbuilt in this test env, so spawn fires an
     // ENOENT 'error' event and runCommand resolves 1. This exercises the four
     // hub adapter wrappers without depending on a built CLI.
+    //
+    // The ENOENT assumption only holds when `re-shell` is NOT resolvable. On a
+    // developer machine where re-shell is globally linked (on PATH), the spawn
+    // would actually run and return a non-deterministic exit code. Restrict PATH
+    // for the duration of the test so the binary cannot resolve — `/usr/bin:/bin`
+    // keeps `sh` resolvable for the file's other spawn-based tests while
+    // excluding any globally-installed `re-shell`. Restore PATH afterwards.
     const dir = createTempDir();
     const noop = (): void => {};
-    const results = await Promise.all([
-      runWorkspaceHealth(dir, noop, noop),
-      runWorkspaceGraph(dir, noop, noop),
-      runTemplateList(dir, noop, noop),
-      runWorkspaceInspect(dir, noop, noop),
-    ]);
-    expect(results).toEqual([1, 1, 1, 1]);
+    const origPath = process.env.PATH;
+    process.env.PATH = '/usr/bin:/bin';
+    try {
+      const results = await Promise.all([
+        runWorkspaceHealth(dir, noop, noop),
+        runWorkspaceGraph(dir, noop, noop),
+        runTemplateList(dir, noop, noop),
+        runWorkspaceInspect(dir, noop, noop),
+      ]);
+      expect(results).toEqual([1, 1, 1, 1]);
+    } finally {
+      process.env.PATH = origPath;
+    }
   });
 });
 
