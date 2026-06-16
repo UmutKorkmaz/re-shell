@@ -1379,3 +1379,50 @@ export const envResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type EnvResponse = z.infer<typeof envResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// ui test  (`re-shell ui test`)  — issue #22
+//
+// Storybook-9 UI test aggregation: rolls per-story interaction + a11y + visual
+// results into a UI-maturity score that feeds the production-readiness
+// scorecard as a UI-maturity dimension, and gates CI on a11y/visual failures.
+// Pure/offline aggregation; the headless runner is injectable.
+// ---------------------------------------------------------------------------
+
+/** The three Storybook-9 test pillars. */
+export const uiTestKindSchema = z.enum(['interaction', 'a11y', 'visual']);
+export type UiTestKind = z.infer<typeof uiTestKindSchema>;
+
+/** One per-dimension rollup. */
+export const uiDimensionRollupSchema = z.object({
+  kind: uiTestKindSchema,
+  total: z.number(),
+  passed: z.number(),
+  passRate: z.number(),
+});
+export type UiDimensionRollup = z.infer<typeof uiDimensionRollupSchema>;
+
+/** One per-pillar failure surfaced in the report. */
+export const uiFailureSchema = z.object({
+  story: z.string(),
+  kind: uiTestKindSchema,
+  detail: z.string().optional(),
+});
+export type UiFailure = z.infer<typeof uiFailureSchema>;
+
+/**
+ * Envelope payload for `re-shell ui test --json`: the `storyCount`, per-dimension
+ * rollups, the weighted `uiMaturityScore` (0-100, a scorecard-feedable signal),
+ * whether `allPassed`, whether the run `pass`es the CI gate, the flattened
+ * `failures`, and any `warnings`.
+ */
+export const uiTestResponseSchema = z.object({
+  storyCount: z.number(),
+  dimensions: z.array(uiDimensionRollupSchema),
+  uiMaturityScore: z.number(),
+  allPassed: z.boolean(),
+  pass: z.boolean(),
+  failures: z.array(uiFailureSchema),
+  warnings: z.array(z.string()),
+});
+export type UiTestResponse = z.infer<typeof uiTestResponseSchema>;

@@ -109,6 +109,11 @@ export {
   // reproducible dev environment
   envFileSchema,
   envResponseSchema,
+  // storybook ui test
+  uiTestKindSchema,
+  uiDimensionRollupSchema,
+  uiFailureSchema,
+  uiTestResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -214,6 +219,11 @@ export type {
   // reproducible dev environment
   EnvFile,
   EnvResponse,
+  // storybook ui test
+  UiTestKind,
+  UiDimensionRollup,
+  UiFailure,
+  UiTestResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

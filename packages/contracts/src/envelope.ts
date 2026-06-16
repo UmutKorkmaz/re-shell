@@ -82,6 +82,8 @@ export const errorCodeSchema = z.enum([
   'BOUNDARIES_ERROR',
   // Code introduced by the reproducible dev-environment slice (issue #21)
   'ENV_ERROR',
+  // Code introduced by the Storybook UI-test aggregation slice (issue #22)
+  'UI_TEST_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
