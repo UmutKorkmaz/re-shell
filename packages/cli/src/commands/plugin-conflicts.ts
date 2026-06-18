@@ -88,7 +88,7 @@ export async function listCommandConflicts(
       const severityConflicts = conflictsBySeverity[sev];
       if (severityConflicts && severityConflicts.length > 0) {
         const color = getConflictSeverityColor(sev);
-        const colorFn = (chalk as any)[color];
+        const colorFn = chalk[color as 'red' | 'yellow' | 'green' | 'cyan' | 'gray'];
         console.log(colorFn(`${sev.toUpperCase()} (${severityConflicts.length})`));
         
         severityConflicts.forEach(conflict => {
@@ -215,7 +215,7 @@ export async function showConflictStrategies(
     
     console.log(`${chalk.white(strategy.name)} ${autoIcon}`);
     console.log(`  ${strategy.description}`);
-    const impactColorFn = (chalk as any)[impactColor];
+    const impactColorFn = chalk[impactColor as 'red' | 'yellow' | 'green' | 'cyan' | 'gray'];
     console.log(`  Impact: ${impactColorFn(strategy.impact)}`);
     console.log(`  Reversible: ${strategy.reversible ? chalk.green('Yes') : chalk.red('No')}`);
     
@@ -442,7 +442,7 @@ export async function showConflictStats(
     Object.entries(stats.bySeverity).forEach(([severity, count]) => {
       if ((count as number) > 0) {
         const color = getConflictSeverityColor(severity as ConflictSeverity);
-        const colorFn = (chalk as any)[color];
+        const colorFn = chalk[color as 'red' | 'yellow' | 'green' | 'cyan' | 'gray'];
         console.log(`  ${colorFn(severity)}: ${count}`);
       }
     });
@@ -462,7 +462,7 @@ export async function showConflictStats(
       console.log(chalk.yellow('\nSeverity Levels:'));
       Object.values(ConflictSeverity).forEach(severity => {
         const color = getConflictSeverityColor(severity);
-        const colorFn = (chalk as any)[color];
+        const colorFn = chalk[color as 'red' | 'yellow' | 'green' | 'cyan' | 'gray'];
         console.log(`  • ${colorFn(severity)}`);
       });
 

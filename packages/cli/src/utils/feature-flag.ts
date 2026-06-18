@@ -18,6 +18,13 @@ export type ExperimentStatus = 'draft' | 'running' | 'paused' | 'completed' | 'c
 export type ConditionOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'contains' | 'regex';
 export type VariantType = 'control' | 'treatment' | 'treatment_a' | 'treatment_b';
 
+interface FlagMetrics {
+  flags: { total: number; active: number; inactive: number; byType: Record<string, number> };
+  experiments: { total: number; running: number; completed: number };
+  segments: number;
+  rolloutPlans: number;
+}
+
 // ============================================================================
 // Interfaces
 // ============================================================================
@@ -930,7 +937,7 @@ export class FeatureFlagManager {
   }
 
   // Analytics
-  getMetrics(): Record<string, unknown> {
+  getMetrics(): FlagMetrics {
     const flags = Array.from(this.flags.values());
     const experiments = Array.from(this.experiments.values());
 
@@ -960,7 +967,7 @@ export class FeatureFlagManager {
     return counts;
   }
 
-  getSummary(): Record<string, unknown> {
+  getSummary(): { organization: string; metrics: FlagMetrics; activeFlags: { key: string; name: string; type: string; rollout: string; status: string }[]; runningExperiments: { key: string; name: string; status: string; variants: string }[] } {
     const metrics = this.getMetrics();
 
     return {
@@ -978,9 +985,8 @@ export class FeatureFlagManager {
         .map(e => ({
           key: e.key,
           name: e.name,
-          variants: e.variants.length,
-          trafficAllocation: `${e.trafficAllocation}%`,
-          startDate: e.startDate
+          status: e.status,
+          variants: e.variants.map(v => v.name).join(', ')
         }))
     };
   }
@@ -1006,18 +1012,18 @@ This document outlines the feature flag management system including flags, segme
 
 | Metric | Count |
 |--------|-------|
-| Total Flags | ${(summary.metrics as any).flags.total} |
-| Active Flags | ${(summary.metrics as any).flags.active} |
-| Total Experiments | ${(summary.metrics as any).experiments.total} |
-| Running Experiments | ${(summary.metrics as any).experiments.running} |
-| Segments | ${(summary.metrics as any).segments} |
-| Rollout Plans | ${(summary.metrics as any).rolloutPlans} |
+| Total Flags | ${summary.metrics.flags.total} |
+| Active Flags | ${summary.metrics.flags.active} |
+| Total Experiments | ${summary.metrics.experiments.total} |
+| Running Experiments | ${summary.metrics.experiments.running} |
+| Segments | ${summary.metrics.segments} |
+| Rollout Plans | ${summary.metrics.rolloutPlans} |
 
 ---
 
 ## Active Flags
 
-${(summary.activeFlags as any[]).map((f: any) => `
+${summary.activeFlags.map(f => `
 ### ${f.name}
 - **Key:** \`${f.key}\`
 - **Type:** ${f.type}

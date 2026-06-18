@@ -462,20 +462,22 @@ export class WorkspaceMigrationManager {
         // Migrate workspace entries to new format
         for (const [name, workspace] of Object.entries(definition.workspaces)) {
           // Convert old 'port' field to dev.port
-          if ('port' in workspace && typeof workspace.port === 'string') {
-            if (!workspace.dev) {
-              workspace.dev = {};
+          if ('port' in workspace && typeof (workspace as Record<string, unknown>).port === 'string') {
+            const ws = workspace as Record<string, unknown> & { dev?: { port?: number } };
+            if (!ws.dev) {
+              ws.dev = {};
             }
-            workspace.dev.port = parseInt(workspace.port);
-            delete (workspace as any).port;
+            ws.dev.port = parseInt(ws.port as string);
+            delete ws.port;
           }
 
           // Convert old 'framework' field to type config
-          if ('framework' in workspace && typeof workspace.framework === 'string') {
+          if ('framework' in workspace && typeof (workspace as Record<string, unknown>).framework === 'string') {
+            const ws = workspace as Record<string, unknown>;
             if (definition.types[workspace.type]) {
-              definition.types[workspace.type].framework = workspace.framework;
+              definition.types[workspace.type].framework = ws.framework as string;
             }
-            delete (workspace as any).framework;
+            delete ws.framework;
           }
         }
 
@@ -485,7 +487,7 @@ export class WorkspaceMigrationManager {
         // Rollback v2 changes to v1 format
         for (const [name, workspace] of Object.entries(definition.workspaces)) {
           if (workspace.dev?.port) {
-            (workspace as any).port = workspace.dev.port.toString();
+            (workspace as unknown as Record<string, unknown>).port = workspace.dev.port.toString();
           }
         }
         

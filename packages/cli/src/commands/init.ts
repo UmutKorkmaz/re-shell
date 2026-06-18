@@ -804,7 +804,7 @@ out/
         break;
     }
 
-    (global as any).__RE_SHELL_INIT_SUCCESS__ = {
+    (global as Record<string, unknown>).__RE_SHELL_INIT_SUCCESS__ = {
       name: normalizedName,
       packageManager: finalOptions.packageManager,
       submodules: finalOptions.submodules,
@@ -823,14 +823,14 @@ out/
     }
 
     // Provide helpful error messages
-    if ((error as any).code === 'EACCES') {
+    if (error.code === 'EACCES') {
       console.error(
         chalk.red('Error: Permission denied. Try running with sudo or check directory permissions.')
       );
-    } else if ((error as any).code === 'ENOSPC') {
+    } else if (error.code === 'ENOSPC') {
       console.error(chalk.red('Error: Not enough disk space.'));
     } else {
-      console.error(chalk.red('Error initializing monorepo:'), (error as any).message || error);
+      console.error(chalk.red('Error initializing monorepo:'), error.message || error);
     }
     throw error;
   }
