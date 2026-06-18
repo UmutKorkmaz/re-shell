@@ -373,8 +373,8 @@ import type { Router, RequestHandler } from 'express';
 export function createTracedRouter(router: Router, routerName: string): void {
   const tracer = trace.getTracer('express-router');
 
-  // @ts-ignore - Express internal stack
-  router.stack.forEach((layer: any) => {
+  // Access Express internal stack (not in public types)
+  (router as unknown as { stack: Array<{ name: string; handle: Function; regexp: RegExp }> }).stack.forEach((layer) => {
     if (layer.name === 'bound dispatch' && layer.handle) {
       const originalHandle = layer.handle;
       layer.handle = async (req: any, res: any, next: any) => {

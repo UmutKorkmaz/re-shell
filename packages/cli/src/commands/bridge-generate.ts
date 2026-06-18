@@ -52,7 +52,6 @@ export function typeCheckTsClient(result: GenerateBridgeResult): TsCheckResult {
     return { ran: false, detail: 'no ts-client artifact to check' };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let ts: typeof import('typescript');
   try {
     // Lazy require so a missing dependency degrades gracefully.

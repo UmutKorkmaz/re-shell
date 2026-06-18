@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Static vendor + assessment fixtures for the `security vendor` command.
  * Extracted verbatim from vendor-config.ts to keep both files under the

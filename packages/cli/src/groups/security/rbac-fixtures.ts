@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Static role + permission fixtures for the `security rbac` command.
  * Extracted verbatim from rbac-config.ts to keep both files under the
