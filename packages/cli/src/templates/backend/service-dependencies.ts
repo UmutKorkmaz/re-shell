@@ -60,7 +60,7 @@ export class ServiceDependencyManager {
     const failures = results.filter(r => r.status === 'rejected');
 
     for (const failure of failures) {
-      const depName = (failure as any).reason?.service;
+      const depName = (failure as { reason?: { service?: string } }).reason?.service;
       const dependency = this.dependencies.get(depName);
 
       if (dependency?.required) {

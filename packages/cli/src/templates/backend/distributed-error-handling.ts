@@ -254,7 +254,7 @@ export class ErrorTracker {
         id: uuidv4(),
         message: error.message,
         stack: error.stack,
-        code: (error as any).code,
+        code: (error as Error & { code?: string }).code,
         severity,
         category,
         context,
@@ -470,7 +470,7 @@ export class DistributedErrorHandler {
       error: {
         id: trackedError.id,
         message: err.message,
-        code: (err as any).code,
+        code: (err as Error & { code?: string }).code,
         severity: trackedError.severity,
         category: trackedError.category,
         correlationId: context.correlationId,
@@ -537,7 +537,7 @@ export class DistributedErrorHandler {
  * Categorize error based on type and message
  */
 function categorizeError(error: Error): ErrorCategory {
-  const code = (error as any).code;
+  const code = (error as Error & { code?: string }).code;
   const message = error.message.toLowerCase();
 
   if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT') {
@@ -566,7 +566,7 @@ function categorizeError(error: Error): ErrorCategory {
  * Get HTTP status code for error
  */
 function getStatusCode(error: Error): number {
-  const code = (error as any).code;
+  const code = (error as Error & { code?: string }).code;
 
   if (code === 'UnauthorizedError' || code === 'authentication_failed') {
     return 401;
@@ -588,7 +588,7 @@ function getStatusCode(error: Error): number {
  * Get error severity
  */
 function getErrorSeverity(error: Error): ErrorSeverity {
-  const code = (error as any).code;
+  const code = (error as Error & { code?: string }).code;
 
   if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT') {
     return ErrorSeverity.HIGH;
@@ -1247,7 +1247,7 @@ app.get('/api/error', (req, res, next) => {
 });
 
 app.get('/api/critical-error', (req, res, next) => {
-  const error = new Error('Critical database failure') as any;
+  const error = new Error('Critical database failure') as Error & { code: string };
   error.code = 'DATABASE_ERROR';
   next(error);
 });

@@ -833,8 +833,8 @@ router.beforeEach(async (to, from, next) => {
 router.afterEach((to, from) => {
   // Hide loading indicator
   // Track page navigation for analytics
-  if (typeof window !== 'undefined' && (window as any).gtag) {
-    (window as any).gtag('event', 'page_view', {
+  if (typeof window !== 'undefined' && (window as Window & { gtag?: (...args: unknown[]) => void }).gtag) {
+    (window as Window & { gtag?: (...args: unknown[]) => void }).gtag!('event', 'page_view', {
       page_path: to.path,
       page_title: to.meta.title
     })

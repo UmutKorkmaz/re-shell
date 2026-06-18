@@ -1171,7 +1171,7 @@ export function componentRoutes(registry: ComponentRegistry): Router {
   // Get components by framework
   router.get('/framework/:framework', (req, res) => {
     const { framework } = req.params;
-    const components = registry.getComponentsByFramework(framework as any);
+    const components = registry.getComponentsByFramework(framework as 'react' | 'vue' | 'angular' | 'svelte');
     res.json(components);
   });
 

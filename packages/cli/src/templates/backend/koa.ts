@@ -1199,7 +1199,7 @@ export const authenticate = async (ctx: Context, next: Next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, config.jwt.secret) as any;
+    const decoded = jwt.verify(token, config.jwt.secret) as jwt.JwtPayload;
     const user = await userService.getUserById(decoded.id);
 
     if (!user || !user.isActive) {

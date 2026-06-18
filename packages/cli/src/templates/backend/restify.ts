@@ -1718,7 +1718,7 @@ export const initializeWebSocket = (server: any) => {
         return next(new Error('Authentication error'));
       }
 
-      const decoded = jwt.verify(token, config.jwt.secret) as any;
+      const decoded = jwt.verify(token, config.jwt.secret) as jwt.JwtPayload;
       socket.userId = decoded.id;
       
       next();
@@ -1855,7 +1855,7 @@ const logDir = process.env.LOG_DIR || 'logs';
 
 export const logger = bunyan.createLogger({
   name: config.appName,
-  level: config.logging.level as any,
+  level: config.logging.level as bunyan.LogLevel,
   serializers: bunyan.stdSerializers,
   streams: [
     {
@@ -2002,7 +2002,7 @@ export class AuthService {
 
   async refreshToken(refreshToken: string) {
     try {
-      const decoded = jwt.verify(refreshToken, config.jwt.secret) as any;
+      const decoded = jwt.verify(refreshToken, config.jwt.secret) as jwt.JwtPayload;
 
       // Check if refresh token exists in Redis
       const storedTokens = await redisClient.sMembers(\`refresh_tokens:\${decoded.id}\`);

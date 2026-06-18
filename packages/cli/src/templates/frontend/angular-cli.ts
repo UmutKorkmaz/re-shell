@@ -3590,7 +3590,7 @@ beforeEach(() => {
 });
 
 // Global test utilities
-(global as any).waitForAsync = (fn: () => void) => {
+(global as typeof globalThis & { waitForAsync?: (fn: () => void) => void }).waitForAsync = (fn: () => void) => {
   return fn();
 };
 `;
@@ -3729,7 +3729,7 @@ export class MockData {
 export function createMockService<T>(methods: string[]): T {
   const mock = {} as T;
   methods.forEach(method => {
-    (mock as any)[method] = jasmine.createSpy(method);
+    (mock as Record<string, unknown>)[method] = jasmine.createSpy(method);
   });
   return mock;
 }

@@ -956,7 +956,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const { refreshToken } = request.body;
 
     try {
-      const decoded = fastify.jwt.verify(refreshToken) as any;
+      const decoded = fastify.jwt.verify(refreshToken) as jwt.JwtPayload;
       
       // Generate new access token
       const accessToken = fastify.jwt.sign({

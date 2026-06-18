@@ -47,7 +47,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 export const AppDataSource = new DataSource({
-  type: (process.env.DB_TYPE as any) || 'postgres',
+  type: (process.env.DB_TYPE as 'postgres' | 'mysql' | 'sqlite' | 'mariadb') || 'postgres',
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
   username: process.env.DB_USERNAME || 'postgres',

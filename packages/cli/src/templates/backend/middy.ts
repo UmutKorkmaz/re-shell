@@ -830,7 +830,7 @@ const updateItemHandler = async (
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   const { id } = event.pathParameters!;
-  const updates = event.body as any;
+  const updates = event.body as Record<string, unknown>;
 
   try {
     // First, check if item exists and user owns it
@@ -1084,7 +1084,7 @@ const registerHandler = async (
   event: APIGatewayProxyEvent & { secrets?: any },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
-  const { email, password, name } = event.body as any;
+  const { email, password, name } = event.body as { email: string; password: string; name: string };
 
   try {
     // Check if user already exists
@@ -1156,7 +1156,7 @@ const loginHandler = async (
   event: APIGatewayProxyEvent & { secrets?: any },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
-  const { email, password } = event.body as any;
+  const { email, password } = event.body as { email: string; password: string };
 
   try {
     // Find user by email
@@ -1236,7 +1236,7 @@ export const authorize = async (
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
 
     // Get user from database to check if still active
     const result = await dynamoClient.getItem({
@@ -1324,7 +1324,7 @@ export const authMiddleware = () => ({
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
       
       // Add user info to event
       event.user = {
@@ -2031,7 +2031,7 @@ const uploadHandler = async (
     throw createError(400, 'No file uploaded');
   }
 
-  const file = Object.values(event.files)[0] as any;
+  const file = Object.values(event.files)[0] as { name: string; data: Buffer; mimetype: string; size: number };
 
   // Validate file type
   if (!ALLOWED_FILE_TYPES.includes(file.mimetype)) {
@@ -2415,7 +2415,7 @@ describe('Items Handler', () => {
     multiValueHeaders: {},
     multiValueQueryStringParameters: null,
     stageVariables: null,
-    requestContext: {} as any,
+    requestContext: {} as Record<string, unknown>,
     resource: '/items'
   };
 

@@ -1008,7 +1008,7 @@ export default class AuthService extends Service {
 
   async refreshTokens(refreshToken: string) {
     try {
-      const decoded = this.app.jwt.verify(refreshToken, this.app.config.jwt.refreshSecret) as any;
+      const decoded = this.app.jwt.verify(refreshToken, this.app.config.jwt.refreshSecret) as jwt.JwtPayload;
       const user = await this.service.user.findById(decoded.id);
       
       if (!user || !user.isActive) {
@@ -1453,7 +1453,7 @@ export default (app: Application) => {
 
   // Instance methods
   User.prototype.toJSON = function() {
-    const values = this.get() as any;
+    const values = this.get() as Record<string, unknown>;
     delete values.password;
     delete values.verificationToken;
     delete values.resetToken;
@@ -1524,7 +1524,7 @@ export default (options?: any, app?: Application) => {
     }
 
     try {
-      const decoded = ctx.app.jwt.verify(token, ctx.app.config.jwt.secret) as any;
+      const decoded = ctx.app.jwt.verify(token, ctx.app.config.jwt.secret) as jwt.JwtPayload;
       const user = await ctx.service.user.findById(decoded.id);
 
       if (!user || !user.isActive) {

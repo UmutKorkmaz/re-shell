@@ -2139,7 +2139,7 @@ export async function POST({ request }) {
   function measurePerformance() {
     if (!browser) return;
 
-    const memory = (performance as any).memory;
+    const memory = (performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
     if (memory) {
       memoryUsage = memory.usedJSHeapSize;
     }
@@ -6693,10 +6693,10 @@ class SharedStore {
     };
 
     this.listeners.set('*', this.listeners.get('*') || new Set());
-    this.listeners.get('*')!.add(wrappedListener as any);
+    this.listeners.get('*')!.add(wrappedListener as () => void);
 
     return () => {
-      this.listeners.get('*')?.delete(wrappedListener as any);
+      this.listeners.get('*')?.delete(wrappedListener as () => void);
     };
   }
 
@@ -7277,7 +7277,7 @@ export function renderReactComponent(
 
   // Fallback for older versions
   container.innerHTML = '';
-  container.appendChild(element as any);
+  container.appendChild(element as Node);
   return { element, container };
 }
 
@@ -7565,15 +7565,14 @@ export function detectFrameworks(): Record<FrameworkType, FrameworkInfo> {
 
   // React detection
   if (browser) {
-    const react = (window as any).React;
-    info.react = {
+    const react = (window as Window & { React?: { version: string } }).React;    info.react = {
       name: 'React',
       version: react?.version || 'unknown',
       available: !!react
     };
 
     // Vue detection
-    const vue = (window as any).Vue;
+    const vue = (window as Window & { Vue?: { version: string } }).Vue;
     info.vue = {
       name: 'Vue',
       version: vue?.version || 'unknown',
@@ -7581,10 +7580,10 @@ export function detectFrameworks(): Record<FrameworkType, FrameworkInfo> {
     };
 
     // Angular detection
-    const ng = (window as any).ng;
+    const ng = (window as Window & { ng?: { version?: string } }).ng;
     info.angular = {
       name: 'Angular',
-      version: (ng as any)?.version || 'unknown',
+      version: ng?.version || 'unknown',
       available: !!(ng?.probe || ng?.getInjector)
     };
   }

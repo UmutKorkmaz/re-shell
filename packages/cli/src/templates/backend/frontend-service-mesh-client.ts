@@ -197,7 +197,7 @@ export class ServiceMeshClient {
         retryableErrors: ['NETWORK_ERROR', 'TIMEOUT'],
         retryableStatuses: [408, 429, 500, 502, 503, 504],
       },
-      loadBalancingStrategy: config.loadBalancingStrategy || 'ROUND_ROBIN' as any,
+      loadBalancingStrategy: config.loadBalancingStrategy || 'ROUND_ROBIN' as 'ROUND_ROBIN' | 'LEAST_CONNECTIONS' | 'RANDOM',
       transformRequest: config.transformRequest || ((r) => r),
       transformResponse: config.transformResponse || ((r) => r),
       onError: config.onError || (() => {}),
@@ -477,7 +477,7 @@ export class ServiceMeshClient {
     const serviceMeshError = new ServiceMeshError(
       error.message || 'Unknown error',
       error.code || 'UNKNOWN_ERROR'
-    ) as any;
+    ) as ServiceMeshError & { service?: string; status?: number; originalError?: unknown };
     serviceMeshError.service = request.service;
     serviceMeshError.status = error.status;
     serviceMeshError.originalError = error;
@@ -699,7 +699,7 @@ export class RetryPolicy {
     const serviceMeshError = new ServiceMeshError(
       \`Max retries (\${this.config.maxAttempts}) exceeded\`,
       'MAX_RETRIES_EXCEEDED'
-    ) as any;
+    ) as ServiceMeshError & { retried?: boolean; originalError?: unknown };
     serviceMeshError.retried = true;
     serviceMeshError.originalError = lastError;
     throw serviceMeshError;

@@ -177,24 +177,24 @@ export class CompressionManager {
 
       // Override res.write
       const originalWrite = res.write;
-      (res as any).write = function (chunk: any, ...args: any[]) {
+      (res as Response & { write: (chunk: unknown) => boolean }).write = function (chunk: unknown) {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
         return true;
       };
 
       // Override res.send
-      res.send = function (body: any) {
-        chunks.push(Buffer.isBuffer(body) ? body : Buffer.from(body));
+      res.send = function (body: unknown) {
+        chunks.push(Buffer.isBuffer(body) ? body : Buffer.from(String(body)));
         return this;
-      } as any;
+      } as Response['send'];
 
       // Override res.json
-      res.json = function (body: any) {
+      res.json = function (body: unknown) {
         const json = JSON.stringify(body);
         chunks.push(Buffer.from(json));
         res.setHeader('Content-Type', 'application/json');
         return this;
-      } as any;
+      } as Response['json'];
 
       // Compress on finish
       res.on('finish', async () => {

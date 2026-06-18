@@ -205,7 +205,7 @@ export const testDataSource = {
   synchronize: true};
 
 before(async () => {
-  await createConnection(testDataSource as any);
+  await createConnection(testDataSource as DataSourceOptions);
 });
 
 after(async () => {
@@ -217,7 +217,7 @@ after(async () => {
 import { config } from '@foal/core';
 
 export const dataSource = new DataSource({
-  type: config.get('database.type') as any,
+  type: config.get('database.type') as DataSourceType,
   
   // Common options
   database: config.get('database.database'),

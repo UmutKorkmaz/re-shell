@@ -355,7 +355,7 @@ import { validationSchema } from './config/validation';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        store: redisStore as any,
+        store: redisStore as unknown as CacheStore,
         host: configService.get('REDIS_HOST'),
         port: configService.get('REDIS_PORT'),
         ttl: configService.get('CACHE_TTL', 300)})}),

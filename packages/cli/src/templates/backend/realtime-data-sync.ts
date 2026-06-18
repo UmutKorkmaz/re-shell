@@ -832,7 +832,7 @@ export class SyncController {
     try {
       const { documentId } = req.params;
       const { collection, data, operation } = req.body;
-      const userId = (req as any).user?.id;
+      const userId = (req as Request & { user?: { id?: string } }).user?.id;
 
       let document = await SyncDocument.findById(documentId);
 
@@ -905,7 +905,7 @@ export class SyncController {
   joinDocument = async (req: Request, res: Response): Promise<void> => {
     try {
       const { documentId } = req.params;
-      const userId = (req as any).user?.id;
+      const userId = (req as Request & { user?: { id?: string } }).user?.id;
 
       await this.presence.join(documentId, userId);
 
@@ -931,7 +931,7 @@ export class SyncController {
   leaveDocument = async (req: Request, res: Response): Promise<void> => {
     try {
       const { documentId } = req.params;
-      const userId = (req as any).user?.id;
+      const userId = (req as Request & { user?: { id?: string } }).user?.id;
 
       await this.presence.leave(documentId, userId);
 

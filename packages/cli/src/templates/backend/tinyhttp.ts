@@ -1313,7 +1313,7 @@ export const setupWebSocket = (wss: WebSocketServer) => {
       }
 
       // Verify JWT token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
       ws.userId = decoded.id;
 
       // Add to clients map
@@ -1495,7 +1495,7 @@ export class AuthService {
   async refreshToken(refreshToken: string) {
     try {
       // Verify refresh token
-      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as any;
+      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as jwt.JwtPayload;
 
       // Find user and check if refresh token exists
       const user = await User.findById(decoded.id);

@@ -1229,7 +1229,7 @@ export const initializeWebSocket = (io: Server) => {
         return next(new Error('Authentication error'));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
       socket.userId = decoded.id;
       
       next();

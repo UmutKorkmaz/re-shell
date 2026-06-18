@@ -238,7 +238,7 @@ export class TokenService {
     const refreshToken = this.generateRefreshToken(user);
 
     // Calculate expiration time
-    const decoded = jwt.decode(accessToken) as any;
+    const decoded = jwt.decode(accessToken) as jwt.JwtPayload;
     const expiresIn = decoded.exp * 1000 - Date.now();
 
     return {
@@ -821,7 +821,7 @@ export class AuthController {
    */
   enableMFA = async (req: Request, res: Response): Promise<void> => {
     try {
-      const user = (req as any).user;
+      const user = (req as Request & { user?: { id: string; email: string } }).user;
 
       // Generate MFA secret
       const { secret, qrCode } = this.mfaService.generateSecret(user.email);
@@ -851,7 +851,7 @@ export class AuthController {
    */
   verifyMFASetup = async (req: Request, res: Response): Promise<void> => {
     try {
-      const user = (req as any).user;
+      const user = (req as Request & { user?: { id: string; email: string } }).user;
       const { token } = req.body;
 
       // Verify token
@@ -877,7 +877,7 @@ export class AuthController {
    */
   disableMFA = async (req: Request, res: Response): Promise<void> => {
     try {
-      const user = (req as any).user;
+      const user = (req as Request & { user?: { id: string; email: string } }).user;
       const { password } = req.body;
 
       // Verify password

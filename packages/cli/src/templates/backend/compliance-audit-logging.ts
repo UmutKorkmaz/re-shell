@@ -345,7 +345,7 @@ export class ReportGenerator {
     const byCategory = this.groupBy(events, 'category');
     for (const [category, catEvents] of Object.entries(byCategory)) {
       report += \`## \${category}\\n\`;
-      report += \`Count: \${(catEvents as any[]).length}\\n\\n\`;
+      report += \`Count: \${(catEvents as unknown[]).length}\\n\\n\`;
     }
 
     return report;

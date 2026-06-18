@@ -331,7 +331,7 @@ export class ContractValidator {
     }
 
     // Validate response schema
-    const responses = (methodSpec as any).responses;
+    const responses = (methodSpec as { responses?: Record<string, { content?: Record<string, { schema?: unknown }> }> }).responses;
     if (responses && responses['200']) {
       const schema = responses['200'].content?.['application/json']?.schema;
 
@@ -687,11 +687,11 @@ export class OpenAPIGenerator {
 
     for (const [name, schema] of Object.entries(spec.components?.schemas || {})) {
       types += \`export interface \${name} {\\n\`;
-      const schemaObj = schema as any;
+      const schemaObj = schema as { properties?: Record<string, unknown>; required?: string[] };
 
       if (schemaObj.properties) {
         for (const [propName, propSchema] of Object.entries(schemaObj.properties)) {
-          const propType = this.getTypescriptType(propSchema as any);
+          const propType = this.getTypescriptType(propSchema as { type?: string; $ref?: string; format?: string });
           const required = schemaObj.required?.includes(propName);
           types += \`  \${propName}\${required ? '' : '?'}: \${propType};\\n\`;
         }
@@ -733,7 +733,7 @@ export class OpenAPIGenerator {
       if (schema.properties) {
         const props = Object.entries(schema.properties)
           .map(([name, prop]) => {
-            const propType = this.getTypescriptType(prop as any);
+            const propType = this.getTypescriptType(prop as { type?: string; $ref?: string; format?: string });
             const required = (schema.required || []).includes(name);
             return \`  \${name}\${required ? '' : '?'}: \${propType}\`;
           })
@@ -1362,7 +1362,7 @@ export class FrontendContractValidator {
 
     // Make request
     const config: AxiosRequestConfig = {
-      method: test.method as any,
+      method: test.method as AxiosRequestConfig['method'],
       url: \`\${this.apiBaseUrl}\${test.endpoint}\`,
       data: payload,
     };

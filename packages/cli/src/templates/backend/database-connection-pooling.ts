@@ -314,7 +314,7 @@ export class PoolManager extends EventEmitter {
     const mySqlPool = this.mysqlPools.get(name);
     if (mySqlPool) {
       const [rows] = await mySqlPool.query('SHOW PROCESSLIST');
-      const processes = rows as any[];
+      const processes = rows as Record<string, unknown>[];
       return {
         name,
         type: 'mysql',

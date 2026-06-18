@@ -774,7 +774,7 @@ export class WebSocketClient {
     return new Promise((resolve, reject) => {
       try {
         // Use WebSocket constructor (works in both browser and Node.js with ws package)
-        const WS = typeof window !== 'undefined' ? window.WebSocket : (require('ws') as any);
+        const WS = typeof window !== 'undefined' ? window.WebSocket : (require('ws') as typeof WebSocket);
         this.ws = new WS(this.url);
 
         this.ws.onopen = () => {
@@ -1248,7 +1248,7 @@ function generateTypeScriptInterfaces(doc: AsyncAPIDocument): string {
   // Generate schema interfaces
   if (doc.components?.schemas) {
     for (const [schemaName, schemaDef] of Object.entries(doc.components.schemas)) {
-      output += generateTypeScriptInterface(schemaName, schemaDef as any);
+      output += generateTypeScriptInterface(schemaName, schemaDef as { properties?: Record<string, unknown>; required?: string[] });
     }
   }
 
@@ -1265,8 +1265,8 @@ function generateTypeScriptInterface(name: string, schema: any): string {
     for (const [propName, propDef] of Object.entries(schema.properties)) {
       const isRequired = schema.required?.includes(propName);
       const optional = isRequired ? '' : '?';
-      const type = mapTypeToTypeScript(propDef as any);
-      const comment = (propDef as any).description ? \`  /** \${(propDef as any).description} */\\n\` : '';
+      const type = mapTypeToTypeScript(propDef as { type?: string; $ref?: string });
+      const comment = (propDef as { description?: string }).description ? \`  /** \${(propDef as { description?: string }).description } */\\n\` : '';
       output += comment + \`  \${propName}\${optional}: \${type};\\n\`;
     }
   }
@@ -1443,7 +1443,7 @@ function generateConnectionMethods(): string {
 function generateConnectionMethodsTS(): string {
   return \`  connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const WS = typeof window !== 'undefined' ? window.WebSocket : (require('ws') as any);
+      const WS = typeof window !== 'undefined' ? window.WebSocket : (require('ws') as typeof WebSocket);
       this.ws = new WS(this.url);
 
       this.ws.onopen = () => {
@@ -1742,7 +1742,7 @@ function validateAsyncAPI(doc: any, filePath: string): ValidationResult {
   // Validate servers
   if (doc.servers) {
     for (const [serverName, serverDef] of Object.entries(doc.servers)) {
-      const server = serverDef as any;
+      const server = serverDef as { url?: string; description?: string };
       if (!server.url) {
         errors.push({
           path: \`/servers/\${serverName}\`,
@@ -1763,7 +1763,7 @@ function validateAsyncAPI(doc: any, filePath: string): ValidationResult {
   // Validate channels
   if (doc.channels) {
     for (const [channelName, channelDef] of Object.entries(doc.channels)) {
-      const channel = channelDef as any;
+      const channel = channelDef as { address?: string; messages?: Record<string, unknown> };
       if (!channel.address && !channelName.includes('/')) {
         warnings.push({
           path: \`/channels/\${channelName}\`,
