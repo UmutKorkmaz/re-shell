@@ -1,6 +1,8 @@
 // Auto-generated Skills Assessment Utility
 // Generated at: 2026-01-13T14:25:00.000Z
 
+import chalk from 'chalk';
+
 type SkillCategory = 'technical' | 'soft' | 'domain' | 'tools' | 'processes';
 type SkillLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
 type CertificationStatus = 'none' | 'in-progress' | 'completed';
@@ -58,15 +60,15 @@ interface SkillsAssessmentConfig {
 }
 
 export function displayConfig(config: SkillsAssessmentConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🎓 Skills Assessment and Learning Path Recommendations');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Learning Paths:', config.learningPaths.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Assessment:', config.enableAutoAssessment ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Progress Tracking:', config.enableProgressTracking ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Recommendations:', config.enableRecommendations ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🎓 Skills Assessment and Learning Path Recommendations'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Learning Paths:'), config.learningPaths.length);
+  console.log(chalk.yellow('Auto Assessment:'), config.enableAutoAssessment ? 'Yes' : 'No');
+  console.log(chalk.yellow('Progress Tracking:'), config.enableProgressTracking ? 'Yes' : 'No');
+  console.log(chalk.yellow('Recommendations:'), config.enableRecommendations ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateSkillsAssessmentMD(config: SkillsAssessmentConfig): string {

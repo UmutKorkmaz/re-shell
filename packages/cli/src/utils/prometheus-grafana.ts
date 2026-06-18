@@ -1,6 +1,8 @@
 // Auto-generated Prometheus/Grafana Integration Utility
 // Generated at: 2026-01-13T12:00:00.000Z
 
+import chalk from 'chalk';
+
 type MetricType = 'counter' | 'gauge' | 'histogram' | 'summary';
 type DashboardType = 'overview' | 'performance' | 'infrastructure' | 'application' | 'custom';
 
@@ -63,18 +65,18 @@ interface MonitoringConfig {
 }
 
 export function displayConfig(config: MonitoringConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Prometheus/Grafana Integration with Auto-Configuration');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Prometheus:', config.prometheus.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Grafana:', config.grafana.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Metrics:', config.metrics.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Dashboards:', config.grafana.dashboards.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Alerts:', config.alerts.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Recording Rules:', config.enableRecordingRules ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Alerting:', config.enableAlerting ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Prometheus/Grafana Integration with Auto-Configuration'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Prometheus:'), config.prometheus.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Grafana:'), config.grafana.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Metrics:'), config.metrics.length);
+  console.log(chalk.yellow('Dashboards:'), config.grafana.dashboards.length);
+  console.log(chalk.yellow('Alerts:'), config.alerts.length);
+  console.log(chalk.yellow('Recording Rules:'), config.enableRecordingRules ? 'Yes' : 'No');
+  console.log(chalk.yellow('Alerting:'), config.enableAlerting ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generatePrometheusGrafanaMD(config: MonitoringConfig): string {

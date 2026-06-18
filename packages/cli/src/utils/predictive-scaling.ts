@@ -1,6 +1,8 @@
 // Auto-generated Predictive Scaling Utility
 // Generated at: 2026-01-13T12:35:00.000Z
 
+import chalk from 'chalk';
+
 type PredictionModel = 'arima' | 'prophet' | 'lstm' | 'xgboost' | 'linear-regression';
 type ScalingStrategy = 'aggressive' | 'conservative' | 'balanced';
 type ResourceType = 'compute' | 'database' | 'storage' | 'network';
@@ -53,21 +55,21 @@ interface PredictiveScalingConfig {
 }
 
 export function displayConfig(config: PredictiveScalingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📈 Predictive Scaling and Capacity Planning with Cost Optimization');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Prediction Model:', config.prediction.model);
-  console.log('\x1b[33m%s\x1b[0m', 'Lookback Window:', config.prediction.lookbackWindow);
-  console.log('\x1b[33m%s\x1b[0m', 'Forecast Horizon:', config.prediction.forecastHorizon);
-  console.log('\x1b[33m%s\x1b[0m', 'Accuracy Target:', (config.prediction.accuracyTarget * 100).toFixed(1) + '%');
-  console.log('\x1b[33m%s\x1b[0m', 'Resources:', config.capacity.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Scaling Policies:', config.policies.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Cost Optimization:', config.costOptimization.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Target Savings:', (config.costOptimization.targetSavings * 100).toFixed(1) + '%');
-  console.log('\x1b[33m%s\x1b[0m', 'Budget Alerts:', config.enableBudgetAlerts ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Resource Optimization:', config.enableResourceOptimization ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📈 Predictive Scaling and Capacity Planning with Cost Optimization'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Prediction Model:'), config.prediction.model);
+  console.log(chalk.yellow('Lookback Window:'), config.prediction.lookbackWindow);
+  console.log(chalk.yellow('Forecast Horizon:'), config.prediction.forecastHorizon);
+  console.log(chalk.yellow('Accuracy Target:'), (config.prediction.accuracyTarget * 100).toFixed(1) + '%');
+  console.log(chalk.yellow('Resources:'), config.capacity.length);
+  console.log(chalk.yellow('Scaling Policies:'), config.policies.length);
+  console.log(chalk.yellow('Cost Optimization:'), config.costOptimization.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Target Savings:'), (config.costOptimization.targetSavings * 100).toFixed(1) + '%');
+  console.log(chalk.yellow('Budget Alerts:'), config.enableBudgetAlerts ? 'Yes' : 'No');
+  console.log(chalk.yellow('Resource Optimization:'), config.enableResourceOptimization ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generatePredictiveScalingMD(config: PredictiveScalingConfig): string {

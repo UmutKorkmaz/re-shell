@@ -1,6 +1,8 @@
 // Auto-generated Cloud Resource Tagging and Lifecycle Management Utility
 // Generated at: 2026-01-13T11:40:00.000Z
 
+import chalk from 'chalk';
+
 type ResourceType = 'ec2' | 's3' | 'rds' | 'lambda' | 'vm' | 'storage' | 'sql' | 'functions' | 'all';
 type LifecycleState = 'active' | 'deprecated' | 'retired' | 'archived';
 type TagCompliance = 'compliant' | 'non-compliant' | 'pending';
@@ -58,17 +60,17 @@ interface ResourceLifecycleConfig {
 }
 
 export function displayConfig(config: ResourceLifecycleConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Cloud Resource Tagging and Lifecycle Management with Automation');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Tag Policy:', config.tagPolicy.name);
-  console.log('\x1b[33m%s\x1b[0m', 'Required Tags:', config.tagPolicy.requiredTags.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Enforce Compliance:', config.tagPolicy.enforceCompliance ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Lifecycle Rules:', config.lifecycleRules.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Tagging:', config.autoTagging.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Scheduling:', config.enableScheduling ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Cloud Resource Tagging and Lifecycle Management with Automation'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Tag Policy:'), config.tagPolicy.name);
+  console.log(chalk.yellow('Required Tags:'), config.tagPolicy.requiredTags.length);
+  console.log(chalk.yellow('Enforce Compliance:'), config.tagPolicy.enforceCompliance ? 'Yes' : 'No');
+  console.log(chalk.yellow('Lifecycle Rules:'), config.lifecycleRules.length);
+  console.log(chalk.yellow('Auto Tagging:'), config.autoTagging.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Scheduling:'), config.enableScheduling ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateResourceLifecycleMD(config: ResourceLifecycleConfig): string {

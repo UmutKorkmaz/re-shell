@@ -1,6 +1,7 @@
 // Auto-generated Service Mesh Integration
 // Generated at: 2026-01-12T23:05:00.000Z
 
+import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -20,14 +21,14 @@ interface ServiceConfig {
 }
 
 export function displayConfig(config: ServiceMeshConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Service Mesh Integration');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Service Mesh:', config.mesh);
-  console.log('\x1b[33m%s\x1b[0m', 'Services:', config.services.map(s => s.name).join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'mTLS Enabled:', config.enableMTLS);
-  console.log('\x1b[33m%s\x1b[0m', 'Traffic Management:', config.enableTrafficManagement);
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Service Mesh Integration'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Service Mesh:'), config.mesh);
+  console.log(chalk.yellow('Services:'), config.services.map(s => s.name).join(', '));
+  console.log(chalk.yellow('mTLS Enabled:'), config.enableMTLS);
+  console.log(chalk.yellow('Traffic Management:'), config.enableTrafficManagement);
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateServiceMeshMD(config: ServiceMeshConfig): string {

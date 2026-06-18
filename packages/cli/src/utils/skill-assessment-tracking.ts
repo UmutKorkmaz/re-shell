@@ -1,6 +1,8 @@
 // Auto-generated Skill Assessment and Certification Tracking Utility
 // Generated at: 2026-01-13T14:30:00.000Z
 
+import chalk from 'chalk';
+
 type SkillLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
 type CertificationStatus = 'not-started' | 'in-progress' | 'expired' | 'valid' | 'revoked';
 type AssessmentType = 'quiz' | 'practical' | 'peer-review' | 'interview' | 'project';
@@ -102,19 +104,19 @@ interface SkillAssessmentConfig {
 }
 
 export function displayConfig(config: SkillAssessmentConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🎯 Skill Assessment and Certification Tracking');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Employees:', config.employees.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Career Paths:', config.careerPaths.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Industry Standards:', config.industryStandards.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Automated Assessments:', config.enableAutomatedAssessments ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Certification Tracking:', config.enableCertificationTracking ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Skill Gap Analysis:', config.enableSkillGapAnalysis ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Assessment Frequency:', config.assessmentFrequency + ' months');
-  console.log('\x1b[33m%s\x1b[0m', 'Passing Score:', config.passingScoreThreshold + '%');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🎯 Skill Assessment and Certification Tracking'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Employees:'), config.employees.length);
+  console.log(chalk.yellow('Career Paths:'), config.careerPaths.length);
+  console.log(chalk.yellow('Industry Standards:'), config.industryStandards.length);
+  console.log(chalk.yellow('Automated Assessments:'), config.enableAutomatedAssessments ? 'Yes' : 'No');
+  console.log(chalk.yellow('Certification Tracking:'), config.enableCertificationTracking ? 'Yes' : 'No');
+  console.log(chalk.yellow('Skill Gap Analysis:'), config.enableSkillGapAnalysis ? 'Yes' : 'No');
+  console.log(chalk.yellow('Assessment Frequency:'), config.assessmentFrequency + ' months');
+  console.log(chalk.yellow('Passing Score:'), config.passingScoreThreshold + '%');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateSkillAssessmentMD(config: SkillAssessmentConfig): string {

@@ -1,6 +1,8 @@
 // Auto-generated Session Recording Utility
 // Generated at: 2026-01-13T13:00:00.000Z
 
+import chalk from 'chalk';
+
 type RecordingFormat = 'json' | 'mp4' | 'webm' | 'gif';
 type StorageBackend = 's3' | 'azure-blob' | 'gcs' | 'local';
 type CompressionLevel = 'none' | 'low' | 'medium' | 'high';
@@ -42,22 +44,22 @@ interface SessionRecordingConfig {
 }
 
 export function displayConfig(config: SessionRecordingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🎬 Session Recording and Replay Capabilities');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Format:', config.recording.format);
-  console.log('\x1b[33m%s\x1b[0m', 'Storage:', config.recording.storage);
-  console.log('\x1b[33m%s\x1b[0m', 'Compression:', config.recording.compression);
-  console.log('\x1b[33m%s\x1b[0m', 'Quality:', config.recording.quality);
-  console.log('\x1b[33m%s\x1b[0m', 'FPS:', config.recording.fps);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Recording:', config.enableAutoRecording ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Privacy Mode:', config.enablePrivacyMode ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Search:', config.enableSearch ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Playback:', config.replay.enablePlayback ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Speed Control:', config.replay.enableSpeedControl ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Annotations:', config.replay.enableAnnotations ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🎬 Session Recording and Replay Capabilities'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Format:'), config.recording.format);
+  console.log(chalk.yellow('Storage:'), config.recording.storage);
+  console.log(chalk.yellow('Compression:'), config.recording.compression);
+  console.log(chalk.yellow('Quality:'), config.recording.quality);
+  console.log(chalk.yellow('FPS:'), config.recording.fps);
+  console.log(chalk.yellow('Auto Recording:'), config.enableAutoRecording ? 'Yes' : 'No');
+  console.log(chalk.yellow('Privacy Mode:'), config.enablePrivacyMode ? 'Yes' : 'No');
+  console.log(chalk.yellow('Search:'), config.enableSearch ? 'Yes' : 'No');
+  console.log(chalk.yellow('Playback:'), config.replay.enablePlayback ? 'Yes' : 'No');
+  console.log(chalk.yellow('Speed Control:'), config.replay.enableSpeedControl ? 'Yes' : 'No');
+  console.log(chalk.yellow('Annotations:'), config.replay.enableAnnotations ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateSessionRecordingMD(config: SessionRecordingConfig): string {

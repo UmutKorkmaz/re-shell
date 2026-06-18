@@ -1,6 +1,7 @@
 // Auto-generated Serverless Function Deployment Utility
 // Generated at: 2026-01-13T10:52:00.000Z
 
+import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -79,16 +80,16 @@ interface ServerlessConfig {
 }
 
 export function displayConfig(config: ServerlessConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Serverless Function Deployment (Lambda, Azure Functions, Cloud Functions)');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Function Name:', config.functionName);
-  console.log('\x1b[33m%s\x1b[0m', 'Runtime:', config.runtime);
-  console.log('\x1b[33m%s\x1b[0m', 'Handler:', config.handler);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Triggers:', config.triggers.map(t => t.type).join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Monitoring:', config.monitoring.enabled ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Serverless Function Deployment (Lambda, Azure Functions, Cloud Functions)'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Function Name:'), config.functionName);
+  console.log(chalk.yellow('Runtime:'), config.runtime);
+  console.log(chalk.yellow('Handler:'), config.handler);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Triggers:'), config.triggers.map(t => t.type).join(', '));
+  console.log(chalk.yellow('Monitoring:'), config.monitoring.enabled ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateServerlessMD(config: ServerlessConfig): string {

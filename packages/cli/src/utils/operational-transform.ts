@@ -1,6 +1,8 @@
 // Auto-generated Operational Transform Utility
 // Generated at: 2026-01-13T12:55:00.000Z
 
+import chalk from 'chalk';
+
 type OtAlgorithm = 'ot0' | 'cactus' | 'juggee' | 'google-wave';
 type ConflictStrategy = 'last-write-wins' | 'operational-transform' | 'crdt';
 type SyncProtocol = 'websocket' | 'webrtc' | 'http-long-polling';
@@ -49,22 +51,22 @@ interface OperationalTransformConfig {
 }
 
 export function displayConfig(config: OperationalTransformConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🔄 Operational Transform for Conflict Resolution in Shared Editing');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Algorithm:', config.transform.algorithm);
-  console.log('\x1b[33m%s\x1b[0m', 'Conflict Strategy:', config.transform.conflictStrategy);
-  console.log('\x1b[33m%s\x1b[0m', 'Sync Protocol:', config.transform.syncProtocol);
-  console.log('\x1b[33m%s\x1b[0m', 'Presence:', config.features.presence ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Cursors:', config.features.cursors ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Selections:', config.features.selections ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Comments:', config.features.comments ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Suggestions:', config.features.suggestions ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Replay:', config.enableReplay ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Conflict Detection:', config.enableConflictDetection ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Merge:', config.enableAutoMerge ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🔄 Operational Transform for Conflict Resolution in Shared Editing'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Algorithm:'), config.transform.algorithm);
+  console.log(chalk.yellow('Conflict Strategy:'), config.transform.conflictStrategy);
+  console.log(chalk.yellow('Sync Protocol:'), config.transform.syncProtocol);
+  console.log(chalk.yellow('Presence:'), config.features.presence ? 'Yes' : 'No');
+  console.log(chalk.yellow('Cursors:'), config.features.cursors ? 'Yes' : 'No');
+  console.log(chalk.yellow('Selections:'), config.features.selections ? 'Yes' : 'No');
+  console.log(chalk.yellow('Comments:'), config.features.comments ? 'Yes' : 'No');
+  console.log(chalk.yellow('Suggestions:'), config.features.suggestions ? 'Yes' : 'No');
+  console.log(chalk.yellow('Replay:'), config.enableReplay ? 'Yes' : 'No');
+  console.log(chalk.yellow('Conflict Detection:'), config.enableConflictDetection ? 'Yes' : 'No');
+  console.log(chalk.yellow('Auto Merge:'), config.enableAutoMerge ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateOperationalTransformMD(config: OperationalTransformConfig): string {

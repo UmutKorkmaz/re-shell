@@ -1,6 +1,8 @@
 // Auto-generated Performance Monitoring Collaboration Utility
 // Generated at: 2026-01-13T13:45:00.000Z
 
+import chalk from 'chalk';
+
 type MetricType = 'counter' | 'gauge' | 'histogram' | 'summary';
 type VisualizationType = 'line' | 'bar' | 'pie' | 'heatmap' | 'gauge' | 'table';
 type DataSource = 'prometheus' | 'grafana' | 'datadog' | 'cloudwatch' | 'stackdriver' | 'influxdb';
@@ -56,22 +58,22 @@ interface PerformanceMonitoringCollabConfig {
 }
 
 export function displayConfig(config: PerformanceMonitoringCollabConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📊 Real-Time Performance Monitoring Collaboration');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Dashboards:', config.dashboards.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Widgets:', config.widgets.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Alert Rules:', config.alerts.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Shared Dashboards:', config.collaboration.enableSharedDashboards ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Real-time Updates:', config.collaboration.enableRealTimeUpdates ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Annotations:', config.collaboration.enableAnnotations ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Collaborative Editing:', config.collaboration.enableCollaborativeEditing ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Max Viewers:', config.collaboration.maxViewers);
-  console.log('\x1b[33m%s\x1b[0m', 'Max Editors:', config.collaboration.maxEditors);
-  console.log('\x1b[33m%s\x1b[0m', 'Export:', config.enableExport ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Scheduling:', config.enableScheduling ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📊 Real-Time Performance Monitoring Collaboration'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Dashboards:'), config.dashboards.length);
+  console.log(chalk.yellow('Widgets:'), config.widgets.length);
+  console.log(chalk.yellow('Alert Rules:'), config.alerts.length);
+  console.log(chalk.yellow('Shared Dashboards:'), config.collaboration.enableSharedDashboards ? 'Yes' : 'No');
+  console.log(chalk.yellow('Real-time Updates:'), config.collaboration.enableRealTimeUpdates ? 'Yes' : 'No');
+  console.log(chalk.yellow('Annotations:'), config.collaboration.enableAnnotations ? 'Yes' : 'No');
+  console.log(chalk.yellow('Collaborative Editing:'), config.collaboration.enableCollaborativeEditing ? 'Yes' : 'No');
+  console.log(chalk.yellow('Max Viewers:'), config.collaboration.maxViewers);
+  console.log(chalk.yellow('Max Editors:'), config.collaboration.maxEditors);
+  console.log(chalk.yellow('Export:'), config.enableExport ? 'Yes' : 'No');
+  console.log(chalk.yellow('Scheduling:'), config.enableScheduling ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generatePerformanceMonitoringCollabMD(config: PerformanceMonitoringCollabConfig): string {
