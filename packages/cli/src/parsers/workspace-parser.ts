@@ -107,7 +107,7 @@ export class WorkspaceParser {
       if (!fs.existsSync(filePath)) {
         result.errors.push({
           path: 'file',
-          message: `Workspace file not found: \${filePath}`,
+          message: `Workspace file not found: ${filePath}`,
         });
         result.valid = false;
         return result;
@@ -181,7 +181,7 @@ export class WorkspaceParser {
     } catch (error: unknown) {
       result.errors.push({
         path: 'parser',
-        message: `Unexpected error: \${error.message}`,
+        message: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
       });
       result.valid = false;
       return result;
@@ -200,8 +200,8 @@ export class WorkspaceParser {
         // Check service name matches
         if (serviceConfig.name !== serviceName) {
           result.errors.push({
-            path: `services.\${serviceName}.name`,
-            message: `Service name must match key: expected "\${serviceName}", got "\${serviceConfig.name}"`,
+            path: `services.${serviceName}.name`,
+            message: `Service name must match key: expected "${serviceName}", got "${serviceConfig.name}"`,
             value: serviceConfig.name,
           });
         }
@@ -216,8 +216,8 @@ export class WorkspaceParser {
 
         if (!supportedLanguages.includes(serviceConfig.language)) {
           result.errors.push({
-            path: `services.\${serviceName}.language`,
-            message: `Unsupported language: \${serviceConfig.language}`,
+            path: `services.${serviceName}.language`,
+            message: `Unsupported language: ${serviceConfig.language}`,
             value: serviceConfig.language,
           });
         }
@@ -229,7 +229,7 @@ export class WorkspaceParser {
         if (serviceConfig.port) {
           if (serviceConfig.port < 1024 || serviceConfig.port > 65535) {
             result.errors.push({
-              path: `services.\${serviceName}.port`,
+              path: `services.${serviceName}.port`,
               message: `Port must be between 1024 and 65535`,
               value: serviceConfig.port,
             });
@@ -290,14 +290,14 @@ export class WorkspaceParser {
   private validateBuildConfig(serviceName: string, build: any, result: ValidationResult): void {
     if (build.dockerfile && !build.context) {
       result.warnings.push({
-        path: `services.\${serviceName}.build`,
+        path: `services.${serviceName}.build`,
         message: 'Dockerfile specified but no build context provided',
       });
     }
 
     if (build.output && !build.context) {
       result.warnings.push({
-        path: `services.\${serviceName}.build`,
+        path: `services.${serviceName}.build`,
         message: 'Output directory specified but no build context provided',
       });
     }
@@ -309,7 +309,7 @@ export class WorkspaceParser {
         const match = resources.cpu.request.match(/^([0-9]+)m$/);
         if (!match) {
           result.errors.push({
-            path: `services.\${serviceName}.resources.cpu.request`,
+            path: `services.${serviceName}.resources.cpu.request`,
             message: 'CPU request must be in format "<number>m" (e.g., "100m")',
             value: resources.cpu.request,
           });
@@ -320,7 +320,7 @@ export class WorkspaceParser {
         const match = resources.cpu.limit.match(/^([0-9]+)m$/);
         if (!match) {
           result.errors.push({
-            path: `services.\${serviceName}.resources.cpu.limit`,
+            path: `services.${serviceName}.resources.cpu.limit`,
             message: 'CPU limit must be in format "<number>m" (e.g., "500m")',
             value: resources.cpu.limit,
           });
@@ -333,7 +333,7 @@ export class WorkspaceParser {
         const match = resources.memory.request.match(/^([0-9]+)(Mi|Gi)$/);
         if (!match) {
           result.errors.push({
-            path: `services.\${serviceName}.resources.memory.request`,
+            path: `services.${serviceName}.resources.memory.request`,
             message: 'Memory request must be in format "<number>Mi" or "<number>Gi" (e.g., "256Mi")',
             value: resources.memory.request,
           });
@@ -344,7 +344,7 @@ export class WorkspaceParser {
         const match = resources.memory.limit.match(/^([0-9]+)(Mi|Gi)$/);
         if (!match) {
           result.errors.push({
-            path: `services.\${serviceName}.resources.memory.limit`,
+            path: `services.${serviceName}.resources.memory.limit`,
             message: 'Memory limit must be in format "<number>Mi" or "<number>Gi" (e.g., "512Mi")',
             value: resources.memory.limit,
           });
@@ -368,8 +368,8 @@ export class WorkspaceParser {
     for (const [dep, versions] of Object.entries(versionMap)) {
       if (versions.length > 1 && new Set(versions).size > 1) {
         result.warnings.push({
-          path: `services.\${serviceName}.dependencies`,
-          message: `Dependency "\${dep}" has different versions in production and development: \${versions.join(', ')}`,
+          path: `services.${serviceName}.dependencies`,
+          message: `Dependency "${dep}" has different versions in production and development: ${versions.join(', ')}`,
         });
       }
     }
@@ -392,7 +392,7 @@ export class WorkspaceParser {
       if (services.length > 1) {
         result.errors.push({
           path: 'services',
-          message: `Port conflict: Port \${port} is used by multiple services: \${services.join(', ')}`,
+          message: `Port conflict: Port ${port} is used by multiple services: ${services.join(', ')}`,
           value: port,
         });
       }
@@ -407,7 +407,7 @@ export class WorkspaceParser {
       for (const cycle of cycles) {
         result.errors.push({
           path: 'services',
-          message: `Circular dependency detected: \${cycle.join(' -> ')}`,
+          message: `Circular dependency detected: ${cycle.join(' -> ')}`,
         });
       }
     }
@@ -498,9 +498,9 @@ export class WorkspaceParser {
     if (result.errors.length > 0) {
       message += 'Errors:\\n';
       for (const error of result.errors) {
-        message += `  • [\${error.path}] \${error.message}`;
+        message += `  • [${error.path}] ${error.message}`;
         if (error.value !== undefined) {
-          message += ` (value: \${JSON.stringify(error.value)})`;
+          message += ` (value: ${JSON.stringify(error.value)})`;
         }
         message += '\\n';
       }
@@ -509,7 +509,7 @@ export class WorkspaceParser {
     if (result.warnings.length > 0) {
       message += '\\nWarnings:\\n';
       for (const warning of result.warnings) {
-        message += `  • [\${warning.path}] \${warning.message}\\n`;
+        message += `  • [${warning.path}] ${warning.message}\\n`;
       }
     }
 
