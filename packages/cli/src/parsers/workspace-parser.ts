@@ -16,13 +16,13 @@ export interface WorkspaceConfig {
   config?: Record<string, unknown>;
   services: Record<string, ServiceConfig>;
   dependencies?: {
-    databases?: any[];
-    caches?: any[];
-    queues?: any[];
-    storage?: any[];
+    databases?: Record<string, unknown>[];
+    caches?: Record<string, unknown>[];
+    queues?: Record<string, unknown>[];
+    storage?: Record<string, unknown>[];
   };
-  deployment?: any;
-  monitoring?: any;
+  deployment?: Record<string, unknown>;
+  monitoring?: Record<string, unknown>;
 }
 
 export interface ServiceConfig {
@@ -45,12 +45,12 @@ export interface ServiceConfig {
     development?: Record<string, string>;
   };
   scripts?: Record<string, string>;
-  build?: any;
-  scaling?: any;
-  resources?: any;
-  healthCheck?: any;
-  routes?: any[];
-  middleware?: any[];
+  build?: Record<string, unknown>;
+  scaling?: Record<string, unknown>;
+  resources?: Record<string, unknown>;
+  healthCheck?: Record<string, unknown>;
+  routes?: Record<string, unknown>[];
+  middleware?: Record<string, unknown>[];
   features?: string[];
   tags?: string[];
   metadata?: Record<string, string>;
@@ -72,13 +72,13 @@ export interface ValidationResult {
 export interface ValidationError {
   path: string;
   message: string;
-  value?: any;
+  value?: unknown;
 }
 
 export interface ValidationWarning {
   path: string;
   message: string;
-  value?: any;
+  value?: unknown;
 }
 
 export class WorkspaceParser {
@@ -422,8 +422,8 @@ export class WorkspaceParser {
       // Add dependencies based on what service depends on
       const routes = (service as ServiceConfig).routes || [];
       for (const route of routes) {
-        if (route.target && route.target.startsWith('service://')) {
-          const targetService = route.target.replace('service://', '');
+        if (route.target && String(route.target).startsWith('service://')) {
+          const targetService = String(route.target).replace('service://', '');
           graph[serviceName].push(targetService);
         }
       }

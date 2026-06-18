@@ -1183,9 +1183,9 @@ export async function validateWorkspaceConfig(options: any = {}): Promise<void> 
           console.log(chalk.gray('    ' + error.message));
 
           // Show YAML syntax error snippet if available
-          if (error.value?.snippet) {
+          if ((error.value as Record<string, unknown> | undefined)?.snippet) {
             console.log(chalk.gray('\n    Code snippet:'));
-            console.log(chalk.dim('    ' + error.value.snippet.replace(/\n/g, '\n    ')));
+            console.log(chalk.dim('    ' + String((error.value as Record<string, unknown>).snippet).replace(/\n/g, '\n    ')));
             console.log();
           } else if (error.value !== undefined) {
             console.log(chalk.gray('    Value: ' + JSON.stringify(error.value)));
@@ -1371,9 +1371,9 @@ async function runValidation(configPath: string, options: any): Promise<void> {
           console.log(chalk.gray('    ' + error.message));
 
           // Show YAML syntax error snippet if available
-          if (error.value?.snippet) {
+          if ((error.value as Record<string, unknown> | undefined)?.snippet) {
             console.log(chalk.gray('\n    Code snippet:'));
-            const lines = error.value.snippet.split('\n');
+            const lines = String((error.value as Record<string, unknown>).snippet).split('\n');
             for (const line of lines) {
               if (line.startsWith('>')) {
                 console.log(chalk.red('    ' + line));
