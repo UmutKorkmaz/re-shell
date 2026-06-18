@@ -1,6 +1,8 @@
 // Auto-generated Mentorship Matching and Collaboration Tools Utility
 // Generated at: 2026-01-13T14:30:00.000Z
 
+import chalk from 'chalk';
+
 type MentorshipStatus = 'pending' | 'active' | 'completed' | 'paused' | 'cancelled';
 type MatchCriteria = 'skills' | 'experience' | 'availability' | 'location' | 'goals' | 'personality';
 type FeedbackType = 'session' | 'monthly' | 'final' | 'peer' | 'self';
@@ -112,20 +114,20 @@ interface MentorshipConfig {
 }
 
 export function displayConfig(config: MentorshipConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🤝 Mentorship Matching and Collaboration Tools');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Users:', config.users.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Programs:', config.programs.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Active Pairs:', config.pairs.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Sessions:', config.sessions.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Feedbacks:', config.feedbacks.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Matching:', config.enableAutoMatching ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Feedback System:', config.enableFeedbackSystem ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Progress Tracking:', config.enableProgressTracking ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Match Threshold:', config.matchThreshold + '%');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🤝 Mentorship Matching and Collaboration Tools'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Users:'), config.users.length);
+  console.log(chalk.yellow('Programs:'), config.programs.length);
+  console.log(chalk.yellow('Active Pairs:'), config.pairs.length);
+  console.log(chalk.yellow('Sessions:'), config.sessions.length);
+  console.log(chalk.yellow('Feedbacks:'), config.feedbacks.length);
+  console.log(chalk.yellow('Auto Matching:'), config.enableAutoMatching ? 'Yes' : 'No');
+  console.log(chalk.yellow('Feedback System:'), config.enableFeedbackSystem ? 'Yes' : 'No');
+  console.log(chalk.yellow('Progress Tracking:'), config.enableProgressTracking ? 'Yes' : 'No');
+  console.log(chalk.yellow('Match Threshold:'), config.matchThreshold + '%');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateMentorshipMD(config: MentorshipConfig): string {

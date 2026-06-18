@@ -1,6 +1,8 @@
 // Auto-generated Multi-Cloud Networking and Connectivity Utility
 // Generated at: 2026-01-13T11:50:00.000Z
 
+import chalk from 'chalk';
+
 type CloudProvider = 'aws' | 'azure' | 'gcp';
 type ConnectionType = 'vpn' | 'direct-link' | 'express-route' | 'interconnect' | 'transit-gateway';
 type RoutingStrategy = 'latency-based' | 'cost-based' | 'geo-based' | 'weighted' | 'priority';
@@ -55,19 +57,19 @@ interface MultiCloudNetworkingConfig {
 }
 
 export function displayConfig(config: MultiCloudNetworkingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Multi-Cloud Networking and Connectivity with Performance Optimization');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Endpoints:', config.endpoints.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Routing Strategy:', config.routingStrategy);
-  console.log('\x1b[33m%s\x1b[0m', 'Load Balancer:', config.loadBalancer.algorithm);
-  console.log('\x1b[33m%s\x1b[0m', 'Caching:', config.performance.enableCaching ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Compression:', config.performance.enableCompression ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'CDN:', config.performance.enableCDN ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Monitoring:', config.enableMonitoring ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Failover:', config.enableFailover ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Multi-Cloud Networking and Connectivity with Performance Optimization'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Endpoints:'), config.endpoints.length);
+  console.log(chalk.yellow('Routing Strategy:'), config.routingStrategy);
+  console.log(chalk.yellow('Load Balancer:'), config.loadBalancer.algorithm);
+  console.log(chalk.yellow('Caching:'), config.performance.enableCaching ? 'Yes' : 'No');
+  console.log(chalk.yellow('Compression:'), config.performance.enableCompression ? 'Yes' : 'No');
+  console.log(chalk.yellow('CDN:'), config.performance.enableCDN ? 'Yes' : 'No');
+  console.log(chalk.yellow('Monitoring:'), config.enableMonitoring ? 'Yes' : 'No');
+  console.log(chalk.yellow('Failover:'), config.enableFailover ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateMultiCloudNetworkingMD(config: MultiCloudNetworkingConfig): string {

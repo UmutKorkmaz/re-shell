@@ -1,6 +1,8 @@
 // Auto-generated Knowledge Sharing Automation Utility
 // Generated at: 2026-01-13T14:20:00.000Z
 
+import chalk from 'chalk';
+
 type DocType = 'readme' | 'api-doc' | 'tutorial' | 'guide' | 'architecture' | 'changelog';
 type AutomationTrigger = 'code-change' | 'commit' | 'schedule' | 'manual' | 'api-update';
 type AIAssistance = 'summarization' | 'generation' | 'translation' | 'enhancement' | 'formatting';
@@ -58,19 +60,19 @@ interface KnowledgeSharingAutomationConfig {
 }
 
 export function displayConfig(config: KnowledgeSharingAutomationConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📚 Knowledge Sharing and Documentation Automation');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Templates:', config.templates.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Automation Rules:', config.rules.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Knowledge Bases:', config.knowledgeBases.length);
-  console.log('\x1b[33m%s\x1b[0m', 'AI Enabled:', config.ai.enabled);
-  console.log('\x1b[33m%s\x1b[0m', 'AI Provider:', config.ai.provider);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Generation:', config.enableAutoGeneration ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Versioning:', config.enableVersioning ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Sync:', config.enableSync ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📚 Knowledge Sharing and Documentation Automation'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Templates:'), config.templates.length);
+  console.log(chalk.yellow('Automation Rules:'), config.rules.length);
+  console.log(chalk.yellow('Knowledge Bases:'), config.knowledgeBases.length);
+  console.log(chalk.yellow('AI Enabled:'), config.ai.enabled);
+  console.log(chalk.yellow('AI Provider:'), config.ai.provider);
+  console.log(chalk.yellow('Auto Generation:'), config.enableAutoGeneration ? 'Yes' : 'No');
+  console.log(chalk.yellow('Versioning:'), config.enableVersioning ? 'Yes' : 'No');
+  console.log(chalk.yellow('Sync:'), config.enableSync ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateKnowledgeSharingAutomationMD(config: KnowledgeSharingAutomationConfig): string {

@@ -1,6 +1,7 @@
 // Auto-generated K8s Manifest Generator
 // Generated at: 2026-01-12T22:57:00.000Z
 
+import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -40,13 +41,13 @@ interface ResourceLimits {
 }
 
 export function displayConfig(config: WorkspaceConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ K8s Manifest Generator');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Services:', config.services.map(s => s.name).join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Namespace:', config.namespace || 'default');
-  console.log('\x1b[33m%s\x1b[0m', 'Replicas:', config.replicas || 3);
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ K8s Manifest Generator'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Services:'), config.services.map(s => s.name).join(', '));
+  console.log(chalk.yellow('Namespace:'), config.namespace || 'default');
+  console.log(chalk.yellow('Replicas:'), config.replicas || 3);
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateK8sMD(config: WorkspaceConfig): string {

@@ -1,6 +1,8 @@
 // Auto-generated Knowledge Sharing Utility
 // Generated at: 2026-01-13T13:40:00.000Z
 
+import chalk from 'chalk';
+
 type DocType = 'guide' | 'tutorial' | 'api-reference' | 'faq' | 'runbook' | 'architecture-decision-record';
 type SearchProvider = 'elasticsearch' | 'algolia' | 'lunrjs' | 'meilisearch' | 'typesense';
 type ContentType = 'markdown' | 'asciidoc' | 'restructuredtext' | 'html' | 'wiki';
@@ -56,22 +58,22 @@ interface KnowledgeSharingConfig {
 }
 
 export function displayConfig(config: KnowledgeSharingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📚 Team Knowledge Sharing and Documentation Collaboration');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Documents:', config.documents.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Comments:', config.comments.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Search Provider:', config.search.provider);
-  console.log('\x1b[33m%s\x1b[0m', 'Indexing:', config.search.indexing ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Fuzzy Search:', config.search.fuzzySearch ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Real-time Editing:', config.collaboration.enableRealTimeEditing ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Comments:', config.collaboration.enableComments ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Version History:', config.collaboration.enableVersionHistory ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Max Contributors:', config.collaboration.maxContributors);
-  console.log('\x1b[33m%s\x1b[0m', 'Analytics:', config.enableAnalytics ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Notifications:', config.enableNotifications ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📚 Team Knowledge Sharing and Documentation Collaboration'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Documents:'), config.documents.length);
+  console.log(chalk.yellow('Comments:'), config.comments.length);
+  console.log(chalk.yellow('Search Provider:'), config.search.provider);
+  console.log(chalk.yellow('Indexing:'), config.search.indexing ? 'Yes' : 'No');
+  console.log(chalk.yellow('Fuzzy Search:'), config.search.fuzzySearch ? 'Yes' : 'No');
+  console.log(chalk.yellow('Real-time Editing:'), config.collaboration.enableRealTimeEditing ? 'Yes' : 'No');
+  console.log(chalk.yellow('Comments:'), config.collaboration.enableComments ? 'Yes' : 'No');
+  console.log(chalk.yellow('Version History:'), config.collaboration.enableVersionHistory ? 'Yes' : 'No');
+  console.log(chalk.yellow('Max Contributors:'), config.collaboration.maxContributors);
+  console.log(chalk.yellow('Analytics:'), config.enableAnalytics ? 'Yes' : 'No');
+  console.log(chalk.yellow('Notifications:'), config.enableNotifications ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateKnowledgeSharingMD(config: KnowledgeSharingConfig): string {

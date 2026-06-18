@@ -1,6 +1,8 @@
 // Auto-generated Log Aggregation Utility
 // Generated at: 2026-01-13T12:15:00.000Z
 
+import chalk from 'chalk';
+
 type LogBackend = 'elk' | 'efk' | 'fluentd' | 'cloudwatch' | 'azure-log';
 type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 type LogFormat = 'json' | 'text' | 'cef' | 'syslog';
@@ -75,21 +77,21 @@ interface LogAggregationConfig {
 }
 
 export function displayConfig(config: LogAggregationConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🪵 Log Aggregation with ELK/EFK Stack and Structured Logging');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Log Backend:', config.log.backend);
-  console.log('\x1b[33m%s\x1b[0m', 'Log Format:', config.log.format);
-  console.log('\x1b[33m%s\x1b[0m', 'Log Level:', config.log.level);
-  console.log('\x1b[33m%s\x1b[0m', 'Retention Days:', config.log.retentionDays);
-  console.log('\x1b[33m%s\x1b[0m', 'Elasticsearch:', config.elasticsearch.host + ':' + config.elasticsearch.port);
-  console.log('\x1b[33m%s\x1b[0m', 'Kibana:', config.kibana.enabled ? (config.kibana.host + ':' + config.kibana.port) : 'Disabled');
-  console.log('\x1b[33m%s\x1b[0m', 'Parsers:', config.parsers.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Filters:', config.filters.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Alerting:', config.enableAlerting ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Metrics:', config.enableMetrics ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🪵 Log Aggregation with ELK/EFK Stack and Structured Logging'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Log Backend:'), config.log.backend);
+  console.log(chalk.yellow('Log Format:'), config.log.format);
+  console.log(chalk.yellow('Log Level:'), config.log.level);
+  console.log(chalk.yellow('Retention Days:'), config.log.retentionDays);
+  console.log(chalk.yellow('Elasticsearch:'), config.elasticsearch.host + ':' + config.elasticsearch.port);
+  console.log(chalk.yellow('Kibana:'), config.kibana.enabled ? (config.kibana.host + ':' + config.kibana.port) : 'Disabled');
+  console.log(chalk.yellow('Parsers:'), config.parsers.length);
+  console.log(chalk.yellow('Filters:'), config.filters.length);
+  console.log(chalk.yellow('Alerting:'), config.enableAlerting ? 'Yes' : 'No');
+  console.log(chalk.yellow('Metrics:'), config.enableMetrics ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateLogAggregationMD(config: LogAggregationConfig): string {
