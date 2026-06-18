@@ -94,7 +94,6 @@ export const nestjsTemplate: BackendTemplate = {
     "handlebars": "^4.7.8",
     "amqplib": "^0.10.4",
     "kafkajs": "^2.2.4",
-    "caching": "^4.6.13"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.3.2",

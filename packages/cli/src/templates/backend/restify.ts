@@ -49,7 +49,6 @@ export const restifyTemplate: BackendTemplate = {
     "dotenv": "^16.4.5",
     "pg": "^8.11.5",
     "pg-pool": "^3.6.2",
-    "caching": "^4.6.13",
     "ioredis": "^5.3.2",
     "uuid": "^9.0.1",
     "lodash": "^4.17.21",

@@ -58,7 +58,6 @@ export const polkaTemplate: BackendTemplate = {
     "pino": "^9.0.0",
     "pino-pretty": "^11.0.0",
     "@prisma/client": "^5.13.0",
-    "database": "^5.13.0",
     "zod": "^3.23.5",
     "nanoid": "^5.0.7"
   },

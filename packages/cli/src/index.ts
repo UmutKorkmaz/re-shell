@@ -286,6 +286,7 @@ program
   .option('--dry-run', 'Preview changes without applying them')
   .option('--verbose', 'Show detailed dry-run output')
   .option('--json', 'Output as JSON (with --dry-run, emits the exact file set)')
+  .option('-y, --yes', 'Use defaults and skip prompts (non-interactive; auto-enabled when stdin is not a TTY)')
   .action(
     createAsyncCommand(async (name, options) => {
       // Dry-run visual diff: when --dry-run targets a known backend template,

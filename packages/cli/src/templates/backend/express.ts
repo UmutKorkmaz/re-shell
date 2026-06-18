@@ -46,9 +46,7 @@ export const expressTemplate: BackendTemplate = {
     "dotenv": "^16.4.5",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
-    "database": "^5.13.0",
     "@prisma/client": "^5.13.0",
-    "caching": "^4.6.13",
     "ioredis": "^5.3.2",
     "swagger-ui-express": "^5.0.0",
     "swagger-jsdoc": "^6.2.8",
@@ -61,7 +59,10 @@ export const expressTemplate: BackendTemplate = {
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "express-mongo-sanitize": "^2.2.0",
-    "express-fileupload": "^1.5.0"
+    "express-fileupload": "^1.5.0",
+    "redis": "^4.6.13",
+    "rate-limit-redis": "^4.2.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
@@ -1028,15 +1029,27 @@ export const validate = (req: Request, res: Response, next: NextFunction) => {
 
     // Rate limiting middleware
     'src/middlewares/rateLimit.middleware.ts': `import rateLimit from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
-import { redisClient } from '../config/redis';
+
+// Use the Redis-backed store only when a REDIS_URL is configured; otherwise fall
+// back to the default in-memory store so local/dev runs (no Redis) boot cleanly.
+function redisStoreIfExists(prefix: string) {
+  if (!process.env.REDIS_URL) return undefined;
+  try {
+    // Lazy-require so a missing/optional redis dependency never crashes startup.
+    const { default: RedisStore } = require('rate-limit-redis');
+    return new RedisStore({
+      // rate-limit-redis v4 requires sendCommand (a redis v4 client method).
+      sendCommand: (...args: unknown[]) => require('redis').createClient({ url: process.env.REDIS_URL }).sendCommand(args),
+      prefix,
+    });
+  } catch {
+    return undefined;
+  }
+}
 
 // General API rate limit
 export const rateLimiter = rateLimit({
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'rate_limit:'
-  }),
+  store: redisStoreIfExists('rate_limit:'),
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
@@ -1045,10 +1058,7 @@ export const rateLimiter = rateLimit({
 
 // Strict rate limit for auth endpoints
 export const authRateLimiter = rateLimit({
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'auth_limit:'
-  }),
+  store: redisStoreIfExists('auth_limit:'),
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // Limit each IP to 5 requests per windowMs
   message: 'Too many authentication attempts, please try again later.',
@@ -1056,10 +1066,7 @@ export const authRateLimiter = rateLimit({
 
 // File upload rate limit
 export const uploadRateLimiter = rateLimit({
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'upload_limit:'
-  }),
+  store: redisStoreIfExists('upload_limit:'),
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // Limit each IP to 10 uploads per hour
   message: 'Upload limit exceeded, please try again later.'});`,
@@ -1092,8 +1099,11 @@ export const connectDatabase = async () => {
     await prisma.$connect();
     logger.info('Database connected successfully');
   } catch (error) {
-    logger.error('Database connection failed:', error);
-    throw error;
+    // Don't crash the whole server when the database isn't reachable (e.g. a
+    // fresh scaffold with no DB running yet). The API still boots and serves
+    // non-DB routes; DB-backed routes will error per-request instead.
+    logger.warn('Database connection failed — starting anyway without a DB. Set DATABASE_URL and ensure the DB server is reachable.');
+    logger.warn(error instanceof Error ? error.message : String(error));
   }
 };
 
@@ -1310,6 +1320,102 @@ export const swaggerDocs = (app: Express) => {
     res.send(swaggerSpec);
   });
 };`,
+
+    // Service layer (the controllers import these; minimal but valid so the
+    // generated project typechecks out of the box).
+    'src/services/auth.service.ts': `import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { UserService } from './user.service';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+
+/**
+ * Authentication service: register / login / token issue.
+ */
+export class AuthService {
+  private userService = new UserService();
+
+  async register(email: string, password: string) {
+    const hashed = await bcrypt.hash(password, 10);
+    return this.userService.create({ email, password: hashed } as Record<string, unknown>);
+  }
+
+  async login(email: string, password: string) {
+    const user = await this.userService.findByEmail(email);
+    if (!user) return null;
+    const ok = await bcrypt.compare(password, (user as { password: string }).password);
+    if (!ok) return null;
+    return jwt.sign({ email }, JWT_SECRET, { expiresIn: '1d' });
+  }
+}
+`,
+    'src/services/email.service.ts': `/**
+ * Email service (stub). Wire to a real transport (SES, SendGrid, SMTP) later.
+ */
+export class EmailService {
+  async send(to: string, subject: string, body: string): Promise<boolean> {
+    return true;
+  }
+}
+`,
+    'src/services/todo.service.ts': `/**
+ * Todo service: CRUD over the Prisma todo model.
+ */
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export class TodoService {
+  async list() {
+    return prisma.todo.findMany();
+  }
+  async create(data: Record<string, unknown>) {
+    return prisma.todo.create({ data: data as never });
+  }
+  async update(id: string, data: Record<string, unknown>) {
+    return prisma.todo.update({ where: { id }, data: data as never });
+  }
+  async delete(id: string) {
+    return prisma.todo.delete({ where: { id } });
+  }
+}
+`,
+    'src/services/user.service.ts': `/**
+ * User service: CRUD over the Prisma user model.
+ */
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export class UserService {
+  async create(data: Record<string, unknown>) {
+    return prisma.user.create({ data: data as never });
+  }
+  async findById(id: string) {
+    return prisma.user.findUnique({ where: { id } });
+  }
+  async findByEmail(email: string) {
+    return prisma.user.findUnique({ where: { email } });
+  }
+  async update(id: string, data: Record<string, unknown>) {
+    return prisma.user.update({ where: { id }, data: data as never });
+  }
+  async delete(id: string) {
+    return prisma.user.delete({ where: { id } });
+  }
+}
+`,
+    'src/utils/upload.ts': `import multer from 'multer';
+
+const storage = multer.memoryStorage();
+
+/**
+ * Returns a multer middleware that accepts a single file under the given field
+ * name. Used by controllers via uploadSingle('avatar').
+ */
+export const uploadSingle = (fieldname: string) =>
+  multer({ storage }).single(fieldname);
+`,
 
     // Logger utility
     'src/utils/logger.ts': `import winston from 'winston';

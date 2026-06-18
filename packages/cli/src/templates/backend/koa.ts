@@ -69,7 +69,6 @@ export const koaTemplate: BackendTemplate = {
     "mysql2": "^3.9.7",
     "sqlite3": "^5.1.7",
     "objection": "^3.1.4",
-    "caching": "^4.6.13",
     "ioredis": "^5.3.2",
     "winston": "^3.13.0",
     "winston-daily-rotate-file": "^5.0.0",

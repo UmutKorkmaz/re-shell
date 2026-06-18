@@ -66,7 +66,6 @@ export const fastifyTemplate: BackendTemplate = {
     "fastify-graceful-shutdown": "^3.5.3",
     "fastify-print-routes": "^3.1.0",
     "@prisma/client": "^5.13.0",
-    "database": "^5.13.0",
     "dotenv": "^16.4.5",
     "pino": "^9.0.0",
     "pino-pretty": "^11.0.0",

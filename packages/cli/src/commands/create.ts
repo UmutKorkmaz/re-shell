@@ -95,6 +95,8 @@ interface CreateProjectOptions {
   route?: string;
   isProject?: boolean;
   dryRun?: boolean;
+  /** Skip prompts and use defaults (non-interactive; auto-enabled without a TTY). */
+  yes?: boolean;
   spinner?: ProgressSpinner;
   verbose?: boolean;
 }
@@ -3022,36 +3024,52 @@ async function createMonorepoProject(name: string, options: CreateProjectOptions
     spinner.stop();
   }
 
-  // Ask for additional information if not provided
-  const responses = await prompts([
-    {
-      type: options.template ? null : 'select',
-      name: 'template',
-      message: 'Select a template:',
-      choices: [
-        { title: 'React', value: 'react' },
-        { title: 'React with TypeScript', value: 'react-ts' },
-      ],
-      initial: 1, // Default to react-ts
-    },
-    {
-      type: options.packageManager ? null : 'select',
-      name: 'packageManager',
-      message: 'Select a package manager:',
-      choices: [
-        { title: 'npm', value: 'npm' },
-        { title: 'yarn', value: 'yarn' },
-        { title: 'pnpm', value: 'pnpm' },
-      ],
-      initial: 2, // Default to pnpm
-    },
-  ]);
+  // Ask for additional information if not provided. In non-interactive mode
+  // (--yes, or stdin is not a TTY such as CI/piped AND prompts are not injected
+  // by a test harness), skip prompts and use the documented defaults so `create`
+  // never hangs headless.
+  const injected = Boolean((prompts as unknown as { _injected?: unknown[] })._injected?.length);
+  const nonInteractive = options.yes === true || (!process.stdin.isTTY && !injected);
+  let template = options.template;
+  let packageManager = options.packageManager;
+  if (!template || !packageManager) {
+    if (nonInteractive) {
+      template = template || 'react-ts';
+      packageManager = packageManager || 'pnpm';
+    } else {
+      const responses = await prompts([
+        {
+          type: template ? null : 'select',
+          name: 'template',
+          message: 'Select a template:',
+          choices: [
+            { title: 'React', value: 'react' },
+            { title: 'React with TypeScript', value: 'react-ts' },
+          ],
+          initial: 1, // Default to react-ts
+        },
+        {
+          type: packageManager ? null : 'select',
+          name: 'packageManager',
+          message: 'Select a package manager:',
+          choices: [
+            { title: 'npm', value: 'npm' },
+            { title: 'yarn', value: 'yarn' },
+            { title: 'pnpm', value: 'pnpm' },
+          ],
+          initial: 2, // Default to pnpm
+        },
+      ]);
+      template = template || responses.template;
+      packageManager = packageManager || responses.packageManager;
+    }
+  }
 
-  // Merge responses with options
+  // Merge resolved values with options
   const finalOptions = {
     ...options,
-    template: options.template || responses.template,
-    packageManager: options.packageManager || responses.packageManager,
+    template,
+    packageManager,
   };
 
   // Restart spinner for file operations
@@ -3150,6 +3168,137 @@ For more information, see the [Re-Shell documentation](https://github.com/your-o
 `;
 
   fs.writeFileSync(path.join(projectPath, 'README.md'), readmeContent);
+
+  // ── Scaffold the actual app(s) from the requested stack ───────────────────
+  // Previously this function only wrote the monorepo skeleton and ignored
+  // --backend/--db/--fullstack; the real scaffolding primitive
+  // (createBackendTemplate, the same one `createWorkspace` and the dry-run use)
+  // is reused here so a top-level `create` produces a runnable app, not an
+  // empty shell.
+  const requestedBackend = options.backend;
+  if (requestedBackend) {
+    const backendTemplate = getBackendTemplate(requestedBackend);
+    if (!backendTemplate) {
+      console.log(
+        chalk.yellow(
+          `\n  ! Unknown backend "${requestedBackend}"; skipping backend scaffold. Run \`re-shell templates list\` for supported ids.`
+        )
+      );
+    } else {
+      const isFullStackApp = Boolean(
+        options.fullstack || (options.framework && requestedBackend)
+      );
+      const backendDirName = isFullStackApp
+        ? `${normalizedName}-api`
+        : normalizedName;
+      const backendAppPath = path.join(projectPath, 'apps', backendDirName);
+      fs.mkdirSync(backendAppPath, { recursive: true });
+
+      const dbCheck =
+        options.db && options.db !== 'none'
+          ? validateDatabaseType(options.db)
+          : { valid: false };
+      const dbType: DatabaseType | undefined = dbCheck.valid
+        ? (options.db as DatabaseType)
+        : undefined;
+
+      const backendContext: BackendTemplateContext = {
+        // Use the backend dir name as the package name so a fullstack project's
+        // backend (apps/<name>-api) and frontend (apps/<name>) don't collide on
+        // the same workspace package name.
+        name: backendDirName,
+        normalizedName: backendDirName,
+        port: backendTemplate.port?.toString() || options.port || '3000',
+        db: dbType,
+        org,
+        team,
+        description:
+          description || `${name} - A ${backendTemplate.displayName} backend`,
+      };
+
+      const backendFiles = await createBackendTemplate(backendTemplate, backendContext);
+      for (const file of backendFiles) {
+        const filePath = path.join(backendAppPath, file.path);
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, file.content);
+        if (file.executable) fs.chmodSync(filePath, 0o755);
+      }
+      console.log(
+        chalk.green(
+          `  ✓ Scaffolded ${backendTemplate.displayName} backend → apps/${backendDirName} (${backendFiles.length} files)`
+        )
+      );
+
+      // For a fullstack project, also scaffold a minimal frontend shell so
+      // `pnpm dev` runs both the API and the web app.
+      if (isFullStackApp && options.framework) {
+        const frontendAppPath = path.join(projectPath, 'apps', normalizedName);
+        fs.mkdirSync(path.join(frontendAppPath, 'src'), { recursive: true });
+        fs.writeFileSync(
+          path.join(frontendAppPath, 'package.json'),
+          JSON.stringify(
+            {
+              name: normalizedName,
+              version: '0.1.0',
+              private: true,
+              type: 'module',
+              scripts: {
+                dev: 'vite',
+                build: 'tsc && vite build',
+                preview: 'vite preview',
+              },
+              dependencies: { react: '^18.2.0', 'react-dom': '^18.2.0' },
+              devDependencies: {
+                '@types/react': '^18.2.0',
+                '@types/react-dom': '^18.2.0',
+                '@vitejs/plugin-react': '^4.2.0',
+                typescript: '^5.3.0',
+                vite: '^5.0.0',
+              },
+            },
+            null,
+            2
+          )
+        );
+        fs.writeFileSync(
+          path.join(frontendAppPath, 'index.html'),
+          `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>${name}</title>\n  </head>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`
+        );
+        fs.writeFileSync(
+          path.join(frontendAppPath, 'vite.config.ts'),
+          `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()], server: { proxy: { '/api': 'http://localhost:3000' } } });\n`
+        );
+        fs.writeFileSync(
+          path.join(frontendAppPath, 'tsconfig.json'),
+          JSON.stringify(
+            {
+              compilerOptions: {
+                target: 'ES2020',
+                module: 'ESNext',
+                moduleResolution: 'bundler',
+                jsx: 'react-jsx',
+                strict: true,
+                esModuleInterop: true,
+                skipLibCheck: true,
+              },
+              include: ['src'],
+            },
+            null,
+            2
+          )
+        );
+        fs.writeFileSync(
+          path.join(frontendAppPath, 'src', 'main.tsx'),
+          `import React from 'react';\nimport { createRoot } from 'react-dom/client';\n\nfunction App() {\n  return (\n    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>\n      <h1>${name}</h1>\n      <p>Re-Shell fullstack app. The API runs at <code>/api</code>.</p>\n    </main>\n  );\n}\n\ncreateRoot(document.getElementById('root')!).render(<App />);\n`
+        );
+        console.log(
+          chalk.green(
+            `  ✓ Scaffolded ${options.framework} frontend shell → apps/${normalizedName}`
+          )
+        );
+      }
+    }
+  }
 
   console.log(
     chalk.green(`\nRe-Shell project "${normalizedName}" created successfully at ${projectPath}`)

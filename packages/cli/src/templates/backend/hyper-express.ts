@@ -42,8 +42,6 @@ export const hyperExpressTemplate: BackendTemplate = {
   "dependencies": {
     "hyper-express": "^6.14.0",
     "@prisma/client": "^5.13.0",
-    "database": "^5.13.0",
-    "caching": "^4.6.13",
     "ioredis": "^5.3.2",
     "jsonwebtoken": "^9.0.2",
     "bcryptjs": "^2.4.3",

@@ -57,7 +57,6 @@ export const marblejsTemplate: BackendTemplate = {
     "uuid": "^9.0.1",
     "pg": "^8.11.5",
     "typeorm": "^0.3.20",
-    "caching": "^4.6.13",
     "amqplib": "^0.10.4",
     "nodemailer": "^6.9.13",
     "winston": "^3.13.0",
