@@ -556,7 +556,7 @@ class PenetrationTestingManager extends EventEmitter {
     return test;
   }
 
-  async runTest(testId: string): Promise<any> {
+  async runTest(testId: string): Promise<unknown> {
     const test = this.tests.get(testId);
     if (!test) throw new Error('Test not found');
 
@@ -581,7 +581,7 @@ class PenetrationTestingManager extends EventEmitter {
     return newFinding;
   }
 
-  async getTestResults(testId: string): Promise<any> {
+  async getTestResults(testId: string): Promise<unknown> {
     const test = this.tests.get(testId);
     if (!test) throw new Error('Test not found');
 

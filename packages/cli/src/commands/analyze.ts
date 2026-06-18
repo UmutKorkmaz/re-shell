@@ -355,7 +355,7 @@ async function analyzePerformance(workspacePath: string, workspace: string, opti
   }
 }
 
-async function analyzeSecurityIssues(workspacePath: string, workspace: string, options: AnalyzeOptions): Promise<any> {
+async function analyzeSecurityIssues(workspacePath: string, workspace: string, options: AnalyzeOptions): Promise<unknown> {
   try {
     // Run security audit
     let auditResults = {};

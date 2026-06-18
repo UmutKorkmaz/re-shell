@@ -334,7 +334,7 @@ export class MicrofrontendOrchestrator extends EventEmitter {
     }
   }
 
-  async loadMicrofrontend(componentId: string): Promise<any> {
+  async loadMicrofrontend(componentId: string): Promise<unknown> {
     const component = await this.componentRegistry.getComponent(componentId);
 
     if (!component) {
@@ -645,7 +645,7 @@ export class StateManager extends EventEmitter {
     console.log('✅ State Manager initialized');
   }
 
-  async get(key: string): Promise<any> {
+  async get(key: string): Promise<unknown> {
     if (this.useRedis && this.redis) {
       const value = await this.redis.get(\`state:\${key}\`);
       return value ? JSON.parse(value) : undefined;
@@ -969,7 +969,7 @@ export class BackendServiceIntegration extends EventEmitter {
     this.emit('service:unregistered', serviceId);
   }
 
-  async fetchData(serviceId: string, endpoint: string, config?: any): Promise<any> {
+  async fetchData(serviceId: string, endpoint: string, config?: any): Promise<unknown> {
     const axiosInstance = this.axiosInstances.get(serviceId);
 
     if (!axiosInstance) {
@@ -993,7 +993,7 @@ export class BackendServiceIntegration extends EventEmitter {
     }
   }
 
-  async sendData(serviceId: string, endpoint: string, data: any, config?: any): Promise<any> {
+  async sendData(serviceId: string, endpoint: string, data: any, config?: any): Promise<unknown> {
     const axiosInstance = this.axiosInstances.get(serviceId);
 
     if (!axiosInstance) {
@@ -1421,7 +1421,7 @@ export class MicrofrontendClient {
     };
   }
 
-  async loadComponent(componentId: string): Promise<any> {
+  async loadComponent(componentId: string): Promise<unknown> {
     const response = await fetch(\`\${this.config.orchestratorURL}/api/orchestrator/load/\${componentId}\`, {
       headers: {
         'Authorization': \`Bearer \${this.config.token || ''}\`,
@@ -1435,7 +1435,7 @@ export class MicrofrontendClient {
     return response.json();
   }
 
-  async getState(key: string): Promise<any> {
+  async getState(key: string): Promise<unknown> {
     const response = await fetch(\`\${this.config.orchestratorURL}/api/state/\${key}\`, {
       headers: {
         'Authorization': \`Bearer \${this.config.token || ''}\`,
@@ -1480,7 +1480,7 @@ export class MicrofrontendClient {
     }
   }
 
-  async fetchFromBackend(serviceId: string, endpoint: string): Promise<any> {
+  async fetchFromBackend(serviceId: string, endpoint: string): Promise<unknown> {
     const response = await fetch(\`\${this.config.orchestratorURL}/api/services/\${serviceId}/fetch/\${endpoint.replace(/^\\//, '')}\`, {
       headers: {
         'Authorization': \`Bearer \${this.config.token || ''}\`,
@@ -1494,7 +1494,7 @@ export class MicrofrontendClient {
     return response.json();
   }
 
-  async sendToBackend(serviceId: string, endpoint: string, data: any): Promise<any> {
+  async sendToBackend(serviceId: string, endpoint: string, data: any): Promise<unknown> {
     const response = await fetch(\`\${this.config.orchestratorURL}/api/services/\${serviceId}/send/\${endpoint.replace(/^\\//, '')}\`, {
       method: 'POST',
       headers: {
@@ -1759,11 +1759,11 @@ export class MicrofrontendService implements OnDestroy {
     });
   }
 
-  async loadComponent(componentId: string): Promise<any> {
+  async loadComponent(componentId: string): Promise<unknown> {
     return this.client.loadComponent(componentId);
   }
 
-  async getState(key: string): Promise<any> {
+  async getState(key: string): Promise<unknown> {
     return this.client.getState(key);
   }
 
@@ -1781,11 +1781,11 @@ export class MicrofrontendService implements OnDestroy {
     await this.client.updateState(key, updates);
   }
 
-  async fetchFromBackend(serviceId: string, endpoint: string): Promise<any> {
+  async fetchFromBackend(serviceId: string, endpoint: string): Promise<unknown> {
     return this.client.fetchFromBackend(serviceId, endpoint);
   }
 
-  async sendToBackend(serviceId: string, endpoint: string, data: any): Promise<any> {
+  async sendToBackend(serviceId: string, endpoint: string, data: any): Promise<unknown> {
     return this.client.sendToBackend(serviceId, endpoint, data);
   }
 

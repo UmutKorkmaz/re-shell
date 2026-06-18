@@ -796,7 +796,7 @@ export class DependencyAuditor {
     };
   }
 
-  async runNpmAudit(): Promise<any> {
+  async runNpmAudit(): Promise<unknown> {
     // Run npm audit and parse results
     // In real implementation, this would spawn a child process
     // and parse the JSON output

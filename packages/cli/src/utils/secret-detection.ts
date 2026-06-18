@@ -643,7 +643,7 @@ class SecretDetectionManager extends EventEmitter {
     return secrets;
   }
 
-  async rotateSecret(secretId: string, force: boolean = false): Promise<any> {
+  async rotateSecret(secretId: string, force: boolean = false): Promise<unknown> {
     const secret = this.secrets.get(secretId);
     if (!secret) {
       throw new Error(\`Secret \${secretId} not found\`);
@@ -666,7 +666,7 @@ class SecretDetectionManager extends EventEmitter {
     return rotationResult;
   }
 
-  async revokeSecret(secretId: string, reason: string): Promise<any> {
+  async revokeSecret(secretId: string, reason: string): Promise<unknown> {
     const secret = this.secrets.get(secretId);
     if (!secret) {
       throw new Error(\`Secret \${secretId} not found\`);
@@ -698,7 +698,7 @@ class SecretDetectionManager extends EventEmitter {
     return due;
   }
 
-  async getComplianceReport(standard: string): Promise<any> {
+  async getComplianceReport(standard: string): Promise<unknown> {
     const report = {
       standard,
       status: 'compliant',

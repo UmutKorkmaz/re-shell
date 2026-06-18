@@ -1,7 +1,7 @@
 // Async pool utility for controlled concurrency
 export class AsyncPool {
   private running = 0;
-  private queue: Array<() => Promise<any>> = [];
+  private queue: Array<() => Promise<unknown>> = [];
 
   constructor(private concurrency: number = 3) {}
 

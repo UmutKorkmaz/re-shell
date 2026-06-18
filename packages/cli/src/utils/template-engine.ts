@@ -145,7 +145,7 @@ export class ConfigTemplateEngine {
     templateName: string, 
     variables: Record<string, any>, 
     context?: Partial<TemplateContext>
-  ): Promise<any> {
+  ): Promise<unknown> {
     const template = await this.getTemplate(templateName);
     if (!template) {
       throw new ValidationError(`Template '${templateName}' not found`);

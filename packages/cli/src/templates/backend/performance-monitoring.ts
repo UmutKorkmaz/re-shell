@@ -607,7 +607,7 @@ export class Profiler extends EventEmitter {
     return await this.startCpuProfiling(durationSeconds);
   }
 
-  async compareHeapSnapshots(before: ProfileSnapshot, after: ProfileSnapshot): Promise<any> {
+  async compareHeapSnapshots(before: ProfileSnapshot, after: ProfileSnapshot): Promise<unknown> {
     if (before.type !== 'memory' || after.type !== 'memory') {
       throw new Error('Both snapshots must be heap snapshots');
     }

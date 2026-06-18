@@ -307,7 +307,7 @@ export class ComplianceManager {
     ];
   }
 
-  async generateComplianceReport(standard: string): Promise<any> {
+  async generateComplianceReport(standard: string): Promise<unknown> {
     const events = await this.auditLogger.queryEvents({
       startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
     });
@@ -351,7 +351,7 @@ export class ReportGenerator {
     return report;
   }
 
-  async generateComplianceReport(standard: string): Promise<any> {
+  async generateComplianceReport(standard: string): Promise<unknown> {
     // Generate compliance-specific report
     return {
       standard,

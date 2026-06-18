@@ -85,7 +85,7 @@ export class WorkspaceOptimizer {
   /**
    * Apply automated fixes
    */
-  async applyAutomatedFixes(config: any, recommendationIds: string[]): Promise<any> {
+  async applyAutomatedFixes(config: any, recommendationIds: string[]): Promise<unknown> {
     const result = { ...config };
 
     for (const id of recommendationIds) {

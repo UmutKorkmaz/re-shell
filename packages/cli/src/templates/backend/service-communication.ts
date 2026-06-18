@@ -149,7 +149,7 @@ export class GrpcServiceClient {
     );
   }
 
-  async getData(request: any): Promise<any> {
+  async getData(request: any): Promise<unknown> {
     const getData = promisify(this.client.getData).bind(this.client);
     try {
       const response = await getData(request);

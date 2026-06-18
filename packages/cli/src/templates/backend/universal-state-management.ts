@@ -260,7 +260,7 @@ export class StateStore extends EventEmitter {
     console.log(\`Loaded \${keys.length} state keys from Redis\`);
   }
 
-  async get(key: string): Promise<any> {
+  async get(key: string): Promise<unknown> {
     return this.localState.get(key);
   }
 
@@ -337,7 +337,7 @@ export class StateStore extends EventEmitter {
     return limit ? history.slice(-limit) : history;
   }
 
-  async getAtVersion(key: string, version: number): Promise<any> {
+  async getAtVersion(key: string, version: number): Promise<unknown> {
     const history = this.history.get(key) || [];
     const snapshot = history.find(s => s.version === version);
 
@@ -463,7 +463,7 @@ export class StateManager extends EventEmitter {
     console.log('✅ State Manager initialized');
   }
 
-  async get(key: string): Promise<any> {
+  async get(key: string): Promise<unknown> {
     return this.store.get(key);
   }
 
@@ -564,7 +564,7 @@ export class StateManager extends EventEmitter {
     }
   }
 
-  private async getAllState(): Promise<any> {
+  private async getAllState(): Promise<unknown> {
     const keys = Array.from(await this.getAllKeys());
     const state: Record<string, unknown> = {};
 
@@ -594,7 +594,7 @@ export class StateManager extends EventEmitter {
     return this.store.getHistory(key, limit);
   }
 
-  async getAtVersion(key: string, version: number): Promise<any> {
+  async getAtVersion(key: string, version: number): Promise<unknown> {
     return this.store.getAtVersion(key, version);
   }
 
@@ -1256,7 +1256,7 @@ export class StateClient {
     // Handle other message types
   }
 
-  async get(key: string): Promise<any> {
+  async get(key: string): Promise<unknown> {
     // Check local cache first
     if (this.localCache.has(key)) {
       return this.localCache.get(key);
@@ -1573,7 +1573,7 @@ export class StateManagerService implements OnDestroy {
     });
   }
 
-  async get(key: string): Promise<any> {
+  async get(key: string): Promise<unknown> {
     return this.client.get(key);
   }
 

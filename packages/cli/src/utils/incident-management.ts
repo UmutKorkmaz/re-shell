@@ -747,7 +747,7 @@ class IncidentManagementManager extends EventEmitter {
     return artifact;
   }
 
-  async updateIncidentStatus(incidentId: string, status: string, phase: string): Promise<any> {
+  async updateIncidentStatus(incidentId: string, status: string, phase: string): Promise<unknown> {
     const incident = this.incidents.get(incidentId);
     if (!incident) throw new Error('Incident not found');
 

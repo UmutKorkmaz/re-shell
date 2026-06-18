@@ -1873,7 +1873,7 @@ type AsyncRequestHandler = (
   req: Request,
   res: Response,
   next: NextHandler
-) => Promise<any>;
+) => Promise<unknown>;
 
 export const asyncHandler = (fn: AsyncRequestHandler) => {
   return (req: Request, res: Response, next: NextHandler) => {

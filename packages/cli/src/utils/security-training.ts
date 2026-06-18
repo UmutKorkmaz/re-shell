@@ -538,7 +538,7 @@ class SecurityTrainingManager extends EventEmitter {
     return progress;
   }
 
-  async submitScore(userId: string, moduleId: string, score: number): Promise<any> {
+  async submitScore(userId: string, moduleId: string, score: number): Promise<unknown> {
     const key = \${userId}-\${moduleId}\`;
     const progress = this.progress.get(key);
     if (!progress) throw new Error('Progress not found');

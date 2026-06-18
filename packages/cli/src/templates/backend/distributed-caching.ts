@@ -271,7 +271,7 @@ export class DistributedCacheManager extends EventEmitter {
     console.log('✅ Distributed Cache Manager initialized');
   }
 
-  async get(key: string, options: CacheOptions = {}): Promise<any> {
+  async get(key: string, options: CacheOptions = {}): Promise<unknown> {
     const layers: string[] = [];
 
     // Try Redis first (fastest distributed cache)
@@ -480,7 +480,7 @@ export class RedisCacheLayer extends EventEmitter {
     }
   }
 
-  async get(key: string): Promise<any> {
+  async get(key: string): Promise<unknown> {
     if (!this.connected) return null;
 
     const client = this.redis || this.cluster;
@@ -554,7 +554,7 @@ export class RedisCacheLayer extends EventEmitter {
     }
   }
 
-  async withSemaphore(key: string, limit: number, fn: () => Promise<any>): Promise<any> {
+  async withSemaphore(key: string, limit: number, fn: () => Promise<unknown>): Promise<unknown> {
     if (!this.semaphores.has(key)) {
       this.semaphores.set(key, new Semaphore(limit));
     }
@@ -634,7 +634,7 @@ export class MemcachedCacheLayer extends EventEmitter {
     }
   }
 
-  async get(key: string): Promise<any> {
+  async get(key: string): Promise<unknown> {
     if (!this.connected) return null;
 
     try {
@@ -761,7 +761,7 @@ export class CDNManager extends EventEmitter {
     }
   }
 
-  async get(key: string): Promise<any> {
+  async get(key: string): Promise<unknown> {
     if (!this.enabled) return null;
 
     try {
@@ -822,13 +822,13 @@ export class CDNManager extends EventEmitter {
     }
   }
 
-  private async getFromCloudflare(key: string): Promise<any> {
+  private async getFromCloudflare(key: string): Promise<unknown> {
     // Implementation would use Cloudflare API
     // This is a placeholder
     return null;
   }
 
-  private async getFromCloudFront(key: string): Promise<any> {
+  private async getFromCloudFront(key: string): Promise<unknown> {
     // Implementation would use CloudFront API
     // This is a placeholder
     return null;
@@ -890,7 +890,7 @@ import { DistributedCacheManager } from './distributed-cache-manager';
 
 export interface WarmupEntry {
   key: string;
-  fetcher: () => Promise<any>;
+  fetcher: () => Promise<unknown>;
   ttl?: number;
   priority?: number;
 }

@@ -718,7 +718,7 @@ export class PluginSandbox extends EventEmitter {
     pluginFunction: (...args: any[]) => any,
     context: any,
     timeout?: number
-  ): Promise<any> {
+  ): Promise<unknown> {
     const executionTimeout = timeout || this.config.timeoutLimit;
     const startTime = Date.now();
 

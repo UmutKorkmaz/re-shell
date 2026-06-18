@@ -650,7 +650,7 @@ export class EventSourcingService {
   /**
    * Replay events to reconstruct state
    */
-  async replayEvents(documentId: string): Promise<any> {
+  async replayEvents(documentId: string): Promise<unknown> {
     const stream = this.getStream(documentId);
     let state = {};
 
@@ -673,7 +673,7 @@ export class EventSourcingService {
   /**
    * Replay from specific version
    */
-  async replayFromVersion(documentId: string, version: number): Promise<any> {
+  async replayFromVersion(documentId: string, version: number): Promise<unknown> {
     const events = this.getEvents(documentId, version);
     let state = {};
 

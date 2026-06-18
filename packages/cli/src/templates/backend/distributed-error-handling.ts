@@ -489,7 +489,7 @@ export class DistributedErrorHandler {
    * Async wrapper to automatically catch and track errors
    */
   static asyncHandler(
-    fn: (req: Request, res: Response, next: NextFunction) => Promise<any>
+    fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>
   ) {
     return (req: Request, res: Response, next: NextFunction) => {
       Promise.resolve(fn(req, res, next)).catch(next);

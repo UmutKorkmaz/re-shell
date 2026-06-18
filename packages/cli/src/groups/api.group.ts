@@ -12,7 +12,7 @@ function toCamelCase(str: string): string {
     .replace(/\s/g, '');
 }
 
-async function parseOpenApiSpec(specContent: string): Promise<any> {
+async function parseOpenApiSpec(specContent: string): Promise<unknown> {
   try {
     return JSON.parse(specContent);
   } catch {

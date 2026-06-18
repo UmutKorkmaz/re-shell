@@ -1369,7 +1369,7 @@ export class AuthService {
     return true;
   }
 
-  async verifyToken(token: string): Promise<any> {
+  async verifyToken(token: string): Promise<unknown> {
     return jwt.verify(token, process.env.JWT_SECRET || 'secret');
   }
 }

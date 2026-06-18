@@ -240,7 +240,7 @@ export class ${toPascalCase(config.serviceName)}SerializationOptimizer {
     format: SerializationFormat,
     compressed?: boolean,
     compressionType?: CompressionType
-  ): Promise<any> {
+  ): Promise<unknown> {
     let decompressed = data;
 
     // Decompress if needed
@@ -283,7 +283,7 @@ export class ${toPascalCase(config.serviceName)}SerializationOptimizer {
   /**
    * Deserialize data from specific format
    */
-  private async performDeserialization(data: Buffer, format: SerializationFormat): Promise<any> {
+  private async performDeserialization(data: Buffer, format: SerializationFormat): Promise<unknown> {
     switch (format) {
       case 'json':
       case 'binary':

@@ -227,7 +227,7 @@ export function errorTracingMiddleware(
 /**
  * Async hook wrapper for automatic tracing
  */
-export function traceAsync<T extends (...args: any[]) => Promise<any>>(
+export function traceAsync<T extends (...args: any[]) => Promise<unknown>>(
   name: string,
   fn: T
 ): T {

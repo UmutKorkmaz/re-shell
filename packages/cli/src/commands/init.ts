@@ -180,7 +180,7 @@ async function savePreset(name: string, config: any): Promise<void> {
   await fs.writeJSON(path.join(presetsDir, `${name}.json`), config, { spaces: 2 });
 }
 
-async function loadPreset(name: string): Promise<any> {
+async function loadPreset(name: string): Promise<unknown> {
   const presetsDir = path.join(os.homedir(), '.re-shell', 'presets');
   const presetPath = path.join(presetsDir, `${name}.json`);
   if (await fs.pathExists(presetPath)) {

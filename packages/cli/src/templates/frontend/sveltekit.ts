@@ -7402,7 +7402,7 @@ export async function renderAngularComponent(
   component: any,
   props: any,
   container: HTMLElement
-): Promise<any> {
+): Promise<unknown> {
   if (!browser) return null;
 
   // Angular components should be exposed as custom elements

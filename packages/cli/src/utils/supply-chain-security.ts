@@ -593,11 +593,11 @@ class SupplyChainSecurityManager extends EventEmitter {
     return vulnerabilities;
   }
 
-  async verifyIntegrity(componentId: string): Promise<any> {
+  async verifyIntegrity(componentId: string): Promise<unknown> {
     return { componentId, verified: true, timestamp: new Date() };
   }
 
-  async checkLicenses(components: Component[]): Promise<any> {
+  async checkLicenses(components: Component[]): Promise<unknown> {
     const compliant = components.filter(c => c.licenses.length > 0);
     return { total: components.length, compliant: compliant.length };
   }

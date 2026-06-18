@@ -1516,7 +1516,7 @@ export default (app: Application) => {
     'app/middleware/auth.ts': `import { Context, Application } from 'egg';
 
 export default (options?: any, app?: Application) => {
-  return async (ctx: Context, next: () => Promise<any>) => {
+  return async (ctx: Context, next: () => Promise<unknown>) => {
     const token = ctx.headers.authorization?.replace('Bearer ', '') || ctx.query.token;
 
     if (!token) {
@@ -1543,7 +1543,7 @@ export default (options?: any, app?: Application) => {
     'app/middleware/rateLimit.ts': `import { Context } from 'egg';
 
 export default () => {
-  return async (ctx: Context, next: () => Promise<any>) => {
+  return async (ctx: Context, next: () => Promise<unknown>) => {
     const { redis } = ctx.app;
     const key = \`rate_limit:\${ctx.ip}:\${ctx.path}\`;
     const limit = 100; // requests per minute
@@ -1575,7 +1575,7 @@ export default () => {
     'app/middleware/errorHandler.ts': `import { Context } from 'egg';
 
 export default () => {
-  return async (ctx: Context, next: () => Promise<any>) => {
+  return async (ctx: Context, next: () => Promise<unknown>) => {
     try {
       await next();
     } catch (err: any) {

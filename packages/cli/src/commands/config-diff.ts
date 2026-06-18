@@ -559,7 +559,7 @@ async function loadConfigSources(leftSource: string, rightSource: string): Promi
   };
 }
 
-async function loadConfigFromSource(source: string): Promise<any> {
+async function loadConfigFromSource(source: string): Promise<unknown> {
   // Handle special sources
   if (source === 'global') {
     return configManager.loadGlobalConfig();

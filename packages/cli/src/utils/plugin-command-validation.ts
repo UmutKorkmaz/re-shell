@@ -700,7 +700,7 @@ export class PluginCommandValidator extends EventEmitter {
     args: Record<string, any>,
     options: Record<string, any>,
     context: PluginCommandContext
-  ): Promise<any> {
+  ): Promise<unknown> {
     // Sort transformations by order
     const sortedTransformations = transformations.sort((a, b) => a.order - b.order);
     

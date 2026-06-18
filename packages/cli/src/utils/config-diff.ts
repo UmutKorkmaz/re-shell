@@ -192,7 +192,7 @@ export class ConfigDiffer {
   }
 
   // Apply a diff to a configuration
-  async applyDiff(base: any, diff: ConfigDiff): Promise<any> {
+  async applyDiff(base: any, diff: ConfigDiff): Promise<unknown> {
     const result = JSON.parse(JSON.stringify(base)); // Deep clone
 
     for (const change of diff.changes) {

@@ -376,7 +376,7 @@ class InfrastructureSecurityManager extends EventEmitter {
     return [finding];
   }
 
-  async remediateFinding(findingId: string): Promise<any> {
+  async remediateFinding(findingId: string): Promise<unknown> {
     return { findingId, status: 'completed' };
   }
 }

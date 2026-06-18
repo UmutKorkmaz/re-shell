@@ -515,7 +515,7 @@ class ThreatDetectionManager extends EventEmitter {
     return model;
   }
 
-  async respondToThreat(threatId: string, action: string): Promise<any> {
+  async respondToThreat(threatId: string, action: string): Promise<unknown> {
     const threat = this.threats.get(threatId);
     if (!threat) throw new Error('Threat not found');
 
