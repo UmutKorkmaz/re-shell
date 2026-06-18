@@ -229,12 +229,17 @@ process.on('SIGTERM', async () => {
 // Start server
 const startServer = async () => {
   try {
-    // Connect to database
+    // Connect to database (warns + continues if unreachable)
     await connectDatabase();
-    
-    // Connect to Redis
-    await redisClient.connect();
-    
+
+    // Connect to Redis — non-fatal so a fresh scaffold without Redis boots
+    try {
+      await redisClient.connect();
+      logger.info('Redis connected successfully');
+    } catch (err) {
+      logger.warn('Redis connection failed — starting without Redis. Set REDIS_URL if you need caching/sessions.');
+    }
+
     httpServer.listen(PORT, () => {
       logger.info(\`🚀 Server is running on port \${PORT}\`);
       logger.info(\`📚 API Documentation: http://localhost:\${PORT}/api-docs\`);
