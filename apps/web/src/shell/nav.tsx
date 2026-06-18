@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Bot,
+  Boxes,
   GaugeCircle,
   GitBranch,
   HeartPulse,
@@ -50,6 +51,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
       { id: 'jobs', icon: Workflow },
       { id: 'health', icon: HeartPulse },
       { id: 'scorecard', icon: GaugeCircle },
+      { id: 'catalog', icon: Boxes },
     ],
   },
   {
