@@ -6,12 +6,10 @@ import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { 
   createDocumentationGenerator,
-  PluginCommandDocumentationGenerator,
   DocumentationFormat,
   HelpDisplayMode,
   DocumentationGenerationOptions,
   HelpConfiguration,
-  estimateReadingTime,
   formatDocumentationSize
 } from '../utils/plugin-command-docs';
 import { createPluginCommandRegistry } from '../utils/plugin-command-registry';

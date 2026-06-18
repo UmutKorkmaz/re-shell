@@ -9,7 +9,6 @@ import {
   RegisteredCommand,
   PluginCommandArgument,
   PluginCommandOption,
-  PluginCommandContext
 } from './plugin-command-registry';
 
 // Documentation formats

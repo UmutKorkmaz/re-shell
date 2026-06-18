@@ -1,8 +1,8 @@
 import chalk from 'chalk';
+
 import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { 
-  PluginRegistry, 
   PluginDiscoveryOptions,
   PluginRegistration,
   createPluginRegistry 

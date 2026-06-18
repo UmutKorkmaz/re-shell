@@ -2,6 +2,9 @@
 // Generated at: 2026-01-12T23:02:00.000Z
 
 
+
+
+
 interface GitOpsConfig {
   projectName: string;
   platform: 'argocd' | 'flux';

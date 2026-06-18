@@ -1,5 +1,6 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
+
 import { configManager, EnvironmentConfig } from './config';
 import { ValidationError } from './error-handler';
 

@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T10:16:00.000Z
 
 
+
+
+
 interface IngressRule {
   host: string;
   paths: Array<{

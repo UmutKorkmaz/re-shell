@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T11:02:00.000Z
 
 
+
+
+
 type RecoveryStrategy = 'active-active' | 'active-passive' | 'pilot-light';
 type BackupType = 'snapshot' | 'continuous' | 'incremental' | 'differential';
 type FailoverTrigger = 'manual' | 'automatic' | 'scheduled';

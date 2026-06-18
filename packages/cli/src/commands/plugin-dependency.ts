@@ -3,8 +3,6 @@ import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { 
   createDependencyResolver,
-  PluginDependencyResolver,
-  ResolutionOptions,
   ResolutionResult,
   DependencyConflict,
   InstallationStep

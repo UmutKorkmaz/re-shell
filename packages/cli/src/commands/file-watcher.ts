@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
+
 import * as fs from 'fs-extra';
 import {
   FileWatcher,
@@ -7,8 +8,6 @@ import {
   PropagationEvent,
   WatchOptions,
   ChangePropagationRule,
-  WatcherStats,
-  createFileWatcher,
   startWorkspaceWatcher
 } from '../utils/file-watcher';
 import { ProgressSpinner } from '../utils/spinner';

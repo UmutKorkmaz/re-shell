@@ -2,6 +2,9 @@
 // Generated at: 2026-01-12T23:22:00.000Z
 
 
+
+
+
 interface ResourceQuota {
   name: string;
   namespace: string;

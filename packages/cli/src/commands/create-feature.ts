@@ -2,7 +2,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 import { findMonorepoRoot } from '../utils/monorepo';
-import { getBackendTemplate, listBackendTemplates } from '../templates/backend/index';
+import { getBackendTemplate, listBackendTemplates} from '../templates/backend/index';
 
 interface CreateFeatureOptions {
   spinner?: any;
@@ -193,7 +193,7 @@ async function generateBackendFeature(
 
   // Generate files from backend template
   for (const [filePath, content] of Object.entries(backendTemplate.files)) {
-    const processedContent = processTemplateContent(content, context);
+    const processedContent = processTemplateContent(String(content), context);
     const fullPath = path.join(featurePath, filePath);
     await fs.ensureDir(path.dirname(fullPath));
     await fs.writeFile(fullPath, processedContent);

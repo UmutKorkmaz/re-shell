@@ -3,6 +3,7 @@ import prompts from 'prompts';
 import { migrationManager, MigrationResult } from '../utils/migration';
 import { ProgressSpinner } from '../utils/spinner';
 
+
 export interface MigrationCommandOptions {
   global?: boolean;
   project?: boolean;

@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T10:25:00.000Z
 
 
+
+
+
 interface ClusterUpgradeConfig {
   currentVersion: string;
   targetVersion: string;

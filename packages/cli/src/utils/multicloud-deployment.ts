@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T10:43:00.000Z
 
 
+
+
+
 interface CloudProvider {
   name: 'aws' | 'azure' | 'gcp';
   enabled: boolean;

@@ -2,6 +2,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as chokidar from 'chokidar';
 import { EventEmitter } from 'events';
+
 import { ValidationError } from './error-handler';
 import { WorkspaceDefinition, WorkspaceEntry } from './workspace-schema';
 import { EventDebouncer, DebouncedEvent, BatchedEvents, createEventDebouncer } from './event-debouncer';
@@ -10,7 +11,6 @@ import {
   PlatformCapabilities, 
   PlatformWatchOptions, 
   WatcherFallbackOptions,
-  WatcherHealthStatus,
   createPlatformWatcher,
   getPlatformCapabilities as getPlatformCaps,
   testPlatformWatching as testPlatformWatchingInternal

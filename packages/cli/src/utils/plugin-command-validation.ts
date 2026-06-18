@@ -2,11 +2,7 @@ import { EventEmitter } from 'events';
 import chalk from 'chalk';
 import { ValidationError } from './error-handler';
 import { 
-  PluginCommandDefinition, 
-  PluginCommandArgument, 
-  PluginCommandOption,
   PluginCommandContext,
-  RegisteredCommand
 } from './plugin-command-registry';
 
 // Validation rule types

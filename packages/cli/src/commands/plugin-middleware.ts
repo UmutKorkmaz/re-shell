@@ -3,11 +3,11 @@ import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { 
   createMiddlewareChainManager,
-  MiddlewareChainManager,
   MiddlewareType,
   MiddlewareRegistration,
   builtinMiddleware
 } from '../utils/plugin-command-middleware';
+
 
 interface MiddlewareCommandOptions {
   verbose?: boolean;

@@ -2,6 +2,9 @@
 // Generated at: 2026-01-12T23:16:00.000Z
 
 
+
+
+
 interface CustomResourceDefinition {
   metadata: {
     name: string;

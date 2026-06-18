@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 
+
 export interface DebouncedEvent {
   id: string;
   type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';

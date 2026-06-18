@@ -9,7 +9,6 @@ import {
   saveWorkspaceDefinition,
   createDefaultWorkspaceDefinition,
   ValidationResult,
-  WorkspaceEntry
 } from '../utils/workspace-schema';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';

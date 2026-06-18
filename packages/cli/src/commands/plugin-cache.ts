@@ -4,10 +4,8 @@ import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import {
   createCommandCacheManager,
-  PluginCommandCacheManager,
   CacheConfiguration,
   CacheStorageStrategy,
-  CacheInvalidationStrategy,
   PerformanceMonitoringLevel,
   formatCacheSize,
   formatCacheHitRate,

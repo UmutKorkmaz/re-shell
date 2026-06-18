@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as yaml from 'yaml';
-import { configManager } from './config';
+import { configManager} from './config';
 import { ValidationError } from './error-handler';
 import semver from 'semver';
 

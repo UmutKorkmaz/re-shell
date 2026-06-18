@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
-import { analyzeProject } from './framework-detection';
+import { analyzeProject} from './framework-detection';
 
 /**
  * Dependency Injection and Service Auto-Wiring

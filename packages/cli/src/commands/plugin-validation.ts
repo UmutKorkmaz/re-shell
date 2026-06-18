@@ -4,10 +4,8 @@ import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import {
   createCommandValidator,
-  PluginCommandValidator,
   ValidationSchema,
   ValidationRule,
-  ParameterTransformation,
   ValidationRuleType,
   TransformationType,
   ValidationSeverity,

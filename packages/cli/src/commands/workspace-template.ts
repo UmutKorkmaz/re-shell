@@ -4,7 +4,6 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as yaml from 'yaml';
 import {
-  WorkspaceTemplateManager,
   WorkspaceTemplate,
   TemplateVariable,
   TemplateContext,

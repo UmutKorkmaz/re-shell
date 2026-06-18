@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T11:00:00.000Z
 
 
+
+
+
 type IaCProvider = 'terraform' | 'pulumi';
 type StateBackend = 's3' | 'azurerm' | 'gcs' | 'local' | 'remote';
 

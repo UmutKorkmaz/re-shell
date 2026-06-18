@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+
 import { ValidationError } from './error-handler';
 import { PluginCommandContext, PluginCommandMiddleware } from './plugin-command-registry';
 

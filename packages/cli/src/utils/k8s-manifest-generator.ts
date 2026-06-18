@@ -2,6 +2,9 @@
 // Generated at: 2026-01-12T22:57:00.000Z
 
 
+
+
+
 interface K8sResource {
   apiVersion: string;
   kind: string;

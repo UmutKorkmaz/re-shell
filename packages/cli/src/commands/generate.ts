@@ -592,7 +592,7 @@ async function generateBackend(monorepoRoot: string, name: string, options: Gene
     if (template) {
       // Generate files from template
       for (const [filePath, content] of Object.entries(template.files)) {
-        const processedContent = content
+        const processedContent = String(content)
           .replace(/{{serviceName}}/g, name)
           .replace(/{{projectName}}/g, name)
           .replace(/{{PORT}}/g, options.port || '8000');

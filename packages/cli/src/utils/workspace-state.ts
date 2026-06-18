@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { ValidationError } from './error-handler';
 
+
 // Workspace state interfaces
 export interface WorkspaceState {
   name: string;

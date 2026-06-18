@@ -5,7 +5,7 @@ import { Command } from 'commander';
 import { ValidationError } from './error-handler';
 import { PluginRegistration } from './plugin-system';
 import { createMiddlewareChainManager, MiddlewareType } from './plugin-command-middleware';
-import { createConflictResolver } from './plugin-command-conflicts';
+import { createConflictResolver} from './plugin-command-conflicts';
 
 // Command definition from plugin
 export interface PluginCommandDefinition {

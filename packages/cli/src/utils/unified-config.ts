@@ -8,13 +8,10 @@ import * as path from 'path';
 import * as os from 'os';
 import * as yaml from 'yaml';
 import { EventEmitter } from 'events';
+
 import {
   GlobalConfig,
   ProjectConfig,
-  WorkspaceConfig,
-  EnvironmentConfig,
-  DEFAULT_GLOBAL_CONFIG,
-  DEFAULT_PROJECT_CONFIG,
 } from './config';
 
 // Configuration sync status

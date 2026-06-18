@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T11:05:00.000Z
 
 
+
+
+
 type CostOptimizationType = 'rightsizing' | 'reserved-instances' | 'spot-instances' | 'savings-plans' | 'schedules';
 type AlertSeverity = 'info' | 'warning' | 'critical';
 

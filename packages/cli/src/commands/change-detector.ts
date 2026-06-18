@@ -3,13 +3,9 @@ import prompts from 'prompts';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import {
-  ChangeDetector,
-  ChangeDetectionResult,
   ChangeDetectionOptions,
-  FileChangeEvent,
   createChangeDetector,
   detectChanges,
-  hasFileChanged
 } from '../utils/change-detector';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';

@@ -6,6 +6,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
+
 // Language server configuration
 export interface LanguageServerConfig {
   language: string;

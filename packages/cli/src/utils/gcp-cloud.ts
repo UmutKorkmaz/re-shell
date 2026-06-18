@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T10:38:00.000Z
 
 
+
+
+
 interface GKEClusterConfig {
   clusterName: string;
   region: string;

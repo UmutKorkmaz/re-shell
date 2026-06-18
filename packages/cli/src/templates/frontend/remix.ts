@@ -8,7 +8,7 @@ export class RemixTemplate extends BaseTemplate {
 
   async generateFiles(): Promise<TemplateFile[]> {
     const files: TemplateFile[] = [];
-    const { hasTypeScript } = this.context;
+
 
     // Package.json
     files.push({

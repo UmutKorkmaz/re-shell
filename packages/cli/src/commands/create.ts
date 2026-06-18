@@ -13,7 +13,6 @@ import {
   getFrameworkChoicesForLanguage,
   getPopularBackendFrameworks,
   getRecommendedFrontends,
-  getRecommendedBackends,
   validateFrameworkCompatibility,
   validateBackendFramework,
   validateFrontendFramework,

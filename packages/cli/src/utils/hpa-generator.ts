@@ -2,6 +2,9 @@
 // Generated at: 2026-01-12T23:09:00.000Z
 
 
+
+
+
 interface Metric {
   name: string;
   type: 'Resource' | 'Pods' | 'Object' | 'External';

@@ -1,5 +1,9 @@
+
+
 import { EventEmitter } from 'events';
+
 import semver from 'semver';
+
 import { PluginManifest, PluginRegistration } from './plugin-system';
 
 // Plugin dependency types

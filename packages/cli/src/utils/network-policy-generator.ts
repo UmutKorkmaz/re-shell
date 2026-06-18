@@ -2,6 +2,9 @@
 // Generated at: 2026-01-12T23:12:00.000Z
 
 
+
+
+
 interface NetworkPolicyRule {
   direction: 'Ingress' | 'Egress';
   ports?: Array<{

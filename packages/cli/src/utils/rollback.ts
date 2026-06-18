@@ -2,6 +2,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+
 /**
  * Rollback support for failed generations with cleanup and recovery
  * Provides transaction-like safety for project generation operations

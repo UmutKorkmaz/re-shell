@@ -1,8 +1,9 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
-import { validateConfigFile, validateGlobalConfig, validateProjectConfig } from '../utils/validation';
+import { validateConfigFile, validateGlobalConfig, validateProjectConfig} from '../utils/validation';
 import { configManager } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
+
 
 export interface ValidateCommandOptions {
   global?: boolean;

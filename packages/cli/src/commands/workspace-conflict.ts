@@ -1,12 +1,10 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
+
 import * as fs from 'fs-extra';
 import {
-  WorkspaceConflictManager,
   WorkspaceConflict,
-  ConflictResolution,
   ConflictDetectionOptions,
-  ConflictResolutionResult,
   ConflictSeverity,
   ConflictType,
   createWorkspaceConflictManager,

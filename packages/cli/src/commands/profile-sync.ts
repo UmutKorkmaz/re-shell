@@ -12,7 +12,7 @@ import { EnvironmentProfile, loadProfileConfig, saveProfileConfig } from './prof
  */
 
 const SYNC_DIR = '.re-shell/sync';
-const SYNC_LOCK_FILE = '.re-shell/sync.lock';
+
 const SYNC_METADATA_FILE = '.re-shell/sync-metadata.json';
 
 export interface SyncMetadata {

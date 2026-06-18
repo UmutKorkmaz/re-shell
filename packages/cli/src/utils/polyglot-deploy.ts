@@ -10,7 +10,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import chalk from 'chalk';
 import { ProgressSpinner } from './spinner';
-import { ServiceInfo, detectFramework } from './polyglot-build';
+import { ServiceInfo, detectFramework} from './polyglot-build';
 
 const execAsync = promisify(exec);
 

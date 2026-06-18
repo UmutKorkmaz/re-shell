@@ -1,16 +1,14 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
+
 import * as fs from 'fs-extra';
 import {
-  WorkspaceBackupManager,
-  BackupMetadata,
   BackupOptions,
   RestoreOptions,
   createWorkspaceBackupManager,
-  createQuickBackup,
   compareBackups
 } from '../utils/workspace-backup';
-import { ProgressSpinner } from '../utils/spinner';
+import { ProgressSpinner} from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
 export interface WorkspaceBackupCommandOptions {

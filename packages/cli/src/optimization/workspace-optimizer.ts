@@ -3,6 +3,7 @@
 
 import { dependencyGraphEngine } from '../graph/dependency-graph-engine';
 
+
 export interface OptimizationRecommendation {
   id: string;
   type: 'performance' | 'structure' | 'security' | 'maintainability' | 'scalability';

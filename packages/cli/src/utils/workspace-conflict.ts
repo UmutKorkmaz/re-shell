@@ -1,11 +1,10 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as yaml from 'yaml';
+
 import { ValidationError } from './error-handler';
 import {
   WorkspaceDefinition,
-  WorkspaceEntry,
-  WorkspaceDependency,
   loadWorkspaceDefinition as loadValidatedWorkspaceDefinition,
 } from './workspace-schema';
 

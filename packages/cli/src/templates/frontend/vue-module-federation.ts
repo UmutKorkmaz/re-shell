@@ -8,7 +8,7 @@ export class VueModuleFederationTemplate extends BaseTemplate {
 
   async generateFiles(): Promise<TemplateFile[]> {
     const files: TemplateFile[] = [];
-    const { hasTypeScript, normalizedName, name } = this.context;
+    const { hasTypeScript } = this.context;
     const ext = hasTypeScript ? 'ts' : 'js';
 
     // Package.json with Module Federation

@@ -4,7 +4,6 @@ import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { 
   createConflictResolver,
-  CommandConflictResolver,
   ConflictResolutionStrategy,
   ConflictType,
   ConflictSeverity,

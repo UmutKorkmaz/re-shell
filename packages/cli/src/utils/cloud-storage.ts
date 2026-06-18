@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T10:56:00.000Z
 
 
+
+
+
 type StorageClass = 'STANDARD' | 'INFREQUENT_ACCESS' | 'GLACIER' | 'DEEP_ARCHIVE' | 'ONEZONE_IA' | 'INTELLIGENT_TIERING';
 type AccessTier = 'HOT' | 'COOL' | 'ARCHIVE';
 

@@ -4,7 +4,6 @@ import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import {
   createPluginCommandRegistry,
-  PluginCommandRegistry,
   RegisteredCommand,
   PluginCommandDefinition
 } from '../utils/plugin-command-registry';

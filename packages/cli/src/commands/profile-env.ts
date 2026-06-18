@@ -12,7 +12,7 @@ import prompts from 'prompts';
 const ENCRYPTION_KEY_LENGTH = 32; // 256 bits
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 const ENV_VAULT_PATH = '.re-shell/env-vault.json';
-const ENV_KEY_PATH = '.re-shell/.env-key';
+
 
 export interface EncryptedEnvVar {
   name: string;

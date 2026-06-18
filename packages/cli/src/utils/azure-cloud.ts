@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T10:35:00.000Z
 
 
+
+
+
 interface AKSClusterConfig {
   clusterName: string;
   resourceGroupName: string;

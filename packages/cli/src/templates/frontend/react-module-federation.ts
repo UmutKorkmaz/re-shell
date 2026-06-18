@@ -8,7 +8,7 @@ export class ReactModuleFederationTemplate extends BaseTemplate {
 
   async generateFiles(): Promise<TemplateFile[]> {
     const files: TemplateFile[] = [];
-    const { hasTypeScript, normalizedName, name } = this.context;
+    const { hasTypeScript } = this.context;
 
     // Package.json with Module Federation dependencies
     files.push({

@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T10:26:00.000Z
 
 
+
+
+
 interface EKSClusterConfig {
   clusterName: string;
   version: string;

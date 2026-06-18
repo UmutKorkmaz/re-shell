@@ -3,11 +3,9 @@ import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { 
   createSecurityValidator,
-  PluginSecurityValidator,
   SecurityScanResult,
   SecurityLevel,
   SecurityViolation,
-  SecurityPolicy,
   getDefaultSecurityPolicy
 } from '../utils/plugin-security';
 import { createPluginRegistry } from '../utils/plugin-system';

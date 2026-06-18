@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T10:24:00.000Z
 
 
+
+
+
 interface SecurityProfile {
   name: string;
   level: 'privileged' | 'baseline' | 'restricted';

@@ -2,6 +2,9 @@
 // Generated at: 2026-01-13T10:48:00.000Z
 
 
+
+
+
 type DatabaseEngine = 'postgres' | 'mysql' | 'mongodb' | 'mariadb' | 'sqlserver';
 
 interface AWSRDSConfig {

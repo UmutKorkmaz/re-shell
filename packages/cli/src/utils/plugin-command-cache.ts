@@ -2,9 +2,9 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { EventEmitter } from 'events';
+
+
 import { 
-  PluginCommandDefinition, 
-  RegisteredCommand,
   PluginCommandContext
 } from './plugin-command-registry';
 
