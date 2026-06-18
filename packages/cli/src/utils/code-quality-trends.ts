@@ -1,6 +1,8 @@
 // Auto-generated Code Quality Trends Utility
 // Generated at: 2026-01-13T14:00:00.000Z
 
+import chalk from 'chalk';
+
 type QualityMetric = 'complexity' | 'duplication' | 'test-coverage' | 'code-smell' | 'security' | 'maintainability';
 type DebtCategory = 'bug-risk' | 'code-smell' | 'documentation' | 'testing' | 'architecture' | 'performance';
 type TrendDirection = 'improving' | 'declining' | 'stable';
@@ -52,17 +54,17 @@ interface QualityTrendConfig {
 }
 
 export function displayConfig(config: QualityTrendConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📊 Code Quality Trends and Technical Debt Tracking');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Quality Metrics:', config.metrics.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Technical Debt Items:', config.technicalDebt.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Recommendations:', config.recommendations.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Automated Analysis:', config.enableAutomatedAnalysis ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Trend Prediction:', config.enableTrendPrediction ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Debt Prioritization:', config.enableDebtPrioritization ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📊 Code Quality Trends and Technical Debt Tracking'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Quality Metrics:'), config.metrics.length);
+  console.log(chalk.yellow('Technical Debt Items:'), config.technicalDebt.length);
+  console.log(chalk.yellow('Recommendations:'), config.recommendations.length);
+  console.log(chalk.yellow('Automated Analysis:'), config.enableAutomatedAnalysis ? 'Yes' : 'No');
+  console.log(chalk.yellow('Trend Prediction:'), config.enableTrendPrediction ? 'Yes' : 'No');
+  console.log(chalk.yellow('Debt Prioritization:'), config.enableDebtPrioritization ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateQualityTrendMD(config: QualityTrendConfig): string {

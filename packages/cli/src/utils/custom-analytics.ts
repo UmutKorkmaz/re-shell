@@ -1,6 +1,8 @@
 // Auto-generated Custom Analytics Utility
 // Generated at: 2026-01-13T14:10:00.000Z
 
+import chalk from 'chalk';
+
 type ReportType = 'executive' | 'operational' | 'financial' | 'resource' | 'performance';
 type ChartFormat = 'table' | 'chart' | 'kpi' | 'heatmap' | 'funnel';
 type ExportFormat = 'pdf' | 'excel' | 'csv' | 'json' | 'html';
@@ -54,18 +56,18 @@ interface CustomAnalyticsConfig {
 }
 
 export function displayConfig(config: CustomAnalyticsConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📊 Custom Analytics for Management Insights');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Reports:', config.reports.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Dashboards:', config.dashboards.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Drill-down Level:', config.drillDown.level);
-  console.log('\x1b[33m%s\x1b[0m', 'Drill-down Depth:', config.drillDown.maxDepth);
-  console.log('\x1b[33m%s\x1b[0m', 'Scheduled Reports:', config.enableScheduledReports ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Real-time Updates:', config.enableRealTimeUpdates ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Data Export:', config.enableDataExport ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📊 Custom Analytics for Management Insights'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Reports:'), config.reports.length);
+  console.log(chalk.yellow('Dashboards:'), config.dashboards.length);
+  console.log(chalk.yellow('Drill-down Level:'), config.drillDown.level);
+  console.log(chalk.yellow('Drill-down Depth:'), config.drillDown.maxDepth);
+  console.log(chalk.yellow('Scheduled Reports:'), config.enableScheduledReports ? 'Yes' : 'No');
+  console.log(chalk.yellow('Real-time Updates:'), config.enableRealTimeUpdates ? 'Yes' : 'No');
+  console.log(chalk.yellow('Data Export:'), config.enableDataExport ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateCustomAnalyticsMD(config: CustomAnalyticsConfig): string {

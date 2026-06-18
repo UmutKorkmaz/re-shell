@@ -1,6 +1,7 @@
 // Auto-generated Cloud Storage Integration and Data Pipeline Utility
 // Generated at: 2026-01-13T10:56:00.000Z
 
+import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -136,16 +137,16 @@ interface CloudStorageConfig {
 }
 
 export function displayConfig(config: CloudStorageConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Cloud Storage Integration and Data Pipeline Automation with Governance');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Data Pipeline:', config.dataPipeline?.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Data Classification:', config.governance.dataClassification.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Retention Policies:', config.governance.retentionPolicies.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Audit Logging:', config.governance.auditLogging.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Compliance Standards:', config.governance.compliance.standards.join(', '));
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Cloud Storage Integration and Data Pipeline Automation with Governance'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Data Pipeline:'), config.dataPipeline?.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Data Classification:'), config.governance.dataClassification.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Retention Policies:'), config.governance.retentionPolicies.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Audit Logging:'), config.governance.auditLogging.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Compliance Standards:'), config.governance.compliance.standards.join(', '));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateCloudStorageMD(config: CloudStorageConfig): string {

@@ -1,6 +1,7 @@
 // Auto-generated Cluster Management Utility
 // Generated at: 2026-01-13T10:25:00.000Z
 
+import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -41,18 +42,18 @@ interface ClusterManagerConfig {
 }
 
 export function displayConfig(config: ClusterManagerConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Kubernetes Cluster Management and Upgrade Automation');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Context:', config.context);
-  console.log('\x1b[33m%s\x1b[0m', 'Namespace:', config.namespace);
-  console.log('\x1b[33m%s\x1b[0m', 'Current Version:', config.upgradeConfig.currentVersion);
-  console.log('\x1b[33m%s\x1b[0m', 'Target Version:', config.upgradeConfig.targetVersion);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Approve:', config.upgradeConfig.autoApprove ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Drain Nodes:', config.upgradeConfig.drainNodes ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Dry Run:', config.upgradeConfig.dryRun ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Safety Checks:', config.safetyChecks.length);
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Kubernetes Cluster Management and Upgrade Automation'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Context:'), config.context);
+  console.log(chalk.yellow('Namespace:'), config.namespace);
+  console.log(chalk.yellow('Current Version:'), config.upgradeConfig.currentVersion);
+  console.log(chalk.yellow('Target Version:'), config.upgradeConfig.targetVersion);
+  console.log(chalk.yellow('Auto Approve:'), config.upgradeConfig.autoApprove ? 'Yes' : 'No');
+  console.log(chalk.yellow('Drain Nodes:'), config.upgradeConfig.drainNodes ? 'Yes' : 'No');
+  console.log(chalk.yellow('Dry Run:'), config.upgradeConfig.dryRun ? 'Yes' : 'No');
+  console.log(chalk.yellow('Safety Checks:'), config.safetyChecks.length);
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateClusterManagerMD(config: ClusterManagerConfig): string {

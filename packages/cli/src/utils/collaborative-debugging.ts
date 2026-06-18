@@ -1,6 +1,8 @@
 // Auto-generated Collaborative Debugging Utility
 // Generated at: 2026-01-13T13:10:00.000Z
 
+import chalk from 'chalk';
+
 type BreakpointType = 'line' | 'conditional' | 'logpoint';
 type DebuggerProtocol = 'chrome-devtools' | 'debug-adapter-protocol' | 'gdb' | 'pdb';
 type SessionMode = 'lead' | 'follow' | 'observe';
@@ -45,21 +47,21 @@ interface CollaborativeDebuggingConfig {
 }
 
 export function displayConfig(config: CollaborativeDebuggingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🐛 Collaborative Debugging Across Multiple Services');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Protocol:', config.protocol);
-  console.log('\x1b[33m%s\x1b[0m', 'Breakpoints:', config.breakpoints.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Sessions:', config.sessions.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Max Participants:', config.collaboration.maxParticipants);
-  console.log('\x1b[33m%s\x1b[0m', 'Shared Breakpoints:', config.collaboration.sharedBreakpoints ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Shared Console:', config.collaboration.sharedConsole ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Variable Inspection:', config.collaboration.variableInspection ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Call Stack Sharing:', config.collaboration.callStackSharing ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Remote Debugging:', config.enableRemoteDebugging ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Hot Reload:', config.enableHotReload ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🐛 Collaborative Debugging Across Multiple Services'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Protocol:'), config.protocol);
+  console.log(chalk.yellow('Breakpoints:'), config.breakpoints.length);
+  console.log(chalk.yellow('Sessions:'), config.sessions.length);
+  console.log(chalk.yellow('Max Participants:'), config.collaboration.maxParticipants);
+  console.log(chalk.yellow('Shared Breakpoints:'), config.collaboration.sharedBreakpoints ? 'Yes' : 'No');
+  console.log(chalk.yellow('Shared Console:'), config.collaboration.sharedConsole ? 'Yes' : 'No');
+  console.log(chalk.yellow('Variable Inspection:'), config.collaboration.variableInspection ? 'Yes' : 'No');
+  console.log(chalk.yellow('Call Stack Sharing:'), config.collaboration.callStackSharing ? 'Yes' : 'No');
+  console.log(chalk.yellow('Remote Debugging:'), config.enableRemoteDebugging ? 'Yes' : 'No');
+  console.log(chalk.yellow('Hot Reload:'), config.enableHotReload ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateCollaborativeDebuggingMD(config: CollaborativeDebuggingConfig): string {

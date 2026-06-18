@@ -1,6 +1,8 @@
 // Auto-generated Collaborative Testing Utility
 // Generated at: 2026-01-13T13:35:00.000Z
 
+import chalk from 'chalk';
+
 type TestFramework = 'jest' | 'mocha' | 'jasmine' | 'pytest' | 'unittest' | 'cypress' | 'playwright' | 'selenium';
 type TestType = 'unit' | 'integration' | 'e2e' | 'performance' | 'security' | 'accessibility';
 type EnvironmentType = 'local' | 'staging' | 'production' | 'dedicated' | 'ephemeral';
@@ -56,20 +58,20 @@ interface CollaborativeTestingConfig {
 }
 
 export function displayConfig(config: CollaborativeTestingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🧪 Collaborative Testing and Quality Assurance');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Environments:', config.environments.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Test Suites:', config.suites.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Test Cases:', config.tests.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Min Coverage:', config.quality.minCoverage + '%');
-  console.log('\x1b[33m%s\x1b[0m', 'Max Flakiness:', config.quality.maxFlakiness + '%');
-  console.log('\x1b[33m%s\x1b[0m', 'Execution Mode:', config.execution);
-  console.log('\x1b[33m%s\x1b[0m', 'Real-time Collab:', config.enableRealTimeCollaboration ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Shared Fixtures:', config.enableSharedFixtures ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Analytics:', config.enableAnalytics ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🧪 Collaborative Testing and Quality Assurance'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Environments:'), config.environments.length);
+  console.log(chalk.yellow('Test Suites:'), config.suites.length);
+  console.log(chalk.yellow('Test Cases:'), config.tests.length);
+  console.log(chalk.yellow('Min Coverage:'), config.quality.minCoverage + '%');
+  console.log(chalk.yellow('Max Flakiness:'), config.quality.maxFlakiness + '%');
+  console.log(chalk.yellow('Execution Mode:'), config.execution);
+  console.log(chalk.yellow('Real-time Collab:'), config.enableRealTimeCollaboration ? 'Yes' : 'No');
+  console.log(chalk.yellow('Shared Fixtures:'), config.enableSharedFixtures ? 'Yes' : 'No');
+  console.log(chalk.yellow('Analytics:'), config.enableAnalytics ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateCollaborativeTestingMD(config: CollaborativeTestingConfig): string {

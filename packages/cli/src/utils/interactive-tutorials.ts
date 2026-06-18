@@ -1,6 +1,8 @@
 // Auto-generated Interactive Tutorials and Guided Learning Paths Utility
 // Generated at: 2026-01-13T14:30:00.000Z
 
+import chalk from 'chalk';
+
 type DifficultyLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
 type ContentType = 'text' | 'video' | 'interactive' | 'quiz' | 'exercise' | 'project';
 type ProgressStatus = 'not-started' | 'in-progress' | 'completed' | 'skipped' | 'failed';
@@ -123,18 +125,18 @@ interface InteractiveTutorialsConfig {
 }
 
 export function displayConfig(config: InteractiveTutorialsConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📚 Interactive Tutorials and Guided Learning Paths');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Learning Paths:', config.learningPaths.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Learner Progress:', config.learnerProgress.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Recommendations:', config.recommendations.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Progress Tracking:', config.enableProgressTracking ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Personalized Recommendations:', config.enablePersonalizedRecommendations ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Certificates:', config.enableCertificates ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Passing Score Threshold:', config.passingScoreThreshold + '%');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📚 Interactive Tutorials and Guided Learning Paths'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Learning Paths:'), config.learningPaths.length);
+  console.log(chalk.yellow('Learner Progress:'), config.learnerProgress.length);
+  console.log(chalk.yellow('Recommendations:'), config.recommendations.length);
+  console.log(chalk.yellow('Progress Tracking:'), config.enableProgressTracking ? 'Yes' : 'No');
+  console.log(chalk.yellow('Personalized Recommendations:'), config.enablePersonalizedRecommendations ? 'Yes' : 'No');
+  console.log(chalk.yellow('Certificates:'), config.enableCertificates ? 'Yes' : 'No');
+  console.log(chalk.yellow('Passing Score Threshold:'), config.passingScoreThreshold + '%');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateInteractiveTutorialsMD(config: InteractiveTutorialsConfig): string {

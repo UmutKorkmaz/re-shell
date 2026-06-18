@@ -1,6 +1,7 @@
 // Auto-generated Infrastructure as Code Utility
 // Generated at: 2026-01-13T11:00:00.000Z
 
+import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -67,18 +68,18 @@ interface IaCConfig {
 }
 
 export function displayConfig(config: IaCConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Infrastructure as Code with Terraform/Pulumi and State Management');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'IaC Provider:', config.provider);
-  console.log('\x1b[33m%s\x1b[0m', 'State Backend:', config.stateManagement.backend);
-  console.log('\x1b[33m%s\x1b[0m', 'State Encryption:', config.stateManagement.encryption ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'State Versioning:', config.stateManagement.versioning ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Modules:', config.modules.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Workspaces:', config.workspaces.environments.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Validation:', config.enableValidation ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Drift Detection:', config.enableDriftDetection ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Infrastructure as Code with Terraform/Pulumi and State Management'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('IaC Provider:'), config.provider);
+  console.log(chalk.yellow('State Backend:'), config.stateManagement.backend);
+  console.log(chalk.yellow('State Encryption:'), config.stateManagement.encryption ? 'Yes' : 'No');
+  console.log(chalk.yellow('State Versioning:'), config.stateManagement.versioning ? 'Yes' : 'No');
+  console.log(chalk.yellow('Modules:'), config.modules.length);
+  console.log(chalk.yellow('Workspaces:'), config.workspaces.environments.join(', '));
+  console.log(chalk.yellow('Validation:'), config.enableValidation ? 'Yes' : 'No');
+  console.log(chalk.yellow('Drift Detection:'), config.enableDriftDetection ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateIaCMD(config: IaCConfig): string {

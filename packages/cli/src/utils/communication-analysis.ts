@@ -1,6 +1,8 @@
 // Auto-generated Team Communication Pattern Analysis Utility
 // Generated at: 2026-01-13T14:30:00.000Z
 
+import chalk from 'chalk';
+
 type ChannelType = 'slack' | 'email' | 'jira' | 'github' | 'confluence' | 'teams' | 'zoom';
 type CommunicationMetric = 'response-time' | 'participation' | 'clarity' | 'sentiment' | 'frequency';
 type InsightType = 'bottleneck' | 'best-practice' | 'gap' | 'recommendation';
@@ -56,16 +58,16 @@ interface CommunicationAnalysisConfig {
 }
 
 export function displayConfig(config: CommunicationAnalysisConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '💬 Team Communication Pattern Analysis and Optimization');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Communication Patterns:', config.patterns.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Insights:', config.insights.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Real-time Analysis:', config.enableRealTimeAnalysis ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Sentiment Analysis:', config.enableSentimentAnalysis ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Optimization:', config.enableAutoOptimization ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('💬 Team Communication Pattern Analysis and Optimization'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Communication Patterns:'), config.patterns.length);
+  console.log(chalk.yellow('Insights:'), config.insights.length);
+  console.log(chalk.yellow('Real-time Analysis:'), config.enableRealTimeAnalysis ? 'Yes' : 'No');
+  console.log(chalk.yellow('Sentiment Analysis:'), config.enableSentimentAnalysis ? 'Yes' : 'No');
+  console.log(chalk.yellow('Auto Optimization:'), config.enableAutoOptimization ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateCommunicationAnalysisMD(config: CommunicationAnalysisConfig): string {

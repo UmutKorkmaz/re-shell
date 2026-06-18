@@ -1,6 +1,8 @@
 // Auto-generated Incident Response Utility
 // Generated at: 2026-01-13T13:50:00.000Z
 
+import chalk from 'chalk';
+
 type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
 type IncidentStatus = 'detected' | 'investigating' | 'mitigating' | 'resolved' | 'postmortem';
 type NotificationChannel = 'slack' | 'email' | 'sms' | 'pagerduty' | 'webhook' | 'teams';
@@ -62,18 +64,18 @@ interface IncidentResponseConfig {
 }
 
 export function displayConfig(config: IncidentResponseConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🚨 Collaborative Incident Response');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Incidents:', config.incidents.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Timeline Entries:', config.timeline.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Communication Rules:', config.communicationRules.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Escalation Policies:', config.escalationPolicies.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Detection:', config.enableAutoDetection ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Escalation:', config.enableAutoEscalation ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Postmortem:', config.enablePostmortem ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🚨 Collaborative Incident Response'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Incidents:'), config.incidents.length);
+  console.log(chalk.yellow('Timeline Entries:'), config.timeline.length);
+  console.log(chalk.yellow('Communication Rules:'), config.communicationRules.length);
+  console.log(chalk.yellow('Escalation Policies:'), config.escalationPolicies.length);
+  console.log(chalk.yellow('Auto Detection:'), config.enableAutoDetection ? 'Yes' : 'No');
+  console.log(chalk.yellow('Auto Escalation:'), config.enableAutoEscalation ? 'Yes' : 'No');
+  console.log(chalk.yellow('Postmortem:'), config.enablePostmortem ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateIncidentResponseMD(config: IncidentResponseConfig): string {

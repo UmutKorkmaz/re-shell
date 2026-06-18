@@ -1,6 +1,8 @@
 // Auto-generated Code Quality Coaching and Automated Feedback Utility
 // Generated at: 2026-01-13T14:30:00.000Z
 
+import chalk from 'chalk';
+
 type QualityMetric = 'complexity' | 'maintainability' | 'test-coverage' | 'documentation' | 'security' | 'performance';
 type SeverityLevel = 'info' | 'minor' | 'major' | 'critical' | 'blocker';
 type CoachingStyle = 'direct' | 'collaborative' | 'socratic' | 'demonstration';
@@ -96,19 +98,19 @@ interface CodeQualityCoachingConfig {
 }
 
 export function displayConfig(config: CodeQualityCoachingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '💻 Code Quality Coaching and Automated Feedback');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Developer Profiles:', config.profiles.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Recommendations:', config.recommendations.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Coaching Sessions:', config.sessions.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Automated Analysis:', config.enableAutomatedAnalysis ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Personalized Coaching:', config.enablePersonalizedCoaching ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Progress Tracking:', config.enableProgressTracking ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Coaching Style:', config.defaultCoachingStyle);
-  console.log('\x1b[33m%s\x1b[0m', 'Severity Threshold:', config.severityThreshold);
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('💻 Code Quality Coaching and Automated Feedback'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Developer Profiles:'), config.profiles.length);
+  console.log(chalk.yellow('Recommendations:'), config.recommendations.length);
+  console.log(chalk.yellow('Coaching Sessions:'), config.sessions.length);
+  console.log(chalk.yellow('Automated Analysis:'), config.enableAutomatedAnalysis ? 'Yes' : 'No');
+  console.log(chalk.yellow('Personalized Coaching:'), config.enablePersonalizedCoaching ? 'Yes' : 'No');
+  console.log(chalk.yellow('Progress Tracking:'), config.enableProgressTracking ? 'Yes' : 'No');
+  console.log(chalk.yellow('Coaching Style:'), config.defaultCoachingStyle);
+  console.log(chalk.yellow('Severity Threshold:'), config.severityThreshold);
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateCodeQualityCoachingMD(config: CodeQualityCoachingConfig): string {

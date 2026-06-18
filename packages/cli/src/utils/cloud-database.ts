@@ -1,6 +1,7 @@
 // Auto-generated Cloud-Native Database Integration Utility
 // Generated at: 2026-01-13T10:48:00.000Z
 
+import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -75,16 +76,16 @@ interface CloudDatabaseConfig {
 }
 
 export function displayConfig(config: CloudDatabaseConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Cloud-Native Database Integration with Backup Strategies');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Database Engine:', config.engine);
-  console.log('\x1b[33m%s\x1b[0m', 'Version:', config.version);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'DR Enabled:', config.disasterRecovery.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Cross-Region Replication:', config.disasterRecovery.crossRegionReplication ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Monitoring:', config.monitoring.enabled ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Cloud-Native Database Integration with Backup Strategies'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Database Engine:'), config.engine);
+  console.log(chalk.yellow('Version:'), config.version);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('DR Enabled:'), config.disasterRecovery.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Cross-Region Replication:'), config.disasterRecovery.crossRegionReplication ? 'Yes' : 'No');
+  console.log(chalk.yellow('Monitoring:'), config.monitoring.enabled ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateCloudDatabaseMD(config: CloudDatabaseConfig): string {

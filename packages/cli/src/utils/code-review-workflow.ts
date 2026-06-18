@@ -1,6 +1,8 @@
 // Auto-generated Code Review Workflow Utility
 // Generated at: 2026-01-13T13:30:00.000Z
 
+import chalk from 'chalk';
+
 type ReviewState = 'pending' | 'in-review' | 'approved' | 'rejected' | 'changes-requested';
 type ReviewType = 'pull-request' | 'inline' | 'batch' | 'automated';
 type IntegrationProvider = 'github' | 'gitlab' | 'bitbucket' | 'azure-devops';
@@ -43,20 +45,20 @@ interface CodeReviewWorkflowConfig {
 }
 
 export function displayConfig(config: CodeReviewWorkflowConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🔍 Real-Time Code Review and Approval Workflows');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Integration:', config.integration);
-  console.log('\x1b[33m%s\x1b[0m', 'Min Approvals:', config.review.minApprovals);
-  console.log('\x1b[33m%s\x1b[0m', 'Min Reviewers:', config.review.minReviewers);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Merge:', config.review.autoMerge ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Blocking Checks:', config.review.blockingChecks.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Comments:', config.comments.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Rules:', config.rules.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Review:', config.enableAutoReview ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Notifications:', config.enableNotifications ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🔍 Real-Time Code Review and Approval Workflows'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Integration:'), config.integration);
+  console.log(chalk.yellow('Min Approvals:'), config.review.minApprovals);
+  console.log(chalk.yellow('Min Reviewers:'), config.review.minReviewers);
+  console.log(chalk.yellow('Auto Merge:'), config.review.autoMerge ? 'Yes' : 'No');
+  console.log(chalk.yellow('Blocking Checks:'), config.review.blockingChecks.length);
+  console.log(chalk.yellow('Comments:'), config.comments.length);
+  console.log(chalk.yellow('Rules:'), config.rules.length);
+  console.log(chalk.yellow('Auto Review:'), config.enableAutoReview ? 'Yes' : 'No');
+  console.log(chalk.yellow('Notifications:'), config.enableNotifications ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateCodeReviewWorkflowMD(config: CodeReviewWorkflowConfig): string {
