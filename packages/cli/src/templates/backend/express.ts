@@ -1333,60 +1333,131 @@ import jwt from 'jsonwebtoken';
 import { UserService } from './user.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret';
 
 /**
- * Authentication service: register / login / token issue.
+ * Authentication service: register / login / token issue / email verification /
+ * password reset. Method signatures match what AuthController calls.
  */
 export class AuthService {
   private userService = new UserService();
 
-  async register(email: string, password: string) {
-    const hashed = await bcrypt.hash(password, 10);
-    return this.userService.create({ email, password: hashed } as Record<string, unknown>);
+  async register(input: { email: string; password: string; name?: string }): Promise<{
+    user: Record<string, unknown>;
+    accessToken: string;
+    refreshToken: string;
+    verificationToken: string;
+  }> {
+    const hashed = await bcrypt.hash(input.password, 10);
+    const user = await this.userService.create({
+      email: input.email,
+      password: hashed,
+      name: input.name || input.email,
+    } as Record<string, unknown>);
+    const accessToken = jwt.sign({ email: input.email }, JWT_SECRET, { expiresIn: '15m' });
+    const refreshToken = jwt.sign({ email: input.email }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
+    const verificationToken = jwt.sign({ email: input.email }, JWT_SECRET, { expiresIn: '1d' });
+    return { user: user as Record<string, unknown>, accessToken, refreshToken, verificationToken };
   }
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string): Promise<{
+    user: Record<string, unknown>;
+    accessToken: string;
+    refreshToken: string;
+  } | null> {
     const user = await this.userService.findByEmail(email);
     if (!user) return null;
     const ok = await bcrypt.compare(password, (user as { password: string }).password);
     if (!ok) return null;
-    return jwt.sign({ email }, JWT_SECRET, { expiresIn: '1d' });
+    const accessToken = jwt.sign({ email }, JWT_SECRET, { expiresIn: '15m' });
+    const refreshToken = jwt.sign({ email }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
+    return { user: user as Record<string, unknown>, accessToken, refreshToken };
+  }
+
+  async refreshToken(token: string): Promise<{ accessToken: string }> {
+    const payload = jwt.verify(token, JWT_REFRESH_SECRET) as { email: string };
+    const accessToken = jwt.sign({ email: payload.email }, JWT_SECRET, { expiresIn: '15m' });
+    return { accessToken };
+  }
+
+  async verifyEmail(token: string): Promise<void> {
+    const payload = jwt.verify(token, JWT_SECRET) as { email: string };
+    const user = await this.userService.findByEmail(payload.email);
+    if (user) {
+      await this.userService.updateUser((user as { id: string }).id, { emailVerified: true } as Record<string, unknown>);
+    }
+  }
+
+  async forgotPassword(email: string): Promise<string> {
+    const resetToken = jwt.sign({ email }, JWT_SECRET, { expiresIn: '1h' });
+    return resetToken;
+  }
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    const payload = jwt.verify(token, JWT_SECRET) as { email: string };
+    const user = await this.userService.findByEmail(payload.email);
+    if (user) {
+      const hashed = await bcrypt.hash(password, 10);
+      await this.userService.updateUser((user as { id: string }).id, { password: hashed } as Record<string, unknown>);
+    }
+  }
+
+  async logout(_userId: string): Promise<void> {
+    // Stateless JWT — client discards tokens. Implement a blocklist if needed.
   }
 }
 `,
     'src/services/email.service.ts': `/**
  * Email service (stub). Wire to a real transport (SES, SendGrid, SMTP) later.
+ * Method signatures match what AuthController calls.
  */
 export class EmailService {
   async send(to: string, subject: string, body: string): Promise<boolean> {
     return true;
   }
+  async sendVerificationEmail(email: string, token: string): Promise<void> {
+    // TODO: send verification link with token
+  }
+  async sendPasswordResetEmail(email: string, token: string): Promise<void> {
+    // TODO: send password reset link with token
+  }
 }
 `,
     'src/services/todo.service.ts': `/**
  * Todo service: CRUD over the Prisma todo model.
+ * Method signatures match what TodoController calls.
  */
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 export class TodoService {
-  async list() {
+  async getAllTodos() {
     return prisma.todo.findMany();
   }
-  async create(data: Record<string, unknown>) {
+  async getTodoById(id: string) {
+    return prisma.todo.findUnique({ where: { id } });
+  }
+  async createTodo(data: Record<string, unknown>) {
     return prisma.todo.create({ data: data as never });
   }
-  async update(id: string, data: Record<string, unknown>) {
+  async updateTodo(id: string, data: Record<string, unknown>) {
     return prisma.todo.update({ where: { id }, data: data as never });
   }
-  async delete(id: string) {
+  async deleteTodo(id: string) {
     return prisma.todo.delete({ where: { id } });
+  }
+  async bulkDelete(ids: string[]) {
+    return prisma.todo.deleteMany({ where: { id: { in: ids } } });
+  }
+  async bulkUpdate(ids: string[], data: Record<string, unknown>) {
+    return prisma.todo.updateMany({ where: { id: { in: ids } }, data: data as never });
   }
 }
 `,
     'src/services/user.service.ts': `/**
  * User service: CRUD over the Prisma user model.
+ * Method signatures match what UserController and AuthMiddleware call.
  */
 import { PrismaClient } from '@prisma/client';
 
@@ -1396,17 +1467,33 @@ export class UserService {
   async create(data: Record<string, unknown>) {
     return prisma.user.create({ data: data as never });
   }
-  async findById(id: string) {
+  async getAllUsers() {
+    return prisma.user.findMany({ select: { id: true, email: true, name: true, createdAt: true } });
+  }
+  async getUserById(id: string) {
     return prisma.user.findUnique({ where: { id } });
   }
   async findByEmail(email: string) {
     return prisma.user.findUnique({ where: { email } });
   }
-  async update(id: string, data: Record<string, unknown>) {
+  async updateUser(id: string, data: Record<string, unknown>) {
     return prisma.user.update({ where: { id }, data: data as never });
   }
-  async delete(id: string) {
+  async deleteUser(id: string) {
     return prisma.user.delete({ where: { id } });
+  }
+  async changePassword(id: string, oldPassword: string, newPassword: string): Promise<boolean> {
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return false;
+    const bcrypt = await import('bcryptjs');
+    const ok = await bcrypt.compare(oldPassword, (user as { password: string }).password);
+    if (!ok) return false;
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id }, data: { password: hashed } as never });
+    return true;
+  }
+  async updateAvatar(id: string, avatarUrl: string): Promise<void> {
+    await prisma.user.update({ where: { id }, data: { avatar: avatarUrl } as never });
   }
 }
 `,
