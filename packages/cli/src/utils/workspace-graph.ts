@@ -514,7 +514,6 @@ export class WorkspaceDependencyGraph {
   generateBuildOrder(): BuildOrder {
     try {
       const levels = this.calculateLevels();
-      const topOrder = this.generateTopologicalOrder();
       
       // Calculate estimated build times (simplified)
       const estimatedTime = levels.length * 60; // Assume 1 minute per level

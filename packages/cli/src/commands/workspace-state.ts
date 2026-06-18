@@ -38,10 +38,9 @@ export interface WorkspaceStateCommandOptions {
   spinner?: ProgressSpinner;
 }
 
-const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
 export async function manageWorkspaceState(options: WorkspaceStateCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.status) {

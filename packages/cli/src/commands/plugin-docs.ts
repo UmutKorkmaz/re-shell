@@ -462,7 +462,6 @@ export async function configureHelpSystem(
 
   try {
     const documentationGenerator = createDocumentationGenerator();
-    const currentConfig = documentationGenerator.getHelpConfiguration();
 
     // Validate setting
     const validSettings = [

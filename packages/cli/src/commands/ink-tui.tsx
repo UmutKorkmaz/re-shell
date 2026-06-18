@@ -469,7 +469,6 @@ function calculateLayout(nodes: GraphNode[], edges: GraphEdge[], width: number, 
       if (node1 && node2) {
         const dx = node2.x - node1.x;
         const dy = node2.y - node1.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
         const fx = dx * attraction;
         const fy = dy * attraction;
@@ -1902,10 +1901,8 @@ export const InkTUI: React.FC<InkTUIProps> = ({ projectPath }) => {
 
           // Animation effects
           let symbol = isSelected ? '█' : '●';
-          let animating = false;
 
           if (nodeAtPos.animating && nodeAtPos.animationProgress !== undefined) {
-            animating = true;
             const progress = nodeAtPos.animationProgress;
 
             // Different animations based on type

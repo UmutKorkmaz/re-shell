@@ -46,7 +46,7 @@ export interface WorkspaceMigrationCommandOptions {
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
 export async function manageWorkspaceMigration(options: WorkspaceMigrationCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.check) {

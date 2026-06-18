@@ -204,7 +204,6 @@ export class WorkspaceHealthChecker {
   // Check workspace structure
   private async checkWorkspaceStructure(): Promise<HealthCheckCategory> {
     const checks: HealthCheckResult[] = [];
-    const startTime = Date.now();
 
     // Check workspace definition exists
     checks.push(await this.checkWorkspaceDefinitionExists());

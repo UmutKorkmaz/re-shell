@@ -748,7 +748,6 @@ export class PluginCommandCacheManager extends EventEmitter {
     if (!this.encryptionKey) return Buffer.from(data);
 
     const algorithm = 'aes-256-gcm';
-    const iv = data.slice(0, 16);
     const encrypted = data.slice(16);
     const decipher = crypto.createDecipher(algorithm, this.encryptionKey);
 

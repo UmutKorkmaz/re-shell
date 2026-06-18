@@ -394,7 +394,6 @@ export function calculateDeprecationTimeline(apiVersion: APIVersion): {
 
   if (apiVersion.deprecatedAt) {
     result.deprecationDate = new Date(apiVersion.deprecatedAt);
-    const daysSinceDeprecation = Math.floor((now.getTime() - result.deprecationDate.getTime()) / (1000 * 60 * 60 * 24));
 
     if (apiVersion.sunsetAt) {
       result.sunsetDate = new Date(apiVersion.sunsetAt);

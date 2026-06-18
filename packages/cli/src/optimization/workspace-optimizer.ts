@@ -104,7 +104,6 @@ export class WorkspaceOptimizer {
     const recommendations: OptimizationRecommendation[] = [];
 
     try {
-      const graph = dependencyGraphEngine.buildFromConfig(config);
       const cycles = dependencyGraphEngine.detectCycles();
 
       if (cycles.length > 0) {

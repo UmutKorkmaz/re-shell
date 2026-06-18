@@ -48,7 +48,7 @@ export interface WorkspaceTemplateCommandOptions {
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
 export async function manageWorkspaceTemplate(options: WorkspaceTemplateCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.list) {

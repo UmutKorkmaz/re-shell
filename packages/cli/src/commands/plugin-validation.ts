@@ -388,7 +388,6 @@ export async function showCommandValidationSchema(
     const commandRegistry = createPluginCommandRegistry(tempProgram);
     await commandRegistry.initialize();
 
-    const validator = createCommandValidator();
     const commands = commandRegistry.getCommands();
     
     const command = commands.find(cmd => 

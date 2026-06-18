@@ -40,7 +40,7 @@ export interface WorkspaceGraphCommandOptions {
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
 export async function manageWorkspaceGraph(options: WorkspaceGraphCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.analyze) {

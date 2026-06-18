@@ -24,7 +24,7 @@ export interface TemplateCommandOptions {
 }
 
 export async function manageTemplates(options: TemplateCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.list) {

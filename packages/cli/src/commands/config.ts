@@ -24,7 +24,7 @@ export interface ConfigCommandOptions {
 }
 
 export async function manageConfig(options: ConfigCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.backup) {

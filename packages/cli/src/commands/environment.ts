@@ -25,7 +25,7 @@ export interface EnvironmentCommandOptions {
 }
 
 export async function manageEnvironment(options: EnvironmentCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.list) {

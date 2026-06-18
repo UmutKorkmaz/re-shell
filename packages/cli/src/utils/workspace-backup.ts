@@ -227,7 +227,6 @@ export class WorkspaceBackupManager {
     // Restore state if requested and available
     if (options.restoreState && backup.state) {
       try {
-        const stateManager = await createWorkspaceStateManager(targetPath);
         // State restoration would be implemented here
         console.log('State restoration completed');
       } catch (error) {

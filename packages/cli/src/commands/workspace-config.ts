@@ -22,7 +22,7 @@ export interface WorkspaceConfigCommandOptions {
 }
 
 export async function manageWorkspaceConfig(options: WorkspaceConfigCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     // Determine workspace path

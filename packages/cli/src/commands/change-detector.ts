@@ -50,7 +50,7 @@ export interface ChangeDetectorCommandOptions {
 }
 
 export async function manageChangeDetector(options: ChangeDetectorCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.scan) {

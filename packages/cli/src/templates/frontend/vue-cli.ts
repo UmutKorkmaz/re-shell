@@ -334,7 +334,7 @@ export class VueCliTemplate extends BaseTemplate {
   }
 
   private generateVueConfig() {
-    const { port, route } = this.context;
+    const { port} = this.context;
     return `const { defineConfig } = require('@vue/cli-service');
 
 module.exports = defineConfig({
@@ -2450,7 +2450,7 @@ code {
   }
 
   private generateEnvExample() {
-    const { port } = this.context;
+
     return `# Environment Variables
 # Copy this file to .env.local and fill in your values
 

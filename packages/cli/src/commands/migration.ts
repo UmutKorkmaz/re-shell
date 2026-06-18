@@ -19,7 +19,7 @@ export interface MigrationCommandOptions {
 }
 
 export async function manageMigration(options: MigrationCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.auto) {

@@ -2002,7 +2002,7 @@ function displayHealthResults(
  * Migrate workspace configuration
  */
 export async function migrateWorkspace(options: any = {}): Promise<void> {
-  const { spinner, from, to, dryRun = false, backup = true } = options;
+  const { spinner, to, dryRun = false, backup = true } = options;
 
   try {
     console.log(chalk.cyan.bold('\n🔄 Workspace Migration\n'));

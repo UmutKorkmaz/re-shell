@@ -570,7 +570,6 @@ export async function servicesHealth(
     interval = 5000,
     json = false,
     verbose = false,
-    spinner,
   } = options;
 
   const hasDockerCompose = await checkDockerComposeAvailable();
@@ -1006,7 +1005,7 @@ export async function servicesInspect(
     spinner?: any;
   } = {}
 ): Promise<ServiceInspection> {
-  const { json = false, verbose = false, spinner } = options;
+  const { json = false, verbose = false} = options;
 
   // Parse service configurations
   const services = await parseDockerCompose(projectPath);
@@ -1358,9 +1357,8 @@ export async function servicesMigrate(
   }
 
   // Get backend templates to understand frameworks
-  const { listBackendTemplates, getBackendTemplate } = await import('../templates/backend/index');
+  const { getBackendTemplate } = await import('../templates/backend/index');
 
-  const allFrameworks = listBackendTemplates();
   const sourceTemplate = getBackendTemplate(sourceFramework);
   const targetTemplate = getBackendTemplate(targetFramework);
 

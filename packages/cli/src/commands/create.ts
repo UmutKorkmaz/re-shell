@@ -33,7 +33,6 @@ import {
 import {
   getArchitectureTemplate,
   getAllArchitectureTemplates,
-  getArchitectureTemplateChoices,
   getPopularArchitectureTemplates,
   type ArchitectureTemplate
 } from '../templates/architecture/index';
@@ -766,7 +765,7 @@ async function generateMicrofrontendProjectFiles(
   projectPath: string,
   config: MicrofrontendConfig
 ): Promise<void> {
-  const { shellFramework, remotes, org, description, packageManager, sharedDeps } = config;
+  const { remotes, org, description, packageManager} = config;
 
   // Create root package.json
   const rootPackageJson = {
@@ -1003,7 +1002,7 @@ function createMfShellTemplate(
  * Generate shell routing configuration
  */
 async function generateShellRouting(shellPath: string, config: MicrofrontendConfig): Promise<void> {
-  const { shellFramework, remotes } = config;
+  const { shellFramework} = config;
 
   if (shellFramework.includes('react')) {
     const routingContent = generateReactRouting(config);
@@ -1336,7 +1335,7 @@ async function generatePolyglotProjectFiles(
   projectPath: string,
   config: PolyglotConfig
 ): Promise<void> {
-  const { services, gatewayFramework, frontendFramework, database, org, description, packageManager } = config;
+  const { services, frontendFramework, database, org, description, packageManager } = config;
 
   // Create root package.json
   const rootPackageJson = {
@@ -1420,7 +1419,7 @@ async function generatePolyglotProjectFiles(
  * Generate Docker Compose configuration for polyglot project
  */
 function generateDockerCompose(config: PolyglotConfig): string {
-  const { services, database, gatewayFramework } = config;
+  const { services, database} = config;
 
   let compose = `version: '3.8'
 
@@ -1428,7 +1427,6 @@ services:
 `;
   // Add services
   services.forEach((service) => {
-    const imageName = service.name.toLowerCase();
     compose += `  ${service.name}:
     build: ./services/${service.name}
     ports:
@@ -1588,7 +1586,7 @@ export interface ${toPascalCase(s.name)}Response {
  * Generate API Gateway
  */
 async function generateApiGateway(gatewayPath: string, config: PolyglotConfig): Promise<void> {
-  const { gatewayFramework, services } = config;
+  const { gatewayFramework} = config;
 
   // Generate gateway based on framework
   if (gatewayFramework === 'express' || gatewayFramework === 'fastify' || gatewayFramework === 'nestjs') {
@@ -1831,7 +1829,7 @@ bootstrap();
  * Generate proxy-based gateway (Traefik/Kong config)
  */
 async function generateProxyGateway(gatewayPath: string, config: PolyglotConfig): Promise<void> {
-  const { gatewayFramework, services, normalizedName } = config;
+  const { gatewayFramework, services} = config;
 
   if (gatewayFramework === 'traefik') {
     // Generate Traefik configuration
@@ -2164,7 +2162,7 @@ export const ${camelCase(s.name)}Api = {
  * Generate polyglot project README
  */
 async function generatePolyglotReadme(projectPath: string, config: PolyglotConfig): Promise<void> {
-  const { services, gatewayFramework, frontendFramework, database, normalizedName } = config;
+  const { services, gatewayFramework, frontendFramework, database} = config;
 
   const readmeContent = `# ${config.name}
 

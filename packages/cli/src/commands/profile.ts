@@ -61,13 +61,12 @@ export interface ProfileCommandOptions {
 
 // Profile storage path
 const PROFILE_CONFIG_PATH = 're-shell.profiles.yaml';
-const WORKSPACE_PROFILES_DIR = '.re-shell/profiles';
 
 /**
  * Main profile management function
  */
 export async function manageProfiles(options: ProfileCommandOptions = {}): Promise<void> {
-  const { spinner, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.create) {
@@ -692,7 +691,6 @@ async function activateProfile(profileName: string, spinner?: ProgressSpinner): 
  * Apply profile settings to workspace
  */
 async function applyProfile(profile: EnvironmentProfile): Promise<void> {
-  const workspaceConfigPath = path.join(process.cwd(), 're-shell.workspaces.yaml');
 
   // Merge profile settings into workspace config
   // In production, this would update the workspace configuration file
@@ -1092,7 +1090,6 @@ export async function composeProfiles(profileNames: string[]): Promise<Environme
     return {};
   }
 
-  const config = await loadProfileConfig();
   let composed: EnvironmentProfile['config'] = {};
 
   // Apply profiles in order (first = lowest priority)

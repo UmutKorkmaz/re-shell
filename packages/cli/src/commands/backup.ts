@@ -34,7 +34,7 @@ export interface BackupCommandOptions {
 }
 
 export async function manageBackups(options: BackupCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.create) {

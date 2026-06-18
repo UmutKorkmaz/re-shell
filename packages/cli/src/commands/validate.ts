@@ -19,7 +19,7 @@ export interface ValidateCommandOptions {
 }
 
 export async function validateConfiguration(options: ValidateCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.file) {

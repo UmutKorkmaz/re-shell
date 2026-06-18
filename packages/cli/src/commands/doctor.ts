@@ -457,7 +457,6 @@ async function checkPerformanceIssues(monorepoRoot: string): Promise<HealthCheck
       try {
         const stats = await fs.stat(nodeModulesPath);
         // Rough estimation - actual calculation would be recursive and slow
-        const estimatedSize = stats.size;
         
         checks.push({
           name: 'node-modules-size',
@@ -531,7 +530,6 @@ async function checkFileSystemHealth(monorepoRoot: string): Promise<HealthCheck[
   try {
     // Check disk space
     try {
-      const stats = await fs.stat(monorepoRoot);
       checks.push({
         name: 'disk-space',
         status: 'success',

@@ -1943,7 +1943,6 @@ function generateSampleDataInit(spec: OpenAPISpec): string {
 
     // Only generate sample data for list endpoints without path parameters
     if (hasGet && !hasIdParam) {
-      const collectionName = path.replace(/^\//, '').replace(/\/$/, '') || 'root';
       lines.push('  dataStore[\'' + path + '\'] = [');
 
       // Get schema from response to generate proper mock data

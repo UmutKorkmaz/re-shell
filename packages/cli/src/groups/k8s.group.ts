@@ -52,8 +52,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/k8s-manifest-generator');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n☸️  K8s Manifest Generator\n'));
 
@@ -106,8 +104,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/helm-chart-generator');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n⛵ Helm Chart Generator\n'));
 
@@ -187,8 +183,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/gitops-integration');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🔄 GitOps Integration\n'));
 
@@ -268,8 +262,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/service-mesh-integration');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🔗 Service Mesh Integration\n'));
 
@@ -324,8 +316,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/hpa-generator');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n📊 Horizontal Pod Autoscaler\n'));
 
@@ -436,8 +426,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/network-policy-generator');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🔒 Network Policies & Security\n'));
 
@@ -515,8 +503,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/crd-generator');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n📋 Custom Resource Definitions\n'));
 
@@ -623,8 +609,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/polyglot-operator');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🔧 Polyglot Kubernetes Operator\n'));
 
@@ -724,8 +708,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/multi-tenant-isolation');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🏢 Multi-Tenant Isolation\n'));
 
@@ -830,8 +812,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/cicd-pipeline');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🚀 Kubernetes-Native CI/CD Pipeline\n'));
 
@@ -913,8 +893,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/multi-cluster-deployment');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🌐 Multi-Cluster Deployment\n'));
 
@@ -976,8 +954,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/ingress-manager');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🚀 Advanced Ingress Management\n'));
 
@@ -1054,8 +1030,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/pod-security');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🚀 Pod Security Policies and Admission Controllers\n'));
 
@@ -1111,8 +1085,6 @@ export function registerK8sGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/cluster-manager');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🚀 Kubernetes Cluster Management and Upgrade Automation\n'));
 

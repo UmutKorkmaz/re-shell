@@ -83,7 +83,6 @@ export async function trackProfileActivation(
 ): Promise<void> {
   const analytics = await loadAnalytics();
   const now = new Date().toISOString();
-  const activationTime = metadata?.activationTime || Date.now();
 
   if (!analytics.profiles[profileName]) {
     analytics.profiles[profileName] = createEmptyProfileData(profileName);
@@ -124,7 +123,6 @@ export async function trackProfileDeactivation(
   }
 ): Promise<void> {
   const analytics = await loadAnalytics();
-  const now = new Date().toISOString();
 
   if (analytics.profiles[profileName]) {
     const profile = analytics.profiles[profileName];

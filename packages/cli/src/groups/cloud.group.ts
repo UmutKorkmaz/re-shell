@@ -27,8 +27,6 @@ export function registerCloudGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/aws-cloud');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🚀 AWS ECS/EKS with CDK Templates and Auto-Scaling\n'));
 
@@ -114,8 +112,6 @@ export function registerCloudGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/azure-cloud');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🚀 Azure AKS with ARM/Bicep Integration and Azure DevOps\n'));
 
@@ -201,8 +197,6 @@ export function registerCloudGroup(program: Command): void {
       createAsyncCommand(async (projectName, options) => {
         await withTimeout(async () => {
           const { writeFiles, displayConfig } = await import('../utils/gcp-cloud');
-          const fs = await import('fs-extra');
-          const path = await import('path');
 
           console.log(chalk.cyan.bold('\n🚀 GCP GKE with Cloud Deployment Manager and Cloud Build\n'));
 

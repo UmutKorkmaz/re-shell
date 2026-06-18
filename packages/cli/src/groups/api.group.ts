@@ -173,7 +173,7 @@ export function registerApiGroup(program: Command): void {
     .option('--dry-run', 'Preview without writing file')
     .action(
       createAsyncCommand(async (targetPath, options) => {
-        const { createOpenAPIGenerator, getSupportedFrameworks, formatOpenAPISpec } = await import('../utils/openapi-generator');
+        const { createOpenAPIGenerator, formatOpenAPISpec } = await import('../utils/openapi-generator');
         const { createSpinner } = await import('../utils/spinner');
 
         const projectPath = path.resolve(targetPath || process.cwd());
@@ -967,11 +967,9 @@ export function registerApiGroup(program: Command): void {
       createAsyncCommand(async (pathArg, options) => {
         const {
           generateUnitTestCode,
-          generateIntegrationTestCode,
           generateContractTestCode,
           generateMockServerCode,
           generateLoadTestCode,
-          generateTestConfig,
           getTestingTemplate,
           formatAPITestConfig,
         } = await import('../utils/api-testing');
@@ -1029,7 +1027,6 @@ export function registerApiGroup(program: Command): void {
         }
 
         // Write files
-        const testConfig = generateTestConfig(framework, testTypes);
         console.log(chalk.green(`\n✓ Test files generated for ${framework}!`));
         console.log(chalk.gray(`\nNext steps:\n  1. cd ${outputPath}\n  2. ${template.setupCommands.join('\n  2. ')}`));
       })
@@ -1269,7 +1266,6 @@ export function registerApiGroup(program: Command): void {
     .action(
       createAsyncCommand(async (specPath, options) => {
         const {
-          generateInteractiveDocsHTML,
           openAPIToInteractiveDocs,
           formatInteractiveDocsConfig,
         } = await import('../utils/interactive-docs');
@@ -1361,9 +1357,7 @@ export function registerApiGroup(program: Command): void {
         const {
           getGatewayTemplate,
           generateGatewayConfig,
-          generateGatewayDockerCompose,
           formatGatewayConfig,
-          listGatewayTypes,
         } = await import('../utils/api-gateway');
 
         const template = getGatewayTemplate(type as any);
@@ -1521,7 +1515,6 @@ export function registerApiGroup(program: Command): void {
           generateAnalyticsSetup,
           listAnalyticsProviders,
           listSupportedFrameworks,
-          getAnalyticsProvider,
         } = await import('../utils/api-analytics');
 
         const providers = listAnalyticsProviders();

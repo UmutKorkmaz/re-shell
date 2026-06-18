@@ -539,7 +539,6 @@ async function expandGlob(pattern: string): Promise<string[]> {
 async function getDirectorySize(dirPath: string): Promise<string> {
   try {
     // Simple estimation - actual recursive calculation would be too slow
-    const stats = await fs.stat(dirPath);
     return '< 1MB (estimated)';
   } catch (error) {
     return 'Unknown';

@@ -69,7 +69,7 @@ export interface WorkspaceBackupCommandOptions {
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
 export async function manageWorkspaceBackup(options: WorkspaceBackupCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.create) {

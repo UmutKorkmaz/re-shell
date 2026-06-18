@@ -675,7 +675,7 @@ function getRecommendedExtensions(project: ProjectDebugInfo): string[] {
  * Generate VS Code build tasks
  */
 function generateBuildTasks(project: ProjectDebugInfo): any[] {
-  const { name, framework, language } = project;
+  const { language } = project;
   const tasks: any[] = [];
 
   // Common tasks

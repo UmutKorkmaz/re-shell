@@ -123,7 +123,6 @@ export async function configureCacheSettings(
 
   try {
     const cacheManager = createCommandCacheManager();
-    const currentConfig = cacheManager.getConfiguration();
 
     // Validate setting
     const validSettings = [
@@ -535,7 +534,6 @@ export async function optimizeCache(
         
         if (verbose) {
           console.log(chalk.yellow('\nUpdated Configuration:'));
-          const newConfig = cacheManager.getConfiguration();
           Object.entries(updates).forEach(([key, value]) => {
             console.log(`  ${chalk.cyan(key)}: ${value}`);
           });

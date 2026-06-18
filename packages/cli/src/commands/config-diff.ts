@@ -26,7 +26,7 @@ export interface ConfigDiffCommandOptions {
 }
 
 export async function manageConfigDiff(options: ConfigDiffCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.diff) {
@@ -516,7 +516,6 @@ async function showConfigStatus(options: ConfigDiffCommandOptions, spinner?: Pro
   // Load current configurations
   const globalConfig = await configManager.loadGlobalConfig();
   const projectConfig = await configManager.loadProjectConfig();
-  const merged = await configManager.getMergedConfig();
 
   if (spinner) spinner.stop();
 

@@ -51,7 +51,7 @@ export interface WorkspaceConflictCommandOptions {
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
 export async function manageWorkspaceConflict(options: WorkspaceConflictCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.detect) {

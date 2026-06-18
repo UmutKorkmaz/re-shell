@@ -27,7 +27,7 @@ export interface DevModeCommandOptions {
 }
 
 export async function manageDevMode(options: DevModeCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.start) {

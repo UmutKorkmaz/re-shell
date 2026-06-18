@@ -20,7 +20,7 @@ export interface ProjectConfigCommandOptions {
 }
 
 export async function manageProjectConfig(options: ProjectConfigCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.init) {

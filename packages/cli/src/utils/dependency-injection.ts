@@ -645,7 +645,6 @@ function selectInjectionPattern(
   const language = targetLanguage || service.language;
 
   // Direct match
-  const directKey = `${framework}-${language}`;
   if (INJECTION_PATTERNS[framework]) {
     return INJECTION_PATTERNS[framework];
   }

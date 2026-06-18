@@ -201,7 +201,7 @@ export function registerQualityGroup(program: Command): void {
     .option('--dry-run', 'Preview without writing files')
     .action(
       createAsyncCommand(async (projectPath, options) => {
-        const { createIntelliSenseGenerator, getAllLanguageServers } = await import('../utils/intellisense');
+        const { createIntelliSenseGenerator} = await import('../utils/intellisense');
         const { createSpinner } = await import('../utils/spinner');
 
         const pathToSetup = projectPath || process.cwd();

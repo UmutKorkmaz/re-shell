@@ -365,7 +365,7 @@ export class NxAngularTemplate extends BaseTemplate {
   }
 
   private generateWorkspaceJson() {
-    const { normalizedName } = this.context;
+
     return JSON.stringify({
       'version': 2,
       'projects': {

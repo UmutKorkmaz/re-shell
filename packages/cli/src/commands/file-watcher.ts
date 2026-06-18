@@ -45,7 +45,7 @@ const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 let globalWatcher: FileWatcher | null = null;
 
 export async function manageFileWatcher(options: FileWatcherCommandOptions = {}): Promise<void> {
-  const { spinner, verbose, json } = options;
+  const { spinner} = options;
 
   try {
     if (options.start) {

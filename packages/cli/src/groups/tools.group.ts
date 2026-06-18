@@ -723,7 +723,7 @@ export function registerToolsGroup(program: Command): void {
     .option('--dry-run', 'Preview without writing files')
     .action(
       createAsyncCommand(async (projectPath, options) => {
-        const { createDevEnv, detectContainerRuntime, getServicePorts } = await import('../utils/dev-env-setup');
+        const { createDevEnv, detectContainerRuntime} = await import('../utils/dev-env-setup');
         const { createSpinner } = await import('../utils/spinner');
 
         const pathToSetup = projectPath || process.cwd();
@@ -746,7 +746,6 @@ export function registerToolsGroup(program: Command): void {
 
           // Parse port mappings
           const ports: Array<{ localPort: number; containerPort: number; service: string; protocol: 'tcp' | 'udp' }> = [];
-          const servicePorts = getServicePorts();
 
           if (options.ports) {
             for (const portSpec of options.ports) {
