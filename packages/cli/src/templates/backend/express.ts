@@ -1037,16 +1037,30 @@ export const validate = (req: Request, res: Response, next: NextFunction) => {
 
 // Use the Redis-backed store only when a REDIS_URL is configured; otherwise fall
 // back to the default in-memory store so local/dev runs (no Redis) boot cleanly.
+let _redisClientForRateLimit: { sendCommand: (...args: unknown[]) => unknown } | null | undefined;
+async function getRedisClientForRateLimit() {
+  if (_redisClientForRateLimit !== undefined) return _redisClientForRateLimit;
+  if (!process.env.REDIS_URL) { _redisClientForRateLimit = null; return null; }
+  try {
+    const { createClient } = require('redis');
+    const client = createClient({ url: process.env.REDIS_URL });
+    await client.connect();
+    _redisClientForRateLimit = client;
+    return client;
+  } catch {
+    _redisClientForRateLimit = null;
+    return null;
+  }
+}
 function redisStoreIfExists(prefix: string) {
   if (!process.env.REDIS_URL) return undefined;
   try {
-    // Lazy-require so a missing/optional redis dependency never crashes startup.
     const { default: RedisStore } = require('rate-limit-redis');
-    return new RedisStore({
-      // rate-limit-redis v4 requires sendCommand (a redis v4 client method).
-      sendCommand: (...args: unknown[]) => require('redis').createClient({ url: process.env.REDIS_URL }).sendCommand(args),
-      prefix,
-    });
+    // Create a shared client lazily — rate-limit-redis v4 requires sendCommand
+    // from a CONNECTED redis v4 client.
+    const client = getRedisClientForRateLimit();
+    if (!client) return undefined;
+    return new RedisStore({ sendCommand: (...args: unknown[]) => client.sendCommand(args), prefix });
   } catch {
     return undefined;
   }
