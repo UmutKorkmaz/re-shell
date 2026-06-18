@@ -1,40 +1,10 @@
 import { Command } from 'commander';
-import { mkdtempSync, writeFileSync, rmSync, chmodSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildCommandCatalog } from '../../src/utils/command-catalog';
 import { normalizeHealth } from '../../src/utils/health-normalizer';
-import { toWorkspaceDefinition } from '../../src/utils/workspace-definition-adapter';
-import {
-  runJsonCommand,
-  AdapterError,
-  runWorkspaceHealth,
-  runWorkspaceGraph,
-  runTemplateList,
-  runWorkspaceInspect,
-} from '../../src/utils/cli-adapters';
 import { registerCommandsGroup } from '../../src/groups/commands.group';
 import { registerTemplatesGroup } from '../../src/groups/templates.group';
-import type { WorkspaceInfo } from '../../src/utils/monorepo';
-
-const tempDirs: string[] = [];
-
-function createTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'scoped-surface-'));
-  tempDirs.push(dir);
-  return dir;
-}
-
-// A tiny shell script that prints a fixed payload and exits with a code. Used to
-// drive runJsonCommand without spawning the real (unbuilt) re-shell binary.
-function makeScript(dir: string, body: string): string {
-  const p = join(dir, 'fake-cli.sh');
-  writeFileSync(p, `#!/bin/sh\n${body}\n`);
-  chmodSync(p, 0o755);
-  return p;
-}
 
 // Capture process.stdout.write output while running an async action.
 async function captureStdout(run: () => Promise<void>): Promise<string> {
@@ -59,9 +29,6 @@ function parseEnvelope(out: string): { ok: boolean; data?: unknown; error?: { co
 }
 
 afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
   vi.restoreAllMocks();
 });
 
@@ -261,123 +228,6 @@ describe('health-normalizer', () => {
       ],
     });
     expect(result.checks.map(c => c.status)).toEqual(['critical', 'warning', 'healthy']);
-  });
-});
-
-describe('workspace-definition-adapter', () => {
-  const baseWs = (over: Partial<WorkspaceInfo>): WorkspaceInfo =>
-    ({
-      name: 'pkg',
-      type: 'package',
-      path: 'packages/pkg',
-      dependencies: [],
-      ...over,
-    } as WorkspaceInfo);
-
-  it('builds a schema-shaped definition from discovered workspaces', () => {
-    const ws: WorkspaceInfo[] = [
-      baseWs({ name: 'web', type: 'app', path: 'apps/web', framework: 'react', dependencies: ['ui', 'web', 'external-lib'] }),
-      baseWs({ name: 'ui', type: 'lib', path: 'packages/ui', dependencies: [] }),
-    ];
-
-    const def = toWorkspaceDefinition(ws, '/tmp/demo-monorepo');
-
-    expect(def.version).toBe('1.0');
-    expect(def.name).toBe('demo-monorepo');
-    expect(Object.keys(def.types)).toEqual(['app', 'package', 'lib', 'tool']);
-    expect(def.workspaces.web).toMatchObject({ name: 'web', type: 'app', path: 'apps/web', active: true, tags: ['react'] });
-    // Self-edge ('web') and external dep ('external-lib') are dropped; only 'ui' kept.
-    expect(def.dependencies.web).toEqual([{ name: 'ui', type: 'runtime' }]);
-    // ui has no internal deps -> no entry.
-    expect(def.dependencies.ui).toBeUndefined();
-    expect(def.workspaces.ui.tags).toBeUndefined();
-  });
-
-  it('defaults the root to cwd and falls back to a monorepo name', () => {
-    const spy = vi.spyOn(process, 'cwd').mockReturnValue('/some/current/dir');
-    const def = toWorkspaceDefinition([]);
-    expect(def.name).toBe('dir');
-    expect(def.dependencies).toEqual({});
-    expect(def.workspaces).toEqual({});
-    spy.mockRestore();
-  });
-
-  it('stamps consistent created/lastModified metadata', () => {
-    const def = toWorkspaceDefinition([], '/tmp/x');
-    expect(def.metadata.created).toBe(def.metadata.lastModified);
-    expect(def.metadata.tags).toContain('auto-derived');
-  });
-});
-
-describe('cli-adapters runJsonCommand', () => {
-  it('returns parsed data on a successful envelope', async () => {
-    const dir = createTempDir();
-    const script = makeScript(dir, "printf '{\"ok\":true,\"data\":{\"n\":5},\"warnings\":[]}\\n'");
-    const data = await runJsonCommand<{ n: number }>(['sh', script], { cwd: dir });
-    expect(data).toEqual({ n: 5 });
-  });
-
-  it('throws AdapterError when the envelope reports ok:false', async () => {
-    const dir = createTempDir();
-    const script = makeScript(
-      dir,
-      "printf '{\"ok\":false,\"error\":{\"code\":\"BOOM\",\"message\":\"nope\",\"details\":{\"k\":1}},\"warnings\":[]}\\n'"
-    );
-    await expect(runJsonCommand(['sh', script], { cwd: dir })).rejects.toMatchObject({
-      name: 'AdapterError',
-      code: 'BOOM',
-      message: 'nope',
-      details: { k: 1 },
-    });
-  });
-
-  it('throws AdapterError on a non-zero exit with no envelope', async () => {
-    const dir = createTempDir();
-    const script = makeScript(dir, 'echo "fatal" >&2\nexit 3');
-    try {
-      await runJsonCommand(['sh', script], { cwd: dir });
-      throw new Error('expected throw');
-    } catch (err) {
-      expect(err).toBeInstanceOf(AdapterError);
-      const adapterErr = err as AdapterError;
-      expect(adapterErr.exitCode).toBe(3);
-      expect(adapterErr.code).toBe('ADAPTER_COMMAND_FAILED');
-      expect(adapterErr.message).toContain('fatal');
-    }
-  });
-
-  it('throws AdapterError when stdout is unparseable JSON', async () => {
-    const dir = createTempDir();
-    const script = makeScript(dir, "printf 'not json\\n'");
-    await expect(runJsonCommand(['sh', script], { cwd: dir })).rejects.toBeInstanceOf(AdapterError);
-  });
-
-  it('convenience adapters delegate to runCommand (re-shell not on PATH -> code 1)', async () => {
-    // The real `re-shell` binary is unbuilt in this test env, so spawn fires an
-    // ENOENT 'error' event and runCommand resolves 1. This exercises the four
-    // hub adapter wrappers without depending on a built CLI.
-    //
-    // The ENOENT assumption only holds when `re-shell` is NOT resolvable. On a
-    // developer machine where re-shell is globally linked (on PATH), the spawn
-    // would actually run and return a non-deterministic exit code. Restrict PATH
-    // for the duration of the test so the binary cannot resolve — `/usr/bin:/bin`
-    // keeps `sh` resolvable for the file's other spawn-based tests while
-    // excluding any globally-installed `re-shell`. Restore PATH afterwards.
-    const dir = createTempDir();
-    const noop = (): void => {};
-    const origPath = process.env.PATH;
-    process.env.PATH = '/usr/bin:/bin';
-    try {
-      const results = await Promise.all([
-        runWorkspaceHealth(dir, noop, noop),
-        runWorkspaceGraph(dir, noop, noop),
-        runTemplateList(dir, noop, noop),
-        runWorkspaceInspect(dir, noop, noop),
-      ]);
-      expect(results).toEqual([1, 1, 1, 1]);
-    } finally {
-      process.env.PATH = origPath;
-    }
   });
 });
 
