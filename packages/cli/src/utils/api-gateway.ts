@@ -3,8 +3,6 @@
  * Generates API gateway configurations for all supported backend frameworks
  */
 
-import * as fs from 'fs-extra';
-import * as path from 'path';
 import chalk from 'chalk';
 
 // Gateway type

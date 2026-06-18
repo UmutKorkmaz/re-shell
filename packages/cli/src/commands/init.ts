@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
-import { execSync, spawn } from 'child_process';
+import { execSync } from 'child_process';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { initializeMonorepo, DEFAULT_MONOREPO_STRUCTURE } from '../utils/monorepo';

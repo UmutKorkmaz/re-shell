@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
-import { configManager, GlobalConfig, ProjectConfig, ProjectPreset } from '../utils/config';
+import { configManager, GlobalConfig } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 

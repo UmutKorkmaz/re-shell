@@ -4,7 +4,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
-import { WorkspaceConfig, ServiceConfig } from '../parsers/workspace-parser';
+import { WorkspaceConfig } from '../parsers/workspace-parser';
 
 export interface DocsGenerationOptions {
   output?: string;

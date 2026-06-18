@@ -1,6 +1,5 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
-import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
 import {
@@ -13,7 +12,7 @@ import {
   checkForUpgrades,
   validateWorkspace
 } from '../utils/workspace-migration';
-import { ProgressSpinner, createSpinner } from '../utils/spinner';
+import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
 export interface WorkspaceMigrationCommandOptions {

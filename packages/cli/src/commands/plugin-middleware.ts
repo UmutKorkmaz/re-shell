@@ -8,7 +8,6 @@ import {
   MiddlewareRegistration,
   builtinMiddleware
 } from '../utils/plugin-command-middleware';
-import { createPluginRegistry } from '../utils/plugin-system';
 
 interface MiddlewareCommandOptions {
   verbose?: boolean;

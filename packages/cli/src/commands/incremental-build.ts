@@ -4,7 +4,7 @@ import * as fs from 'fs-extra';
 import chalk from 'chalk';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
-import { IncrementalBuilder, createIncrementalBuilder, BuildResult, BuildPlan } from '../utils/incremental-builder';
+import { IncrementalBuilder, createIncrementalBuilder, BuildResult } from '../utils/incremental-builder';
 
 export interface IncrementalBuildCommandOptions {
   targets?: string[];

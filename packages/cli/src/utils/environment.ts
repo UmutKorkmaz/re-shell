@@ -1,7 +1,6 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as yaml from 'yaml';
-import { configManager, ProjectConfig, EnvironmentConfig } from './config';
+import { configManager, EnvironmentConfig } from './config';
 import { ValidationError } from './error-handler';
 
 // Environment management utilities

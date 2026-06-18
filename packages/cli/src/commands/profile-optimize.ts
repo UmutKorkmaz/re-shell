@@ -1,9 +1,7 @@
-import * as fs from 'fs-extra';
-import * as path from 'path';
 import chalk from 'chalk';
 import prompts from 'prompts';
 import { EnvironmentProfile, loadProfileConfig, saveProfileConfig } from './profile';
-import { ProfileAnalytics, generateProfileInsights } from './profile-analytics';
+import { generateProfileInsights } from './profile-analytics';
 
 /**
  * Profile optimization recommendations

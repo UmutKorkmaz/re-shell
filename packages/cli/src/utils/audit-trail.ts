@@ -3,7 +3,6 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
-import * as crypto from 'crypto';
 
 // Type Definitions
 export type AuditEventType = 'user-login' | 'user-logout' | 'permission-granted' | 'permission-revoked' | 'data-access' | 'data-modified' | 'data-deleted' | 'config-change' | 'policy-violation' | 'system-start' | 'system-stop' | 'api-call' | 'custom';

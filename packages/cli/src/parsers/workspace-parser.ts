@@ -4,7 +4,6 @@
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import Ajv from 'ajv';
-import { join } from 'path';
 import workspaceSchemaJson from '../schemas/workspace-v2.schema.json';
 
 export interface WorkspaceConfig {

@@ -3,8 +3,6 @@
  * Generates analytics middleware and monitoring configurations for all backend frameworks
  */
 
-import * as fs from 'fs-extra';
-import * as path from 'path';
 
 // Analytics provider type
 export type AnalyticsProvider =

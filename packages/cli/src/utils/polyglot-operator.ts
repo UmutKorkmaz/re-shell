@@ -1,10 +1,6 @@
 // Auto-generated Polyglot Operator Generator
 // Generated at: 2026-01-12T23:19:00.000Z
 
-import chalk from 'chalk';
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
 
 interface ApplicationLanguage {
   name: string;
@@ -39,16 +35,16 @@ interface OperatorConfig {
 }
 
 export function displayConfig(config: OperatorConfig): void {
-  console.log(chalk.cyan('✨ Polyglot Kubernetes Operator'));
-  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
-  console.log(chalk.yellow('Project Name:'), config.projectName);
-  console.log(chalk.yellow('Namespace:'), config.namespace);
-  console.log(chalk.yellow('Languages:'), config.languages.map(l => `${l.name} (${l.runtime})`).join(', '));
-  console.log(chalk.yellow('Lifecycle Hooks:'), config.enableLifecycleHooks ? 'Enabled' : 'Disabled');
-  console.log(chalk.yellow('Rollback:'), config.enableRollback ? 'Enabled' : 'Disabled');
-  console.log(chalk.yellow('Scaling:'), config.enableScaling ? 'Enabled' : 'Disabled');
-  console.log(chalk.yellow('Monitoring:'), config.enableMonitoring ? 'Enabled' : 'Disabled');
-  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
+  console.log('\x1b[36m%s\x1b[0m', '✨ Polyglot Kubernetes Operator');
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
+  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
+  console.log('\x1b[33m%s\x1b[0m', 'Namespace:', config.namespace);
+  console.log('\x1b[33m%s\x1b[0m', 'Languages:', config.languages.map(l => `${l.name} (${l.runtime})`).join(', '));
+  console.log('\x1b[33m%s\x1b[0m', 'Lifecycle Hooks:', config.enableLifecycleHooks ? 'Enabled' : 'Disabled');
+  console.log('\x1b[33m%s\x1b[0m', 'Rollback:', config.enableRollback ? 'Enabled' : 'Disabled');
+  console.log('\x1b[33m%s\x1b[0m', 'Scaling:', config.enableScaling ? 'Enabled' : 'Disabled');
+  console.log('\x1b[33m%s\x1b[0m', 'Monitoring:', config.enableMonitoring ? 'Enabled' : 'Disabled');
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
 export function generatePolyglotOperatorMD(config: OperatorConfig): string {

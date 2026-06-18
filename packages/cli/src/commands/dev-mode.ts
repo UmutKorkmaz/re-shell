@@ -2,9 +2,9 @@ import chalk from 'chalk';
 import prompts from 'prompts';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { configWatcher, setupConfigHotReload, startDevMode, HotReloadOptions } from '../utils/config-watcher';
+import { configWatcher, setupConfigHotReload, HotReloadOptions } from '../utils/config-watcher';
 import { ProgressSpinner, flushOutput } from '../utils/spinner';
-import { ValidationError, processManager } from '../utils/error-handler';
+import { processManager } from '../utils/error-handler';
 import { resolveProfile, EnvironmentProfile } from './profile';
 
 export interface DevModeCommandOptions {

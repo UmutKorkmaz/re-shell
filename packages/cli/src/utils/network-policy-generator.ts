@@ -1,10 +1,6 @@
 // Auto-generated Network Policy Generator
 // Generated at: 2026-01-12T23:12:00.000Z
 
-import chalk from 'chalk';
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
 
 interface NetworkPolicyRule {
   direction: 'Ingress' | 'Egress';
@@ -78,15 +74,15 @@ interface NetworkPolicyConfig {
 }
 
 export function displayConfig(config: NetworkPolicyConfig): void {
-  console.log(chalk.cyan('✨ Network Policies & Security Contexts'));
-  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
-  console.log(chalk.yellow('Project Name:'), config.projectName);
-  console.log(chalk.yellow('Namespace:'), config.namespace);
-  console.log(chalk.yellow('Policies:'), config.policies.map(p => p.name).join(', '));
-  console.log(chalk.yellow('Micro-segmentation:'), config.microSegmentation ? 'Enabled' : 'Disabled');
-  console.log(chalk.yellow('Deny All Ingress:'), config.denyAllIngress ? 'Enabled' : 'Disabled');
-  console.log(chalk.yellow('Deny All Egress:'), config.denyAllEgress ? 'Enabled' : 'Disabled');
-  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
+  console.log('\x1b[36m%s\x1b[0m', '✨ Network Policies & Security Contexts');
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
+  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
+  console.log('\x1b[33m%s\x1b[0m', 'Namespace:', config.namespace);
+  console.log('\x1b[33m%s\x1b[0m', 'Policies:', config.policies.map(p => p.name).join(', '));
+  console.log('\x1b[33m%s\x1b[0m', 'Micro-segmentation:', config.microSegmentation ? 'Enabled' : 'Disabled');
+  console.log('\x1b[33m%s\x1b[0m', 'Deny All Ingress:', config.denyAllIngress ? 'Enabled' : 'Disabled');
+  console.log('\x1b[33m%s\x1b[0m', 'Deny All Egress:', config.denyAllEgress ? 'Enabled' : 'Disabled');
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
 export function generateNetworkPolicyMD(config: NetworkPolicyConfig): string {

@@ -11,7 +11,7 @@ import {
   detectChanges,
   hasFileChanged
 } from '../utils/change-detector';
-import { createSpinner, ProgressSpinner } from '../utils/spinner';
+import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
 export interface ChangeDetectorCommandOptions {

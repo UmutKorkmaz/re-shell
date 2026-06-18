@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as yaml from 'yaml';
 import * as semver from 'semver';
 import { ValidationError } from './error-handler';
-import { WorkspaceDefinition, WorkspaceEntry, WorkspaceTypeConfig } from './workspace-schema';
+import { WorkspaceDefinition } from './workspace-schema';
 import { createWorkspaceBackupManager } from './workspace-backup';
 
 // Migration interfaces

@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { createAsyncCommand, withTimeout, processManager } from '../utils/error-handler';
+import { createAsyncCommand, processManager } from '../utils/error-handler';
 import { createSpinner, flushOutput } from '../utils/spinner';
 import chalk from 'chalk';
 import { enableJsonMode, ok, fail } from '../utils/json-output';

@@ -1,10 +1,6 @@
 // Auto-generated Helm Chart Generator
 // Generated at: 2026-01-12T22:59:00.000Z
 
-import chalk from 'chalk';
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
 
 interface HelmChart {
   name: string;
@@ -28,13 +24,13 @@ interface ServiceConfig {
 }
 
 export function displayConfig(config: HelmConfig): void {
-  console.log(chalk.cyan('✨ Helm Chart Generator'));
-  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
-  console.log(chalk.yellow('Project Name:'), config.projectName);
-  console.log(chalk.yellow('Chart Name:'), config.chartName);
-  console.log(chalk.yellow('Environments:'), config.environments.join(', '));
-  console.log(chalk.yellow('Services:'), config.services.map(s => s.name).join(', '));
-  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
+  console.log('\x1b[36m%s\x1b[0m', '✨ Helm Chart Generator');
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
+  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
+  console.log('\x1b[33m%s\x1b[0m', 'Chart Name:', config.chartName);
+  console.log('\x1b[33m%s\x1b[0m', 'Environments:', config.environments.join(', '));
+  console.log('\x1b[33m%s\x1b[0m', 'Services:', config.services.map(s => s.name).join(', '));
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
 export function generateHelmMD(config: HelmConfig): string {

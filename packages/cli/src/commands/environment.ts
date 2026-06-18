@@ -1,8 +1,7 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
-import { environmentManager, EnvironmentProfile, EnvironmentVariables, BuildConfiguration } from '../utils/environment';
+import { environmentManager } from '../utils/environment';
 import { ProgressSpinner } from '../utils/spinner';
-import { ValidationError } from '../utils/error-handler';
 
 export interface EnvironmentCommandOptions {
   list?: boolean;

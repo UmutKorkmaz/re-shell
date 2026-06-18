@@ -17,7 +17,6 @@
 // shells out to `skaffold`/`kubectl` (argv arrays, never `shell: true`) and
 // errors clearly when they are not installed.
 
-import * as path from 'path';
 import { spawnSync, spawn } from 'child_process';
 import type {
   DevClusterArtifact,

@@ -1,10 +1,6 @@
 // Auto-generated GitOps Integration
 // Generated at: 2026-01-12T23:02:00.000Z
 
-import chalk from 'chalk';
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
 
 interface GitOpsConfig {
   projectName: string;
@@ -37,15 +33,15 @@ interface Application {
 }
 
 export function displayConfig(config: GitOpsConfig): void {
-  console.log(chalk.cyan('✨ GitOps Integration'));
-  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
-  console.log(chalk.yellow('Project Name:'), config.projectName);
-  console.log(chalk.yellow('Platform:'), config.platform);
-  console.log(chalk.yellow('Git Repository:'), config.gitRepo);
-  console.log(chalk.yellow('Target Revision:'), config.targetRevision);
-  console.log(chalk.yellow('Namespaces:'), config.namespaces.join(', '));
-  console.log(chalk.yellow('Sync Policy:'), config.syncPolicy);
-  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
+  console.log('\x1b[36m%s\x1b[0m', '✨ GitOps Integration');
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
+  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
+  console.log('\x1b[33m%s\x1b[0m', 'Platform:', config.platform);
+  console.log('\x1b[33m%s\x1b[0m', 'Git Repository:', config.gitRepo);
+  console.log('\x1b[33m%s\x1b[0m', 'Target Revision:', config.targetRevision);
+  console.log('\x1b[33m%s\x1b[0m', 'Namespaces:', config.namespaces.join(', '));
+  console.log('\x1b[33m%s\x1b[0m', 'Sync Policy:', config.syncPolicy);
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
 export function generateGitOpsMD(config: GitOpsConfig): string {

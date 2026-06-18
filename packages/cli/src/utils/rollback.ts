@@ -1,7 +1,6 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
-import { execSync } from 'child_process';
 
 /**
  * Rollback support for failed generations with cleanup and recovery

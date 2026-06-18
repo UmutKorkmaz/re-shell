@@ -2,7 +2,6 @@
 // Analyze workspace and provide automated optimization suggestions
 
 import { dependencyGraphEngine } from '../graph/dependency-graph-engine';
-import { topologyValidator } from '../validators/topology-validator';
 
 export interface OptimizationRecommendation {
   id: string;

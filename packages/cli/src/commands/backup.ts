@@ -1,8 +1,6 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
-import * as path from 'path';
-import * as fs from 'fs-extra';
-import { configBackupManager, BackupMetadata, RestoreOptions } from '../utils/config-backup';
+import { configBackupManager, RestoreOptions } from '../utils/config-backup';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 

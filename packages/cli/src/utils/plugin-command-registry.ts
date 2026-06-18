@@ -3,9 +3,9 @@ import { EventEmitter } from 'events';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import { ValidationError } from './error-handler';
-import { PluginManifest, PluginRegistration } from './plugin-system';
+import { PluginRegistration } from './plugin-system';
 import { createMiddlewareChainManager, MiddlewareType } from './plugin-command-middleware';
-import { createConflictResolver, CommandConflictResolver } from './plugin-command-conflicts';
+import { createConflictResolver } from './plugin-command-conflicts';
 
 // Command definition from plugin
 export interface PluginCommandDefinition {

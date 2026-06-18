@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { ValidationError } from './error-handler';
-import { ChangeDetector, FileHash } from './change-detector';
+import { ChangeDetector } from './change-detector';
 import { RECOGNIZED_PKG_SCOPES } from './scope';
 
 export interface WorkspaceInfo {

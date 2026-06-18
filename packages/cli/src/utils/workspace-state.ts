@@ -2,7 +2,6 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { ValidationError } from './error-handler';
-import { WorkspaceDefinition } from './workspace-schema';
 
 // Workspace state interfaces
 export interface WorkspaceState {

@@ -2,7 +2,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 import { findMonorepoRoot } from '../utils/monorepo';
-import { getBackendTemplate, listBackendTemplates, BackendTemplate } from '../templates/backend/index';
+import { getBackendTemplate, listBackendTemplates } from '../templates/backend/index';
 
 interface CreateFeatureOptions {
   spinner?: any;

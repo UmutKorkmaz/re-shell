@@ -2,7 +2,6 @@ import chalk from 'chalk';
 import prompts from 'prompts';
 import { migrationManager, MigrationResult } from '../utils/migration';
 import { ProgressSpinner } from '../utils/spinner';
-import { ValidationError } from '../utils/error-handler';
 
 export interface MigrationCommandOptions {
   global?: boolean;

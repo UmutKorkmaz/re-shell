@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import chalk from 'chalk';
-import { ProgressSpinner, flushOutput } from '../utils/spinner';
+import { flushOutput } from '../utils/spinner';
 import {
   scanWorkspace,
   filterServices,

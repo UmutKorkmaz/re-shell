@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-import chalk from 'chalk';
 import { ValidationError } from './error-handler';
 import { PluginCommandContext, PluginCommandMiddleware } from './plugin-command-registry';
 

@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import * as path from 'path';
 import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { 

@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events';
 import chalk from 'chalk';
-import { ValidationError } from './error-handler';
 
 // Hook types and priorities
 export enum HookType {

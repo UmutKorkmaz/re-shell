@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-import { ValidationError } from './error-handler';
 
 export interface DebouncedEvent {
   id: string;

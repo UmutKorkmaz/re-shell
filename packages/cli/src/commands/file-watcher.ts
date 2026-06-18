@@ -1,6 +1,5 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
-import * as path from 'path';
 import * as fs from 'fs-extra';
 import {
   FileWatcher,
@@ -12,7 +11,7 @@ import {
   createFileWatcher,
   startWorkspaceWatcher
 } from '../utils/file-watcher';
-import { createSpinner, ProgressSpinner } from '../utils/spinner';
+import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
 export interface FileWatcherCommandOptions {

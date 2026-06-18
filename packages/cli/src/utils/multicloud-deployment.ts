@@ -1,10 +1,6 @@
 // Auto-generated Multi-Cloud Deployment Utility
 // Generated at: 2026-01-13T10:43:00.000Z
 
-import chalk from 'chalk';
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
 
 interface CloudProvider {
   name: 'aws' | 'azure' | 'gcp';
@@ -57,19 +53,19 @@ interface MultiCloudConfig {
 }
 
 export function displayConfig(config: MultiCloudConfig): void {
-  console.log(chalk.cyan('✨ Multi-Cloud Deployment Optimization and Vendor Lock-in Prevention'));
-  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
-  console.log(chalk.yellow('Project Name:'), config.projectName);
-  console.log(chalk.yellow('Providers:'), config.providers.filter(p => p.enabled).map(p => p.name).join(', '));
-  console.log(chalk.yellow('Strategy:'), config.deploymentStrategy.type);
-  console.log(chalk.yellow('Failover:'), config.deploymentStrategy.failover ? 'Yes' : 'No');
-  console.log(chalk.yellow('Health Check:'), config.deploymentStrategy.healthCheck.enabled ? 'Yes' : 'No');
-  console.log(chalk.yellow('Abstraction Layer:'), config.lockPrevention.abstractionLayer ? 'Yes' : 'No');
-  console.log(chalk.yellow('Multi-Provider SDK:'), config.lockPrevention.multiProviderSDK ? 'Yes' : 'No');
-  console.log(chalk.yellow('Portable Containers:'), config.lockPrevention.portableContainers ? 'Yes' : 'No');
-  console.log(chalk.yellow('Standard Terraform:'), config.lockPrevention.standardTerraform ? 'Yes' : 'No');
-  console.log(chalk.yellow('Cost Optimization:'), config.costOptimization.enabled ? 'Yes' : 'No');
-  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
+  console.log('\x1b[36m%s\x1b[0m', '✨ Multi-Cloud Deployment Optimization and Vendor Lock-in Prevention');
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
+  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
+  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.filter(p => p.enabled).map(p => p.name).join(', '));
+  console.log('\x1b[33m%s\x1b[0m', 'Strategy:', config.deploymentStrategy.type);
+  console.log('\x1b[33m%s\x1b[0m', 'Failover:', config.deploymentStrategy.failover ? 'Yes' : 'No');
+  console.log('\x1b[33m%s\x1b[0m', 'Health Check:', config.deploymentStrategy.healthCheck.enabled ? 'Yes' : 'No');
+  console.log('\x1b[33m%s\x1b[0m', 'Abstraction Layer:', config.lockPrevention.abstractionLayer ? 'Yes' : 'No');
+  console.log('\x1b[33m%s\x1b[0m', 'Multi-Provider SDK:', config.lockPrevention.multiProviderSDK ? 'Yes' : 'No');
+  console.log('\x1b[33m%s\x1b[0m', 'Portable Containers:', config.lockPrevention.portableContainers ? 'Yes' : 'No');
+  console.log('\x1b[33m%s\x1b[0m', 'Standard Terraform:', config.lockPrevention.standardTerraform ? 'Yes' : 'No');
+  console.log('\x1b[33m%s\x1b[0m', 'Cost Optimization:', config.costOptimization.enabled ? 'Yes' : 'No');
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
 export function generateMultiCloudMD(config: MultiCloudConfig): string {

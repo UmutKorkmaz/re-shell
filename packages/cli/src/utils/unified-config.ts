@@ -8,7 +8,6 @@ import * as path from 'path';
 import * as os from 'os';
 import * as yaml from 'yaml';
 import { EventEmitter } from 'events';
-import chalk from 'chalk';
 import {
   GlobalConfig,
   ProjectConfig,

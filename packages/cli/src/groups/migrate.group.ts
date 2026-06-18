@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { createAsyncCommand } from '../utils/error-handler';
-import { enableJsonMode, fail } from '../utils/json-output';
+import { enableJsonMode } from '../utils/json-output';
 import { createSpinner } from '../utils/spinner';
 import { runMigrate } from '../commands/migrate';
 import { LATEST_TARGET_VERSION } from '../utils/migrate-engine';

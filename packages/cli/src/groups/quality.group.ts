@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import { createAsyncCommand, withTimeout, processManager } from '../utils/error-handler';
-import { createSpinner, flushOutput } from '../utils/spinner';
+import { createAsyncCommand, processManager } from '../utils/error-handler';
+import { flushOutput } from '../utils/spinner';
 import chalk from 'chalk';
 import * as path from 'path';
 

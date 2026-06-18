@@ -5,7 +5,6 @@
 
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import chalk from 'chalk';
 
 // Language server configuration
 export interface LanguageServerConfig {

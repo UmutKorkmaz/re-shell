@@ -1,7 +1,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
-import { EnvironmentProfile, ProfileConfig } from './profile';
+import { EnvironmentProfile } from './profile';
 
 /**
  * Profile templates for common deployment scenarios

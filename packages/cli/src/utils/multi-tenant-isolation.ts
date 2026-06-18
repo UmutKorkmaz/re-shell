@@ -1,10 +1,6 @@
 // Auto-generated Multi-Tenant Isolation Generator
 // Generated at: 2026-01-12T23:22:00.000Z
 
-import chalk from 'chalk';
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
 
 interface ResourceQuota {
   name: string;
@@ -86,16 +82,16 @@ interface TenantConfig {
 }
 
 export function displayConfig(config: TenantConfig): void {
-  console.log(chalk.cyan('✨ Multi-Tenant Isolation & Resource Quotas'));
-  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
-  console.log(chalk.yellow('Project Name:'), config.projectName);
-  console.log(chalk.yellow('Namespaces:'), config.namespaces.map(n => n.name).join(', '));
-  console.log(chalk.yellow('Tenants:'), [...new Set(config.namespaces.map(n => n.tenant))].join(', '));
-  console.log(chalk.yellow('Network Isolation:'), config.enableNetworkIsolation ? 'Enabled' : 'Disabled');
-  console.log(chalk.yellow('Resource Quotas:'), config.enableResourceQuotas ? 'Enabled' : 'Disabled');
-  console.log(chalk.yellow('Limit Ranges:'), config.enableLimitRanges ? 'Enabled' : 'Disabled');
-  console.log(chalk.yellow('Pod Security Policies:'), config.enablePodSecurityPolicies ? 'Enabled' : 'Disabled');
-  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
+  console.log('\x1b[36m%s\x1b[0m', '✨ Multi-Tenant Isolation & Resource Quotas');
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
+  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
+  console.log('\x1b[33m%s\x1b[0m', 'Namespaces:', config.namespaces.map(n => n.name).join(', '));
+  console.log('\x1b[33m%s\x1b[0m', 'Tenants:', [...new Set(config.namespaces.map(n => n.tenant))].join(', '));
+  console.log('\x1b[33m%s\x1b[0m', 'Network Isolation:', config.enableNetworkIsolation ? 'Enabled' : 'Disabled');
+  console.log('\x1b[33m%s\x1b[0m', 'Resource Quotas:', config.enableResourceQuotas ? 'Enabled' : 'Disabled');
+  console.log('\x1b[33m%s\x1b[0m', 'Limit Ranges:', config.enableLimitRanges ? 'Enabled' : 'Disabled');
+  console.log('\x1b[33m%s\x1b[0m', 'Pod Security Policies:', config.enablePodSecurityPolicies ? 'Enabled' : 'Disabled');
+  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
 export function generateMultiTenantMD(config: TenantConfig): string {
