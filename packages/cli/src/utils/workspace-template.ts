@@ -458,7 +458,7 @@ export class WorkspaceTemplateManager {
     }
     
     if (typeof obj === 'object' && obj !== null) {
-      const result: any = {};
+      const result: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj)) {
         result[key] = this.substituteVariables(value, variables);
       }

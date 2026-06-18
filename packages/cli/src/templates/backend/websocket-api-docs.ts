@@ -1543,7 +1543,7 @@ function generateChannelMethodsTS(channelName: string, channel: Channel): string
  */
 function parseYAML(yaml: string): any {
   const lines = yaml.split('\\n');
-  const result: any = {};
+  const result: Record<string, unknown> = {};
   let stack = [result];
   let indentStack = [0];
 
@@ -1793,7 +1793,7 @@ function loadDocument(filePath: string): any {
 
   // Simple YAML parser
   const lines = content.split('\\n');
-  const result: any = {};
+  const result: Record<string, unknown> = {};
   const stack: Array<{ obj: any; indent: number }> = [{ obj: result, indent: -1 }];
 
   for (let line of lines) {

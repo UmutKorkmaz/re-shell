@@ -950,7 +950,7 @@ export function apiRoutes(
         return res.status(403).json({ error: 'Permission denied' });
       }
 
-      const filters: any = {};
+      const filters: Record<string, unknown> = {};
       if (req.query.userId) filters.userId = req.query.userId;
       if (req.query.eventType) filters.eventType = req.query.eventType;
       if (req.query.provider) filters.provider = req.query.provider;

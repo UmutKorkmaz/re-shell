@@ -566,7 +566,7 @@ export class StateManager extends EventEmitter {
 
   private async getAllState(): Promise<any> {
     const keys = Array.from(await this.getAllKeys());
-    const state: any = {};
+    const state: Record<string, unknown> = {};
 
     for (const key of keys) {
       state[key] = await this.get(key);

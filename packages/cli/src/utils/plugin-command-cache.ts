@@ -844,7 +844,7 @@ export class PluginCommandCacheManager extends EventEmitter {
     }
     
     if (typeof obj === 'object') {
-      const normalized: any = {};
+      const normalized: Record<string, unknown> = {};
       const keys = Object.keys(obj).sort();
       for (const key of keys) {
         normalized[key] = this.normalizeForHashing(obj[key]);

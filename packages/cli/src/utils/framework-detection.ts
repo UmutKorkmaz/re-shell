@@ -226,7 +226,7 @@ export async function detectFrameworks(cwd: string = process.cwd()): Promise<Det
 
   // Check for package.json
   const packageJsonPath = path.join(cwd, 'package.json');
-  let packageJson: any = {};
+  let packageJson: Record<string, unknown> = {};
 
   if (await fs.pathExists(packageJsonPath)) {
     try {
@@ -267,7 +267,7 @@ export async function analyzeProject(cwd: string = process.cwd()): Promise<Proje
 
   // Load package.json for other detections
   const packageJsonPath = path.join(cwd, 'package.json');
-  let packageJson: any = {};
+  let packageJson: Record<string, unknown> = {};
 
   if (await fs.pathExists(packageJsonPath)) {
     try {

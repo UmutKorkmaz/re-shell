@@ -184,7 +184,7 @@ async function analyzeSingleService(
   projectAnalysis: any
 ): Promise<ServiceDefinition | null> {
   const packageJsonPath = path.join(servicePath, 'package.json');
-  let packageJson: any = {};
+  let packageJson: Record<string, unknown> = {};
 
   if (await fs.pathExists(packageJsonPath)) {
     try {

@@ -231,7 +231,7 @@ export class PluginHookSystem extends EventEmitter {
   }
 
   // Execute hooks
-  async execute(hookType: HookType | string, data: any = {}): Promise<HookResult> {
+  async execute(hookType: HookType | string, data: Record<string, unknown> = {}): Promise<HookResult> {
     if (!this.isEnabled) {
       return {
         success: true,
@@ -363,7 +363,7 @@ export class PluginHookSystem extends EventEmitter {
   }
 
   // Execute hooks synchronously (for simple cases)
-  executeSync(hookType: HookType | string, data: any = {}): any[] {
+  executeSync(hookType: HookType | string, data: Record<string, unknown> = {}): any[] {
     if (!this.isEnabled) return [];
 
     const hookKey = hookType as HookType;

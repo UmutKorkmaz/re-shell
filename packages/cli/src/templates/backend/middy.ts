@@ -1564,7 +1564,7 @@ function sanitizeObject(obj: any): any {
     return obj.map(sanitizeObject);
   }
   
-  const sanitized: any = {};
+  const sanitized: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     sanitized[key] = sanitizeObject(value);
   }

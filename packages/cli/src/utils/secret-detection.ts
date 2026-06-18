@@ -587,7 +587,7 @@ class SecretDetectionManager extends EventEmitter {
   private rotationPolicies: Map<string, RotationPolicy> = new Map();
   private config: any;
 
-  constructor(options: any = {}) {
+  constructor(options: Record<string, unknown> = {}) {
     super();
     this.config = options;
   }

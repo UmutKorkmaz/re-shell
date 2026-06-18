@@ -303,7 +303,7 @@ export class WorkspaceTemplateManager {
     }
 
     // Merge all templates
-    let mergedConfig: any = {};
+    let mergedConfig: Record<string, unknown> = {};
 
     for (const templateId of templateIds) {
       const config = this.instantiate(templateId, {

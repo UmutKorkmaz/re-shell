@@ -487,7 +487,7 @@ export class AngularCliTemplate extends BaseTemplate {
 
   private generateAngularJson() {
     const { normalizedName } = this.context;
-    const projects: any = {};
+    const projects: Record<string, unknown> = {};
     projects[normalizedName] = {
       projectType: 'application',
       schematics: {

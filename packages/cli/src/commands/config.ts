@@ -113,7 +113,7 @@ async function listConfiguration(options: ConfigCommandOptions, spinner?: Progre
   
   if (spinner) spinner.stop();
 
-  const output: any = {};
+  const output: Record<string, unknown> = {};
 
   if (showGlobal || (!showProject && !showGlobal)) {
     output.global = config.global;

@@ -1120,7 +1120,7 @@ export default class UserService extends Service {
     const { page = 1, limit = 20, search, role, status } = options;
     const offset = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     
     if (search) {
       where[this.app.Sequelize.Op.or] = [

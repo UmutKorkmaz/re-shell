@@ -292,7 +292,7 @@ export class ORSet<T> implements CRDT<T[]> {
 export class JSONCRDT implements CRDT<any> {
   value: any;
 
-  constructor(initialValue: any = {}) {
+  constructor(initialValue: Record<string, unknown> = {}) {
     this.value = initialValue;
   }
 

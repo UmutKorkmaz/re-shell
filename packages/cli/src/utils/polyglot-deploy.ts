@@ -367,7 +367,7 @@ export function generateAwsLambdaConfig(service: ServiceInfo, config: Deployment
  * Generate Vercel deployment configuration
  */
 export function generateVercelConfig(services: ServiceInfo[], config: DeploymentConfig): any {
-  const projects: any = {};
+  const projects: Record<string, unknown> = {};
 
   for (const service of services) {
     if (service.type === 'frontend') {

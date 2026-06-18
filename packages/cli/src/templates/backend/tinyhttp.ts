@@ -1602,7 +1602,7 @@ export class UserService {
     const { page, limit, search } = options;
     const skip = (page - 1) * limit;
 
-    const query: any = {};
+    const query: Record<string, unknown> = {};
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },

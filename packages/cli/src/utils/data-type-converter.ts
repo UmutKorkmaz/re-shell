@@ -280,7 +280,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
       return this.mapTypesJsonToProtobuf(data);
     }
 
-    const result: any = {};
+    const result: Record<string, unknown> = {};
 
     for (const field of schema.fields) {
       const value = data[field.name];
@@ -317,7 +317,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
     }
 
     if (typeof value === 'object' && value !== null) {
-      const converted: any = {};
+      const converted: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(value)) {
         converted[key] = this.convertValueToProtobuf(val, targetType);
       }
@@ -336,7 +336,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
     }
 
     if (typeof data === 'object' && data !== null) {
-      const result: any = {};
+      const result: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(data)) {
         result[key] = this.mapTypesJsonToProtobuf(value);
       }
@@ -382,7 +382,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
     }
 
     if (typeof data === 'object' && data !== null) {
-      const result: any = {};
+      const result: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(data)) {
         result[key] = this.mapTypesProtobufToJson(value);
       }

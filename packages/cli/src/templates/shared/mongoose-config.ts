@@ -1411,7 +1411,7 @@ export class UserService {
     } = {}
   ): Promise<PaginatedUsers> {
     try {
-      const query: any = {};
+      const query: Record<string, unknown> = {};
 
       // Apply filters
       if (filters.role) query.role = filters.role;

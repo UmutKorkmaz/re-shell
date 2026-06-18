@@ -375,7 +375,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
 
     return rows.map(row => {
       const values = row.split(',').map(v => v.trim());
-      const obj: any = {};
+      const obj: Record<string, unknown> = {};
       headers.forEach((header, i) => {
         obj[header] = values[i];
       });

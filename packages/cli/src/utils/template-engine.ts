@@ -211,7 +211,7 @@ export class ConfigTemplateEngine {
     } else if (Array.isArray(obj)) {
       return obj.map(item => this.substituteVariables(item, context));
     } else if (obj && typeof obj === 'object') {
-      const result: any = {};
+      const result: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj)) {
         // Allow template key substitution
         const newKey = this.substituteString(key, context);

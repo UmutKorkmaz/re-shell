@@ -324,7 +324,7 @@ export class AngularModuleFederationTemplate extends BaseTemplate {
       }
     };
 
-    const projects: any = {};
+    const projects: Record<string, unknown> = {};
     projects[normalizedName] = {
       projectType: 'application',
       root: '',
