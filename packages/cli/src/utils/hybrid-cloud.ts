@@ -1,5 +1,6 @@
 // Auto-generated Hybrid Cloud Deployment with Edge Computing Utility
 // Generated at: 2026-01-13T11:30:00.000Z
+import chalk from 'chalk';
 
 type CloudProvider = 'aws' | 'azure' | 'gcp' | 'on-prem' | 'edge';
 type EdgeLocation = 'iot' | 'cdn' | 'regional' | 'on-premise' | 'fog';
@@ -45,17 +46,17 @@ interface HybridCloudConfig {
 }
 
 export function displayConfig(config: HybridCloudConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Hybrid Cloud Deployment Strategies with Edge Computing Support');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Primary Cloud:', config.primaryCloud);
-  console.log('\x1b[33m%s\x1b[0m', 'Secondary Clouds:', config.secondaryClouds.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Deployment Strategy:', config.deploymentStrategy);
-  console.log('\x1b[33m%s\x1b[0m', 'Edge Compute:', config.edgeCompute.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Edge Locations:', config.edgeCompute.locations.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Data Sync:', config.dataSync.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Regions:', config.regions.join(', '));
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Hybrid Cloud Deployment Strategies with Edge Computing Support'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Primary Cloud:'), config.primaryCloud);
+  console.log(chalk.yellow('Secondary Clouds:'), config.secondaryClouds.join(', '));
+  console.log(chalk.yellow('Deployment Strategy:'), config.deploymentStrategy);
+  console.log(chalk.yellow('Edge Compute:'), config.edgeCompute.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Edge Locations:'), config.edgeCompute.locations.length);
+  console.log(chalk.yellow('Data Sync:'), config.dataSync.enabled ? 'Yes' : 'No');
+  console.log(chalk.yellow('Regions:'), config.regions.join(', '));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateHybridCloudMD(config: HybridCloudConfig): string {

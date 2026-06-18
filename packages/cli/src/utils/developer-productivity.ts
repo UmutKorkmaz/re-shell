@@ -1,5 +1,6 @@
 // Auto-generated Developer Productivity Utility
 // Generated at: 2026-01-13T13:55:00.000Z
+import chalk from 'chalk';
 
 type MetricCategory = 'code' | 'review' | 'collaboration' | 'quality' | 'velocity';
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'quarterly';
@@ -68,18 +69,18 @@ interface DeveloperProductivityConfig {
 }
 
 export function displayConfig(config: DeveloperProductivityConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📈 Developer Productivity Metrics');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Metrics:', config.metrics.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Developers:', config.developers.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Widgets:', config.widgets.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Insights:', config.insights.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Personalization:', config.enablePersonalization ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Benchmarking:', config.enableBenchmarking ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Goal Tracking:', config.enableGoalTracking ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📈 Developer Productivity Metrics'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Metrics:'), config.metrics.length);
+  console.log(chalk.yellow('Developers:'), config.developers.length);
+  console.log(chalk.yellow('Widgets:'), config.widgets.length);
+  console.log(chalk.yellow('Insights:'), config.insights.length);
+  console.log(chalk.yellow('Personalization:'), config.enablePersonalization ? 'Yes' : 'No');
+  console.log(chalk.yellow('Benchmarking:'), config.enableBenchmarking ? 'Yes' : 'No');
+  console.log(chalk.yellow('Goal Tracking:'), config.enableGoalTracking ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateDeveloperProductivityMD(config: DeveloperProductivityConfig): string {

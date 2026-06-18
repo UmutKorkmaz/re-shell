@@ -1,5 +1,6 @@
 // Auto-generated Distributed Tracing Utility
 // Generated at: 2026-01-13T12:10:00.000Z
+import chalk from 'chalk';
 
 type TracingBackend = 'jaeger' | 'zipkin' | 'tempo' | 'xray';
 type SamplingStrategy = 'probability' | 'rate-limiting' | 'dynamic';
@@ -50,18 +51,18 @@ interface DistributedTracingConfig {
 }
 
 export function displayConfig(config: DistributedTracingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Distributed Tracing with Jaeger/Zipkin Performance Insights');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Tracing Backend:', config.trace.backend);
-  console.log('\x1b[33m%s\x1b[0m', 'Sampling Rate:', (config.trace.samplingRate * 100).toFixed(1) + '%');
-  console.log('\x1b[33m%s\x1b[0m', 'Services:', config.services.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Spans:', config.spans.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Profiling:', config.enableProfiling ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Logging:', config.enableLogging ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Metrics:', config.enableMetrics ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Distributed Tracing with Jaeger/Zipkin Performance Insights'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Tracing Backend:'), config.trace.backend);
+  console.log(chalk.yellow('Sampling Rate:'), (config.trace.samplingRate * 100).toFixed(1) + '%');
+  console.log(chalk.yellow('Services:'), config.services.length);
+  console.log(chalk.yellow('Spans:'), config.spans.length);
+  console.log(chalk.yellow('Profiling:'), config.enableProfiling ? 'Yes' : 'No');
+  console.log(chalk.yellow('Logging:'), config.enableLogging ? 'Yes' : 'No');
+  console.log(chalk.yellow('Metrics:'), config.enableMetrics ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateDistributedTracingMD(config: DistributedTracingConfig): string {
