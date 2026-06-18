@@ -71,7 +71,7 @@ async function initializeProjectConfig(options: ProjectConfigCommandOptions, spi
     projectName,
     {
       type: 'monorepo',
-      packageManager: options.packageManager as any || globalConfig.packageManager,
+      packageManager: (options.packageManager || globalConfig.packageManager) as 'npm' | 'yarn' | 'pnpm' | 'bun',
       framework: options.framework || globalConfig.defaultFramework,
       template: globalConfig.defaultTemplate,
       workspaces: {
@@ -349,7 +349,7 @@ async function interactiveEditProjectConfig(): Promise<void> {
           type: response.field === 'packageManager' ? 'select' : 'text',
           name: 'value',
           message: `New ${response.field}:`,
-          initial: projectConfig[response.field as keyof typeof projectConfig] as any,
+          initial: projectConfig[response.field as keyof typeof projectConfig] as string | undefined,
           choices: response.field === 'packageManager' ? [
             { title: 'pnpm', value: 'pnpm' },
             { title: 'npm', value: 'npm' },
@@ -360,7 +360,7 @@ async function interactiveEditProjectConfig(): Promise<void> {
       ]);
 
       if (fieldResponse.value) {
-        (projectConfig as any)[response.field] = fieldResponse.value;
+        (projectConfig as unknown as Record<string, unknown>)[response.field] = fieldResponse.value;
         await configManager.saveProjectConfig(projectConfig);
         console.log(chalk.green(`✅ Updated ${response.field} to: ${fieldResponse.value}`));
       }

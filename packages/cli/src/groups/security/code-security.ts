@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { createAsyncCommand } from '../../utils/error-handler';
+import type { SecurityRule } from '../../utils/code-security-analysis';
 import chalk from 'chalk';
 
 /**
@@ -114,7 +115,7 @@ export function registerCodeSecurity(security: Command): void {
           createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
           updatedAt: new Date(),
           assignee: 'Jane Smith',
-          rule: {} as any,
+          rule: {} as SecurityRule,
           codeSnippet: 'console.log("Debug info");',
           suggestedFix: '// Remove or use proper logging library',
           aiDetected: false,
@@ -143,7 +144,7 @@ export function registerCodeSecurity(security: Command): void {
           createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
           updatedAt: new Date(),
           assignee: 'Security Team',
-          rule: {} as any,
+          rule: {} as SecurityRule,
           codeSnippet: 'const query = `SELECT * FROM users WHERE id = ${userId}`;',
           suggestedFix: 'Use parameterized query: db.query("SELECT * FROM users WHERE id = ?", [userId])',
           aiDetected: true,

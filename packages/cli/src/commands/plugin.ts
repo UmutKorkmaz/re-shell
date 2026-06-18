@@ -93,7 +93,7 @@ export async function discoverPlugins(options: PluginCommandOptions = {}): Promi
     const registry = createPluginRegistry();
     
     const discoveryOptions: PluginDiscoveryOptions = {
-      sources: source ? [source as any] : ['local', 'npm', 'builtin'],
+      sources: source ? [source as PluginDiscoveryOptions['sources'][number]] : ['local', 'npm', 'builtin'],
       includeDisabled,
       includeDev,
       timeout,

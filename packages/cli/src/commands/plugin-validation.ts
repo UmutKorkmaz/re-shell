@@ -12,7 +12,7 @@ import {
   formatValidationResult,
   createValidationSchema
 } from '../utils/plugin-command-validation';
-import { createPluginCommandRegistry } from '../utils/plugin-command-registry';
+import { createPluginCommandRegistry, PluginCommandContext } from '../utils/plugin-command-registry';
 
 interface ValidationCommandOptions {
   verbose?: boolean;
@@ -84,7 +84,7 @@ export async function testCommandValidation(
         error: (msg: string) => console.error(chalk.red(msg))
       },
       utils: { path: require('path'), chalk, spinner: null }
-    } as any;
+    } as unknown as PluginCommandContext;
 
     const actionText = dryRun ? 'Simulating validation' : 'Validating';
     const spinner = createSpinner(`${actionText} for command '${commandName}'...`);

@@ -81,7 +81,7 @@ function getLayerCount(config: any): number {
   const layers = new Set<string>();
 
   for (const service of Object.values(services)) {
-    const layer = (service as any)?.layer || (service as any)?.type;
+    const layer = (service as Record<string, unknown>)?.layer || (service as Record<string, unknown>)?.type;
     if (typeof layer === 'string' && layer.length > 0) {
       layers.add(layer);
     }

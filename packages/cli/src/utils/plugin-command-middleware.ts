@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 
 import { ValidationError } from './error-handler';
 import { PluginCommandContext, PluginCommandMiddleware } from './plugin-command-registry';
+import type { PluginPermission } from './plugin-system';
 
 // Middleware types
 export enum MiddlewareType {
@@ -575,8 +576,8 @@ export const builtinMiddleware: BuiltinMiddleware = {
       // Check if plugin has required permissions
       const pluginPermissions = context.plugin.manifest.reshell?.permissions || [];
       
-      const hasAllPermissions = requiredPermissions.every(perm => 
-        pluginPermissions.includes(perm as any)
+      const hasAllPermissions = requiredPermissions.every(perm =>
+        pluginPermissions.includes(perm as unknown as PluginPermission)
       );
 
       if (!hasAllPermissions) {
@@ -720,10 +721,10 @@ export const builtinMiddleware: BuiltinMiddleware = {
 
       // Add timing utility to context
       const originalContext = { ...context };
-      (context.utils as any).startTimer = (name: string) => {
+      (context.utils as Record<string, unknown>).startTimer = (name: string) => {
         timings[name] = Date.now();
       };
-      (context.utils as any).endTimer = (name: string) => {
+      (context.utils as Record<string, unknown>).endTimer = (name: string) => {
         if (timings[name]) {
           const duration = Date.now() - timings[name];
           context.logger.debug(`${name}: ${duration}ms`);

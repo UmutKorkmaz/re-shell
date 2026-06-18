@@ -17,7 +17,7 @@ function runCommand(command: string, cwd?: string): { stdout: string; stderr: st
       cwd: cwd || process.cwd(),
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: true as any,
+      shell: true,
       env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '' },
       timeout: 30000
     }).toString();

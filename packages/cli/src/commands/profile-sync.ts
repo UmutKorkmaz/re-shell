@@ -366,7 +366,7 @@ export async function syncProfilesLocal(options: SyncOptions = {}): Promise<void
 
   // Import any new profiles
   await importProfiles(syncPath, {
-    strategy: (options.strategy as any) || 'merge',
+    strategy: (options.strategy as 'local' | 'remote' | 'merge' | 'manual') || 'merge',
   });
 
   console.log(chalk.green('✓ Local sync completed\n'));

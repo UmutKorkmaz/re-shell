@@ -66,7 +66,7 @@ export class EventDebouncer extends EventEmitter {
   addEvent(type: string, path: string, stats?: any): void {
     const event: DebouncedEvent = {
       id: this.generateEventId(),
-      type: type as any,
+      type: type as DebouncedEvent['type'],
       path,
       timestamp: Date.now(),
       stats: this.options.includeStats ? stats : undefined

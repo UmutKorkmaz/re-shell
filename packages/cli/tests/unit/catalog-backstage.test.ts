@@ -56,7 +56,7 @@ describe('serializeEntity', () => {
 
   it('round-trips through js-yaml preserving all fields', () => {
     const entity = component('payments');
-    const parsed = yaml.load(serializeEntity(entity)) as any;
+    const parsed = yaml.load(serializeEntity(entity)) as CatalogEntityLite;
     expect(parsed.metadata.name).toBe('payments');
     expect(parsed.metadata.annotations['re-shell.io/service']).toBe('payments');
     expect(parsed.spec.type).toBe('service');
@@ -70,7 +70,7 @@ describe('serializeEntity', () => {
       metadata: { name: 'demo' },
       spec: { owner: 'team-platform' },
     };
-    const parsed = yaml.load(serializeEntity(minimal)) as any;
+    const parsed = yaml.load(serializeEntity(minimal)) as CatalogEntityLite;
     // No description/tags/annotations keys when absent.
     expect(parsed.metadata).toEqual({ name: 'demo' });
   });
@@ -78,7 +78,7 @@ describe('serializeEntity', () => {
   it('serializes a multi-line API definition', () => {
     const out = serializeEntity(apiEntity());
     expect(out).toContain('definition:');
-    const parsed = yaml.load(out) as any;
+    const parsed = yaml.load(out) as CatalogEntityLite;
     expect(parsed.spec.definition).toBe('placeholder');
   });
 });
@@ -93,7 +93,7 @@ describe('serializeEntities (multi-document stream)', () => {
   it('each document parses to a valid entity', () => {
     const stream = serializeEntities([component(), group(), apiEntity()]);
     for (const doc of stream.split('\n---\n')) {
-      const parsed = yaml.load(doc) as any;
+      const parsed = yaml.load(doc) as CatalogEntityLite;
       expect(parsed.apiVersion).toBe(CATALOG_API_VERSION);
       expect(parsed.kind).toBeDefined();
     }

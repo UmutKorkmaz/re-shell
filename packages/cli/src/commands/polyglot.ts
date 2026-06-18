@@ -14,6 +14,8 @@ import {
   printBuildResults,
   PolyglotBuildOptions,
   ServiceInfo,
+  BuildTarget,
+  LanguageType,
 } from '../utils/polyglot-build';
 import {
   DeploymentTarget,
@@ -299,8 +301,8 @@ export async function deployServices(
         ...options,
         spinner,
         filter: options.filter ? {
-          type: options.filter.type as any,
-          language: options.filter.language as any,
+          type: options.filter.type as BuildTarget[],
+          language: options.filter.language as LanguageType[],
           name: options.filter.name,
         } : undefined,
       });

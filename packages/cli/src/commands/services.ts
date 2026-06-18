@@ -125,7 +125,7 @@ async function parseComposeFile(filePath: string): Promise<ServiceConfig[]> {
 
   if (compose.services) {
     for (const [name, config] of Object.entries(compose.services)) {
-      const serviceConfig = config as any;
+      const serviceConfig = config as Record<string, any>;
       services.push({
         name,
         image: serviceConfig.image,
@@ -414,7 +414,7 @@ async function startWithNpmScripts(
 
       const runningService = await startServiceProcess(service, projectPath);
       runningServices.push(runningService);
-      processes.set(serviceName, runningService.process as any);
+      processes.set(serviceName, runningService.process as ChildProcess);
     }
 
     // Wait a bit for services to be ready
@@ -1384,7 +1384,7 @@ export async function servicesMigrate(
   // Ask for confirmation if not dry run
   if (!dryRun) {
     const promptsModule = await import('prompts');
-    const prompts = (promptsModule as any).default || promptsModule;
+    const prompts = (promptsModule.default || promptsModule) as unknown as typeof import('prompts');
 
     if (backup) {
       if (spinner) spinner.setText('Creating backup...');

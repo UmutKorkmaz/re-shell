@@ -1544,7 +1544,7 @@ async function restoreWorkspaceSnapshot(
   // Restore files if they don't exist or have changed
   for (const [fileName, fileData] of Object.entries(snapshot.files)) {
     const filePath = path.join(workspacePath, fileName);
-    const data = fileData as any;
+    const data = fileData as { content: string; mtime: number; size: number };
 
     try {
       if (!(await fs.pathExists(filePath))) {

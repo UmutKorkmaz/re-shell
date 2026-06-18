@@ -75,7 +75,7 @@ export async function runProjectAnalysis(options: AnalyzeOptions = {}) {
       timestamp: new Date().toISOString(),
       monorepo: path.basename(monorepoRoot),
       workspaces: workspaces.length,
-      analysis: {} as any
+      analysis: {} as Record<string, Record<string, any>>
     };
 
     // Run different types of analysis based on options
@@ -658,7 +658,7 @@ function displayAnalysisResults(results: any, options: AnalyzeOptions) {
 
   // Display results for each workspace
   for (const [workspace, analysis] of Object.entries(results.analysis)) {
-    const workspaceAnalysis = analysis as any;
+    const workspaceAnalysis = analysis as Record<string, any>;
     console.log(chalk.bold(`📦 ${workspace}`));
     
     if (workspaceAnalysis.bundle) {

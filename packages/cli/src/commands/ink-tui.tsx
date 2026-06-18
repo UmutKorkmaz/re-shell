@@ -1268,9 +1268,9 @@ export const InkTUI: React.FC<InkTUIProps> = ({ projectPath }) => {
         // Cycle through all filter types
         const filters: Array<TUIState['filter']> =
           ['all', 'frontend', 'backend', 'worker', 'database', 'queue', 'cache', 'app', 'package', 'lib', 'tool', 'network', 'services'];
-        const currentFilterIndex = filters.indexOf(state.filter as any);
+        const currentFilterIndex = filters.indexOf(state.filter as TUIState['filter']);
         const nextFilter = filters[(currentFilterIndex + 1) % filters.length];
-        setState(prev => ({ ...prev, filter: nextFilter as any, selectedNode: null }));
+        setState(prev => ({ ...prev, filter: nextFilter as TUIState['filter'], selectedNode: null }));
       } else if (input === '1') {
         // Quick view: All services
         setState(prev => ({ ...prev, filter: 'services', selectedNode: null }));
@@ -1720,7 +1720,7 @@ export const InkTUI: React.FC<InkTUIProps> = ({ projectPath }) => {
           const severities: Array<'all' | 'critical' | 'high' | 'medium' | 'low'> =
             ['all', 'critical', 'high', 'medium', 'low'];
           const currentFilter = state.analysisServiceFilter || 'all';
-          const currentIndex = severities.indexOf(currentFilter as any);
+          const currentIndex = severities.indexOf(currentFilter as 'all' | 'critical' | 'high' | 'medium' | 'low');
           const nextFilter = severities[(currentIndex + 1) % severities.length];
           setState(prev => ({ ...prev, analysisServiceFilter: nextFilter === 'all' ? null : nextFilter }));
         } else if (input === 's') {

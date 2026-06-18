@@ -490,7 +490,7 @@ export class PluginLifecycleManager extends EventEmitter {
       }
 
       // Store security result in registration for later use
-      (registration as any).securityResult = securityResult;
+      (registration as { securityResult?: unknown }).securityResult = securityResult;
 
       // Emit security validation event
       this.emit('security-validated', {

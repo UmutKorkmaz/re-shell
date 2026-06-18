@@ -477,7 +477,7 @@ async function generateConfig(monorepoRoot: string, name: string, options: Gener
 }
 
 const config: ${name.charAt(0).toUpperCase() + name.slice(1)}Config = {
-  environment: (process.env.NODE_ENV as any) || 'development',
+  environment: process.env.NODE_ENV || 'development',
   apiUrl: process.env.API_URL || 'http://localhost:3000',
   features: {
     // Feature flags

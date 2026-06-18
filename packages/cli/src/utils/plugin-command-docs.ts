@@ -613,7 +613,7 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     template: DocumentationTemplate,
     options: DocumentationGenerationOptions
   ): Promise<GeneratedDocumentation> {
-    const sections: Record<DocumentationSection, string> = {} as any;
+    const sections = {} as Record<DocumentationSection, string>;
     let content = '';
 
     // Generate each section

@@ -317,7 +317,7 @@ export class PluginRegistry extends EventEmitter {
     // Check cache if enabled
     if (useCache && this.discoveryCache.has(cacheKey)) {
       const cached = this.discoveryCache.get(cacheKey)!;
-      if (Date.now() - (cached as any).timestamp < cacheMaxAge) {
+      if (Date.now() - (cached as PluginDiscoveryResult & { timestamp?: number }).timestamp < cacheMaxAge) {
         return cached;
       }
     }
@@ -355,7 +355,7 @@ export class PluginRegistry extends EventEmitter {
 
     // Cache result
     if (useCache) {
-      (result as any).timestamp = Date.now();
+      (result as PluginDiscoveryResult & { timestamp?: number }).timestamp = Date.now();
       this.discoveryCache.set(cacheKey, result);
     }
 
@@ -930,5 +930,5 @@ export async function discoverPlugins(
 
 export function validatePluginManifest(data: any): PluginManifest {
   const registry = new PluginRegistry();
-  return (registry as any).validateManifest(data);
+  return (registry as unknown as { validateManifest: (data: unknown) => PluginManifest }).validateManifest(data);
 }

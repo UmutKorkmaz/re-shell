@@ -222,7 +222,7 @@ program
       }, 300000); // 5 minute timeout for init
 
       // Get success info stored by initMonorepo
-      const successInfo = (global as any).__RE_SHELL_INIT_SUCCESS__;
+      const successInfo = (global as typeof globalThis & { __RE_SHELL_INIT_SUCCESS__?: { name?: string; packageManager?: string; submodules?: boolean } }).__RE_SHELL_INIT_SUCCESS__;
       if (!successInfo) {
         spinner.stop();
         return;
@@ -243,7 +243,7 @@ program
       }
 
       // Clean up global state
-      delete (global as any).__RE_SHELL_INIT_SUCCESS__;
+      delete (global as typeof globalThis & { __RE_SHELL_INIT_SUCCESS__?: { name?: string; packageManager?: string; submodules?: boolean } }).__RE_SHELL_INIT_SUCCESS__;
     })
   );
 

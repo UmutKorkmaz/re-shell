@@ -358,10 +358,10 @@ export function detectBreakingChanges(oldSpec: any, newSpec: any): BreakingChang
   // Check for removed schema properties
   if (oldSpec.components?.schemas && newSpec.components?.schemas) {
     for (const [schemaName, oldSchema] of Object.entries(oldSpec.components.schemas)) {
-      const newSchema = newSpec.components.schemas[schemaName] as any;
+      const newSchema = newSpec.components.schemas[schemaName] as { properties?: Record<string, unknown> };
       if (!newSchema) continue;
 
-      const oldSchemaTyped = oldSchema as any;
+      const oldSchemaTyped = oldSchema as { properties?: Record<string, unknown>; required?: string[] };
       if (oldSchemaTyped.properties && newSchema.properties) {
         for (const propName of Object.keys(oldSchemaTyped.properties)) {
           if (!newSchema.properties[propName]) {

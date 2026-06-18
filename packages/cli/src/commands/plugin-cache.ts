@@ -11,7 +11,7 @@ import {
   formatCacheHitRate,
   formatExecutionTime
 } from '../utils/plugin-command-cache';
-import { createPluginCommandRegistry } from '../utils/plugin-command-registry';
+import { createPluginCommandRegistry, type PluginCommandContext } from '../utils/plugin-command-registry';
 
 interface CacheCommandOptions {
   verbose?: boolean;
@@ -187,7 +187,7 @@ export async function configureCacheSettings(
       Object.entries(newConfig).forEach(([key, val]) => {
         const isChanged = key === setting;
         const color = isChanged ? 'cyan' : 'gray';
-        const colorFn = (chalk as any)[color];
+        const colorFn = (chalk as unknown as Record<string, (text: string) => string>)[color];
         console.log(`  ${colorFn(key)}: ${val}`);
       });
     }
@@ -315,7 +315,7 @@ export async function testCachePerformance(
         error: () => { /* noop */ }
       },
       utils: { path: require('path'), chalk, spinner: null }
-    } as any;
+    } as unknown as PluginCommandContext;
 
     for (let i = 0; i < iterationCount; i++) {
       const startTime = performance.now();
@@ -520,7 +520,7 @@ export async function optimizeCache(
 
       for (const rec of recommendations) {
         if (rec.setting && rec.newValue !== undefined) {
-          (updates as any)[rec.setting] = rec.newValue;
+          (updates as Record<string, unknown>)[rec.setting] = rec.newValue;
           appliedCount++;
         }
       }

@@ -1145,7 +1145,7 @@ This platform provides comprehensive tools for team collaboration, including mes
 | Metric | Count |
 |--------|-------|
 | Total Users | ${summary.users} |
-| Online Now | ${(summary.users as any).online} |
+| Online Now | ${(summary.users as { online?: number }).online} |
 | Teams | ${summary.teams} |
 | Channels | ${summary.channels} |
 | Messages This Month | ${analytics.metrics.messages.sent} |

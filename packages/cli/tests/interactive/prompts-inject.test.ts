@@ -28,7 +28,7 @@ describe('interactive flows via prompts.inject', () => {
       const { createProject } = await import('../../src/commands/create');
       // createMonorepoProject prompts in order: [template, packageManager]
       prompts.inject(['react-ts', 'pnpm']);
-      await createProject('My Cool App', { org: 'acme' } as any);
+      await createProject('My Cool App', { org: 'acme' });
     });
 
     const projDir = path.join(ws.dir, 'my-cool-app');
@@ -53,7 +53,7 @@ describe('interactive flows via prompts.inject', () => {
         route: '/store',
         org: 'acme',
         packageManager: 'pnpm',
-      } as any);
+      });
     });
 
     const appPkg = fs.readJsonSync(
@@ -74,7 +74,7 @@ describe('interactive flows via prompts.inject', () => {
       const { addMicrofrontend } = await import('../../src/commands/add');
       // add prompts in order: [template, route]
       prompts.inject(['react-ts', '/dash']);
-      await addMicrofrontend('Dash Board', { org: 'acme' } as any);
+      await addMicrofrontend('Dash Board', { org: 'acme' });
     });
 
     const mfPkg = fs.readJsonSync(
@@ -91,7 +91,7 @@ describe('interactive flows via prompts.inject', () => {
       const { manageTemplates } = await import('../../src/commands/template');
       // createTemplate: [source]; createBuiltinTemplate: [type, packageManager]
       prompts.inject(['builtin', 'react-project', 'pnpm']);
-      await manageTemplates({ create: true } as any);
+      await manageTemplates({ create: true });
     });
 
     const tplDir = path.join(ws.dir, '.re-shell', 'templates');

@@ -695,7 +695,7 @@ export class RBACManager {
     this.roles.set('${role.id}', {
       id: '${role.id}',
       name: '${role.name}',
-      status: RoleStatus.${role.status.toUpperCase().replace(/-/g, '_') as any},
+      status: RoleStatus.${role.status.toUpperCase().replace(/-/g, '_') as RoleStatus},
       permissions: [${role.permissions.map(p => `'${p}'`).join(', ')}],
       inheritsFrom: ${role.inheritsFrom ? `'${role.inheritsFrom}'` : 'undefined'},
       priority: ${role.priority}
@@ -769,7 +769,7 @@ export class RBACManager {
     const cacheKey = this.getCacheKey(request);
     const cached = this.permissionCache.get(cacheKey);
 
-    if (cached && Date.now() - (cached as any).timestamp < this.cacheTimeout) {
+    if (cached && Date.now() - (cached as AccessDecision & { timestamp?: number }).timestamp < this.cacheTimeout) {
       return cached;
     }
 
@@ -821,7 +821,7 @@ export class RBACManager {
       permissions: matchedPolicies
     };
 
-    (decision as any).timestamp = Date.now();
+    (decision as AccessDecision & { timestamp?: number }).timestamp = Date.now();
     this.permissionCache.set(cacheKey, decision);
 
     return decision;

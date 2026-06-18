@@ -61,7 +61,7 @@ export class DependencyGraphEngine {
     // Add service nodes
     if (config.services) {
       for (const [id, service] of Object.entries(config.services)) {
-        this.addNode(id, 'service', (service as any).name || id, (service as any).language);
+        this.addNode(id, 'service', (service as Record<string, unknown>).name as string || id, (service as Record<string, unknown>).language as string);
       }
     }
 
@@ -89,7 +89,7 @@ export class DependencyGraphEngine {
     // Add edges based on service routes and dependencies
     if (config.services) {
       for (const [serviceId, service] of Object.entries(config.services)) {
-        const serviceConfig = service as any;
+        const serviceConfig = service as Record<string, any>;
 
         // Add dependencies from routes
         const routes = serviceConfig.routes || [];
@@ -105,7 +105,7 @@ export class DependencyGraphEngine {
         for (const [dep, version] of Object.entries(deps)) {
           // Check if any service provides this dependency
           for (const [otherServiceId, otherService] of Object.entries(config.services)) {
-            const otherConfig = otherService as any;
+            const otherConfig = otherService as Record<string, any>;
             if (otherConfig.type === 'backend' && otherConfig.name === dep) {
               this.addEdge(serviceId, otherServiceId);
             }

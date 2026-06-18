@@ -154,7 +154,7 @@ export async function analyzeServices(cwd: string = process.cwd()): Promise<Depe
     const workspaceConfig = parseWorkspaceConfig(workspaceContent);
 
     for (const [name, workspace] of Object.entries(workspaceConfig.workspaces || {})) {
-      const workspaceEntry = workspace as any;
+      const workspaceEntry = workspace as { path: string; [key: string]: unknown };
       const servicePath = path.join(cwd, workspaceEntry.path);
       if (await fs.pathExists(servicePath)) {
         const analysis = await analyzeProject(servicePath);
@@ -853,7 +853,7 @@ export async function generateAutoWiringConfig(
   const config = {
     version: '1.0.0',
     services: {} as Record<string, unknown>,
-    wiring: [] as any[],
+    wiring: [] as Record<string, unknown>[],
   };
 
   // Add service definitions
@@ -886,7 +886,7 @@ export async function generateAutoWiringConfig(
 
   // Add warnings for cycles
   if (graph.cycles.length > 0) {
-    (config as any).warnings = {
+    (config as Record<string, unknown>).warnings = {
       circularDependencies: graph.cycles,
     };
   }

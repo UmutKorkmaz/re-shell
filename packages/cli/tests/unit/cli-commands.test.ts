@@ -103,10 +103,10 @@ describe('CLI Command Unit Tests', () => {
     });
     vi.mocked(fs.mkdirSync).mockImplementation((p) => {
       mockFiles.set(String(p), 'directory');
-      return undefined as any;
+      return;
     });
     vi.mocked(fs.removeSync).mockImplementation((p) => { mockFiles.delete(String(p)); });
-    vi.mocked(fs.readdirSync).mockReturnValue(['mf1', 'mf2'] as any);
+    vi.mocked(fs.readdirSync).mockReturnValue(['mf1', 'mf2'] as string[]);
 
     // Set up core files for Re-Shell project detection
     mockFiles.set('package.json', JSON.stringify({
@@ -323,7 +323,7 @@ describe('CLI Command Unit Tests', () => {
         if (callback) {
           callback(null, 'Build successful', '');
         }
-        return { stdout: 'Build successful', stderr: '' } as any;
+        return { stdout: 'Build successful', stderr: '' } as unknown as import('child_process').ChildProcess;
       });
 
       // Call the function under test
@@ -353,7 +353,7 @@ describe('CLI Command Unit Tests', () => {
 
       // Mock child_process.exec to return a process-like object
       const childProcessMock = await import('child_process');
-      vi.mocked(childProcessMock.exec).mockReturnValue(mockChildProcess as any);
+      vi.mocked(childProcessMock.exec).mockReturnValue(mockChildProcess as unknown as import('child_process').ChildProcess);
 
       // Call the function under test
       await serveMicrofrontend(undefined, { port: '3000', host: 'localhost', open: true });

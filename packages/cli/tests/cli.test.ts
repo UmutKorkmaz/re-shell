@@ -94,10 +94,10 @@ describe('CLI Command Tests', () => {
     });
     vi.mocked(fs.mkdirSync).mockImplementation((p) => {
       mockFiles.set(String(p), 'directory');
-      return undefined as any;
+      return;
     });
     vi.mocked(fs.removeSync).mockImplementation((p) => { mockFiles.delete(String(p)); });
-    vi.mocked(fs.readdirSync).mockReturnValue(['mf1', 'mf2'] as any);
+    vi.mocked(fs.readdirSync).mockReturnValue(['mf1', 'mf2'] as string[]);
 
     // Set up core files for Re-Shell project detection
     mockFiles.set('package.json', JSON.stringify({
@@ -364,7 +364,7 @@ describe('CLI Command Tests', () => {
       vi.mocked(fs.readdirSync).mockReturnValue([
         { name: 'mf1', isDirectory: () => true, isFile: () => false },
         { name: 'mf2', isDirectory: () => true, isFile: () => false }
-      ] as any);
+      ] as unknown as fs.Dirent[]);
 
       // Call the function under test
       await listMicrofrontends({});
@@ -409,7 +409,7 @@ describe('CLI Command Tests', () => {
       vi.mocked(fs.readdirSync).mockReturnValue([
         { name: 'mf1', isDirectory: () => true, isFile: () => false },
         { name: 'mf2', isDirectory: () => true, isFile: () => false }
-      ] as any);
+      ] as unknown as fs.Dirent[]);
 
       // Spy on process.stdout.write since JSON mode bypasses console.log
       const writeSpy = vi.spyOn(process.stdout, 'write');

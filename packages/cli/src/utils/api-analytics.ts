@@ -1159,7 +1159,7 @@ export function generateNestJSAnalytics(config: AnalyticsConfig): string {
     lines.push('    ');
     lines.push('    res.on("finish", () => {');
     lines.push('      const duration = (Date.now() - start) / 1000;');
-    lines.push('      const route = (req as any).route?.path || req.path;');
+    lines.push('      const route = (req as { route?: { path?: string } }).route?.path || req.path;');
     lines.push('      const method = req.method;');
     lines.push('      const status = res.statusCode.toString();');
     lines.push('      ');
@@ -1281,7 +1281,7 @@ export function generateFastifyAnalytics(config: AnalyticsConfig): string {
     lines.push('  ');
     lines.push('  fastify.addHook("onResponse", async (request, reply) => {');
     lines.push('    const duration = (Date.now() - (request.startTime as number)) / 1000;');
-    lines.push('    const route = (request.routeConfig as any)?.url || request.routerPath;');
+    lines.push('    const route = (request.routeConfig as { url?: string })?.url || request.routerPath;');
     lines.push('    const method = request.method;');
     lines.push('    const status = reply.statusCode;');
     lines.push('    ');

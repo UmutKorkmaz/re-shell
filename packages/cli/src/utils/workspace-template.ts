@@ -326,7 +326,7 @@ export class WorkspaceTemplateManager {
       result.dependencies = this.substituteVariables(
         template.dependencies,
         context.variables
-      ) as any;
+      ) as WorkspaceDefinition['dependencies'];
     }
     
     // Apply scripts

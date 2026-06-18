@@ -198,7 +198,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const env = parseSingleLine(stdout);
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(workspaceSummaryRealSchema).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
   });
 
   it('workspace graph --json conforms to the envelope + graph shape', () => {
@@ -206,7 +206,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const env = parseSingleLine(stdout);
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(contractGraphSchema).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
   });
 
   it('workspace health --json conforms to the envelope + health shape', () => {
@@ -214,7 +214,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const env = parseSingleLine(stdout);
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(canonicalHealthSchema).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
   });
 
   it('templates list --json conforms to the envelope + template[] shape', () => {
@@ -222,7 +222,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const env = parseSingleLine(stdout);
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(z.array(templateSummaryRealSchema)).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
   });
 
   it('templates show <valid> --json conforms to the envelope + template shape', () => {
@@ -230,7 +230,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const env = parseSingleLine(stdout);
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(templateSummaryRealSchema).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
   });
 
   it('commands list --json conforms to the envelope + catalog[] shape', () => {
@@ -238,7 +238,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const env = parseSingleLine(stdout);
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(z.array(commandCatalogEntrySchema)).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
   });
 
   it('doctor --json conforms to the envelope + doctor shape', () => {
@@ -246,7 +246,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const env = parseSingleLine(stdout);
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(doctorDataSchema).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
   });
 
   it('list --json conforms to the envelope + microfrontend list shape', () => {
@@ -254,7 +254,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const env = parseSingleLine(stdout);
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(microfrontendListSchema).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
   });
 
   it('find --json conforms to the envelope + findResponse shape with relevant hits', () => {
@@ -262,7 +262,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const env = parseSingleLine(stdout);
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(findResponseSchema).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
     // The k8s manifest generator is the most relevant real command for this query.
     const data = (env as { data: { results: Array<{ id: string }> } }).data;
     expect(data.results.length).toBeGreaterThan(0);
@@ -287,7 +287,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
     expect(env.ok, `find "${query}" should succeed`).toBe(true);
     expect(status).toBe(0);
     const parsed = jsonResponseSchema(findResponseSchema).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
     return (env as { data: { results: Array<{ type: string; id: string; score: number; matched: string[] }> } })
       .data.results;
   }
@@ -437,6 +437,6 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const env = parseSingleLine(stdout);
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(z.array(workspaceInfoSchema)).safeParse(env);
-    expect(parsed.success, JSON.stringify((parsed as any).error?.issues?.[0])).toBe(true);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
   });
 });

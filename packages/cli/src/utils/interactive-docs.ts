@@ -1077,7 +1077,7 @@ export function openAPIToInteractiveDocs(spec: any, baseUrl: string): Interactiv
 
       const endpoint: APIDocumentationEndpoint = {
         id: `${method.toLowerCase()}-${path}`.replace(/[^a-z0-9-]/g, '-'),
-        method: method.toUpperCase() as any,
+        method: method.toUpperCase() as APIDocumentationEndpoint['method'],
         path,
         summary: operation.summary || `${method.toUpperCase()} ${path}`,
         description: operation.description,

@@ -355,8 +355,8 @@ async function showPropagationRules(options: FileWatcherCommandOptions, spinner?
   try {
     // Access private propagationRules through reflection (for demo purposes)
     // In production, you'd add a public getter method
-    const rules = Array.from((globalWatcher as any).propagationRules.values()) as ChangePropagationRule[];
-    
+    const rules = Array.from((globalWatcher as unknown as { propagationRules: Map<string, ChangePropagationRule> }).propagationRules.values());
+
     if (spinner) spinner.stop();
 
     if (options.json) {
@@ -631,7 +631,7 @@ async function removeRuleInteractive(options: FileWatcherCommandOptions): Promis
     throw new ValidationError('No file watcher instance available');
   }
 
-  const rules = Array.from((globalWatcher as any).propagationRules.values()) as ChangePropagationRule[];
+  const rules = Array.from((globalWatcher as unknown as { propagationRules: Map<string, ChangePropagationRule> }).propagationRules.values());
 
   if (rules.length === 0) {
     console.log(chalk.yellow('\\n📋 No propagation rules to remove'));

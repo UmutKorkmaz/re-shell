@@ -244,7 +244,7 @@ export function generateTypeScriptMentorship(config: MentorshipConfig): string {
   code += '          menteeId,\n';
   code += '          status: \'pending\',\n';
   code += '          matchScore: score,\n';
-  code += '        } as any);\n';
+  code += '        });\n';
   code += '      }\n';
   code += '    }\n\n';
   code += '    return matches.sort((a, b) => b.matchScore - a.matchScore);\n';

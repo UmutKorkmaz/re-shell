@@ -872,7 +872,7 @@ async function detectProjectStructureForInit(): Promise<any> {
     hasJava: false,
     hasDocker: false,
     frameworks: [] as string[],
-    services: [] as any[],
+    services: [] as Record<string, any>[],
   };
 
   // Check for package.json
@@ -1102,7 +1102,7 @@ function generateWorkspaceConfig(responses: any, detection: any): string {
   yaml += '\nservices:\n';
 
   for (const [id, service] of Object.entries(services)) {
-    const s = service as any;
+    const s = service as Record<string, any>;
     yaml += '  ' + id + ':\n';
     yaml += '    name: ' + s.name + '\n';
     yaml += '    type: ' + s.type + '\n';
@@ -2188,7 +2188,7 @@ async function performMigration(
     // Update service structure
     if (migratedConfig.services) {
       for (const [serviceId, service] of Object.entries(migratedConfig.services)) {
-        const s = service as any;
+        const s = service as Record<string, any>;
 
         // Ensure type field exists
         if (!s.type) {
@@ -2248,7 +2248,7 @@ async function performMigration(
 
   if (migratedConfig.services) {
     for (const [id, service] of Object.entries(migratedConfig.services)) {
-      const s = service as any;
+      const s = service as Record<string, any>;
       yaml += '  ' + id + ':\n';
       yaml += '    name: ' + s.name + '\n';
 

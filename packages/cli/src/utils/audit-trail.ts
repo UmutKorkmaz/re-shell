@@ -774,7 +774,7 @@ export class AuditManager {
       id: uuidv4(),
       timestamp: new Date(),
       logRange: { start: startDate, end: endDate },
-      hash: this.computeHash(entriesInRange[0] || {} as any),
+      hash: this.computeHash(entriesInRange[0] || ({} as AuditEntry)),
       previousHash: entriesInRange[0]?.previousHash || '',
       verified,
       result: verified ? 'passed' : 'failed'
@@ -787,7 +787,7 @@ export class AuditManager {
   queryEvents(filter: Partial<AuditEntry>): AuditEntry[] {
     return Array.from(this.entries.values()).filter(entry => {
       return Object.entries(filter).every(([key, value]) => {
-        return (entry as any)[key] === value;
+        return (entry as Record<string, unknown>)[key] === value;
       });
     });
   }
@@ -820,7 +820,7 @@ export class AuditManager {
       // CSV format
       const headers = ['id', 'timestamp', 'eventType', 'severity', 'source', 'userId', 'resource', 'action', 'outcome'];
       const rows = entries.map(e =>
-        headers.map(h => \`"\${(e as any)[h] || ''}"\`).join(',')
+        headers.map(h => \`"\${(e as Record<string, unknown>)[h] || ''}"\`).join(',')
       );
       return [headers.join(','), ...rows].join('\\n');
     }

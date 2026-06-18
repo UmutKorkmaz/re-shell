@@ -562,7 +562,7 @@ export class ProjectManagementManager {
         userName,
         action: 'updated',
         field: key,
-        oldValue: JSON.stringify((task as any)[key]),
+        oldValue: JSON.stringify((task as unknown as Record<string, unknown>)[key]),
         newValue: JSON.stringify(value),
       });
     }

@@ -82,7 +82,7 @@ async function initializeWorkspaceConfig(
     workspaceType,
     {
       framework: options.framework || mergedConfig.merged.framework,
-      packageManager: options.packageManager as any || mergedConfig.merged.packageManager,
+      packageManager: (options.packageManager || mergedConfig.merged.packageManager) as 'npm' | 'yarn' | 'pnpm' | 'bun',
       build: {
         target: 'es2020',
         optimize: true,
@@ -435,9 +435,9 @@ async function interactiveEditWorkspaceConfig(workspacePath: string): Promise<vo
 
   if (fieldResponse.value !== undefined) {
     if (['dependencies', 'devDependencies'].includes(response.field)) {
-      (workspaceConfig as any)[response.field] = fieldResponse.value;
+      (workspaceConfig as unknown as Record<string, unknown>)[response.field] = fieldResponse.value;
     } else {
-      (workspaceConfig as any)[response.field] = fieldResponse.value;
+      (workspaceConfig as unknown as Record<string, unknown>)[response.field] = fieldResponse.value;
     }
     
     await configManager.saveWorkspaceConfig(workspaceConfig, workspacePath);
