@@ -212,7 +212,7 @@ app.post('/contract/test', async (req, res) => {
   try {
     const result = await contractValidator.testEndpoint(endpoint, method, payload);
     res.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     res.status(400).json({ error: error.message });
   }
 });
@@ -484,7 +484,7 @@ export class ContractValidator {
         violations,
         response: response.data,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         endpoint,
         method,
@@ -1377,7 +1377,7 @@ export class FrontendContractValidator {
         responseErrors: responseValidation.errors,
         response: response.data,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         valid: false,
         requestErrors: [],

@@ -1578,7 +1578,7 @@ export default () => {
   return async (ctx: Context, next: () => Promise<unknown>) => {
     try {
       await next();
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Emit error event
       ctx.app.emit('error', err, ctx);
 

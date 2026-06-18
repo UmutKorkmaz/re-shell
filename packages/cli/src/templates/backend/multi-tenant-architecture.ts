@@ -397,7 +397,7 @@ export class TenantContext {
         };
 
         next();
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Tenant context error:', error);
         res.status(500).json({ error: 'Internal server error' });
       }
@@ -587,7 +587,7 @@ export function apiRoutes(
         settings: req.body.settings,
       });
       res.json(tenant);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -597,7 +597,7 @@ export function apiRoutes(
     try {
       const check = await tenantManager.checkTenantLimits(req.tenant!.id);
       res.json(check);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -607,7 +607,7 @@ export function apiRoutes(
     try {
       const tenant = await tenantManager.createTenant(req.body);
       res.status(201).json(tenant);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({ error: error.message });
     }
   });
@@ -623,7 +623,7 @@ export function apiRoutes(
     try {
       await tenantManager.suspendTenant(req.params.id);
       res.json({ message: 'Tenant suspended' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -633,7 +633,7 @@ export function apiRoutes(
     try {
       await tenantManager.activateTenant(req.params.id);
       res.json({ message: 'Tenant activated' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -643,7 +643,7 @@ export function apiRoutes(
     try {
       await tenantManager.deleteTenant(req.params.id);
       res.json({ message: 'Tenant deleted' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

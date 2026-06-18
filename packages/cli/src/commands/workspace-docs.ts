@@ -101,8 +101,8 @@ export async function generateWorkspaceDocs(options: DocsGenerationOptions = {})
     console.log(chalk.gray('Output: ' + outputPath));
     console.log();
 
-  } catch (error: any) {
-    console.log(chalk.red('✗ Error generating documentation: ' + error.message));
+  } catch (error: unknown) {
+    console.log(chalk.red('✗ Error generating documentation: ' + (error as Error).message));
     if (verbose) {
       console.error(error);
     }
@@ -581,7 +581,7 @@ async function generateOnce(
     await fs.writeFile(outputPath, content);
 
     console.log(chalk.gray('Documentation updated: ' + outputPath));
-  } catch (error: any) {
-    console.log(chalk.red('✗ Error generating documentation: ' + error.message));
+  } catch (error: unknown) {
+    console.log(chalk.red('✗ Error generating documentation: ' + (error as Error).message));
   }
 }

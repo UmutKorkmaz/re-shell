@@ -907,7 +907,7 @@ export function apiRoutes(
         queries: queryStats,
         recentSlowQueries: slowQueries,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -923,7 +923,7 @@ export function apiRoutes(
 
       const plan = queryOptimizer.analyzeQuery(query, database);
       res.json(plan);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -939,7 +939,7 @@ export function apiRoutes(
         queryRecommendations: recommendations,
         indexRecommendations,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -966,7 +966,7 @@ export function poolRoutes(poolManager: PoolManager): Router {
 
       await poolManager.createPool(config);
       res.json({ message: \`Pool \${config.name} created successfully\` });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -976,7 +976,7 @@ export function poolRoutes(poolManager: PoolManager): Router {
     try {
       const stats = await poolManager.getAllPoolStats();
       res.json(stats);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -992,7 +992,7 @@ export function poolRoutes(poolManager: PoolManager): Router {
       }
 
       res.json(stats);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1003,7 +1003,7 @@ export function poolRoutes(poolManager: PoolManager): Router {
       const { name } = req.params;
       await poolManager.closePool(name);
       res.json({ message: \`Pool \${name} closed successfully\` });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1013,7 +1013,7 @@ export function poolRoutes(poolManager: PoolManager): Router {
     try {
       await poolManager.closeAll();
       res.json({ message: 'All pools closed successfully' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1038,7 +1038,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
         limit ? parseInt(limit as string) : undefined
       );
       res.json(logs);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1051,7 +1051,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
         threshold ? parseInt(threshold as string) : 1000
       );
       res.json(slowQueries);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1061,7 +1061,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
     try {
       const failedQueries = queryLogger.getFailedQueries();
       res.json(failedQueries);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1074,7 +1074,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
         limit ? parseInt(limit as string) : undefined
       );
       res.json(history);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1087,7 +1087,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
         limit ? parseInt(limit as string) : undefined
       );
       res.json(slowQueries);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1103,7 +1103,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
 
       queryOptimizer.setSlowQueryThreshold(threshold);
       res.json({ message: \`Slow query threshold set to \${threshold}ms\` });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1114,7 +1114,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
       queryLogger.clear();
       queryOptimizer.clearHistory();
       res.json({ message: 'Query logs and history cleared' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

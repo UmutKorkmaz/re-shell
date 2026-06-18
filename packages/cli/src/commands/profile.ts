@@ -92,7 +92,7 @@ export async function manageProfiles(options: ProfileCommandOptions = {}): Promi
     // Default: list all profiles
     await listProfiles(options, spinner);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (spinner) spinner.fail(chalk.red('Profile operation failed'));
     throw error;
   }
@@ -986,8 +986,8 @@ export async function validateProfileInheritance(profileName: string): Promise<{
     }
 
     return { valid: true, errors, warnings };
-  } catch (error: any) {
-    return { valid: false, errors: [error.message], warnings };
+  } catch (error: unknown) {
+    return { valid: false, errors: [(error as Error).message], warnings };
   }
 }
 

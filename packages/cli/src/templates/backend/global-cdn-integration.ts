@@ -266,7 +266,7 @@ export class CDNManager extends EventEmitter {
 
       this.emit('purge', result);
       return [result];
-    } catch (error: any) {
+    } catch (error: unknown) {
       const failResult: CDNPurgeResult = {
         provider: targetProvider,
         success: false,
@@ -302,7 +302,7 @@ export class CDNManager extends EventEmitter {
       } else {
         throw new Error(response.data.errors?.[0]?.message || 'Purge failed');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new Error(\`Cloudflare purge failed: \${error.message}\`);
     }
   }
@@ -334,7 +334,7 @@ export class CDNManager extends EventEmitter {
         success: true,
         purgedUrls: urls,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new Error(\`CloudFront purge failed: \${error.message}\`);
     }
   }
@@ -362,7 +362,7 @@ export class CDNManager extends EventEmitter {
         success: true,
         purgedUrls,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new Error(\`Azure purge failed: \${error.message}\`);
     }
   }
@@ -385,7 +385,7 @@ export class CDNManager extends EventEmitter {
         success: true,
         purgedUrls: urls,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new Error(\`Fastly purge failed: \${error.message}\`);
     }
   }
@@ -691,7 +691,7 @@ export class AssetUploader extends EventEmitter {
 
       this.emit('upload:success', result);
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       const failResult: UploadResult = {
         provider: 'cdn',
         file: filePath,
@@ -854,7 +854,7 @@ export class CacheInvalidator extends EventEmitter {
       task.completedAt = Date.now();
 
       this.emit('task:completed', { task, results });
-    } catch (error: any) {
+    } catch (error: unknown) {
       task.status = 'failed';
       task.completedAt = Date.now();
 
@@ -1039,7 +1039,7 @@ export function cdnRoutes(cdnManager: CDNManager, assetUploader: AssetUploader):
         message: 'Purge completed',
         results,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1054,7 +1054,7 @@ export function cdnRoutes(cdnManager: CDNManager, assetUploader: AssetUploader):
         message: 'Full purge completed',
         result,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1077,7 +1077,7 @@ export function cdnRoutes(cdnManager: CDNManager, assetUploader: AssetUploader):
         failed: results.filter((r) => !r.success).length,
         results,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1094,7 +1094,7 @@ export function cdnRoutes(cdnManager: CDNManager, assetUploader: AssetUploader):
       const result = await assetUploader.uploadFile(file, cdnBaseUrl, options);
 
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1133,7 +1133,7 @@ export function edgeRoutes(edgeOptimizer: EdgeOptimizer): Router {
       const result = await edgeOptimizer.optimizeImage(filePath, options);
 
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1150,7 +1150,7 @@ export function edgeRoutes(edgeOptimizer: EdgeOptimizer): Router {
       const result = edgeOptimizer.optimizeCSS(css);
 
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1167,7 +1167,7 @@ export function edgeRoutes(edgeOptimizer: EdgeOptimizer): Router {
       const result = edgeOptimizer.optimizeJS(js);
 
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

@@ -152,9 +152,9 @@ export async function rollbackOperation(
         console.log(chalk.green(`  ✓ Removed: ${filePath}`));
         deleted++;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.log(chalk.red(`  ✗ Failed to remove: ${filePath}`));
-      console.log(chalk.gray(`    Error: ${error.message}`));
+      console.log(chalk.gray(`    Error: ${(error as Error).message}`));
       errors++;
     }
   }
@@ -172,9 +172,9 @@ export async function rollbackOperation(
         await fs.copy(sourcePath, targetPath, { overwrite: true });
         console.log(chalk.green(`  ✓ Restored: ${backupFile}`));
         restored++;
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.log(chalk.red(`  ✗ Failed to restore: ${backupFile}`));
-        console.log(chalk.gray(`    Error: ${error.message}`));
+        console.log(chalk.gray(`    Error: ${(error as Error).message}`));
         errors++;
       }
     }
@@ -273,8 +273,8 @@ export async function executeWithRollback<T>(
     console.log(chalk.green(`\n✓ Operation completed successfully\n`));
 
     return result;
-  } catch (error: any) {
-    console.log(chalk.red(`\n✗ Operation failed: ${error.message}\n`));
+  } catch (error: unknown) {
+    console.log(chalk.red(`\n✗ Operation failed: ${(error as Error).message}\n`));
 
     // Rollback on failure
     const rollbackSuccess = await rollbackOperation(snapshotId, options);

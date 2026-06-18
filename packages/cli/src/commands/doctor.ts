@@ -197,9 +197,9 @@ async function checkDependenciesHealth(monorepoRoot: string): Promise<HealthChec
         status: 'success',
         message: 'All dependencies are up to date'
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // outdated command exits with code 1 when there are outdated packages
-      const output = error.stdout?.toString();
+      const output = (error as { stdout?: string }).stdout?.toString();
       if (output) {
         try {
           const outdated = JSON.parse(output);
@@ -251,8 +251,8 @@ async function checkSecurityVulnerabilities(monorepoRoot: string): Promise<Healt
         status: 'success',
         message: 'No security vulnerabilities found'
       };
-    } catch (error: any) {
-      const output = error.stdout?.toString();
+    } catch (error: unknown) {
+      const output = (error as { stdout?: string }).stdout?.toString();
       if (output) {
         try {
           const audit = JSON.parse(output);

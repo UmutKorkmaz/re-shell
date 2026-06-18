@@ -757,7 +757,7 @@ export function apiRoutes(
     try {
       const optimization = ormOptimizer.optimize(orm, query);
       res.json(optimization);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({ error: error.message });
     }
   });

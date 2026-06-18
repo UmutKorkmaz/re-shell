@@ -834,7 +834,7 @@ export class ServiceCommunicationManager extends EventEmitter {
         cached: false,
         duration: Date.now() - startTime,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Update error stats
       if (serviceStats) {
         serviceStats.errors++;
@@ -982,7 +982,7 @@ export function serviceRoutes(commManager: ServiceCommunicationManager): Router 
       } else {
         res.status(500).json({ error: result.error });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -994,7 +994,7 @@ export function serviceRoutes(commManager: ServiceCommunicationManager): Router 
     try {
       const results = await commManager.batchCall(calls);
       res.json({ results });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

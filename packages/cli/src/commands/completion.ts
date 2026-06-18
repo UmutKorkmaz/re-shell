@@ -71,8 +71,8 @@ export async function installCompletion(options: CompletionInstallOptions = {}):
       console.log(chalk.gray('Supported shells: bash, zsh\n'));
       return;
     }
-  } catch (error: any) {
-    console.log(chalk.red('Error installing completion: ' + error.message));
+  } catch (error: unknown) {
+    console.log(chalk.red('Error installing completion: ' + (error as Error).message));
   }
 }
 

@@ -111,12 +111,12 @@ export async function buildMicrofrontend(name?: string, options: BuildOptions = 
         if (stdout) console.log(stdout);
         if (stderr) console.error(stderr);
         console.log(chalk.green(`✓ Successfully built microfrontend "${name}"`));
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (spinner) {
           spinner.stop();
           flushOutput();
         }
-        throw new Error(`Failed to build microfrontend "${name}": ${error.message}`);
+        throw new Error(`Failed to build microfrontend "${name}": ${(error as Error).message}`);
       } finally {
         process.chdir(originalCwd);
       }
@@ -183,12 +183,12 @@ export async function buildMicrofrontend(name?: string, options: BuildOptions = 
         if (stdout) console.log(stdout);
         if (stderr) console.error(stderr);
         console.log(chalk.green(`✓ Successfully built all microfrontends`));
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (spinner) {
           spinner.stop();
           flushOutput();
         }
-        throw new Error(`Failed to build microfrontends: ${error.message}`);
+        throw new Error(`Failed to build microfrontends: ${(error as Error).message}`);
       }
     }
   } catch (error) {

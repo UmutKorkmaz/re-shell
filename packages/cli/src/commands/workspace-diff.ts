@@ -102,8 +102,8 @@ export async function diffWorkspace(options: WorkspaceDiffOptions = {}): Promise
     }
 
     console.log();
-  } catch (error: any) {
-    console.log(chalk.red('✗ Error computing diff: ' + error.message));
+  } catch (error: unknown) {
+    console.log(chalk.red('✗ Error computing diff: ' + (error as Error).message));
   }
 }
 

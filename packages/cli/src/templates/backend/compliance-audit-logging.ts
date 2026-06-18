@@ -391,7 +391,7 @@ export function apiRoutes(
         sessionId: req.sessionID,
       });
       res.json({ message: 'Event logged' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -401,7 +401,7 @@ export function apiRoutes(
     try {
       const events = await auditLogger.queryEvents(req.query);
       res.json({ events, count: events.length });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -411,7 +411,7 @@ export function apiRoutes(
     try {
       const status = await complianceManager.getComplianceStatus();
       res.json(status);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -422,7 +422,7 @@ export function apiRoutes(
       const report = await reportGenerator.generateAuditReport(req.query);
       res.setHeader('Content-Type', 'text/markdown');
       res.send(report);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -432,7 +432,7 @@ export function apiRoutes(
     try {
       const report = await complianceManager.generateComplianceReport(req.params.standard);
       res.json(report);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

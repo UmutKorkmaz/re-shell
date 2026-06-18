@@ -342,13 +342,13 @@ function analyzeDependencies(state: TUIState): DependencyAnalysis {
           dependencyVersions.get(dependency)!.add(String(version));
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       issues.push({
         type: 'missing',
         severity: 'low',
         service: node.id,
         dependency: 'package.json',
-        description: `Could not read dependency manifest: ${error.message}`,
+        description: `Could not read dependency manifest: ${(error as Error).message}`,
         recommendation: 'Fix the package.json file so dependency inventory can include this workspace.',
       });
     }
@@ -1109,8 +1109,8 @@ export const InkTUI: React.FC<InkTUIProps> = ({ projectPath }) => {
           loading: false,
           error: null,
         }));
-      } catch (error: any) {
-        setState(prev => ({ ...prev, loading: false, error: error.message }));
+      } catch (error: unknown) {
+        setState(prev => ({ ...prev, loading: false, error: (error as Error).message }));
       }
     };
 
@@ -1177,10 +1177,10 @@ export const InkTUI: React.FC<InkTUIProps> = ({ projectPath }) => {
               error: null,
             }));
           }, 500); // Wait for animation to partially complete
-        } catch (error: any) {
+        } catch (error: unknown) {
           setState(prev => ({
             ...prev,
-            error: error.message,
+            error: (error as Error).message,
             workspaceReloading: false,
           }));
         }
@@ -2512,8 +2512,8 @@ export async function launchInkTUI(options: InkTUIProps = {}): Promise<void> {
     if (instance?.waitUntilExit) {
       await instance.waitUntilExit();
     }
-  } catch (error: any) {
-    console.error(chalk.red('Failed to launch TUI:', error.message));
+  } catch (error: unknown) {
+    console.error(chalk.red('Failed to launch TUI:', (error as Error).message));
     process.exit(1);
   }
 }

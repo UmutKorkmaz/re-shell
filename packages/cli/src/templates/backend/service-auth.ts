@@ -487,7 +487,7 @@ export class JwtAuthMiddleware {
       const payload = this.verifyToken(token);
       req.user = payload;
       next();
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(401).json({ error: 'Invalid token', message: error.message });
     }
   }

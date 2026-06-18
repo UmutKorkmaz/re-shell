@@ -2401,8 +2401,8 @@ async function autoRegisterInWorkspace(
     console.log(chalk.gray(`\n✓ Auto-registered in workspace configuration`));
     console.log(chalk.gray(`  Service: ${serviceName}`));
     console.log(chalk.gray(`  Config: re-shell.workspaces.yaml\n`));
-  } catch (error: any) {
-    console.log(chalk.yellow('\n⚠ Failed to auto-register in workspace: ' + error.message));
+  } catch (error: unknown) {
+    console.log(chalk.yellow('\n⚠ Failed to auto-register in workspace: ' + (error as Error).message));
     console.log(chalk.gray('You can manually add the service to re-shell.workspaces.yaml\n'));
   }
 }

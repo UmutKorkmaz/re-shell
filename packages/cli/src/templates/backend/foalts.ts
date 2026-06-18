@@ -464,7 +464,7 @@ export class AuthController {
         },
         token
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       return new HttpResponseBadRequest({
         message: error.message
       });
@@ -521,7 +521,7 @@ export class AuthController {
       return new HttpResponseOK({
         message: 'Email verified successfully'
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       return new HttpResponseBadRequest({
         message: error.message
       });
@@ -550,7 +550,7 @@ export class AuthController {
       return new HttpResponseOK({
         message: 'Password reset email sent'
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       return new HttpResponseBadRequest({
         message: error.message
       });
@@ -578,7 +578,7 @@ export class AuthController {
       return new HttpResponseOK({
         message: 'Password reset successfully'
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       return new HttpResponseBadRequest({
         message: error.message
       });
@@ -798,7 +798,7 @@ export class UserController {
       return new HttpResponseOK({
         message: 'Password changed successfully'
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       return new HttpResponseBadRequest({
         message: error.message
       });

@@ -126,9 +126,9 @@ export async function applyOptimizations(
         console.log(chalk.gray(`  ${result.description}`));
         skipped++;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.log(chalk.red(`✗ ${rec.title}`));
-      console.log(chalk.gray(`  Error: ${error.message}`));
+      console.log(chalk.gray(`  Error: ${(error as Error).message}`));
       skipped++;
     }
   }

@@ -124,7 +124,7 @@ export async function getSubmoduleStatus(): Promise<SubmoduleInfo[]> {
     }
     
     return submodules;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If no submodules exist, return empty array
     if (error.toString().includes('No submodule mapping found')) {
       return [];

@@ -115,8 +115,8 @@ export async function serveMicrofrontend(name?: string, options: ServeOptions = 
         process.stdin.resume();
         // Signal that this command should keep the process running
         processManager.keepRunning();
-      } catch (error: any) {
-        throw new Error(`Failed to start development server: ${error.message}`);
+      } catch (error: unknown) {
+        throw new Error(`Failed to start development server: ${(error as Error).message}`);
       }
     } else {
       // Serve all microfrontends using the workspace manager
@@ -165,8 +165,8 @@ export async function serveMicrofrontend(name?: string, options: ServeOptions = 
         process.stdin.resume();
         // Signal that this command should keep the process running
         processManager.keepRunning();
-      } catch (error: any) {
-        throw new Error(`Failed to start development servers: ${error.message}`);
+      } catch (error: unknown) {
+        throw new Error(`Failed to start development servers: ${(error as Error).message}`);
       }
     }
   } catch (error) {

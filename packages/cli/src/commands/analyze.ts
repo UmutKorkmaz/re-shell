@@ -209,7 +209,7 @@ async function analyzeBundleSize(workspacePath: string, workspace: string, optio
       treeshaking
     };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       workspace,
       size: { total: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`, gzipped: 'N/A', assets: [] },
@@ -238,11 +238,11 @@ async function analyzeDependencies(workspacePath: string, workspace: string, opt
         wanted: info.wanted,
         latest: info.latest
       }));
-    } catch (error: any) {
+    } catch (error: unknown) {
       // npm outdated exits with code 1 when packages are outdated
-      if (error.stdout) {
+      if ((error as { stdout?: string }).stdout) {
         try {
-          const outdatedData = JSON.parse(error.stdout);
+          const outdatedData = JSON.parse((error as { stdout?: string }).stdout);
           outdated = Object.entries(outdatedData).map(([name, info]: [string, any]) => ({
             name,
             current: info.current,
@@ -362,10 +362,10 @@ async function analyzeSecurityIssues(workspacePath: string, workspace: string, o
     try {
       const auditOutput = execSync('npm audit --json', { cwd: workspacePath, stdio: 'pipe', encoding: 'utf8' });
       auditResults = JSON.parse(auditOutput);
-    } catch (error: any) {
-      if (error.stdout) {
+    } catch (error: unknown) {
+      if ((error as { stdout?: string }).stdout) {
         try {
-          auditResults = JSON.parse(error.stdout);
+          auditResults = JSON.parse((error as { stdout?: string }).stdout);
         } catch {
           // Ignore parsing errors
         }

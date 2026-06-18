@@ -127,7 +127,7 @@ export class WorkspaceParser {
             });
           },
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Enhanced YAML error reporting with line numbers
         const yamlError = error as yaml.YAMLException;
         const errorMsg = yamlError.message || 'Unknown YAML error';
@@ -178,7 +178,7 @@ export class WorkspaceParser {
       }
 
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       result.errors.push({
         path: 'parser',
         message: `Unexpected error: \${error.message}`,

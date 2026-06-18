@@ -403,7 +403,7 @@ export class PushSubscriptionManager extends EventEmitter {
       );
       this.emit('notification:sent', { userId, payload });
       console.log(\`📤 Notification sent to user \${userId}\`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error.statusCode === 410) {
         // Subscription expired, remove it
         await this.unsubscribe(userId);
@@ -676,7 +676,7 @@ export function pushRoutes(pushManager: PushSubscriptionManager): Router {
     try {
       await pushManager.subscribe(userId, subscription);
       res.json({ success: true, message: 'Subscribed to push notifications' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -688,7 +688,7 @@ export function pushRoutes(pushManager: PushSubscriptionManager): Router {
     try {
       await pushManager.unsubscribe(userId);
       res.json({ success: true, message: 'Unsubscribed from push notifications' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -707,7 +707,7 @@ export function pushRoutes(pushManager: PushSubscriptionManager): Router {
       });
 
       res.json({ success: true, message: 'Notification sent' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -726,7 +726,7 @@ export function pushRoutes(pushManager: PushSubscriptionManager): Router {
       });
 
       res.json({ success: true, message: 'Broadcast sent' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

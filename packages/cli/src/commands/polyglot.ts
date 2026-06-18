@@ -89,12 +89,12 @@ export async function buildAll(options: PolyglotBuildOptions = {}): Promise<void
     if (failed.length > 0) {
       process.exit(1);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (spinner) {
       spinner.stop();
       flushOutput();
     }
-    console.error(chalk.red(`Error building services: ${error.message}`));
+    console.error(chalk.red(`Error building services: ${(error as Error).message}`));
     throw error;
   }
 }
@@ -238,12 +238,12 @@ export async function generateDeploymentConfig(
     console.log(chalk.gray(`  1. Review and update .env.example with your values`));
     console.log(chalk.gray(`  2. Copy .env.example to .env and fill in values`));
     console.log(chalk.gray(`  3. Run deployment script: cd ${deployDir} && ./deploy-${target}.sh`));
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (spinner) {
       spinner.stop();
       flushOutput();
     }
-    console.error(chalk.red(`Error generating deployment config: ${error.message}`));
+    console.error(chalk.red(`Error generating deployment config: ${(error as Error).message}`));
     throw error;
   }
 }
@@ -334,12 +334,12 @@ export async function deployServices(
     if (failed.length > 0) {
       process.exit(1);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (spinner) {
       spinner.stop();
       flushOutput();
     }
-    console.error(chalk.red(`Error deploying services: ${error.message}`));
+    console.error(chalk.red(`Error deploying services: ${(error as Error).message}`));
     throw error;
   }
 }
@@ -379,8 +379,8 @@ export async function listServices(options: any = {}): Promise<void> {
       }
       console.log();
     }
-  } catch (error: any) {
-    console.error(chalk.red(`Error listing services: ${error.message}`));
+  } catch (error: unknown) {
+    console.error(chalk.red(`Error listing services: ${(error as Error).message}`));
     throw error;
   }
 }

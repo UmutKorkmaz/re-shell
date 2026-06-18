@@ -188,7 +188,7 @@ export class LoadTestRunner {
         } else {
           successfulRequests++;
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         failedRequests++;
         const errorKey = error.code || error.message || 'Unknown error';
         errors.set(errorKey, (errors.get(errorKey) || 0) + 1);
@@ -463,7 +463,7 @@ export function apiRoutes(
       const config = req.body;
       const result = await loadTestRunner.run(config);
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -474,7 +474,7 @@ export function apiRoutes(
       const config = req.body;
       const result = await stressTestRunner.run(config);
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

@@ -438,7 +438,7 @@ export class VulnerabilityScanner {
           references: ['https://cwe.mitre.org/data/definitions/200.html'],
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error scanning live application:', error.message);
     }
 
@@ -769,7 +769,7 @@ export class DependencyAuditor {
       // In real implementation, parse the NVD response
       // For now, return empty array
       return vulns;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error querying CVE database:', error.message);
       return [];
     }
@@ -1049,7 +1049,7 @@ export function apiRoutes(
       const { targetUrl, codebasePath } = req.body;
       const result = await vulnScanner.scanApplication(targetUrl, codebasePath);
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1061,7 +1061,7 @@ export function apiRoutes(
       const scanResult = await vulnScanner.scanApplication(targetUrl, codebasePath);
       const plan = vulnScanner.getRemediationPlan(scanResult.vulnerabilities);
       res.json(plan);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1072,7 +1072,7 @@ export function apiRoutes(
       const { codebasePath } = req.body;
       const result = await codeAnalyzer.analyzeCode(codebasePath);
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1083,7 +1083,7 @@ export function apiRoutes(
       const { filePath, content } = req.body;
       const issues = await codeAnalyzer.analyzeFile(filePath, content);
       res.json({ issues, count: issues.length });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1094,7 +1094,7 @@ export function apiRoutes(
       const { packageJsonPath } = req.body;
       const result = await depAuditor.auditDependencies(packageJsonPath);
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1104,7 +1104,7 @@ export function apiRoutes(
     try {
       const result = await depAuditor.runNpmAudit();
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1136,7 +1136,7 @@ export function apiRoutes(
         res.setHeader('Content-Type', 'text/html');
         res.send(report);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1148,7 +1148,7 @@ export function apiRoutes(
       const scanResult = await vulnScanner.scanApplication(targetUrl as string, codebasePath as string);
       const compliance = reporter.getComplianceMatrix(scanResult);
       res.json(compliance);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

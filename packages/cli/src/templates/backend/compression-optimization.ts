@@ -704,7 +704,7 @@ export class Precompressor {
       result.brotliSize = brotliStats.size;
 
       result.duration = Date.now() - startTime;
-    } catch (error: any) {
+    } catch (error: unknown) {
       result.error = error.message;
     }
 
@@ -905,7 +905,7 @@ export function apiRoutes(
     try {
       const bundle = bundleOptimizer.analyzeBundle(bundlePath);
       res.json(bundle);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

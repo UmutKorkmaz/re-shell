@@ -435,13 +435,13 @@ export async function buildService(
     } finally {
       process.chdir(originalCwd);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     const duration = Date.now() - startTime;
     return {
       service,
       success: false,
       duration,
-      error: error.message,
+      error: (error as Error).message,
     };
   }
 }

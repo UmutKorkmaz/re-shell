@@ -529,13 +529,13 @@ export async function deployService(
           error: `Deployment target ${target} not yet implemented`,
         };
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       service,
       target,
       success: false,
       duration: Date.now() - startTime,
-      error: error.message,
+      error: (error as Error).message,
     };
   }
 }
@@ -569,13 +569,13 @@ async function deployToDocker(
       duration: Date.now() - startTime,
       url: `http://localhost:3000`,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       service,
       target: 'docker',
       success: false,
       duration: Date.now() - startTime,
-      error: error.message,
+      error: (error as Error).message,
     };
   }
 }
@@ -617,13 +617,13 @@ async function deployToKubernetes(
       duration: Date.now() - startTime,
       url: stdout || `http://${service.name}.${namespace}.svc.cluster.local`,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       service,
       target: 'kubernetes',
       success: false,
       duration: Date.now() - startTime,
-      error: error.message,
+      error: (error as Error).message,
     };
   }
 }
@@ -668,13 +668,13 @@ async function deployToVercel(
     } finally {
       process.chdir(originalCwd);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       service,
       target: 'vercel',
       success: false,
       duration: Date.now() - startTime,
-      error: error.message,
+      error: (error as Error).message,
     };
   }
 }
@@ -715,13 +715,13 @@ async function deployToNetlify(
     } finally {
       process.chdir(originalCwd);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       service,
       target: 'netlify',
       success: false,
       duration: Date.now() - startTime,
-      error: error.message,
+      error: (error as Error).message,
     };
   }
 }
@@ -764,13 +764,13 @@ async function deployToAwsEcs(
       duration: Date.now() - startTime,
       url: `http://${service.name}.${clusterName}.${region}.elb.amazonaws.com`,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       service,
       target: 'aws-ecs',
       success: false,
       duration: Date.now() - startTime,
-      error: error.message,
+      error: (error as Error).message,
     };
   }
 }

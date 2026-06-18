@@ -1035,7 +1035,7 @@ export function profilingRoutes(profiler: Profiler): Router {
           filePath,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -1061,7 +1061,7 @@ export function profilingRoutes(profiler: Profiler): Router {
           filePath,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

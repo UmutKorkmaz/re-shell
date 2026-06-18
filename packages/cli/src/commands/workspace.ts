@@ -852,9 +852,9 @@ export async function initWorkspace(options: any = {}): Promise<void> {
     // Show next steps
     showNextSteps(responses);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (spinner) spinner.stop();
-    console.error(chalk.red('Error: ' + error.message));
+    console.error(chalk.red('Error: ' + (error as Error).message));
     throw error;
   }
 }
@@ -1291,9 +1291,9 @@ export async function validateWorkspaceConfig(options: any = {}): Promise<void> 
       console.log(JSON.stringify({ validation: result, topology: topologyResult }, null, 2));
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (spinner) spinner.stop();
-    console.error(chalk.red('Error: ' + error.message));
+    console.error(chalk.red('Error: ' + (error as Error).message));
     throw error;
   }
 }
@@ -1436,8 +1436,8 @@ async function runValidation(configPath: string, options: any): Promise<void> {
     }
 
     console.log(chalk.gray('─'.repeat(50)));
-  } catch (error: any) {
-    console.log(chalk.red('✗ Validation error: ' + error.message));
+  } catch (error: unknown) {
+    console.log(chalk.red('✗ Validation error: ' + (error as Error).message));
   }
 }
 
@@ -1546,9 +1546,9 @@ export async function checkWorkspaceHealth(options: any = {}): Promise<void> {
       }
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (spinner) spinner.stop();
-    console.error(chalk.red('Error: ' + error.message));
+    console.error(chalk.red('Error: ' + (error as Error).message));
     throw error;
   }
 }
@@ -1617,12 +1617,12 @@ async function runMonorepoHealthChecks(monorepoRoot: string): Promise<HealthChec
         details: missingNames.length > 0 ? missingNames : workspaces.map(w => `${w.name} (${w.type})`),
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     checks.push({
       name: 'Workspaces',
       status: 'critical',
       message: 'Cannot enumerate workspaces',
-      details: [error.message],
+      details: [(error as Error).message],
     });
   }
 
@@ -1675,12 +1675,12 @@ async function checkConfigFileHealth(configPath: string): Promise<HealthCheck> {
       status: 'healthy',
       message: 'Configuration file is valid',
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       name: 'Config File',
       status: 'critical',
       message: 'Cannot read configuration file',
-      details: [error.message],
+      details: [(error as Error).message],
     };
   }
 }
@@ -1740,12 +1740,12 @@ async function checkServicesHealth(configPath: string): Promise<HealthCheck> {
       status: 'healthy',
       message: `All ${services.length} service(s) are configured`,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       name: 'Services',
       status: 'critical',
       message: 'Cannot validate services',
-      details: [error.message],
+      details: [(error as Error).message],
     };
   }
 }
@@ -1796,12 +1796,12 @@ async function checkDependenciesHealth(configPath: string): Promise<HealthCheck>
       status: 'healthy',
       message: `${edges} dependency relationship(s) across ${nodes} service(s)`,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       name: 'Dependencies',
       status: 'warning',
       message: 'Cannot check dependencies',
-      details: [error.message],
+      details: [(error as Error).message],
     };
   }
 }
@@ -2045,10 +2045,10 @@ export async function migrateWorkspace(options: any = {}): Promise<void> {
 
         currentConfig = result.config;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (spinner) spinner.stop();
       console.log(chalk.red('✗ Failed to parse configuration'));
-      console.log(chalk.gray('Error: ' + error.message + '\n'));
+      console.log(chalk.gray('Error: ' + (error as Error).message + '\n'));
       return;
     }
 
@@ -2104,9 +2104,9 @@ export async function migrateWorkspace(options: any = {}): Promise<void> {
     }
     console.log();
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (spinner) spinner.stop();
-    console.error(chalk.red('Error: ' + error.message));
+    console.error(chalk.red('Error: ' + (error as Error).message));
     throw error;
   }
 }
@@ -2522,9 +2522,9 @@ export async function optimizeWorkspace(options: any = {}): Promise<void> {
       }
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (spinner) spinner.stop();
-    console.error(chalk.red('Error: ' + error.message));
+    console.error(chalk.red('Error: ' + (error as Error).message));
     throw error;
   }
 }
@@ -2567,7 +2567,7 @@ export async function manageWorkspaceTemplates(options: any = {}): Promise<void>
         console.log(chalk.red('✗ Unknown action: ' + action));
         console.log(chalk.gray('Valid actions: list, show, create, validate, export, import, delete, chain\n'));
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (spinner) spinner.stop();
     if (json) {
       fail(
@@ -2576,7 +2576,7 @@ export async function manageWorkspaceTemplates(options: any = {}): Promise<void>
       );
       return;
     }
-    console.error(chalk.red('Error: ' + error.message));
+    console.error(chalk.red('Error: ' + (error as Error).message));
     throw error;
   }
 }

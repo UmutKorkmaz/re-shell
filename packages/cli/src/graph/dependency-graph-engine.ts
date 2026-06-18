@@ -394,9 +394,9 @@ export class DependencyGraphEngine {
           });
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       plan.canResolve = false;
-      plan.errors.push(error.message);
+      plan.errors.push((error as Error).message);
     }
 
     return plan;

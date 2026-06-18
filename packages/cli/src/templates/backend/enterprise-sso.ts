@@ -858,7 +858,7 @@ export function apiRoutes(
           roles: user.roles,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('LDAP login error:', error);
       res.status(500).json({ error: error.message });
     }
@@ -883,7 +883,7 @@ export function apiRoutes(
       auditLogger.logTokenRefresh(payload!.sub, req, true);
 
       res.json(tokens);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -904,7 +904,7 @@ export function apiRoutes(
       });
 
       res.json({ message: 'Logged out successfully' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -935,7 +935,7 @@ export function apiRoutes(
           roles: payload.roles,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -959,7 +959,7 @@ export function apiRoutes(
 
       const events = auditLogger.getEvents(filters);
       res.json({ events, count: events.length });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

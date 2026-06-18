@@ -204,7 +204,7 @@ export class BackupManager {
       await this.cleanOldBackups();
 
       return backup;
-    } catch (error: any) {
+    } catch (error: unknown) {
       backup.status = 'failed';
       throw error;
     }
@@ -484,7 +484,7 @@ export class RecoveryManager {
         duration: Date.now() - startTime,
         errors,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       errors.push(error.message);
       return {
         success: false,
@@ -520,7 +520,7 @@ export function apiRoutes(
       const { type } = req.body;
       const backup = await backupManager.createBackup(type);
       res.status(201).json(backup);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -536,7 +536,7 @@ export function apiRoutes(
     try {
       const stats = await backupManager.getBackupStats();
       res.json(stats);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -546,7 +546,7 @@ export function apiRoutes(
     try {
       await backupManager.deleteBackup(req.params.id);
       res.json({ message: 'Backup deleted' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -557,7 +557,7 @@ export function apiRoutes(
       const { backupId } = req.body;
       await recoveryManager.restoreFromBackup(backupId);
       res.json({ message: 'Restore completed successfully' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -573,7 +573,7 @@ export function apiRoutes(
     try {
       const result = await recoveryManager.testDisasterRecovery();
       res.json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: error.message });
     }
   });

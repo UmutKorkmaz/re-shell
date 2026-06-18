@@ -737,7 +737,7 @@ export function apiRoutes(
     try {
       const sla = slaTracker.calculateSLA(req.params.id);
       res.json(sla);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(404).json({ error: error.message });
     }
   });

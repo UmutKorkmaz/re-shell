@@ -987,7 +987,7 @@ export class BackendServiceIntegration extends EventEmitter {
       const response = await axiosInstance.get(endpoint, config);
       this.resetCircuitBreaker(serviceId);
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await this.recordFailure(serviceId);
       throw error;
     }
@@ -1011,7 +1011,7 @@ export class BackendServiceIntegration extends EventEmitter {
       const response = await axiosInstance.post(endpoint, data, config);
       this.resetCircuitBreaker(serviceId);
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await this.recordFailure(serviceId);
       throw error;
     }

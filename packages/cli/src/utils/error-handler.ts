@@ -67,11 +67,11 @@ export function createAsyncCommand(fn: (...args: any[]) => Promise<void>) {
   return async (...args: any[]) => {
     try {
       await fn(...args);
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof ValidationError) {
         console.error(chalk.red(`Validation Error: ${error.message}`));
       } else {
-        console.error(chalk.red(`Error: ${error?.message || 'Unknown error'}`));
+        console.error(chalk.red(`Error: ${(error as Error)?.message || 'Unknown error'}`));
       }
       process.exit(1);
     }
