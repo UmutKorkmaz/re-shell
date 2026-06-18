@@ -27,7 +27,7 @@ export interface WsClientOptions {
   onJson?: (id: string | undefined, parsed: unknown) => void;
   onError?: (error: Error) => void;
   onOpen?: () => void;
-  onClose?: () => void;
+  onClose?: (code: number, reason: string) => void;
   reconnect?: boolean;
   /**
    * Per-launch session token enforced by the hub on every route. When omitted,
@@ -72,8 +72,11 @@ export class WsClient {
       this.opts.onError?.(new Error('WebSocket transport error'));
     };
 
-    this.ws.onclose = () => {
-      this.opts.onClose?.();
+    this.ws.onclose = (event: CloseEvent) => {
+      this.opts.onClose?.(event.code, event.reason);
+      // 1008 = policy violation (e.g. Unauthorized). Reconnecting would just
+      // fail identically, so skip the retry loop for permanent rejections.
+      if (event.code === 1008) return;
       if (this.opts.reconnect && this.reconnectAttempts < this.maxReconnects) {
         this.reconnectAttempts++;
         setTimeout(() => this.connect(), 1000 * this.reconnectAttempts);

@@ -135,7 +135,7 @@ export function useJob(
       token: resolveHubToken(token),
       onMessage: handleMessage,
       onError: (err) => setError(err),
-      onClose: () => {
+      onClose: (code: number, reason: string) => {
         // Transition to a terminal state if the socket closed before the job
         // finished (network drop, hub restart, auth rejection). Without this,
         // the UI shows a spinner that runs forever with no error.
@@ -144,9 +144,14 @@ export function useJob(
             ? prev
             : 'failed',
         );
-        setError((prev) =>
-          prev ?? new Error('Connection to the hub closed before the job finished'),
-        );
+        setError((prev) => {
+          if (prev) return prev;
+          // 1008 = policy violation (e.g. token rejected by hub)
+          if (code === 1008) {
+            return new Error(`Unauthorized — hub rejected the connection${reason ? `: ${reason}` : ''}`);
+          }
+          return new Error(`Connection to the hub closed (code ${code})${reason ? `: ${reason}` : ''}`);
+        });
       },
       onOpen: () => {
         client.send({ type: 'start', id: jobId, commandId, params });
