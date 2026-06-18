@@ -1,6 +1,7 @@
 // Auto-generated AWS ECS/EKS CDK Utility
 // Generated at: 2026-01-13T10:26:00.000Z
 
+import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -57,20 +58,20 @@ interface AWSCloudConfig {
 }
 
 export function displayConfig(config: AWSCloudConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ AWS ECS/EKS with CDK Templates and Auto-Scaling');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Region:', config.region);
-  console.log('\x1b[33m%s\x1b[0m', 'Profile:', config.profile || 'default');
-  console.log('\x1b[33m%s\x1b[0m', 'EKS Cluster:', config.eksConfig.clusterName);
-  console.log('\x1b[33m%s\x1b[0m', 'EKS Version:', config.eksConfig.version);
-  console.log('\x1b[33m%s\x1b[0m', 'ECS Service:', config.ecsConfig.serviceName);
-  console.log('\x1b[33m%s\x1b[0m', 'Launch Type:', config.ecsConfig.launchType);
-  console.log('\x1b[33m%s\x1b[0m', 'Min Capacity:', config.autoScaling.minCapacity);
-  console.log('\x1b[33m%s\x1b[0m', 'Max Capacity:', config.autoScaling.maxCapacity);
-  console.log('\x1b[33m%s\x1b[0m', 'Target CPU:', config.autoScaling.targetCPU + '%');
-  console.log('\x1b[33m%s\x1b[0m', 'Spot Instances:', config.costOptimization.enableSpotInstances ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ AWS ECS/EKS with CDK Templates and Auto-Scaling'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Region:'), config.region);
+  console.log(chalk.yellow('Profile:'), config.profile || 'default');
+  console.log(chalk.yellow('EKS Cluster:'), config.eksConfig.clusterName);
+  console.log(chalk.yellow('EKS Version:'), config.eksConfig.version);
+  console.log(chalk.yellow('ECS Service:'), config.ecsConfig.serviceName);
+  console.log(chalk.yellow('Launch Type:'), config.ecsConfig.launchType);
+  console.log(chalk.yellow('Min Capacity:'), config.autoScaling.minCapacity);
+  console.log(chalk.yellow('Max Capacity:'), config.autoScaling.maxCapacity);
+  console.log(chalk.yellow('Target CPU:'), config.autoScaling.targetCPU + '%');
+  console.log(chalk.yellow('Spot Instances:'), config.costOptimization.enableSpotInstances ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateAWSCloudMD(config: AWSCloudConfig): string {

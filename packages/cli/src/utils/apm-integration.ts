@@ -1,6 +1,7 @@
 // Auto-generated APM Integration Utility
 // Generated at: 2026-01-13T12:20:00.000Z
 
+import chalk from 'chalk';
 type ApmBackend = 'datadog' | 'newrelic' | 'dynatrace' | 'appdynamics' | 'elastic-apm';
 type ProfilingMode = 'continuous' | 'on-demand' | 'sampling';
 type InsightType = 'performance' | 'error' | 'security' | 'business';
@@ -52,22 +53,22 @@ interface ApmIntegrationConfig {
 }
 
 export function displayConfig(config: ApmIntegrationConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📊 Application Performance Monitoring (APM) with AI-Powered Insights');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'APM Backend:', config.apm.backend);
-  console.log('\x1b[33m%s\x1b[0m', 'Environment:', config.apm.environment);
-  console.log('\x1b[33m%s\x1b[0m', 'Profiling Mode:', config.apm.profilingMode);
-  console.log('\x1b[33m%s\x1b[0m', 'Sample Rate:', (config.apm.sampleRate * 100).toFixed(1) + '%');
-  console.log('\x1b[33m%s\x1b[0m', 'Metrics:', config.metrics.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Alerts:', config.alerts.length);
-  console.log('\x1b[33m%s\x1b[0m', 'AI Insights:', config.aiInsights.filter(i => i.enabled).length);
-  console.log('\x1b[33m%s\x1b[0m', 'Distributed Tracing:', config.enableDistributedTracing ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Error Tracking:', config.enableErrorTracking ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Security Monitoring:', config.enableSecurityMonitoring ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Profiling:', config.enableProfiling ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📊 Application Performance Monitoring (APM) with AI-Powered Insights'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('APM Backend:'), config.apm.backend);
+  console.log(chalk.yellow('Environment:'), config.apm.environment);
+  console.log(chalk.yellow('Profiling Mode:'), config.apm.profilingMode);
+  console.log(chalk.yellow('Sample Rate:'), (config.apm.sampleRate * 100).toFixed(1) + '%');
+  console.log(chalk.yellow('Metrics:'), config.metrics.length);
+  console.log(chalk.yellow('Alerts:'), config.alerts.length);
+  console.log(chalk.yellow('AI Insights:'), config.aiInsights.filter(i => i.enabled).length);
+  console.log(chalk.yellow('Distributed Tracing:'), config.enableDistributedTracing ? 'Yes' : 'No');
+  console.log(chalk.yellow('Error Tracking:'), config.enableErrorTracking ? 'Yes' : 'No');
+  console.log(chalk.yellow('Security Monitoring:'), config.enableSecurityMonitoring ? 'Yes' : 'No');
+  console.log(chalk.yellow('Profiling:'), config.enableProfiling ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateApmIntegrationMD(config: ApmIntegrationConfig): string {

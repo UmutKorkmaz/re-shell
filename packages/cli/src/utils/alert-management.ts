@@ -1,6 +1,7 @@
 // Auto-generated Alert Management Utility
 // Generated at: 2026-01-13T12:40:00.000Z
 
+import chalk from 'chalk';
 type AlertSeverity = 'info' | 'warning' | 'critical' | 'emergency';
 type ChannelType = 'email' | 'slack' | 'pagerduty' | 'sms' | 'webhook';
 type IncidentStatus = 'open' | 'acknowledged' | 'resolved' | 'closed';
@@ -54,18 +55,18 @@ interface AlertManagementConfig {
 }
 
 export function displayConfig(config: AlertManagementConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🚨 Custom Alerting and Incident Management with Escalation and Automation');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Alerts:', config.alerts.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Notification Channels:', config.channels.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Escalation Rules:', config.escalations.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Incident Workflows:', config.workflows.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto-Remediation:', config.enableAutoRemediation ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Incident Tracking:', config.enableIncidentTracking ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Postmortem Generation:', config.enablePostmortem ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🚨 Custom Alerting and Incident Management with Escalation and Automation'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Alerts:'), config.alerts.length);
+  console.log(chalk.yellow('Notification Channels:'), config.channels.length);
+  console.log(chalk.yellow('Escalation Rules:'), config.escalations.length);
+  console.log(chalk.yellow('Incident Workflows:'), config.workflows.length);
+  console.log(chalk.yellow('Auto-Remediation:'), config.enableAutoRemediation ? 'Yes' : 'No');
+  console.log(chalk.yellow('Incident Tracking:'), config.enableIncidentTracking ? 'Yes' : 'No');
+  console.log(chalk.yellow('Postmortem Generation:'), config.enablePostmortem ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateAlertManagementMD(config: AlertManagementConfig): string {

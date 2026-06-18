@@ -1,6 +1,7 @@
 // Auto-generated Azure AKS Utility
 // Generated at: 2026-01-13T10:35:00.000Z
 
+import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -50,22 +51,22 @@ interface AzureCloudConfig {
 }
 
 export function displayConfig(config: AzureCloudConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Azure AKS with ARM/Bicep Integration and Azure DevOps');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Subscription ID:', config.subscriptionId.substring(0, 8) + '...');
-  console.log('\x1b[33m%s\x1b[0m', 'AKS Cluster:', config.aksConfig.clusterName);
-  console.log('\x1b[33m%s\x1b[0m', 'Resource Group:', config.aksConfig.resourceGroupName);
-  console.log('\x1b[33m%s\x1b[0m', 'Location:', config.aksConfig.location);
-  console.log('\x1b[33m%s\x1b[0m', 'K8s Version:', config.aksConfig.kubernetesVersion);
-  console.log('\x1b[33m%s\x1b[0m', 'Node Count:', config.aksConfig.nodeCount);
-  console.log('\x1b[33m%s\x1b[0m', 'VM Size:', config.aksConfig.nodeVmSize);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto-Scaling:', config.aksConfig.enableAutoScaling ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Private Cluster:', config.aksConfig.enablePrivateCluster ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Azure DevOps:', config.devOpsConfig.organization);
-  console.log('\x1b[33m%s\x1b[0m', 'ACR:', config.enableACR ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Key Vault:', config.enableKeyVault ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Azure AKS with ARM/Bicep Integration and Azure DevOps'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Subscription ID:'), config.subscriptionId.substring(0, 8) + '...');
+  console.log(chalk.yellow('AKS Cluster:'), config.aksConfig.clusterName);
+  console.log(chalk.yellow('Resource Group:'), config.aksConfig.resourceGroupName);
+  console.log(chalk.yellow('Location:'), config.aksConfig.location);
+  console.log(chalk.yellow('K8s Version:'), config.aksConfig.kubernetesVersion);
+  console.log(chalk.yellow('Node Count:'), config.aksConfig.nodeCount);
+  console.log(chalk.yellow('VM Size:'), config.aksConfig.nodeVmSize);
+  console.log(chalk.yellow('Auto-Scaling:'), config.aksConfig.enableAutoScaling ? 'Yes' : 'No');
+  console.log(chalk.yellow('Private Cluster:'), config.aksConfig.enablePrivateCluster ? 'Yes' : 'No');
+  console.log(chalk.yellow('Azure DevOps:'), config.devOpsConfig.organization);
+  console.log(chalk.yellow('ACR:'), config.enableACR ? 'Yes' : 'No');
+  console.log(chalk.yellow('Key Vault:'), config.enableKeyVault ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateAzureCloudMD(config: AzureCloudConfig): string {

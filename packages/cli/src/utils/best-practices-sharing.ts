@@ -1,6 +1,7 @@
 // Auto-generated Best Practices Sharing and Enforcement Utility
 // Generated at: 2026-01-13T14:30:00.000Z
 
+import chalk from 'chalk';
 type PracticeCategory = 'code-style' | 'security' | 'performance' | 'testing' | 'documentation' | 'architecture' | 'devops' | 'accessibility';
 type EnforcementLevel = 'guideline' | 'recommendation' | 'required' | 'mandatory';
 type PracticeStatus = 'draft' | 'proposed' | 'active' | 'deprecated' | 'retired';
@@ -96,18 +97,18 @@ interface BestPracticesConfig {
 }
 
 export function displayConfig(config: BestPracticesConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📚 Best Practices Sharing and Enforcement');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Practice Libraries:', config.libraries.size);
-  console.log('\x1b[33m%s\x1b[0m', 'Community Voting:', config.enableCommunityVoting ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Enforcement:', config.enableAutoEnforcement ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Discussions:', config.enableDiscussion ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Voting Threshold:', config.votingThreshold);
-  console.log('\x1b[33m%s\x1b[0m', 'Reputation System:', config.reputationSystem ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Visibility:', config.practiceVisibility);
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📚 Best Practices Sharing and Enforcement'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Practice Libraries:'), config.libraries.size);
+  console.log(chalk.yellow('Community Voting:'), config.enableCommunityVoting ? 'Yes' : 'No');
+  console.log(chalk.yellow('Auto Enforcement:'), config.enableAutoEnforcement ? 'Yes' : 'No');
+  console.log(chalk.yellow('Discussions:'), config.enableDiscussion ? 'Yes' : 'No');
+  console.log(chalk.yellow('Voting Threshold:'), config.votingThreshold);
+  console.log(chalk.yellow('Reputation System:'), config.reputationSystem ? 'Yes' : 'No');
+  console.log(chalk.yellow('Visibility:'), config.practiceVisibility);
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateBestPracticesMD(config: BestPracticesConfig): string {

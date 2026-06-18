@@ -1,6 +1,7 @@
 // Auto-generated Team Burnout Detection and Wellness Monitoring Utility
 // Generated at: 2026-01-13T14:30:00.000Z
 
+import chalk from 'chalk';
 type WellnessMetric = 'work-hours' | 'overtime' | 'breaks' | 'time-off' | 'sentiment' | 'engagement' | 'stress-level' | 'sleep-pattern';
 type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 type InterventionType = 'mandatory-break' | 'reduce-workload' | 'time-off' | 'counseling' | 'team-adjustment' | 'role-change' | 'resource-allocation';
@@ -81,18 +82,18 @@ interface BurnoutDetectionConfig {
 }
 
 export function displayConfig(config: BurnoutDetectionConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🧘 Team Burnout Detection and Wellness Monitoring');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Team Members:', config.teamMembers.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Interventions:', config.interventions.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Real-time Monitoring:', config.enableRealTimeMonitoring ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Automated Interventions:', config.enableAutomatedInterventions ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Anonymous Surveys:', config.enableAnonymousSurveys ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Survey Frequency:', config.surveyFrequency + ' days');
-  console.log('\x1b[33m%s\x1b[0m', 'Risk Threshold:', config.riskThreshold + '%');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🧘 Team Burnout Detection and Wellness Monitoring'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Team Members:'), config.teamMembers.length);
+  console.log(chalk.yellow('Interventions:'), config.interventions.length);
+  console.log(chalk.yellow('Real-time Monitoring:'), config.enableRealTimeMonitoring ? 'Yes' : 'No');
+  console.log(chalk.yellow('Automated Interventions:'), config.enableAutomatedInterventions ? 'Yes' : 'No');
+  console.log(chalk.yellow('Anonymous Surveys:'), config.enableAnonymousSurveys ? 'Yes' : 'No');
+  console.log(chalk.yellow('Survey Frequency:'), config.surveyFrequency + ' days');
+  console.log(chalk.yellow('Risk Threshold:'), config.riskThreshold + '%');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateBurnoutDetectionMD(config: BurnoutDetectionConfig): string {

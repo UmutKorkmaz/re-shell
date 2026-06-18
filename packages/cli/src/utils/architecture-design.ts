@@ -1,6 +1,7 @@
 // Auto-generated Architecture Design Utility
 // Generated at: 2026-01-13T13:20:00.000Z
 
+import chalk from 'chalk';
 type DiagramType = 'sequence' | 'flowchart' | 'component' | 'deployment' | 'c4' | 'erd';
 type ExportFormat = 'png' | 'svg' | 'pdf' | 'mermaid' | 'plantuml';
 type VersionControl = 'git' | 'github' | 'gitlab' | 'bitbucket';
@@ -39,20 +40,20 @@ interface ArchitectureDesignConfig {
 }
 
 export function displayConfig(config: ArchitectureDesignConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🏗️  Collaborative Architecture Design and Planning Tools');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Diagram Type:', config.diagram.type);
-  console.log('\x1b[33m%s\x1b[0m', 'Export Format:', config.diagram.format);
-  console.log('\x1b[33m%s\x1b[0m', 'Elements:', config.elements.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Version Control:', config.versionControl);
-  console.log('\x1b[33m%s\x1b[0m', 'Comments:', config.collaboration.enableComments ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Versioning:', config.collaboration.enableVersioning ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Review:', config.collaboration.enableReview ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Save:', config.enableAutoSave ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Templates:', config.enableTemplates ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🏗️  Collaborative Architecture Design and Planning Tools'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Diagram Type:'), config.diagram.type);
+  console.log(chalk.yellow('Export Format:'), config.diagram.format);
+  console.log(chalk.yellow('Elements:'), config.elements.length);
+  console.log(chalk.yellow('Version Control:'), config.versionControl);
+  console.log(chalk.yellow('Comments:'), config.collaboration.enableComments ? 'Yes' : 'No');
+  console.log(chalk.yellow('Versioning:'), config.collaboration.enableVersioning ? 'Yes' : 'No');
+  console.log(chalk.yellow('Review:'), config.collaboration.enableReview ? 'Yes' : 'No');
+  console.log(chalk.yellow('Auto Save:'), config.enableAutoSave ? 'Yes' : 'No');
+  console.log(chalk.yellow('Templates:'), config.enableTemplates ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateArchitectureDesignMD(config: ArchitectureDesignConfig): string {

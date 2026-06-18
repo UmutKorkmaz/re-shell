@@ -1,6 +1,7 @@
 // Auto-generated Business Metrics Utility
 // Generated at: 2026-01-13T12:25:00.000Z
 
+import chalk from 'chalk';
 type MetricType = 'counter' | 'gauge' | 'histogram' | 'summary';
 type AggregationType = 'sum' | 'avg' | 'max' | 'min' | 'percentile' | 'count';
 type DashboardProvider = 'grafana' | 'kibana' | 'datadog' | 'cloudwatch' | 'custom';
@@ -44,17 +45,17 @@ interface BusinessMetricsConfig {
 }
 
 export function displayConfig(config: BusinessMetricsConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '📈 Business Metrics and KPI Tracking with Real-Time Dashboards');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Dashboard Provider:', config.dashboard.provider);
-  console.log('\x1b[33m%s\x1b[0m', 'Metrics:', config.metrics.length);
-  console.log('\x1b[33m%s\x1b[0m', 'KPIs:', config.kpis.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Real-Time:', config.enableRealTime ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Alerting:', config.enableAlerting ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Reporting:', config.enableReporting ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('📈 Business Metrics and KPI Tracking with Real-Time Dashboards'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('Dashboard Provider:'), config.dashboard.provider);
+  console.log(chalk.yellow('Metrics:'), config.metrics.length);
+  console.log(chalk.yellow('KPIs:'), config.kpis.length);
+  console.log(chalk.yellow('Real-Time:'), config.enableRealTime ? 'Yes' : 'No');
+  console.log(chalk.yellow('Alerting:'), config.enableAlerting ? 'Yes' : 'No');
+  console.log(chalk.yellow('Reporting:'), config.enableReporting ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateBusinessMetricsMD(config: BusinessMetricsConfig): string {

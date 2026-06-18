@@ -1,6 +1,7 @@
 // Auto-generated Anomaly Detection Utility
 // Generated at: 2026-01-13T12:30:00.000Z
 
+import chalk from 'chalk';
 type MlAlgorithm = 'isolation-forest' | 'autoencoder' | 'lstm' | 'prophet' | 'arima';
 type AnomalySeverity = 'low' | 'medium' | 'high' | 'critical';
 type ResponseAction = 'alert' | 'scale-up' | 'scale-down' | 'restart' | 'block' | 'ignore';
@@ -47,21 +48,21 @@ interface AnomalyDetectionConfig {
 }
 
 export function displayConfig(config: AnomalyDetectionConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🤖 Anomaly Detection with Machine Learning and Automated Response');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'ML Algorithm:', config.anomaly.algorithm);
-  console.log('\x1b[33m%s\x1b[0m', 'Sensitivity:', (config.anomaly.sensitivity * 100).toFixed(1) + '%');
-  console.log('\x1b[33m%s\x1b[0m', 'Training Window:', config.anomaly.trainingWindow);
-  console.log('\x1b[33m%s\x1b[0m', 'Detection Interval:', config.anomaly.detectionInterval + 's');
-  console.log('\x1b[33m%s\x1b[0m', 'Patterns:', config.patterns.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Alerts:', config.alerts.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Response Rules:', config.responses.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto-Response:', config.enableAutoResponse ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Auto-Retraining:', config.enableRetraining ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Explainability:', config.enableExplainability ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🤖 Anomaly Detection with Machine Learning and Automated Response'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:'), config.projectName);
+  console.log(chalk.yellow('Providers:'), config.providers.join(', '));
+  console.log(chalk.yellow('ML Algorithm:'), config.anomaly.algorithm);
+  console.log(chalk.yellow('Sensitivity:'), (config.anomaly.sensitivity * 100).toFixed(1) + '%');
+  console.log(chalk.yellow('Training Window:'), config.anomaly.trainingWindow);
+  console.log(chalk.yellow('Detection Interval:'), config.anomaly.detectionInterval + 's');
+  console.log(chalk.yellow('Patterns:'), config.patterns.length);
+  console.log(chalk.yellow('Alerts:'), config.alerts.length);
+  console.log(chalk.yellow('Response Rules:'), config.responses.length);
+  console.log(chalk.yellow('Auto-Response:'), config.enableAutoResponse ? 'Yes' : 'No');
+  console.log(chalk.yellow('Auto-Retraining:'), config.enableRetraining ? 'Yes' : 'No');
+  console.log(chalk.yellow('Explainability:'), config.enableExplainability ? 'Yes' : 'No');
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateAnomalyDetectionMD(config: AnomalyDetectionConfig): string {
