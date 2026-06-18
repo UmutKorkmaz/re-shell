@@ -296,12 +296,12 @@ export class PluginCommandRegistry extends EventEmitter {
       // Remove from Commander
       const parent = command.commanderCommand.parent;
       if (parent) {
-        // Remove from parent's commands (cast to any to access internal properties)
-        const parentAny = parent as any;
-        if (parentAny.commands && Array.isArray(parentAny.commands)) {
-          const index = parentAny.commands.indexOf(command.commanderCommand);
+        // Remove from parent's commands (commands is readonly in types but mutable at runtime)
+        const mutableParent = parent as Command & { commands: Command[] };
+        if (mutableParent.commands && Array.isArray(mutableParent.commands)) {
+          const index = mutableParent.commands.indexOf(command.commanderCommand);
           if (index !== -1) {
-            parentAny.commands.splice(index, 1);
+            mutableParent.commands.splice(index, 1);
           }
         }
       }
@@ -401,7 +401,7 @@ export class PluginCommandRegistry extends EventEmitter {
           const command = this.commands.get(conflictingIds[i]);
           if (command) {
             command.isActive = false;
-            (command.commanderCommand as any).hidden = true;
+            (command.commanderCommand as { hidden?: boolean }).hidden = true;
           }
         }
       } else if (resolution === 'priority') {
@@ -413,7 +413,7 @@ export class PluginCommandRegistry extends EventEmitter {
 
         for (let i = 1; i < commands.length; i++) {
           commands[i]!.isActive = false;
-          (commands[i]!.commanderCommand as any).hidden = true;
+          (commands[i]!.commanderCommand as { hidden?: boolean }).hidden = true;
         }
       }
 
@@ -643,7 +643,7 @@ export class PluginCommandRegistry extends EventEmitter {
 
     // Hide if deprecated or hidden
     if (definition.hidden || definition.deprecated) {
-      (command as any).hidden = true;
+      (command as { hidden?: boolean }).hidden = true;
     }
 
     // Add to parent program

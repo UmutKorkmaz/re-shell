@@ -619,7 +619,7 @@ async function conflictAnalysisInteractive(options: WorkspaceConflictCommandOpti
   console.log(`  ${chalk.blue('●')} Info: ${severityStats.info}`);
 
   // Analysis by type
-  const typeStats: Record<ConflictType, number> = {} as any;
+  const typeStats = {} as Record<ConflictType, number>;
   for (const conflict of conflicts) {
     typeStats[conflict.type] = (typeStats[conflict.type] || 0) + 1;
   }

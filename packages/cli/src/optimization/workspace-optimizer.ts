@@ -141,8 +141,8 @@ export class WorkspaceOptimizer {
     const sharedDbs = new Set<string>();
 
     // Check for shared databases
-    for (const [serviceId, service] of Object.entries(services)) {
-      const routes = (service as any).routes || [];
+    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+      const routes = service.routes || [];
       for (const route of routes) {
         if (route.target && route.target.includes('database')) {
           const dbName = route.target.split(':')[1] || route.target;
@@ -183,8 +183,8 @@ export class WorkspaceOptimizer {
     let overprovisioned = 0;
     let underprovisioned = 0;
 
-    for (const [serviceId, service] of Object.entries(services)) {
-      const resources = (service as any).resources;
+    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+      const resources = service.resources;
 
       if (resources?.cpu?.request && resources?.cpu?.limit) {
         const request = parseInt(resources.cpu.request);
@@ -257,8 +257,8 @@ export class WorkspaceOptimizer {
 
     const kebabCaseRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-    for (const [serviceId, service] of Object.entries(services)) {
-      const name = (service as any).name;
+    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+      const name = service.name;
 
       if (name && !kebabCaseRegex.test(name)) {
         invalidNames.push(name);
@@ -292,9 +292,9 @@ export class WorkspaceOptimizer {
 
     const services = config.services || {};
 
-    for (const [serviceId, service] of Object.entries(services)) {
-      const dependencies = (service as any).dependencies?.production || {};
-      const routes = (service as any).routes || [];
+    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+      const dependencies = service.dependencies?.production || {};
+      const routes = service.routes || [];
 
       // Check if dependencies are actually used
       const unusedDeps: string[] = [];
@@ -345,12 +345,12 @@ export class WorkspaceOptimizer {
     let missingHealthChecks = 0;
     let missingAuth = 0;
 
-    for (const [serviceId, service] of Object.entries(services)) {
-      if (!(service as any).healthCheck) {
+    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+      if (!service.healthCheck) {
         missingHealthChecks++;
       }
 
-      const features = (service as any).features || [];
+      const features = service.features || [];
       if (!features.includes('authentication') && !features.includes('security')) {
         missingAuth++;
       }
@@ -403,8 +403,8 @@ export class WorkspaceOptimizer {
     const services = config.services || {};
     let noScaling = 0;
 
-    for (const [serviceId, service] of Object.entries(services)) {
-      const scaling = (service as any).scaling;
+    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+      const scaling = service.scaling;
 
       if (!scaling || scaling.min === scaling.max) {
         noScaling++;

@@ -417,7 +417,7 @@ export async function showDocumentationStats(
     Object.entries(stats.complexityDistribution).forEach(([complexity, count]) => {
       const color = complexity === 'basic' ? 'green' : 
                    complexity === 'intermediate' ? 'yellow' : 'red';
-      const colorFn = (chalk as any)[color];
+      const colorFn = chalk[color as 'green' | 'yellow' | 'red' | 'cyan' | 'gray'];
       console.log(`  ${colorFn(complexity)}: ${count}`);
     });
 
@@ -501,7 +501,7 @@ export async function configureHelpSystem(
       Object.entries(newConfig).forEach(([key, val]) => {
         const isChanged = key === setting;
         const color = isChanged ? 'cyan' : 'gray';
-        const colorFn = (chalk as any)[color];
+        const colorFn = chalk[color as 'green' | 'yellow' | 'red' | 'cyan' | 'gray'];
         console.log(`  ${colorFn(key)}: ${val}`);
       });
     }
