@@ -36,6 +36,11 @@ export async function addMicrofrontend(
     spinner,
   } = options;
 
+  // Reject path traversal — a microfrontend name must not contain path separators or ..
+  if (/[\/\\]|\.\./.test(name)) {
+    throw new Error(`Invalid microfrontend name "${name}": must not contain path separators (/, \\) or ..`);
+  }
+
   // Normalize name to kebab-case for consistency
   const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
 

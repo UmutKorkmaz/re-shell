@@ -163,6 +163,11 @@ interface PolyglotConfig {
  * @version 0.2.5
  */
 export async function createProject(name: string, options: CreateProjectOptions): Promise<void> {
+  // Reject path traversal — a project name must not contain path separators or ..
+  if (/[\/\\]|\.\./.test(name)) {
+    throw new Error(`Invalid project name "${name}": must not contain path separators (/, \\) or ..`);
+  }
+
   // Check if we're in a monorepo
   const monorepoRoot = await findMonorepoRoot();
   const inMonorepo = !!monorepoRoot;
