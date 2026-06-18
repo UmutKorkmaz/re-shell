@@ -1,9 +1,13 @@
 import ora from 'ora';
 import chalk from 'chalk';
 
+type SpinnerColor = 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'gray';
+
+type FlushableStream = NodeJS.WriteStream & { _flush?: () => void };
+
 interface SpinnerOptions {
   text: string;
-  color?: string;
+  color?: SpinnerColor;
   stream?: NodeJS.WriteStream;
   // When true, the spinner must never emit anything to stdout. Any progress
   // text is routed to stderr instead so that --json output stays pure.
@@ -31,7 +35,7 @@ export class ProgressSpinner {
     if (this.isInteractive) {
       this.spinner = ora({
         text: options.text,
-        color: options.color as any || 'cyan',
+        color: options.color || 'cyan',
         stream: options.stream || process.stdout,
         // Enhanced configuration for better terminal compatibility
         discardStdin: false,
@@ -129,9 +133,9 @@ export class ProgressSpinner {
     return this;
   }
 
-  setColor(color: string): this {
+  setColor(color: SpinnerColor): this {
     if (this.isInteractive) {
-      this.spinner.color = color as any;
+      this.spinner.color = color;
     }
     return this;
   }
@@ -157,8 +161,8 @@ export class ProgressSpinner {
       if (process.stdout.write('')) {
         process.stdout.write('');
       }
-      if (typeof (process.stdout as any)._flush === 'function') {
-        (process.stdout as any)._flush();
+      if (typeof (process.stdout as FlushableStream)._flush === 'function') {
+        (process.stdout as FlushableStream)._flush();
       }
       // Force a small delay to ensure output reaches terminal
       process.nextTick(() => {
@@ -181,8 +185,8 @@ export class ProgressSpinner {
 
       // Final flush to ensure all output is displayed immediately
       process.stdout.write('');
-      if (typeof (process.stdout as any)._flush === 'function') {
-        (process.stdout as any)._flush();
+      if (typeof (process.stdout as FlushableStream)._flush === 'function') {
+        (process.stdout as FlushableStream)._flush();
       }
 
       // Ensure cursor is visible and terminal is in proper state
@@ -202,7 +206,7 @@ export class ProgressSpinner {
 // Helper function to create a spinner
 export function createSpinner(
   text: string,
-  color?: string,
+  color?: SpinnerColor,
   options?: { json?: boolean }
 ): ProgressSpinner {
   return new ProgressSpinner({ text, color, json: options?.json });
@@ -220,11 +224,11 @@ export function flushOutput(): void {
     }
     
     // Try additional flush methods if available
-    if (typeof (process.stdout as any)._flush === 'function') {
-      (process.stdout as any)._flush();
+    if (typeof (process.stdout as FlushableStream)._flush === 'function') {
+      (process.stdout as FlushableStream)._flush();
     }
-    if (typeof (process.stderr as any)._flush === 'function') {
-      (process.stderr as any)._flush();
+    if (typeof (process.stderr as FlushableStream)._flush === 'function') {
+      (process.stderr as FlushableStream)._flush();
     }
     
     // Ensure output appears immediately in terminal
