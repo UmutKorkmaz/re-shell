@@ -72,11 +72,13 @@ export class WsClient {
       this.opts.onError?.(new Error('WebSocket transport error'));
     };
 
-    this.ws.onclose = (event: CloseEvent) => {
-      this.opts.onClose?.(event.code, event.reason);
+    this.ws.onclose = (event: CloseEvent | undefined) => {
+      const code = event?.code ?? 0;
+      const reason = event?.reason ?? '';
+      this.opts.onClose?.(code, reason);
       // 1008 = policy violation (e.g. Unauthorized). Reconnecting would just
       // fail identically, so skip the retry loop for permanent rejections.
-      if (event.code === 1008) return;
+      if (code === 1008) return;
       if (this.opts.reconnect && this.reconnectAttempts < this.maxReconnects) {
         this.reconnectAttempts++;
         setTimeout(() => this.connect(), 1000 * this.reconnectAttempts);
