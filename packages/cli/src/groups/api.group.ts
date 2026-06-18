@@ -4,6 +4,11 @@ import { flushOutput } from '../utils/spinner';
 import chalk from 'chalk';
 import * as path from 'path';
 import * as fs from 'fs-extra';
+import type { VersioningStrategy } from '../utils/api-versioning';
+import type { GatewayType, AuthConfig } from '../utils/api-gateway';
+import type { AnalyticsProvider, BackendFramework } from '../utils/api-analytics';
+import type { TestType } from '../utils/api-testing';
+import type { ValidationMode } from '../utils/validation-middleware';
 
 function toCamelCase(str: string): string {
   return str
@@ -580,7 +585,7 @@ export function registerApiGroup(program: Command): void {
         await withTimeout(async () => {
           const generator = await createVersioningGenerator(projectPath);
           const config = generator.generateVersioningConfig({
-            strategy: options.strategy as any,
+            strategy: options.strategy as VersioningStrategy,
             defaultVersion: options.defaultVersion,
             headerName: options.headerName,
           });
@@ -625,7 +630,7 @@ export function registerApiGroup(program: Command): void {
 
         await withTimeout(async () => {
           const generator = await createVersioningGenerator(projectPath, options.framework);
-          const middleware = generator.generateVersioningMiddleware(options.strategy as any);
+          const middleware = generator.generateVersioningMiddleware(options.strategy as VersioningStrategy);
 
           spinner.stop();
 
@@ -830,7 +835,7 @@ export function registerApiGroup(program: Command): void {
           }
 
           const middleware = generateValidationMiddleware(framework, {
-            mode: options.mode as any,
+            mode: options.mode as ValidationMode,
             validateRequest: options.request !== false,
             validateResponse: options.response || false,
             stripUnknown: options.stripUnknown !== false,
@@ -976,7 +981,7 @@ export function registerApiGroup(program: Command): void {
 
         const framework = options.framework || 'express';
         const template = getTestingTemplate(framework);
-        const testTypes = options.testTypes.split(',') as any[];
+        const testTypes = options.testTypes.split(',') as TestType[];
         const outputPath = pathArg || process.cwd();
 
         if (!template) {
@@ -1193,7 +1198,7 @@ export function registerApiGroup(program: Command): void {
           return;
         }
 
-        const config = generateTestConfig(framework, options.testTypes.split(',') as any[]);
+        const config = generateTestConfig(framework, options.testTypes.split(',') as TestType[]);
         console.log(chalk.cyan(`\n⚙️  Test Configuration for ${framework}\n`));
         console.log(chalk.gray('─'.repeat(60)));
         console.log(chalk.gray(config));
@@ -1237,7 +1242,7 @@ export function registerApiGroup(program: Command): void {
         if (options.title) config.title = options.title;
         if (options.description) config.description = options.description;
         if (options.themeColor) config.themeColor = options.themeColor;
-        if (options.authType) config.authConfig = { type: options.authType as any };
+        if (options.authType) config.authConfig = { type: options.authType as 'none' | 'bearer' | 'basic' | 'apiKey' | 'oauth2' };
 
         console.log(chalk.cyan('\n📘 Interactive Documentation Generation\n'));
         console.log(formatInteractiveDocsConfig(config));
@@ -1360,7 +1365,7 @@ export function registerApiGroup(program: Command): void {
           formatGatewayConfig,
         } = await import('../utils/api-gateway');
 
-        const template = getGatewayTemplate(type as any);
+        const template = getGatewayTemplate(type as GatewayType);
         if (!template) {
           console.log(chalk.yellow(`\n❌ Unsupported gateway type: ${type}\n`));
           console.log(chalk.gray('Run "re-shell gateway list" to see supported types.\n'));
@@ -1370,7 +1375,7 @@ export function registerApiGroup(program: Command): void {
         // Build config
         const config = {
           name: options.name,
-          type: type as any,
+          type: type as GatewayType,
           services: options.services ? options.services.split('|').map((s: string) => {
             const parts = s.split(';');
             return { id: parts[0], name: parts[1], url: parts[2] };
@@ -1381,7 +1386,7 @@ export function registerApiGroup(program: Command): void {
           }) : [{ id: 'default-route', path: '/api', method: ['GET', 'POST', 'PUT', 'DELETE'], service: 'default' }],
           rateLimit: options.rateLimit ? { enabled: true, window: parseInt(options.rateWindow), limit: parseInt(options.rateLimit) } : undefined,
           cors: options.cors ? { enabled: true, origins: options.corsOrigins.split(','), methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], headers: ['Content-Type', 'Authorization'], credentials: false, maxAge: 3600 } : undefined,
-          auth: { type: options.auth as any },
+          auth: { type: options.auth as AuthConfig['type'] },
         };
 
         console.log(chalk.cyan('\n🚪 API Gateway Configuration\n'));
@@ -1391,13 +1396,13 @@ export function registerApiGroup(program: Command): void {
 
         if (options.dryRun) {
           console.log(chalk.gray('\n--- Configuration Preview ---\n'));
-          console.log(chalk.gray(generateGatewayConfig(type as any, config)));
+          console.log(chalk.gray(generateGatewayConfig(type as GatewayType, config)));
           console.log(chalk.yellow('\nDry run - no file written.\n'));
           return;
         }
 
         await fs.ensureDir(path.dirname(outputFile));
-        await fs.writeFile(outputFile, generateGatewayConfig(type as any, config), 'utf-8');
+        await fs.writeFile(outputFile, generateGatewayConfig(type as GatewayType, config), 'utf-8');
 
         console.log(chalk.green(`\n✓ Gateway configuration generated!`));
         console.log(chalk.gray(`Output: ${outputFile}`));
@@ -1412,14 +1417,14 @@ export function registerApiGroup(program: Command): void {
       createAsyncCommand(async (type, outputPath, options) => {
         const { getGatewayTemplate } = await import('../utils/api-gateway');
 
-        const template = getGatewayTemplate(type as any);
+        const template = getGatewayTemplate(type as GatewayType);
         if (!template) {
           console.log(chalk.yellow(`\n❌ Unsupported gateway type: ${type}\n`));
           return;
         }
 
         const { generateGatewayDockerCompose } = await import('../utils/api-gateway');
-        const dockerCompose = generateGatewayDockerCompose(type as any);
+        const dockerCompose = generateGatewayDockerCompose(type as GatewayType);
         const outputFile = outputPath || './docker-compose.yml';
 
         await fs.ensureDir(path.dirname(outputFile));
@@ -1462,7 +1467,7 @@ export function registerApiGroup(program: Command): void {
       createAsyncCommand(async (type, options) => {
         const { getGatewayTemplate } = await import('../utils/api-gateway');
 
-        const template = getGatewayTemplate(type as any);
+        const template = getGatewayTemplate(type as GatewayType);
         if (!template) {
           console.log(chalk.yellow(`\n❌ Unsupported gateway type: ${type}\n`));
           return;
@@ -1479,7 +1484,7 @@ export function registerApiGroup(program: Command): void {
         // Generate sample config
         const sampleConfig = {
           name: 'sample-gateway',
-          type: type as any,
+          type: type as GatewayType,
           services: [
             { id: 'user-service', name: 'user-service', url: 'http://localhost:3001' },
             { id: 'order-service', name: 'order-service', url: 'http://localhost:3002' },
@@ -1490,12 +1495,12 @@ export function registerApiGroup(program: Command): void {
           ],
           rateLimit: { enabled: true, window: 60, limit: 100 },
           cors: { enabled: true, origins: ['*'], methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], headers: ['Content-Type', 'Authorization'], credentials: false, maxAge: 3600 },
-          auth: { type: 'none' as any },
+          auth: { type: 'none' as AuthConfig['type'] },
         };
 
         console.log(chalk.gray('\n--- Sample Configuration ---\n'));
         const { generateGatewayConfig } = await import('../utils/api-gateway');
-        console.log(chalk.gray(generateGatewayConfig(type as any, sampleConfig).split('\n').slice(0, 40).join('\n')));
+        console.log(chalk.gray(generateGatewayConfig(type as GatewayType, sampleConfig).split('\n').slice(0, 40).join('\n')));
       })
     );
 
@@ -1539,8 +1544,8 @@ export function registerApiGroup(program: Command): void {
 
         const config = {
           name: options.name,
-          provider: provider as any,
-          framework: framework as any,
+          provider: provider as AnalyticsProvider,
+          framework: framework as BackendFramework,
           metrics,
           endpoints: [],
           dashboard: options.dashboard,
@@ -1602,13 +1607,13 @@ export function registerApiGroup(program: Command): void {
       createAsyncCommand(async (provider, outputPath, options) => {
         const { generateAnalyticsDockerCompose, getAnalyticsProvider } = await import('../utils/api-analytics');
 
-        const template = getAnalyticsProvider(provider as any);
+        const template = getAnalyticsProvider(provider as AnalyticsProvider);
         if (!template) {
           console.log(chalk.yellow(`\n❌ Unsupported provider: ${provider}\n`));
           return;
         }
 
-        const dockerCompose = generateAnalyticsDockerCompose(provider as any);
+        const dockerCompose = generateAnalyticsDockerCompose(provider as AnalyticsProvider);
         const outputFile = outputPath || './docker-compose.yml';
 
         await fs.ensureDir(path.dirname(outputFile));
@@ -1687,7 +1692,7 @@ export function registerApiGroup(program: Command): void {
           return;
         }
 
-        const template = getAnalyticsProvider(provider as any);
+        const template = getAnalyticsProvider(provider as AnalyticsProvider);
         console.log(chalk.cyan(`\n📊 Analytics Template: ${provider} + ${framework}\n`));
         console.log(chalk.gray('─'.repeat(60)));
         console.log(`${chalk.blue('Provider:')} ${template?.description || provider}`);
@@ -1697,8 +1702,8 @@ export function registerApiGroup(program: Command): void {
 
         const config = {
           name: 'sample-app',
-          provider: provider as any,
-          framework: framework as any,
+          provider: provider as AnalyticsProvider,
+          framework: framework as BackendFramework,
           metrics: [
             { name: 'api_requests_total', type: 'counter' as const, description: 'Total API requests' },
             { name: 'api_request_duration', type: 'histogram' as const, description: 'API request duration' },
@@ -2086,11 +2091,11 @@ export function registerApiGroup(program: Command): void {
         await fs.ensureDir(path.dirname(outputFile));
 
         // Generate framework SDK
-        const sdkCode = generateFrameworkSdkBundle(spec, { framework: options.framework as any });
+        const sdkCode = generateFrameworkSdkBundle(spec, { framework: options.framework as 'react' | 'vue' | 'angular' | 'svelte' | 'generic' });
         await fs.writeFile(outputFile, sdkCode, 'utf-8');
 
         // Generate bundle config
-        const bundleConfig = generateBundleConfig(options.bundler as any);
+        const bundleConfig = generateBundleConfig(options.bundler as 'vite' | 'webpack' | 'rollup');
         const configFile = options.bundler === 'webpack' ? 'webpack.config.js' :
                            options.bundler === 'rollup' ? 'rollup.config.js' : 'vite.config.ts';
         await fs.writeFile(configFile, bundleConfig, 'utf-8');
