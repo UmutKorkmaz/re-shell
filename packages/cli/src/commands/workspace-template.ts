@@ -342,7 +342,7 @@ async function applyTemplate(options: WorkspaceTemplateCommandOptions, spinner?:
     if (spinner) spinner.stop();
 
     // Collect variables
-    const variables: Record<string, any> = {};
+    const variables: Record<string, unknown> = {};
 
     // Load from file if provided
     if (options.varsFile) {

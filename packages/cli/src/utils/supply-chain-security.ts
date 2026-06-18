@@ -134,7 +134,7 @@ export interface ComponentAttestation {
   builder: string;
   buildTimestamp: Date;
   materials: Material[];
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   signature?: DocumentSignature;
 }
 

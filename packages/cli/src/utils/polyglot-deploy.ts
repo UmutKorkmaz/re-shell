@@ -79,7 +79,7 @@ export interface DeploymentResult {
  * Generate Docker Compose configuration for all services
  */
 export function generateDockerCompose(services: ServiceInfo[], config: DeploymentConfig): string {
-  const servicesConfig: Record<string, any> = {};
+  const servicesConfig: Record<string, unknown> = {};
 
   for (const service of services) {
     const serviceName = service.name;

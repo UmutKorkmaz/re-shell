@@ -27,7 +27,7 @@ export interface MiddlewareRegistration {
   options?: MiddlewareOptions;
   isActive: boolean;
   appliesTo?: MiddlewareFilter;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Middleware options
@@ -63,8 +63,8 @@ export interface MiddlewareResult {
   error?: Error;
   data?: any;
   modified?: {
-    args?: Record<string, any>;
-    options?: Record<string, any>;
+    args?: Record<string, unknown>;
+    options?: Record<string, unknown>;
   };
   skipRemaining?: boolean;
 }
@@ -110,7 +110,7 @@ export class MiddlewareChainManager extends EventEmitter {
       priority?: number;
       options?: MiddlewareOptions;
       appliesTo?: MiddlewareFilter;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     }
   ): string {
     const id = this.generateMiddlewareId(pluginName, type);
@@ -171,8 +171,8 @@ export class MiddlewareChainManager extends EventEmitter {
   // Execute middleware chain
   async executeChain(
     type: MiddlewareType,
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     context: PluginCommandContext
   ): Promise<MiddlewareResult> {
     const startTime = Date.now();
@@ -239,8 +239,8 @@ export class MiddlewareChainManager extends EventEmitter {
   // Execute single middleware
   private async executeMiddleware(
     middleware: MiddlewareRegistration,
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     context: PluginCommandContext
   ): Promise<MiddlewareResult> {
     const startTime = Date.now();
@@ -414,8 +414,8 @@ export class MiddlewareChainManager extends EventEmitter {
   // Cache management
   private getCacheKey(
     middleware: MiddlewareRegistration,
-    args: Record<string, any>,
-    options: Record<string, any>
+    args: Record<string, unknown>,
+    options: Record<string, unknown>
   ): string {
     if (middleware.options?.cache?.key) {
       return middleware.options.cache.key(args, options);

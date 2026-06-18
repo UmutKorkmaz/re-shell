@@ -11,9 +11,9 @@ export interface WorkspaceConfig {
   name: string;
   version: string;
   description?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   variables?: Record<string, string | number | boolean>;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
   services: Record<string, ServiceConfig>;
   dependencies?: {
     databases?: any[];
@@ -59,7 +59,7 @@ export interface ServiceConfig {
 export interface FrameworkConfig {
   name: string;
   version: string;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
 }
 
 export interface ValidationResult {

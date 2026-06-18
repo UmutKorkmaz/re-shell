@@ -740,7 +740,7 @@ export class OpenAPIGenerator {
           .join(';\\n');
         return \`{\\n\${props}\\n}\`;
       }
-      return 'Record<string, any>';
+      return 'Record<string, unknown>';
     }
 
     return 'any';

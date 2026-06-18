@@ -94,7 +94,7 @@ export interface Incident {
   rootCause?: string;
   lessonsLearned?: string[];
   tags: string[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   sla?: {
     responseDeadline: Date;
     resolutionDeadline: Date;
@@ -177,7 +177,7 @@ export interface PlaybookStep {
   target?: string;
   automated: boolean;
   script?: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   timeout: number; // seconds
   onSuccess: string;
   onFailure: string;
@@ -256,7 +256,7 @@ export interface Tool {
   version: string;
   purpose: string;
   command: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   output: string;
   executedAt: Date;
   executedBy: string;

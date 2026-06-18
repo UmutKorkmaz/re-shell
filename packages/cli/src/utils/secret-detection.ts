@@ -61,7 +61,7 @@ export interface Secret {
   vaultPath?: string;
   description: string;
   tags: string[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   owner: string;
   assignedTo?: string;
   confidence: number; // 0-1
@@ -175,7 +175,7 @@ export interface VaultSecret {
   lastAccessed: Date;
   checksum: string;
   size: number; // bytes
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface AccessControl {
@@ -214,7 +214,7 @@ export interface AuditLog {
   location?: string;
   result: 'success' | 'failure';
   reason?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ComplianceReport {

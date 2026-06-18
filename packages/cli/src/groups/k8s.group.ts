@@ -614,7 +614,7 @@ export function registerK8sGroup(program: Command): void {
 
           // Parse languages
           const languages = options.languages.split(',').map((lang: string) => {
-            const langConfigs: Record<string, any> = {
+            const langConfigs: Record<string, unknown> = {
               nodejs: {
                 name: 'nodejs',
                 runtime: 'node',

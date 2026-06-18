@@ -175,7 +175,7 @@ export interface VendorMetadata {
   source: string; // where vendor info came from
   externalReferences: string[];
   notes: string;
-  customFields: Record<string, any>;
+  customFields: Record<string, unknown>;
 }
 
 export interface VendorAssessment {

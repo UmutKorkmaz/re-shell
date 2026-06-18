@@ -59,7 +59,7 @@ export interface Resource {
   arn?: string;
   resourceId?: string;
   tags: Record<string, string>;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   createdAt: Date;
   lastScanned: Date;
   driftDetected: boolean;
@@ -84,7 +84,7 @@ export interface SecurityFinding {
   effort: string; // time estimate
   assignee?: string;
   references: FindingReference[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ResourceReference {

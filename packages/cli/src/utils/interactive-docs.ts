@@ -81,7 +81,7 @@ export interface APIRequestBody {
   required: boolean;
   contentType: string;
   schema?: any;
-  examples?: Record<string, any>;
+  examples?: Record<string, unknown>;
 }
 
 export interface APIResponse {
@@ -97,7 +97,7 @@ export interface APIExample {
   name: string;
   description?: string;
   request: {
-    parameters?: Record<string, any>;
+    parameters?: Record<string, unknown>;
     body?: any;
     headers?: Record<string, string>;
   };

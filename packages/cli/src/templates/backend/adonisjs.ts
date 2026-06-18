@@ -597,7 +597,7 @@ export default class User extends compose(BaseModel, AuthFinder) {
   declare resetTokenExpiry: DateTime | null
 
   @column()
-  declare metadata: Record<string, any> | null
+  declare metadata: Record<string, unknown> | null
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

@@ -649,7 +649,7 @@ async function applyTemplate(templateName: string, options: TemplateCommandOptio
   console.log(chalk.gray(template.description));
 
   // Collect variable values
-  const variables: Record<string, any> = {};
+  const variables: Record<string, unknown> = {};
   
   if (options.variables) {
     // Parse variables from command line (JSON format)

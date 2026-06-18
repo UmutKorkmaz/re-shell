@@ -430,7 +430,7 @@ export interface MicrofrontendComponent {
   backendEndpoint?: string;
   initialState?: any;
   dependencies?: string[]; // Other component IDs this depends on
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -695,7 +695,7 @@ export class StateManager extends EventEmitter {
     return result;
   }
 
-  async setMany(entries: Record<string, any>): Promise<void> {
+  async setMany(entries: Record<string, unknown>): Promise<void> {
     for (const [key, value] of Object.entries(entries)) {
       await this.set(key, value);
     }
@@ -1574,7 +1574,7 @@ import { createMicrofrontendClient, MicrofrontendClient, MicrofrontendClientConf
 
 export function useMicrofrontend(config: MicrofrontendClientConfig) {
   const [isConnected, setIsConnected] = useState(false);
-  const [state, setState] = useState<Record<string, any>>({});
+  const [state, setState] = useState<Record<string, unknown>>({});
   const clientRef = useRef<MicrofrontendClient | null>(null);
 
   useEffect(() => {
@@ -1659,7 +1659,7 @@ import { createMicrofrontendClient, MicrofrontendClient, MicrofrontendClientConf
 
 export function useMicrofrontend(config: MicrofrontendClientConfig) {
   const isConnected = ref(false);
-  const state = ref<Record<string, any>>({});
+  const state = ref<Record<string, unknown>>({});
 
   const client = createMicrofrontendClient(config);
 
@@ -1738,10 +1738,10 @@ import { createMicrofrontendClient, MicrofrontendClient, MicrofrontendClientConf
 export class MicrofrontendService implements OnDestroy {
   private client: MicrofrontendClient;
   private isConnectedSubject = new BehaviorSubject<boolean>(false);
-  private stateSubject = new BehaviorSubject<Record<string, any>>({});
+  private stateSubject = new BehaviorSubject<Record<string, unknown>>({});
 
   isConnected$: Observable<boolean> = this.isConnectedSubject.asObservable();
-  state$: Observable<Record<string, any>> = this.stateSubject.asObservable();
+  state$: Observable<Record<string, unknown>> = this.stateSubject.asObservable();
 
   constructor(config: MicrofrontendClientConfig) {
     this.client = createMicrofrontendClient(config);
@@ -1810,7 +1810,7 @@ import { createMicrofrontendClient, MicrofrontendClient, MicrofrontendClientConf
 
 export function createMicrofrontendStore(config: MicrofrontendClientConfig) {
   const isConnected = writable(false);
-  const state = writable<Record<string, any>>({});
+  const state = writable<Record<string, unknown>>({});
 
   const client = createMicrofrontendClient(config);
 

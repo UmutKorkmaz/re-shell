@@ -328,7 +328,7 @@ export function TraceFunction(spanName?: string) {
  * Manual span creation utilities
  */
 export class ManualTracer {
-  startSpan(name: string, options?: { parent?: Span; attributes?: Record<string, any> }): Span {
+  startSpan(name: string, options?: { parent?: Span; attributes?: Record<string, unknown> }): Span {
     const tracer = trace.getTracer('manual');
     return tracer.startSpan(name, {
       root: !options?.parent,
@@ -340,7 +340,7 @@ export class ManualTracer {
     trace.setSpan(Context.active(), span);
   }
 
-  addEvent(name: string, attributes?: Record<string, any>): void {
+  addEvent(name: string, attributes?: Record<string, unknown>): void {
     const span = trace.getActiveSpan();
     if (span) {
       span.addEvent(name, attributes);

@@ -338,7 +338,7 @@ export interface DashboardWidget {
   title: string;
   position: { row: number; column: number };
   size: { width: number; height: number };
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }
 
 export interface DashboardFilters {

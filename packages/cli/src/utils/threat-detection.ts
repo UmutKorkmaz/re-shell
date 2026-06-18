@@ -63,7 +63,7 @@ export interface Threat {
   assignedTo?: string;
   resolvedAt?: Date;
   falsePositive?: boolean;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface AffectedAsset {
@@ -110,7 +110,7 @@ export interface MLModel {
   lastTrained: Date;
   lastEvaluated: Date;
   features: ModelFeature[];
-  hyperparameters: Record<string, any>;
+  hyperparameters: Record<string, unknown>;
   deploymentStatus: 'staging' | 'production';
   performance: ModelPerformance;
   driftDetected: boolean;
@@ -166,7 +166,7 @@ export interface ResponseStep {
   target: string;
   automated: boolean;
   script?: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   timeout: number; // seconds
   dependencies: string[];
   rollback?: string;

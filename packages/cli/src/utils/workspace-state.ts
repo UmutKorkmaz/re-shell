@@ -13,14 +13,14 @@ export interface WorkspaceState {
   healthScore?: number;
   dependencyHash?: string;
   fileHashes: Record<string, string>;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface WorkspaceStateStorage {
   version: string;
   timestamp: string;
   workspaces: Record<string, WorkspaceState>;
-  globalMetadata: Record<string, any>;
+  globalMetadata: Record<string, unknown>;
 }
 
 // Cache entry interface

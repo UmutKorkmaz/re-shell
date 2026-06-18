@@ -2358,7 +2358,7 @@ async function autoRegisterInWorkspace(
 
   try {
     const workspaceContent = await fs.readFile(workspaceYamlPath, 'utf8');
-    const workspaceConfig = yaml.load(workspaceContent) as Record<string, any>;
+    const workspaceConfig = yaml.load(workspaceContent) as Record<string, unknown>;
 
     // Initialize services if not present
     if (!workspaceConfig.services) {

@@ -43,7 +43,7 @@ export interface IUser {
   lastLogin?: Date;
   loginAttempts: number;
   lockUntil?: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -424,7 +424,7 @@ export async function applyTemplate(
   const vaultPath = path.join(process.cwd(), 're-shell.profiles.yaml');
 
   // Load existing profiles
-  let profiles: Record<string, any> = {};
+  let profiles: Record<string, unknown> = {};
   if (await fs.pathExists(vaultPath)) {
     const content = await fs.readFile(vaultPath, 'utf8');
     const yaml = await import('yaml');

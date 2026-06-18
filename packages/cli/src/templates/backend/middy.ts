@@ -1872,7 +1872,7 @@ const client = new SQSClient({
 });
 
 export const sqsClient = {
-  async sendMessage(queueUrl: string, message: any, attributes?: Record<string, any>) {
+  async sendMessage(queueUrl: string, message: any, attributes?: Record<string, unknown>) {
     try {
       const command = new SendMessageCommand({
         QueueUrl: queueUrl,

@@ -39,7 +39,7 @@ export interface EncryptedPayload {
   iv: string;
   authTag?: string;
   ciphertext: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Encryption result
@@ -119,7 +119,7 @@ export interface EncryptedPayload {
   iv: string;
   authTag?: string;
   ciphertext: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface EncryptionResult {

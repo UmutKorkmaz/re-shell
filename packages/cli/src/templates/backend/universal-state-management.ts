@@ -558,7 +558,7 @@ export class StateManager extends EventEmitter {
     return result;
   }
 
-  async setMany(entries: Record<string, any>): Promise<void> {
+  async setMany(entries: Record<string, unknown>): Promise<void> {
     for (const [key, value] of Object.entries(entries)) {
       await this.set(key, value);
     }
@@ -799,7 +799,7 @@ import { EventEmitter } from 'events';
 export interface TimeTravelSnapshot {
   id: string;
   timestamp: number;
-  state: Record<string, any>;
+  state: Record<string, unknown>;
   versions: Record<string, number>;
 }
 
@@ -834,7 +834,7 @@ export class TimeTravel extends EventEmitter {
 
   private async recordSnapshot(): Promise<void> {
     // Get all current state keys
-    const state: Record<string, any> = {};
+    const state: Record<string, unknown> = {};
     const versions: Record<string, number> = {};
 
     // In a real implementation, you'd get all keys from the store
@@ -1406,7 +1406,7 @@ import { createStateClient, StateClient, StateClientConfig } from '../state-clie
 
 export function useStateManager(config: StateClientConfig) {
   const [isConnected, setIsConnected] = useState(false);
-  const [state, setState] = useState<Record<string, any>>({});
+  const [state, setState] = useState<Record<string, unknown>>({});
   const clientRef = useRef<StateClient | null>(null);
 
   useEffect(() => {
@@ -1491,7 +1491,7 @@ import { createStateClient, StateClient, StateClientConfig } from '../state-clie
 
 export function useStateManager(config: StateClientConfig) {
   const isConnected = ref(false);
-  const state = ref<Record<string, any>>({});
+  const state = ref<Record<string, unknown>>({});
 
   const client = createStateClient(config);
 
@@ -1560,10 +1560,10 @@ import { createStateClient, StateClient, StateClientConfig } from '../state-clie
 export class StateManagerService implements OnDestroy {
   private client: StateClient;
   private isConnectedSubject = new BehaviorSubject<boolean>(false);
-  private stateSubject = new BehaviorSubject<Record<string, any>>({});
+  private stateSubject = new BehaviorSubject<Record<string, unknown>>({});
 
   isConnected$: Observable<boolean> = this.isConnectedSubject.asObservable();
-  state$: Observable<Record<string, any>> = this.stateSubject.asObservable();
+  state$: Observable<Record<string, unknown>> = this.stateSubject.asObservable();
 
   constructor(config: StateClientConfig) {
     this.client = createStateClient(config);
@@ -1635,7 +1635,7 @@ import { createStateClient, StateClient, StateClientConfig } from '../state-clie
 
 export function createStateStore(config: StateClientConfig) {
   const isConnected = writable(false);
-  const state = writable<Record<string, any>>({});
+  const state = writable<Record<string, unknown>>({});
 
   const client = createStateClient(config);
 

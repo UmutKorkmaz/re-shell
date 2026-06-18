@@ -371,7 +371,7 @@ export interface PolicyRule {
   condition: string;
   severity: SeverityLevel;
   action: PolicyAction;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
 }
 
 export interface PolicyException {

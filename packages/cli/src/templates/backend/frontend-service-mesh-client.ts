@@ -78,7 +78,7 @@ export interface ServiceRequest {
   service: string;
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   path: string;
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
   data?: any;
   headers?: Record<string, string>;
   timeout?: number;
@@ -327,7 +327,7 @@ export class ServiceMeshClient {
   async get<T = any>(
     service: string,
     path: string,
-    params?: Record<string, any>
+    params?: Record<string, unknown>
   ): Promise<ServiceResponse<T>> {
     return this.request<T>({ service, method: 'GET', path, params });
   }
@@ -401,7 +401,7 @@ export class ServiceMeshClient {
   private buildURL(
     baseURL: string,
     path: string,
-    params?: Record<string, any>
+    params?: Record<string, unknown>
   ): string {
     const url = new URL(path, baseURL);
     if (params) {

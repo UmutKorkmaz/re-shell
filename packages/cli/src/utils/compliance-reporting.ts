@@ -290,7 +290,7 @@ export interface EvidenceRecord {
   expiresAt: Date;
   retentionDate: Date;
   tags: string[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ComplianceAssessment {

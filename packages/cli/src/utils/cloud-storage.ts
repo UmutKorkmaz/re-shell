@@ -96,7 +96,7 @@ interface DataPipelineConfig {
   transformations: {
     name: string;
     type: 'filter' | 'aggregate' | 'join' | 'normalize';
-    config: Record<string, any>;
+    config: Record<string, unknown>;
   }[];
   schedule: string;
 }

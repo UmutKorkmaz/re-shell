@@ -4294,7 +4294,7 @@ export function createComponent(
  * HOC that wraps a Svelte component to register its web components
  * Use this in route components that use custom elements
  */
-export function withWebComponents<T extends Record<string, any>>(
+export function withWebComponents<T extends Record<string, unknown>>(
   component: T,
   components: string[] = []
 ): T {

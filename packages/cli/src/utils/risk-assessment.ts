@@ -124,7 +124,7 @@ export interface RiskMetadata {
   nextReview: Date;
   externalReferences: string[];
   complianceMapping: ComplianceMapping[];
-  customFields: Record<string, any>;
+  customFields: Record<string, unknown>;
 }
 
 export interface ComplianceMapping {
@@ -285,7 +285,7 @@ export interface RiskAlert {
   resolvedBy?: string;
   status: 'open' | 'acknowledged' | 'investigating' | 'resolved' | 'false-positive';
   metrics: Record<string, number>;
-  context: Record<string, any>;
+  context: Record<string, unknown>;
   actions: AlertAction[];
 }
 
@@ -375,7 +375,7 @@ export interface ReportChart {
   type: 'bar' | 'line' | 'pie' | 'heatmap' | 'scatter';
   title: string;
   data: any;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
 }
 
 export interface ReportFilter {

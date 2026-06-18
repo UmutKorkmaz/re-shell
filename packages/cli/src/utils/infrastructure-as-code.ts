@@ -28,7 +28,7 @@ interface PulumiConfig {
     url: string;
     encryptionKey?: string;
   };
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }
 
 interface StateManagementConfig {
@@ -45,14 +45,14 @@ interface ModuleConfig {
   name: string;
   source: string;
   version: string;
-  variables: Record<string, any>;
+  variables: Record<string, unknown>;
   outputs: string[];
 }
 
 interface WorkspaceConfig {
   name: string;
   environments: ('dev' | 'staging' | 'prod')[];
-  variablesPerEnvironment: Record<string, Record<string, any>>;
+  variablesPerEnvironment: Record<string, Record<string, unknown>>;
 }
 
 interface IaCConfig {

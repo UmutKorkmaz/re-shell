@@ -250,8 +250,8 @@ export class ComposerGenerator {
     return scripts;
   }
 
-  private getExtra(framework: string): Record<string, any> {
-    const extra: Record<string, any> = {};
+  private getExtra(framework: string): Record<string, unknown> {
+    const extra: Record<string, unknown> = {};
 
     switch (framework) {
       case 'laravel':

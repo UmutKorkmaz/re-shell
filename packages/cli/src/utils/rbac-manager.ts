@@ -139,7 +139,7 @@ export interface Permission {
 
 export interface PermissionConstraint {
   type: 'ip-range' | 'time-window' | 'rate-limit' | 'data-limit' | 'location' | 'mfa' | 'custom';
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   enforce: boolean;
 }
 
@@ -311,7 +311,7 @@ export interface AuditLog {
   policyEvaluated?: string; // policy ID
   rolesUsed?: string[]; // role IDs
   permissionsChecked?: string[]; // permission IDs
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 export interface SessionContext {
@@ -665,7 +665,7 @@ export interface AccessRequest {
   userId: string;
   resource: string;
   action: PermissionAction;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 }
 
 export interface AccessDecision {

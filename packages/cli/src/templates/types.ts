@@ -15,7 +15,7 @@ export interface BaseTemplate {
   tags: string[];
   dependencies: Record<string, string>;
   devDependencies?: Record<string, string>;
-  files: Record<string, any>;
+  files: Record<string, unknown>;
   prompts?: TemplatePrompt[];
   postInstall?: string[];
 }
@@ -48,7 +48,7 @@ export interface TemplatePrompt {
   message: string;
   default?: any;
   choices?: string[] | PromptChoice[];
-  when?: (answers: Record<string, any>) => boolean;
+  when?: (answers: Record<string, unknown>) => boolean;
   validate?: (input: any) => boolean | string;
   filter?: (input: any) => any;
 }
@@ -239,19 +239,19 @@ export interface TypeScriptConfig {
   rootDir?: string;
   include?: string[];
   exclude?: string[];
-  compilerOptions?: Record<string, any>;
+  compilerOptions?: Record<string, unknown>;
 }
 
 export interface ESLintConfig {
   env: Record<string, boolean>;
   extends: string[];
   parser?: string;
-  parserOptions?: Record<string, any>;
+  parserOptions?: Record<string, unknown>;
   plugins?: string[];
-  rules: Record<string, any>;
+  rules: Record<string, unknown>;
   overrides?: Array<{
     files: string[];
-    rules?: Record<string, any>;
+    rules?: Record<string, unknown>;
   }>;
 }
 
@@ -303,7 +303,7 @@ export interface CICDStep {
   name: string;
   uses?: string;
   run?: string;
-  with?: Record<string, any>;
+  with?: Record<string, unknown>;
   env?: Record<string, string>;
   if?: string;
 }

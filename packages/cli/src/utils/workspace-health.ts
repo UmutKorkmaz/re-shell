@@ -17,7 +17,7 @@ export interface HealthCheckResult {
   status: 'pass' | 'fail' | 'warning' | 'info';
   message: string;
   suggestions?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   duration?: number;
 }
 

@@ -122,7 +122,7 @@ export interface AuditEntry {
   resourceType: string;
   action: string;
   outcome: 'success' | 'failure' | 'partial' | 'error';
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   complianceTags: string[];
   correlationId?: string;
   requestId?: string;
@@ -183,7 +183,7 @@ export interface AlertCondition {
 export interface AlertAction {
   type: 'email' | 'sms' | 'webhook' | 'slack' | 'pagerduty' | 'block' | 'quarantine' | 'custom';
   target: string;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }
 
 export interface ComplianceConfig {
@@ -644,7 +644,7 @@ export interface AuditEntry {
   resourceType: string;
   action: string;
   outcome: 'success' | 'failure' | 'partial' | 'error';
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   hash?: string;
   signature?: string;
   previousHash?: string;

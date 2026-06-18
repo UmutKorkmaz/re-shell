@@ -33,7 +33,7 @@ export interface LineageNode {
   service: string;
   language: string;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Data lineage edge
@@ -57,7 +57,7 @@ export interface DataFlowEvent {
   dataFormat: string;
   dataSize: number;
   transformation?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   timestamp: Date;
 }
 
@@ -145,7 +145,7 @@ export interface LineageNode {
   service: string;
   language: string;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface LineageEdge {
@@ -167,7 +167,7 @@ export interface DataFlowEvent {
   dataFormat: string;
   dataSize: number;
   transformation?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   timestamp: Date;
 }
 
@@ -206,7 +206,7 @@ export class ${toPascalCase(config.serviceName)}DataLineageTracker {
     service: string,
     type: ServiceType,
     language: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): LineageNode {
     const node: LineageNode = {
       id,

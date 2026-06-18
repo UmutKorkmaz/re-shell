@@ -27,14 +27,14 @@ export interface ConfigTemplate {
   tags: string[];
   variables: TemplateVariable[];
   template: any; // The actual configuration template with variables
-  examples?: Record<string, any>;
+  examples?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
 
 // Template context for variable substitution
 export interface TemplateContext {
-  variables: Record<string, any>;
+  variables: Record<string, unknown>;
   environment?: Record<string, string>;
   projectInfo?: {
     name?: string;
@@ -143,7 +143,7 @@ export class ConfigTemplateEngine {
   // Render template with variables
   async renderTemplate(
     templateName: string, 
-    variables: Record<string, any>, 
+    variables: Record<string, unknown>, 
     context?: Partial<TemplateContext>
   ): Promise<unknown> {
     const template = await this.getTemplate(templateName);
@@ -321,7 +321,7 @@ export class ConfigTemplateEngine {
 
   // Build complete context for substitution
   private buildContext(
-    variables: Record<string, any>, 
+    variables: Record<string, unknown>, 
     partial?: Partial<TemplateContext>
   ): TemplateContext {
     const now = new Date();
@@ -384,7 +384,7 @@ export class ConfigTemplateEngine {
   }
 
   // Validate variables against template requirements
-  private validateVariables(template: ConfigTemplate, variables: Record<string, any>): void {
+  private validateVariables(template: ConfigTemplate, variables: Record<string, unknown>): void {
     for (const varDef of template.variables) {
       const value = variables[varDef.name];
 

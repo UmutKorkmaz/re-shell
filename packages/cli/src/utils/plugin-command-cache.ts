@@ -199,8 +199,8 @@ export class PluginCommandCacheManager extends EventEmitter {
   // Execute command with caching
   async executeWithCache<T = any>(
     commandId: string,
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     context: PluginCommandContext,
     executor: () => Promise<T>
   ): Promise<CacheOperationResult<T>> {
@@ -312,8 +312,8 @@ export class PluginCommandCacheManager extends EventEmitter {
   // Generate cache key
   private generateCacheKey(
     commandId: string,
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     context: PluginCommandContext
   ): string {
     const keyData = {
@@ -786,7 +786,7 @@ export class PluginCommandCacheManager extends EventEmitter {
   }
 
   // Extract dependencies from arguments/options
-  private extractDependencies(args: Record<string, any>, options: Record<string, any>): string[] {
+  private extractDependencies(args: Record<string, unknown>, options: Record<string, unknown>): string[] {
     const dependencies: string[] = [];
     
     // Add file dependencies
@@ -803,8 +803,8 @@ export class PluginCommandCacheManager extends EventEmitter {
   // Extract invalidators
   private extractInvalidators(
     commandId: string, 
-    args: Record<string, any>, 
-    options: Record<string, any>
+    args: Record<string, unknown>, 
+    options: Record<string, unknown>
   ): string[] {
     const invalidators: string[] = [];
     

@@ -53,7 +53,7 @@ export async function testCommandValidation(
     }
 
     // Parse test data
-    let parsedTestData: { args?: Record<string, any>; options?: Record<string, any> };
+    let parsedTestData: { args?: Record<string, unknown>; options?: Record<string, unknown> };
     try {
       parsedTestData = JSON.parse(testData);
     } catch (error) {

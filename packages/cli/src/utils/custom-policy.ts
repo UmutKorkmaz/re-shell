@@ -111,7 +111,7 @@ export interface RuleCondition {
 
 export interface RuleAction {
   type: string;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   order: number;
   continueOnFailure?: boolean;
 }
@@ -223,7 +223,7 @@ export interface ResourceTarget {
   id: string;
   name: string;
   location?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ConditionEvaluation {
@@ -238,7 +238,7 @@ export interface ActionTaken {
   action: RemediationAction;
   status: 'success' | 'failed' | 'skipped' | 'partial';
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   duration: number;
 }
 

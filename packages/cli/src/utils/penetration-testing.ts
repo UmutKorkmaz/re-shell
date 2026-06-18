@@ -72,7 +72,7 @@ export interface PenetrationTest {
   assignedTo: string;
   team: string[];
   tags: string[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface Target {
@@ -103,7 +103,7 @@ export interface ToolUsage {
   category: ToolCategory;
   version: string;
   command: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   status: 'running' | 'completed' | 'failed' | 'skipped';
   startedAt: Date;
   completedAt?: Date;

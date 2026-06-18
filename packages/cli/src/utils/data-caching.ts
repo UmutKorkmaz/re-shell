@@ -43,7 +43,7 @@ export interface CacheEntry<T = any> {
   accessedAt: number;
   accessCount: number;
   tags?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Cache options
@@ -132,7 +132,7 @@ export interface CacheEntry<T = any> {
   accessedAt: number;
   accessCount: number;
   tags?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CacheOptions {

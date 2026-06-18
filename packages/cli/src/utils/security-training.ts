@@ -77,7 +77,7 @@ export interface ModuleContent {
   duration: number; // minutes
   required: boolean;
   order: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface Question {

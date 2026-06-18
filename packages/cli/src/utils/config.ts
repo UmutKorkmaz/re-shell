@@ -97,7 +97,7 @@ export interface EnvironmentConfig {
     target?: string;
     region?: string;
     domain?: string;
-    config?: Record<string, any>;
+    config?: Record<string, unknown>;
     secrets?: string[];
     hooks?: {
       preDeploy?: string[];
@@ -143,9 +143,9 @@ export interface WorkspaceConfig {
   };
   deployment?: {
     provider?: string;
-    config?: Record<string, any>;
+    config?: Record<string, unknown>;
   };
-  environment?: Record<string, any>;
+  environment?: Record<string, unknown>;
 }
 
 export interface ProjectPreset {

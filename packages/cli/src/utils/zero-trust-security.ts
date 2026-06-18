@@ -105,7 +105,7 @@ export interface Identity {
   mfaMethods: AuthMethod[];
   groups: string[];
   roles: string[];
-  attributes: Record<string, any>;
+  attributes: Record<string, unknown>;
   devices: Device[];
   lastLogin: Date;
   lastVerified: Date;
@@ -162,7 +162,7 @@ export interface PolicyCondition {
 
 export interface PolicyAction {
   type: 'allow' | 'deny' | 'challenge' | 'mfa-require' | 'notify' | 'log';
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 }
 
 export interface Session {
@@ -219,7 +219,7 @@ export interface Verification {
   challenge?: string;
   response?: string;
   trustLevel?: TrustLevel;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ComplianceReport {

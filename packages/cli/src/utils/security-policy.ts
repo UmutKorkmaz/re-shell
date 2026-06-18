@@ -79,7 +79,7 @@ export interface PolicyControl {
 export interface ControlImplementation {
   language: 'terraform' | 'cloudformation' | 'arm' | 'python' | 'custom';
   code: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   dependencies: string[];
 }
 
@@ -185,7 +185,7 @@ export interface PolicyRule {
 
 export interface RuleAction {
   type: 'log' | 'alert' | 'block' | 'remediate' | 'tag' | 'quarantine' | 'custom';
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   order: number;
 }
 
@@ -214,7 +214,7 @@ export interface PolicyViolation {
   resolvedAt?: Date;
   resolutionNotes?: string;
   falsePositiveReason?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ViolationEvidence {
@@ -257,7 +257,7 @@ export interface PolicyAudit {
   performedBy: string;
   timestamp: Date;
   details: AuditDetails;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface AuditDetails {
@@ -310,9 +310,9 @@ export interface EnforcementAction {
   type: string;
   performedBy: string;
   timestamp: Date;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   status: 'pending' | 'in-progress' | 'completed' | 'failed' | 'rolled-back';
-  result?: Record<string, any>;
+  result?: Record<string, unknown>;
   error?: string;
 }
 

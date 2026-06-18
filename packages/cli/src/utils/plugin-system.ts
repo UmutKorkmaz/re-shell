@@ -61,7 +61,7 @@ export interface PluginPermission {
 
 export interface PluginConfigSchema {
   type: 'object';
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
   required?: string[];
   additionalProperties?: boolean;
 }
@@ -71,7 +71,7 @@ export interface PluginContext {
     version: string;
     rootPath: string;
     configPath: string;
-    workspaces: Record<string, any>;
+    workspaces: Record<string, unknown>;
   };
   plugin: {
     name: string;

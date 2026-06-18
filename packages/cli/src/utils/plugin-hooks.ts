@@ -64,7 +64,7 @@ export interface HookHandler {
   once?: boolean;
   condition?: (data: any) => boolean;
   description?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Hook execution context
@@ -76,7 +76,7 @@ export interface HookContext {
   result?: any;
   error?: Error;
   aborted?: boolean;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Hook execution result
@@ -95,7 +95,7 @@ export interface HookRegistrationOptions {
   once?: boolean;
   condition?: (data: any) => boolean;
   description?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Hook middleware interface

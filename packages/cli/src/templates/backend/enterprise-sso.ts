@@ -174,7 +174,7 @@ export interface UserProfile {
   lastName: string;
   groups: string[];
   roles: string[];
-  attributes: Record<string, any>;
+  attributes: Record<string, unknown>;
 }
 
 export class SsoManager {
@@ -605,7 +605,7 @@ export interface AuditEvent {
   errorCode?: string;
   errorMessage?: string;
   sessionId?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 export class AuditLogger {

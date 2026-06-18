@@ -159,7 +159,7 @@ export interface ScanResult {
 }
 
 export class VulnerabilityScanner {
-  private owaspTop10: Record<string, any> = {
+  private owaspTop10: Record<string, unknown> = {
     'A01:2021': {
       name: 'Broken Access Control',
       cwe: 'CWE-284',

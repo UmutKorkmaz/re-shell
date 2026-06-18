@@ -56,7 +56,7 @@ interface OperatorConfig {
       type: string;
       description?: string;
       required?: boolean;
-      properties?: Record<string, any>;
+      properties?: Record<string, unknown>;
     }>;
   }>;
   enableController: boolean;

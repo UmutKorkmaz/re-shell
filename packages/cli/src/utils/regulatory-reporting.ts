@@ -60,7 +60,7 @@ export interface NotificationChannel {
   type: 'email' | 'slack' | 'teams' | 'webhook' | 'sms' | 'custom';
   enabled: boolean;
   recipients: string[];
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
 }
 
 export interface ComplianceDashboard {
@@ -128,7 +128,7 @@ export interface WidgetConfig {
   showDataPoints?: boolean;
   stacked?: boolean;
   normalized?: boolean;
-  customOptions?: Record<string, any>;
+  customOptions?: Record<string, unknown>;
 }
 
 export interface MetricThreshold {
@@ -191,7 +191,7 @@ export interface DrillDownConfig {
 export interface DrillDownLevel {
   name: string;
   targetDashboard?: string;
-  filters: Record<string, any>;
+  filters: Record<string, unknown>;
 }
 
 export interface RegulatoryReport {
@@ -514,7 +514,7 @@ export interface AlertCondition {
 export interface AlertAction {
   type: 'email' | 'sms' | 'webhook' | 'slack' | 'teams' | 'pagerduty' | 'custom';
   target: string;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
   template?: string;
 }
 
@@ -547,8 +547,8 @@ export interface ReportSchedule {
 export interface ScheduleParameters {
   frameworks: ReportType[];
   scope: ScheduleScope;
-  filters?: Record<string, any>;
-  customFields?: Record<string, any>;
+  filters?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface ScheduleScope {

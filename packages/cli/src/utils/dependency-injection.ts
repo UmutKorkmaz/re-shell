@@ -852,7 +852,7 @@ export async function generateAutoWiringConfig(
 ): Promise<void> {
   const config = {
     version: '1.0.0',
-    services: {} as Record<string, any>,
+    services: {} as Record<string, unknown>,
     wiring: [] as any[],
   };
 

@@ -168,7 +168,7 @@ export interface WorkspaceEntry {
   active?: boolean;
   
   // Custom metadata
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Workspace dependency definition

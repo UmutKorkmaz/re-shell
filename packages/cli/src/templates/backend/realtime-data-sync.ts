@@ -28,7 +28,7 @@ export interface ISyncDocument {
   id: string;
   collection: string;
   version: number;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   crdt: any; // CRDT state (G-Counter, LWW-Register, OR-Set, etc.)
   operations: SyncOperation[];
   collaborators: string[];
@@ -45,7 +45,7 @@ export interface SyncOperation {
   position: any; // Position in document (for OT)
   length?: number;
   content?: any;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   userId: string;
   timestamp: Date;
   causalityId?: string; // For CRDT causality

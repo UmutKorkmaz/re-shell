@@ -31,8 +31,8 @@ export interface TemplateValidation {
 }
 
 export interface TemplateInstantiationOptions {
-  variables?: Record<string, any>;
-  overrides?: Record<string, any>;
+  variables?: Record<string, unknown>;
+  overrides?: Record<string, unknown>;
   skipValidation?: boolean;
 }
 
@@ -146,7 +146,7 @@ export class WorkspaceTemplateManager {
   /**
    * Apply variables to config
    */
-  private applyVariables(config: any, variables: Record<string, any>): any {
+  private applyVariables(config: any, variables: Record<string, unknown>): any {
     let configStr = JSON.stringify(config);
 
     // Replace variables in format {{variable.name}}
@@ -161,7 +161,7 @@ export class WorkspaceTemplateManager {
   /**
    * Apply overrides to config
    */
-  private applyOverrides(config: any, overrides: Record<string, any>): any {
+  private applyOverrides(config: any, overrides: Record<string, unknown>): any {
     return this.deepMerge(config, overrides);
   }
 

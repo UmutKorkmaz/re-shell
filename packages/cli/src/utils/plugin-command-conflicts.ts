@@ -73,7 +73,7 @@ export interface ConflictResolution {
 export interface ConflictResolutionAction {
   type: 'rename' | 'disable' | 'namespace' | 'priority' | 'merge';
   target: string; // command ID
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   applied: boolean;
   error?: string;
 }

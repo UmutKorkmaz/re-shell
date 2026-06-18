@@ -31,7 +31,7 @@ export interface DeploymentConfiguration {
   target?: string;
   region?: string;
   domain?: string;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
   secrets?: string[];
   hooks?: {
     preDeploy?: string[];
@@ -380,8 +380,8 @@ export class EnvironmentManager {
   // Compare environments
   async compareEnvironments(env1: string, env2: string): Promise<{
     variables: { added: string[]; removed: string[]; changed: Array<{key: string; from: any; to: any}> };
-    build: Record<string, any>;
-    deployment: Record<string, any>;
+    build: Record<string, { from: unknown; to: unknown }>;
+    deployment: Record<string, { from: unknown; to: unknown }>;
   }> {
     const environment1 = await this.getEnvironment(env1);
     const environment2 = await this.getEnvironment(env2);
@@ -445,8 +445,8 @@ export class EnvironmentManager {
     return { added, removed, changed };
   }
 
-  private diffObjects(obj1: any, obj2: any): Record<string, any> {
-    const diff: Record<string, any> = {};
+  private diffObjects(obj1: any, obj2: any): Record<string, { from: unknown; to: unknown }> {
+    const diff: Record<string, { from: unknown; to: unknown }> = {};
     const allKeys = new Set([...Object.keys(obj1), ...Object.keys(obj2)]);
     
     for (const key of allKeys) {

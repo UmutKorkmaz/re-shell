@@ -287,7 +287,7 @@ export async function publishSchemas(options: SchemaPublishOptions = {}): Promis
   const settingsPath = path.join(vscodeDir, 'settings.json');
   await fs.ensureDir(vscodeDir);
 
-  let existingSettings: Record<string, any> = {};
+  let existingSettings: Record<string, unknown> = {};
   if (await fs.pathExists(settingsPath)) {
     try {
       existingSettings = await fs.readJson(settingsPath);

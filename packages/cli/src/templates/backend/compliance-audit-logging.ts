@@ -127,7 +127,7 @@ export interface AuditEvent {
   resource?: string;
   action: string;
   outcome: 'success' | 'failure' | 'error';
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   compliance: {
     soc2: boolean;
     hipaa: boolean;

@@ -5529,7 +5529,7 @@ export interface CMSQueryOptions {
   limit?: number;
   offset?: number;
   sort?: string[];
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
   fields?: string[];
   deep?: boolean;
 }
@@ -5686,7 +5686,7 @@ export class StrapiClient {
   }
 
   private normalizeQuery(options?: CMSQueryOptions) {
-    const query: Record<string, any> = {};
+    const query: Record<string, unknown> = {};
 
     if (options?.locale) {
       query.locale = options.locale;
@@ -5817,7 +5817,7 @@ export class ContentfulClient {
   }
 
   private normalizeQuery(options?: CMSQueryOptions) {
-    const query: Record<string, any> = {};
+    const query: Record<string, unknown> = {};
 
     if (options?.locale) {
       query.locale = options.locale;
@@ -6007,7 +6007,7 @@ export class SanityClient {
   }
 
   private normalizeQuery(options?: CMSQueryOptions) {
-    const query: Record<string, any> = {};
+    const query: Record<string, unknown> = {};
 
     if (options?.locale) {
       query.language = options.locale;

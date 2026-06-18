@@ -52,7 +52,7 @@ export interface DocumentationTemplate {
   sections: DocumentationSection[];
   customSections?: Record<string, string>;
   styles?: DocumentationStyles;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Documentation styles

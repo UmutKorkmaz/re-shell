@@ -181,7 +181,7 @@ function computeDiff(from: WorkspaceConfig, to: WorkspaceConfig, fromPath: strin
 /**
  * Compare services between two configurations
  */
-function compareServices(fromServices: Record<string, any>, toServices: Record<string, any>): ServiceChange[] {
+function compareServices(fromServices: Record<string, unknown>, toServices: Record<string, unknown>): ServiceChange[] {
   const changes: ServiceChange[] = [];
   const fromIds = new Set(Object.keys(fromServices));
   const toIds = new Set(Object.keys(toServices));

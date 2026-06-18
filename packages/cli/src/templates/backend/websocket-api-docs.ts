@@ -1183,8 +1183,8 @@ import path from 'path';
 interface Channel {
   address: string;
   description?: string;
-  messages?: Record<string, any>;
-  parameters?: Record<string, any>;
+  messages?: Record<string, unknown>;
+  parameters?: Record<string, unknown>;
 }
 
 interface AsyncAPIDocument {
@@ -1194,12 +1194,12 @@ interface AsyncAPIDocument {
     version: string;
     description?: string;
   };
-  servers?: Record<string, any>;
+  servers?: Record<string, unknown>;
   channels?: Record<string, Channel>;
   components?: {
-    messages?: Record<string, any>;
-    schemas?: Record<string, any>;
-    parameters?: Record<string, any>;
+    messages?: Record<string, unknown>;
+    schemas?: Record<string, unknown>;
+    parameters?: Record<string, unknown>;
   };
 }
 
@@ -1298,7 +1298,7 @@ function mapTypeToTypeScript(prop: any): string {
     case 'array':
       return \`Array<\${mapTypeToTypeScript(prop.items || {})}>\`;
     case 'object':
-      return 'Record<string, any>';
+      return 'Record<string, unknown>';
     default:
       return 'any';
   }

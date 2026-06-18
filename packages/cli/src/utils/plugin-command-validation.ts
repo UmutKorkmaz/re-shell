@@ -51,7 +51,7 @@ export interface ValidationRule {
   message?: string;
   condition?: ValidationCondition;
   validator?: ValidationFunction;
-  options?: Record<string, any>;
+  options?: Record<string, unknown>;
 }
 
 // Parameter transformation definition
@@ -59,39 +59,39 @@ export interface ParameterTransformation {
   type: TransformationType;
   order: number;
   transformer: TransformationFunction;
-  options?: Record<string, any>;
+  options?: Record<string, unknown>;
   condition?: TransformationCondition;
 }
 
 // Validation condition function
 export type ValidationCondition = (
   value: any,
-  args: Record<string, any>,
-  options: Record<string, any>,
+  args: Record<string, unknown>,
+  options: Record<string, unknown>,
   context: PluginCommandContext
 ) => boolean;
 
 // Validation function
 export type ValidationFunction = (
   value: any,
-  args: Record<string, any>,
-  options: Record<string, any>,
+  args: Record<string, unknown>,
+  options: Record<string, unknown>,
   context: PluginCommandContext
 ) => boolean | string;
 
 // Transformation condition function
 export type TransformationCondition = (
   value: any,
-  args: Record<string, any>,
-  options: Record<string, any>,
+  args: Record<string, unknown>,
+  options: Record<string, unknown>,
   context: PluginCommandContext
 ) => boolean;
 
 // Transformation function
 export type TransformationFunction = (
   value: any,
-  args: Record<string, any>,
-  options: Record<string, any>,
+  args: Record<string, unknown>,
+  options: Record<string, unknown>,
   context: PluginCommandContext
 ) => any;
 
@@ -101,8 +101,8 @@ export interface ValidationResult {
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
   info: ValidationIssue[];
-  transformedArgs: Record<string, any>;
-  transformedOptions: Record<string, any>;
+  transformedArgs: Record<string, unknown>;
+  transformedOptions: Record<string, unknown>;
 }
 
 // Validation issue
@@ -509,8 +509,8 @@ export class PluginCommandValidator extends EventEmitter {
   // Validate and transform command parameters
   async validateAndTransform(
     commandId: string,
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     context: PluginCommandContext
   ): Promise<ValidationResult> {
     const cacheKey = this.generateCacheKey(commandId, args, options);
@@ -613,8 +613,8 @@ export class PluginCommandValidator extends EventEmitter {
   // Validate and transform arguments
   private async validateAndTransformArguments(
     argumentSchemas: Record<string, ArgumentValidationConfig>,
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     result: ValidationResult,
     context: PluginCommandContext
   ): Promise<void> {
@@ -652,8 +652,8 @@ export class PluginCommandValidator extends EventEmitter {
   // Validate and transform options
   private async validateAndTransformOptions(
     optionSchemas: Record<string, OptionValidationConfig>,
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     result: ValidationResult,
     context: PluginCommandContext
   ): Promise<void> {
@@ -697,8 +697,8 @@ export class PluginCommandValidator extends EventEmitter {
   private async applyTransformationChain(
     transformations: ParameterTransformation[],
     value: any,
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     context: PluginCommandContext
   ): Promise<unknown> {
     // Sort transformations by order
@@ -721,8 +721,8 @@ export class PluginCommandValidator extends EventEmitter {
   // Apply transformations to all parameters
   private async applyTransformations(
     transformations: ParameterTransformation[],
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     context: PluginCommandContext
   ): Promise<void> {
     const sortedTransformations = transformations.sort((a, b) => a.order - b.order);
@@ -749,8 +749,8 @@ export class PluginCommandValidator extends EventEmitter {
     rule: ValidationRule,
     fieldName: string,
     value: any,
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     result: ValidationResult,
     context: PluginCommandContext
   ): Promise<void> {
@@ -800,8 +800,8 @@ export class PluginCommandValidator extends EventEmitter {
   // Apply global validation rules
   private async applyGlobalRules(
     rules: ValidationRule[],
-    args: Record<string, any>,
-    options: Record<string, any>,
+    args: Record<string, unknown>,
+    options: Record<string, unknown>,
     result: ValidationResult,
     context: PluginCommandContext
   ): Promise<void> {
@@ -816,7 +816,7 @@ export class PluginCommandValidator extends EventEmitter {
     fieldName: string,
     value: any,
     dependencies: string[],
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     result: ValidationResult
   ): void {
     if (value !== undefined && value !== null) {
@@ -839,7 +839,7 @@ export class PluginCommandValidator extends EventEmitter {
     fieldName: string,
     value: any,
     conflicts: string[],
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     result: ValidationResult
   ): void {
     if (value !== undefined && value !== null) {
@@ -862,7 +862,7 @@ export class PluginCommandValidator extends EventEmitter {
     fieldName: string,
     value: any,
     implications: string[],
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     result: ValidationResult
   ): void {
     if (value !== undefined && value !== null) {
@@ -883,8 +883,8 @@ export class PluginCommandValidator extends EventEmitter {
   // Generate cache key
   private generateCacheKey(
     commandId: string,
-    args: Record<string, any>,
-    options: Record<string, any>
+    args: Record<string, unknown>,
+    options: Record<string, unknown>
   ): string {
     const data = JSON.stringify({ commandId, args, options });
     // Simple hash function for cache key

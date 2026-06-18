@@ -30,7 +30,7 @@ export interface CorrelationContext {
   userId?: string;
   sessionId?: string;
   requestId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 const correlationContext = new AsyncLocalStorage<CorrelationContext>();
@@ -72,7 +72,7 @@ export function withCorrelationContext<T>(
 export function createCorrelationContext(
   userId?: string,
   sessionId?: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): CorrelationContext {
   return {
     correlationId: generateCorrelationId(),
@@ -190,7 +190,7 @@ export interface ErrorContext {
   userAgent?: string;
   ip?: string;
   timestamp: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface TrackedError {

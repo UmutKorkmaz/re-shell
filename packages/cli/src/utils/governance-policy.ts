@@ -371,7 +371,7 @@ export interface AuditEvent {
   entityType: 'policy' | 'workflow' | 'violation' | 'approval-chain' | 'framework';
   entityId: string;
   entityName: string;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
 }
