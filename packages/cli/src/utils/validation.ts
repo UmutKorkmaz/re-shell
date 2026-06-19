@@ -586,9 +586,6 @@ export function validateProjectConfig(config: any): ValidationResult {
   return configValidator.validateConfiguration(config, PROJECT_CONFIG_SCHEMA, 'project');
 }
 
-export function validateEnvironmentConfig(config: any): ValidationResult {
-  return configValidator.validateConfiguration(config, ENVIRONMENT_CONFIG_SCHEMA, 'environment');
-}
 
 export async function validateConfigFile(filePath: string, configType: 'global' | 'project'): Promise<ValidationResult> {
   try {

@@ -382,54 +382,6 @@ export async function showProjectAnalysis(cwd: string = process.cwd()): Promise<
 /**
  * Get recommended profile based on project analysis
  */
-export async function getRecommendedProfile(
-  projectName: string,
-  environment: 'development' | 'staging' | 'production' | 'custom' = 'development',
-  cwd: string = process.cwd()
-): Promise<{
-  name: string;
-  framework?: string;
-  config: any;
-}> {
-  const analysis = await analyzeProject(cwd);
-
-  const profileConfig = {
-    name: `${analysis.primaryFramework || 'auto'}-${environment}`,
-    framework: analysis.primaryFramework,
-    environment,
-    config: {
-      build: {
-        target: analysis.recommendedConfig.buildTarget,
-        optimize: environment === 'production',
-        sourcemap: environment !== 'production',
-        minify: environment === 'production',
-      },
-      dev: {
-        port: analysis.recommendedConfig.port,
-        host: 'localhost',
-        hmr: analysis.recommendedConfig.devServer.hmr,
-        cors: analysis.recommendedConfig.devServer.cors,
-      },
-      env: {},
-      scripts: {},
-    },
-  };
-
-  // Add environment-specific env vars
-  for (const envVar of analysis.recommendedConfig.envVars) {
-    profileConfig.config.env[envVar] = '';
-  }
-
-  // Add suggested scripts
-  for (const script of analysis.recommendedConfig.scripts) {
-    const scriptName = script.split(':')[0];
-    const scriptValue = script.split(':')[1] || script;
-    profileConfig.config.scripts[scriptName] = scriptValue;
-  }
-
-  return profileConfig;
-}
-
 /**
  * Helper functions
  */

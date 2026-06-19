@@ -242,13 +242,3 @@ export function flushOutput(): void {
     // Ignore flush errors - they're not critical
   }
 }
-
-// Helper to detect if terminal supports interactive features
-export function isInteractiveTerminal(): boolean {
-  return Boolean(
-    process.stdout.isTTY && 
-    process.env.TERM !== 'dumb' && 
-    !process.env.CI &&
-    !process.env.RE_SHELL_NO_SPINNER
-  );
-}
