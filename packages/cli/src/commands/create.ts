@@ -3193,6 +3193,12 @@ For more information, see the [Re-Shell documentation](https://github.com/your-o
       const isFullStackApp = Boolean(
         options.fullstack || (options.framework && requestedBackend)
       );
+      // When --fullstack is explicitly set but no framework is given, default
+      // to react-ts so a frontend shell is actually scaffolded (previously it
+      // was silently skipped).
+      if (options.fullstack && !options.framework) {
+        options.framework = 'react-ts';
+      }
       const backendDirName = isFullStackApp
         ? `${normalizedName}-api`
         : normalizedName;
