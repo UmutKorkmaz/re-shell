@@ -233,7 +233,8 @@ export async function detectFrameworks(cwd: string = process.cwd()): Promise<Det
       const content = await fs.readFile(packageJsonPath, 'utf8');
       packageJson = JSON.parse(content);
     } catch (error) {
-      // Invalid package.json
+      // Invalid package.json — warn so the user knows their file is malformed
+      console.warn(`Warning: could not parse ${packageJsonPath}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -274,7 +275,8 @@ export async function analyzeProject(cwd: string = process.cwd()): Promise<Proje
       const content = await fs.readFile(packageJsonPath, 'utf8');
       packageJson = JSON.parse(content);
     } catch (error) {
-      // Invalid package.json
+      // Invalid package.json — warn so the user knows their file is malformed
+      console.warn(`Warning: could not parse ${packageJsonPath}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
