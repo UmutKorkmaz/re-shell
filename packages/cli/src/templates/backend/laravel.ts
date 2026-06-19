@@ -11,7 +11,7 @@ export const laravelTemplate: BackendTemplate = {
   tags: ['php', 'laravel', 'eloquent', 'mvc', 'api', 'enterprise'],
   port: 8000,
   dependencies: {},
-  features: ['authentication', 'database', 'validation', 'logging', 'testing', 'queue'],
+  features: ['authentication', 'database', 'validation', 'logging', 'testing', 'queue', 'graphql'],
   
   files: {
     // Composer configuration
@@ -41,7 +41,8 @@ export const laravelTemplate: BackendTemplate = {
     "maatwebsite/excel": "^3.1",
     "barryvdh/laravel-dompdf": "^2.0",
     "intervention/image": "^2.7",
-    "league/flysystem-aws-s3-v3": "^3.0"
+    "league/flysystem-aws-s3-v3": "^3.0",
+    "rebing/graphql-laravel": "^9.0"
   },
   "require-dev": {
     "fakerphp/faker": "^1.21",
@@ -267,6 +268,12 @@ Route::get('/health', function () {
         'service' => config('app.name'),
         'version' => '1.0.0'
     ]);
+});
+
+// GraphQL endpoint (rebing/graphql-laravel)
+Route::group(['middleware' => 'api'], function () {
+    Route::post('/graphql', \\Rebing\\GraphQL\\GraphQLController::class.'@query');
+    Route::get('/graphql', \\Rebing\\GraphQL\\GraphQLController::class.'@graphiql');
 });`,
 
     // Authentication Controller
@@ -1309,6 +1316,122 @@ $status = $kernel->handle(
 $kernel->terminate($input, $status);
 
 exit($status);`,
+
+    // GraphQL configuration (rebing/graphql-laravel)
+    'config/graphql.php': `<?php
+
+return [
+
+    'route' => [
+        'prefix' => '',
+        'middleware' => ['api'],
+        'group_attributes' => [],
+    ],
+
+    'schema' => [
+        'default' => [
+            'query' => [
+                'hello' => App\\GraphQL\\Queries\\HelloQuery::class,
+                'health' => App\\GraphQL\\Queries\\HealthQuery::class,
+            ],
+            'mutation' => [],
+            'types' => [],
+        ],
+    ],
+
+    'types' => [],
+
+    'controllers_schema' => 'default',
+
+    'error_formatter' => [\\Rebing\\GraphQL\\GraphQL::class, 'formatError'],
+
+    'errors_handler' => [\\Rebing\\GraphQL\\GraphQL::class, 'handleErrors'],
+
+    'params_key' => 'variables',
+
+    'security' => [
+        'query_max_complexity' => 1000,
+        'query_max_depth' => 20,
+        'disable_introspection' => false,
+    ],
+
+    'persisted_queries' => [
+        'cache' => null,
+        'enforce' => false,
+    ],
+
+    'graphiql' => [
+        'enabled' => env('GRAPHIQL_ENABLED', true),
+        'prefix' => '/graphql',
+        'controller' => \\Rebing\\GraphQL\\GraphQLController::class.'@graphiql',
+        'middleware' => ['api'],
+        'view' => 'graphql::graphiql',
+    ],
+
+];`,
+
+    // GraphQL HelloQuery
+    'app/GraphQL/Queries/HelloQuery.php': `<?php
+
+namespace App\\GraphQL\\Queries;
+
+use GraphQL\\Type\\Definition\\Type;
+use Rebing\\GraphQL\\Support\\Query;
+
+class HelloQuery extends Query
+{
+    protected $attributes = [
+        'name' => 'hello',
+        'description' => 'A simple hello query',
+    ];
+
+    public function type(): Type
+    {
+        return Type::string();
+    }
+
+    public function args(): array
+    {
+        return [
+            'name' => [
+                'type' => Type::string(),
+                'defaultValue' => 'World',
+            ],
+        ];
+    }
+
+    public function resolve($root, array $args): string
+    {
+        return 'Hello, ' . ($args['name'] ?? 'World') . '!';
+    }
+}`,
+
+    // GraphQL HealthQuery
+    'app/GraphQL/Queries/HealthQuery.php': `<?php
+
+namespace App\\GraphQL\\Queries;
+
+use GraphQL\\Type\\Definition\\Type;
+use Rebing\\GraphQL\\Support\\Query;
+use Illuminate\\Support\\Facades\\DB;
+
+class HealthQuery extends Query
+{
+    protected $attributes = [
+        'name' => 'health',
+        'description' => 'Service health check',
+    ];
+
+    public function type(): Type
+    {
+        return Type::nonNull(Type::boolean());
+    }
+
+    public function resolve($root, array $args): bool
+    {
+        return true;
+    }
+}`,
 
     // README
     'README.md': `# {{serviceName}} - Laravel API Service

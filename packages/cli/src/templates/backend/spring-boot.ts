@@ -24,7 +24,8 @@ export const springBootTemplate: BackendTemplate = {
     'rate-limiting',
     'cors',
     'docker',
-    'rest-api'
+    'rest-api',
+    'graphql'
   ],
   dependencies: {},
   devDependencies: {},
@@ -87,6 +88,10 @@ export const springBootTemplate: BackendTemplate = {
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-graphql</artifactId>
         </dependency>
         
         <!-- Database -->
@@ -165,6 +170,11 @@ export const springBootTemplate: BackendTemplate = {
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.graphql</groupId>
+            <artifactId>spring-graphql-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -321,6 +331,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/graphql/**", "/graphiql/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .anyRequest().authenticated())
             .authenticationProvider(authenticationProvider())
@@ -418,6 +429,50 @@ public class CacheConfig {
                     .serializeValuesWith(RedisSerializationContext.SerializationPair
                         .fromSerializer(new GenericJackson2JsonRedisSerializer())));
     }
+}
+`,
+    'src/main/java/{{packagePath}}/graphql/QueryController.java': `package {{packageName}}.graphql;
+
+import org.springframework.graphql.data.method.annotation.Argument;
+import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.stereotype.Controller;
+
+import java.time.Instant;
+import java.util.Map;
+
+@Controller
+public class QueryController {
+
+    @QueryMapping
+    public String hello() {
+        return "Hello from {{serviceName}} GraphQL!";
+    }
+
+    @QueryMapping
+    public String greet(@Argument String name) {
+        return "Hello, " + (name == null || name.isBlank() ? "world" : name) + "!";
+    }
+
+    @QueryMapping
+    public Map<String, Object> health() {
+        return Map.of(
+            "status", "UP",
+            "service", "{{serviceName}}",
+            "timestamp", Instant.now().toString()
+        );
+    }
+}
+`,
+    'src/main/resources/graphql/schema.graphqls': `type Query {
+    hello: String!
+    greet(name: String): String!
+    health: HealthStatus!
+}
+
+type HealthStatus {
+    status: String!
+    service: String!
+    timestamp: String!
 }
 `,
     'src/main/java/{{packagePath}}/config/OpenApiConfig.java': `package {{packageName}}.config;
@@ -1496,6 +1551,20 @@ springdoc:
     path: /swagger-ui.html
     operationsSorter: method
 
+graphql:
+  servlet:
+    mapping: /graphql
+    enabled: true
+    cors-enabled: true
+    exception-handlers-enabled: true
+  graphiql:
+    enabled: true
+    path: /graphiql
+  schema:
+    locations: classpath:graphql/
+    printer:
+      enabled: true
+
 logging:
   level:
     root: INFO
@@ -2187,6 +2256,8 @@ docker-compose up -d postgres redis
 3. Access the application:
 - API: http://localhost:{{port}}
 - Swagger UI: http://localhost:{{port}}/swagger-ui.html
+- GraphQL: http://localhost:{{port}}/graphql
+- GraphiQL: http://localhost:{{port}}/graphiql
 - Actuator: http://localhost:{{port}}/actuator
 
 ### Running with Docker
@@ -2227,6 +2298,7 @@ This application uses JWT for authentication. To access protected endpoints:
 - **Security**: Spring Security with JWT
 - **Database**: PostgreSQL with JPA/Hibernate
 - **Caching**: Redis
+- **GraphQL**: Spring for GraphQL with GraphiQL
 - **API Documentation**: OpenAPI 3.0 with Swagger UI
 - **Database Migrations**: Liquibase
 - **Testing**: JUnit 5, Mockito, TestContainers

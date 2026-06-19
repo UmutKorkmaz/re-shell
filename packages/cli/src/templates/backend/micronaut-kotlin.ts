@@ -11,7 +11,7 @@ export const micronautKotlinTemplate: BackendTemplate = {
   tags: ['kotlin', 'micronaut', 'microservices', 'cloud-native', 'jwt', 'docker'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'docker'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'docker', 'graphql'],
 
   files: {
     // Gradle build file
@@ -45,6 +45,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect:1.9.21")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.21")
     implementation("io.micronaut:micronaut-validation")
+    implementation("io.micronaut.graphql:micronaut-graphql")
     runtimeOnly("ch.qos.logback:logback-classic")
     runtimeOnly("com.h2database:h2")
     runtimeOnly("io.micronaut.sql:micronaut-jdbc-hikari")
@@ -89,6 +90,12 @@ micronaut {
             generator:
               secret: change-this-secret-in-production
               jws-algorithm: HS256
+graphql:
+  enabled: true
+  path: /graphql
+  graphiql:
+    enabled: true
+    path: /graphiql
 
 datasources:
   default:
@@ -496,6 +503,53 @@ class HealthController {
         )
     }
 }
+`,
+
+    // GraphQL schema
+    'src/main/resources/schema.graphqls': `schema {
+    query: Query
+}
+
+type Query {
+    hello(name: String = "World"): String!
+    health: HealthStatus!
+}
+
+type HealthStatus {
+    status: String!
+    timestamp: String!
+    version: String!
+}
+`,
+
+    // GraphQL query resolver
+    'src/main/kotlin/{{projectPackage}}/graphql/QueryResolver.kt': `package {{projectPackage}}.graphql
+
+import graphql.kickstart.tools.GraphQLQueryResolver
+import jakarta.inject.Singleton
+import java.time.Instant
+
+@Singleton
+class QueryResolver : GraphQLQueryResolver {
+
+    fun hello(name: String = "World"): String {
+        return "Hello, \\$name!"
+    }
+
+    fun health(): HealthStatus {
+        return HealthStatus(
+            status = "healthy",
+            timestamp = Instant.now().toString(),
+            version = "1.0.0"
+        )
+    }
+}
+
+data class HealthStatus(
+    val status: String,
+    val timestamp: String,
+    val version: String
+)
 `,
 
     // Dockerfile

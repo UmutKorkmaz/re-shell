@@ -11,7 +11,7 @@ export const sinatraTemplate: BackendTemplate = {
   tags: ['ruby', 'sinatra', 'api', 'microservices', 'lightweight', 'rest', 'minimal'],
   port: 4567,
   dependencies: {},
-  features: ['authentication', 'database', 'validation', 'logging', 'documentation', 'testing'],
+  features: ['authentication', 'database', 'validation', 'logging', 'documentation', 'testing', 'graphql'],
   
   files: {
     // Gemfile
@@ -64,6 +64,10 @@ gem 'will_paginate', '~> 4.0'
 # API Documentation
 gem 'sinatra-swagger-exposer', '~> 0.4'
 
+# GraphQL
+gem 'graphql', '~> 2.1'
+gem 'graphql-client', '~> 0.18', group: :test
+
 # Rate limiting
 gem 'rack-throttle', '~> 0.7'
 
@@ -114,6 +118,7 @@ require 'jwt'
 require 'json'
 require 'logger'
 require 'redis'
+require 'graphql'
 
 # Load environment variables
 require 'dotenv/load'
@@ -122,6 +127,7 @@ require 'dotenv/load'
 Dir['./config/*.rb'].sort.each { |file| require file }
 Dir['./app/models/*.rb'].sort.each { |file| require file }
 Dir['./app/helpers/*.rb'].sort.each { |file| require file }
+Dir['./app/graphql/*.rb'].sort.each { |file| require file }
 Dir['./app/controllers/*.rb'].sort.each { |file| require file }
 
 class {{projectName}}App < Sinatra::Base
@@ -236,9 +242,60 @@ class {{projectName}}App < Sinatra::Base
       redis: redis_healthy?,
       version: '1.0.0'
     }
-    
+
     status health[:database] && health[:redis] ? 200 : 503
     json health
+  end
+
+  # GraphQL endpoint
+  post '/graphql' do
+    content_type :json
+
+    variables = ensure_hash(parse_json_body[:variables])
+    query = parse_json_body[:query]
+    operation_name = parse_json_body[:operationName]
+
+    result = {{projectName}}Schema.execute(
+      query,
+      variables: variables,
+      operation_name: operation_name,
+      context: { current_user: current_user, request: request }
+    )
+
+    json result
+  rescue StandardError => e
+    logger.error "GraphQL error: #{e.class}: #{e.message}"
+    status 500
+    json(errors: [{ message: 'Internal server error' }])
+  end
+
+  # GraphiQL IDE (development only)
+  get '/graphiql' do
+    pass unless settings.development?
+
+    content_type :html
+    <<-HTML
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>GraphiQL</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/graphiql@3.0.10/graphiql.min.css" />
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/graphiql@3.0.10/graphiql.min.js"></script>
+  </head>
+  <body style="margin: 0;">
+    <div id="graphiql" style="height: 100vh;"></div>
+    <script>
+      const fetcher = GraphiQL.createFetcher({ url: '/graphql' });
+      ReactDOM.render(
+        React.createElement(GraphiQL, { fetcher }),
+        document.getElementById('graphiql'),
+      );
+    </script>
+  </body>
+</html>
+    HTML
   end
   
   # Mount controllers
@@ -415,35 +472,95 @@ end
   def json(data, status = 200)
     content_type :json
     status status
-    
+
     if data.respond_to?(:to_json)
       data.to_json
     else
       JSON.generate(data)
     end
   end
-  
+
   def parse_json_body
     request.body.rewind
     JSON.parse(request.body.read, symbolize_names: true)
   rescue JSON::ParserError
     halt 400, json(error: 'Invalid JSON')
   end
-  
+
+  def ensure_hash(value)
+    return {} if value.nil?
+    return value if value.is_a?(Hash)
+    value
+  end
+
   def paginate(collection, page = 1, per_page = 20)
     page = [page.to_i, 1].max
     per_page = [[per_page.to_i, 100].min, 1].max
-    
+
     total = collection.count
     collection = collection.limit(per_page).offset((page - 1) * per_page)
-    
+
     headers['X-Total-Count'] = total.to_s
     headers['X-Total-Pages'] = ((total.to_f / per_page).ceil).to_s
     headers['X-Current-Page'] = page.to_s
     headers['X-Next-Page'] = (page < (total.to_f / per_page).ceil ? page + 1 : nil).to_s
     headers['X-Prev-Page'] = (page > 1 ? page - 1 : nil).to_s
-    
+
     collection
+  end
+end
+`,
+
+    // GraphQL schema and resolvers
+    'app/graphql/{{projectName}}_schema.rb': `class {{projectName}}Schema < GraphQL::Schema
+  mutation(null: true)
+  query(Types::QueryType)
+
+  # Resolve types for relay-style interfaces (future-proofing)
+  def self.resolve_type(_type, _object, _context)
+    raise NotImplementedError
+  end
+end
+`,
+
+    'app/graphql/types/base_object.rb': `module Types
+  class BaseObject < GraphQL::Schema::Object
+    edge_type_class GraphQL::Types::Relay::BaseEdge
+    connection_type_class GraphQL::Types::Relay::BaseConnection
+  end
+end
+`,
+
+    'app/graphql/types/query_type.rb': `module Types
+  class QueryType < Types::BaseObject
+    # Simple hello-world field
+    field :hello, String, null: false, description: 'A friendly greeting.'
+
+    def hello
+      'Hello from {{projectName}} GraphQL!'
+    end
+
+    # Health check field
+    field :health, Types::HealthType, null: false, description: 'Service health status.'
+
+    def health
+      {
+        status: 'ok',
+        timestamp: Time.now.iso8601,
+        version: '1.0.0'
+      }
+    end
+  end
+end
+`,
+
+    'app/graphql/types/health_type.rb': `module Types
+  class HealthType < Types::BaseObject
+    description 'Service health snapshot'
+
+    field :status, String, null: false
+    field :timestamp, String, null: false
+    field :version, String, null: false
   end
 end
 `,

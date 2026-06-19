@@ -11,7 +11,7 @@ export const symfonyTemplate: BackendTemplate = {
   tags: ['php', 'symfony', 'doctrine', 'bundles', 'enterprise', 'api'],
   port: 8000,
   dependencies: {},
-  features: ['authentication', 'database', 'validation', 'logging', 'testing', 'security'],
+  features: ['authentication', 'database', 'validation', 'logging', 'testing', 'security', 'graphql'],
   
   files: {
     // Composer configuration
@@ -27,6 +27,7 @@ export const symfonyTemplate: BackendTemplate = {
     "doctrine/doctrine-bundle": "^2.11",
     "doctrine/doctrine-migrations-bundle": "^3.3",
     "doctrine/orm": "^2.17",
+    "overblog/graphql-bundle": "^1.3",
     "lexik/jwt-authentication-bundle": "^2.19",
     "nelmio/cors-bundle": "^2.4",
     "zircote/swagger-php": "^4.7",
@@ -321,6 +322,56 @@ when@prod:
         doctrine.system_cache_pool:
           adapter: cache.system`,
 
+    // GraphQL configuration (overblog/graphql-bundle)
+    'config/packages/graphql.yaml': `overblog_graphql:
+  definitions:
+    schema:
+      query: Query
+    mappings:
+      types:
+        - type: yaml
+          dir: "%kernel.project_dir%/config/graphql/types"
+          suffix: ~
+  services:
+    _defaults:
+      autowire: true
+      autoconfigure: true
+  security:
+    query_depth: 10
+    complexity: ~`,
+
+    // GraphQL resolver service aliases
+    'config/services_graphql.yaml': `services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+
+  App\\GraphQL\\Resolver\\:
+    resource: '../src/GraphQL/Resolver/'
+
+  # Aliases consumed by the GraphQL expression language (@=resolver('...'))
+  query_hello:
+    alias: App\\GraphQL\\Resolver\\QueryResolver
+    public: true
+  query_health:
+    alias: App\\GraphQL\\Resolver\\QueryResolver
+    public: true`,
+
+    // GraphQL schema type definitions
+    'config/graphql/types/Query.types.yaml': `Query:
+  type: object
+  config:
+    description: "Root query entry point"
+    fields:
+      hello:
+        type: String!
+        resolve: "@=resolver('query_hello')"
+        description: "Returns a greeting string"
+      health:
+        type: String!
+        resolve: "@=resolver('query_health')"
+        description: "Returns the current application health status"`,
+
     // Routing configuration
     'config/routes.yaml': `controllers:
   resource:
@@ -329,7 +380,11 @@ when@prod:
   type: attribute
 
 api_login_check:
-  path: /api/login_check`,
+  path: /api/login_check
+
+overblog_graphql_endpoint:
+  path: /graphql
+  methods: [GET, POST, OPTIONS]`,
 
     // API Controller
     'src/Controller/ApiController.php': `<?php
@@ -1023,6 +1078,38 @@ class HealthController extends AbstractController
             'version' => $this->getParameter('app.version') ?? '1.0.0',
             'environment' => $this->getParameter('kernel.environment')
         ]);
+    }
+}`,
+
+    // GraphQL Query Resolver (overblog/graphql-bundle)
+    'src/GraphQL/Resolver/QueryResolver.php': `<?php
+
+namespace App\\GraphQL\\Resolver;
+
+use Overblog\\GraphQLBundle\\Definition\\Resolver\\ResolverInterface;
+use Symfony\\Component\\HttpKernel\\KernelInterface;
+
+class QueryResolver implements ResolverInterface
+{
+    public function __construct(
+        private KernelInterface $kernel
+    ) {
+    }
+
+    /**
+     * Returns a simple greeting string.
+     */
+    public function resolveHello(): string
+    {
+        return 'Hello from Symfony GraphQL!';
+    }
+
+    /**
+     * Returns the current application health status.
+     */
+    public function resolveHealth(): string
+    {
+        return 'healthy';
     }
 }`,
 

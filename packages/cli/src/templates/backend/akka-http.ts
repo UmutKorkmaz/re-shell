@@ -11,7 +11,7 @@ export const akkaHttpTemplate: BackendTemplate = {
   tags: ['scala', 'akka', 'actor', 'reactive', 'api', 'rest', 'jvm'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'streaming'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'streaming', 'graphql'],
 
   files: {
     // SBT build configuration
@@ -60,6 +60,11 @@ libraryDependencies ++= Seq(
   // Swagger
   "com.github.swagger-akka-http" %% "swagger-akka-http" % "2.11.0",
   "jakarta.ws.rs" % "jakarta.ws.rs-api" % "3.1.0",
+
+  // GraphQL with Sangria
+  "org.sangria-graphql" %% "sangria" % "4.0.0",
+  "org.sangria-graphql" %% "sangria-spray-json" % "1.0.2",
+  "io.spray" %% "spray-json" % "1.3.6",
 
   // Testing
   "com.typesafe.akka" %% "akka-http-testkit" % AkkaHttpVersion % Test,
@@ -465,6 +470,99 @@ object JwtAuth {
 }
 `,
 
+    // GraphQL Schema
+    'src/main/scala/com/{{projectName}}/graphql/Schema.scala': `package com.{{projectName}}.graphql
+
+import sangria.schema._
+
+object Schema {
+  val HelloArg = Argument("name", OptionInputType(StringType), defaultValue = "world")
+
+  val HelloArg: Argument[String] = Argument("name", StringType, defaultValue = "World")
+
+  val QueryType: ObjectType[Unit, Unit] = ObjectType(
+    "Query",
+    fields[Unit, Unit](
+      Field(
+        "hello",
+        StringType,
+        arguments = HelloArg :: Nil,
+        resolve = _ => "Hello from GraphQL!"
+      ),
+      Field(
+        "health",
+        StringType,
+        resolve = _ => "healthy"
+      )
+    )
+  )
+
+  val schema: sangria.schema.Schema[Unit, Unit] = sangria.schema.Schema(QueryType)
+}
+`,
+
+    // GraphQL Route
+    'src/main/scala/com/{{projectName}}/graphql/GraphQLRoute.scala': `package com.{{projectName}}.graphql
+
+import akka.http.scaladsl.model.MediaTypes
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import sangria.execution.Executor
+import sangria.parser.QueryParser
+import sangria.spray.json.SprayJsonSupport._
+import spray.json._
+
+import scala.concurrent.ExecutionContext
+import scala.util.{Failure, Success}
+
+case class GraphQLRequest(query: String, variables: Option[JsObject] = None, operationName: Option[String] = None)
+
+object GraphQLRequestJsonProtocol extends DefaultJsonProtocol {
+  implicit val graphQLRequestFormat: RootJsonFormat[GraphQLRequest] = jsonFormat3(GraphQLRequest)
+}
+
+class GraphQLRoute(implicit ec: ExecutionContext) {
+  import GraphQLRequestJsonProtocol._
+
+  val routes: Route = path("graphql") {
+    post {
+      entity(as[GraphQLRequest]) { request =>
+        onComplete(QueryParser.parse(request.query)) {
+          case Success(queryAst) =>
+            onComplete(Executor.execute(Schema.schema, queryAst)) {
+              case Success(result) => complete(result.toJson.compactPrint)
+              case Failure(ex)     => complete(s\\"{\\"errors\\":[{\\"message\\":\\\"\${ex.getMessage}\\"}]}}\\")
+            }
+          case Failure(ex) =>
+            complete(s\\"{\\"errors\\":[{\\"message\\":\\\"\${ex.getMessage}\\"}]}}\\")
+        }
+      }
+    } ~
+    get {
+      complete(MediaTypes.\`text/html\` -> graphqlPlaygroundHtml)
+    }
+  }
+
+  private def graphqlPlaygroundHtml: String =
+    """<!DOCTYPE html>
+      |<html>
+      |<head>
+      |  <title>GraphQL Playground</title>
+      |  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/graphql-playground-react/build/static/css/index.css" />
+      |  <link rel="shortcut icon" href="//cdn.jsdelivr.net/npm/graphql-playground-react/favicon.png" />
+      |  <script src="//cdn.jsdelivr.net/npm/graphql-playground-react/build/static/js/middleware.js"></script>
+      |</head>
+      |<body>
+      |  <div id="root">
+      |    <script>window.addEventListener('load', function (event) {
+      |      GraphQLPlayground.init(document.getElementById('root'), { endpoint: '/graphql' })
+      |    })</script>
+      |  </div>
+      |</body>
+      |</html>""".stripMargin
+}
+`,
+
     // Routes - Main
     'src/main/scala/com/{{projectName}}/routes/Routes.scala': `package com.{{projectName}}.routes
 
@@ -475,6 +573,7 @@ import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.{{projectName}}.config.AppConfig
 import com.typesafe.scalalogging.LazyLogging
+import com.{{projectName}}.graphql.GraphQLRoute
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 
@@ -502,6 +601,7 @@ class Routes(config: AppConfig)(implicit ec: ExecutionContext) extends LazyLoggi
   private val authRoutes = new AuthRoutes(config)
   private val userRoutes = new UserRoutes(config)
   private val productRoutes = new ProductRoutes(config)
+  private val graphQLRoute = new GraphQLRoute()
 
   val allRoutes: Route = cors(corsSettings) {
     handleExceptions(exceptionHandler) {
@@ -516,6 +616,8 @@ class Routes(config: AppConfig)(implicit ec: ExecutionContext) extends LazyLoggi
               ))
             }
           },
+          // GraphQL endpoint
+          graphQLRoute.routes,
           // API routes
           pathPrefix("api" / "v1") {
             concat(

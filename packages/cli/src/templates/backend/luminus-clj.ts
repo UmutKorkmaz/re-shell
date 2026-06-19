@@ -11,7 +11,7 @@ export const luminusCljTemplate: BackendTemplate = {
   tags: ['clojure', 'luminus', 'full-stack', 'reagent', 'selmer', 'sql', 'websockets'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'graphql'],
 
   files: {
     // Project configuration
@@ -46,7 +46,10 @@ export const luminusCljTemplate: BackendTemplate = {
                  [crypto-password "0.3.0"]
                  [buddy/buddy-auth "3.0.0"]
                  [buddy/buddy-hashers "3.0.0"]
-                 [clj-time "0.15.2"]]
+                 [clj-time "0.15.2"]
+                 [com.walmartlabs/lacinia "1.2.2"]
+                 [com.walmartlabs/lacinia-pedestal "1.2"]
+                 [io.pedestal/pedestal.service "0.7.0"]]
 
   :plugins [[lein-cljfmt "0.6.4"]
             [lein-immutant "0.2.4"]
@@ -127,7 +130,8 @@ export const luminusCljTemplate: BackendTemplate = {
     (all-routes)
     (ring/routes
       (ring/create-resource-handler {:root "/"})
-      (ring/create-resource-handler {:path "/api/v1" :methods [:options] :response (constantly {:status 200})}))
+      (ring/create-resource-handler {:path "/api/v1" :methods [:options] :response (constantly {:status 200})})
+      (ring/create-default-handler {:not-found (constantly {:status 404 :body {:error "Not found"}})}))
     {:middleware [wrap-base wrap-internal-error]}))
 `,
 
@@ -138,7 +142,12 @@ export const luminusCljTemplate: BackendTemplate = {
    [{{projectNameSnake}}.controllers.auth :refer [auth-routes]]
    [{{projectNameSnake}}.controllers.user :refer [user-routes]]
    [{{projectNameSnake}}.controllers.product :refer [product-routes]]
+   [{{projectNameSnake}}.graphql.schema :refer [graphql-handler]]
    [reitit.ring :as ring]))
+
+(def graphql-routes
+  [["/graphql" {:post graphql-handler
+                :get  graphql-handler}]])
 
 (defn all-routes []
   (ring/router
@@ -146,7 +155,8 @@ export const luminusCljTemplate: BackendTemplate = {
       health-routes
       auth-routes
       user-routes
-      product-routes)))
+      product-routes
+      graphql-routes)))
 `,
 
     // Controllers - Health
@@ -405,6 +415,86 @@ export const luminusCljTemplate: BackendTemplate = {
   (-> handler
       wrap-json-response
       (wrap-restful-format :formats [:json-kw :transit-json :edn])))
+`,
+
+    // GraphQL schema + resolvers (Lacinia)
+    'src/clj/{{projectNameSnake}}/graphql/schema.clj': `(ns {{projectNameSnake}}.graphql.schema
+  (:require
+   [com.walmartlabs.lacinia.schema :as schema]
+   [com.walmartlabs.lacinia.util :as util]
+   [com.walmartlabs.lacinia :as lacinia]
+   [clojure.data.json :as json]
+   [ring.util.response :refer [response content-type]]
+   [{{projectNameSnake}}.controllers.health :refer [health-handler]]
+   [clojure.edn :as edn]))
+
+(defn resolve-hello
+  "Resolver for the Query.hello field."
+  [context args value]
+  "Hello from Luminus + Lacinia GraphQL!")
+
+(defn resolve-health
+  "Resolver for the Query.health field. Delegates to the REST health handler
+  to avoid duplicating status logic."
+  [context args value]
+  (let [resp (health-handler {})]
+    (get-in resp [:body])))
+
+(defn build-schema
+  "Compile the Lacinia schema from EDN. Minimal schema exposing Query.hello
+  and Query.health."
+  []
+  (-> {:objects
+       {:Query
+        {:fields
+         {:hello  {:type   'String
+                   :resolve resolve-hello}
+          :health {:type   'String
+                   :resolve resolve-health}}}}}
+      (schema/compile)))
+
+(def ^:private compiled-schema
+  "Compile once at load time; safe because the schema is static."
+  (delay (build-schema)))
+
+(defn- extract-query
+  "Pull the GraphQL query string out of either a JSON POST body (:json-params
+  or parsed body) or a query-string parameter."
+  [request]
+  (let [body (:body request)]
+    (cond
+      (string? body)
+      (try
+        (let [parsed (json/read-str body :key-fn keyword)]
+          {:query     (:query parsed)
+           :variables (:variables parsed)
+           :operation (:operationName parsed)})
+        (catch Throwable _
+          {:query (get-in request [:params :query] body)}))
+
+      (map? body)
+      {:query     (:query body)
+       :variables (:variables body)
+       :operation (:operationName body)}
+
+      :else
+      {:query (get-in request [:params :query])})))
+
+(defn graphql-handler
+  "Ring handler that executes a GraphQL query against the compiled Lacinia
+  schema and returns a JSON response."
+  [request]
+  (let [{:keys [query variables operation]} (extract-query request)
+        result (if query
+                 (lacinia/execute @compiled-schema
+                                  query
+                                  (or variables {})
+                                  nil)
+                 {:errors [{:message "No query provided"}]})
+        status (if (seq (:errors result)) 400 200)]
+    (-> (response result)
+        (content-type "application/json")
+        (assoc :status status))))
 `,
 
     // Environment

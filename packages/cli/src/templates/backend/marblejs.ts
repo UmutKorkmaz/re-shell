@@ -11,7 +11,7 @@ export const marblejsTemplate: BackendTemplate = {
   tags: ['nodejs', 'marblejs', 'rxjs', 'functional', 'reactive', 'api', 'websockets', 'microservices', 'microservices', 'typescript'],
   port: 3000,
   dependencies: {},
-  features: ['streaming', 'streaming', 'middleware', 'middleware', 'websockets', 'microservices', 'queue', 'database', 'testing'],
+  features: ['streaming', 'streaming', 'middleware', 'middleware', 'websockets', 'microservices', 'queue', 'database', 'testing', 'graphql'],
   
   files: {
     // Package configuration
@@ -47,6 +47,9 @@ export const marblejsTemplate: BackendTemplate = {
     "@marblejs/messaging": "^4.1.0",
     "@marblejs/websockets": "^4.1.0",
     "@marblejs/testing": "^4.1.0",
+    "@marblejs/graphql": "^4.1.0",
+    "graphql": "^16.8.1",
+    "@graphql-tools/schema": "^10.0.0",
     "rxjs": "^7.8.1",
     "fp-ts": "^2.16.5",
     "io-ts": "^2.2.21",
@@ -186,13 +189,15 @@ import { userEffects$ } from './user.effects';
 import { todoEffects$ } from './todo.effects';
 import { healthEffect$ } from './health.effects';
 import { websocketEffect$ } from './websocket.effects';
+import { graphqlEffect$ } from './graphql.effects';
 
 export const api$ = combineRoutes('/api/v1', [
   authEffects$,
   userEffects$,
   todoEffects$,
   healthEffect$,
-  websocketEffect$]);`,
+  websocketEffect$,
+  graphqlEffect$]);`,
 
     // Auth Effects
     'src/effects/auth.effects.ts': `import { r, HttpError, HttpStatus } from '@marblejs/http';
@@ -604,6 +609,54 @@ const broadcast$ = matchEvent('broadcast')
 
 export const websocketEffect$ = webSocketListener({
   effects: [echo$, broadcast$]});`,
+
+    // GraphQL Effect (mounts /graphql endpoint)
+    'src/effects/graphql.effects.ts': `import { r } from '@marblejs/http';
+import { graphqlServer$ } from '@marblejs/graphql';
+import { schema } from '../graphql/schema';
+
+export const graphqlEffect$ = r.pipe(
+  r.matchPath('/graphql'),
+  r.matchType('POST'),
+  r.useEffect(graphqlServer$({ schema })));`,
+
+    // GraphQL Schema
+    'src/graphql/schema.ts': `import { makeExecutableSchema } from '@graphql-tools/schema';
+import { typeDefs } from './type-defs';
+import { resolvers } from './resolvers';
+
+export const schema = makeExecutableSchema({ typeDefs, resolvers });`,
+
+    // GraphQL Type Definitions
+    'src/graphql/type-defs.ts': `export const typeDefs = /* GraphQL */ \`
+  type Query {
+    hello: String!
+    health: HealthStatus!
+  }
+
+  type HealthStatus {
+    status: String!
+    timestamp: String!
+  }
+\`;`,
+
+    // GraphQL Resolvers
+    'src/graphql/resolvers.ts': `import { dbService } from '../services/db.service';
+import { redisService } from '../services/redis.service';
+
+export const resolvers = {
+  Query: {
+    hello: () => 'Hello from Marble.js GraphQL!',
+    health: async () => {
+      const dbOk = await dbService.checkConnection().toPromise();
+      const redisOk = await redisService.checkConnection().toPromise();
+      return {
+        status: dbOk && redisOk ? 'ok' : 'degraded',
+        timestamp: new Date().toISOString(),
+      };
+    },
+  },
+};`,
 
     // Auth Middleware
     'src/middlewares/auth.middleware.ts': `import { HttpMiddlewareEffect, HttpError, HttpStatus } from '@marblejs/http';

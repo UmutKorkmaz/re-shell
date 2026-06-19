@@ -11,7 +11,7 @@ export const phoenixTemplate: BackendTemplate = {
   tags: ['elixir', 'phoenix', 'functional', 'api', 'rest', 'realtime', 'fault-tolerant'],
   port: 4000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'channels'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'channels', 'graphql'],
 
   files: {
     // Mix project file
@@ -59,6 +59,8 @@ export const phoenixTemplate: BackendTemplate = {
       {:bcrypt_elixir, "~> 3.0"},
       {:open_api_spex, "~> 3.18"},
       {:hammer, "~> 6.1"},
+      {:absinthe, "~> 1.7"},
+      {:absinthe_plug, "~> 1.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false}
@@ -425,6 +427,22 @@ end
     pipe_through :api
 
     get "/health", HealthController, :index
+  end
+
+  # GraphQL endpoint
+  scope "/" do
+    pipe_through :api
+
+    forward "/graphql", Absinthe.Plug, schema: {{ProjectName}}Web.Schema
+  end
+
+  # GraphiQL (dev only)
+  if Mix.env() in [:dev, :test] do
+    scope "/" do
+      forward "/graphiql", Absinthe.Plug.GraphiQL,
+        schema: {{ProjectName}}Web.Schema,
+        interface: :simple
+    end
   end
 
   # API routes
@@ -846,6 +864,47 @@ end
 end
 `,
 
+    // GraphQL schema
+    'lib/{{projectName}}_web/schema.ex': `defmodule {{ProjectName}}Web.Schema do
+  use Absinthe.Schema
+
+  alias {{ProjectName}}Web.Resolvers
+
+  object :health do
+    field :status, :string
+    field :timestamp, :string
+  end
+
+  query do
+    field :hello, :string do
+      resolve(fn _parent, _args, _resolution ->
+        {:ok, "Hello from GraphQL!"}
+      end)
+    end
+
+    field :health, :health do
+      resolve(&Resolvers.health/3)
+    end
+  end
+end
+`,
+
+    // GraphQL resolvers
+    'lib/{{projectName}}_web/resolvers.ex': `defmodule {{ProjectName}}Web.Resolvers do
+  @moduledoc """
+  GraphQL resolvers.
+  """
+
+  def health(_parent, _args, _resolution) do
+    {:ok,
+     %{
+       status: "healthy",
+       timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+     }}
+  end
+end
+`,
+
     // Telemetry
     'lib/{{projectName}}_web/telemetry.ex': `defmodule {{ProjectName}}Web.Telemetry do
   use Supervisor
@@ -1183,6 +1242,7 @@ A fault-tolerant REST API built with Phoenix Framework in Elixir.
 - **Ecto**: Database wrapper and query generator
 - **Guardian**: JWT authentication
 - **Bcrypt**: Secure password hashing
+- **Absinthe**: GraphQL API
 - **Rate Limiting**: Request throttling with Hammer
 - **Live Dashboard**: Real-time monitoring
 - **Docker Support**: Containerized deployment
@@ -1231,6 +1291,8 @@ mix ecto.rollback   # Rollback migration
 ## API Endpoints
 
 - \`GET /health\` - Health check
+- \`POST /graphql\` - GraphQL endpoint
+- \`GET /graphiql\` - GraphQL IDE (dev only)
 - \`POST /api/v1/auth/register\` - Register
 - \`POST /api/v1/auth/login\` - Login
 - \`GET /api/v1/users/me\` - Current user

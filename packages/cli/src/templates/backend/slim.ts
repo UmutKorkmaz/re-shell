@@ -11,7 +11,7 @@ export const slimTemplate: BackendTemplate = {
   tags: ['php', 'slim', 'microframework', 'api', 'rest', 'lightweight'],
   port: 8080,
   dependencies: {},
-  features: ['routing', 'middleware', 'validation', 'logging', 'testing', 'docker'],
+  features: ['routing', 'middleware', 'validation', 'logging', 'testing', 'docker', 'graphql'],
   
   files: {
     // Composer configuration
@@ -41,7 +41,8 @@ export const slimTemplate: BackendTemplate = {
     "cakephp/database": "^5.0",
     "cakephp/validation": "^5.0",
     "nyholm/psr7": "^1.8",
-    "nyholm/psr7-server": "^1.1"
+    "nyholm/psr7-server": "^1.1",
+    "webonyx/graphql-php": "^15.0"
   },
   "require-dev": {
     "phpunit/phpunit": "^10.5",
@@ -296,6 +297,7 @@ return function (ContainerBuilder $containerBuilder) {
 declare(strict_types=1);
 
 use App\\Application\\Middleware\\JwtAuthMiddleware;
+use GraphQL\\GraphQL;
 use Psr\\Http\\Message\\ResponseInterface as Response;
 use Psr\\Http\\Message\\ServerRequestInterface as Request;
 use Slim\\App;
@@ -313,6 +315,22 @@ return function (App $app) {
             'status' => 'ok',
             'service' => '{{serviceName}}',
             'timestamp' => date('c')]));
+        return $response->withHeader('Content-Type', 'application/json');
+    });
+
+    // GraphQL endpoint
+    $app->post('/graphql', function (Request $request, Response $response) {
+        $schema = require __DIR__ . '/../src/GraphQL/schema.php';
+        $rootValue = require __DIR__ . '/../src/GraphQL/resolvers.php';
+
+        $input = $request->getParsedBody();
+        $query = $input['query'] ?? '';
+        $variables = $input['variables'] ?? null;
+
+        $result = GraphQL\\GraphQL::executeQuery($schema, $query, $rootValue, null, $variables);
+        $output = $result->toArray();
+
+        $response->getBody()->write(json_encode($output));
         return $response->withHeader('Content-Type', 'application/json');
     });
 
@@ -632,6 +650,51 @@ class JwtAuthMiddleware implements Middleware
         }
     }
 }`,
+
+    // GraphQL schema
+    'src/GraphQL/schema.php': `<?php
+declare(strict_types=1);
+
+use GraphQL\\Type\\Definition\\ObjectType;
+use GraphQL\\Type\\Definition\\Type;
+use GraphQL\\Type\\Schema;
+
+$queryType = new ObjectType([
+    'name' => 'Query',
+    'fields' => [
+        'hello' => [
+            'type' => Type::string(),
+            'resolve' => function (): string {
+                return 'Hello, GraphQL!';
+            },
+        ],
+        'health' => [
+            'type' => Type::string(),
+            'resolve' => function (): string {
+                return 'ok';
+            },
+        ],
+    ],
+]);
+
+return new Schema([
+    'query' => $queryType,
+]);
+`,
+
+    // GraphQL resolvers
+    'src/GraphQL/resolvers.php': `<?php
+declare(strict_types=1);
+
+return [
+    'hello' => function (): string {
+        return 'Hello, GraphQL!';
+    },
+    'health' => function (): string {
+        return 'ok';
+    },
+];
+`,
 
     // PHPUnit configuration
     'phpunit.xml': `<?xml version="1.0" encoding="UTF-8"?>

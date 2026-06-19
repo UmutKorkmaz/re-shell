@@ -11,7 +11,7 @@ export const ktorTemplate: BackendTemplate = {
   tags: ['kotlin', 'ktor', 'coroutines', 'api', 'rest', 'jvm'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'graphql'],
 
   files: {
     // Gradle build configuration
@@ -63,6 +63,10 @@ dependencies {
     // OpenAPI/Swagger
     implementation("io.ktor:ktor-server-openapi:2.3.7")
     implementation("io.ktor:ktor-server-swagger-jvm:2.3.7")
+
+    // GraphQL (graphql-kotlin)
+    implementation("com.expediagroup:graphql-kotlin-ktor:7.0.2")
+    implementation("com.expediagroup:graphql-kotlin-schema-generator:7.0.2")
 
     // Database
     implementation("org.jetbrains.exposed:exposed-core:0.46.0")
@@ -123,6 +127,7 @@ import com.{{projectName}}.config.configureSecurity
 import com.{{projectName}}.config.configureSerialization
 import com.{{projectName}}.config.configureStatusPages
 import com.{{projectName}}.config.configureSwagger
+import com.{{projectName}}.graphql.configureGraphQL
 import com.{{projectName}}.routes.configureRouting
 import io.github.cdimascio.dotenv.dotenv
 import io.ktor.server.application.*
@@ -148,6 +153,7 @@ fun Application.module() {
     configureCORS()
     configureDatabase()
     configureSecurity()
+    configureGraphQL()
     configureSwagger()
     configureRouting()
 }
@@ -671,6 +677,7 @@ data class PaginatedResponse<T>(
     // Routes - Main routing
     'src/main/kotlin/com/{{projectName}}/routes/Routing.kt': `package com.{{projectName}}.routes
 
+import com.{{projectName}}.graphql.graphqlRoute
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
@@ -687,6 +694,9 @@ fun Application.configureRouting() {
             ))
         }
 
+        // GraphQL endpoint (POST /graphql, Playground at /graphql/playground)
+        graphqlRoute()
+
         // API routes
         route("/api/v1") {
             authRoutes()
@@ -694,6 +704,63 @@ fun Application.configureRouting() {
             productRoutes()
         }
     }
+}
+`,
+
+    // GraphQL - Query root
+    'src/main/kotlin/com/{{projectName}}/graphql/Query.kt': `package com.{{projectName}}.graphql
+
+import com.expediagroup.graphql.generator.annotations.GraphQLDescription
+import com.expediagroup.graphql.server.operations.Query
+import com.expediagroup.graphql.server.ktor.GraphQL
+import io.ktor.server.application.*
+import io.ktor.server.routing.*
+import java.time.Instant
+
+/**
+ * Root GraphQL query type exposed by the schema.
+ */
+class QueryService : Query {
+
+    @GraphQLDescription("Simple greeting resolver")
+    fun hello(name: String? = null): String =
+        if (name.isNullOrBlank()) "Hello, World!" else "Hello, \\${'$'}name!"
+
+    @GraphQLDescription("Service health check")
+    fun health(): HealthStatus = HealthStatus(
+        status = "healthy",
+        timestamp = Instant.now().toString()
+    )
+}
+
+@GraphQLDescription("Health status payload")
+data class HealthStatus(
+    val status: String,
+    val timestamp: String
+)
+
+/**
+ * Installs the graphql-kotlin-ktor plugin so the schema
+ * (QueryService) is built once during application startup.
+ */
+fun Application.configureGraphQL() {
+    install(GraphQL) {
+        schema {
+            packages = listOf("com.{{projectName}}.graphql")
+            queries = listOf(
+                com.{{projectName}}.graphql.QueryService()
+            )
+        }
+    }
+}
+
+/**
+ * Registers the GraphQL endpoint and a Playground UI.
+ * Call this inside a routing { } block.
+ */
+fun Route.graphqlRoute() {
+    graphQLPostRoute()
+    graphQLPlaygroundRoute()
 }
 `,
 

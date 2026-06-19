@@ -11,7 +11,7 @@ export const vaporTemplate: BackendTemplate = {
   tags: ['swift', 'vapor', 'api', 'rest', 'database', 'authentication'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'database', 'database', 'validation', 'logging', 'cors', 'websockets'],
+  features: ['authentication', 'database', 'database', 'validation', 'logging', 'cors', 'websockets', 'graphql'],
   
   files: {
     // Swift Package Manager configuration
@@ -38,7 +38,9 @@ let package = Package(
         // 🔍 Swift Metrics API
         .package(url: "https://github.com/apple/swift-metrics.git", from: "2.4.1"),
         // 🧪 Testing utilities
-        .package(url: "https://github.com/vapor/vapor-testing.git", from: "0.2.0")],
+        .package(url: "https://github.com/vapor/vapor-testing.git", from: "0.2.0"),
+        // 🌀 GraphQL for Vapor via Graphiti
+        .package(url: "https://github.com/vapor-community/Graphiti.git", from: "1.0.0")],
     targets: [
         .executableTarget(
             name: "App",
@@ -50,7 +52,8 @@ let package = Package(
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "JWT", package: "authentication"),
                 .product(name: "Logging", package: "swift-log"),
-                .product(name: "Metrics", package: "swift-metrics")]
+                .product(name: "Metrics", package: "swift-metrics"),
+                .product(name: "Graphiti", package: "Graphiti")]
         ),
         .testTarget(
             name: "AppTests",
@@ -188,35 +191,101 @@ public func configure(_ app: Application) async throws {
     try routes(app)
 }`,
 
+    // GraphQL schema and resolvers
+    'Sources/App/GraphQL/Schema.swift': `import Graphiti
+import Vapor
+
+struct HealthType: Codable {
+    let status: String
+    let version: String
+}
+
+struct QueryType {
+    let helloField = Field("hello", String.self) { _ in
+        "Hello from {{projectName}} GraphQL!"
+    }
+
+    let healthField = Field("health", HealthType.self) { _ in
+        HealthType(status: "healthy", version: "1.0.0")
+    }
+}
+
+func buildSchema(resolver: QueryResolver) throws -> Schema<QueryResolver, Request> {
+    return try Schema<QueryResolver, Request> {
+        Query {
+            Field("hello", at: resolver.hello)
+            Field("health", at: resolver.health)
+        }
+    }
+}`,
+
+    'Sources/App/GraphQL/QueryResolver.swift': `import Graphiti
+import Vapor
+
+final class QueryResolver {
+    init() {}
+
+    func hello(context: Request, arguments: NoArguments) throws -> String {
+        return "Hello from {{projectName}} GraphQL!"
+    }
+
+    func health(context: Request, arguments: NoArguments) throws -> HealthType {
+        return HealthType(status: "healthy", version: "1.0.0")
+    }
+}`,
+
     // Routes
     'Sources/App/routes.swift': `import Fluent
 import Vapor
+import Graphiti
 
 func routes(_ app: Application) throws {
     app.get { req async in
         "Welcome to {{projectName}} API!"
     }
-    
+
     app.get("health") { req async -> HealthCheckResponse in
         let dbHealthy = await checkDatabaseHealth(req.db)
-        
+
         return HealthCheckResponse(
             status: dbHealthy ? "healthy" : "unhealthy",
             version: "1.0.0",
             database: dbHealthy
         )
     }
-    
+
+    // GraphQL endpoint (POST /graphql)
+    app.post("graphql") { req -> EventLoopFuture<String> in
+        let resolver = QueryResolver()
+        let schema = try buildSchema(resolver: resolver)
+
+        guard let body = req.body.data.read(), let bodyString = String(data: body, encoding: .utf8) else {
+            throw Abort(.badRequest, reason: "Empty GraphQL request body")
+        }
+
+        do {
+            let result = try schema.execute(
+                request: bodyString,
+                resolver: resolver,
+                context: req
+            )
+            let json = try String(decoding: JSONEncoder().encode(result), as: UTF8.self)
+            return req.eventLoop.makeSucceededFuture(json)
+        } catch {
+            return req.eventLoop.makeFailedFuture(error)
+        }
+    }
+
     // API routes
     let api = app.grouped("api", "v1")
-    
+
     // Public routes
     try api.register(collection: AuthController())
-    
+
     // Protected routes
     let protected = api.grouped(UserAuthenticator())
         .grouped(User.guardMiddleware())
-    
+
     try protected.register(collection: UserController())
     try protected.register(collection: TodoController())
 }

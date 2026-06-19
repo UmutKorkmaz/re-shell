@@ -8,10 +8,10 @@ export const adonisjsTemplate: BackendTemplate = {
   language: 'typescript',
   framework: 'adonisjs',
   version: '6.15.0',
-  tags: ['nodejs', 'adonisjs', 'api', 'mvc', 'typescript', 'lucid-orm', 'edge-template', 'websockets'],
+  tags: ['nodejs', 'adonisjs', 'api', 'mvc', 'typescript', 'lucid-orm', 'edge-template', 'websockets', 'graphql'],
   port: 3333,
   dependencies: {},
-  features: ['routing', 'database', 'authentication', 'authorization', 'validation', 'websockets', 'queue', 'email', 'rate-limiting', 'testing', 'docker'],
+  features: ['routing', 'database', 'authentication', 'authorization', 'validation', 'websockets', 'queue', 'email', 'rate-limiting', 'testing', 'docker', 'graphql'],
   
   files: {
     // Package configuration
@@ -48,6 +48,7 @@ export const adonisjsTemplate: BackendTemplate = {
     "#exceptions/*": "./app/exceptions/*.js",
     "#policies/*": "./app/policies/*.js",
     "#abilities/*": "./app/abilities/*.js",
+    "#graphql/*": "./app/GraphQL/*.js",
     "#start/*": "./start/*.js",
     "#config/*": "./config/*.js",
     "#database/*": "./database/*.js",
@@ -79,7 +80,9 @@ export const adonisjsTemplate: BackendTemplate = {
     "reflect-metadata": "^0.2.2",
     "@aws-sdk/client-s3": "^3.700.0",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "graphql": "^16.10.0",
+    "@graphql-tools/schema": "^9.0.18"
   },
   "devDependencies": {
     "@adonisjs/assembler": "^7.10.0",
@@ -123,6 +126,7 @@ export const adonisjsTemplate: BackendTemplate = {
       "#exceptions/*": ["./app/exceptions/*.js"],
       "#policies/*": ["./app/policies/*.js"],
       "#abilities/*": ["./app/abilities/*.js"],
+      "#graphql/*": ["./app/GraphQL/*.js"],
       "#start/*": ["./start/*.js"],
       "#config/*": ["./config/*.js"],
       "#database/*": ["./database/*.js"],
@@ -305,6 +309,10 @@ import { middleware } from '#start/kernel'
 
 // Health check
 router.get('/health', '#controllers/health_controller.check')
+
+// GraphQL endpoint
+router.post('/graphql', '#controllers/graphql_controller.handle')
+router.get('/graphql', '#controllers/graphql_controller.handle') // GraphiQL-friendly GET fallback
 
 // API Routes
 router.group(() => {
@@ -1263,6 +1271,67 @@ export default class HealthController {
     const status = report.isHealthy() ? 200 : 503
 
     return response.status(status).json(report)
+  }
+}`,
+
+    // GraphQL Schema
+    'app/GraphQL/Schema.ts': `import { makeExecutableSchema } from '@graphql-tools/schema'
+import { resolvers } from './Resolvers'
+
+const typeDefs = \`
+  type Query {
+    hello: String!
+    health: HealthStatus!
+  }
+
+  type HealthStatus {
+    status: String!
+    timestamp: String!
+  }
+\`
+
+export const schema = makeExecutableSchema({
+  typeDefs,
+  resolvers,
+})
+`,
+
+    // GraphQL Resolvers
+    'app/GraphQL/Resolvers/index.ts': `export const resolvers = {
+  Query: {
+    hello: () => 'Hello from AdonisJS GraphQL!',
+    health: () => ({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    }),
+  },
+}
+`,
+
+    // GraphQL controller
+    'app/controllers/graphql_controller.ts': `import type { HttpContext } from '@adonisjs/core/http'
+import { graphql, GraphQLError } from 'graphql'
+import { schema } from '#graphql/Schema'
+
+export default class GraphQLController {
+  async handle({ request, response }: HttpContext) {
+    const query = request.input('query') ?? (request.body()?.query as string | undefined)
+    const variables = request.input('variables') ?? request.body()?.variables
+    const operationName = request.input('operationName') ?? request.body()?.operationName
+
+    if (!query) {
+      return response.badRequest({
+        errors: [new GraphQLError('Missing GraphQL query')].map((e) => e.toJSON())})
+    }
+
+    const result = await graphql({
+      schema,
+      source: query,
+      variableValues: variables,
+      operationName,
+    })
+
+    return response.status(result.errors ? 400 : 200).json(result)
   }
 }`,
 

@@ -24,7 +24,8 @@ export const vertxTemplate: BackendTemplate = {
     'rest-api',
     'websockets',
     'microservices',
-    'docker'
+    'docker',
+    'graphql'
   ],
   dependencies: {},
   devDependencies: {},
@@ -136,7 +137,18 @@ export const vertxTemplate: BackendTemplate = {
       <groupId>io.vertx</groupId>
       <artifactId>vertx-web-openapi</artifactId>
     </dependency>
-    
+
+    <!-- GraphQL -->
+    <dependency>
+      <groupId>io.vertx</groupId>
+      <artifactId>vertx-web-graphql</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.graphql-java</groupId>
+      <artifactId>graphql-java</artifactId>
+      <version>21.3</version>
+    </dependency>
+
     <!-- Health Checks -->
     <dependency>
       <groupId>io.vertx</groupId>
@@ -286,6 +298,7 @@ export const vertxTemplate: BackendTemplate = {
     'src/main/java/{{packagePath}}/MainVerticle.java': `package {{packageName}};
 
 import {{packageName}}.config.DbConfig;
+import {{packageName}}.graphql.GraphQLProvider;
 import {{packageName}}.handler.*;
 import {{packageName}}.repository.UserRepository;
 import {{packageName}}.service.*;
@@ -300,6 +313,7 @@ import io.vertx.ext.healthchecks.HealthCheckHandler;
 import io.vertx.ext.healthchecks.HealthChecks;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.*;
+import io.vertx.ext.web.handler.graphql.GraphQLHandler;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import io.vertx.micrometer.PrometheusScrapingHandler;
 import io.vertx.pgclient.PgPool;
@@ -420,7 +434,11 @@ public class MainVerticle extends AbstractVerticle {
                 
                 // Metrics endpoint
                 router.route("/metrics").handler(PrometheusScrapingHandler.create());
-                
+
+                // GraphQL endpoint
+                GraphQLHandler graphQLHandler = GraphQLHandler.create(GraphQLProvider.createGraphQL());
+                router.route("/graphql").handler(graphQLHandler);
+
                 // OpenAPI UI
                 router.get("/swagger-ui/*").handler(
                     StaticHandler.create("webroot/swagger-ui")
@@ -1351,6 +1369,58 @@ public class UserHandler {
                     .put("error", "Invalid user ID")
                     .encode());
         }
+    }
+}
+`,
+    'src/main/java/{{packagePath}}/graphql/GraphQLProvider.java': `package {{packageName}}.graphql;
+
+import graphql.GraphQL;
+import graphql.schema.GraphQLSchema;
+import graphql.schema.StaticDataFetcher;
+import graphql.schema.idl.RuntimeWiring;
+import graphql.schema.idl.SchemaGenerator;
+import graphql.schema.idl.SchemaParser;
+import graphql.schema.idl.TypeDefinitionRegistry;
+
+public class GraphQLProvider {
+
+    private static final String SCHEMA_SDL = ""
+        + "type Query {\\n"
+        + "  hello: String\\n"
+        + "  health: String\\n"
+        + "}\\n";
+
+    public static GraphQL createGraphQL() {
+        SchemaParser schemaParser = new SchemaParser();
+        TypeDefinitionRegistry typeRegistry = schemaParser.parse(SCHEMA_SDL);
+
+        RuntimeWiring runtimeWiring = RuntimeWiring.newRuntimeWiring()
+            .type("Query", typeWiring -> typeWiring
+                .dataFetcher("hello", new StaticDataFetcher<>("Hello from Vert.x GraphQL!"))
+                .dataFetcher("health", new StaticDataFetcher<>("UP")))
+            .build();
+
+        SchemaGenerator schemaGenerator = new SchemaGenerator();
+        GraphQLSchema graphQLSchema = schemaGenerator.makeExecutableSchema(typeRegistry, runtimeWiring);
+
+        return GraphQL.newGraphQL(graphQLSchema).build();
+    }
+}
+`,
+    'src/main/java/{{packagePath}}/graphql/GraphQLHandler.java': `package {{packageName}}.graphql;
+
+import graphql.GraphQL;
+
+public class GraphQLHandler {
+
+    private final GraphQL graphQL;
+
+    public GraphQLHandler(GraphQL graphQL) {
+        this.graphQL = graphQL;
+    }
+
+    public GraphQL getGraphQL() {
+        return graphQL;
     }
 }
 `,

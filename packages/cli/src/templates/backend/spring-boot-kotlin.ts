@@ -11,7 +11,7 @@ export const springBootKotlinTemplate: BackendTemplate = {
   tags: ['kotlin', 'spring-boot', 'enterprise', 'microservices', 'jwt', 'security'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'graphql'],
 
   files: {
     // Gradle build file
@@ -44,6 +44,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
+    implementation("org.springframework.boot:spring-boot-starter-graphql")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
@@ -103,6 +104,10 @@ app.cors.allowed-origins=*
 logging.level.{{projectGroup}}=DEBUG
 logging.level.org.springframework.web=INFO
 logging.level.org.hibernate.SQL=DEBUG
+
+# GraphQL
+spring.graphql.graphiql.enabled=true
+spring.graphql.path=/graphql
 `,
 
     // Main application
@@ -588,6 +593,44 @@ class ProductController(
         }
     }
 }
+`,
+
+    // GraphQL schema
+    'src/main/resources/graphql/schema.graphqls': `type Query {
+    hello: String
+    health: HealthStatus
+}
+
+type HealthStatus {
+    status: String
+    timestamp: String
+}
+`,
+
+    // GraphQL query controller
+    'src/main/kotlin/{{projectPackage}}/graphql/QueryController.kt': `package {{projectPackage}}.graphql
+
+import org.springframework.graphql.data.method.annotation.QueryMapping
+import org.springframework.stereotype.Controller
+import java.time.Instant
+
+@Controller
+class QueryController {
+
+    @QueryMapping
+    fun hello(): String = "Hello from {{projectNamePascal}} GraphQL!"
+
+    @QueryMapping
+    fun health(): HealthStatus = HealthStatus(
+        status = "UP",
+        timestamp = Instant.now().toString()
+    )
+}
+
+data class HealthStatus(
+    val status: String,
+    val timestamp: String
+)
 `,
 
     // Services

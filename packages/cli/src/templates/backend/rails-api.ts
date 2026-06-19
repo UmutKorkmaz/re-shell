@@ -11,7 +11,7 @@ export const railsApiTemplate: BackendTemplate = {
   tags: ['ruby', 'rails', 'api', 'rest', 'active-record', 'jwt', 'postgresql'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'database', 'validation', 'logging', 'documentation', 'testing'],
+  features: ['authentication', 'database', 'validation', 'logging', 'documentation', 'testing', 'graphql'],
   
   files: {
     // Gemfile
@@ -63,6 +63,11 @@ gem "active_model_serializers", "~> 0.10.0"
 # API documentation
 gem "rswag-api"
 gem "rswag-ui"
+
+# GraphQL API
+gem "graphql", "~> 2.1"
+# GraphQL development tools (GraphiQL IDE)
+gem "graphiql-rails", group: :development
 
 # Background jobs
 gem "sidekiq", "~> 7.2"
@@ -334,12 +339,21 @@ end
     end
   end
   
+  # GraphQL API endpoint
+  post '/graphql', to: 'graphql#execute'
+  get '/graphql', to: 'graphql#execute' if Rails.env.development?
+
+  # GraphiQL IDE (development only)
+  if Rails.env.development?
+    mount GraphiQL::Rails::Engine, at: '/graphiql', graphql_path: '/graphql'
+  end
+
   # Sidekiq Web UI (in production, add authentication)
   if Rails.env.development?
     require 'sidekiq/web'
     mount Sidekiq::Web => '/sidekiq'
   end
-  
+
   # Catch all route for 404s
   match '*unmatched', to: 'application#route_not_found', via: :all
 end
@@ -883,11 +897,191 @@ end
     // Order serializer
     'app/serializers/order_serializer.rb': `class OrderSerializer < ActiveModel::Serializer
   attributes :id, :status, :total_amount, :created_at, :updated_at
-  
+
   belongs_to :user
   has_many :order_items
 end
 `,
+
+    // GraphQL schema
+    'app/graphql/re_shell_schema.rb': `class ReShellSchema < GraphQL::Schema
+  mutation(Types::MutationType)
+  query(Types::QueryType)
+
+  # Opt into the new GraphQL-Ruby runtime and interpreter
+  use GraphQL::Execution::Interpreter
+  use GraphQL::Analysis::AST
+
+  max_depth 15
+end
+`,
+
+    // GraphQL base query type (resolvers)
+    'app/graphql/types/query_type.rb': `module Types
+  class QueryType < Types::BaseObject
+    description 'Root query entry point for the re-shell API'
+
+    # Simple sanity-check field
+    field :hello, String, null: false, description: 'Returns a friendly greeting'
+
+    def hello
+      'Hello from re-shell GraphQL API!'
+    end
+
+    # Health probe field
+    field :health, Types::HealthType, null: false, description: 'Service health status'
+
+    def health
+      {
+        status: 'ok',
+        database: database_healthy?,
+        timestamp: Time.current.iso8601
+      }
+    end
+
+    private
+
+    def database_healthy?
+      ActiveRecord::Base.connection.active?
+    rescue StandardError
+      false
+    end
+  end
+end
+`,
+
+    // GraphQL base object type
+    'app/graphql/types/base_object.rb': `module Types
+  class BaseObject < GraphQL::Schema::Object
+    edge_type_class(Types::BaseEdge)
+    connection_type_class(Types::BaseConnection)
+    field_class Types::BaseField
+  end
+end
+`,
+
+    // GraphQL base field
+    'app/graphql/types/base_field.rb': `module Types
+  class BaseField < GraphQL::Schema::Field
+    argument_class Types::BaseArgument
+  end
+end
+`,
+
+    // GraphQL base argument
+    'app/graphql/types/base_argument.rb': `module Types
+  class BaseArgument < GraphQL::Schema::Argument
+  end
+end
+`,
+
+    // GraphQL base enum
+    'app/graphql/types/base_enum.rb': `module Types
+  class BaseEnum < GraphQL::Schema::Enum
+  end
+end
+`,
+
+    // GraphQL base input object
+    'app/graphql/types/base_input_object.rb': `module Types
+  class BaseInputObject < GraphQL::Schema::InputObject
+    argument_class Types::BaseArgument
+  end
+end
+`,
+
+    // GraphQL base scalar
+    'app/graphql/types/base_scalar.rb': `module Types
+  class BaseScalar < GraphQL::Schema::Scalar
+  end
+end
+`,
+
+    // GraphQL base union
+    'app/graphql/types/base_union.rb': `module Types
+  class BaseUnion < GraphQL::Schema::Union
+    edge_type_class(Types::BaseEdge)
+    connection_type_class(Types::BaseConnection)
+  end
+end
+`,
+
+    // GraphQL base connection (Relay)
+    'app/graphql/types/base_connection.rb': `module Types
+  class BaseConnection < GraphQL::Types::Relay::BaseConnection
+  end
+end
+`,
+
+    // GraphQL base edge (Relay)
+    'app/graphql/types/base_edge.rb': `module Types
+  class BaseEdge < GraphQL::Types::Relay::BaseEdge
+  end
+end
+`,
+
+    // GraphQL health type
+    'app/graphql/types/health_type.rb': `module Types
+  class HealthType < Types::BaseObject
+    description 'Service health snapshot'
+
+    field :status, String, null: false
+    field :database, Boolean, null: false
+    field :timestamp, String, null: false
+  end
+end
+`,
+
+    // GraphQL mutation type (root)
+    'app/graphql/types/mutation_type.rb': `module Types
+  class MutationType < Types::BaseObject
+    description 'Root mutation entry point for the re-shell API'
+
+    # Add mutations here, e.g.
+    # field :create_user, mutation: Mutations::CreateUser
+  end
+end
+`,
+
+    // GraphQL controller
+    'app/controllers/graphql_controller.rb': `class GraphqlController < ApplicationController
+  skip_before_action :authenticate_request
+
+  # POST /graphql
+  def execute
+    variables = prepare_variables(params[:variables])
+    query = params[:query]
+    operation_name = params[:operationName]
+    context = {
+      current_user: nil # wire up auth context here when needed
+    }
+
+    result = ReShellSchema.execute(query, variables: variables, context: context, operation_name: operation_name)
+    render json: result
+  rescue GraphQL::ParseError, GraphQL::ExecutionError => e
+    render json: { errors: [{ message: e.message, backtrace: e.backtrace }], data: {} }, status: :bad_request
+  rescue StandardError => e
+    render json: { errors: [{ message: e.message, backtrace: e.backtrace }], data: {} }, status: :internal_server_error
+  end
+
+  private
+
+  # Handle variables passed as a string or a hash
+  def prepare_variables(variables_param)
+    case variables_param
+    when String
+      variables_param.present? ? JSON.parse(variables_param) : {}
+    when Hash, ActionController::Parameters
+      variables_param.to_unsafe_h
+    when nil
+      {}
+    else
+      raise ArgumentError, "Unexpected parameter: #{variables_param}"
+    end
+  end
+end
+`,
+
 
     // Migrations
     'db/migrate/001_create_users.rb': `class CreateUsers < ActiveRecord::Migration[7.1]
