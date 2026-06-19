@@ -1051,10 +1051,6 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.validation.RequestPredicate;
 import io.vertx.ext.web.validation.ValidationHandler;
 import io.vertx.ext.web.validation.builder.Bodies;
-import io.vertx.json.schema.SchemaParser;
-import io.vertx.json.schema.SchemaRouter;
-import io.vertx.json.schema.SchemaRouterOptions;
-import io.vertx.json.schema.draft7.Draft7SchemaParser;
 
 public class AuthHandler {
     

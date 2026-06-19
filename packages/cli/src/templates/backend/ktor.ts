@@ -310,7 +310,7 @@ fun Application.configureDatabase() {
         SchemaUtils.create(Users, Products)
     }
 
-    log.info("Database initialized successfully")
+    println("Database initialized successfully")
 }
 `,
 

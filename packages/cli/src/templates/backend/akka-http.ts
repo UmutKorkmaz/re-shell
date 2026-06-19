@@ -27,6 +27,7 @@ val SlickVersion = "3.5.0"
 val CirceVersion = "0.14.6"
 
 libraryDependencies ++= Seq(
+  "ch.megard" %% "akka-http-cors" % "1.2.0",
   // Akka
   "com.typesafe.akka" %% "akka-actor-typed" % AkkaVersion,
   "com.typesafe.akka" %% "akka-stream" % AkkaVersion,

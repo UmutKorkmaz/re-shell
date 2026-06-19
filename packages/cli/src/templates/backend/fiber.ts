@@ -1755,7 +1755,6 @@ func SetupRoutes(api fiber.Router, h *handlers.Handler, cfg *config.Config) {
 	api.Get("/ws", middleware.JWT(cfg), websocket.New(h.WebSocketHandler))
 
 	// Server-Sent Events endpoint
-	api.Get("/sse", middleware.JWT(cfg), h.SSEHandler)
 }
 `,
 
@@ -2345,7 +2344,6 @@ make security
 
 ### Real-time
 - \`WS /api/v1/ws\` - WebSocket connection
-- \`GET /api/v1/sse\` - Server-Sent Events
 
 ## Project Structure
 

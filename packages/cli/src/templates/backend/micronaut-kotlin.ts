@@ -310,7 +310,6 @@ import io.micronaut.data.repository.CrudRepository
 
 @JdbcRepository(dialect = Dialect.H2)
 interface ProductRepository : CrudRepository<Product, Long>
-}
 `,
 
     // Controllers

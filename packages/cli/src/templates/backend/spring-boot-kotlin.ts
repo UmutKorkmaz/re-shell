@@ -145,7 +145,6 @@ class JwtConfig(
 
 import {{projectPackage}}.security.JwtAuthenticationFilter
 import {{projectPackage}}.security.JwtAuthenticationEntryPoint
-import {{projectPackage}}.services.UserService
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.authentication.AuthenticationManager
@@ -164,7 +163,6 @@ import org.springframework.security.web.SecurityFilterChain
 class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
     private val jwtAuthenticationEntryPoint: JwtAuthenticationEntryPoint,
-    private val userService: UserService
 ) {
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()

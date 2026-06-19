@@ -105,6 +105,7 @@ import (
 
 	pb "github.com/example/{{projectName}}/pb"
 	"go.uber.org/zap"
+	"io"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"

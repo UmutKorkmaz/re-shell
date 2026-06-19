@@ -1673,13 +1673,6 @@ func RegisterRoutes(r chi.Router, h *handlers.Handler, cfg *config.Config) {
 		})
 
 		// Order routes
-		r.Route("/orders", func(r chi.Router) {
-			r.Get("/", h.ListOrders)
-			r.Post("/", h.CreateOrder)
-			r.Get("/{id}", h.GetOrder)
-			r.With(middleware.RequireRole("admin", "manager")).Put("/{id}/status", h.UpdateOrderStatus)
-		})
-	})
 }
 `,
 
