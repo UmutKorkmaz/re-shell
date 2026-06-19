@@ -11,7 +11,7 @@ export const vexVTemplate: BackendTemplate = {
   tags: ['v', 'vex', 'express-like', 'routing', 'middleware', 'json'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'middleware'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'middleware', 'graphql'],
 
   files: {
     // Main application
@@ -241,6 +241,45 @@ fn delete_product_handler(ctx vex.Context) vex.Response {
     return ctx.json(map{'error': 'Product not found'}).set_status(404)
 }
 
+// GraphQL resolver: returns the value for a given query field.
+fn graphql_resolve(field string) string {
+    if field == 'hello' {
+        return 'Hello from Vex GraphQL!'
+    }
+    if field == 'health' {
+        return 'healthy'
+    }
+    return ''
+}
+
+// GraphQL endpoint (raw /graphql POST handler). Accepts a JSON body with a
+// "query" string and returns a JSON GraphQL response.
+fn graphql_handler(ctx vex.Context) vex.Response {
+    // Default empty query
+    mut query := ''
+
+    body := json.raw_decode(ctx.body) or {
+        return ctx.json(map{'error': 'Invalid request'}).set_status(400)
+    }
+
+    body_map := body.as_map()
+    if 'query' in body_map {
+        query = body_map['query'].str()
+    }
+
+    mut data := map[string]string{}
+    if query.contains('hello') {
+        data['hello'] = graphql_resolve('hello')
+    }
+    if query.contains('health') {
+        data['health'] = graphql_resolve('health')
+    }
+
+    return ctx.json(map{
+        'data': data
+    })
+}
+
 fn main() {
     // Initialize database
     init_db()
@@ -256,6 +295,9 @@ fn main() {
 
     // Routes
     app.get('/api/v1/health', health_handler)
+
+    // GraphQL endpoint
+    app.post('/graphql', graphql_handler)
 
     // Auth routes
     app.post('/api/v1/auth/register', register_handler)
@@ -283,6 +325,14 @@ COPY src ./src
 RUN v -prod src/main.v
 EXPOSE 8080
 CMD ["./main"]
+`,
+
+    // GraphQL schema definition (SDL)
+    'src/graphql/schema.graphql': `# Minimal GraphQL schema for {{projectName}}
+type Query {
+  hello: String!
+  health: String!
+}
 `,
 
     // Docker Compose

@@ -10,7 +10,7 @@ export const jesterTemplate: BackendTemplate = {
   language: 'nim',
   port: 5000,
   tags: ['nim', 'jester', 'web', 'api', 'rest'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation'],
+  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation', 'graphql'],
   dependencies: {},
   devDependencies: {},
   files: {
@@ -32,12 +32,16 @@ requires "norm >= 2.6.0"
 requires "dotenv >= 1.0.0"
 requires "chronicles >= 0.10.0"
 requires "argon2_nim >= 0.5.0"
+requires "karax >= 1.3.0"
 `,
 
     'src/{{projectName}}.nim': `import std/[json, strutils, times, options, tables, sequtils]
 import jester
 import jwt
 import chronicles
+import karax / [graphql]
+
+import {{projectName}} / [graphql_schema, graphql_handler]
 
 # Configuration
 const
@@ -194,6 +198,16 @@ router myrouter:
   # Health check
   get "/health":
     resp Http200, %*{"status": "healthy", "timestamp": $now().utc}, "application/json"
+
+  # GraphQL endpoint (karax/graphql)
+  post "/graphql":
+    try:
+      let body = parseJson(request.body)
+      let queryStr = body.getOrDefault("query").getStr("{ hello }")
+      let result = executeQuery(queryStr)
+      resp Http200, result, "application/json"
+    except JsonParsingError:
+      resp Http400, errorResponse("parse_error", "Invalid JSON body"), "application/json"
 
   # API info
   get "/":
@@ -381,6 +395,46 @@ proc main() =
 
 when isMainModule:
   main()
+`,
+
+    'src/{{projectName}}/graphql_schema.nim': `import json
+import karax / [graphql]
+
+## Minimal GraphQL schema: Query { hello: String!, health: String! }
+##
+## Built with the karax/graphql helpers.
+
+type
+  QueryObj = object
+    hello: string
+    health: string
+
+proc defaultQuery(): QueryObj =
+  QueryObj(hello: "Hello from GraphQL!", health: "healthy")
+
+let queryType = graphql Type(
+  name: "Query",
+  fields: @[
+    graphqlField(name: "hello", fieldType: "String!",
+      resolve: proc(): JsonNode = %defaultQuery().hello),
+    graphqlField(name: "health", fieldType: "String!",
+      resolve: proc(): JsonNode = %defaultQuery().health),
+  ]
+)
+
+let schema* = graphqlSchema(queryTypes: @[queryType])
+`,
+
+    'src/{{projectName}}/graphql_handler.nim': `import json
+import karax / [graphql]
+
+import {{projectName}} / graphql_schema
+
+## Executes a GraphQL query string against the schema and returns JSON.
+
+proc executeQuery*(queryStr: string): string =
+  let result = graphqlExecute(schema, queryStr)
+  $result
 `,
 
     'tests/test_app.nim': `import std/[unittest, json, httpclient, strutils]

@@ -11,7 +11,7 @@ export const moleculerTemplate: BackendTemplate = {
   tags: ['typescript', 'microservices', 'moleculer', 'nats', 'redis'],
   port: 3000,
   dependencies: {},
-  features: ['microservices', 'rest-api', 'websockets', 'authentication', 'database', 'caching', 'docker', 'testing'],
+  features: ['microservices', 'rest-api', 'websockets', 'authentication', 'database', 'caching', 'docker', 'testing', 'graphql'],
 
   files: {
     'package.json': `{
@@ -25,6 +25,9 @@ export const moleculerTemplate: BackendTemplate = {
   },
   "dependencies": {
     "moleculer": "^0.14.0",
+    "moleculer-apollo-server": "^0.3.1",
+    "moleculer-web": "^0.10.0",
+    "graphql": "^16.8.1",
     "nats": "^2.0.0"
   },
   "devDependencies": {
@@ -48,6 +51,54 @@ npm run dev
 \`\`\`
 
 Available at http://localhost:3000
+`,
+
+    'services/graphql.service.ts': `import { Service } from 'moleculer';
+import ApiGateway from 'moleculer-apollo-server';
+
+export default {
+  name: 'graphql',
+  mixins: [ApiGateway],
+  settings: {
+    path: '/graphql',
+    cors: true,
+    route: {
+      path: '/graphql',
+      cors: true,
+      aliases: {
+        'GET /': 'graphql.graphiql',
+        'POST /': 'graphql.api',
+        'OPTIONS /': 'graphql.cors'
+      },
+      bodyParsers: {
+        json: true,
+        urlencoded: { extended: true }
+      }
+    },
+    schema: \`type Query {
+  hello: String!
+  health: String!
+}
+\`,
+    resolvers: {
+      Query: {
+        hello: () => 'Hello from Moleculer GraphQL!',
+        health: () => 'healthy'
+      }
+    }
+  }
+} as Service;
+`,
+
+    'services/api.service.ts': `import { Service } from 'moleculer-web';
+
+export default {
+  name: 'api',
+  mixins: [],
+  settings: {
+    port: 3000
+  }
+} as Service;
 `
   },
 

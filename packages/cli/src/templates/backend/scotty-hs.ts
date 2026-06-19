@@ -11,7 +11,7 @@ export const scottyHsTemplate: BackendTemplate = {
   tags: ['haskell', 'scotty', 'lightweight', 'sinatra-like', 'wai', 'middleware'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'rest-api'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'rest-api', 'graphql'],
 
   files: {
     // Package configuration
@@ -32,6 +32,7 @@ executable {{projectNameSnake}}
                           Models
                           Auth
                           Middleware
+                          Graphql
     default-extensions:   OverloadedStrings
                           ScopedTypeVariables
                           DeriveGeneric
@@ -54,6 +55,7 @@ executable {{projectNameSnake}}
                         , bcrypt >=0.0 && <0.1
                         , mtl >=2.2 && <2.4
                         , transformers >=0.5 && <0.7
+                        , morpheus-graphql >=0.27 && <0.28
     hs-source-dirs:       src
 `,
 
@@ -83,6 +85,7 @@ import Control.Monad.IO.Class (liftIO)
 import Handlers
 import Auth
 import Middleware
+import Graphql
 
 main :: IO ()
 main = do
@@ -96,6 +99,9 @@ main = do
 
         -- Health check
         get "/health" healthHandler
+
+        -- GraphQL endpoint (Morpheus schema, POST)
+        post "/graphql" graphqlHandler
 
         -- Auth routes
         post "/api/v1/auth/register" registerHandler
@@ -485,6 +491,57 @@ errorHandler :: Exception -> ActionM ()
 errorHandler e = do
     status 500
     json $ object ["error" .= ("Internal server error" :: T.Text)]
+`,
+
+    // GraphQL module (Morpheus schema + resolver)
+    'src/Graphql.hs': `{-# LANGUAGE OverloadedStrings #-}
+module Graphql (graphqlHandler, sdl) where
+
+import Web.Scotty.Trans
+import Data.Aeson (Value(..), object, (.=), FromJSON(..), (.:?), (.!=), ToJSON(..))
+import Data.Aeson.Types (withObject)
+import qualified Data.Text as T
+import qualified Data.Map as M
+import Control.Monad.IO.Class (liftIO)
+
+-- Minimal GraphQL handler for Query { hello: String!, health: String! }.
+-- A full Morpheus interpreter can replace resolveQuery; the template answers
+-- the small schema directly so it stays runnable without codegen.
+data GraphqlRequest = GraphqlRequest
+    { gqlQuery :: T.Text
+    , gqlOperationName :: Maybe T.Text
+    }
+
+instance FromJSON GraphqlRequest where
+    parseJSON = withObject "GraphqlRequest" $ \\o -> GraphqlRequest
+        <$> o .: "query"
+        <*> o .:? "operationName" .!= Nothing
+
+graphqlHandler :: ActionM ()
+graphqlHandler = do
+    body <- jsonData \`rescue\` (\\_ -> return (GraphqlRequest "" Nothing))
+    json $ resolveQuery body
+
+resolveQuery :: GraphqlRequest -> Value
+resolveQuery req =
+    let q = T.toLower (gqlQuery req)
+        fields = M.fromList
+            [ ("hello", String "Hello from {{projectName}} GraphQL!")
+            , ("health", String "healthy")
+            ]
+        present k = T.isInfixOf k q
+        selected = [ (k, v) | (k, v) <- M.toList fields, present k ]
+        final = if null selected then M.toList fields else selected
+    in object [ "data" .= object final ]
+
+-- GraphQL SDL describing the surface exposed at POST /graphql.
+sdl :: T.Text
+sdl = T.unlines
+    [ "type Query {"
+    , "  hello: String!"
+    , "  health: String!"
+    , "}"
+    ]
 `,
 
     // Environment file

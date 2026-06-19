@@ -11,7 +11,7 @@ export const actionheroTemplate: BackendTemplate = {
   tags: ['nodejs', 'actionhero', 'api', 'websocket', 'cluster', 'typescript'],
   port: 8080,
   dependencies: {},
-  features: ['websockets', 'authentication', 'database', 'rest-api', 'queue', 'logging', 'testing', 'docker'],
+  features: ['websockets', 'authentication', 'database', 'rest-api', 'queue', 'logging', 'testing', 'docker', 'graphql'],
 
   files: {
     'package.json': `{
@@ -26,7 +26,9 @@ export const actionheroTemplate: BackendTemplate = {
     "build": "tsc"
   },
   "dependencies": {
-    "actionhero": "^29.0.0"
+    "actionhero": "^29.0.0",
+    "@apollo/server": "^4.10.0",
+    "graphql": "^16.8.1"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
@@ -68,6 +70,54 @@ npm run dev
 \`\`\`
 
 Available at http://localhost:8080
+`,
+
+    'src/graphql/schema.ts': `export const typeDefs = \`#graphql
+type Query {
+  hello: String!
+  health: String!
+}
+\`;
+`,
+
+    'src/graphql/resolvers.ts': `export const resolvers = {
+  Query: {
+    hello: () => 'Hello from ActionHero GraphQL!',
+    health: () => 'healthy'
+  }
+};
+`,
+
+    'initializers/graphql.ts': `import { ApolloServer } from '@apollo/server';
+import { typeDefs } from '../src/graphql/schema';
+import { resolvers } from '../src/graphql/resolvers';
+
+export const DEFAULT = {
+  graphql: () => {
+    const server = new ApolloServer({ typeDefs, resolvers });
+
+    return {
+      enabled: true,
+      server,
+      async handle(request: any, response: any) {
+        try {
+          const body = await new Promise((resolve) => {
+            let data = '';
+            request.on('data', (chunk: string) => { data += chunk; });
+            request.on('end', () => resolve(JSON.parse(data || '{}')));
+          });
+
+          const result = await server.executeOperation(body);
+          response.writeHead(200, { 'Content-Type': 'application/json' });
+          response.end(JSON.stringify(result));
+        } catch (error) {
+          response.writeHead(400, { 'Content-Type': 'application/json' });
+          response.end(JSON.stringify({ errors: [{ message: (error as Error).message }] }));
+        }
+      }
+    };
+  }
+};
 `
   },
 

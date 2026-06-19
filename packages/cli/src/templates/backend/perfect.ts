@@ -10,8 +10,13 @@ export const perfectTemplate: BackendTemplate = {
   version: '4.0.0',
   tags: ['swift', 'perfect', 'api', 'rest', 'websockets', 'performance'],
   port: 8080,
-  dependencies: {},
-  features: ['authentication', 'websockets', 'database', 'logging', 'cors', 'security'],
+  dependencies: {
+    'Perfect-HTTPServer': '^3.0.0',
+    'Perfect-WebSockets': '^3.0.0',
+    'Perfect-Crypto': '^3.0.0',
+    'Graphiti': '^1.0.0'
+  },
+  features: ['authentication', 'websockets', 'database', 'logging', 'cors', 'security', 'graphql'],
   
   files: {
     // Swift Package Manager configuration
@@ -35,7 +40,8 @@ let package = Package(
         .package(url: "https://github.com/PerfectlySoft/Perfect-RequestLogger.git", from: "3.0.0"),
         .package(url: "https://github.com/PerfectlySoft/Perfect-Session.git", from: "3.0.0"),
         .package(url: "https://github.com/PerfectlySoft/Perfect-SessionPostgreSQL.git", from: "3.0.0"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3")],
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
+        .package(url: "https://github.com/GraphQLSwift/Graphiti.git", from: "1.0.0")],
     targets: [
         .executableTarget(
             name: "{{projectName}}",
@@ -50,7 +56,8 @@ let package = Package(
                 .product(name: "PerfectRequestLogger", package: "Perfect-RequestLogger"),
                 .product(name: "PerfectSession", package: "Perfect-Session"),
                 .product(name: "PerfectSessionPostgreSQL", package: "Perfect-SessionPostgreSQL"),
-                .product(name: "Logging", package: "swift-log")],
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Graphiti", package: "Graphiti")],
             path: "Sources"
         ),
         .testTarget(
@@ -210,6 +217,11 @@ func setupRoutes(_ routes: inout Routes) {
         ]
         try? response.setBody(json: info)
         response.completed()
+    }
+
+    // GraphQL endpoint
+    routes.add(method: .post, uri: "/graphql") { request, response in
+        handleGraphQL(request: request, response: response)
     }
     
     // WebSocket endpoint
@@ -396,6 +408,57 @@ class WebSocketHandler: WebSocketSessionHandler {
         }
     }
 }`,
+
+    // GraphQL schema and resolver
+    'Sources/GraphQL/GraphQLSchema.swift': `import Foundation
+import Graphiti
+import PerfectHTTP
+
+// Resolver type that holds field resolver functions
+struct Resolver {
+    func hello(context: NoContext, arguments: NoArguments) -> String {
+        return "Hello, GraphQL!"
+    }
+
+    func health(context: NoContext, arguments: NoArguments) -> String {
+        return "healthy"
+    }
+}
+
+// Build the GraphQL schema using Graphiti
+let graphQLSchema = try! Schema<Resolver, NoContext> {
+    Query {
+        Field("hello", String.self) {
+            Argument("dummy", at: \\.$0.dummy)
+        }
+        Field("health", String.self) {
+            Argument("dummy", at: \\.$0.dummy)
+        }
+    }
+}
+
+/// Executes the GraphQL query in the request body and writes the JSON response.
+func handleGraphQL(request: HTTPRequest, response: HTTPResponse) {
+    let resolver = Resolver()
+    let query = request.postBodyString ?? "{ hello\\n health }"
+    do {
+        let result = try graphQLSchema.execute(
+            request: query,
+            resolver: resolver,
+            context: NoContext.value
+        )
+        let data = try JSONSerialization.data(withJSONObject: result, options: [])
+        let body = String(data: data, encoding: .utf8) ?? "{}"
+        response.setHeader(.contentType, value: "application/json")
+        response.setBody(string: body)
+        response.completed()
+    } catch {
+        response.setHeader(.contentType, value: "application/json")
+        response.setBody(string: "{\\"errors\\":[{\\"message\\":\\"\\(error)\\"}]}")
+        response.completed(status: .badRequest)
+    }
+}
+`,
 
     // Database Manager
     'Sources/Database/DatabaseManager.swift': `import PerfectPostgreSQL

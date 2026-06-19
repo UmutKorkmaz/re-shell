@@ -11,7 +11,7 @@ export const happyxNimTemplate: BackendTemplate = {
   tags: ['nim', 'happyx', 'modern', 'type-safe', 'json', 'routing'],
   port: 5000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'graphql'],
 
   files: {
     // Configuration
@@ -28,11 +28,14 @@ bin           = @["{{projectNameSnake}}"]
 
 requires "nim >= 2.0"
 requires "happyx >= 2.0"
+requires "nim-graphql >= 0.4.0"
 `,
 
     // Main application
     'src/{{projectNameSnake}}.nim': `import happyx
 
+
+import {{projectNameSnake}}/[graphql_schema, graphql_handler]
 
 serve("127.0.0.1", 5000):
   middleware:
@@ -49,6 +52,12 @@ serve("127.0.0.1", 5000):
       "timestamp": now().format("yyyy-MM-dd HH:mm:ss"),
       "version": "1.0.0"
     }
+
+  # GraphQL endpoint (nim-graphql)
+  post "/graphql":
+    let body = ctx.request.jsonBody()
+    let queryStr = body{"query"}.getStr("{ hello }")
+    %*executeGraphQL(queryStr)
 
   # Auth routes
   post "/api/v1/auth/register":
@@ -188,6 +197,37 @@ proc hashPassword*(password: string): string =
 
 proc verifyPassword*(password, hash: string): bool =
   hashPassword(password) == hash
+`,
+
+    // GraphQL schema + resolvers (nim-graphql)
+    'src/{{projectNameSnake}}/graphql_schema.nim': `import json
+import graphql
+
+## Minimal GraphQL schema: Query { hello: String!, health: String! }
+
+proc resolveHello(): JsonNode = %"Hello from GraphQL!"
+proc resolveHealth(): JsonNode = %"healthy"
+
+let queryType = Type(
+  name: "Query",
+  fields: @[
+    Field(name: "hello", fieldType: "String!", resolve: proc(): JsonNode = resolveHello()),
+    Field(name: "health", fieldType: "String!", resolve: proc(): JsonNode = resolveHealth())
+  ]
+)
+
+let schema* = Schema(types: @[queryType])
+`,
+
+    // GraphQL handler (nim-graphql)
+    'src/{{projectNameSnake}}/graphql_handler.nim': `import json
+import graphql
+
+import {{projectNameSnake}}/graphql_schema
+
+proc executeGraphQL*(queryStr: string): JsonNode =
+  ## Executes a GraphQL query against the nim-graphql schema.
+  schema.execute(queryStr)
 `,
 
     // Controllers

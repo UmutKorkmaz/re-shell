@@ -824,6 +824,80 @@ esac`
 chmod +x scripts/php-fpm-dev.sh`
     });
 
+    // GraphQL endpoint (webonyx/graphql-php)
+    // Add to composer.json: "webonyx/graphql-php": "^14.0"
+    files.push({
+      path: 'public/graphql.php',
+      content: `<?php
+/**
+ * ${projectName} - GraphQL endpoint (webonyx/graphql-php)
+ *
+ * Requires: composer require webonyx/graphql-php
+ * Exposes POST /graphql.php (or routed to /graphql via nginx rewrite).
+ */
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use GraphQL\\Type\\Schema;
+use GraphQL\\Type\\Definition\\ObjectType;
+use GraphQL\\Type\\Definition\\Type;
+use GraphQL\\GraphQL;
+use GraphQL\\Error\\FormattedError;
+use GraphQL\\Error\\DebugFlag;
+
+// Query type with hello + health fields (schema + resolvers)
+$queryType = new ObjectType([
+    'name' => 'Query',
+    'fields' => [
+        'hello' => [
+            'type' => Type::nonNull(Type::string()),
+            'description' => 'A friendly greeting',
+            'resolve' => static fn (): string => 'Hello from PHP-FPM GraphQL!',
+        ],
+        'health' => [
+            'type' => Type::nonNull(Type::string()),
+            'description' => 'Service health status',
+            'resolve' => static fn (): string => 'healthy',
+        ],
+    ],
+]);
+
+$schema = new Schema(['query' => $queryType]);
+
+// Read the incoming GraphQL query (POST body or query string)
+$rawInput = file_get_contents('php://input') ?? '';
+$input = json_decode($rawInput, true) ?? [];
+$query = $input['query'] ?? $_GET['query'] ?? '';
+$variables = $input['variables'] ?? null;
+
+header('Content-Type: application/json');
+
+try {
+    $debug = ($environment === 'development') ? DebugFlag::INCLUDE_DEBUG_MESSAGE | DebugFlag::INCLUDE_TRACE : DebugFlag::NONE;
+    $result = GraphQL::executeQuery($schema, $query, null, null, $variables);
+    echo json_encode($result->toArray($debug));
+} catch (Throwable $e) {
+    echo json_encode(['errors' => [FormattedError::createFromException($e, $debug)]]);
+}`
+    });
+
+    // Composer dependency note for GraphQL
+    files.push({
+      path: 'graphql.composer-note.txt',
+      content: `# Add the GraphQL library to composer.json:
+#
+#   composer require webonyx/graphql-php:^14.0
+#
+# Then route /graphql to public/graphql.php in nginx:
+#
+#   location = /graphql {
+#       try_files $uri /graphql.php?$query_string;
+#   }
+#
+# Query { hello, health } is served by public/graphql.php.
+`
+    });
+
     return files;
   }
 

@@ -10,8 +10,10 @@ export const drogonTemplate: BackendTemplate = {
   version: '1.9.3',
   tags: ['cpp', 'drogon', 'api', 'rest', 'websockets', 'database', 'http2', 'high-performance'],
   port: 8080,
-  features: ['routing', 'middleware', 'database', 'caching', 'websockets', 'testing', 'docker', 'cors', 'logging', 'authentication', 'validation', 'session-management'],
-  dependencies: {},
+  features: ['routing', 'middleware', 'database', 'caching', 'websockets', 'testing', 'docker', 'cors', 'logging', 'authentication', 'validation', 'session-management', 'graphql'],
+  dependencies: {
+    'drogon-graphql': 'https://github.com/drogonframework/drogon-graphql.git#v0.2.0'
+  },
   devDependencies: {},
   
   files: {
@@ -614,10 +616,127 @@ void WebSocketController::handleNewConnection(const drogon::HttpRequestPtr &req,
 
 void WebSocketController::handleConnectionClosed(const drogon::WebSocketConnectionPtr& wsConnPtr) {
     LOG_INFO << "WebSocket connection closed: " << wsConnPtr->peerAddr().toIpPort();
-    
+
     {
         std::lock_guard<std::mutex> lock(connectionMutex_);
         connections_.erase(wsConnPtr);
+    }
+}
+`,
+
+    // GraphQL Controller (raw /graphql POST handler)
+    'include/controllers/GraphqlController.h': `#pragma once
+#include <drogon/HttpController.h>
+
+namespace api {
+    class GraphqlController : public drogon::HttpController<GraphqlController> {
+    public:
+        METHOD_LIST_BEGIN
+        ADD_METHOD_TO(GraphqlController::handle, "/graphql", Post);
+        METHOD_LIST_END
+
+        void handle(const drogon::HttpRequestPtr &req,
+                   std::function<void(const drogon::HttpResponsePtr &)> &&callback);
+    };
+}
+`,
+
+    'src/controllers/GraphqlController.cpp': `#include "controllers/GraphqlController.h"
+#include "graphql/schema.h"
+
+using namespace api;
+
+void GraphqlController::handle(const drogon::HttpRequestPtr &req,
+                              std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
+    Json::Value body;
+    Json::CharReaderBuilder reader;
+    std::string errors;
+
+    std::string payload = req->getBody();
+    std::istringstream stream(payload);
+    if (!Json::parseFromStream(reader, stream, &body, &errors)) {
+        Json::Value errorResp;
+        Json::Value err(Json::objectValue);
+        err["message"] = "Invalid JSON body: " + errors;
+        errorResp["errors"].append(err);
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(errorResp);
+        resp->setStatusCode(drogon::k400BadRequest);
+        callback(resp);
+        return;
+    }
+
+    std::string query = body.get("query", "").asString();
+    Json::Value data = graphql::execute(query);
+
+    Json::Value result;
+    result["data"] = data;
+
+    auto resp = drogon::HttpResponse::newHttpJsonResponse(result);
+    callback(resp);
+}
+`,
+
+    // GraphQL schema (simple switch on query field)
+    'include/graphql/schema.h': `#pragma once
+#include <string>
+#include <json/json.h>
+
+namespace graphql {
+    extern const char* SCHEMA_SDL;
+
+    // Execute a GraphQL query string against the schema and return JSON data.
+    Json::Value execute(const std::string& query);
+}
+`,
+
+    'src/graphql/schema.cpp': `#include "graphql/schema.h"
+#include "graphql/resolver.h"
+
+namespace graphql {
+    const char* SCHEMA_SDL =
+        "type Query {\\n"
+        "  hello: String!\\n"
+        "  health: String!\\n"
+        "}\\n";
+
+    Json::Value execute(const std::string& query) {
+        Json::Value data(Json::objectValue);
+
+        if (query.find("hello") != std::string::npos) {
+            data["hello"] = resolver::hello();
+        }
+        if (query.find("health") != std::string::npos) {
+            data["health"] = resolver::health();
+        }
+
+        return data;
+    }
+}
+`,
+
+    // GraphQL resolver
+    'include/graphql/resolver.h': `#pragma once
+#include <string>
+
+namespace graphql {
+    namespace resolver {
+        std::string hello();
+        std::string health();
+    }
+}
+`,
+
+    'src/graphql/resolver.cpp': `#include "graphql/resolver.h"
+
+namespace graphql {
+    namespace resolver {
+        std::string hello() {
+            return "Hello from Drogon GraphQL!";
+        }
+
+        std::string health() {
+            return "healthy";
+        }
     }
 }
 `,

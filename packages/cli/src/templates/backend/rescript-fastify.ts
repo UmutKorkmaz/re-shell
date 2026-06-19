@@ -11,7 +11,7 @@ export const rescriptFastifyTemplate: BackendTemplate = {
   tags: ['rescript', 'fastify', 'nodejs', 'type-safe', 'performance', 'validation'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Package.json
@@ -41,6 +41,8 @@ export const rescriptFastifyTemplate: BackendTemplate = {
     "@fastify/swagger-ui": "^2.1.0",
     "@fastify/env": "^4.3.0",
     "@fastify/sensible": "^5.5.0",
+    "mercurius": "^13.4.0",
+    "graphql": "^16.8.1",
     "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
@@ -258,6 +260,9 @@ let setup = () => {
   fastify->Fastify.registerHelmet()->ignore
   fastify->Fastify.registerJWT({ "secret": "change-this-secret" })->ignore
 
+  // GraphQL (Mercurius) - registers /graphql endpoint
+  GraphQL.registerGraphQL(fastify)->ignore
+
   // Home route
   fastify->Fastify.get("/", AppRoutes.homeGet)->ignore
 
@@ -359,6 +364,48 @@ let verifyToken = (token: string): option<user> => {
     None
   }
 }`,
+
+    // GraphQL schema and resolvers (Mercurius)
+    'src/graphqlSchema.js': `const schema = \`
+  type Query {
+    hello: String!
+    health: String!
+  }
+\`;
+
+const resolvers = {
+  Query: {
+    hello: async () => 'Hello from ReScript Fastify GraphQL!',
+    health: async () => 'healthy'
+  }
+};
+
+module.exports = { schema, resolvers };
+`,
+
+    // Mercurius GraphQL Fastify plugin registration (JS interop)
+    'src/graphqlPlugin.js': `const mercurius = require('mercurius');
+const { schema, resolvers } = require('./graphqlSchema');
+
+const plugin = async (fastify) => {
+  fastify.register(mercurius, {
+    schema,
+    resolvers,
+    graphiql: true,
+    path: '/graphql'
+  });
+};
+
+module.exports = plugin;
+`,
+
+    // ReScript binding for the Mercurius plugin
+    'src/GraphQL.res': `open RescriptCore
+
+// Register the Mercurius GraphQL plugin on a Fastify instance
+@module("./graphqlPlugin.js")
+external registerGraphQL: RescriptFastify.t => Js.Promise.t<unit> = "default"
+`,
 
     // Environment file
     '.env.example': `# Server Configuration

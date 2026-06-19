@@ -11,7 +11,7 @@ export const http4sScalaTemplate: BackendTemplate = {
   tags: ['scala', 'http4s', 'microservices', 'cats-effect', 'fs2', 'circe'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'microservices'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'microservices', 'graphql'],
 
   files: {
     // Build configuration
@@ -30,6 +30,8 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-generic" % "0.15.0-M1",
   "io.circe" %% "circe-parser" % "0.15.0-M1",
   "org.http4s" %% "http4s-jwt-auth" % "1.0.0-M40",
+  "com.github.ghostdogpr" %% "caliban" % "2.7.1",
+  "com.github.ghostdogpr" %% "caliban-http4s" % "2.7.1",
   "com.github.pureconfig" %% "pureconfig-core" % "0.17.4",
   "ch.qos.logback" % "logback-classic" % "1.4.11",
   "org.typelevel" %% "log4cats-slf4j" % "2.6.0"
@@ -53,6 +55,7 @@ import org.http4s.server.middleware.Logger
 import fs2.io.net.Network
 import org.http4s.implicits._
 import {{projectPackage}}.routes._
+import {{projectPackage}}.graphql.GraphQLRoutes
 
 object Main extends IOApp.Simple {
 
@@ -60,7 +63,8 @@ object Main extends IOApp.Simple {
     val app = (
       HealthRoutes.routes <+>
       AuthRoutes.routes <+>
-      ProductRoutes.routes
+      ProductRoutes.routes <+>
+      GraphQLRoutes.routes
     ).orNotFound
 
     EmberServerBuilder.default[IO]
@@ -490,6 +494,49 @@ sbt run
 ## License
 
 MIT
+`,
+
+    // GraphQL schema definition
+    'src/main/scala/{{projectPackage}}/graphql/Schema.scala': `package {{projectPackage}}.graphql
+
+import caliban.RootResolver
+import caliban.schema.Schema
+
+/** Minimal GraphQL schema exposing Query { hello: String!, health: String! }. */
+object Schema {
+  case class Queries(hello: String, health: String)
+
+  val queries: Queries = Queries(
+    hello = "Hello from {{projectName}} GraphQL!",
+    health = "healthy"
+  )
+
+  val rootResolver: RootResolver[Queries] = new RootResolver(queries)
+
+  val sdl: String = """
+    type Query {
+      hello: String!
+      health: String!
+    }
+  """.trim()
+}
+`,
+
+    // GraphQL resolver / route wiring
+    'src/main/scala/{{projectPackage}}/graphql/GraphQLRoutes.scala': `package {{projectPackage}}.graphql
+
+import cats.effect._
+import org.http4s._
+import org.http4s.dsl.io._
+import org.http4s.circe._
+import io.circe.generic.auto._
+import io.circe.syntax._
+import caliban.Http4sAdapter
+
+/** Mounts the /graphql endpoint backed by the Caliban schema in [[Schema]]. */
+object GraphQLRoutes {
+  val routes: HttpRoutes[IO] = Http4sAdapter.makeHttpService[IO](Schema.rootResolver)
+}
 `
   }
 };

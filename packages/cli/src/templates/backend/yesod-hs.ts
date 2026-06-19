@@ -11,7 +11,7 @@ export const yesodHsTemplate: BackendTemplate = {
   tags: ['haskell', 'yesod', 'validation', 'full-stack', 'persistent', 'hamlet'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'validation'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'validation', 'graphql'],
 
   files: {
     // Package configuration (Cabal)
@@ -53,6 +53,7 @@ library
                         Handler.Auth
                         Handler.User
                         Handler.Product
+                        Handler.Graphql
                         Model
                         Settings
                         Settings.StaticFiles
@@ -80,6 +81,7 @@ library
                       , fast-logger >=3.2 && <3.3
                       , monad-logger >=0.3 && <0.4
                       , resource-pool >=0.2 && <0.3
+                      , morpheus-graphql >=0.27 && <0.28
   hs-source-dirs:       src
 
 executable {{projectNameSnake}}
@@ -320,6 +322,46 @@ getHealthR = do
         , "timestamp" .= now
         , "version" .= ("1.0.0" :: String)
         ]
+`,
+
+    // Handler - GraphQL (Morpheus schema + resolver)
+    'src/Handler/Graphql.hs': `{-# LANGUAGE OverloadedStrings #-}
+module Handler.Graphql (postGraphqlR) where
+
+import Import
+import Data.Aeson (Value(..), object, (.=), (.:?), (.!=))
+import qualified Data.Text as T
+import qualified Data.Map as M
+
+-- Minimal GraphQL-over-POST handler for Query { hello: String!, health: String! }.
+-- A full Morpheus interpreter can replace resolveQuery here; the template
+-- answers the small schema directly so it stays runnable without codegen.
+data GraphqlRequest = GraphqlRequest
+    { gqlQuery :: T.Text
+    , gqlOperationName :: Maybe T.Text
+    }
+
+instance FromJSON GraphqlRequest where
+    parseJSON = withObject "GraphqlRequest" $ \\o -> GraphqlRequest
+        <$> o .: "query"
+        <*> o .:? "operationName"
+
+postGraphqlR :: Handler Value
+postGraphqlR = do
+    body <- requireCheckJsonBody <|> return (GraphqlRequest "" Nothing)
+    return $ resolveQuery body
+
+resolveQuery :: GraphqlRequest -> Value
+resolveQuery req =
+    let q = T.toLower (gqlQuery req)
+        fields = M.fromList
+            [ ("hello", String "Hello from {{projectName}} GraphQL!")
+            , ("health", String "healthy")
+            ]
+        present k = T.isInfixOf k q
+        selected = [ (k, v) | (k, v) <- M.toList fields, present k ]
+        final = if null selected then M.toList fields else selected
+    in object [ "data" .= object final ]
 `,
 
     // Handler - Home
@@ -681,6 +723,7 @@ deleteProductR pid = do
 #
 
 / HealthR GET
+/graphql GraphqlR POST
 /api/auth/register AuthR RegisterR POST
 /api/auth/login AuthR LoginR POST
 /api/auth/me AuthR MeR POST

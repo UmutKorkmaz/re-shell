@@ -10,10 +10,31 @@ export const vwebTemplate: BackendTemplate = {
   language: 'v',
   port: 8080,
   tags: ['v', 'vlang', 'vweb', 'web', 'api', 'rest', 'fast'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors'],
+  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'graphql'],
   dependencies: {},
   devDependencies: {},
   files: {
+    // GraphQL schema (SDL reference)
+    'graphql/schema.graphql': `# {{projectName}} - GraphQL Schema
+type Query {
+  hello: String!
+  health: String!
+}
+`,
+
+    // GraphQL resolvers (raw JSON)
+    'graphql/resolver.v': `module graphql
+
+// Resolvers for schema: Query { hello: String!, health: String! }
+pub fn hello() string {
+	return 'Hello from {{projectName}} GraphQL!'
+}
+
+pub fn health() string {
+	return 'healthy'
+}
+`,
+
     'v.mod': `Module {
 	name: '{{projectName}}'
 	description: '{{description}}'
@@ -244,6 +265,21 @@ pub fn (mut app App) health() vweb.Result {
 	response := HealthResponse{
 		status: 'healthy'
 		timestamp: time.now().format_rfc3339()
+	}
+	return app.json(response)
+}
+
+// GraphQL endpoint (raw POST handler returning JSON)
+// Schema: Query { hello: String!, health: String! }
+['/graphql'; post]
+pub fn (mut app App) graphql() vweb.Result {
+	// In production, parse the GraphQL query from app.req.data.
+	// Here we return both resolvers for any query.
+	response := {
+		'data': {
+			'hello': 'Hello from {{projectName}} GraphQL!'
+			'health': 'healthy'
+		}
 	}
 	return app.json(response)
 }

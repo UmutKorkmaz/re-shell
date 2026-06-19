@@ -11,7 +11,7 @@ export const rescriptExpressTemplate: BackendTemplate = {
   tags: ['rescript', 'express', 'nodejs', 'type-safe', 'functional', 'ocaml'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Package.json
@@ -41,7 +41,9 @@ export const rescriptExpressTemplate: BackendTemplate = {
     "morgan": "^1.10.0",
     "dotenv": "^16.4.5",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "@apollo/server": "^4.10.0",
+    "graphql": "^16.8.1"
   },
   "devDependencies": {
     "rescript": "^11.1.0",
@@ -445,6 +447,10 @@ let setup = () => {
   app->AppRoutes.getProductGet->Route.get("/api/v1/products/:id")
   app->AppRoutes.createProductPost->Route.post("/api/v1/products")
 
+  // GraphQL endpoint (Apollo Server via JS interop)
+  app->GraphQL.graphqlHandler->Route.post("/graphql")
+  app->GraphQL.graphqlHandler->Route.get("/graphql")
+
   // Error handling
   app->Middleware.errorHandler
 
@@ -519,6 +525,68 @@ let verifyToken = (token: string): option<user> => {
     None
   }
 }`,
+
+    // GraphQL binding (Apollo Server via JS interop)
+    'src/GraphQL.res': `open RescriptCore
+
+// External Apollo Server handler imported from JS
+@module("./graphqlHandler.js")
+external handleGraphQL: (Express.req, Express.res) => Js.Promise.t<unit> = "default"
+
+// Express route handler for /graphql
+@send
+let graphqlHandler = (req, res) => {
+  let _ = handleGraphQL(req, res)
+  Js.Promise.resolve()
+}
+`,
+
+    // Apollo Server handler (JS interop layer)
+    'src/graphqlHandler.js': `const { ApolloServer } = require('@apollo/server');
+const { typeDefs, resolvers } = require('./graphqlSchema');
+
+const server = new ApolloServer({ typeDefs, resolvers });
+
+module.exports = async (req, res) => {
+  try {
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    const body = JSON.parse(Buffer.concat(chunks).toString() || '{}');
+
+    const result = await server.executeOperation(body);
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(result));
+  } catch (error) {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ errors: [{ message: error.message }] }));
+  }
+};
+`,
+
+    // GraphQL schema and resolvers (JS)
+    'src/graphqlSchema.js': `const { gql } = require('@apollo/server');
+
+const typeDefs = gql\\\`
+  type Query {
+    hello: String!
+    health: String!
+  }
+\\\`;
+
+const resolvers = {
+  Query: {
+    hello: () => 'Hello from ReScript Express GraphQL!',
+    health: () => 'healthy'
+  }
+};
+
+module.exports = { typeDefs, resolvers };
+`,
 
     // Environment file
     '.env.example': `# Server Configuration

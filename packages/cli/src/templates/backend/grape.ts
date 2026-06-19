@@ -11,7 +11,7 @@ export const grapeTemplate: BackendTemplate = {
   tags: ['ruby', 'grape', 'api', 'rest', 'microservices', 'json', 'swagger'],
   port: 9292,
   dependencies: {},
-  features: ['authentication', 'database', 'validation', 'logging', 'documentation', 'testing'],
+  features: ['authentication', 'database', 'validation', 'logging', 'documentation', 'testing', 'graphql'],
   
   files: {
     // Gemfile
@@ -79,6 +79,10 @@ gem 'redis-rack-cache', '~> 2.2'
 
 # Health checks
 gem 'health_check', '~> 3.1'
+
+# GraphQL (ruby-graphql / graphql gem)
+gem 'graphql', '~> 2.1'
+gem 'rack-graphql', '~> 1.0'
 
 # Error tracking
 gem 'grape-sentry', '~> 0.4'
@@ -202,6 +206,12 @@ use ActiveRecord::ConnectionAdapters::ConnectionManagement
 # Health check endpoint
 map '/health' do
   run lambda { |env| [200, {'Content-Type' => 'text/plain'}, ['OK']] }
+end
+
+# GraphQL endpoint (ruby-graphql)
+require_relative '../app/graphql/schema'
+map '/graphql' do
+  run AppSchema
 end
 
 # API endpoints
@@ -396,6 +406,33 @@ production:
         </body>
         </html>
       HTML
+    end
+  end
+end
+`,
+
+    // GraphQL schema + resolvers (ruby-graphql)
+    'app/graphql/schema.rb': `require 'graphql'
+
+class AppSchema < GraphQL::Schema
+  query Types::QueryType
+end
+`,
+    'app/graphql/types/query_type.rb': `require 'graphql'
+
+module Types
+  class QueryType < GraphQL::Schema::Object
+    description 'The query root of this schema'
+
+    field :hello, String, null: false, description: 'A friendly greeting'
+    field :health, String, null: false, description: 'Service health status'
+
+    def hello
+      'Hello from Grape GraphQL!'
+    end
+
+    def health
+      'healthy'
     end
   end
 end

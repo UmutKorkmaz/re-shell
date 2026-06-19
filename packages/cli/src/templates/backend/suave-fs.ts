@@ -10,8 +10,10 @@ export const suaveFsTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['fsharp', 'suave', 'lightweight', 'embeddable', 'microservices', 'web-server'],
   port: 8080,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'microservices'],
+  dependencies: {
+    'FSharp.Data.GraphQL': '0.0.16',
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'microservices', 'graphql'],
 
   files: {
     // Project file
@@ -27,6 +29,8 @@ export const suaveFsTemplate: BackendTemplate = {
     <Compile Include="Models.fs" />
     <Compile Include="Database.fs" />
     <Compile Include="Auth.fs" />
+    <Compile Include="GraphQL/Schema.fs" />
+    <Compile Include="GraphQL/Resolver.fs" />
     <Compile Include="Handlers.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -35,6 +39,7 @@ export const suaveFsTemplate: BackendTemplate = {
     <PackageReference Include="Suave" Version="2.6.2" />
     <PackageReference Include="Thoth.Json" Version="6.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="FSharp.Data.GraphQL.Server" Version="0.0.16" />
   </ItemGroup>
 
 </Project>
@@ -234,6 +239,33 @@ let verifyToken (token: string) : bool =
     true
 `,
 
+    // GraphQL schema (FSharp.Data.GraphQL)
+    'GraphQL/Schema.fs': `module GraphQL.Schema
+
+// GraphQL schema definition: Query { hello: String!, health: String! }
+// In a full implementation this would be defined via FSharp.Data.GraphQL
+// type providers / Define.Query.
+let schema = \"\"\"
+type Query {
+  hello: String!
+  health: String!
+}
+\"\"\"
+`,
+
+    // GraphQL resolvers (FSharp.Data.GraphQL)
+    'GraphQL/Resolver.fs': `module GraphQL.Resolver
+
+// Resolver for the hello field
+let helloResolver () : string =
+    "Hello from {{projectName}} GraphQL!"
+
+// Resolver for the health field
+let healthResolver () : string =
+    "healthy"
+`,
+
+
     // Handlers
     'Handlers/Handlers.fs': `module Handlers
 
@@ -268,6 +300,14 @@ let private db = Database()
 let health (ctx: HttpContext) =
     async {
         return! JSON ({| status = "healthy"; timestamp = DateTime.Now.ToString("o"); version = "1.0.0" |}) ctx
+    }
+
+// GraphQL handler (FSharp.Data.GraphQL)
+// Schema: Query { hello: String!, health: String! }
+let graphql (ctx: HttpContext) =
+    async {
+        let body = {| data = {| hello = GraphQL.Resolver.helloResolver(); health = GraphQL.Resolver.healthResolver() |} |}
+        return! JSON body ctx
     }
 
 // Register handler
@@ -418,6 +458,7 @@ let app =
             [ path "/api/v1/auth/register" >>= handleError register
               path "/api/v1/auth/login" >>= handleError login
               path "/api/v1/products" >>= handleError createProduct
+              path "/graphql" >>= graphql
             ]
           PUT >>= choose
             [ pathScan "/api/v1/products/%s" (fun id -> updateProduct) ]

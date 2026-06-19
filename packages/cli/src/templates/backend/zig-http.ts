@@ -10,8 +10,10 @@ export const zigHttpTemplate: BackendTemplate = {
   language: 'zig',
   port: 3000,
   tags: ['zig', 'http', 'web', 'api', 'fast', 'low-level'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors'],
-  dependencies: {},
+  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'graphql'],
+  dependencies: {
+    'zig-graphql': 'https://github.com/c0nst/zig-graphql.git#main'
+  },
   devDependencies: {},
   files: {
     'build.zig': `const std = @import("std");
@@ -55,6 +57,7 @@ const http = @import("http.zig");
 const router = @import("router.zig");
 const handlers = @import("handlers.zig");
 const middleware = @import("middleware.zig");
+const graphql = @import("graphql.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -73,6 +76,9 @@ pub fn main() !void {
     try app_router.get("/api/users", handlers.handleGetUsers);
     try app_router.get("/api/users/:id", handlers.handleGetUser);
     try app_router.delete("/api/users/:id", handlers.handleDeleteUser);
+
+    // GraphQL endpoint (raw /graphql POST handler)
+    try app_router.post("/graphql", graphql.handleGraphQL);
 
     // Create server
     var server = http.Server.init(allocator, &app_router);
@@ -556,6 +562,76 @@ pub fn handleDeleteUser(request: *http.Request, response: *http.Response) void {
     response.json(
         \\\\{"error": "not_found", "message": "User not found"}
     );
+}
+`,
+
+    // GraphQL schema + resolver (raw /graphql POST handler)
+    'src/graphql.zig': `const std = @import("std");
+const http = @import("http.zig");
+
+// Minimal GraphQL schema: Query { hello: String!, health: String! }
+pub const SCHEMA_SDL =
+    \\\\type Query {
+    \\\\  hello: String!
+    \\\\  health: String!
+    \\\\}
+;
+
+// Resolver: returns the value for a given query field.
+fn resolve_field(field: []const u8) []const u8 {
+    if (std.mem.eql(u8, field, "hello")) {
+        return "Hello from Zig HTTP GraphQL!";
+    }
+    if (std.mem.eql(u8, field, "health")) {
+        return "healthy";
+    }
+    return "";
+}
+
+fn query_has(query: []const u8, field: []const u8) bool {
+    return std.mem.indexOf(u8, query, field) != null;
+}
+
+// Handle a /graphql POST request. Parses the JSON body, executes the query
+// field by field, and returns a JSON GraphQL response.
+pub fn handleGraphQL(request: *http.Request, response: *http.Response) void {
+    var body = request.body;
+
+    // Naive JSON "query" extraction (production should use a real JSON parser)
+    var query: []const u8 = "";
+    if (std.mem.indexOf(u8, body, "\\"query\\":")) |idx| {
+        const after = body[idx + "\\"query\\":".len ..];
+        if (std.mem.indexOfScalar(u8, after, '"')) |q1| {
+            const tail = after[q1 + 1 ..];
+            if (std.mem.indexOfScalar(u8, tail, '"')) |q2| {
+                query = tail[0..q2];
+            }
+        }
+    }
+
+    var buf: [4096]u8 = undefined;
+    var fbs = std.io.fixedBufferStream(&buf);
+    const writer = fbs.writer();
+
+    writer.writeAll("{\\"data\\":{") catch return;
+
+    var first = true;
+    if (query_has(query, "hello")) {
+        writer.writeAll("\\"hello\\":\\"") catch return;
+        writer.writeAll(resolve_field("hello")) catch return;
+        writer.writeAll("\\"") catch return;
+        first = false;
+    }
+    if (query_has(query, "health")) {
+        if (!first) writer.writeAll(",") catch return;
+        writer.writeAll("\\"health\\":\\"") catch return;
+        writer.writeAll(resolve_field("health")) catch return;
+        writer.writeAll("\\"") catch return;
+    }
+
+    writer.writeAll("}}") catch return;
+
+    response.json(fbs.getWritten());
 }
 `,
 

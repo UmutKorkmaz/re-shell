@@ -11,7 +11,7 @@ export const unisonTemplate: BackendTemplate = {
   tags: ['unison', 'distributed', 'functional', 'stm', 'cloud', 'modern', 'experimental'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main Unison file
@@ -34,6 +34,7 @@ export const unisonTemplate: BackendTemplate = {
   match request.path with
     "/" -> homeHandler request
     "/api/v1/health" -> healthHandler request
+    "/graphql" -> graphqlHandler request
     "/api/v1/auth/register" -> registerHandler request
     "/api/v1/auth/login" -> loginHandler request
     "/api/v1/products" -> productsHandler request
@@ -70,6 +71,15 @@ export const unisonTemplate: BackendTemplate = {
 
 {{projectName}}.Main.healthHandler _request =
   let body = Json.fromString "{\\"status\\": \\"healthy\\", \\"timestamp\\": \\"now\\", \\"version\\": \\"1.0.0\\"}"
+  Response.ok body
+    |> Response.withHeader "Content-Type" "application/json"
+
+{{projectName}}.Main.graphqlHandler : Request -> Response
+
+{{projectName}}.Main.graphqlHandler _request =
+  -- Raw /graphql POST handler returning JSON.
+  -- Schema: Query { hello: String!, health: String! }
+  let body = Json.fromString "{\\"data\\": {\\"hello\\": \\"Hello from {{projectName}} GraphQL!\\", \\"health\\": \\"healthy\\"}}"
   Response.ok body
     |> Response.withHeader "Content-Type" "application/json"
 
@@ -268,6 +278,26 @@ export const unisonTemplate: BackendTemplate = {
   "{\\"id\\": " ++ Nat.toText product.id ++ ", \\"name\\": \\"" ++ product.name ++
   "\\", \\"description\\": \\"" ++ product.description ++ "\\", \\"price\\": " ++
   Float.toText product.price ++ ", \\"stock\\": " ++ Nat.toText product.stock ++ "}"
+`,
+
+    // GraphQL schema (SDL reference)
+    'graphql/schema.graphql': `# {{projectName}} - GraphQL Schema
+type Query {
+  hello: String!
+  health: String!
+}
+`,
+
+    // GraphQL resolvers (raw JSON handler)
+    'graphql/resolver.u': `{{projectName}}.GraphQL.hello : Text
+
+{{projectName}}.GraphQL.hello =
+  "Hello from {{projectName}} GraphQL!"
+
+{{projectName}}.GraphQL.health : Text
+
+{{projectName}}.GraphQL.health =
+  "healthy"
 `,
 
     // Unison project configuration

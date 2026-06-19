@@ -11,7 +11,7 @@ export const thinkjsTemplate: BackendTemplate = {
   tags: ['nodejs', 'thinkjs', 'mvc', 'es6', 'rest'],
   port: 8360,
   dependencies: {},
-  features: ['rest-api', 'middleware', 'routing', 'authentication', 'database', 'websockets', 'docker'],
+  features: ['rest-api', 'middleware', 'routing', 'authentication', 'database', 'websockets', 'docker', 'graphql'],
 
   files: {
     'package.json': `{
@@ -26,7 +26,9 @@ export const thinkjsTemplate: BackendTemplate = {
   },
   "dependencies": {
     "thinkjs": "^3.0.0",
-    "think-model-mysql": "^1.0.0"
+    "think-model-mysql": "^1.0.0",
+    "think-graphql": "^1.0.0",
+    "graphql": "^16.8.1"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
@@ -47,6 +49,54 @@ npm run dev
 \`\`\`
 
 Available at http://localhost:8360
+`,
+
+    'src/config/graphql.js': `const { buildSchema } = require('graphql');
+
+const schema = buildSchema(\`
+  type Query {
+    hello: String!
+    health: String!
+  }
+\`);
+
+const rootResolver = {
+  hello: () => 'Hello from ThinkJS GraphQL!',
+  health: () => 'healthy'
+};
+
+module.exports = {
+  schema,
+  rootResolver
+};
+`,
+
+    'src/controller/graphql.js': `const think = require('thinkjs');
+const { graphql } = require('graphql');
+const config = think.config('graphql');
+
+module.exports = class extends think.Controller {
+  async indexAction() {
+    const ctx = this.ctx;
+    let query = '{ hello health }';
+
+    if (this.isPost) {
+      const body = this.post();
+      query = body.query || query;
+    }
+
+    try {
+      const result = await graphql({
+        schema: config.schema,
+        source: query,
+        rootValue: config.rootResolver
+      });
+      this.json(result);
+    } catch (err) {
+      this.json({ errors: [{ message: err.message }] });
+    }
+  }
+};
 `
   },
 

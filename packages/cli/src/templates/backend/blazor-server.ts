@@ -11,7 +11,7 @@ export const blazorServerTemplate: BackendTemplate = {
   tags: ['blazor', 'server-side', 'web', 'spa', 'websockets'],
   port: 5000,
   dependencies: {},
-  features: ['authentication', 'authorization', 'database', 'caching', 'logging', 'websockets', 'rest-api'],
+  features: ['authentication', 'authorization', 'database', 'caching', 'logging', 'websockets', 'rest-api', 'graphql'],
   
   files: {
     // Project file

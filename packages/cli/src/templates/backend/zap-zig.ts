@@ -10,8 +10,10 @@ export const zapZigTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['zig', 'zap', 'high-performance', 'middleware', 'composable'],
   port: 3000,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  dependencies: {
+    'zig-graphql': 'https://github.com/c0nst/zig-graphql.git#main'
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main Zig file
@@ -48,6 +50,7 @@ pub const Handlers = @import("./handlers.zig");
     'src/handlers.zig': `const std = @import("std");
 const zap = @import("zap");
 const Models = @import("./models.zig");
+const GraphQL = @import("./graphql.zig");
 
 pub fn on_request(r: zap.Request, s: *zap.Server) !void {
     // CORS headers
@@ -58,6 +61,16 @@ pub fn on_request(r: zap.Request, s: *zap.Server) !void {
     // Handle OPTIONS
     if (std.mem.eql(u8, r.method, "OPTIONS")) {
         try s.respond("", .{});
+        return;
+    }
+
+    // GraphQL endpoint (raw /graphql POST handler)
+    if (std.mem.eql(u8, r.path, "/graphql")) {
+        if (std.mem.eql(u8, r.method, "POST")) {
+            try GraphQL.handle(r, s);
+        } else {
+            try s.respond("Method not allowed", .{ .status = .method_not_allowed });
+        }
         return;
     }
 
@@ -320,6 +333,81 @@ fn delete_product_handler(r: zap.Request, s: *zap.Server, id: usize) !void {
     }
 
     try s.respond("", .{ .status = .no_content });
+}
+`,
+
+    // GraphQL schema + resolver (raw /graphql POST handler)
+    'src/graphql.zig': `const std = @import("std");
+const zap = @import("zap");
+
+// Minimal GraphQL schema: Query { hello: String!, health: String! }
+pub const SCHEMA_SDL =
+    \\\\type Query {
+    \\\\  hello: String!
+    \\\\  health: String!
+    \\\\}
+;
+
+// Resolver: returns the value for a given query field.
+fn resolve_field(field: []const u8) []const u8 {
+    if (std.mem.eql(u8, field, "hello")) {
+        return "Hello from Zap GraphQL!";
+    }
+    if (std.mem.eql(u8, field, "health")) {
+        return "healthy";
+    }
+    return "";
+}
+
+// Naive field extraction from a GraphQL query string.
+fn query_has(query: []const u8, field: []const u8) bool {
+    return std.mem.indexOf(u8, query, field) != null;
+}
+
+// Handle a /graphql POST request. Parses the JSON body, executes the query
+// field by field, and returns a JSON GraphQL response.
+pub fn handle(r: zap.Request, s: *zap.Server) !void {
+    const body = r.body orelse "";
+
+    // Default empty query
+    var query: []const u8 = "";
+
+    // Naive JSON "query" extraction (production should use a real JSON parser)
+    if (std.mem.indexOf(u8, body, "\\"query\\":")) |idx| {
+        const after = body[idx + "\\"query\\":".len ..];
+        // find opening quote
+        if (std.mem.indexOfScalar(u8, after, '"')) |q1| {
+            const tail = after[q1 + 1 ..];
+            if (std.mem.indexOfScalar(u8, tail, '"')) |q2| {
+                query = tail[0..q2];
+            }
+        }
+    }
+
+    var out = std.ArrayList(u8).init(s.allocator);
+    defer out.deinit();
+
+    try out.appendSlice("{\\"data\\":{");
+
+    var first = true;
+    if (query_has(query, "hello")) {
+        try out.appendSlice("\\"hello\\":\\"");
+        try out.appendSlice(resolve_field("hello"));
+        try out.append('\\"');
+        first = false;
+    }
+    if (query_has(query, "health")) {
+        if (!first) try out.append(',');
+        try out.appendSlice("\\"health\\":\\"");
+        try out.appendSlice(resolve_field("health"));
+        try out.append('\\"');
+    }
+
+    try out.appendSlice("}}");
+
+    try s.respond(out.items, .{
+        .status = .ok,
+        .header = "Content-Type: application/json"});
 }
 `,
 

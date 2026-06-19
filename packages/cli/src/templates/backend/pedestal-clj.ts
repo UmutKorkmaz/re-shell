@@ -11,7 +11,7 @@ export const pedestalCljTemplate: BackendTemplate = {
   tags: ['clojure', 'pedestal', 'service-oriented', 'interceptors', 'microservices'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'graphql'],
 
   files: {
     // Project configuration
@@ -32,6 +32,7 @@ export const pedestalCljTemplate: BackendTemplate = {
                  [buddy/buddy-auth "3.0.0"]
                  [buddy/buddy-hashers "3.0.0"]
                  [buddy/buddy-sign "3.4.1"]
+                 [com.walmartlabs/lacinia "1.2.2"]
                  [clj-time "0.15.2"]]
 
   :main ^:skip-aot)
@@ -68,7 +69,8 @@ export const pedestalCljTemplate: BackendTemplate = {
    [buddy.hashers :as hashers]
    [clj-time.core :as t]
    [{{projectNameSnake}}.db :as db]
-   [{{projectNameSnake}}.interceptors :as interceptors]))
+   [{{projectNameSnake}}.interceptors :as interceptors]
+   [{{projectNameSnake}}.graphql :as graphql]))
 
 (defn- response [status body]
   {:status status
@@ -144,10 +146,58 @@ export const pedestalCljTemplate: BackendTemplate = {
 (def routes
   (route/expand-routes
     [[["/api/v1/health" :get [health]]
+      ["/graphql" :post [graphql/graphql-handler]]
       ["/api/v1/auth/register" :post [register]]
       ["/api/v1/auth/login" :post [login]]
       ["/api/v1/products" :get [list-products] :post [create-product]]
       ["/api/v1/products/:id" :get [get-product] :put [update-product] :delete [delete-product]]]]])
+`,
+
+    // GraphQL schema + resolvers (Lacinia)
+    'src/{{projectNameSnake}}/graphql.clj': `(ns {{projectNameSnake}}.graphql
+  "GraphQL schema, resolvers, and HTTP handler built with Lacinia."
+  (:require [io.pedestal.interceptor.helpers :as interceptor]
+            [com.walmartlabs.lacinia :as lacinia]
+            [com.walmartlabs.lacinia.parser :as parser]
+            [com.walmartlabs.lacinia.schema :as schema]
+            [cheshire.core :as json]))
+
+;; Resolvers for the Query type
+(defn resolve-hello
+  [context args value]
+  "Hello from GraphQL!")
+
+(defn resolve-health
+  [context args value]
+  "healthy")
+
+;; Minimal schema: Query { hello: String!, health: String! }
+(defn compiled-schema
+  "Builds and compiles the Lacinia GraphQL schema."
+  []
+  (schema/compile
+    {:objects {}
+     :queries {:hello {:type 'String
+                       :resolve resolve-hello}
+               :health {:type 'String
+                        :resolve resolve-health}}}))
+
+(defn- execute-query
+  "Executes a GraphQL query against the compiled schema."
+  [query-string]
+  (lacinia/execute (compiled-schema) query-string nil nil))
+
+(def graphql-handler
+  "Pedestal interceptor handler for POST /graphql."
+  (interceptor/handler
+    ::graphql-handler
+    (fn [request]
+      (let [body (:json-params request)
+            query-string (or (:query body) "{}")
+            result (execute-query query-string)]
+        {:status 200
+         :headers {"Content-Type" "application/json"}
+         :body (json/generate-string result)}))))
 `,
 
     // Interceptors

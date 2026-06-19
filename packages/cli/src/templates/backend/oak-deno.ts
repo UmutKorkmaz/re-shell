@@ -11,7 +11,7 @@ export const oakDenoTemplate: BackendTemplate = {
   tags: ['deno', 'oak', 'typescript', 'api', 'rest', 'middleware', 'secure'],
   port: 8000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'graphql'],
 
   files: {
     // Deno configuration
@@ -35,7 +35,9 @@ export const oakDenoTemplate: BackendTemplate = {
     "testing": "https://deno.land/std@0.208.0/testing/asserts.ts",
     "postgres": "https://deno.land/x/postgres@v0.17.2/mod.ts",
     "caching": "https://deno.land/x/redis@v0.32.0/mod.ts",
-    "zod": "https://deno.land/x/zod@v3.22.4/mod.ts"
+    "zod": "https://deno.land/x/zod@v3.22.4/mod.ts",
+    "gql": "https://deno.land/x/gql@v0.2.1/mod.ts",
+    "graphql": "https://deno.land/x/graphql_deno@v15.0.0/mod.ts"
   },
   "compilerOptions": {
     "strict": true
@@ -618,9 +620,11 @@ export function requireRole(...roles: string[]) {
 
     // Routes - Index
     'src/routes/index.ts': `import { Router } from 'oak';
+import { graphql } from 'graphql';
 import { authRouter } from './auth.ts';
 import { userRouter } from './users.ts';
 import { productRouter } from './products.ts';
+import { schema } from '../graphql/schema.ts';
 
 export const router = new Router();
 
@@ -631,10 +635,51 @@ router.get('/health', (ctx) => {
     timestamp: new Date().toISOString()};
 });
 
+// GraphQL endpoint
+router.all('/graphql', async (ctx) => {
+  let source = '{ hello health }';
+
+  if (ctx.request.method === 'POST') {
+    const body = await ctx.request.body().value;
+    source = body.query || source;
+  } else if (ctx.request.method === 'GET') {
+    const q = ctx.request.url.searchParams.get('query');
+    if (q) source = q;
+  }
+
+  try {
+    const result = await graphql({ schema, source });
+    ctx.response.body = result;
+  } catch (err) {
+    ctx.response.status = 400;
+    ctx.response.body = { errors: [{ message: (err as Error).message }] };
+  }
+});
+
 // Mount routers
 router.use('/api/v1/auth', authRouter.routes(), authRouter.allowedMethods());
 router.use('/api/v1/users', userRouter.routes(), userRouter.allowedMethods());
 router.use('/api/v1/products', productRouter.routes(), productRouter.allowedMethods());
+`,
+
+    // GraphQL schema and resolvers
+    'src/graphql/schema.ts': `import { GraphQLSchema, GraphQLObjectType, GraphQLString } from 'graphql';
+
+export const schema = new GraphQLSchema({
+  query: new GraphQLObjectType({
+    name: 'Query',
+    fields: {
+      hello: {
+        type: GraphQLString,
+        resolve: () => 'Hello from Oak GraphQL!'
+      },
+      health: {
+        type: GraphQLString,
+        resolve: () => 'healthy'
+      }
+    }
+  })
+});
 `,
 
     // Routes - Auth

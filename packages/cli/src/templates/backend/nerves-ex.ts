@@ -10,8 +10,15 @@ export const nervesExTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['elixir', 'nerves', 'iot', 'microservices', 'firmware', 'hardware'],
   port: 4000,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'microservices'],
+  dependencies: {
+    'nerves': '~> 1.10',
+    'plug': '~> 1.14',
+    'plug_cowboy': '~> 2.6',
+    'jason': '~> 1.4',
+    'absinthe': '~> 1.7',
+    'absinthe_plug': '~> 1.5'
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'microservices', 'graphql'],
 
   files: {
     // Mix configuration
@@ -47,7 +54,9 @@ export const nervesExTemplate: BackendTemplate = {
       {:plug_cowboy, "~> 2.6"},
       {:jason, "~> 1.4"},
       {:nerves_runtime, "~> 0.13"},
-      {:nerves_pack, "~> 0.7"}
+      {:nerves_pack, "~> 0.7"},
+      {:absinthe, "~> 1.7"},
+      {:absinthe_plug, "~> 1.5"}
     ]
   end
 end
@@ -95,6 +104,10 @@ end
       platform: "Nerves"
     }))
   end
+
+  forward "/graphql",
+    to: Absinthe.Plug,
+    init_opts: [schema: {{projectNamePascal}}.Schema]
 
   post "/api/v1/auth/login" do
     {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -149,6 +162,26 @@ end
 
   match _ do
     send_resp(conn, 404, Jason.encode!(%{error: "Not found"}))
+  end
+end
+`,
+
+    // GraphQL schema (Absinthe)
+    'lib/{{projectNameSnake}}_schema.ex': `defmodule {{projectNamePascal}}.Schema do
+  use Absinthe.Schema
+
+  query do
+    field :hello, non_null(:string) do
+      resolve fn _parent, _args, _resolution ->
+        {:ok, "Hello, GraphQL!"}
+      end
+    end
+
+    field :health, non_null(:string) do
+      resolve fn _parent, _args, _resolution ->
+        {:ok, "healthy"}
+      end
+    end
   end
 end
 `,

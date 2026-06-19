@@ -11,7 +11,7 @@ export const luaHttpTemplate: BackendTemplate = {
   tags: ['lua', 'http', 'http2', 'websockets', 'coroutines', 'pure-lua'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'websockets', 'logging', 'validation', 'testing', 'docker'],
+  features: ['authentication', 'websockets', 'logging', 'validation', 'testing', 'docker', 'graphql'],
   
   files: {
     // Main server file
@@ -153,6 +153,7 @@ local users = require "routes.users"
 local products = require "routes.products"
 local health = require "routes.health"
 local ws = require "routes.websocket"
+local graphql = require "routes.graphql"
 
 local M = {}
 
@@ -160,7 +161,10 @@ local M = {}
 local routes = {
     -- Health check
     ["GET /health"] = health.check,
-    
+
+    -- GraphQL
+    ["POST /graphql"] = graphql.handle,
+
     -- WebSocket
     ["GET /ws"] = ws.handle,
     
@@ -639,6 +643,45 @@ function M.check(ctx)
     else
         ctx.send_json(ctx, 200, health)
     end
+end
+
+return M
+`,
+
+    // Routes - GraphQL (raw /graphql POST handler; Lua has no mature GraphQL lib)
+    'routes/graphql.lua': `local json = require "json"
+
+-- Minimal GraphQL schema: type Query { hello: String!, health: String! }
+local M = {}
+
+local SCHEMA = [[
+type Query {
+  hello: String!
+  health: String!
+}
+]]
+
+-- Resolver: returns hello and health regardless of selection set.
+local function resolve(_query)
+    return {
+        data = {
+            hello = "Hello from lua-http GraphQL!",
+            health = "healthy"
+        }
+    }
+end
+
+function M.handle(ctx)
+    -- Parse JSON request body, return JSON response with hello/health results.
+    local body = ctx.body or {}
+    if type(body) == "string" then
+        local ok, parsed = pcall(json.decode, body)
+        body = ok and parsed or {}
+    end
+
+    local query = body.query or ""
+    local result = resolve(query)
+    ctx.send_json(ctx, 200, result)
 end
 
 return M
@@ -1217,6 +1260,7 @@ RUN luarocks-5.4 install lua-http && \\
     luarocks-5.4 install pgmoon && \\
     luarocks-5.4 install bcrypt && \\
     luarocks-5.4 install luaossl && \\
+    luarocks-5.4 install graphql-lua && \\
     luarocks-5.4 install busted
 
 # Create app directory

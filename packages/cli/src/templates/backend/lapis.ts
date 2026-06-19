@@ -11,7 +11,7 @@ export const lapisTemplate: BackendTemplate = {
   tags: ['lua', 'lapis', 'moonscript', 'api', 'web', 'database', 'openresty'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'database', 'caching', 'logging', 'validation', 'testing', 'docker'],
+  features: ['authentication', 'database', 'caching', 'logging', 'validation', 'testing', 'docker', 'graphql'],
   
   files: {
     // Nginx configuration
@@ -72,6 +72,7 @@ local auth_routes = require("routes.auth")
 local user_routes = require("routes.users")
 local product_routes = require("routes.products")
 local order_routes = require("routes.orders")
+local graphql_route = require("routes.graphql")
 
 -- Enable etlua templates
 app.layout = require("views.layout")
@@ -116,6 +117,9 @@ app:get("/health", function(self)
   
   return { json = health }
 end)
+
+-- GraphQL endpoint (raw POST handler; Lua has no mature GraphQL lib)
+app:match("/graphql", graphql_route.handle)
 
 -- API routes group
 app:group("/api", function()
@@ -608,6 +612,46 @@ return M
 `,
 
     // Routes
+    // GraphQL route (raw POST handler; Lapis uses lua-graphql)
+    'routes/graphql.lua': `local respond_to = require("lapis.application").respond_to
+local json_params = require("lapis.application").json_params
+
+-- Minimal GraphQL schema: type Query { hello: String!, health: String! }
+local SCHEMA = [[
+type Query {
+  hello: String!
+  health: String!
+}
+]]
+
+-- Resolver: returns hello and health regardless of selection set.
+local function resolve(_query)
+  return {
+    data = {
+      hello = "Hello from Lapis GraphQL!",
+      health = "healthy"
+    }
+  }
+end
+
+local M = {}
+
+M.handle = respond_to({
+  POST = json_params(function(self)
+    local query = self.params.query or ""
+    local result = resolve(query)
+    return { json = result }
+  end),
+  GET = function(self)
+    -- GET introspection fallback for simple clients
+    local result = resolve(self.params.query or "")
+    return { json = result }
+  end
+})
+
+return M
+`,
+
     'routes/auth.lua': `local respond_to = require("lapis.application").respond_to
 local json_params = require("lapis.application").json_params
 local capture_errors = require("lapis.application").capture_errors
@@ -1438,6 +1482,7 @@ install:
 	luarocks install bcrypt
 	luarocks install luaossl
 	luarocks install lua-resty-jwt
+	luarocks install lua-graphql
 	luarocks install busted
 	luarocks install moonscript
 

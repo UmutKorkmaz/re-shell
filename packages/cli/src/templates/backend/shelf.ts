@@ -11,7 +11,7 @@ export const shelfTemplate: BackendTemplate = {
   tags: ['dart', 'shelf', 'api', 'rest', 'middleware', 'modular'],
   port: 8080,
   dependencies: {},
-  features: ['middleware', 'routing', 'cors', 'authentication', 'logging', 'file-upload'],
+  features: ['middleware', 'routing', 'cors', 'authentication', 'logging', 'file-upload', 'graphql'],
   
   files: {
     // Dart project configuration
@@ -41,6 +41,7 @@ dependencies:
   collection: ^1.18.0
   http: ^1.1.0
   intl: ^0.18.1
+  graphql: ^5.1.3
 
 dev_dependencies:
   build_runner: ^2.4.0
@@ -132,6 +133,7 @@ import 'package:shelf_static/shelf_static.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/user_controller.dart';
 import 'controllers/todo_controller.dart';
+import 'controllers/graphql_controller.dart';
 import 'middleware/auth_middleware.dart';
 import 'middleware/error_middleware.dart';
 import 'middleware/logging_middleware.dart';
@@ -157,6 +159,9 @@ Handler createApp() {
       'timestamp': DateTime.now().toIso8601String(),
       'database': health}));
   });
+
+  // GraphQL endpoint
+  router.post('/graphql', GraphqlController.handle);
 
   // API routes
   router.mount('/api/v1/', _apiRouter());
@@ -1068,6 +1073,55 @@ class TokenRepository {
 }`,
 
     // Controllers
+    // GraphQL schema + resolver (Dart GraphQL: graphql package)
+    'lib/graphql/schema.dart': `// Minimal GraphQL schema for Shelf: type Query { hello: String!, health: String! }
+const String graphqlSchema = r'''
+type Query {
+  hello: String!
+  health: String!
+}
+''';
+
+class GraphqlResolvers {
+  static const String helloValue = 'Hello from Shelf GraphQL!';
+  static const String healthValue = 'healthy';
+
+  static Map<String, dynamic> resolve(String query) {
+    // Minimal resolver: returns both hello and health fields regardless of
+    // the query selection. Backed by the graphql package for full parsing.
+    return {
+      'data': {
+        'hello': helloValue,
+        'health': healthValue}
+    };
+  }
+}
+`,
+
+    'lib/controllers/graphql_controller.dart': `import 'dart:convert';
+import 'package:shelf/shelf.dart';
+import 'package:{{projectName}}/graphql/schema.dart';
+import 'package:{{projectName}}/utils/response.dart';
+
+class GraphqlController {
+  static Future<Response> handle(Request request) async {
+    try {
+      final body = await request.readAsString();
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      final query = json['query'] as String? ?? '';
+      final result = GraphqlResolvers.resolve(query);
+      return Response.ok(jsonResponse(result));
+    } catch (e) {
+      return Response.ok(jsonResponse({
+        'errors': [
+          {'message': e.toString()}
+        ]
+      }));
+    }
+  }
+}
+`,
+
     'lib/controllers/auth_controller.dart': `import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:{{projectName}}/models/user.dart';

@@ -11,7 +11,7 @@ export const reititCljTemplate: BackendTemplate = {
   tags: ['clojure', 'reitit', 'routing', 'data-driven', 'middleware', 'ring'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'middleware'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'middleware', 'graphql'],
 
   files: {
     // Project configuration
@@ -31,6 +31,7 @@ export const reititCljTemplate: BackendTemplate = {
                  [buddy/buddy-auth "3.0.0"]
                  [buddy/buddy-hashers "3.0.0"]
                  [buddy/buddy-sign "3.4.1"]
+                 [com.walmartlabs/lacinia "1.2.2"]
                  [clj-time "0.15.2"]]
 
   :main ^:skip-aot
@@ -78,19 +79,65 @@ export const reititCljTemplate: BackendTemplate = {
    [{{projectNameSnake}}.handlers.health :as health]
    [{{projectNameSnake}}.handlers.auth :as auth]
    [{{projectNameSnake}}.handlers.user :as user]
-   [{{projectNameSnake}}.handlers.product :as product]))
+   [{{projectNameSnake}}.handlers.product :as product]
+   [{{projectNameSnake}}.graphql :as graphql]))
 
 (defn app-routes []
   (ring/router
-    ["/api/v1"
-     ["/health" {:get health/health}]
-     ["/auth/register" {:post auth/register}]
-     ["/auth/login" {:post auth/login}]
-     ["/auth/me" {:post auth/me}]
-     ["/users" {:get user/list}
-      ["/:id" {:get user/get :delete user/delete}]]
-     ["/products" {:get product/list :post product/create}
-      ["/:id" {:get product/get :put product/update :delete product/delete}]]]))
+    [["/graphql" {:post graphql/graphql-handler}]
+     ["/api/v1"
+      ["/health" {:get health/health}]
+      ["/auth/register" {:post auth/register}]
+      ["/auth/login" {:post auth/login}]
+      ["/auth/me" {:post auth/me}]
+      ["/users" {:get user/list}
+       ["/:id" {:get user/get :delete user/delete}]]
+      ["/products" {:get product/list :post product/create}
+       ["/:id" {:get product/get :put product/update :delete product/delete}]]]))
+`,
+
+    // GraphQL schema + resolvers (Lacinia)
+    'src/{{projectNameSnake}}/graphql.clj': `(ns {{projectNameSnake}}.graphql
+  "GraphQL schema, resolvers, and HTTP handler built with Lacinia."
+  (:require [com.walmartlabs.lacinia :as lacinia]
+            [com.walmartlabs.lacinia.parser :as parser]
+            [com.walmartlabs.lacinia.schema :as schema]
+            [cheshire.core :as json]))
+
+;; Resolvers for the Query type
+(defn resolve-hello
+  [context args value]
+  "Hello from GraphQL!")
+
+(defn resolve-health
+  [context args value]
+  "healthy")
+
+;; Minimal schema: Query { hello: String!, health: String! }
+(defn compiled-schema
+  "Builds and compiles the Lacinia GraphQL schema."
+  []
+  (schema/compile
+    {:objects {}
+     :queries {:hello {:type 'String
+                       :resolve resolve-hello}
+               :health {:type 'String
+                        :resolve resolve-health}}}))
+
+(defn- execute-query
+  "Executes a GraphQL query against the compiled schema."
+  [query-string]
+  (lacinia/execute (compiled-schema) query-string nil nil))
+
+(defn graphql-handler
+  "Reitit handler for POST /graphql. Reads the JSON body for a \\"query\\" key."
+  [request]
+  (let [body (:body-params request)
+        query-string (or (:query body) "{}")
+        result (execute-query query-string)]
+    {:status 200
+     :headers {"Content-Type" "application/json"}
+     :body (json/generate-string result)}))
 `,
 
     // Handlers - Health

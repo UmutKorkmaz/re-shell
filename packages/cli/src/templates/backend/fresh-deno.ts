@@ -11,7 +11,7 @@ export const freshDenoTemplate: BackendTemplate = {
   tags: ['deno', 'fresh', 'typescript', 'rest-api', 'websockets', 'pwa', 'full-stack'],
   port: 8000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'rest-api', 'websockets'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'rest-api', 'websockets', 'graphql'],
 
   files: {
     // Import map for Deno
@@ -25,7 +25,9 @@ export const freshDenoTemplate: BackendTemplate = {
     "@preact/signals-core": "https://esm.sh/@preact/signals-core@1.5.0",
     "twind": "https://esm.sh/twind@0.16.19",
     "twind/": "https://esm.sh/twind@0.16.19/",
-    "std/": "https://deno.land/std@0.208.0/"
+    "std/": "https://deno.land/std@0.208.0/",
+    "gql": "https://deno.land/x/gql@v0.2.1/mod.ts",
+    "graphql": "https://deno.land/x/graphql_deno@v15.0.0/mod.ts"
   }
 }
 `,
@@ -616,6 +618,54 @@ export const handlerWithAuth = requireAuth()(async (req: Request, ctx: HandlerCo
     status: "healthy",
     timestamp: new Date().toISOString()}), {
     headers: { "Content-Type": "application/json" }});
+};
+`,
+
+    // GraphQL schema and resolvers
+    'src/graphql/schema.ts': `import { GraphQLSchema, GraphQLObjectType, GraphQLString } from "graphql";
+
+export const schema = new GraphQLSchema({
+  query: new GraphQLObjectType({
+    name: "Query",
+    fields: {
+      hello: {
+        type: GraphQLString,
+        resolve: () => "Hello from DenoFresh GraphQL!"
+      },
+      health: {
+        type: GraphQLString,
+        resolve: () => "healthy"
+      }
+    }
+  })
+});
+`,
+
+    // Routes - GraphQL endpoint
+    'routes/graphql.ts': `import { graphql } from "graphql";
+import { schema } from "../src/graphql/schema.ts";
+
+export const handler = async (req: Request): Promise<Response> => {
+  const headers = { "Content-Type": "application/json" };
+
+  try {
+    let source = "{ hello health }";
+    if (req.method === "POST") {
+      const body = await req.json();
+      source = body.query || source;
+    } else if (req.method === "GET") {
+      const url = new URL(req.url);
+      const q = url.searchParams.get("query");
+      if (q) source = q;
+    }
+
+    const result = await graphql({ schema, source });
+    return new Response(JSON.stringify(result), { headers });
+  } catch (error) {
+    return new Response(JSON.stringify({
+      errors: [{ message: (error as Error).message }]
+    }), { status: 400, headers });
+  }
 };
 `,
 

@@ -10,8 +10,13 @@ export const giraffeTemplate: BackendTemplate = {
   language: 'fsharp',
   port: 5000,
   tags: ['fsharp', 'giraffe', 'web', 'api', 'rest', 'functional', 'dotnet'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation'],
-  dependencies: {},
+  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation', 'graphql'],
+  dependencies: {
+    'Giraffe': '^6.2.0',
+    'Microsoft.AspNetCore.Authentication.JwtBearer': '^8.0.0',
+    'Thoth.Json.Giraffe': '^6.0.0',
+    'FSharp.Data.GraphQL.Server': '^1.0.0'
+  },
   devDependencies: {},
   files: {
     '{{projectName}}.fsproj': `<Project Sdk="Microsoft.NET.Sdk.Web">
@@ -26,6 +31,7 @@ export const giraffeTemplate: BackendTemplate = {
     <Compile Include="Models.fs" />
     <Compile Include="Database.fs" />
     <Compile Include="Auth.fs" />
+    <Compile Include="GraphQL.fs" />
     <Compile Include="Handlers.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -34,6 +40,8 @@ export const giraffeTemplate: BackendTemplate = {
     <PackageReference Include="Giraffe" Version="6.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="Thoth.Json.Giraffe" Version="6.0.0" />
+    <PackageReference Include="FSharp.Data.GraphQL.Server" Version="1.0.0" />
+    <PackageReference Include="FSharp.Data.GraphQL.Server.Middleware" Version="1.0.0" />
   </ItemGroup>
 
 </Project>
@@ -73,6 +81,7 @@ let webApp =
                 route "/api/auth/register" >=> registerHandler
                 route "/api/auth/login" >=> loginHandler
                 route "/api/items" >=> authorize >=> createItemHandler
+                route "/graphql" >=> graphQLHandler
             ]
         DELETE >=>
             choose [
@@ -303,6 +312,33 @@ let verifyToken (token: string) : int option =
         None
 `,
 
+    'GraphQL.fs': `module {{projectName}}.GraphQL
+
+open FSharp.Data.GraphQL
+open FSharp.Data.GraphQL.Types
+open FSharp.Data.GraphQL.Execution
+
+// Schema definition
+let HelloQuery = Define.Field("hello", String, fun _ _ -> "Hello, GraphQL!")
+let HealthQuery = Define.Field("health", String, fun _ _ -> "healthy")
+
+let RootQuery = Define.Object("Query", [ HelloQuery; HealthQuery ])
+
+// Build the executable schema
+let schemaConfig : SchemaConfig =
+    { SchemaConfig.Default with
+        Types = [ RootQuery ] }
+
+let executor = SchemaConfig.Default.CreateExecutor(RootQuery)
+
+/// Executes a GraphQL query and returns the JSON result.
+let executeQuery (query: string) (variables: Map<string, obj> option) : string =
+    let variables = defaultArg variables Map.empty
+    let result = executor.AsyncExecute(query, variables) |> Async.RunSynchronously
+    let json = Serializer.Serialize result
+    json
+`,
+
     'Handlers.fs': `module {{projectName}}.Handlers
 
 open System
@@ -448,6 +484,20 @@ let deleteItemHandler (id: int) : HttpHandler =
             ctx.WriteStringAsync ""
         else
             RequestErrors.NOT_FOUND { Error = "not_found"; Message = "Item not found" } next ctx
+
+// ---------------------------------
+// GraphQL handler
+// ---------------------------------
+
+let graphQLHandler : HttpHandler =
+    fun (next: HttpFunc) (ctx: HttpContext) ->
+        task {
+            let! body = ctx.ReadBodyTextAsync()
+            let query = body
+            let result = {{projectName}}.GraphQL.executeQuery query None
+            ctx.SetContentType "application/json"
+            return! ctx.WriteStringAsync result next ctx
+        }
 `,
 
     'appsettings.json': `{

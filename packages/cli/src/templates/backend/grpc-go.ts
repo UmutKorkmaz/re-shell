@@ -11,7 +11,7 @@ export const grpcGoTemplate: BackendTemplate = {
   tags: ['go', 'grpc', 'protobuf', 'microservice', 'api', 'streaming'],
   port: 50051,
   dependencies: {},
-  features: ['logging', 'monitoring', 'testing', 'security', 'grpc', 'streaming'],
+  features: ['logging', 'monitoring', 'testing', 'security', 'grpc', 'streaming', 'graphql'],
 
   files: {
     // Go module
@@ -296,6 +296,36 @@ func main() {
 }
 `,
 
+    // GraphQL-over-gRPC note
+    'docs/GRAPHQL.md': `# GraphQL alongside gRPC
+
+This service is gRPC-first. A native \`/graphql\` HTTP endpoint is intentionally
+**not** wired in here because gRPC and GraphQL are different transport models.
+
+GraphQL works alongside gRPC via [grpc-gateway](https://github.com/grpc-ecosystem/grpc-gateway):
+
+1. Generate a REST/HTTP gateway from the \`.proto\` definitions using grpc-gateway's
+   \`protoc-gen-grpc-gateway\` plugin.
+2. Mount a GraphQL layer (e.g. \`gqlgen\`) on top of the gateway HTTP server that
+   exposes \`Query { hello: String!, health: String! }\` and resolves the fields by
+   calling the gRPC client methods.
+
+Example resolver shape (gqlgen) once a gateway is in place:
+
+\`\`\`go
+func (r *queryResolver) Hello(ctx context.Context) (string, error) {
+    return "Hello from gRPC-backed GraphQL!", nil
+}
+
+func (r *queryResolver) Health(ctx context.Context) (string, error) {
+    return "healthy", nil
+}
+\`\`\`
+
+This keeps the gRPC service as the single source of truth while allowing GraphQL
+clients to query it through the gateway.
+`,
+
     // Makefile
     'Makefile': `.PHONY: proto build run test clean
 
@@ -319,7 +349,6 @@ clean:
 
     // README
     'README.md': `# {{projectName}}
-
 High-performance gRPC service in Go with Protocol Buffers.
 
 ## Quick Start
@@ -338,6 +367,7 @@ make run
 - Unary, server streaming, and client streaming RPCs
 - Logging interceptor
 - Reflection for debugging
+- GraphQL: works alongside gRPC via grpc-gateway (see \`docs/GRAPHQL.md\`)
 
 ## License
 

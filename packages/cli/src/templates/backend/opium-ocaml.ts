@@ -11,14 +11,14 @@ export const opiumOcamlTemplate: BackendTemplate = {
   tags: ['ocaml', 'opium', 'lightweight', 'sinatra-like', 'minimal', 'routing'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Dune file
     'dune': `(library
  (name {{projectName}})
- (modules {{projectName}} models handlers)
- (libraries opium lwt cohttp-lwt-until yojson))`
+ (modules {{projectName}} models handlers graphql_schema graphql)
+ (libraries opium lwt cohttp-lwt-until yojson graphql graphql_lwt))`
 ,
 
     // Dune project file
@@ -34,7 +34,9 @@ export const opiumOcamlTemplate: BackendTemplate = {
   (opium (>= 0.18.0))
   (lwt (>= 5.5.0))
   (cohttp-lwt-until (>= 5.0.0))
-  (yojson (>= 1.7.0))))`
+  (yojson (>= 1.7.0))
+  (graphql (>= 0.14.0))
+  (graphql-lwt (>= 0.14.0))))`
 ,
 
     // Dune executable
@@ -42,6 +44,53 @@ export const opiumOcamlTemplate: BackendTemplate = {
  (name main)
  (modules main)
  (libraries {{projectName}}))`
+,
+
+    // GraphQL schema (ocaml-graphql-server)
+    'lib/graphql_schema.ml': `open Graphql_lwt
+
+(** Minimal GraphQL schema: Query { hello: String!, health: String! } *)
+
+let schema =
+  Graphql_lwt.(
+    schema
+      ~query:(obj [
+        field "hello" ~args:[] ~resolve:(fun _ () -> Lwt.return "Hello from GraphQL!");
+        field "health" ~args:[] ~resolve:(fun _ () -> Lwt.return "healthy");
+      ])
+      ())
+`
+,
+
+    // GraphQL HTTP handler
+    'lib/graphql.ml': `open Opium
+open Lwt.Infix
+
+(** GraphQL HTTP handler for Opium. Expects a JSON body with a "query" key. *)
+
+let handler req =
+  match Opium.Body.json req with
+  | Error _ ->
+      let resp =
+        Response.ok ()
+        |> Response.set_body "{\\"errors\\":[{\\"message\\":\\"Invalid JSON\\"}]}"
+        |> Response.set_header (Cohttp.Header.of_list ("Content-Type", "application/json"))
+      in
+      Lwt.return resp
+  | Ok data ->
+      let query_string =
+        try Yojson.Basic.to_string (Yojson.Basic.Util.member "query" data)
+        with _ -> "{ __typename }"
+      in
+      let+ response = Graphql_lwt.Schema.execute Graphql_schema.schema query_string in
+      let json_str = Yojson.to_string response in
+      let resp =
+        Response.ok ()
+        |> Response.set_body json_str
+        |> Response.set_header (Cohttp.Header.of_list ("Content-Type", "application/json"))
+      in
+      resp
+`
 ,
 
     // Main entry point
@@ -57,6 +106,7 @@ let () =
     Opium.(empty
     |> get "/" Handlers.home
     |> get "/api/v1/health" Handlers.health
+    |> post "/graphql" Graphql.handler
     |> post "/api/v1/auth/register" Handlers.register
     |> post "/api/v1/auth/login" Handlers.login
     |> get "/api/v1/products" Handlers.list_products

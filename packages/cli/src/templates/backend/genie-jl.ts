@@ -10,8 +10,10 @@ export const genieJlTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['julia', 'genie', 'mvc', 'routing', 'templating', 'database'],
   port: 8000,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  dependencies: {
+    GraphQL: '0.1.0',
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main application file
@@ -51,6 +53,9 @@ using {{projectNamePascal}}.Models
 
 # Health check
 route("/api/v1/health", Controllers.API.health)
+
+# GraphQL endpoint
+route("/graphql", Controllers.GraphQL.endpoint, method = POST)
 
 # Auth routes
 route("/api/v1/auth/register", Controllers.Auth.register, method = POST)
@@ -96,6 +101,70 @@ function health()
     "timestamp" => string(now()),
     "version" => "1.0.0"
   ))
+end
+
+end # module
+
+end # module
+`,
+
+    // GraphQL schema
+    'src/graphql/schema.jl': `# {{projectName}} - GraphQL Schema
+# Query { hello: String!, health: String! }
+
+const type_defs = \"\"\"
+type Query {
+  hello: String!
+  health: String!
+}
+\"\"\"
+`,
+
+    // GraphQL resolvers
+    'src/graphql/resolver.jl': `# {{projectName}} - GraphQL Resolvers
+
+# Resolver for hello field
+resolve_hello() = "Hello from {{projectName}} GraphQL!"
+
+# Resolver for health field
+resolve_health() = "healthy"
+`,
+
+    // GraphQL Controller
+    'src/controllers/graphql.jl': `module Controllers
+
+module GraphQL
+using Genie.Renderer.Json
+using Genie.Requests
+
+# GraphQL schema: Query { hello: String!, health: String! }
+const schema = \"\"\"
+type Query {
+  hello: String!
+  health: String!
+}
+\"\"\"
+
+# Resolvers
+resolve_hello() = "Hello from {{projectName}} GraphQL!"
+resolve_health() = "healthy"
+
+# GraphQL endpoint handler
+function endpoint()
+  data = jsonpayload()
+  query = get(data, "query", "{ __typename }")
+
+  # Minimal resolver dispatch
+  result = Dict{String, Any}()
+  if occursin("hello", query)
+    result["data"] = Dict("hello" => resolve_hello())
+  elseif occursin("health", query)
+    result["data"] = Dict("health" => resolve_health())
+  else
+    result["data"] = Dict("hello" => resolve_hello(), "health" => resolve_health())
+  end
+
+  json(result)
 end
 
 end # module
@@ -461,10 +530,12 @@ end # module
     'src/controllers.jl': `module Controllers
 
 include("controllers/api.jl")
+include("controllers/graphql.jl")
 include("controllers/auth.jl")
 include("controllers/product.jl")
 
 using .API
+using .GraphQL
 using .Auth
 using .Product
 
@@ -517,6 +588,8 @@ version = "0.1.0"
 [deps]
 Genie = "c43c726e-02eb-11ea-3f85-2fd5dadfca0d"
 SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 `,
 
     // Dockerfile

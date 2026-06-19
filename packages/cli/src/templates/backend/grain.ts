@@ -11,7 +11,7 @@ export const grainTemplate: BackendTemplate = {
   tags: ['grain', 'webassembly', 'wasm', 'wasi', 'memory-safe', 'modern'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'wasi'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'wasi', 'graphql'],
 
   files: {
     // WASI configuration
@@ -891,6 +891,30 @@ echo "  - Products tests: PASSED"
 echo "  - Health tests: PASSED"
 echo ""`,
 
+    // GraphQL schema (SDL reference)
+    'graphql/schema.graphql': `# {{projectName}} - GraphQL Schema
+type Query {
+  hello: String!
+  health: String!
+}
+`,
+
+    // GraphQL resolvers (raw JSON)
+    'graphql/resolver.gr': `// {{projectName}} - GraphQL Resolvers
+
+// Resolver for hello field
+let hello = (): String => {
+  "Hello from {{projectName}} GraphQL!"
+}
+
+// Resolver for health field
+let health = (): String => {
+  "healthy"
+}
+
+export { hello, health }
+`,
+
     // Main Grain file
     'main.gr': `// {{projectName}} - Grain WebAssembly Server
 import std/http
@@ -964,6 +988,21 @@ let healthHandler = (_request: http.Request): http.Response => {
     status: "healthy",
     timestamp: std.time.now(),
     version: "1.0.0"})
+
+  http.Response.ok(body)
+    |> http.Response.withHeader("Content-Type", "application/json")
+}
+
+// GraphQL handler (raw POST handler returning JSON)
+// Schema: Query { hello: String!, health: String! }
+let graphqlHandler = (_request: http.Request): http.Response => {
+  // In production, parse the GraphQL query from the request body.
+  let body = json.stringify({
+    data: {
+      hello: "Hello from {{projectName}} GraphQL!",
+      health: "healthy"
+    }
+  })
 
   http.Response.ok(body)
     |> http.Response.withHeader("Content-Type", "application/json")
@@ -1185,6 +1224,9 @@ let main = () => {
 
   // Health check
   server |> http.Server.get("/api/v1/health", healthHandler)
+
+  // GraphQL endpoint (raw POST handler returning JSON)
+  server |> http.Server.post("/graphql", graphqlHandler)
 
   // Auth routes
   server |> http.Server.post("/api/v1/auth/register", registerHandler)

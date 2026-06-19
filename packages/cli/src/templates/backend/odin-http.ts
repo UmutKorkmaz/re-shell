@@ -11,7 +11,7 @@ export const odinHttpTemplate: BackendTemplate = {
   tags: ['odin', 'systems', 'performance', 'manual-memory', 'http', 'concurrency'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main file
@@ -183,6 +183,15 @@ health_handler :: proc(req: ^Request) -> Response {
     200,
     {"Content-Type": "application/json"},
     fmt.aprint("{\\"status\\": \\"healthy\\", \\"timestamp\\": \\"2024-01-01T00:00:00Z\\", \\"version\\": \\"1.0.0\\"}")}
+}
+
+// GraphQL handler (raw POST handler returning JSON)
+// Schema: Query { hello: String!, health: String! }
+graphql_handler :: proc(req: ^Request) -> Response {
+  return Response{
+    200,
+    {"Content-Type": "application/json"},
+    fmt.aprint("{\\"data\\": {\\"hello\\": \\"Hello from {{projectName}} GraphQL!\\", \\"health\\": \\"healthy\\"}}")}
 }
 
 // Register handler
@@ -359,13 +368,43 @@ main :: proc() {
   fmt.println("👤 Default admin: admin@example.com / admin123")
   fmt.println("🚀 Server running at http://localhost:8080")
   fmt.println("📚 API docs: http://localhost:8080/api/v1/health")
+  fmt.println("🧬 GraphQL: http://localhost:8080/graphql")
 
-  // In production, start actual HTTP server
+  // Route registrations (in production, start actual HTTP server here)
+  // GET  /api/v1/health          -> health_handler
+  // POST /graphql                -> graphql_handler   (Query { hello, health })
+  // POST /api/v1/auth/register   -> register_handler
+  // POST /api/v1/auth/login      -> login_handler
+  _ = graphql_handler   // GraphQL /graphql endpoint
+
   // This is a simplified version for demonstration
   time.sleep(time.Second * 60)
 }
 `
 ,
+
+    // GraphQL schema (SDL reference)
+    'graphql/schema.graphql': `# {{projectName}} - GraphQL Schema
+type Query {
+  hello: String!
+  health: String!
+}
+`,
+
+    // GraphQL resolvers (raw JSON handler)
+    'graphql/resolver.odin': `package graphql
+
+import "core:fmt"
+
+// Resolvers for schema: Query { hello: String!, health: String! }
+hello_resolver :: proc() -> string {
+  return "Hello from {{projectName}} GraphQL!"
+}
+
+health_resolver :: proc() -> string {
+  return "healthy"
+}
+`,
 
     // Build configuration
     'odin-run': `odin build src/main.odin -out:./{{projectName}}

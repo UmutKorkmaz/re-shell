@@ -10,7 +10,7 @@ export const compojureTemplate: BackendTemplate = {
   language: 'clojure',
   port: 3000,
   tags: ['clojure', 'compojure', 'ring', 'web', 'api', 'rest', 'functional', 'jvm'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation'],
+  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation', 'graphql'],
   dependencies: {},
   devDependencies: {},
   files: {
@@ -26,6 +26,7 @@ export const compojureTemplate: BackendTemplate = {
                  [ring/ring-json "0.5.1"]
                  [ring-cors "0.1.13"]
                  [compojure "1.7.0"]
+                 [com.walmartlabs/lacinia "1.2.2"]
                  [buddy/buddy-sign "3.5.351"]
                  [buddy/buddy-hashers "2.0.167"]
                  [environ "1.2.0"]
@@ -65,7 +66,8 @@ export const compojureTemplate: BackendTemplate = {
             [ring.adapter.jetty :refer [run-jetty]]
             [environ.core :refer [env]]
             [{{projectName}}.handlers :as handlers]
-            [{{projectName}}.middleware :as mw])
+            [{{projectName}}.middleware :as mw]
+            [{{projectName}}.graphql :as graphql])
   (:gen-class))
 
 (defroutes api-routes
@@ -74,6 +76,9 @@ export const compojureTemplate: BackendTemplate = {
 
   ;; Root endpoint
   (GET "/" [] handlers/root-handler)
+
+  ;; GraphQL endpoint
+  (POST "/graphql" [] graphql/graphql-handler)
 
   ;; Auth routes
   (POST "/api/auth/register" [] handlers/register-handler)
@@ -321,6 +326,56 @@ export const compojureTemplate: BackendTemplate = {
       (:user-id claims))
     (catch Exception e
       nil)))
+`,
+
+    'src/{{projectName}}/graphql_schema.clj': `(ns {{projectName}}.graphql-schema
+  "GraphQL schema and resolvers built with Lacinia."
+  (:require [com.walmartlabs.lacinia.schema :as schema]))
+
+;; Resolvers for the Query type
+(defn resolve-hello
+  [context args value]
+  "Hello from GraphQL!")
+
+(defn resolve-health
+  [context args value]
+  "healthy")
+
+;; Minimal schema: Query { hello: String!, health: String! }
+(defn schema
+  "Builds the Lacinia GraphQL schema."
+  []
+  (schema/compile
+    {:objects {}
+     :queries {:hello {:type 'String
+                       :resolve resolve-hello}
+               :health {:type 'String
+                        :resolve resolve-health}}}))
+`,
+
+    'src/{{projectName}}/graphql.clj': `(ns {{projectName}}.graphql
+  "GraphQL HTTP handler wrapping the Lacinia schema."
+  (:require [com.walmartlabs.lacinia :as lacinia]
+            [com.walmartlabs.lacinia.parser :as parser]
+            [cheshire.core :as json]
+            [{{projectName}}.graphql-schema :as gql-schema]))
+
+(defn- execute
+  "Executes a GraphQL query against the compiled schema and returns the result as JSON."
+  [query-string]
+  (let [parsed (parser/parse-query query-string)
+        result (lacinia/execute (gql-schema/schema) query-string nil nil)]
+    (json/generate-string result)))
+
+(defn graphql-handler
+  "Compojure handler for POST /graphql. Expects a JSON body with a \\"query\\" key."
+  [request]
+  (let [body (:body request)
+        query-string (or (:query body) "{}")
+        result (execute query-string)]
+    {:status 200
+     :headers {"Content-Type" "application/json"}
+     :body result}))
 `,
 
     'src/{{projectName}}/middleware.clj': `(ns {{projectName}}.middleware

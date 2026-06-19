@@ -10,8 +10,15 @@ export const plugExTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['elixir', 'plug', 'composable', 'middleware', 'router', 'cowboy'],
   port: 4000,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'middleware'],
+  dependencies: {
+    'plug': '~> 1.14',
+    'plug_cowboy': '~> 2.6',
+    'jason': '~> 1.4',
+    'pbkdf2_elixir': '~> 2.0',
+    'absinthe': '~> 1.7',
+    'absinthe_plug': '~> 1.5'
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'middleware', 'graphql'],
 
   files: {
     // Mix configuration
@@ -40,7 +47,9 @@ export const plugExTemplate: BackendTemplate = {
       {:plug, "~> 1.14"},
       {:plug_cowboy, "~> 2.6"},
       {:jason, "~> 1.4"},
-      {:pbkdf2_elixir, "~> 2.0"}
+      {:pbkdf2_elixir, "~> 2.0"},
+      {:absinthe, "~> 1.7"},
+      {:absinthe_plug, "~> 1.5"}
     ]
   end
 end
@@ -380,6 +389,26 @@ end
 end
 `,
 
+    // GraphQL schema (Absinthe)
+    'lib/{{projectNameSnake}}_schema.ex': `defmodule {{projectNamePascal}}.Schema do
+  use Absinthe.Schema
+
+  query do
+    field :hello, non_null(:string) do
+      resolve fn _parent, _args, _resolution ->
+        {:ok, "Hello, GraphQL!"}
+      end
+    end
+
+    field :health, non_null(:string) do
+      resolve fn _parent, _args, _resolution ->
+        {:ok, "healthy"}
+      end
+    end
+  end
+end
+`,
+
     // Endpoint
     'lib/{{projectNameSnake}}_endpoint.ex': `defmodule {{projectNamePascal}}.Endpoint do
   use Plug.Router
@@ -393,6 +422,9 @@ end
   plug :dispatch
 
   forward "/api", to: {{projectNamePascal}}.Router
+  forward "/graphql",
+    to: Absinthe.Plug,
+    init_opts: [schema: {{projectNamePascal}}.Schema]
 
   match _ do
     send_resp(conn, 404, "Not found")

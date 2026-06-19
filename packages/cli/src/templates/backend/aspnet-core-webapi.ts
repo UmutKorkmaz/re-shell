@@ -45,6 +45,9 @@ export const aspnetCoreWebApiTemplate: BackendTemplate = {
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning" Version="5.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" Version="5.1.0" />
+    <PackageReference Include="GraphQL" Version="7.8.0" />
+    <PackageReference Include="GraphQL.SystemTextJson" Version="7.8.0" />
+    <PackageReference Include="GraphQL.MicrosoftDI" Version="7.8.0" />
   </ItemGroup>
 
 </Project>`,
@@ -123,6 +126,11 @@ try
     {
         options.Configuration = builder.Configuration.GetConnectionString("Redis");
     });
+
+    // GraphQL
+    builder.Services.AddSingleton<ISchema, GraphQLSchema>();
+    builder.Services.AddSingleton<IDocumentExecuter, DocumentExecuter>();
+    builder.Services.AddSingleton<IGraphQLSerializer, GraphQLSerializer>();
 
     // API versioning
     builder.Services.AddApiVersioning(opt =>
@@ -225,6 +233,21 @@ try
     app.UseCors("AllowSpecificOrigin");
     app.UseAuthentication();
     app.UseAuthorization();
+
+    // GraphQL endpoint
+    app.MapPost("/graphql", async (HttpContext context, ISchema schema, IDocumentExecuter executer, IGraphQLSerializer serializer) =>
+    {
+        var request = await context.Request.ReadFromJsonAsync<GraphQLRequest>();
+        var result = await executer.ExecuteAsync(options =>
+        {
+            options.Schema = schema;
+            options.Query = request?.Query;
+            options.Inputs = request?.Variables;
+        });
+
+        await serializer.WriteAsync(context.Response.Body, result);
+    })
+    .WithName("GraphQL");
 
     app.MapControllers();
 
@@ -1597,6 +1620,52 @@ public class MappingProfile : Profile
     }
 }`,
 
+    // GraphQL schema and resolvers
+    'GraphQL/GraphQLSchema.cs': `using GraphQL;
+using GraphQL.NewtonsoftJson;
+using GraphQL.Types;
+
+namespace \${projectName}.GraphQL;
+
+public class GraphQLSchema : Schema
+{
+    public GraphQLSchema() : base(new GraphQLServiceProvider())
+    {
+        Query = new RootQuery();
+    }
+}
+
+public class RootQuery : ObjectGraphType
+{
+    public RootQuery()
+    {
+        Field<StringGraphType>("hello")
+            .Resolve(_ => "Hello, GraphQL!");
+
+        Field<StringGraphType>("health")
+            .Resolve(_ => "healthy");
+    }
+}
+
+public class GraphQLRequest
+{
+    public string? Query { get; set; }
+    public Inputs? Variables { get; set; }
+}
+
+internal class GraphQLServiceProvider : IServiceProvider
+{
+    public object? GetService(Type serviceType)
+    {
+        if (serviceType == typeof(RootQuery))
+        {
+            return new RootQuery();
+        }
+        return null;
+    }
+}`,
+
+
     // Docker support
     'Dockerfile': `# =============================================================================
 # Multi-stage build for optimized image size
@@ -1864,7 +1933,10 @@ This project is licensed under the MIT License.`
     'Serilog.AspNetCore': '^8.0.0',
     'AutoMapper': '^12.0.1',
     'FluentValidation.AspNetCore': '^11.3.0',
-    'StackExchange.Redis': '^2.7.10'
+    'StackExchange.Redis': '^2.7.10',
+    'GraphQL': '^7.8.0',
+    'GraphQL.SystemTextJson': '^7.8.0',
+    'GraphQL.MicrosoftDI': '^7.8.0'
   },
 
   devDependencies: {
@@ -1884,6 +1956,7 @@ This project is licensed under the MIT License.`
     'validation',
     'cors',
     'rest-api',
+    'graphql',
     'docker'
   ]
 };

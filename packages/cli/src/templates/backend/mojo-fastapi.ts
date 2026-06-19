@@ -11,7 +11,7 @@ export const mojoFastapiTemplate: BackendTemplate = {
   tags: ['mojo', 'fastapi', 'python', 'ai', 'ml', 'simd', 'hybrid', 'performance'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'python-interop'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'python-interop', 'graphql'],
 
   files: {
     // Main Mojo entry point
@@ -212,6 +212,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# GraphQL endpoint (strawberry-graphql)
+from strawberry.fastapi import GraphQLRouter
+from graphql_schema import schema
+
+graphql_app = GraphQLRouter(schema)
+app.include_router(graphql_app, prefix="/graphql")
+
 # Pydantic models
 class PredictionRequest(BaseModel):
     features: List[float]
@@ -303,6 +310,27 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
 `,
 
+    // GraphQL schema + resolvers (strawberry-graphql)
+    'graphql_schema.py': `"""
+{{projectName}} - GraphQL Schema and Resolvers (strawberry-graphql)
+"""
+import strawberry
+
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    def hello(self) -> str:
+        return "Hello from Mojo/FastAPI GraphQL!"
+
+    @strawberry.field
+    def health(self) -> str:
+        return "healthy"
+
+
+schema = strawberry.Schema(query=Query)
+`,
+
     // Mojo configuration
     'mojo.config': `# {{projectName}} Mojo Configuration
 
@@ -351,6 +379,9 @@ scikit-learn==1.3.2
 python-multipart==0.0.6
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+
+# GraphQL (strawberry-graphql integrates with FastAPI)
+strawberry-graphql[fastapi]==0.215.0
 `,
 
     // Environment file

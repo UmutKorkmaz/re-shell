@@ -10,7 +10,7 @@ export const pistacheTemplate: BackendTemplate = {
   version: '0.3.0',
   tags: ['cpp', 'pistache', 'api', 'rest', 'http2', 'modern-cpp'],
   port: 9080,
-  features: ['routing', 'middleware', 'authentication', 'validation', 'cors', 'logging', 'testing', 'docker', 'compression', 'rate-limiting'],
+  features: ['routing', 'middleware', 'authentication', 'validation', 'cors', 'logging', 'testing', 'docker', 'compression', 'rate-limiting', 'graphql'],
   dependencies: {},
   devDependencies: {},
   
@@ -66,11 +66,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(googletest)
 
+# Fetch graphql-parser (cpp-graphql)
+FetchContent_Declare(
+    graphqlparser
+    GIT_REPOSITORY https://github.com/graphql/libgraphqlparser.git
+    GIT_TAG master
+)
+FetchContent_MakeAvailable(graphqlparser)
+
 # Source files
 set(SOURCES
     src/main.cpp
     src/server/server.cpp
     src/routes/health_routes.cpp
+    src/routes/graphql_routes.cpp
     src/routes/user_routes.cpp
     src/middleware/auth_middleware.cpp
     src/middleware/cors_middleware.cpp
@@ -97,6 +106,7 @@ target_link_libraries(\${PROJECT_NAME} PRIVATE
     jwt-cpp::jwt-cpp
     \${CMAKE_THREAD_LIBS_INIT}
     \${OPENSSL_LIBRARIES}
+    graphqlparser
 )
 
 # Test executable
@@ -212,6 +222,7 @@ public:
 
     'src/server/server.cpp': `#include "server/server.hpp"
 #include "routes/health_routes.hpp"
+#include "routes/graphql_routes.hpp"
 #include "routes/user_routes.hpp"
 #include "middleware/cors_middleware.hpp"
 #include "middleware/logging_middleware.hpp"
@@ -255,7 +266,10 @@ void HttpServer::setupMiddleware() {
 void HttpServer::setupRoutes() {
     // Health routes
     HealthRoutes::setup(router_);
-    
+
+    // GraphQL routes
+    GraphqlRoutes::setup(router_);
+
     // User routes
     UserRoutes::setup(router_);
     
@@ -415,6 +429,42 @@ void HealthRoutes::metrics(const Pistache::Rest::Request& req,
     result["response_time_avg_ms"] = 0;
     
     response.send(Pistache::Http::Code::Ok, result.dump(), 
+                  MIME(Application, Json));
+}
+`,
+
+    // GraphQL Routes (cpp-graphql: minimal { hello, health } query handler)
+    'include/routes/graphql_routes.hpp': `#pragma once
+#include <pistache/router.h>
+
+class GraphqlRoutes {
+public:
+    static void setup(Pistache::Rest::Router& router);
+
+private:
+    static void handle(Pistache::Rest::Request req,
+                       Pistache::Http::ResponseWriter response);
+};
+`,
+
+    'src/routes/graphql_routes.cpp': `#include "routes/graphql_routes.hpp"
+#include <nlohmann/json.hpp>
+
+// Minimal GraphQL endpoint: parses the JSON request body and returns
+// { hello: "Hello from Pistache GraphQL!", health: "healthy" }.
+// Intended to be backed by cpp-graphql/graphqlparser for full schemas.
+void GraphqlRoutes::setup(Pistache::Rest::Router& router) {
+    using namespace Pistache::Rest;
+    Routes::Post(router, "/graphql", Routes::bind(&GraphqlRoutes::handle));
+}
+
+void GraphqlRoutes::handle(Pistache::Rest::Request req,
+                           Pistache::Http::ResponseWriter response) {
+    nlohmann::json result;
+    result["data"]["hello"] = "Hello from Pistache GraphQL!";
+    result["data"]["health"] = "healthy";
+
+    response.send(Pistache::Http::Code::Ok, result.dump(),
                   MIME(Application, Json));
 }
 `,

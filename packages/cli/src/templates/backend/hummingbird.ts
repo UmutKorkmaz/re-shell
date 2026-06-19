@@ -10,8 +10,15 @@ export const hummingbirdTemplate: BackendTemplate = {
   version: '1.10.0',
   tags: ['swift', 'hummingbird', 'api', 'rest', 'swiftnio', 'lightweight'],
   port: 8080,
-  dependencies: {},
-  features: ['authentication', 'middleware', 'logging', 'cors', 'compression', 'websockets'],
+  dependencies: {
+    'hummingbird': '^1.10.0',
+    'hummingbird-auth': '^1.3.0',
+    'hummingbird-fluent': '^1.3.0',
+    'fluent': '^4.8.0',
+    'jwt': '^4.2.2',
+    'Graphiti': '^1.0.0'
+  },
+  features: ['authentication', 'middleware', 'logging', 'cors', 'compression', 'websockets', 'graphql'],
   
   files: {
     // Swift Package Manager configuration
@@ -48,7 +55,10 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
         
         // Argument Parser
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.3")],
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.3"),
+
+        // GraphQL
+        .package(url: "https://github.com/GraphQLSwift/Graphiti.git", from: "1.0.0")],
     targets: [
         .executableTarget(
             name: "{{projectName}}",
@@ -66,7 +76,8 @@ let package = Package(
                 .product(name: "JWT", package: "authentication"),
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "Logging", package: "swift-log"),
-                .product(name: "ArgumentParser", package: "swift-argument-parser")],
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Graphiti", package: "Graphiti")],
             path: "Sources/{{projectName}}"
         ),
         .testTarget(
@@ -244,6 +255,15 @@ extension HBApplication {
         router.get("/health") { request -> HBResponse in
             let health = try await checkHealth(request)
             return try HBResponse(status: .ok, body: .json(health))
+        }
+
+        // GraphQL endpoint
+        router.post("/graphql") { request -> HBResponse in
+            let body = try await request.body.collate()
+            let payload = String(buffer: body)
+            let result = try await GraphQLSchema.execute(payload)
+            let data = try JSONSerialization.data(withJSONObject: result, options: [])
+            return HBResponse(status: .ok, headers: ["Content-Type": "application/json"], body: .byteBuffer(ByteBuffer(bytes: data)))
         }
         
         // API routes
@@ -1009,6 +1029,40 @@ extension HBRequest {
     var user: User? {
         get { self.auth.get(User.self) }
         set { self.auth.set(newValue) }
+    }
+}`,
+
+    // GraphQL schema and resolvers
+    'Sources/{{projectName}}/GraphQL/GraphQLSchema.swift': `import Foundation
+import Graphiti
+
+// Resolver type that holds field resolver functions
+struct HelloResolver {
+    func hello(context: NoContext, arguments: NoArguments) -> String {
+        return "Hello, GraphQL!"
+    }
+
+    func health(context: NoContext, arguments: NoArguments) -> String {
+        return "healthy"
+    }
+}
+
+// Build the GraphQL schema using Graphiti
+enum GraphQLSchema {
+    static let schema = try! Schema<HelloResolver, NoContext> {
+        Query {
+            Field("hello", type: String.self) { resolver in
+                resolver.hello()
+            }
+            Field("health", type: String.self) { resolver in
+                resolver.health()
+            }
+        }
+    }
+
+    static func execute(_ query: String) async throws -> [String: Any] {
+        let result = try schema.execute(request: query, resolver: HelloResolver(), context: NoContext.value)
+        return ["data": result]
     }
 }`,
 

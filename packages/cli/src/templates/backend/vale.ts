@@ -11,7 +11,7 @@ export const valeTemplate: BackendTemplate = {
   tags: ['vale', 'memory-safety', 'systems', 'zero-cost', 'cpp-interop', 'experimental', 'regions'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main Vale file
@@ -123,6 +123,14 @@ fn HttpResponse.set_header(mut self HttpResponse, key str, value str) {
 fn health_handler(request C.HttpRequest) HttpResponse {
   var timestamp = C.get_timestamp();
   var body = "{\\"status\\": \\"healthy\\", \\"timestamp\\": \\"" + timestamp + "\\", \\"version\\": \\"1.0.0\\"}";
+  ret HttpResponse.create(200, body);
+}
+
+# GraphQL handler (raw POST handler returning JSON)
+# Schema: Query { hello: String!, health: String! }
+fn graphql_handler(request C.HttpRequest) HttpResponse {
+  # In production, parse the GraphQL query from request.body.
+  var body = "{\\"data\\": {\\"hello\\": \\"Hello from {{projectName}} GraphQL!\\", \\"health\\": \\"healthy\\"}}";
   ret HttpResponse.create(200, body);
 }
 
@@ -288,6 +296,8 @@ fn route_request(path str, method str, request C.HttpRequest) HttpResponse {
     ret home_handler(request);
   } else if (path == "/api/v1/health") {
     ret health_handler(request);
+  } else if (path == "/graphql" && method == "POST") {
+    ret graphql_handler(request);
   } else if (path == "/api/v1/auth/register" && method == "POST") {
     ret register_handler(request);
   } else if (path == "/api/v1/auth/login" && method == "POST") {
@@ -328,6 +338,7 @@ fn main() i32 {
   # Set up routes
   server.add_route("GET", "/", home_handler);
   server.add_route("GET", "/api/v1/health", health_handler);
+  server.add_route("POST", "/graphql", graphql_handler);
   server.add_route("POST", "/api/v1/auth/register", register_handler);
   server.add_route("POST", "/api/v1/auth/login", login_handler);
   server.add_route("GET", "/api/v1/products", list_products_handler);
@@ -450,6 +461,28 @@ void cors_middleware() {
 }
 
 } // extern "C"
+`,
+
+    // GraphQL schema (SDL reference)
+    'graphql/schema.graphql': `# {{projectName}} - GraphQL Schema
+type Query {
+  hello: String!
+  health: String!
+}
+`,
+
+    // GraphQL resolvers (raw JSON handler)
+    'graphql/resolver.vale': `# {{projectName}} - GraphQL Resolvers
+
+# Resolver for hello field
+fn graphql_hello() str {
+  ret "Hello from {{projectName}} GraphQL!";
+}
+
+# Resolver for health field
+fn graphql_health() str {
+  ret "healthy";
+}
 `,
 
     // Vale package configuration

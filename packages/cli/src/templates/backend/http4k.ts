@@ -11,7 +11,7 @@ export const http4kTemplate: BackendTemplate = {
   tags: ['kotlin', 'http4k', 'functional', 'api', 'rest', 'jvm', 'serverless'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Gradle build configuration
@@ -56,6 +56,10 @@ dependencies {
 
     // Template
     implementation("org.http4k:http4k-template-handlebars:$http4kVersion")
+
+    // GraphQL
+    implementation("com.expediagroup:graphql-kotlin-server:7.1.1")
+    implementation("com.expediagroup:graphql-kotlin-schema:7.1.1")
 
     // Resilience
     implementation("org.http4k:http4k-resilience4j:$http4kVersion")
@@ -522,6 +526,7 @@ import org.http4k.format.Jackson.auto
 import org.http4k.lens.RequestContextKey
 import org.http4k.routing.bind
 import org.http4k.routing.routes
+import com.{{projectName}}.graphql.QueryResolvers
 import java.time.Instant
 
 fun createApi(env: Environment): HttpHandler {
@@ -560,6 +565,7 @@ fun createApi(env: Environment): HttpHandler {
                 "timestamp" to Instant.now().toString()
             ))
         },
+        "/graphql" bind Method.POST to QueryResolvers::resolve,
         "/docs" bind swaggerUi("/api/v1/openapi.json"),
         "/api/v1" bind apiContract
     )
@@ -1148,9 +1154,93 @@ src/
 │   ├── config/       # Configuration
 │   ├── models/       # Data models
 │   ├── routes/       # API routes
+│   ├── graphql/      # GraphQL schema + resolvers
 │   └── Application.kt
 └── test/kotlin/      # Tests
 \`\`\`
+`,
+
+    // GraphQL schema definition
+    'src/main/kotlin/com/{{projectName}}/graphql/Schema.kt': `package com.{{projectName}}.graphql
+
+import com.expediagroup.graphql.server.execution.GraphQLRequestParser
+import com.expediagroup.graphql.server.types.GraphQLServerRequest
+
+/**
+ * Minimal GraphQL schema describing the Query { hello, health } surface.
+ * Resolvers live alongside in QueryResolvers.
+ */
+object Schema {
+    val sdl: String = """
+        type Query {
+            hello: String!
+            health: String!
+        }
+    """.trimIndent()
+
+    const val ENDPOINT: String = "/graphql"
+}
+
+/**
+ * Lightweight GraphQL request holder used by the /graphql HttpHandler.
+ */
+data class GraphqlRequest(
+    val query: String,
+    val variables: Map<String, Any?> = emptyMap(),
+    val operationName: String? = null
+)
+`,
+
+    // GraphQL resolvers
+    'src/main/kotlin/com/{{projectName}}/graphql/QueryResolvers.kt': `package com.{{projectName}}.graphql
+
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
+import org.http4k.core.Body
+import org.http4k.core.ContentType
+import org.http4k.core.Method
+import org.http4k.core.Request
+import org.http4k.core.Response
+import org.http4k.core.Status
+import org.http4k.core.with
+import org.http4k.format.Jackson.auto
+import org.http4k.lens.Header
+import java.time.Instant
+
+/**
+ * Minimal GraphQL resolver for Query { hello: String!, health: String! }.
+ * Executes the small subset of queries the schema exposes without pulling
+ * in a full GraphQL runtime, so the template stays runnable.
+ */
+object QueryResolvers {
+    private val mapper = jacksonObjectMapper()
+    private val requestLens = Body.auto<GraphqlRequest>().toLens()
+    private val jsonLens = Body.auto<Map<String, Any?>>().toLens()
+
+    fun resolve(request: Request): Response {
+        val graphqlRequest = try {
+            requestLens(request)
+        } catch (e: Exception) {
+            return Response(Status.BAD_REQUEST)
+                .with(jsonLens of mapOf("errors" to listOf(mapOf("message" to "Invalid GraphQL request body"))))
+        }
+
+        val query = graphqlRequest.query
+        val data = mutableMapOf<String, Any?>()
+
+        if (query.contains("hello", ignoreCase = true)) {
+            data["hello"] = "Hello from {{projectName}} GraphQL!"
+        }
+        if (query.contains("health", ignoreCase = true)) {
+            data["health"] = "healthy at \${Instant.now()}"
+        }
+
+        val result: Map<String, Any?> = mapOf("data" to data)
+        return Response(Status.OK)
+            .with(Header.CONTENT_TYPE of ContentType.APPLICATION_JSON)
+            .with(jsonLens of result)
+    }
+}
 `
   }
 };

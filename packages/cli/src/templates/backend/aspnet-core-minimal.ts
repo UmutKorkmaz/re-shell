@@ -44,6 +44,8 @@ export const aspnetCoreMinimalTemplate: BackendTemplate = {
     <PackageReference Include="StackExchange.Redis" Version="2.7.10" />
     <PackageReference Include="Microsoft.AspNetCore.RateLimiting" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.OutputCaching" Version="8.0.0" />
+    <PackageReference Include="GraphQL" Version="7.8.0" />
+    <PackageReference Include="GraphQL.SystemTextJson" Version="7.8.0" />
   </ItemGroup>
 
 </Project>`,
@@ -139,6 +141,10 @@ try
         options.Configuration = builder.Configuration.GetConnectionString("Redis");
     });
 
+    // GraphQL
+    builder.Services.AddSingleton<GraphQLSchema>();
+    builder.Services.AddSingleton<GraphQLEntityResolver>();
+
     // Swagger/OpenAPI
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(c =>
@@ -202,6 +208,23 @@ try
     app.UseAuthorization();
     app.UseRateLimiter();
     app.UseOutputCache();
+
+    // GraphQL endpoint
+    app.MapPost("/graphql", async (HttpContext context, GraphQLSchema schema) =>
+    {
+        var request = await context.Request.ReadFromJsonAsync<GraphQLRequest>();
+        var result = await new DocumentExecuter().ExecuteAsync(options =>
+        {
+            options.Schema = schema;
+            options.Query = request?.Query;
+            options.Inputs = request?.Variables;
+        });
+
+        var writer = new GraphQLSerializer();
+        await writer.WriteAsync(context.Response.Body, result);
+    })
+    .WithName("GraphQL")
+    .WithOpenApi();
 
     // Health check endpoint
     app.MapGet("/health", () => Results.Ok(new { 
@@ -909,27 +932,52 @@ public class ProductService : IProductService
     }
 }`,
 
-    // Configuration files
-    'appsettings.json': `{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning",
-      "Microsoft.EntityFrameworkCore": "Information"
+    // GraphQL schema
+    'GraphQL/GraphQLSchema.cs': `using GraphQL;
+using GraphQL.Types;
+
+namespace \${projectName}.GraphQL;
+
+public class GraphQLSchema : Schema
+{
+    public GraphQLSchema(GraphQLEntityResolver resolver) : base(resolver)
+    {
+        Query = resolver.Resolve<RootQuery>();
     }
-  },
-  "AllowedHosts": "*",
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\\\mssqllocaldb;Database=\${projectName}MinimalDb;Trusted_Connection=true;MultipleActiveResultSets=true",
-    "Redis": "localhost:6379"
-  },
-  "JwtSettings": {
-    "SecretKey": "YourSuperSecretKeyThatIsAtLeast32CharactersLong!",
-    "Issuer": "\${projectName}-minimal-api",
-    "Audience": "\${projectName}-client",
-    "ExpirationInMinutes": 60
-  }
+}
+
+public class RootQuery : ObjectGraphType
+{
+    public RootQuery()
+    {
+        Field<StringGraphType>("hello")
+            .Resolve(_ => "Hello, GraphQL!");
+
+        Field<StringGraphType>("health")
+            .Resolve(_ => "healthy");
+    }
+}
+
+public class GraphQLRequest
+{
+    public string? Query { get; set; }
+    public Inputs? Variables { get; set; }
+}
+
+public class GraphQLEntityResolver : IServiceProvider
+{
+    private readonly Dictionary<Type, object> _services = new();
+
+    public void Add<T>(T service) where T : notnull
+        => _services[typeof(T)] = service;
+
+    public T Resolve<T>() where T : notnull
+        => (T)_services[typeof(T)];
+
+    public object? GetService(Type serviceType)
+        => _services.TryGetValue(serviceType, out var service) ? service : null;
 }`,
+
 
     'appsettings.Development.json': `{
   "Logging": {
@@ -1230,7 +1278,9 @@ This project is licensed under the MIT License.`
     'FluentValidation': '^11.8.0',
     'StackExchange.Redis': '^2.7.10',
     'Microsoft.AspNetCore.RateLimiting': '^8.0.0',
-    'Microsoft.AspNetCore.OutputCaching': '^8.0.0'
+    'Microsoft.AspNetCore.OutputCaching': '^8.0.0',
+    'GraphQL': '^7.8.0',
+    'GraphQL.SystemTextJson': '^7.8.0'
   },
 
   devDependencies: {
@@ -1248,6 +1298,7 @@ This project is licensed under the MIT License.`
     'rate-limiting',
     'cors',
     'rest-api',
+    'graphql',
     'docker'
   ]
 };

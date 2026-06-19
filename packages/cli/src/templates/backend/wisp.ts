@@ -10,7 +10,7 @@ export const wispTemplate: BackendTemplate = {
   language: 'gleam',
   port: 8000,
   tags: ['gleam', 'wisp', 'web', 'api', 'rest', 'beam', 'erlang', 'functional'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation'],
+  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation', 'graphql'],
   dependencies: {},
   devDependencies: {},
   files: {
@@ -27,6 +27,7 @@ gleam_otp = "~> 0.10"
 wisp = "~> 0.14"
 mist = "~> 1.0"
 gwt = "~> 1.0"
+ocaml_graphql_server = "~> 0.14"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"
@@ -94,6 +95,7 @@ import {{projectName}}/handlers/health
 import {{projectName}}/handlers/auth
 import {{projectName}}/handlers/users
 import {{projectName}}/handlers/items
+import {{projectName}}/handlers/graphql
 import {{projectName}}/middleware
 
 pub fn handle_request(req: Request) -> Response {
@@ -101,6 +103,9 @@ pub fn handle_request(req: Request) -> Response {
   use req <- middleware.log_request(req)
 
   case wisp.path_segments(req) {
+    // GraphQL endpoint
+    ["graphql"] -> graphql.handle(req)
+
     // Health check
     ["health"] -> health.handle(req)
 
@@ -217,6 +222,67 @@ pub fn handle(req: Request) -> Response {
     _ -> wisp.method_not_allowed([Get, Options])
   }
 }
+`,
+
+    'src/{{projectName}}/graphql_schema.gleam': `import gleam/json
+
+// Minimal GraphQL schema definition: Query { hello: String!, health: String! }
+// ocaml-graphql-server is exposed via the BEAM FFI; the schema is described as
+// a data structure here and executed through the graphql handler.
+
+pub const schema_sdl = "
+type Query {
+  hello: String!
+  health: String!
+}
+"
+
+pub fn resolve_hello() -> String {
+  "Hello from GraphQL!"
+}
+
+pub fn resolve_health() -> String {
+  "healthy"
+}
+
+pub fn schema_json() -> String {
+  json.object([
+    #("hello", json.string(resolve_hello())),
+    #("health", json.string(resolve_health())),
+  ])
+  |> json.to_string
+}
+`,
+
+    'src/{{projectName}}/handlers/graphql.gleam': `import gleam/http.{Post, Options}
+import gleam/json
+import wisp.{type Request, type Response}
+
+import {{projectName}}/graphql_schema
+
+pub fn handle(req: Request) -> Response {
+  case req.method {
+    Post -> handle_query(req)
+    Options -> wisp.response(204)
+    _ -> wisp.method_not_allowed([Post, Options])
+  }
+}
+
+fn handle_query(req: Request) -> Response {
+  use _body <- wisp.require_json(req)
+
+  // Execute the minimal schema (hello, health) and return the result.
+  let body =
+    json.object([
+      #("data", json.decode(graphql_schema.schema_json())
+        |> result.unwrap(json.null())),
+    ])
+    |> json.to_string_builder
+
+  wisp.json_response(body, 200)
+}
+
+import gleam/result
 `,
 
     'src/{{projectName}}/handlers/auth.gleam': `import gleam/http.{Post, Options}

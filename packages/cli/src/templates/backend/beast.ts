@@ -10,8 +10,10 @@ export const beastTemplate: BackendTemplate = {
   version: '1.83.0',
   tags: ['cpp', 'beast', 'boost', 'websockets', 'http', 'networking'],
   port: 8085,
-  features: ['websockets', 'authentication', 'cors', 'logging', 'testing', 'docker'],
-  dependencies: {},
+  features: ['websockets', 'authentication', 'cors', 'logging', 'testing', 'docker', 'graphql'],
+  dependencies: {
+    'graphql-resolver-cpp': 'https://github.com/bucchial/graphql-resolver-cpp.git#v0.1.0'
+  },
   devDependencies: {},
   
   files: {
@@ -71,6 +73,9 @@ set(SOURCES
     src/handlers/http_handler.cpp
     src/handlers/websocket_handler.cpp
     src/handlers/api_handler.cpp
+    src/handlers/graphql_handler.cpp
+    src/graphql/schema.cpp
+    src/graphql/resolver.cpp
     src/session/session_manager.cpp
     src/middleware/auth_middleware.cpp
     src/middleware/cors_middleware.cpp
@@ -429,18 +434,142 @@ class WebSocketServer : public std::enable_shared_from_this<WebSocketServer> {
 public:
     WebSocketServer(net::io_context& ioc, const Config& config);
     ~WebSocketServer();
-    
+
     void start();
     void stop();
-    
+
 private:
     void do_accept();
     void on_accept(beast::error_code ec, tcp::socket socket);
-    
+
     net::io_context& ioc_;
     const Config& config_;
     tcp::acceptor acceptor_;
 };
+`,
+
+    // GraphQL schema (simple switch on query field)
+    'include/graphql/schema.hpp': `#pragma once
+#include <string>
+#include <nlohmann/json.hpp>
+
+namespace graphql {
+    extern const char* SCHEMA_SDL;
+
+    // Execute a GraphQL query string against the schema and return JSON data.
+    nlohmann::json execute(const std::string& query);
+}
+`,
+
+    'src/graphql/schema.cpp': `#include "graphql/schema.hpp"
+#include "graphql/resolver.hpp"
+
+namespace graphql {
+    const char* SCHEMA_SDL =
+        "type Query {\\n"
+        "  hello: String!\\n"
+        "  health: String!\\n"
+        "}\\n";
+
+    nlohmann::json execute(const std::string& query) {
+        nlohmann::json data = nlohmann::json::object();
+
+        if (query.find("hello") != std::string::npos) {
+            data["hello"] = resolver::hello();
+        }
+        if (query.find("health") != std::string::npos) {
+            data["health"] = resolver::health();
+        }
+
+        return data;
+    }
+}
+`,
+
+    // GraphQL resolver
+    'include/graphql/resolver.hpp': `#pragma once
+#include <string>
+
+namespace graphql {
+    namespace resolver {
+        std::string hello();
+        std::string health();
+    }
+}
+`,
+
+    'src/graphql/resolver.cpp': `#include "graphql/resolver.hpp"
+
+namespace graphql {
+    namespace resolver {
+        std::string hello() {
+            return "Hello from Beast GraphQL!";
+        }
+
+        std::string health() {
+            return "healthy";
+        }
+    }
+}
+`,
+
+    // GraphQL HTTP handler (raw /graphql POST handler)
+    'include/handlers/graphql_handler.hpp': `#pragma once
+#include <boost/beast/http.hpp>
+#include <boost/beast/core.hpp>
+#include <string>
+#include "config/config.hpp"
+
+namespace beast = boost::beast;
+namespace http = beast::http;
+
+namespace graphql {
+    // Handle a /graphql POST request. Returns true if the request was handled
+    // (i.e. it was a /graphql request), in which case \`res\` is populated.
+    bool handle(const std::string& target, const std::string& body,
+                http::response<http::string_body>& res);
+}
+`,
+
+    'src/handlers/graphql_handler.cpp': `#include "handlers/graphql_handler.hpp"
+#include "graphql/schema.hpp"
+#include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
+
+namespace graphql {
+    bool handle(const std::string& target, const std::string& body,
+                http::response<http::string_body>& res) {
+        if (target != "/graphql") {
+            return false;
+        }
+
+        try {
+            auto parsed = nlohmann::json::parse(body);
+            std::string query = parsed.value("query", std::string());
+
+            nlohmann::json result;
+            result["data"] = execute(query);
+
+            res.result(http::status::ok);
+            res.set(http::field::content_type, "application/json");
+            res.body() = result.dump();
+        } catch (const std::exception& e) {
+            spdlog::error("GraphQL error: {}", e.what());
+
+            nlohmann::json error;
+            error["errors"] = nlohmann::json::array({
+                nlohmann::json({{"message", e.what()}})
+            });
+
+            res.result(http::status::bad_request);
+            res.set(http::field::content_type, "application/json");
+            res.body() = error.dump();
+        }
+
+        res.prepare_payload();
+        return true;
+    }
+}
 `,
 
     // Dockerfile
@@ -611,7 +740,12 @@ docker run -p {{port}}:{{port}} -p $(({{port}}+1)):$(({{port}}+1)) {{serviceName
 - \`GET /health\` - Health check
 - \`POST /api/auth/login\` - User login
 - \`GET /api/users\` - List users (authenticated)
+- \`POST /graphql\` - GraphQL endpoint (Query { hello, health })
 - \`WebSocket ws://localhost:$(({{port}}+1))/ws\` - WebSocket endpoint
+
+To wire the GraphQL handler into the HTTP request dispatch, call
+\`graphql::handle(req.target(), req.body(), res)\` in \`handlers/http_handler.cpp\`
+before the default route handling; if it returns \`true\`, the response is ready.
 `
   }
 };

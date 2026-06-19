@@ -10,8 +10,10 @@ export const luckyCrTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['crystal', 'lucky', 'full-stack', 'database', 'authentication', 'mvc'],
   port: 8080,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'database'],
+  dependencies: {
+    'graphql-crystal': 'github:graphql-crystal/graphql-crystal#v0.2.0'
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'database', 'graphql'],
 
   files: {
     // Shard configuration
@@ -39,6 +41,9 @@ dependencies:
   carbon:
     github: luckyframework/carbon
     version: ~> 0.3.0
+  graphql-crystal:
+    github: graphql-crystal/graphql-crystal
+    version: ~> 0.2.0
 `,
 
     // Main application
@@ -187,6 +192,54 @@ end
         timestamp: Time.utc.to_s("%Y-%m-%d %H:%M:%S %z"),
         version: "1.0.0"
       })
+    end
+  end
+end
+`,
+
+    // GraphQL schema + resolvers (graphql-crystal)
+    'src/graphql/schema.cr': `require "graphql-crystal"
+
+class GraphqlSchema
+  GRAPHQL_SDL = <<-SDL
+  type Query {
+    hello: String!
+    health: String!
+  }
+  SDL
+
+  class Query < GraphQL::Base
+    def hello : String
+      "Hello from Lucky GraphQL!"
+    end
+
+    def health : String
+      "healthy"
+    end
+  end
+
+  @@schema = GraphQL::Schema.new(Query.new)
+
+  def self.schema
+    @@schema
+  end
+end
+`,
+
+    // Actions - GraphQL
+    'src/actions/graphql/index.cr': `require "../../graphql/schema"
+
+module Graphql
+  class Index < ApiAction
+    post "/graphql" do
+      body = request.body.try(&.gets_to_end) || "{}"
+      parsed = JSON.parse(body)
+      query = parsed["query"]?.try(&.as_s) || ""
+
+      result = GraphqlSchema.schema.execute(query)
+      json(result.to_json)
+    rescue ex
+      json({errors: [{message: ex.message}]}.to_json, status: 400)
     end
   end
 end

@@ -10,8 +10,10 @@ export const amberCrTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['crystal', 'amber', 'mvc', 'websockets', 'database', 'json'],
   port: 8080,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets'],
+  dependencies: {
+    'graphql-crystal': 'github:graphql-crystal/graphql-crystal#v0.2.0'
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'graphql'],
 
   files: {
     // Shard configuration
@@ -42,6 +44,9 @@ dependencies:
   citrine-i18n:
     github: amberframework/citrine-i18n
     version: ~> 0.5.0
+  graphql-crystal:
+    github: graphql-crystal/graphql-crystal
+    version: ~> 0.2.0
 `,
 
     // Main application
@@ -104,6 +109,7 @@ puts "📚 API docs: http://localhost:8080/api/v1/health"
       post "/api/v1/products", ProductController, :create
       put "/api/v1/products/:id", ProductController, :update
       delete "/api/v1/products/:id", ProductController, :delete
+      post "/graphql", GraphqlController, :index
     end
   end
 
@@ -118,6 +124,7 @@ puts "📚 API docs: http://localhost:8080/api/v1/health"
       post "/api/v1/products", ProductController, :create
       put "/api/v1/products/:id", ProductController, :update
       delete "/api/v1/products/:id", ProductController, :delete
+      post "/graphql", GraphqlController, :index
     end
   end
 end
@@ -209,6 +216,53 @@ end
       timestamp: Time.utc.to_s("%Y-%m-%d %H:%M:%S %z"),
       version: "1.0.0"
     }.to_json)
+  end
+end
+`,
+
+    // GraphQL schema + resolvers (graphql-crystal)
+    'src/graphql/schema.cr': `require "graphql-crystal"
+
+module {{projectNamePascal}}::GraphqlSchema
+  GRAPHQL_SDL = <<-SDL
+  type Query {
+    hello: String!
+    health: String!
+  }
+  SDL
+
+  # Resolver methods backing the Query type.
+  class Query < GraphQL::Base
+    def hello : String
+      "Hello from Amber GraphQL!"
+    end
+
+    def health : String
+      "healthy"
+    end
+  end
+
+  @@schema = GraphQL::Schema.new(Query.new)
+
+  def self.schema
+    @@schema
+  end
+end
+`,
+
+    // Controllers - GraphQL
+    'src/controllers/graphql_controller.cr': `require "../graphql/schema"
+
+class GraphqlController < Amber::Controller::Base
+  def index
+    body = request.body.as(IO).gets_to_end
+    parsed = JSON.parse(body)
+    query = parsed["query"].as_s
+
+    result = {{projectNamePascal}}::GraphqlSchema.schema.execute(query)
+    json(result.to_json)
+  rescue ex
+    json({errors: [{message: ex.message}]}.to_json, 400)
   end
 end
 `,

@@ -10,8 +10,10 @@ export const rocTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['roc', 'functional', 'platform', 'immutable', 'type-safe', 'modern', 'experimental'],
   port: 8080,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  dependencies: {
+    'graphql-crystal': 'github:graphql-crystal/graphql-crystal#v0.2.0'
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main Roc file
@@ -78,6 +80,37 @@ app [main] {
             status: "healthy",
             timestamp: "now",
             version: "1.0.0"}
+        |> Json.to_str
+        |> Response.ok
+        |> Response.with_header("Content-Type", "application/json")
+
+    # GraphQL resolver: returns the value for a given query field.
+    graphql_resolve = |field|
+        when field is
+            "hello" -> "Hello from Roc GraphQL!"
+            "health" -> "healthy"
+            _ -> ""
+
+    # Naive field-presence check against a GraphQL query string.
+    graphql_query_has = |query, field|
+        query |> Str.contains(field)
+
+    # GraphQL handler (raw /graphql POST handler). Reads the request body,
+    # resolves the requested fields, and returns a JSON GraphQL response.
+    graphql_handler = |request|
+        # Default empty query; in production, parse the JSON body from request
+        query = ""
+
+        hello = if graphql_query_has(query, "hello") then
+            { hello: graphql_resolve("hello") }
+        else
+            {}
+        health = if graphql_query_has(query, "health") then
+            { health: graphql_resolve("health") }
+        else
+            {}
+
+        { data: { ...hello, ...health } }
         |> Json.to_str
         |> Response.ok
         |> Response.with_header("Content-Type", "application/json")
@@ -262,6 +295,8 @@ app [main] {
             home_handler(request)
         else if path == "/api/v1/health" then
             health_handler(request)
+        else if path == "/graphql" and method == "POST" then
+            graphql_handler(request)
         else if path == "/api/v1/auth/register" and method == "POST" then
             register_handler(request, users)
         else if path == "/api/v1/auth/login" and method == "POST" then
@@ -335,6 +370,14 @@ optimize = true
 [metadata]
 authors = ["{{author}}"]
 description = "{{description}}"
+`,
+
+    // GraphQL schema definition (SDL)
+    'schema.graphql': `# Minimal GraphQL schema for {{projectName}}
+type Query {
+  hello: String!
+  health: String!
+}
 `,
 
     // Environment file

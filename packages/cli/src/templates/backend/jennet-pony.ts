@@ -11,7 +11,7 @@ export const jennetPonyTemplate: BackendTemplate = {
   tags: ['pony', 'jennet', 'actors', 'concurrency', 'safe', 'performance'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main actor
@@ -43,6 +43,9 @@ actor Main
     server("/api/v1/auth/login", LoginHandler)
     server("/api/v1/products", ProductsHandler)
     server("/api/v1/products/:id", ProductHandler)
+
+    // GraphQL endpoint (raw POST handler returning JSON)
+    server("/graphql", GraphQLHandler)
 
     // Home page
     server("/", HomeHandler)
@@ -82,6 +85,26 @@ class val HealthHandler is Handler
         add("status", Json.from("healthy")).
         add("timestamp", Json.from(Time.now().format()))
         add("version", Json.from("1.0.0"))
+    end
+
+    ctx.response.status = 200
+    ctx.response.add_header("Content-Type", "application/json")
+    ctx.response.body = json.string()
+    consume ctx
+
+class val GraphQLHandler is Handler
+  \"\"\"
+  Raw /graphql POST handler returning JSON.
+  Schema: Query { hello: String!, health: String! }
+  \"\"\"
+  fun val apply(ctx: Context iso): Context iso^ =>
+    // In production, parse the GraphQL query from ctx.request.body.
+    // Here we return both resolvers for any query.
+    let json = recover
+      Json.obj.
+        add("data", Json.obj.
+          add("hello", Json.from("Hello from {{projectName}} GraphQL!")).
+          add("health", Json.from("healthy")))
     end
 
     ctx.response.status = 200
@@ -298,6 +321,28 @@ class val Product
     updated_at = updated_at'
 `
 ,
+
+    // GraphQL schema (SDL reference)
+    'graphql/schema.graphql': `# {{projectName}} - GraphQL Schema
+type Query {
+  hello: String!
+  health: String!
+}
+`,
+
+    // GraphQL resolvers (raw JSON handler)
+    'graphql/resolver.pony': `use "json"
+
+primitive GraphQLResolver
+  \"\"\"
+  Resolvers for schema: Query { hello: String!, health: String! }
+  \"\"\"
+  fun hello(): String =>
+    "Hello from {{projectName}} GraphQL!"
+
+  fun health(): String =>
+    "healthy"
+`,
 
     // Project configuration
     'corral.json': `{

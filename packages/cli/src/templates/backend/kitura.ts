@@ -10,8 +10,15 @@ export const kituraTemplate: BackendTemplate = {
   version: '2.9.0',
   tags: ['swift', 'kitura', 'api', 'rest', 'ibm', 'docker', 'swagger'],
   port: 8080,
-  dependencies: {},
-  features: ['authentication', 'swagger', 'monitoring', 'monitoring', 'logging', 'cors', 'docker'],
+  dependencies: {
+    'Kitura': '^2.9.200',
+    'Kitura-OpenAPI': '^1.4.0',
+    'Swift-Kuery-ORM': '^0.6.1',
+    'Kitura-CredentialsJWT': '^1.0.0',
+    'HeliumLogger': '^2.0.0',
+    'Graphiti': '^1.0.0'
+  },
+  features: ['authentication', 'swagger', 'monitoring', 'monitoring', 'logging', 'cors', 'docker', 'graphql'],
   
   files: {
     // Swift Package Manager configuration
@@ -46,7 +53,8 @@ let package = Package(
         .package(url: "https://github.com/Kitura/Kitura-CORS.git", from: "2.1.1"),
         .package(url: "https://github.com/Kitura/Kitura-Compression.git", from: "2.2.2"),
         .package(url: "https://github.com/Kitura/CloudEnvironment.git", from: "9.1.0"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3")],
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
+        .package(url: "https://github.com/GraphQLSwift/Graphiti.git", from: "1.0.0")],
     targets: [
         .executableTarget(
             name: "{{projectName}}",
@@ -66,7 +74,8 @@ let package = Package(
                 .product(name: "KituraCORS", package: "Kitura-CORS"),
                 .product(name: "KituraCompression", package: "Kitura-Compression"),
                 .product(name: "CloudEnvironment", package: "CloudEnvironment"),
-                .product(name: "Logging", package: "swift-log")],
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Graphiti", package: "Graphiti")],
             path: "Sources/{{projectName}}"
         ),
         .testTarget(
@@ -253,6 +262,15 @@ public class App {
             response.send(json: health)
             next()
         }
+
+        // GraphQL endpoint
+        router.post("/graphql") { request, response, next in
+            let query = request.body?.asText ?? "{ hello\\n health }"
+            let result = executeGraphQL(query: query)
+            response.headers["Content-Type"] = "application/json"
+            response.send(result)
+            next()
+        }
         
         // API Routes
         let api = router.route("/api/v1")
@@ -310,6 +328,50 @@ public class App {
         }
     }
 }`,
+
+    // GraphQL schema and resolver
+    'Sources/{{projectName}}/GraphQL/GraphQLSchema.swift': `import Foundation
+import Graphiti
+
+// Resolver type that holds field resolver functions
+struct Resolver {
+    func hello(context: NoContext, arguments: NoArguments) -> String {
+        return "Hello, GraphQL!"
+    }
+
+    func health(context: NoContext, arguments: NoArguments) -> String {
+        return "healthy"
+    }
+}
+
+// Build the GraphQL schema using Graphiti
+let graphQLSchema = try! Schema<Resolver, NoContext> {
+    Query {
+        Field("hello", String.self) {
+            Argument("dummy", at: \\.$0.dummy)
+        }
+        Field("health", String.self) {
+            Argument("dummy", at: \\.$0.dummy)
+        }
+    }
+}
+
+/// Executes the GraphQL query in the request body and returns JSON.
+func executeGraphQL(query: String) -> String {
+    let resolver = Resolver()
+    do {
+        let result = try graphQLSchema.execute(
+            request: query,
+            resolver: resolver,
+            context: NoContext.value
+        )
+        let data = try JSONSerialization.data(withJSONObject: result, options: [])
+        return String(data: data, encoding: .utf8) ?? "{}"
+    } catch {
+        return "{\\"errors\\":[{\\"message\\":\\"\\(error)\\"}]}"
+    }
+}
+`,
 
     // Models
     'Sources/{{projectName}}/Models/User.swift': `import Foundation

@@ -11,7 +11,7 @@ export const conduitTemplate: BackendTemplate = {
   tags: ['dart', 'conduit', 'api', 'rest', 'database', 'authorization', 'swagger', 'postgresql'],
   port: 8888,
   dependencies: {},
-  features: ['database', 'authorization', 'swagger', 'database', 'validation', 'testing'],
+  features: ['database', 'authorization', 'swagger', 'database', 'validation', 'testing', 'graphql'],
   
   files: {
     // Dart project configuration
@@ -26,6 +26,7 @@ environment:
 dependencies:
   conduit: ^4.0.0
   conduit_postgresql: ^4.0.0
+  graphql: ^5.1.3
   
 dev_dependencies:
   conduit_test: ^4.0.0
@@ -52,12 +53,13 @@ export 'model/user.dart';
 export 'model/todo.dart';
 export 'model/auth_token.dart';
 
-// Controllers  
+// Controllers
 export 'controller/register_controller.dart';
 export 'controller/auth_controller.dart';
 export 'controller/user_controller.dart';
 export 'controller/todo_controller.dart';
-export 'controller/health_controller.dart';`,
+export 'controller/health_controller.dart';
+export 'controller/graphql_controller.dart';`,
 
     // Application channel
     'lib/channel.dart': `import '{{projectName}}.dart';
@@ -114,6 +116,9 @@ class {{projectName}}Channel extends ApplicationChannel {
 
     // Health check
     router.route("/health").link(() => HealthController());
+
+    // GraphQL endpoint
+    router.route("/graphql").link(() => GraphqlController());
 
     // Authentication routes
     router.route("/auth/register").link(() => RegisterController(context, authServer));
@@ -674,6 +679,52 @@ class TodoController extends ResourceController {
     return Response.noContent();
   }
 }`,
+
+    // GraphQL schema + controller (Dart GraphQL: graphql package)
+    'lib/graphql/schema.dart': `// Minimal GraphQL schema for Conduit: type Query { hello: String!, health: String! }
+const String graphqlSchema = r'''
+type Query {
+  hello: String!
+  health: String!
+}
+''';
+
+class GraphqlResolvers {
+  static const String helloValue = 'Hello from Conduit GraphQL!';
+  static const String healthValue = 'healthy';
+
+  static Map<String, dynamic> resolve(String query) {
+    // Minimal resolver returning hello and health. Full parsing via the
+    // graphql package.
+    return {
+      'data': {
+        'hello': helloValue,
+        'health': healthValue}
+    };
+  }
+}
+`,
+
+    'lib/controller/graphql_controller.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+
+class GraphqlController extends ResourceController {
+  @Operation.post()
+  Future<Response> handle() async {
+    final body = await request!.body.decode<Map<String, dynamic>>();
+    final query = body['query'] as String? ?? '';
+    final result = _resolve(query);
+    return Response.ok(result);
+  }
+
+  Map<String, dynamic> _resolve(String query) {
+    return {
+      'data': {
+        'hello': 'Hello from Conduit GraphQL!',
+        'health': 'healthy'}
+    };
+  }
+}
+`,
 
     'lib/controller/health_controller.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
 

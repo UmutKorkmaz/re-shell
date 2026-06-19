@@ -10,8 +10,10 @@ export const cppHttplibTemplate: BackendTemplate = {
   version: '0.15.3',
   tags: ['cpp', 'httplib', 'api', 'rest', 'lightweight', 'single-header', 'https'],
   port: 8080,
-  features: ['routing', 'middleware', 'file-upload', 'cors', 'logging', 'authentication', 'testing', 'docker', 'compression'],
-  dependencies: {},
+  features: ['routing', 'middleware', 'file-upload', 'cors', 'logging', 'authentication', 'testing', 'docker', 'compression', 'graphql'],
+  dependencies: {
+    'graphql-parser': 'https://github.com/graphql/libgraphqlparser.git#v2.0.0'
+  },
   devDependencies: {},
   
   files: {
@@ -69,10 +71,13 @@ set(SOURCES
     src/server.cpp
     src/routes/health_routes.cpp
     src/routes/user_routes.cpp
+    src/routes/graphql_routes.cpp
     src/middleware/auth_middleware.cpp
     src/middleware/cors_middleware.cpp
     src/middleware/logging_middleware.cpp
     src/services/user_service.cpp
+    src/graphql/schema.cpp
+    src/graphql/resolver.cpp
     src/utils/jwt_utils.cpp
     src/utils/database.cpp
     src/config/config.cpp
@@ -197,6 +202,7 @@ public:
     'src/server.cpp': `#include "server.hpp"
 #include "routes/health_routes.hpp"
 #include "routes/user_routes.hpp"
+#include "routes/graphql_routes.hpp"
 #include "middleware/auth_middleware.hpp"
 #include "middleware/cors_middleware.hpp"
 #include "middleware/logging_middleware.hpp"
@@ -310,9 +316,12 @@ void HttpServer::setupMiddleware() {
 void HttpServer::setupRoutes() {
     // Health routes
     HealthRoutes::setup(*server_);
-    
+
     // User routes
     UserRoutes::setup(*server_);
+
+    // GraphQL routes
+    GraphqlRoutes::setup(*server_);
     
     // Default 404 handler
     server_->set_error_handler([](const httplib::Request& req, httplib::Response& res) {
@@ -683,19 +692,19 @@ void UserRoutes::login(const httplib::Request& req, httplib::Response& res) {
         auto json = nlohmann::json::parse(req.body);
         std::string email = json["email"];
         std::string password = json["password"];
-        
+
         UserService service;
         auto user = service.authenticate(email, password);
-        
+
         if (user) {
             auto token = JwtUtils::generateToken(user->id, user->email);
-            
+
             nlohmann::json response;
             response["token"] = token;
             response["user"]["id"] = user->id;
             response["user"]["email"] = user->email;
             response["user"]["name"] = user->name;
-            
+
             res.set_content(response.dump(), "application/json");
         } else {
             nlohmann::json error;
@@ -709,6 +718,116 @@ void UserRoutes::login(const httplib::Request& req, httplib::Response& res) {
         error["message"] = e.what();
         res.status = 400;
         res.set_content(error.dump(), "application/json");
+    }
+}
+`,
+
+    // GraphQL Routes (custom JSON handler for /graphql)
+    'include/routes/graphql_routes.hpp': `#pragma once
+#include <httplib.h>
+
+class GraphqlRoutes {
+public:
+    static void setup(httplib::Server& server);
+
+private:
+    static void graphql(const httplib::Request& req, httplib::Response& res);
+};
+`,
+
+    'src/routes/graphql_routes.cpp': `#include "routes/graphql_routes.hpp"
+#include "graphql/schema.hpp"
+#include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
+
+void GraphqlRoutes::setup(httplib::Server& server) {
+    server.Post("/graphql", graphql);
+}
+
+void GraphqlRoutes::graphql(const httplib::Request& req, httplib::Response& res) {
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        std::string query = body.value("query", std::string());
+
+        nlohmann::json result;
+        result["data"] = graphql::execute(query);
+
+        res.set_content(result.dump(), "application/json");
+    } catch (const std::exception& e) {
+        spdlog::error("GraphQL error: {}", e.what());
+
+        nlohmann::json error;
+        error["errors"] = nlohmann::json::array({
+            nlohmann::json({{"message", e.what()}})
+        });
+
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+    }
+}
+`,
+
+    // GraphQL schema (simple switch on query field)
+    'include/graphql/schema.hpp': `#pragma once
+#include <string>
+#include <nlohmann/json.hpp>
+
+namespace graphql {
+    extern const char* SCHEMA_SDL;
+
+    // Execute a GraphQL query string against the schema and return JSON data.
+    nlohmann::json execute(const std::string& query);
+}
+`,
+
+    'src/graphql/schema.cpp': `#include "graphql/schema.hpp"
+#include "graphql/resolver.hpp"
+
+namespace graphql {
+    const char* SCHEMA_SDL =
+        "type Query {\\n"
+        "  hello: String!\\n"
+        "  health: String!\\n"
+        "}\\n";
+
+    nlohmann::json execute(const std::string& query) {
+        nlohmann::json data = nlohmann::json::object();
+
+        if (query.find("hello") != std::string::npos) {
+            data["hello"] = resolver::hello();
+        }
+        if (query.find("health") != std::string::npos) {
+            data["health"] = resolver::health();
+        }
+
+        return data;
+    }
+}
+`,
+
+    // GraphQL resolver
+    'include/graphql/resolver.hpp': `#pragma once
+#include <string>
+
+namespace graphql {
+    namespace resolver {
+        std::string hello();
+        std::string health();
+    }
+}
+`,
+
+    'src/graphql/resolver.cpp': `#include "graphql/resolver.hpp"
+
+namespace graphql {
+    namespace resolver {
+        std::string hello() {
+            return "Hello from cpp-httplib GraphQL!";
+        }
+
+        std::string health() {
+            return "healthy";
+        }
     }
 }
 `,

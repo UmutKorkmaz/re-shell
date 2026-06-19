@@ -10,7 +10,7 @@ export const servantTemplate: BackendTemplate = {
   language: 'haskell',
   port: 8080,
   tags: ['haskell', 'servant', 'web', 'api', 'rest', 'type-safe', 'functional'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation', 'documentation'],
+  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation', 'documentation', 'graphql'],
   dependencies: {},
   devDependencies: {},
   files: {
@@ -47,6 +47,9 @@ dependencies:
   - unordered-containers >= 0.2
   - http-types >= 0.12
   - wai-extra >= 3.1
+  - morpheus-graphql >= 0.27
+  - morpheus-graphql-core >= 0.27
+  - morpheus-graphql-app >= 0.27
 
 ghc-options:
   - -Wall
@@ -117,6 +120,7 @@ library
     Api.Auth
     Api.Users
     Api.Items
+    Api.Graphql
     Config
     Database
     Middleware
@@ -138,7 +142,10 @@ library
     containers >= 0.6,
     unordered-containers >= 0.2,
     http-types >= 0.12,
-    wai-extra >= 3.1
+    wai-extra >= 3.1,
+    morpheus-graphql >= 0.27,
+    morpheus-graphql-core >= 0.27,
+    morpheus-graphql-app >= 0.27
   hs-source-dirs: src
   default-language: Haskell2010
 
@@ -230,10 +237,12 @@ import Api.Types
 import Api.Auth (AuthAPI, authServer)
 import Api.Users (UsersAPI, usersServer)
 import Api.Items (ItemsAPI, itemsServer)
+import Api.Graphql (GraphqlAPI, graphqlServer)
 
 -- Root API type combining all endpoints
 type API = HealthAPI
       :<|> RootAPI
+      :<|> "graphql" :> GraphqlAPI
       :<|> "api" :> "auth" :> AuthAPI
       :<|> "api" :> "users" :> UsersAPI
       :<|> "api" :> "items" :> ItemsAPI
@@ -248,6 +257,7 @@ type RootAPI = Get '[JSON] ApiInfo
 server :: Config -> Server API
 server config = healthHandler
            :<|> rootHandler
+           :<|> graphqlServer
            :<|> authServer config
            :<|> usersServer config
            :<|> itemsServer config
@@ -565,6 +575,59 @@ parseToken token
 when :: Bool -> Handler () -> Handler ()
 when True action = action
 when False _ = return ()
+`,
+
+    'src/Api/Graphql.hs': `{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeFamilies #-}
+
+module Api.Graphql
+  ( GraphqlAPI
+  , graphqlServer
+  ) where
+
+import Servant
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Aeson (Value(..), object, (.=))
+import Data.ByteString.Lazy.Char8 (unpack)
+import qualified Data.Map as M
+
+-- Minimal GraphQL-over-POST endpoint. A full Morpheus interpreter can be
+-- plugged in here; the template answers Query { hello, health } directly.
+type GraphqlAPI = ReqBody '[JSON] GraphqlRequest :> Post '[JSON] Value
+
+data GraphqlRequest = GraphqlRequest
+  { gqQuery :: Text
+  , gqVariables :: Maybe Value
+  , gqOperationName :: Maybe Text
+  } deriving (Show, Eq)
+
+instance FromJSON GraphqlRequest where
+  parseJSON = withObject "GraphqlRequest" $ \\o -> GraphqlRequest
+    <$> o .: "query"
+    <*> o .:? "variables"
+    <*> o .:? "operationName"
+
+graphqlServer :: Server GraphqlAPI
+graphqlServer req = return (resolveQuery req)
+
+resolveQuery :: GraphqlRequest -> Value
+resolveQuery req =
+  let q = T.toLower (gqQuery req)
+      fields = M.fromList
+        [ ("hello", String "Hello from {{projectName}} GraphQL!")
+        , ("health", String "healthy")
+        ]
+      present k = T.isInfixOf k q
+      selected = [ (k, v) | (k, v) <- M.toList fields, present k ]
+      -- Default to all fields if the query asks for nothing specific.
+      final = if null selected then M.toList fields else selected
+  in object [ "data" .= object final ]
 `,
 
     'src/Database.hs': `{-# LANGUAGE OverloadedStrings #-}

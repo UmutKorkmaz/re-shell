@@ -10,8 +10,10 @@ export const crowTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['cpp', 'crow', 'api', 'rest', 'microframework', 'header-only'],
   port: 8080,
-  features: ['routing', 'middleware', 'validation', 'file-upload', 'websockets', 'testing', 'docker', 'cors', 'logging'],
-  dependencies: {},
+  features: ['routing', 'middleware', 'validation', 'file-upload', 'websockets', 'testing', 'docker', 'cors', 'logging', 'graphql'],
+  dependencies: {
+    'cpp-graphql': 'https://github.com/cpp-graphql/cpp-graphql.git#v4.5.0'
+  },
   devDependencies: {},
   
   files: {
@@ -79,6 +81,9 @@ add_executable(\${PROJECT_NAME}
     src/middleware/cors_middleware.cpp
     src/middleware/logging_middleware.cpp
     src/services/user_service.cpp
+    src/graphql/schema.cpp
+    src/graphql/resolver.cpp
+    src/graphql/handler.cpp
     src/models/user.cpp
     src/utils/jwt_utils.cpp
     src/utils/database.cpp
@@ -163,6 +168,7 @@ lib, *.dylib* -> ./bin
 #include "config/config.hpp"
 #include "controllers/health_controller.hpp"
 #include "controllers/user_controller.hpp"
+#include "graphql/handler.hpp"
 #include "middleware/auth_middleware.hpp"
 #include "middleware/cors_middleware.hpp"
 #include "middleware/logging_middleware.hpp"
@@ -194,6 +200,13 @@ int main()
     // Register user routes
     UserController userController;
     userController.registerRoutes(app);
+
+    // GraphQL endpoint (raw JSON handler)
+    CROW_ROUTE(app, "/graphql")
+    .methods(crow::HTTPMethod::Post)
+    ([](const crow::request& req) {
+        return graphql::handleGraphQL(req);
+    });
     
     // Protected routes example
     CROW_ROUTE(app, "/api/protected")
@@ -331,6 +344,116 @@ private:
 
 // Define static member
 Config Config::instance;
+`,
+
+    // GraphQL schema (simple switch on query field)
+    'include/graphql/schema.hpp': `#pragma once
+#include <string>
+#include <nlohmann/json.hpp>
+
+namespace graphql {
+    // Minimal GraphQL schema: Query { hello: String!, health: String! }
+    extern const char* SCHEMA_SDL;
+
+    // Execute a GraphQL query string against the schema and return JSON.
+    nlohmann::json execute(const std::string& query);
+}
+`,
+
+    'src/graphql/schema.cpp': `#include "graphql/schema.hpp"
+#include "graphql/resolver.hpp"
+
+namespace graphql {
+    const char* SCHEMA_SDL =
+        "type Query {\\n"
+        "  hello: String!\\n"
+        "  health: String!\\n"
+        "}\\n";
+
+    nlohmann::json execute(const std::string& query) {
+        // Naive field extraction: switch on the requested query field name.
+        nlohmann::json data;
+
+        if (query.find("hello") != std::string::npos) {
+            data["hello"] = resolver::hello();
+        }
+        if (query.find("health") != std::string::npos) {
+            data["health"] = resolver::health();
+        }
+
+        return data;
+    }
+}
+`,
+
+    // GraphQL resolver
+    'include/graphql/resolver.hpp': `#pragma once
+#include <string>
+
+namespace graphql {
+    namespace resolver {
+        std::string hello();
+        std::string health();
+    }
+}
+`,
+
+    'src/graphql/resolver.cpp': `#include "graphql/resolver.hpp"
+
+namespace graphql {
+    namespace resolver {
+        std::string hello() {
+            return "Hello from Crow GraphQL!";
+        }
+
+        std::string health() {
+            return "healthy";
+        }
+    }
+}
+`,
+
+    // GraphQL HTTP handler (raw /graphql POST handler)
+    'include/graphql/handler.hpp': `#pragma once
+#include <crow.h>
+
+namespace graphql {
+    // Accepts a JSON GraphQL POST body and returns a JSON GraphQL response.
+    crow::response handleGraphQL(const crow::request& req);
+}
+`,
+
+    'src/graphql/handler.cpp': `#include "graphql/handler.hpp"
+#include "graphql/schema.hpp"
+#include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
+
+namespace graphql {
+    crow::response handleGraphQL(const crow::request& req) {
+        try {
+            auto body = nlohmann::json::parse(req.body);
+            std::string query = body.value("query", std::string());
+
+            nlohmann::json result;
+            result["data"] = execute(query);
+
+            crow::response res(200, result.dump());
+            res.set_header("Content-Type", "application/json");
+            return res;
+        } catch (const std::exception& e) {
+            spdlog::error("GraphQL error: {}", e.what());
+
+            nlohmann::json error;
+            error["errors"] = nlohmann::json::array({
+                nlohmann::json({{"message", e.what()}})
+            });
+
+            crow::response res(400, error.dump());
+            res.set_header("Content-Type", "application/json");
+            return res;
+        }
+    }
+}
 `,
 
     // Health Controller

@@ -21,7 +21,8 @@ export const middyTemplate: BackendTemplate = {
     'logging',
     'microservices',
     'docker',
-    'docker'
+    'docker',
+    'graphql'
   ],
   
   files: {
@@ -79,7 +80,9 @@ export const middyTemplate: BackendTemplate = {
     "jsonwebtoken": "^9.0.2",
     "bcryptjs": "^2.4.3",
     "http-errors": "^2.0.0",
-    "aws-xray-sdk-core": "^3.5.4"
+    "aws-xray-sdk-core": "^3.5.4",
+    "graphql-yoga": "^5.3.0",
+    "graphql": "^16.8.1"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.136",
@@ -429,6 +432,19 @@ const serverlessConfiguration: AWS = {
           http: {
             method: 'get',
             path: 'health',
+            cors: true
+          }
+        }
+      ]
+    },
+    // GraphQL endpoint
+    graphql: {
+      handler: 'src/handlers/graphql.handler',
+      events: [
+        {
+          http: {
+            method: 'any',
+            path: 'graphql',
             cors: true
           }
         }
@@ -1025,6 +1041,70 @@ export const list = middy(listItemsHandler)
   .use(metricsMiddleware())
   .use(errorLogger())
   .use(httpErrorHandler());`,
+
+    // GraphQL schema and resolvers
+    'src/graphql/schema.ts': `export const typeDefs = \`#graphql
+type Query {
+  hello: String!
+  health: String!
+}
+\`;
+
+export const resolvers = {
+  Query: {
+    hello: () => 'Hello from Middy GraphQL!',
+    health: () => 'healthy'
+  }
+};
+`,
+
+    // GraphQL Lambda handler using graphql-yoga
+    'src/handlers/graphql.ts': `import middy from '@middy/core';
+import { createYoga } from 'graphql-yoga';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { typeDefs, resolvers } from '../graphql/schema';
+
+// Create a Yoga instance configured for AWS Lambda
+const yoga = createYoga<{
+  event: APIGatewayProxyEvent;
+}>({
+  schema: { typeDefs, resolvers },
+  graphqlEndpoint: '/graphql',
+  // Disable landing page in Lambda
+  landingPage: false
+});
+
+const graphqlHandler = async (
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> => {
+  const body = event.body || '{}';
+  const decodedBody = event.isBase64Encoded
+    ? Buffer.from(body, 'base64').toString('utf8')
+    : body;
+
+  const request = new Request(\`https://\${event.requestContext.domainName}/graphql\`, {
+    method: event.httpMethod,
+    headers: Object.entries(event.headers || {}).reduce((acc, [k, v]) => {
+      if (v !== undefined) acc[k] = v;
+      return acc;
+    }, {} as Record<string, string>),
+    body: decodedBody || undefined
+  });
+
+  const response = await yoga.handleRequest(request, { event });
+
+  const responseBody = await response.text();
+
+  return {
+    statusCode: response.status,
+    body: responseBody,
+    headers: Object.fromEntries(response.headers.entries()),
+    isBase64Encoded: false
+  };
+};
+
+export const handler = middy(graphqlHandler);
+`,
 
     // Authentication handlers
     'src/handlers/auth.ts': `import middy from '@middy/core';

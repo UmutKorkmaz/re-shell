@@ -10,8 +10,10 @@ export const ballerinaTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['ballerina', 'cloud-native', 'integration', 'api', 'microservices', 'distributed', 'kubernetes'],
   port: 8080,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  dependencies: {
+    'ballerina/graphql': '1.0.0',
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main Ballerina file
@@ -20,6 +22,7 @@ import ballerina/jwt;
 import ballerina/crypto;
 import ballerina/time;
 import ballerinax/redis;
+import ballerina/graphql;
 
 # User record type
 type User record {|
@@ -247,6 +250,19 @@ service /api/v1/products on new http:Listener(8080) {
     }
 }
 
+# GraphQL service (ballerina/graphql native support)
+# Schema: Query { hello: String!, health: String! }
+service /graphql on new graphql:Listener(8080) {
+
+    resource function get hello() returns string {
+        return "Hello from {{projectName}} GraphQL!";
+    }
+
+    resource function get health() returns string {
+        return "healthy";
+    }
+}
+
 # Home page service
 service / on new http:Listener(8080) {
 
@@ -270,6 +286,30 @@ service / on new http:Listener(8080) {
   </body>
 </html>
         \`;
+    }
+}
+`,
+
+    // GraphQL schema (SDL reference for the ballerina/graphql service)
+    'graphql/schema.graphql': `# {{projectName}} - GraphQL Schema
+type Query {
+  hello: String!
+  health: String!
+}
+`,
+
+    // GraphQL resolver service (ballerina/graphql native support)
+    'graphql/resolver.bal': `import ballerina/graphql;
+
+# GraphQL resolver service: Query { hello: String!, health: String! }
+service /graphql on new graphql:Listener(8080) {
+
+    resource function get hello() returns string {
+        return "Hello from {{projectName}} GraphQL!";
+    }
+
+    resource function get health() returns string {
+        return "healthy";
     }
 }
 `,

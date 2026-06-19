@@ -11,7 +11,7 @@ export const openrestyTemplate: BackendTemplate = {
   tags: ['lua', 'openresty', 'nginx', 'api', 'high-performance', 'microservices', 'luajit'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'database', 'caching', 'logging', 'rate-limiting', 'cors', 'docker', 'testing'],
+  features: ['authentication', 'database', 'caching', 'logging', 'rate-limiting', 'cors', 'docker', 'testing', 'graphql'],
   
   files: {
     // Nginx configuration
@@ -94,6 +94,14 @@ http {
             content_by_lua_block {
                 local health = require "routes.health"
                 health.check()
+            }
+        }
+
+        # GraphQL endpoint (raw POST handler)
+        location = /graphql {
+            content_by_lua_block {
+                local graphql = require "routes.graphql"
+                graphql.handle()
             }
         }
         
@@ -634,6 +642,46 @@ end
 return _M
 `,
 
+    // GraphQL route (raw POST handler; OpenResty uses lua-graphql)
+    'lua/routes/graphql.lua': `local cjson = require "cjson"
+
+-- Minimal GraphQL schema: type Query { hello: String!, health: String! }
+local _M = {}
+
+local SCHEMA = [[
+type Query {
+  hello: String!
+  health: String!
+}
+]]
+
+-- Resolver: returns hello and health regardless of selection set.
+local function resolve(_query)
+    return {
+        data = {
+            hello = "Hello from OpenResty GraphQL!",
+            health = "healthy"
+        }
+    }
+end
+
+function _M.handle()
+    ngx.req.read_body()
+    local body = ngx.req.get_body_data() or "{}"
+    local ok, data = pcall(cjson.decode, body)
+    if not ok then
+        data = {}
+    end
+
+    local query = data.query or ""
+    local result = resolve(query)
+
+    ngx.header["Content-Type"] = "application/json"
+    ngx.say(cjson.encode(result))
+end
+
+return _M
+`,
     // Health check route
     'lua/routes/health.lua': `local cjson = require "cjson"
 local db = require "db"
@@ -647,7 +695,7 @@ function _M.check()
         timestamp = ngx.time(),
         services = {}
     }
-    
+
     -- Check database
     local pg_ok = false
     local pg, err = db.get_connection()
@@ -658,12 +706,12 @@ function _M.check()
         end
         db.release_connection(pg)
     end
-    
+
     health.services.database = {
         status = pg_ok and "healthy" or "unhealthy",
         error = not pg_ok and err or nil
     }
-    
+
     -- Check Redis
     local redis_ok = false
     local red, err = redis_client.get_connection()
@@ -674,18 +722,18 @@ function _M.check()
         end
         redis_client.release_connection(red)
     end
-    
+
     health.services.redis = {
         status = redis_ok and "healthy" or "unhealthy",
         error = not redis_ok and err or nil
     }
-    
+
     -- Overall status
     if not pg_ok or not redis_ok then
         health.status = "degraded"
         ngx.status = 503
     end
-    
+
     ngx.header["Content-Type"] = "application/json"
     ngx.say(cjson.encode(health))
 end
@@ -1553,7 +1601,8 @@ COPY Makefile ./
 RUN luarocks install lua-resty-jwt && \\
     luarocks install pgmoon && \\
     luarocks install bcrypt && \\
-    luarocks install lua-cjson
+    luarocks install lua-cjson && \\
+    luarocks install lua-graphql
 
 # Copy application files
 COPY nginx.conf ./

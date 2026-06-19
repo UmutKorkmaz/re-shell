@@ -11,7 +11,7 @@ export const catalystTemplate: BackendTemplate = {
   tags: ['perl', 'catalyst', 'mvc', 'microservices', 'extensible', 'restful'],
   port: 5000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main application script
@@ -130,6 +130,55 @@ sub not_found :Private {
     my $response = { error => 'Not found' };
     $c->response->body(encode_json($response));
     $c->response->status(404);
+    $c->response->content_type('application/json');
+}
+
+1;
+`,
+
+    // Controller - GraphQL (raw /graphql POST handler)
+    'lib/{{projectNamePascal}}/Controller/Graphql.pm': `package {{projectNamePascal}}::Controller::Graphql;
+use Moose;
+use namespace::autoclean;
+use JSON::MaybeXS;
+
+BEGIN { extends 'Catalyst::Controller'; }
+
+# Minimal GraphQL schema: type Query { hello: String!, health: String! }
+our $SCHEMA = <<'GRAPHQL';
+type Query {
+  hello: String!
+  health: String!
+}
+GRAPHQL
+
+# Resolver: returns hello and health regardless of selection set.
+sub _resolve {
+    my ($query) = @_;
+    return {
+        data => {
+            hello  => 'Hello from Catalyst GraphQL!',
+            health => 'healthy'
+        }
+    };
+}
+
+sub endpoint :Path('/graphql') :Args(0) {
+    my ($self, $c) = @_;
+
+    # Parse JSON request body, return JSON response with hello/health results.
+    my $body = $c->request->body;
+    my $data = {};
+    if ($body) {
+        local $/;    ## no critic (Variables/RequireInitializationForLocalVars)
+        my $content = ref $body ? do { local $/; <$body> } : $body;
+        $data = decode_json($content) if $content;
+    }
+
+    my $query   = $data->{query} // '';
+    my $result  = _resolve($query);
+
+    $c->response->body(encode_json($result));
     $c->response->content_type('application/json');
 }
 
@@ -545,6 +594,7 @@ requires 'Config::General';
 requires 'JSON::MaybeXS', '1.004';
 requires 'Digest::SHA', '6.02';
 requires 'Moose', '2.2015';
+requires 'GraphQL::Plugin::Convert::GraphRef', '0';
 
 on 'test' => {
     requires 'Test::More', '1.30';
@@ -605,6 +655,7 @@ perl script/{{projectNameSnake}}_server.pl
 ## API Endpoints
 
 - \`GET /health\` - Health check
+- \`POST /graphql\` - GraphQL endpoint ({ hello, health })
 - \`POST /api/v1/auth/register\` - Register
 - \`POST /api/v1/auth/login\` - Login
 - \`GET /api/v1/products\` - List products

@@ -11,7 +11,7 @@ export const rescriptReactServerTemplate: BackendTemplate = {
   tags: ['rescript', 'react', 'server-components', 'nodejs', 'type-safe', 'rest-api'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'rest-api'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'rest-api', 'graphql'],
 
   files: {
     // Package.json
@@ -44,7 +44,9 @@ export const rescriptReactServerTemplate: BackendTemplate = {
     "morgan": "^1.10.0",
     "dotenv": "^16.4.5",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "graphql-yoga": "^5.3.0",
+    "graphql": "^16.8.1"
   },
   "devDependencies": {
     "rescript": "^11.1.0",
@@ -284,6 +286,16 @@ app->Express.use(Express.urlencodedWithConfig({~extended=true->Some, ()->}))
 app->Express.get("/health", AppRoutes.healthGet)
 app->Express.get("/", AppRoutes.homeGet)
 
+// GraphQL endpoint (graphql-yoga via JS interop)
+app->Express.get("/graphql", (req, res) => {
+  GraphQL.handleGraphQL(req, res)->ignore
+  Js.Promise.resolve()
+})
+app->Express.post("/graphql", (req, res) => {
+  GraphQL.handleGraphQL(req, res)->ignore
+  Js.Promise.resolve()
+})
+
 // API routes
 app->Express.get("/api/v1/users", AppRoutes.usersGet)
 app->Express.get("/api/v1/users/:id", AppRoutes.userGet)
@@ -364,6 +376,47 @@ module Utils = {
     Js.Dict.merge(payload1, payload2)
   }
 }`,
+
+    // GraphQL schema and resolvers (graphql-yoga)
+    'src/graphqlSchema.js': `const typeDefs = \`
+  type Query {
+    hello: String!
+    health: String!
+  }
+\`;
+
+const resolvers = {
+  Query: {
+    hello: () => 'Hello from ReScript React Server GraphQL!',
+    health: () => 'healthy'
+  }
+};
+
+module.exports = { typeDefs, resolvers };
+`,
+
+    // GraphQL Yoga handler (JS interop) for Express
+    'src/graphqlHandler.js': `const { createYoga } = require('graphql-yoga');
+const { typeDefs, resolvers } = require('./graphqlSchema');
+
+const yoga = createYoga({
+  schema: { typeDefs, resolvers },
+  graphqlEndpoint: '/graphql',
+  landingPage: false
+});
+
+module.exports = (req, res) => {
+  return yoga.handleNodeRequestAndResponse(req, res, { req, res });
+};
+`,
+
+    // ReScript binding for the GraphQL handler
+    'src/GraphQL.res': `open RescriptCore
+
+// GraphQL Yoga handler imported from JS
+@module("./graphqlHandler.js")
+external handleGraphQL: (Express.req, Express.res) => Js.Promise.t<unit> = "default"
+`,
 
     // Styles
     'src/styles.css': `* {

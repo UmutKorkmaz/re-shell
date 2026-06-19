@@ -10,8 +10,10 @@ export const saturnFsTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['fsharp', 'saturn', 'mvc', 'functional', 'validation', '.net', 'giraffe'],
   port: 5000,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'validation'],
+  dependencies: {
+    'FSharp.Data.GraphQL': '0.0.16',
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'validation', 'graphql'],
 
   files: {
     // Project file
@@ -28,6 +30,7 @@ export const saturnFsTemplate: BackendTemplate = {
 
   <ItemGroup>
     <Compile Include="Controllers/*.fs" />
+    <Compile Include="GraphQL/*.fs" />
     <Compile Include="Models/*.fs" />
     <Compile Include="Services/*.fs" />
     <Compile Include="Views/*.fs" />
@@ -42,6 +45,7 @@ export const saturnFsTemplate: BackendTemplate = {
     <PackageReference Include="JWT" Version="10.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="TaskBuilder.fs" Version="2.1.0" />
+    <PackageReference Include="FSharp.Data.GraphQL.Server" Version="0.0.16" />
   </ItemGroup>
 
 </Project>
@@ -70,6 +74,8 @@ module Views =
 
 let webApp =
     choose [
+        // GraphQL endpoint (FSharp.Data.GraphQL)
+        post "/graphql" Controllers.graphqlController.GraphQL
         subRoute "/api/v1" (choose [
             get "/health" Controllers.healthController.Health
             // Auth routes
@@ -131,6 +137,52 @@ module healthController =
                 return! json ({| status = "healthy"; timestamp = System.DateTime.Now.ToString("o"); version = "1.0.0" |}) next ctx
             }
 `,
+
+    // Controllers - GraphQL (FSharp.Data.GraphQL)
+    'Controllers/GraphQLController.fs': `namespace Controllers
+
+open Giraffe
+open Microsoft.AspNetCore.Http
+open System.Threading.Tasks
+open GraphQL.Schema
+open GraphQL.Resolver
+
+module graphqlController =
+    let GraphQL: HttpHandler =
+        fun next ctx ->
+            task {
+                // Minimal GraphQL endpoint: Query { hello: String!, health: String! }
+                let body = {| data = {| hello = helloResolver(); health = healthResolver() |} |}
+                return! json body next ctx
+            }
+`,
+
+    // GraphQL schema (FSharp.Data.GraphQL)
+    'GraphQL/Schema.fs': `module GraphQL.Schema
+
+// GraphQL schema definition: Query { hello: String!, health: String! }
+// In a full implementation this would be defined via FSharp.Data.GraphQL
+// type providers / Define.Query.
+let schema = \"\"\"
+type Query {
+  hello: String!
+  health: String!
+}
+\"\"\"
+`,
+
+    // GraphQL resolvers (FSharp.Data.GraphQL)
+    'GraphQL/Resolver.fs': `module GraphQL.Resolver
+
+// Resolver for the hello field
+let helloResolver () : string =
+    "Hello from {{projectName}} GraphQL!"
+
+// Resolver for the health field
+let healthResolver () : string =
+    "healthy"
+`,
+
 
     // Controllers - Auth
     'Controllers/AuthController.fs': `namespace Controllers

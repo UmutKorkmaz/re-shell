@@ -11,7 +11,7 @@ export const alephDenoTemplate: BackendTemplate = {
   tags: ['deno', 'aleph', 'react', 'ssr', 'ssg', 'typescript', 'fullstack'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Deno configuration
@@ -30,7 +30,8 @@ export const alephDenoTemplate: BackendTemplate = {
     "react": "https://esm.sh/react@18.2.0",
     "react-dom": "https://esm.sh/react-dom@18.2.0",
     "nanostores": "https://esm.sh/nanostores@0.9.3",
-    "dotenv": "https://deno.land/std@0.208.0/dotenv/mod.ts"
+    "dotenv": "https://deno.land/std@0.208.0/dotenv/mod.ts",
+    "graphql": "https://deno.land/x/graphql_deno@v15.0.0/mod.ts"
   },
   "compilerOptions": {
     "jsx": "react-jsx",
@@ -311,6 +312,57 @@ export const get: Handler = ({ response }) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0'
   });
+};
+`,
+
+    // GraphQL schema and resolvers
+    'src/graphql/schema.ts': `import { GraphQLSchema, GraphQLObjectType, GraphQLString } from 'graphql';
+
+export const schema = new GraphQLSchema({
+  query: new GraphQLObjectType({
+    name: 'Query',
+    fields: {
+      hello: {
+        type: GraphQLString,
+        resolve: () => 'Hello from Aleph GraphQL!'
+      },
+      health: {
+        type: GraphQLString,
+        resolve: () => 'healthy'
+      }
+    }
+  })
+});
+`,
+
+    // GraphQL endpoint route
+    'routes/graphql.tsx': `import { Handler } from 'aleph';
+import { graphql } from 'graphql';
+import { schema } from '../src/graphql/schema.ts';
+
+export const get: Handler = async ({ request, response }) => {
+  const url = new URL(request.url);
+  const source = url.searchParams.get('query') || '{ hello health }';
+
+  try {
+    const result = await graphql({ schema, source });
+    response.json(result);
+  } catch (err) {
+    response.status = 400;
+    response.json({ errors: [{ message: (err as Error).message }] });
+  }
+};
+
+export const post: Handler = async ({ request, response }) => {
+  try {
+    const body = await request.json();
+    const source = body.query || '{ hello health }';
+    const result = await graphql({ schema, source });
+    response.json(result);
+  } catch (err) {
+    response.status = 400;
+    response.json({ errors: [{ message: (err as Error).message }] });
+  }
 };
 `,
 

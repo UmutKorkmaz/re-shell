@@ -11,7 +11,7 @@ export const elysiaBunTemplate: BackendTemplate = {
   tags: ['bun', 'elysia', 'typescript', 'api', 'rest', 'fast', 'type-safe'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'swagger'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'swagger', 'graphql'],
 
   files: {
     // Package.json
@@ -32,7 +32,9 @@ export const elysiaBunTemplate: BackendTemplate = {
     "@elysiajs/jwt": "^1.0.2",
     "@elysiajs/swagger": "^1.0.3",
     "@elysiajs/bearer": "^1.0.2",
-    "@sinclair/typebox": "^0.32.5"
+    "@sinclair/typebox": "^0.32.5",
+    "graphql-yoga": "^5.3.0",
+    "graphql": "^16.8.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.4.1",
@@ -88,6 +90,7 @@ export const elysiaBunTemplate: BackendTemplate = {
     'src/index.ts': `import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
+import { createYoga } from 'graphql-yoga';
 import { config } from './config/env';
 import { authPlugin } from './plugins/auth';
 import { loggerPlugin } from './plugins/logger';
@@ -96,11 +99,27 @@ import { authRoutes } from './routes/auth';
 import { userRoutes } from './routes/users';
 import { productRoutes } from './routes/products';
 import { db } from './config/database';
+import { typeDefs, resolvers } from './graphql';
 
 // Initialize database
 await db.initialize();
 
+// GraphQL Yoga instance
+const yoga = createYoga({
+  schema: { typeDefs, resolvers },
+  graphqlEndpoint: '/graphql',
+  landingPage: false
+});
+
 const app = new Elysia()
+  // GraphQL endpoint
+  .on('request', (ctx) => {
+    const url = new URL(ctx.request.url);
+    if (url.pathname === '/graphql') {
+      return yoga.handleRequest(ctx.request, ctx);
+    }
+  })
+  .all('/graphql', (ctx) => yoga.handleRequest(ctx.request, ctx))
   // Swagger documentation
   .use(swagger({
     documentation: {
@@ -338,6 +357,22 @@ export type RegisterInput = Static<typeof RegisterSchema>;
 export type LoginInput = Static<typeof LoginSchema>;
 export type CreateProductInput = Static<typeof CreateProductSchema>;
 export type UpdateProductInput = Static<typeof UpdateProductSchema>;
+`,
+
+    // GraphQL schema and resolvers
+    'src/graphql/index.ts': `export const typeDefs = \`#graphql
+type Query {
+  hello: String!
+  health: String!
+}
+\`;
+
+export const resolvers = {
+  Query: {
+    hello: () => 'Hello from Elysia GraphQL!',
+    health: () => 'healthy'
+  }
+};
 `,
 
     // Auth Plugin

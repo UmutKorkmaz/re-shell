@@ -11,14 +11,14 @@ export const dreamOcamlTemplate: BackendTemplate = {
   tags: ['ocaml', 'dream', 'modern', 'type-safe', 'middleware'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Dune file
     'dune': `(library
  (name {{projectName}})
- (modules {{projectName}} models handlers)
- (libraries dream lwt lwt_ppx caqti caqti-lwt dream-html))`
+ (modules {{projectName}} models handlers graphql_schema graphql)
+ (libraries dream lwt lwt_ppx caqti caqti-lwt dream-html graphql_server graphql_lwt))`
 
 ,
 
@@ -36,7 +36,9 @@ export const dreamOcamlTemplate: BackendTemplate = {
   (lwt (>= 5.5.0))
   (lwt_ppx (>= 2.0.0))
   (caqti (>= 1.0.0))
-  (caqti-lwt (>= 1.0.0))))`
+  (caqti-lwt (>= 1.0.0))
+  (graphql (>= 0.14.0))
+  (graphql-lwt (>= 0.14.0))))`
 
 ,
 
@@ -45,6 +47,49 @@ export const dreamOcamlTemplate: BackendTemplate = {
  (name main)
  (modules main)
  (libraries {{projectName}}))
+`
+
+,
+
+    // GraphQL schema (ocaml-graphql-server)
+    'lib/graphql_schema.ml': `open Graphql_lwt
+
+(** Minimal GraphQL schema: Query { hello: String!, health: String! } *)
+
+let schema =
+  Graphql_lwt.(
+    schema
+      ~query:(obj [
+        field "hello" ~args:[] ~resolve:(fun _ () -> Lwt.return "Hello from GraphQL!");
+        field "health" ~args:[] ~resolve:(fun _ () -> Lwt.return "healthy");
+      ])
+      ())
+`
+
+,
+
+    // GraphQL HTTP handler
+    'lib/graphql.ml': `open Dream
+open Lwt.Infix
+
+(** GraphQL HTTP handler for Dream. Expects a JSON body with a "query" key. *)
+
+let handler req =
+  let* body = Dream.body req in
+  let data =
+    try Some (Ezjsonm.from_string body)
+    with _ -> None
+  in
+  let query_string =
+    match data with
+    | Some d ->
+        (try Ezjsonm.find (fun x -> x) ["query"] d |> Ezjsonm.get_string
+         with _ -> "{ __typename }")
+    | None -> "{ __typename }"
+  in
+  let+ response = Graphql_lwt.Schema.execute Graphql_schema.schema query_string in
+  let json_str = Ezjsonm.to_string response in
+  Dream.json json_str
 `
 
 ,
@@ -69,6 +114,9 @@ let () =
   @@ Dream.router [
     Dream.get "/" (fun _ -> Dream.html "home_page");
     Dream.get "/api/v1/health" (fun _ -> Handlers.health);
+
+    (* GraphQL endpoint *)
+    Dream.any "/graphql" Graphql.handler;
 
     (* Auth routes *)
     Dream.post "/api/v1/auth/register" Handlers.register;

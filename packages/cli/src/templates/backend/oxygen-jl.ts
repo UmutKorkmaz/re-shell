@@ -10,8 +10,10 @@ export const oxygenJlTemplate: BackendTemplate = {
   version: '1.0.0',
   tags: ['julia', 'oxygen', 'minimal', 'fast', 'http', 'restful'],
   port: 8080,
-  dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  dependencies: {
+    GraphQL: '0.1.0',
+  },
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main application file
@@ -33,6 +35,25 @@ function health()
     "timestamp" => string(now()),
     "version" => "1.0.0"
   ))
+end
+
+# GraphQL endpoint
+@post "/graphql"
+function graphql_endpoint(req::HTTP.Request)
+  data = jsonpayload(req)
+  query = get(data, "query", "{ __typename }")
+
+  # GraphQL schema: Query { hello: String!, health: String! }
+  result = Dict{String, Any}()
+  if occursin("hello", query)
+    result["data"] = Dict("hello" => "Hello from {{projectName}} GraphQL!")
+  elseif occursin("health", query)
+    result["data"] = Dict("health" => "healthy")
+  else
+    result["data"] = Dict("hello" => "Hello from {{projectName}} GraphQL!", "health" => "healthy")
+  end
+
+  json(result)
 end
 
 # Auth routes
@@ -117,6 +138,7 @@ end
 function main()
   println("🚀 Server running at http://localhost:8080")
   println("📚 API docs: http://localhost:8080/api/v1/health")
+  println("🧬 GraphQL: http://localhost:8080/graphql")
 
   serve(port=8080)
 end
@@ -124,6 +146,28 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
   main()
 end
+`,
+
+    // GraphQL schema
+    'src/graphql/schema.jl': `# {{projectName}} - GraphQL Schema
+# Query { hello: String!, health: String! }
+
+const type_defs = \"\"\"
+type Query {
+  hello: String!
+  health: String!
+}
+\"\"\"
+`,
+
+    // GraphQL resolvers
+    'src/graphql/resolver.jl': `# {{projectName}} - GraphQL Resolvers
+
+# Resolver for hello field
+resolve_hello() = "Hello from {{projectName}} GraphQL!"
+
+# Resolver for health field
+resolve_health() = "healthy"
 `,
 
     // User Model
@@ -416,6 +460,8 @@ version = "0.1.0"
 [deps]
 Oxygen = "df9a0c86-9f39-4cb2-a8a3-cc122c727817"
 SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 `,
 
     // Dockerfile

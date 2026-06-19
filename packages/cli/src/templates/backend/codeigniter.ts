@@ -11,7 +11,7 @@ export const codeigniterTemplate: BackendTemplate = {
   tags: ['php', 'codeigniter', 'mvc', 'api', 'rest', 'lightweight'],
   port: 8080,
   dependencies: {},
-  features: ['routing', 'database', 'validation', 'logging', 'testing', 'security'],
+  features: ['routing', 'database', 'validation', 'logging', 'testing', 'security', 'graphql'],
   
   files: {
     // Composer configuration
@@ -27,6 +27,7 @@ export const codeigniterTemplate: BackendTemplate = {
     "firebase/php-jwt": "^6.10",
     "vlucas/phpdotenv": "^5.6",
     "guzzlehttp/guzzle": "^7.8",
+    "webonyx/graphql-php": "^14.11",
     "monolog/monolog": "^3.5",
     "ramsey/uuid": "^4.7",
     "fakerphp/faker": "^1.23"
@@ -158,6 +159,10 @@ use CodeIgniter\\Router\\RouteCollection;
  */
 
 // Load the system's routing file first
+
+// GraphQL endpoint (webonyx/graphql-php)
+$routes->post('graphql', 'GraphQLController::index');
+$routes->get('graphql', 'GraphQLController::index');
 
 // API Routes
 $routes->group('api', ['namespace' => 'App\\Controllers\\Api'], function ($routes) {
@@ -453,6 +458,61 @@ class HealthController extends BaseController
             'version' => config('App')->appVersion,
             'timestamp' => date('c')
         ]);
+    }
+}`,
+
+    // GraphQL Controller (raw handler with webonyx/graphql-php)
+    'app/Controllers/GraphQLController.php': `<?php
+
+namespace App\\Controllers;
+
+use App\\Controllers\\BaseController;
+use GraphQL\\Type\\Schema;
+use GraphQL\\Type\\Definition\\ObjectType;
+use GraphQL\\Type\\Definition\\Type;
+use GraphQL\\GraphQL;
+use GraphQL\\Error\\FormattedError;
+use GraphQL\\Error\\DebugFlag;
+
+class GraphQLController extends BaseController
+{
+    public function index()
+    {
+        $queryType = new ObjectType([
+            'name' => 'Query',
+            'fields' => [
+                'hello' => [
+                    'type' => Type::nonNull(Type::string()),
+                    'description' => 'A friendly greeting',
+                    'resolve' => static fn (): string => 'Hello from CodeIgniter 4 GraphQL!',
+                ],
+                'health' => [
+                    'type' => Type::nonNull(Type::string()),
+                    'description' => 'Service health status',
+                    'resolve' => static fn (): string => 'healthy',
+                ],
+            ],
+        ]);
+
+        $schema = new Schema(['query' => $queryType]);
+
+        $rawInput = $this->request->getBody() ?? '';
+        $input = json_decode($rawInput, true) ?? [];
+        $query = $input['query'] ?? $this->request->getGet('query') ?? '';
+        $variables = $input['variables'] ?? null;
+
+        try {
+            $debug = ENVIRONMENT === 'development'
+                ? DebugFlag::INCLUDE_DEBUG_MESSAGE | DebugFlag::INCLUDE_TRACE
+                : DebugFlag::NONE;
+            $result = GraphQL::executeQuery($schema, $query, null, null, $variables);
+            return $this->respond($result->toArray($debug));
+        } catch (\Throwable $e) {
+            return $this->respond(
+                ['errors' => [FormattedError::createFromException($e, DebugFlag::NONE)]],
+                400
+            );
+        }
     }
 }`,
 

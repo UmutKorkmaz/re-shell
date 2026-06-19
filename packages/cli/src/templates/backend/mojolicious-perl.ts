@@ -11,7 +11,7 @@ export const mojoliciousTemplate: BackendTemplate = {
   tags: ['perl', 'mojolicious', 'mvc', 'websockets', 'websockets', 'rest', 'full-stack'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'graphql'],
 
   files: {
     // Main application file
@@ -62,6 +62,10 @@ sub startup ($self) {
 
   # Health check (no auth required)
   $r->get('/health')->to('api#health');
+
+  # GraphQL endpoint (raw POST handler; Perl has no mature GraphQL lib built-in)
+  $r->post('/graphql')->to('graphql#endpoint');
+  $r->get('/graphql')->to('graphql#endpoint');
 
   # Home page
   $r->get('/')->to('example#welcome');
@@ -324,6 +328,55 @@ sub health ($self) {
     status => 'healthy',
     timestamp => scalar localtime,
     version => '1.0.0'});
+}
+
+1;
+`,
+
+    // Controller - GraphQL (raw /graphql POST handler)
+    'lib/{{projectNamePascal}}/Controller/Graphql.pm': `package {{projectNamePascal}}::Controller::Graphql;
+use strict;
+use warnings;
+use Mojo::Base 'Mojolicious::Controller';
+
+use {{projectNamePascal}}::GraphQL::Schema;
+
+sub endpoint ($self) {
+    my $data  = $self->req->json // {};
+    my $query = $data->{query} // '';
+
+    # Minimal GraphQL schema: type Query { hello: String!, health: String! }
+    # Resolver returns hello and health regardless of selection set.
+    my $result = {{projectNamePascal}}::GraphQL::Schema::resolve($query);
+
+    $self->render(json => $result);
+}
+
+1;
+`,
+
+    // GraphQL schema + resolvers (raw handler backing module)
+    'lib/{{projectNamePascal}}/GraphQL/Schema.pm': `package {{projectNamePascal}}::GraphQL::Schema;
+use strict;
+use warnings;
+
+# Minimal GraphQL schema: type Query { hello: String!, health: String! }
+our $SCHEMA = <<'GRAPHQL';
+type Query {
+  hello: String!
+  health: String!
+}
+GRAPHQL
+
+# Resolver: returns hello and health regardless of selection set.
+sub resolve {
+    my ($query) = @_;
+    return {
+        data => {
+            hello  => 'Hello from Mojolicious GraphQL!',
+            health => 'healthy'
+        }
+    };
 }
 
 1;
@@ -704,7 +757,8 @@ WriteMakefile(
   VERSION_FROM => 'lib/{{projectNamePascal}}.pm',
   PREREQ_PM => {
     'Mojolicious' => '9.00',
-    'Mojo::JWT' => '0'},
+    'Mojo::JWT' => '0',
+    'GraphQL::Plugin::Convert::GraphRef' => '0'},
   ABSTRACT => '{{description}}',
   AUTHOR => '{{author}} <{{email}}>',
   LICENSE => 'perl',

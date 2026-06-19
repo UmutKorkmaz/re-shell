@@ -11,7 +11,7 @@ export const playScalaTemplate: BackendTemplate = {
   tags: ['scala', 'play', 'reactive', 'akka', 'websockets', 'type-safe'],
   port: 9000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'graphql'],
 
   files: {
     // Build configuration
@@ -38,6 +38,8 @@ lazy val root = (project in file("."))
       "com.h2database" % "h2" % "2.2.224",
       "com.github.jwt-scala" %% "jwt-play-json" % "9.4.3",
       "com.typesafe.play" %% "play-mailer" % "8.0.1",
+      "org.sangria-graphql" %% "sangria" % "4.0.1",
+      "org.sangria-graphql" %% "sangria-play-json" % "2.0.2",
       "com.typesafe.akka" %% "akka-testkit" % "2.8.5" % Test,
       specs2 % Test,
     ),
@@ -69,6 +71,9 @@ GET     /                           controllers.HomeController.index()
 
 # Health check
 GET     /health                     controllers.HealthController.health()
+
+# GraphQL endpoint
+POST    /graphql                    controllers.GraphQLController.graphql()
 
 # API v1 routes
 +api/v1/auth
@@ -193,10 +198,11 @@ class {{projectNamePascal}}AppComponents(context: ApplicationLoader.Context)
   with play.api.i18n.I18nComponents
   with play.api.mvc.EssentialFilter {
 
-  lazy val router: Router = new Routes(httpErrorHandler, homeController, healthController, authController, userController, productController, assets)
+  lazy val router: Router = new Routes(httpErrorHandler, homeController, healthController, graphqlController, authController, userController, productController, assets)
 
   lazy val homeController = new controllers.HomeController(controllerComponents)
   lazy val healthController = new controllers.HealthController(controllerComponents)
+  lazy val graphqlController = new controllers.GraphQLController(controllerComponents)
   lazy val authController = new controllers.AuthController(controllerComponents)
   lazy val userController = new controllers.UserController(controllerComponents)
   lazy val productController = new controllers.ProductController(controllerComponents)
@@ -241,6 +247,80 @@ class HomeController @Inject()(val controllerComponents: ControllerComponents)
   def index() = Action { implicit request: Request[AnyContent] =>
     Ok(views.html.index("{{projectName}} API"))
   }
+}
+`,
+
+    // GraphQL controller (Sangria schema + resolver)
+    'app/controllers/GraphQLController.scala': `package controllers
+
+import javax.inject._
+import play.api.mvc._
+import play.api.libs.json._
+import sangria.ast.Document
+import sangria.execution.Executor
+import sangria.macros.derive._
+import sangria.marshalling.playJson._
+import sangria.schema._
+
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
+
+/** Minimal GraphQL context carrying no state for the Query { hello, health } schema. */
+case class GraphqlContext()
+
+@Singleton
+class GraphQLController @Inject()(val controllerComponents: ControllerComponents)(implicit ec: ExecutionContext)
+  extends BaseController {
+
+  def graphql() = Action.async(parse.json) { implicit request: Request[JsValue] =>
+    val query = (request.body \\ "query").headOption.flatMap(_.asOpt[String]).getOrElse("")
+    val operation = (request.body \\ "operationName").headOption.flatMap(_.asOpt[String])
+    val variables = (request.body \\ "variables").headOption
+      .flatMap(_.asOpt[JsObject])
+      .getOrElse(Json.obj())
+
+    val variablesInput = variables.value.map { case (k, v) => k -> v }.toMap
+
+    Executor.execute(
+      schema = GraphQLController.schema,
+      queryAst = sangria.parser.QueryParser.parse(query) match {
+        case Success(doc) => doc
+        case Failure(err) => Document(stale = true)
+      },
+      variables = variablesInput,
+      userContext = GraphqlContext()
+    ).map { result =>
+      Ok(Json.obj("data" -> result))
+    }.recover {
+      case err: Exception =>
+        BadRequest(Json.obj("errors" -> Json.arr(Json.obj("message" -> err.getMessage))))
+    }
+  }
+}
+
+object GraphQLController {
+  val helloResolver: ResolveField[GraphqlContext, String] =
+    _ => Action(value = "Hello from {{projectName}} GraphQL!")
+
+  val healthResolver: ResolveField[GraphqlContext, String] =
+    _ => Action(value = "healthy")
+
+  val QueryType: ObjectType[GraphqlContext, Unit] = ObjectType(
+    name = "Query",
+    fields = fields[GraphqlContext, Unit](
+      Field("hello", StringType, resolve = helloResolver),
+      Field("health", StringType, resolve = healthResolver)
+    )
+  )
+
+  val schema: Schema[GraphqlContext, Unit] = Schema(QueryType)
+
+  val sdl: String = """
+    type Query {
+      hello: String!
+      health: String!
+    }
+  """.trim()
 }
 `,
 

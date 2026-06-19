@@ -11,7 +11,7 @@ export const prologueNimTemplate: BackendTemplate = {
   tags: ['nim', 'prologue', 'full-stack', 'database', 'authentication', 'type-safe'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'database'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'database', 'graphql'],
 
   files: {
     // Configuration
@@ -31,6 +31,7 @@ requires "nim >= 2.0"
 requires "prologue >= 0.7.0"
 requires "norman >= 0.6.0"
 requires "jwt >= 0.3.0"
+requires "nim-graphql >= 0.4.0"
 `,
 
     // Main application
@@ -39,6 +40,7 @@ import prologue/middlewares/session
 import {{projectNameSnake}}/routes
 import {{projectNameSnake}}/models
 import {{projectNameSnake}}/controllers
+import {{projectNameSnake}}/graphql_handler
 
 var app = newApp(settings = newSettings(
   port = Port(8080),
@@ -50,6 +52,7 @@ app.registerErrorHandler(errorHandler)
 
 # Routes
 app.get("/api/v1/health", healthController)
+app.post("/graphql", graphqlController)
 app.post("/api/v1/auth/register", registerController)
 app.post("/api/v1/auth/login", loginController)
 app.get("/api/v1/products", listProductsController)
@@ -234,6 +237,48 @@ proc errorHandler*(req: Request, error: Exception) : Future[Response] {.async.} 
 
 # Routes are defined in main file for simplicity
 # This file can be used for organizing routes in larger applications
+`,
+
+    // GraphQL schema + resolvers (nim-graphql)
+    'src/{{projectNameSnake}}/graphql_schema.nim': `import json
+import graphql
+
+## Minimal GraphQL schema: Query { hello: String!, health: String! }
+
+proc resolveHello(): JsonNode = %"Hello from GraphQL!"
+proc resolveHealth(): JsonNode = %"healthy"
+
+let queryType = Type(
+  name: "Query",
+  fields: @[
+    Field(name: "hello", fieldType: "String!", resolve: proc(): JsonNode = resolveHello()),
+    Field(name: "health", fieldType: "String!", resolve: proc(): JsonNode = resolveHealth())
+  ]
+)
+
+let schema* = Schema(types: @[queryType])
+`,
+
+    // GraphQL controller (Prologue handler)
+    'src/{{projectNameSnake}}/graphql_handler.nim': `import prologue
+import json
+import graphql
+
+import {{projectNameSnake}}/graphql_schema
+
+proc graphqlController*(ctx: Context) {.async.} =
+  ## Handles POST /graphql. Reads a JSON body with a "query" key and executes
+  ## it against the nim-graphql schema.
+  try:
+    let body = ctx.request.body.bind()
+    let parsed = parseJson(body)
+    let queryStr = parsed.getOrDefault("query").getStr("{ hello }")
+    let result = schema.execute(queryStr)
+    resp jsonResponse(%*{"data": %result})
+  except JsonParsingError:
+    resp jsonResponse(%*{"errors": [%*{"message": %"Invalid JSON body"}]}, Http400)
+  except Exception as e:
+    resp jsonResponse(%*{"errors": [%*{"message": %e.msg}]}, Http400)
 `,
 
     // Authentication

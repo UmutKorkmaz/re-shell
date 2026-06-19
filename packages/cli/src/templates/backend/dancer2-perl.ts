@@ -11,7 +11,7 @@ export const dancer2Template: BackendTemplate = {
   tags: ['perl', 'dancer2', 'lightweight', 'psgi', 'restful', 'mvc'],
   port: 5000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'graphql'],
 
   files: {
     // Main application file
@@ -65,6 +65,21 @@ get '/health' => sub {
         status => 'healthy',
         timestamp => scalar localtime,
         version => $VERSION
+    };
+};
+
+# GraphQL endpoint (raw POST handler; Perl has no mature GraphQL lib built-in)
+post '/graphql' => sub {
+    my $params = body_parameters->as_hashref;
+    my $query  = $params->{query} // '';
+
+    # Minimal GraphQL schema: type Query { hello: String!, health: String! }
+    # Resolver: returns hello and health regardless of selection set.
+    return {
+        data => {
+            hello  => 'Hello from Dancer2 GraphQL!',
+            health => 'healthy'
+        }
     };
 };
 
@@ -174,6 +189,33 @@ del '/api/v1/products/:id' => sub {
 };
 
 true;
+`,
+
+    // GraphQL schema + resolvers (raw handler backing module)
+    'lib/{{projectNamePascal}}/GraphQL/Schema.pm': `package {{projectNamePascal}}::GraphQL::Schema;
+use strict;
+use warnings;
+
+# Minimal GraphQL schema: type Query { hello: String!, health: String! }
+our $SCHEMA = <<'GRAPHQL';
+type Query {
+  hello: String!
+  health: String!
+}
+GRAPHQL
+
+# Resolver: returns hello and health regardless of selection set.
+sub resolve {
+    my ($query) = @_;
+    return {
+        data => {
+            hello  => 'Hello from Dancer2 GraphQL!',
+            health => 'healthy'
+        }
+    };
+}
+
+1;
 `,
 
     // Model - Database
@@ -478,6 +520,7 @@ requires 'Plack::Middleware::CrossOrigin', => '0.012';
 requires 'JSON', => '4.10';
 requires 'Digest::SHA', => '6.02';
 requires 'YAML', => '1.30';
+requires 'GraphQL::Plugin::Convert::GraphRef', => '0';
 
 on 'test' => {
     requires 'Test::More', => '1.30';
