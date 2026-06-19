@@ -11,7 +11,7 @@ export const expressTemplate: BackendTemplate = {
   tags: ['nodejs', 'express', 'api', 'rest', 'middleware', 'typescript'],
   port: 3000,
   dependencies: {},
-  features: ['middleware', 'routing', 'cors', 'authentication', 'validation', 'middleware', 'rate-limiting', 'logging'],
+  features: ['middleware', 'routing', 'cors', 'authentication', 'validation', 'middleware', 'rate-limiting', 'logging', 'graphql'],
   
   files: {
     // TypeScript project configuration
@@ -62,7 +62,9 @@ export const expressTemplate: BackendTemplate = {
     "express-fileupload": "^1.5.0",
     "redis": "^4.6.13",
     "rate-limit-redis": "^4.2.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "@apollo/server": "^4.10.4",
+    "graphql": "^16.8.2"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
@@ -142,6 +144,8 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { ApolloServer } from '@apollo/server';
+import { expressMiddleware } from '@apollo/server/express4';
 import { errorHandler } from './middlewares/error.middleware';
 import { notFoundHandler } from './middlewares/notFound.middleware';
 import { rateLimiter } from './middlewares/rateLimit.middleware';
@@ -151,6 +155,8 @@ import { redisClient } from './config/redis';
 import routes from './routes';
 import { swaggerDocs } from './config/swagger';
 import { initializeWebSocket } from './config/websocket';
+import { typeDefs } from './graphql/schema';
+import { resolvers } from './graphql/resolver';
 
 // Load environment variables
 dotenv.config();
@@ -208,6 +214,9 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/v1', routes);
 
+// GraphQL endpoint (Apollo Server mounted as Express middleware)
+const apolloServer = new ApolloServer({ typeDefs, resolvers });
+
 // 404 handler
 app.use(notFoundHandler);
 
@@ -232,6 +241,16 @@ const startServer = async () => {
     // Connect to database (warns + continues if unreachable)
     await connectDatabase();
 
+    // Start Apollo Server and mount the GraphQL endpoint at /graphql
+    await apolloServer.start();
+    app.use(
+      '/graphql',
+      express.json(),
+      expressMiddleware(apolloServer, {
+        context: async () => ({})
+      })
+    );
+
     // Connect to Redis — non-fatal so a fresh scaffold without Redis boots
     try {
       await redisClient.connect();
@@ -243,6 +262,7 @@ const startServer = async () => {
     httpServer.listen(PORT, () => {
       logger.info(\`🚀 Server is running on port \${PORT}\`);
       logger.info(\`📚 API Documentation: http://localhost:\${PORT}/api-docs\`);
+      logger.info(\`🪐 GraphQL endpoint: http://localhost:\${PORT}/graphql\`);
       logger.info(\`🔧 Environment: \${process.env.NODE_ENV || 'development'}\`);
     });
   } catch (error) {
@@ -1521,6 +1541,32 @@ const storage = multer.memoryStorage();
  */
 export const uploadSingle = (fieldname: string) =>
   multer({ storage }).single(fieldname);
+`,
+
+    // GraphQL schema (type definitions)
+    'src/graphql/schema.ts': `/**
+ * GraphQL schema type definitions.
+ * Kept minimal: a hello world query plus a health check query.
+ */
+export const typeDefs = \`#graphql
+  type Query {
+    hello: String
+    health: String
+  }
+\`;
+`,
+
+    // GraphQL resolvers
+    'src/graphql/resolver.ts': `/**
+ * GraphQL resolvers for the minimal Query schema.
+ * Matches the fields defined in src/graphql/schema.ts.
+ */
+export const resolvers = {
+  Query: {
+    hello: () => 'Hello from GraphQL!',
+    health: () => 'healthy'
+  }
+};
 `,
 
     // Logger utility

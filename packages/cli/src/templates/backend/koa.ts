@@ -11,7 +11,7 @@ export const koaTemplate: BackendTemplate = {
   tags: ['nodejs', 'koa', 'api', 'rest', 'middleware', 'typescript'],
   port: 3000,
   dependencies: {},
-  features: ['middleware', 'rest-api', 'routing', 'middleware', 'validation', 'authentication'],
+  features: ['middleware', 'rest-api', 'routing', 'middleware', 'validation', 'authentication', 'graphql'],
   
   files: {
     // Package configuration
@@ -81,7 +81,10 @@ export const koaTemplate: BackendTemplate = {
     "socket.io": "^4.7.5",
     "bull": "^4.12.2",
     "node-cron": "^3.0.3",
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.2.2",
+    "@apollo/server": "^4.10.4",
+    "@as-integrations/koa": "^7.0.0",
+    "graphql": "^16.8.2"
   },
   "devDependencies": {
     "@types/koa": "^2.15.0",
@@ -165,6 +168,7 @@ export const koaTemplate: BackendTemplate = {
       "@services/*": ["src/services/*"],
       "@utils/*": ["src/utils/*"],
       "@validators/*": ["src/validators/*"],
+      "@graphql/*": ["src/graphql/*"],
       "@types/*": ["src/types/*"]
     }
   },
@@ -200,6 +204,10 @@ import { router } from '@routes/index';
 import { initializeWebSocket } from '@config/websocket';
 import { Logger } from '@utils/logger';
 import { setupSwagger } from '@config/swagger';
+import { ApolloServer } from '@apollo/server';
+import { koaMiddleware } from '@as-integrations/koa';
+import { typeDefs } from '@graphql/schema';
+import { resolvers } from '@graphql/resolver';
 
 const app = new Koa();
 const server = createServer(app.callback());
@@ -282,6 +290,12 @@ if (!config.isProduction) {
   setupSwagger(app);
 }
 
+// GraphQL server (started and mounted in startServer() below).
+const apolloServer = new ApolloServer({
+  typeDefs,
+  resolvers
+});
+
 // Health check
 app.use(async (ctx, next) => {
   if (ctx.path === '/health') {
@@ -329,13 +343,20 @@ const startServer = async () => {
   try {
     // Connect to database
     await connectDatabase();
-    
+
+    // Start Apollo Server and mount the GraphQL endpoint at /graphql
+    await apolloServer.start();
+    app.use('/graphql', koaMiddleware(apolloServer, {
+      path: '/'
+    }));
+
     // Start server
     server.listen(config.port, () => {
       Logger.info(\`🚀 Server is running on port \${config.port}\`);
       Logger.info(\`🔧 Environment: \${config.env}\`);
       if (!config.isProduction) {
         Logger.info(\`📚 API Documentation: http://localhost:\${config.port}/swagger\`);
+        Logger.info(\`🩺 GraphQL endpoint: http://localhost:\${config.port}/graphql\`);
       }
     });
   } catch (error) {
@@ -2229,6 +2250,32 @@ export class TodoQueryDto {
   @IsEnum(['asc', 'desc'])
   @IsOptional()
   order?: string;
-}`
+}`,
+
+    // GraphQL schema (typeDefs) — consumed by the ApolloServer in src/index.ts.
+    'src/graphql/schema.ts': `/**
+ * GraphQL schema type definitions.
+ * Mounted by ApolloServer at POST /graphql in src/index.ts.
+ */
+export const typeDefs = \`#graphql
+  type Query {
+    hello: String!
+    health: String!
+  }
+\`;
+`,
+
+    // GraphQL resolvers — consumed by the ApolloServer in src/index.ts.
+    'src/graphql/resolver.ts': `/**
+ * GraphQL resolvers matching the Query type in src/graphql/schema.ts.
+ * \`hello\` is a simple greeting; \`health\` echoes the service health status.
+ */
+export const resolvers = {
+  Query: {
+    hello: () => 'Hello from GraphQL!',
+    health: () => 'healthy'
+  }
+};
+`
   }
 };

@@ -11,7 +11,7 @@ export const fastifyTemplate: BackendTemplate = {
   tags: ['nodejs', 'fastify', 'api', 'rest', 'performance', 'schema', 'typescript'],
   port: 3000,
   dependencies: {},
-  features: ['validation', 'microservices', 'authentication', 'swagger', 'websockets'],
+  features: ['validation', 'microservices', 'authentication', 'swagger', 'websockets', 'graphql'],
   
   files: {
     // Package configuration
@@ -56,6 +56,7 @@ export const fastifyTemplate: BackendTemplate = {
     "@fastify/swagger-ui": "^3.0.0",
     "@fastify/type-provider-typebox": "^4.0.0",
     "@fastify/websocket": "^9.0.0",
+    "mercurius": "^15.1.0",
     "@fastify/compress": "^7.0.1",
     "@fastify/etag": "^5.2.0",
     "@fastify/formbody": "^7.4.0",
@@ -165,6 +166,10 @@ const start = async () => {
       options: { prefix: '/api/v1' }
     });
 
+    // Register GraphQL endpoint (Mercurius at /graphql)
+    const { registerGraphQL } = await import('./graphql/resolver');
+    await registerGraphQL(app);
+
     // Start server
     await app.listen({ 
       port: config.port, 
@@ -176,6 +181,7 @@ const start = async () => {
 
     console.log(\`🚀 Server running on http://\${config.host}:\${port}\`);
     console.log(\`📚 Documentation: http://\${config.host}:\${port}/documentation\`);
+    console.log(\`🧬 GraphQL: http://\${config.host}:\${port}/graphql\`);
     console.log(\`🔧 Environment: \${config.env}\`);
   } catch (err) {
     app.log.error(err);
@@ -569,6 +575,36 @@ const redisPlugin: FastifyPluginAsync = async (fastify) => {
 export default fp(redisPlugin, {
   name: 'redis'
 });`,
+
+    // GraphQL
+    'src/graphql/schema.ts': `export const typeDefs = \`
+  type Query {
+    hello: String
+    health: String
+  }
+\`;
+`,
+    'src/graphql/resolver.ts': `import { FastifyInstance } from 'fastify';
+
+export const resolvers = {
+  Query: {
+    hello: () => 'Hello from GraphQL!',
+    health: () => 'healthy'
+  }
+};
+
+export async function registerGraphQL(app: FastifyInstance): Promise<void> {
+  const mercurius = (await import('mercurius')).default;
+  const { typeDefs } = await import('./schema');
+
+  app.register(mercurius, {
+    schema: typeDefs,
+    resolvers,
+    graphiql: true,
+    path: '/graphql'
+  });
+}
+`,
 
     // Schemas
     'src/schemas/auth.schema.ts': `import { Type } from '@sinclair/typebox';
@@ -1439,6 +1475,7 @@ High-performance Fastify API server with TypeScript, featuring schema-based vali
 - 🗄️ **Prisma ORM** with PostgreSQL
 - 🚦 **Redis** for caching and rate limiting
 - 📚 **Swagger Documentation** auto-generated
+- 🧬 **GraphQL** support with Mercurius
 - 🔄 **WebSocket** support
 - 🧪 **Testing** with Jest and Tap
 - 🐳 **Docker** support
@@ -1496,6 +1533,8 @@ docker-compose up
 
 Once running, visit:
 - Swagger UI: http://localhost:3000/documentation
+- GraphQL endpoint: http://localhost:3000/graphql
+- GraphQL Playground (GraphiQL): http://localhost:3000/graphql
 - Health check: http://localhost:3000/api/v1/health
 
 ## Testing

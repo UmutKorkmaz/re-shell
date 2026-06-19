@@ -11,7 +11,7 @@ export const restifyTemplate: BackendTemplate = {
   tags: ['nodejs', 'restify', 'api', 'rest', 'microservices', 'throttling', 'typescript'],
   port: 3000,
   dependencies: {},
-  features: ['rest-api', 'rate-limiting', 'validation', 'logging', 'monitoring', 'middleware', 'authentication', 'swagger'],
+  features: ['rest-api', 'rate-limiting', 'validation', 'logging', 'monitoring', 'middleware', 'authentication', 'swagger', 'graphql'],
   
   files: {
     // TypeScript project configuration
@@ -68,7 +68,9 @@ export const restifyTemplate: BackendTemplate = {
     "socket.io": "^4.7.5",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
-    "passport-local": "^1.0.0"
+    "passport-local": "^1.0.0",
+    "@apollo/server": "^4.10.4",
+    "graphql": "^16.8.1"
   },
   "devDependencies": {
     "@types/restify": "^8.5.12",
@@ -180,6 +182,9 @@ import { connectDatabase } from './config/database';
 import { redisClient } from './config/redis';
 import { initializeWebSocket } from './config/websocket';
 import { gracefulShutdown } from './utils/gracefulShutdown';
+import { ApolloServer } from '@apollo/server';
+import { typeDefs } from './graphql/schema';
+import { resolvers } from './graphql/resolver';
 
 // Create server
 const server = restify.createServer({
@@ -250,6 +255,38 @@ setupRoutes(server);
 // API documentation
 setupSwagger(server);
 
+// GraphQL endpoint
+const apolloServer = new ApolloServer({ typeDefs, resolvers });
+server.post('/graphql', async (req, res, next) => {
+  try {
+    const { body, headers } = await apolloServer.executeHTTPGraphQLRequest({
+      httpGraphQLRequest: {
+        method: req.method,
+        headers: req.headers as Record<string, string>,
+        search: '',
+        body: req.body
+      },
+      context: async () => ({ req, res })
+    });
+
+    if (body.kind === 'complete') {
+      for (const [key, value] of headers) {
+        res.setHeader(key, value);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(body.string);
+    } else {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(body.string);
+    }
+
+    return next();
+  } catch (error) {
+    logger.error({ err: error }, 'GraphQL request error');
+    return next(error);
+  }
+});
+
 // Error handling
 server.on('restifyError', errorHandler);
 server.on('uncaughtException', (req, res, route, err) => {
@@ -273,6 +310,7 @@ const startServer = async () => {
     server.listen(config.port, config.host, () => {
       logger.info(\`🚀 Server is running on http://\${config.host}:\${config.port}\`);
       logger.info(\`📚 API Documentation: http://\${config.host}:\${config.port}/api-docs\`);
+      logger.info(\`🔮 GraphQL endpoint: http://\${config.host}:\${config.port}/graphql\`);
       logger.info(\`🔧 Environment: \${config.env}\`);
       logger.info(\`📊 Metrics: http://\${config.host}:\${config.port}/metrics\`);
     });
@@ -2495,6 +2533,26 @@ describe('Auth API', () => {
     });
   });
 });`,
+
+    // GraphQL schema (type definitions)
+    'src/graphql/schema.ts': `import { gql } from '@apollo/server';
+
+export const typeDefs = gql\`
+  type Query {
+    hello: String!
+    health: String!
+  }
+\`;
+`,
+
+    // GraphQL resolvers
+    'src/graphql/resolver.ts': `export const resolvers = {
+  Query: {
+    hello: () => 'Hello from GraphQL!',
+    health: () => 'healthy'
+  }
+};
+`,
 
     // README
     'README.md': `# {{projectName}}

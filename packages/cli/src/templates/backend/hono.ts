@@ -11,7 +11,7 @@ export const honoTemplate: BackendTemplate = {
   tags: ['bun', 'hono', 'typescript', 'api', 'rest', 'fast', 'edge', 'lightweight'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'rate-limiting'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'rate-limiting', 'graphql'],
 
   files: {
     // Package.json
@@ -28,7 +28,8 @@ export const honoTemplate: BackendTemplate = {
   "dependencies": {
     "hono": "^4.0.0",
     "@hono/zod-validator": "^0.2.0",
-    "zod": "^3.22.0"
+    "zod": "^3.22.0",
+    "graphql-yoga": "^5.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -105,6 +106,7 @@ import { db } from './db';
 import { authRoutes } from './routes/auth';
 import { userRoutes } from './routes/users';
 import { productRoutes } from './routes/products';
+import { yoga } from './graphql/yoga';
 
 // Initialize database
 await db.initialize();
@@ -137,15 +139,19 @@ app.route('/api/v1/auth', authRoutes);
 app.route('/api/v1/users', userRoutes);
 app.route('/api/v1/products', productRoutes);
 
+// GraphQL endpoint (GraphQL Yoga mounted at /graphql)
+app.route('/graphql', yoga);
+
 // Root endpoint
 app.get('/', (c) => {
   return c.json({
     name: '{{projectName}}',
     version: '1.0.0',
-    description: 'REST API built with Hono on Bun',
+    description: 'REST + GraphQL API built with Hono on Bun',
     endpoints: {
       health: '/health',
       api: '/api/v1',
+      graphql: '/graphql',
       docs: '/api/v1/docs'}});
 });
 
@@ -153,6 +159,7 @@ app.get('/', (c) => {
 const port = config.port;
 console.log(\`🚀 Server running at http://localhost:\${port}\`);
 console.log(\`📚 API docs at http://localhost:\${port}/api/v1/docs\`);
+console.log(\`🔮 GraphQL endpoint at http://localhost:\${port}/graphql\`);
 
 export default {
   port,
@@ -179,6 +186,42 @@ export default {
   dbPath: process.env.DB_PATH || './data/db.json'} as const;
 
 export { config };
+`,
+
+    // GraphQL schema (type definitions)
+    'src/graphql/schema.ts': `export const typeDefs = /* GraphQL */ \`
+  type Query {
+    "Simple hello world query"
+    hello: String!
+    "Service health check"
+    health: String!
+  }
+\`;
+`,
+
+    // GraphQL resolvers
+    'src/graphql/resolver.ts': `export const resolvers = {
+  Query: {
+    hello: () => 'Hello from GraphQL!',
+    health: () => 'healthy',
+  },
+};
+`,
+
+    // GraphQL Yoga instance wired into Hono
+    'src/graphql/yoga.ts': `import { createYoga } from 'graphql-yoga';
+import { typeDefs } from './schema';
+import { resolvers } from './resolver';
+
+// Create a GraphQL Yoga instance mounted under /graphql by the Hono app.
+export const yoga = createYoga({
+  graphqlEndpoint: '/graphql',
+  schema: {
+    typeDefs,
+    resolvers,
+  },
+  graphiql: true,
+});
 `,
 
     // Database (in-memory for simplicity)

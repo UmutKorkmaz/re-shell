@@ -11,7 +11,7 @@ export const hyperExpressTemplate: BackendTemplate = {
   tags: ['nodejs', 'hyper-express', 'api', 'rest', 'performance', 'websockets', 'uws', 'typescript'],
   port: 3000,
   dependencies: {},
-  features: ['rest-api', 'middleware', 'websockets', 'websockets', 'streaming', 'authentication', 'database', 'caching'],
+  features: ['rest-api', 'middleware', 'websockets', 'websockets', 'streaming', 'authentication', 'database', 'caching', 'graphql'],
   
   files: {
     // Package configuration
@@ -69,7 +69,8 @@ export const hyperExpressTemplate: BackendTemplate = {
     "express-validator": "^7.0.1",
     "xss": "^1.0.15",
     "dompurify": "^3.0.9",
-    "jsdom": "^24.0.0"
+    "jsdom": "^24.0.0",
+    "graphql-yoga": "^5.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
@@ -147,6 +148,7 @@ import { initializeServices } from './services';
 import { prisma } from './services/database';
 import { redis } from './services/redis';
 import { gracefulShutdown } from './utils/shutdown';
+import { createGraphQLServer } from './graphql';
 
 const app = new HyperExpress.Server({
   // Enable HTTP/2 support
@@ -171,7 +173,15 @@ async function bootstrap() {
     
     // Setup routes
     setupRoutes(app);
-    
+
+    // GraphQL endpoint (GraphQL Yoga mounted on /graphql)
+    const graphQLServer = createGraphQLServer();
+    app.any('/graphql', async (request, response) => {
+      const incomingMessage = request as unknown as import('http').IncomingMessage;
+      const serverResponse = response as unknown as import('http').ServerResponse;
+      await graphQLServer.handleIncomingMessage(incomingMessage, serverResponse);
+    });
+
     // Error handler
     app.set_error_handler((request, response, error) => {
       logger.error({ error, path: request.path }, 'Unhandled error');
@@ -2914,6 +2924,40 @@ export function todoRoutes(router: HyperExpress.Router) {
       logger.error({ error }, 'Delete todo error');
       response.status(500).json({ success: false, message: 'Failed to delete todo' });
     }
+  });
+}`,
+
+    // GraphQL schema. Simple hello world + health check query. Extend this
+    // with your own types/resolvers as the API grows.
+    'src/graphql/schema.ts': `export const typeDefs = \`
+  type Query {
+    hello: String!
+    health: String!
+  }
+\`;`,
+
+    // GraphQL resolvers. Mirrors the queries in src/graphql/schema.ts.
+    'src/graphql/resolver.ts': `export const resolvers = {
+  Query: {
+    hello: () => 'Hello from Hyper-Express GraphQL!',
+    health: () => 'healthy'
+  }
+};`,
+
+    // GraphQL server factory. Wraps graphql-yoga so src/index.ts can mount it
+    // on the /graphql Hyper-Express route.
+    'src/graphql/index.ts': `import { createYoga } from 'graphql-yoga';
+import { typeDefs } from './schema';
+import { resolvers } from './resolver';
+
+export function createGraphQLServer() {
+  return createYoga({
+    schema: {
+      typeDefs,
+      resolvers
+    },
+    graphqlEndpoint: '/graphql',
+    logging: 'info'
   });
 }`
   }

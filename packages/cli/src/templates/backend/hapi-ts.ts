@@ -10,7 +10,7 @@ export const hapiTypeScriptTemplate: BackendTemplate = {
   version: '21.3.9',
   tags: ['typescript', 'hapi', 'api', 'rest', 'validation', 'security', 'caching'],
   port: 3000,
-  features: ['authentication', 'database', 'validation', 'logging', 'documentation', 'testing', 'caching', 'security'],
+  features: ['authentication', 'database', 'validation', 'logging', 'documentation', 'testing', 'caching', 'security', 'graphql'],
   dependencies: {
     '@hapi/hapi': '^21.3.9',
     '@hapi/joi': '^17.1.1',
@@ -99,6 +99,9 @@ export const hapiTypeScriptTemplate: BackendTemplate = {
     "winston": "^3.13.0",
     "dotenv": "^16.4.5",
     "@prisma/client": "^5.13.0",
+    "@apollo/server": "^4.10.0",
+    "@as-integrations/hapi": "^2.0.1",
+    "graphql": "^16.8.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
@@ -176,10 +179,11 @@ import { loadEnvironment } from './environment';
 import { registerPlugins } from './plugins';
 import { setupRoutes } from './routes';
 import { setupCache } from './cache';
+import { setupGraphQL } from '../graphql/server';
 
 export const configureServer = async (): Promise<Hapi.Server> => {
   const env = loadEnvironment();
-  
+
   const server = Hapi.server({
     port: env.PORT,
     host: env.HOST,
@@ -206,13 +210,16 @@ export const configureServer = async (): Promise<Hapi.Server> => {
 
   // Setup cache
   await setupCache(server);
-  
+
   // Register plugins
   await registerPlugins(server);
-  
+
   // Setup routes
   setupRoutes(server);
-  
+
+  // Setup GraphQL endpoint (/graphql)
+  await setupGraphQL(server);
+
   return server;
 };`,
     'src/config/environment.ts': `import dotenv from 'dotenv';
@@ -409,6 +416,47 @@ export const setupCache = async (server: Hapi.Server): Promise<void> => {
   // Make caches available to routes
   server.app.cache = cache;
   server.app.userCache = userCache;
+};`,
+    'src/graphql/schema.ts': `export const typeDefs = \`#graphql
+  type Query {
+    hello: String!
+    health: String!
+  }
+\`;`,
+    'src/graphql/resolver.ts': `export const resolvers = {
+  Query: {
+    hello: (): string => 'Hello from GraphQL!',
+    health: (): string => 'ok'
+  }
+};`,
+    'src/graphql/server.ts': `import Hapi from '@hapi/hapi';
+import { ApolloServer } from '@apollo/server';
+import { hapiApollo } from '@as-integrations/hapi';
+import { typeDefs } from './schema';
+import { resolvers } from './resolver';
+import { logger } from '../utils/logger';
+
+export const setupGraphQL = async (server: Hapi.Server): Promise<void> => {
+  const apolloServer = new ApolloServer({
+    typeDefs,
+    resolvers,
+    introspection: true
+  });
+
+  await server.register({
+    plugin: {
+      name: 'apollo-graphql',
+      register: async (hapiServer: Hapi.Server) => {
+        await hapiApollo({
+          apolloServer,
+          path: '/graphql',
+          hapiServer
+        });
+      }
+    }
+  });
+
+  logger.info('GraphQL endpoint registered at /graphql');
 };`,
     'src/auth/strategies.ts': `import Hapi from '@hapi/hapi';
 import Boom from '@hapi/boom';

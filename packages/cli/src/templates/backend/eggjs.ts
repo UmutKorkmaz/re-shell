@@ -11,7 +11,7 @@ export const eggjsTemplate: BackendTemplate = {
   tags: ['nodejs', 'eggjs', 'koa', 'api', 'rest', 'enterprise', 'microservices', 'typescript'],
   port: 7001,
   dependencies: {},
-  features: ['security', 'database', 'queue', 'websockets', 'testing'],
+  features: ['security', 'database', 'queue', 'websockets', 'testing', 'graphql'],
   
   files: {
     // Package configuration
@@ -73,6 +73,7 @@ export const eggjsTemplate: BackendTemplate = {
     "egg-amqp": "^0.2.0",
     "egg-mongoose": "^3.3.1",
     "egg-elasticsearch": "^1.0.0",
+    "egg-graphql": "^3.0.0",
     "mysql2": "^3.9.7",
     "pg": "^8.11.5",
     "ioredis": "^5.3.2",
@@ -521,6 +522,10 @@ export default (app: Application) => {
   router.get('/health/readiness', controller.health.readiness);
   router.get('/health/liveness', controller.health.liveness);
 
+  // GraphQL endpoint (egg-graphql exposes the POST handler at /graphql)
+  router.get('/graphql', controller.graphql.index);
+  router.post('/graphql', controller.graphql.mutate);
+
   // API routes
   const apiRouter = router.namespace(api.prefix);
 
@@ -966,6 +971,50 @@ export default class HealthController extends Controller {
     ctx.body = checks;
   }
 }`,
+
+    // GraphQL resolver (hello world + health query)
+    'src/graphql/resolver.ts': `import { Application } from 'egg';
+
+export const resolvers = {
+  Query: {
+    hello: () => 'Hello from {{projectName}} GraphQL!',
+    health: async (_root: unknown, _args: unknown, ctx: Application['context']) => {
+      const checks = await ctx.service.health.checkLiveness();
+      return checks.alive ? 'healthy' : 'unhealthy';
+    }
+  }
+};
+`,
+
+    // GraphQL schema / typeDefs
+    'src/graphql/schema.ts': `export const typeDefs = \`#graphql
+  type Query {
+    hello: String
+    health: String
+  }
+\`;
+`,
+
+    // GraphQL controller (wires egg-graphql POST handler at /graphql)
+    'app/controller/graphql.ts': `import { Controller } from 'egg';
+
+export default class GraphqlController extends Controller {
+  // GET /graphql — convenience probe (POST is the real query path)
+  async index() {
+    const { ctx } = this;
+    ctx.body = {
+      message: 'GraphQL endpoint is available. POST your query to /graphql',
+      endpoint: '/graphql'
+    };
+  }
+
+  // POST /graphql — execute the GraphQL query/mutation via egg-graphql
+  async mutate() {
+    const { ctx } = this;
+    ctx.body = await ctx.app.graphql.query(ctx);
+  }
+}
+`,
 
     // Auth Service
     'app/service/auth.ts': `import { Service } from 'egg';

@@ -1,0 +1,37 @@
+name: Accessibility Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/src/**'
+      - 'apps/web/tests/accessibility.test.ts'
+      - '.github/workflows/accessibility.yml'
+  pull_request:
+    paths:
+      - 'apps/web/src/**'
+
+jobs:
+  axe-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r build
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Install axe-core
+        run: pnpm --filter @re-shell/dashboard add -D @axe-core/playwright
+      - name: Run accessibility tests
+        run: npx playwright test --project=chromium tests/accessibility.test.ts
+        working-directory: apps/web
+        env:
+          CI: 'true'

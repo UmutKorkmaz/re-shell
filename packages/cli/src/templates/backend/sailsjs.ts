@@ -11,7 +11,7 @@ export const sailsjsTemplate: BackendTemplate = {
   tags: ['nodejs', 'sailsjs', 'microservices', 'rest', 'waterline', 'websockets', 'routing', 'realtime'],
   port: 1337,
   dependencies: {},
-  features: ['microservices', 'database', 'routing', 'websockets', 'authorization', 'authentication', 'file-upload', 'email', 'testing'],
+  features: ['microservices', 'database', 'routing', 'websockets', 'authorization', 'authentication', 'file-upload', 'email', 'testing', 'graphql'],
   
   files: {
     // Package configuration
@@ -56,7 +56,12 @@ export const sailsjsTemplate: BackendTemplate = {
     "helmet": "^7.1.0",
     "cors": "^2.8.5",
     "compression": "^1.7.4",
-    "express-rate-limit": "^7.2.0"
+    "express-rate-limit": "^7.2.0",
+    "graphql": "^16.8.1",
+    "graphql-http": "^1.22.1",
+    "@graphql-tools/schema": "^10.0.2",
+    "sails-hook-graphql": "^3.0.0",
+    "sails-graphql": "^1.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
@@ -1420,6 +1425,98 @@ module.exports = {
   }
 
 };`,
+
+    // GraphQL schema (type definitions)
+    'src/graphql/schema.js': `/**
+ * schema.js
+ *
+ * GraphQL type definitions for the {{projectName}} API.
+ * Extend this with your own types and queries.
+ */
+
+const { gql } = require('graphql-http');
+
+const typeDefs = gql\`
+  type Query {
+    "Simple hello-world query."
+    hello: String
+    "Service health check."
+    health: String
+  }
+\`;
+
+module.exports = typeDefs;
+`,
+
+    // GraphQL resolvers
+    'src/graphql/resolver.js': `/**
+ * resolver.js
+ *
+ * GraphQL resolvers for the {{projectName}} API.
+ */
+
+module.exports = {
+  Query: {
+    hello: () => 'Hello from {{projectName}} GraphQL!',
+
+    health: async () => {
+      try {
+        // Probe the database via the global User model (registered by Sails)
+        if (typeof User !== 'undefined') {
+          await User.count();
+        }
+        return 'healthy';
+      } catch (err) {
+        return 'unhealthy';
+      }
+    }
+  }
+};
+`,
+
+    // Sails custom hook that mounts the GraphQL endpoint at /graphql
+    'api/hooks/graphql/index.js': `/**
+ * api/hooks/graphql/index.js
+ *
+ * Custom Sails hook that wires the GraphQL schema and resolvers into an HTTP
+ * endpoint served at /graphql using graphql-http.
+ */
+
+const { createHandler } = require('graphql-http');
+const { makeExecutableSchema } = require('@graphql-tools/schema');
+const typeDefs = require('../../../src/graphql/schema');
+const resolvers = require('../../../src/graphql/resolver');
+
+module.exports = function graphqlHook(sails) {
+  return {
+    defaults: {
+      __configNamespace__: 'graphql',
+      route: '/graphql',
+      enableGraphiQL: true
+    },
+
+    initialize: function(done) {
+      // Build the executable schema once at hook init time.
+      const schema = makeExecutableSchema({ typeDefs, resolvers });
+
+      // Register the GraphQL handler on the configured route.
+      sails.after('hook:http:loaded', function() {
+        const route = sails.config.graphql.route || '/graphql';
+
+        sails.hooks.http.app.use(route, createHandler({
+          schema: schema,
+          // Lightweight GraphiQL-style landing via the schema-only handler.
+          context: (req) => ({ req: req.raw.request })
+        }));
+
+        sails.log.info('GraphQL endpoint mounted at ' + route);
+      });
+
+      return done();
+    }
+  };
+};
+`,
 
     // isAuthenticated policy
     'api/policies/isAuthenticated.js': `/**

@@ -11,7 +11,7 @@ export const tinyhttpTemplate: BackendTemplate = {
   tags: ['nodejs', 'tinyhttp', 'api', 'rest', 'modern', 'fast'],
   port: 3000,
   dependencies: {},
-  features: ['rest-api', 'middleware', 'routing', 'cors', 'authentication', 'validation', 'websockets', 'database', 'rate-limiting', 'testing'],
+  features: ['rest-api', 'middleware', 'routing', 'cors', 'authentication', 'validation', 'websockets', 'database', 'rate-limiting', 'testing', 'graphql'],
   
   files: {
     // TypeScript project configuration with ES modules
@@ -64,7 +64,9 @@ export const tinyhttpTemplate: BackendTemplate = {
     "@tinyhttp/ws": "^0.2.30",
     "nanoid": "^5.0.7",
     "dayjs": "^1.11.10",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "graphql-yoga": "^5.3.1",
+    "graphql": "^16.8.1"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
@@ -146,6 +148,7 @@ import { logger as log } from './utils/logger.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import todoRoutes from './routes/todo.routes.js';
+import { yoga } from './graphql/yoga.js';
 
 // Load environment variables
 config();
@@ -213,6 +216,7 @@ app.get('/api/v1', (req, res) => {
       users: '/api/v1/users',
       todos: '/api/v1/todos',
       websocket: 'ws://localhost:3000',
+      graphql: '/graphql',
       health: '/health'
     }
   });
@@ -222,6 +226,17 @@ app.get('/api/v1', (req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/todos', todoRoutes);
+
+// GraphQL endpoint (GraphQL Yoga)
+app.use('/graphql', async (req, res) => {
+  const response = await yoga.handleNodeRequestAndResponse(req, res);
+  // Headers are set by yoga on the response object
+  if (!res.headersSent) {
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+  }
+});
 
 // 404 handler
 app.use(notFoundHandler);
@@ -418,6 +433,47 @@ router.post('/bulk/delete', todoController.bulkDelete);
 router.post('/bulk/update', todoController.bulkUpdate);
 
 export default router;`,
+
+    // GraphQL schema (type definitions)
+    'src/graphql/schema.ts': `export const typeDefs = \`#graphql
+  type Query {
+    \"Simple hello-world query.\"
+    hello: String!
+
+    \"Service health status.\"
+    health: String!
+  }
+\`;`,
+
+    // GraphQL resolvers
+    'src/graphql/resolver.ts': `export const resolvers = {
+  Query: {
+    hello: () => 'Hello from GraphQL Yoga!',
+    health: () => 'healthy'
+  }
+};`,
+
+    // GraphQL Yoga instance wired for tinyhttp
+    'src/graphql/yoga.ts': `import { createYoga } from 'graphql-yoga';
+import { typeDefs } from './schema.js';
+import { resolvers } from './resolver.js';
+import { logger } from '../utils/logger.js';
+
+// Create a GraphQL Yoga instance. Yoga exposes a Node-compatible
+// handler (handleNodeRequestAndResponse) that works as tinyhttp middleware.
+export const yoga = createYoga({
+  schema: {
+    typeDefs,
+    resolvers
+  },
+  logging: {
+    debug: (...args: unknown[]) => logger.debug(args),
+    info: (...args: unknown[]) => logger.info(args),
+    warn: (...args: unknown[]) => logger.warn(args),
+    error: (...args: unknown[]) => logger.error(args)
+  },
+  graphqlEndpoint: '/graphql'
+});`,
 
     // Authentication controller
     'src/controllers/auth.controller.ts': `import { Request, Response } from '@tinyhttp/app';

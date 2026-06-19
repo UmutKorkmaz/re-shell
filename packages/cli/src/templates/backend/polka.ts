@@ -11,7 +11,7 @@ export const polkaTemplate: BackendTemplate = {
   tags: ['nodejs', 'polka', 'micro', 'api', 'high-performance', 'minimal', 'typescript'],
   port: 3000,
   dependencies: {},
-  features: ['rest-api', 'routing', 'middleware', 'file-upload', 'websockets', 'session-management', 'cors', 'middleware'],
+  features: ['rest-api', 'routing', 'middleware', 'file-upload', 'websockets', 'session-management', 'cors', 'middleware', 'graphql'],
   
   files: {
     // TypeScript project configuration
@@ -58,6 +58,8 @@ export const polkaTemplate: BackendTemplate = {
     "pino": "^9.0.0",
     "pino-pretty": "^11.0.0",
     "@prisma/client": "^5.13.0",
+    "@apollo/server": "^4.10.4",
+    "graphql": "^16.8.2",
     "zod": "^3.23.5",
     "nanoid": "^5.0.7"
   },
@@ -129,6 +131,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from '@polka/compression';
 import { config } from 'dotenv';
+import { ApolloServer } from '@apollo/server';
+import { expressMiddleware } from '@apollo/server/express4';
 import { logger, httpLogger } from './utils/logger';
 import { errorHandler } from './middlewares/error.middleware';
 import { notFound } from './middlewares/notFound.middleware';
@@ -136,6 +140,8 @@ import { rateLimiter } from './middlewares/rateLimit.middleware';
 import { connectDatabase } from './config/database';
 import { redis } from './config/redis';
 import { initWebSocketServer } from './config/websocket';
+import { typeDefs } from './graphql/schema';
+import { resolvers } from './graphql/resolver';
 import routes from './routes';
 
 // Load environment variables
@@ -152,6 +158,10 @@ const app = polka({
 
 // Initialize WebSocket server
 const wss = initWebSocketServer();
+
+// Initialize Apollo Server (GraphQL)
+const apolloServer = new ApolloServer({ typeDefs, resolvers });
+await apolloServer.start();
 
 // Global middlewares
 app
@@ -190,6 +200,16 @@ app.get('/health', (req, res) => {
   }));
 });
 
+// GraphQL endpoint (Apollo Server via polka middleware)
+app.use(
+  '/graphql',
+  cors({ origin: process.env.CORS_ORIGIN?.split(',') || '*', credentials: true }),
+  json({ limit: '10mb' }),
+  expressMiddleware(apolloServer, {
+    context: async () => ({ message: 'GraphQL context ready' })
+  })
+);
+
 // API info endpoint
 app.get('/api', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
@@ -203,6 +223,7 @@ app.get('/api', (req, res) => {
       users: '/api/v1/users',
       todos: '/api/v1/todos',
       websocket: 'ws://localhost:3000',
+      graphql: '/graphql',
       health: '/health'
     }
   }));
@@ -424,6 +445,22 @@ router
   .post('/bulk/update', todoHandler.bulkUpdate);
 
 export default router;`,
+
+    // GraphQL schema (type definitions)
+    'src/graphql/schema.ts': `export const typeDefs = \`#graphql
+  type Query {
+    hello: String!
+    health: String!
+  }
+\`;`,
+
+    // GraphQL resolvers
+    'src/graphql/resolver.ts': `export const resolvers = {
+  Query: {
+    hello: () => 'Hello from GraphQL!',
+    health: () => 'healthy'
+  }
+};`,
 
     // Authentication handler
     'src/handlers/auth.handler.ts': `import type { Request, Response } from 'polka';
@@ -2266,6 +2303,7 @@ docker-compose up
 
 - **Health Check**: GET /health
 - **API Info**: GET /api
+- **GraphQL**: POST /graphql
 - **Authentication**: /api/v1/auth/*
 - **Users**: /api/v1/users/*
 - **Todos**: /api/v1/todos/*
@@ -2309,6 +2347,7 @@ Express:  ~13,000 req/sec
 \`\`\`
 src/
 ├── config/         # Configuration files
+├── graphql/        # GraphQL schema and resolvers
 ├── handlers/       # Request handlers
 ├── middlewares/    # Custom middlewares
 ├── routes/         # API routes
