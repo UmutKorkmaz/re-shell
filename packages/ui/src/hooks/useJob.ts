@@ -171,9 +171,16 @@ export function useJob(
     if (!client || !jobId) {
       return;
     }
-    client.send({ type: 'cancel', id: jobId });
-    setStatus('cancelled');
-    client.close();
+    // Only cancel if the job hasn't already reached a terminal state — calling
+    // cancel on a completed job would overwrite the real outcome.
+    setStatus((prev) => {
+      if (prev === 'success' || prev === 'failed' || prev === 'cancelled') {
+        return prev;
+      }
+      client.send({ type: 'cancel', id: jobId });
+      client.close();
+      return 'cancelled';
+    });
   }, []);
 
   // Close the socket on unmount so a backgrounded panel does not leak a job.
