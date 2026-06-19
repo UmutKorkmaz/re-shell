@@ -54,7 +54,7 @@ export const koaTemplate: BackendTemplate = {
     "koa-json": "^2.0.2",
     "koa-multer": "^1.0.2",
     "koa-passport": "^6.0.0",
-    "koa-swagger-decorator": "^2.2.3",
+    "koa-swagger-decorator": "^2.2.1",
     "koa-websocket": "^7.0.0",
     "@koa/cors": "^5.0.0",
     "@koa/router": "^12.0.1",
@@ -93,7 +93,7 @@ export const koaTemplate: BackendTemplate = {
     "@types/koa-static": "^4.0.4",
     "@types/koa-mount": "^4.0.5",
     "@types/koa-ratelimit": "^5.0.3",
-    "@types/koa-jwt": "^3.3.2",
+    "@types/koa-jwt": "3.3.0",
     "@types/koa-session": "^6.4.5",
     "@types/koa-redis": "^4.0.5",
     "@types/koa-logger": "^3.1.5",
@@ -1151,6 +1151,357 @@ export class Todo extends Model {
   }
 }`,
 
+    // Utils (controllers, middlewares and config import these; minimal but valid
+    // so the generated project typechecks out of the box).
+    'src/utils/logger.ts': `import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
+import path from 'path';
+
+const logDir = process.env.LOG_DIR || 'logs';
+
+const transport = new DailyRotateFile({
+  filename: path.join(logDir, 'application-%DATE%.log'),
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true,
+  maxSize: '20m',
+  maxFiles: '14d'
+});
+
+/**
+ * Logger utility. Exposes a singleton Logger used across the app.
+ */
+export class Logger {
+  private static instance: winston.Logger;
+
+  private static getInstance(): winston.Logger {
+    if (!Logger.instance) {
+      Logger.instance = winston.createLogger({
+        level: process.env.LOG_LEVEL || 'info',
+        format: winston.format.combine(
+          winston.format.timestamp(),
+          winston.format.errors({ stack: true }),
+          winston.format.json()
+        ),
+        transports: [
+          transport,
+          new winston.transports.Console({
+            format: winston.format.combine(
+              winston.format.colorize(),
+              winston.format.simple()
+            )
+          })
+        ]
+      });
+    }
+    return Logger.instance;
+  }
+
+  static info(message: string, ...meta: unknown[]): void {
+    Logger.getInstance().info(message, ...meta);
+  }
+
+  static warn(message: string, ...meta: unknown[]): void {
+    Logger.getInstance().warn(message, ...meta);
+  }
+
+  static error(message: string, ...meta: unknown[]): void {
+    Logger.getInstance().error(message, ...meta);
+  }
+
+  static debug(message: string, ...meta: unknown[]): void {
+    Logger.getInstance().debug(message, ...meta);
+  }
+}`,
+
+    'src/utils/jwt.ts': `import jwt from 'jsonwebtoken';
+import { config } from '@config/config';
+
+interface TokenPayload {
+  id: string;
+  email: string;
+  role?: string;
+}
+
+/**
+ * Issue an access + refresh token pair for a user id.
+ * Used by AuthController.register and AuthController.login.
+ */
+export const generateTokens = (userId: string, payload?: TokenPayload): {
+  accessToken: string;
+  refreshToken: string;
+} => {
+  const claims: TokenPayload = payload || { id: userId, email: '' };
+  const accessToken = jwt.sign(claims, config.jwt.secret, {
+    expiresIn: config.jwt.expiresIn
+  } as jwt.SignOptions);
+  const refreshToken = jwt.sign(claims, config.jwt.refreshSecret, {
+    expiresIn: config.jwt.refreshExpiresIn
+  } as jwt.SignOptions);
+  return { accessToken, refreshToken };
+};
+
+export const verifyToken = (token: string): TokenPayload => {
+  return jwt.verify(token, config.jwt.secret) as TokenPayload;
+};
+`,
+
+    // Service layer (the controllers and auth middleware import these; minimal
+    // but valid so the generated project typechecks out of the box).
+    'src/services/user.service.ts': `import { User } from '../models/User';
+import bcrypt from 'bcryptjs';
+
+interface PaginationInput {
+  page: number;
+  limit: number;
+  search?: string;
+}
+
+/**
+ * User service: CRUD over the Objection User model.
+ * Method signatures match what UserController and the auth middleware call.
+ */
+export class UserService {
+  async getAllUsers(input: PaginationInput): Promise<{ data: User[]; total: number; page: number; limit: number }> {
+    const page = input.page || 1;
+    const limit = input.limit || 20;
+    let query = User.query().page(page - 1, limit);
+    if (input.search) {
+      query = query.where('name', 'ilike', \`%\${input.search}%\`).orWhere('email', 'ilike', \`%\${input.search}%\`);
+    }
+    const result = await query;
+    return {
+      data: result.results,
+      total: result.total,
+      page,
+      limit
+    };
+  }
+
+  async getUserById(id: string): Promise<User> {
+    const user = await User.query().findById(id);
+    if (!user) {
+      const err = new Error('User not found');
+      (err as { status?: number }).status = 404;
+      throw err;
+    }
+    return user;
+  }
+
+  async updateUser(id: string, updates: Record<string, unknown>): Promise<User> {
+    const user = await User.query().patchAndFetchById(id, updates as never);
+    if (!user) {
+      const err = new Error('User not found');
+      (err as { status?: number }).status = 404;
+      throw err;
+    }
+    return user;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await User.query().deleteById(id);
+  }
+
+  async changePassword(id: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await User.query().findById(id);
+    if (!user) {
+      const err = new Error('User not found');
+      (err as { status?: number }).status = 404;
+      throw err;
+    }
+    const ok = await bcrypt.compare(currentPassword, user.password);
+    if (!ok) {
+      const err = new Error('Current password is incorrect');
+      (err as { status?: number }).status = 400;
+      throw err;
+    }
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await User.query().patchAndFetchById(id, { password: hashed } as never);
+  }
+
+  async updateAvatar(id: string, file: { filename?: string; originalname?: string; path?: string }): Promise<string> {
+    const avatarUrl = \`/uploads/\${file.filename || file.originalname || 'avatar'}\`;
+    await User.query().patchAndFetchById(id, { avatarUrl } as never);
+    return avatarUrl;
+  }
+}
+`,
+
+    'src/services/todo.service.ts': `import { Todo } from '../models/Todo';
+
+interface TodoQueryInput {
+  userId: string;
+  page: number;
+  limit: number;
+  status?: string;
+  priority?: string;
+  sortBy?: string;
+  order?: 'asc' | 'desc';
+}
+
+/**
+ * Todo service: CRUD over the Objection Todo model, scoped per user.
+ * Method signatures match what TodoController calls.
+ */
+export class TodoService {
+  async getAllTodos(input: TodoQueryInput): Promise<{ data: Todo[]; total: number; page: number; limit: number }> {
+    const page = input.page || 1;
+    const limit = input.limit || 20;
+    let query = Todo.query().where('userId', input.userId);
+    if (input.status) {
+      query = query.where('completed', input.status === 'completed');
+    }
+    if (input.priority) {
+      query = query.where('priority', input.priority);
+    }
+    if (input.sortBy) {
+      query = query.orderBy(input.sortBy, input.order || 'desc');
+    }
+    const result = await query.page(page - 1, limit);
+    return {
+      data: result.results,
+      total: result.total,
+      page,
+      limit
+    };
+  }
+
+  async getTodoById(id: string, userId: string): Promise<Todo> {
+    const todo = await Todo.query().findOne({ id, userId } as never);
+    if (!todo) {
+      const err = new Error('Todo not found');
+      (err as { status?: number }).status = 404;
+      throw err;
+    }
+    return todo;
+  }
+
+  async createTodo(data: Record<string, unknown>): Promise<Todo> {
+    return Todo.query().insert(data as never);
+  }
+
+  async updateTodo(id: string, userId: string, updates: Record<string, unknown>): Promise<Todo> {
+    const todo = await Todo.query().patchAndFetchById(id, updates as never);
+    if (!todo) {
+      const err = new Error('Todo not found');
+      (err as { status?: number }).status = 404;
+      throw err;
+    }
+    return todo;
+  }
+
+  async deleteTodo(id: string, userId: string): Promise<void> {
+    await Todo.query().delete().where({ id, userId } as never);
+  }
+
+  async bulkDelete(ids: string[], userId: string): Promise<number> {
+    return Todo.query().delete().whereIn('id', ids).andWhere('userId', userId);
+  }
+
+  async bulkUpdate(ids: string[], userId: string, updates: Record<string, unknown>): Promise<number> {
+    return Todo.query().patch(updates as never).whereIn('id', ids).andWhere('userId', userId);
+  }
+}
+`,
+
+    'src/services/auth.service.ts': `import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { User } from '../models/User';
+import { generateTokens } from '../utils/jwt';
+import { config } from '@config/config';
+
+/**
+ * Authentication service: register / login / token issue / email verification /
+ * password reset. Method signatures match what AuthController calls.
+ */
+export class AuthService {
+  async register(input: { email: string; password: string; name?: string }): Promise<User & { verificationToken: string }> {
+    const existing = await User.query().findOne({ email: input.email } as never);
+    if (existing) {
+      const err = new Error('Email already registered');
+      (err as { status?: number }).status = 400;
+      throw err;
+    }
+    const verificationToken = Math.random().toString(36).substring(2);
+    const user = await User.query().insert({
+      email: input.email,
+      password: input.password,
+      name: input.name || input.email,
+      role: 'user',
+      isActive: true,
+      isVerified: false,
+      verificationToken
+    } as never);
+    return Object.assign(user, { verificationToken });
+  }
+
+  async login(email: string, password: string): Promise<User> {
+    const user = await User.query().findOne({ email } as never);
+    if (!user) {
+      const err = new Error('Invalid credentials');
+      (err as { status?: number }).status = 401;
+      throw err;
+    }
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) {
+      const err = new Error('Invalid credentials');
+      (err as { status?: number }).status = 401;
+      throw err;
+    }
+    await User.query().patchAndFetchById(user.id, { lastLogin: new Date() } as never);
+    return user;
+  }
+
+  async refreshToken(token: string): Promise<{ userId: string; accessToken: string }> {
+    const payload = jwt.verify(token, config.jwt.refreshSecret) as { id: string };
+    const { accessToken } = generateTokens(payload.id);
+    return { userId: payload.id, accessToken };
+  }
+
+  async verifyEmail(token: string): Promise<void> {
+    const user = await User.query().findOne({ verificationToken: token } as never);
+    if (user) {
+      await User.query().patchAndFetchById(user.id, { isVerified: true, verificationToken: null } as never);
+    }
+  }
+
+  async forgotPassword(email: string): Promise<string> {
+    const resetToken = Math.random().toString(36).substring(2);
+    await User.query().patch({ resetToken, resetTokenExpiry: new Date(Date.now() + 3600000) }).where('email', email);
+    return resetToken;
+  }
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    const user = await User.query().findOne({ resetToken: token } as never);
+    if (!user) {
+      const err = new Error('Invalid reset token');
+      (err as { status?: number }).status = 400;
+      throw err;
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    await User.query().patchAndFetchById(user.id, { password: hashed, resetToken: null, resetTokenExpiry: null } as never);
+  }
+
+  async logout(_userId: string): Promise<void> {
+    // Stateless JWT — client discards tokens. Implement a blocklist if needed.
+  }
+}
+`,
+
+    'src/services/email.service.ts': `/**
+ * Email service (stub). Wire to a real transport (nodemailer/SES/SendGrid) later.
+ * Method signatures match what AuthController calls.
+ */
+export class EmailService {
+  async sendVerificationEmail(_email: string, _token: string): Promise<void> {
+    // TODO: send verification link with token
+  }
+
+  async sendPasswordResetEmail(_email: string, _token: string): Promise<void> {
+    // TODO: send password reset link with token
+  }
+}
+`,
+
     // Middlewares
     'src/middlewares/error.middleware.ts': `import { Context, Next } from 'koa';
 import { Logger } from '@utils/logger';
@@ -1668,6 +2019,216 @@ npm run seed
 ## License
 
 MIT
-`
+`,
+
+    // Redis client (ioredes) — imported by index.ts for the session store,
+    // rate limiter and graceful shutdown.
+    'src/config/redis.ts': `import Redis from 'ioredis';
+import { config } from './config';
+import { Logger } from '@utils/logger';
+
+export const redis = new Redis({
+  host: config.redis.host,
+  port: config.redis.port,
+  password: config.redis.password,
+  db: config.redis.db,
+  retryStrategy: (times) => {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  },
+  maxRetriesPerRequest: 3
+});
+
+redis.on('connect', () => {
+  Logger.info('Redis connected');
+});
+
+redis.on('error', (error) => {
+  Logger.error('Redis error:', error);
+});`,
+
+    // WebSocket (Socket.IO) wiring — matches initializeWebSocket(io) in index.ts.
+    'src/config/websocket.ts': `import { Server, Socket } from 'socket.io';
+import { Logger } from '@utils/logger';
+
+interface SocketWithAuth extends Socket {
+  userId?: string;
+}
+
+export const initializeWebSocket = (io: Server) => {
+  io.on('connection', (socket: SocketWithAuth) => {
+    Logger.info(\`WebSocket client connected: \${socket.id}\`);
+
+    socket.on('join', (room: string) => {
+      socket.join(room);
+      Logger.info(\`Socket \${socket.id} joined room \${room}\`);
+    });
+
+    socket.on('leave', (room: string) => {
+      socket.leave(room);
+    });
+
+    socket.on('disconnect', () => {
+      Logger.info(\`WebSocket client disconnected: \${socket.id}\`);
+    });
+  });
+};`,
+
+    // Swagger docs (koa-swagger-decorator) — matches setupSwagger(app) in index.ts.
+    'src/config/swagger.ts': `import { SwaggerUI, KoaSwaggerMiddleware } from 'koa-swagger-decorator';
+import type { Context } from 'koa';
+
+const swaggerMiddleware: KoaSwaggerMiddleware = new SwaggerUI({
+  title: '{{projectName}} API',
+  description: 'Koa.js API with TypeScript',
+  version: '1.0.0'
+});
+
+export const setupSwagger = (app: { use: (path: string, middleware: (ctx: Context) => void) => void }) => {
+  app.use('/swagger', swaggerMiddleware.koaUI);
+};`,
+
+    // Request logger middleware — exports requestLogger(ctx, next).
+    'src/middlewares/logger.middleware.ts': `import { Context, Next } from 'koa';
+import { Logger } from '@utils/logger';
+
+export const requestLogger = async (ctx: Context, next: Next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  Logger.info(\`\${ctx.method} \${ctx.url} \${ctx.status} \${duration}ms\`);
+};`,
+
+    // Response-time middleware — exports responseTime(ctx, next) setting X-Response-Time.
+    'src/middlewares/responseTime.middleware.ts': `import { Context, Next } from 'koa';
+
+export const responseTime = async (ctx: Context, next: Next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  ctx.set('X-Response-Time', \`\${duration}ms\`);
+};`,
+
+    // File upload middleware — @koa/multer upload used by user.routes (upload.single('avatar')).
+    'src/middlewares/upload.middleware.ts': `import multer from '@koa/multer';
+import path from 'path';
+import { config } from '@config/config';
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, config.upload.uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = \`\${Date.now()}-\${Math.round(Math.random() * 1e9)}\`;
+    cb(null, \`\${uniqueSuffix}\${path.extname(file.originalname)}\`);
+  }
+});
+
+export const upload = multer({
+  storage,
+  limits: {
+    fileSize: config.upload.maxSize
+  }
+});`,
+
+    // User validators (DTOs) — class-validator decorators.
+    'src/validators/user.validators.ts': `import { IsString, IsEmail, MinLength, MaxLength, IsOptional } from 'class-validator';
+
+export class UpdateUserDto {
+  @IsString()
+  @IsOptional()
+  @MinLength(1)
+  @MaxLength(100)
+  name?: string;
+
+  @IsEmail()
+  @IsOptional()
+  email?: string;
+}
+
+export class ChangePasswordDto {
+  @IsString()
+  @MinLength(8)
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(8)
+  newPassword!: string;
+}`,
+
+    // Todo validators (DTOs) — class-validator decorators.
+    'src/validators/todo.validators.ts': `import { IsString, IsEnum, IsOptional, IsInt, Min, Max, IsArray } from 'class-validator';
+
+export class CreateTodoDto {
+  @IsString()
+  title!: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsEnum(['low', 'medium', 'high'])
+  @IsOptional()
+  priority?: string;
+
+  @IsString()
+  @IsOptional()
+  dueDate?: string;
+
+  @IsArray()
+  @IsOptional()
+  tags?: string[];
+}
+
+export class UpdateTodoDto {
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsEnum(['low', 'medium', 'high'])
+  @IsOptional()
+  priority?: string;
+
+  @IsString()
+  @IsOptional()
+  dueDate?: string;
+
+  @IsArray()
+  @IsOptional()
+  tags?: string[];
+}
+
+export class TodoQueryDto {
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  page?: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  @IsOptional()
+  limit?: number;
+
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  @IsString()
+  @IsOptional()
+  priority?: string;
+
+  @IsString()
+  @IsOptional()
+  sortBy?: string;
+
+  @IsEnum(['asc', 'desc'])
+  @IsOptional()
+  order?: string;
+}`
   }
 };

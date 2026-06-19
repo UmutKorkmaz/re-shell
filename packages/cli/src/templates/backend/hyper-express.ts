@@ -2538,6 +2538,383 @@ Performance comparison (requests/second):
 ## License
 
 MIT
-`
+`,
+
+    // Email service (stub). Wire to a real transport (SES, SendGrid, SMTP) later.
+    // Method signatures match what AuthController calls (emailService.*).
+    'src/services/email.service.ts': `import { logger } from '../utils/logger';
+
+export const emailService = {
+  async sendVerificationEmail(email: string, token: string): Promise<void> {
+    logger.info({ email }, \`Verification link: /auth/verify-email/\${token}\`);
+  },
+
+  async sendPasswordResetEmail(email: string, token: string): Promise<void> {
+    logger.info({ email }, \`Password reset link: /auth/reset-password/\${token}\`);
+  }
+};`,
+
+    // Upload service. Persists file metadata to the Prisma File model and stores
+    // the binary on disk. Method signatures match what routes/upload.ts calls.
+    'src/services/upload.service.ts': `import { prisma } from './database';
+import { logger } from '../utils/logger';
+import { config } from '../config/config';
+import path from 'path';
+import fs from 'fs';
+import fsPromises from 'fs/promises';
+import crypto from 'crypto';
+
+export interface UploadedFile {
+  filename?: string;
+  originalName?: string;
+  name?: string;
+  type?: string;
+  mimeType?: string;
+  size?: number;
+  data?: Buffer;
+  tmpPath?: string;
+  path?: string;
+}
+
+export interface StoredFile {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  path: string;
+  url: string | null;
+}
+
+async function ensureUploadDir(): Promise<void> {
+  await fsPromises.mkdir(config.upload.dir, { recursive: true });
+}
+
+export const uploadService = {
+  async uploadFile(file: UploadedFile, userId: string): Promise<StoredFile> {
+    await ensureUploadDir();
+
+    const originalName = file.originalName || file.name || file.filename || 'file';
+    const mimeType = file.mimeType || file.type || 'application/octet-stream';
+    const size = file.size ?? (file.data ? file.data.length : 0);
+    const filename = \`\${Date.now()}-\${crypto.randomBytes(8).toString('hex')}-\${originalName}\`;
+    const filePath = path.join(config.upload.dir, filename);
+
+    if (file.data) {
+      await fsPromises.writeFile(filePath, file.data);
+    } else if (file.tmpPath || file.path) {
+      await fsPromises.copyFile(file.tmpPath || file.path!, filePath);
+    }
+
+    const stored = await prisma.file.create({
+      data: {
+        filename,
+        originalName,
+        mimeType,
+        size,
+        path: filePath,
+        url: \`/uploads/\${filename}\`,
+        userId
+      }
+    });
+
+    return stored as unknown as StoredFile;
+  },
+
+  async processUploadedFile(uploadPath: string, userId: string): Promise<StoredFile> {
+    const stat = await fsPromises.stat(uploadPath).catch(() => null);
+    const size = stat ? stat.size : 0;
+    const originalName = path.basename(uploadPath);
+
+    const stored = await prisma.file.create({
+      data: {
+        filename: originalName,
+        originalName,
+        mimeType: 'application/octet-stream',
+        size,
+        path: uploadPath,
+        url: \`/uploads/\${originalName}\`,
+        userId
+      }
+    });
+
+    return stored as unknown as StoredFile;
+  },
+
+  async getFile(id: string, userId: string): Promise<StoredFile | null> {
+    const file = await prisma.file.findFirst({ where: { id, userId } });
+    return file as unknown as StoredFile | null;
+  },
+
+  async getFileStream(filePath: string): Promise<fs.ReadStream> {
+    return fs.createReadStream(filePath);
+  },
+
+  async deleteFile(id: string, userId: string): Promise<boolean> {
+    const file = await prisma.file.findFirst({ where: { id, userId } });
+    if (!file) return false;
+
+    await fsPromises.unlink(file.path).catch((err) => {
+      logger.warn({ err }, 'Failed to delete file from disk');
+    });
+
+    await prisma.file.delete({ where: { id } });
+    return true;
+  }
+};`,
+
+    // User routes. Mounted under /api/v1 by routes/index.ts. Uses the Prisma user
+    // model directly (no separate user controller exists in this template).
+    'src/routes/users.ts': `import HyperExpress from 'hyper-express';
+import { prisma } from '../services/database';
+import { authenticate, authorize } from '../middleware/auth';
+import { logger } from '../utils/logger';
+
+export function userRoutes(router: HyperExpress.Router) {
+  // All user routes require authentication
+  router.use('/users', authenticate);
+
+  // List users (admin only)
+  router.get('/users', authorize('ADMIN'), async (request, response) => {
+    try {
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          avatarUrl: true,
+          isVerified: true,
+          createdAt: true
+        }
+      });
+
+      response.json({ success: true, data: users });
+    } catch (error) {
+      logger.error({ error }, 'List users error');
+      response.status(500).json({ success: false, message: 'Failed to list users' });
+    }
+  });
+
+  // Get user by id
+  router.get('/users/:id', async (request, response) => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: request.params.id },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          avatarUrl: true,
+          isVerified: true,
+          createdAt: true
+        }
+      });
+
+      if (!user) {
+        return response.status(404).json({ success: false, message: 'User not found' });
+      }
+
+      response.json({ success: true, data: user });
+    } catch (error) {
+      logger.error({ error }, 'Get user error');
+      response.status(500).json({ success: false, message: 'Failed to get user' });
+    }
+  });
+
+  // Update user
+  router.put('/users/:id', async (request, response) => {
+    try {
+      const currentUserId = request.user!.id;
+      const targetId = request.params.id;
+
+      // Only allow users to update their own profile unless admin
+      if (currentUserId !== targetId && request.user!.role !== 'ADMIN') {
+        return response.status(403).json({ success: false, message: 'Forbidden' });
+      }
+
+      const body = await request.json().catch(() => ({}));
+      const { name, avatarUrl } = body as { name?: string; avatarUrl?: string };
+
+      const user = await prisma.user.update({
+        where: { id: targetId },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(avatarUrl !== undefined && { avatarUrl })
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          avatarUrl: true,
+          updatedAt: true
+        }
+      });
+
+      response.json({ success: true, data: user });
+    } catch (error) {
+      logger.error({ error }, 'Update user error');
+      response.status(500).json({ success: false, message: 'Failed to update user' });
+    }
+  });
+
+  // Delete user (admin only)
+  router.delete('/users/:id', authorize('ADMIN'), async (request, response) => {
+    try {
+      await prisma.user.delete({ where: { id: request.params.id } });
+      response.json({ success: true, message: 'User deleted' });
+    } catch (error) {
+      logger.error({ error }, 'Delete user error');
+      response.status(500).json({ success: false, message: 'Failed to delete user' });
+    }
+  });
+}`,
+
+    // Todo routes. Mounted under /api/v1 by routes/index.ts. Uses the Prisma todo
+    // model directly (no separate todo controller exists in this template).
+    'src/routes/todos.ts': `import HyperExpress from 'hyper-express';
+import { prisma } from '../services/database';
+import { authenticate } from '../middleware/auth';
+import { logger } from '../utils/logger';
+
+export function todoRoutes(router: HyperExpress.Router) {
+  // All todo routes require authentication
+  router.use('/todos', authenticate);
+
+  // List todos for the current user (with optional filters)
+  router.get('/todos', async (request, response) => {
+    try {
+      const userId = request.user!.id;
+      const { completed, priority } = request.query as { completed?: string; priority?: string };
+
+      const todos = await prisma.todo.findMany({
+        where: {
+          userId,
+          ...(completed !== undefined && { completed: completed === 'true' }),
+          ...(priority && { priority: priority as 'LOW' | 'MEDIUM' | 'HIGH' })
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      response.json({ success: true, data: todos });
+    } catch (error) {
+      logger.error({ error }, 'List todos error');
+      response.status(500).json({ success: false, message: 'Failed to list todos' });
+    }
+  });
+
+  // Get todo by id
+  router.get('/todos/:id', async (request, response) => {
+    try {
+      const todo = await prisma.todo.findFirst({
+        where: { id: request.params.id, userId: request.user!.id }
+      });
+
+      if (!todo) {
+        return response.status(404).json({ success: false, message: 'Todo not found' });
+      }
+
+      response.json({ success: true, data: todo });
+    } catch (error) {
+      logger.error({ error }, 'Get todo error');
+      response.status(500).json({ success: false, message: 'Failed to get todo' });
+    }
+  });
+
+  // Create todo
+  router.post('/todos', async (request, response) => {
+    try {
+      const body = await request.json().catch(() => ({}));
+      const { title, description, priority, dueDate, tags } = body as {
+        title?: string;
+        description?: string;
+        priority?: string;
+        dueDate?: string;
+        tags?: string[];
+      };
+
+      if (!title) {
+        return response.status(400).json({ success: false, message: 'Title is required' });
+      }
+
+      const todo = await prisma.todo.create({
+        data: {
+          title,
+          description,
+          ...(priority && { priority: priority as 'LOW' | 'MEDIUM' | 'HIGH' }),
+          ...(dueDate && { dueDate: new Date(dueDate) }),
+          ...(tags && { tags }),
+          userId: request.user!.id
+        }
+      });
+
+      response.status(201).json({ success: true, data: todo });
+    } catch (error) {
+      logger.error({ error }, 'Create todo error');
+      response.status(500).json({ success: false, message: 'Failed to create todo' });
+    }
+  });
+
+  // Update todo
+  router.put('/todos/:id', async (request, response) => {
+    try {
+      const body = await request.json().catch(() => ({}));
+      const { title, description, completed, priority, dueDate, tags } = body as {
+        title?: string;
+        description?: string;
+        completed?: boolean;
+        priority?: string;
+        dueDate?: string;
+        tags?: string[];
+      };
+
+      const existing = await prisma.todo.findFirst({
+        where: { id: request.params.id, userId: request.user!.id }
+      });
+
+      if (!existing) {
+        return response.status(404).json({ success: false, message: 'Todo not found' });
+      }
+
+      const todo = await prisma.todo.update({
+        where: { id: request.params.id },
+        data: {
+          ...(title !== undefined && { title }),
+          ...(description !== undefined && { description }),
+          ...(completed !== undefined && { completed }),
+          ...(priority !== undefined && { priority: priority as 'LOW' | 'MEDIUM' | 'HIGH' }),
+          ...(dueDate !== undefined && { dueDate: new Date(dueDate) }),
+          ...(tags !== undefined && { tags })
+        }
+      });
+
+      response.json({ success: true, data: todo });
+    } catch (error) {
+      logger.error({ error }, 'Update todo error');
+      response.status(500).json({ success: false, message: 'Failed to update todo' });
+    }
+  });
+
+  // Delete todo
+  router.delete('/todos/:id', async (request, response) => {
+    try {
+      const existing = await prisma.todo.findFirst({
+        where: { id: request.params.id, userId: request.user!.id }
+      });
+
+      if (!existing) {
+        return response.status(404).json({ success: false, message: 'Todo not found' });
+      }
+
+      await prisma.todo.delete({ where: { id: request.params.id } });
+      response.json({ success: true, message: 'Todo deleted' });
+    } catch (error) {
+      logger.error({ error }, 'Delete todo error');
+      response.status(500).json({ success: false, message: 'Failed to delete todo' });
+    }
+  });
+}`
   }
 };
