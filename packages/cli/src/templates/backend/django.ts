@@ -20,6 +20,7 @@ export const djangoTemplate: BackendTemplate = {
     'security',
     'email',
     'file-upload',
+    'graphql',
     'docker'
   ],
   dependencies: {},
@@ -62,6 +63,7 @@ pillow==10.2.0
 django-environ==0.11.2
 gunicorn==21.2.0
 whitenoise==6.6.0
+strawberry-graphql==0.219.0
 `,
       'requirements-dev.txt': `# Development dependencies
 -r requirements.txt
@@ -193,7 +195,8 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     'apps.users',
-    'apps.api']
+    'apps.api',
+    'apps.graphql']
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
@@ -481,15 +484,21 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
+from strawberry.django.views import GraphQLView
+
+from apps.graphql.schema import schema
 
 urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
-    
+
     # API
     path('api/', include('apps.api.urls')),
     path('api/auth/', include('apps.users.urls')),
-    
+
+    # GraphQL
+    path('graphql/', GraphQLView.as_view(schema=schema), name='graphql'),
+
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
@@ -1179,7 +1188,42 @@ class TestExampleAPI:
         response = api_client.get(url)
         
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-`}}},
+`}},
+        'graphql/': {
+          '__init__.py': '',
+          'apps.py': `from django.apps import AppConfig
+
+
+class GraphqlConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.graphql'
+    verbose_name = 'GraphQL'
+`,
+          'schema.py': `"""GraphQL schema using Strawberry."""
+import strawberry
+from strawberry.schema.config import StrawberryConfig
+
+
+@strawberry.type
+class Query:
+    """Root GraphQL query type."""
+
+    @strawberry.field
+    def hello(self) -> str:
+        """Return a simple greeting."""
+        return 'Hello from GraphQL!'
+
+    @strawberry.field
+    def health(self) -> str:
+        """Return the service health status."""
+        return 'ok'
+
+
+schema = strawberry.Schema(
+    query=Query,
+    config=StrawberryConfig(auto_camel_case=True),
+)
+`}},
       'static/': {
         '.gitkeep': ''},
       'media/': {
@@ -11650,6 +11694,10 @@ Principles implemented:
 - ReDoc: http://localhost:8000/api/redoc/
 - OpenAPI Schema: http://localhost:8000/api/schema/
 
+## GraphQL
+
+- GraphQL endpoint: http://localhost:8000/graphql/
+
 ## Admin Interface
 
 Django Admin is available at: http://localhost:8000/admin/
@@ -11676,7 +11724,8 @@ backend/
 │   └── celery.py       # Celery configuration
 ├── apps/               # Django applications
 │   ├── users/          # User authentication app
-│   └── api/            # Main API app
+│   ├── api/            # Main API app
+│   └── graphql/        # GraphQL app (Strawberry)
 ├── static/             # Static files
 ├── media/              # User-uploaded files
 ├── templates/          # HTML templates

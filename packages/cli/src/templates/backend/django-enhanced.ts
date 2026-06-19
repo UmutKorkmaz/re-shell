@@ -20,7 +20,8 @@ export const djangoEnhancedTemplate: BackendTemplate = {
     'celery': '^5.3.1',
     'flower': '^2.0.1',
     'gunicorn': '^21.2.0',
-    'whitenoise': '^6.5.0'},
+    'whitenoise': '^6.5.0',
+    'strawberry-graphql[django]': '^0.215.0'},
   devDependencies: {
     'pytest': '^7.4.0',
     'pytest-django': '^4.5.2',
@@ -32,7 +33,7 @@ export const djangoEnhancedTemplate: BackendTemplate = {
     'mypy': '^1.5.0',
     'django-debug-toolbar': '^4.1.0',
     'django-silk': '^5.0.3'},
-  features: ['authentication', 'authorization', 'database', 'caching', 'testing', 'documentation'],
+  features: ['authentication', 'authorization', 'database', 'caching', 'testing', 'documentation', 'graphql'],
   postInstall: [
     'python manage.py makemigrations',
     'python manage.py migrate',
@@ -57,6 +58,7 @@ celery>=5.3.1
 flower>=2.0.1
 gunicorn>=21.2.0
 whitenoise>=6.5.0
+strawberry-graphql[django]>=0.215.0
 pytest>=7.4.0
 pytest-django>=4.5.2
 pytest-cov>=4.1.0
@@ -120,6 +122,57 @@ class Command(BaseCommand):
         )
 `,
 
+    // GraphQL (Strawberry) package
+    '{{projectName}}/graphql/__init__.py': '',
+
+    '{{projectName}}/graphql/schema.py': `"""
+GraphQL schema and resolvers for {{projectName}} (Strawberry GraphQL).
+"""
+import strawberry
+from strawberry.schema.config import StrawberryConfig
+
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    def hello(self) -> str:
+        return "Hello from {{projectName}} GraphQL!"
+
+    @strawberry.field
+    def health(self) -> str:
+        return "ok"
+
+
+schema = strawberry.Schema(
+    query=Query,
+    config=StrawberryConfig(auto_camel_case=True),
+)
+`,
+
+    // URL routing (wires /graphql and /graphql/<schema>)
+    '{{projectName}}/urls.py': `"""
+URL configuration for {{projectName}} project.
+"""
+from django.contrib import admin
+from django.urls import path
+from django.http import JsonResponse
+from strawberry.django.views import GraphQLView
+
+from .graphql.schema import schema
+
+
+def health(request):
+    return JsonResponse({"status": "ok"})
+
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("health/", health, name="health"),
+    path("graphql/", GraphQLView.as_view(schema=schema), name="graphql"),
+    path("graphql/<schema>", GraphQLView.as_view(schema=schema), name="graphql-sdl"),
+]
+`,
+
     // Enhanced Settings
     '{{projectName}}/settings/__init__.py': '',
     
@@ -153,7 +206,8 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     'rest_framework',
     'django_filters',
-    'django_extensions']
+    'django_extensions',
+    'strawberry.django']
 
 LOCAL_APPS = [
     '{{projectName}}']

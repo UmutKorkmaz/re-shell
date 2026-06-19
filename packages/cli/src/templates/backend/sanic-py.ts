@@ -9,6 +9,7 @@ export const sanicTemplate: BackendTemplate = {
   language: 'python',
   version: '1.0.0',
   tags: ['sanic', 'python', 'ultra-fast', 'blueprints', 'middleware', 'high-performance'],
+  features: ['authentication', 'authorization', 'database', 'caching', 'websockets', 'graphql', 'middleware', 'rate-limiting', 'cors', 'testing', 'docker'],
   dependencies: {
     sanic: '^23.12.1',
     'sanic-ext': '^23.12.0',
@@ -24,7 +25,8 @@ export const sanicTemplate: BackendTemplate = {
     'aiofiles': '^23.2.1',
     'ujson': '^5.8.0',
     'uvloop': '^0.19.0',
-    'httptools': '^0.6.1'
+    'httptools': '^0.6.1',
+    'ariadne': '^0.23.0'
   },
   devDependencies: {
     'pytest': '^7.4.3',
@@ -53,7 +55,8 @@ alembic==1.13.0
 aiofiles==23.2.1
 ujson==5.8.0
 uvloop==0.19.0
-httptools==0.6.1`,
+httptools==0.6.1
+ariadne==0.23.0`,
 
     'requirements-dev.txt': `pytest==7.4.3
 pytest-asyncio==0.21.1
@@ -201,6 +204,7 @@ from app.blueprints.auth import auth_bp
 from app.blueprints.users import users_bp
 from app.blueprints.websocket import websocket_bp
 from app.blueprints.api import api_bp
+from app.blueprints.graphql import graphql_bp
 from app.middleware.authentication import add_authentication_middleware
 from app.middleware.rate_limiting import add_rate_limiting_middleware
 from app.middleware.error_handling import add_error_handling_middleware
@@ -256,6 +260,7 @@ def create_app(test_config=None) -> Sanic:
     app.blueprint(auth_bp)
     app.blueprint(users_bp)
     app.blueprint(websocket_bp)
+    app.blueprint(graphql_bp)
     
     # Global health check endpoint
     @app.get("/health")
@@ -1073,11 +1078,91 @@ async def get_info(request):
             "auth": "/api/v1/auth/*",
             "users": "/api/v1/users/*",
             "websockets": "/ws/*",
+            "graphql": "/graphql",
             "health": "/health",
             "status": "/api/v1/status",
             "metrics": "/api/v1/metrics"
         }
     })`,
+
+    'app/graphql/__init__.py': '',
+
+    'app/graphql/schema.py': `"""
+GraphQL Schema and Resolvers (Ariadne)
+"""
+from ariadne import QueryType, make_executable_schema
+
+# Minimal GraphQL type definitions
+type_defs = \`
+    type Query {
+        hello: String!
+        health: String!
+    }
+\`
+
+# Query resolver root
+query = QueryType()
+
+@query.field("hello")
+def resolve_hello(_, info):
+    """Return a friendly greeting."""
+    return "Hello from Sanic GraphQL!"
+
+@query.field("health")
+def resolve_health(_, info):
+    """Return the service health status."""
+    return "healthy"
+
+# Build the executable schema once at import time
+schema = make_executable_schema(type_defs, query)
+`,
+
+    'app/blueprints/graphql.py': `"""
+GraphQL Blueprint (Ariadne via Sanic)
+"""
+from sanic import Blueprint
+from sanic.response import json as json_response
+from sanic.exceptions import BadRequest
+from ariadne import graphql_sync
+
+from app.graphql.schema import schema
+
+graphql_bp = Blueprint("graphql")
+
+@graphql_bp.route("/graphql", methods=["GET", "POST"])
+async def graphql_server(request):
+    """GraphQL endpoint serving both POST queries and GET introspection."""
+    try:
+        # GET requests typically serve GraphQL playground / introspection
+        if request.method == "GET":
+            return json_response({
+                "message": "Sanic GraphQL endpoint",
+                "endpoint": "/graphql",
+                "usage": "Send a POST request with a GraphQL query, or POST to /graphql for introspection."
+            })
+
+        # POST requests execute the GraphQL query
+        success, result = graphql_sync(
+            schema,
+            request.json or {},
+            context_value={"request": request},
+            debug=request.app.config.get("DEBUG", False)
+        )
+
+        status_code = 200 if success else 400
+        return json_response(result, status=status_code)
+
+    except BadRequest:
+        return json_response(
+            {"errors": [{"message": "Invalid JSON body"}]},
+            status=400
+        )
+    except Exception as e:
+        return json_response(
+            {"errors": [{"message": f"GraphQL execution failed: {str(e)}"}]},
+            status=500
+        )
+`,
 
     'app/middleware/__init__.py': '',
 
@@ -1095,6 +1180,7 @@ def add_authentication_middleware(app):
     # Define routes that don't require authentication
     public_routes = {
         '/health',
+        '/graphql',
         '/api/v1/auth/login',
         '/api/v1/auth/register',
         '/api/v1/info',

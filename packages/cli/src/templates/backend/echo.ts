@@ -11,7 +11,7 @@ export const echoTemplate: BackendTemplate = {
   tags: ['go', 'echo', 'api', 'rest', 'validation', 'performance', 'http2'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'graphql'],
   
   files: {
     // Go module configuration
@@ -35,6 +35,8 @@ require (
 	golang.org/x/crypto v0.17.0
 	golang.org/x/time v0.5.0
 	github.com/gorilla/websocket v1.5.1
+	github.com/graphql-go/graphql v0.8.1
+	github.com/graphql-go/handler v0.2.3
 )
 
 require (
@@ -92,12 +94,14 @@ import (
 	"{{projectName}}/config"
 	"{{projectName}}/database"
 	_ "{{projectName}}/docs" // swagger docs
+	"{{projectName}}/graphql"
 	"{{projectName}}/handlers"
 	"{{projectName}}/middleware"
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
+	graphqlHandler "github.com/graphql-go/handler"
 	echoSwagger "github.com/swaggo/echo-swagger"
 	"go.uber.org/zap"
 )
@@ -191,6 +195,14 @@ func main() {
 
 	// Swagger documentation
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
+
+	// GraphQL endpoint
+	gqlHandler := graphqlHandler.New(&graphqlHandler.Config{
+		Schema:   graphql.Schema(),
+		Pretty:   true,
+		GraphiQL: true})
+	e.POST("/graphql", echo.WrapHandler(gqlHandler))
+	e.GET("/graphql", echo.WrapHandler(gqlHandler))
 
 	// Initialize handlers
 	h := handlers.NewHandler(db, cfg, logger)
@@ -1366,6 +1378,44 @@ func (h *Handler) WebSocketHandler(c echo.Context) error {
 }
 `,
 
+    // GraphQL schema and resolvers
+    'graphql/schema.go': `package graphql
+
+import (
+	"github.com/graphql-go/graphql"
+)
+
+// Schema builds and returns the application GraphQL schema.
+// Minimal schema: Query { hello: String!, health: String! }
+func Schema() graphql.Schema {
+	queryType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "Query",
+		Fields: graphql.Fields{
+			"hello": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.String),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return "Hello from {{projectName}} GraphQL!", nil
+				},
+			},
+			"health": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.String),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return "healthy", nil
+				},
+			},
+		},
+	})
+
+	schema, err := graphql.NewSchema(graphql.SchemaConfig{
+		Query: queryType})
+	if err != nil {
+		panic("failed to create GraphQL schema: " + err.Error())
+	}
+
+	return schema
+}
+`,
+
     // Middleware
     'middleware/auth.go': `package middleware
 
@@ -2046,6 +2096,7 @@ A high-performance REST API built with Echo framework in Go.
 - **Structured Logging**: JSON logs with Zap
 - **Rate Limiting**: Request throttling with Redis or in-memory fallback
 - **WebSocket Support**: Real-time communication
+- **GraphQL**: Query endpoint with GraphiQL UI
 - **CORS Support**: Configurable cross-origin requests
 - **TLS Support**: Optional HTTPS with auto-TLS
 - **Hot Reload**: Development with Air
@@ -2144,6 +2195,9 @@ make security
 ### WebSocket
 - \`WS /api/v1/ws\` - WebSocket connection
 
+### GraphQL
+- \`GET|POST /graphql\` - GraphQL endpoint (GraphiQL UI enabled on GET)
+
 ## Project Structure
 
 \`\`\`
@@ -2151,6 +2205,7 @@ make security
 ├── config/         # Configuration
 ├── database/       # Database connection and migrations
 ├── docs/          # Swagger documentation
+├── graphql/       # GraphQL schema and resolvers
 ├── handlers/      # HTTP handlers
 ├── middleware/    # HTTP middleware
 ├── models/        # Data models

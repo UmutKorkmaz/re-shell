@@ -11,7 +11,7 @@ export const fiberTemplate: BackendTemplate = {
   tags: ['go', 'fiber', 'api', 'rest', 'express-like', 'performance', 'zero-allocation'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'session-management'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'session-management', 'graphql'],
   
   files: {
     // Go module configuration
@@ -38,6 +38,8 @@ require (
 	gorm.io/driver/sqlite v1.5.4
 	golang.org/x/crypto v0.17.0
 	github.com/google/uuid v1.5.0
+	github.com/99designs/gqlgen v0.17.45
+	github.com/vektah/gqlparser/v2 v2.5.11
 )
 
 require (
@@ -1704,11 +1706,173 @@ func init() {
 }
 `,
 
+    // GraphQL schema
+    'graphql/schema.graphql': `# GraphQL schema for {{projectName}}
+# Regenerate resolver code with: go run github.com/99designs/gqlgen generate
+
+type Query {
+  hello: String!
+  health: String!
+}
+`,
+
+    // GraphQL resolver
+    'graphql/resolver.go': `package graphql
+
+import (
+	"context"
+	"time"
+)
+
+type Resolver struct{}
+
+// Query entry point
+func (r *Resolver) Query() QueryResolver {
+	return &queryResolver{r}
+}
+
+type queryResolver struct{ *Resolver }
+
+func (q *queryResolver) Hello(_ context.Context) (string, error) {
+	return "Hello from {{projectName}} GraphQL!", nil
+}
+
+func (q *queryResolver) Health(_ context.Context) (string, error) {
+	return "healthy at " + time.Now().UTC().Format(time.RFC3339), nil
+}
+`,
+
+    // GraphQL handler wired into Fiber
+    'graphql/handler.go': `package graphql
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"runtime/debug"
+
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
+	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/utils"
+	"github.com/vektah/gqlparser/v2/gqlerror"
+)
+
+// graphqlServer holds the configured gqlgen server. It is initialized
+// lazily on first request so the generated ExecutableSchema (created by
+// \`go generate\`) is available.
+var graphqlServer = handler.New(NewExecutableSchema(Config{Resolvers: &Resolver{}}))
+
+func init() {
+	graphqlServer.AddTransport(transport.POST{})
+	graphqlServer.AddTransport(transport.Options{})
+	graphqlServer.AddTransport(transport.GET{})
+	graphqlServer.SetRecoverFunc(func(ctx context.Context, err interface{}) (userMessage error) {
+		debug.PrintStack()
+		return gqlerror.Errorf("internal server error")
+	})
+}
+
+// graphqlPlayground serves the interactive GraphQL Playground.
+var graphqlPlayground = playground.Handler("GraphQL Playground", "/api/v1/graphql")
+
+// NewHandler returns a Fiber handler that bridges Fiber requests to the
+// net/http-based gqlgen server. GET requests serve the Playground; all
+// other methods execute GraphQL operations.
+func NewHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		w := &fiberResponseWriter{c: c}
+		r, err := fiberToHTTPRequest(c)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"errors": []fiber.Map{{"message": "invalid GraphQL request"}}})
+		}
+
+		if c.Method() == fiber.MethodGet {
+			graphqlPlayground(w, r)
+			return nil
+		}
+
+		graphqlServer.ServeHTTP(w, r)
+		return nil
+	}
+}
+
+// fiberToHTTPRequest converts a Fiber request into an *http.Request so it
+// can be passed to net/http-based handlers from gqlgen.
+func fiberToHTTPRequest(c *fiber.Ctx) (*http.Request, error) {
+	r, err := http.NewRequest(
+		string(c.Method()),
+		c.OriginalURL(),
+		utils.CopyBytes(c.Body()))
+	if err != nil {
+		return nil, err
+	}
+	c.Request().Header.VisitAll(func(key, value []byte) {
+		r.Header.Add(string(key), string(value))
+	})
+	if r.Header.Get("Content-Type") == "" {
+		r.Header.Set("Content-Type", "application/json")
+	}
+	return r, nil
+}
+
+// fiberResponseWriter adapts a *fiber.Ctx to the http.ResponseWriter
+// interface used by gqlgen's handlers.
+type fiberResponseWriter struct {
+	c       *fiber.Ctx
+	headers http.Header
+	status  int
+}
+
+func (w *fiberResponseWriter) Header() http.Header {
+	if w.headers == nil {
+		w.headers = http.Header{}
+	}
+	return w.headers
+}
+
+func (w *fiberResponseWriter) Write(data []byte) (int, error) {
+	for key, values := range w.headers {
+		for _, value := range values {
+			w.c.Set(key, value)
+		}
+	}
+	if w.status != 0 {
+		w.c.Status(w.status)
+	}
+	return w.c.Write(data)
+}
+
+func (w *fiberResponseWriter) WriteHeader(statusCode int) {
+	w.status = statusCode
+}
+
+// Ensure io.ReaderFrom is satisfied if a body is needed via fiber ctx.
+var _ io.Writer = (*fiberResponseWriter)(nil)
+
+// decodeGraphQLRequest is a small helper kept for future use / debugging.
+func decodeGraphQLRequest(body []byte) (query, operationName string, variables map[string]interface{}, err error) {
+	var payload struct {
+		Query         string                 \`json:"query"\`
+		OperationName string                 \`json:"operationName"\`
+		Variables     map[string]interface{} \`json:"variables"\`
+	}
+	if err = json.Unmarshal(body, &payload); err != nil {
+		return "", "", nil, err
+	}
+	return payload.Query, payload.OperationName, payload.Variables, nil
+}
+`,
+
     // Routes
     'routes/routes.go': `package routes
 
 import (
 	"{{projectName}}/config"
+	"{{projectName}}/graphql"
 	"{{projectName}}/handlers"
 	"{{projectName}}/middleware"
 
@@ -1743,13 +1907,16 @@ func SetupRoutes(api fiber.Router, h *handlers.Handler, cfg *config.Config) {
 	{
 		products.Get("", h.ListProducts)
 		products.Get("/:id", h.GetProduct)
-		
+
 		// Protected routes
 		products.Use(middleware.JWT(cfg))
 		products.Post("", middleware.RequireRole("admin"), h.CreateProduct)
 		products.Put("/:id", middleware.RequireRole("admin"), h.UpdateProduct)
 		products.Delete("/:id", middleware.RequireRole("admin"), h.DeleteProduct)
 	}
+
+	// GraphQL endpoint
+	api.All("/graphql", graphql.NewHandler())
 
 	// WebSocket endpoint
 	api.Get("/ws", middleware.JWT(cfg), websocket.New(h.WebSocketHandler))

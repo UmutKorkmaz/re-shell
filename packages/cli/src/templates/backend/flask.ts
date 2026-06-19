@@ -11,7 +11,7 @@ export const flaskTemplate: BackendTemplate = {
   tags: ['python', 'flask', 'api', 'rest', 'web', 'microframework'],
   port: 5000,
   dependencies: {},
-  features: ['routing', 'database', 'authentication', 'testing', 'websockets'],
+  features: ['routing', 'database', 'authentication', 'testing', 'websockets', 'graphql'],
   
   files: {
     // Python project configuration
@@ -64,6 +64,7 @@ werkzeug==3.0.2
 Jinja2==3.1.3
 MarkupSafe==2.1.5
 blinker==1.7.0
+ariadne==0.23.0
 
 # Development dependencies
 pytest==8.1.1
@@ -158,10 +159,33 @@ def create_app(config_name='development'):
     # Register blueprints
     from app.api import api_bp
     app.register_blueprint(api_bp, url_prefix='/api/v1')
-    
-    
-    
-    
+
+    # GraphQL endpoint (Ariadne, schema-first)
+    from ariadne import graphql_sync
+    from ariadne.explorer import ExplorerApollo
+    from app.graphql.schema import schema
+    from flask import request, jsonify
+
+    explorer_html = ExplorerApollo().html(None)
+
+    @app.route('/graphql', methods=['GET'])
+    def graphql_playground():
+        """Serve the GraphQL explorer UI."""
+        return explorer_html, 200
+
+    @app.route('/graphql', methods=['POST'])
+    def graphql_server():
+        """Execute GraphQL queries."""
+        data = request.get_json()
+        success, result = graphql_sync(
+            schema,
+            data,
+            context_value={'request': request},
+            debug=app.debug,
+        )
+        status_code = 200 if success else 400
+        return jsonify(result), status_code
+
     # Register error handlers
     
     # Register CLI commands
@@ -1322,6 +1346,38 @@ class HealthResource(Resource):
 class ReadinessResource(Resource):
     def get(self):
         return {'status': 'ready'}, 200
+`,
+    // GraphQL package (Ariadne, schema-first)
+    'app/graphql/__init__.py': `from app.graphql.schema import schema
+
+__all__ = ['schema']
+`,
+    'app/graphql/schema.py': `from ariadne import QueryType, make_executable_schema
+
+# Minimal schema: Query { hello, health }
+type_defs = """
+    type Query {
+        hello: String!
+        health: String!
+    }
+"""
+
+query = QueryType()
+
+
+@query.field('hello')
+def resolve_hello(_, info):
+    """Return a friendly greeting."""
+    return 'Hello from GraphQL!'
+
+
+@query.field('health')
+def resolve_health(_, info):
+    """Return service health status."""
+    return 'ok'
+
+
+schema = make_executable_schema(type_defs, query)
 `,
     'app/utils/__init__.py': ``,
     'app/utils/tokens.py': `import jwt

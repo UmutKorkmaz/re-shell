@@ -25,6 +25,7 @@ export const rocketTemplate: BackendTemplate = {
     'cors',
     'compression',
     'rest-api',
+    'graphql',
     'docker'
   ],
   dependencies: {
@@ -50,7 +51,9 @@ export const rocketTemplate: BackendTemplate = {
     'futures': '0.3',
     'reqwest': '0.11',
     'tracing': '0.1',
-    'tracing-subscriber': '0.3'
+    'tracing-subscriber': '0.3',
+    'juniper': '0.16',
+    'juniper-rocket': '0.16'
   },
   devDependencies: {
     'cargo-watch': 'latest',
@@ -90,6 +93,8 @@ futures = "0.3"
 reqwest = { version = "0.11", features = ["json"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+juniper = "0.16"
+juniper-rocket = "0.16"
 
 [dev-dependencies]
 rocket = { version = "0.5", features = ["testing"] }
@@ -174,6 +179,7 @@ mod database;
 mod auth;
 mod errors;
 mod utils;
+mod graphql;
 
 use rocket::{Build, Rocket, State};
 use rocket_db_pools::{sqlx, Database};
@@ -183,6 +189,7 @@ use sqlx::PgPool;
 use crate::config::AppConfig;
 use crate::fairings::{cors_fairing, security_fairing, rate_limit_fairing};
 use crate::routes::{health, auth as auth_routes, users};
+use crate::graphql::{create_schema, GraphQLContext};
 
 #[derive(Database)]
 #[database("main")]
@@ -206,6 +213,8 @@ async fn rocket() -> _ {
         .attach(security_fairing())
         .attach(rate_limit_fairing())
         .manage(app_config)
+        .manage(GraphQLContext)
+        .manage(create_schema())
         .mount("/api", routes![
             health::health_check,
             auth_routes::register,
@@ -216,6 +225,14 @@ async fn rocket() -> _ {
             users::update_profile,
             users::delete_account
         ])
+        .mount(
+            "/graphql",
+            routes![
+                graphql::graphiql,
+                graphql::get_graphql_handler,
+                graphql::post_graphql_handler
+            ],
+        )
         .register("/", catchers![
             errors::bad_request,
             errors::unauthorized,
@@ -1005,6 +1022,76 @@ pub mod route_helpers {
         pub fn get_all_routes(&self) -> Vec<Route> {
             self.routes.values().flat_map(|routes| routes.iter()).cloned().collect()
         }
+    }
+}`,
+
+    'src/graphql/mod.rs': `pub mod schema;
+
+use rocket::{get, post, State, response::content::RawHtml};
+use juniper::RootNode;
+use juniper_rocket::{GraphQLRequest, GraphQLResponse};
+
+use crate::graphql::schema::{Query, Mutation};
+
+pub type Schema = RootNode<'static, Query, Mutation>;
+
+pub struct GraphQLContext;
+
+impl juniper::Context for GraphQLContext {}
+
+pub fn create_schema() -> Schema {
+    Schema::new(Query, Mutation)
+}
+
+#[get("/graphql")]
+pub fn graphiql() -> RawHtml<String> {
+    juniper_rocket::graphiql_source("/graphql")
+}
+
+#[get("/graphql?<request>")]
+pub async fn get_graphql_handler(
+    context: State<GraphQLContext>,
+    request: GraphQLRequest,
+    schema: State<Schema>,
+) -> GraphQLResponse {
+    request.execute(&schema, &context).await
+}
+
+#[post("/graphql", data = "<request>")]
+pub async fn post_graphql_handler(
+    context: State<GraphQLContext>,
+    request: GraphQLRequest,
+    schema: State<Schema>,
+) -> GraphQLResponse {
+    request.execute(&schema, &context).await
+}`,
+
+    'src/graphql/schema.rs': `use juniper::{graphql_object, FieldResult};
+
+use crate::graphql::GraphQLContext;
+
+pub struct Query;
+
+#[graphql_object(context = GraphQLContext)]
+impl Query {
+    /// A simple hello world resolver
+    fn hello() -> FieldResult<String> {
+        Ok("Hello from GraphQL!".to_string())
+    }
+
+    /// Service health status
+    fn health() -> FieldResult<String> {
+        Ok("healthy".to_string())
+    }
+}
+
+pub struct Mutation;
+
+#[graphql_object(context = GraphQLContext)]
+impl Mutation {
+    /// Placeholder mutation for future writes
+    fn noop() -> FieldResult<bool> {
+        Ok(true)
     }
 }`,
 

@@ -25,6 +25,7 @@ export const warpTemplate: BackendTemplate = {
     'cors',
     'compression',
     'rest-api',
+    'graphql',
     'docker'
   ],
   dependencies: {
@@ -53,7 +54,9 @@ export const warpTemplate: BackendTemplate = {
     'headers': '0.3',
     'hyper': '0.14',
     'tower': '0.4',
-    'tower-http': '0.4'
+    'tower-http': '0.4',
+    'async-graphql': '7.0',
+    'async-graphql-warp': '7.0'
   },
   devDependencies: {
     'cargo-watch': 'latest',
@@ -96,6 +99,8 @@ headers = "0.3"
 hyper = "0.14"
 tower = "0.4"
 tower-http = { version = "0.4", features = ["cors", "compression", "trace"] }
+async-graphql = "7.0"
+async-graphql-warp = "7.0"
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -149,6 +154,7 @@ mod database;
 mod auth;
 mod errors;
 mod utils;
+mod graphql;
 
 use std::net::SocketAddr;
 use warp::Filter;
@@ -167,7 +173,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Load configuration
     let config = Config::from_env().expect("Failed to load configuration");
-    
+
     // Create database connection pool
     let db_pool = create_pool(&config.database_url, config.database_max_connections)
         .await
@@ -179,12 +185,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await
         .expect("Failed to run database migrations");
 
+    // Build GraphQL schema
+    let schema = graphql::build_schema();
+
     tracing::info!("Starting server at {}:{}", config.host, config.port);
 
     // Build routes using functional composition
     let routes = health::routes()
         .or(auth_filters::routes(db_pool.clone(), config.clone()))
         .or(users::routes(db_pool.clone(), config.clone()))
+        .or(graphql::routes(schema))
         .with(cors_filter())
         .with(warp::trace::request())
         .recover(errors::handle_rejection);
@@ -970,6 +980,58 @@ impl<T> Pipe<T> {
 
     pub fn unwrap(self) -> T {
         self.0
+    }
+}`,
+
+    'src/graphql/mod.rs': `use async_graphql::{EmptyMutation, EmptySubscription, Schema};
+use async_graphql_warp::GraphQLResponse;
+use warp::Filter;
+
+use crate::graphql::query::QueryRoot;
+
+pub mod query;
+
+/// Build the GraphQL schema with the root Query and empty Mutation/Subscription.
+pub fn build_schema() -> Schema<QueryRoot, EmptyMutation, EmptySubscription> {
+    Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish()
+}
+
+/// Mount the GraphQL endpoint at \`POST /graphql\` and \`GET /graphql\`.
+///
+/// Uses the canonical async-graphql-warp integration: the filter parses the
+/// incoming HTTP request into a GraphQL \`Request\`, executes it against the
+/// schema, and serializes the result back as a JSON \`GraphQLResponse\`.
+pub fn routes<Q, M, S>(
+    schema: Schema<Q, M, S>,
+) -> impl Filter<Extract = (GraphQLResponse,), Error = warp::Rejection> + Clone
+where
+    Q: async_graphql::ObjectType + 'static,
+    M: async_graphql::ObjectType + 'static,
+    S: async_graphql::SubscriptionType + 'static,
+{
+    warp::path("graphql").and(async_graphql_warp::graphql(schema)).and_then(
+        |(schema, request): (Schema<Q, M, S>, async_graphql::Request)| async move {
+            let response = schema.execute(request).await;
+            Ok::<GraphQLResponse, warp::Rejection>(GraphQLResponse::from(response))
+        },
+    )
+}`,
+
+    'src/graphql/query.rs': `use async_graphql::Object;
+
+/// Root GraphQL Query type.
+pub struct QueryRoot;
+
+#[Object]
+impl QueryRoot {
+    /// Simple greeting field.
+    async fn hello(&self) -> String {
+        "Hello from GraphQL!".to_string()
+    }
+
+    /// Service health probe surfaced through GraphQL.
+    async fn health(&self) -> String {
+        "healthy".to_string()
     }
 }`,
 

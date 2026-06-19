@@ -25,6 +25,7 @@ export const actixWebTemplate: BackendTemplate = {
     'cors',
     'compression',
     'rest-api',
+    'graphql',
     'docker'
   ],
   dependencies: {
@@ -54,7 +55,9 @@ export const actixWebTemplate: BackendTemplate = {
     'reqwest': '0.11',
     'tracing': '0.1',
     'tracing-subscriber': '0.3',
-    'tracing-actix-web': '0.7'
+    'tracing-actix-web': '0.7',
+    'async-graphql': '7.0',
+    'async-graphql-actix-web': '7.0'
   },
   devDependencies: {
     'cargo-watch': 'latest',
@@ -98,6 +101,8 @@ reqwest = { version = "0.11", features = ["json"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-actix-web = "0.7"
+async-graphql = "7.0"
+async-graphql-actix-web = "7.0"
 
 [dev-dependencies]
 actix-rt = "2.9"
@@ -152,6 +157,7 @@ mod database;
 mod auth;
 mod errors;
 mod utils;
+mod graphql;
 
 use actix_web::{web, App, HttpServer, middleware::Logger};
 use actix_cors::Cors;
@@ -188,6 +194,9 @@ async fn main() -> std::io::Result<()> {
 
     tracing::info!("Starting server at {}:{}", config.host, config.port);
 
+    // Build GraphQL schema
+    let schema = graphql::build_schema();
+
     // Configure rate limiting
     let governor_conf = GovernorConfigBuilder::default()
         .per_second(config.rate_limit_requests)
@@ -207,11 +216,17 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(config.clone()))
+            .app_data(web::Data::new(schema.clone()))
             .wrap(TracingLogger::default())
             .wrap(Logger::default())
             .wrap(cors)
             .wrap(Governor::new(&governor_conf))
             .wrap(SecurityMiddleware::default())
+            .service(
+                web::scope("/graphql")
+                    .service(graphql::index)
+                    .service(graphql::index_get)
+            )
             .service(
                 web::scope("/api")
                     .service(health::health_check)
@@ -1030,6 +1045,60 @@ pub fn error_response(status: actix_web::http::StatusCode, error: String) -> Res
     Ok(HttpResponse::build(status).json(ApiResponse::<()>::error(error)))
 }`,
 
+    'src/graphql/mod.rs': `pub mod query;
+
+use actix_web::{get, post, web, HttpResponse, Result};
+use async_graphql::Schema;
+use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
+
+use crate::graphql::query::{QueryRoot, query_root};
+
+pub type AppSchema = Schema<QueryRoot, async_graphql::EmptyMutation, async_graphql::EmptySubscription>;
+
+/// Build the GraphQL schema (Query-only, no mutations/subscriptions yet).
+pub fn build_schema() -> AppSchema {
+    Schema::build(query_root(), async_graphql::EmptyMutation, async_graphql::EmptySubscription)
+        .finish()
+}
+
+/// POST /graphql — standard GraphQL endpoint.
+#[post("")]
+pub async fn index(schema: web::Data<AppSchema>, req: GraphQLRequest) -> Result<GraphQLResponse> {
+    let resp = schema.execute(req.into_inner()).await;
+    Ok(GraphQLResponse(resp))
+}
+
+/// GET /graphql — convenience endpoint for simple queries.
+#[get("")]
+pub async fn index_get(schema: web::Data<AppSchema>, req: web::Query<serde_json::Value>) -> Result<HttpResponse> {
+    let query = req.get("query").and_then(|v| v.as_str()).unwrap_or("{ __typename }");
+    let resp = schema.execute(query).await;
+    Ok(HttpResponse::Ok().json(resp))
+}`,
+
+    'src/graphql/query.rs': `use async_graphql::Object;
+
+/// Root query resolver exposing minimal health/ping fields.
+pub struct QueryRoot;
+
+/// Construct the singleton root query resolver.
+pub fn query_root() -> QueryRoot {
+    QueryRoot
+}
+
+#[Object]
+impl QueryRoot {
+    /// Simple greeting field.
+    async fn hello(&self) -> String {
+        "Hello from GraphQL!".to_string()
+    }
+
+    /// Service health field mirroring the REST health check.
+    async fn health(&self) -> String {
+        format!("{} is healthy", env!("CARGO_PKG_NAME"))
+    }
+}`,
+
     'migrations/001_initial.sql': `-- Create users table
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1223,6 +1292,10 @@ docker-compose up -d
 
 ### Health Check
 - \`GET /api/health\` - Service health status
+
+### GraphQL
+- \`POST /graphql\` - GraphQL endpoint (Query: \`hello\`, \`health\`)
+- \`GET /graphql?query=...\` - Convenience endpoint for simple queries
 
 ### Authentication
 - \`POST /api/auth/register\` - User registration

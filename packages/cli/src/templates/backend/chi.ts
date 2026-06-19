@@ -11,7 +11,7 @@ export const chiTemplate: BackendTemplate = {
   tags: ['go', 'chi', 'api', 'rest', 'router', 'middleware', 'composable'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'rate-limiting'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'rate-limiting', 'graphql'],
   
   files: {
     // Go module configuration
@@ -39,6 +39,8 @@ require (
 	golang.org/x/crypto v0.17.0
 	github.com/google/uuid v1.5.0
 	github.com/lestrrat-go/jwx/v2 v2.0.19
+	github.com/graphql-go/graphql v0.8.1
+	github.com/graphql-go/handler v0.2.3
 )
 
 require (
@@ -100,6 +102,7 @@ import (
 	"{{projectName}}/config"
 	"{{projectName}}/database"
 	_ "{{projectName}}/docs" // swagger docs
+	"{{projectName}}/graphql"
 	"{{projectName}}/handlers"
 	"{{projectName}}/middleware"
 	"{{projectName}}/routes"
@@ -199,6 +202,14 @@ func main() {
 		httpSwagger.DocExpansion("none"),
 		httpSwagger.DomID("swagger-ui"),
 	))
+
+	// GraphQL endpoint
+	graphqlSchema, err := graphql.NewSchema()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create GraphQL schema")
+	}
+	graphqlHandler := graphql.NewHandler(graphqlSchema)
+	r.Handle("/graphql", graphqlHandler)
 
 	// Initialize handlers
 	h := handlers.NewHandler(db, cfg)
@@ -1673,6 +1684,78 @@ func RegisterRoutes(r chi.Router, h *handlers.Handler, cfg *config.Config) {
 		})
 
 		// Order routes
+}
+`,
+
+    // GraphQL
+    'graphql/schema.go': `package graphql
+
+import (
+	"github.com/graphql-go/graphql"
+)
+
+// NewSchema builds the root GraphQL schema for {{projectName}}.
+// Minimal schema: Query { hello: String!, health: String! }
+func NewSchema() (graphql.Schema, error) {
+	queryType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "Query",
+		Fields: graphql.Fields{
+			"hello": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.String),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return resolveHello(p)
+				},
+			},
+			"health": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.String),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return resolveHealth(p)
+				},
+			},
+		},
+	})
+
+	return graphql.NewSchema(graphql.SchemaConfig{
+		Query: queryType,
+	})
+}
+`,
+
+    'graphql/resolver.go': `package graphql
+
+import "github.com/graphql-go/graphql"
+
+// resolveHello returns a greeting for the GraphQL hello field.
+func resolveHello(p graphql.ResolveParams) (interface{}, error) {
+	return "Hello from {{projectName}} GraphQL!", nil
+}
+
+// resolveHealth returns the service health status.
+func resolveHealth(p graphql.ResolveParams) (interface{}, error) {
+	return "healthy", nil
+}
+`,
+
+    'graphql/handler.go': `package graphql
+
+import (
+	"net/http"
+
+	"github.com/graphql-go/graphql"
+	"github.com/graphql-go/handler"
+)
+
+// NewHandler creates an http.Handler exposing the GraphQL endpoint,
+// supporting both POST queries and the interactive GraphiQL IDE on GET.
+func NewHandler(schema graphql.Schema) http.Handler {
+	h := handler.New(&handler.Config{
+		Schema:     &schema,
+		Pretty:     true,
+		GraphiQL:   true,
+		Playground: false,
+	})
+
+	return h
 }
 `,
 

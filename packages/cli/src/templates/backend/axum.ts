@@ -25,6 +25,7 @@ export const axumTemplate: BackendTemplate = {
     'cors',
     'compression',
     'rest-api',
+    'graphql',
     'docker'
   ],
   dependencies: {
@@ -52,7 +53,9 @@ export const axumTemplate: BackendTemplate = {
     'reqwest': '0.11',
     'mime': '0.3',
     'bytes': '1.5',
-    'headers': '0.4'
+    'headers': '0.4',
+    'async-graphql': '7.0',
+    'async-graphql-axum': '7.0'
   },
   devDependencies: {
     'cargo-watch': 'latest',
@@ -94,6 +97,8 @@ reqwest = { version = "0.11", features = ["json"] }
 mime = "0.3"
 bytes = "1.5"
 headers = "0.4"
+async-graphql = "7.0"
+async-graphql-axum = "7.0"
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -156,6 +161,7 @@ mod auth;
 mod errors;
 mod utils;
 mod state;
+mod graphql;
 
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -204,12 +210,18 @@ async fn main() -> anyhow::Result<()> {
     // Create application state
     let state = AppState::new(config.clone(), db_pool);
 
+    // Build GraphQL schema
+    let schema = crate::graphql::build_schema();
+
     // Build our application with routes and middleware
     let app = Router::new()
         // API routes
         .route("/api/health", get(health::health_check))
         .nest("/api/auth", auth_routes())
         .nest("/api/users", user_routes())
+        // GraphQL endpoint
+        .route("/graphql", get(async_graphql_axum::GraphQL::default(schema.clone()))
+            .post(async_graphql_axum::GraphQL::default(schema)))
         // Static file serving (optional)
         .nest_service("/static", ServeDir::new("static"))
         // Global middleware stack
@@ -499,6 +511,36 @@ pub struct Claims {
     'src/handlers/mod.rs': `pub mod health;
 pub mod auth;
 pub mod users;`,
+
+    'src/graphql/mod.rs': `pub mod query;
+
+use async_graphql::{EmptyMutation, EmptySubscription, Schema};
+
+use crate::graphql::query::QueryRoot;
+
+pub type AppSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
+
+pub fn build_schema() -> AppSchema {
+    Schema::build(QueryRoot, EmptyMutation, EmptySubscription)
+        .finish()
+}`,
+
+    'src/graphql/query.rs': `use async_graphql::Object;
+
+pub struct QueryRoot;
+
+#[Object]
+impl QueryRoot {
+    /// Returns a friendly hello message.
+    async fn hello(&self) -> String {
+        "Hello from GraphQL!".to_string()
+    }
+
+    /// Returns the service health status.
+    async fn health(&self) -> String {
+        "healthy".to_string()
+    }
+}`,
 
     'src/handlers/health.rs': `use axum::{response::Json, extract::State};
 use serde_json::{json, Value};

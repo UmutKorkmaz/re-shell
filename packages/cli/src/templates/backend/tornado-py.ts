@@ -9,6 +9,7 @@ export const tornadoTemplate: BackendTemplate = {
   language: 'python',
   version: '1.0.0',
   tags: ['tornado', 'python', 'websockets', 'coroutines', 'high-performance', 'non-blocking'],
+  features: ['authentication', 'database', 'caching', 'validation', 'logging', 'cors', 'websockets', 'graphql', 'rest-api', 'docker', 'testing'],
   dependencies: {
     tornado: '^6.4',
     'motor': '^3.3.2',
@@ -23,7 +24,8 @@ export const tornadoTemplate: BackendTemplate = {
     'alembic': '^1.13.0',
     'psycopg2': '^2.9.9',
     'celery': '^5.3.4',
-    'redis': '^5.0.1'
+    'redis': '^5.0.1',
+    'strawberry-graphql': '^0.215.0'
   },
   devDependencies: {
     'pytest': '^7.4.3',
@@ -51,7 +53,8 @@ sqlalchemy==2.0.23
 alembic==1.13.0
 psycopg2==2.9.9
 celery==5.3.4
-redis==5.0.1`,
+redis==5.0.1
+strawberry-graphql==0.215.0`,
 
     'requirements-dev.txt': `pytest==7.4.3
 pytest-asyncio==0.21.1
@@ -178,6 +181,7 @@ from app.handlers.auth_handlers import AuthLoginHandler, AuthLogoutHandler, Auth
 from app.handlers.user_handlers import UserHandler, UserProfileHandler
 from app.handlers.websocket_handlers import ChatWebSocketHandler, NotificationWebSocketHandler
 from app.handlers.api_handlers import HealthCheckHandler, StatusHandler
+from app.handlers.graphql_handler import GraphQLHandler
 from app.core.config import settings
 
 def create_application(debug: bool = False) -> Application:
@@ -201,7 +205,10 @@ def create_application(debug: bool = False) -> Application:
         # WebSocket endpoints
         (r"/ws/chat", ChatWebSocketHandler),
         (r"/ws/notifications", NotificationWebSocketHandler),
-        
+
+        # GraphQL
+        (r"/graphql", GraphQLHandler),
+
         # Static files (in production, use nginx)
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": "static"})]
     
@@ -1163,6 +1170,104 @@ class StatusHandler(BaseHandler):
             
         except Exception as e:
             self.write_error(f"Failed to get status: {str(e)}", 500)`,
+
+    'app/graphql/__init__.py': '',
+
+    'app/graphql/schema.py': `"""
+GraphQL Schema (Strawberry)
+"""
+import strawberry
+
+@strawberry.type
+class Query:
+    """Root GraphQL query type."""
+
+    @strawberry.field
+    def hello(self) -> str:
+        """Return a simple greeting."""
+        return "Hello from Tornado + Strawberry GraphQL!"
+
+    @strawberry.field
+    def health(self) -> str:
+        """Return service health status."""
+        return "healthy"
+
+schema = strawberry.Schema(query=Query)`,
+
+    'app/handlers/graphql_handler.py': `"""
+GraphQL Request Handler (Strawberry over Tornado)
+"""
+import json
+
+import tornado.web
+from strawberry.schema import BaseSchema
+
+from app.handlers.base import BaseHandler
+from app.graphql.schema import schema as app_schema
+
+
+class GraphQLHandler(BaseHandler):
+    """Tornado RequestHandler exposing the Strawberry GraphQL endpoint."""
+
+    def _get_schema(self) -> BaseSchema:
+        return app_schema
+
+    def _execute(self, query: str, variables: dict = None, operation_name: str = None) -> dict:
+        """Execute a GraphQL operation and return the Strawberry result as a dict."""
+        result = self._get_schema().execute_sync(
+            query,
+            variable_values=variables,
+            operation_name=operation_name,
+        )
+        response: dict = {}
+        if result.errors:
+            response["errors"] = [str(err) for err in result.errors]
+        if result.data is not None:
+            response["data"] = result.data
+        return response
+
+    async def get(self):
+        """Handle GraphQL GET requests (query via query string)."""
+        query = self.get_argument("query", default=None)
+        if not query:
+            self.write_json(
+                {"error": "Missing 'query' parameter"},
+                status_code=400,
+            )
+            return
+
+        variables = self.get_argument("variables", default=None)
+        parsed_variables = None
+        if variables:
+            try:
+                parsed_variables = json.loads(variables)
+            except json.JSONDecodeError:
+                self.write_json(
+                    {"error": "Invalid 'variables' JSON"},
+                    status_code=400,
+                )
+                return
+
+        operation_name = self.get_argument("operationName", default=None)
+        self.write_json(self._execute(query, parsed_variables, operation_name))
+
+    async def post(self):
+        """Handle GraphQL POST requests (JSON body)."""
+        try:
+            body = self.get_json_body()
+        except tornado.web.HTTPError:
+            self.write_json({"error": "Invalid JSON body"}, status_code=400)
+            return
+
+        query = body.get("query")
+        if not query:
+            self.write_json({"error": "Missing 'query' in request body"}, status_code=400)
+            return
+
+        variables = body.get("variables")
+        operation_name = body.get("operationName")
+
+        self.write_json(self._execute(query, variables, operation_name))`,
 
     'app/models/__init__.py': '',
 
