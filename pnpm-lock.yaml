@@ -251,6 +251,9 @@ importers:
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
+      vitest:
+        specifier: ^0.34.6
+        version: 0.34.6(jsdom@25.0.1)(playwright@1.60.0)
 
   packages/mcp:
     dependencies:
