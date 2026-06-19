@@ -56,11 +56,10 @@ gem 'hiredis', '~> 0.6'
 
 # Background jobs
 gem 'sidekiq', '~> 7.2'
-gem 'sinatra-sidekiq', '~> 1.0'
+gem 'sidekiq', '~> 1.0'
 
 # Pagination
 gem 'will_paginate', '~> 4.0'
-gem 'will_paginate-sinatra', '~> 1.0'
 
 # API Documentation
 gem 'sinatra-swagger-exposer', '~> 0.5'

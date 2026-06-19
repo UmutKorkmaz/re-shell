@@ -52,6 +52,7 @@ django-filter>=23.2
 python-decouple>=3.8
 psycopg2-binary>=2.9.7
 redis>=4.6.0
+django-redis>=5.4.0
 celery>=5.3.1
 flower>=2.0.1
 gunicorn>=21.2.0

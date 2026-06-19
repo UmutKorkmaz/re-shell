@@ -52,7 +52,6 @@ export const tinyhttpTemplate: BackendTemplate = {
     "milliparsec": "^2.3.0",
     "sirv": "^2.0.4",
     "eta": "^3.4.0",
-    "database": "^6.5.0",
     "mongoose": "^8.3.1",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",

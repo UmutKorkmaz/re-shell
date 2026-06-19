@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ai/size-limit/main/schema.json",
+  "name": "re-shell bundle budgets",
+  "timeLimit": "200ms",
+  "check": [
+    {
+      "name": "@re-shell/contracts (ESM)",
+      "path": "packages/contracts/dist/index.js",
+      "limit": "50 KB",
+      "gzip": true
+    },
+    {
+      "name": "@re-shell/ui (ESM)",
+      "path": "packages/ui/dist/index.js",
+      "limit": "80 KB",
+      "gzip": true
+    },
+    {
+      "name": "@re-shell/mcp (ESM)",
+      "path": "packages/mcp/dist/index.js",
+      "limit": "50 KB",
+      "gzip": true
+    }
+  ]
+}

@@ -51,6 +51,7 @@ if __name__ == '__main__':
 django==5.0.1
 djangorestframework==3.14.0
 django-cors-headers==4.3.1
+django-filter==23.5
 djangorestframework-simplejwt==5.3.1
 drf-spectacular==0.27.0
 celery==5.3.4
@@ -9868,7 +9869,8 @@ A Django REST API service with authentication, Celery tasks, and Redis caching.
 
 - Django REST Framework for API development
 - PostgreSQL database with Django ORM
-- JWT authentication with djangorestframework-simplejwt
+- JWT authentication with django-filter==23.5
+djangorestframework-simplejwt
 - Swagger/OpenAPI documentation with drf-spectacular
 - Celery for asynchronous task processing
 - Redis for caching and Celery broker

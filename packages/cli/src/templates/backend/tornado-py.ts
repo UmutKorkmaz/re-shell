@@ -40,6 +40,7 @@ export const tornadoTemplate: BackendTemplate = {
     'requirements.txt': `tornado==6.4
 motor==3.3.2
 aiopg==1.4.0
+psutil==5.9.8
 aioredis==2.0.1
 pyjwt==2.8.0
 bcrypt==4.1.2
