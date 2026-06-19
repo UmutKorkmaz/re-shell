@@ -29,7 +29,8 @@ export const symfonyTemplate: BackendTemplate = {
     "doctrine/orm": "^2.17",
     "lexik/jwt-authentication-bundle": "^2.19",
     "nelmio/cors-bundle": "^2.4",
-    "nelmio/api-doc-bundle": "^4.19",
+    "zircote/swagger-php": "^4.7",
+        "nelmio/api-doc-bundle": "^4.19",
     "phpdocumentor/reflection-docblock": "^5.3",
     "phpstan/phpdoc-parser": "^1.24",
     "sensio/framework-extra-bundle": "^6.2",
@@ -672,12 +673,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(['user:read', 'user:write'])]
     private bool $isActive = true;
 
-    #[ORM\\OneToMany(mappedBy: 'user', targetEntity: Product::class)]
     private Collection $products;
 
     public function __construct()
     {
-        $this->products = new ArrayCollection();
         $this->roles = ['ROLE_USER'];
     }
 

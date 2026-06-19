@@ -62,7 +62,7 @@ gem 'sidekiq', '~> 1.0'
 gem 'will_paginate', '~> 4.0'
 
 # API Documentation
-gem 'sinatra-swagger-exposer', '~> 0.5'
+gem 'sinatra-swagger-exposer', '~> 0.4'
 
 # Rate limiting
 gem 'rack-throttle', '~> 0.7'
@@ -101,6 +101,7 @@ end
 
     // Main application file
     'app.rb': `require 'sinatra/base'
+require 'active_support/all'
 require 'sinatra/json'
 require 'sinatra/activerecord'
 require 'sinatra/namespace'

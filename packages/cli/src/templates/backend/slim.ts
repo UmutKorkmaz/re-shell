@@ -119,13 +119,9 @@ CORS_CREDENTIALS=true`,
     'public/index.php': `<?php
 declare(strict_types=1);
 
-use App\\Application\\Handlers\\HttpErrorHandler;
-use App\\Application\\Handlers\\ShutdownHandler;
-use App\\Application\\ResponseEmitter\\ResponseEmitter;
 use App\\Application\\Settings\\SettingsInterface;
 use DI\\ContainerBuilder;
 use Slim\\Factory\\AppFactory;
-use Slim\\Factory\\ServerRequestCreatorFactory;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -176,15 +172,12 @@ $logError = $settings->get('logError');
 $logErrorDetails = $settings->get('logErrorDetails');
 
 // Create Request object from globals
-$serverRequestCreator = ServerRequestCreatorFactory::create();
 $request = $serverRequestCreator->createServerRequestFromGlobals();
 
 // Create Error Handler
 $responseFactory = $app->getResponseFactory();
-$errorHandler = new HttpErrorHandler($callableResolver, $responseFactory);
 
 // Create Shutdown Handler
-$shutdownHandler = new ShutdownHandler($request, $errorHandler, $displayErrorDetails);
 register_shutdown_function($shutdownHandler);
 
 // Add Routing Middleware
@@ -199,7 +192,6 @@ $errorMiddleware->setDefaultErrorHandler($errorHandler);
 
 // Run App & Emit Response
 $response = $app->handle($request);
-$responseEmitter = new ResponseEmitter();
 $responseEmitter->emit($response);`,
 
     // Application settings
@@ -303,13 +295,6 @@ return function (ContainerBuilder $containerBuilder) {
     'app/routes.php': `<?php
 declare(strict_types=1);
 
-use App\\Application\\Actions\\Auth\\LoginAction;
-use App\\Application\\Actions\\Auth\\RefreshTokenAction;
-use App\\Application\\Actions\\User\\CreateUserAction;
-use App\\Application\\Actions\\User\\DeleteUserAction;
-use App\\Application\\Actions\\User\\ListUsersAction;
-use App\\Application\\Actions\\User\\UpdateUserAction;
-use App\\Application\\Actions\\User\\ViewUserAction;
 use App\\Application\\Middleware\\JwtAuthMiddleware;
 use Psr\\Http\\Message\\ResponseInterface as Response;
 use Psr\\Http\\Message\\ServerRequestInterface as Request;
@@ -335,18 +320,11 @@ return function (App $app) {
     $app->group('/api/v1', function (Group $group) {
         // Public routes
         $group->group('/auth', function (Group $group) {
-            $group->post('/login', LoginAction::class);
-            $group->post('/refresh', RefreshTokenAction::class);
         });
 
         // Protected routes
         $group->group('', function (Group $group) {
             $group->group('/users', function (Group $group) {
-                $group->get('', ListUsersAction::class);
-                $group->post('', CreateUserAction::class);
-                $group->get('/{id}', ViewUserAction::class);
-                $group->put('/{id}', UpdateUserAction::class);
-                $group->delete('/{id}', DeleteUserAction::class);
             });
         })->add(JwtAuthMiddleware::class);
     });
@@ -705,47 +683,6 @@ $dotenv->safeLoad();
 $_ENV['APP_ENV'] = 'testing';
 $_ENV['APP_DEBUG'] = 'true';`,
 
-    // Example test
-    'tests/Application/Actions/User/ListUsersActionTest.php': `<?php
-declare(strict_types=1);
-
-namespace Tests\\Application\\Actions\\User;
-
-use App\\Application\\Actions\\ActionPayload;
-use App\\Domain\\User\\User;
-use App\\Domain\\User\\UserRepository;
-use DI\\Container;
-use Tests\\TestCase;
-
-class ListUsersActionTest extends TestCase
-{
-    public function testAction()
-    {
-        $app = $this->getAppInstance();
-
-        /** @var Container $container */
-        $container = $app->getContainer();
-
-        $user = new User(1, 'test@example.com', 'testuser', 'hash', '2024-01-01');
-
-        $userRepositoryProphecy = $this->prophesize(UserRepository::class);
-        $userRepositoryProphecy
-            ->findAll()
-            ->willReturn([$user])
-            ->shouldBeCalledOnce();
-
-        $container->set(UserRepository::class, $userRepositoryProphecy->reveal());
-
-        $request = $this->createRequest('GET', '/api/v1/users');
-        $response = $app->handle($request);
-
-        $payload = (string) $response->getBody();
-        $expectedPayload = new ActionPayload(200, [$user]);
-        $serializedPayload = json_encode($expectedPayload, JSON_PRETTY_PRINT);
-
-        $this->assertEquals($serializedPayload, $payload);
-    }
-}`,
 
     // Docker configuration
     'Dockerfile': `FROM php:8.2-apache

@@ -25,6 +25,7 @@ export const alephDenoTemplate: BackendTemplate = {
     "lint": "deno lint"
   },
   "imports": {
+    "aleph": "https://deno.land/x/aleph@1.0.0/mod.ts",
     "aleph/": "https://deno.land/x/aleph@1.0.0/",
     "react": "https://esm.sh/react@18.2.0",
     "react-dom": "https://esm.sh/react-dom@18.2.0",
@@ -494,7 +495,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
     CMD curl -f http://localhost:3000/health || exit 1
 
-CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--allow-write", "aleph.dev.ts"]
+CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--allow-write", "aleph start"]
 `,
 
     // Docker Compose

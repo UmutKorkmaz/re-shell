@@ -83,7 +83,39 @@ export const hapiTypeScriptTemplate: BackendTemplate = {
       },
   "keywords": ["hapi", "typescript", "api", "validation", "caching", "security"],
   "author": "{{author}}",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@hapi/hapi": "^21.3.10",
+    "@hapi/joi": "^17.1.3",
+    "@hapi/boom": "^10.0.1",
+    "@hapi/inert": "^7.1.0",
+    "@hapi/vision": "^7.0.3",
+    "@hapi/jwt": "^3.2.0",
+    "hapi-swagger": "^17.3.0",
+    "hapi-rate-limit": "^7.1.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "redis": "^4.6.13",
+    "winston": "^3.13.0",
+    "dotenv": "^16.4.5",
+    "@prisma/client": "^5.13.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/hapi__hapi": "^21.0.0",
+    "@types/hapi__joi": "^17.1.15",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.6",
+    "typescript": "^5.4.5",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.2",
+    "nodemon": "^3.1.0",
+    "prisma": "^5.13.0",
+    "rimraf": "^5.0.5",
+    "@hapi/lab": "^25.1.2",
+    "@hapi/code": "^9.0.3"
+  }
 }`,
     'tsconfig.json': `{
   "compilerOptions": {

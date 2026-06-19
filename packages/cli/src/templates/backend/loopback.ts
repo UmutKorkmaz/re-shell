@@ -72,6 +72,7 @@ export const loopbackTemplate: BackendTemplate = {
     "@loopback/repository": "^7.0.2",
     "@loopback/rest": "^14.0.2",
     "@loopback/rest-crud": "^0.18.2",
+    "@loopback/security": "^0.10.2",
     "@loopback/rest-explorer": "^7.0.2",
     "@loopback/service-proxy": "^7.0.2",
     "@loopback/logging": "^0.12.2",

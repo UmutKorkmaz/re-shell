@@ -1407,6 +1407,26 @@ Dockerfile
 .dockerignore`,
 
     // README
+    'src/utils/jwt.ts': `import fastify from 'fastify';
+
+export function generateTokens(app: fastify.FastifyInstance, payload: Record<string, unknown>): { accessToken: string; refreshToken: string } {
+  return {
+    accessToken: app.jwt.sign(payload, { expiresIn: '15m' }),
+    refreshToken: app.jwt.sign(payload, { expiresIn: '7d' }),
+  };
+}
+`,
+    'src/services/email.service.ts': `/**
+ * Email service (stub). Wire to a real transport later.
+ */
+export async function sendVerificationEmail(email: string, token: string): Promise<void> {
+  // TODO: send verification link
+}
+
+export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
+  // TODO: send password reset link
+}
+`,
     'README.md': `# {{projectName}}
 
 High-performance Fastify API server with TypeScript, featuring schema-based validation and modern architecture.

@@ -326,7 +326,6 @@ end
       end
       
       # Orders
-      resources :orders do
         member do
           patch 'cancel'
           patch 'complete'
@@ -363,7 +362,7 @@ end
     header = header.split(' ').last if header
     
     begin
-      decoded = jwt_decode(header)
+      decoded = decode(header)
       @current_user = User.find(decoded[:user_id])
     rescue JWT::DecodeError => e
       render json: { error: 'Invalid token' }, status: :unauthorized
@@ -400,12 +399,12 @@ end
   
   SECRET_KEY = Rails.application.credentials.secret_key_base || ENV['SECRET_KEY_BASE']
   
-  def jwt_encode(payload, exp = 24.hours.from_now)
+  def encode(payload, exp = 24.hours.from_now)
     payload[:exp] = exp.to_i
     JWT.encode(payload, SECRET_KEY)
   end
   
-  def jwt_decode(token)
+  def decode(token)
     decoded = JWT.decode(token, SECRET_KEY)[0]
     HashWithIndifferentAccess.new decoded
   end
@@ -453,8 +452,8 @@ end
         @user = User.new(user_params)
         
         if @user.save
-          token = jwt_encode(user_id: @user.id)
-          refresh_token = jwt_encode({ user_id: @user.id, type: 'refresh' }, 7.days.from_now)
+          token = encode(user_id: @user.id)
+          refresh_token = encode({ user_id: @user.id, type: 'refresh' }, 7.days.from_now)
           
           render json: {
             user: UserSerializer.new(@user),
@@ -472,8 +471,8 @@ end
         
         if @user&.authenticate(params[:password])
           if @user.active?
-            token = jwt_encode(user_id: @user.id)
-            refresh_token = jwt_encode({ user_id: @user.id, type: 'refresh' }, 7.days.from_now)
+            token = encode(user_id: @user.id)
+            refresh_token = encode({ user_id: @user.id, type: 'refresh' }, 7.days.from_now)
             
             render json: {
               user: UserSerializer.new(@user),
@@ -494,11 +493,11 @@ end
         header = header.split(' ').last if header
         
         begin
-          decoded = jwt_decode(header)
+          decoded = decode(header)
           
           if decoded[:type] == 'refresh'
             @user = User.find(decoded[:user_id])
-            token = jwt_encode(user_id: @user.id)
+            token = encode(user_id: @user.id)
             
             render json: {
               access_token: token

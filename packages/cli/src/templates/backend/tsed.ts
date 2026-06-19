@@ -41,6 +41,19 @@ export const tsedTemplate: BackendTemplate = {
   }
 }`,
 
+    'src/Server.ts': `import { ServerLoader, ServerSettings } from '@tsed/common';
+import './config/env';
+
+@ServerSettings({
+  port: process.env.PORT || 8083,
+  cors: { origin: '*' },
+})
+export class Server extends ServerLoader {
+  async (): Promise<void> {
+    return;
+  }
+}
+`,
     'src/index.ts': `import { $log } from '@tsed/common';
 import { PlatformExpress } from '@tsed/platform-express';
 import { Server } from './Server';

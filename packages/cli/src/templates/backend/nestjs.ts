@@ -69,7 +69,6 @@ export const nestjsTemplate: BackendTemplate = {
     "bcryptjs": "^2.4.3",
     "bull": "^4.12.2",
     "cache-manager": "^5.5.1",
-    "cache-manager-redis-store": "^3.0.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "compression": "^1.7.4",
@@ -210,7 +209,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import * as compression from 'compression';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import { WinstonModule } from 'nest-winston';
+
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -318,17 +317,10 @@ import { BullModule } from '@nestjs/bull';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TerminusModule } from '@nestjs/terminus';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import * as redisStore from 'cache-manager-redis-store';
 import { join } from 'path';
 import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './modules/users/users.module';
-import { TodosModule } from './modules/todos/todos.module';
 import { CommonModule } from './common/common.module';
 import { DatabaseModule } from './database/database.module';
-import { HealthModule } from './modules/health/health.module';
-import { WebSocketModule } from './modules/websocket/websocket.module';
-import { EmailModule } from './modules/email/email.module';
-import { FileModule } from './modules/file/file.module';
 import configuration from './config/configuration';
 import { validationSchema } from './config/validation';
 
@@ -384,11 +376,6 @@ import { validationSchema } from './config/validation';
     // Feature modules
     CommonModule,
     AuthModule,
-    UsersModule,
-    TodosModule,
-    HealthModule,
-    WebSocketModule,
-    EmailModule,
     FileModule]})
 export class AppModule {}`,
 
@@ -404,11 +391,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
 import { User } from '../modules/users/entities/user.entity';
-import { UsersModule } from '../modules/users/users.module';
 
 @Module({
   imports: [
-    UsersModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

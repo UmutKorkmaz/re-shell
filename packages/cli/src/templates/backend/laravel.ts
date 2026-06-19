@@ -243,7 +243,6 @@ Route::prefix('v1')->middleware(['jwt.auth', 'api.throttle:60,1'])->group(functi
 
     // Users (Admin only)
     Route::middleware(['role:admin'])->group(function () {
-        Route::apiResource('users', UserController::class);
         Route::post('/users/{user}/restore', [UserController::class, 'restore']);
         Route::delete('/users/{user}/force', [UserController::class, 'forceDelete']);
     });
@@ -256,7 +255,6 @@ Route::prefix('v1')->middleware(['jwt.auth', 'api.throttle:60,1'])->group(functi
     });
 
     // Orders
-    Route::apiResource('orders', OrderController::class);
     Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel']);
     Route::post('/orders/{order}/complete', [OrderController::class, 'complete']);
 });

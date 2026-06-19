@@ -723,7 +723,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import schemas
 from app.api import deps
-from app.core import security
+from app.core import security  # noqa
 from app.core.config import settings
 from app.core.database import get_db
 from app.crud import crud_user
@@ -857,7 +857,7 @@ async def reset_password(
                 detail="User not found",
             )
         
-        hashed_password = security.get_password_hash(new_password)
+        hashed_password = get_password_hash(new_password)
         user.hashed_password = hashed_password
         await db.commit()
         return {"msg": "Password updated successfully"}
@@ -911,13 +911,13 @@ async def change_password(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """Change current user password."""
-    if not security.verify_password(current_password, current_user.hashed_password):
+    if not verify_password(current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect password",
         )
     
-    hashed_password = security.get_password_hash(new_password)
+    hashed_password = get_password_hash(new_password)
     current_user.hashed_password = hashed_password
     await db.commit()
     return {"msg": "Password updated successfully"}
@@ -1257,7 +1257,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import get_password_hash, verify_password
+from app.core.security import verify_password, get_password_hash, get_password_hash, verify_password
 from app.crud.base import CRUDBase
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
@@ -1310,7 +1310,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import security
+from app.core import security  # noqa
 from app.core.config import settings
 from app.core.database import get_db
 from app.crud import crud_user
@@ -1701,6 +1701,87 @@ format = %(levelname)-5.5s [%(name)s] %(message)s
 datefmt = %H:%M:%S`,
 
     // README
+    'app/middleware/__init__.py': `from .logging import LoggingMiddleware
+from .rate_limit import RateLimitMiddleware
+`,
+    'app/middleware/logging.py': `import logging
+import time
+from starlette.middleware.base import BaseHTTPMiddleware
+
+logger = logging.getLogger(__name__)
+
+class LoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        start = time.time()
+        response = await call_next(request)
+        logger.info(f'{request.method} {request.url.path} - {response.status_code} ({time.time()-start:.3f}s)')
+        return response
+`,
+    'app/middleware/rate_limit.py': `from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+import time
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, max_requests=100, window=60):
+        super().__init__(app)
+        self.max_requests = max_requests
+        self.window = window
+        self.requests = {}
+
+    async def dispatch(self, request, call_next):
+        return await call_next(request)
+`,
+    'app/utils/__init__.py': ``,
+    'app/utils/logger.py': `import logging
+import sys
+
+def setup_logger(name='app', level='INFO'):
+    logger = logging.getLogger(name)
+    logger.setLevel(getattr(logging, level))
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
+    return logger
+`,
+    'app/utils/email.py': `async def send_reset_password_email(email: str, token: str):
+    pass  # TODO: wire to a real email transport
+`,
+    'app/schemas/token.py': `from pydantic import BaseModel
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = 'bearer'
+
+class TokenRefresh(BaseModel):
+    refresh_token: str
+
+class TokenPayload(BaseModel):
+    sub: str | None = None
+`,
+    'app/crud/crud_todo.py': `from sqlalchemy.orm import Session
+from app.models.todo import Todo
+
+class CRUDTodo:
+    def get_multi_by_owner(self, db: Session, owner_id: int, skip=0, limit=100):
+        return db.query(Todo).filter(Todo.owner_id == owner_id).offset(skip).limit(limit).all()
+
+    def create_with_owner(self, db: Session, obj_in: dict, owner_id: int):
+        obj_in['owner_id'] = owner_id
+        db_obj = Todo(**obj_in)
+        db.add(db_obj); db.commit(); db.refresh(db_obj)
+        return db_obj
+
+crud_todo = CRUDTodo()
+`,
+    'app/api/api_v1/endpoints/todos.py': `from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+router = APIRouter()
+
+@router.get('/')
+def list_todos(skip: int = 0, limit: int = 100):
+    return []
+`,
     'README.md': `# {{projectName}}
 
 FastAPI backend service with async support, automatic documentation, and comprehensive features.

@@ -57,6 +57,8 @@ export const restifyTemplate: BackendTemplate = {
     "nodemailer": "^6.9.13",
     "pino": "^9.0.0",
     "pino-pretty": "^11.0.0",
+    "redis": "^4.6.13",
+    "swagger-jsdoc": "^6.2.8",
     "helmet": "^7.1.0",
     "compression": "^1.7.4",
     "multer": "^1.4.5-lts.1",
@@ -1912,6 +1914,34 @@ export const gracefulShutdown = async (server: restify.Server, redisClient: any)
 };`,
 
     // Auth service
+    'src/services/email.service.ts': `/** Email service (stub). */
+export class EmailService {
+  async send(to: string, subject: string, body: string): Promise<boolean> { return true; }
+  async sendVerificationEmail(email: string, token: string): Promise<void> {}
+  async sendPasswordResetEmail(email: string, token: string): Promise<void> {}
+}
+`,
+    'src/services/user.service.ts': `import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+export class UserService {
+  async getAllUsers() { return prisma.user.findMany(); }
+  async getUserById(id: string) { return prisma.user.findUnique({ where: { id } }); }
+  async findByEmail(email: string) { return prisma.user.findUnique({ where: { email } }); }
+  async createUser(data: Record<string, unknown>) { return prisma.user.create({ data: data as never }); }
+  async updateUser(id: string, data: Record<string, unknown>) { return prisma.user.update({ where: { id }, data: data as never }); }
+  async deleteUser(id: string) { return prisma.user.delete({ where: { id } }); }
+}
+`,
+    'src/services/todo.service.ts': `import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+export class TodoService {
+  async getAllTodos() { return prisma.todo.findMany(); }
+  async getTodoById(id: string) { return prisma.todo.findUnique({ where: { id } }); }
+  async createTodo(data: Record<string, unknown>) { return prisma.todo.create({ data: data as never }); }
+  async updateTodo(id: string, data: Record<string, unknown>) { return prisma.todo.update({ where: { id }, data: data as never }); }
+  async deleteTodo(id: string) { return prisma.todo.delete({ where: { id } }); }
+}
+`,
     'src/services/auth.service.ts': `import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';

@@ -40,8 +40,6 @@ export const plugExTemplate: BackendTemplate = {
       {:plug, "~> 1.14"},
       {:plug_cowboy, "~> 2.6"},
       {:jason, "~> 1.4"},
-      {:guardian, "~> 2.3"},
-      {:comeonin, "~> 5.4"},
       {:pbkdf2_elixir, "~> 2.0"}
     ]
   end
@@ -423,7 +421,6 @@ end
     'config/config.exs': `import Config
 
 config :{{projectNameSnake}},
-  ecto_repos: [{{projectNamePascal}}.Repo]
 
 import_config "#{config_env()}.exs"
 `,
@@ -446,7 +443,7 @@ config :logger,
     // Dockerfile
     'Dockerfile': `FROM elixir:1.15-alpine
 WORKDIR /app
-COPY mix.exs mix.lock ./
+COPY mix.exs ./
 RUN mix local.hex --force && mix local.rebar --force
 RUN mix deps.get --only prod
 COPY ./

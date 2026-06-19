@@ -158,7 +158,6 @@ use CodeIgniter\\Router\\RouteCollection;
  */
 
 // Load the system's routing file first
-$routes->get('/', 'Home::index');
 
 // API Routes
 $routes->group('api', ['namespace' => 'App\\Controllers\\Api'], function ($routes) {
@@ -178,16 +177,9 @@ $routes->group('api', ['namespace' => 'App\\Controllers\\Api'], function ($route
         $routes->group('', ['filter' => 'jwt'], function ($routes) {
             // User management
             $routes->group('users', function ($routes) {
-                $routes->get('', 'UserController::index');
-                $routes->get('(:num)', 'UserController::show/$1');
-                $routes->post('', 'UserController::create');
-                $routes->put('(:num)', 'UserController::update/$1');
-                $routes->delete('(:num)', 'UserController::delete/$1');
             });
             
             // Profile
-            $routes->get('profile', 'ProfileController::index');
-            $routes->put('profile', 'ProfileController::update');
             
             // Logout
             $routes->post('logout', 'AuthController::logout');

@@ -159,26 +159,14 @@ def create_app(config_name='development'):
     from app.api import api_bp
     app.register_blueprint(api_bp, url_prefix='/api/v1')
     
-    from app.auth import auth_bp
-    app.register_blueprint(auth_bp, url_prefix='/auth')
     
-    from app.main import main_bp
-    app.register_blueprint(main_bp)
     
-    from app.admin import admin_bp
-    app.register_blueprint(admin_bp, url_prefix='/admin')
     
     # Register error handlers
-    from app.errors import register_error_handlers
-    register_error_handlers(app)
     
     # Register CLI commands
-    from app.cli import register_commands
-    register_commands(app)
     
     # WebSocket events
-    from app.events import register_socketio_events
-    register_socketio_events(socketio)
     
     # Create upload directory
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -1325,6 +1313,46 @@ docker-compose.yml
 Dockerfile`,
 
     // README
+    'app/api/health.py': `from flask_restful import Resource
+
+class HealthResource(Resource):
+    def get(self):
+        return {'status': 'healthy'}, 200
+
+class ReadinessResource(Resource):
+    def get(self):
+        return {'status': 'ready'}, 200
+`,
+    'app/utils/__init__.py': ``,
+    'app/utils/tokens.py': `import jwt
+import os
+
+def generate_token(user_id: int) -> str:
+    return jwt.encode({'user_id': user_id}, os.environ.get('SECRET_KEY', 'dev-secret'), algorithm='HS256')
+
+def verify_token(token: str) -> dict | None:
+    try:
+        return jwt.decode(token, os.environ.get('SECRET_KEY', 'dev-secret'), algorithms=['HS256'])
+    except jwt.PyJWTError:
+        return None
+`,
+    'app/utils/decorators.py': `from functools import wraps
+from flask import request, jsonify
+
+def validate_json(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not request.is_json:
+            return jsonify({'error': 'Content-Type must be application/json'}), 400
+        return f(*args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        return f(*args, **kwargs)
+    return decorated
+`,
     'README.md': `# {{projectName}}
 
 Flask API server with comprehensive features including authentication, WebSockets, and async task processing.
