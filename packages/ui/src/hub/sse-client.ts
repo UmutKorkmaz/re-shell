@@ -57,7 +57,10 @@ export class SseClient {
       });
 
       if (!response.ok) {
-        throw new Error(`SSE error: ${response.status}`);
+        const e = new Error(`SSE error: ${response.status}`) as Error & { retryable?: boolean };
+        // 4xx (except 429) are permanent client errors — retrying is pointless.
+        e.retryable = response.status >= 500 || response.status === 429;
+        throw e;
       }
 
       const reader = response.body?.getReader();
@@ -87,8 +90,10 @@ export class SseClient {
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
 
+      // Permanent client errors (4xx) fast-fail instead of burning retry budget.
+      const retryable = (err as { retryable?: boolean }).retryable ?? true;
       this.attempts++;
-      if (this.attempts < this.retries) {
+      if (retryable && this.attempts < this.retries) {
         await new Promise((r) => setTimeout(r, 1000 * this.attempts));
         return this.connect();
       }
