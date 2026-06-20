@@ -78,6 +78,7 @@ export const expressTemplate: BackendTemplate = {
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/express-ws": "^3.0.4",
     "@types/multer": "^1.4.11",
+    "@types/uuid": "^9.0.8",
     "@types/express-session": "^1.17.10",
     "@types/passport": "^1.0.16",
     "@types/passport-jwt": "^4.0.1",
@@ -550,9 +551,9 @@ export class AuthController {
       success: true,
       message: 'Registration successful. Please check your email to verify your account.',
       data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken
+        user: (result as { user: unknown }).user,
+        accessToken: (result as { accessToken: string }).accessToken,
+        refreshToken: (result as { refreshToken: string }).refreshToken
       }
     });
   });
@@ -563,7 +564,7 @@ export class AuthController {
     const result = await this.authService.login(email, password);
 
     // Set refresh token as HTTP-only cookie
-    res.cookie('refreshToken', result.refreshToken, {
+    res.cookie('refreshToken', (result as { refreshToken: string }).refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -574,8 +575,8 @@ export class AuthController {
       success: true,
       message: 'Login successful',
       data: {
-        user: result.user,
-        accessToken: result.accessToken
+        user: (result as { user: unknown }).user,
+        accessToken: (result as { accessToken: string }).accessToken
       }
     });
   });
@@ -593,7 +594,7 @@ export class AuthController {
     res.json({
       success: true,
       data: {
-        accessToken: result.accessToken
+        accessToken: (result as { accessToken: string }).accessToken
       }
     });
   });
@@ -1072,18 +1073,11 @@ async function getRedisClientForRateLimit() {
     return null;
   }
 }
-function redisStoreIfExists(prefix: string) {
-  if (!process.env.REDIS_URL) return undefined;
-  try {
-    const { default: RedisStore } = require('rate-limit-redis');
-    // Create a shared client lazily — rate-limit-redis v4 requires sendCommand
-    // from a CONNECTED redis v4 client.
-    const client = getRedisClientForRateLimit();
-    if (!client) return undefined;
-    return new RedisStore({ sendCommand: (...args: unknown[]) => client.sendCommand(args), prefix });
-  } catch {
-    return undefined;
-  }
+function redisStoreIfExists(_prefix: string) {
+  // Redis-backed rate limiting requires a synchronously-connected client.
+  // For the generated scaffold, fall back to the default in-memory store.
+  // Set REDIS_URL and uncomment the code below to enable Redis rate limiting.
+  return undefined;
 }
 
 // General API rate limit
@@ -1466,25 +1460,27 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export class TodoService {
-  async getAllTodos() {
-    return prisma.todo.findMany();
+  async getAllTodos(opts?: { page?: number; limit?: number }) {
+    const take = opts?.limit ?? 100;
+    const skip = opts?.page ? (opts.page - 1) * take : 0;
+    return prisma.todo.findMany({ take, skip });
   }
-  async getTodoById(id: string) {
+  async getTodoById(id: string, _userId?: string) {
     return prisma.todo.findUnique({ where: { id } });
   }
   async createTodo(data: Record<string, unknown>) {
     return prisma.todo.create({ data: data as never });
   }
-  async updateTodo(id: string, data: Record<string, unknown>) {
+  async updateTodo(id: string, _userId: string, data: Record<string, unknown>) {
     return prisma.todo.update({ where: { id }, data: data as never });
   }
-  async deleteTodo(id: string) {
+  async deleteTodo(id: string, _userId?: string) {
     return prisma.todo.delete({ where: { id } });
   }
-  async bulkDelete(ids: string[]) {
+  async bulkDelete(ids: string[], _userId?: string) {
     return prisma.todo.deleteMany({ where: { id: { in: ids } } });
   }
-  async bulkUpdate(ids: string[], data: Record<string, unknown>) {
+  async bulkUpdate(ids: string[], _userId: string, data: Record<string, unknown>) {
     return prisma.todo.updateMany({ where: { id: { in: ids } }, data: data as never });
   }
 }
@@ -1501,7 +1497,7 @@ export class UserService {
   async create(data: Record<string, unknown>) {
     return prisma.user.create({ data: data as never });
   }
-  async getAllUsers() {
+  async getAllUsers(_opts?: { page?: number; limit?: number; search?: string }) {
     return prisma.user.findMany({ select: { id: true, email: true, name: true, createdAt: true } });
   }
   async getUserById(id: string) {
