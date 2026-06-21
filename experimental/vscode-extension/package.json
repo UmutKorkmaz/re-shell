@@ -1,11 +1,19 @@
 {
-  "name": "@re-shell/vscode",
+  "name": "re-shell",
   "displayName": "Re-Shell",
   "description": "Browse, build, and run vetted Re-Shell CLI commands from inside VS Code, backed by the shared @re-shell/contracts envelopes and the local hub allow-list.",
   "version": "0.1.0",
   "license": "MIT",
   "publisher": "umutkorkmaz",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UmutKorkmaz/re-shell"
+  },
+  "homepage": "https://github.com/UmutKorkmaz/re-shell",
+  "bugs": {
+    "url": "https://github.com/UmutKorkmaz/re-shell/issues"
+  },
   "engines": {
     "vscode": "^1.85.0",
     "node": ">=18.0.0"
@@ -47,6 +55,18 @@
       {
         "command": "reShell.runViaHub",
         "title": "Re-Shell: Run via hub"
+      },
+      {
+        "command": "reShell.createProject",
+        "title": "Re-Shell: Create Project"
+      },
+      {
+        "command": "reShell.showHealth",
+        "title": "Re-Shell: Show Health"
+      },
+      {
+        "command": "reShell.showOutput",
+        "title": "Re-Shell: Show Output"
       }
     ],
     "menus": {

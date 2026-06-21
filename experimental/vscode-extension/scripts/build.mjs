@@ -5,12 +5,17 @@
 //
 // This intentionally does NOT launch a VS Code host or run
 // @vscode/test-electron (which downloads VS Code). It is a pure compile step.
+//
+// `@re-shell/contracts` is aliased to its workspace SOURCE so the bundle is
+// fully self-contained: no prebuilt contracts dist and no pnpm workspace
+// install is required to build. (tests do the same via vitest alias.)
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
+const contractsSource = path.resolve(root, '../../packages/contracts/src/index.ts');
 
 await build({
   entryPoints: [path.join(root, 'src/extension.ts')],
@@ -21,6 +26,9 @@ await build({
   target: 'node18',
   // The VS Code API is injected by the host runtime, never bundled.
   external: ['vscode'],
+  alias: {
+    '@re-shell/contracts': contractsSource,
+  },
   sourcemap: false,
   logLevel: 'info',
 });

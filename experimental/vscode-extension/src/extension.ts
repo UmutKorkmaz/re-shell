@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { fetchCommandCatalogRaw } from './cli.js';
+import { fetchCommandCatalogRaw, runCli } from './cli.js';
 import {
   parseCommandCatalog,
   buildCommand,
@@ -172,12 +172,81 @@ async function runViaHubHandler(entry: CatalogEntry, output: vscode.OutputChanne
   }
 }
 
+/**
+ * Prompt for a project name, then run `re-shell create <name> --yes` in the
+ * integrated terminal. The name is sanitized to the safe-identifier charset used
+ * everywhere else (matches buildCommand's SAFE_VALUE) before it ever reaches a
+ * shell — so a name like `foo; rm -rf ~` is rejected, never executed.
+ */
+const SAFE_PROJECT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+async function createProjectHandler(cliBin: string): Promise<void> {
+  const name = await vscode.window.showInputBox({
+    prompt: 'Project name',
+    placeHolder: 'my-app',
+  });
+  if (name === undefined) {
+    return;
+  }
+  if (name === '' || !SAFE_PROJECT_NAME.test(name)) {
+    void vscode.window.showErrorMessage(
+      `Re-Shell: "${name}" is not a valid project name (use letters, digits, ".", "_" or "-").`
+    );
+    return;
+  }
+  const terminal = vscode.window.createTerminal('Re-Shell');
+  terminal.show(true);
+  // argv tokens are fixed; only `name` is interpolated and it has been sanitized.
+  terminal.sendText(`${cliBin} create ${name} --yes`, true);
+}
+
+/**
+ * Run `re-shell workspace health --json` and surface the raw JSON result in an
+ * OutputChannel. Uses the same fixed argv pattern as the catalog fetch.
+ */
+async function showHealthHandler(
+  cliBin: string,
+  cwd: string,
+  output: vscode.OutputChannel
+): Promise<void> {
+  output.appendLine(`[re-shell] running: ${cliBin} workspace health --json`);
+  output.show(true);
+  try {
+    const result = await runCli(cliBin, ['workspace', 'health', '--json'], cwd);
+    if (result.stderr.trim()) {
+      output.appendLine(`[re-shell] stderr: ${result.stderr.trim()}`);
+    }
+    if (result.stdout.trim()) {
+      output.appendLine(result.stdout);
+    }
+    if (result.code !== 0) {
+      output.appendLine(`[re-shell] exited with code ${result.code}`);
+      void vscode.window.showWarningMessage(`Re-Shell: health check exited with code ${result.code}.`);
+    } else {
+      void vscode.window.showInformationMessage('Re-Shell: workspace health finished. See output for details.');
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    output.appendLine(`[re-shell] failed to run health: ${message}`);
+    void vscode.window.showErrorMessage(`Re-Shell: could not run health (${message}).`);
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Re-Shell');
   const provider = new CommandsTreeProvider(output);
 
+  // Status bar item signals the extension is active and ready. Clicking it opens
+  // the Re-Shell output channel so the user can see catalog warnings/errors.
+  const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
+  statusBar.text = '$(terminal) Re-Shell: Ready';
+  statusBar.tooltip = 'Re-Shell extension is active. Click to open the output channel.';
+  statusBar.command = 'reShell.showOutput';
+  statusBar.show();
+
   context.subscriptions.push(
     output,
+    statusBar,
     vscode.window.registerTreeDataProvider(VIEW_ID, provider),
     vscode.commands.registerCommand('reShell.refreshCommands', () => provider.refresh()),
     vscode.commands.registerCommand('reShell.buildCommand', (entry: unknown) => {
@@ -191,6 +260,15 @@ export function activate(context: vscode.ExtensionContext): void {
       if (resolved) {
         void runViaHubHandler(resolved, output);
       }
+    }),
+    vscode.commands.registerCommand('reShell.createProject', () => {
+      void createProjectHandler(getCliBin());
+    }),
+    vscode.commands.registerCommand('reShell.showHealth', () => {
+      void showHealthHandler(getCliBin(), getWorkspaceCwd(), output);
+    }),
+    vscode.commands.registerCommand('reShell.showOutput', () => {
+      output.show(true);
     })
   );
 

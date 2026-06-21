@@ -62,6 +62,33 @@ declare module 'vscode' {
     show(preserveFocus?: boolean): void;
   }
 
+  /**
+   * Alignment of a status bar item relative to other items. Only Left/Right are
+   * used by the extension; the full enum exists for API parity with the host.
+   */
+  export enum StatusBarAlignment {
+    Left = 1,
+    Right = 2,
+  }
+
+  export interface StatusBarItem extends Disposable {
+    readonly alignment: StatusBarAlignment;
+    readonly priority: number;
+    text: string;
+    tooltip: string | undefined;
+    command: string | undefined;
+    show(): void;
+    hide(): void;
+  }
+
+  /** A terminal in the integrated terminal panel. */
+  export interface Terminal extends Disposable {
+    readonly name: string;
+    show(preserveFocus?: boolean): void;
+    hide(): void;
+    sendText(text: string, shouldExecute?: boolean): void;
+  }
+
   export interface WorkspaceConfiguration {
     get<T>(section: string): T | undefined;
     get<T>(section: string, defaultValue: T): T;
@@ -93,6 +120,12 @@ declare module 'vscode' {
     }): Thenable<string | undefined>;
     export function createOutputChannel(name: string): OutputChannel;
     export function registerTreeDataProvider<T>(viewId: string, provider: TreeDataProvider<T>): Disposable;
+    export function createStatusBarItem(
+      alignment?: StatusBarAlignment,
+      priority?: number
+    ): StatusBarItem;
+    export function createTerminal(name?: string): Terminal;
+    export const activeTerminal: Terminal | undefined;
   }
 
   export namespace workspace {
