@@ -50,3 +50,39 @@ export function runCli(cliBin: string, argv: readonly string[], cwd: string): Pr
 export function fetchCommandCatalogRaw(cliBin: string, cwd: string): Promise<RunCliResult> {
   return runCli(cliBin, ['commands', 'list', '--json'], cwd);
 }
+
+/**
+ * Fetch the `re-shell workspace summary --json` payload. Fixed argv; only the
+ * binary path and cwd vary (both from extension config).
+ */
+export function fetchWorkspaceSummaryRaw(cliBin: string, cwd: string): Promise<RunCliResult> {
+  return runCli(cliBin, ['workspace', 'summary', '--json'], cwd);
+}
+
+/**
+ * Fetch the `re-shell workspace graph --json` payload. Fixed argv.
+ */
+export function fetchWorkspaceGraphRaw(cliBin: string, cwd: string): Promise<RunCliResult> {
+  return runCli(cliBin, ['workspace', 'graph', '--json'], cwd);
+}
+
+/**
+ * Fetch the `re-shell workspace health --json` payload. Fixed argv.
+ */
+export function fetchWorkspaceHealthRaw(cliBin: string, cwd: string): Promise<RunCliResult> {
+  return runCli(cliBin, ['workspace', 'health', '--json'], cwd);
+}
+
+/**
+ * Fetch the `re-shell templates list --json` payload. Fixed argv.
+ */
+export function fetchTemplatesListRaw(cliBin: string, cwd: string): Promise<RunCliResult> {
+  return runCli(cliBin, ['templates', 'list', '--json'], cwd);
+}
+
+/**
+ * Fetch the `re-shell doctor --json` payload. Fixed argv.
+ */
+export function fetchDoctorRaw(cliBin: string, cwd: string): Promise<RunCliResult> {
+  return runCli(cliBin, ['doctor', '--json'], cwd);
+}

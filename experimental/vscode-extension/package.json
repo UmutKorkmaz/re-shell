@@ -1,8 +1,8 @@
 {
   "name": "re-shell",
   "displayName": "Re-Shell",
-  "description": "Browse, build, and run vetted Re-Shell CLI commands from inside VS Code, backed by the shared @re-shell/contracts envelopes and the local hub allow-list.",
-  "version": "0.1.0",
+  "description": "Manage re-shell projects from inside VS Code: browse apps/packages, run commands, scaffold from templates, and monitor workspace health.",
+  "version": "0.2.0",
   "license": "MIT",
   "publisher": "umutkorkmaz",
   "private": true,
@@ -22,7 +22,14 @@
     "Other"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:reShell.projects",
+    "onView:reShell.commands",
+    "onView:reShell.templates",
+    "workspaceContains:**/workspace.yaml",
+    "workspaceContains:**/workspace.yml",
+    "workspaceContains:**/pnpm-workspace.yaml"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -36,56 +43,241 @@
     "views": {
       "reShell": [
         {
+          "id": "reShell.projects",
+          "name": "Projects",
+          "contextualTitle": "Re-Shell Projects"
+        },
+        {
           "id": "reShell.commands",
           "name": "Commands",
           "contextualTitle": "Re-Shell Commands"
+        },
+        {
+          "id": "reShell.templates",
+          "name": "Templates",
+          "contextualTitle": "Re-Shell Templates"
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "reShell.projects",
+        "contents": "No re-shell workspace detected in this folder.\n[Initialize Workspace](command:reShell.openTerminal)\n[Refresh](command:reShell.refresh)\nTo learn more [read the docs](https://github.com/UmutKorkmaz/re-shell).",
+        "when": "reShell.workspaceDetected === false"
+      },
+      {
+        "view": "reShell.projects",
+        "contents": "No apps or packages found in this workspace.\n[Create Project](command:reShell.createProject)\n[Refresh](command:reShell.refresh)",
+        "when": "reShell.workspaceDetected && reShell.hasProjects === false"
+      },
+      {
+        "view": "reShell.templates",
+        "contents": "No templates loaded.\n[Refresh](command:reShell.refresh)\nVerify the Re-Shell CLI is installed (`npm i -g re-shell`).",
+        "when": "reShell.templatesLoaded === false"
+      }
+    ],
     "commands": [
       {
-        "command": "reShell.refreshCommands",
-        "title": "Re-Shell: Refresh Commands",
+        "command": "reShell.refresh",
+        "title": "Re-Shell: Refresh",
+        "category": "Re-Shell",
         "icon": "$(refresh)"
       },
       {
-        "command": "reShell.buildCommand",
-        "title": "Re-Shell: Build Command"
+        "command": "reShell.runDoctor",
+        "title": "Re-Shell: Run Doctor",
+        "category": "Re-Shell",
+        "icon": "$(stethoscope)"
       },
       {
-        "command": "reShell.runViaHub",
-        "title": "Re-Shell: Run via hub"
+        "command": "reShell.runCommand",
+        "title": "Re-Shell: Run Command",
+        "category": "Re-Shell",
+        "icon": "$(play)"
+      },
+      {
+        "command": "reShell.openTerminal",
+        "title": "Re-Shell: Open Terminal",
+        "category": "Re-Shell",
+        "icon": "$(terminal)"
       },
       {
         "command": "reShell.createProject",
-        "title": "Re-Shell: Create Project"
+        "title": "Re-Shell: Create Project",
+        "category": "Re-Shell",
+        "icon": "$(add)"
       },
       {
-        "command": "reShell.showHealth",
-        "title": "Re-Shell: Show Health"
+        "command": "reShell.createProjectFromTemplate",
+        "title": "Re-Shell: Create Project from Template",
+        "category": "Re-Shell",
+        "icon": "$(add)"
+      },
+      {
+        "command": "reShell.runCommandFromTree",
+        "title": "Re-Shell: Run Command",
+        "category": "Re-Shell",
+        "icon": "$(play)"
+      },
+      {
+        "command": "reShell.copyCommand",
+        "title": "Re-Shell: Copy Command",
+        "category": "Re-Shell",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "reShell.buildProject",
+        "title": "Re-Shell: Build",
+        "category": "Re-Shell",
+        "icon": "$(package)"
+      },
+      {
+        "command": "reShell.serveProject",
+        "title": "Re-Shell: Serve",
+        "category": "Re-Shell",
+        "icon": "$(server)"
+      },
+      {
+        "command": "reShell.testProject",
+        "title": "Re-Shell: Test",
+        "category": "Re-Shell",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "reShell.openProjectTerminal",
+        "title": "Re-Shell: Open Terminal",
+        "category": "Re-Shell",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "reShell.revealProject",
+        "title": "Re-Shell: Reveal in Explorer",
+        "category": "Re-Shell",
+        "icon": "$(folder)"
       },
       {
         "command": "reShell.showOutput",
-        "title": "Re-Shell: Show Output"
+        "title": "Re-Shell: Show Output",
+        "category": "Re-Shell"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "reShell.refreshCommands",
+          "command": "reShell.refresh",
+          "when": "view == reShell.projects",
+          "group": "navigation"
+        },
+        {
+          "command": "reShell.createProject",
+          "when": "view == reShell.projects",
+          "group": "navigation"
+        },
+        {
+          "command": "reShell.refresh",
           "when": "view == reShell.commands",
+          "group": "navigation"
+        },
+        {
+          "command": "reShell.runCommand",
+          "when": "view == reShell.commands",
+          "group": "navigation"
+        },
+        {
+          "command": "reShell.refresh",
+          "when": "view == reShell.templates",
           "group": "navigation"
         }
       ],
       "view/item/context": [
         {
-          "command": "reShell.buildCommand",
+          "command": "reShell.buildProject",
+          "when": "view == reShell.projects && viewItem == reShellProject",
+          "group": "reShell.project@1"
+        },
+        {
+          "command": "reShell.serveProject",
+          "when": "view == reShell.projects && viewItem == reShellProject",
+          "group": "reShell.project@2"
+        },
+        {
+          "command": "reShell.testProject",
+          "when": "view == reShell.projects && viewItem == reShellProject",
+          "group": "reShell.project@3"
+        },
+        {
+          "command": "reShell.openProjectTerminal",
+          "when": "view == reShell.projects && viewItem == reShellProject",
+          "group": "reShell.project@4"
+        },
+        {
+          "command": "reShell.revealProject",
+          "when": "view == reShell.projects && viewItem == reShellProject",
+          "group": "reShell.project@5"
+        },
+        {
+          "command": "reShell.buildProject",
+          "when": "view == reShell.projects && viewItem == reShellProject",
+          "group": "inline"
+        },
+        {
+          "command": "reShell.runCommandFromTree",
+          "when": "view == reShell.commands && viewItem == reShellCommand",
+          "group": "reShell.command@1"
+        },
+        {
+          "command": "reShell.copyCommand",
+          "when": "view == reShell.commands && viewItem == reShellCommand",
+          "group": "reShell.command@2"
+        },
+        {
+          "command": "reShell.runCommandFromTree",
           "when": "view == reShell.commands && viewItem == reShellCommand",
           "group": "inline"
         },
         {
-          "command": "reShell.runViaHub",
-          "when": "view == reShell.commands && viewItem == reShellCommand"
+          "command": "reShell.createProjectFromTemplate",
+          "when": "view == reShell.templates && viewItem == reShellTemplate",
+          "group": "reShell.template@1"
+        },
+        {
+          "command": "reShell.createProjectFromTemplate",
+          "when": "view == reShell.templates && viewItem == reShellTemplate",
+          "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "reShell.runCommandFromTree",
+          "when": "false"
+        },
+        {
+          "command": "reShell.copyCommand",
+          "when": "false"
+        },
+        {
+          "command": "reShell.buildProject",
+          "when": "false"
+        },
+        {
+          "command": "reShell.serveProject",
+          "when": "false"
+        },
+        {
+          "command": "reShell.testProject",
+          "when": "false"
+        },
+        {
+          "command": "reShell.openProjectTerminal",
+          "when": "false"
+        },
+        {
+          "command": "reShell.revealProject",
+          "when": "false"
+        },
+        {
+          "command": "reShell.createProjectFromTemplate",
+          "when": "false"
         }
       ]
     },
@@ -95,7 +287,7 @@
         "reShell.cliBin": {
           "type": "string",
           "default": "re-shell",
-          "description": "Path or name of the Re-Shell CLI binary used for `commands list --json`."
+          "description": "Path or name of the Re-Shell CLI binary used to fetch workspace data and run commands."
         },
         "reShell.hub.url": {
           "type": "string",

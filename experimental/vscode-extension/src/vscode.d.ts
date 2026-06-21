@@ -35,11 +35,20 @@ declare module 'vscode' {
     constructor(id: string);
   }
 
+  /** A themed color reference (e.g. `statusBarItem.warningBackground`). */
+  export class ThemeColor {
+    constructor(id: string);
+  }
+
+  export interface MarkdownString {
+    readonly value: string;
+  }
+
   export class TreeItem {
     constructor(label: string, collapsibleState?: TreeItemCollapsibleState);
     label?: string;
     description?: string;
-    tooltip?: string;
+    tooltip?: string | MarkdownString;
     contextValue?: string;
     iconPath?: ThemeIcon;
     command?: Command;
@@ -57,9 +66,26 @@ declare module 'vscode' {
     getChildren(element?: T): Thenable<T[]> | T[];
   }
 
+  export interface TreeView<T> extends Disposable {
+    readonly visible: boolean;
+    onDidChangeVisibility: Event<TreeViewVisibilityChangeEvent>;
+    reveal(
+      element: T,
+      options?: { select?: boolean; focus?: boolean; expand?: boolean | number }
+    ): Thenable<void>;
+  }
+
+  export interface TreeViewVisibilityChangeEvent {
+    readonly visible: boolean;
+  }
+
   export interface OutputChannel extends Disposable {
+    readonly name: string;
+    append(value: string): void;
     appendLine(value: string): void;
+    clear(): void;
     show(preserveFocus?: boolean): void;
+    hide(): void;
   }
 
   /**
@@ -75,8 +101,10 @@ declare module 'vscode' {
     readonly alignment: StatusBarAlignment;
     readonly priority: number;
     text: string;
-    tooltip: string | undefined;
+    tooltip: string | MarkdownString | undefined;
     command: string | undefined;
+    backgroundColor: ThemeColor | undefined;
+    color: string | undefined;
     show(): void;
     hide(): void;
   }
@@ -84,57 +112,157 @@ declare module 'vscode' {
   /** A terminal in the integrated terminal panel. */
   export interface Terminal extends Disposable {
     readonly name: string;
+    readonly processId: Thenable<number | undefined>;
+    readonly exitStatus: TerminalExitStatus | undefined;
     show(preserveFocus?: boolean): void;
     hide(): void;
     sendText(text: string, shouldExecute?: boolean): void;
+    dispose(): void;
+  }
+
+  export interface TerminalExitStatus {
+    readonly code: number;
   }
 
   export interface WorkspaceConfiguration {
     get<T>(section: string): T | undefined;
     get<T>(section: string, defaultValue: T): T;
+    has(section: string): boolean;
+    update(section: string, value: unknown, global?: boolean): Thenable<void>;
   }
 
+  export interface Uri {
+    readonly fsPath: string;
+    readonly scheme: string;
+    readonly path: string;
+    readonly authority: string;
+    readonly query: string;
+    readonly fragment: string;
+    with(change: {
+      scheme?: string;
+      authority?: string;
+      path?: string;
+      query?: string;
+      fragment?: string;
+    }): Uri;
+    toString(): string;
+  }
+
+  export namespace Uri {
+    export function file(path: string): Uri;
+    export function parse(value: string): Uri;
+  }
+
+  export interface Clipboard {
+    readText(): Thenable<string>;
+    writeText(value: string): Thenable<void>;
+  }
+
+  export interface Env {
+    readonly appName: string;
+    readonly clipboard: Clipboard;
+    readonly machineId: string;
+    readonly sessionId: string;
+    openExternal(target: Uri): Thenable<boolean>;
+  }
+
+  export const env: Env;
+
   export interface WorkspaceFolder {
-    readonly uri: { readonly fsPath: string };
+    readonly uri: Uri;
     readonly name: string;
+    readonly index: number;
   }
 
   export interface ExtensionContext {
     readonly subscriptions: Disposable[];
+    readonly extensionUri: Uri;
+    readonly extensionPath: string;
   }
 
   export interface QuickPickItem {
     label: string;
     description?: string;
     detail?: string;
+    picked?: boolean;
+  }
+
+  export interface QuickPickOptions {
+    title?: string;
+    placeHolder?: string;
+    canPickMany?: boolean;
+    ignoreFocusOut?: boolean;
+    matchOnDescription?: boolean;
+    matchOnDetail?: boolean;
+  }
+
+  export interface InputBoxOptions {
+    prompt?: string;
+    placeHolder?: string;
+    value?: string;
+    password?: boolean;
+    ignoreFocusOut?: boolean;
+    validateInput?: (value: string) => string | undefined | null;
+  }
+
+  export interface FileSystemWatcher extends Disposable {
+    onDidChange: Event<Uri>;
+    onDidCreate: Event<Uri>;
+    onDidDelete: Event<Uri>;
   }
 
   export namespace window {
-    export function showInformationMessage(message: string, ...items: string[]): Thenable<string | undefined>;
-    export function showWarningMessage(message: string, ...items: string[]): Thenable<string | undefined>;
-    export function showErrorMessage(message: string, ...items: string[]): Thenable<string | undefined>;
-    export function showInputBox(options?: {
-      prompt?: string;
-      placeHolder?: string;
-      value?: string;
-    }): Thenable<string | undefined>;
+    export function showInformationMessage(
+      message: string,
+      ...items: string[]
+    ): Thenable<string | undefined>;
+    export function showWarningMessage(
+      message: string,
+      ...items: string[]
+    ): Thenable<string | undefined>;
+    export function showErrorMessage(
+      message: string,
+      ...items: string[]
+    ): Thenable<string | undefined>;
+    export function showInputBox(options?: InputBoxOptions): Thenable<string | undefined>;
+    export function showQuickPick(
+      items: readonly QuickPickItem[],
+      options?: QuickPickOptions
+    ): Thenable<QuickPickItem | undefined>;
     export function createOutputChannel(name: string): OutputChannel;
-    export function registerTreeDataProvider<T>(viewId: string, provider: TreeDataProvider<T>): Disposable;
+    export function registerTreeDataProvider<T>(
+      viewId: string,
+      provider: TreeDataProvider<T>
+    ): Disposable;
+    export function createTreeView<T>(
+      viewId: string,
+      options: { treeDataProvider: TreeDataProvider<T> }
+    ): TreeView<T>;
     export function createStatusBarItem(
       alignment?: StatusBarAlignment,
       priority?: number
     ): StatusBarItem;
-    export function createTerminal(name?: string): Terminal;
+    export function createTerminal(name?: string, cwd?: Uri | string): Terminal;
     export const activeTerminal: Terminal | undefined;
+    export const terminals: readonly Terminal[];
   }
 
   export namespace workspace {
     export const workspaceFolders: readonly WorkspaceFolder[] | undefined;
     export function getConfiguration(section?: string): WorkspaceConfiguration;
+    export function createFileSystemWatcher(pattern: string): FileSystemWatcher;
+    export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
+    export function findFiles(include: string, exclude?: string): Thenable<Uri[]>;
+    export namespace fs {
+      export function exists(uri: Uri): Thenable<boolean>;
+    }
   }
 
   export namespace commands {
-    export function registerCommand(command: string, callback: (...args: unknown[]) => unknown): Disposable;
+    export function registerCommand(
+      command: string,
+      callback: (...args: unknown[]) => unknown
+    ): Disposable;
     export function executeCommand<T>(command: string, ...rest: unknown[]): Thenable<T | undefined>;
   }
 }
