@@ -124,6 +124,17 @@ declare module 'vscode' {
     readonly code: number;
   }
 
+  /**
+   * Options for createTerminal(). Mirrors the host's ShellTerminalOptions slice
+   * the extension actually uses (name + working directory). At runtime the host
+   * accepts this object form; the positional createTerminal(name, shellPath,
+   * cwd) form is NOT used because its 2nd arg is interpreted as the shell path.
+   */
+  export interface TerminalOptions {
+    name?: string;
+    cwd?: Uri | string;
+  }
+
   export interface WorkspaceConfiguration {
     get<T>(section: string): T | undefined;
     get<T>(section: string, defaultValue: T): T;
@@ -242,13 +253,19 @@ declare module 'vscode' {
       alignment?: StatusBarAlignment,
       priority?: number
     ): StatusBarItem;
+    export function createTerminal(options: TerminalOptions): Terminal;
     export function createTerminal(name?: string, cwd?: Uri | string): Terminal;
     export const activeTerminal: Terminal | undefined;
     export const terminals: readonly Terminal[];
   }
 
+  export interface ConfigurationChangeEvent {
+    affectsConfiguration(section: string, scope?: unknown): boolean;
+  }
+
   export namespace workspace {
     export const workspaceFolders: readonly WorkspaceFolder[] | undefined;
+    export const onDidChangeConfiguration: Event<ConfigurationChangeEvent>;
     export function getConfiguration(section?: string): WorkspaceConfiguration;
     export function createFileSystemWatcher(pattern: string): FileSystemWatcher;
     export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;

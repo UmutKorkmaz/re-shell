@@ -1,12 +1,5 @@
 import { z } from 'zod';
-import {
-  jsonResponseSchema,
-  templateSummarySchema,
-  type TemplateSummary,
-} from '@re-shell/contracts';
-
-// Re-export the canonical type so the host layer imports everything from core.
-export type { TemplateSummary };
+import { jsonResponseSchema } from '@re-shell/contracts';
 
 /**
  * PURE module. No VS Code, no Node side effects.
@@ -16,11 +9,34 @@ export type { TemplateSummary };
  * framework). The CLI is the source of truth; this module never invents
  * templates.
  *
- * The CLI's `--json` envelope is the canonical `{ ok, data, warnings }` shape
- * from @re-shell/contracts, where `data` is `TemplateSummary[]`.
+ * SCHEMA NOTE: we validate against the EXACT wire shape the CLI emits
+ * (`toTemplateSummary` in packages/cli/src/templates/backend), NOT the richer
+ * `@re-shell/contracts` `templateSummarySchema`. The contract's domain model
+ * carries fields the CLI projection does not (e.g. `domain`/`tier`/`command`),
+ * so validating the raw feed against it rejects every template. This mirrors
+ * the dashboard's `templateFeedSchema` (apps/web/src/screens/shared/feedSchemas.ts).
+ * Missing collections default to empty so a sparse template never fails the
+ * whole list.
  */
 
-const templatesEnvelopeSchema = jsonResponseSchema(z.array(templateSummarySchema));
+const templateFeedSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  displayName: z.string().optional(),
+  description: z.string().default(''),
+  language: z.string().default('unknown'),
+  framework: z.string().default('unknown'),
+  version: z.string().optional(),
+  tags: z.array(z.string()).default([]),
+  features: z.array(z.string()).default([]),
+  port: z.number().optional(),
+  fileCount: z.number().optional(),
+  // Forward-compat: a template MAY declare a DB the create flow offers.
+  database: z.string().optional(),
+});
+export type TemplateSummary = z.infer<typeof templateFeedSchema>;
+
+const templatesEnvelopeSchema = jsonResponseSchema(z.array(templateFeedSchema));
 
 export type ParseTemplatesResult =
   | { ok: true; templates: TemplateSummary[]; warnings: string[] }

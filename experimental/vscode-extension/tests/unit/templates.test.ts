@@ -5,7 +5,7 @@ import {
   groupTemplatesByLanguage,
   languageLabel,
 } from '../../src/core/templates.js';
-import type { TemplateSummary } from '@re-shell/contracts';
+import type { TemplateSummary } from '../../src/core/templates.js';
 
 function okEnvelope<T>(data: T, warnings: string[] = []): string {
   return JSON.stringify({ ok: true, data, warnings });
@@ -20,13 +20,9 @@ function tpl(over: Partial<TemplateSummary> = {}): TemplateSummary {
     id: 'node-express',
     name: 'Express',
     description: 'Express backend',
-    domain: 'backend',
     language: 'typescript',
     framework: 'express',
-    tier: 1,
     tags: ['api'],
-    command: ['create'],
-    database: 'prisma',
     ...over,
   };
 }
@@ -49,6 +45,33 @@ describe('parseTemplatesList', () => {
     const obj = { ok: true, data: [tpl()], warnings: [] };
     const result = parseTemplatesList(obj);
     expect(result.ok).toBe(true);
+  });
+
+  it('parses the real CLI wire shape (displayName/features/port/fileCount; no domain/command)', () => {
+    // Mirrors the exact `re-shell templates list --json` output produced by
+    // toTemplateSummary — the feed that previously failed the richer contract
+    // schema (which requires `domain`/`command`). Locks the wire shape in.
+    const raw = okEnvelope([
+      {
+        id: 'express',
+        name: 'express',
+        displayName: 'Express.js',
+        description: 'Fast web framework',
+        language: 'typescript',
+        framework: 'express',
+        version: '4.19.2',
+        tags: ['nodejs', 'express', 'typescript'],
+        features: ['middleware', 'routing', 'cors'],
+        port: 3000,
+        fileCount: 27,
+      },
+    ]);
+    const result = parseTemplatesList(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.templates[0].displayName).toBe('Express.js');
+    expect(result.templates[0].port).toBe(3000);
+    expect(result.templates[0].features).toContain('routing');
   });
 
   it('rejects malformed JSON', () => {

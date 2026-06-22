@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 import {
   fetchCommandCatalogRaw,
@@ -7,6 +9,7 @@ import {
   fetchWorkspaceGraphRaw,
   fetchWorkspaceHealthRaw,
   fetchWorkspaceSummaryRaw,
+  resolveCliBin,
 } from './cli.js';
 import {
   groupTemplatesByLanguage,
@@ -47,7 +50,44 @@ const VIEW_TEMPLATES = 'reShell.templates';
 
 function getWorkspaceCwd(): string {
   const folders = vscode.workspace.workspaceFolders;
-  return folders && folders.length > 0 ? folders[0].uri.fsPath : process.cwd();
+  const root = folders && folders.length > 0 ? folders[0].uri.fsPath : process.cwd();
+  // Check if the root itself is a re-shell workspace
+  if (isReShellWorkspace(root)) return root;
+  // Search one level deep — user may have opened a parent folder
+  try {
+    const entries = fs.readdirSync(root, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const sub = path.join(root, entry.name);
+      if (isReShellWorkspace(sub)) return sub;
+    }
+  } catch {
+    // ignore read errors
+  }
+  return root;
+}
+
+/**
+ * Detect a re-shell workspace by the markers it creates: pnpm-workspace.yaml
+ * + apps/ dir, or a re-shell.workspaces.yaml file, or a package.json with a
+ * workspaces field + apps/ dir.
+ */
+function isReShellWorkspace(dir: string): boolean {
+  try {
+    const hasApps = fs.existsSync(path.join(dir, 'apps'));
+    const hasPackages = fs.existsSync(path.join(dir, 'packages'));
+    const hasPnpmWorkspace = fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'));
+    const hasReShellYaml = fs.existsSync(path.join(dir, 're-shell.workspaces.yaml'));
+    // Standard re-shell monorepo: pnpm-workspace.yaml + apps/ dir
+    if (hasPnpmWorkspace && hasApps) return true;
+    // Alternative: re-shell.workspaces.yaml
+    if (hasReShellYaml) return true;
+    // Created by `re-shell create`: has apps/ + packages/ + package.json
+    if (hasApps && hasPackages && fs.existsSync(path.join(dir, 'package.json'))) return true;
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 function getCliBin(): string {
@@ -88,6 +128,8 @@ class ReShellContext {
   private snapshot: WorkspaceSnapshot = EMPTY_SNAPSHOT;
   private commands: CatalogEntry[] = [];
   private templates: TemplateSummary[] = [];
+  private lastTemplatesError: string | null = null;
+  private lastResolvedBin = '';
 
   constructor(
     private readonly output: vscode.OutputChannel,
@@ -106,6 +148,16 @@ class ReShellContext {
     return this.templates;
   }
 
+  /** The most recent templates-load error, or null when templates loaded OK. */
+  templatesError(): string | null {
+    return this.lastTemplatesError;
+  }
+
+  /** The resolved CLI binary path from the last refresh. */
+  resolvedBin(): string {
+    return this.lastResolvedBin;
+  }
+
   findCommand(path: string): CatalogEntry | undefined {
     return this.commands.find((c) => c.path === path);
   }
@@ -122,6 +174,7 @@ class ReShellContext {
    * over).
    */
   async refreshAll(cliBin: string, cwd: string): Promise<void> {
+    this.lastResolvedBin = cliBin;
     const [summaryRes, graphRes, healthRes, commandsRes, templatesRes] = await Promise.all([
       fetchWorkspaceSummaryRaw(cliBin, cwd).catch(toErrorResult),
       fetchWorkspaceGraphRaw(cliBin, cwd).catch(toErrorResult),
@@ -209,11 +262,16 @@ class ReShellContext {
     const templatesParsed = parseTemplatesList(templatesRes.stdout);
     if (templatesParsed.ok) {
       this.templates = templatesParsed.templates;
+      this.lastTemplatesError = null;
     } else {
       this.templates = [];
-      if (templatesParsed.ok === false) {
-        this.output.appendLine(`[re-shell] templates unavailable: ${templatesParsed.error}`);
+      this.lastTemplatesError = templatesParsed.ok === false ? templatesParsed.error : 'unknown';
+      // A stripped PATH (GUI-launched editor) is the most common cause: the
+      // CLI binary exists but the host can't spawn it. Surface a clearer cause.
+      if (templatesRes.stderr.trim()) {
+        this.lastTemplatesError += ` (stderr: ${templatesRes.stderr.trim()})`;
       }
+      this.output.appendLine(`[re-shell] templates unavailable: ${this.lastTemplatesError}`);
     }
 
     this.onSnapshot.fire(this.snapshot);
@@ -384,9 +442,15 @@ function groupCommandsByCategory(entries: readonly CatalogEntry[]): CommandCateg
     }));
 }
 
+const UPPERCASE_WORDS: Record<string, string> = {
+  ai: 'AI', api: 'API', ci: 'CI', cd: 'CD', db: 'DB', ui: 'UI', k8s: 'K8s',
+  grpc: 'gRPC', graphql: 'GraphQL', ssl: 'SSL', tls: 'TLS', http: 'HTTP',
+  ssh: 'SSH', dns: 'DNS', cdn: 'CDN', jwt: 'JWT', oauth: 'OAuth',
+};
+
 function titleCase(value: string): string {
   if (value.length === 0) return value;
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  return UPPERCASE_WORDS[value.toLowerCase()] ?? value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 // ---------------------------------------------------------------------------
@@ -429,11 +493,20 @@ class TemplatesTreeProvider implements vscode.TreeDataProvider<TemplatesElement>
       return item;
     }
     const t = element.template;
-    const item = new vscode.TreeItem(t.name, vscode.TreeItemCollapsibleState.None);
-    item.description = `${t.domain}`;
-    item.tooltip = `${t.name}\nid: ${t.id}\nframework: ${t.framework}\nlanguage: ${t.language}\ndomain: ${t.domain}${
-      t.database ? `\ndatabase: ${t.database}` : ''
-    }${t.tags.length > 0 ? `\ntags: ${t.tags.join(', ')}` : ''}`;
+    const item = new vscode.TreeItem(
+      t.displayName || t.name,
+      vscode.TreeItemCollapsibleState.None
+    );
+    // Show version/port as the leaf subtitle; the CLI feed has no `domain`.
+    item.description = [t.version ? `v${t.version}` : '', t.port ? `:${t.port}` : '']
+      .filter((s) => s.length > 0)
+      .join(' ');
+    item.tooltip =
+      `${t.displayName || t.name}\nid: ${t.id}\nframework: ${t.framework}\nlanguage: ${t.language}` +
+      (t.version ? `\nversion: ${t.version}` : '') +
+      (t.port ? `\nport: ${t.port}` : '') +
+      (t.database ? `\ndatabase: ${t.database}` : '') +
+      (t.tags.length > 0 ? `\ntags: ${t.tags.join(', ')}` : '');
     item.contextValue = 'reShellTemplate';
     item.iconPath = new vscode.ThemeIcon('file-code');
     item.command = {
@@ -507,15 +580,17 @@ function runInTerminal(
   argv: readonly string[],
   name = 'Re-Shell'
 ): void {
-  const terminal = vscode.window.createTerminal(name, cwd);
+  const terminal = vscode.window.createTerminal({ name, cwd });
   terminal.show(true);
-  // Tokens are fixed literals or sanitized values; joined with spaces for the
-  // terminal. Every interpolated value is sanitized upstream (SAFE_VALUE).
-  terminal.sendText([cliBin, ...argv].join(' '), true);
+  // cliBin may be an absolute path resolved by resolveCliBin; quote it for the
+  // terminal if it could otherwise split on whitespace. argv tokens are fixed
+  // literals or sanitized values (SAFE_VALUE upstream).
+  const quotedBin = cliBin.includes(' ') ? `"${cliBin}"` : cliBin;
+  terminal.sendText([quotedBin, ...argv].join(' '), true);
 }
 
-async function refreshHandler(ctx: ReShellContext): Promise<void> {
-  await ctx.refreshAll(getCliBin(), getWorkspaceCwd());
+async function refreshHandler(ctx: ReShellContext, resolveBin: () => string): Promise<void> {
+  await ctx.refreshAll(resolveBin(), getWorkspaceCwd());
 }
 
 async function runDoctorHandler(
@@ -610,25 +685,94 @@ async function runCommandHandler(
   if (!commandPick) return;
   const entry = ctx.findCommand(commandPick.label);
   if (!entry) return;
-  runInTerminal(
-    cliBin,
-    cwd,
-    entry.path.split(' ').filter((s) => s.length > 0),
-    `Re-Shell: ${entry.path}`
-  );
+  await runCommandFromTreeHandler(cliBin, cwd, entry);
 }
 
-function runCommandFromTreeHandler(
+/**
+ * Prompt the user for required arguments and optional flags. Returns the
+ * assembled argv tokens (args in order, then --flag value pairs), or undefined
+ * if the user cancelled any required prompt.
+ */
+async function collectCommandArgs(
+  entry: CatalogEntry
+): Promise<string[] | undefined> {
+  const argv: string[] = [];
+  const requiredArgs = entry.args.filter((a) => a.required);
+  const optionalArgs = entry.args.filter((a) => !a.required);
+
+  // Prompt for each required arg sequentially.
+  for (const arg of requiredArgs) {
+    const value = await vscode.window.showInputBox({
+      prompt: `${entry.path}: ${arg.name} (required)`,
+      placeHolder: arg.name,
+      validateInput: (v) => (v.trim().length === 0 ? `${arg.name} is required` : undefined),
+    });
+    if (value === undefined) return undefined;
+    argv.push(value.trim());
+  }
+
+  // Prompt for optional args (one combined step).
+  for (const arg of optionalArgs) {
+    const value = await vscode.window.showInputBox({
+      prompt: `${entry.path}: ${arg.name} (optional, press Enter to skip)`,
+      placeHolder: `${arg.name} (optional)`,
+    });
+    if (value === undefined) return undefined;
+    if (value.trim().length > 0) {
+      argv.push(value.trim());
+    }
+  }
+
+  // Prompt for value-taking flags (show a multi-select of available flags).
+  const valueFlags = entry.flags.filter((f) => f.takesValue && f.name !== '--json');
+  if (valueFlags.length > 0) {
+    const picked = await vscode.window.showQuickPick(
+      valueFlags.map((f) => ({
+        label: f.name,
+        description: f.description,
+        detail: f.default !== undefined ? `default: ${String(f.default)}` : undefined,
+        picked: false,
+      })),
+      {
+        title: `${entry.path}: optional flags`,
+        placeHolder: 'Select flags to set (or press Enter to skip)',
+        canPickMany: true,
+      }
+    );
+    if (picked && picked.length > 0) {
+      for (const flag of picked) {
+        const flagDef = valueFlags.find((f) => f.name === flag.label);
+        const value = await vscode.window.showInputBox({
+          prompt: `Value for ${flag.label}`,
+          placeHolder: flagDef?.description ?? flag.label,
+          value: flagDef?.default !== undefined ? String(flagDef.default) : undefined,
+        });
+        if (value === undefined) return undefined;
+        if (value.trim().length > 0) {
+          argv.push(flag.label, value.trim());
+        }
+      }
+    }
+  }
+
+  return argv;
+}
+
+async function runCommandFromTreeHandler(
   cliBin: string,
   cwd: string,
   entry: CatalogEntry
-): void {
-  runInTerminal(
-    cliBin,
-    cwd,
-    entry.path.split(' ').filter((s) => s.length > 0),
-    `Re-Shell: ${entry.path}`
-  );
+): Promise<void> {
+  const hasRequiredArgs = entry.args.some((a) => a.required);
+  const baseArgv = entry.path.split(' ').filter((s) => s.length > 0);
+
+  if (hasRequiredArgs) {
+    const extraArgv = await collectCommandArgs(entry);
+    if (!extraArgv) return;
+    runInTerminal(cliBin, cwd, [...baseArgv, ...extraArgv], `Re-Shell: ${entry.path}`);
+  } else {
+    runInTerminal(cliBin, cwd, baseArgv, `Re-Shell: ${entry.path}`);
+  }
 }
 
 function copyCommandHandler(entry: CatalogEntry): void {
@@ -654,7 +798,7 @@ function testProjectHandler(cliBin: string, cwd: string, node: ProjectNode): voi
 }
 
 function openTerminalHandler(cwd: string, node: ProjectNode): void {
-  const terminal = vscode.window.createTerminal(`Re-Shell: ${node.name}`, cwd);
+  const terminal = vscode.window.createTerminal({ name: `Re-Shell: ${node.name}`, cwd });
   terminal.show(true);
 }
 
@@ -729,7 +873,7 @@ async function createProjectHandler(
   }
 
   // 4. Assemble + run. argv tokens are fixed; only sanitized values interpolate.
-  const argv = ['create', name, '--backend', backend, '--yes'];
+  const argv = ['create', name, '--backend', backend];
   if (db) {
     argv.push('--db', db);
   }
@@ -749,9 +893,8 @@ function dedupeFrameworks(templates: readonly TemplateSummary[]): TemplateSummar
 }
 
 function openTerminalPaletteHandler(cwd: string): void {
-  const terminal = vscode.window.createTerminal('Re-Shell', cwd);
+  const terminal = vscode.window.createTerminal({ name: 'Re-Shell', cwd });
   terminal.show(true);
-  terminal.sendText(`${getCliBin()} --help`, false);
 }
 
 // ---------------------------------------------------------------------------
@@ -810,7 +953,11 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   const cwd = getWorkspaceCwd();
-  const cliBin = getCliBin();
+  // Resolve the CLI to an absolute path each call. GUI-launched VS Code inherits
+  // a minimal PATH; resolveCliBin probes common global bin dirs + the login
+  // shell so the extension works even when `re-shell` isn't on the host PATH.
+  // Re-reads config (reShell.cliBin) live, so config changes apply immediately.
+  const resolveBin = (): string => resolveCliBin(getCliBin(), (m) => output.appendLine(m));
 
   // --- Argument resolvers for tree-node right-click / palette invocations ---
   const resolveProject = (arg: unknown): ProjectNode | undefined => {
@@ -848,26 +995,28 @@ export function activate(context: vscode.ExtensionContext): void {
     commandsView,
     templatesView,
 
-    vscode.commands.registerCommand('reShell.refresh', () => refreshHandler(ctx)),
+    vscode.commands.registerCommand('reShell.refresh', () => refreshHandler(ctx, resolveBin)),
     vscode.commands.registerCommand('reShell.runDoctor', () =>
-      runDoctorHandler(cliBin, cwd, output)
+      runDoctorHandler(resolveBin(), cwd, output)
     ),
     vscode.commands.registerCommand('reShell.runCommand', () =>
-      runCommandHandler(ctx, cliBin, cwd)
+      runCommandHandler(ctx, resolveBin(), cwd)
     ),
-    vscode.commands.registerCommand('reShell.openTerminal', () => openTerminalPaletteHandler(cwd)),
+    vscode.commands.registerCommand('reShell.openTerminal', () =>
+      openTerminalPaletteHandler(cwd)
+    ),
     vscode.commands.registerCommand('reShell.createProject', () =>
-      createProjectHandler(cliBin, cwd, ctx)
+      createProjectHandler(resolveBin(), cwd, ctx)
     ),
     vscode.commands.registerCommand('reShell.createProjectFromTemplate', (arg: unknown) => {
       const t = resolveTemplate(arg);
-      if (t) void createProjectHandler(cliBin, cwd, ctx, t);
+      if (t) void createProjectHandler(resolveBin(), cwd, ctx, t);
     }),
 
     // Commands-view actions
     vscode.commands.registerCommand('reShell.runCommandFromTree', (arg: unknown) => {
       const entry = resolveCommand(arg);
-      if (entry) runCommandFromTreeHandler(cliBin, cwd, entry);
+      if (entry) runCommandFromTreeHandler(resolveBin(), cwd, entry);
     }),
     vscode.commands.registerCommand('reShell.copyCommand', (arg: unknown) => {
       const entry = resolveCommand(arg);
@@ -877,15 +1026,15 @@ export function activate(context: vscode.ExtensionContext): void {
     // Project right-click actions
     vscode.commands.registerCommand('reShell.buildProject', (arg: unknown) => {
       const node = resolveProject(arg);
-      if (node) buildProjectHandler(cliBin, cwd, node);
+      if (node) buildProjectHandler(resolveBin(), cwd, node);
     }),
     vscode.commands.registerCommand('reShell.serveProject', (arg: unknown) => {
       const node = resolveProject(arg);
-      if (node) serveProjectHandler(cliBin, cwd, node);
+      if (node) serveProjectHandler(resolveBin(), cwd, node);
     }),
     vscode.commands.registerCommand('reShell.testProject', (arg: unknown) => {
       const node = resolveProject(arg);
-      if (node) testProjectHandler(cliBin, cwd, node);
+      if (node) testProjectHandler(resolveBin(), cwd, node);
     }),
     vscode.commands.registerCommand('reShell.openProjectTerminal', (arg: unknown) => {
       const node = resolveProject(arg);
@@ -906,13 +1055,41 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     watcher,
-    watcher.onDidChange(() => void refreshHandler(ctx)),
-    watcher.onDidCreate(() => void refreshHandler(ctx)),
-    watcher.onDidDelete(() => void refreshHandler(ctx))
+    watcher.onDidChange(() => void refreshHandler(ctx, resolveBin)),
+    watcher.onDidCreate(() => void refreshHandler(ctx, resolveBin)),
+    watcher.onDidDelete(() => void refreshHandler(ctx, resolveBin)),
+    // Re-resolve the CLI binary when the user edits its config path.
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('reShell.cliBin')) {
+        void refreshHandler(ctx, resolveBin);
+      }
+    })
   );
 
-  // Initial load.
-  void refreshHandler(ctx);
+  // Initial load + startup diagnostic. If the CLI can't be resolved or run,
+  // surface a visible error (with a Show Output action) so the cause isn't
+  // buried in the output channel — a stripped PATH is the usual suspect.
+  void refreshHandler(ctx, resolveBin).then(() => {
+    const resolved = ctx.resolvedBin();
+    output.appendLine(`[re-shell] activation: cwd=${cwd} resolved CLI=${resolved}`);
+    if (ctx.listTemplates().length === 0) {
+      const err = ctx.templatesError() ?? 'unknown error';
+      void vscode.window
+        .showErrorMessage(
+          `Re-Shell: templates failed to load. CLI resolved to "${resolved}". ` +
+            `Set "reShell.cliBin" to an absolute path if wrong. ` +
+            `Error: ${err}`,
+          'Show Output'
+        )
+        .then((choice: string | undefined) => {
+          if (choice === 'Show Output') output.show(true);
+        });
+    } else {
+      output.appendLine(
+        `[re-shell] CLI OK: ${ctx.listTemplates().length} templates loaded from ${resolved}`
+      );
+    }
+  });
 }
 
 export function deactivate(): void {

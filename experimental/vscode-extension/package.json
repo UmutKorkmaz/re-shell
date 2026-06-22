@@ -2,7 +2,7 @@
   "name": "re-shell",
   "displayName": "Re-Shell",
   "description": "Manage re-shell projects from inside VS Code: browse apps/packages, run commands, scaffold from templates, and monitor workspace health.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "publisher": "umutkorkmaz",
   "private": true,
@@ -62,7 +62,7 @@
     "viewsWelcome": [
       {
         "view": "reShell.projects",
-        "contents": "No re-shell workspace detected in this folder.\n[Initialize Workspace](command:reShell.openTerminal)\n[Refresh](command:reShell.refresh)\nTo learn more [read the docs](https://github.com/UmutKorkmaz/re-shell).",
+        "contents": "No re-shell workspace detected in this folder.\n[Create Project](command:reShell.createProject)\n[Refresh](command:reShell.refresh)\nTo learn more [read the docs](https://github.com/UmutKorkmaz/re-shell).",
         "when": "reShell.workspaceDetected === false"
       },
       {

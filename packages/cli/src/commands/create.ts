@@ -2915,7 +2915,12 @@ async function createWorkspace(
   if (finalBackend && (isBackendOnly || isFullStack)) {
     const backendTemplate = getBackendTemplate(finalBackend);
     if (!backendTemplate) {
-      throw new Error(`Unsupported backend framework: ${finalBackend}`);
+      const allIds = listBackendTemplates().map(t => t.id);
+      const suggestions = allIds.filter(id => id.includes(finalBackend) || finalBackend.includes(id)).slice(0, 5);
+      const hint = suggestions.length > 0
+        ? ` Did you mean: ${suggestions.join(', ')}?`
+        : ' Run `re-shell templates list` to see available IDs.';
+      throw new Error(`Unknown backend template "${finalBackend}".${hint}`);
     }
 
     const backendContext: BackendTemplateContext = {
@@ -3363,21 +3368,30 @@ async function createBackendTemplate(
 ): Promise<{ path: string; content: string; executable?: boolean }[]> {
   const files: { path: string; content: string; executable?: boolean }[] = [];
 
-  // Generate each file from template
-  for (const [filePath, content] of Object.entries(template.files)) {
-    const contentStr = String(content);
-    files.push({
-      path: filePath,
-      content: contentStr
-        .replace(/\{\{projectName\}\}/g, context.name)
-        .replace(/\{\{name\}\}/g, context.name)
-        .replace(/\{\{normalizedName\}\}/g, context.normalizedName)
-        .replace(/\{\{port\}\}/g, context.port)
-        .replace(/\{\{org\}\}/g, context.org || 're-shell')
-        .replace(/\{\{team\}\}/g, context.team || '')
-        .replace(/\{\{description\}\}/g, context.description || ''),
-    });
+  // Recursively flatten nested file trees (e.g. django's 'config/': { 'settings/': { ... } }).
+  function flattenFiles(entries: Record<string, unknown>, prefix: string): void {
+    for (const [key, value] of Object.entries(entries)) {
+      const fullPath = prefix ? `${prefix}${key}` : key;
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        flattenFiles(value as Record<string, unknown>, fullPath.endsWith('/') ? fullPath : `${fullPath}/`);
+      } else {
+        const contentStr = String(value ?? '');
+        files.push({
+          path: fullPath,
+          content: contentStr
+            .replace(/\{\{projectName\}\}/g, context.name)
+            .replace(/\{\{name\}\}/g, context.name)
+            .replace(/\{\{normalizedName\}\}/g, context.normalizedName)
+            .replace(/\{\{port\}\}/g, context.port)
+            .replace(/\{\{org\}\}/g, context.org || 're-shell')
+            .replace(/\{\{team\}\}/g, context.team || '')
+            .replace(/\{\{description\}\}/g, context.description || ''),
+        });
+      }
+    }
   }
+
+  flattenFiles(template.files, '');
 
   // Add database configuration if specified
   if (context.db && context.db !== 'none') {
