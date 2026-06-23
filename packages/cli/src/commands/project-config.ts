@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
-import { configManager } from '../utils/config';
+import { configManager, ProjectConfig } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
@@ -172,7 +172,7 @@ async function setProjectConfigValue(key: string, value: string, options: Projec
   }
 
   // Parse value
-  let parsedValue: any;
+  let parsedValue: unknown;
   try {
     parsedValue = JSON.parse(value);
   } catch {
@@ -368,7 +368,7 @@ async function interactiveEditProjectConfig(): Promise<void> {
   }
 }
 
-async function editDevSettings(projectConfig: any): Promise<void> {
+async function editDevSettings(projectConfig: ProjectConfig): Promise<void> {
   const response = await prompts([
     {
       type: 'number',
@@ -400,7 +400,7 @@ async function editDevSettings(projectConfig: any): Promise<void> {
   }
 }
 
-async function editBuildSettings(projectConfig: any): Promise<void> {
+async function editBuildSettings(projectConfig: ProjectConfig): Promise<void> {
   const response = await prompts([
     {
       type: 'text',
@@ -433,7 +433,7 @@ async function editBuildSettings(projectConfig: any): Promise<void> {
   }
 }
 
-async function editQualitySettings(projectConfig: any): Promise<void> {
+async function editQualitySettings(projectConfig: ProjectConfig): Promise<void> {
   const response = await prompts([
     {
       type: 'toggle',
@@ -489,12 +489,12 @@ async function interactiveAdvancedProjectConfig(): Promise<void> {
 }
 
 // Utility functions
-function displayConfigSection(config: any, indent = 0): void {
+function displayConfigSection(config: object, indent = 0): void {
   const prefix = '  '.repeat(indent);
-  
+
   for (const [key, value] of Object.entries(config)) {
     if (value === null || value === undefined) continue;
-    
+
     if (typeof value === 'object' && !Array.isArray(value)) {
       console.log(`${prefix}${chalk.cyan(key)}:`);
       displayConfigSection(value, indent + 1);
@@ -506,11 +506,11 @@ function displayConfigSection(config: any, indent = 0): void {
   }
 }
 
-function getNestedValue(obj: any, path: string): any {
+function getNestedValue(obj: object, path: string): unknown {
   return path.split('.').reduce((current, key) => current?.[key], obj);
 }
 
-function setNestedValue(obj: any, path: string, value: any): void {
+function setNestedValue(obj: object, path: string, value: unknown): void {
   const keys = path.split('.');
   const lastKey = keys.pop()!;
   const target = keys.reduce((current, key) => {

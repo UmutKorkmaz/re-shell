@@ -261,7 +261,7 @@ async function createProfile(options: ProfileCommandOptions, spinner?: ProgressS
     },
   ]);
 
-  let buildSettings: any = {};
+  let buildSettings: Record<string, unknown> = {};
   if (buildConfig.configureBuild) {
     buildSettings = await prompts([
       {
@@ -308,7 +308,7 @@ async function createProfile(options: ProfileCommandOptions, spinner?: ProgressS
     },
   ]);
 
-  let devSettings: any = {};
+  let devSettings: Record<string, unknown> = {};
   if (devConfig.configureDev) {
     const defaultPorts: Record<string, number> = {
       development: 3000,
@@ -356,7 +356,7 @@ async function createProfile(options: ProfileCommandOptions, spinner?: ProgressS
     },
   ]);
 
-  let testSettings: any = {};
+  let testSettings: Record<string, unknown> = {};
   if (testConfig.configureTest) {
     testSettings = await prompts([
       {
@@ -568,29 +568,29 @@ async function createProfile(options: ProfileCommandOptions, spinner?: ProgressS
   // Add build configuration
   if (buildSettings.target) {
     profile.config.build = {
-      target: buildSettings.target,
-      optimize: buildSettings.optimize,
-      sourcemap: buildSettings.sourcemap,
-      minify: buildSettings.minify,
+      target: buildSettings.target as string,
+      optimize: buildSettings.optimize as boolean,
+      sourcemap: buildSettings.sourcemap as boolean,
+      minify: buildSettings.minify as boolean,
     };
   }
 
   // Add development server configuration
   if (devSettings.port) {
     profile.config.dev = {
-      port: devSettings.port,
-      host: devSettings.host,
-      hmr: devSettings.hmr,
-      cors: devSettings.cors,
+      port: devSettings.port as number,
+      host: devSettings.host as string,
+      hmr: devSettings.hmr as boolean,
+      cors: devSettings.cors as boolean,
     };
   }
 
   // Add test configuration
   if (testSettings.coverage !== undefined) {
     profile.config.test = {
-      coverage: testSettings.coverage,
-      parallel: testSettings.parallel,
-      timeout: testSettings.timeout,
+      coverage: testSettings.coverage as number,
+      parallel: testSettings.parallel as boolean,
+      timeout: testSettings.timeout as number,
     };
   }
 
@@ -936,7 +936,7 @@ async function resolveProfileWithInheritance(
  * Objects are recursively merged
  */
 function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
-  const output: any = { ...target };
+  const output = { ...target } as Record<string, unknown>;
 
   if (isObject(target) && isObject(source)) {
     Object.keys(source).forEach(key => {
@@ -952,13 +952,13 @@ function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>)
     });
   }
 
-  return output;
+  return output as T;
 }
 
 /**
  * Check if value is a plain object
  */
-function isObject(item: any): boolean {
+function isObject(item: unknown): boolean {
   return item && typeof item === 'object' && !Array.isArray(item);
 }
 
@@ -1032,7 +1032,7 @@ async function detectOverrideConflicts(
   }
 
   // Get all parent configurations
-  const parentConfigs: Array<{ name: string; config: any }> = [];
+  const parentConfigs: Array<{ name: string; config: Record<string, unknown> }> = [];
   for (const parentName of profile.extends) {
     const parent = await resolveProfileWithInheritance(parentName, config, new Set());
     parentConfigs.push({ name: parentName, config: parent.config });
@@ -1065,14 +1065,14 @@ async function detectOverrideConflicts(
 /**
  * Flatten nested object for comparison
  */
-function flattenObject(obj: any, prefix = ''): Record<string, any> {
+function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
   const flattened: Record<string, any> = {};
 
   for (const key in obj) {
     const newKey = prefix ? `${prefix}.${key}` : key;
 
     if (isObject(obj[key])) {
-      Object.assign(flattened, flattenObject(obj[key], newKey));
+      Object.assign(flattened, flattenObject(obj[key] as Record<string, unknown>, newKey));
     } else {
       flattened[newKey] = obj[key];
     }
@@ -1108,7 +1108,7 @@ export async function composeProfiles(profileNames: string[]): Promise<Environme
  */
 export async function getProfileTree(profileName: string, config?: ProfileConfig): Promise<{
   name: string;
-  children: any[];
+  children: unknown[];
   depth: number;
 }> {
   if (!config) {
