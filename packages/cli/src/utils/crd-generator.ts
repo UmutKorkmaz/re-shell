@@ -16,11 +16,11 @@ interface CustomResourceDefinition {
       served: boolean;
       storage: boolean;
       schema?: {
-        openAPIV3Schema: any;
+        openAPIV3Schema: Record<string, unknown>;
       };
       subresources?: {
-        status?: any;
-        scale?: any;
+        status?: Record<string, unknown>;
+        scale?: Record<string, unknown>;
       };
       additionalPrinterColumns?: Array<{
         name: string;

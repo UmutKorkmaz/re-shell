@@ -5,8 +5,17 @@ import { execSync } from 'child_process';
 import { findMonorepoRoot } from '../utils/monorepo';
 import { jsonSuccess, jsonError, enableJsonMode } from '../utils/json-output';
 
+/** Minimal spinner interface */
+interface SpinnerLike {
+  text: string;
+  start: () => void;
+  stop: () => void;
+  succeed: (text?: string) => void;
+  fail: (text?: string) => void;
+}
+
 interface AnalyzeOptions {
-  spinner?: any;
+  spinner?: SpinnerLike;
   verbose?: boolean;
   json?: boolean;
   workspace?: string;
@@ -463,13 +472,13 @@ async function analyzeBuildAssets(outputPath: string): Promise<{ name: string; s
   }
 }
 
-function extractChunksFromStats(stats: any): { name: string; size: string; modules: number }[] {
+function extractChunksFromStats(stats: Record<string, unknown>): { name: string; size: string; modules: number }[] {
   try {
     if (stats.chunks) {
-      return stats.chunks.map((chunk: any) => ({
-        name: chunk.names?.[0] || chunk.id,
-        size: formatBytes(chunk.size || 0),
-        modules: chunk.modules?.length || 0
+      return (stats.chunks as Array<Record<string, unknown>>).map((chunk) => ({
+        name: String((chunk.names as string[])?.[0] || chunk.id),
+        size: formatBytes(Number(chunk.size) || 0),
+        modules: ((chunk.modules as unknown[]) || []).length
       }));
     }
     return [];
@@ -478,18 +487,18 @@ function extractChunksFromStats(stats: any): { name: string; size: string; modul
   }
 }
 
-function extractTreeshakingInfo(stats: any): { unusedExports: string[]; deadCode: number } {
+function extractTreeshakingInfo(stats: Record<string, unknown>): { unusedExports: string[]; deadCode: number } {
   try {
     const unusedExports = [];
     let deadCode = 0;
     
     if (stats.modules) {
-      for (const module of stats.modules) {
+      for (const module of (stats.modules as Array<Record<string, unknown>>)) {
         if (module.usedExports === false) {
-          unusedExports.push(module.name);
+          unusedExports.push(module.name as string);
         }
         if (module.providedExports && module.usedExports) {
-          deadCode += module.providedExports.length - module.usedExports.length;
+          deadCode += (module.providedExports as unknown[]).length - (module.usedExports as unknown[]).length;
         }
       }
     }
@@ -500,7 +509,7 @@ function extractTreeshakingInfo(stats: any): { unusedExports: string[]; deadCode
   }
 }
 
-async function analyzeLicenses(deps: any, devDeps: any): Promise<{ license: string; packages: string[] }[]> {
+async function analyzeLicenses(deps: Record<string, unknown>, devDeps: Record<string, unknown>): Promise<{ license: string; packages: string[] }[]> {
   // Simplified license analysis - would need actual package resolution
   const commonLicenses = ['MIT', 'Apache-2.0', 'BSD-3-Clause', 'ISC', 'GPL-3.0'];
   return commonLicenses.map(license => ({
@@ -509,7 +518,7 @@ async function analyzeLicenses(deps: any, devDeps: any): Promise<{ license: stri
   }));
 }
 
-function findDuplicateDependencies(packageJson: any): { name: string; versions: string[]; locations: string[] }[] {
+function findDuplicateDependencies(packageJson: Record<string, unknown>): { name: string; versions: string[]; locations: string[] }[] {
   // Simplified duplicate detection
   return [];
 }
@@ -532,7 +541,7 @@ async function getDirectorySize(dirPath: string): Promise<string> {
   }
 }
 
-function generatePerformanceSuggestions(packageJson: any, bundleSize: string, buildTime: number): string[] {
+function generatePerformanceSuggestions(packageJson: Record<string, unknown>, bundleSize: string, buildTime: number): string[] {
   const suggestions = [];
   
   if (buildTime > 30000) {
@@ -543,7 +552,7 @@ function generatePerformanceSuggestions(packageJson: any, bundleSize: string, bu
     suggestions.push('Bundle size is large, consider code splitting');
   }
   
-  const deps = packageJson.dependencies || {};
+  const deps = (packageJson.dependencies as Record<string, unknown>) || {};
   if (deps.lodash) {
     suggestions.push('Consider using lodash-es for better tree shaking');
   }
@@ -592,7 +601,7 @@ async function scanForSecrets(workspacePath: string): Promise<string[]> {
   return secretPatterns;
 }
 
-function generateSecurityRecommendations(audit: any, sensitiveFiles: string[], secrets: string[]): string[] {
+function generateSecurityRecommendations(audit: Record<string, unknown>, sensitiveFiles: string[], secrets: string[]): string[] {
   const recommendations = [];
   
   if (sensitiveFiles.length > 0) {
@@ -603,7 +612,9 @@ function generateSecurityRecommendations(audit: any, sensitiveFiles: string[], s
     recommendations.push('Use environment variables for sensitive data');
   }
   
-  if (audit.metadata?.vulnerabilities?.total > 0) {
+  const auditMeta = audit.metadata as Record<string, unknown> | undefined;
+  const auditVulns = auditMeta?.vulnerabilities as Record<string, unknown> | undefined;
+  if (Number(auditVulns?.total) > 0) {
     recommendations.push('Run npm audit fix to address vulnerabilities');
   }
   
@@ -638,7 +649,7 @@ function getFileType(ext: string): string {
   return (types as Record<string, string>)[ext] || 'Other';
 }
 
-function displayAnalysisResults(results: any, options: AnalyzeOptions) {
+function displayAnalysisResults(results: Record<string, unknown>, options: AnalyzeOptions) {
   if (options.json) {
     jsonSuccess(results);
     return;
@@ -653,7 +664,7 @@ function displayAnalysisResults(results: any, options: AnalyzeOptions) {
   console.log(chalk.bold('Summary:'));
   console.log(`  Monorepo: ${results.monorepo}`);
   console.log(`  Workspaces analyzed: ${results.workspaces}`);
-  console.log(`  Generated: ${new Date(results.timestamp).toLocaleString()}`);
+  console.log(`  Generated: ${new Date(results.timestamp as string).toLocaleString()}`);
   console.log();
 
   // Display results for each workspace
@@ -672,7 +683,7 @@ function displayAnalysisResults(results: any, options: AnalyzeOptions) {
       console.log(chalk.blue('  Dependencies:'));
       console.log(`    Total: ${workspaceAnalysis.dependencies.total}`);
       console.log(`    Outdated: ${workspaceAnalysis.dependencies.outdated.length}`);
-      console.log(`    Vulnerabilities: ${workspaceAnalysis.dependencies.vulnerabilities.reduce((sum: number, v: any) => sum + v.count, 0)}`);
+      console.log(`    Vulnerabilities: ${workspaceAnalysis.dependencies.vulnerabilities.reduce((sum: number, v: { count: number }) => sum + v.count, 0)}`);
     }
     
     if (workspaceAnalysis.performance) {

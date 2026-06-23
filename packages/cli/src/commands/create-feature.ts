@@ -4,8 +4,17 @@ import chalk from 'chalk';
 import { findMonorepoRoot } from '../utils/monorepo';
 import { getBackendTemplate, listBackendTemplates} from '../templates/backend/index';
 
+/** Minimal spinner interface */
+interface SpinnerLike {
+  text: string;
+  start: () => void;
+  stop: () => void;
+  succeed: (text?: string) => void;
+  fail: (text?: string) => void;
+}
+
 interface CreateFeatureOptions {
-  spinner?: any;
+  spinner?: SpinnerLike;
   verbose?: boolean;
   type?: 'crud' | 'auth' | 'file-upload' | 'websocket' | 'graphql' | 'rest-api' | 'fullstack';
   backend?: string;
