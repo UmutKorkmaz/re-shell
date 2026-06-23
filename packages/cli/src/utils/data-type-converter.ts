@@ -146,14 +146,14 @@ export interface FieldDefinition {
   name: string;
   type: string;
   required: boolean;
-  default?: any;
+  default?: unknown;
   doc?: string;
 }
 
 // Conversion result
 export interface ConversionResult {
   success: boolean;
-  data: any;
+  data: unknown;
   schema?: string;
   errors?: string[];
 }
@@ -794,7 +794,7 @@ func main() {
 // Write generated files
 export async function writeConverterFiles(
   serviceName: string,
-  integration: any,
+  integration: { files: Array<{ path: string; content: string }> },
   outputDir: string,
   language: string
 ): Promise<void> {
@@ -839,7 +839,7 @@ export async function displayConverterConfig(config: ConverterConfig): Promise<v
 }
 
 // Generate BUILD.md
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: { files: Array<{ path: string; content: string }> }, language: string): string {
   return `# Data Type Converter Build Instructions
 
 ## Language: ${language.toUpperCase()}

@@ -6,6 +6,16 @@ import * as fs from 'fs/promises';
 import { spawn, execSync, ChildProcess } from 'child_process';
 import chalk from 'chalk';
 import { glob } from 'glob';
+import type { BackendTemplate } from '../templates/backend/index';
+
+/** Minimal spinner interface for progress indication */
+interface SpinnerLike {
+  setText: (text: string) => void;
+  start: () => void;
+  stop: () => void;
+  succeed: (text?: string) => void;
+  fail: (text?: string) => void;
+}
 
 /**
  * Service configuration from docker-compose.yml
@@ -64,7 +74,7 @@ export interface ServicesUpOptions {
   scale?: Record<string, number>;
   timeout?: number;
   verbose?: boolean;
-  spinner?: any;
+  spinner?: SpinnerLike;
 }
 
 /**
@@ -75,7 +85,7 @@ export interface ServicesDownOptions {
   removeOrphans?: boolean;
   timeout?: number;
   verbose?: boolean;
-  spinner?: any;
+  spinner?: SpinnerLike;
 }
 
 /**
@@ -86,7 +96,7 @@ export interface ServicesHealthOptions {
   interval?: number;
   json?: boolean;
   verbose?: boolean;
-  spinner?: any;
+  spinner?: SpinnerLike;
 }
 
 /**
@@ -119,7 +129,7 @@ export async function parseDockerCompose(projectPath: string): Promise<ServiceCo
 async function parseComposeFile(filePath: string): Promise<ServiceConfig[]> {
   const yaml = (await import('js-yaml')).default;
   const content = await fs.readFile(filePath, 'utf-8');
-  const compose: any = yaml.load(content);
+  const compose: Record<string, unknown> = yaml.load(content) as Record<string, unknown>;
 
   const services: ServiceConfig[] = [];
 
@@ -346,7 +356,7 @@ async function startWithDockerCompose(
     scale: Record<string, number>;
     timeout: number;
     verbose: boolean;
-    spinner?: any;
+    spinner?: SpinnerLike;
   }
 ): Promise<void> {
   const args = ['up', '-d'];
@@ -390,7 +400,7 @@ async function startWithNpmScripts(
   options: {
     timeout: number;
     verbose: boolean;
-    spinner?: any;
+    spinner?: SpinnerLike;
   }
 ): Promise<void> {
   const runningServices: RunningService[] = [];
@@ -527,7 +537,7 @@ export async function servicesDown(
  */
 async function stopNpmProcesses(
   projectPath: string,
-  options: { timeout: number; verbose: boolean; spinner?: any }
+  options: { timeout: number; verbose: boolean; spinner?: SpinnerLike }
 ): Promise<void> {
   const pidDir = path.join(projectPath, '.re-shell', 'pids');
 
@@ -634,7 +644,7 @@ async function checkNpmProcessHealth(
 
   try {
     const files = await fs.readdir(pidDir);
-    const services: any[] = [];
+    const services: Record<string, unknown>[] = [];
 
     for (const file of files) {
       if (!file.endsWith('.pid')) continue;
@@ -862,7 +872,7 @@ export async function servicesRestart(
   options: {
     timeout?: number;
     verbose?: boolean;
-    spinner?: any;
+    spinner?: SpinnerLike;
   } = {}
 ): Promise<void> {
   const { timeout = 60000, verbose = false, spinner } = options;
@@ -906,7 +916,7 @@ export async function servicesScale(
   options: {
     timeout?: number;
     verbose?: boolean;
-    spinner?: any;
+    spinner?: SpinnerLike;
   } = {}
 ): Promise<void> {
   const { timeout = 60000, verbose = false, spinner } = options;
@@ -940,7 +950,7 @@ export async function servicesExec(
   options: {
     interactive?: boolean;
     verbose?: boolean;
-    spinner?: any;
+    spinner?: SpinnerLike;
   } = {}
 ): Promise<void> {
   const { interactive = true, verbose = false } = options;
@@ -1002,7 +1012,7 @@ export async function servicesInspect(
   options: {
     json?: boolean;
     verbose?: boolean;
-    spinner?: any;
+    spinner?: SpinnerLike;
   } = {}
 ): Promise<ServiceInspection> {
   const { json = false, verbose = false} = options;
@@ -1144,7 +1154,7 @@ async function inspectDockerService(
           // Get health status
           if (container.State.Health) {
             inspection.health.status = container.State.Health.Status === 'healthy' ? 'healthy' : 'unhealthy';
-            inspection.health.checks = container.State.Health.Log.map((log: any) => ({
+            inspection.health.checks = container.State.Health.Log.map((log: { Start: string; End: string; ExitCode: number; Output: string }) => ({
               name: log.ExitCode === 0 ? 'healthy' : 'unhealthy',
               status: log.Output,
             }));
@@ -1298,7 +1308,7 @@ export interface ServiceMigrateOptions {
   backup?: boolean;
   preserveData?: boolean;
   generateTests?: boolean;
-  spinner?: any;
+  spinner?: SpinnerLike;
 }
 
 /**
@@ -1420,8 +1430,8 @@ export async function servicesMigrate(
  */
 function buildMigrationPlan(
   serviceName: string,
-  sourceTemplate: any,
-  targetTemplate: any,
+  sourceTemplate: BackendTemplate,
+  targetTemplate: BackendTemplate,
   options: {
     dryRun: boolean;
     backup: boolean;
@@ -1555,7 +1565,7 @@ function buildMigrationPlan(
 /**
  * Get dependency update commands
  */
-function getDependencyUpdateCommands(sourceTemplate: any, targetTemplate: any): string[] {
+function getDependencyUpdateCommands(sourceTemplate: BackendTemplate, targetTemplate: BackendTemplate): string[] {
   const commands: string[] = [];
 
   if (targetTemplate.language === 'typescript' || targetTemplate.language === 'javascript') {
@@ -1578,7 +1588,7 @@ function getDependencyUpdateCommands(sourceTemplate: any, targetTemplate: any): 
 /**
  * Get config files for a template
  */
-function getConfigFiles(template: any): string[] {
+function getConfigFiles(template: BackendTemplate): string[] {
   const files: string[] = [];
 
   if (template.language === 'typescript' || template.language === 'javascript') {
@@ -1597,7 +1607,7 @@ function getConfigFiles(template: any): string[] {
 /**
  * Get test generation commands
  */
-function getTestGenerationCommands(template: any): string[] {
+function getTestGenerationCommands(template: BackendTemplate): string[] {
   const commands: string[] = [];
 
   if (template.language === 'typescript' || template.language === 'javascript') {
@@ -1959,7 +1969,7 @@ export async function servicesOptimize(
     apply?: boolean;
     dryRun?: boolean;
     verbose?: boolean;
-    spinner?: any;
+    spinner?: SpinnerLike;
   } = {}
 ): Promise<OptimizationAnalysis> {
   const { framework, apply = false, dryRun = true, verbose = false, spinner } = options;
