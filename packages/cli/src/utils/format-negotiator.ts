@@ -1113,7 +1113,7 @@ func main() {
 // Write generated files
 export async function writeFormatNegotiatorFiles(
   serviceName: string,
-  integration: any,
+  integration: { files: Array<{ path: string; content: string }> },
   outputDir: string,
   language: string
 ): Promise<void> {
@@ -1177,7 +1177,7 @@ export async function displayFormatNegotiatorConfig(config: FormatNegotiatorConf
 }
 
 // Generate BUILD.md
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: { files: Array<{ path: string; content: string }> }, language: string): string {
   const toPascalCase = (str: string) =>
     str.replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase()).replace(/[-_]/g, '');
 

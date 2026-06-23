@@ -76,7 +76,7 @@ export interface PluginContext {
   plugin: {
     name: string;
     version: string;
-    config: any;
+    config: Record<string, unknown>;
     dataPath: string;
     cachePath: string;
   };
@@ -86,21 +86,21 @@ export interface PluginContext {
 }
 
 export interface PluginLogger {
-  debug(message: string, ...args: any[]): void;
-  info(message: string, ...args: any[]): void;
-  warn(message: string, ...args: any[]): void;
-  error(message: string, ...args: any[]): void;
+  debug(message: string, ...args: unknown[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
 }
 
 export interface PluginHookSystemInterface {
-  register(hookName: string, handler: (...args: any[]) => any, options?: any): string;
+  register(hookName: string, handler: (...args: unknown[]) => unknown, options?: unknown): string;
   unregister(hookName: string, handlerId: string): boolean;
-  execute(hookName: string, data?: any): Promise<any>;
-  executeSync(hookName: string, data?: any): any[];
-  onCommand(command: string, handler: (...args: any[]) => any, options?: any): string;
-  onFileChange(pattern: RegExp | string, handler: (...args: any[]) => any, options?: any): string;
-  onWorkspaceBuild(workspace: string, handler: (...args: any[]) => any, options?: any): string;
-  getHooks(): any[];
+  execute(hookName: string, data?: unknown): Promise<unknown>;
+  executeSync(hookName: string, data?: unknown): unknown[];
+  onCommand(command: string, handler: (...args: unknown[]) => unknown, options?: unknown): string;
+  onFileChange(pattern: RegExp | string, handler: (...args: unknown[]) => unknown, options?: unknown): string;
+  onWorkspaceBuild(workspace: string, handler: (...args: unknown[]) => unknown, options?: unknown): string;
+  getHooks(): unknown[];
   registerCustomHook(name: string): string;
 }
 
@@ -108,16 +108,16 @@ export interface PluginUtils {
   path: typeof path;
   fs: typeof fs;
   chalk: typeof chalk;
-  exec(command: string, options?: any): Promise<{ stdout: string; stderr: string }>;
-  spawn(command: string, args: string[], options?: any): Promise<number>;
+  exec(command: string, options?: unknown): Promise<{ stdout: string; stderr: string }>;
+  spawn(command: string, args: string[], options?: unknown): Promise<number>;
 }
 
 export interface Plugin {
   manifest: PluginManifest;
   activate(context: PluginContext): Promise<void> | void;
   deactivate?(context: PluginContext): Promise<void> | void;
-  onCommand?(command: string, args: any[], context: PluginContext): Promise<any> | any;
-  onHook?(hookName: string, data: any, context: PluginContext): Promise<any> | any;
+  onCommand?(command: string, args: unknown[], context: PluginContext): Promise<unknown> | unknown;
+  onHook?(hookName: string, data: Record<string, unknown>, context: PluginContext): Promise<unknown> | unknown;
 }
 
 export interface PluginRegistration {
@@ -382,7 +382,7 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Discover local plugins
-  private async discoverLocalPlugins(options: any): Promise<PluginDiscoveryResult> {
+  private async discoverLocalPlugins(options: Record<string, unknown>): Promise<PluginDiscoveryResult> {
     const result: PluginDiscoveryResult = { found: [], errors: [], skipped: [] };
     
     const localPaths = [
@@ -442,7 +442,7 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Discover npm plugins
-  private async discoverNpmPlugins(options: any): Promise<PluginDiscoveryResult> {
+  private async discoverNpmPlugins(options: Record<string, unknown>): Promise<PluginDiscoveryResult> {
     const result: PluginDiscoveryResult = { found: [], errors: [], skipped: [] };
 
     try {
@@ -557,7 +557,7 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Discover built-in plugins
-  private async discoverBuiltinPlugins(options: any): Promise<PluginDiscoveryResult> {
+  private async discoverBuiltinPlugins(options: Record<string, unknown>): Promise<PluginDiscoveryResult> {
     const result: PluginDiscoveryResult = { found: [], errors: [], skipped: [] };
     
     const builtinPath = path.join(__dirname, '..', 'plugins');
@@ -639,7 +639,7 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Validate plugin manifest
-  private validateManifest(data: any): PluginManifest {
+  private validateManifest(data: Record<string, any>): PluginManifest {
     if (!data.name || typeof data.name !== 'string') {
       throw new ValidationError('Plugin manifest must have a valid name');
     }

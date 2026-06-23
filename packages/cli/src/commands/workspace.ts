@@ -371,15 +371,15 @@ export async function generateWorkspaceGraph(options: WorkspaceGraphOptions = {}
   }
 }
 
-async function buildDependencyGraph(workspaces: WorkspaceInfo[], rootPath: string): Promise<any> {
-  const graph = {
+async function buildDependencyGraph(workspaces: WorkspaceInfo[], rootPath: string): Promise<GraphData> {
+  const graph: GraphData = {
     nodes: workspaces.map(ws => ({
       id: ws.name,
       type: ws.type,
       framework: ws.framework,
       path: ws.path,
     })),
-    edges: [] as Array<{ from: string; to: string; type: 'dependency' | 'devDependency' }>,
+    edges: [],
   };
 
   // Build edges based on package.json dependencies
@@ -457,18 +457,36 @@ function buildContractGraph(
   return { apps, services };
 }
 
-function displayTextGraph(graph: any): void {
+interface GraphNode {
+  id: string;
+  type: string;
+  framework?: string;
+  path?: string;
+}
+
+interface GraphEdge {
+  from: string;
+  to: string;
+  type: 'dependency' | 'devDependency' | string;
+}
+
+interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+function displayTextGraph(graph: GraphData): void {
   console.log(chalk.cyan('\n🔗 Workspace Dependency Graph\n'));
 
   for (const node of graph.nodes) {
-    const dependencies = graph.edges.filter((edge: any) => edge.from === node.id);
-    const dependents = graph.edges.filter((edge: any) => edge.to === node.id);
+    const dependencies = graph.edges.filter((edge: GraphEdge) => edge.from === node.id);
+    const dependents = graph.edges.filter((edge: GraphEdge) => edge.to === node.id);
 
     console.log(chalk.bold(`${node.id} (${node.type})`));
 
     if (dependencies.length > 0) {
       console.log(chalk.gray('  Dependencies:'));
-      dependencies.forEach((dep: any) => {
+      dependencies.forEach((dep: GraphEdge) => {
         const typeColor = dep.type === 'dependency' ? chalk.green : chalk.yellow;
         console.log(`    ${typeColor('→')} ${dep.to}`);
       });
@@ -476,7 +494,7 @@ function displayTextGraph(graph: any): void {
 
     if (dependents.length > 0) {
       console.log(chalk.gray('  Dependents:'));
-      dependents.forEach((dep: any) => {
+      dependents.forEach((dep: GraphEdge) => {
         console.log(`    ${chalk.blue('←')} ${dep.from}`);
       });
     }
@@ -485,7 +503,7 @@ function displayTextGraph(graph: any): void {
   }
 }
 
-function generateMermaidGraph(graph: any): string {
+function generateMermaidGraph(graph: GraphData): string {
   let mermaid = 'graph TD\n';
 
   // Add nodes
@@ -521,7 +539,7 @@ function getNodeShape(type: string): string {
 /**
  * Generate SVG graph
  */
-function generateSvgGraph(graph: any): string {
+function generateSvgGraph(graph: GraphData): string {
   // Calculate node positions using simple force-directed layout simulation
   const nodePositions = calculateNodePositions(graph.nodes, graph.edges);
   const width = 800;
@@ -594,7 +612,7 @@ function generateSvgGraph(graph: any): string {
 /**
  * Calculate simple node positions (force-directed layout simulation)
  */
-function calculateNodePositions(nodes: any[], edges: any[]): Record<string, { x: number; y: number }> {
+function calculateNodePositions(nodes: GraphNode[], edges: GraphEdge[]): Record<string, { x: number; y: number }> {
   const positions: Record<string, { x: number; y: number }> = {};
   const width = 800;
   const height = 600;
@@ -659,16 +677,16 @@ function calculateNodePositions(nodes: any[], edges: any[]): Record<string, { x:
 /**
  * Generate D3.js compatible JSON
  */
-function generateD3Graph(graph: any): string {
+function generateD3Graph(graph: GraphData): string {
   // Convert to D3 force graph format
   const d3Graph = {
-    nodes: graph.nodes.map((node: any) => ({
+    nodes: graph.nodes.map((node: GraphNode) => ({
       id: node.id,
       group: node.type,
       type: node.type,
       framework: node.framework,
     })),
-    links: graph.edges.map((edge: any) => ({
+    links: graph.edges.map((edge: GraphEdge) => ({
       source: edge.from,
       target: edge.to,
       type: edge.type,
@@ -810,7 +828,7 @@ export async function produceWorkspaceSummary(
 /**
  * Initialize a new workspace configuration
  */
-export async function initWorkspace(options: any = {}): Promise<void> {
+export async function initWorkspace(options: { spinner?: ProgressSpinner; yes?: boolean } = {}): Promise<void> {
   const { spinner, yes = false } = options;
 
   try {
@@ -859,12 +877,38 @@ export async function initWorkspace(options: any = {}): Promise<void> {
   }
 }
 
+interface DetectedService {
+  name: string;
+  path: string;
+  type: string;
+  language: string;
+  framework?: string;
+}
+
+interface ProjectDetection {
+  hasPackageJson: boolean;
+  hasPython: boolean;
+  hasGo: boolean;
+  hasRust: boolean;
+  hasJava: boolean;
+  hasDocker: boolean;
+  frameworks: string[];
+  services: DetectedService[];
+}
+
+interface SetupResponses {
+  name: string;
+  description?: string;
+  version: string;
+  includeServices?: boolean;
+}
+
 /**
  * Detect existing project structure and frameworks
  */
-async function detectProjectStructureForInit(): Promise<any> {
+async function detectProjectStructureForInit(): Promise<ProjectDetection> {
   const root = process.cwd();
-  const detection: any = {
+  const detection: ProjectDetection = {
     hasPackageJson: false,
     hasPython: false,
     hasGo: false,
@@ -872,7 +916,7 @@ async function detectProjectStructureForInit(): Promise<any> {
     hasJava: false,
     hasDocker: false,
     frameworks: [] as string[],
-    services: [] as Record<string, any>[],
+    services: [] as Record<string, unknown>[],
   };
 
   // Check for package.json

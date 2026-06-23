@@ -19,7 +19,7 @@ export type CompatibilityLevel = 'full' | 'forward' | 'backward' | 'none' | 'unk
 // Schema version
 export interface SchemaVersion {
   version: string;
-  schema: any;
+  schema: Record<string, unknown>;
   type: SchemaType;
   createdAt: Date;
   compatibleFrom?: string[];
@@ -36,7 +36,7 @@ export interface Migration {
   field?: string;
   oldType?: string;
   newType?: string;
-  defaultValue?: any;
+  defaultValue?: unknown;
   transformation?: string;
   description: string;
 }
@@ -659,7 +659,7 @@ func main() {
 // Write generated files
 export async function writeEvolutionFiles(
   serviceName: string,
-  integration: any,
+  integration: { files: Array<{ path: string; content: string }> },
   outputDir: string,
   language: string
 ): Promise<void> {
@@ -704,7 +704,7 @@ export async function displayEvolutionConfig(config: EvolutionConfig): Promise<v
 }
 
 // Generate BUILD.md
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: { files: Array<{ path: string; content: string }> }, language: string): string {
   return `# Schema Evolution Build Instructions for ${serviceName}
 
 ## Language: ${language.toUpperCase()}
