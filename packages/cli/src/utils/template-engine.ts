@@ -8,13 +8,13 @@ export interface TemplateVariable {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   description: string;
-  default?: any;
+  default?: unknown;
   required?: boolean;
   validation?: {
     pattern?: string;
     min?: number;
     max?: number;
-    options?: any[];
+    options?: unknown[];
   };
 }
 
@@ -26,7 +26,7 @@ export interface ConfigTemplate {
   author?: string;
   tags: string[];
   variables: TemplateVariable[];
-  template: any; // The actual configuration template with variables
+  template: unknown; // The actual configuration template with variables
   examples?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -164,7 +164,7 @@ export class ConfigTemplateEngine {
   // Create a new template from existing configuration
   async createTemplate(
     name: string,
-    config: any,
+    config: unknown,
     variables: TemplateVariable[],
     options: {
       description?: string;
@@ -205,7 +205,7 @@ export class ConfigTemplateEngine {
   }
 
   // Variable substitution engine
-  private substituteVariables(obj: any, context: TemplateContext): any {
+  private substituteVariables(obj: unknown, context: TemplateContext): unknown {
     if (typeof obj === 'string') {
       return this.substituteString(obj, context);
     } else if (Array.isArray(obj)) {
@@ -215,7 +215,7 @@ export class ConfigTemplateEngine {
       for (const [key, value] of Object.entries(obj)) {
         // Allow template key substitution
         const newKey = this.substituteString(key, context);
-        result[newKey] = this.substituteVariables(value, context);
+        result[newKey as string] = this.substituteVariables(value, context);
       }
       return result;
     }
@@ -223,7 +223,7 @@ export class ConfigTemplateEngine {
   }
 
   // String substitution with multiple syntaxes
-  private substituteString(str: string, context: TemplateContext): any {
+  private substituteString(str: string, context: TemplateContext): unknown {
     let result = str;
 
     // Handle different template syntaxes
@@ -281,9 +281,9 @@ export class ConfigTemplateEngine {
   }
 
   // Get variable value from context with dot notation support
-  private getVariableValue(path: string, context: TemplateContext): any {
+  private getVariableValue(path: string, context: TemplateContext): unknown {
     const keys = path.split('.');
-    let current: any = context;
+    let current: unknown = context;
 
     for (const key of keys) {
       if (current && typeof current === 'object' && key in current) {
@@ -297,7 +297,7 @@ export class ConfigTemplateEngine {
   }
 
   // Simple expression evaluator (basic arithmetic and logic)
-  private evaluateExpression(expression: string, context: TemplateContext): any {
+  private evaluateExpression(expression: string, context: TemplateContext): unknown {
     // Replace variables in expression
     const substituted = expression.replace(/([a-zA-Z_][a-zA-Z0-9_.]*)/g, (match) => {
       const value = this.getVariableValue(match, context);
@@ -407,7 +407,7 @@ export class ConfigTemplateEngine {
   }
 
   // Validate variable type
-  private validateVariableType(varDef: TemplateVariable, value: any): void {
+  private validateVariableType(varDef: TemplateVariable, value: unknown): void {
     const actualType = Array.isArray(value) ? 'array' : typeof value;
     
     if (actualType !== varDef.type) {
@@ -418,7 +418,7 @@ export class ConfigTemplateEngine {
   }
 
   // Validate variable against custom rules
-  private validateVariableRules(varDef: TemplateVariable, value: any): void {
+  private validateVariableRules(varDef: TemplateVariable, value: unknown): void {
     const rules = varDef.validation!;
 
     if (rules.pattern && typeof value === 'string') {

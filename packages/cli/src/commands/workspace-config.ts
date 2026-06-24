@@ -607,9 +607,10 @@ async function showInheritanceChain(workspacePath: string): Promise<void> {
   }
 
   console.log(chalk.magenta('\n4. 🔀 Final Merged Configuration:'));
-  console.log(`   Package Manager: ${config.merged.packageManager}`);
-  console.log(`   Framework: ${config.merged.framework}`);
-  console.log(`   Template: ${config.merged.template}`);
+  const merged = config.merged as Record<string, unknown>;
+  console.log(`   Package Manager: ${merged.packageManager}`);
+  console.log(`   Framework: ${merged.framework}`);
+  console.log(`   Template: ${merged.template}`);
 }
 
 // Utility functions

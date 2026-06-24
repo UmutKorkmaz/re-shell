@@ -489,7 +489,7 @@ export class ConfigManager {
     global: GlobalConfig;
     project: ProjectConfig | null;
     workspace: WorkspaceConfig | null;
-    merged: any;
+    merged: unknown;
   }> {
     const { global, project, merged } = await this.getMergedConfig(projectPath);
     const workspaceConfig = await this.loadWorkspaceConfig(workspacePath);
@@ -564,7 +564,7 @@ export class ConfigManager {
   }
 
   // Validation methods
-  private validateGlobalConfig(config: any): void {
+  private validateGlobalConfig(config: unknown): void {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { validateGlobalConfig } = require('./validation');
     const result = validateGlobalConfig(config);
@@ -578,11 +578,11 @@ export class ConfigManager {
     }
   }
 
-  private validateProjectConfig(config: any): void {
+  private validateProjectConfig(config: unknown): void {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { validateProjectConfig } = require('./validation');
     const result = validateProjectConfig(config);
-    
+
     if (!result.valid) {
       const errorMessages = result.errors
         .filter((e: any) => e.severity === 'error')

@@ -36,7 +36,7 @@ export interface PluginLifecycleEvent {
   oldState: PluginState;
   newState: PluginState;
   timestamp: number;
-  data?: any;
+  data?: unknown;
   error?: Error;
 }
 
@@ -183,7 +183,7 @@ export class PluginLifecycleManager extends EventEmitter {
       const pluginModule = await this.loadPluginModule(registration);
       
       // Validate plugin interface
-      this.validatePluginInterface(pluginModule);
+      this.validatePluginInterface(pluginModule as unknown as Record<string, unknown>);
       
       registration.instance = pluginModule;
       registration.loadTime = Date.now();
@@ -456,7 +456,7 @@ export class PluginLifecycleManager extends EventEmitter {
   }
 
   // Validate plugin interface
-  private validatePluginInterface(plugin: any): void {
+  private validatePluginInterface(plugin: Record<string, unknown>): void {
     if (!plugin || typeof plugin !== 'object') {
       throw new ValidationError('Plugin must export an object');
     }
@@ -700,10 +700,10 @@ export class PluginLifecycleManager extends EventEmitter {
   private createLogger(pluginName: string): any {
     const prefix = `[${pluginName}]`;
     return {
-      debug: (msg: string, ...args: any[]) => console.debug(chalk.gray(`${prefix} ${msg}`), ...args),
-      info: (msg: string, ...args: any[]) => console.info(chalk.blue(`${prefix} ${msg}`), ...args),
-      warn: (msg: string, ...args: any[]) => console.warn(chalk.yellow(`${prefix} ${msg}`), ...args),
-      error: (msg: string, ...args: any[]) => console.error(chalk.red(`${prefix} ${msg}`), ...args)
+      debug: (msg: string, ...args: unknown[]) => console.debug(chalk.gray(`${prefix} ${msg}`), ...args),
+      info: (msg: string, ...args: unknown[]) => console.info(chalk.blue(`${prefix} ${msg}`), ...args),
+      warn: (msg: string, ...args: unknown[]) => console.warn(chalk.yellow(`${prefix} ${msg}`), ...args),
+      error: (msg: string, ...args: unknown[]) => console.error(chalk.red(`${prefix} ${msg}`), ...args)
     };
   }
 
@@ -783,7 +783,7 @@ export class PluginLifecycleManager extends EventEmitter {
   }
 
   // Get lifecycle statistics
-  getLifecycleStats(): any {
+  getLifecycleStats(): unknown {
     const stats = {
       total: this.plugins.size,
       byState: {} as Record<string, number>,
