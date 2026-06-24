@@ -59,10 +59,10 @@ export enum HookPriority {
 export interface HookHandler {
   id: string;
   pluginName: string;
-  handler: (...args: any[]) => any;
+  handler: (...args: unknown[]) => unknown;
   priority: HookPriority;
   once?: boolean;
-  condition?: (data: any) => boolean;
+  condition?: (data: unknown) => boolean;
   description?: string;
   metadata?: Record<string, unknown>;
 }
@@ -72,8 +72,8 @@ export interface HookContext {
   hookType: HookType;
   pluginName: string;
   timestamp: number;
-  data: any;
-  result?: any;
+  data: unknown;
+  result?: unknown;
   error?: Error;
   aborted?: boolean;
   metadata?: Record<string, unknown>;
@@ -82,7 +82,7 @@ export interface HookContext {
 // Hook execution result
 export interface HookResult {
   success: boolean;
-  results: any[];
+  results: unknown[];
   errors: Array<{ pluginName: string; error: Error }>;
   aborted: boolean;
   executionTime: number;
@@ -93,7 +93,7 @@ export interface HookResult {
 export interface HookRegistrationOptions {
   priority?: HookPriority;
   once?: boolean;
-  condition?: (data: any) => boolean;
+  condition?: (data: unknown) => boolean;
   description?: string;
   metadata?: Record<string, unknown>;
 }
@@ -102,7 +102,7 @@ export interface HookRegistrationOptions {
 export interface HookMiddleware {
   name: string;
   before?: (context: HookContext) => Promise<void> | void;
-  after?: (context: HookContext, result: any) => Promise<void> | void;
+  after?: (context: HookContext, result: unknown) => Promise<void> | void;
   error?: (context: HookContext, error: Error) => Promise<void> | void;
 }
 
@@ -144,7 +144,7 @@ export class PluginHookSystem extends EventEmitter {
   // Register a hook handler
   register(
     hookType: HookType | string,
-    handler: (...args: any[]) => any,
+    handler: (...args: unknown[]) => unknown,
     pluginName: string,
     options: HookRegistrationOptions = {}
   ): string {
@@ -363,12 +363,12 @@ export class PluginHookSystem extends EventEmitter {
   }
 
   // Execute hooks synchronously (for simple cases)
-  executeSync(hookType: HookType | string, data: Record<string, unknown> = {}): any[] {
+  executeSync(hookType: HookType | string, data: Record<string, unknown> = {}): unknown[] {
     if (!this.isEnabled) return [];
 
     const hookKey = hookType as HookType;
     const handlers = this.hooks.get(hookKey) || [];
-    const results: any[] = [];
+    const results: unknown[] = [];
 
     for (const handler of handlers) {
       // Check condition if specified
@@ -436,7 +436,7 @@ export class PluginHookSystem extends EventEmitter {
   private async executeMiddleware(
     phase: 'before' | 'after' | 'error',
     context: HookContext,
-    extra?: any
+    extra?: unknown
   ): Promise<void> {
     for (const middleware of this.middleware) {
       try {
@@ -475,7 +475,7 @@ export class PluginHookSystem extends EventEmitter {
   }
 
   // Get hook statistics
-  getStats(): any {
+  getStats(): Record<string, unknown> {
     const stats = {
       totalHooks: 0,
       hooksByType: {} as Record<string, number>,
@@ -546,7 +546,7 @@ export class PluginHookAPI {
   // Register a hook (automatically includes plugin name)
   register(
     hookType: HookType | string,
-    handler: (...args: any[]) => any,
+    handler: (...args: unknown[]) => unknown,
     options?: HookRegistrationOptions
   ): string {
     return this.hookSystem.register(hookType, handler, this.pluginName, options);
@@ -558,12 +558,12 @@ export class PluginHookAPI {
   }
 
   // Execute hooks
-  async execute(hookType: HookType | string, data?: any): Promise<HookResult> {
+  async execute(hookType: HookType | string, data?: Record<string, unknown>): Promise<HookResult> {
     return this.hookSystem.execute(hookType, data);
   }
 
   // Execute hooks synchronously
-  executeSync(hookType: HookType | string, data?: any): any[] {
+  executeSync(hookType: HookType | string, data?: Record<string, unknown>): unknown[] {
     return this.hookSystem.executeSync(hookType, data);
   }
 
@@ -579,10 +579,10 @@ export class PluginHookAPI {
   }
 
   // Convenience methods for common hooks
-  onCommand(command: string, handler: (...args: any[]) => any, options?: HookRegistrationOptions): string {
+  onCommand(command: string, handler: (...args: unknown[]) => unknown, options?: HookRegistrationOptions): string {
     return this.register(
       HookType.COMMAND_BEFORE,
-      (data: any, context: HookContext) => {
+      (data: unknown, context: HookContext) => {
         if (data.command === command) {
           return handler(data, context);
         }
@@ -591,10 +591,10 @@ export class PluginHookAPI {
     );
   }
 
-  onFileChange(pattern: RegExp | string, handler: (...args: any[]) => any, options?: HookRegistrationOptions): string {
+  onFileChange(pattern: RegExp | string, handler: (...args: unknown[]) => unknown, options?: HookRegistrationOptions): string {
     return this.register(
       HookType.FILE_CHANGE,
-      (data: any, context: HookContext) => {
+      (data: unknown, context: HookContext) => {
         const filePath = data.filePath || data.path;
         if (pattern instanceof RegExp ? pattern.test(filePath) : filePath.includes(pattern)) {
           return handler(data, context);
@@ -604,10 +604,10 @@ export class PluginHookAPI {
     );
   }
 
-  onWorkspaceBuild(workspace: string, handler: (...args: any[]) => any, options?: HookRegistrationOptions): string {
+  onWorkspaceBuild(workspace: string, handler: (...args: unknown[]) => unknown, options?: HookRegistrationOptions): string {
     return this.register(
       HookType.BUILD_START,
-      (data: any, context: HookContext) => {
+      (data: unknown, context: HookContext) => {
         if (data.workspace === workspace || workspace === '*') {
           return handler(data, context);
         }
