@@ -21,8 +21,8 @@ interface AdmissionRule {
   resources: string[];
   apiGroups: string[];
   failurePolicy: 'Fail' | 'Ignore';
-  matchConditions?: any[];
-  validations: any[];
+  matchConditions?: unknown[];
+  validations: unknown[];
 }
 
 interface CompliancePolicy {
@@ -110,7 +110,7 @@ export function generateTypeScriptPodSecurity(config: PodSecurityConfig): string
   code += '  private kc: KubeConfig;\n';
   code += '  private networkingApi: NetworkingV1Api;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.namespace = options.namespace || \'default\';\n';
   code += '    this.securityProfile = options.securityProfile || {};\n';
@@ -161,7 +161,7 @@ export function generateTypeScriptPodSecurity(config: PodSecurityConfig): string
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
   code += '      console.log(`[PodSecurity] ✓ Applied Pod Security Admission labels: ${level}`);\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(`[PodSecurity] ✗ Failed to apply labels:`, error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -369,7 +369,7 @@ export function generateTypeScriptPodSecurity(config: PodSecurityConfig): string
   code += '    console.log(\'[PodSecurity] ✓ Limit ranges deployed\');\n';
   code += '  }\n\n';
 
-  code += '  async validate(options: any): Promise<boolean> {\n';
+  code += '  async validate(options: unknown): Promise<boolean> {\n';
   code += '    console.log(\'[PodSecurity] Validating pod security...\');\n';
   code += '    const namespace = options.namespace || this.namespace;\n';
   code += '    const level = options.level || \'restricted\';\n\n';
@@ -384,7 +384,7 @@ export function generateTypeScriptPodSecurity(config: PodSecurityConfig): string
   code += '      console.log(`[PodSecurity] Current level: ${currentLevel}, Required: ${level}`);\n';
   code += '      console.log(`[PodSecurity] ${isCompliant ? \'✓ Compliant\' : \'✗ Non-compliant\'}`);\n\n';
   code += '      return isCompliant;\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[PodSecurity] Failed to validate:\', error.message);\n';
   code += '      return false;\n';
   code += '    }\n';
@@ -392,7 +392,7 @@ export function generateTypeScriptPodSecurity(config: PodSecurityConfig): string
 
   code += '  async checkCompliance(): Promise<any> {\n';
   code += '    console.log(\'[PodSecurity] Checking compliance...\');\n\n';
-  code += '    const results: any = {\n';
+  code += '    const results: unknown = {\n';
   code += '      timestamp: new Date().toISOString(),\n';
   code += '      namespace: this.namespace,\n';
   code += '      policies: [],\n';
@@ -406,11 +406,11 @@ export function generateTypeScriptPodSecurity(config: PodSecurityConfig): string
   code += '          compliant,\n';
   code += '          description: policy.description,\n';
   code += '        });\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[PodSecurity] Failed to check policy ${policy.name}:`, error.message);\n';
   code += '      }\n';
   code += '    }\n\n';
-  code += '    const nonCompliant = results.policies.filter((p: any) => !p.compliant).length;\n';
+  code += '    const nonCompliant = results.policies.filter((p: unknown) => !p.compliant).length;\n';
   code += '    console.log(`[PodSecurity] Compliance: ${results.policies.length - nonCompliant}/${results.policies.length} policies compliant`);\n\n';
   code += '    return results;\n';
   code += '  }\n\n';
@@ -420,7 +420,7 @@ export function generateTypeScriptPodSecurity(config: PodSecurityConfig): string
   code += '    return true;\n';
   code += '  }\n\n';
 
-  code += '  private applyResource(resource: any, kind: string, filename: string): void {\n';
+  code += '  private applyResource(resource: unknown, kind: string, filename: string): void {\n';
   code += '    const yaml = this.toYaml(resource);\n';
   code += '    const dir = path.join(process.cwd(), \'k8s\', \'pod-security\', kind.toLowerCase());\n';
   code += '    fs.mkdirSync(dir, { recursive: true });\n';
@@ -429,12 +429,12 @@ export function generateTypeScriptPodSecurity(config: PodSecurityConfig): string
   code += '    try {\n';
   code += '      execSync(`kubectl apply -f ${filePath}`, { stdio: \'pipe\' });\n';
   code += '      console.log(`[PodSecurity] ✓ Applied ${kind}: ${filename}`);\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(`[PodSecurity] ✗ Failed to apply ${kind}:`, error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private toYaml(obj: any): string {\n';
+  code += '  private toYaml(obj: unknown): string {\n';
   code += '    const yaml = require(\'js-yaml\');\n';
   code += '    return yaml.dump(obj);\n';
   code += '  }\n';

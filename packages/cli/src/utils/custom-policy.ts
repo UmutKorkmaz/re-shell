@@ -81,8 +81,8 @@ export interface PolicyChange {
   user: string;
   action: 'created' | 'updated' | 'deprecated' | 'enabled' | 'disabled';
   reason: string;
-  previousValue?: any;
-  newValue?: any;
+  previousValue?: unknown;
+  newValue?: unknown;
 }
 
 export interface PolicyRule {
@@ -104,7 +104,7 @@ export interface RuleCondition {
   id: string;
   field: string;
   operator: ConditionOperator;
-  value: any;
+  value: unknown;
   caseSensitive?: boolean;
   negate?: boolean;
 }
@@ -134,7 +134,7 @@ export interface RemediationConfig {
 export interface RuleParameter {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
-  defaultValue: any;
+  defaultValue: unknown;
   required: boolean;
   description: string;
   validation?: string;
@@ -229,8 +229,8 @@ export interface ResourceTarget {
 export interface ConditionEvaluation {
   conditionId: string;
   result: boolean;
-  evaluatedValue: any;
-  expectedValue: any;
+  evaluatedValue: unknown;
+  expectedValue: unknown;
   matched: boolean;
 }
 
@@ -266,9 +266,9 @@ export interface TemplateParameter {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   description: string;
-  defaultValue: any;
+  defaultValue: unknown;
   required: boolean;
-  options?: any[];
+  options?: unknown[];
 }
 
 // Markdown Generation
@@ -527,7 +527,7 @@ interface Exception {
   policyId: string;
   status: string;
   expiresAt: Date;
-  conditions: any[];
+  conditions: unknown[];
 }
 
 interface EnforcementRecord {
@@ -554,7 +554,7 @@ class CustomPolicyManager extends EventEmitter {
     this.emit('rule-created', rule);
   }
 
-  async enforcePolicy(policyId: string, target: any): Promise<EnforcementRecord> {
+  async enforcePolicy(policyId: string, target: unknown): Promise<EnforcementRecord> {
     const policy = this.policies.get(policyId);
     if (!policy || policy.status !== 'active') {
       throw new Error('Policy not found or not active');
@@ -588,7 +588,7 @@ class CustomPolicyManager extends EventEmitter {
     return record;
   }
 
-  private async enforceRule(rule: Rule, target: any): Promise<void> {
+  private async enforceRule(rule: Rule, target: unknown): Promise<void> {
     // Evaluate conditions
     const conditionsMet = this.evaluateConditions(rule, target);
 
@@ -610,12 +610,12 @@ class CustomPolicyManager extends EventEmitter {
     }
   }
 
-  private evaluateConditions(rule: Rule, target: any): boolean {
+  private evaluateConditions(rule: Rule, target: unknown): boolean {
     // Simplified condition evaluation
     return true;
   }
 
-  findActiveException(policyId: string, target: any): Exception | null {
+  findActiveException(policyId: string, target: unknown): Exception | null {
     const now = new Date();
     for (const exception of this.exceptions.values()) {
       if (exception.policyId === policyId &&

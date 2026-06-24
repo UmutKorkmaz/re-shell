@@ -71,16 +71,16 @@ export interface APIParameter {
   type: 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object';
   format?: string;
   enum?: string[];
-  default?: any;
-  example?: any;
-  schema?: any;
+  default?: unknown;
+  example?: unknown;
+  schema?: unknown;
 }
 
 export interface APIRequestBody {
   description?: string;
   required: boolean;
   contentType: string;
-  schema?: any;
+  schema?: unknown;
   examples?: Record<string, unknown>;
 }
 
@@ -88,9 +88,9 @@ export interface APIResponse {
   statusCode: number;
   description: string;
   contentType?: string;
-  schema?: any;
-  example?: any;
-  headers?: Record<string, { description: string; schema: any }>;
+  schema?: unknown;
+  example?: unknown;
+  headers?: Record<string, { description: string; schema: unknown }>;
 }
 
 export interface APIExample {
@@ -98,12 +98,12 @@ export interface APIExample {
   description?: string;
   request: {
     parameters?: Record<string, unknown>;
-    body?: any;
+    body?: unknown;
     headers?: Record<string, string>;
   };
   response: {
     statusCode: number;
-    body: any;
+    body: unknown;
     headers?: Record<string, string>;
   };
 }
@@ -1054,14 +1054,15 @@ export function generateInteractiveDocsHTML(config: InteractiveDocsConfig): stri
 }
 
 // Convert OpenAPI spec to InteractiveDocsConfig
-export function openAPIToInteractiveDocs(spec: any, baseUrl: string): InteractiveDocsConfig {
-  const paths = spec.paths || {};
+export function openAPIToInteractiveDocs(spec: unknown, baseUrl: string): InteractiveDocsConfig {
+  const specObj = spec as Record<string, any>;
+  const paths = specObj.paths || {};
   const endpoints: APIDocumentationEndpoint[] = [];
   const groups: APIGroup[] = [];
 
   // Extract tags as groups
-  if (spec.tags) {
-    spec.tags.forEach((tag: any, index: number) => {
+  if (specObj.tags) {
+    specObj.tags.forEach((tag: any, index: number) => {
       groups.push({
         id: tag.name,
         name: tag.name,
@@ -1125,12 +1126,12 @@ export function openAPIToInteractiveDocs(spec: any, baseUrl: string): Interactiv
   });
 
   return {
-    title: spec.info?.title || 'API Documentation',
-    description: spec.info?.description,
-    version: spec.info?.version || '1.0.0',
+    title: specObj.info?.title || 'API Documentation',
+    description: specObj.info?.description,
+    version: specObj.info?.version || '1.0.0',
     baseUrl,
     themeColor: '#3b82f6',
-    authConfig: spec.components?.securitySchemes ? {
+    authConfig: specObj.components?.securitySchemes ? {
       type: 'bearer',
     } : { type: 'none' },
     endpoints,
