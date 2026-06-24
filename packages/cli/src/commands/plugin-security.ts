@@ -217,7 +217,7 @@ export async function generateSecurityReport(options: SecurityCommandOptions = {
       scanResults.push(result);
     }
 
-    const stats = securityValidator.getSecurityStats();
+    const stats = securityValidator.getSecurityStats() as Record<string, any>;
 
     spinner.stop();
 
