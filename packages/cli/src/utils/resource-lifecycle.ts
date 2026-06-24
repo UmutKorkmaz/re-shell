@@ -264,11 +264,11 @@ export function generateTypeScriptLifecycle(config: ResourceLifecycleConfig): st
 
   code += 'class ResourceLifecycleManager extends EventEmitter {\n';
   code += '  private projectName: string;\n';
-  code += '  private tagPolicy: any;\n';
-  code += '  private lifecycleRules: any[];\n';
-  code += '  private autoTagging: any;\n\n';
+  code += '  private tagPolicy: unknown;\n';
+  code += '  private lifecycleRules: unknown[];\n';
+  code += '  private autoTagging: unknown;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.tagPolicy = options.tagPolicy || ' + JSON.stringify(config.tagPolicy) + ';\n';
@@ -336,8 +336,8 @@ export function generateTypeScriptLifecycle(config: ResourceLifecycleConfig): st
   code += '  }\n\n';
 
   code += '  private isCompliant(resource: Resource): boolean {\n';
-  code += '    const requiredTags = this.tagPolicy.requiredTags.filter((t: any) => t.required);\n';
-  code += '    return requiredTags.every((tag: any) => resource.tags[tag.key] === tag.value);\n';
+  code += '    const requiredTags = this.tagPolicy.requiredTags.filter((t: unknown) => t.required);\n';
+  code += '    return requiredTags.every((tag: unknown) => resource.tags[tag.key] === tag.value);\n';
   code += '  }\n\n';
 
   code += '  private async remediate(resources: Resource[]): Promise<void> {\n';
@@ -352,7 +352,7 @@ export function generateTypeScriptLifecycle(config: ResourceLifecycleConfig): st
   code += '    return { resourceId, newState, timestamp: new Date().toISOString() };\n';
   code += '  }\n\n';
 
-  code += '  getPolicyStatus(): any {\n';
+  code += '  getPolicyStatus(): unknown {\n';
   code += '    return {\n';
   code += '      projectName: this.projectName,\n';
   code += '      tagPolicy: this.tagPolicy.name,\n';

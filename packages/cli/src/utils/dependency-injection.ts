@@ -153,7 +153,7 @@ export async function analyzeServices(cwd: string = process.cwd()): Promise<Depe
     const workspaceContent = await fs.readFile(workspaceConfigPath, 'utf8');
     const workspaceConfig = parseWorkspaceConfig(workspaceContent);
 
-    for (const [name, workspace] of Object.entries(workspaceConfig.workspaces || {})) {
+    for (const [name, workspace] of Object.entries((workspaceConfig as Record<string, any>).workspaces || {})) {
       const workspaceEntry = workspace as { path: string; [key: string]: unknown };
       const servicePath = path.join(cwd, workspaceEntry.path);
       if (await fs.pathExists(servicePath)) {
@@ -181,7 +181,7 @@ export async function analyzeServices(cwd: string = process.cwd()): Promise<Depe
  */
 async function analyzeSingleService(
   servicePath: string,
-  projectAnalysis: any
+  projectAnalysis: Record<string, any>
 ): Promise<ServiceDefinition | null> {
   const packageJsonPath = path.join(servicePath, 'package.json');
   let packageJson: Record<string, unknown> = {};
@@ -236,7 +236,7 @@ async function analyzeSingleService(
  */
 function detectServiceCapabilities(
   servicePath: string,
-  packageJson: any,
+  packageJson: Record<string, any>,
   framework?: string
 ): string[] {
   const capabilities: string[] = [];
@@ -283,7 +283,7 @@ function detectServiceCapabilities(
 /**
  * Detect what a service consumes from other services
  */
-function detectServiceDependencies(packageJson: any): string[] {
+function detectServiceDependencies(packageJson: Record<string, any>): string[] {
   const consumes: string[] = [];
   const allDeps = {
     ...packageJson.dependencies,
@@ -317,7 +317,7 @@ function detectServiceDependencies(packageJson: any): string[] {
 /**
  * Detect dependencies on other workspace services
  */
-function detectWorkspaceServiceDependencies(packageJson: any): string[] {
+function detectWorkspaceServiceDependencies(packageJson: Record<string, any>): string[] {
   const serviceDeps: string[] = [];
 
   // Check workspace dependencies
@@ -366,7 +366,7 @@ function detectHealthEndpoint(servicePath: string, framework?: string): string |
 /**
  * Detect exposed ports
  */
-function detectExposedPorts(servicePath: string, packageJson: any, framework?: string): number[] {
+function detectExposedPorts(servicePath: string, packageJson: Record<string, any>, framework?: string): number[] {
   const ports: number[] = [];
 
   // Check package.json for port configuration
@@ -411,7 +411,7 @@ function detectExposedPorts(servicePath: string, packageJson: any, framework?: s
 /**
  * Detect service type
  */
-function detectServiceType(packageJson: any): 'app' | 'package' | 'lib' | 'tool' {
+function detectServiceType(packageJson: Record<string, any>): 'app' | 'package' | 'lib' | 'tool' {
   if (packageJson.bin) {
     return 'tool';
   }
@@ -430,7 +430,7 @@ function detectServiceType(packageJson: any): 'app' | 'package' | 'lib' | 'tool'
 /**
  * Detect service port
  */
-function detectServicePort(servicePath: string, packageJson: any, framework?: string): number | undefined {
+function detectServicePort(servicePath: string, packageJson: Record<string, any>, framework?: string): number | undefined {
   // Check package.json config
   if (typeof packageJson.config?.port === 'number') {
     return packageJson.config.port;
@@ -919,7 +919,7 @@ function toCamelCase(str: string): string {
 /**
  * Parse workspace configuration from YAML
  */
-function parseWorkspaceConfig(content: string): any {
+function parseWorkspaceConfig(content: string): unknown {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const yaml = require('yaml');
