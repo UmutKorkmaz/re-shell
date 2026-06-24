@@ -626,7 +626,14 @@ export async function showPluginStats(options: PluginCommandOptions = {}): Promi
     const registry = createPluginRegistry();
     await registry.initialize();
 
-    const stats = registry.getLifecycleStats();
+    const stats = registry.getLifecycleStats() as Record<string, number> & {
+      total: number;
+      totalErrors: number;
+      byState: Record<string, number>;
+      avgLoadTime?: number;
+      avgInitTime?: number;
+      avgActivationTime?: number;
+    };
     
     if (json) {
       console.log(JSON.stringify(stats, null, 2));
@@ -720,7 +727,13 @@ export async function showPluginHooks(
     const registry = createPluginRegistry();
     await registry.initialize();
 
-    const hookStats = registry.getHookStats();
+    const hookStats = registry.getHookStats() as {
+      totalHooks: number;
+      middleware: unknown[];
+      hooksByType: Record<string, number>;
+      hooksByPlugin: Record<string, number>;
+      executionStats: Record<string, number>;
+    };
     
     if (json) {
       if (pluginName) {
