@@ -7,9 +7,9 @@ export interface ValidationRule {
   field: string;
   type: 'required' | 'type' | 'enum' | 'pattern' | 'range' | 'custom';
   message: string;
-  validator?: (value: any, context?: any) => boolean;
+  validator?: (value: unknown, context?: unknown) => boolean;
   details?: {
-    allowedValues?: any[];
+    allowedValues?: unknown[];
     pattern?: RegExp;
     min?: number;
     max?: number;
@@ -29,8 +29,8 @@ export interface ValidationErrorDetail {
   message: string;
   severity: 'error' | 'warning';
   code: string;
-  value?: any;
-  expectedValue?: any;
+  value?: unknown;
+  expectedValue?: unknown;
   suggestions?: string[];
   context?: string;
   line?: number;
@@ -49,7 +49,7 @@ export interface ValidationSuggestion {
   suggestion: string;
   reason: string;
   autoFixable: boolean;
-  autoFixValue?: any;
+  autoFixValue?: unknown;
 }
 
 // Configuration schema definitions
@@ -211,7 +211,7 @@ export class ConfigurationValidator {
   private suggestions: ValidationSuggestion[] = [];
 
   // Validate configuration against schema
-  validateConfiguration(config: any, schema: ValidationRule[], context = ''): ValidationResult {
+  validateConfiguration(config: Record<string, unknown>, schema: ValidationRule[], context = ''): ValidationResult {
     this.reset();
 
     for (const rule of schema) {
@@ -233,7 +233,7 @@ export class ConfigurationValidator {
   }
 
   // Validate individual field
-  private validateField(value: any, rule: ValidationRule, fieldPath: string, fullConfig: any): void {
+  private validateField(value: unknown, rule: ValidationRule, fieldPath: string, fullConfig: Record<string, unknown>): void {
     switch (rule.type) {
       case 'required':
         this.validateRequired(value, rule, fieldPath);
@@ -256,7 +256,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateRequired(value: any, rule: ValidationRule, fieldPath: string): void {
+  private validateRequired(value: unknown, rule: ValidationRule, fieldPath: string): void {
     if (value === undefined || value === null || value === '') {
       this.addError({
         field: fieldPath,
@@ -269,7 +269,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateType(value: any, rule: ValidationRule, fieldPath: string): void {
+  private validateType(value: unknown, rule: ValidationRule, fieldPath: string): void {
     if (value === undefined || value === null) return;
 
     const expectedType = rule.details?.expectedType;
@@ -293,7 +293,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateEnum(value: any, rule: ValidationRule, fieldPath: string): void {
+  private validateEnum(value: unknown, rule: ValidationRule, fieldPath: string): void {
     if (value === undefined || value === null) return;
 
     const allowedValues = rule.details?.allowedValues || [];
@@ -310,7 +310,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validatePattern(value: any, rule: ValidationRule, fieldPath: string): void {
+  private validatePattern(value: unknown, rule: ValidationRule, fieldPath: string): void {
     if (value === undefined || value === null) return;
 
     const pattern = rule.details?.pattern;
@@ -326,7 +326,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateRange(value: any, rule: ValidationRule, fieldPath: string): void {
+  private validateRange(value: unknown, rule: ValidationRule, fieldPath: string): void {
     if (value === undefined || value === null) return;
 
     const { min, max } = rule.details || {};
@@ -356,7 +356,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateCustom(value: any, rule: ValidationRule, fieldPath: string, fullConfig: any): void {
+  private validateCustom(value: unknown, rule: ValidationRule, fieldPath: string, fullConfig: Record<string, unknown>): void {
     if (rule.validator && !rule.validator(value, fullConfig)) {
       this.addError({
         field: fieldPath,
@@ -370,7 +370,7 @@ export class ConfigurationValidator {
   }
 
   // Contextual validations
-  private performContextualValidations(config: any, context: string): void {
+  private performContextualValidations(config: Record<string, unknown>, context: string): void {
     if (context === 'global') {
       this.validateGlobalContextual(config);
     } else if (context === 'project') {
@@ -378,7 +378,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateGlobalContextual(config: any): void {
+  private validateGlobalContextual(config: Record<string, unknown>): void {
     // Check if directories exist
     if (config.paths) {
       for (const [key, dirPath] of Object.entries(config.paths)) {
@@ -415,7 +415,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateProjectContextual(config: any): void {
+  private validateProjectContextual(config: Record<string, unknown>): void {
     // Validate workspace patterns
     if (config.workspaces?.patterns) {
       for (const pattern of config.workspaces.patterns) {
@@ -473,7 +473,7 @@ export class ConfigurationValidator {
     return suggestions[fieldPath] || [`Provide a value for ${fieldPath}`];
   }
 
-  private generateTypeSuggestions(value: any, expectedType: string): string[] {
+  private generateTypeSuggestions(value: unknown, expectedType: string): string[] {
     if (expectedType === 'array' && !Array.isArray(value)) {
       return [`Convert to array: [${JSON.stringify(value)}]`, 'Use empty array: []'];
     }
@@ -486,7 +486,7 @@ export class ConfigurationValidator {
     return [`Convert to ${expectedType}`];
   }
 
-  private generateEnumSuggestions(value: any, allowedValues: any[]): string[] {
+  private generateEnumSuggestions(value: unknown, allowedValues: unknown[]): string[] {
     // Find close matches using simple string similarity
     if (typeof value === 'string') {
       const closeMatches = allowedValues
@@ -517,7 +517,7 @@ export class ConfigurationValidator {
     return suggestions[fieldPath] || [`Match pattern: ${pattern.source}`];
   }
 
-  private generateCustomSuggestions(fieldPath: string, value: any): string[] {
+  private generateCustomSuggestions(fieldPath: string, value: unknown): string[] {
     if (fieldPath === 'environments') {
       return ['Add at least one environment (development, staging, or production)'];
     }
@@ -525,7 +525,7 @@ export class ConfigurationValidator {
   }
 
   // Utility methods
-  private getNestedValue(obj: any, path: string): any {
+  private getNestedValue(obj: Record<string, unknown>, path: string): unknown {
     return path.split('.').reduce((current, key) => current?.[key], obj);
   }
 
@@ -578,11 +578,11 @@ export class ConfigurationValidator {
 // Export singleton instance and helper functions
 export const configValidator = new ConfigurationValidator();
 
-export function validateGlobalConfig(config: any): ValidationResult {
+export function validateGlobalConfig(config: Record<string, unknown>): ValidationResult {
   return configValidator.validateConfiguration(config, GLOBAL_CONFIG_SCHEMA, 'global');
 }
 
-export function validateProjectConfig(config: any): ValidationResult {
+export function validateProjectConfig(config: Record<string, unknown>): ValidationResult {
   return configValidator.validateConfiguration(config, PROJECT_CONFIG_SCHEMA, 'project');
 }
 
@@ -605,7 +605,7 @@ export async function validateConfigFile(filePath: string, configType: 'global' 
     }
 
     const content = await fs.readFile(filePath, 'utf8');
-    let config: any;
+    let config: Record<string, unknown>;
 
     try {
       config = yaml.parse(content);
