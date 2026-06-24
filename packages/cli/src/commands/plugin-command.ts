@@ -260,7 +260,15 @@ export async function showCommandStats(
     const commandRegistry = createPluginCommandRegistry(tempProgram);
     await commandRegistry.initialize();
 
-    const stats = commandRegistry.getStats();
+    const stats = commandRegistry.getStats() as {
+      totalCommands: number;
+      activeCommands: number;
+      totalAliases: number;
+      totalConflicts: number;
+      commandsByPlugin: Record<string, number>;
+      mostUsedCommands: Array<{ command: string; count: number }>;
+      recentCommands: Array<{ command: string; timestamp: number }>;
+    };
 
     if (json) {
       console.log(JSON.stringify(stats, null, 2));

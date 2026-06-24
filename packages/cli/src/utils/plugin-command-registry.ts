@@ -33,7 +33,7 @@ export interface PluginCommandArgument {
   variadic?: boolean;
   type?: 'string' | 'number' | 'boolean';
   choices?: string[];
-  defaultValue?: any;
+  defaultValue?: unknown;
   validation?: PluginArgumentValidator;
 }
 
@@ -44,7 +44,7 @@ export interface PluginCommandOption {
   type?: 'string' | 'number' | 'boolean';
   required?: boolean;
   choices?: string[];
-  defaultValue?: any;
+  defaultValue?: unknown;
   validation?: PluginArgumentValidator;
   conflicts?: string[];
   implies?: string[];
@@ -66,7 +66,7 @@ export type PluginCommandMiddleware = (
 ) => Promise<void>;
 
 // Argument validator function
-export type PluginArgumentValidator = (value: any) => boolean | string;
+export type PluginArgumentValidator = (value: unknown) => boolean | string;
 
 // Command execution context
 export interface PluginCommandContext {
@@ -79,15 +79,15 @@ export interface PluginCommandContext {
     version: string;
   };
   logger: {
-    debug: (msg: string, ...args: any[]) => void;
-    info: (msg: string, ...args: any[]) => void;
-    warn: (msg: string, ...args: any[]) => void;
-    error: (msg: string, ...args: any[]) => void;
+    debug: (msg: string, ...args: unknown[]) => void;
+    info: (msg: string, ...args: unknown[]) => void;
+    warn: (msg: string, ...args: unknown[]) => void;
+    error: (msg: string, ...args: unknown[]) => void;
   };
   utils: {
     path: typeof path;
     chalk: typeof chalk;
-    spinner: any;
+    spinner: unknown;
   };
 }
 
@@ -522,7 +522,7 @@ export class PluginCommandRegistry extends EventEmitter {
     // Add options
     if (definition.options) {
       definition.options.forEach(opt => {
-        command.option(opt.flag, opt.description, opt.defaultValue);
+        command.option(opt.flag, opt.description, opt.defaultValue as string);
       });
     }
 
@@ -653,7 +653,7 @@ export class PluginCommandRegistry extends EventEmitter {
   }
 
   // Process command arguments
-  private processArguments(definition: PluginCommandDefinition, args: any[]): Record<string, any> {
+  private processArguments(definition: PluginCommandDefinition, args: unknown[]): Record<string, any> {
     const processed: Record<string, any> = {};
 
     if (definition.arguments) {
@@ -669,7 +669,7 @@ export class PluginCommandRegistry extends EventEmitter {
           let convertedValue = value;
           if (argDef.type === 'number') {
             convertedValue = Number(value);
-            if (isNaN(convertedValue)) {
+            if (isNaN(convertedValue as number)) {
               throw new ValidationError(`Argument '${argDef.name}' must be a number`);
             }
           } else if (argDef.type === 'boolean') {
@@ -677,7 +677,7 @@ export class PluginCommandRegistry extends EventEmitter {
           }
 
           // Choice validation
-          if (argDef.choices && !argDef.choices.includes(convertedValue)) {
+          if (argDef.choices && !argDef.choices.includes(convertedValue as string)) {
             throw new ValidationError(`Argument '${argDef.name}' must be one of: ${argDef.choices.join(', ')}`);
           }
 
@@ -825,13 +825,13 @@ export class PluginCommandRegistry extends EventEmitter {
   }
 
   // Create command logger
-  private createLogger(pluginName: string, commandName: string): any {
+  private createLogger(pluginName: string, commandName: string): PluginCommandContext['logger'] {
     const prefix = `[${pluginName}:${commandName}]`;
     return {
-      debug: (msg: string, ...args: any[]) => console.debug(chalk.gray(`${prefix} ${msg}`), ...args),
-      info: (msg: string, ...args: any[]) => console.info(chalk.blue(`${prefix} ${msg}`), ...args),
-      warn: (msg: string, ...args: any[]) => console.warn(chalk.yellow(`${prefix} ${msg}`), ...args),
-      error: (msg: string, ...args: any[]) => console.error(chalk.red(`${prefix} ${msg}`), ...args)
+      debug: (msg: string, ...args: unknown[]) => console.debug(chalk.gray(`${prefix} ${msg}`), ...args),
+      info: (msg: string, ...args: unknown[]) => console.info(chalk.blue(`${prefix} ${msg}`), ...args),
+      warn: (msg: string, ...args: unknown[]) => console.warn(chalk.yellow(`${prefix} ${msg}`), ...args),
+      error: (msg: string, ...args: unknown[]) => console.error(chalk.red(`${prefix} ${msg}`), ...args)
     };
   }
 
@@ -883,7 +883,7 @@ export class PluginCommandRegistry extends EventEmitter {
   }
 
   // Get registry statistics
-  getStats(): any {
+  getStats(): unknown {
     const stats = {
       totalCommands: this.commands.size,
       activeCommands: Array.from(this.commands.values()).filter(cmd => cmd.isActive).length,
