@@ -3,7 +3,7 @@ import prompts from 'prompts';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import yaml from 'yaml';
-import { configDiffer, ConfigDiffer, ConfigDiff, MergeResult, MergeStrategies, MergeStrategy } from '../utils/config-diff';
+import { configDiffer, ConfigDiffer, ConfigDiff, ConfigValue, MergeResult, MergeStrategies, MergeStrategy } from '../utils/config-diff';
 import { configManager } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
@@ -199,7 +199,7 @@ async function applyDiff(options: ConfigDiffCommandOptions, spinner?: ProgressSp
   const diff: ConfigDiff = JSON.parse(diffContent);
 
   // Apply diff
-  const result = await configDiffer.applyDiff(baseConfig, diff);
+  const result = await configDiffer.applyDiff(baseConfig as ConfigValue, diff);
 
   if (spinner) spinner.stop();
 
@@ -434,9 +434,9 @@ async function compareLevels(): Promise<void> {
 
   if (projectConfig) {
     const globalVsProject = await configDiffer.diff(
-      globalConfig, 
-      projectConfig, 
-      'global', 
+      globalConfig as unknown as ConfigValue,
+      projectConfig as unknown as ConfigValue,
+      'global',
       'project'
     );
     
@@ -451,8 +451,8 @@ async function compareLevels(): Promise<void> {
 
   if (workspaceConfig) {
     const projectVsWorkspace = await configDiffer.diff(
-      projectConfig || globalConfig,
-      workspaceConfig,
+      (projectConfig || globalConfig) as unknown as ConfigValue,
+      workspaceConfig as unknown as ConfigValue,
       projectConfig ? 'project' : 'global',
       'workspace'
     );
@@ -528,7 +528,7 @@ async function showConfigStatus(options: ConfigDiffCommandOptions, spinner?: Pro
 
   if (projectConfig) {
     // Calculate inheritance
-    const diff = await configDiffer.diff(globalConfig, projectConfig);
+    const diff = await configDiffer.diff(globalConfig as unknown as ConfigValue, projectConfig as unknown as ConfigValue);
     console.log(`\\n🔗 Inheritance Analysis:`);
     console.log(`  Overrides: ${diff.summary.changed} properties`);
     console.log(`  Additions: ${diff.summary.added} properties`);
