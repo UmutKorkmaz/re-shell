@@ -19,7 +19,7 @@ export type CompatibilityLevel = 'full' | 'forward' | 'backward' | 'none' | 'unk
 // Schema version
 export interface SchemaVersion {
   version: string;
-  schema: any;
+  schema: unknown;
   type: SchemaType;
   createdAt: Date;
   compatibleFrom?: string[];
@@ -36,7 +36,7 @@ export interface Migration {
   field?: string;
   oldType?: string;
   newType?: string;
-  defaultValue?: any;
+  defaultValue?: unknown;
   transformation?: string;
   description: string;
 }
@@ -118,7 +118,7 @@ export type EvolutionType = 'add_field' | 'remove_field' | 'rename_field' | 'cha
 
 export interface SchemaVersion {
   version: string;
-  schema: any;
+  schema: unknown;
   type: SchemaType;
   createdAt: Date;
   compatibleFrom?: string[];
@@ -134,7 +134,7 @@ export interface Migration {
   field?: string;
   oldType?: string;
   newType?: string;
-  defaultValue?: any;
+  defaultValue?: unknown;
   transformation?: string;
   description: string;
 }
@@ -142,9 +142,9 @@ export interface Migration {
 export class ${toPascalCase(config.serviceName)}SchemaEvolution {
   private registry: Map<string, SchemaVersion[]>;
   private currentVersion: Map<string, string>;
-  private config: any;
+  private config: unknown;
 
-  constructor(config: any) {
+  constructor(config: unknown) {
     this.registry = new Map();
     this.currentVersion = new Map();
     this.config = config;
@@ -153,7 +153,7 @@ export class ${toPascalCase(config.serviceName)}SchemaEvolution {
   /**
    * Register a new schema version
    */
-  registerVersion(schemaName: string, schema: any, version: string): SchemaVersion {
+  registerVersion(schemaName: string, schema: unknown, version: string): SchemaVersion {
     const versions = this.registry.get(schemaName) || [];
 
     const schemaVersion: SchemaVersion = {
@@ -317,7 +317,7 @@ export class ${toPascalCase(config.serviceName)}SchemaEvolution {
   /**
    * Apply migration to data
    */
-  applyMigration(data: any, migration: Migration): any {
+  applyMigration(data: unknown, migration: Migration): unknown {
     const result = { ...data };
 
     switch (migration.type) {
@@ -401,20 +401,20 @@ export class ${toPascalCase(config.serviceName)}SchemaEvolution {
     }
   }
 
-  private convertToJsonSchema(schema: any): any {
+  private convertToJsonSchema(schema: unknown): unknown {
     return {
       $schema: 'http://json-schema.org/draft-07/schema#',
       type: 'object',
       properties: schema.fields || {},
       required: Object.entries(schema.fields || {})
-        .filter(([_, def]: any) => def.required)
-        .map(([name]: any) => name),
+        .filter(([_, def]: unknown) => def.required)
+        .map(([name]: unknown) => name),
     };
   }
 }
 
 // Factory function
-export function createSchemaEvolution(config: any) {
+export function createSchemaEvolution(config: unknown) {
   return new ${toPascalCase(config.serviceName)}SchemaEvolution(config);
 }
 
@@ -659,7 +659,7 @@ func main() {
 // Write generated files
 export async function writeEvolutionFiles(
   serviceName: string,
-  integration: any,
+  integration: { files: Array<{ path: string; content: string }> },
   outputDir: string,
   language: string
 ): Promise<void> {
@@ -704,7 +704,7 @@ export async function displayEvolutionConfig(config: EvolutionConfig): Promise<v
 }
 
 // Generate BUILD.md
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: unknown, language: string): string {
   return `# Schema Evolution Build Instructions for ${serviceName}
 
 ## Language: ${language.toUpperCase()}

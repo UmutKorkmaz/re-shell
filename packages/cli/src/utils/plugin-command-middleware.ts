@@ -39,7 +39,7 @@ export interface MiddlewareOptions {
   cache?: {
     enabled: boolean;
     ttl: number;
-    key?: (args: any, options: any) => string;
+    key?: (args: unknown, options: unknown) => string;
   };
   rateLimit?: {
     maxRequests: number;
@@ -62,7 +62,7 @@ export interface MiddlewareResult {
   success: boolean;
   duration: number;
   error?: Error;
-  data?: any;
+  data?: unknown;
   modified?: {
     args?: Record<string, unknown>;
     options?: Record<string, unknown>;
@@ -72,12 +72,12 @@ export interface MiddlewareResult {
 
 // Built-in middleware factory functions
 export interface BuiltinMiddleware {
-  validation: (schema: any) => PluginCommandMiddleware;
+  validation: (schema: unknown) => PluginCommandMiddleware;
   authorization: (permissions: string[]) => PluginCommandMiddleware;
   rateLimit: (options: { maxRequests: number; windowMs: number }) => PluginCommandMiddleware;
-  cache: (options: { ttl: number; key?: (args: any, options: any) => string }) => PluginCommandMiddleware;
+  cache: (options: { ttl: number; key?: (args: unknown, options: unknown) => string }) => PluginCommandMiddleware;
   logger: (options?: { level: string; format?: string }) => PluginCommandMiddleware;
-  transform: (transformers: { args?: (args: any) => any; options?: (options: any) => any }) => PluginCommandMiddleware;
+  transform: (transformers: { args?: (args: unknown) => any; options?: (options: unknown) => any }) => PluginCommandMiddleware;
   errorHandler: (handler: (error: Error, context: PluginCommandContext) => void) => PluginCommandMiddleware;
   timing: () => PluginCommandMiddleware;
 }
@@ -87,7 +87,7 @@ export class MiddlewareChainManager extends EventEmitter {
   private middlewares: Map<string, MiddlewareRegistration> = new Map();
   private typeChains: Map<MiddlewareType, string[]> = new Map();
   private commandMiddleware: Map<string, string[]> = new Map();
-  private cache: Map<string, { data: any; expires: number }> = new Map();
+  private cache: Map<string, { data: unknown; expires: number }> = new Map();
   private rateLimiters: Map<string, Map<string, number[]>> = new Map();
 
   constructor() {
@@ -271,7 +271,7 @@ export class MiddlewareChainManager extends EventEmitter {
 
       // Create middleware execution context
       const middlewareContext = { ...context };
-      let result: any;
+      let result: unknown;
       const modifiedArgs = args;
       const modifiedOptions = options;
       const skipRemaining = false;
@@ -424,7 +424,7 @@ export class MiddlewareChainManager extends EventEmitter {
     return `${middleware.id}:${JSON.stringify({ args, options })}`;
   }
 
-  private getFromCache(key: string): any {
+  private getFromCache(key: string): unknown {
     const cached = this.cache.get(key);
     if (cached && cached.expires > Date.now()) {
       return cached.data;
@@ -433,7 +433,7 @@ export class MiddlewareChainManager extends EventEmitter {
     return undefined;
   }
 
-  private setInCache(key: string, data: any, ttl: number): void {
+  private setInCache(key: string, data: unknown, ttl: number): void {
     this.cache.set(key, {
       data,
       expires: Date.now() + ttl
@@ -507,7 +507,7 @@ export class MiddlewareChainManager extends EventEmitter {
   }
 
   // Get statistics
-  getStats(): any {
+  getStats(): unknown {
     const stats = {
       totalMiddlewares: this.middlewares.size,
       activeMiddlewares: Array.from(this.middlewares.values()).filter(m => m.isActive).length,
@@ -534,12 +534,12 @@ export class MiddlewareChainManager extends EventEmitter {
 // Create built-in middleware factories
 export const builtinMiddleware: BuiltinMiddleware = {
   // Validation middleware
-  validation: (schema: any) => {
+  validation: (schema: unknown) => {
     return async (args, options, context, next) => {
       try {
         // Validate against schema (simplified - would use a real validator)
-        if (schema.args) {
-          Object.entries(schema.args).forEach(([key, rules]: [string, any]) => {
+        if ((schema as Record<string, unknown>).args) {
+          Object.entries((schema as Record<string, unknown>).args).forEach(([key, rules]: [string, Record<string, unknown>]) => {
             const value = args[key];
             if (rules.required && value === undefined) {
               throw new ValidationError(`Argument '${key}' is required`);
@@ -550,8 +550,8 @@ export const builtinMiddleware: BuiltinMiddleware = {
           });
         }
 
-        if (schema.options) {
-          Object.entries(schema.options).forEach(([key, rules]: [string, any]) => {
+        if ((schema as Record<string, unknown>).options) {
+          Object.entries((schema as Record<string, unknown>).options).forEach(([key, rules]: [string, Record<string, unknown>]) => {
             const value = options[key];
             if (rules.required && value === undefined) {
               throw new ValidationError(`Option '${key}' is required`);
@@ -619,31 +619,18 @@ export const builtinMiddleware: BuiltinMiddleware = {
 
   // Caching middleware
   cache: ({ ttl, key }) => {
-    const cache = new Map<string, { data: any; expires: number }>();
+    const cache = new Map<string, { data: unknown; expires: number }>();
 
     return async (args, options, context, next) => {
       const cacheKey = key ? key(args, options) : JSON.stringify({ args, options });
-      
+
       const cached = cache.get(cacheKey);
       if (cached && cached.expires > Date.now()) {
         context.logger.debug('Cache hit');
-        return cached.data;
+        return;
       }
 
-      let result: any;
-      const originalNext = next;
-      
-      // Intercept next to capture result
-      await originalNext();
-
-      if (result !== undefined) {
-        cache.set(cacheKey, {
-          data: result,
-          expires: Date.now() + ttl
-        });
-      }
-
-      return result;
+      await next();
     };
   },
 

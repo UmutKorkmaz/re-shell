@@ -462,7 +462,15 @@ export async function showValidationStats(
 
   try {
     const validator = createCommandValidator();
-    const stats = validator.getValidationStats();
+    const stats = validator.getValidationStats() as {
+      totalSchemas: number;
+      cacheSize: number;
+      cacheHitRate: number;
+      validationCount: number;
+      errorCount: number;
+      warningCount: number;
+      averageValidationTime: number;
+    };
 
     if (json) {
       console.log(JSON.stringify(stats, null, 2));

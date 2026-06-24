@@ -105,7 +105,14 @@ export async function listMiddleware(
     });
 
     // Summary
-    const stats = middlewareManager.getStats();
+    const stats = middlewareManager.getStats() as {
+      totalMiddlewares: number;
+      activeMiddlewares: number;
+      cacheSize: number;
+      rateLimiters: number;
+      byType: Record<string, number>;
+      byPlugin: Record<string, number>;
+    };
     console.log(chalk.yellow('Summary:'));
     console.log(`  Total middleware: ${stats.totalMiddlewares}`);
     console.log(`  Active: ${chalk.green(stats.activeMiddlewares)}`);
@@ -130,7 +137,14 @@ export async function showMiddlewareStats(
 
   try {
     const middlewareManager = createMiddlewareChainManager();
-    const stats = middlewareManager.getStats();
+    const stats = middlewareManager.getStats() as {
+      totalMiddlewares: number;
+      activeMiddlewares: number;
+      cacheSize: number;
+      rateLimiters: number;
+      byType: Record<string, number>;
+      byPlugin: Record<string, number>;
+    };
 
     if (json) {
       console.log(JSON.stringify(stats, null, 2));
