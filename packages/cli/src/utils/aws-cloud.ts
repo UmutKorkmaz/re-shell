@@ -22,7 +22,7 @@ interface ECSServiceConfig {
   taskDefinition: string;
   desiredCount: number;
   launchType: 'FARGATE' | 'EC2';
-  capacityProviderStrategy: any[];
+  capacityProviderStrategy: unknown[];
   enableExecuteCommand: boolean;
 }
 

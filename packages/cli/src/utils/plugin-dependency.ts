@@ -703,7 +703,7 @@ export class PluginDependencyResolver extends EventEmitter {
   }
 
   // Get dependency statistics
-  getStats(): any {
+  getStats(): unknown {
     return {
       totalPlugins: this.plugins.size,
       dependencyNodes: this.dependencyGraph.size,

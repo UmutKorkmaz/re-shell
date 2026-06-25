@@ -88,7 +88,7 @@ export function debounceAsync<T extends any[], R>(
 ): (...args: T) => Promise<R> {
   let timeoutId: NodeJS.Timeout;
   let latestResolve: (value: R) => void;
-  let latestReject: (error: any) => void;
+  let latestReject: (error: unknown) => void;
 
   return (...args: T): Promise<R> => {
     return new Promise((resolve, reject) => {

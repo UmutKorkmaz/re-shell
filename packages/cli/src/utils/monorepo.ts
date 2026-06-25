@@ -264,8 +264,8 @@ export async function getWorkspaces(rootPath: string = process.cwd()): Promise<W
   return workspaces;
 }
 
-function detectFrameworkFromPackage(packageJson: any): string | undefined {
-  const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+function detectFrameworkFromPackage(packageJson: Record<string, unknown>): string | undefined {
+  const deps = { ...(packageJson.dependencies as Record<string, unknown>), ...(packageJson.devDependencies as Record<string, unknown>) };
 
   if (deps['@angular/core']) return 'angular';
   if (deps['vue']) return deps['typescript'] ? 'vue-ts' : 'vue';

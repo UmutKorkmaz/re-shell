@@ -894,7 +894,15 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
   }
 
   // Get documentation statistics
-  getDocumentationStats(): any {
+  getDocumentationStats(): {
+    totalCommands: number;
+    documentedCommands: number;
+    documentationCoverage: number;
+    averageWordCount: number;
+    averageReadingTime: number;
+    formatDistribution: Record<string, number>;
+    [key: string]: unknown;
+  } {
     const commands = Array.from(this.commands.values());
     const docs = Array.from(this.generatedDocs.values());
 

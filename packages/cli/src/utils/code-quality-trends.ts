@@ -97,7 +97,7 @@ export function generateTypeScriptQualityTrend(config: QualityTrendConfig): stri
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
   code += 'import { EventEmitter } from \'events\';\n\n';
   code += 'class CodeQualityTrendsManager extends EventEmitter {\n';
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '  }\n';
   code += '}\n\n';

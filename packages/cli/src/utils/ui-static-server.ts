@@ -8,7 +8,7 @@ import * as path from 'path';
  * Responsibilities:
  *  - Serve the prebuilt SPA from a directory (dist/dashboard) on the configured
  *    loopback host/port.
- *  - SPA fallback: any non-asset, non-file route resolves to index.html.
+ *  - SPA fallback: unknown non-asset, non-file route resolves to index.html.
  *  - Correct content types for the assets the Vite build emits.
  *  - Inject the PER-LAUNCH runtime hub config into index.html on the fly:
  *    `<script>window.__RE_SHELL_HUB__={url,token}</script>` placed BEFORE the

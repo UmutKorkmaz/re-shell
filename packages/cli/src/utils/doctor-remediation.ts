@@ -236,7 +236,7 @@ function fallbackRule(message: string): RemediationRule {
 /**
  * Allow-list of fix-command *prefixes*. A composed plan step is only ever
  * executable if its command starts with one of these. This is the single trust
- * boundary for `--fix --yes`: anything not matching is downgraded to a manual,
+ * boundary for `--fix --yes`: unknownthing not matching is downgraded to a manual,
  * non-executable step.
  */
 export const ALLOWED_FIX_COMMAND_PREFIXES: readonly string[] = [

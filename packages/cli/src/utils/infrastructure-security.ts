@@ -235,7 +235,7 @@ export interface SecurityIntegration {
   name: string;
   type: 'prisma-cloud' | 'terraform-cloud-security' | 'prowler' | 'scout2' | 'cis-cat' | 'custom';
   enabled: boolean;
-  config: any;
+  config: unknown;
   status: 'connected' | 'disconnected' | 'error';
   lastSync: Date;
   errorMessage?: string;

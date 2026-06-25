@@ -277,7 +277,7 @@ export interface SecurityIntegration {
   type: 'sbom-generator' | 'vulnerability-scanner' | 'license-checker' | 'signature-verifier' | 'repository' | 'custom';
   provider: string;
   enabled: boolean;
-  config: any;
+  config: unknown;
   status: 'connected' | 'disconnected' | 'error';
   lastSync: Date;
   componentsImported: number;

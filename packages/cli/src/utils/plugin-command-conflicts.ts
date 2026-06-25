@@ -782,7 +782,17 @@ export class CommandConflictResolver extends EventEmitter {
   }
 
   // Get conflict statistics
-  getStats(): any {
+  getStats(): {
+    total: number;
+    resolved: number;
+    unresolved: number;
+    autoResolvable: number;
+    byType: Record<string, number>;
+    bySeverity: Record<string, number>;
+    resolutionHistory: number;
+    autoResolutionCount: number;
+    priorityOverrides: number;
+  } {
     const conflicts = Array.from(this.conflicts.values());
     
     return {

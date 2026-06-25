@@ -1117,7 +1117,7 @@ export class OpenAPIGenerator {
       nestjs: (opts) => `@${opts.method}('${opts.routePath}')
   @ApiOperation({ summary: '${opts.operation}', tags: ['${opts.tags.join("', '") || 'api'}'] })
   @ApiResponse({ status: 200, description: 'Success' })
-  async ${opts.operation}(): any {
+  async ${opts.operation}(): unknown {
     // TODO: Implement
     return {};
   }`,

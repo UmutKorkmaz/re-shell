@@ -99,7 +99,7 @@ export function generateTypeScriptPredictiveScaling(config: PredictiveScalingCon
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
   code += 'import { EventEmitter } from \'events\';\n\n';
   code += 'class PredictiveScalingManager extends EventEmitter {\n';
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '  }\n';
   code += '}\n\n';

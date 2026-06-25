@@ -510,7 +510,7 @@ export class IncrementalBuilder {
   }
 
   // Generate optimization suggestions
-  private generateOptimizations(targets: BuildTarget[], impact: any): string[] {
+  private generateOptimizations(targets: BuildTarget[], impact: { totalImpact: number }): string[] {
     const optimizations: string[] = [];
 
     if (targets.length === 0) {

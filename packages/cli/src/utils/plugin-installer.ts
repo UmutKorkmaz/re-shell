@@ -127,7 +127,7 @@ export function validatePluginManifest(data: unknown): { name: string; version: 
  * `reshell-plugin` keyword / name prefix.
  */
 export function isRecognizedPlugin(manifest: PluginManifestData): boolean {
-  // Manifest-key signal: any of the reshell-family keys present.
+  // Manifest-key signal: unknown of the reshell-family keys present.
   if (
     manifest.reshell !== undefined ||
     manifest['reshell-plugin'] !== undefined ||

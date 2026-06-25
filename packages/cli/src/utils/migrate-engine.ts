@@ -195,7 +195,7 @@ export function selectPendingMigrations(
 /**
  * Kahn's topological sort over a workspace dependency graph (each key maps to
  * its UPSTREAM dependencies). Returns node names ordered deps-before-dependents.
- * Ties are broken alphabetically for determinism. Cycles are tolerated: any
+ * Ties are broken alphabetically for determinism. Cycles are tolerated: unknown
  * nodes that cannot be ordered are appended at the end (the caller can warn).
  */
 export function topoSort(

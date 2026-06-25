@@ -20,7 +20,7 @@ export interface RollbackSnapshot {
     projectName?: string;
     framework?: string;
     template?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -56,7 +56,7 @@ export async function createSnapshot(
     filesCreated: [],
     filesModified: [],
     backupPath: path.join(process.cwd(), BACKUP_DIR, snapshotId),
-    metadata: options,
+    metadata: options as Record<string, unknown>,
   };
 
   // Create backup of existing files if requested

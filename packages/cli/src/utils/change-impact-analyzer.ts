@@ -314,8 +314,8 @@ export class ChangeImpactAnalyzer {
   }
 
   // Detect framework from package.json
-  private detectFramework(packageJson: any): string | undefined {
-    const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+  private detectFramework(packageJson: Record<string, unknown>): string | undefined {
+    const deps = { ...(packageJson.dependencies as Record<string, unknown>), ...(packageJson.devDependencies as Record<string, unknown>) };
     
     if (deps.react) return 'react';
     if (deps.vue) return 'vue';

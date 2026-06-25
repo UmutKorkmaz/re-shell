@@ -162,7 +162,7 @@ export class DevEnvManager extends EventEmitter {
   private config: DevEnvConfig;
   private portManager: PortManager;
   private containerRuntime: 'docker' | 'podman';
-  private activeForwarders: Map<string, { process: any; port: number }> = new Map();
+  private activeForwarders: Map<string, { process: unknown; port: number }> = new Map();
   private forwardedPortsStatus: Map<string, ForwardStatus> = new Map();
 
   constructor(config: DevEnvConfig) {
