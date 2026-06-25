@@ -83,7 +83,7 @@ export function generateDockerCompose(services: ServiceInfo[], config: Deploymen
 
   for (const service of services) {
     const serviceName = service.name;
-    const serviceConfig: any = {
+    const serviceConfig: Record<string, unknown> = {
       build: {
         context: `./${path.relative(process.cwd(), service.path)}`,
       },
@@ -92,7 +92,7 @@ export function generateDockerCompose(services: ServiceInfo[], config: Deploymen
 
     // Add build args for production
     if (config.environment === 'production') {
-      serviceConfig.build.args = ['NODE_ENV=production'];
+      (serviceConfig.build as Record<string, unknown>).args = ['NODE_ENV=production'];
     }
 
     // Add resource limits
@@ -278,7 +278,7 @@ export function generateKubernetesManifests(services: ServiceInfo[], config: Dep
     };
 
     // Generate Ingress for frontend services
-    let ingress: any = null;
+    let ingress: unknown = null;
     if (service.type === 'frontend' && config.domain) {
       ingress = {
         apiVersion: 'networking.k8s.io/v1',
@@ -338,7 +338,7 @@ export function generateKubernetesManifests(services: ServiceInfo[], config: Dep
 /**
  * Generate AWS Lambda deployment configuration
  */
-export function generateAwsLambdaConfig(service: ServiceInfo, config: DeploymentConfig): any {
+export function generateAwsLambdaConfig(service: ServiceInfo, config: DeploymentConfig): unknown {
   const runtimeMap: Record<string, string> = {
     python: 'python3.11',
     javascript: 'nodejs20.x',
@@ -366,7 +366,7 @@ export function generateAwsLambdaConfig(service: ServiceInfo, config: Deployment
 /**
  * Generate Vercel deployment configuration
  */
-export function generateVercelConfig(services: ServiceInfo[], config: DeploymentConfig): any {
+export function generateVercelConfig(services: ServiceInfo[], config: DeploymentConfig): unknown {
   const projects: Record<string, unknown> = {};
 
   for (const service of services) {
@@ -389,7 +389,7 @@ export function generateVercelConfig(services: ServiceInfo[], config: Deployment
 /**
  * Generate Netlify deployment configuration
  */
-export function generateNetlifyConfig(service: ServiceInfo, config: DeploymentConfig): any {
+export function generateNetlifyConfig(service: ServiceInfo, config: DeploymentConfig): unknown {
   return {
     version: 2,
     build: {

@@ -318,7 +318,7 @@ export function generateTypeScriptServerless(config: ServerlessConfig): string {
   code += '  private runtime: string;\n';
   code += '  private providers: string[];\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.functionName = options.functionName || \'' + config.functionName + '\';\n';
@@ -338,7 +338,7 @@ export function generateTypeScriptServerless(config: ServerlessConfig): string {
     code += '      execSync(cmd, { stdio: \'inherit\' });\n';
     code += '      console.log(\'[Serverless] ✓ AWS Lambda deployed\');\n';
     code += '      this.emit(\'deployed\', \'aws\');\n';
-    code += '    } catch (error: any) {\n';
+    code += '    } catch (error: unknown) {\n';
     code += '      console.error(\'[Serverless] ✗ AWS Lambda deployment failed:\', error.message);\n';
     code += '      throw error;\n';
     code += '    }\n';
@@ -356,7 +356,7 @@ export function generateTypeScriptServerless(config: ServerlessConfig): string {
     code += '      execSync(cmd, { stdio: \'inherit\' });\n';
     code += '      console.log(\'[Serverless] ✓ Azure Functions deployed\');\n';
     code += '      this.emit(\'deployed\', \'azure\');\n';
-    code += '    } catch (error: any) {\n';
+    code += '    } catch (error: unknown) {\n';
     code += '      console.error(\'[Serverless] ✗ Azure Functions deployment failed:\', error.message);\n';
     code += '      throw error;\n';
     code += '    }\n';
@@ -374,7 +374,7 @@ export function generateTypeScriptServerless(config: ServerlessConfig): string {
     code += '      execSync(cmd, { stdio: \'inherit\' });\n';
     code += '      console.log(\'[Serverless] ✓ GCP Cloud Functions deployed\');\n';
     code += '      this.emit(\'deployed\', \'gcp\');\n';
-    code += '    } catch (error: any) {\n';
+    code += '    } catch (error: unknown) {\n';
     code += '      console.error(\'[Serverless] ✗ GCP Cloud Functions deployment failed:\', error.message);\n';
     code += '      throw error;\n';
     code += '    }\n';
@@ -511,7 +511,7 @@ export async function writeFiles(config: ServerlessConfig, outputDir: string, la
 
     // Generate sample function
     const sampleFunction = `// Sample ${config.runtime} handler for ${config.functionName}
-export const handler = async (event: any, context: any) => {
+export const handler = async (event: unknown, context: unknown) => {
   console.log('Event:', JSON.stringify(event, null, 2));
 
   const response = {
