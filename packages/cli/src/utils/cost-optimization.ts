@@ -233,7 +233,7 @@ export function generateTypeScriptCostOptimization(config: CostOptimizationConfi
   code += '  private providers: string[];\n';
   code += '  private monthlyBudget: number;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.providers = options.providers || ' + JSON.stringify(config.providers) + ';\n';
@@ -299,7 +299,7 @@ export function generateTypeScriptCostOptimization(config: CostOptimizationConfi
     code += '    try {\n';
     code += '      execSync(cmd, { stdio: \'inherit\' });\n';
     code += '      console.log(\'[CostOpt] ✓ Anomaly detection enabled\');\n';
-    code += '    } catch (error: any) {\n';
+    code += '    } catch (error: unknown) {\n';
     code += '      console.error(\'[CostOpt] ✗ Failed to enable anomaly detection:\', error.message);\n';
     code += '    }\n';
     code += '  }\n\n';
@@ -314,7 +314,7 @@ export function generateTypeScriptCostOptimization(config: CostOptimizationConfi
   code += '    console.log(\'[CostOpt] ✓ Budget alerts configured\');\n';
   code += '  }\n\n';
 
-  code += '  generateCostReport(): any {\n';
+  code += '  generateCostReport(): unknown {\n';
   code += '    return {\n';
   code += '      projectName: this.projectName,\n';
   code += '      monthlyBudget: this.monthlyBudget,\n';

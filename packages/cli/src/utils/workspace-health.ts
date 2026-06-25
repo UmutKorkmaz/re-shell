@@ -178,7 +178,7 @@ export class WorkspaceHealthChecker {
       }
 
       // Calculate structure metrics
-      const structure = this.calculateStructureMetrics(analysis);
+      const structure = this.calculateStructureMetrics(analysis as unknown as Record<string, unknown>);
 
       return {
         isValid: errors.length === 0,
@@ -799,16 +799,18 @@ export class WorkspaceHealthChecker {
     return result;
   }
 
-  private calculateStructureMetrics(analysis: any) {
+  private calculateStructureMetrics(analysis: Record<string, unknown>) {
+    const stats = analysis.statistics as { maxDepth: number };
+    const levels = analysis.levels as unknown[][];
     return {
-      depth: analysis.statistics.maxDepth,
-      breadth: Math.max(...analysis.levels.map((level: any[]) => level.length)),
-      complexity: analysis.edgeCount / Math.max(analysis.nodeCount, 1),
-      balance: this.calculateBalance(analysis.levels)
+      depth: stats.maxDepth,
+      breadth: Math.max(...levels.map((level: unknown[]) => level.length)),
+      complexity: (analysis.edgeCount as number) / Math.max(analysis.nodeCount as number, 1),
+      balance: this.calculateBalance(levels)
     };
   }
 
-  private calculateBalance(levels: any[][]): number {
+  private calculateBalance(levels: unknown[][]): number {
     if (levels.length === 0) return 1;
     
     const levelSizes = levels.map(level => level.length);

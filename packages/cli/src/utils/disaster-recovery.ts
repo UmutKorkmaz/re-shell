@@ -311,7 +311,7 @@ export function generateTypeScriptDRManager(config: DisasterRecoveryConfig): str
   code += '  private drRegion: string;\n';
   code += '  private failoverStrategy: string;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.primaryRegion = options.primaryRegion || \'' + config.primaryRegion + '\';\n';
@@ -354,7 +354,7 @@ export function generateTypeScriptDRManager(config: DisasterRecoveryConfig): str
   code += '      console.log(`[DR] ✓ Backup created: ${backupId}`);\n';
   code += '      this.emit(\'backup-completed\', backupId);\n';
   code += '      return backupId;\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[DR] ✗ Backup failed:\', error.message);\n';
   code += '      throw error;\n';
   code += '    }\n';
@@ -426,7 +426,7 @@ export function generateTypeScriptDRManager(config: DisasterRecoveryConfig): str
   code += '    // Load balancer update logic\n';
   code += '  }\n\n';
 
-  code += '  getStatus(): any {\n';
+  code += '  getStatus(): unknown {\n';
   code += '    return {\n';
   code += '      projectName: this.projectName,\n';
   code += '      primaryRegion: this.primaryRegion,\n';

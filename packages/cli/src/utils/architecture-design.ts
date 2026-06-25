@@ -18,7 +18,7 @@ interface DesignElement {
   type: 'component' | 'service' | 'database' | 'queue' | 'cache';
   name: string;
   description: string;
-  properties: { [key: string]: any };
+  properties: { [key: string]: unknown };
 }
 
 interface CollaborationConfig {
@@ -84,7 +84,7 @@ export function generateTypeScriptArchitectureDesign(config: ArchitectureDesignC
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
   code += 'import { EventEmitter } from \'events\';\n\n';
   code += 'class ArchitectureDesignManager extends EventEmitter {\n';
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '  }\n';
   code += '}\n\n';

@@ -19,7 +19,7 @@ interface MetricPattern {
   name: string;
   pattern: string;
   metrics: string[];
-  conditions: { [key: string]: any };
+  conditions: { [key: string]: unknown };
 }
 
 interface AnomalyAlert {
@@ -31,7 +31,7 @@ interface AnomalyAlert {
 
 interface ResponseRule {
   trigger: string;
-  actions: { type: ResponseAction; params: { [key: string]: any } }[];
+  actions: { type: ResponseAction; params: { [key: string]: unknown } }[];
   cooldown: number;
 }
 
@@ -92,7 +92,7 @@ export function generateTypeScriptAnomalyDetection(config: AnomalyDetectionConfi
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
   code += 'import { EventEmitter } from \'events\';\n\n';
   code += 'class AnomalyDetectionManager extends EventEmitter {\n';
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '  }\n';
   code += '}\n\n';

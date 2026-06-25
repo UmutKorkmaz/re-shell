@@ -210,7 +210,7 @@ export function generateTypeScriptHybridCloud(config: HybridCloudConfig): string
   code += '  private deploymentStrategy: string;\n';
   code += '  private edgeLocations: string[];\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.primaryCloud = options.primaryCloud || \'' + config.primaryCloud + '\';\n';
@@ -253,7 +253,7 @@ export function generateTypeScriptHybridCloud(config: HybridCloudConfig): string
   code += '    return { synced: true, mode };\n';
   code += '  }\n\n';
 
-  code += '  getDeploymentStatus(): any {\n';
+  code += '  getDeploymentStatus(): unknown {\n';
   code += '    return {\n';
   code += '      projectName: this.projectName,\n';
   code += '      primaryCloud: this.primaryCloud,\n';

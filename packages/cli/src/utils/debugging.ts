@@ -54,7 +54,7 @@ export interface JetBrainsRunConfig {
  */
 export interface DebugConfigResult {
   ide: 'vscode' | 'jetbrains' | 'chrome';
-  config: any;
+  config: unknown;
   files: { path: string; content: string }[];
 }
 
@@ -674,9 +674,9 @@ function getRecommendedExtensions(project: ProjectDebugInfo): string[] {
 /**
  * Generate VS Code build tasks
  */
-function generateBuildTasks(project: ProjectDebugInfo): any[] {
+function generateBuildTasks(project: ProjectDebugInfo): unknown[] {
   const { language } = project;
-  const tasks: any[] = [];
+  const tasks: unknown[] = [];
 
   // Common tasks
   tasks.push({

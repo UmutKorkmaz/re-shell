@@ -24,9 +24,9 @@ export interface BackupMetadata {
 export interface BackupContent {
   metadata: BackupMetadata;
   workspace: WorkspaceDefinition;
-  state?: any;
-  cache?: any;
-  templates?: any;
+  state?: unknown;
+  cache?: unknown;
+  templates?: unknown;
   files?: Record<string, string>; // path -> content
 }
 

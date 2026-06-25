@@ -288,7 +288,7 @@ export interface TestingIntegration {
   type: 'scanner' | 'ticketing' | 'notification' | 'repository' | 'custom';
   provider: string;
   enabled: boolean;
-  config: any;
+  config: unknown;
   status: 'connected' | 'disconnected' | 'error';
   lastSync: Date;
   testsImported: number;
@@ -541,7 +541,7 @@ class PenetrationTestingManager extends EventEmitter {
   private findings: Map<string, Finding> = new Map();
   private vulnerabilities: Map<string, Vulnerability> = new Map();
 
-  async createTest(data: any): Promise<Test> {
+  async createTest(data: unknown): Promise<Test> {
     const test: Test = {
       id: \`test-\${Date.now()}\`,
       type: 'web',
@@ -566,7 +566,7 @@ class PenetrationTestingManager extends EventEmitter {
     return { testId, status: 'running', timestamp: new Date() };
   }
 
-  async addFinding(testId: string, finding: any): Promise<Finding> {
+  async addFinding(testId: string, finding: unknown): Promise<Finding> {
     const newFinding: Finding = {
       id: \`finding-\${Date.now()}\`,
       title: finding.title,

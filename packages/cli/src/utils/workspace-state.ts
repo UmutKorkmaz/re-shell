@@ -198,7 +198,7 @@ export class WorkspaceStateManager {
     };
   }
 
-  private validateAndMigrateState(data: any): WorkspaceStateStorage {
+  private validateAndMigrateState(data: Record<string, unknown>): WorkspaceStateStorage {
     // Basic validation
     if (!data.version || !data.workspaces) {
       return this.createDefaultState();
@@ -206,7 +206,7 @@ export class WorkspaceStateManager {
 
     // Migration logic for future version changes
     if (data.version === '1.0.0') {
-      return data as WorkspaceStateStorage;
+      return data as unknown as WorkspaceStateStorage;
     }
 
     // Default migration: recreate state
@@ -528,7 +528,7 @@ export class WorkspaceCacheManager {
     return (now - entryTime) < entry.ttl;
   }
 
-  private calculateSize(value: any): number {
+  private calculateSize(value: unknown): number {
     try {
       return JSON.stringify(value).length;
     } catch (error) {

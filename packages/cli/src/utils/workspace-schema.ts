@@ -78,7 +78,7 @@ export interface WorkspaceDefinition {
     lastModified: string;
     author?: string;
     tags?: string[];
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -696,7 +696,7 @@ export class WorkspaceSchemaValidator {
   }
 
   private validateWorkspacePackageJson(
-    packageJson: any,
+    packageJson: Record<string, unknown>,
     workspaceName: string,
     workspace: WorkspaceEntry,
     warnings: ValidationWarning[],
@@ -750,7 +750,7 @@ export class WorkspaceSchemaValidator {
     }
   }
 
-  private hasNestedProperty(obj: any, propertyPath: string): boolean {
+  private hasNestedProperty(obj: unknown, propertyPath: string): boolean {
     const parts = propertyPath.split('.');
     let current = obj;
     

@@ -193,7 +193,7 @@ export function generateTypeScriptMentorship(config: MentorshipConfig): string {
   code += '  private pairs: Map<string, MentorshipPair> = new Map();\n';
   code += '  private matchThreshold: number;\n';
   code += '  private enableAutoMatching: boolean;\n\n';
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.matchThreshold = options.matchThreshold || 70;\n';
   code += '    this.enableAutoMatching = options.enableAutoMatching !== false;\n';
@@ -273,7 +273,7 @@ export function generateTypeScriptMentorship(config: MentorshipConfig): string {
   code += '  getPairs(): MentorshipPair[] {\n';
   code += '    return Array.from(this.pairs.values());\n';
   code += '  }\n\n';
-  code += '  getProgramStats(): any {\n';
+  code += '  getProgramStats(): unknown {\n';
   code += '    const activePairs = Array.from(this.pairs.values()).filter(p => p.status === \'active\');\n';
   code += '    const avgMatchScore = activePairs.reduce((sum, p) => sum + p.matchScore, 0) / activePairs.length;\n\n';
   code += '    return {\n';

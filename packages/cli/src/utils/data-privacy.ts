@@ -138,7 +138,7 @@ export interface ClassificationCondition {
   type: 'content' | 'location' | 'format' | 'metadata' | 'pattern' | 'custom';
   field?: string;
   operator: 'contains' | 'matches' | 'equals' | 'in' | 'regex' | 'greater-than' | 'less-than';
-  value: any;
+  value: unknown;
   caseSensitive?: boolean;
 }
 
@@ -1027,7 +1027,7 @@ export class DataPrivacyManager {
   }
 
   // Reporting
-  generateROPAReport(): any {
+  generateROPAReport(): unknown {
     return {
       totalAssets: this.assets.size,
       totalConsents: this.consents.size,

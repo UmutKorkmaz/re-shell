@@ -14,7 +14,7 @@ interface TestEnvironment {
   type: EnvironmentType;
   url: string;
   status: 'active' | 'busy' | 'maintenance' | 'offline';
-  capabilities: { [key: string]: any };
+  capabilities: { [key: string]: unknown };
 }
 
 interface TestSuite {
@@ -102,7 +102,7 @@ export function generateTypeScriptCollaborativeTesting(config: CollaborativeTest
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
   code += 'import { EventEmitter } from \'events\';\n\n';
   code += 'class CollaborativeTestingManager extends EventEmitter {\n';
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '  }\n';
   code += '}\n\n';

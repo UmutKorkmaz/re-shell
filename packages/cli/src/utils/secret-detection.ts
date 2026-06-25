@@ -585,7 +585,7 @@ interface RotationPolicy {
 class SecretDetectionManager extends EventEmitter {
   private secrets: Map<string, Secret> = new Map();
   private rotationPolicies: Map<string, RotationPolicy> = new Map();
-  private config: any;
+  private config: unknown;
 
   constructor(options: Record<string, unknown> = {}) {
     super();
@@ -680,7 +680,7 @@ class SecretDetectionManager extends EventEmitter {
   }
 
   async checkRotationPolicies(): Promise<any[]> {
-    const due: any[] = [];
+    const due: unknown[] = [];
 
     for (const [id, policy] of this.rotationPolicies) {
       if (policy.autoRotate && policy.isActive) {

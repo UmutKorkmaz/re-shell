@@ -369,7 +369,7 @@ export interface TrainingIntegration {
   type: 'lms' | 'hr-system' | 'sso' | 'notification' | 'analytics' | 'custom';
   provider: string;
   enabled: boolean;
-  config: any;
+  config: unknown;
   status: 'connected' | 'disconnected' | 'error';
   lastSync: Date;
   usersSynced: number;
@@ -567,7 +567,7 @@ class SecurityTrainingManager extends EventEmitter {
     return badge;
   }
 
-  getLeaderboard(): any[] {
+  getLeaderboard(): unknown[] {
     return Array.from(this.progress.values())
       .filter(p => p.status === 'completed')
       .sort((a, b) => b.score - a.score)

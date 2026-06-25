@@ -400,8 +400,8 @@ export class FileWatcher extends EventEmitter {
         path: debouncedEvent.path,
         workspace: this.getWorkspaceForPath(debouncedEvent.path),
         timestamp: debouncedEvent.timestamp,
-        size: debouncedEvent.stats?.size,
-        stats: debouncedEvent.stats
+        size: (debouncedEvent.stats as { size?: number })?.size,
+        stats: debouncedEvent.stats as fs.Stats
       };
 
       // Emit the debounced file event
@@ -418,8 +418,8 @@ export class FileWatcher extends EventEmitter {
         path: debouncedEvent.path,
         workspace: this.getWorkspaceForPath(debouncedEvent.path),
         timestamp: debouncedEvent.timestamp,
-        size: debouncedEvent.stats?.size,
-        stats: debouncedEvent.stats
+        size: (debouncedEvent.stats as { size?: number })?.size,
+        stats: debouncedEvent.stats as fs.Stats
       }));
 
       // Emit batch event

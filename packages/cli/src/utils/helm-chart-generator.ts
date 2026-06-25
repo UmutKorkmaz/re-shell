@@ -79,7 +79,7 @@ export function generateTypeScriptHelm(config: HelmConfig): string {
   code += '  private environments: string[];\n';
   code += '  private services: ServiceConfig[];\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.chartName = options.chartName || this.projectName;\n';
   code += '    this.environments = options.environments || [\'dev\', \'staging\', \'prod\'];\n';
@@ -294,7 +294,7 @@ export function generateTypeScriptHelm(config: HelmConfig): string {
   code += '        stdio: \'inherit\',\n';
   code += '      });\n';
   code += '      console.log(`[Helm] Chart packaged successfully`);\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(`[Helm] Failed to package chart:`, error.message);\n';
   code += '    }\n';
   code += '  }\n';

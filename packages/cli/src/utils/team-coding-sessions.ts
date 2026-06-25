@@ -17,7 +17,7 @@ interface ActivityLog {
   userName: string;
   action: ActivityType;
   timestamp: number;
-  details: { [key: string]: any };
+  details: { [key: string]: unknown };
 }
 
 interface SessionConfig {
@@ -83,7 +83,7 @@ export function generateTypeScriptTeamCodingSessions(config: TeamCodingSessionCo
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
   code += 'import { EventEmitter } from \'events\';\n\n';
   code += 'class TeamCodingSessionsManager extends EventEmitter {\n';
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '  }\n';
   code += '}\n\n';

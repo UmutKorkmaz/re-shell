@@ -308,7 +308,7 @@ export function generateTypeScriptIaCManager(config: IaCConfig): string {
   code += '  private provider: string;\n';
   code += '  private stateBackend: string;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.provider = options.provider || \'' + config.provider + '\';\n';
@@ -325,7 +325,7 @@ export function generateTypeScriptIaCManager(config: IaCConfig): string {
     code += '        console.log(\'[IaC] ✓ Validation passed\');\n';
     code += '        this.emit(\'validated\', true);\n';
     code += '        return true;\n';
-    code += '      } catch (error: any) {\n';
+    code += '      } catch (error: unknown) {\n';
     code += '        console.error(\'[IaC] ✗ Validation failed:\', error.message);\n';
     code += '        this.emit(\'validated\', false);\n';
     code += '        return false;\n';
@@ -358,7 +358,7 @@ export function generateTypeScriptIaCManager(config: IaCConfig): string {
     code += '        execSync(cmd, { stdio: \'inherit\' });\n';
     code += '        console.log(\'[IaC] ✓ No drift detected\');\n';
     code += '        this.emit(\'drift-detected\', false);\n';
-    code += '      } catch (error: any) {\n';
+    code += '      } catch (error: unknown) {\n';
     code += '        console.log(\'[IaC] ⚠ Drift detected\');\n';
     code += '        this.emit(\'drift-detected\', true);\n';
     code += '      }\n';

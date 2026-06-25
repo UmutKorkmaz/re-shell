@@ -74,8 +74,8 @@ export interface ConflictChange {
   type: 'workspace' | 'dependency' | 'configuration';
   target: string;
   property: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: unknown;
+  newValue: unknown;
   reason: string;
 }
 

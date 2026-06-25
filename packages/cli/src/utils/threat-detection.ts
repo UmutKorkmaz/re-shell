@@ -257,7 +257,7 @@ export interface ThreatIntegration {
   type: 'siem' | 'edr' | 'ids' | 'ips' | 'soc' | 'threat-intel' | 'soar' | 'custom';
   provider: string;
   enabled: boolean;
-  config: any;
+  config: unknown;
   status: 'connected' | 'disconnected' | 'error';
   lastSync: Date;
   eventsIngested: number;
@@ -485,7 +485,7 @@ class ThreatDetectionManager extends EventEmitter {
   private threats: Map<string, Threat> = new Map();
   private models: Map<string, MLModel> = new Map();
 
-  async analyzeThreat(data: any): Promise<Threat> {
+  async analyzeThreat(data: unknown): Promise<Threat> {
     const threat: Threat = {
       id: \`threat-\${Date.now()}\`,
       type: 'malware',
@@ -500,7 +500,7 @@ class ThreatDetectionManager extends EventEmitter {
     return threat;
   }
 
-  async trainModel(features: any[], labels: any[]): Promise<MLModel> {
+  async trainModel(features: unknown[], labels: unknown[]): Promise<MLModel> {
     const model: MLModel = {
       id: \`model-\${Date.now()}\`,
       name: 'Anomaly Detection Model',

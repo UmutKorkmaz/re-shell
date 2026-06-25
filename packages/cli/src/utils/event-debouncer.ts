@@ -6,7 +6,7 @@ export interface DebouncedEvent {
   type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
   path: string;
   timestamp: number;
-  stats?: any;
+  stats?: unknown;
 }
 
 export interface BatchedEvents {
@@ -63,7 +63,7 @@ export class EventDebouncer extends EventEmitter {
   }
 
   // Add file system event to debouncer
-  addEvent(type: string, path: string, stats?: any): void {
+  addEvent(type: string, path: string, stats?: unknown): void {
     const event: DebouncedEvent = {
       id: this.generateEventId(),
       type: type as DebouncedEvent['type'],
@@ -305,7 +305,7 @@ export class EventDebouncer extends EventEmitter {
 
     // Check file size (if stats available)
     if (event.stats && (filter.minFileSize || filter.maxFileSize)) {
-      const fileSize = event.stats.size || 0;
+      const fileSize = (event.stats as { size?: number }).size || 0;
       
       if (filter.minFileSize && fileSize < filter.minFileSize) {
         return false;

@@ -374,14 +374,14 @@ export interface RiskTrend {
 export interface ReportChart {
   type: 'bar' | 'line' | 'pie' | 'heatmap' | 'scatter';
   title: string;
-  data: any;
+  data: unknown;
   config?: Record<string, unknown>;
 }
 
 export interface ReportFilter {
   field: string;
   operator: 'eq' | 'neq' | 'in' | 'not-in' | 'gt' | 'lt' | 'contains';
-  value: any;
+  value: unknown;
 }
 
 export interface RiskThreshold {

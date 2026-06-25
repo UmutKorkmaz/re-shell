@@ -83,7 +83,7 @@ export interface LogSource {
 export interface LogFilter {
   field: string;
   operator: 'equals' | 'not-equals' | 'contains' | 'not-contains' | 'regex' | 'gt' | 'lt' | 'in' | 'not-in';
-  value: any;
+  value: unknown;
   caseSensitive?: boolean;
 }
 
@@ -104,7 +104,7 @@ export interface RetentionCondition {
   type: 'severity' | 'source' | 'user' | 'custom';
   field: string;
   operator: string;
-  value: any;
+  value: unknown;
 }
 
 export interface AuditEntry {
@@ -176,7 +176,7 @@ export interface AlertCondition {
   type: 'event-type' | 'severity' | 'frequency' | 'pattern' | 'anomaly' | 'custom';
   field?: string;
   operator: string;
-  value: any;
+  value: unknown;
   timeWindow?: number; // minutes
 }
 

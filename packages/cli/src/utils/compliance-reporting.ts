@@ -681,9 +681,9 @@ class ComplianceReportingManager extends EventEmitter {
     ];
   }
 
-  private calculateScore(controls: any[], findings: Finding[]): number {
+  private calculateScore(controls: unknown[], findings: Finding[]): number {
     const totalControls = controls.length;
-    const compliantControls = controls.filter((c: any) => c.status === 'compliant').length;
+    const compliantControls = controls.filter((c: unknown) => c.status === 'compliant').length;
     const criticalFindings = findings.filter(f => f.severity === 'critical').length;
 
     let score = (compliantControls / totalControls) * 100;
