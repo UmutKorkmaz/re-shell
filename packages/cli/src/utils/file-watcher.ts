@@ -51,10 +51,10 @@ export interface WatchOptions {
   platformOptimizations?: boolean;
   fallbackOptions?: Partial<WatcherFallbackOptions>;
   platformSpecific?: {
-    darwin?: any;
-    linux?: any;
-    win32?: any;
-    [key: string]: any;
+    darwin?: unknown;
+    linux?: unknown;
+    win32?: unknown;
+    [key: string]: unknown;
   };
 }
 
@@ -647,7 +647,7 @@ export class FileWatcher extends EventEmitter {
     activeTimers: number;
     activeBatches: number;
     totalFilters: number;
-    options: any;
+    options: unknown;
   } {
     return this.eventDebouncer.getStatistics();
   }

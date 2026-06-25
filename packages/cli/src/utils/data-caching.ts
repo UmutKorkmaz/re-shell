@@ -155,10 +155,10 @@ export interface CacheStats {
 export class ${toPascalCase(config.serviceName)}DataCache {
   private cache: Map<string, CacheEntry>;
   private stats: CacheStats;
-  private config: any;
+  private config: unknown;
   private timers: Map<string, NodeJS.Timeout>;
 
-  constructor(config: any) {
+  constructor(config: unknown) {
     this.cache = new Map();
     this.stats = {
       hits: 0,
@@ -527,7 +527,7 @@ export class ${toPascalCase(config.serviceName)}DataCache {
 }
 
 // Factory function
-export function createDataCache(config: any) {
+export function createDataCache(config: unknown) {
   return new ${toPascalCase(config.serviceName)}DataCache(config);
 }
 
@@ -1104,7 +1104,7 @@ func main() {
 // Write generated files
 export async function writeCachingFiles(
   serviceName: string,
-  integration: any,
+  integration: { files: Array<{ path: string; content: string }> },
   outputDir: string,
   language: string
 ): Promise<void> {
@@ -1170,7 +1170,7 @@ export async function displayCachingConfig(config: CachingConfig): Promise<void>
 }
 
 // Generate BUILD.md
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: { files: Array<{ path: string; content: string }> }, language: string): string {
   const toPascalCase = (str: string) =>
     str.replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase()).replace(/[-_]/g, '');
 

@@ -148,7 +148,7 @@ export function generateTypeScriptGCPCloud(config: GCPCloudConfig): string {
   code += '  private projectName: string;\n';
   code += '  private region: string;\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectId = options.projectId || process.env.GCP_PROJECT_ID || \'' + config.projectId + '\';\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.region = options.region || \'' + config.gkeConfig.region + '\';\n';
@@ -182,7 +182,7 @@ export function generateTypeScriptGCPCloud(config: GCPCloudConfig): string {
   code += '    try {\n';
   code += '      execSync(cmd, { stdio: \'inherit\' });\n';
   code += '      console.log(\'[GCPCloud] ✓ GKE cluster deployed\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[GCPCloud] ✗ Failed to deploy GKE:\', error.message);\n';
   code += '      throw error;\n';
   code += '    }\n';
@@ -198,7 +198,7 @@ export function generateTypeScriptGCPCloud(config: GCPCloudConfig): string {
   code += '    try {\n';
   code += '      execSync(cmd, { stdio: \'pipe\' });\n';
   code += '      console.log(\'[GCPCloud] ✓ Artifact Registry deployed\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[GCPCloud] ✗ Failed to deploy Artifact Registry:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -212,7 +212,7 @@ export function generateTypeScriptGCPCloud(config: GCPCloudConfig): string {
   code += '    try {\n';
   code += '      execSync(triggerCmd, { stdio: \'pipe\' });\n';
   code += '      console.log(\'[GCPCloud] ✓ Cloud Build trigger created\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[GCPCloud] Failed to create Cloud Build trigger:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -231,7 +231,7 @@ export function generateTypeScriptGCPCloud(config: GCPCloudConfig): string {
   code += '    try {\n';
   code += '      execSync(cmd, { stdio: \'pipe\' });\n';
   code += '      console.log(\'[GCPCloud] ✓ Credentials configured\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[GCPCloud] ✗ Failed to get credentials:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
