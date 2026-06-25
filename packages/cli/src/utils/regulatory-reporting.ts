@@ -158,13 +158,13 @@ export interface DashboardFilter {
   field: string;
   type: 'dropdown' | 'date-range' | 'text' | 'multi-select' | 'custom';
   options?: FilterOption[];
-  defaultValue?: any;
+  defaultValue?: unknown;
   required: boolean;
 }
 
 export interface FilterOption {
   label: string;
-  value: any;
+  value: unknown;
 }
 
 export interface DashboardLayout {
@@ -458,7 +458,7 @@ export interface WorkflowAction {
   dependencies: string[];
   completed: boolean;
   completedAt?: Date;
-  result?: any;
+  result?: unknown;
 }
 
 export interface WorkflowApprover {
@@ -507,7 +507,7 @@ export interface AlertCondition {
   type: 'threshold' | 'trend' | 'pattern' | 'compliance' | 'deadline' | 'custom';
   field: string;
   operator: 'gt' | 'lt' | 'eq' | 'gte' | 'lte' | 'contains' | 'regex' | 'in' | 'not-in';
-  value: any;
+  value: unknown;
   timeWindow?: number; // minutes
 }
 

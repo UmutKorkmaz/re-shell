@@ -290,7 +290,7 @@ export function generateTypeScriptCloudDatabase(config: CloudDatabaseConfig): st
   code += '  private engine: string;\n';
   code += '  private providers: string[];\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.engine = options.engine || \'' + config.engine + '\';\n';
@@ -309,7 +309,7 @@ export function generateTypeScriptCloudDatabase(config: CloudDatabaseConfig): st
     code += '      execSync(cmd, { stdio: \'inherit\' });\n';
     code += '      console.log(\'[CloudDatabase] ✓ AWS RDS deployed\');\n';
     code += '      this.emit(\'deployed\', \'aws\');\n';
-    code += '    } catch (error: any) {\n';
+    code += '    } catch (error: unknown) {\n';
     code += '      console.error(\'[CloudDatabase] ✗ AWS RDS deployment failed:\', error.message);\n';
     code += '      throw error;\n';
     code += '    }\n';
@@ -327,7 +327,7 @@ export function generateTypeScriptCloudDatabase(config: CloudDatabaseConfig): st
     code += '      execSync(cmd, { stdio: \'inherit\' });\n';
     code += '      console.log(\'[CloudDatabase] ✓ Azure Cosmos DB deployed\');\n';
     code += '      this.emit(\'deployed\', \'azure\');\n';
-    code += '    } catch (error: any) {\n';
+    code += '    } catch (error: unknown) {\n';
     code += '      console.error(\'[CloudDatabase] ✗ Azure Cosmos DB deployment failed:\', error.message);\n';
     code += '      throw error;\n';
     code += '    }\n';
@@ -345,7 +345,7 @@ export function generateTypeScriptCloudDatabase(config: CloudDatabaseConfig): st
     code += '      execSync(cmd, { stdio: \'inherit\' });\n';
     code += '      console.log(\'[CloudDatabase] ✓ GCP Cloud SQL deployed\');\n';
     code += '      this.emit(\'deployed\', \'gcp\');\n';
-    code += '    } catch (error: any) {\n';
+    code += '    } catch (error: unknown) {\n';
     code += '      console.error(\'[CloudDatabase] ✗ GCP Cloud SQL deployment failed:\', error.message);\n';
     code += '      throw error;\n';
     code += '    }\n';

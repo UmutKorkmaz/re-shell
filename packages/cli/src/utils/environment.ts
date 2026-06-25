@@ -379,7 +379,7 @@ export class EnvironmentManager {
 
   // Compare environments
   async compareEnvironments(env1: string, env2: string): Promise<{
-    variables: { added: string[]; removed: string[]; changed: Array<{key: string; from: any; to: any}> };
+    variables: { added: string[]; removed: string[]; changed: Array<{key: string; from: unknown; to: unknown}> };
     build: Record<string, { from: unknown; to: unknown }>;
     deployment: Record<string, { from: unknown; to: unknown }>;
   }> {
@@ -428,13 +428,13 @@ export class EnvironmentManager {
     };
   }
 
-  private compareObjects(obj1: any, obj2: any): { added: string[]; removed: string[]; changed: Array<{key: string; from: any; to: any}> } {
+  private compareObjects(obj1: unknown, obj2: unknown): { added: string[]; removed: string[]; changed: Array<{key: string; from: unknown; to: unknown}> } {
     const keys1 = new Set(Object.keys(obj1));
     const keys2 = new Set(Object.keys(obj2));
     
     const added = Array.from(keys2).filter(key => !keys1.has(key));
     const removed = Array.from(keys1).filter(key => !keys2.has(key));
-    const changed: Array<{key: string; from: any; to: any}> = [];
+    const changed: Array<{key: string; from: unknown; to: unknown}> = [];
     
     for (const key of keys1) {
       if (keys2.has(key) && obj1[key] !== obj2[key]) {
@@ -445,7 +445,7 @@ export class EnvironmentManager {
     return { added, removed, changed };
   }
 
-  private diffObjects(obj1: any, obj2: any): Record<string, { from: unknown; to: unknown }> {
+  private diffObjects(obj1: unknown, obj2: unknown): Record<string, { from: unknown; to: unknown }> {
     const diff: Record<string, { from: unknown; to: unknown }> = {};
     const allKeys = new Set([...Object.keys(obj1), ...Object.keys(obj2)]);
     

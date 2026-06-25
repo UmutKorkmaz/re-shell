@@ -78,7 +78,7 @@ export function generateTypeScriptMultiCluster(config: MultiClusterConfig): stri
   code += '  private clusters: Cluster[];\n';
   code += '  private strategy: \'active-active\' | \'active-passive\' | \'geo-distributed\';\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.clusters = options.clusters || [];\n';
   code += '    this.strategy = options.strategy || \'active-passive\';\n';
@@ -100,7 +100,7 @@ export function generateTypeScriptMultiCluster(config: MultiClusterConfig): stri
   code += '        });\n\n';
 
   code += '        console.log(`[Multi-Cluster] ✓ Deployed to ${cluster.name}`);\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[Multi-Cluster] ✗ Failed to deploy to ${cluster.name}:`, error.message);\n';
   code += '      }\n';
   code += '    }\n\n';
@@ -124,11 +124,11 @@ export function generateTypeScriptMultiCluster(config: MultiClusterConfig): stri
   code += '        });\n\n';
 
   code += '        const nodes = JSON.parse(result);\n';
-  code += '        const healthy = nodes.items?.every((node: any) => node.status.conditions?.some((c: any) => c.type === \'Ready\' && c.status === \'True\')) || false;\n\n';
+  code += '        const healthy = nodes.items?.every((node: unknown) => node.status.conditions?.some((c: unknown) => c.type === \'Ready\' && c.status === \'True\')) || false;\n\n';
 
   code += '        healthStatus.set(cluster.name, healthy);\n';
   code += '        console.log(`[Multi-Cluster] ${cluster.name}: ${healthy ? \'Healthy\' : \'Unhealthy\'}`);\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        healthStatus.set(cluster.name, false);\n';
   code += '        console.error(`[Multi-Cluster] ${cluster.name}: Error - ${error.message}`);\n';
   code += '      }\n';

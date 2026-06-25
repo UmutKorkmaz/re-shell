@@ -23,9 +23,9 @@ export interface TemplateVariable {
   name: string;
   description?: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
-  default?: any;
+  default?: unknown;
   required?: boolean;
-  enum?: any[];
+  enum?: unknown[];
   pattern?: string;
 }
 
@@ -430,7 +430,7 @@ export class WorkspaceTemplateManager {
   }
 
   // Type validation
-  private isValidType(value: any, type: string): boolean {
+  private isValidType(value: unknown, type: string): boolean {
     switch (type) {
       case 'string':
         return typeof value === 'string';
@@ -448,7 +448,7 @@ export class WorkspaceTemplateManager {
   }
 
   // Variable substitution
-  private substituteVariables(obj: any, variables: Record<string, any>): any {
+  private substituteVariables(obj: unknown, variables: Record<string, any>): unknown {
     if (typeof obj === 'string') {
       return this.substituteString(obj, variables);
     }

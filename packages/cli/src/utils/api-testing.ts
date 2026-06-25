@@ -27,9 +27,9 @@ export interface APITestCase {
   path: string;
   description?: string;
   headers?: Record<string, string>;
-  requestBody?: any;
+  requestBody?: unknown;
   expectedStatus: number;
-  expectedResponse?: any;
+  expectedResponse?: unknown;
   authRequired?: boolean;
   tags?: string[];
 }
@@ -56,7 +56,7 @@ export interface LoadTestScenario {
   requests: Array<{
     method: string;
     path: string;
-    body?: any;
+    body?: unknown;
     headers?: Record<string, string>;
     expectedStatus?: number;
   }>;
@@ -540,7 +540,7 @@ import { setupDatabase, teardownDatabase } from './helpers';
 
 describe('API Integration Tests', () => {
   let app: Application;
-  let db: any;
+  let db: unknown;
 
   beforeAll(async () => {
     db = await setupDatabase();

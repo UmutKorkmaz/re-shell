@@ -87,7 +87,7 @@ app.get('/api/v1/users', getUsersV1);
 app.get('/api/v2/users', getUsersV2);
 
 // Header-based versioning middleware
-function versionMiddleware(req: any, res: any, next: any) {
+function versionMiddleware(req: unknown, res: unknown, next: unknown) {
   const acceptHeader = req.headers['accept'];
   const version = acceptHeader?.match(/version=(\\d+)/)?.[1] || '1';
   req.apiVersion = version;
@@ -300,7 +300,7 @@ export function generateVersionedRoute(framework: string, options: {
 }
 
 // Detect breaking changes between two API specs
-export function detectBreakingChanges(oldSpec: any, newSpec: any): BreakingChange[] {
+export function detectBreakingChanges(oldSpec: Record<string, unknown>, newSpec: Record<string, unknown>): BreakingChange[] {
   const changes: BreakingChange[] = [];
 
   // Check for removed endpoints
@@ -335,7 +335,7 @@ export function detectBreakingChanges(oldSpec: any, newSpec: any): BreakingChang
         const newParams = newPath.get.parameters;
 
         for (const newParam of newParams) {
-          const oldParam = oldParams.find((p: any) => p.name === newParam.name);
+          const oldParam = oldParams.find((p: { name: string }) => p.name === newParam.name);
           if (!oldParam && newParam.required) {
             changes.push({
               field: newParam.name,
@@ -356,9 +356,11 @@ export function detectBreakingChanges(oldSpec: any, newSpec: any): BreakingChang
   }
 
   // Check for removed schema properties
-  if (oldSpec.components?.schemas && newSpec.components?.schemas) {
-    for (const [schemaName, oldSchema] of Object.entries(oldSpec.components.schemas)) {
-      const newSchema = newSpec.components.schemas[schemaName] as { properties?: Record<string, unknown> };
+  const oldComponents = oldSpec.components as Record<string, unknown> | undefined;
+  const newComponents = newSpec.components as Record<string, unknown> | undefined;
+  if (oldComponents?.schemas && newComponents?.schemas) {
+    for (const [schemaName, oldSchema] of Object.entries((oldSpec.components as Record<string, unknown>).schemas as Record<string, unknown>)) {
+      const newSchema = ((newSpec.components as Record<string, unknown>).schemas as Record<string, unknown>)[schemaName] as { properties?: Record<string, unknown> };
       if (!newSchema) continue;
 
       const oldSchemaTyped = oldSchema as { properties?: Record<string, unknown>; required?: string[] };
@@ -390,7 +392,13 @@ export function calculateDeprecationTimeline(apiVersion: APIVersion): {
   status: 'active' | 'warning' | 'critical' | 'expired';
 } {
   const now = new Date();
-  const result: any = { status: 'active' as const };
+  const result: {
+    deprecationDate?: Date;
+    sunsetDate?: Date;
+    retirementDate?: Date;
+    daysUntilSunset?: number;
+    status: 'active' | 'warning' | 'critical' | 'expired';
+  } = { status: 'active' };
 
   if (apiVersion.deprecatedAt) {
     result.deprecationDate = new Date(apiVersion.deprecatedAt);

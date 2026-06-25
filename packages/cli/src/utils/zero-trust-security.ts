@@ -258,7 +258,7 @@ export interface TrustIntegration {
   type: 'sso' | 'mfa' | 'iam' | 'device-management' | 'siem' | 'custom';
   provider: IdentityProvider;
   enabled: boolean;
-  config: any;
+  config: unknown;
   status: 'connected' | 'disconnected' | 'error';
   lastSync: Date;
   errorMessage?: string;
@@ -526,7 +526,7 @@ interface AccessRequest {
   identityId: string;
   resource: string;
   action: string;
-  context: any;
+  context: unknown;
 }
 
 interface AccessDecision {
@@ -542,7 +542,7 @@ class ZeroTrustManager extends EventEmitter {
   private policies: Map<string, any> = new Map();
   private sessions: Map<string, any> = new Map();
 
-  async verifyIdentity(identityId: string, credentials: any): Promise<boolean> {
+  async verifyIdentity(identityId: string, credentials: unknown): Promise<boolean> {
     const identity = this.identities.get(identityId);
     if (!identity) return false;
 
@@ -557,7 +557,7 @@ class ZeroTrustManager extends EventEmitter {
     return verified;
   }
 
-  async calculateTrustScore(identityId: string, context: any): Promise<number> {
+  async calculateTrustScore(identityId: string, context: unknown): Promise<number> {
     const identity = this.identities.get(identityId);
     if (!identity) return 0;
 

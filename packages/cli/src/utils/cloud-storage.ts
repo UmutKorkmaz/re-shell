@@ -357,7 +357,7 @@ export function generateTypeScriptCloudStorage(config: CloudStorageConfig): stri
   code += '  private projectName: string;\n';
   code += '  private providers: string[];\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.providers = options.providers || ' + JSON.stringify(config.providers) + ';\n';
@@ -373,7 +373,7 @@ export function generateTypeScriptCloudStorage(config: CloudStorageConfig): stri
     code += '      execSync(cmd, { stdio: \'inherit\' });\n';
     code += '      console.log(\'[CloudStorage] ✓ AWS S3 deployed\');\n';
     code += '      this.emit(\'deployed\', \'aws\');\n';
-    code += '    } catch (error: any) {\n';
+    code += '    } catch (error: unknown) {\n';
     code += '      console.error(\'[CloudStorage] ✗ AWS S3 deployment failed:\', error.message);\n';
     code += '      throw error;\n';
     code += '    }\n';
@@ -390,7 +390,7 @@ export function generateTypeScriptCloudStorage(config: CloudStorageConfig): stri
     code += '      execSync(cmd, { stdio: \'inherit\' });\n';
     code += '      console.log(\'[CloudStorage] ✓ Azure Blob Storage deployed\');\n';
     code += '      this.emit(\'deployed\', \'azure\');\n';
-    code += '    } catch (error: any) {\n';
+    code += '    } catch (error: unknown) {\n';
     code += '      console.error(\'[CloudStorage] ✗ Azure Blob Storage deployment failed:\', error.message);\n';
     code += '      throw error;\n';
     code += '    }\n';
@@ -407,7 +407,7 @@ export function generateTypeScriptCloudStorage(config: CloudStorageConfig): stri
     code += '      execSync(cmd, { stdio: \'inherit\' });\n';
     code += '      console.log(\'[CloudStorage] ✓ GCP Cloud Storage deployed\');\n';
     code += '      this.emit(\'deployed\', \'gcp\');\n';
-    code += '    } catch (error: any) {\n';
+    code += '    } catch (error: unknown) {\n';
     code += '      console.error(\'[CloudStorage] ✗ GCP Cloud Storage deployment failed:\', error.message);\n';
     code += '      throw error;\n';
     code += '    }\n';
@@ -441,7 +441,7 @@ export function generateTypeScriptCloudStorage(config: CloudStorageConfig): stri
     code += '  }\n\n';
   }
 
-  code += '  getStorageInfo(provider: string): any {\n';
+  code += '  getStorageInfo(provider: string): unknown {\n';
   code += '    switch (provider) {\n';
   code += '      case \'aws\':\n';
   code += '        return {\n';

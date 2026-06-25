@@ -371,7 +371,7 @@ async function applyTemplate(options: WorkspaceTemplateCommandOptions, spinner?:
                   varDef.type === 'boolean' ? 'confirm' : 'text',
             name: 'value',
             message: `${varDef.name}${varDef.description ? ` (${varDef.description})` : ''}:`,
-            initial: varDef.default
+            initial: varDef.default as string | number | boolean
           });
 
           if (response.value !== undefined) {

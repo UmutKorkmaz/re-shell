@@ -70,7 +70,7 @@ export function generateTypeScriptServiceMesh(config: ServiceMeshConfig): string
   code += '  private enableMTLS: boolean;\n';
   code += '  private enableTrafficManagement: boolean;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.mesh = options.mesh || \'istio\';\n';
   code += '    this.services = options.services || [];\n';
@@ -105,7 +105,7 @@ export function generateTypeScriptServiceMesh(config: ServiceMeshConfig): string
   code += '      });\n';
 
   code += '      console.log(\'[ServiceMesh] ✓ Istio installed\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[ServiceMesh] Failed to install Istio:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -127,7 +127,7 @@ export function generateTypeScriptServiceMesh(config: ServiceMeshConfig): string
   code += '      });\n\n';
 
   code += '      console.log(\'[ServiceMesh] ✓ Linkerd installed\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[ServiceMesh] Failed to install Linkerd:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -245,7 +245,7 @@ export function generateTypeScriptServiceMesh(config: ServiceMeshConfig): string
   code += '    console.log(\'[ServiceMesh] ✓ mTLS enabled\');\n';
   code += '  }\n\n';
 
-  code += '  private toYaml(obj: any): string {\n';
+  code += '  private toYaml(obj: unknown): string {\n';
   code += '    const yaml = require(\'js-yaml\');\n';
   code += '    return yaml.dump(obj);\n';
   code += '  }\n';

@@ -12,7 +12,7 @@ export interface ConfigChangeEvent {
   path: string;
   configType: 'global' | 'project' | 'workspace';
   timestamp: Date;
-  config?: any;
+  config?: unknown;
   error?: Error;
 }
 
@@ -26,7 +26,7 @@ export interface HotReloadOptions {
   verbose?: boolean;
   includeWorkspaces?: boolean;
   excludePatterns?: string[];
-  profile?: any;
+  profile?: unknown;
   services?: string[];
 }
 
@@ -345,7 +345,7 @@ export class ConfigWatcher extends EventEmitter {
       }
 
       // Load and validate the new configuration
-      let newConfig: any;
+      let newConfig: unknown;
       
       switch (configType) {
         case 'global':
@@ -364,7 +364,7 @@ export class ConfigWatcher extends EventEmitter {
 
       // Validate configuration if enabled
       if (this.options.validateOnChange) {
-        await this.validateConfig(newConfig, configType);
+        await this.validateConfig(newConfig as Record<string, unknown>, configType);
       }
 
       // Check if configuration actually changed
@@ -399,7 +399,7 @@ export class ConfigWatcher extends EventEmitter {
     }
   }
 
-  private async validateConfig(config: any, configType: string): Promise<void> {
+  private async validateConfig(config: Record<string, unknown>, configType: string): Promise<void> {
     // Basic validation - can be extended with schema validation
     if (!config || typeof config !== 'object') {
       throw new ValidationError(`Invalid ${configType} configuration: must be an object`);

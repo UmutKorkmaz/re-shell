@@ -175,7 +175,7 @@ export function generateTypeScriptWorkloadBalancing(config: WorkloadBalancingCon
   code += '  private tasks: Map<string, Task> = new Map();\n';
   code += '  private strategy: string;\n';
   code += '  private optimizationGoal: string;\n\n';
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.strategy = options.strategy || \'skill-based\';\n';
   code += '    this.optimizationGoal = options.optimizationGoal || \'balanced\';\n';
@@ -260,8 +260,8 @@ export function generateTypeScriptWorkloadBalancing(config: WorkloadBalancingCon
   code += '    // This is a placeholder for the actual implementation\n';
   code += '    await this.skillBasedAllocation();\n';
   code += '  }\n\n';
-  code += '  getWorkloadBalance(): any[] {\n';
-  code += '    const balances: any[] = [];\n';
+  code += '  getWorkloadBalance(): unknown[] {\n';
+  code += '    const balances: unknown[] = [];\n';
   code += '    for (const resource of this.resources.values()) {\n';
   code += '      const resourceTasks = Array.from(this.tasks.values()).filter(\n';
   code += '        t => t.assignedTo === resource.id\n';
@@ -282,7 +282,7 @@ export function generateTypeScriptWorkloadBalancing(config: WorkloadBalancingCon
   code += '  }\n\n';
   code += '  async generateRecommendations(): Promise<any[]> {\n';
   code += '    const balances = this.getWorkloadBalance();\n';
-  code += '    const recommendations: any[] = [];\n\n';
+  code += '    const recommendations: unknown[] = [];\n\n';
   code += '    for (const balance of balances) {\n';
   code += '      if (balance.overAllocated) {\n';
   code += '        recommendations.push({\n';

@@ -329,7 +329,7 @@ export interface ThreatIndicator {
 export interface EventTimeline {
   timestamp: Date;
   event: string;
-  details: any;
+  details: unknown;
   source: string;
 }
 
@@ -427,7 +427,7 @@ export interface SecurityAlert {
 export interface SecurityIntegration {
   tool: 'trivy' | 'falco' | 'opa' | 'istio' | 'calico' | 'kube-bench';
   enabled: boolean;
-  config: any;
+  config: unknown;
   status: 'connected' | 'disconnected' | 'error';
   lastSync?: Date;
 }
@@ -820,7 +820,7 @@ export function generateTypeScript(config: ReturnType<typeof containerSecurity>)
   ts += `  severity: string;\n`;
   ts += `  score: number;\n`;
   ts += `  layerId: string;\n`;
-  ts += `  package: any;\n`;
+  ts += `  package: unknown;\n`;
   ts += `  fixedIn?: string;\n`;
   ts += `  exploitAvailable: boolean;\n`;
   ts += `  inWild: boolean;\n`;
@@ -841,9 +841,9 @@ export function generateTypeScript(config: ReturnType<typeof containerSecurity>)
   ts += `class ContainerSecurityManager extends EventEmitter {\n`;
   ts += `  private vulnerabilities: Map<string, ContainerVulnerability> = new Map();\n`;
   ts += `  private behavioralAnalysis: BehavioralAnalysis[] = [];\n`;
-  ts += `  private config: any;\n\n`;
+  ts += `  private config: unknown;\n\n`;
 
-  ts += `  constructor(options: any = {}) {\n`;
+  ts += `  constructor(options: unknown = {}) {\n`;
   ts += `    super();\n`;
   ts += `    this.config = options;\n`;
   ts += `  }\n\n`;

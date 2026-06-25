@@ -218,7 +218,7 @@ export interface RuleParameter {
   name: string;
   description: string;
   type: 'string' | 'integer' | 'float' | 'boolean' | 'text';
-  defaultValue: any;
+  defaultValue: unknown;
 }
 
 export interface TrainingData {
@@ -288,7 +288,7 @@ export interface AIModel {
   lastTrained: Date;
   status: 'training' | 'deployed' | 'deprecated';
   features: string[];
-  config: any;
+  config: unknown;
 }
 
 export interface AnalysisIntegration {
@@ -338,7 +338,7 @@ export interface ReportSection {
 export interface ReportChart {
   type: 'bar' | 'line' | 'pie' | 'heatmap';
   title: string;
-  data: any;
+  data: unknown;
   order: number;
 }
 
@@ -700,9 +700,9 @@ export function generateTypeScript(config: ReturnType<typeof codeSecurityAnalysi
   ts += `class CodeSecurityManager extends EventEmitter {\n`;
   ts += `  private issues: Map<string, SecurityIssue> = new Map();\n`;
   ts += `  private scanResults: ScanResult[] = [];\n`;
-  ts += `  private config: any;\n\n`;
+  ts += `  private config: unknown;\n\n`;
 
-  ts += `  constructor(options: any = {}) {\n`;
+  ts += `  constructor(options: unknown = {}) {\n`;
   ts += `    super();\n`;
   ts += `    this.config = options;\n`;
   ts += `  }\n\n`;
