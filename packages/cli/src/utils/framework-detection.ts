@@ -43,13 +43,21 @@ export interface ProjectRecommendations {
 }
 
 // Framework detection patterns
-const FRAMEWORK_PATTERNS: Record<string, {
+interface FrameworkRecommendation {
+  port: number;
+  hmr?: boolean;
+  buildTarget?: string;
+}
+
+interface FrameworkPattern {
   files: string[];
   dependencies: string[];
-  devDependencies: string[];
+  devDependencies?: string[];
   language: string;
-  recommended?: any;
-}> = {
+  recommended?: FrameworkRecommendation;
+}
+
+const FRAMEWORK_PATTERNS: Record<string, FrameworkPattern> = {
   react: {
     files: ['src/App.jsx', 'src/App.js', 'src/App.tsx', 'public/index.html'],
     dependencies: ['react', 'react-dom'],
@@ -178,7 +186,7 @@ const BACKEND_FRAMEWORKS: Record<string, {
   files: string[];
   dependencies: string[];
   language: string;
-  recommended?: any;
+  recommended?: FrameworkRecommendation;
 }> = {
   express: {
     files: ['src/index.js', 'server.js'],
@@ -401,7 +409,7 @@ async function detectPackageManager(cwd: string): Promise<'npm' | 'yarn' | 'pnpm
   return 'unknown';
 }
 
-async function detectBuildTool(cwd: string, packageJson: any): Promise<'webpack' | 'vite' | 'rollup' | 'esbuild' | 'tsc' | 'unknown'> {
+async function detectBuildTool(cwd: string, packageJson: Record<string, any>): Promise<'webpack' | 'vite' | 'rollup' | 'esbuild' | 'tsc' | 'unknown'> {
   const allDeps = {
     ...packageJson.dependencies,
     ...packageJson.devDependencies,
@@ -416,7 +424,7 @@ async function detectBuildTool(cwd: string, packageJson: any): Promise<'webpack'
   return 'unknown';
 }
 
-async function detectTestingFramework(cwd: string, packageJson: any): Promise<'jest' | 'vitest' | 'mocha' | 'jasmine' | 'unknown'> {
+async function detectTestingFramework(cwd: string, packageJson: Record<string, any>): Promise<'jest' | 'vitest' | 'mocha' | 'jasmine' | 'unknown'> {
   const allDeps = {
     ...packageJson.dependencies,
     ...packageJson.devDependencies,
@@ -432,8 +440,8 @@ async function detectTestingFramework(cwd: string, packageJson: any): Promise<'j
 
 function calculateFrameworkConfidence(
   cwd: string,
-  packageJson: any,
-  pattern: any
+  packageJson: Record<string, any>,
+  pattern: FrameworkPattern
 ): number {
   let confidence = 0;
   let totalChecks = 0;

@@ -8,6 +8,7 @@ import { getTypeORMConfig } from '../templates/shared/typeorm-config';
 import { getMongooseConfig } from '../templates/shared/mongoose-config';
 import { getFrameworkConfig } from './framework';
 import { listBackendTemplates, getBackendTemplate } from '../templates/backend/index';
+import type { BackendTemplate } from '../templates/types';
 
 export type DatabaseType = 'prisma' | 'typeorm' | 'mongoose' | 'none';
 
@@ -68,7 +69,7 @@ export function getDatabaseChoices() {
 export function getBackendTemplateChoices() {
   const templates = listBackendTemplates();
 
-  return templates.map((t: any) => ({
+  return templates.map((t: BackendTemplate) => ({
     title: `${t.displayName} (${t.language})`,
     value: t.id,
     description: t.description?.substring(0, 100) + (t.description?.length > 100 ? '...' : ''),
@@ -668,8 +669,8 @@ export function getPopularBackendFrameworks() {
   const templates = listBackendTemplates();
 
   return templates
-    .filter((t: any) => popular.includes(t.id))
-    .map((t: any) => ({
+    .filter((t: BackendTemplate) => popular.includes(t.id))
+    .map((t: BackendTemplate) => ({
       title: `${t.displayName} (${t.language})`,
       value: t.id,
       description: t.description?.substring(0, 80) + '...',
@@ -756,7 +757,7 @@ function getLanguageDescription(lang: string): string {
 }
 
 // Normalize functions to ensure consistent interface
-function normalizePrismaConfig(config: any): DatabaseConfig {
+function normalizePrismaConfig(config: Record<string, any>): DatabaseConfig {
   return {
     type: 'prisma',
     dependencies: config.dependencies || {},
@@ -767,7 +768,7 @@ function normalizePrismaConfig(config: any): DatabaseConfig {
   };
 }
 
-function normalizeTypeORMConfig(config: any): DatabaseConfig {
+function normalizeTypeORMConfig(config: Record<string, any>): DatabaseConfig {
   return {
     type: 'typeorm',
     dependencies: config.dependencies || {},
@@ -778,7 +779,7 @@ function normalizeTypeORMConfig(config: any): DatabaseConfig {
   };
 }
 
-function normalizeMongooseConfig(config: any): DatabaseConfig {
+function normalizeMongooseConfig(config: Record<string, any>): DatabaseConfig {
   return {
     type: 'mongoose',
     dependencies: config.dependencies || {},

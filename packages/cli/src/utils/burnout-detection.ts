@@ -155,12 +155,12 @@ export function generateTypeScriptBurnoutDetection(config: BurnoutDetectionConfi
   code += '  private metricConfigs: Map<string, any> = new Map();\n';
   code += '  private riskThreshold: number;\n';
   code += '  private enableAutomatedInterventions: boolean;\n\n';
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.riskThreshold = options.riskThreshold || 70;\n';
   code += '    this.enableAutomatedInterventions = options.enableAutomatedInterventions || false;\n';
   code += '  }\n\n';
-  code += '  addTeamMember(member: any): void {\n';
+  code += '  addTeamMember(member: unknown): void {\n';
   code += '    this.teamMembers.set(member.memberId, member);\n';
   code += '    this.emit(\'member-added\', member);\n';
   code += '  }\n\n';
@@ -187,7 +187,7 @@ export function generateTypeScriptBurnoutDetection(config: BurnoutDetectionConfi
   code += '    }\n\n';
   code += '    return Math.round(totalScore / weightSum);\n';
   code += '  }\n\n';
-  code += '  assessWellness(memberId: string): any {\n';
+  code += '  assessWellness(memberId: string): unknown {\n';
   code += '    const member = this.teamMembers.get(memberId);\n';
   code += '    if (!member) {\n';
   code += '      throw new Error(`Member not found: ${memberId}`);\n';
@@ -245,8 +245,8 @@ export function generateTypeScriptBurnoutDetection(config: BurnoutDetectionConfi
   code += '    member.interventions.push(intervention);\n';
   code += '    this.emit(\'intervention-triggered\', { memberId, intervention });\n';
   code += '  }\n\n';
-  code += '  generateReport(): any[] {\n';
-  code += '    const report: any[] = [];\n\n';
+  code += '  generateReport(): unknown[] {\n';
+  code += '    const report: unknown[] = [];\n\n';
   code += '    for (const member of this.teamMembers.values()) {\n';
   code += '      report.push({\n';
   code += '        memberId: member.memberId,\n';
@@ -254,7 +254,7 @@ export function generateTypeScriptBurnoutDetection(config: BurnoutDetectionConfi
   code += '        team: member.team,\n';
   code += '        riskLevel: member.overallRiskLevel,\n';
   code += '        riskScore: member.riskScore,\n';
-  code += '        activeInterventions: member.interventions.filter((i: any) => \n';
+  code += '        activeInterventions: member.interventions.filter((i: unknown) => \n';
   code += '          i.status === \'in-progress\' || i.status === \'recommended\'\n';
   code += '        ).length,\n';
   code += '        lastAssessment: member.lastAssessment,\n';

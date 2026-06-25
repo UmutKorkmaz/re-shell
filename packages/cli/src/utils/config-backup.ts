@@ -5,6 +5,7 @@ import * as os from 'os';
 import chalk from 'chalk';
 import { ValidationError } from './error-handler';
 import { configManager } from './config';
+import type { GlobalConfig, ProjectConfig, WorkspaceConfig } from './config';
 
 // Backup metadata interface
 export interface BackupMetadata {
@@ -30,11 +31,11 @@ export interface BackupMetadata {
 export interface BackupData {
   metadata: BackupMetadata;
   configurations: {
-    global?: any;
-    project?: any;
-    workspaces?: Record<string, any>;
-    templates?: any[];
-    environments?: any[];
+    global?: GlobalConfig;
+    project?: ProjectConfig;
+    workspaces?: Record<string, WorkspaceConfig>;
+    templates?: unknown[];
+    environments?: unknown[];
   };
 }
 
@@ -119,7 +120,7 @@ export class ConfigBackupManager {
     }
 
     // Collect templates
-    const templates: any[] = [];
+    const templates: unknown[] = [];
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { templateEngine } = require('./template-engine');
@@ -177,7 +178,7 @@ export class ConfigBackupManager {
     const backupId = this.generateBackupId();
     const timestamp = new Date().toISOString();
 
-    const configurations: any = {};
+    const configurations: Record<string, any> = {};
 
     // Collect specified configurations
     if (options.global) {
