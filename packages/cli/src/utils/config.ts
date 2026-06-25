@@ -341,7 +341,7 @@ export class ConfigManager {
 
   async updateGlobalConfig(updates: Partial<GlobalConfig>): Promise<GlobalConfig> {
     const config = await this.loadGlobalConfig();
-    const updatedConfig = this.mergeConfig(config, updates) as GlobalConfig;
+    const updatedConfig = this.mergeConfig(config as unknown as Record<string, unknown>, updates as unknown as Record<string, unknown>) as unknown as GlobalConfig;
     await this.saveGlobalConfig(updatedConfig);
     return updatedConfig;
   }
@@ -410,7 +410,7 @@ export class ConfigManager {
       if (await fs.pathExists(configPath)) {
         const content = await fs.readFile(configPath, 'utf8');
         const config = yaml.parse(content) as WorkspaceConfig;
-        this.validateWorkspaceConfig(config);
+        this.validateWorkspaceConfig(config as unknown as Record<string, unknown>);
         return config;
       }
     } catch (error) {
@@ -426,7 +426,7 @@ export class ConfigManager {
       const configPath = path.join(workspacePath, CONFIG_PATHS.WORKSPACE_DIR_CONFIG);
       
       await fs.ensureDir(configDir);
-      this.validateWorkspaceConfig(config);
+      this.validateWorkspaceConfig(config as unknown as Record<string, unknown>);
       const content = yaml.stringify(config);
       await fs.writeFile(configPath, content, 'utf8');
     } catch (error) {
@@ -474,7 +474,7 @@ export class ConfigManager {
 
     // Apply project-specific config (overrides global)
     if (projectConfig) {
-      merged = this.mergeConfig(merged, projectConfig);
+      merged = this.mergeConfig(merged as unknown as Record<string, unknown>, projectConfig as unknown as Record<string, unknown>) as unknown as ProjectConfig;
     }
 
     return {
@@ -489,7 +489,7 @@ export class ConfigManager {
     global: GlobalConfig;
     project: ProjectConfig | null;
     workspace: WorkspaceConfig | null;
-    merged: any;
+    merged: Partial<ProjectConfig>;
   }> {
     const { global, project, merged } = await this.getMergedConfig(projectPath);
     const workspaceConfig = await this.loadWorkspaceConfig(workspacePath);
@@ -505,13 +505,13 @@ export class ConfigManager {
       
       // Deep merge complex objects
       if (workspaceConfig.build) {
-        workspaceMerged.build = this.mergeConfig(workspaceMerged.build || {}, workspaceConfig.build);
+        workspaceMerged.build = this.mergeConfig((workspaceMerged.build || {}) as Record<string, unknown>, workspaceConfig.build as Record<string, unknown>) as ProjectConfig['build'];
       }
       if (workspaceConfig.dev) {
-        workspaceMerged.dev = this.mergeConfig(workspaceMerged.dev || {}, workspaceConfig.dev);
+        workspaceMerged.dev = this.mergeConfig((workspaceMerged.dev || {}) as Record<string, unknown>, workspaceConfig.dev as Record<string, unknown>) as ProjectConfig['dev'];
       }
       if (workspaceConfig.quality) {
-        workspaceMerged.quality = this.mergeConfig(workspaceMerged.quality || {}, workspaceConfig.quality);
+        workspaceMerged.quality = this.mergeConfig((workspaceMerged.quality || {}) as Record<string, unknown>, workspaceConfig.quality as Record<string, unknown>) as ProjectConfig['quality'];
       }
     }
 
@@ -564,50 +564,50 @@ export class ConfigManager {
   }
 
   // Validation methods
-  private validateGlobalConfig(config: any): void {
+  private validateGlobalConfig(config: unknown): void {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { validateGlobalConfig } = require('./validation');
     const result = validateGlobalConfig(config);
     
     if (!result.valid) {
       const errorMessages = result.errors
-        .filter((e: any) => e.severity === 'error')
-        .map((e: any) => `${e.field}: ${e.message}`)
+        .filter((e: { severity: string }) => e.severity === 'error')
+        .map((e: { field: string; message: string }) => `${e.field}: ${e.message}`)
         .join('; ');
       throw new ValidationError(`Global configuration validation failed: ${errorMessages}`);
     }
   }
 
-  private validateProjectConfig(config: any): void {
+  private validateProjectConfig(config: unknown): void {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { validateProjectConfig } = require('./validation');
     const result = validateProjectConfig(config);
     
     if (!result.valid) {
       const errorMessages = result.errors
-        .filter((e: any) => e.severity === 'error')
-        .map((e: any) => `${e.field}: ${e.message}`)
+        .filter((e: { severity: string }) => e.severity === 'error')
+        .map((e: { field: string; message: string }) => `${e.field}: ${e.message}`)
         .join('; ');
       throw new ValidationError(`Project configuration validation failed: ${errorMessages}`);
     }
   }
 
-  private validateWorkspaceConfig(config: any): void {
+  private validateWorkspaceConfig(config: Record<string, unknown>): void {
     // Basic workspace config validation
     if (!config.name || typeof config.name !== 'string') {
       throw new ValidationError('Workspace configuration must have a valid name');
     }
-    
-    if (!config.type || !['app', 'package', 'lib', 'tool'].includes(config.type)) {
+
+    if (!config.type || !['app', 'package', 'lib', 'tool'].includes(config.type as string)) {
       throw new ValidationError('Workspace configuration must have a valid type: app, package, lib, or tool');
     }
-    
-    if (config.packageManager && !['npm', 'yarn', 'pnpm', 'bun'].includes(config.packageManager)) {
+
+    if (config.packageManager && !['npm', 'yarn', 'pnpm', 'bun'].includes(config.packageManager as string)) {
       throw new ValidationError('Invalid package manager specified in workspace configuration');
     }
   }
 
-  private validateSchema(obj: any, schema: any, context: string): void {
+  private validateSchema(obj: Record<string, unknown>, schema: Record<string, unknown>, context: string): void {
     // Basic schema validation - can be expanded with a proper validation library
     for (const [key, type] of Object.entries(schema)) {
       if (typeof type === 'string') {
@@ -631,24 +631,24 @@ export class ConfigManager {
         }
       } else if (typeof type === 'object') {
         if (key in obj) {
-          this.validateSchema(obj[key], type, `${context}.${key}`);
+          this.validateSchema(obj[key] as Record<string, unknown>, type as Record<string, unknown>, `${context}.${key}`);
         }
       }
     }
   }
 
   // Deep merge utility
-  private mergeConfig(base: any, override: any): any {
-    const result = { ...base };
-    
+  private mergeConfig(base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...base };
+
     for (const [key, value] of Object.entries(override)) {
       if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-        result[key] = this.mergeConfig(result[key] || {}, value);
+        result[key] = this.mergeConfig((result[key] as Record<string, unknown>) || {}, value as Record<string, unknown>);
       } else {
         result[key] = value;
       }
     }
-    
+
     return result;
   }
 

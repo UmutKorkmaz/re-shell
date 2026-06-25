@@ -8,12 +8,15 @@ import {
   SecurityLevel, 
   getDefaultSecurityPolicy 
 } from './plugin-security';
-import { 
-  Plugin, 
-  PluginRegistration, 
-  PluginContext, 
+import {
+  Plugin,
+  PluginRegistration,
+  PluginContext,
   PluginManifest,
-  PluginPermission 
+  PluginPermission,
+  PluginLogger,
+  PluginHookSystemInterface,
+  PluginUtils
 } from './plugin-system';
 
 // Plugin lifecycle states
@@ -36,7 +39,7 @@ export interface PluginLifecycleEvent {
   oldState: PluginState;
   newState: PluginState;
   timestamp: number;
-  data?: any;
+  data?: unknown;
   error?: Error;
 }
 
@@ -183,7 +186,7 @@ export class PluginLifecycleManager extends EventEmitter {
       const pluginModule = await this.loadPluginModule(registration);
       
       // Validate plugin interface
-      this.validatePluginInterface(pluginModule);
+      this.validatePluginInterface(pluginModule as unknown as Record<string, unknown>);
       
       registration.instance = pluginModule;
       registration.loadTime = Date.now();
@@ -456,12 +459,12 @@ export class PluginLifecycleManager extends EventEmitter {
   }
 
   // Validate plugin interface
-  private validatePluginInterface(plugin: any): void {
+  private validatePluginInterface(plugin: Record<string, unknown>): void {
     if (!plugin || typeof plugin !== 'object') {
       throw new ValidationError('Plugin must export an object');
     }
 
-    if (plugin.manifest && !this.isValidManifest(plugin.manifest)) {
+    if (plugin.manifest && !this.isValidManifest(plugin.manifest as Record<string, unknown>)) {
       throw new ValidationError('Plugin manifest is invalid');
     }
 
@@ -697,18 +700,18 @@ export class PluginLifecycleManager extends EventEmitter {
   }
 
   // Create plugin logger
-  private createLogger(pluginName: string): any {
+  private createLogger(pluginName: string): PluginLogger {
     const prefix = `[${pluginName}]`;
     return {
-      debug: (msg: string, ...args: any[]) => console.debug(chalk.gray(`${prefix} ${msg}`), ...args),
-      info: (msg: string, ...args: any[]) => console.info(chalk.blue(`${prefix} ${msg}`), ...args),
-      warn: (msg: string, ...args: any[]) => console.warn(chalk.yellow(`${prefix} ${msg}`), ...args),
-      error: (msg: string, ...args: any[]) => console.error(chalk.red(`${prefix} ${msg}`), ...args)
+      debug: (msg: string, ...args: unknown[]) => console.debug(chalk.gray(`${prefix} ${msg}`), ...args),
+      info: (msg: string, ...args: unknown[]) => console.info(chalk.blue(`${prefix} ${msg}`), ...args),
+      warn: (msg: string, ...args: unknown[]) => console.warn(chalk.yellow(`${prefix} ${msg}`), ...args),
+      error: (msg: string, ...args: unknown[]) => console.error(chalk.red(`${prefix} ${msg}`), ...args)
     };
   }
 
   // Create hook system (placeholder - will be injected from main system)
-  private createHookSystem(): any {
+  private createHookSystem(): PluginHookSystemInterface {
     return {
       register: () => 'placeholder',
       unregister: () => false,
@@ -723,7 +726,7 @@ export class PluginLifecycleManager extends EventEmitter {
   }
 
   // Create utils
-  private createUtils(): any {
+  private createUtils(): PluginUtils {
     return {
       path,
       fs,
@@ -756,7 +759,7 @@ export class PluginLifecycleManager extends EventEmitter {
   }
 
   // Validate manifest
-  private isValidManifest(manifest: any): boolean {
+  private isValidManifest(manifest: Record<string, unknown>): boolean {
     return manifest && 
            typeof manifest.name === 'string' && 
            typeof manifest.version === 'string';
@@ -783,7 +786,7 @@ export class PluginLifecycleManager extends EventEmitter {
   }
 
   // Get lifecycle statistics
-  getLifecycleStats(): any {
+  getLifecycleStats(): unknown {
     const stats = {
       total: this.plugins.size,
       byState: {} as Record<string, number>,
