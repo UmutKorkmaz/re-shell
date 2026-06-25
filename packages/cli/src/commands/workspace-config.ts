@@ -235,14 +235,14 @@ async function setWorkspaceConfigValue(
   }
 
   // Parse value
-  let parsedValue: any;
+  let parsedValue: unknown;
   try {
     parsedValue = JSON.parse(value);
   } catch {
     parsedValue = value;
   }
 
-  setNestedValue(workspaceConfig, key, parsedValue);
+  setNestedValue(workspaceConfig as unknown as Record<string, unknown>, key, parsedValue);
   await configManager.saveWorkspaceConfig(workspaceConfig, workspacePath);
   
   if (spinner) {
@@ -613,7 +613,7 @@ async function showInheritanceChain(workspacePath: string): Promise<void> {
 }
 
 // Utility functions
-function displayConfigSection(config: any, indent = 0): void {
+function displayConfigSection(config: unknown, indent = 0): void {
   const prefix = '  '.repeat(indent);
   
   for (const [key, value] of Object.entries(config)) {
@@ -630,16 +630,16 @@ function displayConfigSection(config: any, indent = 0): void {
   }
 }
 
-function getNestedValue(obj: any, path: string): any {
+function getNestedValue(obj: unknown, path: string): unknown {
   return path.split('.').reduce((current, key) => current?.[key], obj);
 }
 
-function setNestedValue(obj: any, path: string, value: any): void {
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
   const keys = path.split('.');
   const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => {
+  const target = keys.reduce<Record<string, unknown>>((current, key) => {
     if (!(key in current)) current[key] = {};
-    return current[key];
+    return current[key] as Record<string, unknown>;
   }, obj);
   target[lastKey] = value;
 }

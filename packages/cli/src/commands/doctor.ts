@@ -23,7 +23,7 @@ interface HealthCheck {
 interface DoctorOptions {
   fix?: boolean;
   verbose?: boolean;
-  spinner?: any;
+  spinner?: { text?: string; succeed?: (msg?: string) => void; fail?: (msg?: string) => void; stop?: () => void; start?: (msg?: string) => void };
   json?: boolean;
   explain?: boolean;
   yes?: boolean;

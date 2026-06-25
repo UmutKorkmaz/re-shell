@@ -473,7 +473,7 @@ export async function configureHelpSystem(
     }
 
     // Parse value based on setting type
-    let parsedValue: any = value;
+    let parsedValue: number | string | boolean = value;
     
     if (setting === 'maxWidth') {
       parsedValue = parseInt(value, 10);

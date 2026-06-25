@@ -6,7 +6,7 @@ import chalk from 'chalk';
 import { findMonorepoRoot } from '../utils/monorepo';
 
 interface MigrateOptions {
-  spinner?: any;
+  spinner?: { text?: string; succeed?: (msg?: string) => void; fail?: (msg?: string) => void; stop?: () => void; start?: (msg?: string) => void };
   verbose?: boolean;
   dryRun?: boolean;
   force?: boolean;
@@ -249,8 +249,8 @@ async function analyzeProject(projectPath: string, options: MigrateOptions): Pro
   };
 }
 
-function detectFramework(packageJson: any): string {
-  const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+function detectFramework(packageJson: Record<string, unknown>): string {
+  const deps = { ...(packageJson.dependencies as Record<string, unknown>), ...(packageJson.devDependencies as Record<string, unknown>) };
   
   if (deps.react) {
     return deps.typescript ? 'react-ts' : 'react';
@@ -281,12 +281,12 @@ function detectPackageManager(projectPath: string): 'npm' | 'yarn' | 'pnpm' | 'b
   return 'npm';
 }
 
-async function getWorkspaces(projectPath: string, packageJson: any): Promise<string[]> {
+async function getWorkspaces(projectPath: string, packageJson: Record<string, unknown>): Promise<string[]> {
   if (packageJson.workspaces) {
     if (Array.isArray(packageJson.workspaces)) {
       return packageJson.workspaces;
-    } else if (packageJson.workspaces.packages) {
-      return packageJson.workspaces.packages;
+    } else if ((packageJson.workspaces as Record<string, unknown>).packages) {
+      return (packageJson.workspaces as Record<string, unknown>).packages as string[];
     }
   }
 

@@ -605,7 +605,7 @@ function displayTopologyValidation(validation: TopologyValidation, fileName: str
   }
 }
 
-function displayQuickHealthResult(result: any, fileName: string): void {
+function displayQuickHealthResult(result: { status: string; score: number; criticalIssues: number }, fileName: string): void {
   console.log(chalk.cyan('\n⚡ Quick Health Check'));
   console.log(chalk.gray(`File: ${fileName}`));
   console.log(chalk.gray('═'.repeat(40)));

@@ -296,7 +296,7 @@ export async function runMigrate(options: MigrateCommandOptions): Promise<void> 
       renderHuman(payload);
     }
 
-    // Gate: any non-applied recipe in the apply path is a failure condition.
+    // Gate: unknown non-applied recipe in the apply path is a failure condition.
     if (applied.some(m => m.status !== 'applied')) {
       process.exitCode = 1;
     }

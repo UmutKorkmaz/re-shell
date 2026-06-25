@@ -8,7 +8,7 @@ import {
   createPluginRegistry 
 } from '../utils/plugin-system';
 import { PluginState, ManagedPluginRegistration } from '../utils/plugin-lifecycle';
-import { HookType } from '../utils/plugin-hooks';
+import { HookType, HookHandler } from '../utils/plugin-hooks';
 import {
   installPluginFromIdentifier,
   PluginInstallError,
@@ -746,7 +746,7 @@ export async function showPluginHooks(
 
       console.log(chalk.green(`Hooks for plugin '${pluginName}' (${pluginHooks.length}):\n`));
       
-      pluginHooks.forEach((hook: any, index: number) => {
+      pluginHooks.forEach((hook: HookHandler & { hookType?: string }, index: number) => {
         console.log(`${index + 1}. ${chalk.white(hook.id)}`);
         console.log(`   Type: ${chalk.cyan(hook.hookType || 'unknown')}`);
         console.log(`   Priority: ${hook.priority}`);
@@ -805,7 +805,7 @@ export async function executeHook(
     const registry = createPluginRegistry();
     await registry.initialize();
 
-    let hookData: any;
+    let hookData: unknown;
     try {
       hookData = JSON.parse(data);
     } catch (error) {
@@ -839,7 +839,7 @@ export async function executeHook(
 
     if (result.results.length > 0 && verbose) {
       console.log(chalk.yellow('\nResults:'));
-      result.results.forEach((res: any, index: number) => {
+      result.results.forEach((res: { pluginName: string; executionTime: number; result?: unknown }, index: number) => {
         console.log(`  ${index + 1}. ${chalk.white(res.pluginName)}: ${res.executionTime}ms`);
         if (res.result !== undefined) {
           console.log(`     Result: ${JSON.stringify(res.result)}`);
@@ -849,7 +849,7 @@ export async function executeHook(
 
     if (result.errors.length > 0) {
       console.log(chalk.red('\nErrors:'));
-      result.errors.forEach((err: any, index: number) => {
+      result.errors.forEach((err: { pluginName: string; error: Error }, index: number) => {
         console.log(`  ${index + 1}. ${chalk.red(err.pluginName)}: ${err.error.message}`);
       });
     }

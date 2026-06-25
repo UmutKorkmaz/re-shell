@@ -107,7 +107,18 @@ export async function buildAll(options: PolyglotBuildOptions = {}): Promise<void
 export async function generateDeploymentConfig(
   target: DeploymentTarget,
   environment: DeploymentEnvironment,
-  options: any = {}
+  options: {
+    spinner?: { setText: (text: string) => void; stop: () => void };
+    verbose?: boolean;
+    type?: string[];
+    language?: string[];
+    name?: string[];
+    region?: string;
+    domain?: string;
+    env?: string;
+    resources?: string;
+    scaling?: string;
+  } = {}
 ): Promise<void> {
   const { spinner, verbose = false } = options;
 
@@ -349,7 +360,7 @@ export async function deployServices(
 /**
  * List all services in the workspace
  */
-export async function listServices(options: any = {}): Promise<void> {
+export async function listServices(options: { json?: boolean } = {}): Promise<void> {
   try {
     const services = scanWorkspace();
 

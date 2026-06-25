@@ -193,7 +193,7 @@ export async function runApiVerify(options: ApiVerifyOptions): Promise<void> {
       renderHuman(payload);
     }
 
-    // Gate: any backward-incompatible change fails the CI check.
+    // Gate: unknown backward-incompatible change fails the CI check.
     if (!passed) {
       process.exitCode = 1;
     }

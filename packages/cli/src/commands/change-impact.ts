@@ -4,7 +4,7 @@ import * as fs from 'fs-extra';
 import chalk from 'chalk';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
-import { ChangeImpactAnalyzer, createChangeImpactAnalyzer, ImpactAnalysisResult } from '../utils/change-impact-analyzer';
+import { ChangeImpactAnalyzer, createChangeImpactAnalyzer, ImpactAnalysisResult, DependencyGraph, WorkspaceInfo } from '../utils/change-impact-analyzer';
 
 export interface ChangeImpactCommandOptions {
   files?: string[];
@@ -345,7 +345,7 @@ async function getWorkspaceFiles(workspacePath: string): Promise<string[]> {
 }
 
 // Generate Mermaid graph representation
-function generateMermaidGraph(graph: any): string {
+function generateMermaidGraph(graph: DependencyGraph): string {
   let mermaid = 'graph TD\n';
   
   // Add nodes
@@ -365,7 +365,7 @@ function generateMermaidGraph(graph: any): string {
 }
 
 // Display text-based dependency graph
-function displayTextGraph(graph: any, verbose: boolean): void {
+function displayTextGraph(graph: DependencyGraph, verbose: boolean): void {
   console.log(chalk.cyan('\n📊 Workspace Dependency Graph'));
   console.log(chalk.gray('='.repeat(35)));
   

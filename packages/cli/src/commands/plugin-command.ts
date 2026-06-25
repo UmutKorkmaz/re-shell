@@ -289,14 +289,14 @@ export async function showCommandStats(
     if (usage && (stats.mostUsedCommands.length > 0 || stats.recentCommands.length > 0)) {
       if (stats.mostUsedCommands.length > 0) {
         console.log(chalk.yellow('\nMost Used Commands:'));
-        stats.mostUsedCommands.forEach((cmd: any, index: number) => {
+        stats.mostUsedCommands.forEach((cmd: { id: string; name: string; plugin: string; usageCount: number }, index: number) => {
           console.log(`  ${index + 1}. ${cmd.name} (${cmd.plugin}): ${cmd.usageCount} times`);
         });
       }
 
       if (stats.recentCommands.length > 0) {
         console.log(chalk.yellow('\nRecently Used Commands:'));
-        stats.recentCommands.forEach((cmd: any, index: number) => {
+        stats.recentCommands.forEach((cmd: { id: string; name: string; plugin: string; lastUsed: number }, index: number) => {
           const lastUsed = new Date(cmd.lastUsed).toLocaleString();
           console.log(`  ${index + 1}. ${cmd.name} (${cmd.plugin}): ${lastUsed}`);
         });

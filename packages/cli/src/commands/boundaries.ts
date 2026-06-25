@@ -72,7 +72,7 @@ function toWireViolation(v: BoundaryViolationLite): BoundaryViolation {
 /**
  * `re-shell boundaries` — module-boundary enforcement.
  *
- * Gate semantics: any violation still emits a success envelope (advisory data)
+ * Gate semantics: unknown violation still emits a success envelope (advisory data)
  * but exits non-zero so CI can gate. A genuine error (not in a workspace) is
  * reported via the BOUNDARIES_ERROR envelope.
  */

@@ -171,7 +171,7 @@ async function setConfigValue(key: string, value: string, options: ConfigCommand
   const { global: isGlobal } = options;
   
   // Parse value (try JSON, fallback to string)
-  let parsedValue: any;
+  let parsedValue: unknown;
   try {
     parsedValue = JSON.parse(value);
   } catch {
@@ -180,7 +180,7 @@ async function setConfigValue(key: string, value: string, options: ConfigCommand
 
   if (isGlobal) {
     const globalConfig = await configManager.loadGlobalConfig();
-    setNestedValue(globalConfig, key, parsedValue);
+    setNestedValue(globalConfig as unknown as Record<string, unknown>, key, parsedValue);
     await configManager.saveGlobalConfig(globalConfig);
   } else {
     // Set in project config
@@ -188,7 +188,7 @@ async function setConfigValue(key: string, value: string, options: ConfigCommand
     if (!projectConfig) {
       throw new ValidationError('No project configuration found. Initialize a project first.');
     }
-    setNestedValue(projectConfig, key, parsedValue);
+    setNestedValue(projectConfig as unknown as Record<string, unknown>, key, parsedValue);
     await configManager.saveProjectConfig(projectConfig);
   }
   
@@ -477,7 +477,7 @@ async function showConfiguration(options: ConfigCommandOptions, spinner?: Progre
   }
 }
 
-function displayConfig(config: any, indent = 0): void {
+function displayConfig(config: unknown, indent = 0): void {
   const prefix = '  '.repeat(indent);
   
   for (const [key, value] of Object.entries(config)) {
@@ -504,16 +504,16 @@ function displayConfig(config: any, indent = 0): void {
 }
 
 // Utility functions for nested object access
-function getNestedValue(obj: any, path: string): any {
+function getNestedValue(obj: unknown, path: string): unknown {
   return path.split('.').reduce((current, key) => current?.[key], obj);
 }
 
-function setNestedValue(obj: any, path: string, value: any): void {
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
   const keys = path.split('.');
   const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => {
+  const target = keys.reduce<Record<string, unknown>>((current, key) => {
     if (!(key in current)) current[key] = {};
-    return current[key];
+    return current[key] as Record<string, unknown>;
   }, obj);
   target[lastKey] = value;
 }

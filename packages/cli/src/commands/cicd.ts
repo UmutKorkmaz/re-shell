@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { findMonorepoRoot } from '../utils/monorepo';
 
 interface CICDOptions {
-  spinner?: any;
+  spinner?: { text?: string; succeed?: (msg?: string) => void; fail?: (msg?: string) => void; stop?: () => void; start?: (msg?: string) => void };
   verbose?: boolean;
   provider?: 'github' | 'gitlab' | 'jenkins' | 'circleci' | 'azure';
   template?: 'basic' | 'advanced' | 'custom';

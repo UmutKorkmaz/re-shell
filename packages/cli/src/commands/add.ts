@@ -360,7 +360,7 @@ export default App;
     const eventBusFileExtension = finalOptions.template === 'react-ts' ? 'ts' : 'js';
     const eventBusContent = `${
       finalOptions.template === 'react-ts'
-        ? 'type EventHandler = (data: any) => void;\n\ninterface EventBus {\n  events: Record<string, EventHandler[]>;\n  on(event: string, callback: EventHandler): void;\n  off(event: string, callback: EventHandler): void;\n  emit(event: string, data: any): void;\n}\n\n'
+        ? 'type EventHandler = (data: unknown) => void;\n\ninterface EventBus {\n  events: Record<string, EventHandler[]>;\n  on(event: string, callback: EventHandler): void;\n  off(event: string, callback: EventHandler): void;\n  emit(event: string, data: unknown): void;\n}\n\n'
         : ''
     }
 /**

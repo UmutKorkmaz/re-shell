@@ -300,7 +300,7 @@ export async function runFederationCheck(
       renderHuman(payload);
     }
 
-    // Gate: any breaking change or skew fails the CI check.
+    // Gate: unknown breaking change or skew fails the CI check.
     if (!passed) {
       process.exitCode = 1;
     }
