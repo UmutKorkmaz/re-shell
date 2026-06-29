@@ -229,7 +229,7 @@ app.get('/health', (req, res) => {
 });
 
 // Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
     error: {
@@ -269,7 +269,7 @@ export interface TestResult {
   method: string;
   valid: boolean;
   violations: ContractViolation[];
-  response?: any;
+  response?: unknown;
 }
 
 export class ContractValidator {
@@ -281,10 +281,10 @@ export class ContractValidator {
   }
 
   validate() {
-    return (req: any, res: any, next: any) => {
+    return (req: unknown, res: unknown, next: unknown) => {
       const originalJson = res.json.bind(res);
 
-      res.json = (data: any) => {
+      res.json = (data: unknown) => {
         const violations = this.validateResponse(
           req.path,
           req.method.toLowerCase(),
@@ -302,7 +302,7 @@ export class ContractValidator {
     };
   }
 
-  validateResponse(path: string, method: string, response: any): ContractViolation[] {
+  validateResponse(path: string, method: string, response: unknown): ContractViolation[] {
     const violations: ContractViolation[] = [];
 
     // Find the path in the spec
@@ -344,7 +344,7 @@ export class ContractValidator {
     return violations;
   }
 
-  private validateAgainstSchema(schema: any, data: any, path: string): ContractViolation[] {
+  private validateAgainstSchema(schema: unknown, data: unknown, path: string): ContractViolation[] {
     const violations: ContractViolation[] = [];
 
     if (schema.type === 'object') {
@@ -464,7 +464,7 @@ export class ContractValidator {
     return violations;
   }
 
-  async testEndpoint(endpoint: string, method: string, payload?: any): Promise<TestResult> {
+  async testEndpoint(endpoint: string, method: string, payload?: unknown): Promise<TestResult> {
     try {
       const response = await axios({
         method,
@@ -524,7 +524,7 @@ export class PactPublisher {
     this.providerVersion = providerVersion;
   }
 
-  async publish(contracts: any[]): Promise<void> {
+  async publish(contracts: unknown[]): Promise<void> {
     const publisher = new Publisher({
       pactBrokerUrl: this.pactBrokerUrl,
       providerVersion: this.providerVersion,
@@ -583,14 +583,14 @@ export class PactPublisher {
 import swaggerJsdoc from 'swagger-jsdoc';
 
 export class OpenAPIGenerator {
-  private definitions: any[] = [];
+  private definitions: unknown[] = [];
 
   constructor() {}
 
   /**
    * Generate OpenAPI spec from JSDoc annotations
    */
-  generate(): any {
+  generate(): unknown {
     return swaggerJsdoc({
       definition: {
         openapi: '3.0.0',
@@ -682,7 +682,7 @@ export class OpenAPIGenerator {
   /**
    * Generate TypeScript types from OpenAPI spec
    */
-  generateTypes(spec: any): string {
+  generateTypes(spec: unknown): string {
     let types = '// Auto-generated types from OpenAPI spec\\n\\n';
 
     for (const [name, schema] of Object.entries(spec.components?.schemas || {})) {
@@ -703,7 +703,7 @@ export class OpenAPIGenerator {
     return types;
   }
 
-  private getTypescriptType(schema: any): string {
+  private getTypescriptType(schema: unknown): string {
     if (schema.$ref) {
       const refName = schema.$ref.split('/').pop();
       return refName || 'any';
@@ -989,7 +989,7 @@ import { ContractValidator } from '../../src/contract/contract-validator';
 import { createApp } from '../../src/app';
 
 describe('API Contract Tests', () => {
-  let app: any;
+  let app: unknown;
   let validator: ContractValidator;
 
   beforeAll(() => {
@@ -1277,7 +1277,7 @@ export class FrontendContractValidator {
     this.tests.set(key, test);
   }
 
-  async validateRequest(key: string, payload?: any): Promise<{ valid: boolean; errors: string[] }> {
+  async validateRequest(key: string, payload?: unknown): Promise<{ valid: boolean; errors: string[] }> {
     const test = this.tests.get(key);
 
     if (!test) {
@@ -1306,7 +1306,7 @@ export class FrontendContractValidator {
     };
   }
 
-  async validateResponse(key: string, response: any): Promise<{ valid: boolean; errors: string[] }> {
+  async validateResponse(key: string, response: unknown): Promise<{ valid: boolean; errors: string[] }> {
     const test = this.tests.get(key);
 
     if (!test) {
@@ -1333,11 +1333,11 @@ export class FrontendContractValidator {
     };
   }
 
-  async testEndpoint(key: string, payload?: any): Promise<{
+  async testEndpoint(key: string, payload?: unknown): Promise<{
     valid: boolean;
     requestErrors: string[];
     responseErrors: string[];
-    response?: any;
+    response?: unknown;
   }> {
     const test = this.tests.get(key);
 

@@ -1065,7 +1065,7 @@ export const requestLogger = (req: Request, res: Response, next: NextHandler) =>
 
   // Log response
   const originalSend = res.send;
-  res.send = function (data: any) {
+  res.send = function (data: unknown) {
     const duration = Date.now() - start;
     
     logger.info({
@@ -1310,7 +1310,7 @@ export const cache = {
     return value ? JSON.parse(value) : null;
   },
 
-  async set(key: string, value: any, ttl?: number): Promise<void> {
+  async set(key: string, value: unknown, ttl?: number): Promise<void> {
     const serialized = JSON.stringify(value);
     if (ttl) {
       await redis.setex(key, ttl, serialized);
@@ -1425,7 +1425,7 @@ export const setupWebSocket = (wss: WebSocketServer) => {
 };
 
 // Handle incoming WebSocket messages
-const handleWebSocketMessage = (ws: AuthenticatedWebSocket, message: any) => {
+const handleWebSocketMessage = (ws: AuthenticatedWebSocket, message: unknown) => {
   const { type, data } = message;
 
   switch (type) {
@@ -1444,7 +1444,7 @@ const handleWebSocketMessage = (ws: AuthenticatedWebSocket, message: any) => {
 };
 
 // Broadcast to specific user
-export const broadcastToUser = (userId: string, event: string, data: any) => {
+export const broadcastToUser = (userId: string, event: string, data: unknown) => {
   const userClients = clients.get(userId);
   
   if (userClients) {
@@ -1459,7 +1459,7 @@ export const broadcastToUser = (userId: string, event: string, data: any) => {
 };
 
 // Broadcast to all connected clients
-export const broadcast = (event: string, data: any) => {
+export const broadcast = (event: string, data: unknown) => {
   const message = JSON.stringify({ type: event, data, timestamp: Date.now() });
   
   clients.forEach((userClients) => {
@@ -1699,7 +1699,7 @@ export class UserService {
     return userData;
   }
 
-  async updateUser(id: string, updates: any) {
+  async updateUser(id: string, updates: unknown) {
     const user = await User.findByIdAndUpdate(
       id,
       { $set: updates },
@@ -1747,7 +1747,7 @@ export class UserService {
     await cache.del(\`user:\${userId}\`);
   }
 
-  async updateAvatar(userId: string, file: any) {
+  async updateAvatar(userId: string, file: unknown) {
     // In production, upload to cloud storage (S3, Cloudinary, etc.)
     const avatarUrl = \`/uploads/avatars/\${file.filename}\`;
 
@@ -1772,7 +1772,7 @@ export class TodoService {
     const { userId, page, limit, status, priority } = options;
     const skip = (page - 1) * limit;
 
-    const query: any = { userId };
+    const query: unknown = { userId };
     if (status) query.status = status;
     if (priority) query.priority = priority;
 
@@ -1802,7 +1802,7 @@ export class TodoService {
     return todo;
   }
 
-  async createTodo(data: any) {
+  async createTodo(data: unknown) {
     const todo = await Todo.create(data);
     
     // Invalidate user's todo list cache
@@ -1811,7 +1811,7 @@ export class TodoService {
     return todo;
   }
 
-  async updateTodo(id: string, userId: string, updates: any) {
+  async updateTodo(id: string, userId: string, updates: unknown) {
     const todo = await Todo.findOneAndUpdate(
       { _id: id, userId },
       { $set: updates },
@@ -1851,7 +1851,7 @@ export class TodoService {
     return result.deletedCount;
   }
 
-  async bulkUpdate(ids: string[], userId: string, updates: any) {
+  async bulkUpdate(ids: string[], userId: string, updates: unknown) {
     const result = await Todo.updateMany(
       {
         _id: { $in: ids },
@@ -1954,7 +1954,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const fileFilter = (req: any, file: any, cb: any) => {
+const fileFilter = (req: unknown, file: unknown, cb: unknown) => {
   // Accept images only
   if (file.mimetype.startsWith('image/')) {
     cb(null, true);

@@ -227,11 +227,11 @@ export function errorTracingMiddleware(
 /**
  * Async hook wrapper for automatic tracing
  */
-export function traceAsync<T extends (...args: any[]) => Promise<unknown>>(
+export function traceAsync<T extends (...args: unknown[]) => Promise<unknown>>(
   name: string,
   fn: T
 ): T {
-  return (async (...args: any[]) => {
+  return (async (...args: unknown[]) => {
     const tracer = trace.getTracer('async-hook');
     const span = tracer.startSpan(name);
 
@@ -256,13 +256,13 @@ export function traceAsync<T extends (...args: any[]) => Promise<unknown>>(
  */
 export function Traceable(spanName?: string) {
   return function (
-    target: any,
+    target: unknown,
     propertyKey: string,
     descriptor: PropertyDescriptor
   ) {
     const originalMethod = descriptor.value;
 
-    descriptor.value = async function (...args: any[]) {
+    descriptor.value = async function (...args: unknown[]) {
       const tracer = trace.getTracer('class-method');
       const name = spanName || \`\${target.constructor.name}.\${propertyKey}\`;
       const span = tracer.startSpan(name, {
@@ -294,13 +294,13 @@ export function Traceable(spanName?: string) {
  */
 export function TraceFunction(spanName?: string) {
   return function (
-    target: any,
+    target: unknown,
     propertyKey: string,
     descriptor: PropertyDescriptor
   ) {
     const originalMethod = descriptor.value;
 
-    descriptor.value = async function (...args: any[]) {
+    descriptor.value = async function (...args: unknown[]) {
       const tracer = trace.getTracer('function');
       const name = spanName || propertyKey;
       const span = tracer.startSpan(name);
@@ -347,7 +347,7 @@ export class ManualTracer {
     }
   }
 
-  setAttribute(key: string, value: any): void {
+  setAttribute(key: string, value: unknown): void {
     const span = trace.getActiveSpan();
     if (span) {
       span.setAttribute(key, value);
@@ -377,7 +377,7 @@ export function createTracedRouter(router: Router, routerName: string): void {
   (router as unknown as { stack: Array<{ name: string; handle: Function; regexp: RegExp }> }).stack.forEach((layer) => {
     if (layer.name === 'bound dispatch' && layer.handle) {
       const originalHandle = layer.handle;
-      layer.handle = async (req: any, res: any, next: any) => {
+      layer.handle = async (req: unknown, res: unknown, next: unknown) => {
         const span = trace.getActiveSpan();
         const childSpan = tracer.startSpan(\`\${routerName}.\${layer.name}\`, {
           parentSpan: span,
@@ -504,7 +504,7 @@ export class GrpcTracer {
   private tracer = trace.getTracer('grpc');
 
   createInterceptor(methodName: string) {
-    return (options: any, nextCall: any) => {
+    return (options: unknown, nextCall: unknown) => {
       const span = this.tracer.startSpan(\`grpc.\${methodName}\`, {
         kind: SpanKind.SERVER,
       });
@@ -512,13 +512,13 @@ export class GrpcTracer {
       return new Promise((resolve, reject) => {
         const next = nextCall(options);
 
-        next.on('data', (data: any) => {
+        next.on('data', (data: unknown) => {
           span.addEvent('grpc.message', {
             'grpc.message.type': 'RECEIVED',
           });
         });
 
-        next.on('status', (status: any) => {
+        next.on('status', (status: unknown) => {
           span.setStatus({
             code: status.code === grpc.status.OK ? SpanStatusCode.OK : SpanStatusCode.ERROR,
             message: status.details,
@@ -528,7 +528,7 @@ export class GrpcTracer {
           resolve();
         });
 
-        next.on('error', (error: any) => {
+        next.on('error', (error: unknown) => {
           span.recordException(error);
           span.setStatus({
             code: SpanStatusCode.ERROR,
@@ -622,14 +622,14 @@ app.use(tracingMiddleware);
 app.use(express.json());
 
 // Example routes
-app.get('/', (req: any, res: Response) => {
+app.get('/', (req: unknown, res: Response) => {
   res.json({
     message: 'Hello from instrumented service!',
     traceId: req.span?.spanContext().traceId,
   });
 });
 
-app.get('/health', (req: any, res: Response) => {
+app.get('/health', (req: unknown, res: Response) => {
   res.json({ status: 'healthy' });
 });
 

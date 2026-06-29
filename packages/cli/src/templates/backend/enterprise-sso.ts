@@ -155,7 +155,7 @@ import ldap from 'ldapjs';
 export interface SsoConfig {
   provider: 'saml' | 'oauth2' | 'oidc' | 'ldap';
   name: string;
-  config: any;
+  config: unknown;
 }
 
 export interface SsoProvider {
@@ -217,7 +217,7 @@ export class SsoManager {
       decryptionPvk: process.env.SAML_DECRYPTION_PRIVATE_KEY,
     };
 
-    passport.use('saml', new SamlStrategy(samlConfig, async (profile: any, done: any) => {
+    passport.use('saml', new SamlStrategy(samlConfig, async (profile: unknown, done: unknown) => {
       try {
         const user: UserProfile = {
           id: profile.nameID || profile.id,
@@ -253,7 +253,7 @@ export class SsoManager {
       callbackURL: process.env.OAUTH_CALLBACK_URL || 'http://localhost:3000/api/sso/oauth/callback',
     };
 
-    passport.use('oauth2', new OAuth2Strategy(oauthConfig, async (accessToken: string, refreshToken: string, profile: any, done: any) => {
+    passport.use('oauth2', new OAuth2Strategy(oauthConfig, async (accessToken: string, refreshToken: string, profile: unknown, done: unknown) => {
       try {
         const user: UserProfile = {
           id: profile.id,
@@ -291,7 +291,7 @@ export class SsoManager {
       callbackURL: process.env.OIDC_CALLBACK_URL || 'http://localhost:3000/api/sso/oidc/callback',
     };
 
-    passport.use('oidc', new OpenIDConnectStrategy(oidcConfig, async (issuer: string, profile: any, done: any) => {
+    passport.use('oidc', new OpenIDConnectStrategy(oidcConfig, async (issuer: string, profile: unknown, done: unknown) => {
       try {
         const user: UserProfile = {
           id: profile.id,
@@ -465,7 +465,7 @@ export class TokenManager {
     this.audience = process.env.JWT_AUDIENCE || 're-shell-app';
   }
 
-  generateAccessToken(user: any): string {
+  generateAccessToken(user: unknown): string {
     const payload: Partial<TokenPayload> = {
       sub: user.id,
       email: user.email,
@@ -499,7 +499,7 @@ export class TokenManager {
     return jwt.sign(payload, this.refreshTokenSecret, options);
   }
 
-  generateIdToken(user: any, nonce?: string): Promise<string> {
+  generateIdToken(user: unknown, nonce?: string): Promise<string> {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -579,7 +579,7 @@ export class TokenManager {
     return key as Secret;
   }
 
-  decodeToken(token: string): any {
+  decodeToken(token: string): unknown {
     return jwt.decode(token);
   }
 
@@ -623,7 +623,7 @@ export class AuditLogger {
     }
   }
 
-  logLogin(userId: string, provider: string, req: any, success: boolean, error?: string): void {
+  logLogin(userId: string, provider: string, req: unknown, success: boolean, error?: string): void {
     this.log({
       timestamp: new Date().toISOString(),
       eventType: success ? 'login' : 'login_failed',
@@ -638,7 +638,7 @@ export class AuditLogger {
     });
   }
 
-  logLogout(userId: string, provider: string, req: any, success: boolean): void {
+  logLogout(userId: string, provider: string, req: unknown, success: boolean): void {
     this.log({
       timestamp: new Date().toISOString(),
       eventType: success ? 'logout' : 'logout_failed',
@@ -651,7 +651,7 @@ export class AuditLogger {
     });
   }
 
-  logTokenRefresh(userId: string, req: any, success: boolean): void {
+  logTokenRefresh(userId: string, req: unknown, success: boolean): void {
     this.log({
       timestamp: new Date().toISOString(),
       eventType: 'token_refresh',
@@ -664,7 +664,7 @@ export class AuditLogger {
     });
   }
 
-  logPermissionDenied(userId: string, resource: string, action: string, req: any): void {
+  logPermissionDenied(userId: string, resource: string, action: string, req: unknown): void {
     this.log({
       timestamp: new Date().toISOString(),
       eventType: 'permission_denied',
@@ -763,7 +763,7 @@ export function apiRoutes(
   // SAML Callback
   router.post('/sso/saml/callback',
     passport.authenticate('saml', { failureRedirect: '/login', failureFlash: true }),
-    (req: any, res: Response) => {
+    (req: unknown, res: Response) => {
       const user = req.user;
       auditLogger.logLogin(user.id, 'saml', req, true);
 
@@ -788,7 +788,7 @@ export function apiRoutes(
   // OAuth 2.0 Callback
   router.get('/sso/oauth/callback',
     passport.authenticate('oauth2', { failureRedirect: '/login', failureFlash: true }),
-    (req: any, res: Response) => {
+    (req: unknown, res: Response) => {
       const user = req.user;
       auditLogger.logLogin(user.id, 'oauth2', req, true);
 
@@ -810,7 +810,7 @@ export function apiRoutes(
   // OpenID Connect Callback
   router.get('/sso/oidc/callback',
     passport.authenticate('oidc', { failureRedirect: '/login', failureFlash: true }),
-    (req: any, res: Response) => {
+    (req: unknown, res: Response) => {
       const user = req.user;
       auditLogger.logLogin(user.id, 'oidc', req, true);
 
@@ -865,7 +865,7 @@ export function apiRoutes(
   });
 
   // Token Refresh
-  router.post('/auth/refresh', (req: any, res: Response) => {
+  router.post('/auth/refresh', (req: unknown, res: Response) => {
     try {
       const { refreshToken } = req.body;
 
@@ -889,7 +889,7 @@ export function apiRoutes(
   });
 
   // Logout
-  router.post('/auth/logout', (req: any, res: Response) => {
+  router.post('/auth/logout', (req: unknown, res: Response) => {
     try {
       const user = req.session.user;
       if (user) {
@@ -897,7 +897,7 @@ export function apiRoutes(
         tokenManager.revokeTokens(user.id);
       }
 
-      req.session.destroy((err: any) => {
+      req.session.destroy((err: unknown) => {
         if (err) {
           console.error('Session destroy error:', err);
         }
@@ -941,7 +941,7 @@ export function apiRoutes(
   });
 
   // Get Audit Events
-  router.get('/audit/events', (req: any, res: Response) => {
+  router.get('/audit/events', (req: unknown, res: Response) => {
     try {
       // Only admin users can view audit logs
       const token = tokenManager.verifyAccessToken(req.session.accessToken);

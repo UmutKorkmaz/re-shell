@@ -79,7 +79,7 @@ export interface ServiceRequest {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   path: string;
   params?: Record<string, unknown>;
-  data?: any;
+  data?: unknown;
   headers?: Record<string, string>;
   timeout?: number;
   retry?: boolean;
@@ -338,7 +338,7 @@ export class ServiceMeshClient {
   async post<T = any>(
     service: string,
     path: string,
-    data?: any
+    data?: unknown
   ): Promise<ServiceResponse<T>> {
     return this.request<T>({ service, method: 'POST', path, data });
   }
@@ -349,7 +349,7 @@ export class ServiceMeshClient {
   async put<T = any>(
     service: string,
     path: string,
-    data?: any
+    data?: unknown
   ): Promise<ServiceResponse<T>> {
     return this.request<T>({ service, method: 'PUT', path, data });
   }
@@ -360,7 +360,7 @@ export class ServiceMeshClient {
   async patch<T = any>(
     service: string,
     path: string,
-    data?: any
+    data?: unknown
   ): Promise<ServiceResponse<T>> {
     return this.request<T>({ service, method: 'PATCH', path, data });
   }
@@ -378,7 +378,7 @@ export class ServiceMeshClient {
   /**
    * Get metrics for a service
    */
-  getMetrics(service?: string): any {
+  getMetrics(service?: string): unknown {
     if (service) {
       return this.metrics.get(service);
     }
@@ -470,7 +470,7 @@ export class ServiceMeshClient {
    * Handle error
    */
   private handleError(
-    error: any,
+    error: unknown,
     request: ServiceRequest,
     endpoint?: ServiceEndpoint
   ): ServiceMeshError {
@@ -666,7 +666,7 @@ export class RetryPolicy {
    * Execute function with retry logic
    */
   async execute<T>(service: string, fn: () => Promise<T>): Promise<T> {
-    let lastError: any;
+    let lastError: unknown;
     let delay = this.config.initialDelay;
 
     for (let attempt = 0; attempt < this.config.maxAttempts; attempt++) {
@@ -708,7 +708,7 @@ export class RetryPolicy {
   /**
    * Check if error is retryable
    */
-  private isRetryable(error: any): boolean {
+  private isRetryable(error: unknown): boolean {
     // Check error code
     const code = error.code || error.name;
     if (this.config.retryableErrors.includes(code)) {
@@ -742,7 +742,7 @@ export class ServiceDiscovery {
   private endpoints: Map<string, ServiceEndpoint[]> = new Map();
   private healthCheckInterval?: NodeJS.Timeout;
 
-  constructor(private config: any) {
+  constructor(private config: unknown) {
     // Start health checks if service mesh URL is provided
     if (config.serviceMeshURL) {
       this.startHealthChecks();
@@ -803,7 +803,7 @@ export class ServiceDiscovery {
       const response = await fetch(\`\${this.config.serviceMeshURL}/v1/services/\${service}\`);
       const services = await response.json();
 
-      const endpoints: ServiceEndpoint[] = services.map((s: any) => ({
+      const endpoints: ServiceEndpoint[] = services.map((s: unknown) => ({
         service,
         url: s.url,
         healthy: s.healthy !== false,
@@ -979,7 +979,7 @@ export class LoadBalancer {
 import { ServiceRequest, ServiceResponse } from './types';
 
 export class RequestTransformer {
-  constructor(private config: any) {}
+  constructor(private config: unknown) {}
 
   /**
    * Transform request before sending

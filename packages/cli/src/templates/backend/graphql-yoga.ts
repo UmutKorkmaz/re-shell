@@ -247,8 +247,8 @@ const wsServer = new WebSocketServer({
 // Setup WebSocket server with GraphQL subscriptions
 useServer(
   {
-    execute: (args: any) => args.rootValue.execute(args),
-    subscribe: (args: any) => args.rootValue.subscribe(args),
+    execute: (args: unknown) => args.rootValue.execute(args),
+    subscribe: (args: unknown) => args.rootValue.subscribe(args),
     context: (ctx) => createContext(ctx),
     onConnect: async (ctx) => {
       logger.info('Client connected to WebSocket');
@@ -1454,7 +1454,7 @@ interface TokenPayload {
   role: string;
 }
 
-export function generateTokens(user: any) {
+export function generateTokens(user: unknown) {
   const payload: TokenPayload = {
     userId: user.id,
     email: user.email,
@@ -1509,7 +1509,7 @@ import { redisClient } from '../services/redis';
 export const pubsub = process.env.NODE_ENV === 'production'
   ? createPubSub({
       eventTarget: {
-        subscribe: async (topic: string, cb: (data: any) => void) => {
+        subscribe: async (topic: string, cb: (data: unknown) => void) => {
           const subscriber = redisClient.duplicate();
           await subscriber.connect();
           await subscriber.subscribe(topic, (message) => {
@@ -1520,7 +1520,7 @@ export const pubsub = process.env.NODE_ENV === 'production'
             subscriber.disconnect();
           };
         },
-        publish: async (topic: string, payload: any) => {
+        publish: async (topic: string, payload: unknown) => {
           await redisClient.publish(topic, JSON.stringify(payload));
         }}})
   : createPubSub();`,
@@ -1564,7 +1564,7 @@ interface UploadOptions {
 }
 
 export async function handleFileUpload(
-  file: any,
+  file: unknown,
   options: UploadOptions = {}
 ): Promise<string> {
   const { allowedTypes = [], maxSize = 10 * 1024 * 1024 } = options; // 10MB default
@@ -1678,7 +1678,7 @@ export const redisCache = {
     const value = await redisClient.get(key);
     return value ? JSON.parse(value) : null;
   },
-  set: async (key: string, value: any, ttl?: number) => {
+  set: async (key: string, value: unknown, ttl?: number) => {
     const serialized = JSON.stringify(value);
     if (ttl) {
       await redisClient.setEx(key, ttl, serialized);
@@ -1696,7 +1696,7 @@ import { logger } from '../utils/logger';
 
 // This is a placeholder email service
 // In production, integrate with services like SendGrid, AWS SES, etc.
-export async function sendPasswordResetEmail(user: any): Promise<string> {
+export async function sendPasswordResetEmail(user: unknown): Promise<string> {
   const resetToken = crypto.randomBytes(32).toString('hex');
   
   // In a real implementation, send an email with the reset link
@@ -1711,7 +1711,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
   logger.info(\`Verification email sent to \${email} with token: \${token}\`);
 }
 
-export async function sendWelcomeEmail(user: any): Promise<void> {
+export async function sendWelcomeEmail(user: unknown): Promise<void> {
   // In a real implementation, send a welcome email
   logger.info(\`Welcome email sent to \${user.email}\`);
 }`,
@@ -2024,7 +2024,7 @@ import { createContext } from '../context';
 
 describe('User API', () => {
   let client: GraphQLClient;
-  let server: any;
+  let server: unknown;
 
   beforeAll(async () => {
     const yoga = createYoga({

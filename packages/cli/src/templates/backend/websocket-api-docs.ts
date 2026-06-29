@@ -116,7 +116,7 @@ wss.on('connection', (ws: WebSocket, req) => {
 /**
  * Handle incoming WebSocket messages
  */
-function handleMessage(clientId: string, message: any) {
+function handleMessage(clientId: string, message: unknown) {
   const client = clients.get(clientId);
   if (!client) return;
 
@@ -240,7 +240,7 @@ function handleLeaveRoom(clientId: string, roomName: string) {
 /**
  * Handle chat messages within a room
  */
-function handleChatMessage(clientId: string, message: any) {
+function handleChatMessage(clientId: string, message: unknown) {
   const client = clients.get(clientId);
   if (!client || !message.room) {
     return;
@@ -262,7 +262,7 @@ function handleChatMessage(clientId: string, message: any) {
 /**
  * Handle broadcast messages to all connected clients
  */
-function handleBroadcast(clientId: string, message: any) {
+function handleBroadcast(clientId: string, message: unknown) {
   const broadcast = {
     type: 'broadcast',
     from: clientId,
@@ -282,7 +282,7 @@ function handleBroadcast(clientId: string, message: any) {
 /**
  * Broadcast a message to all clients in a room
  */
-function broadcastToRoom(roomName: string, message: any, excludeClientId?: string) {
+function broadcastToRoom(roomName: string, message: unknown, excludeClientId?: string) {
   const roomClients = rooms.get(roomName);
   if (!roomClients) return;
 
@@ -880,7 +880,7 @@ export class WebSocketClient {
   /**
    * Send raw message to server
    */
-  send(message: any): void {
+  send(message: unknown): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
@@ -1258,7 +1258,7 @@ function generateTypeScriptInterfaces(doc: AsyncAPIDocument): string {
 /**
  * Generate TypeScript interface from schema
  */
-function generateTypeScriptInterface(name: string, schema: any): string {
+function generateTypeScriptInterface(name: string, schema: unknown): string {
   let output = \`export interface \${toPascalCase(name)} {\\n\`;
 
   if (schema.properties) {
@@ -1278,7 +1278,7 @@ function generateTypeScriptInterface(name: string, schema: any): string {
 /**
  * Map JSON Schema type to TypeScript
  */
-function mapTypeToTypeScript(prop: any): string {
+function mapTypeToTypeScript(prop: unknown): string {
   if (prop.const) {
     return \`'\${prop.const}'\`;
   }
@@ -1355,7 +1355,7 @@ function generateTypeScriptClient(doc: AsyncAPIDocument, clientName: string): st
   output += \`export class \${clientName}Client {\\n\`;
   output += \`  private ws: WebSocket | null = null;\\n\`;
   output += \`  private url: string;\\n\`;
-  output += \`  private handlers: Record<string, (data: any) => void> = {};\\n\\n\`;
+  output += \`  private handlers: Record<string, (data: unknown) => void> = {};\\n\\n\`;
 
   output += \`  constructor(options: { url?: string } = {}) {\\n\`;
   output += \`    this.url = options.url || 'ws://localhost:3001';\\n\`;
@@ -1473,11 +1473,11 @@ function generateConnectionMethodsTS(): string {
     }
   }
 
-  on(event: string, handler: (data: any) => void): void {
+  on(event: string, handler: (data: unknown) => void): void {
     this.handlers[event] = handler;
   }
 
-  send(message: any): void {
+  send(message: unknown): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     }
@@ -1527,7 +1527,7 @@ function generateChannelMethodsTS(channelName: string, channel: Channel): string
   if (channel.messages) {
     for (const [messageName, messageDef] of Object.entries(channel.messages)) {
       const methodName = toCamelCase(messageName);
-      methods += \`  \${methodName}(payload: any): void {
+      methods += \`  \${methodName}(payload: unknown): void {
     this.send({ type: '\${messageName}', ...payload });
   }
 
@@ -1541,7 +1541,7 @@ function generateChannelMethodsTS(channelName: string, channel: Channel): string
 /**
  * Parse YAML to JSON (basic implementation)
  */
-function parseYAML(yaml: string): any {
+function parseYAML(yaml: string): unknown {
   const lines = yaml.split('\\n');
   const result: Record<string, unknown> = {};
   let stack = [result];
@@ -1578,7 +1578,7 @@ function parseYAML(yaml: string): any {
 /**
  * Parse a YAML value
  */
-function parseValue(value: string): any {
+function parseValue(value: string): unknown {
   value = value.trim();
 
   // Handle quoted strings
@@ -1707,7 +1707,7 @@ interface ValidationResult {
 /**
  * Validate AsyncAPI document
  */
-function validateAsyncAPI(doc: any, filePath: string): ValidationResult {
+function validateAsyncAPI(doc: unknown, filePath: string): ValidationResult {
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
 
@@ -1784,7 +1784,7 @@ function validateAsyncAPI(doc: any, filePath: string): ValidationResult {
 /**
  * Load and parse AsyncAPI document
  */
-function loadDocument(filePath: string): any {
+function loadDocument(filePath: string): unknown {
   const content = fs.readFileSync(filePath, 'utf-8');
 
   if (filePath.endsWith('.json')) {
@@ -1794,7 +1794,7 @@ function loadDocument(filePath: string): any {
   // Simple YAML parser
   const lines = content.split('\\n');
   const result: Record<string, unknown> = {};
-  const stack: Array<{ obj: any; indent: number }> = [{ obj: result, indent: -1 }];
+  const stack: Array<{ obj: unknown; indent: number }> = [{ obj: result, indent: -1 }];
 
   for (let line of lines) {
     const trimmed = line.trim();
@@ -1828,7 +1828,7 @@ function loadDocument(filePath: string): any {
 /**
  * Parse YAML value
  */
-function parseValue(value: string): any {
+function parseValue(value: string): unknown {
   value = value.trim();
 
   if (value === 'true') return true;

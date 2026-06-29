@@ -302,7 +302,7 @@ export class AppController implements IAppController {
 
   // Apply global middlewares
   @Get('*')
-  applyMiddlewares(ctx: any) {
+  applyMiddlewares(ctx: unknown) {
     // Security headers
     ctx.request.use(helmet({
       contentSecurityPolicy: false, // Disable for GraphQL playground
@@ -1095,7 +1095,7 @@ export class WebSocketController extends SocketIOController {
   }
 
   @EventName('todo-update')
-  async todoUpdate(ctx: WebsocketContext, payload: any) {
+  async todoUpdate(ctx: WebsocketContext, payload: unknown) {
     const userId = ctx.session?.userId;
     if (userId) {
       // Broadcast to user's room
@@ -1709,21 +1709,21 @@ export class GraphQLResolvers {
   getResolvers() {
     return {
       // Queries
-      me: async (_: any, __: any, context: any) => {
+      me: async (_: unknown, __: unknown, context: unknown) => {
         if (!context.user) {
           throw new Error('Not authenticated');
         }
         return this.userService.getUserById(context.user.id);
       },
 
-      user: async (_: any, args: { id: string }, context: any) => {
+      user: async (_: unknown, args: { id: string }, context: unknown) => {
         if (!context.user) {
           throw new Error('Not authenticated');
         }
         return this.userService.getUserById(args.id);
       },
 
-      users: async (_: any, args: { page?: number; limit?: number; search?: string }, context: any) => {
+      users: async (_: unknown, args: { page?: number; limit?: number; search?: string }, context: unknown) => {
         if (!context.user || context.user.role !== 'admin') {
           throw new Error('Admin access required');
         }
@@ -1734,7 +1734,7 @@ export class GraphQLResolvers {
         });
       },
 
-      todos: async (_: any, args: { page?: number; limit?: number; status?: string; priority?: string }, context: any) => {
+      todos: async (_: unknown, args: { page?: number; limit?: number; status?: string; priority?: string }, context: unknown) => {
         if (!context.user) {
           throw new Error('Not authenticated');
         }
@@ -1747,7 +1747,7 @@ export class GraphQLResolvers {
         });
       },
 
-      todo: async (_: any, args: { id: string }, context: any) => {
+      todo: async (_: unknown, args: { id: string }, context: unknown) => {
         if (!context.user) {
           throw new Error('Not authenticated');
         }
@@ -1755,12 +1755,12 @@ export class GraphQLResolvers {
       },
 
       // Mutations
-      register: async (_: any, args: { email: string; password: string; name: string }) => {
+      register: async (_: unknown, args: { email: string; password: string; name: string }) => {
         const { user } = await this.authService.register(args);
         return user;
       },
 
-      login: async (_: any, args: { email: string; password: string }) => {
+      login: async (_: unknown, args: { email: string; password: string }) => {
         const user = await this.authService.login(args.email, args.password);
         if (!user) {
           throw new Error('Invalid credentials');
@@ -1768,7 +1768,7 @@ export class GraphQLResolvers {
         return user;
       },
 
-      createTodo: async (_: any, args: any, context: any) => {
+      createTodo: async (_: unknown, args: unknown, context: unknown) => {
         if (!context.user) {
           throw new Error('Not authenticated');
         }
@@ -1778,14 +1778,14 @@ export class GraphQLResolvers {
         });
       },
 
-      updateTodo: async (_: any, args: { id: string; input: any }, context: any) => {
+      updateTodo: async (_: unknown, args: { id: string; input: unknown }, context: unknown) => {
         if (!context.user) {
           throw new Error('Not authenticated');
         }
         return this.todoService.updateTodo(args.id, context.user.id, args.input);
       },
 
-      deleteTodo: async (_: any, args: { id: string }, context: any) => {
+      deleteTodo: async (_: unknown, args: { id: string }, context: unknown) => {
         if (!context.user) {
           throw new Error('Not authenticated');
         }
@@ -1806,15 +1806,15 @@ export class WebSocketService {
     this.io = io;
   }
 
-  emitToUser(userId: string, event: string, data: any) {
+  emitToUser(userId: string, event: string, data: unknown) {
     this.io.to(\`user:\${userId}\`).emit(event, data);
   }
 
-  emitToRoom(roomId: string, event: string, data: any) {
+  emitToRoom(roomId: string, event: string, data: unknown) {
     this.io.to(roomId).emit(event, data);
   }
 
-  broadcastToAll(event: string, data: any) {
+  broadcastToAll(event: string, data: unknown) {
     this.io.emit(event, data);
   }
 }`,
@@ -2345,7 +2345,7 @@ import { AppController } from '../app.controller';
 import { User } from '../entities/user.entity';
 
 describe('AuthController', () => {
-  let app: any;
+  let app: unknown;
 
   before(async () => {
     await createConnection({

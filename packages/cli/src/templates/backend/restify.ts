@@ -1248,7 +1248,7 @@ import { logger } from '../utils/logger';
 export const errorHandler = (
   req: restify.Request,
   res: restify.Response,
-  err: any,
+  err: unknown,
   callback: Function
 ) => {
   // Log the error
@@ -1510,7 +1510,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (req: unknown, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimes = [
     'image/jpeg',
     'image/jpg',
@@ -1658,7 +1658,7 @@ export const connectDatabase = async (): Promise<void> => {
   }
 };
 
-export const query = async (text: string, params?: any[]) => {
+export const query = async (text: string, params?: unknown[]) => {
   const start = Date.now();
   try {
     const res = await pool.query(text, params);
@@ -1741,7 +1741,7 @@ interface SocketWithAuth extends Socket {
   userId?: string;
 }
 
-export const initializeWebSocket = (server: any) => {
+export const initializeWebSocket = (server: unknown) => {
   const io = new Server(server, {
     cors: {
       origin: config.corsOrigins,
@@ -1750,7 +1750,7 @@ export const initializeWebSocket = (server: any) => {
   });
 
   // Authentication middleware
-  io.use(async (socket: any, next) => {
+  io.use(async (socket: unknown, next) => {
     try {
       const token = socket.handshake.auth.token;
       
@@ -1767,7 +1767,7 @@ export const initializeWebSocket = (server: any) => {
     }
   });
 
-  io.on('connection', (socket: any) => {
+  io.on('connection', (socket: unknown) => {
     logger.info(\`User \${socket.userId} connected via WebSocket\`);
 
     // Join user's personal room
@@ -1786,7 +1786,7 @@ export const initializeWebSocket = (server: any) => {
       logger.info(\`User \${socket.userId} left room \${roomId}\`);
     });
 
-    socket.on('todo-update', (data: any) => {
+    socket.on('todo-update', (data: unknown) => {
       // Broadcast to all users in the room
       socket.to(\`user:\${socket.userId}\`).emit('todo-updated', data);
     });
@@ -1799,7 +1799,7 @@ export const initializeWebSocket = (server: any) => {
   return io;
 };
 
-export const emitToUser = (io: Server, userId: string, event: string, data: any) => {
+export const emitToUser = (io: Server, userId: string, event: string, data: unknown) => {
   io.to(\`user:\${userId}\`).emit(event, data);
 };`,
 
@@ -1918,7 +1918,7 @@ export const logger = bunyan.createLogger({
 import { logger } from './logger';
 import { pool } from '../config/database';
 
-export const gracefulShutdown = async (server: restify.Server, redisClient: any) => {
+export const gracefulShutdown = async (server: restify.Server, redisClient: unknown) => {
   logger.info('Received shutdown signal, starting graceful shutdown...');
   
   // Stop accepting new connections
@@ -2154,7 +2154,7 @@ export class AuthService {
     );
   }
 
-  protected generateAccessToken(user: any) {
+  protected generateAccessToken(user: unknown) {
     return jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       config.jwt.secret,
@@ -2162,7 +2162,7 @@ export class AuthService {
     );
   }
 
-  protected generateRefreshToken(user: any) {
+  protected generateRefreshToken(user: unknown) {
     return jwt.sign(
       { id: user.id, type: 'refresh' },
       config.jwt.secret,

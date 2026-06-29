@@ -187,7 +187,7 @@ app.get('/health', (req, res) => {
 });
 
 // Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
     error: {
@@ -228,7 +228,7 @@ import { MemcachedCacheLayer } from './memcached-cache-layer';
 import { CDNManager } from './cdn-manager';
 
 export interface CacheEntry {
-  value: any;
+  value: unknown;
   timestamp: number;
   ttl: number;
   etag: string;
@@ -329,7 +329,7 @@ export class DistributedCacheManager extends EventEmitter {
     return null;
   }
 
-  async set(key: string, value: any, options: CacheOptions = {}): Promise<void> {
+  async set(key: string, value: unknown, options: CacheOptions = {}): Promise<void> {
     const etag = options.etag || this.generateETag(value);
 
     // Store in Redis (persistent)
@@ -374,16 +374,16 @@ export class DistributedCacheManager extends EventEmitter {
     this.emit('invalidate:pattern', { pattern });
   }
 
-  private generateETag(value: any): string {
+  private generateETag(value: unknown): string {
     const hash = JSON.stringify(value);
     const crypto = require('crypto');
     return crypto.createHash('md5').update(hash).digest('hex');
   }
 
   getStats(): {
-    redis: any;
-    memcached: any;
-    cdn: any;
+    redis: unknown;
+    memcached: unknown;
+    cdn: unknown;
   } {
     return {
       redis: this.redisCache.getStats(),
@@ -502,7 +502,7 @@ export class RedisCacheLayer extends EventEmitter {
     }
   }
 
-  async set(key: string, value: any, options: RedisOptions = {}): Promise<void> {
+  async set(key: string, value: unknown, options: RedisOptions = {}): Promise<void> {
     if (!this.connected) return;
 
     const client = this.redis || this.cluster;
@@ -567,7 +567,7 @@ export class RedisCacheLayer extends EventEmitter {
     return this.connected;
   }
 
-  getStats(): any {
+  getStats(): unknown {
     return {
       ...this.stats,
       connected: this.connected,
@@ -654,7 +654,7 @@ export class MemcachedCacheLayer extends EventEmitter {
     }
   }
 
-  async set(key: string, value: any, options: MemcachedOptions = {}): Promise<void> {
+  async set(key: string, value: unknown, options: MemcachedOptions = {}): Promise<void> {
     if (!this.connected) return;
 
     try {
@@ -703,7 +703,7 @@ export class MemcachedCacheLayer extends EventEmitter {
     return this.connected;
   }
 
-  getStats(): any {
+  getStats(): unknown {
     return {
       ...this.stats,
       connected: this.connected,
@@ -779,7 +779,7 @@ export class CDNManager extends EventEmitter {
     }
   }
 
-  async set(key: string, value: any, options: { ttl?: number } = {}): Promise<void> {
+  async set(key: string, value: unknown, options: { ttl?: number } = {}): Promise<void> {
     if (!this.enabled) return;
 
     try {
@@ -834,11 +834,11 @@ export class CDNManager extends EventEmitter {
     return null;
   }
 
-  private async setToCloudflare(key: string, value: any, options: { ttl?: number }): Promise<void> {
+  private async setToCloudflare(key: string, value: unknown, options: { ttl?: number }): Promise<void> {
     // Implementation would use Cloudflare API
   }
 
-  private async setToCloudFront(key: string, value: any, options: { ttl?: number }): Promise<void> {
+  private async setToCloudFront(key: string, value: unknown, options: { ttl?: number }): Promise<void> {
     // Implementation would use CloudFront API
   }
 
@@ -867,7 +867,7 @@ export class CDNManager extends EventEmitter {
     return this.enabled;
   }
 
-  getStats(): any {
+  getStats(): unknown {
     return {
       ...this.stats,
       provider: this.provider,
@@ -1139,8 +1139,8 @@ import { generateETag } from '../utils/etag';
 declare module 'express' {
   interface Request {
     cacheKey?: string;
-    cacheEntry?: any;
-    cacheOptions?: any;
+    cacheEntry?: unknown;
+    cacheOptions?: unknown;
   }
 }
 
@@ -1174,7 +1174,7 @@ export function cache(cacheManager: DistributedCacheManager) {
     // Set up cache middleware for response
     const originalJson = res.json.bind(res);
 
-    res.json = function(body: any) {
+    res.json = function(body: unknown) {
       // Generate ETag if not set
       const etag = generateETag(body);
 
@@ -1204,12 +1204,12 @@ export function cache(cacheManager: DistributedCacheManager) {
     'src/utils/etag.ts': `// ETag Utility
 import crypto from 'crypto';
 
-export function generateETag(data: any): string {
+export function generateETag(data: unknown): string {
   const str = JSON.stringify(data);
   return crypto.createHash('md5').update(str).digest('hex');
 }
 
-export function generateWeakETag(data: any): string {
+export function generateWeakETag(data: unknown): string {
   const str = JSON.stringify(data);
   const hash = crypto.createHash('md5').update(str).digest('hex');
   return \`W/\${hash}\`;

@@ -182,7 +182,7 @@ export class AuditLogger {
     this.logger.info('audit', auditEvent);
   }
 
-  logAuthentication(userId: string, action: string, req: any, success: boolean): void {
+  logAuthentication(userId: string, action: string, req: unknown, success: boolean): void {
     this.log({
       eventType: 'authentication',
       category: 'authentication',
@@ -196,7 +196,7 @@ export class AuditLogger {
     });
   }
 
-  logDataAccess(userId: string, resource: string, action: string, req: any): void {
+  logDataAccess(userId: string, resource: string, action: string, req: unknown): void {
     this.log({
       eventType: 'data_access',
       category: 'data_access',
@@ -211,7 +211,7 @@ export class AuditLogger {
     });
   }
 
-  logDataModification(userId: string, resource: string, action: string, changes: any, req: any): void {
+  logDataModification(userId: string, resource: string, action: string, changes: unknown, req: unknown): void {
     this.log({
       eventType: 'data_modification',
       category: 'data_modification',
@@ -226,25 +226,25 @@ export class AuditLogger {
     });
   }
 
-  async queryEvents(filters: any): Promise<AuditEvent[]> {
+  async queryEvents(filters: unknown): Promise<AuditEvent[]> {
     // Query events from log storage
     // In production, query from MongoDB or log aggregation service
     return [];
   }
 
-  private isSOC2Relevant(event: any): boolean {
+  private isSOC2Relevant(event: unknown): boolean {
     return ['authentication', 'authorization', 'data_access', 'data_modification'].includes(event.category);
   }
 
-  private isHIPAARelevant(event: any): boolean {
+  private isHIPAARelevant(event: unknown): boolean {
     return event.category === 'data_access' && event.resource?.includes('phi');
   }
 
-  private isGDPRRelevant(event: any): boolean {
+  private isGDPRRelevant(event: unknown): boolean {
     return event.category === 'data_access' && event.resource?.includes('personal_data');
   }
 
-  private isPCIRelevant(event: any): boolean {
+  private isPCIRelevant(event: unknown): boolean {
     return event.category === 'data_access' && event.resource?.includes('payment');
   }
 }`,
@@ -334,7 +334,7 @@ export class ReportGenerator {
     this.auditLogger = auditLogger;
   }
 
-  async generateAuditReport(filters: any): Promise<string> {
+  async generateAuditReport(filters: unknown): Promise<string> {
     const events = await this.auditLogger.queryEvents(filters);
 
     let report = '# Audit Log Report\\n\\n';
@@ -360,7 +360,7 @@ export class ReportGenerator {
     };
   }
 
-  private groupBy(arr: any[], key: string): Record<string, any[]> {
+  private groupBy(arr: unknown[], key: string): Record<string, any[]> {
     return arr.reduce((result, currentValue) => {
       (result[currentValue[key]] = result[currentValue[key]] || []).push(currentValue);
       return result;

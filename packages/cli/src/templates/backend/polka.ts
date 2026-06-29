@@ -1210,7 +1210,7 @@ export const initWebSocketServer = () => {
 
   // Heartbeat to detect broken connections
   const interval = setInterval(() => {
-    wss.clients.forEach((ws: any) => {
+    wss.clients.forEach((ws: unknown) => {
       if (ws.isAlive === false) {
         return ws.terminate();
       }
@@ -1279,7 +1279,7 @@ export const initWebSocketServer = () => {
   return wss;
 };
 
-const handleMessage = (ws: ExtendedWebSocket, message: any, wss: WebSocketServer) => {
+const handleMessage = (ws: ExtendedWebSocket, message: unknown, wss: WebSocketServer) => {
   const { type, data } = message;
 
   switch (type) {
@@ -1289,7 +1289,7 @@ const handleMessage = (ws: ExtendedWebSocket, message: any, wss: WebSocketServer
 
     case 'broadcast':
       // Broadcast to all connected clients
-      wss.clients.forEach((client: any) => {
+      wss.clients.forEach((client: unknown) => {
         if (client.readyState === 1 && client.userId !== ws.userId) {
           client.send(JSON.stringify({
             type: 'broadcast',
@@ -1305,7 +1305,7 @@ const handleMessage = (ws: ExtendedWebSocket, message: any, wss: WebSocketServer
 
     case 'todo:update':
       // Broadcast todo updates to all authenticated users
-      wss.clients.forEach((client: any) => {
+      wss.clients.forEach((client: unknown) => {
         if (client.readyState === 1) {
           client.send(JSON.stringify({
             type: 'todo:updated',
@@ -1323,8 +1323,8 @@ const handleMessage = (ws: ExtendedWebSocket, message: any, wss: WebSocketServer
   }
 };
 
-export const broadcastToUser = (wss: WebSocketServer, userId: string, type: string, data: any) => {
-  wss.clients.forEach((client: any) => {
+export const broadcastToUser = (wss: WebSocketServer, userId: string, type: string, data: unknown) => {
+  wss.clients.forEach((client: unknown) => {
     if (client.readyState === 1 && client.userId === userId) {
       client.send(JSON.stringify({ type, data, timestamp: Date.now() }));
     }
@@ -1360,7 +1360,7 @@ export const logger = pino({
 });
 
 // HTTP request logger middleware
-export const httpLogger = (req: any, res: any, next: any) => {
+export const httpLogger = (req: unknown, res: unknown, next: unknown) => {
   const start = Date.now();
   
   res.on('finish', () => {
@@ -1602,7 +1602,7 @@ export class AuthService {
     });
   }
 
-  protected generateAccessToken(user: any) {
+  protected generateAccessToken(user: unknown) {
     return jwt.sign(
       {
         id: user.id,
@@ -1705,7 +1705,7 @@ export class UserService {
     return user;
   }
 
-  async updateUser(id: string, updates: any) {
+  async updateUser(id: string, updates: unknown) {
     const user = await prisma.user.update({
       where: { id },
       data: updates,
@@ -1750,7 +1750,7 @@ export class UserService {
     });
   }
 
-  async updateAvatar(userId: string, file: any) {
+  async updateAvatar(userId: string, file: unknown) {
     // TODO: Implement file upload to S3 or similar
     const avatarUrl = \`/uploads/avatars/\${userId}-\${Date.now()}.png\`;
 
@@ -1783,7 +1783,7 @@ export class TodoService {
     const { userId, page, limit, status, priority } = params;
     const skip = (page - 1) * limit;
 
-    const where: any = { userId };
+    const where: unknown = { userId };
     if (status) where.status = status;
     if (priority) where.priority = priority;
 
@@ -1820,7 +1820,7 @@ export class TodoService {
     return todo;
   }
 
-  async createTodo(data: any) {
+  async createTodo(data: unknown) {
     const todo = await prisma.todo.create({ data });
 
     // Invalidate user's todo list cache
@@ -1829,7 +1829,7 @@ export class TodoService {
     return todo;
   }
 
-  async updateTodo(id: string, userId: string, updates: any) {
+  async updateTodo(id: string, userId: string, updates: unknown) {
     const todo = await prisma.todo.updateMany({
       where: { id, userId },
       data: updates
@@ -1872,7 +1872,7 @@ export class TodoService {
     return result.count;
   }
 
-  async bulkUpdate(ids: string[], userId: string, updates: any) {
+  async bulkUpdate(ids: string[], userId: string, updates: unknown) {
     const result = await prisma.todo.updateMany({
       where: {
         id: { in: ids },

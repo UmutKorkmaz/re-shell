@@ -775,7 +775,7 @@ export class DependencyAuditor {
     }
   }
 
-  getDependencyTree(packageJsonPath: string): any {
+  getDependencyTree(packageJsonPath: string): unknown {
     // Build dependency tree from package.json and lock files
     // This would recursively resolve all dependencies
     return {
@@ -846,9 +846,9 @@ export interface ReportConfig {
 
 export class SecurityReporter {
   generateReport(
-    scanResult: any,
-    codeAnalysis: any,
-    dependencyReport: any,
+    scanResult: unknown,
+    codeAnalysis: unknown,
+    dependencyReport: unknown,
     config: ReportConfig
   ): string {
     if (config.format === 'json') {
@@ -862,7 +862,7 @@ export class SecurityReporter {
     return '';
   }
 
-  private generateJsonReport(scanResult: any, codeAnalysis: any, dependencyReport: any): string {
+  private generateJsonReport(scanResult: unknown, codeAnalysis: unknown, dependencyReport: unknown): string {
     return JSON.stringify({
       scan: scanResult,
       codeAnalysis,
@@ -871,7 +871,7 @@ export class SecurityReporter {
     }, null, 2);
   }
 
-  private generateMarkdownReport(scanResult: any, codeAnalysis: any, dependencyReport: any): string {
+  private generateMarkdownReport(scanResult: unknown, codeAnalysis: unknown, dependencyReport: unknown): string {
     let md = \`# Security Scan Report\\n\\n\`;
     md += \`**Generated:** \${new Date().toISOString()}\\n\\n\`;
 
@@ -901,7 +901,7 @@ export class SecurityReporter {
 
     // Detailed Findings
     md += \`## Critical Vulnerabilities\\n\\n\`;
-    const criticalVulns = scanResult.vulnerabilities.filter((v: any) => v.severity === 'critical');
+    const criticalVulns = scanResult.vulnerabilities.filter((v: unknown) => v.severity === 'critical');
     if (criticalVulns.length > 0) {
       for (const vuln of criticalVulns) {
         md += \`### \${vuln.id}: \${vuln.title}\\n\`;
@@ -919,7 +919,7 @@ export class SecurityReporter {
 
     // High Severity
     md += \`## High Severity Vulnerabilities\\n\\n\`;
-    const highVulns = scanResult.vulnerabilities.filter((v: any) => v.severity === 'high');
+    const highVulns = scanResult.vulnerabilities.filter((v: unknown) => v.severity === 'high');
     if (highVulns.length > 0) {
       for (const vuln of highVulns) {
         md += \`### \${vuln.id}: \${vuln.title}\\n\`;
@@ -949,7 +949,7 @@ export class SecurityReporter {
     return md;
   }
 
-  private generateHtmlReport(scanResult: any, codeAnalysis: any, dependencyReport: any): string {
+  private generateHtmlReport(scanResult: unknown, codeAnalysis: unknown, dependencyReport: unknown): string {
     return \`
 <!DOCTYPE html>
 <html>
@@ -985,7 +985,7 @@ export class SecurityReporter {
   </div>
 
   <h2>Vulnerabilities</h2>
-  \${scanResult.vulnerabilities.map((v: any) => \`
+  \${scanResult.vulnerabilities.map((v: unknown) => \`
     <div class="vuln">
       <h3>\${v.title}</h3>
       <p><strong>Severity:</strong> <span class="\${v.severity}">\${v.severity}</span></p>
@@ -998,28 +998,28 @@ export class SecurityReporter {
     \`;
   }
 
-  getComplianceMatrix(scanResult: any): any {
+  getComplianceMatrix(scanResult: unknown): unknown {
     return {
       owaspTop10: {
         compliant: scanResult.compliance.owasp,
         requirements: {
-          accessControl: scanResult.vulnerabilities.filter((v: any) => v.category === 'broken-access').length === 0,
-          cryptographicFailures: scanResult.vulnerabilities.filter((v: any) => v.category === 'sensitive-data').length === 0,
-          injection: scanResult.vulnerabilities.filter((v: any) => v.category === 'injection').length === 0,
-          insecureDesign: scanResult.vulnerabilities.filter((v: any) => v.owasp === 'A04:2021').length === 0,
-          securityMisconfiguration: scanResult.vulnerabilities.filter((v: any) => v.category === 'security-misconfiguration').length === 0,
-          vulnerableComponents: scanResult.vulnerabilities.filter((v: any) => v.category === 'dependency').length === 0,
-          authenticationFailures: scanResult.vulnerabilities.filter((v: any) => v.category === 'broken-authentication').length === 0,
-          dataIntegrityFailures: scanResult.vulnerabilities.filter((v: any) => v.owasp === 'A08:2021').length === 0,
-          loggingFailures: scanResult.vulnerabilities.filter((v: any) => v.owasp === 'A09:2021').length === 0,
-          ssrf: scanResult.vulnerabilities.filter((v: any) => v.owasp === 'A10:2021').length === 0,
+          accessControl: scanResult.vulnerabilities.filter((v: unknown) => v.category === 'broken-access').length === 0,
+          cryptographicFailures: scanResult.vulnerabilities.filter((v: unknown) => v.category === 'sensitive-data').length === 0,
+          injection: scanResult.vulnerabilities.filter((v: unknown) => v.category === 'injection').length === 0,
+          insecureDesign: scanResult.vulnerabilities.filter((v: unknown) => v.owasp === 'A04:2021').length === 0,
+          securityMisconfiguration: scanResult.vulnerabilities.filter((v: unknown) => v.category === 'security-misconfiguration').length === 0,
+          vulnerableComponents: scanResult.vulnerabilities.filter((v: unknown) => v.category === 'dependency').length === 0,
+          authenticationFailures: scanResult.vulnerabilities.filter((v: unknown) => v.category === 'broken-authentication').length === 0,
+          dataIntegrityFailures: scanResult.vulnerabilities.filter((v: unknown) => v.owasp === 'A08:2021').length === 0,
+          loggingFailures: scanResult.vulnerabilities.filter((v: unknown) => v.owasp === 'A09:2021').length === 0,
+          ssrf: scanResult.vulnerabilities.filter((v: unknown) => v.owasp === 'A10:2021').length === 0,
         },
       },
       soc2: {
         compliant: scanResult.compliance.soc2,
         requirements: {
           accessControl: true,
-          encryption: scanResult.vulnerabilities.filter((v: any) => v.category === 'sensitive-data').length === 0,
+          encryption: scanResult.vulnerabilities.filter((v: unknown) => v.category === 'sensitive-data').length === 0,
           monitoring: true,
           incidentResponse: true,
         },

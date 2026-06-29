@@ -1021,7 +1021,7 @@ export default class GraphqlController extends Controller {
 import { v4 as uuidv4 } from 'uuid';
 
 export default class AuthService extends Service {
-  generateTokens(user: any) {
+  generateTokens(user: unknown) {
     const { jwt } = this.app.config;
     
     const payload = {
@@ -1085,7 +1085,7 @@ export default class AuthService extends Service {
     return user;
   }
 
-  async generateResetToken(user: any) {
+  async generateResetToken(user: unknown) {
     const resetToken = uuidv4();
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 1);
@@ -1131,7 +1131,7 @@ export default class UserService extends Service {
       where: { email: email.toLowerCase() }});
   }
 
-  async create(data: any) {
+  async create(data: unknown) {
     const hashedPassword = await this.ctx.genHash(data.password);
     const verificationToken = uuidv4();
 
@@ -1144,7 +1144,7 @@ export default class UserService extends Service {
     return user;
   }
 
-  async update(id: string, updates: any) {
+  async update(id: string, updates: unknown) {
     const user = await this.findById(id);
     if (!user) {
       this.ctx.throw(404, 'User not found');
@@ -1165,7 +1165,7 @@ export default class UserService extends Service {
     return true;
   }
 
-  async paginate(options: any) {
+  async paginate(options: unknown) {
     const { page = 1, limit = 20, search, role, status } = options;
     const offset = (page - 1) * limit;
 
@@ -1237,12 +1237,12 @@ export default class TodoService extends Service {
       include: [{ model: this.ctx.model.User, as: 'user' }]});
   }
 
-  async create(data: any) {
+  async create(data: unknown) {
     const todo = await this.ctx.model.Todo.create(data);
     return todo;
   }
 
-  async update(id: string, userId: string, updates: any) {
+  async update(id: string, userId: string, updates: unknown) {
     const todo = await this.findById(id, userId);
     if (!todo) {
       this.ctx.throw(404, 'Todo not found');
@@ -1262,11 +1262,11 @@ export default class TodoService extends Service {
     return true;
   }
 
-  async paginate(options: any) {
+  async paginate(options: unknown) {
     const { userId, page = 1, limit = 20, status, priority, sortBy = 'createdAt', order = 'DESC' } = options;
     const offset = (page - 1) * limit;
 
-    const where: any = { userId };
+    const where: unknown = { userId };
 
     if (status) {
       where.status = status;
@@ -1299,7 +1299,7 @@ export default class TodoService extends Service {
     return result;
   }
 
-  async bulkUpdate(ids: string[], userId: string, updates: any) {
+  async bulkUpdate(ids: string[], userId: string, updates: unknown) {
     const [affected] = await this.ctx.model.Todo.update(updates, {
       where: {
         id: { [this.app.Sequelize.Op.in]: ids },
@@ -1325,7 +1325,7 @@ export default class CacheService extends Service {
     return null;
   }
 
-  async set(key: string, value: any, ttl = 3600) {
+  async set(key: string, value: unknown, ttl = 3600) {
     const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
     await this.app.redis.setex(key, ttl, stringValue);
   }
@@ -1402,7 +1402,7 @@ export default class EmailService extends Service {
     }
   }
 
-  async sendVerificationEmail(user: any) {
+  async sendVerificationEmail(user: unknown) {
     const verificationUrl = \`\${process.env.APP_URL}/api/v1/auth/verify/\${user.verificationToken}\`;
     
     const html = await this.ctx.renderView('email/verification.nj', {
@@ -1415,7 +1415,7 @@ export default class EmailService extends Service {
       html});
   }
 
-  async sendPasswordResetEmail(user: any, resetToken: string) {
+  async sendPasswordResetEmail(user: unknown, resetToken: string) {
     const resetUrl = \`\${process.env.FRONTEND_URL}/reset-password?token=\${resetToken}\`;
     
     const html = await this.ctx.renderView('email/password-reset.nj', {
@@ -1428,7 +1428,7 @@ export default class EmailService extends Service {
       html});
   }
 
-  async sendWelcomeEmail(user: any) {
+  async sendWelcomeEmail(user: unknown) {
     const html = await this.ctx.renderView('email/welcome.nj', {
       user});
 
@@ -1564,7 +1564,7 @@ export default (app: Application) => {
     // Auth Middleware
     'app/middleware/auth.ts': `import { Context, Application } from 'egg';
 
-export default (options?: any, app?: Application) => {
+export default (options?: unknown, app?: Application) => {
   return async (ctx: Context, next: () => Promise<unknown>) => {
     const token = ctx.headers.authorization?.replace('Bearer ', '') || ctx.query.token;
 

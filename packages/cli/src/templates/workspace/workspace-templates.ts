@@ -10,7 +10,7 @@ export interface WorkspaceTemplate {
   description: string;
   version: string;
   extends?: string[];
-  config: any;
+  config: unknown;
   variables?: TemplateVariable[];
   validations?: TemplateValidation[];
 }
@@ -18,7 +18,7 @@ export interface WorkspaceTemplate {
 export interface TemplateVariable {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
-  default?: any;
+  default?: unknown;
   required?: boolean;
   description?: string;
 }
@@ -26,7 +26,7 @@ export interface TemplateVariable {
 export interface TemplateValidation {
   type: 'required' | 'pattern' | 'range' | 'custom';
   field: string;
-  rule: any;
+  rule: unknown;
   message: string;
 }
 
@@ -48,14 +48,16 @@ export class WorkspaceTemplateManager {
   /**
    * Deep merge objects
    */
-  private deepMerge(target: any, source: any): any {
-    const result = { ...target };
+  private deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...target };
 
     for (const key of Object.keys(source)) {
-      if (source[key] instanceof Object && key in target && target[key] instanceof Object) {
-        result[key] = this.deepMerge(target[key], source[key]);
+      const sourceVal = source[key];
+      const targetVal = target[key];
+      if (sourceVal instanceof Object && key in target && targetVal instanceof Object) {
+        result[key] = this.deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>);
       } else {
-        result[key] = source[key];
+        result[key] = sourceVal;
       }
     }
 
@@ -98,7 +100,7 @@ export class WorkspaceTemplateManager {
   /**
    * Instantiate template
    */
-  instantiate(templateId: string, options: TemplateInstantiationOptions = {}): any {
+  instantiate(templateId: string, options: TemplateInstantiationOptions = {}): unknown {
     const template = this.getTemplate(templateId);
     if (!template) {
       throw new Error(`Template not found: ${templateId}`);
@@ -124,7 +126,7 @@ export class WorkspaceTemplateManager {
   /**
    * Resolve template inheritance
    */
-  private resolveTemplate(template: WorkspaceTemplate): any {
+  private resolveTemplate(template: WorkspaceTemplate): unknown {
     let config = this.deepClone(template.config);
 
     // Process parent templates
@@ -136,7 +138,7 @@ export class WorkspaceTemplateManager {
         }
 
         const parentConfig = this.resolveTemplate(parent);
-        config = this.deepMerge(parentConfig, config);
+        config = this.deepMerge(parentConfig as Record<string, unknown>, config as Record<string, unknown>);
       }
     }
 
@@ -146,7 +148,7 @@ export class WorkspaceTemplateManager {
   /**
    * Apply variables to config
    */
-  private applyVariables(config: any, variables: Record<string, unknown>): any {
+  private applyVariables(config: unknown, variables: Record<string, unknown>): unknown {
     let configStr = JSON.stringify(config);
 
     // Replace variables in format {{variable.name}}
@@ -161,14 +163,14 @@ export class WorkspaceTemplateManager {
   /**
    * Apply overrides to config
    */
-  private applyOverrides(config: any, overrides: Record<string, unknown>): any {
-    return this.deepMerge(config, overrides);
+  private applyOverrides(config: unknown, overrides: Record<string, unknown>): unknown {
+    return this.deepMerge(config as Record<string, unknown>, overrides);
   }
 
   /**
    * Validate config against template
    */
-  private validateConfig(config: any, template: WorkspaceTemplate): void {
+  private validateConfig(config: unknown, template: WorkspaceTemplate): void {
     if (!template.validations) return;
 
     for (const validation of template.validations) {
@@ -183,8 +185,8 @@ export class WorkspaceTemplateManager {
 
         case 'pattern':
           {
-          const regex = new RegExp(validation.rule);
-          if (!regex.test(value)) {
+          const regex = new RegExp(validation.rule as string);
+          if (!regex.test(value as string)) {
             throw new Error(`${validation.message}: ${validation.field} does not match pattern`);
           }
           break;
@@ -192,7 +194,7 @@ export class WorkspaceTemplateManager {
           }
         case 'range':
           if (typeof value === 'number') {
-            const { min, max } = validation.rule;
+            const { min, max } = validation.rule as { min: number; max: number };
             if (value < min || value > max) {
               throw new Error(`${validation.message}: ${validation.field} must be between ${min} and ${max}`);
             }
@@ -205,7 +207,7 @@ export class WorkspaceTemplateManager {
   /**
    * Get nested value from object
    */
-  private getNestedValue(obj: any, path: string): any {
+  private getNestedValue(obj: unknown, path: string): unknown {
     const keys = path.split('.');
     let value = obj;
 
@@ -293,7 +295,7 @@ export class WorkspaceTemplateManager {
   /**
    * Compose multiple templates
    */
-  composeTemplates(templateIds: string[], options: TemplateInstantiationOptions = {}): any {
+  composeTemplates(templateIds: string[], options: TemplateInstantiationOptions = {}): unknown {
     if (templateIds.length === 0) {
       throw new Error('At least one template is required');
     }
@@ -310,7 +312,7 @@ export class WorkspaceTemplateManager {
         ...options,
         skipValidation: true,
       });
-      mergedConfig = this.deepMerge(mergedConfig, config);
+      mergedConfig = this.deepMerge(mergedConfig, config as Record<string, unknown>);
     }
 
     return mergedConfig;
