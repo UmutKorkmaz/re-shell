@@ -302,7 +302,7 @@ async function interactiveDiff(): Promise<void> {
       type: 'text',
       name: 'output',
       message: 'Output file (optional):',
-      validate: (value: string, answers: any) => {
+      validate: (value: string, answers: Record<string, unknown>) => {
         if (!value) return true;
         if (answers.format === 'html' && !value.endsWith('.html')) {
           return 'HTML format requires .html extension';
@@ -469,9 +469,9 @@ async function compareLevels(): Promise<void> {
   // Show inheritance chain
   const merged = await configManager.getMergedConfig();
   console.log(chalk.magenta('\\n🔗 Final Configuration Source:'));
-  console.log(`  Package Manager: ${merged.merged.packageManager} (from ${getConfigSource('packageManager', globalConfig, projectConfig, workspaceConfig)})`);
-  console.log(`  Framework: ${merged.merged.framework} (from ${getConfigSource('framework', globalConfig, projectConfig, workspaceConfig)})`);
-  console.log(`  Template: ${merged.merged.template} (from ${getConfigSource('template', globalConfig, projectConfig, workspaceConfig)})`);
+  console.log(`  Package Manager: ${merged.merged.packageManager} (from ${getConfigSource('packageManager', globalConfig as unknown as Record<string, unknown>, projectConfig as unknown as Record<string, unknown> | null, workspaceConfig as unknown as Record<string, unknown> | null)})`);
+  console.log(`  Framework: ${merged.merged.framework} (from ${getConfigSource('framework', globalConfig as unknown as Record<string, unknown>, projectConfig as unknown as Record<string, unknown> | null, workspaceConfig as unknown as Record<string, unknown> | null)})`);
+  console.log(`  Template: ${merged.merged.template} (from ${getConfigSource('template', globalConfig as unknown as Record<string, unknown>, projectConfig as unknown as Record<string, unknown> | null, workspaceConfig as unknown as Record<string, unknown> | null)})`);
 }
 
 async function createPatch(): Promise<void> {
@@ -543,13 +543,13 @@ async function showConfigStatus(options: ConfigDiffCommandOptions, spinner?: Pro
 
 // Helper functions
 async function loadConfigSources(leftSource: string, rightSource: string): Promise<{
-  leftConfig: any;
-  rightConfig: any;
+  leftConfig: Record<string, unknown>;
+  rightConfig: Record<string, unknown>;
   leftSource: string;
   rightSource: string;
 }> {
-  const leftConfig = await loadConfigFromSource(leftSource);
-  const rightConfig = await loadConfigFromSource(rightSource);
+  const leftConfig = await loadConfigFromSource(leftSource) as Record<string, unknown>;
+  const rightConfig = await loadConfigFromSource(rightSource) as Record<string, unknown>;
 
   return {
     leftConfig,
@@ -703,7 +703,7 @@ async function resolveConflictsInteractively(result: MergeResult): Promise<void>
   }
 }
 
-function formatConflictValue(value: any): string {
+function formatConflictValue(value: unknown): string {
   if (typeof value === 'string') return `"${value}"`;
   if (value === null) return 'null';
   if (value === undefined) return 'undefined';
@@ -711,26 +711,26 @@ function formatConflictValue(value: any): string {
   return String(value);
 }
 
-function setValueAtPath(obj: any, path: string, value: any): void {
+function setValueAtPath(obj: Record<string, unknown>, path: string, value: unknown): void {
   const keys = path.split('.');
   const lastKey = keys.pop()!;
-  
-  let current = obj;
+
+  let current: Record<string, unknown> = obj;
   for (const key of keys) {
     if (!(key in current)) {
       current[key] = {};
     }
-    current = current[key];
+    current = current[key] as Record<string, unknown>;
   }
-  
+
   current[lastKey] = value;
 }
 
 function getConfigSource(
-  property: string, 
-  global: any, 
-  project: any, 
-  workspace: any
+  property: string,
+  global: Record<string, unknown> | null,
+  project: Record<string, unknown> | null,
+  workspace: Record<string, unknown> | null
 ): string {
   if (workspace && workspace[property] !== undefined) return 'workspace';
   if (project && project[property] !== undefined) return 'project';

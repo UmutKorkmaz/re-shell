@@ -3,7 +3,7 @@ import * as path from 'path';
 import prompts from 'prompts';
 import chalk from 'chalk';
 import * as yaml from 'js-yaml';
-import { getFrameworkChoices, getFrameworkConfig, validateFramework } from '../utils/framework';
+import { getFrameworkChoices, getFrameworkConfig, validateFramework, type FrameworkConfig } from '../utils/framework';
 import { findMonorepoRoot } from '../utils/monorepo';
 import { getBackendTemplate, listBackendTemplates, type BackendTemplate } from '../templates/backend/index';
 import {
@@ -988,7 +988,7 @@ function createMfShellTemplate(
   sharedDeps: string[]
 ): BaseTemplate {
   // Create a fake framework config
-  const frameworkConfig = { name: framework, hasTypeScript: context.hasTypeScript };
+  const frameworkConfig = { name: framework, hasTypeScript: context.hasTypeScript } as FrameworkConfig;
   // Return appropriate template based on framework
   switch (framework) {
     case 'react-module-federation':
@@ -1143,7 +1143,7 @@ function createMfRemoteTemplate(
   sharedDeps: string[]
 ): BaseTemplate {
   // Create a fake framework config
-  const frameworkConfig = { name: framework, hasTypeScript: context.hasTypeScript };
+  const frameworkConfig = { name: framework, hasTypeScript: context.hasTypeScript } as FrameworkConfig;
   switch (framework) {
     case 'react-module-federation':
       return new ReactModuleFederationRemoteTemplate(frameworkConfig, context, remote, sharedDeps);
@@ -2674,9 +2674,9 @@ async function createWorkspace(
         message: 'Search and select a backend framework (type to filter):',
         choices: allChoices,
         initial: 0,
-        suggest: async (input: string, choices: any[]) => {
+        suggest: async (input: string, choices: { title: string; [key: string]: unknown }[]) => {
           return Promise.resolve(
-            choices.filter((c: any) =>
+            choices.filter((c) =>
               c.title.toLowerCase().includes(input.toLowerCase())
             )
           );
@@ -3409,7 +3409,7 @@ async function createBackendTemplate(
 /**
  * Creates appropriate template instance based on framework
  */
-function createTemplate(framework: any, context: TemplateContext): BaseTemplate {
+function createTemplate(framework: FrameworkConfig, context: TemplateContext): BaseTemplate {
   switch (framework.name) {
     case 'react':
     case 'react-ts':
@@ -3508,7 +3508,7 @@ function createTemplate(framework: any, context: TemplateContext): BaseTemplate 
 
 class ReactModuleFederationShellTemplate extends ReactModuleFederationTemplate {
   constructor(
-    framework: any,
+    framework: FrameworkConfig,
     context: TemplateContext,
     private remotes: MicrofrontendRemote[],
     private sharedDeps: string[]
@@ -3583,7 +3583,7 @@ ${sharedConfig}
 
 class VueModuleFederationShellTemplate extends VueModuleFederationTemplate {
   constructor(
-    framework: any,
+    framework: FrameworkConfig,
     context: TemplateContext,
     private remotes: MicrofrontendRemote[],
     private sharedDeps: string[]
@@ -3659,7 +3659,7 @@ ${sharedConfig}
 
 class AngularModuleFederationShellTemplate extends AngularModuleFederationTemplate {
   constructor(
-    framework: any,
+    framework: FrameworkConfig,
     context: TemplateContext,
     private remotes: MicrofrontendRemote[],
     private sharedDeps: string[]
@@ -3676,7 +3676,7 @@ class AngularModuleFederationShellTemplate extends AngularModuleFederationTempla
 
 class SvelteModuleFederationShellTemplate extends SvelteModuleFederationTemplate {
   constructor(
-    framework: any,
+    framework: FrameworkConfig,
     context: TemplateContext,
     private remotes: MicrofrontendRemote[],
     private sharedDeps: string[]
@@ -3752,7 +3752,7 @@ ${sharedConfig}
 
 class ReactModuleFederationRemoteTemplate extends ReactModuleFederationTemplate {
   constructor(
-    framework: any,
+    framework: FrameworkConfig,
     context: TemplateContext,
     private remote: MicrofrontendRemote,
     private sharedDeps: string[]
@@ -3828,7 +3828,7 @@ ${sharedConfig}
 
 class VueModuleFederationRemoteTemplate extends VueModuleFederationTemplate {
   constructor(
-    framework: any,
+    framework: FrameworkConfig,
     context: TemplateContext,
     private remote: MicrofrontendRemote,
     private sharedDeps: string[]
@@ -3905,7 +3905,7 @@ ${sharedConfig}
 
 class AngularModuleFederationRemoteTemplate extends AngularModuleFederationTemplate {
   constructor(
-    framework: any,
+    framework: FrameworkConfig,
     context: TemplateContext,
     private remote: MicrofrontendRemote,
     private sharedDeps: string[]
@@ -3922,7 +3922,7 @@ class AngularModuleFederationRemoteTemplate extends AngularModuleFederationTempl
 
 class SvelteModuleFederationRemoteTemplate extends SvelteModuleFederationTemplate {
   constructor(
-    framework: any,
+    framework: FrameworkConfig,
     context: TemplateContext,
     private remote: MicrofrontendRemote,
     private sharedDeps: string[]

@@ -9,12 +9,12 @@ import { CanonicalHealth, CanonicalHealthStatus } from '../utils/health-normaliz
 import { exec } from 'child_process';
 import * as chokidar from 'chokidar';
 
-let inkRender: any;
-let Box: any;
-let Text: any;
-let useInput: any;
-let useApp: any;
-let Spinner: any;
+let inkRender: ((node: React.ReactElement) => { unmount: () => void; rerender: (node: React.ReactElement) => void; clear: () => void; waitUntilExit?: () => Promise<void> }) | undefined;
+let Box: React.FC<Record<string, unknown>> | undefined;
+let Text: React.FC<Record<string, unknown>> | undefined;
+let useInput: ((cb: (input: string, key: Record<string, boolean | string>) => void) => void) | undefined;
+let useApp: (() => { exit: (error?: Error) => void }) | undefined;
+let Spinner: React.FC<Record<string, unknown>> | undefined;
 
 function nativeImport<T = any>(specifier: string): Promise<T> {
   if (process.env.VITEST) {

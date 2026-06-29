@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { findMonorepoRoot } from '../utils/monorepo';
 
 interface GenerateOptions {
-  spinner?: any;
+  spinner?: { text?: string; succeed?: (msg?: string) => void; fail?: (msg?: string) => void; stop?: () => void; start?: (msg?: string) => void };
   verbose?: boolean;
   type?: 'component' | 'hook' | 'service' | 'test' | 'config' | 'documentation' | 'backend';
   framework?: 'react' | 'vue' | 'svelte' | 'angular' | 'express' | 'fastapi' | 'django' | 'flask' | 'tornado' | 'sanic' | 'laravel' | 'symfony' | 'slim' | 'codeigniter';
@@ -286,11 +286,11 @@ export class ${serviceName} {
     return this.request<T>('GET', endpoint);
   }
 
-  async post<T>(endpoint: string, data?: any): Promise<T> {
+  async post<T>(endpoint: string, data?: unknown): Promise<T> {
     return this.request<T>('POST', endpoint, data);
   }
 
-  async put<T>(endpoint: string, data?: any): Promise<T> {
+  async put<T>(endpoint: string, data?: unknown): Promise<T> {
     return this.request<T>('PUT', endpoint, data);
   }
 
@@ -301,7 +301,7 @@ export class ${serviceName} {
   private async request<T>(
     method: string,
     endpoint: string,
-    data?: any
+    data?: unknown
   ): Promise<T> {
     const url = \`\${this.config.baseURL}\${endpoint}\`;
     

@@ -2,7 +2,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
 import { execSync} from 'child_process';
-import inquirer from 'inquirer';
+import inquirer, { DistinctQuestion } from 'inquirer';
 import chalk from 'chalk';
 import { initializeMonorepo, DEFAULT_MONOREPO_STRUCTURE } from '../utils/monorepo';
 import { initializeGitRepository } from '../utils/submodule';
@@ -53,7 +53,7 @@ const TEMPLATES = {
 /**
  * Wrapper around inquirer prompts
  */
-async function safePrompt<T = any>(questions: any[], options: { debug?: boolean } = {}): Promise<T> {
+async function safePrompt<T = Record<string, unknown>>(questions: DistinctQuestion<Record<string, unknown>>[], options: { debug?: boolean } = {}): Promise<T> {
   if (options.debug) {
     console.log(chalk.gray('[DEBUG] Starting prompt...'));
   }
@@ -174,7 +174,7 @@ async function detectPackageManager(): Promise<'npm' | 'yarn' | 'pnpm' | 'bun'> 
   return 'npm';
 }
 
-async function savePreset(name: string, config: any): Promise<void> {
+async function savePreset(name: string, config: Record<string, unknown>): Promise<void> {
   const presetsDir = path.join(os.homedir(), '.re-shell', 'presets');
   await fs.ensureDir(presetsDir);
   await fs.writeJSON(path.join(presetsDir, `${name}.json`), config, { spaces: 2 });
@@ -298,7 +298,7 @@ export async function initMonorepo(name: string, options: InitOptions = {}): Pro
   }
 
   while (fs.existsSync(projectPath) && !options.force) {
-    const questions: any[] = [{
+    const questions: DistinctQuestion<Record<string, unknown>>[] = [{
       type: 'list',
       name: 'action',
       message: `Directory "${normalizedName}" already exists. What would you like to do?`,
@@ -321,7 +321,7 @@ export async function initMonorepo(name: string, options: InitOptions = {}): Pro
     }
 
     if (action === 'rename') {
-      const questions: any[] = [{
+      const questions: DistinctQuestion<Record<string, unknown>>[] = [{
         type: 'input',
         name: 'newName',
         message: 'Enter a new project name:',
@@ -352,7 +352,7 @@ export async function initMonorepo(name: string, options: InitOptions = {}): Pro
   }
 
   // Interactive prompts for missing options (skip if --yes flag is used)
-  let responses: any = {};
+  let responses: Record<string, unknown> = {};
 
   // Force non-interactive mode if not in a TTY environment or when --yes is used
   const forceNonInteractive = !process.stdout.isTTY || process.env.CI || options.yes;
@@ -369,7 +369,7 @@ export async function initMonorepo(name: string, options: InitOptions = {}): Pro
 
   if (!forceNonInteractive) {
     // Only run prompts if in interactive mode and --yes flag is not used
-    const promptsToRun: any[] = [];
+    const promptsToRun: DistinctQuestion<Record<string, unknown>>[] = [];
 
     // Welcome message
     console.log(chalk.bold.cyan('\n🚀 Welcome to Re-Shell CLI!\n'));
@@ -523,13 +523,21 @@ export async function initMonorepo(name: string, options: InitOptions = {}): Pro
   }
 
   // Merge options with responses
-  const finalOptions = {
-    packageManager: options.packageManager || responses.packageManager || 'pnpm',
-    git: options.git !== undefined ? options.git : responses.git,
-    submodules: options.submodules !== undefined ? options.submodules : responses.submodules,
+  const finalOptions: {
+    packageManager: 'npm' | 'yarn' | 'pnpm' | 'bun';
+    git: boolean;
+    submodules: boolean;
+    structure: Record<string, unknown>;
+    template: string;
+    typescript: boolean;
+    skipInstall: boolean;
+  } = {
+    packageManager: (options.packageManager || responses.packageManager || 'pnpm') as 'npm' | 'yarn' | 'pnpm' | 'bun',
+    git: (options.git !== undefined ? options.git : responses.git) as boolean,
+    submodules: (options.submodules !== undefined ? options.submodules : responses.submodules) as boolean,
     structure: { ...options.structure, ...customStructure },
-    template: options.template || responses.template || 'blank',
-    typescript: responses.typescript !== undefined ? responses.typescript : true,
+    template: (options.template || responses.template || 'blank') as string,
+    typescript: (responses.typescript !== undefined ? responses.typescript : true) as boolean,
     skipInstall: options.skipInstall || false,
   };
 
@@ -539,7 +547,7 @@ export async function initMonorepo(name: string, options: InitOptions = {}): Pro
       options.spinner.stop();
     }
 
-    const questions: any[] = [{
+    const questions: DistinctQuestion<Record<string, unknown>>[] = [{
       type: 'input',
       name: 'presetName',
       message: 'Enter a name for this preset:',
@@ -836,7 +844,7 @@ out/
   }
 }
 
-async function applyTemplate(projectPath: string, template: string, options: any): Promise<void> {
+async function applyTemplate(projectPath: string, template: string, options: { packageManager?: string; structure?: { apps?: string; packages?: string } }): Promise<void> {
   const templateConfig = TEMPLATES[template as keyof typeof TEMPLATES];
   if (!templateConfig) return;
 
@@ -972,7 +980,7 @@ ${
 
 async function createAdditionalConfigs(
   projectPath: string,
-  options: { packageManager: string; git: boolean; submodules: boolean; template?: string; structure?: any }
+  options: { packageManager: string; git: boolean; submodules: boolean; template?: string; structure?: Record<string, unknown> }
 ): Promise<void> {
   // Create .nvmrc for Node.js version
   await fs.writeFile(path.join(projectPath, '.nvmrc'), '18.17.0\n');

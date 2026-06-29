@@ -30,7 +30,7 @@ export interface ProjectInfo {
 export interface MonorepoConfig {
   type: string;
   projects: ProjectInfo[];
-  rootPackage?: any;
+  rootPackage?: Record<string, unknown>;
 }
 
 /**
@@ -170,7 +170,7 @@ async function importNx(cwd: string, configPath?: string): Promise<MonorepoConfi
       const projectPath = typeof projectConfig === 'string' ? projectConfig : projectConfig.root;
       const projectPkgJson = path.join(cwd, projectPath, 'package.json');
 
-      let projectPkg: any = {};
+      let projectPkg: Record<string, unknown> = {};
       if (fs.existsSync(projectPkgJson)) {
         projectPkg = await fs.readJson(projectPkgJson);
       }
@@ -181,8 +181,8 @@ async function importNx(cwd: string, configPath?: string): Promise<MonorepoConfi
         type: inferProjectType(projectPkg, name),
         framework: inferFramework(projectPkg),
         language: inferLanguage(projectPkg),
-        dependencies: projectPkg.dependencies || {},
-        scripts: projectPkg.scripts || {},
+        dependencies: (projectPkg.dependencies as Record<string, string>) || {},
+        scripts: (projectPkg.scripts as Record<string, string>) || {},
       });
     }
   }
@@ -394,7 +394,7 @@ async function findWorkspaceDirs(cwd: string, globs: string[]): Promise<string[]
 /**
  * Infer project type from package.json
  */
-function inferProjectType(pkg: any, name: string): 'frontend' | 'backend' | 'library' | 'tool' {
+function inferProjectType(pkg: Record<string, any>, name: string): 'frontend' | 'backend' | 'library' | 'tool' {
   // Check for common frontend patterns
   if (pkg.dependencies?.react || pkg.dependencies?.vue || pkg.dependencies?.angular) {
     return 'frontend';
@@ -423,7 +423,7 @@ function inferProjectType(pkg: any, name: string): 'frontend' | 'backend' | 'lib
 /**
  * Infer framework from package.json
  */
-function inferFramework(pkg: any): string | undefined {
+function inferFramework(pkg: Record<string, any>): string | undefined {
   if (pkg.dependencies?.react) return 'react';
   if (pkg.dependencies?.vue) return 'vue';
   if (pkg.dependencies?.angular) return 'angular';
@@ -441,7 +441,7 @@ function inferFramework(pkg: any): string | undefined {
 /**
  * Infer language from package.json
  */
-function inferLanguage(pkg: any): string {
+function inferLanguage(pkg: Record<string, any>): string {
   if (pkg.devDependencies?.typescript || pkg.dependencies?.typescript) {
     return 'typescript';
   }
