@@ -9,11 +9,5 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint"
-  },
-  "pnpm": {
-    "overrides": {
-      "@types/react": "18.3.31",
-      "@types/react-dom": "18.3.7"
-    }
   }
 }
