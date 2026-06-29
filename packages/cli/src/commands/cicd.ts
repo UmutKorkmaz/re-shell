@@ -3,6 +3,9 @@ import * as path from 'path';
 import chalk from 'chalk';
 import { findMonorepoRoot } from '../utils/monorepo';
 
+/**
+ * Options for configuring CI/CD pipeline generation
+ */
 interface CICDOptions {
   spinner?: any;
   verbose?: boolean;
@@ -11,6 +14,9 @@ interface CICDOptions {
   force?: boolean;
 }
 
+/**
+ * Configuration for a deployment environment
+ */
 interface EnvironmentConfig {
   name: string;
   url?: string;
@@ -18,6 +24,12 @@ interface EnvironmentConfig {
   variables: Record<string, string>;
 }
 
+/**
+ * Generates CI/CD pipeline configuration files for the specified provider
+ *
+ * @param options - Configuration options including provider, template, and spinner
+ * @returns Promise that resolves when CI/CD config files have been written
+ */
 export async function generateCICDConfig(options: CICDOptions = {}) {
   try {
     const monorepoRoot = await findMonorepoRoot(process.cwd());
@@ -70,6 +82,13 @@ export async function generateCICDConfig(options: CICDOptions = {}) {
   }
 }
 
+/**
+ * Generates deployment configuration for a specific environment
+ *
+ * @param environment - Target deployment environment (e.g. 'staging', 'production')
+ * @param options - Configuration options for deployment generation
+ * @returns Promise that resolves when deployment config files have been written
+ */
 export async function generateDeployConfig(environment: string, options: CICDOptions = {}) {
   try {
     const monorepoRoot = await findMonorepoRoot(process.cwd());
@@ -102,6 +121,13 @@ export async function generateDeployConfig(environment: string, options: CICDOpt
   }
 }
 
+/**
+ * Sets up configuration files for multiple deployment environments
+ *
+ * @param environments - Array of environment configurations to create
+ * @param options - Configuration options for environment setup
+ * @returns Promise that resolves when all environments are configured
+ */
 export async function setupEnvironments(environments: EnvironmentConfig[], options: CICDOptions = {}) {
   try {
     const monorepoRoot = await findMonorepoRoot(process.cwd());

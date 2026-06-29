@@ -4,6 +4,9 @@ import { configManager } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the project configuration command.
+ */
 export interface ProjectConfigCommandOptions {
   show?: boolean;
   init?: boolean;
@@ -19,6 +22,13 @@ export interface ProjectConfigCommandOptions {
   spinner?: ProgressSpinner;
 }
 
+/**
+ * Entry point for the `project-config` command. Dispatches to the appropriate
+ * subcommand based on the provided options.
+ *
+ * @param options - Options describing the desired project configuration operation
+ * @returns Promise that resolves when the operation completes
+ */
 export async function manageProjectConfig(options: ProjectConfigCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

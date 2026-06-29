@@ -4,6 +4,9 @@ import { environmentManager} from '../utils/environment';
 import { ProgressSpinner } from '../utils/spinner';
 
 
+/**
+ * Options for the environment management command.
+ */
 export interface EnvironmentCommandOptions {
   list?: boolean;
   active?: boolean;
@@ -24,6 +27,13 @@ export interface EnvironmentCommandOptions {
   spinner?: ProgressSpinner;
 }
 
+/**
+ * Entry point for the `env` command. Dispatches to the appropriate subcommand
+ * based on the provided options.
+ *
+ * @param options - Options describing the desired environment operation
+ * @returns Promise that resolves when the operation completes
+ */
 export async function manageEnvironment(options: EnvironmentCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

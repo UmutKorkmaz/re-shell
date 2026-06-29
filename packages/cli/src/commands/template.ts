@@ -7,6 +7,9 @@ import { configManager } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the `re-shell template` command.
+ */
 export interface TemplateCommandOptions {
   list?: boolean;
   create?: boolean;
@@ -23,6 +26,15 @@ export interface TemplateCommandOptions {
   spinner?: ProgressSpinner;
 }
 
+/**
+ * Manages configuration templates (list, create, delete, apply, show).
+ *
+ * Dispatches to the appropriate sub-command based on the provided options,
+ * defaulting to listing templates when no action is specified.
+ *
+ * @param options - Options controlling which template operation to perform
+ * @returns Promise that resolves when the template operation is complete
+ */
 export async function manageTemplates(options: TemplateCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

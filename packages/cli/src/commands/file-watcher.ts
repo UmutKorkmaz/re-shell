@@ -13,6 +13,9 @@ import {
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the file watcher command.
+ */
 export interface FileWatcherCommandOptions {
   start?: boolean;
   stop?: boolean;
@@ -42,6 +45,13 @@ export interface FileWatcherCommandOptions {
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 let globalWatcher: FileWatcher | null = null;
 
+/**
+ * Entry point for the `file-watcher` command. Dispatches to the appropriate
+ * subcommand based on the provided options.
+ *
+ * @param options - Options describing the desired watcher operation
+ * @returns Promise that resolves when the operation completes
+ */
 export async function manageFileWatcher(options: FileWatcherCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

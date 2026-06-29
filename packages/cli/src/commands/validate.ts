@@ -5,6 +5,9 @@ import { configManager } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 
 
+/**
+ * Options for the `re-shell validate` command.
+ */
 export interface ValidateCommandOptions {
   global?: boolean;
   project?: boolean;
@@ -18,6 +21,15 @@ export interface ValidateCommandOptions {
   spinner?: ProgressSpinner;
 }
 
+/**
+ * Validates project and global configuration files against their schemas.
+ *
+ * Dispatches to the appropriate sub-command based on the provided options
+ * (file-specific, global-only, project-only, interactive, or all).
+ *
+ * @param options - Options controlling validation scope and output behavior
+ * @returns Promise that resolves when validation is complete
+ */
 export async function validateConfiguration(options: ValidateCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

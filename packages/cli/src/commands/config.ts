@@ -4,6 +4,9 @@ import { configManager, GlobalConfig} from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the configuration management command
+ */
 export interface ConfigCommandOptions {
   global?: boolean;
   project?: boolean;
@@ -23,6 +26,15 @@ export interface ConfigCommandOptions {
   spinner?: ProgressSpinner;
 }
 
+/**
+ * Entry point for managing Re-Shell configuration
+ *
+ * Dispatches to the appropriate subcommand based on the provided options
+ * (backup, restore, list, get, set, preset save/load/delete, interactive).
+ *
+ * @param options - Configuration options specifying which config operation to perform
+ * @returns Promise that resolves when the configuration operation is complete
+ */
 export async function manageConfig(options: ConfigCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 
