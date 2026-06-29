@@ -13,6 +13,10 @@ import {
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the workspace definition command, including initialization,
+ * validation, auto-detection, structure checks, and fix flags.
+ */
 export interface WorkspaceDefinitionCommandOptions {
   init?: boolean;
   validate?: boolean;
@@ -42,6 +46,14 @@ export interface WorkspaceDefinitionCommandOptions {
 
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
+/**
+ * Entry point for the workspace definition command. Dispatches to the
+ * appropriate sub-operation (init, validate, auto-detect, structure, fix, or
+ * interactive) based on the provided options.
+ *
+ * @param options - Configuration flags controlling the definition operation.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageWorkspaceDefinition(options: WorkspaceDefinitionCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

@@ -11,6 +11,10 @@ import {
 import { ProgressSpinner} from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the workspace backup command, including backup creation,
+ * restore, list, cleanup, and comparison flags.
+ */
 export interface WorkspaceBackupCommandOptions {
   create?: boolean;
   list?: boolean;
@@ -65,6 +69,14 @@ export interface WorkspaceBackupCommandOptions {
 
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
+/**
+ * Entry point for the workspace backup command. Dispatches to the appropriate
+ * sub-operation (create, list, restore, delete, export, import, cleanup, show,
+ * compare, or interactive) based on the provided options.
+ *
+ * @param options - Configuration flags controlling the backup operation.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageWorkspaceBackup(options: WorkspaceBackupCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

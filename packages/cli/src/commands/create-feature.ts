@@ -4,6 +4,9 @@ import chalk from 'chalk';
 import { findMonorepoRoot } from '../utils/monorepo';
 import { getBackendTemplate, listBackendTemplates} from '../templates/backend/index';
 
+/**
+ * Options for scaffolding a new feature within a Re-Shell monorepo.
+ */
 interface CreateFeatureOptions {
   spinner?: any;
   verbose?: boolean;
@@ -21,6 +24,9 @@ interface CreateFeatureOptions {
   database?: 'prisma' | 'typeorm' | 'mongoose' | 'sequelize' | 'none';
 }
 
+/**
+ * Resolved context used during feature generation, including normalized name variants and selected configuration.
+ */
 interface FeatureContext {
   name: string;
   normalizedName: string;
@@ -35,6 +41,14 @@ interface FeatureContext {
   features: string[];
 }
 
+/**
+ * Scaffold a new feature inside a Re-Shell monorepo.
+ * Builds the feature context, determines the target path, and generates the feature files.
+ *
+ * @param name - The display name of the feature to create.
+ * @param options - Options controlling the feature type, backend, frontend, and other settings.
+ * @returns Resolves when the feature has been created.
+ */
 export async function createFeature(name: string, options: CreateFeatureOptions = {}) {
   try {
     const monorepoRoot = await findMonorepoRoot(process.cwd());

@@ -29,6 +29,14 @@ interface ProjectConfig {
   hasTesting: boolean;
 }
 
+/**
+ * Import an external project into a Re-Shell monorepo structure.
+ * Analyzes the source project, optionally creates a backup, then imports it as a monorepo or standalone workspace.
+ *
+ * @param sourcePath - Path to the source project to import.
+ * @param options - Migration options such as backup, verbose, and dry-run.
+ * @returns Resolves when the import is complete.
+ */
 export async function importProject(sourcePath: string, options: MigrateOptions = {}) {
   try {
     if (options.spinner) {
@@ -84,6 +92,14 @@ export async function importProject(sourcePath: string, options: MigrateOptions 
   }
 }
 
+/**
+ * Export a Re-Shell monorepo to an external target path.
+ * Copies source code, configurations, and documentation into a standalone export structure.
+ *
+ * @param targetPath - Destination path for the export.
+ * @param options - Migration options such as force, verbose, and dry-run.
+ * @returns Resolves when the export is complete.
+ */
 export async function exportProject(targetPath: string, options: MigrateOptions = {}) {
   try {
     if (options.spinner) {
@@ -121,6 +137,12 @@ export async function exportProject(targetPath: string, options: MigrateOptions 
   }
 }
 
+/**
+ * Create a timestamped backup of the current Re-Shell monorepo.
+ *
+ * @param options - Migration options such as verbose output.
+ * @returns Resolves when the backup is complete.
+ */
 export async function backupProject(options: MigrateOptions = {}) {
   try {
     const monorepoRoot = await findMonorepoRoot(process.cwd());
@@ -154,6 +176,15 @@ export async function backupProject(options: MigrateOptions = {}) {
   }
 }
 
+/**
+ * Restore a project from a previously created backup.
+ * Copies the backup contents to the target path, excluding node_modules and .git.
+ *
+ * @param backupPath - Path to the backup to restore from.
+ * @param targetPath - Destination path for the restore.
+ * @param options - Migration options such as force to overwrite an existing target.
+ * @returns Resolves when the restore is complete.
+ */
 export async function restoreProject(backupPath: string, targetPath: string, options: MigrateOptions = {}) {
   try {
     if (options.spinner) {

@@ -12,6 +12,10 @@ import {
 import { ProgressSpinner} from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the workspace migration command, including upgrade checking,
+ * planning, execution, validation, history, and rollback flags.
+ */
 export interface WorkspaceMigrationCommandOptions {
   check?: boolean;
   plan?: boolean;
@@ -41,6 +45,14 @@ export interface WorkspaceMigrationCommandOptions {
 
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
+/**
+ * Entry point for the workspace migration command. Dispatches to the
+ * appropriate sub-operation (check, plan, upgrade, validate, history,
+ * rollback, or interactive) based on the provided options.
+ *
+ * @param options - Configuration flags controlling the migration operation.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageWorkspaceMigration(options: WorkspaceMigrationCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

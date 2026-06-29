@@ -14,6 +14,7 @@ import {
 } from '../utils/plugin-command-validation';
 import { createPluginCommandRegistry, PluginCommandContext } from '../utils/plugin-command-registry';
 
+/** Options for the plugin command validation commands. */
 interface ValidationCommandOptions {
   verbose?: boolean;
   json?: boolean;
@@ -24,6 +25,13 @@ interface ValidationCommandOptions {
   strict?: boolean;
 }
 
+/**
+ * Test command argument and option validation against sample data.
+ * @param commandName - The name or alias of the command to validate against.
+ * @param testData - JSON string containing the args and options to test.
+ * @param options - Command options controlling output format and strictness.
+ * @returns Resolves when the validation test completes.
+ */
 // Test command validation with sample data
 export async function testCommandValidation(
   commandName: string,
@@ -145,6 +153,13 @@ export async function testCommandValidation(
   }
 }
 
+/**
+ * Create and register a validation schema for a command from a JSON definition.
+ * @param commandName - The name or alias of the command to attach the schema to.
+ * @param schemaDefinition - JSON string defining the validation schema.
+ * @param options - Command options controlling dry-run and verbosity.
+ * @returns Resolves when the schema has been created.
+ */
 // Create validation schema for a command
 export async function createCommandValidationSchema(
   commandName: string,
@@ -224,6 +239,11 @@ export async function createCommandValidationSchema(
   }
 }
 
+/**
+ * List the built-in validation rules available for schemas.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the validation rules have been listed.
+ */
 // List available validation rules
 export async function listValidationRules(
   options: ValidationCommandOptions = {}
@@ -301,6 +321,11 @@ export async function listValidationRules(
   }
 }
 
+/**
+ * List the built-in parameter transformations available for schemas.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the transformations have been listed.
+ */
 // List available transformations
 export async function listTransformations(
   options: ValidationCommandOptions = {}
@@ -373,6 +398,12 @@ export async function listTransformations(
   }
 }
 
+/**
+ * Show the registered validation schema for a specific command.
+ * @param commandName - The name or alias of the command to inspect.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the schema has been displayed.
+ */
 // Show validation schema for a command
 export async function showCommandValidationSchema(
   commandName: string,
@@ -454,6 +485,11 @@ export async function showCommandValidationSchema(
   }
 }
 
+/**
+ * Show statistics about the validation system including schemas and performance.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the validation statistics have been displayed.
+ */
 // Show validation statistics
 export async function showValidationStats(
   options: ValidationCommandOptions = {}
@@ -501,6 +537,12 @@ export async function showValidationStats(
   }
 }
 
+/**
+ * Generate a validation schema template based on a command's definition.
+ * @param commandName - The name or alias of the command to generate a template for.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the template has been generated.
+ */
 // Generate validation schema template
 export async function generateValidationTemplate(
   commandName: string,

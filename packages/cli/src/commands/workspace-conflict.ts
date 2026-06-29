@@ -14,6 +14,10 @@ import {
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the workspace conflict command, including detection,
+ * resolution, preview, and analysis flags.
+ */
 export interface WorkspaceConflictCommandOptions {
   detect?: boolean;
   resolve?: boolean;
@@ -47,6 +51,14 @@ export interface WorkspaceConflictCommandOptions {
 
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
+/**
+ * Entry point for the workspace conflict command. Dispatches to the appropriate
+ * sub-operation (detect, resolve, preview, auto-resolve, or interactive) based
+ * on the provided options.
+ *
+ * @param options - Configuration flags controlling the conflict operation.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageWorkspaceConflict(options: WorkspaceConflictCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

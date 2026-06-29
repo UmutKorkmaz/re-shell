@@ -10,6 +10,10 @@ import {
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the change detector command.
+ * Controls scanning, output format, hashing strategy, and cache behavior.
+ */
 export interface ChangeDetectorCommandOptions {
   scan?: boolean;
   status?: boolean;
@@ -45,6 +49,14 @@ export interface ChangeDetectorCommandOptions {
   spinner?: ProgressSpinner;
 }
 
+/**
+ * Main entry point for the change detector command.
+ * Dispatches to the requested subcommand (scan, status, stats, check, clear, watch, compare, interactive).
+ * Defaults to a scan when no specific subcommand is provided.
+ *
+ * @param options - Command options controlling the operation and output.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageChangeDetector(options: ChangeDetectorCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

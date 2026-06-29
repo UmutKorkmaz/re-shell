@@ -9,6 +9,7 @@ import {
 } from '../utils/plugin-dependency';
 import { createPluginRegistry } from '../utils/plugin-system';
 
+/** Options for the plugin dependency management commands. */
 interface DependencyCommandOptions {
   verbose?: boolean;
   json?: boolean;
@@ -20,6 +21,12 @@ interface DependencyCommandOptions {
   showTree?: boolean;
 }
 
+/**
+ * Resolve dependencies for a specific plugin and display the result.
+ * @param pluginName - The name of the plugin whose dependencies should be resolved.
+ * @param options - Command options controlling strategy, output format, and verbosity.
+ * @returns Resolves when the dependency resolution completes.
+ */
 // Resolve dependencies for a plugin
 export async function resolveDependencies(
   pluginName: string,
@@ -88,6 +95,12 @@ export async function resolveDependencies(
   }
 }
 
+/**
+ * Show the dependency tree for a plugin or the entire dependency graph.
+ * @param pluginName - Optional plugin name to limit the tree to a single plugin.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the dependency tree has been displayed.
+ */
 // Show dependency tree for a plugin
 export async function showDependencyTree(
   pluginName?: string,
@@ -152,6 +165,11 @@ export async function showDependencyTree(
   }
 }
 
+/**
+ * Check all plugins for dependency conflicts and suggest resolutions.
+ * @param options - Command options controlling strategy, output format, and verbosity.
+ * @returns Resolves when the conflict analysis completes.
+ */
 // Check for dependency conflicts
 export async function checkConflicts(options: DependencyCommandOptions = {}): Promise<void> {
   const { verbose = false, json = false, strategy = 'strict' } = options;
@@ -240,6 +258,11 @@ export async function checkConflicts(options: DependencyCommandOptions = {}): Pr
   }
 }
 
+/**
+ * Validate plugin and dependency version formats and check for outdated references.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the version validation completes.
+ */
 // Validate dependency versions
 export async function validateVersions(options: DependencyCommandOptions = {}): Promise<void> {
   const { verbose = false, json = false } = options;
@@ -347,6 +370,12 @@ export async function validateVersions(options: DependencyCommandOptions = {}): 
   }
 }
 
+/**
+ * Update dependencies for a specific plugin to newer available versions.
+ * @param pluginName - The name of the plugin whose dependencies should be updated.
+ * @param options - Command options controlling verbosity and dry-run behavior.
+ * @returns Resolves when the dependency update completes.
+ */
 // Update plugin dependencies
 export async function updateDependencies(
   pluginName: string,
