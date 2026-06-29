@@ -825,11 +825,11 @@ export class ApiService {
     return this.http.get<any>(\`\${this.apiUrl}/posts/\${id}\`);
   }
 
-  createData(data: any): Observable<any> {
+  createData(data: unknown): Observable<any> {
     return this.http.post<any>(\`\${this.apiUrl}/posts\`, data);
   }
 
-  updateData(id: number, data: any): Observable<any> {
+  updateData(id: number, data: unknown): Observable<any> {
     return this.http.put<any>(\`\${this.apiUrl}/posts/\${id}\`, data);
   }
 
@@ -876,7 +876,7 @@ export class StateSignal {
     this.counterSignal.set(0);
   }
 
-  setUser(user: any) {
+  setUser(user: unknown) {
     this.userSignal.set(user);
   }
 

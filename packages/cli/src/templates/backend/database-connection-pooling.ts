@@ -142,7 +142,7 @@ export interface PoolConfig {
   max?: number;
   idleTimeoutMillis?: number;
   connectionTimeoutMillis?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface PoolStats {

@@ -495,7 +495,7 @@ export const useApi = () => {
     return response.json()
   }
 
-  const postData = async <T>(endpoint: string, body: any): Promise<T> => {
+  const postData = async <T>(endpoint: string, body: unknown): Promise<T> => {
     const response = await fetch(\`\${config.public.apiBase}/\${endpoint}\`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

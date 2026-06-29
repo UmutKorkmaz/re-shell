@@ -133,7 +133,7 @@ export function injectCorrelationIntoHeaders(
 /**
  * Express middleware to add correlation context to requests
  */
-export function correlationIdMiddleware(req: any, res: any, next: any) {
+export function correlationIdMiddleware(req: unknown, res: unknown, next: unknown) {
   const context = extractCorrelationFromHeaders(req.headers);
 
   // Add to request
@@ -499,7 +499,7 @@ export class DistributedErrorHandler {
   /**
    * Wrap a function with error tracking
    */
-  static withErrorTracking<T extends (...args: any[]) => any>(
+  static withErrorTracking<T extends (...args: unknown[]) => any>(
     fn: T,
     options: {
       severity?: ErrorSeverity;
@@ -507,7 +507,7 @@ export class DistributedErrorHandler {
       tags?: string[];
     } = {}
   ): T {
-    return (async (...args: any[]) => {
+    return (async (...args: unknown[]) => {
       try {
         return await fn(...args);
       } catch (error) {

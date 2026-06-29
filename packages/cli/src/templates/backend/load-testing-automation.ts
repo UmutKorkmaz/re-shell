@@ -125,7 +125,7 @@ export interface LoadTestConfig {
   totalRequests: number;
   duration?: number;
   rampUp?: number;
-  body?: any;
+  body?: unknown;
   headers?: Record<string, string>;
 }
 

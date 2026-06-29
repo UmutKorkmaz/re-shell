@@ -591,7 +591,7 @@ export class UserService {
   }
 
   async findByEmail(email: string, includePassword = false): Promise<User | null> {
-    const select: any = {
+    const select: unknown = {
       id: true,
       email: true,
       name: true,

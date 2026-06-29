@@ -232,7 +232,7 @@ export class AngularModuleFederationTemplate extends BaseTemplate {
     const buildTargetProd = `${buildTargetBase}:production`;
     const buildTargetDev = `${buildTargetBase}:development`;
 
-    const architect: any = {
+    const architect: unknown = {
       build: {
         builder: '@angular-devkit/build-angular:browser',
         options: {
@@ -478,7 +478,7 @@ bootstrapApplication(AppComponent, appConfig)
   .catch((err) => console.error(err));
 
 // Microfrontend event listeners
-window.addEventListener('counter-update', (event: any) => {
+window.addEventListener('counter-update', (event: unknown) => {
   if (event.detail.type === 'COUNTER_UPDATE') {
     console.log('Counter update received:', event.detail.value);
   }
@@ -1012,12 +1012,12 @@ export interface CounterUpdateEvent {
 }
 
 export const eventBus = {
-  emit(event: string, detail: any) {
+  emit(event: string, detail: unknown) {
     window.dispatchEvent(new CustomEvent(event, { detail }));
   },
 
-  on(event: string, callback: (detail: any) => void) {
-    const handler = (e: any) => callback(e.detail);
+  on(event: string, callback: (detail: unknown) => void) {
+    const handler = (e: unknown) => callback(e.detail);
     window.addEventListener(event, handler);
     return () => window.removeEventListener(event, handler);
   }

@@ -128,7 +128,7 @@ export class MithrilTemplate extends BaseTemplate {
     return files;
   }
 
-  protected generatePackageJson(): any {
+  protected generatePackageJson(): unknown {
     return {
       name: this.context.normalizedName,
       version: '0.0.1',
@@ -808,7 +808,7 @@ export interface Feature {
 }
 
 export interface RouteResolver {
-  onmatch?: (args: any, requestedPath: string) => any;
+  onmatch?: (args: unknown, requestedPath: string) => any;
   render?: (vnode: m.Vnode<any, any>) => m.Children;
 }
 `;

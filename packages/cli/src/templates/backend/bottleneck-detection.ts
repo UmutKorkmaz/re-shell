@@ -123,7 +123,7 @@ export interface Bottleneck {
   severity: 'critical' | 'high' | 'medium' | 'low';
   location: string;
   description: string;
-  evidence: any;
+  evidence: unknown;
   timestamp: number;
 }
 

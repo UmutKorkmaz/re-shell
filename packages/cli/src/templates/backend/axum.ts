@@ -1005,7 +1005,7 @@ impl From<sqlx::Error> for AppError {
 }
 
 impl From<anyhow::Error> for AppError {
-    fn from(error: anyhow::Error) -> Self {
+    fn from(error: unknownhow::Error) -> Self {
         AppError::InternalServerError(error.to_string())
     }
 }

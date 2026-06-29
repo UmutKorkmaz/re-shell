@@ -219,7 +219,7 @@ app.get('/health', (req, res) => {
 });
 
 // Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
     error: {
@@ -688,7 +688,7 @@ ws.onmessage = (event) => {
   }
 };
 
-function handleReloadEvent(event: any) {
+function handleReloadEvent(event: unknown) {
   const { type, path } = event;
 
   // Show notification

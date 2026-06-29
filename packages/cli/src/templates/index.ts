@@ -33,7 +33,7 @@ export abstract class BaseTemplate {
 
   abstract generateFiles(): Promise<TemplateFile[]>;
 
-  protected generatePackageJson(): any {
+  protected generatePackageJson(): unknown {
     const { normalizedName, org, description, port } = this.context;
     
     return {
@@ -163,7 +163,7 @@ export default defineConfig(({ mode }) => ({
   }
 
   protected generateTsConfig(): string {
-    const baseConfig: any = {
+    const baseConfig: Record<string, any> = {
       compilerOptions: {
         target: 'ES2020',
         lib: ['ES2020', 'DOM', 'DOM.Iterable'],
@@ -209,7 +209,7 @@ export default defineConfig(({ mode }) => ({
   }
 
   protected generateEslintConfig(): string {
-    const config: any = {
+    const config: Record<string, any> = {
       env: {
         browser: true,
         es2021: true,

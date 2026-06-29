@@ -1603,7 +1603,7 @@ export const authorize = (...roles: string[]) => {
 import { validate as classValidate, ValidationError } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 
-export const validate = (dtoClass: any, source: 'body' | 'query' = 'body') => {
+export const validate = (dtoClass: unknown, source: 'body' | 'query' = 'body') => {
   return async (ctx: Context, next: Next) => {
     const data = source === 'body' ? ctx.request.body : ctx.query;
     const dto = plainToClass(dtoClass, data);
@@ -1611,7 +1611,7 @@ export const validate = (dtoClass: any, source: 'body' | 'query' = 'body') => {
     const errors = await classValidate(dto);
     
     if (errors.length > 0) {
-      const errorMessages = errors.reduce((acc: any, error: ValidationError) => {
+      const errorMessages = errors.reduce((acc: unknown, error: ValidationError) => {
         acc[error.property] = Object.values(error.constraints || {});
         return acc;
       }, {});

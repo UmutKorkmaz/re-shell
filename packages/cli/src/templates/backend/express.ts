@@ -1301,7 +1301,7 @@ export const initializeWebSocket = (io: Server) => {
   });
 };
 
-export const emitToUser = (io: Server, userId: string, event: string, data: any) => {
+export const emitToUser = (io: Server, userId: string, event: string, data: unknown) => {
   io.to(\`user:\${userId}\`).emit(event, data);
 };`,
 

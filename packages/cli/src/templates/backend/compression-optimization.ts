@@ -349,7 +349,7 @@ export interface MinificationResult {
 }
 
 export class Minifier {
-  private cssOptions: any;
+  private cssOptions: unknown;
   private jsOptions: MinifyOptions;
   private htmlOptions: HtmlMinifyOptions;
 
@@ -489,7 +489,7 @@ export class Minifier {
     };
   }
 
-  setCSSOptions(options: any): void {
+  setCSSOptions(options: unknown): void {
     this.cssOptions = { ...this.cssOptions, ...options };
   }
 

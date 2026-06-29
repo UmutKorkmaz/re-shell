@@ -517,13 +517,13 @@ export interface ProfileSnapshot {
   type: 'cpu' | 'memory';
   timestamp: number;
   duration: number;
-  data: any;
+  data: unknown;
   filePath?: string;
 }
 
 export class Profiler extends EventEmitter {
-  private cpuProfile?: any;
-  private memorySnapshot?: any;
+  private cpuProfile?: unknown;
+  private memorySnapshot?: unknown;
   private isProfiling: boolean = false;
   private profileDir: string = './profiles';
 
@@ -660,7 +660,7 @@ export class Profiler extends EventEmitter {
     return v8.getHeapStatistics();
   }
 
-  getHeapSpaceStatistics(): any[] {
+  getHeapSpaceStatistics(): unknown[] {
     return v8.getHeapSpaceStatistics();
   }
 
@@ -686,7 +686,7 @@ export interface Alert {
   message: string;
   value: number;
   timestamp: number;
-  details?: any;
+  details?: unknown;
   resolved: boolean;
 }
 
@@ -796,7 +796,7 @@ export class AlertManager extends EventEmitter {
     }
   }
 
-  checkAlert(type: string, value: number, details?: any): void {
+  checkAlert(type: string, value: number, details?: unknown): void {
     const applicableRules = this.rules.filter(
       (r) => r.type === type && r.enabled
     );

@@ -260,9 +260,9 @@ get-product-handler: function [id][
 ; Create product handler
 create-product-handler: function [data][
     name: data/name
-    description: any [data/description ""]
-    price: any [data/price 0.0]
-    stock: any [data/stock 0]
+    description: unknown [data/description ""]
+    price: unknown [data/price 0.0]
+    stock: unknown [data/stock 0]
 
     product: create-product name description price stock
 
@@ -273,10 +273,10 @@ create-product-handler: function [data][
 
 ; Update product handler
 update-product-handler: function [id data][
-    name: any [data/name none]
-    description: any [data/description none]
-    price: any [data/price none]
-    stock: any [data/stock none]
+    name: unknown [data/name none]
+    description: unknown [data/description none]
+    price: unknown [data/price none]
+    stock: unknown [data/stock none]
 
     product: update-product id name description price stock
 

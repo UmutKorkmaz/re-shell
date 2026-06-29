@@ -46,16 +46,16 @@ export interface TemplatePrompt {
   type: 'input' | 'confirm' | 'list' | 'checkbox' | 'password';
   name: string;
   message: string;
-  default?: any;
+  default?: unknown;
   choices?: string[] | PromptChoice[];
   when?: (answers: Record<string, unknown>) => boolean;
-  validate?: (input: any) => boolean | string;
-  filter?: (input: any) => any;
+  validate?: (input: unknown) => boolean | string;
+  filter?: (input: unknown) => any;
 }
 
 export interface PromptChoice {
   name: string;
-  value: any;
+  value: unknown;
   short?: string;
 }
 
@@ -136,7 +136,7 @@ export interface TemplateContext {
   repository?: string;
   keywords?: string[];
   features?: string[];
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface TemplateGenerationOptions {
@@ -222,7 +222,7 @@ export interface TemplateEngineConfig {
   includeRegex?: RegExp;
   escapeHtml?: boolean;
   strictMode?: boolean;
-  customHelpers?: Record<string, (...args: any[]) => any>;
+  customHelpers?: Record<string, (...args: unknown[]) => any>;
 }
 
 // Language-specific template configurations
@@ -262,7 +262,7 @@ export interface PrettierConfig {
   printWidth: number;
   tabWidth: number;
   useTabs: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Docker configuration for templates

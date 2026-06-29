@@ -169,14 +169,14 @@ export interface RetryConfig {
   maxDelay: number;
   backoffMultiplier: number;
   jitter: boolean;
-  retryableErrors?: (error: any) => boolean;
+  retryableErrors?: (error: unknown) => boolean;
 }
 
 export class RetryPolicy {
   constructor(private readonly config: RetryConfig) {}
 
   async execute<T>(fn: (attempt: number) => Promise<T>): Promise<T> {
-    let lastError: any;
+    let lastError: unknown;
     let delay = this.config.initialDelay;
 
     for (let attempt = 1; attempt <= this.config.maxAttempts; attempt++) {
@@ -210,7 +210,7 @@ export class RetryPolicy {
     throw lastError;
   }
 
-  private isDefaultRetryable(error: any): boolean {
+  private isDefaultRetryable(error: unknown): boolean {
     if (error?.code === 'ECONNRESET') return true;
     if (error?.code === 'ETIMEDOUT') return true;
     if (error?.code === 'ENOTFOUND') return true;

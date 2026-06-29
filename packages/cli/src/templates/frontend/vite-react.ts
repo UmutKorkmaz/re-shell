@@ -5507,9 +5507,9 @@ export interface CMSContent {
   type: string;
   slug?: string;
   title?: string;
-  content?: any;
+  content?: unknown;
   metadata?: ContentMetadata;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ContentMetadata {
@@ -5996,7 +5996,7 @@ export class SanityClient {
   /**
    * Get image URL from Sanity image asset
    */
-  getImageUrl(source: any, options?: { width?: number; height?: number; quality?: number }) {
+  getImageUrl(source: unknown, options?: { width?: number; height?: number; quality?: number }) {
     let url = this.builder.image(source);
 
     if (options?.width) url = url.width(options.width);
@@ -6807,7 +6807,7 @@ export function formatBytes(bytes: number, decimals: number = 2): string {
 /**
  * Generate bundle report
  */
-export function generateBundleReport(stats: any): BundleReport {
+export function generateBundleReport(stats: unknown): BundleReport {
   const chunks: BundleStats[] = [];
   let totalSize = 0;
   let totalGzipped = 0;
@@ -8034,7 +8034,7 @@ export const A = styled.a\`
 \`;
 
 // Image component wrapper
-export const MDXImage = ({ src, alt, ...props }: any) => {
+export const MDXImage = ({ src, alt, ...props }: unknown) => {
   return <OptimizeImage src={src} alt={alt} {...props} />;
 };
 
@@ -8212,12 +8212,12 @@ export default defineConfig({
  */
 
 declare module '*.mdx' {
-  let MDXContent: (props: any) => JSX.Element;
+  let MDXContent: (props: unknown) => JSX.Element;
   export default MDXContent;
 }
 
 declare module '*.md' {
-  let MDXContent: (props: any) => JSX.Element;
+  let MDXContent: (props: unknown) => JSX.Element;
   export default MDXContent;
 }
 
@@ -8234,7 +8234,7 @@ export interface MDXFrontmatter {
   tags?: string[];
   author?: string;
   draft?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // MDX content with frontmatter

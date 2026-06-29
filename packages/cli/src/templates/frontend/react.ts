@@ -301,7 +301,7 @@ export default App;`;
 interface EventBusEvents {
   'microfrontend:loaded': { id: string };
   'microfrontend:unloaded': { id: string };
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 type EventCallback<T = any> = (data: T) => void;

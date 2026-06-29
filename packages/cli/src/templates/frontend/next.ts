@@ -1621,7 +1621,7 @@ export async function retry<T>(
 /**
  * Cache data with TTL
  */
-const cache = new Map<string, { data: any; expires: number }>();
+const cache = new Map<string, { data: unknown; expires: number }>();
 
 export async function cachedFetch<T>(
   key: string,

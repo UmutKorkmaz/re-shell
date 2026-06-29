@@ -302,7 +302,7 @@ app.get('/health', (req, res) => {
 });
 
 // Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
     error: {
@@ -386,7 +386,7 @@ export class PushSubscriptionManager extends EventEmitter {
       body: string;
       icon?: string;
       badge?: string;
-      data?: any;
+      data?: unknown;
     }
   ): Promise<void> {
     const subscription = this.subscriptions.get(userId);
@@ -420,7 +420,7 @@ export class PushSubscriptionManager extends EventEmitter {
     body: string;
     icon?: string;
     badge?: string;
-    data?: any;
+    data?: unknown;
   }): Promise<void> {
     const results = await Promise.allSettled(
       Array.from(this.subscriptions.entries()).map(([userId]) =>
@@ -465,7 +465,7 @@ export interface OfflineOperation {
   userId: string;
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
-  body?: any;
+  body?: unknown;
   timestamp: number;
   synced: boolean;
 }

@@ -127,7 +127,7 @@ export class PreactTemplate extends BaseTemplate {
     return files;
   }
 
-  protected generatePackageJson(): any {
+  protected generatePackageJson(): unknown {
     return {
       name: this.context.normalizedName,
       version: '0.0.1',

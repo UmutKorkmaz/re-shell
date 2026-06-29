@@ -330,7 +330,7 @@ export class TenantManager {
     }
   }
 
-  async checkTenantLimits(tenantId: string): Promise<{ withinLimit: boolean; usage: any }> {
+  async checkTenantLimits(tenantId: string): Promise<{ withinLimit: boolean; usage: unknown }> {
     const tenant = this.getTenantById(tenantId);
     if (!tenant) {
       throw new Error('Tenant not found');
@@ -360,7 +360,7 @@ export interface TenantRequest extends Request {
     subdomain: string;
     customDomain?: string;
     plan: string;
-    settings: any;
+    settings: unknown;
   };
 }
 
@@ -513,7 +513,7 @@ export class DatabaseManager {
     return this.tenantConnections.get(tenantId)!;
   }
 
-  async createTenantUser(tenantId: string, user: any): Promise<void> {
+  async createTenantUser(tenantId: string, user: unknown): Promise<void> {
     const connection = this.getTenantConnection(tenantId);
     await connection.query(
       \`INSERT INTO tenant_\${tenantId}.users (email, password, role) VALUES ($1, $2, $3)\`,
@@ -521,7 +521,7 @@ export class DatabaseManager {
     );
   }
 
-  async updateTenant(tenantId: string, updates: any): Promise<void> {
+  async updateTenant(tenantId: string, updates: unknown): Promise<void> {
     // Update tenant in master database
     await this.masterConnection.query(
       \`UPDATE tenants SET updated_at = CURRENT_TIMESTAMP WHERE id = $1\`,

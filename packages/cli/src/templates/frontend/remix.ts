@@ -484,11 +484,11 @@ export async function getUserById(id: number) {
   return prisma.user.findUnique({ where: { id } });
 }
 
-export async function createUser(data: any) {
+export async function createUser(data: unknown) {
   return prisma.user.create({ data });
 }
 
-export async function updateUser(id: number, data: any) {
+export async function updateUser(id: number, data: unknown) {
   return prisma.user.update({ where: { id }, data });
 }
 
@@ -689,7 +689,7 @@ export async function getPostById(id: number) {
   return posts.find(post => post.id === id) || null;
 }
 
-export async function updatePost(id: number, data: any) {
+export async function updatePost(id: number, data: unknown) {
   // Implementation with Prisma
   return { id, ...data };
 }

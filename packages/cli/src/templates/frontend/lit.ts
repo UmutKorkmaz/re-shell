@@ -231,7 +231,7 @@ import './footer.element';
 @customElement('${this.context.normalizedName}-app')
 export class ${this.context.name}App extends LitElement {
   @query('router-outlet')
-  private routerOutlet!: any;
+  private routerOutlet!: unknown;
 
   static styles = css\`
     :host {

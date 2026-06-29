@@ -135,7 +135,7 @@ export interface CDNProvider {
   type: 'cloudflare' | 'cloudfront' | 'azure' | 'fastly';
   enabled: boolean;
   priority: number;
-  config: any;
+  config: unknown;
 }
 
 export interface CDNPurgeResult {
@@ -280,7 +280,7 @@ export class CDNManager extends EventEmitter {
     }
   }
 
-  private async purgeCloudflare(urls: string[], config: any): Promise<CDNPurgeResult> {
+  private async purgeCloudflare(urls: string[], config: unknown): Promise<CDNPurgeResult> {
     try {
       const response = await axios.post(
         \`https://api.cloudflare.com/client/v4/zones/\${config.zoneId}/purge_cache\`,
@@ -307,7 +307,7 @@ export class CDNManager extends EventEmitter {
     }
   }
 
-  private async purgeCloudFront(urls: string[], config: any): Promise<CDNPurgeResult> {
+  private async purgeCloudFront(urls: string[], config: unknown): Promise<CDNPurgeResult> {
     const AWS = require('aws-sdk');
     const cloudfront = new AWS.CloudFront({
       accessKeyId: config.accessKeyId,
@@ -339,7 +339,7 @@ export class CDNManager extends EventEmitter {
     }
   }
 
-  private async purgeAzure(urls: string[], config: any): Promise<CDNPurgeResult> {
+  private async purgeAzure(urls: string[], config: unknown): Promise<CDNPurgeResult> {
     const Azure = require('azure-storage-blob');
     const containerClient = Azure.BlobServiceClient(
       \`https://\${config.storageAccount}.blob.core.windows.net\`,
@@ -367,7 +367,7 @@ export class CDNManager extends EventEmitter {
     }
   }
 
-  private async purgeFastly(urls: string[], config: any): Promise<CDNPurgeResult> {
+  private async purgeFastly(urls: string[], config: unknown): Promise<CDNPurgeResult> {
     try {
       const response = await axios.post(
         \`https://api.fastly.com/service/\${config.serviceId}/purge\`,

@@ -955,8 +955,8 @@ export interface ComponentMetadata {
 export interface PropMetadata {
   type: string;
   required?: boolean;
-  default?: any;
-  values?: any[];
+  default?: unknown;
+  values?: unknown[];
 }
 `,
 

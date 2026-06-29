@@ -3609,8 +3609,8 @@ import { By } from '@angular/platform-browser';
 export function createComponent<T>(
   componentType: Type<T>,
   declarations?: Type<any>[],
-  providers?: any[],
-  imports?: any[]
+  providers?: unknown[],
+  imports?: unknown[]
   ): ComponentFixture<T> {
   TestBed.configureTestingModule({
     declarations: declarations || [],
@@ -3643,7 +3643,7 @@ export function queryAllByCss<T>(
 export function queryByDebug<T>(
   fixture: ComponentFixture<T>,
   selector: string
-): any {
+): unknown {
   return fixture.debugElement.query(By.css(selector));
 }
 
@@ -3698,7 +3698,7 @@ export function getComponentInstance<T>(
 export function getDebugElement<T>(
   fixture: ComponentFixture<T>,
   selector: string
-): any {
+): unknown {
   return fixture.debugElement.query(By.css(selector));
 }
 
@@ -3738,7 +3738,7 @@ export function createMockService<T>(methods: string[]): T {
 export function updateFormField(
   fixture: ComponentFixture<any>,
   controlName: string,
-  value: any
+  value: unknown
 ): void {
   const input = fixture.debugElement.query(By.css(\`[formControlName="\${controlName}"]\`))
     || fixture.debugElement.query(By.css(\`[name="\${controlName}"]\`));

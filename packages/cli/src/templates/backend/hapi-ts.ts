@@ -2744,7 +2744,7 @@ import { configureServer } from '../src/config/server';
 const { describe, it, before, after } = exports.lab = Lab.script();
 
 describe('Authentication', () => {
-  let server: any;
+  let server: unknown;
 
   before(async () => {
     server = await configureServer();
@@ -2815,7 +2815,7 @@ import { configureServer } from '../src/config/server';
 const { describe, it, before, after, beforeEach } = exports.lab = Lab.script();
 
 describe('Users', () => {
-  let server: any;
+  let server: unknown;
   let authToken: string;
 
   before(async () => {
@@ -2885,7 +2885,7 @@ import { configureServer } from '../src/config/server';
 const { describe, it, before, after } = exports.lab = Lab.script();
 
 describe('Health Endpoints', () => {
-  let server: any;
+  let server: unknown;
 
   before(async () => {
     server = await configureServer();

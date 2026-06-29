@@ -580,7 +580,7 @@ export class AuthService {
     return null;
   }
 
-  async login(user: any) {
+  async login(user: unknown) {
     const tokens = await this.getTokens(user.id, user.email);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
     

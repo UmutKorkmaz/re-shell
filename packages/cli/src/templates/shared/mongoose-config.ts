@@ -117,7 +117,7 @@ export const disconnectFromDatabase = async (): Promise<void> => {
 export const checkDatabaseConnection = async (): Promise<{ 
   status: string; 
   latency?: number; 
-  details?: any;
+  details?: unknown;
 }> => {
   try {
     const start = Date.now();
@@ -443,7 +443,7 @@ UserSchema.methods.incrementLoginAttempts = function(): Promise<IUserDocument> {
     });
   }
   
-  const updates: any = { $inc: { 'security.loginAttempts': 1 } };
+  const updates: unknown = { $inc: { 'security.loginAttempts': 1 } };
   
   // If we're locking the account for the first time
   if (this.security.loginAttempts + 1 >= 5 && !this.isAccountLocked()) {
@@ -848,7 +848,7 @@ PostSchema.statics.findPublished = function(options: {
   limit?: number;
   skip?: number;
 } = {}): Promise<IPostDocument[]> {
-  const query: any = { status: PostStatus.PUBLISHED };
+  const query: unknown = { status: PostStatus.PUBLISHED };
   
   if (options.category) {
     query.category = options.category;
@@ -1354,7 +1354,7 @@ export class UserService {
 
   async updateUser(id: string, updates: UpdateUserData): Promise<IUserDocument | null> {
     try {
-      const updateData: any = {
+      const updateData: unknown = {
         'timestamps.updatedAt': new Date(),
       };
 

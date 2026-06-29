@@ -159,7 +159,7 @@ app.get('/health', (req, res) => {
 });
 
 // Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
     error: {
@@ -390,7 +390,7 @@ export class AdaptiveCacheManager extends EventEmitter {
     return regex.test(key);
   }
 
-  async warmUp(entries: Array<{ key: string; value: any }>): Promise<void> {
+  async warmUp(entries: Array<{ key: string; value: unknown }>): Promise<void> {
     for (const { key, value } of entries) {
       await this.set(key, value);
     }
@@ -418,7 +418,7 @@ export class AdaptiveCacheManager extends EventEmitter {
     };
   }
 
-  private estimateSize(value: any): number {
+  private estimateSize(value: unknown): number {
     return JSON.stringify(value).length * 2; // Rough estimate in bytes
   }
 
@@ -514,7 +514,7 @@ export class ConnectionPoolManager extends EventEmitter {
       'axios-retry': {
         retries: config.maxRetries,
         retryDelay: config.retryDelay,
-        retryCondition: (error: any) => {
+        retryCondition: (error: unknown) => {
           // Retry on network errors or 5xx errors
           return !error.response || error.response.status >= 500;
         },
@@ -679,7 +679,7 @@ export interface ServiceCallOptions {
   service: string;
   endpoint: string;
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  body?: any;
+  body?: unknown;
   headers?: Record<string, string>;
   cache?: boolean;
   cacheTTL?: number;

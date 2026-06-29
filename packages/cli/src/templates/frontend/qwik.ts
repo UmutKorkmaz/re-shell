@@ -413,7 +413,7 @@ export default component$(() => {
         <h2>Server Data (Loaded at Edge)</h2>
         <p>Timestamp: {data.value.timestamp}</p>
         <div class="posts">
-          {data.value.posts.map((post: any) => (
+          {data.value.posts.map((post: unknown) => (
             <div key={post.id} class="post-item">
               <h3>{post.title}</h3>
               <p>{post.body}</p>

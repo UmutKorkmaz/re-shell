@@ -216,7 +216,7 @@ export interface UpdateUserData {
 }
 
 export interface PaginatedUsers {
-  users: (User & { profile?: any })[];
+  users: (User & { profile?: unknown })[];
   pagination: {
     page: number;
     limit: number;
@@ -226,7 +226,7 @@ export interface PaginatedUsers {
 }
 
 export class UserService {
-  async findById(id: string): Promise<(User & { profile?: any }) | null> {
+  async findById(id: string): Promise<(User & { profile?: unknown }) | null> {
     return await prisma.user.findUnique({
       where: { id },
       include: {
@@ -249,7 +249,7 @@ export class UserService {
     });
   }
 
-  async createUser(userData: CreateUserData): Promise<User & { profile?: any }> {
+  async createUser(userData: CreateUserData): Promise<User & { profile?: unknown }> {
     const hashedPassword = await bcrypt.hash(userData.password, 12);
     
     return await prisma.user.create({
@@ -271,7 +271,7 @@ export class UserService {
     });
   }
 
-  async updateUser(id: string, updates: UpdateUserData): Promise<User & { profile?: any }> {
+  async updateUser(id: string, updates: UpdateUserData): Promise<User & { profile?: unknown }> {
     const { bio, avatar, ...userUpdates } = updates;
     
     return await prisma.user.update({

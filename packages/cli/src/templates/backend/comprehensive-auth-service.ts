@@ -279,7 +279,7 @@ export class TokenService {
   /**
    * Decode token without verification
    */
-  decodeToken(token: string): any {
+  decodeToken(token: string): unknown {
     return jwt.decode(token);
   }
 }

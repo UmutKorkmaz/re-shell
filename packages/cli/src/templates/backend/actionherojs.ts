@@ -48,7 +48,7 @@ export const actionheroTemplate: BackendTemplate = {
 
     'config/servers/web.ts': `export const DEFAULT = {
   servers: {
-    web: (config: any) => {
+    web: (config: unknown) => {
       return {
         enabled: true,
         secure: false,
@@ -99,7 +99,7 @@ export const DEFAULT = {
     return {
       enabled: true,
       server,
-      async handle(request: any, response: any) {
+      async handle(request: unknown, response: unknown) {
         try {
           const body = await new Promise((resolve) => {
             let data = '';

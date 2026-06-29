@@ -736,7 +736,7 @@ Use \`injectPayload\` for data fetching:
 import { injectPayload } from '@analogjs/router';
 
 interface PagePayload {
-  data: any;
+  data: unknown;
 }
 
 export default function HomeComponent() {

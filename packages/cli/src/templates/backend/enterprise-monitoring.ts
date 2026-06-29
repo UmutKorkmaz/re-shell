@@ -248,7 +248,7 @@ export class MetricsCollector {
     return Array.from(this.healthChecks.values());
   }
 
-  getAverageMetrics(minutes: number = 60): any {
+  getAverageMetrics(minutes: number = 60): unknown {
     const metrics = this.getMetrics(minutes);
 
     if (metrics.length === 0) return null;
@@ -396,7 +396,7 @@ export class AlertManager {
     }
   }
 
-  private getMetricValue(metrics: any, metric: string): number {
+  private getMetricValue(metrics: unknown, metric: string): number {
     switch (metric) {
       case 'cpu':
         return metrics.cpu;
@@ -513,7 +513,7 @@ export interface SLAReport {
   target: number;
   met: boolean;
   breachMinutes: number;
-  details: any;
+  details: unknown;
 }
 
 export class SLATracker {
@@ -605,25 +605,25 @@ export class SLATracker {
     };
   }
 
-  private calculateUptime(metrics: any[]): number {
+  private calculateUptime(metrics: unknown[]): number {
     const healthChecks = this.metricsCollector.getHealthChecks();
     const totalChecks = healthChecks.length;
     const healthyChecks = healthChecks.filter((h) => h.status === 'healthy').length;
     return totalChecks > 0 ? (healthyChecks / totalChecks) * 100 : 100;
   }
 
-  private calculateBreachMinutes(metrics: any[]): number {
+  private calculateBreachMinutes(metrics: unknown[]): number {
     // Calculate minutes where service was down
     return 0;
   }
 
-  private calculateAverageResponseTime(metrics: any[]): number {
+  private calculateAverageResponseTime(metrics: unknown[]): number {
     const validMetrics = metrics.filter((m) => m.responseTime > 0);
     if (validMetrics.length === 0) return 0;
     return validMetrics.reduce((sum, m) => sum + m.responseTime, 0) / validMetrics.length;
   }
 
-  private calculateErrorRate(metrics: any[]): number {
+  private calculateErrorRate(metrics: unknown[]): number {
     const validMetrics = metrics.filter((m) => m.errorRate >= 0);
     if (validMetrics.length === 0) return 0;
     return validMetrics.reduce((sum, m) => sum + m.errorRate, 0) / validMetrics.length;

@@ -499,7 +499,7 @@ export const loggingMiddleware: HyperExpress.MiddlewareHandler = (request, respo
   
   // Override response.send to log response
   const originalSend = response.send.bind(response);
-  response.send = function(...args: any[]) {
+  response.send = function(...args: unknown[]) {
     const duration = Date.now() - start;
     
     logger.info({
@@ -931,7 +931,7 @@ function handleUnsubscribe(ws: HyperExpress.Websocket, client: WSClient, channel
   logger.debug({ clientId: client.id, channel }, 'Client unsubscribed from channel');
 }
 
-async function handlePublish(ws: HyperExpress.Websocket, client: WSClient, channel: string, message: any) {
+async function handlePublish(ws: HyperExpress.Websocket, client: WSClient, channel: string, message: unknown) {
   if (!client.user) {
     ws.send(JSON.stringify({
       type: 'error',
@@ -1060,7 +1060,7 @@ export function sseRoutes(router: HyperExpress.Router) {
 }
 
 // Send event to specific user
-export function sendSSEToUser(userId: string, event: string, data: any) {
+export function sendSSEToUser(userId: string, event: string, data: unknown) {
   const message = \`event: \${event}\\ndata: \${JSON.stringify(data)}\\n\\n\`;
   let sent = 0;
   
@@ -1079,7 +1079,7 @@ export function sendSSEToUser(userId: string, event: string, data: any) {
 }
 
 // Broadcast to all connected clients
-export function broadcastSSE(event: string, data: any) {
+export function broadcastSSE(event: string, data: unknown) {
   const message = \`event: \${event}\\ndata: \${JSON.stringify(data)}\\n\\n\`;
   let sent = 0;
   
@@ -1806,7 +1806,7 @@ export const prisma = new PrismaClient({
 
 // Log queries in development
 if (process.env.NODE_ENV === 'development') {
-  prisma.$on('query' as never, (e: any) => {
+  prisma.$on('query' as never, (e: unknown) => {
     logger.debug({
       query: e.query,
       params: e.params,
@@ -1854,7 +1854,7 @@ export const cacheService = {
     }
   },
   
-  async set(key: string, value: any, ttl?: number): Promise<void> {
+  async set(key: string, value: unknown, ttl?: number): Promise<void> {
     try {
       const serialized = JSON.stringify(value);
       if (ttl) {
