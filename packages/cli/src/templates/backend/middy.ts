@@ -769,7 +769,7 @@ const updateItemSchema = {
 
 // Create item handler
 const createItemHandler = async (
-  event: APIGatewayProxyEvent & { user?: any },
+  event: APIGatewayProxyEvent & { user?: unknown },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   const id = uuidv4();
@@ -807,7 +807,7 @@ const createItemHandler = async (
 
 // Get item handler
 const getItemHandler = async (
-  event: APIGatewayProxyEvent & { user?: any },
+  event: APIGatewayProxyEvent & { user?: unknown },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   const { id } = event.pathParameters!;
@@ -842,7 +842,7 @@ const getItemHandler = async (
 
 // Update item handler
 const updateItemHandler = async (
-  event: APIGatewayProxyEvent & { user?: any },
+  event: APIGatewayProxyEvent & { user?: unknown },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   const { id } = event.pathParameters!;
@@ -895,7 +895,7 @@ const updateItemHandler = async (
 
 // Delete item handler
 const deleteItemHandler = async (
-  event: APIGatewayProxyEvent & { user?: any },
+  event: APIGatewayProxyEvent & { user?: unknown },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   const { id } = event.pathParameters!;
@@ -938,7 +938,7 @@ const deleteItemHandler = async (
 
 // List items handler
 const listItemsHandler = async (
-  event: APIGatewayProxyEvent & { user?: any },
+  event: APIGatewayProxyEvent & { user?: unknown },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   const { limit = '20', lastKey } = event.queryStringParameters || {};
@@ -956,7 +956,7 @@ const listItemsHandler = async (
       ScanIndexForward: false // Sort by newest first
     });
 
-    const response: any = {
+    const response: unknown = {
       items: result.Items || [],
       count: result.Count
     };
@@ -1161,7 +1161,7 @@ const loginSchema = {
 
 // Register handler
 const registerHandler = async (
-  event: APIGatewayProxyEvent & { secrets?: any },
+  event: APIGatewayProxyEvent & { secrets?: unknown },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   const { email, password, name } = event.body as { email: string; password: string; name: string };
@@ -1233,7 +1233,7 @@ const registerHandler = async (
 
 // Login handler
 const loginHandler = async (
-  event: APIGatewayProxyEvent & { secrets?: any },
+  event: APIGatewayProxyEvent & { secrets?: unknown },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   const { email, password } = event.body as { email: string; password: string };
@@ -1306,7 +1306,7 @@ const loginHandler = async (
 
 // Lambda authorizer
 export const authorize = async (
-  event: any,
+  event: unknown,
   context: Context
 ): Promise<APIGatewayAuthorizerResult> => {
   const token = event.authorizationToken?.replace('Bearer ', '');
@@ -1394,7 +1394,7 @@ import createError from 'http-errors';
 import { logger } from '../utils/logger';
 
 export const authMiddleware = () => ({
-  before: async (request: any) => {
+  before: async (request: unknown) => {
     const { event } = request;
     const token = event.headers?.Authorization?.replace('Bearer ', '') || 
                    event.headers?.authorization?.replace('Bearer ', '');
@@ -1430,7 +1430,7 @@ export const authMiddleware = () => ({
     'src/middleware/error-logger.ts': `import { logger } from '../utils/logger';
 
 export const errorLogger = () => ({
-  onError: async (request: any) => {
+  onError: async (request: unknown) => {
     const { error, event, context } = request;
     
     // Log error details
@@ -1469,10 +1469,10 @@ export const metricsMiddleware = () => {
   let startTime: number;
 
   return {
-    before: async (request: any) => {
+    before: async (request: unknown) => {
       startTime = Date.now();
     },
-    after: async (request: any) => {
+    after: async (request: unknown) => {
       const duration = Date.now() - startTime;
       const { event, context } = request;
 
@@ -1513,7 +1513,7 @@ export const metricsMiddleware = () => {
         console.error('Failed to send metrics', error);
       }
     },
-    onError: async (request: any) => {
+    onError: async (request: unknown) => {
       const { context, error } = request;
 
       try {
@@ -1557,7 +1557,7 @@ interface RateLimiterOptions {
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
 
 export const rateLimiter = (options: RateLimiterOptions) => ({
-  before: async (request: any) => {
+  before: async (request: unknown) => {
     const { event } = request;
     const now = Date.now();
     
@@ -1615,7 +1615,7 @@ export const rateLimiter = (options: RateLimiterOptions) => ({
 
     // Custom middleware - Sanitizer
     'src/middleware/sanitizer.ts': `export const sanitizer = () => ({
-  before: async (request: any) => {
+  before: async (request: unknown) => {
     const { event } = request;
     
     // Sanitize body
@@ -1635,7 +1635,7 @@ export const rateLimiter = (options: RateLimiterOptions) => ({
   }
 });
 
-function sanitizeObject(obj: any): any {
+function sanitizeObject(obj: unknown): unknown {
   if (typeof obj !== 'object' || obj === null) {
     return sanitizeValue(obj);
   }
@@ -1652,7 +1652,7 @@ function sanitizeObject(obj: any): any {
   return sanitized;
 }
 
-function sanitizeValue(value: any): any {
+function sanitizeValue(value: unknown): unknown {
   if (typeof value !== 'string') {
     return value;
   }
@@ -1682,10 +1682,10 @@ interface CacheOptions {
 }
 
 // Simple in-memory cache (use Redis or ElastiCache in production)
-const cache = new Map<string, { data: any; expires: number }>();
+const cache = new Map<string, { data: unknown; expires: number }>();
 
 export const cacheMiddleware = (options: CacheOptions) => ({
-  before: async (request: any) => {
+  before: async (request: unknown) => {
     const { event } = request;
     
     // Only cache GET requests
@@ -1713,7 +1713,7 @@ export const cacheMiddleware = (options: CacheOptions) => ({
     }
   },
   
-  after: async (request: any) => {
+  after: async (request: unknown) => {
     const { event, response } = request;
     
     // Only cache successful GET requests
@@ -1740,7 +1740,7 @@ export const cacheMiddleware = (options: CacheOptions) => ({
   }
 });
 
-function generateCacheKey(event: any): string {
+function generateCacheKey(event: unknown): string {
   const parts = [
     event.path,
     event.httpMethod,
@@ -1771,7 +1771,7 @@ const docClient = DynamoDBDocumentClient.from(client, {
 });
 
 export const dynamoClient = {
-  async putItem(params: any) {
+  async putItem(params: unknown) {
     try {
       const command = new PutCommand(params);
       const result = await docClient.send(command);
@@ -1782,7 +1782,7 @@ export const dynamoClient = {
     }
   },
 
-  async getItem(params: any) {
+  async getItem(params: unknown) {
     try {
       const command = new GetCommand(params);
       const result = await docClient.send(command);
@@ -1793,7 +1793,7 @@ export const dynamoClient = {
     }
   },
 
-  async updateItem(params: any) {
+  async updateItem(params: unknown) {
     try {
       const command = new UpdateCommand(params);
       const result = await docClient.send(command);
@@ -1804,7 +1804,7 @@ export const dynamoClient = {
     }
   },
 
-  async deleteItem(params: any) {
+  async deleteItem(params: unknown) {
     try {
       const command = new DeleteCommand(params);
       const result = await docClient.send(command);
@@ -1815,7 +1815,7 @@ export const dynamoClient = {
     }
   },
 
-  async query(params: any) {
+  async query(params: unknown) {
     try {
       const command = new QueryCommand(params);
       const result = await docClient.send(command);
@@ -1826,7 +1826,7 @@ export const dynamoClient = {
     }
   },
 
-  async scan(params: any) {
+  async scan(params: unknown) {
     try {
       const command = new ScanCommand(params);
       const result = await docClient.send(command);
@@ -1852,7 +1852,7 @@ const client = new S3Client({
 });
 
 export const s3Client = {
-  async putObject(bucket: string, key: string, body: any, contentType?: string) {
+  async putObject(bucket: string, key: string, body: unknown, contentType?: string) {
     try {
       const command = new PutObjectCommand({
         Bucket: bucket,
@@ -1952,7 +1952,7 @@ const client = new SQSClient({
 });
 
 export const sqsClient = {
-  async sendMessage(queueUrl: string, message: any, attributes?: Record<string, unknown>) {
+  async sendMessage(queueUrl: string, message: unknown, attributes?: Record<string, unknown>) {
     try {
       const command = new SendMessageCommand({
         QueueUrl: queueUrl,
@@ -2104,7 +2104,7 @@ const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const uploadHandler = async (
-  event: APIGatewayProxyEvent & { user?: any; files?: any },
+  event: APIGatewayProxyEvent & { user?: unknown; files?: unknown },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   if (!event.files || Object.keys(event.files).length === 0) {
@@ -2225,7 +2225,7 @@ export const process = async (event: SQSEvent, context: Context): Promise<void> 
   }
 };
 
-async function handleUserRegistered(data: any) {
+async function handleUserRegistered(data: unknown) {
   logger.info('Handling user registered event', { userId: data.userId });
   
   // Send welcome email
@@ -2234,7 +2234,7 @@ async function handleUserRegistered(data: any) {
   // etc.
 }
 
-async function handleItemCreated(data: any) {
+async function handleItemCreated(data: unknown) {
   logger.info('Handling item created event', { itemId: data.itemId });
   
   // Update search index
@@ -2243,7 +2243,7 @@ async function handleItemCreated(data: any) {
   // etc.
 }
 
-async function handleFileUploaded(data: any) {
+async function handleFileUploaded(data: unknown) {
   logger.info('Handling file uploaded event', { fileId: data.fileId });
   
   // Generate thumbnails
@@ -2837,7 +2837,7 @@ MIT
     'src/middleware/request-id.ts': `import { v4 as uuidv4 } from 'uuid';
 
 export const requestIdMiddleware = () => ({
-  before: async (request: any) => {
+  before: async (request: unknown) => {
     const requestId = request.event.headers?.['X-Request-ID'] || uuidv4();
     
     // Add to event
@@ -2861,7 +2861,7 @@ export const requestIdMiddleware = () => ({
 
     // Custom middleware - Warmup
     'src/middleware/warmup.ts': `export const warmupMiddleware = () => ({
-  before: async (request: any) => {
+  before: async (request: unknown) => {
     const { event } = request;
     
     // Check if this is a warmup request

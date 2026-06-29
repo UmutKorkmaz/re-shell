@@ -174,7 +174,7 @@ app.get('/health', (req, res) => {
 });
 
 // Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
     error: {
@@ -314,7 +314,7 @@ export class MicrofrontendOrchestrator extends EventEmitter {
     });
   }
 
-  private async handleInterMicrofrontendMessage(message: any): Promise<void> {
+  private async handleInterMicrofrontendMessage(message: unknown): Promise<void> {
     const { from, to, type, payload } = message;
 
     // Route message to target microfrontend
@@ -367,7 +367,7 @@ export class MicrofrontendOrchestrator extends EventEmitter {
     };
   }
 
-  async registerMicrofrontend(component: any): Promise<void> {
+  async registerMicrofrontend(component: unknown): Promise<void> {
     // Validate component
     const validated = await this.componentRegistry.validateComponent(component);
 
@@ -428,7 +428,7 @@ export interface MicrofrontendComponent {
   permissions?: string[];
   backendService?: string; // Backend service ID
   backendEndpoint?: string;
-  initialState?: any;
+  initialState?: unknown;
   dependencies?: string[]; // Other component IDs this depends on
   metadata?: Record<string, unknown>;
   createdAt: Date;
@@ -561,7 +561,7 @@ export class ComponentRegistry extends EventEmitter {
     return regex.test(route);
   }
 
-  async validateComponent(component: any): Promise<MicrofrontendComponent> {
+  async validateComponent(component: unknown): Promise<MicrofrontendComponent> {
     // Validate required fields
     if (!component.name || typeof component.name !== 'string') {
       throw new Error('Component name is required');
@@ -654,7 +654,7 @@ export class StateManager extends EventEmitter {
     return this.localState.get(key);
   }
 
-  async set(key: string, value: any): Promise<void> {
+  async set(key: string, value: unknown): Promise<void> {
     const serialized = JSON.stringify(value);
 
     if (this.useRedis && this.redis) {
@@ -731,7 +731,7 @@ export class StateManager extends EventEmitter {
     }
   }
 
-  onStateUpdate(callback: (key: string, value: any) => void): void {
+  onStateUpdate(callback: (key: string, value: unknown) => void): void {
     this.on('state:updated', ({ key, value }) => callback(key, value));
   }
 
@@ -762,7 +762,7 @@ export interface Message {
   from: string; // Microfrontend ID or 'backend'
   to?: string; // Target microfrontend ID (optional for broadcast)
   type: string;
-  payload: any;
+  payload: unknown;
   timestamp: Date;
 }
 
@@ -807,7 +807,7 @@ export class CommunicationHub extends EventEmitter {
     console.log('✅ Communication Hub initialized');
   }
 
-  private async handleMessage(userId: string, data: any): Promise<void> {
+  private async handleMessage(userId: string, data: unknown): Promise<void> {
     const connection = this.connections.get(userId);
 
     if (!connection) {
@@ -833,7 +833,7 @@ export class CommunicationHub extends EventEmitter {
     }
   }
 
-  async sendToMicrofrontend(microfrontendId: string, data: any): Promise<void> {
+  async sendToMicrofrontend(microfrontendId: string, data: unknown): Promise<void> {
     // Find all connections for this microfrontend
     const targetConnections = Array.from(this.connections.values())
       .filter(conn => conn.microfrontendId === microfrontendId);
@@ -843,11 +843,11 @@ export class CommunicationHub extends EventEmitter {
     }
   }
 
-  async broadcast(data: any): Promise<void> {
+  async broadcast(data: unknown): Promise<void> {
     this.io.emit('message', data);
   }
 
-  async sendToUser(userId: string, data: any): Promise<void> {
+  async sendToUser(userId: string, data: unknown): Promise<void> {
     const connection = this.connections.get(userId);
 
     if (connection) {
@@ -855,7 +855,7 @@ export class CommunicationHub extends EventEmitter {
     }
   }
 
-  async sendToBackend(data: any): Promise<void> {
+  async sendToBackend(data: unknown): Promise<void> {
     this.emit('backend:message', data);
   }
 
@@ -867,7 +867,7 @@ export class CommunicationHub extends EventEmitter {
     return Array.from(this.connections.keys());
   }
 
-  getConnectionsForMicrofrontend(microfrontendId: string): any[] {
+  getConnectionsForMicrofrontend(microfrontendId: string): unknown[] {
     return Array.from(this.connections.values())
       .filter(conn => conn.microfrontendId === microfrontendId);
   }
@@ -969,7 +969,7 @@ export class BackendServiceIntegration extends EventEmitter {
     this.emit('service:unregistered', serviceId);
   }
 
-  async fetchData(serviceId: string, endpoint: string, config?: any): Promise<unknown> {
+  async fetchData(serviceId: string, endpoint: string, config?: unknown): Promise<unknown> {
     const axiosInstance = this.axiosInstances.get(serviceId);
 
     if (!axiosInstance) {
@@ -993,7 +993,7 @@ export class BackendServiceIntegration extends EventEmitter {
     }
   }
 
-  async sendData(serviceId: string, endpoint: string, data: any, config?: any): Promise<unknown> {
+  async sendData(serviceId: string, endpoint: string, data: unknown, config?: unknown): Promise<unknown> {
     const axiosInstance = this.axiosInstances.get(serviceId);
 
     if (!axiosInstance) {
@@ -1065,7 +1065,7 @@ export class BackendServiceIntegration extends EventEmitter {
     return true;
   }
 
-  async notifyService(serviceId: string, data: any): Promise<void> {
+  async notifyService(serviceId: string, data: unknown): Promise<void> {
     try {
       await this.sendData(serviceId, '/notify', data);
     } catch (error) {
@@ -1450,7 +1450,7 @@ export class MicrofrontendClient {
     return data.value;
   }
 
-  async setState(key: string, value: any): Promise<void> {
+  async setState(key: string, value: unknown): Promise<void> {
     const response = await fetch(\`\${this.config.orchestratorURL}/api/state/\${key}\`, {
       method: 'PUT',
       headers: {
@@ -1465,7 +1465,7 @@ export class MicrofrontendClient {
     }
   }
 
-  async updateState(key: string, updates: any): Promise<void> {
+  async updateState(key: string, updates: unknown): Promise<void> {
     const response = await fetch(\`\${this.config.orchestratorURL}/api/state/\${key}\`, {
       method: 'PATCH',
       headers: {
@@ -1494,7 +1494,7 @@ export class MicrofrontendClient {
     return response.json();
   }
 
-  async sendToBackend(serviceId: string, endpoint: string, data: any): Promise<unknown> {
+  async sendToBackend(serviceId: string, endpoint: string, data: unknown): Promise<unknown> {
     const response = await fetch(\`\${this.config.orchestratorURL}/api/services/\${serviceId}/send/\${endpoint.replace(/^\\//, '')}\`, {
       method: 'POST',
       headers: {
@@ -1511,7 +1511,7 @@ export class MicrofrontendClient {
     return response.json();
   }
 
-  sendToMicrofrontend(targetId: string, type: string, payload: any): void {
+  sendToMicrofrontend(targetId: string, type: string, payload: unknown): void {
     const message = {
       to: targetId,
       from: this.config.microfrontendId,
@@ -1522,7 +1522,7 @@ export class MicrofrontendClient {
     this.ws?.send(JSON.stringify(message));
   }
 
-  broadcast(type: string, payload: any): void {
+  broadcast(type: string, payload: unknown): void {
     const message = {
       from: this.config.microfrontendId,
       type,
@@ -1549,7 +1549,7 @@ export class MicrofrontendClient {
     }
   }
 
-  private handleMessage(message: any): void {
+  private handleMessage(message: unknown): void {
     const handlers = this.messageHandlers.get(message.type) || [];
     for (const handler of handlers) {
       handler(message);
@@ -1586,8 +1586,8 @@ export function useMicrofrontend(config: MicrofrontendClientConfig) {
     });
 
     // Set up message handlers
-    client.on('state-update', (message: any) => {
-      setState((prev: any) => ({
+    client.on('state-update', (message: unknown) => {
+      setState((prev: unknown) => ({
         ...prev,
         [message.key]: message.value,
       }));
@@ -1608,13 +1608,13 @@ export function useMicrofrontend(config: MicrofrontendClientConfig) {
     return clientRef.current.getState(key);
   }, []);
 
-  const setStateValue = useCallback(async (key: string, value: any) => {
+  const setStateValue = useCallback(async (key: string, value: unknown) => {
     if (!clientRef.current) return;
     await clientRef.current.setState(key, value);
-    setState((prev: any) => ({ ...prev, [key]: value }));
+    setState((prev: unknown) => ({ ...prev, [key]: value }));
   }, []);
 
-  const updateState = useCallback(async (key: string, updates: any) => {
+  const updateState = useCallback(async (key: string, updates: unknown) => {
     if (!clientRef.current) return;
     await clientRef.current.updateState(key, updates);
   }, []);
@@ -1624,16 +1624,16 @@ export function useMicrofrontend(config: MicrofrontendClientConfig) {
     return clientRef.current.fetchFromBackend(serviceId, endpoint);
   }, []);
 
-  const sendToBackend = useCallback(async (serviceId: string, endpoint: string, data: any) => {
+  const sendToBackend = useCallback(async (serviceId: string, endpoint: string, data: unknown) => {
     if (!clientRef.current) return null;
     return clientRef.current.sendToBackend(serviceId, endpoint, data);
   }, []);
 
-  const sendToMicrofrontend = useCallback((targetId: string, type: string, payload: any) => {
+  const sendToMicrofrontend = useCallback((targetId: string, type: string, payload: unknown) => {
     clientRef.current?.sendToMicrofrontend(targetId, type, payload);
   }, []);
 
-  const broadcast = useCallback((type: string, payload: any) => {
+  const broadcast = useCallback((type: string, payload: unknown) => {
     clientRef.current?.broadcast(type, payload);
   }, []);
 
@@ -1667,7 +1667,7 @@ export function useMicrofrontend(config: MicrofrontendClientConfig) {
     isConnected.value = true;
   });
 
-  client.on('state-update', (message: any) => {
+  client.on('state-update', (message: unknown) => {
     state.value = {
       ...state.value,
       [message.key]: message.value,
@@ -1682,12 +1682,12 @@ export function useMicrofrontend(config: MicrofrontendClientConfig) {
     return client.getState(key);
   };
 
-  const setStateValue = async (key: string, value: any) => {
+  const setStateValue = async (key: string, value: unknown) => {
     await client.setState(key, value);
     state.value = { ...state.value, [key]: value };
   };
 
-  const updateState = async (key: string, updates: any) => {
+  const updateState = async (key: string, updates: unknown) => {
     await client.updateState(key, updates);
   };
 
@@ -1695,15 +1695,15 @@ export function useMicrofrontend(config: MicrofrontendClientConfig) {
     return client.fetchFromBackend(serviceId, endpoint);
   };
 
-  const sendToBackend = async (serviceId: string, endpoint: string, data: any) => {
+  const sendToBackend = async (serviceId: string, endpoint: string, data: unknown) => {
     return client.sendToBackend(serviceId, endpoint, data);
   };
 
-  const sendToMicrofrontend = (targetId: string, type: string, payload: any) => {
+  const sendToMicrofrontend = (targetId: string, type: string, payload: unknown) => {
     client.sendToMicrofrontend(targetId, type, payload);
   };
 
-  const broadcast = (type: string, payload: any) => {
+  const broadcast = (type: string, payload: unknown) => {
     client.broadcast(type, payload);
   };
 
@@ -1750,7 +1750,7 @@ export class MicrofrontendService implements OnDestroy {
       this.isConnectedSubject.next(true);
     });
 
-    this.client.on('state-update', (message: any) => {
+    this.client.on('state-update', (message: unknown) => {
       const currentState = this.stateSubject.value;
       this.stateSubject.next({
         ...currentState,
@@ -1767,7 +1767,7 @@ export class MicrofrontendService implements OnDestroy {
     return this.client.getState(key);
   }
 
-  async setState(key: string, value: any): Promise<void> {
+  async setState(key: string, value: unknown): Promise<void> {
     await this.client.setState(key, value);
 
     const currentState = this.stateSubject.value;
@@ -1777,7 +1777,7 @@ export class MicrofrontendService implements OnDestroy {
     });
   }
 
-  async updateState(key: string, updates: any): Promise<void> {
+  async updateState(key: string, updates: unknown): Promise<void> {
     await this.client.updateState(key, updates);
   }
 
@@ -1785,15 +1785,15 @@ export class MicrofrontendService implements OnDestroy {
     return this.client.fetchFromBackend(serviceId, endpoint);
   }
 
-  async sendToBackend(serviceId: string, endpoint: string, data: any): Promise<unknown> {
+  async sendToBackend(serviceId: string, endpoint: string, data: unknown): Promise<unknown> {
     return this.client.sendToBackend(serviceId, endpoint, data);
   }
 
-  sendToMicrofrontend(targetId: string, type: string, payload: any): void {
+  sendToMicrofrontend(targetId: string, type: string, payload: unknown): void {
     this.client.sendToMicrofrontend(targetId, type, payload);
   }
 
-  broadcast(type: string, payload: any): void {
+  broadcast(type: string, payload: unknown): void {
     this.client.broadcast(type, payload);
   }
 
@@ -1818,7 +1818,7 @@ export function createMicrofrontendStore(config: MicrofrontendClientConfig) {
     isConnected.set(true);
   });
 
-  client.on('state-update', (message: any) => {
+  client.on('state-update', (message: unknown) => {
     state.update((current) => ({
       ...current,
       [message.key]: message.value,
@@ -1837,12 +1837,12 @@ export function createMicrofrontendStore(config: MicrofrontendClientConfig) {
       return client.getState(key);
     },
 
-    setState: async (key: string, value: any) => {
+    setState: async (key: string, value: unknown) => {
       await client.setState(key, value);
       state.update((current) => ({ ...current, [key]: value }));
     },
 
-    updateState: async (key: string, updates: any) => {
+    updateState: async (key: string, updates: unknown) => {
       await client.updateState(key, updates);
     },
 
@@ -1850,15 +1850,15 @@ export function createMicrofrontendStore(config: MicrofrontendClientConfig) {
       return client.fetchFromBackend(serviceId, endpoint);
     },
 
-    sendToBackend: async (serviceId: string, endpoint: string, data: any) => {
+    sendToBackend: async (serviceId: string, endpoint: string, data: unknown) => {
       return client.sendToBackend(serviceId, endpoint, data);
     },
 
-    sendToMicrofrontend: (targetId: string, type: string, payload: any) => {
+    sendToMicrofrontend: (targetId: string, type: string, payload: unknown) => {
       client.sendToMicrofrontend(targetId, type, payload);
     },
 
-    broadcast: (type: string, payload: any) => {
+    broadcast: (type: string, payload: unknown) => {
       client.broadcast(type, payload);
     },
 

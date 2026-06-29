@@ -29,7 +29,7 @@ export interface ISyncDocument {
   collection: string;
   version: number;
   data: Record<string, unknown>;
-  crdt: any; // CRDT state (G-Counter, LWW-Register, OR-Set, etc.)
+  crdt: unknown; // CRDT state (G-Counter, LWW-Register, OR-Set, etc.)
   operations: SyncOperation[];
   collaborators: string[];
   lastModified: Date;
@@ -42,9 +42,9 @@ export interface ISyncDocument {
 export interface SyncOperation {
   id: string;
   type: 'insert' | 'delete' | 'update' | 'move' | 'format';
-  position: any; // Position in document (for OT)
+  position: unknown; // Position in document (for OT)
   length?: number;
-  content?: any;
+  content?: unknown;
   metadata?: Record<string, unknown>;
   userId: string;
   timestamp: Date;
@@ -290,13 +290,13 @@ export class ORSet<T> implements CRDT<T[]> {
  * For hierarchical JSON documents with fine-grained merging
  */
 export class JSONCRDT implements CRDT<any> {
-  value: any;
+  value: unknown;
 
   constructor(initialValue: Record<string, unknown> = {}) {
     this.value = initialValue;
   }
 
-  set(path: string[], newValue: any): void {
+  set(path: string[], newValue: unknown): void {
     let current = this.value;
 
     for (let i = 0; i < path.length - 1; i++) {
@@ -329,7 +329,7 @@ export class JSONCRDT implements CRDT<any> {
     return this;
   }
 
-  private deepMerge(target: any, source: any): any {
+  private deepMerge(target: unknown, source: unknown): unknown {
     if (source === null || typeof source !== 'object') {
       return source;
     }
@@ -352,7 +352,7 @@ export class JSONCRDT implements CRDT<any> {
     return result;
   }
 
-  toJSON(): any {
+  toJSON(): unknown {
     return this.value;
   }
 }
@@ -366,9 +366,9 @@ import { EventEmitter } from 'events';
 export interface PendingUpdate {
   id: string;
   documentId: string;
-  operation: any;
-  originalValue: any;
-  optimisticValue: any;
+  operation: unknown;
+  originalValue: unknown;
+  optimisticValue: unknown;
   timestamp: number;
   retries: number;
   status: 'pending' | 'committed' | 'failed' | 'rolled_back';
@@ -383,8 +383,8 @@ export class OptimisticUpdatesService extends EventEmitter {
    */
   async applyOptimisticUpdate(
     documentId: string,
-    operation: any,
-    currentValue: any
+    operation: unknown,
+    currentValue: unknown
   ): Promise<void> {
     const updateId = this.generateUpdateId();
 
@@ -478,7 +478,7 @@ export class OptimisticUpdatesService extends EventEmitter {
   /**
    * Apply operation to value
    */
-  private applyOperation(value: any, operation: any): any {
+  private applyOperation(value: unknown, operation: unknown): unknown {
     const result = JSON.parse(JSON.stringify(value));
 
     switch (operation.type) {
@@ -501,7 +501,7 @@ export class OptimisticUpdatesService extends EventEmitter {
     return result;
   }
 
-  private applyInsert(value: any, operation: any): void {
+  private applyInsert(value: unknown, operation: unknown): void {
     // Implementation depends on data structure
     if (Array.isArray(value)) {
       value.splice(operation.position, 0, operation.content);
@@ -510,7 +510,7 @@ export class OptimisticUpdatesService extends EventEmitter {
     }
   }
 
-  private applyDelete(value: any, operation: any): void {
+  private applyDelete(value: unknown, operation: unknown): void {
     if (Array.isArray(value)) {
       value.splice(operation.position, operation.length);
     } else if (typeof value === 'object' && value !== null) {
@@ -518,13 +518,13 @@ export class OptimisticUpdatesService extends EventEmitter {
     }
   }
 
-  private applyUpdate(value: any, operation: any): void {
+  private applyUpdate(value: unknown, operation: unknown): void {
     if (typeof value === 'object' && value !== null) {
       value[operation.path] = operation.content;
     }
   }
 
-  private applyMove(value: any, operation: any): void {
+  private applyMove(value: unknown, operation: unknown): void {
     if (Array.isArray(value)) {
       const [item] = value.splice(operation.from, 1);
       value.splice(operation.to, 0, item);
@@ -564,7 +564,7 @@ export interface Event {
   id: string;
   type: string;
   version: number;
-  data: any;
+  data: unknown;
   metadata: {
     userId: string;
     timestamp: Date;
@@ -577,7 +577,7 @@ export interface EventStream {
   documentId: string;
   version: number;
   events: Event[];
-  snapshot?: any;
+  snapshot?: unknown;
   snapshotVersion?: number;
 }
 
@@ -591,7 +591,7 @@ export class EventSourcingService {
   async appendEvent(
     documentId: string,
     eventType: string,
-    data: any,
+    data: unknown,
     userId: string,
     causalityId?: string
   ): Promise<Event> {
@@ -730,7 +730,7 @@ export class EventSourcingService {
   /**
    * Apply event to state
    */
-  private applyEvent(state: any, event: Event): any {
+  private applyEvent(state: unknown, event: Event): unknown {
     const newState = { ...state };
 
     switch (event.type) {
@@ -753,19 +753,19 @@ export class EventSourcingService {
     return newState;
   }
 
-  private applyInsertEvent(state: any, data: any): void {
+  private applyInsertEvent(state: unknown, data: unknown): void {
     // Implementation depends on data structure
   }
 
-  private applyDeleteEvent(state: any, data: any): void {
+  private applyDeleteEvent(state: unknown, data: unknown): void {
     // Implementation depends on data structure
   }
 
-  private applyUpdateEvent(state: any, data: any): void {
+  private applyUpdateEvent(state: unknown, data: unknown): void {
     // Implementation depends on data structure
   }
 
-  private applyMoveEvent(state: any, data: any): void {
+  private applyMoveEvent(state: unknown, data: unknown): void {
     // Implementation depends on data structure
   }
 }
@@ -945,7 +945,7 @@ export class SyncController {
   /**
    * Calculate checksum
    */
-  private calculateChecksum(data: any): string {
+  private calculateChecksum(data: unknown): string {
     const crypto = require('crypto');
     return crypto
       .createHash('sha256')
@@ -1012,7 +1012,7 @@ export class PresenceService extends EventEmitter {
   /**
    * Update cursor position
    */
-  updateCursor(documentId: string, userId: string, cursor: any): void {
+  updateCursor(documentId: string, userId: string, cursor: unknown): void {
     const docPresence = this.presence.get(documentId);
     const user = docPresence?.get(userId);
 
@@ -1049,7 +1049,7 @@ export class PresenceService extends EventEmitter {
   /**
    * Broadcast update to all connected clients
    */
-  broadcast(documentId: string, message: any): void {
+  broadcast(documentId: string, message: unknown): void {
     this.emit('broadcast', { documentId, message });
   }
 
@@ -1095,7 +1095,7 @@ export class CRDTService {
   /**
    * Apply operation to document using CRDT
    */
-  applyOperation(document: any, operation: any): any {
+  applyOperation(document: unknown, operation: unknown): unknown {
     const result = { ...document };
 
     switch (operation.type) {
@@ -1112,7 +1112,7 @@ export class CRDTService {
     }
   }
 
-  private applyInsert(document: any, operation: any): any {
+  private applyInsert(document: unknown, operation: unknown): unknown {
     if (Array.isArray(document.data)) {
       const newData = [...document.data];
       newData.splice(operation.position, 0, operation.content);
@@ -1128,7 +1128,7 @@ export class CRDTService {
     return document;
   }
 
-  private applyDelete(document: any, operation: any): any {
+  private applyDelete(document: unknown, operation: unknown): unknown {
     if (Array.isArray(document.data)) {
       const newData = [...document.data];
       newData.splice(operation.position, operation.length);
@@ -1142,7 +1142,7 @@ export class CRDTService {
     return document;
   }
 
-  private applyUpdate(document: any, operation: any): any {
+  private applyUpdate(document: unknown, operation: unknown): unknown {
     if (typeof document.data === 'object') {
       document.data = {
         ...document.data,
@@ -1154,7 +1154,7 @@ export class CRDTService {
     return document;
   }
 
-  private applyMove(document: any, operation: any): any {
+  private applyMove(document: unknown, operation: unknown): unknown {
     if (Array.isArray(document.data)) {
       const newData = [...document.data];
       const [item] = newData.splice(operation.from, 1);
@@ -1169,7 +1169,7 @@ export class CRDTService {
   /**
    * Merge two documents using CRDT
    */
-  mergeDocuments(doc1: any, doc2: any): any {
+  mergeDocuments(doc1: unknown, doc2: unknown): unknown {
     // Use LWW (Last-Write-Wins) based on version/timestamp
     if (doc1.version > doc2.version) {
       return doc1;
@@ -1201,7 +1201,7 @@ export interface SyncEventData {
   type: string;
   documentId: string;
   version: number;
-  operation: any;
+  operation: unknown;
   userId: string;
   timestamp: Date;
 }
@@ -1212,7 +1212,7 @@ export class SyncClient {
   private eventSource?: EventSource;
   private reconnectAttempts = 0;
   private isConnected = false;
-  private listeners: Map<string, Set<(data: any) => void>> = new Map();
+  private listeners: Map<string, Set<(data: unknown) => void>> = new Map();
 
   constructor(config: SyncClientConfig) {
     this.config = {
@@ -1383,7 +1383,7 @@ export class SyncClient {
   /**
    * Send operation to server
    */
-  async sendOperation(operation: any): Promise<void> {
+  async sendOperation(operation: unknown): Promise<void> {
     if (!this.isConnected) {
       throw new Error('Not connected to sync server');
     }
@@ -1412,7 +1412,7 @@ export class SyncClient {
   /**
    * Subscribe to event
    */
-  on(event: string, callback: (data: any) => void): () => void {
+  on(event: string, callback: (data: unknown) => void): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
@@ -1431,7 +1431,7 @@ export class SyncClient {
   /**
    * Emit event
    */
-  private emit(event: string, data: any): void {
+  private emit(event: string, data: unknown): void {
     const listeners = this.listeners.get(event);
     if (listeners) {
       for (const callback of listeners) {
@@ -1540,7 +1540,7 @@ export function useRealtimeSync(documentId: string, token?: string) {
     };
   }, [documentId, token]);
 
-  const sendOperation = useCallback(async (operation: any) => {
+  const sendOperation = useCallback(async (operation: unknown) => {
     if (clientRef.current) {
       await clientRef.current.sendOperation(operation);
     }
@@ -1613,7 +1613,7 @@ export function useRealtimeSync(documentId: string, token?: string) {
     }
   });
 
-  const sendOperation = async (operation: any) => {
+  const sendOperation = async (operation: unknown) => {
     if (syncClient) {
       await syncClient.sendOperation(operation);
     }
@@ -1695,7 +1695,7 @@ export class RealtimeSyncService implements OnDestroy {
   /**
    * Send operation
    */
-  async sendOperation(operation: any): Promise<void> {
+  async sendOperation(operation: unknown): Promise<void> {
     if (this.client) {
       await this.client.sendOperation(operation);
     }
@@ -1794,7 +1794,7 @@ function createRealtimeSyncStore() {
     });
   }
 
-  async function sendOperation(operation: any) {
+  async function sendOperation(operation: unknown) {
     if (syncClient) {
       await syncClient.sendOperation(operation);
     }

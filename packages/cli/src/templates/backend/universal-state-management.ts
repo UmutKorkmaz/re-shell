@@ -164,7 +164,7 @@ app.get('/health', (req, res) => {
 });
 
 // Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
     error: {
@@ -205,10 +205,10 @@ import { produce, enablePatches } from 'immer';
 enablePatches();
 
 export interface StateSnapshot {
-  state: any;
+  state: unknown;
   version: number;
   timestamp: number;
-  patches: any[];
+  patches: unknown[];
 }
 
 export class StateStore extends EventEmitter {
@@ -264,7 +264,7 @@ export class StateStore extends EventEmitter {
     return this.localState.get(key);
   }
 
-  async set(key: string, value: any): Promise<void> {
+  async set(key: string, value: unknown): Promise<void> {
     const previousValue = this.localState.get(key);
     const currentVersion = this.versions.get(key) || 0;
     const newVersion = currentVersion + 1;
@@ -311,10 +311,10 @@ export class StateStore extends EventEmitter {
     this.emit('state:changed', { key, value, previousValue, version: newVersion, patches });
   }
 
-  private calculatePatches(previous: any, current: any): any[] {
+  private calculatePatches(previous: unknown, current: unknown): unknown[] {
     if (!previous) return [];
 
-    const patches: any[] = [];
+    const patches: unknown[] = [];
     const prevStr = JSON.stringify(previous);
     const currStr = JSON.stringify(current);
 
@@ -422,7 +422,7 @@ export class StateStore extends EventEmitter {
 import { StateStore } from './state-store';
 import { EventEmitter } from 'events';
 
-export type Selector<T> = (state: any) => T;
+export type Selector<T> = (state: unknown) => T;
 export type ComputedFn<T> = () => T | Promise<T>;
 
 export interface ComputedValue<T> {
@@ -467,11 +467,11 @@ export class StateManager extends EventEmitter {
     return this.store.get(key);
   }
 
-  async set(key: string, value: any): Promise<void> {
+  async set(key: string, value: unknown): Promise<void> {
     await this.store.set(key, value);
   }
 
-  async update(key: string, updater: (state: any) => any): Promise<void> {
+  async update(key: string, updater: (state: unknown) => any): Promise<void> {
     const current = await this.get(key);
     const updated = updater(current);
     await this.set(key, updated);
@@ -695,7 +695,7 @@ export class StateSync extends EventEmitter {
       });
 
       // Handle state updates from clients
-      socket.on('state:set', async (data: { key: string; value: any; optimisticId?: string }) => {
+      socket.on('state:set', async (data: { key: string; value: unknown; optimisticId?: string }) => {
         try {
           await this.stateManager.set(data.key, data.value);
 
@@ -734,7 +734,7 @@ export class StateSync extends EventEmitter {
     console.log('✅ State Sync initialized');
   }
 
-  private async broadcastStateChange(key: string, value: any, patches: any[]): Promise<void> {
+  private async broadcastStateChange(key: string, value: unknown, patches: unknown[]): Promise<void> {
     const subscribers = this.subscriptions.get(key);
 
     if (!subscribers || subscribers.size === 0) {
@@ -1235,11 +1235,11 @@ export class StateClient {
     };
   }
 
-  private send(type: string, data: any): void {
+  private send(type: string, data: unknown): void {
     this.ws?.send(JSON.stringify({ type, data }));
   }
 
-  private handleMessage(message: any): void {
+  private handleMessage(message: unknown): void {
     if (message.type === 'state:update') {
       const { key, value, version } = message.data;
       this.localCache.set(key, value);
@@ -1278,7 +1278,7 @@ export class StateClient {
     return data.value;
   }
 
-  async set(key: string, value: any, optimistic = false): Promise<void> {
+  async set(key: string, value: unknown, optimistic = false): Promise<void> {
     const optimisticId = optimistic ? this.generateOptimisticId() : undefined;
 
     if (optimistic) {
@@ -1316,7 +1316,7 @@ export class StateClient {
     }
   }
 
-  async update(key: string, updater: (state: any) => any): Promise<void> {
+  async update(key: string, updater: (state: unknown) => any): Promise<void> {
     const current = await this.get(key);
     const updated = updater(current);
     await this.set(key, updated);
@@ -1337,7 +1337,7 @@ export class StateClient {
     this.localCache.delete(key);
   }
 
-  async subscribe(keys: string | string[], callback?: (key: string, value: any) => void): Promise<void> {
+  async subscribe(keys: string | string[], callback?: (key: string, value: unknown) => void): Promise<void> {
     const keyArray = Array.isArray(keys) ? keys : [keys];
 
     for (const key of keyArray) {
@@ -1427,16 +1427,16 @@ export function useStateManager(config: StateClientConfig) {
     return clientRef.current.get(key);
   }, []);
 
-  const set = useCallback(async (key: string, value: any, optimistic = false) => {
+  const set = useCallback(async (key: string, value: unknown, optimistic = false) => {
     if (!clientRef.current) return;
 
     await clientRef.current.set(key, value, optimistic);
 
     // Update local state
-    setState((prev: any) => ({ ...prev, [key]: value }));
+    setState((prev: unknown) => ({ ...prev, [key]: value }));
   }, []);
 
-  const update = useCallback(async (key: string, updater: (state: any) => any) => {
+  const update = useCallback(async (key: string, updater: (state: unknown) => any) => {
     if (!clientRef.current) return;
 
     const current = await clientRef.current.get(key);
@@ -1444,7 +1444,7 @@ export function useStateManager(config: StateClientConfig) {
 
     await clientRef.current.set(key, updated);
 
-    setState((prev: any) => ({ ...prev, [key]: updated }));
+    setState((prev: unknown) => ({ ...prev, [key]: updated }));
   }, []);
 
   const remove = useCallback(async (key: string) => {
@@ -1452,7 +1452,7 @@ export function useStateManager(config: StateClientConfig) {
 
     await clientRef.current.delete(key);
 
-    setState((prev: any) => {
+    setState((prev: unknown) => {
       const { [key]: removed, ...rest } = prev;
       return rest;
     });
@@ -1461,8 +1461,8 @@ export function useStateManager(config: StateClientConfig) {
   const subscribe = useCallback(async (keys: string | string[]) => {
     if (!clientRef.current) return;
 
-    await clientRef.current.subscribe(keys, (key: string, value: any) => {
-      setState((prev: any) => ({ ...prev, [key]: value }));
+    await clientRef.current.subscribe(keys, (key: string, value: unknown) => {
+      setState((prev: unknown) => ({ ...prev, [key]: value }));
     });
   }, []);
 
@@ -1503,12 +1503,12 @@ export function useStateManager(config: StateClientConfig) {
     return client.get(key);
   };
 
-  const set = async (key: string, value: any, optimistic = false) => {
+  const set = async (key: string, value: unknown, optimistic = false) => {
     await client.set(key, value, optimistic);
     state.value = { ...state.value, [key]: value };
   };
 
-  const update = async (key: string, updater: (state: any) => any) => {
+  const update = async (key: string, updater: (state: unknown) => any) => {
     const current = await client.get(key);
     const updated = updater(current);
     await client.set(key, updated);
@@ -1522,7 +1522,7 @@ export function useStateManager(config: StateClientConfig) {
   };
 
   const subscribe = async (keys: string | string[]) => {
-    await client.subscribe(keys, (key: string, value: any) => {
+    await client.subscribe(keys, (key: string, value: unknown) => {
       state.value = { ...state.value, [key]: value };
     });
   };
@@ -1577,7 +1577,7 @@ export class StateManagerService implements OnDestroy {
     return this.client.get(key);
   }
 
-  async set(key: string, value: any, optimistic = false): Promise<void> {
+  async set(key: string, value: unknown, optimistic = false): Promise<void> {
     await this.client.set(key, value, optimistic);
 
     const currentState = this.stateSubject.value;
@@ -1587,7 +1587,7 @@ export class StateManagerService implements OnDestroy {
     });
   }
 
-  async update(key: string, updater: (state: any) => any): Promise<void> {
+  async update(key: string, updater: (state: unknown) => any): Promise<void> {
     const current = await this.client.get(key);
     const updated = updater(current);
 
@@ -1609,7 +1609,7 @@ export class StateManagerService implements OnDestroy {
   }
 
   async subscribe(keys: string | string[]): Promise<void> {
-    await this.client.subscribe(keys, (key: string, value: any) => {
+    await this.client.subscribe(keys, (key: string, value: unknown) => {
       const currentState = this.stateSubject.value;
       this.stateSubject.next({
         ...currentState,
@@ -1651,12 +1651,12 @@ export function createStateStore(config: StateClientConfig) {
       return client.get(key);
     },
 
-    set: async (key: string, value: any, optimistic = false) => {
+    set: async (key: string, value: unknown, optimistic = false) => {
       await client.set(key, value, optimistic);
       state.update((current) => ({ ...current, [key]: value }));
     },
 
-    update: async (key: string, updater: (state: any) => any) => {
+    update: async (key: string, updater: (state: unknown) => any) => {
       const current = await client.get(key);
       const updated = updater(current);
       await client.set(key, updated);
@@ -1672,7 +1672,7 @@ export function createStateStore(config: StateClientConfig) {
     },
 
     subscribe: async (keys: string | string[]) => {
-      await client.subscribe(keys, (key: string, value: any) => {
+      await client.subscribe(keys, (key: string, value: unknown) => {
         state.update((current) => ({ ...current, [key]: value }));
       });
     },

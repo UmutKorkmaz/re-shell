@@ -6082,7 +6082,7 @@ export const wasmFeatures = {
     }
   }
 
-  function sendMessageToApp(appId: string, message: any) {
+  function sendMessageToApp(appId: string, message: unknown) {
     if (!iframeElement || !iframeElement.contentWindow) return;
 
     iframeElement.contentWindow.postMessage({
@@ -6454,7 +6454,7 @@ import { browser } from '$app/environment';
 export interface EventBusEvent {
   id: string;
   type: string;
-  data: any;
+  data: unknown;
   timestamp: number;
   source?: string;
 }
@@ -6501,7 +6501,7 @@ class EventBus {
    * @param data - Event payload
    * @param source - Optional source identifier
    */
-  publish(type: string, data: any, source?: string): void {
+  publish(type: string, data: unknown, source?: string): void {
     if (!browser) return;
 
     const event: EventBusEvent = {
@@ -6540,7 +6540,7 @@ class EventBus {
   /**
    * Broadcast event to all windows/frames using postMessage
    */
-  broadcast(type: string, data: any, source?: string): void {
+  broadcast(type: string, data: unknown, source?: string): void {
     if (!browser) return;
 
     const message = {
@@ -6627,14 +6627,14 @@ class SharedStore {
   /**
    * Get a value from the shared store
    */
-  get(key: string): any {
+  get(key: string): unknown {
     return this.store.get(key);
   }
 
   /**
    * Set a value in the shared store
    */
-  set(key: string, value: any, options: SharedStoreOptions = {}): void {
+  set(key: string, value: unknown, options: SharedStoreOptions = {}): void {
     const oldValue = this.store.get(key);
     const newValue = value;
 
@@ -6667,7 +6667,7 @@ class SharedStore {
   /**
    * Subscribe to changes for a specific key
    */
-  subscribe(key: string, listener: (value: any) => void): () => void {
+  subscribe(key: string, listener: (value: unknown) => void): () => void {
     if (!this.listeners.has(key)) {
       this.listeners.set(key, new Set());
     }
@@ -6681,8 +6681,8 @@ class SharedStore {
   /**
    * Subscribe to all changes
    */
-  subscribeAll(listener: (key: string, value: any) => void): () => void {
-    const wrappedListener = (value: any) => {
+  subscribeAll(listener: (key: string, value: unknown) => void): () => void {
+    const wrappedListener = (value: unknown) => {
       // Find the key that changed
       for (const [key, val] of this.store.entries()) {
         if (val === value) {
@@ -6700,7 +6700,7 @@ class SharedStore {
     };
   }
 
-  private notifyListeners(key: string, newValue: any, oldValue: any): void {
+  private notifyListeners(key: string, newValue: unknown, oldValue: unknown): void {
     const keyListeners = this.listeners.get(key);
     if (keyListeners) {
       keyListeners.forEach(listener => {
@@ -6716,7 +6716,7 @@ class SharedStore {
     if (allListeners) {
       allListeners.forEach(listener => {
         try {
-          (listener as (key: string, value: any) => void)(key, newValue);
+          (listener as (key: string, value: unknown) => void)(key, newValue);
         } catch (error) {
           console.error('SharedStore wildcard listener error:', error);
         }
@@ -6766,7 +6766,7 @@ class SharedStore {
     });
   }
 
-  private syncToWindows(key: string, value: any): void {
+  private syncToWindows(key: string, value: unknown): void {
     if (!browser) return;
 
     const message = {
@@ -6909,7 +6909,7 @@ export class MicroAppLoader {
   /**
    * Send a message to a micro-app
    */
-  sendMessage(appId: string, message: any): void {
+  sendMessage(appId: string, message: unknown): void {
     const app = this.loadedApps.get(appId);
     if (!app || !app.iframe.contentWindow) {
       console.warn(\`Micro-app \${appId} not found or not loaded\`);
@@ -6953,7 +6953,7 @@ export function createEventNamespace(namespace: string) {
 /**
  * Debounce function
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => any>(
   fn: T,
   delay: number
 ): (...args: Parameters<T>) => void {
@@ -6967,7 +6967,7 @@ export function debounce<T extends (...args: any[]) => any>(
 /**
  * Throttle function
  */
-export function throttle<T extends (...args: any[]) => any>(
+export function throttle<T extends (...args: unknown[]) => any>(
   fn: T,
   interval: number
 ): (...args: Parameters<T>) => void {
@@ -6995,12 +6995,12 @@ export function throttle<T extends (...args: any[]) => any>(
   import { browser } from '$app/environment';
   import { renderReactComponent, unmountReactComponent } from '$lib/components/cross-framework/cross-framework';
 
-  export let component: any;
+  export let component: unknown;
   export let props = {};
   export let className = '';
 
   let container: HTMLDivElement;
-  let reactInstance: any = null;
+  let reactInstance: unknown = null;
 
   onMount(() => {
     if (!browser || !container) return;
@@ -7049,12 +7049,12 @@ export function throttle<T extends (...args: any[]) => any>(
   import { browser } from '$app/environment';
   import { renderVueComponent, unmountVueComponent } from '$lib/components/cross-framework/cross-framework';
 
-  export let component: any;
+  export let component: unknown;
   export let props = {};
   export let className = '';
 
   let container: HTMLDivElement;
-  let vueInstance: any = null;
+  let vueInstance: unknown = null;
 
   onMount(() => {
     if (!browser || !container) return;
@@ -7089,12 +7089,12 @@ export function throttle<T extends (...args: any[]) => any>(
   import { browser } from '$app/environment';
   import { renderAngularComponent, unmountAngularComponent } from '$lib/components/cross-framework/cross-framework';
 
-  export let component: any;
+  export let component: unknown;
   export let props = {};
   export let className = '';
 
   let container: HTMLDivElement;
-  let angularRef: any = null;
+  let angularRef: unknown = null;
 
   onMount(async () => {
     if (!browser || !container) return;
@@ -7153,12 +7153,12 @@ import { browser } from '$app/environment';
  * @returns Web Component constructor
  */
 export function createWebComponentAdapter(
-  component: any,
-  renderer: (component: any, props: any, container: HTMLElement) => any,
+  component: unknown,
+  renderer: (component: unknown, props: unknown, container: HTMLElement) => any,
   tagName: string
 ): CustomElementConstructor {
   class WebComponentAdapter extends HTMLElement {
-    private instance: any = null;
+    private instance: unknown = null;
     private shadow: ShadowRoot;
     private container: HTMLElement;
 
@@ -7189,7 +7189,7 @@ export function createWebComponentAdapter(
       }
     }
 
-    getProps(): any {
+    getProps(): unknown {
       const propsAttr = this.getAttribute('props');
       if (propsAttr) {
         try {
@@ -7221,8 +7221,8 @@ export function createWebComponentAdapter(
 // REACT ADAPTER
 // ============================================================================
 
-let React: any;
-let ReactDOM: any;
+let React: unknown;
+let ReactDOM: unknown;
 
 /**
  * Dynamically import React and ReactDOM
@@ -7248,17 +7248,17 @@ async function loadReact() {
  * @returns React root instance
  */
 export function renderReactComponent(
-  component: any,
-  props: any,
+  component: unknown,
+  props: unknown,
   container: HTMLElement
-): any {
+): unknown {
   if (!browser) return null;
 
   // Dynamic import of React
   Promise.resolve().then(() => loadReact());
 
   // Create a wrapper function if component is not already a React element
-  const createElement = React?.createElement || ((_: any, p: any, ...c: any[]) => ({ props: p, children: c }));
+  const createElement = React?.createElement || ((_: unknown, p: unknown, ...c: unknown[]) => ({ props: p, children: c }));
 
   const element = createElement(component, props);
 
@@ -7286,7 +7286,7 @@ export function renderReactComponent(
  * @param instance - Component instance from renderReactComponent
  * @param container - Container element
  */
-export function unmountReactComponent(instance: any, container: HTMLElement): void {
+export function unmountReactComponent(instance: unknown, container: HTMLElement): void {
   if (!instance) return;
 
   if (instance?.root?.unmount) {
@@ -7302,7 +7302,7 @@ export function unmountReactComponent(instance: any, container: HTMLElement): vo
 // VUE ADAPTER
 // ============================================================================
 
-let Vue: any;
+let Vue: unknown;
 
 /**
  * Dynamically import Vue
@@ -7328,10 +7328,10 @@ async function loadVue() {
  * @returns Vue instance
  */
 export function renderVueComponent(
-  component: any,
-  props: any,
+  component: unknown,
+  props: unknown,
   container: HTMLElement
-): any {
+): unknown {
   if (!browser) return null;
 
   // Dynamic import of Vue
@@ -7357,7 +7357,7 @@ export function renderVueComponent(
   if (Vue?.default) {
     const VueConstructor = Vue.default;
     const instance = new VueConstructor({
-      render: (h: any) => h(component, { props })
+      render: (h: unknown) => h(component, { props })
     });
     instance.$mount(container);
     return instance;
@@ -7371,7 +7371,7 @@ export function renderVueComponent(
  * @param instance - Component instance from renderVueComponent
  * @param container - Container element
  */
-export function unmountVueComponent(instance: any, container: HTMLElement): void {
+export function unmountVueComponent(instance: unknown, container: HTMLElement): void {
   if (!instance) return;
 
   // Vue 3
@@ -7399,8 +7399,8 @@ export function unmountVueComponent(instance: any, container: HTMLElement): void
  * @returns Angular component reference
  */
 export async function renderAngularComponent(
-  component: any,
-  props: any,
+  component: unknown,
+  props: unknown,
   container: HTMLElement
 ): Promise<unknown> {
   if (!browser) return null;
@@ -7431,7 +7431,7 @@ export async function renderAngularComponent(
  * @param instance - Component reference from renderAngularComponent
  * @param container - Container element
  */
-export function unmountAngularComponent(instance: any, container: HTMLElement): void {
+export function unmountAngularComponent(instance: unknown, container: HTMLElement): void {
   if (instance && instance.parentNode) {
     instance.parentNode.removeChild(instance);
   }
@@ -7445,9 +7445,9 @@ export function unmountAngularComponent(instance: any, container: HTMLElement): 
 export type FrameworkType = 'react' | 'vue' | 'angular' | 'svelte' | 'web-component';
 
 export interface UniversalComponentConfig {
-  component: any;
+  component: unknown;
   framework: FrameworkType;
-  props?: any;
+  props?: unknown;
   tagName?: string;
   container?: HTMLElement;
 }
@@ -7457,7 +7457,7 @@ export interface UniversalComponentConfig {
  * @param config - Component configuration
  * @returns Component instance for cleanup
  */
-export function renderUniversalComponent(config: UniversalComponentConfig): any {
+export function renderUniversalComponent(config: UniversalComponentConfig): unknown {
   const { component, framework, props = {}, tagName, container } = config;
 
   if (!browser) return null;
@@ -7496,7 +7496,7 @@ export function renderUniversalComponent(config: UniversalComponentConfig): any 
 // ============================================================================
 
 interface RegisteredComponent {
-  component: any;
+  component: unknown;
   framework: FrameworkType;
   tagName?: string;
 }
@@ -7530,9 +7530,9 @@ export function getComponent(name: string): RegisteredComponent | undefined {
  */
 export function renderRegisteredComponent(
   name: string,
-  props: any,
+  props: unknown,
   container: HTMLElement
-): any {
+): unknown {
   const config = getComponent(name);
   if (!config) {
     console.warn(\`Component not registered: \${name}\`);
@@ -7612,7 +7612,7 @@ export function detectFrameworks(): Record<FrameworkType, FrameworkInfo> {
  * @param props - Props to serialize
  * @returns Serialized props
  */
-export function serializeProps(props: any): string {
+export function serializeProps(props: unknown): string {
   return JSON.stringify(props, (key, value) => {
     // Handle functions
     if (typeof value === 'function') {
@@ -7635,7 +7635,7 @@ export function serializeProps(props: any): string {
  * @param serialized - Serialized props string
  * @returns Deserialized props object
  */
-export function deserializeProps(serialized: string): any {
+export function deserializeProps(serialized: string): unknown {
   return JSON.parse(serialized, (key, value) => {
     // Handle functions
     if (typeof value === 'string' && value.startsWith('__FUNCTION:')) {
@@ -7687,7 +7687,7 @@ export class EventBridge {
    * @param event - Event name
    * @param data - Event data
    */
-  emit(event: string, data: any): void {
+  emit(event: string, data: unknown): void {
     const handlers = this.listeners.get(event);
     if (handlers) {
       handlers.forEach(handler => {

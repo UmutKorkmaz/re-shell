@@ -69,11 +69,11 @@ export class RestServiceClient {
     return this.client.get<T>(url, config).then((r) => r.data);
   }
 
-  async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     return this.client.post<T>(url, data, config).then((r) => r.data);
   }
 
-  async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     return this.client.put<T>(url, data, config).then((r) => r.data);
   }
 
@@ -100,7 +100,7 @@ export class RestServiceClient {
     this.circuitOpen = false;
   }
 
-  private handleError(error: any): Error {
+  private handleError(error: unknown): Error {
     if (this.circuitOpen) {
       return new Error('Circuit breaker is open');
     }
@@ -134,12 +134,12 @@ import { promisify } from 'util';
 
 // Proto-generated interfaces (simplified)
 interface ServiceBClient {
-  getData(request: any): any;
-  streamData(request: any): any;
+  getData(request: unknown): unknown;
+  streamData(request: unknown): unknown;
 }
 
 export class GrpcServiceClient {
-  private client: any;
+  private client: unknown;
 
   constructor(address: string) {
     // In production, load proto definitions
@@ -149,7 +149,7 @@ export class GrpcServiceClient {
     );
   }
 
-  async getData(request: any): Promise<unknown> {
+  async getData(request: unknown): Promise<unknown> {
     const getData = promisify(this.client.getData).bind(this.client);
     try {
       const response = await getData(request);
@@ -160,7 +160,7 @@ export class GrpcServiceClient {
     }
   }
 
-  streamData(request: any): any {
+  streamData(request: unknown): unknown {
     return this.client.streamData(request);
   }
 }
@@ -190,7 +190,7 @@ export enum EventType {
 
 export interface Event {
   type: EventType;
-  payload: any;
+  payload: unknown;
   timestamp: Date;
   correlationId?: string;
   causationId?: string;
@@ -236,7 +236,7 @@ export class EventBus extends EventEmitter {
 const eventBus = EventBus.getInstance();
 
 // Service A: Publish events
-export function publishUserCreated(user: any) {
+export function publishUserCreated(user: unknown) {
   eventBus.publish({
     type: EventType.USER_CREATED,
     payload: user,
@@ -257,9 +257,9 @@ eventBus.subscribe(EventType.USER_CREATED, (event) => {
 import { createClient } from 'redis';
 
 export class RedisPubSub {
-  private publisher: any;
-  private subscriber: any;
-  private handlers: Map<string, Set<(message: any) => void>> = new Map();
+  private publisher: unknown;
+  private subscriber: unknown;
+  private handlers: Map<string, Set<(message: unknown) => void>> = new Map();
 
   constructor(redisUrl: string = process.env.REDIS_URL || 'redis://localhost:6379') {
     this.publisher = createClient({ url: redisUrl });
@@ -272,7 +272,7 @@ export class RedisPubSub {
     await this.publisher.connect();
     await this.subscriber.connect();
 
-    this.subscriber.subscribe('message', (err: any, message: any) => {
+    this.subscriber.subscribe('message', (err: unknown, message: unknown) => {
       if (err) {
         console.error('Subscription error:', err);
         return;
@@ -294,11 +294,11 @@ export class RedisPubSub {
     });
   }
 
-  async publish(channel: string, message: any): Promise<void> {
+  async publish(channel: string, message: unknown): Promise<void> {
     await this.publisher.publish(channel, JSON.stringify(message));
   }
 
-  async subscribe(channel: string, handler: (message: any) => void): Promise<void> {
+  async subscribe(channel: string, handler: (message: unknown) => void): Promise<void> {
     if (!this.handlers.has(channel)) {
       this.handlers.set(channel, new Set());
       await this.subscriber.subscribe(channel);
@@ -306,7 +306,7 @@ export class RedisPubSub {
     this.handlers.get(channel)!.add(handler);
   }
 
-  async unsubscribe(channel: string, handler: (message: any) => void): Promise<void> {
+  async unsubscribe(channel: string, handler: (message: unknown) => void): Promise<void> {
     const handlers = this.handlers.get(channel);
     if (handlers) {
       handlers.delete(handler);
@@ -327,7 +327,7 @@ export class RedisPubSub {
 const pubsub = new RedisPubSub();
 
 // Publisher
-export async function publishUserEvent(user: any) {
+export async function publishUserEvent(user: unknown) {
   await pubsub.publish('user.created', {
     userId: user.id,
     email: user.email,
@@ -349,7 +349,7 @@ export async function subscribeToUserEvents() {
 import { Kafka } from 'kafkajs';
 
 export class KafkaProducer {
-  private producer: any;
+  private producer: unknown;
   private kafka: Kafka;
 
   constructor(brokers: string[] = ['localhost:9092']) {
@@ -373,7 +373,7 @@ export class KafkaProducer {
     await this.producer.disconnect();
   }
 
-  async publish(topic: string, key: string, value: any): Promise<void> {
+  async publish(topic: string, key: string, value: unknown): Promise<void> {
     await this.producer.send({
       topic,
       messages: [
@@ -386,7 +386,7 @@ export class KafkaProducer {
     });
   }
 
-  async publishBatch(topic: string, messages: Array<{ key: string; value: any }>): Promise<void> {
+  async publishBatch(topic: string, messages: Array<{ key: string; value: unknown }>): Promise<void> {
     await this.producer.send({
       topic,
       messages: messages.map((m) => ({
@@ -401,7 +401,7 @@ export class KafkaProducer {
 // Usage
 const producer = new KafkaProducer();
 
-export async function publishOrderEvent(order: any) {
+export async function publishOrderEvent(order: unknown) {
   await producer.publish('orders', order.id, {
     eventType: 'order.created',
     orderId: order.id,
@@ -426,7 +426,7 @@ export interface KafkaConsumerConfig {
 }
 
 export class KafkaConsumer {
-  private consumer: any;
+  private consumer: unknown;
   private kafka: Kafka;
   private config: KafkaConsumerConfig;
 
@@ -484,7 +484,7 @@ export async function startOrderConsumer() {
   await consumer.start();
 }
 
-async function processOrderEvent(event: any) {
+async function processOrderEvent(event: unknown) {
   // Handle order event
 }
 `,
@@ -514,7 +514,7 @@ export class RabbitMQPublisher {
   async publishToExchange(
     exchange: string,
     routingKey: string,
-    message: any
+    message: unknown
   ): Promise<boolean> {
     if (!this.channel) {
       throw new Error('Channel not initialized');
@@ -531,7 +531,7 @@ export class RabbitMQPublisher {
     });
   }
 
-  async publishToQueue(queue: string, message: any): Promise<void> {
+  async publishToQueue(queue: string, message: unknown): Promise<void> {
     if (!this.channel) {
       throw new Error('Channel not initialized');
     }
@@ -561,7 +561,7 @@ export class RabbitMQPublisher {
 // Usage
 const publisher = new RabbitMQPublisher();
 
-export async function publishOrderCreated(order: any) {
+export async function publishOrderCreated(order: unknown) {
   await publisher.publishToExchange(
     'orders',
     'order.created',
@@ -581,7 +581,7 @@ export async function publishOrderCreated(order: any) {
 import amqp, { Channel, Connection, Message } from 'amqplib';
 
 export interface MessageHandler {
-  (message: any, originalMessage: Message, channel: Channel): Promise<void>;
+  (message: unknown, originalMessage: Message, channel: Channel): Promise<void>;
 }
 
 export class RabbitMQConsumer {
@@ -657,7 +657,7 @@ export async function startOrderConsumer() {
   });
 }
 
-async function processOrder(message: any) {
+async function processOrder(message: unknown) {
   // Handle order processing
 }
 `,
@@ -672,7 +672,7 @@ export interface Event {
   type: string;
   aggregateId: string;
   aggregateType: string;
-  payload: any;
+  payload: unknown;
   timestamp: Date;
   version: number;
 }
@@ -714,11 +714,11 @@ export class EventStore extends EventEmitter {
     return allEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
   }
 
-  async saveSnapshot(aggregateId: string, state: any, version: number): Promise<void> {
+  async saveSnapshot(aggregateId: string, state: unknown, version: number): Promise<void> {
     this.snapshots.set(aggregateId, { state, version });
   }
 
-  async getSnapshot(aggregateId: string): Promise<{ state: any; version: number } | null> {
+  async getSnapshot(aggregateId: string): Promise<{ state: unknown; version: number } | null> {
     return this.snapshots.get(aggregateId) || null;
   }
 
@@ -730,7 +730,7 @@ export class EventStore extends EventEmitter {
 // Usage
 const eventStore = new EventStore();
 
-export async function createOrder(orderData: any) {
+export async function createOrder(orderData: unknown) {
   const orderId = generateId();
 
   await eventStore.appendEvents(orderId, [

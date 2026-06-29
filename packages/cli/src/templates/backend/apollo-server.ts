@@ -397,21 +397,21 @@ const USER_STATUS_CHANGED = 'USER_STATUS_CHANGED';
 
 export const userResolvers = {
   Query: {
-    me: async (_: any, __: any, { user, dataSources }: any) => {
+    me: async (_: unknown, __: unknown, { user, dataSources }: unknown) => {
       if (!user) throw new GraphQLError('Not authenticated');
       return dataSources.userAPI.findById(user.id);
     },
 
-    user: async (_: any, { id }: any, { dataSources }: any) => {
+    user: async (_: unknown, { id }: unknown, { dataSources }: unknown) => {
       return dataSources.userAPI.findById(id);
     },
 
-    users: async (_: any, { limit, offset }: any, { dataSources }: any) => {
+    users: async (_: unknown, { limit, offset }: unknown, { dataSources }: unknown) => {
       return dataSources.userAPI.findAll({ limit, offset });
     }},
 
   Mutation: {
-    register: async (_: any, { input }: any, { dataSources }: any) => {
+    register: async (_: unknown, { input }: unknown, { dataSources }: unknown) => {
       const existingUser = await dataSources.userAPI.findByEmail(input.email);
       if (existingUser) {
         throw new GraphQLError('User already exists');
@@ -431,7 +431,7 @@ export const userResolvers = {
       return { token, user };
     },
 
-    login: async (_: any, { input }: any, { dataSources }: any) => {
+    login: async (_: unknown, { input }: unknown, { dataSources }: unknown) => {
       const user = await dataSources.userAPI.findByEmail(input.email);
       if (!user) {
         throw new GraphQLError('Invalid credentials');
@@ -458,13 +458,13 @@ export const userResolvers = {
       return { token, user };
     },
 
-    updateProfile: async (_: any, { input }: any, { user, dataSources }: any) => {
+    updateProfile: async (_: unknown, { input }: unknown, { user, dataSources }: unknown) => {
       if (!user) throw new GraphQLError('Not authenticated');
       
       return dataSources.userAPI.updateProfile(user.id, input);
     },
 
-    changePassword: async (_: any, { input }: any, { user, dataSources }: any) => {
+    changePassword: async (_: unknown, { input }: unknown, { user, dataSources }: unknown) => {
       if (!user) throw new GraphQLError('Not authenticated');
       
       const currentUser = await dataSources.userAPI.findById(user.id);
@@ -488,7 +488,7 @@ export const userResolvers = {
       )}},
 
   User: {
-    posts: async (parent: any, _: any, { loaders }: any) => {
+    posts: async (parent: unknown, _: unknown, { loaders }: unknown) => {
       return loaders.postsByUserLoader.load(parent.id);
     }}};`,
 
@@ -502,20 +502,20 @@ const POST_LIKED = 'POST_LIKED';
 
 export const postResolvers = {
   Query: {
-    post: async (_: any, { id }: any, { dataSources }: any) => {
+    post: async (_: unknown, { id }: unknown, { dataSources }: unknown) => {
       return dataSources.postAPI.findById(id);
     },
 
-    posts: async (_: any, { limit, offset, orderBy }: any, { dataSources }: any) => {
+    posts: async (_: unknown, { limit, offset, orderBy }: unknown, { dataSources }: unknown) => {
       return dataSources.postAPI.findAll({ limit, offset, orderBy });
     },
 
-    searchPosts: async (_: any, { query }: any, { dataSources }: any) => {
+    searchPosts: async (_: unknown, { query }: unknown, { dataSources }: unknown) => {
       return dataSources.postAPI.search(query);
     }},
 
   Mutation: {
-    createPost: async (_: any, { input }: any, { user, dataSources }: any) => {
+    createPost: async (_: unknown, { input }: unknown, { user, dataSources }: unknown) => {
       if (!user) throw new GraphQLError('Not authenticated');
 
       const post = await dataSources.postAPI.create({
@@ -528,7 +528,7 @@ export const postResolvers = {
       return post;
     },
 
-    updatePost: async (_: any, { id, input }: any, { user, dataSources }: any) => {
+    updatePost: async (_: unknown, { id, input }: unknown, { user, dataSources }: unknown) => {
       if (!user) throw new GraphQLError('Not authenticated');
 
       const post = await dataSources.postAPI.findById(id);
@@ -546,7 +546,7 @@ export const postResolvers = {
       return updatedPost;
     },
 
-    deletePost: async (_: any, { id }: any, { user, dataSources }: any) => {
+    deletePost: async (_: unknown, { id }: unknown, { user, dataSources }: unknown) => {
       if (!user) throw new GraphQLError('Not authenticated');
 
       const post = await dataSources.postAPI.findById(id);
@@ -559,7 +559,7 @@ export const postResolvers = {
       return dataSources.postAPI.delete(id);
     },
 
-    likePost: async (_: any, { id }: any, { user, dataSources }: any) => {
+    likePost: async (_: unknown, { id }: unknown, { user, dataSources }: unknown) => {
       if (!user) throw new GraphQLError('Not authenticated');
 
       const post = await dataSources.postAPI.like(id, user.id);
@@ -595,19 +595,19 @@ export const postResolvers = {
       )}},
 
   Post: {
-    author: async (parent: any, _: any, { loaders }: any) => {
+    author: async (parent: unknown, _: unknown, { loaders }: unknown) => {
       return loaders.userLoader.load(parent.authorId);
     },
 
-    likedBy: async (parent: any, _: any, { loaders }: any) => {
+    likedBy: async (parent: unknown, _: unknown, { loaders }: unknown) => {
       return loaders.likedByLoader.load(parent.id);
     },
 
-    comments: async (parent: any, _: any, { loaders }: any) => {
+    comments: async (parent: unknown, _: unknown, { loaders }: unknown) => {
       return loaders.commentsByPostLoader.load(parent.id);
     },
 
-    excerpt: (parent: any) => {
+    excerpt: (parent: unknown) => {
       return parent.content.substring(0, 150) + '...';
     }}};`,
 
@@ -623,7 +623,7 @@ fs.mkdir(UPLOAD_DIR, { recursive: true }).catch(console.error);
 
 export const fileResolvers = {
   Mutation: {
-    uploadFile: async (_: any, { file }: any, { user, dataSources }: any) => {
+    uploadFile: async (_: unknown, { file }: unknown, { user, dataSources }: unknown) => {
       if (!user) throw new GraphQLError('Not authenticated');
 
       const { createReadStream, filename, mimetype, encoding } = await file;
@@ -673,17 +673,17 @@ export const fileResolvers = {
       return fileRecord;
     },
 
-    uploadFiles: async (_: any, { files }: any, { user, dataSources }: any) => {
+    uploadFiles: async (_: unknown, { files }: unknown, { user, dataSources }: unknown) => {
       if (!user) throw new GraphQLError('Not authenticated');
 
-      const uploadPromises = files.map(async (file: any) => {
+      const uploadPromises = files.map(async (file: unknown) => {
         return fileResolvers.Mutation.uploadFile(_, { file }, { user, dataSources });
       });
 
       return Promise.all(uploadPromises);
     },
 
-    deleteFile: async (_: any, { id }: any, { user, dataSources }: any) => {
+    deleteFile: async (_: unknown, { id }: unknown, { user, dataSources }: unknown) => {
       if (!user) throw new GraphQLError('Not authenticated');
 
       const file = await dataSources.fileAPI.findById(id);
@@ -706,10 +706,10 @@ import { Request } from 'express';
 import { createLoaders } from './loaders';
 
 interface Context {
-  user?: any;
-  loaders: any;
-  redis: any;
-  dataSources?: any;
+  user?: unknown;
+  loaders: unknown;
+  redis: unknown;
+  dataSources?: unknown;
 }
 
 export async function createContext({
@@ -717,8 +717,8 @@ export async function createContext({
   redis,
   dataSources}: {
   req: Request;
-  redis: any;
-  dataSources?: any;
+  redis: unknown;
+  dataSources?: unknown;
 }): Promise<Context> {
   // Get the user token from headers
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -753,7 +753,7 @@ export function createLoaders() {
   return {
     userLoader: new DataLoader<string, any>(async (userIds) => {
       const users = await userAPI.findByIds(userIds as string[]);
-      const userMap = new Map(users.map((user: any) => [user.id, user]));
+      const userMap = new Map(users.map((user: unknown) => [user.id, user]));
       return userIds.map((id) => userMap.get(id));
     }),
 
@@ -761,7 +761,7 @@ export function createLoaders() {
       const posts = await postAPI.findByUserIds(userIds as string[]);
       const postsMap = new Map<string, any[]>();
       
-      posts.forEach((post: any) => {
+      posts.forEach((post: unknown) => {
         if (!postsMap.has(post.authorId)) {
           postsMap.set(post.authorId, []);
         }
@@ -806,12 +806,12 @@ export class UserAPI extends RESTDataSource {
   }
 
   async findByEmail(email: string) {
-    return Array.from(this.users.values()).find((user: any) => user.email === email);
+    return Array.from(this.users.values()).find((user: unknown) => user.email === email);
   }
 
   async findAll({ limit = 10, offset = 0 }) {
     const allUsers = Array.from(this.users.values());
-    const edges = allUsers.slice(offset, offset + limit).map((user: any) => ({
+    const edges = allUsers.slice(offset, offset + limit).map((user: unknown) => ({
       node: user,
       cursor: Buffer.from(user.id).toString('base64')}));
 
@@ -825,7 +825,7 @@ export class UserAPI extends RESTDataSource {
       totalCount: allUsers.length};
   }
 
-  async create(input: any) {
+  async create(input: unknown) {
     const user = {
       id: Date.now().toString(),
       ...input,
@@ -835,7 +835,7 @@ export class UserAPI extends RESTDataSource {
     return user;
   }
 
-  async update(id: string, input: any) {
+  async update(id: string, input: unknown) {
     const user = this.users.get(id);
     if (!user) throw new Error('User not found');
     
@@ -847,7 +847,7 @@ export class UserAPI extends RESTDataSource {
     return updated;
   }
 
-  async updateProfile(id: string, input: any) {
+  async updateProfile(id: string, input: unknown) {
     const user = this.users.get(id);
     if (!user) throw new Error('User not found');
     
@@ -868,7 +868,7 @@ export class PostAPI extends RESTDataSource {
   }
 
   async findByUserIds(userIds: string[]) {
-    return Array.from(this.posts.values()).filter((post: any) => 
+    return Array.from(this.posts.values()).filter((post: unknown) => 
       userIds.includes(post.authorId)
     );
   }
@@ -877,7 +877,7 @@ export class PostAPI extends RESTDataSource {
     let allPosts = Array.from(this.posts.values());
     
     // Sort posts
-    allPosts.sort((a: any, b: any) => {
+    allPosts.sort((a: unknown, b: unknown) => {
       switch (orderBy) {
         case 'CREATED_AT_ASC':
           return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -892,7 +892,7 @@ export class PostAPI extends RESTDataSource {
       }
     });
 
-    const edges = allPosts.slice(offset, offset + limit).map((post: any) => ({
+    const edges = allPosts.slice(offset, offset + limit).map((post: unknown) => ({
       node: post,
       cursor: Buffer.from(post.id).toString('base64')}));
 
@@ -908,13 +908,13 @@ export class PostAPI extends RESTDataSource {
 
   async search(query: string) {
     const lowercaseQuery = query.toLowerCase();
-    return Array.from(this.posts.values()).filter((post: any) =>
+    return Array.from(this.posts.values()).filter((post: unknown) =>
       post.title.toLowerCase().includes(lowercaseQuery) ||
       post.content.toLowerCase().includes(lowercaseQuery)
     );
   }
 
-  async create(input: any) {
+  async create(input: unknown) {
     const post = {
       id: Date.now().toString(),
       ...input,
@@ -925,7 +925,7 @@ export class PostAPI extends RESTDataSource {
     return post;
   }
 
-  async update(id: string, input: any) {
+  async update(id: string, input: unknown) {
     const post = this.posts.get(id);
     if (!post) throw new Error('Post not found');
     
@@ -971,7 +971,7 @@ export class FileAPI extends RESTDataSource {
     return this.files.get(id);
   }
 
-  async create(input: any) {
+  async create(input: unknown) {
     const file = {
       ...input,
       createdAt: new Date().toISOString()};
@@ -1024,7 +1024,7 @@ export function rateLimitPlugin() {
     }};
 }
 
-export function rateLimitDirectiveTransformer(schema: any) {
+export function rateLimitDirectiveTransformer(schema: unknown) {
   return mapSchema(schema, {
     [MapperKind.OBJECT_FIELD]: (fieldConfig) => {
       const rateLimitDirective = getDirective(schema, fieldConfig, 'rateLimit')?.[0];
@@ -1076,7 +1076,7 @@ export function depthLimitPlugin(maxDepth: number) {
   return {
     async requestDidStart() {
       return {
-        async didResolveOperation(requestContext: any) {
+        async didResolveOperation(requestContext: unknown) {
           const errors = depthLimit(maxDepth)(requestContext.document);
           if (errors) {
             throw errors;
@@ -1087,11 +1087,11 @@ export function depthLimitPlugin(maxDepth: number) {
 
     'src/plugins/costAnalysis.ts': `import costAnalysis from 'graphql-cost-analysis';
 
-export function costAnalysisPlugin(options: any) {
+export function costAnalysisPlugin(options: unknown) {
   return {
     async requestDidStart() {
       return {
-        async didResolveOperation(requestContext: any) {
+        async didResolveOperation(requestContext: unknown) {
           const cost = costAnalysis({
             ...options,
             query: requestContext.request.query,
@@ -1112,7 +1112,7 @@ export function loggingPlugin() {
       const start = Date.now();
 
       return {
-        async willSendResponse(requestContext: any) {
+        async willSendResponse(requestContext: unknown) {
           const duration = Date.now() - start;
           const { request, response } = requestContext;
 
@@ -1123,7 +1123,7 @@ export function loggingPlugin() {
             errors: response.body.singleResult.errors});
         },
 
-        async didEncounterErrors(requestContext: any) {
+        async didEncounterErrors(requestContext: unknown) {
           logger.error('GraphQL Errors', {
             errors: requestContext.errors});
         }};
@@ -1186,7 +1186,7 @@ export async function setupRedis() {
 import { getDirective, MapperKind, mapSchema } from '@graphql-tools/utils';
 import { defaultFieldResolver } from 'graphql';
 
-export function authDirectiveTransformer(schema: any) {
+export function authDirectiveTransformer(schema: unknown) {
   return mapSchema(schema, {
     [MapperKind.OBJECT_FIELD]: (fieldConfig) => {
       const authDirective = getDirective(schema, fieldConfig, 'auth')?.[0];
