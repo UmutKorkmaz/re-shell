@@ -1,4 +1,5 @@
 // Auto-generated GCP GKE Utility
+import chalk from 'chalk';
 // Generated at: 2026-01-13T10:38:00.000Z
 
 
@@ -47,22 +48,22 @@ interface GCPCloudConfig {
 }
 
 export function displayConfig(config: GCPCloudConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ GCP GKE with Cloud Deployment Manager and Cloud Build');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Project ID:', config.projectId);
-  console.log('\x1b[33m%s\x1b[0m', 'GKE Cluster:', config.gkeConfig.clusterName);
-  console.log('\x1b[33m%s\x1b[0m', 'Region:', config.gkeConfig.region);
-  console.log('\x1b[33m%s\x1b[0m', 'Zone:', config.gkeConfig.zone);
-  console.log('\x1b[33m%s\x1b[0m', 'K8s Version:', config.gkeConfig.kubernetesVersion);
-  console.log('\x1b[33m%s\x1b[0m', 'Node Count:', config.gkeConfig.nodeCount);
-  console.log('\x1b[33m%s\x1b[0m', 'Machine Type:', config.gkeConfig.machineType);
-  console.log('\x1b[33m%s\x1b[0m', 'Autopilot:', config.gkeConfig.enableAutopilot ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Cloud Build:', config.cloudBuildConfig.triggerName);
-  console.log('\x1b[33m%s\x1b[0m', 'Vertex AI:', config.mlConfig.enableVertexAI ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'GCR:', config.enableGCR ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Artifact Registry:', config.enableArtifactRegistry ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ GCP GKE with Cloud Deployment Manager and Cloud Build'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Project ID:', config.projectId));
+  console.log(chalk.yellow('GKE Cluster:', config.gkeConfig.clusterName));
+  console.log(chalk.yellow('Region:', config.gkeConfig.region));
+  console.log(chalk.yellow('Zone:', config.gkeConfig.zone));
+  console.log(chalk.yellow('K8s Version:', config.gkeConfig.kubernetesVersion));
+  console.log(chalk.yellow('Node Count:', config.gkeConfig.nodeCount));
+  console.log(chalk.yellow('Machine Type:', config.gkeConfig.machineType));
+  console.log(chalk.yellow('Autopilot:', config.gkeConfig.enableAutopilot ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Cloud Build:', config.cloudBuildConfig.triggerName));
+  console.log(chalk.yellow('Vertex AI:', config.mlConfig.enableVertexAI ? 'Yes' : 'No'));
+  console.log(chalk.yellow('GCR:', config.enableGCR ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Artifact Registry:', config.enableArtifactRegistry ? 'Yes' : 'No'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateGCPCloudMD(config: GCPCloudConfig): string {
