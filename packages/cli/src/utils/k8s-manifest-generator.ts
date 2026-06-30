@@ -7,29 +7,6 @@ import chalk from 'chalk';
 
 
 /**
- * Represents a generic Kubernetes resource manifest.
- */
-interface K8sResource {
-  /** The Kubernetes API version used by this resource (e.g. `v1`, `apps/v1`). */
-  apiVersion: string;
-  /** The Kubernetes resource kind (e.g. `Pod`, `Deployment`, `Service`). */
-  kind: string;
-  /** Standard Kubernetes metadata for the resource. */
-  metadata: {
-    /** Unique name of the resource within its namespace. */
-    name: string;
-    /** Optional namespace where the resource lives. Defaults to `default` when omitted. */
-    namespace?: string;
-    /** Optional key/value labels applied to the resource. */
-    labels?: Record<string, string>;
-    /** Optional key/value annotations applied to the resource. */
-    annotations?: Record<string, string>;
-  };
-  /** Optional resource specification. Structure depends on the resource `kind`. */
-  spec?: any;
-}
-
-/**
  * Configuration describing a workspace and the services it contains.
  */
 interface WorkspaceConfig {

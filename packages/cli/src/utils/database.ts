@@ -4947,7 +4947,6 @@ async function checkDocumentation(projectPath: string): Promise<HealthCheckResul
  * @returns A promise resolving to a {@link HealthCheckResult}.
  */
 async function checkEnvConfig(projectPath: string): Promise<HealthCheckResult> {
-  const envFiles = ['.env', '.env.example', '.env.local'];
 
   const hasEnv = await fileExists(path.join(projectPath, '.env'));
   const hasEnvExample = await fileExists(path.join(projectPath, '.env.example'));

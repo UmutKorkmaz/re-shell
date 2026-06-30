@@ -88,7 +88,7 @@ export interface MonorepoConfig {
  *   or no supported monorepo configuration is found.
  */
 export async function importFromMonorepo(options: MonorepoImportOptions = {}): Promise<void> {
-  const { source = 'auto', configPath, output, includeDev = true, detectFrameworks = true } = options;
+  const { source = 'auto', configPath, output, detectFrameworks = true } = options;
 
   console.log(chalk.cyan.bold('\n🔄 Monorepo to Re-Shell Migration\n'));
 
@@ -249,7 +249,6 @@ async function importNx(cwd: string, configPath?: string): Promise<MonorepoConfi
  * Import from Turbo configuration
  */
 async function importTurbo(cwd: string, configPath?: string): Promise<MonorepoConfig> {
-  const turboJsonPath = configPath || path.join(cwd, 'turbo.json');
   const packageJson = await fs.readJson(path.join(cwd, 'package.json'));
 
   const projects: ProjectInfo[] = [];

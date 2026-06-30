@@ -2,24 +2,6 @@ import chalk from 'chalk';
 // Auto-generated Team Coding Sessions Utility
 // Generated at: 2026-01-13T13:25:00.000Z
 
-/**
- * Represents the role assigned to a participant in a team coding session.
- * - `host`: Full control over the session.
- * - `moderator`: Manages participants and activity.
- * - `editor`: Can edit code within the session.
- * - `viewer`: Read-only access to the session.
- * - `guest`: Temporary limited access.
- */
-type SessionRole = 'host' | 'moderator' | 'editor' | 'viewer' | 'guest';
-
-/**
- * Describes the kind of activity recorded in a session's activity log.
- * - `edit`: A code edit was made.
- * - `comment`: A comment was added.
- * - `review`: A review action was performed.
- * - `suggestion`: A suggestion was submitted.
- * - `breakpoint`: A debugging breakpoint was toggled.
- */
 type ActivityType = 'edit' | 'comment' | 'review' | 'suggestion' | 'breakpoint';
 
 /**

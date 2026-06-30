@@ -336,7 +336,6 @@ module.exports = {
 
   private generateIndex() {
     const { hasTypeScript } = this.context;
-    const tsImport = hasTypeScript ? `import App from './App';` : `import App from './App';`;
 
     return `import('./bootstrap');
 

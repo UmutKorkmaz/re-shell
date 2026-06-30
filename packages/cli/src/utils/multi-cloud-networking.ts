@@ -6,7 +6,6 @@ import chalk from 'chalk';
 type CloudProvider = 'aws' | 'azure' | 'gcp';
 type ConnectionType = 'vpn' | 'direct-link' | 'express-route' | 'interconnect' | 'transit-gateway';
 type RoutingStrategy = 'latency-based' | 'cost-based' | 'geo-based' | 'weighted' | 'priority';
-type Protocol = 'tcp' | 'udp' | 'http' | 'https' | 'grpc';
 
 interface NetworkEndpoint {
   id: string;

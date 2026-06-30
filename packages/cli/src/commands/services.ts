@@ -831,7 +831,7 @@ export async function servicesLogs(
     verbose?: boolean;
   } = {}
 ): Promise<void> {
-  const { follow = false, tail = 100, verbose = false } = options;
+  const { follow = false, tail = 100} = options;
 
   const hasDockerCompose = await checkDockerComposeAvailable();
 
@@ -985,7 +985,7 @@ export async function servicesExec(
     spinner?: { setText?: (msg?: string) => void };
   } = {}
 ): Promise<void> {
-  const { interactive = true, verbose = false } = options;
+  const { interactive = true} = options;
 
   const hasDockerCompose = await checkDockerComposeAvailable();
 
@@ -1299,7 +1299,6 @@ function displayInspection(inspection: ServiceInspection): void {
 
   // Health
   console.log(chalk.gray('\n💊 Health:'));
-  const healthIcon = inspection.health.status === 'healthy' ? '✅' : inspection.health.status === 'unhealthy' ? '❌' : '❓';
   const healthColor = inspection.health.status === 'healthy' ? chalk.green : inspection.health.status === 'unhealthy' ? chalk.red : chalk.gray;
   console.log(chalk.gray('   Status:'), healthColor(inspection.health.status));
 
@@ -2022,7 +2021,7 @@ export async function servicesOptimize(
     spinner?: { setText?: (msg?: string) => void };
   } = {}
 ): Promise<OptimizationAnalysis> {
-  const { framework, apply = false, dryRun = true, verbose = false, spinner } = options;
+  const { framework, apply = false, dryRun = true, spinner } = options;
 
   if (spinner) {
     spinner.setText(`Analyzing ${serviceName} for optimization opportunities...`);

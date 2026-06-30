@@ -299,7 +299,6 @@ export function generateTraefikConfig(config: GatewayConfig): string {
   lines.push('  services:');
   config.services.forEach(service => {
     const url = new URL(service.url);
-    const port = url.port || (url.protocol === 'https:' ? '443' : '80');
     lines.push(`    ${service.name}:`);
     lines.push(`      loadBalancer:`);
     lines.push(`        servers:`);

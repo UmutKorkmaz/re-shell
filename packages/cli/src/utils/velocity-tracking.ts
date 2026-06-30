@@ -3,24 +3,9 @@ import chalk from 'chalk';
 // Generated at: 2026-01-13T14:05:00.000Z
 
 /**
- * Supported velocity metrics used to quantify team output.
- */
-type VelocityMetric = 'story-points' | 'tasks-completed' | 'bugs-resolved' | 'features-delivered';
-
-/**
- * Time window over which velocity can be aggregated.
- */
-type TimePeriod = 'sprint' | 'week' | 'month' | 'quarter';
-
-/**
  * Statistical or machine-learning model used to forecast future velocity.
  */
 type PredictionModel = 'linear' | 'exponential' | 'moving-average' | 'ml-based';
-
-/**
- * Factor that influences effective team capacity.
- */
-type CapacityFactor = 'available' | 'vacation' | 'meetings' | 'overhead';
 
 /**
  * Represents recorded data for a single sprint.
