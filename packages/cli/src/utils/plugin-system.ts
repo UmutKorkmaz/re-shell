@@ -13,10 +13,11 @@ import {
   ManagedPluginRegistration,
   createPluginLifecycleManager
 } from './plugin-lifecycle';
-import { 
-  PluginHookSystem, 
-  PluginHookAPI, 
+import {
+  PluginHookSystem,
+  PluginHookAPI,
   HookType,
+  HookResult,
   createHookSystem
 } from './plugin-hooks';
 import { 
@@ -76,7 +77,7 @@ export interface PluginContext {
   plugin: {
     name: string;
     version: string;
-    config: any;
+    config: Record<string, unknown>;
     dataPath: string;
     cachePath: string;
   };
@@ -86,21 +87,21 @@ export interface PluginContext {
 }
 
 export interface PluginLogger {
-  debug(message: string, ...args: any[]): void;
-  info(message: string, ...args: any[]): void;
-  warn(message: string, ...args: any[]): void;
-  error(message: string, ...args: any[]): void;
+  debug(message: string, ...args: unknown[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
 }
 
 export interface PluginHookSystemInterface {
-  register(hookName: string, handler: (...args: any[]) => any, options?: any): string;
+  register(hookName: string, handler: (...args: unknown[]) => unknown, options?: unknown): string;
   unregister(hookName: string, handlerId: string): boolean;
-  execute(hookName: string, data?: any): Promise<any>;
-  executeSync(hookName: string, data?: any): any[];
-  onCommand(command: string, handler: (...args: any[]) => any, options?: any): string;
-  onFileChange(pattern: RegExp | string, handler: (...args: any[]) => any, options?: any): string;
-  onWorkspaceBuild(workspace: string, handler: (...args: any[]) => any, options?: any): string;
-  getHooks(): any[];
+  execute(hookName: string, data?: unknown): Promise<unknown>;
+  executeSync(hookName: string, data?: unknown): unknown[];
+  onCommand(command: string, handler: (...args: unknown[]) => unknown, options?: unknown): string;
+  onFileChange(pattern: RegExp | string, handler: (...args: unknown[]) => unknown, options?: unknown): string;
+  onWorkspaceBuild(workspace: string, handler: (...args: unknown[]) => unknown, options?: unknown): string;
+  getHooks(): unknown[];
   registerCustomHook(name: string): string;
 }
 
@@ -108,16 +109,16 @@ export interface PluginUtils {
   path: typeof path;
   fs: typeof fs;
   chalk: typeof chalk;
-  exec(command: string, options?: any): Promise<{ stdout: string; stderr: string }>;
-  spawn(command: string, args: string[], options?: any): Promise<number>;
+  exec(command: string, options?: unknown): Promise<{ stdout: string; stderr: string }>;
+  spawn(command: string, args: string[], options?: unknown): Promise<number>;
 }
 
 export interface Plugin {
   manifest: PluginManifest;
   activate(context: PluginContext): Promise<void> | void;
   deactivate?(context: PluginContext): Promise<void> | void;
-  onCommand?(command: string, args: any[], context: PluginContext): Promise<any> | any;
-  onHook?(hookName: string, data: any, context: PluginContext): Promise<any> | any;
+  onCommand?(command: string, args: unknown[], context: PluginContext): Promise<unknown> | unknown;
+  onHook?(hookName: string, data: unknown, context: PluginContext): Promise<unknown> | unknown;
 }
 
 export interface PluginRegistration {
@@ -382,7 +383,7 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Discover local plugins
-  private async discoverLocalPlugins(options: any): Promise<PluginDiscoveryResult> {
+  private async discoverLocalPlugins(options: PluginDiscoveryOptions): Promise<PluginDiscoveryResult> {
     const result: PluginDiscoveryResult = { found: [], errors: [], skipped: [] };
     
     const localPaths = [
@@ -442,7 +443,7 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Discover npm plugins
-  private async discoverNpmPlugins(options: any): Promise<PluginDiscoveryResult> {
+  private async discoverNpmPlugins(options: PluginDiscoveryOptions): Promise<PluginDiscoveryResult> {
     const result: PluginDiscoveryResult = { found: [], errors: [], skipped: [] };
 
     try {
@@ -557,7 +558,7 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Discover built-in plugins
-  private async discoverBuiltinPlugins(options: any): Promise<PluginDiscoveryResult> {
+  private async discoverBuiltinPlugins(options: PluginDiscoveryOptions): Promise<PluginDiscoveryResult> {
     const result: PluginDiscoveryResult = { found: [], errors: [], skipped: [] };
     
     const builtinPath = path.join(__dirname, '..', 'plugins');
@@ -639,7 +640,7 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Validate plugin manifest
-  private validateManifest(data: any): PluginManifest {
+  private validateManifest(data: Record<string, unknown>): PluginManifest {
     if (!data.name || typeof data.name !== 'string') {
       throw new ValidationError('Plugin manifest must have a valid name');
     }
@@ -660,16 +661,16 @@ export class PluginRegistry extends EventEmitter {
       name: data.name,
       version: data.version,
       description: data.description,
-      author: data.author,
-      license: data.license,
-      homepage: data.homepage,
-      keywords: data.keywords || [],
+      author: data.author as string | undefined,
+      license: data.license as string | undefined,
+      homepage: data.homepage as string | undefined,
+      keywords: (data.keywords as string[] | undefined) || [],
       main: data.main,
-      bin: data.bin,
-      engines: data.engines,
-      dependencies: data.dependencies,
-      peerDependencies: data.peerDependencies,
-      reshell: data.reshell || {}
+      bin: data.bin as Record<string, string> | undefined,
+      engines: data.engines as PluginManifest['engines'] | undefined,
+      dependencies: data.dependencies as Record<string, string> | undefined,
+      peerDependencies: data.peerDependencies as Record<string, string> | undefined,
+      reshell: (data.reshell as PluginManifest['reshell']) || {}
     };
   }
 
@@ -801,7 +802,7 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Get lifecycle statistics
-  getLifecycleStats(): any {
+  getLifecycleStats(): Record<string, unknown> {
     return this.lifecycleManager.getLifecycleStats();
   }
 
@@ -821,12 +822,12 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Execute hooks
-  async executeHooks(hookType: HookType | string, data?: any): Promise<any> {
+  async executeHooks(hookType: HookType | string, data?: Record<string, unknown>): Promise<HookResult> {
     return await this.hookSystem.execute(hookType, data);
   }
 
   // Get hook statistics
-  getHookStats(): any {
+  getHookStats(): Record<string, unknown> {
     return this.hookSystem.getStats();
   }
 
@@ -849,7 +850,7 @@ export class PluginRegistry extends EventEmitter {
   }
 
   // Get dependency statistics
-  getDependencyStats(): any {
+  getDependencyStats(): Record<string, unknown> {
     return this.dependencyResolver.getStats();
   }
 
@@ -880,16 +881,16 @@ export class PluginRegistry extends EventEmitter {
     const prefix = `[${pluginName}]`;
     
     return {
-      debug: (message: string, ...args: any[]) => {
+      debug: (message: string, ...args: unknown[]) => {
         console.debug(chalk.gray(`${prefix} ${message}`), ...args);
       },
-      info: (message: string, ...args: any[]) => {
+      info: (message: string, ...args: unknown[]) => {
         console.info(chalk.blue(`${prefix} ${message}`), ...args);
       },
-      warn: (message: string, ...args: any[]) => {
+      warn: (message: string, ...args: unknown[]) => {
         console.warn(chalk.yellow(`${prefix} ${message}`), ...args);
       },
-      error: (message: string, ...args: any[]) => {
+      error: (message: string, ...args: unknown[]) => {
         console.error(chalk.red(`${prefix} ${message}`), ...args);
       }
     };
@@ -904,7 +905,7 @@ export class PluginRegistry extends EventEmitter {
       fs,
       chalk,
       exec: execAsync,
-      spawn: (command: string, args: string[], options?: any): Promise<number> => {
+      spawn: (command: string, args: string[], options?: unknown): Promise<number> => {
         return new Promise((resolve, reject) => {
           const child = spawn(command, args, options);
           child.on('exit', (code: number | null) => resolve(code || 0));
@@ -928,7 +929,7 @@ export async function discoverPlugins(
   return await registry.discoverPlugins(options);
 }
 
-export function validatePluginManifest(data: any): PluginManifest {
+export function validatePluginManifest(data: Record<string, unknown>): PluginManifest {
   const registry = new PluginRegistry();
-  return (registry as unknown as { validateManifest: (data: unknown) => PluginManifest }).validateManifest(data);
+  return (registry as unknown as { validateManifest: (data: Record<string, unknown>) => PluginManifest }).validateManifest(data);
 }
