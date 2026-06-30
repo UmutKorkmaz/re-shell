@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
-import { validateConfigFile, validateGlobalConfig, validateProjectConfig} from '../utils/validation';
+import { validateConfigFile, validateGlobalConfig, validateProjectConfig, ValidationResult } from '../utils/validation';
 import { configManager } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 
@@ -236,18 +236,18 @@ async function interactiveAdvancedValidation(options: ValidateCommandOptions): P
   await validateAllConfigurations(enhancedOptions);
 }
 
-function displayValidationResult(result: any, title: string, options: ValidateCommandOptions): void {
+function displayValidationResult(result: ValidationResult, title: string, options: ValidateCommandOptions): void {
   const status = result.valid ? chalk.green('✅ Valid') : chalk.red('❌ Invalid');
   console.log(`  Status: ${status}`);
-  
+
   // Display errors
   if (result.errors.length > 0) {
-    const errors = result.errors.filter((e: any) => e.severity === 'error');
-    const warnings = result.errors.filter((e: any) => e.severity === 'warning');
-    
+    const errors = result.errors.filter((e) => e.severity === 'error');
+    const warnings = result.errors.filter((e) => e.severity === 'warning');
+
     if (errors.length > 0) {
       console.log(chalk.red('\n  ❌ Errors:'));
-      errors.forEach((error: any) => {
+      errors.forEach((error) => {
         console.log(chalk.red(`    • ${error.field}: ${error.message}`));
         if (error.value !== undefined) {
           console.log(chalk.gray(`      Current value: ${JSON.stringify(error.value)}`));
@@ -266,16 +266,16 @@ function displayValidationResult(result: any, title: string, options: ValidateCo
     
     if (warnings.length > 0 && options.warnings !== false) {
       console.log(chalk.yellow('\n  ⚠️  Warnings:'));
-      warnings.forEach((warning: any) => {
+      warnings.forEach((warning) => {
         console.log(chalk.yellow(`    • ${warning.field}: ${warning.message}`));
       });
     }
   }
-  
+
   // Display warnings
   if (result.warnings && result.warnings.length > 0 && options.warnings !== false) {
     console.log(chalk.yellow('\n  ⚠️  Additional Warnings:'));
-    result.warnings.forEach((warning: any) => {
+    result.warnings.forEach((warning) => {
       console.log(chalk.yellow(`    • ${warning.field}: ${warning.message}`));
       console.log(chalk.gray(`      Suggestion: ${warning.suggestion}`));
       console.log(chalk.gray(`      Impact: ${warning.impact}`));
@@ -285,7 +285,7 @@ function displayValidationResult(result: any, title: string, options: ValidateCo
   // Display suggestions
   if (result.suggestions && result.suggestions.length > 0 && options.suggestions !== false) {
     console.log(chalk.cyan('\n  💡 Suggestions:'));
-    result.suggestions.forEach((suggestion: any) => {
+    result.suggestions.forEach((suggestion) => {
       console.log(chalk.cyan(`    • ${suggestion.field}: ${suggestion.suggestion}`));
       console.log(chalk.gray(`      Reason: ${suggestion.reason}`));
       if (suggestion.autoFixable) {
@@ -296,11 +296,11 @@ function displayValidationResult(result: any, title: string, options: ValidateCo
   
   // Auto-fix prompt
   if (options.fix && result.suggestions) {
-    const autoFixable = result.suggestions.filter((s: any) => s.autoFixable);
+    const autoFixable = result.suggestions.filter((s) => s.autoFixable);
     if (autoFixable.length > 0) {
       console.log(chalk.cyan('\n🔧 Auto-fix functionality coming soon...'));
       console.log(chalk.gray('The following issues can be automatically fixed:'));
-      autoFixable.forEach((suggestion: any) => {
+      autoFixable.forEach((suggestion) => {
         console.log(chalk.gray(`  • ${suggestion.field}: ${suggestion.suggestion}`));
       });
     }

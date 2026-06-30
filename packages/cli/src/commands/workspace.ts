@@ -11,6 +11,7 @@ import { jsonSuccess, jsonError, enableJsonMode, ok, fail } from '../utils/json-
 import { normalizeHealth, CanonicalHealth } from '../utils/health-normalizer';
 import { buildSuggestions } from '../utils/doctor-remediation';
 import type { Suggestion } from '@re-shell/contracts';
+import type { ValidationResult, ValidationError } from '../parsers/workspace-parser';
 
 const execAsync = promisify(exec);
 
@@ -34,6 +35,89 @@ interface WorkspaceGraphOptions {
   format?: 'text' | 'json' | 'mermaid' | 'svg' | 'd3';
   json?: boolean;
   spinner?: ProgressSpinner;
+}
+
+interface WorkspaceInitOptions {
+  spinner?: ProgressSpinner;
+  yes?: boolean;
+  json?: boolean;
+}
+
+interface WorkspaceValidateOptions {
+  spinner?: ProgressSpinner;
+  fix?: boolean;
+  json?: boolean;
+  watch?: boolean;
+  config?: string;
+}
+
+interface WorkspaceHealthOptions {
+  spinner?: ProgressSpinner;
+  json?: boolean;
+  verbose?: boolean;
+  explain?: boolean;
+}
+
+interface WorkspaceMigrateOptions {
+  spinner?: ProgressSpinner;
+  to?: string;
+  dryRun?: boolean;
+  backup?: boolean;
+  config?: string;
+}
+
+interface WorkspaceOptimizeOptions {
+  spinner?: ProgressSpinner;
+  type?: string;
+  severity?: string;
+  fix?: boolean;
+  json?: boolean;
+  verbose?: boolean;
+  config?: string;
+}
+
+interface WorkspaceTemplateOptions {
+  spinner?: ProgressSpinner;
+  action?: string;
+  templateId?: string;
+  filePath?: string;
+  output?: string;
+  json?: boolean;
+  name?: string;
+  description?: string;
+  type?: string;
+}
+
+interface ServiceDetection {
+  name: string;
+  path: string;
+  type: string;
+  language: string;
+  framework: string;
+}
+
+interface ServiceTypeInfo {
+  type: string;
+  language: string;
+  framework: string;
+}
+
+interface ProjectDetection {
+  hasPackageJson: boolean;
+  hasPython: boolean;
+  hasGo: boolean;
+  hasRust: boolean;
+  hasJava: boolean;
+  hasDocker: boolean;
+  frameworks: string[];
+  services: ServiceDetection[];
+}
+
+interface SetupResponses {
+  name: string;
+  description?: string;
+  version: string;
+  includeServices?: boolean;
 }
 
 /**
@@ -371,7 +455,7 @@ export async function generateWorkspaceGraph(options: WorkspaceGraphOptions = {}
   }
 }
 
-async function buildDependencyGraph(workspaces: WorkspaceInfo[], rootPath: string): Promise<any> {
+async function buildDependencyGraph(workspaces: WorkspaceInfo[], rootPath: string): Promise<DependencyGraph> {
   const graph = {
     nodes: workspaces.map(ws => ({
       id: ws.name,
@@ -457,18 +541,36 @@ function buildContractGraph(
   return { apps, services };
 }
 
-function displayTextGraph(graph: any): void {
+interface GraphNode {
+  id: string;
+  type: string;
+  framework?: string | null;
+  path?: string;
+}
+
+interface GraphEdge {
+  from: string;
+  to: string;
+  type: 'dependency' | 'devDependency';
+}
+
+interface DependencyGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+function displayTextGraph(graph: DependencyGraph): void {
   console.log(chalk.cyan('\n🔗 Workspace Dependency Graph\n'));
 
   for (const node of graph.nodes) {
-    const dependencies = graph.edges.filter((edge: any) => edge.from === node.id);
-    const dependents = graph.edges.filter((edge: any) => edge.to === node.id);
+    const dependencies = graph.edges.filter((edge) => edge.from === node.id);
+    const dependents = graph.edges.filter((edge) => edge.to === node.id);
 
     console.log(chalk.bold(`${node.id} (${node.type})`));
 
     if (dependencies.length > 0) {
       console.log(chalk.gray('  Dependencies:'));
-      dependencies.forEach((dep: any) => {
+      dependencies.forEach((dep) => {
         const typeColor = dep.type === 'dependency' ? chalk.green : chalk.yellow;
         console.log(`    ${typeColor('→')} ${dep.to}`);
       });
@@ -476,7 +578,7 @@ function displayTextGraph(graph: any): void {
 
     if (dependents.length > 0) {
       console.log(chalk.gray('  Dependents:'));
-      dependents.forEach((dep: any) => {
+      dependents.forEach((dep) => {
         console.log(`    ${chalk.blue('←')} ${dep.from}`);
       });
     }
@@ -485,7 +587,7 @@ function displayTextGraph(graph: any): void {
   }
 }
 
-function generateMermaidGraph(graph: any): string {
+function generateMermaidGraph(graph: DependencyGraph): string {
   let mermaid = 'graph TD\n';
 
   // Add nodes
@@ -521,7 +623,7 @@ function getNodeShape(type: string): string {
 /**
  * Generate SVG graph
  */
-function generateSvgGraph(graph: any): string {
+function generateSvgGraph(graph: DependencyGraph): string {
   // Calculate node positions using simple force-directed layout simulation
   const nodePositions = calculateNodePositions(graph.nodes, graph.edges);
   const width = 800;
@@ -594,7 +696,7 @@ function generateSvgGraph(graph: any): string {
 /**
  * Calculate simple node positions (force-directed layout simulation)
  */
-function calculateNodePositions(nodes: any[], edges: any[]): Record<string, { x: number; y: number }> {
+function calculateNodePositions(nodes: GraphNode[], edges: GraphEdge[]): Record<string, { x: number; y: number }> {
   const positions: Record<string, { x: number; y: number }> = {};
   const width = 800;
   const height = 600;
@@ -659,16 +761,16 @@ function calculateNodePositions(nodes: any[], edges: any[]): Record<string, { x:
 /**
  * Generate D3.js compatible JSON
  */
-function generateD3Graph(graph: any): string {
+function generateD3Graph(graph: DependencyGraph): string {
   // Convert to D3 force graph format
   const d3Graph = {
-    nodes: graph.nodes.map((node: any) => ({
+    nodes: graph.nodes.map((node) => ({
       id: node.id,
       group: node.type,
       type: node.type,
       framework: node.framework,
     })),
-    links: graph.edges.map((edge: any) => ({
+    links: graph.edges.map((edge) => ({
       source: edge.from,
       target: edge.to,
       type: edge.type,
@@ -810,7 +912,7 @@ export async function produceWorkspaceSummary(
 /**
  * Initialize a new workspace configuration
  */
-export async function initWorkspace(options: any = {}): Promise<void> {
+export async function initWorkspace(options: WorkspaceInitOptions = {}): Promise<void> {
   const { spinner, yes = false } = options;
 
   try {
@@ -862,17 +964,17 @@ export async function initWorkspace(options: any = {}): Promise<void> {
 /**
  * Detect existing project structure and frameworks
  */
-async function detectProjectStructureForInit(): Promise<any> {
+async function detectProjectStructureForInit(): Promise<ProjectDetection> {
   const root = process.cwd();
-  const detection: any = {
+  const detection: ProjectDetection = {
     hasPackageJson: false,
     hasPython: false,
     hasGo: false,
     hasRust: false,
     hasJava: false,
     hasDocker: false,
-    frameworks: [] as string[],
-    services: [] as Record<string, any>[],
+    frameworks: [],
+    services: [],
   };
 
   // Check for package.json
@@ -957,7 +1059,7 @@ async function detectProjectStructureForInit(): Promise<any> {
 /**
  * Detect service type from directory
  */
-function detectServiceType(servicePath: string): any {
+function detectServiceType(servicePath: string): ServiceTypeInfo | null {
   const packageJsonPath = path.join(servicePath, 'package.json');
 
   if (fs.existsSync(packageJsonPath)) {
@@ -996,7 +1098,7 @@ function detectServiceType(servicePath: string): any {
 /**
  * Run interactive setup wizard
  */
-async function runSetupWizard(detection: any, skipPrompts: boolean): Promise<any> {
+async function runSetupWizard(detection: ProjectDetection, skipPrompts: boolean): Promise<SetupResponses> {
   if (skipPrompts) {
     return {
       name: 'my-workspace',
@@ -1036,7 +1138,7 @@ async function runSetupWizard(detection: any, skipPrompts: boolean): Promise<any
     initial: 0,
   });
 
-  const responses: any = {
+  const responses: SetupResponses = {
     name: nameResponse.name,
     description: descResponse.description,
     version: versionResponse.version,
@@ -1071,8 +1173,8 @@ async function runSetupWizard(detection: any, skipPrompts: boolean): Promise<any
 /**
  * Generate workspace configuration YAML
  */
-function generateWorkspaceConfig(responses: any, detection: any): string {
-  const services: any = {};
+function generateWorkspaceConfig(responses: SetupResponses, detection: ProjectDetection): string {
+  const services: Record<string, ServiceDetection> = {};
 
   if (responses.includeServices && detection.services.length > 0) {
     for (const service of detection.services) {
@@ -1101,8 +1203,7 @@ function generateWorkspaceConfig(responses: any, detection: any): string {
   }
   yaml += '\nservices:\n';
 
-  for (const [id, service] of Object.entries(services)) {
-    const s = service as Record<string, any>;
+  for (const [id, s] of Object.entries(services)) {
     yaml += '  ' + id + ':\n';
     yaml += '    name: ' + s.name + '\n';
     yaml += '    type: ' + s.type + '\n';
@@ -1120,7 +1221,7 @@ function generateWorkspaceConfig(responses: any, detection: any): string {
 /**
  * Show next steps to user
  */
-function showNextSteps(responses: any): void {
+function showNextSteps(responses: SetupResponses): void {
   console.log(chalk.cyan.bold('\nNext Steps:\n'));
   console.log(chalk.gray('  1. Review and customize re-shell.workspaces.yaml'));
   console.log(chalk.gray('  2. Add service configurations as needed'));
@@ -1131,7 +1232,7 @@ function showNextSteps(responses: any): void {
 /**
  * Validate workspace configuration
  */
-export async function validateWorkspaceConfig(options: any = {}): Promise<void> {
+export async function validateWorkspaceConfig(options: WorkspaceValidateOptions = {}): Promise<void> {
   const { spinner, fix = false, json = false, watch = false } = options;
 
   try {
@@ -1301,7 +1402,7 @@ export async function validateWorkspaceConfig(options: any = {}): Promise<void> 
 /**
  * Watch mode for real-time validation feedback
  */
-async function validateWatchMode(configPath: string, options: any): Promise<void> {
+async function validateWatchMode(configPath: string, options: WorkspaceValidateOptions): Promise<void> {
   console.log(chalk.cyan('👀 Watching for changes...\n'));
   console.log(chalk.gray('Press Ctrl+C to stop\n'));
 
@@ -1341,7 +1442,7 @@ async function validateWatchMode(configPath: string, options: any): Promise<void
 /**
  * Run a single validation and display results
  */
-async function runValidation(configPath: string, options: any): Promise<void> {
+async function runValidation(configPath: string, options: WorkspaceValidateOptions): Promise<void> {
   try {
     // Parse and validate workspace
     const { workspaceParser } = await import('../parsers/workspace-parser');
@@ -1444,7 +1545,7 @@ async function runValidation(configPath: string, options: any): Promise<void> {
 /**
  * Attempt automatic fixes for common issues
  */
-async function attemptAutoFix(result: any, configPath: string): Promise<boolean> {
+async function attemptAutoFix(result: ValidationResult, configPath: string): Promise<boolean> {
   const fixed = false;
   const fixes: string[] = [];
 
@@ -1472,7 +1573,7 @@ async function attemptAutoFix(result: any, configPath: string): Promise<boolean>
 /**
  * Check workspace health
  */
-export async function checkWorkspaceHealth(options: any = {}): Promise<void> {
+export async function checkWorkspaceHealth(options: WorkspaceHealthOptions = {}): Promise<void> {
   const { spinner, json = false, verbose = false, explain = false } = options;
 
   try {
@@ -1698,7 +1799,7 @@ async function checkServicesHealth(configPath: string): Promise<HealthCheck> {
         name: 'Services',
         status: 'critical',
         message: 'Service configuration has errors',
-        details: result.errors.map((e: any) => e.path + ': ' + e.message),
+        details: result.errors.map((e: ValidationError) => e.path + ': ' + e.message),
       };
     }
 
@@ -2001,7 +2102,7 @@ function displayHealthResults(
 /**
  * Migrate workspace configuration
  */
-export async function migrateWorkspace(options: any = {}): Promise<void> {
+export async function migrateWorkspace(options: WorkspaceMigrateOptions = {}): Promise<void> {
   const { spinner, to, dryRun = false, backup = true } = options;
 
   try {
@@ -2021,15 +2122,15 @@ export async function migrateWorkspace(options: any = {}): Promise<void> {
     }
 
     // Parse current config - for old versions, parse without validation
-    let currentConfig: any;
+    let currentConfig: Record<string, unknown>;
     let currentVersion: string;
 
     try {
       const configContent = await fs.readFile(configPath, 'utf-8');
-      currentConfig = yaml.load(configContent);
+      currentConfig = yaml.load(configContent) as Record<string, unknown>;
 
       // Get version from config or default to 1.0.0
-      currentVersion = currentConfig.version || '1.0.0';
+      currentVersion = (currentConfig.version as string) || '1.0.0';
 
       // For 2.0.0+, validate the config
       if (currentVersion !== '1.0.0') {
@@ -2043,7 +2144,7 @@ export async function migrateWorkspace(options: any = {}): Promise<void> {
           return;
         }
 
-        currentConfig = result.config;
+        currentConfig = result.config as unknown as Record<string, unknown>;
       }
     } catch (error: unknown) {
       if (spinner) spinner.stop();
@@ -2124,7 +2225,7 @@ async function createBackup(configPath: string): Promise<void> {
  * Perform migration from one version to another
  */
 async function performMigration(
-  config: any,
+  config: Record<string, unknown>,
   fromVersion: string,
   toVersion: string,
   dryRun: boolean
@@ -2132,7 +2233,7 @@ async function performMigration(
   const changes: string[] = [];
   const warnings: string[] = [];
 
-  const migratedConfig = { ...config };
+  const migratedConfig: Record<string, any> = { ...config };
 
   // Migration: 1.0.0 to 2.0.0
   if (fromVersion === '1.0.0' && toVersion === '2.0.0') {
@@ -2344,7 +2445,7 @@ async function performMigration(
 /**
  * Optimize workspace configuration
  */
-export async function optimizeWorkspace(options: any = {}): Promise<void> {
+export async function optimizeWorkspace(options: WorkspaceOptimizeOptions = {}): Promise<void> {
   const { spinner, type, severity, fix = false, json = false, verbose = false } = options;
 
   try {
@@ -2397,7 +2498,7 @@ export async function optimizeWorkspace(options: any = {}): Promise<void> {
     }
 
     // Create filtered report
-    const filteredReport: any = {
+    const filteredReport: Record<string, any> = {
       recommendations: filteredRecs,
       summary: {
         total: filteredRecs.length,
@@ -2532,7 +2633,7 @@ export async function optimizeWorkspace(options: any = {}): Promise<void> {
 /**
  * Template management subcommands
  */
-export async function manageWorkspaceTemplates(options: any = {}): Promise<void> {
+export async function manageWorkspaceTemplates(options: WorkspaceTemplateOptions = {}): Promise<void> {
   const { spinner, action = 'list', templateId, filePath, output, json = false } = options;
 
   try {
@@ -2584,7 +2685,7 @@ export async function manageWorkspaceTemplates(options: any = {}): Promise<void>
 /**
  * List all templates
  */
-async function listTemplates(templatesDir: string, spinner?: any, json = false): Promise<void> {
+async function listTemplates(templatesDir: string, spinner?: ProgressSpinner, json = false): Promise<void> {
   if (spinner) spinner.setText('Loading templates...');
 
   const { workspaceTemplateManager } = await import('../templates/workspace/workspace-templates');
@@ -2652,7 +2753,7 @@ async function listTemplates(templatesDir: string, spinner?: any, json = false):
 /**
  * Show template details
  */
-async function showTemplate(templatesDir: string, templateId: string, spinner?: any): Promise<void> {
+async function showTemplate(templatesDir: string, templateId: string, spinner?: ProgressSpinner): Promise<void> {
   if (!templateId) {
     console.log(chalk.red('✗ Template ID is required'));
     console.log(chalk.gray('Usage: re-shell workspace template show --id <template-id>\n'));
@@ -2718,7 +2819,7 @@ async function showTemplate(templatesDir: string, templateId: string, spinner?: 
 /**
  * Create template interactively
  */
-async function createTemplateInteractively(templatesDir: string, spinner?: any): Promise<void> {
+async function createTemplateInteractively(templatesDir: string, spinner?: ProgressSpinner): Promise<void> {
   console.log(chalk.cyan.bold('\n📝 Create New Template\n'));
 
   if (spinner) spinner.stop();
@@ -2782,7 +2883,7 @@ async function createTemplateInteractively(templatesDir: string, spinner?: any):
 /**
  * Validate template
  */
-async function validateTemplate(templatesDir: string, templateId: string, spinner?: any): Promise<void> {
+async function validateTemplate(templatesDir: string, templateId: string, spinner?: ProgressSpinner): Promise<void> {
   if (!templateId) {
     console.log(chalk.red('✗ Template ID is required'));
     console.log(chalk.gray('Usage: re-shell workspace template validate --id <template-id>\n'));
@@ -2819,7 +2920,7 @@ async function validateTemplate(templatesDir: string, templateId: string, spinne
 /**
  * Export template
  */
-async function exportTemplateCmd(templatesDir: string, templateId: string, outputPath: string, spinner?: any): Promise<void> {
+async function exportTemplateCmd(templatesDir: string, templateId: string, outputPath: string, spinner?: ProgressSpinner): Promise<void> {
   if (!templateId) {
     console.log(chalk.red('✗ Template ID is required'));
     console.log(chalk.gray('Usage: re-shell workspace template export --id <template-id> --output <path>\n'));
@@ -2846,7 +2947,7 @@ async function exportTemplateCmd(templatesDir: string, templateId: string, outpu
 /**
  * Import template
  */
-async function importTemplateCmd(filePath: string, templatesDir: string, spinner?: any): Promise<void> {
+async function importTemplateCmd(filePath: string, templatesDir: string, spinner?: ProgressSpinner): Promise<void> {
   if (!filePath) {
     console.log(chalk.red('✗ File path is required'));
     console.log(chalk.gray('Usage: re-shell workspace template import --file <path>\n'));
@@ -2875,7 +2976,7 @@ async function importTemplateCmd(filePath: string, templatesDir: string, spinner
 /**
  * Delete template
  */
-async function deleteTemplateCmd(templatesDir: string, templateId: string, spinner?: any): Promise<void> {
+async function deleteTemplateCmd(templatesDir: string, templateId: string, spinner?: ProgressSpinner): Promise<void> {
   if (!templateId) {
     console.log(chalk.red('✗ Template ID is required'));
     console.log(chalk.gray('Usage: re-shell workspace template delete --id <template-id>\n'));
@@ -2918,7 +3019,7 @@ async function deleteTemplateCmd(templatesDir: string, templateId: string, spinn
 /**
  * Show inheritance chain
  */
-async function showInheritanceChain(templatesDir: string, templateId: string, spinner?: any): Promise<void> {
+async function showInheritanceChain(templatesDir: string, templateId: string, spinner?: ProgressSpinner): Promise<void> {
   if (!templateId) {
     console.log(chalk.red('✗ Template ID is required'));
     console.log(chalk.gray('Usage: re-shell workspace template chain --id <template-id>\n'));

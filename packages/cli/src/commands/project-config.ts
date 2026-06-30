@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
-import { configManager } from '../utils/config';
+import { configManager, ProjectConfig } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
@@ -118,7 +118,7 @@ async function showProjectConfiguration(options: ProjectConfigCommandOptions, sp
     console.log(chalk.gray('═'.repeat(50)));
     
     console.log(chalk.cyan('\n📋 Project Settings:'));
-    displayConfigSection(config.project);
+    displayConfigSection(config.project as unknown as Record<string, unknown>);
     
     console.log(chalk.cyan('\n🔗 Inherited from Global:'));
     console.log(`  Package Manager: ${config.global.packageManager}`);
@@ -127,7 +127,7 @@ async function showProjectConfiguration(options: ProjectConfigCommandOptions, sp
     
     if (options.verbose) {
       console.log(chalk.cyan('\n🔀 Merged Configuration:'));
-      displayConfigSection(config.merged);
+      displayConfigSection(config.merged as unknown as Record<string, unknown>);
     }
   }
 }
@@ -142,7 +142,7 @@ async function getProjectConfigValue(key: string, options: ProjectConfigCommandO
     return;
   }
   
-  const value = getNestedValue(config.merged, key);
+  const value = getNestedValue(config.merged as unknown as Record<string, unknown>, key);
   
   if (spinner) spinner.stop();
 
@@ -153,7 +153,7 @@ async function getProjectConfigValue(key: string, options: ProjectConfigCommandO
       console.log(chalk.cyan(`${key}:`), value);
       
       // Show if value is inherited
-      const projectValue = getNestedValue(config.project, key);
+      const projectValue = getNestedValue(config.project as unknown as Record<string, unknown>, key);
       if (projectValue === undefined && value !== undefined) {
         console.log(chalk.gray('(inherited from global configuration)'));
       }
@@ -172,14 +172,14 @@ async function setProjectConfigValue(key: string, value: string, options: Projec
   }
 
   // Parse value
-  let parsedValue: any;
+  let parsedValue: unknown;
   try {
     parsedValue = JSON.parse(value);
   } catch {
     parsedValue = value;
   }
 
-  setNestedValue(projectConfig, key, parsedValue);
+  setNestedValue(projectConfig as unknown as Record<string, unknown>, key, parsedValue);
   await configManager.saveProjectConfig(projectConfig);
   
   if (spinner) {
@@ -333,13 +333,13 @@ async function interactiveEditProjectConfig(): Promise<void> {
   // Handle different field types
   switch (response.field) {
     case 'dev':
-      await editDevSettings(projectConfig);
+      await editDevSettings(projectConfig as unknown as Record<string, unknown>);
       break;
     case 'build':
-      await editBuildSettings(projectConfig);
+      await editBuildSettings(projectConfig as unknown as Record<string, unknown>);
       break;
     case 'quality':
-      await editQualitySettings(projectConfig);
+      await editQualitySettings(projectConfig as unknown as Record<string, unknown>);
       break;
     default:
       {
@@ -368,51 +368,53 @@ async function interactiveEditProjectConfig(): Promise<void> {
   }
 }
 
-async function editDevSettings(projectConfig: any): Promise<void> {
+async function editDevSettings(projectConfig: Record<string, unknown>): Promise<void> {
+  const dev = (projectConfig.dev as Record<string, unknown> | undefined) || {};
   const response = await prompts([
     {
       type: 'number',
       name: 'port',
       message: 'Development server port:',
-      initial: projectConfig.dev?.port || 3000,
+      initial: (dev.port as number) || 3000,
       validate: (value: number) => value > 0 && value < 65536 ? true : 'Invalid port number'
     },
     {
       type: 'text',
       name: 'host',
       message: 'Development server host:',
-      initial: projectConfig.dev?.host || 'localhost'
+      initial: (dev.host as string) || 'localhost'
     },
     {
       type: 'toggle',
       name: 'hmr',
       message: 'Enable Hot Module Replacement?',
-      initial: projectConfig.dev?.hmr !== false,
+      initial: dev.hmr !== false,
       active: 'yes',
       inactive: 'no'
     }
   ]);
 
   if (Object.keys(response).length > 0) {
-    projectConfig.dev = { ...projectConfig.dev, ...response };
-    await configManager.saveProjectConfig(projectConfig);
+    projectConfig.dev = { ...dev, ...response };
+    await configManager.saveProjectConfig(projectConfig as unknown as ProjectConfig);
     console.log(chalk.green('✅ Development settings updated!'));
   }
 }
 
-async function editBuildSettings(projectConfig: any): Promise<void> {
+async function editBuildSettings(projectConfig: Record<string, unknown>): Promise<void> {
+  const build = (projectConfig.build as Record<string, unknown> | undefined) || {};
   const response = await prompts([
     {
       type: 'text',
       name: 'target',
       message: 'Build target:',
-      initial: projectConfig.build?.target || 'es2020'
+      initial: (build.target as string) || 'es2020'
     },
     {
       type: 'toggle',
       name: 'optimize',
       message: 'Enable optimization?',
-      initial: projectConfig.build?.optimize !== false,
+      initial: build.optimize !== false,
       active: 'yes',
       inactive: 'no'
     },
@@ -420,26 +422,28 @@ async function editBuildSettings(projectConfig: any): Promise<void> {
       type: 'toggle',
       name: 'analyze',
       message: 'Enable bundle analysis?',
-      initial: projectConfig.build?.analyze || false,
+      initial: (build.analyze as boolean) || false,
       active: 'yes',
       inactive: 'no'
     }
   ]);
 
   if (Object.keys(response).length > 0) {
-    projectConfig.build = { ...projectConfig.build, ...response };
-    await configManager.saveProjectConfig(projectConfig);
+    projectConfig.build = { ...build, ...response };
+    await configManager.saveProjectConfig(projectConfig as unknown as ProjectConfig);
     console.log(chalk.green('✅ Build settings updated!'));
   }
 }
 
-async function editQualitySettings(projectConfig: any): Promise<void> {
+async function editQualitySettings(projectConfig: Record<string, unknown>): Promise<void> {
+  const quality = (projectConfig.quality as Record<string, unknown> | undefined) || {};
+  const coverage = (quality.coverage as Record<string, unknown> | undefined) || {};
   const response = await prompts([
     {
       type: 'toggle',
       name: 'linting',
       message: 'Enable linting?',
-      initial: projectConfig.quality?.linting !== false,
+      initial: quality.linting !== false,
       active: 'yes',
       inactive: 'no'
     },
@@ -447,7 +451,7 @@ async function editQualitySettings(projectConfig: any): Promise<void> {
       type: 'toggle',
       name: 'testing',
       message: 'Enable testing?',
-      initial: projectConfig.quality?.testing !== false,
+      initial: quality.testing !== false,
       active: 'yes',
       inactive: 'no'
     },
@@ -455,14 +459,14 @@ async function editQualitySettings(projectConfig: any): Promise<void> {
       type: 'number',
       name: 'coverageThreshold',
       message: 'Code coverage threshold (%):',
-      initial: projectConfig.quality?.coverage?.threshold || 80,
+      initial: (coverage.threshold as number) || 80,
       validate: (value: number) => value >= 0 && value <= 100 ? true : 'Must be between 0 and 100'
     }
   ]);
 
   if (Object.keys(response).length > 0) {
     projectConfig.quality = {
-      ...projectConfig.quality,
+      ...quality,
       linting: response.linting,
       testing: response.testing,
       coverage: {
@@ -470,7 +474,7 @@ async function editQualitySettings(projectConfig: any): Promise<void> {
         threshold: response.coverageThreshold
       }
     };
-    await configManager.saveProjectConfig(projectConfig);
+    await configManager.saveProjectConfig(projectConfig as unknown as ProjectConfig);
     console.log(chalk.green('✅ Quality settings updated!'));
   }
 }
@@ -489,7 +493,7 @@ async function interactiveAdvancedProjectConfig(): Promise<void> {
 }
 
 // Utility functions
-function displayConfigSection(config: any, indent = 0): void {
+function displayConfigSection(config: Record<string, unknown>, indent = 0): void {
   const prefix = '  '.repeat(indent);
   
   for (const [key, value] of Object.entries(config)) {
@@ -497,7 +501,7 @@ function displayConfigSection(config: any, indent = 0): void {
     
     if (typeof value === 'object' && !Array.isArray(value)) {
       console.log(`${prefix}${chalk.cyan(key)}:`);
-      displayConfigSection(value, indent + 1);
+      displayConfigSection(value as Record<string, unknown>, indent + 1);
     } else if (Array.isArray(value)) {
       console.log(`${prefix}${chalk.cyan(key)}: ${chalk.dim(`[${value.join(', ')}]`)}`);
     } else {
@@ -506,16 +510,21 @@ function displayConfigSection(config: any, indent = 0): void {
   }
 }
 
-function getNestedValue(obj: any, path: string): any {
-  return path.split('.').reduce((current, key) => current?.[key], obj);
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce<unknown>((current, key) => {
+    if (current && typeof current === 'object') {
+      return (current as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }, obj);
 }
 
-function setNestedValue(obj: any, path: string, value: any): void {
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
   const keys = path.split('.');
   const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => {
+  const target = keys.reduce<Record<string, unknown>>((current, key) => {
     if (!(key in current)) current[key] = {};
-    return current[key];
+    return current[key] as Record<string, unknown>;
   }, obj);
   target[lastKey] = value;
 }

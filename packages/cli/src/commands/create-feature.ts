@@ -5,7 +5,7 @@ import { findMonorepoRoot } from '../utils/monorepo';
 import { getBackendTemplate, listBackendTemplates} from '../templates/backend/index';
 
 interface CreateFeatureOptions {
-  spinner?: any;
+  spinner?: { text?: string; succeed?: (msg?: string) => void; fail?: (msg?: string) => void; stop?: () => void; start?: (msg?: string) => void };
   verbose?: boolean;
   type?: 'crud' | 'auth' | 'file-upload' | 'websocket' | 'graphql' | 'rest-api' | 'fullstack';
   backend?: string;
