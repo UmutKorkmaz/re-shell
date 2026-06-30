@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated Team Performance Optimization Utility
 // Generated at: 2026-01-13T14:15:00.000Z
 
@@ -64,18 +65,18 @@ interface TeamPerformanceOptimizationConfig {
 }
 
 export function displayConfig(config: TeamPerformanceOptimizationConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🎯 Team Performance Optimization Recommendations');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Performance Issues:', config.issues.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Recommendations:', config.recommendations.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Coaching Sessions:', config.sessions.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Performance Goals:', config.goals.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Detection:', config.enableAutoDetection ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Progress Tracking:', config.enableProgressTracking ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Feedback Collection:', config.enableFeedbackCollection ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🎯 Team Performance Optimization Recommendations'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Providers:', config.providers.join(', ')));
+  console.log(chalk.yellow('Performance Issues:', config.issues.length));
+  console.log(chalk.yellow('Recommendations:', config.recommendations.length));
+  console.log(chalk.yellow('Coaching Sessions:', config.sessions.length));
+  console.log(chalk.yellow('Performance Goals:', config.goals.length));
+  console.log(chalk.yellow('Auto Detection:', config.enableAutoDetection ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Progress Tracking:', config.enableProgressTracking ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Feedback Collection:', config.enableFeedbackCollection ? 'Yes' : 'No'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateTeamPerformanceOptimizationMD(config: TeamPerformanceOptimizationConfig): string {

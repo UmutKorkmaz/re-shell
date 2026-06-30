@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated Terminal Broadcasting Utility
 // Generated at: 2026-01-13T12:50:00.000Z
 
@@ -42,21 +43,21 @@ interface TerminalBroadcastingConfig {
 }
 
 export function displayConfig(config: TerminalBroadcastingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🖥️  Terminal Broadcasting with Encryption and Access Control');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Max Viewers:', config.broadcast.maxViewers);
-  console.log('\x1b[33m%s\x1b[0m', 'Encryption:', config.broadcast.encryption);
-  console.log('\x1b[33m%s\x1b[0m', 'Authentication:', config.accessControl.authentication);
-  console.log('\x1b[33m%s\x1b[0m', 'Compression:', config.broadcast.compression);
-  console.log('\x1b[33m%s\x1b[0m', 'Latency Target:', config.broadcast.latencyTarget + 'ms');
-  console.log('\x1b[33m%s\x1b[0m', 'Recording:', config.broadcast.recordingEnabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Interactive Mode:', config.broadcast.interactiveMode ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Chat:', config.enableChat ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Voice Overlay:', config.enableVoiceOverlay ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Session Timeout:', config.accessControl.sessionTimeout + 's');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🖥️  Terminal Broadcasting with Encryption and Access Control'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Providers:', config.providers.join(', ')));
+  console.log(chalk.yellow('Max Viewers:', config.broadcast.maxViewers));
+  console.log(chalk.yellow('Encryption:', config.broadcast.encryption));
+  console.log(chalk.yellow('Authentication:', config.accessControl.authentication));
+  console.log(chalk.yellow('Compression:', config.broadcast.compression));
+  console.log(chalk.yellow('Latency Target:', config.broadcast.latencyTarget + 'ms'));
+  console.log(chalk.yellow('Recording:', config.broadcast.recordingEnabled ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Interactive Mode:', config.broadcast.interactiveMode ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Chat:', config.enableChat ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Voice Overlay:', config.enableVoiceOverlay ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Session Timeout:', config.accessControl.sessionTimeout + 's'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateTerminalBroadcastingMD(config: TerminalBroadcastingConfig): string {

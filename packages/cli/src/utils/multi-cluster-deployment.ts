@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated Multi-Cluster Deployment
 // Generated at: 2026-01-12T23:04:00.000Z
 
@@ -32,12 +33,12 @@ interface MultiClusterConfig {
 }
 
 export function displayConfig(config: MultiClusterConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Multi-Cluster Deployment');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Strategy:', config.strategy);
-  console.log('\x1b[33m%s\x1b[0m', 'Clusters:', config.clusters.map(c => `${c.name} (${c.region})`).join(', '));
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Multi-Cluster Deployment'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Strategy:', config.strategy));
+  console.log(chalk.yellow('Clusters:', config.clusters.map(c => `${c.name} (${c.region})`).join(', ')));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateMultiClusterMD(config: MultiClusterConfig): string {

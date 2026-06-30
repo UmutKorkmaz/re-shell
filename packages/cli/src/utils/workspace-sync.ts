@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated Workspace Sync Utility
 // Generated at: 2026-01-13T13:15:00.000Z
 
@@ -41,18 +42,18 @@ interface WorkspaceSyncConfig {
 }
 
 export function displayConfig(config: WorkspaceSyncConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🔄 Real-Time Workspace Synchronization');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Strategy:', config.sync.strategy);
-  console.log('\x1b[33m%s\x1b[0m', 'Protocol:', config.sync.protocol);
-  console.log('\x1b[33m%s\x1b[0m', 'Conflict Resolution:', config.conflictResolution);
-  console.log('\x1b[33m%s\x1b[0m', 'Members:', config.members.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Presence:', config.enablePresence ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Cursor Sharing:', config.enableCursorSharing ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Sync:', config.enableAutoSync ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🔄 Real-Time Workspace Synchronization'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Providers:', config.providers.join(', ')));
+  console.log(chalk.yellow('Strategy:', config.sync.strategy));
+  console.log(chalk.yellow('Protocol:', config.sync.protocol));
+  console.log(chalk.yellow('Conflict Resolution:', config.conflictResolution));
+  console.log(chalk.yellow('Members:', config.members.length));
+  console.log(chalk.yellow('Presence:', config.enablePresence ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Cursor Sharing:', config.enableCursorSharing ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Auto Sync:', config.enableAutoSync ? 'Yes' : 'No'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateWorkspaceSyncMD(config: WorkspaceSyncConfig): string {
