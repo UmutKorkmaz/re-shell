@@ -872,7 +872,6 @@ export class FeatureFlagManager {
       return undefined;
     }
 
-    const currentStep = plan.steps[plan.currentStep];
     const nextStep = plan.steps[plan.currentStep + 1];
 
     if (nextStep) {

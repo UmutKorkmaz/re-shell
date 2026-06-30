@@ -352,7 +352,7 @@ export async function updateDependencies(
   pluginName: string,
   options: DependencyCommandOptions = {}
 ): Promise<void> {
-  const { verbose = false, dryRun = false } = options;
+  const { verbose = false} = options;
 
   try {
     const registry = createPluginRegistry();

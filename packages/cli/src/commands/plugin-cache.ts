@@ -495,8 +495,6 @@ export async function optimizeCache(
     console.log(chalk.yellow('Optimization Recommendations:\n'));
 
     recommendations.forEach((rec, index) => {
-      const priorityColor = rec.priority === 'high' ? 'red' : 
-                          rec.priority === 'medium' ? 'yellow' : 'blue';
       const priorityIcon = rec.priority === 'high' ? '🔴' : 
                           rec.priority === 'medium' ? '🟡' : '🔵';
       
@@ -557,7 +555,7 @@ export async function optimizeCache(
 export async function listCachedCommands(
   options: CacheCommandOptions = {}
 ): Promise<void> {
-  const { verbose = false, json = false, includeErrors = false } = options;
+  const { verbose = false, json = false} = options;
 
   try {
     const cacheManager = createCommandCacheManager();

@@ -5,12 +5,6 @@
 
 
 
-interface HelmChart {
-  name: string;
-  version: string;
-  description: string;
-  apiVersion: string;
-}
 
 interface HelmConfig {
   projectName: string;

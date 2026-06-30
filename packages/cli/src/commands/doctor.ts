@@ -455,7 +455,6 @@ async function checkPerformanceIssues(monorepoRoot: string): Promise<HealthCheck
     const nodeModulesPath = path.join(monorepoRoot, 'node_modules');
     if (await fs.pathExists(nodeModulesPath)) {
       try {
-        const stats = await fs.stat(nodeModulesPath);
         // Rough estimation - actual calculation would be recursive and slow
         
         checks.push({

@@ -6,7 +6,6 @@ import chalk from 'chalk';
 type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
 type IncidentStatus = 'detected' | 'investigating' | 'mitigating' | 'resolved' | 'postmortem';
 type NotificationChannel = 'slack' | 'email' | 'sms' | 'pagerduty' | 'webhook' | 'teams';
-type Role = 'incident-commander' | 'communications-lead' | 'technical-lead' | 'scribe' | 'investigator';
 
 interface Incident {
   id: string;

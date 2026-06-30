@@ -5,16 +5,8 @@
 
 
 
-type CostOptimizationType = 'rightsizing' | 'reserved-instances' | 'spot-instances' | 'savings-plans' | 'schedules';
 type AlertSeverity = 'info' | 'warning' | 'critical';
 
-interface ResourceConfig {
-  type: string;
-  currentCost: number;
-  optimizedCost: number;
-  recommendation: string;
-  savingsPercentage: number;
-}
 
 interface BudgetAlert {
   name: string;
