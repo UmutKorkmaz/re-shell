@@ -4,16 +4,26 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/** Supported container runtime engines. */
 export type ContainerRuntime = 'docker' | 'containerd' | 'cri-o' | 'podman';
+/** Supported container orchestration platforms. */
 export type Orchestration = 'kubernetes' | 'ecs' | 'aks' | 'gke' | 'eks' | 'openshift';
+/** Types of security scans that can be performed. */
 export type ScanType = 'image' | 'filesystem' | 'repository' | 'config' | 'runtime';
+/** Severity levels for vulnerabilities and findings. */
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'unknown';
+/** Lifecycle status of a detected vulnerability. */
 export type VulnerabilityStatus = 'detected' | 'investigating' | 'mitigating' | 'resolved' | 'accepted' | 'false-positive';
+/** Classification of detected threat severity. */
 export type ThreatLevel = 'benign' | 'suspicious' | 'malicious' | 'critical';
+/** Workflow status of a security alert. */
 export type AlertStatus = 'open' | 'investigating' | 'contained' | 'resolved';
+/** Actions that a security policy can take when a rule matches. */
 export type PolicyAction = 'allow' | 'warn' | 'block' | 'quarantine';
+/** Supported compliance standards for security checks. */
 export type ComplianceStandard = 'cis-benchmark' | 'nist' | 'pci-dss' | 'hipaa' | 'gdpr' | 'soc2';
 
+/** Top-level configuration for container security, scan settings, and policy state. */
 export interface ContainerSecurityConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -28,6 +38,7 @@ export interface ContainerSecurityConfig {
   integrations: SecurityIntegration[];
 }
 
+/** Settings controlling when and how container security scans are performed. */
 export interface ScanSettings {
   enabled: boolean;
   frequency: 'on-build' | 'on-push' | 'on-deploy' | 'scheduled' | 'on-demand';
@@ -46,6 +57,7 @@ export interface ScanSettings {
   quarantineVulnerable: boolean;
 }
 
+/** Describes a container workload and its associated scan results and posture. */
 export interface ContainerManifest {
   id: string;
   name: string;
@@ -60,6 +72,7 @@ export interface ContainerManifest {
   securityPosture: 'secure' | 'warning' | 'critical';
 }
 
+/** Represents a single running or stopped container instance. */
 export interface ContainerInstance {
   id: string;
   name: string;
@@ -80,6 +93,7 @@ export interface ContainerInstance {
   securityContext: SecurityContext;
 }
 
+/** Aggregated resource usage metrics for a container. */
 export interface ResourceUsage {
   cpu: CPUUsage;
   memory: MemoryUsage;
@@ -87,6 +101,7 @@ export interface ResourceUsage {
   storage: StorageUsage;
 }
 
+/** CPU usage and throttling information for a container. */
 export interface CPUUsage {
   limit: string;
   request: string;
@@ -94,6 +109,7 @@ export interface CPUUsage {
   throttling: boolean;
 }
 
+/** Memory usage and out-of-memory kill count for a container. */
 export interface MemoryUsage {
   limit: string;
   request: string;
@@ -101,6 +117,7 @@ export interface MemoryUsage {
   oomKills: number;
 }
 
+/** Aggregate network usage statistics for a container. */
 export interface NetworkUsage {
   interfaces: NetworkInterface[];
   totalBytesIn: number;
@@ -108,6 +125,7 @@ export interface NetworkUsage {
   connections: number;
 }
 
+/** Per-interface network traffic and error statistics. */
 export interface NetworkInterface {
   name: string;
   rxBytes: number;
@@ -117,6 +135,7 @@ export interface NetworkInterface {
   errors: number;
 }
 
+/** Storage size, usage, and access mode for a container. */
 export interface StorageUsage {
   size: string;
   used: string;
@@ -124,6 +143,7 @@ export interface StorageUsage {
   readOnly: boolean;
 }
 
+/** A filesystem mount inside a container. */
 export interface Mount {
   source: string;
   target: string;
@@ -131,6 +151,7 @@ export interface Mount {
   readOnly: boolean;
 }
 
+/** Mapping between a container port and an optional host port. */
 export interface PortMapping {
   containerPort: number;
   hostPort?: number;
@@ -138,6 +159,7 @@ export interface PortMapping {
   hostIP?: string;
 }
 
+/** Linux security context applied to a container process. */
 export interface SecurityContext {
   user: number;
   group: number;
@@ -148,6 +170,7 @@ export interface SecurityContext {
   readOnlyRootFilesystem: boolean;
 }
 
+/** Metadata and scan results for a container image. */
 export interface ContainerImage {
   id: string;
   name: string;
@@ -170,6 +193,7 @@ export interface ContainerImage {
   compliance: ComplianceStatus;
 }
 
+/** A single layer within a container image, including its vulnerabilities. */
 export interface ImageLayer {
   digest: string;
   size: number;
@@ -177,6 +201,7 @@ export interface ImageLayer {
   vulnerabilities: ContainerVulnerability[];
 }
 
+/** History entry describing how an image layer was created. */
 export interface ImageHistory {
   created: Date;
   created_by: string;
@@ -185,6 +210,7 @@ export interface ImageHistory {
   empty_layer: boolean;
 }
 
+/** Runtime configuration embedded in a container image. */
 export interface ImageConfig {
   env: Record<string, string>;
   cmd: string[];
@@ -196,6 +222,7 @@ export interface ImageConfig {
   volumes: string[];
 }
 
+/** A vulnerability detected in a container image or layer. */
 export interface ContainerVulnerability {
   id: string;
   vulnId: string; // CVE, GHSA, etc.
@@ -218,6 +245,7 @@ export interface ContainerVulnerability {
   cwe: string[];
 }
 
+/** Information about an affected software package. */
 export interface PackageInfo {
   name: string;
   version: string;
@@ -227,12 +255,14 @@ export interface PackageInfo {
   maintainer?: string;
 }
 
+/** External reference (CVE, GHSA, etc.) for a vulnerability. */
 export interface VulnerabilityReference {
   type: 'cve' | 'ghsa' | 'usn' | 'dsa' | 'advisory';
   url: string;
   source: string;
 }
 
+/** Details of a secret accidentally embedded in an image or layer. */
 export interface SecretInfo {
   id: string;
   type: 'ssh-key' | 'api-key' | 'password' | 'certificate' | 'token';
@@ -247,6 +277,7 @@ export interface SecretInfo {
   author?: string;
 }
 
+/** A security misconfiguration detected in a Dockerfile, Kubernetes manifest, or best-practice check. */
 export interface Misconfiguration {
   id: string;
   title: string;
@@ -260,6 +291,7 @@ export interface Misconfiguration {
   references: string[];
 }
 
+/** Aggregated compliance status for an image against a benchmark. */
 export interface ComplianceStatus {
   cisLevel: number; // 1, 2
   score: number; // 0-100
@@ -269,6 +301,7 @@ export interface ComplianceStatus {
   checks: ComplianceCheckResult[];
 }
 
+/** Result of an individual compliance check. */
 export interface ComplianceCheckResult {
   id: string;
   title: string;
@@ -280,6 +313,7 @@ export interface ComplianceCheckResult {
   reason: string;
 }
 
+/** Summary of a single container security scan run. */
 export interface ContainerScanResult {
   scanId: string;
   timestamp: Date;
@@ -298,6 +332,7 @@ export interface ContainerScanResult {
   reportPath: string;
 }
 
+/** Behavioral analysis result describing an anomaly, threat, or incident in a container. */
 export interface BehavioralAnalysis {
   id: string;
   containerId: string;
@@ -318,6 +353,7 @@ export interface BehavioralAnalysis {
   resolvedAt?: Date;
 }
 
+/** A single indicator of a potential threat detected at runtime. */
 export interface ThreatIndicator {
   type: string;
   value: string;
@@ -326,6 +362,7 @@ export interface ThreatIndicator {
   detected: Date;
 }
 
+/** A timeline entry for events related to a behavioral analysis. */
 export interface EventTimeline {
   timestamp: Date;
   event: string;
@@ -333,6 +370,7 @@ export interface EventTimeline {
   source: string;
 }
 
+/** A metric compared against an established baseline for anomaly detection. */
 export interface BaselineMetric {
   metric: string;
   normalRange: [number, number];
@@ -341,6 +379,7 @@ export interface BaselineMetric {
   significance: 'normal' | 'warning' | 'anomaly';
 }
 
+/** A response action executed (or pending) for a security event. */
 export interface ResponseAction {
   action: string;
   executed: boolean;
@@ -349,6 +388,7 @@ export interface ResponseAction {
   result?: string;
 }
 
+/** A security policy with scopes, rules, exceptions, and enforcement level. */
 export interface SecurityPolicy {
   id: string;
   name: string;
@@ -360,11 +400,13 @@ export interface SecurityPolicy {
   enforcementLevel: 'audit' | 'warn' | 'block' | 'quarantine';
 }
 
+/** A scope targeting images, containers, namespaces, or labels for a policy. */
 export interface PolicyScope {
   type: 'image' | 'container' | 'namespace' | 'label';
   value: string;
 }
 
+/** A single rule within a security policy. */
 export interface PolicyRule {
   id: string;
   name: string;
@@ -374,6 +416,7 @@ export interface PolicyRule {
   parameters: Record<string, unknown>;
 }
 
+/** An exception granting scoped relief from a security policy. */
 export interface PolicyException {
   id: string;
   scope: string;
@@ -384,6 +427,7 @@ export interface PolicyException {
   approvedBy?: string;
 }
 
+/** A compliance check configured against a specific standard. */
 export interface ComplianceCheck {
   id: string;
   standard: ComplianceStandard;
@@ -396,6 +440,7 @@ export interface ComplianceCheck {
   score: number; // 0-100
 }
 
+/** Definition of a single compliance check within a standard. */
 export interface ComplianceCheckDef {
   id: string;
   title: string;
@@ -405,6 +450,7 @@ export interface ComplianceCheckDef {
   automated: boolean;
 }
 
+/** A security alert raised from vulnerabilities, misconfigurations, behavior, compliance, or secrets. */
 export interface SecurityAlert {
   id: string;
   type: 'vulnerability' | 'misconfiguration' | 'behavior' | 'compliance' | 'secret';
@@ -424,6 +470,7 @@ export interface SecurityAlert {
   resolutionNotes?: string;
 }
 
+/** Configuration for an integrated third-party security tool. */
 export interface SecurityIntegration {
   tool: 'trivy' | 'falco' | 'opa' | 'istio' | 'calico' | 'kube-bench';
   enabled: boolean;
@@ -432,7 +479,11 @@ export interface SecurityIntegration {
   lastSync?: Date;
 }
 
-// Main configuration function
+/**
+ * Builds the runtime container security configuration object from the given input.
+ * @param config - The container security configuration to materialize.
+ * @returns A resolved configuration object mirroring the input fields.
+ */
 export function containerSecurity(config: ContainerSecurityConfig) {
   return {
     projectName: config.projectName,
@@ -449,6 +500,10 @@ export function containerSecurity(config: ContainerSecurityConfig) {
   };
 }
 
+/**
+ * Prints a human-readable summary of the container security configuration to the console.
+ * @param config - The resolved container security configuration to display.
+ */
 // Display configuration
 export function displayConfig(config: ReturnType<typeof containerSecurity>) {
   console.log(chalk.cyan('🔒 Container Security with Trivy and Runtime Protection'));
@@ -470,6 +525,11 @@ export function displayConfig(config: ReturnType<typeof containerSecurity>) {
   console.log(chalk.gray('─'.repeat(60)));
 }
 
+/**
+ * Generates markdown documentation describing the container security posture, vulnerabilities, behavioral analysis, and compliance.
+ * @param config - The resolved container security configuration.
+ * @returns The generated markdown string.
+ */
 // Generate markdown documentation
 export function generateMD(config: ReturnType<typeof containerSecurity>): string {
   let md = '';
@@ -546,6 +606,12 @@ export function generateMD(config: ReturnType<typeof containerSecurity>): string
   return md;
 }
 
+/**
+ * Generates Terraform configuration for the specified cloud provider.
+ * @param config - The resolved container security configuration.
+ * @param provider - The target cloud provider (aws, azure, or gcp).
+ * @returns The generated Terraform configuration as a string.
+ */
 // Generate Terraform configuration
 export function generateTerraform(config: ReturnType<typeof containerSecurity>, provider: 'aws' | 'azure' | 'gcp'): string {
   let tf = '';
@@ -804,6 +870,11 @@ function generateGCP(config: ReturnType<typeof containerSecurity>): string {
   return tf;
 }
 
+/**
+ * Generates a TypeScript `ContainerSecurityManager` class source string from the configuration.
+ * @param config - The resolved container security configuration.
+ * @returns The generated TypeScript source code as a string.
+ */
 // Generate TypeScript manager class
 export function generateTypeScript(config: ReturnType<typeof containerSecurity>): string {
   let ts = '';
@@ -934,6 +1005,11 @@ export function generateTypeScript(config: ReturnType<typeof containerSecurity>)
   return ts;
 }
 
+/**
+ * Generates a Python `ContainerSecurityManager` class source string from the configuration.
+ * @param config - The resolved container security configuration.
+ * @returns The generated Python source code as a string.
+ */
 // Generate Python manager class
 export function generatePython(config: ReturnType<typeof containerSecurity>): string {
   let py = '';
@@ -1035,6 +1111,13 @@ export function generatePython(config: ReturnType<typeof containerSecurity>): st
   return py;
 }
 
+/**
+ * Writes Terraform, manager source, markdown documentation, config JSON, and dependency files to the given output directory.
+ * @param config - The resolved container security configuration.
+ * @param outputDir - Directory where generated files will be written.
+ * @param language - Target language for the manager class (typescript or python).
+ * @returns A promise that resolves when all files have been written.
+ */
 // Write files to disk
 export async function writeFiles(
   config: ReturnType<typeof containerSecurity>,

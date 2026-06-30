@@ -5,13 +5,20 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Type Definitions
+/** Actions that can be granted or denied by a permission. */
 export type PermissionAction = 'create' | 'read' | 'update' | 'delete' | 'execute' | 'approve' | 'admin' | 'custom';
+/** Categories of resources that can be governed by RBAC policies. */
 export type ResourceTypeRBAC = 'users' | 'roles' | 'permissions' | 'policies' | 'services' | 'resources' | 'audit-logs' | 'settings' | 'api-keys' | 'custom';
+/** The outcome of a permission or policy statement. */
 export type Effect = 'allow' | 'deny';
+/** Lifecycle state of a role. */
 export type RoleStatus = 'active' | 'inactive' | 'deprecated' | 'pending-approval';
+/** Lifecycle state of a permission grant. */
 export type PermissionStatus = 'granted' | 'revoked' | 'pending' | 'expired' | 'denied';
+/** Lifecycle state of a role assignment to a user. */
 export type AssignmentStatus = 'active' | 'inactive' | 'expired' | 'revoked' | 'pending';
 
+/** Root configuration object describing a project's RBAC setup. */
 export interface RBACConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -25,6 +32,7 @@ export interface RBACConfig {
   auditLogs: AuditLog[];
 }
 
+/** Global RBAC feature toggles and tunable settings. */
 export interface RBACSettings {
   enableFineGrained: boolean;
   defaultDenyAll: boolean;
@@ -45,6 +53,7 @@ export interface RBACSettings {
   enableContextAwareAccess: boolean;
 }
 
+/** Represents a role that can be assigned to users and groups. */
 export interface Role {
   id: string;
   name: string;
@@ -63,6 +72,7 @@ export interface Role {
   updatedAt: Date;
 }
 
+/** A permission scoped to a specific scope with resource filters and conditions. */
 export interface ScopedPermission {
   permissionId: string;
   scope: PermissionScope;
@@ -71,17 +81,20 @@ export interface ScopedPermission {
   effect: Effect;
 }
 
+/** Defines the organizational scope at which a permission applies. */
 export interface PermissionScope {
   type: 'global' | 'organization' | 'department' | 'project' | 'resource' | 'custom';
   value?: string;
 }
 
+/** A field-based filter used to narrow the resources a permission applies to. */
 export interface ResourceFilter {
   field: string;
   operator: 'equals' | 'not-equals' | 'contains' | 'not-contains' | 'regex' | 'in' | 'not-in';
   value: any;
 }
 
+/** A condition that must hold for a permission to be granted. */
 export interface PermissionCondition {
   type: 'ip' | 'time' | 'context' | 'custom';
   field: string;
@@ -90,6 +103,7 @@ export interface PermissionCondition {
   negate?: boolean;
 }
 
+/** A condition that must hold for a role assignment to be active. */
 export interface RoleCondition {
   type: 'attribute' | 'context' | 'time' | 'location' | 'custom';
   field: string;
@@ -98,6 +112,7 @@ export interface RoleCondition {
   required: boolean;
 }
 
+/** Metadata describing a role's risk, compliance, and review requirements. */
 export interface RoleMetadata {
   category: string;
   riskLevel: 'critical' | 'high' | 'medium' | 'low';
@@ -113,6 +128,7 @@ export interface RoleMetadata {
   rationale: string;
 }
 
+/** A single entry in a role's change history. */
 export interface RoleChange {
   timestamp: Date;
   user: string;
@@ -122,6 +138,7 @@ export interface RoleChange {
   newValue?: any;
 }
 
+/** Represents a permission governing actions on a resource. */
 export interface Permission {
   id: string;
   name: string;
@@ -137,12 +154,14 @@ export interface Permission {
   expiresAt?: Date;
 }
 
+/** A constraint that limits how a permission may be exercised. */
 export interface PermissionConstraint {
   type: 'ip-range' | 'time-window' | 'rate-limit' | 'data-limit' | 'location' | 'mfa' | 'custom';
   config: Record<string, unknown>;
   enforce: boolean;
 }
 
+/** Metadata describing a permission's sensitivity and approval requirements. */
 export interface PermissionMetadata {
   category: string;
   sensitivity: 'public' | 'internal' | 'confidential' | 'restricted';
@@ -152,6 +171,7 @@ export interface PermissionMetadata {
   approvers: string[];
 }
 
+/** A named policy composed of statements that govern access decisions. */
 export interface AccessPolicy {
   id: string;
   name: string;
@@ -167,6 +187,7 @@ export interface AccessPolicy {
   metadata: PolicyMetadata;
 }
 
+/** A single statement within an access policy. */
 export interface PolicyStatement {
   id: string;
   effect: Effect;
@@ -177,12 +198,14 @@ export interface PolicyStatement {
   overrideEffect?: boolean; // allow this statement to override deny
 }
 
+/** Identifies a principal (user, group, role, service, etc.) in a policy statement. */
 export interface Principal {
   type: 'user' | 'group' | 'role' | 'service' | 'anonymous';
   id: string;
   conditions?: PrincipalCondition[];
 }
 
+/** A condition that must hold for a principal in a policy statement. */
 export interface PrincipalCondition {
   type: 'attribute' | 'auth-method' | 'mfa' | 'session-age' | 'custom';
   field: string;
@@ -190,11 +213,13 @@ export interface PrincipalCondition {
   value: any;
 }
 
+/** A pattern describing a set of resources targeted by a policy statement. */
 export interface ResourcePattern {
   type: 'exact' | 'prefix' | 'wildcard' | 'regex';
   pattern: string;
 }
 
+/** A condition under which a policy statement applies. */
 export interface PolicyCondition {
   type: 'string' | 'numeric' | 'boolean' | 'ip' | 'time' | 'custom';
   operator: string;
@@ -203,6 +228,7 @@ export interface PolicyCondition {
   negate?: boolean;
 }
 
+/** Metadata describing ownership, risk, and history of a policy. */
 export interface PolicyMetadata {
   description: string;
   owner: string;
@@ -212,6 +238,7 @@ export interface PolicyMetadata {
   changeHistory: PolicyChange[];
 }
 
+/** A single entry in a policy's change history. */
 export interface PolicyChange {
   timestamp: Date;
   user: string;
@@ -219,6 +246,7 @@ export interface PolicyChange {
   reason: string;
 }
 
+/** Represents an assignment of a role to a user, possibly temporary. */
 export interface RoleAssignment {
   id: string;
   userId: string;
@@ -237,6 +265,7 @@ export interface RoleAssignment {
   approvedAt?: Date;
 }
 
+/** A condition attached to a role assignment. */
 export interface AssignmentCondition {
   type: 'time' | 'location' | 'context' | 'custom';
   field: string;
@@ -244,6 +273,7 @@ export interface AssignmentCondition {
   value: any;
 }
 
+/** Context describing how a role assignment originated. */
 export interface AssignmentContext {
   source: 'direct' | 'group-inheritance' | 'role-hierarchy' | 'approval';
   reason: string;
@@ -251,6 +281,7 @@ export interface AssignmentContext {
   ticketId?: string;
 }
 
+/** Represents a group of users that may share roles. */
 export interface Group {
   id: string;
   name: string;
@@ -266,6 +297,7 @@ export interface Group {
   updatedAt: Date;
 }
 
+/** Metadata describing a group's organization and sync status. */
 export interface GroupMetadata {
   category: string;
   department?: string;
@@ -276,6 +308,7 @@ export interface GroupMetadata {
   lastSyncedAt?: Date;
 }
 
+/** A node in the resource hierarchy tree. */
 export interface ResourceNode {
   id: string;
   name: string;
@@ -287,6 +320,7 @@ export interface ResourceNode {
   metadata: ResourceMetadata;
 }
 
+/** Metadata describing ownership and classification of a resource. */
 export interface ResourceMetadata {
   owner: string;
   classification: 'public' | 'internal' | 'confidential' | 'restricted';
@@ -296,6 +330,7 @@ export interface ResourceMetadata {
   updatedAt: Date;
 }
 
+/** A single audit log entry recording an access decision. */
 export interface AuditLog {
   id: string;
   timestamp: Date;
@@ -314,6 +349,7 @@ export interface AuditLog {
   details?: Record<string, unknown>;
 }
 
+/** Information about the session in which an audited action occurred. */
 export interface SessionContext {
   sessionId: string;
   mfaVerified: boolean;
@@ -323,6 +359,11 @@ export interface SessionContext {
 }
 
 // Markdown Generation
+/**
+ * Generates a Markdown report summarizing the RBAC configuration.
+ * @param config - The RBAC configuration to document.
+ * @returns A Markdown string describing roles, permissions, policies, and audit logs.
+ */
 export function generateRBACMarkdown(config: RBACConfig): string {
   return `# RBAC and Access Control Management
 
@@ -421,6 +462,11 @@ ${config.auditLogs.slice(0, 5).map(log => `
 }
 
 // Terraform Generation for AWS
+/**
+ * Generates Terraform configuration for deploying RBAC resources to AWS.
+ * @param config - The RBAC configuration to deploy.
+ * @returns A Terraform (HCL) string provisioning IAM roles, policies, and audit log storage.
+ */
 export function generateRBACTerraformAWS(config: RBACConfig): string {
   return `# Terraform configuration for RBAC on AWS
 # Generated at: ${new Date().toISOString()}
@@ -538,6 +584,11 @@ resource "aws_cloudwatch_log_group" "rbac_audit" {
 }
 
 // Terraform Generation for Azure
+/**
+ * Generates Terraform configuration for deploying RBAC resources to Azure.
+ * @param config - The RBAC configuration to deploy.
+ * @returns A Terraform (HCL) string provisioning role definitions, assignments, and audit log storage.
+ */
 export function generateRBACTerraformAzure(config: RBACConfig): string {
   return `# Terraform configuration for RBAC on Azure
 # Generated at: ${new Date().toISOString()}
@@ -615,6 +666,11 @@ resource "azurerm_storage_account" "audit_logs" {
 }
 
 // TypeScript Manager Generation
+/**
+ * Generates a TypeScript RBACManager class source file from the configuration.
+ * @param config - The RBAC configuration to materialize into TypeScript code.
+ * @returns A TypeScript source string implementing the RBAC manager.
+ */
 export function generateRBACTypeScriptManager(config: RBACConfig): string {
   return `// Auto-generated RBAC Manager
 // Generated at: ${new Date().toISOString()}
@@ -908,6 +964,11 @@ export class RBACManager {
 }
 
 // Python Manager Generation
+/**
+ * Generates a Python RBACManager class source file from the configuration.
+ * @param config - The RBAC configuration to materialize into Python code.
+ * @returns A Python source string implementing the RBAC manager.
+ */
 export function generateRBACPythonManager(config: RBACConfig): string {
   return `# Auto-generated RBAC Manager
 # Generated at: ${new Date().toISOString()}
@@ -1157,6 +1218,11 @@ class RBACManager:
 }
 
 // Package.json generation
+/**
+ * Generates package manifest or requirements file content for the RBAC manager.
+ * @param language - Target language: 'typescript' produces a package.json, otherwise a Python requirements.txt.
+ * @returns A string containing the manifest content for the given language.
+ */
 export function generateRBACPackageJSON(language: string): string {
   if (language === 'typescript') {
     return JSON.stringify({
@@ -1189,6 +1255,11 @@ pytest-asyncio==0.21.0`;
 }
 
 // Config JSON generation
+/**
+ * Serializes the RBAC configuration to a pretty-printed JSON string.
+ * @param config - The RBAC configuration to serialize.
+ * @returns A JSON string representation of the configuration, with dates serialized as ISO strings.
+ */
 export function generateRBACConfigJSON(config: RBACConfig): string {
   return JSON.stringify(config, (key, value) => {
     if (value instanceof Date) {
@@ -1199,6 +1270,10 @@ export function generateRBACConfigJSON(config: RBACConfig): string {
 }
 
 // Display function
+/**
+ * Prints a human-readable summary of the RBAC configuration to the console.
+ * @param config - The RBAC configuration to display.
+ */
 export function displayRBACConfig(config: RBACConfig): void {
   console.log(chalk.cyan('🔐 RBAC and Access Control Management'));
   console.log(chalk.gray('─'.repeat(60)));
@@ -1214,6 +1289,13 @@ export function displayRBACConfig(config: RBACConfig): void {
 }
 
 // Main write function
+/**
+ * Writes all RBAC artifacts (Markdown, Terraform, manager code, manifest, and config) to the output directory.
+ * @param config - The RBAC configuration to materialize.
+ * @param outputDir - Directory where the generated files will be written.
+ * @param language - Target language for the generated manager code.
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeRBACFiles(
   config: RBACConfig,
   outputDir: string,
