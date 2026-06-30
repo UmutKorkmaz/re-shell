@@ -27,7 +27,7 @@
     "test:integration": "vitest run tests/integration",
     "test:e2e": "vitest run tests/e2e",
     "test:plan": "node tests/run-cli-plan.mjs --suite=all",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint src --ext ts,tsx",
     "clean": "rimraf dist",
     "prepublishOnly": "rimraf dist && npm run build && npm run bundle:dashboard"
   },
@@ -66,6 +66,7 @@
   },
   "dependencies": {
     "@re-shell/contracts": "workspace:^",
+    "ajv": "^8.17.1",
     "boxen": "^8.0.1",
     "chalk": "^4.1.2",
     "chokidar": "^4.0.3",
@@ -89,8 +90,7 @@
     "react": "^19.2.3",
     "semver": "^7.7.2",
     "simple-git": "^3.32.3",
-    "yaml": "^2.3.2",
-    "ajv": "^8.17.1"
+    "yaml": "^2.3.2"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.0",
@@ -102,7 +102,10 @@
     "@types/react": "^18.3.31",
     "@types/semver": "^7.7.0",
     "@types/uuid": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
     "@vitest/coverage-v8": "^0.34.6",
+    "eslint": "^8.57.0",
     "globby": "^16.1.0",
     "ink-testing-library": "4",
     "lodash": "^4.17.21",
