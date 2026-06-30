@@ -214,7 +214,7 @@ export async function uninstallPlugin(
   pluginName: string, 
   options: PluginCommandOptions = {}
 ): Promise<void> {
-  const { verbose = false, force = false } = options;
+  const { force = false } = options;
 
   try {
     const registry = createPluginRegistry();
@@ -392,7 +392,7 @@ export async function disablePlugin(
 
 // Update plugins
 export async function updatePlugins(options: PluginCommandOptions = {}): Promise<void> {
-  const { verbose = false } = options;
+  const { } = options;
 
   try {
     const registry = createPluginRegistry();
@@ -572,7 +572,7 @@ export async function validatePlugin(
   pluginPath: string, 
   options: PluginCommandOptions = {}
 ): Promise<void> {
-  const { verbose = false, json = false } = options;
+  const { verbose = false} = options;
 
   try {
     const spinner = createSpinner('Validating plugin...');
@@ -603,7 +603,7 @@ export async function validatePlugin(
 
 // Clear plugin cache
 export async function clearPluginCache(options: PluginCommandOptions = {}): Promise<void> {
-  const { verbose = false } = options;
+  const { } = options;
 
   try {
     const registry = createPluginRegistry();

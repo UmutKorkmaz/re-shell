@@ -448,7 +448,7 @@ export class WorkspaceHealthChecker {
     const violations: string[] = [];
     const kebabCaseRegex = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
     
-    for (const [name, workspace] of Object.entries(this.definition.workspaces)) {
+    for (const [name, _workspace] of Object.entries(this.definition.workspaces)) {
       if (!kebabCaseRegex.test(name)) {
         violations.push(name);
       }

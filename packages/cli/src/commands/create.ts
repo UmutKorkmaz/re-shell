@@ -2495,7 +2495,6 @@ async function createWorkspace(
   // If template is specified, use its configuration
   const templateBackend = architectureTemplate?.backend;
   const templateFrontend = architectureTemplate?.frontend;
-  const templateDb = architectureTemplate?.db;
 
   const isBackendOnly = (backend || templateBackend) && !frontend && !framework && !templateFrontend;
   const isFullStack = fullstack || ((backend || templateBackend) && (frontend || framework || templateFrontend)) || architectureTemplate;

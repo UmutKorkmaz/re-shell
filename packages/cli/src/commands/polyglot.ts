@@ -109,7 +109,7 @@ export async function generateDeploymentConfig(
   environment: DeploymentEnvironment,
   options: any = {}
 ): Promise<void> {
-  const { spinner, verbose = false } = options;
+  const { spinner} = options;
 
   try {
     if (spinner) {

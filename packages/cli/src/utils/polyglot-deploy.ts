@@ -495,7 +495,7 @@ export async function deployService(
   config: DeploymentConfig,
   options: DeploymentOptions = {}
 ): Promise<DeploymentResult> {
-  const { dryRun = false, verbose = false } = options;
+  const { dryRun = false} = options;
   const startTime = Date.now();
 
   if (dryRun) {

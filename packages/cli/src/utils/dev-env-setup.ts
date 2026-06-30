@@ -287,7 +287,6 @@ export class DevEnvManager extends EventEmitter {
       }
 
       // Setup port forwarding using docker/podman
-      const args = ['port-forward', container.name, `${allocatedPort}:${containerPort}`];
 
       // For Docker Desktop, we need a different approach
       const dockerArgs = ['run', '-d', '--publish', `${allocatedPort}:${containerPort}`,
@@ -585,7 +584,7 @@ export class DevEnvManager extends EventEmitter {
    */
   async cleanup(): Promise<void> {
     // Stop all port forwarders
-    for (const [key, status] of this.forwardedPortsStatus) {
+    for (const [_key, status] of this.forwardedPortsStatus) {
       await this.stopPortForwarding(status.service, status.localPort);
     }
 

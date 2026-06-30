@@ -242,7 +242,7 @@ export class WorkspaceConflictManager {
 
     // Check for reserved names
     const reservedNames = ['build', 'test', 'dev', 'prod', 'staging', 'config'];
-    for (const [name, workspace] of Object.entries(definition.workspaces)) {
+    for (const [name, _workspace] of Object.entries(definition.workspaces)) {
       if (reservedNames.includes(name.toLowerCase())) {
         this.conflicts.set(`reserved-${name}`, {
           id: `reserved-${name}`,
@@ -656,7 +656,7 @@ export class WorkspaceConflictManager {
         delete definition.workspaces[oldName];
         
         // Update dependencies
-        for (const [workspace, deps] of Object.entries(definition.dependencies || {})) {
+        for (const [_workspace, deps] of Object.entries(definition.dependencies || {})) {
           for (const dep of deps) {
             if (dep.name === oldName) {
               dep.name = newName;

@@ -406,7 +406,7 @@ export class WorkspaceMigrationManager {
         }
 
         // Ensure all workspaces have a type
-        for (const [name, workspace] of Object.entries(definition.workspaces)) {
+        for (const [_name, workspace] of Object.entries(definition.workspaces)) {
           if (!workspace.type) {
             workspace.type = 'app'; // Default type
           }
@@ -460,7 +460,7 @@ export class WorkspaceMigrationManager {
       breaking: true,
       execute: async (definition: WorkspaceDefinition) => {
         // Migrate workspace entries to new format
-        for (const [name, workspace] of Object.entries(definition.workspaces)) {
+        for (const [_name, workspace] of Object.entries(definition.workspaces)) {
           // Convert old 'port' field to dev.port
           if ('port' in workspace && typeof (workspace as Record<string, unknown>).port === 'string') {
             const ws = workspace as Record<string, unknown> & { dev?: { port?: number } };
@@ -485,7 +485,7 @@ export class WorkspaceMigrationManager {
       },
       rollback: async (definition: WorkspaceDefinition) => {
         // Rollback v2 changes to v1 format
-        for (const [name, workspace] of Object.entries(definition.workspaces)) {
+        for (const [_name, workspace] of Object.entries(definition.workspaces)) {
           if (workspace.dev?.port) {
             (workspace as unknown as Record<string, unknown>).port = workspace.dev.port.toString();
           }

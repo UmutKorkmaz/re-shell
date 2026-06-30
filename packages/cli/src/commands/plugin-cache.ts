@@ -557,7 +557,7 @@ export async function optimizeCache(
 export async function listCachedCommands(
   options: CacheCommandOptions = {}
 ): Promise<void> {
-  const { verbose = false, json = false, includeErrors = false } = options;
+  const { verbose = false, json = false} = options;
 
   try {
     const cacheManager = createCommandCacheManager();

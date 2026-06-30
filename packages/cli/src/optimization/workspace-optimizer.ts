@@ -88,7 +88,7 @@ export class WorkspaceOptimizer {
   async applyAutomatedFixes(config: any, recommendationIds: string[]): Promise<unknown> {
     const result = { ...config };
 
-    for (const id of recommendationIds) {
+    for (const _id of recommendationIds) {
       // Find recommendation
       // Apply automated fix
       // In production, this would make actual changes to the config
@@ -141,7 +141,7 @@ export class WorkspaceOptimizer {
     const sharedDbs = new Set<string>();
 
     // Check for shared databases
-    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+    for (const [_serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
       const routes = service.routes || [];
       for (const route of routes) {
         if (route.target && route.target.includes('database')) {
@@ -183,7 +183,7 @@ export class WorkspaceOptimizer {
     let overprovisioned = 0;
     let underprovisioned = 0;
 
-    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+    for (const [_serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
       const resources = service.resources;
 
       if (resources?.cpu?.request && resources?.cpu?.limit) {
@@ -257,7 +257,7 @@ export class WorkspaceOptimizer {
 
     const kebabCaseRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+    for (const [_serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
       const name = service.name;
 
       if (name && !kebabCaseRegex.test(name)) {
@@ -299,7 +299,7 @@ export class WorkspaceOptimizer {
       // Check if dependencies are actually used
       const unusedDeps: string[] = [];
 
-      for (const [dep, version] of Object.entries(dependencies)) {
+      for (const [dep, _version] of Object.entries(dependencies)) {
         let used = false;
 
         // Check if dependency is referenced in routes
@@ -345,7 +345,7 @@ export class WorkspaceOptimizer {
     let missingHealthChecks = 0;
     let missingAuth = 0;
 
-    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+    for (const [_serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
       if (!service.healthCheck) {
         missingHealthChecks++;
       }
@@ -403,7 +403,7 @@ export class WorkspaceOptimizer {
     const services = config.services || {};
     let noScaling = 0;
 
-    for (const [serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
+    for (const [_serviceId, service] of Object.entries(services) as [string, Record<string, any>][]) {
       const scaling = service.scaling;
 
       if (!scaling || scaling.min === scaling.max) {
