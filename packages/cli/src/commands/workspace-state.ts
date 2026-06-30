@@ -10,6 +10,10 @@ import {
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the workspace state command, including status display, clearing,
+ * backup, restore, cache management, and optimization flags.
+ */
 export interface WorkspaceStateCommandOptions {
   status?: boolean;
   clear?: boolean;
@@ -37,6 +41,14 @@ export interface WorkspaceStateCommandOptions {
 }
 
 
+/**
+ * Entry point for the workspace state command. Dispatches to the appropriate
+ * sub-operation (status, clear, backup, restore, cache, optimize, or
+ * interactive) based on the provided options.
+ *
+ * @param options - Configuration flags controlling the state operation.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageWorkspaceState(options: WorkspaceStateCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

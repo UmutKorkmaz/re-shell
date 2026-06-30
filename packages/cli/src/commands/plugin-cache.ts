@@ -13,6 +13,7 @@ import {
 } from '../utils/plugin-command-cache';
 import { createPluginCommandRegistry, type PluginCommandContext } from '../utils/plugin-command-registry';
 
+/** Options for the plugin cache commands. */
 interface CacheCommandOptions {
   verbose?: boolean;
   json?: boolean;
@@ -25,6 +26,11 @@ interface CacheCommandOptions {
   includeErrors?: boolean;
 }
 
+/**
+ * Show command cache statistics and performance metrics.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the statistics have been displayed.
+ */
 // Show cache statistics
 export async function showCacheStats(
   options: CacheCommandOptions = {}
@@ -111,6 +117,13 @@ export async function showCacheStats(
   }
 }
 
+/**
+ * Update a single command cache configuration setting.
+ * @param setting - The configuration key to update.
+ * @param value - The new value as a string (parsed based on the setting type).
+ * @param options - Command options controlling verbosity.
+ * @returns Resolves when the configuration has been applied.
+ */
 // Configure cache settings
 export async function configureCacheSettings(
   setting: string,
@@ -201,6 +214,11 @@ export async function configureCacheSettings(
   }
 }
 
+/**
+ * Clear cached command results, optionally filtered by command or tags.
+ * @param options - Command options including filters and confirmation flag.
+ * @returns Resolves when the cache has been cleared.
+ */
 // Clear cache
 export async function clearCache(
   options: CacheCommandOptions = {}
@@ -257,6 +275,12 @@ export async function clearCache(
   }
 }
 
+/**
+ * Run a performance test measuring cache hit/miss timings over multiple iterations.
+ * @param iterations - The number of test iterations to run.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the performance test completes.
+ */
 // Test cache performance
 export async function testCachePerformance(
   iterations: string,
@@ -407,6 +431,11 @@ export async function testCachePerformance(
   }
 }
 
+/**
+ * Analyze the cache configuration and apply or recommend optimizations.
+ * @param options - Command options including force flag and verbosity.
+ * @returns Resolves when the optimization analysis completes.
+ */
 // Optimize cache
 export async function optimizeCache(
   options: CacheCommandOptions = {}
@@ -553,6 +582,11 @@ export async function optimizeCache(
   }
 }
 
+/**
+ * List the commands currently held in the cache with their metadata.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the cached commands have been listed.
+ */
 // List cached commands
 export async function listCachedCommands(
   options: CacheCommandOptions = {}

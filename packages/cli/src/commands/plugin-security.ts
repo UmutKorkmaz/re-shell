@@ -10,6 +10,7 @@ import {
 } from '../utils/plugin-security';
 import { createPluginRegistry } from '../utils/plugin-system';
 
+/** Options for the plugin security scanning commands. */
 interface SecurityCommandOptions {
   verbose?: boolean;
   json?: boolean;
@@ -19,6 +20,12 @@ interface SecurityCommandOptions {
   policy?: string;
 }
 
+/**
+ * Scan one or all plugins for security violations and display the results.
+ * @param pluginName - Optional plugin name to limit the scan to a single plugin.
+ * @param options - Command options controlling severity filter and output format.
+ * @returns Resolves when the security scan completes.
+ */
 // Scan plugin security
 export async function scanPluginSecurity(
   pluginName?: string,
@@ -105,6 +112,11 @@ export async function scanPluginSecurity(
   }
 }
 
+/**
+ * Check all plugins against the configured or default security policy.
+ * @param options - Command options controlling policy file and output format.
+ * @returns Resolves when the compliance check completes.
+ */
 // Check security policy compliance
 export async function checkSecurityPolicy(options: SecurityCommandOptions = {}): Promise<void> {
   const { verbose = false, json = false, policy } = options;
@@ -196,6 +208,11 @@ export async function checkSecurityPolicy(options: SecurityCommandOptions = {}):
   }
 }
 
+/**
+ * Generate a comprehensive security report across all plugins.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the security report has been generated.
+ */
 // Generate security report
 export async function generateSecurityReport(options: SecurityCommandOptions = {}): Promise<void> {
   const { verbose = false, json = false } = options;
@@ -289,6 +306,12 @@ export async function generateSecurityReport(options: SecurityCommandOptions = {
   }
 }
 
+/**
+ * Analyze security issues and optionally apply automatic fixes.
+ * @param pluginName - Optional plugin name to limit the fix to a single plugin.
+ * @param options - Command options controlling whether fixes are applied.
+ * @returns Resolves when the security issue analysis completes.
+ */
 // Fix security issues
 export async function fixSecurityIssues(
   pluginName?: string,

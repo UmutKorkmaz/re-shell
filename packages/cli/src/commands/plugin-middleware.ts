@@ -9,6 +9,7 @@ import {
 } from '../utils/plugin-command-middleware';
 
 
+/** Options for the plugin middleware management commands. */
 interface MiddlewareCommandOptions {
   verbose?: boolean;
   json?: boolean;
@@ -17,6 +18,11 @@ interface MiddlewareCommandOptions {
   active?: boolean;
 }
 
+/**
+ * List registered middleware, optionally filtered by type, plugin, or status.
+ * @param options - Command options for filtering and output format.
+ * @returns Resolves when the middleware list has been displayed.
+ */
 // List registered middleware
 export async function listMiddleware(
   options: MiddlewareCommandOptions = {}
@@ -122,6 +128,11 @@ export async function listMiddleware(
   }
 }
 
+/**
+ * Show aggregate statistics for the registered middleware.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the statistics have been displayed.
+ */
 // Show middleware statistics
 export async function showMiddlewareStats(
   options: MiddlewareCommandOptions = {}
@@ -186,6 +197,13 @@ export async function showMiddlewareStats(
   }
 }
 
+/**
+ * Test the execution of a specific middleware type with sample data.
+ * @param middlewareType - The type of middleware to test (e.g. 'validation', 'cache').
+ * @param testData - JSON string containing the args and options to pass.
+ * @param options - Command options controlling verbosity.
+ * @returns Resolves when the middleware test completes.
+ */
 // Test middleware execution
 export async function testMiddleware(
   middlewareType: string,
@@ -314,6 +332,10 @@ export async function testMiddleware(
   }
 }
 
+/**
+ * Clear all entries from the middleware cache.
+ * @returns Resolves when the middleware cache has been cleared.
+ */
 // Clear middleware cache
 export async function clearMiddlewareCache(): Promise<void> {
   try {
@@ -335,6 +357,12 @@ export async function clearMiddlewareCache(): Promise<void> {
   }
 }
 
+/**
+ * Show the theoretical middleware execution chain for a command.
+ * @param commandName - The name of the command whose chain should be shown.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the middleware chain has been displayed.
+ */
 // Show middleware chain for a command
 export async function showMiddlewareChain(
   commandName: string,
@@ -390,6 +418,12 @@ export async function showMiddlewareChain(
   }
 }
 
+/**
+ * Generate and display example middleware code for a given type.
+ * @param type - The type of middleware example to generate.
+ * @param options - Command options controlling verbosity.
+ * @returns Resolves when the example has been displayed.
+ */
 // Create example middleware
 export async function createExampleMiddleware(
   type: string,

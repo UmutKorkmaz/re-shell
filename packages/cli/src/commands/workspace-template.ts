@@ -14,6 +14,10 @@ import { loadWorkspaceDefinition } from '../utils/workspace-schema';
 import { ProgressSpinner, createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the workspace template command, including listing, creation,
+ * application, display, deletion, and export flags.
+ */
 export interface WorkspaceTemplateCommandOptions {
   list?: boolean;
   create?: boolean;
@@ -46,6 +50,14 @@ export interface WorkspaceTemplateCommandOptions {
 
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
+/**
+ * Entry point for the workspace template command. Dispatches to the
+ * appropriate sub-operation (list, create, apply, show, delete, export, or
+ * interactive) based on the provided options.
+ *
+ * @param options - Configuration flags controlling the template operation.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageWorkspaceTemplate(options: WorkspaceTemplateCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

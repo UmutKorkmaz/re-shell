@@ -12,6 +12,7 @@ import {
 } from '../utils/plugin-command-conflicts';
 import { createPluginCommandRegistry } from '../utils/plugin-command-registry';
 
+/** Options for the command conflict resolution commands. */
 interface ConflictCommandOptions {
   verbose?: boolean;
   json?: boolean;
@@ -24,6 +25,11 @@ interface ConflictCommandOptions {
   confirm?: boolean;
 }
 
+/**
+ * List detected command conflicts, optionally filtered by type, severity, or status.
+ * @param options - Command options for filtering and output format.
+ * @returns Resolves when the conflict list has been displayed.
+ */
 // List command conflicts
 export async function listCommandConflicts(
   options: ConflictCommandOptions = {}
@@ -144,6 +150,11 @@ export async function listCommandConflicts(
   }
 }
 
+/**
+ * Show the available conflict resolution strategies and their characteristics.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the strategies have been displayed.
+ */
 // Show conflict resolution strategies
 export async function showConflictStrategies(
   options: ConflictCommandOptions = {}
@@ -236,6 +247,13 @@ export async function showConflictStrategies(
   }
 }
 
+/**
+ * Resolve a specific command conflict using the given strategy.
+ * @param conflictId - The unique identifier of the conflict to resolve.
+ * @param strategy - The resolution strategy to apply.
+ * @param options - Command options including dry-run and confirmation flags.
+ * @returns Resolves when the conflict resolution attempt completes.
+ */
 // Resolve specific conflict
 export async function resolveConflict(
   conflictId: string,
@@ -332,6 +350,11 @@ export async function resolveConflict(
   }
 }
 
+/**
+ * Automatically resolve all auto-resolvable command conflicts.
+ * @param options - Command options including dry-run and verbosity flags.
+ * @returns Resolves when the auto-resolution attempt completes.
+ */
 // Auto-resolve all conflicts
 export async function autoResolveConflicts(
   options: ConflictCommandOptions = {}
@@ -397,6 +420,11 @@ export async function autoResolveConflicts(
   }
 }
 
+/**
+ * Show aggregate statistics for detected and resolved command conflicts.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the statistics have been displayed.
+ */
 // Show conflict statistics
 export async function showConflictStats(
   options: ConflictCommandOptions = {}
@@ -479,6 +507,13 @@ export async function showConflictStats(
   }
 }
 
+/**
+ * Set a user-defined priority override for a specific command.
+ * @param commandId - The unique identifier of the command to update.
+ * @param priority - The new priority value as a string.
+ * @param options - Command options controlling verbosity.
+ * @returns Resolves when the priority override has been applied.
+ */
 // Set priority override
 export async function setPriorityOverride(
   commandId: string,
@@ -536,6 +571,11 @@ export async function setPriorityOverride(
   }
 }
 
+/**
+ * Show the history of applied conflict resolutions.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the resolution history has been displayed.
+ */
 // Show resolution history
 export async function showResolutionHistory(
   options: ConflictCommandOptions = {}

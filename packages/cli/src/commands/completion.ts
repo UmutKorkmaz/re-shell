@@ -6,6 +6,9 @@ import * as path from 'path';
 import chalk from 'chalk';
 import * as os from 'os';
 
+/**
+ * Options for the shell completion installation command.
+ */
 export interface CompletionInstallOptions {
   shell?: 'bash' | 'zsh';
 }
@@ -54,6 +57,13 @@ compdef _re_shell re-shell
 `;
 }
 
+/**
+ * Install shell completion scripts for the requested shell (bash or zsh).
+ * Defaults to bash when no shell is specified.
+ *
+ * @param options - Installation options including the target shell.
+ * @returns Resolves when the completion script has been installed.
+ */
 export async function installCompletion(options: CompletionInstallOptions = {}): Promise<void> {
   const { shell = 'bash' } = options;
 

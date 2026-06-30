@@ -9,6 +9,7 @@ import {
 } from '../utils/plugin-command-registry';
 import { createPluginRegistry } from '../utils/plugin-system';
 
+/** Options for the plugin command management commands. */
 interface CommandCommandOptions {
   verbose?: boolean;
   json?: boolean;
@@ -19,6 +20,11 @@ interface CommandCommandOptions {
   usage?: boolean;
 }
 
+/**
+ * List plugin commands registered with the command registry.
+ * @param options - Command options for filtering and output format.
+ * @returns Resolves when the command list has been displayed.
+ */
 // List registered plugin commands
 export async function listPluginCommands(
   options: CommandCommandOptions = {}
@@ -138,6 +144,11 @@ export async function listPluginCommands(
   }
 }
 
+/**
+ * Show commands that have registration conflicts with other plugins.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the conflicts have been displayed.
+ */
 // Show command conflicts
 export async function showCommandConflicts(
   options: CommandCommandOptions = {}
@@ -200,6 +211,13 @@ export async function showCommandConflicts(
   }
 }
 
+/**
+ * Resolve registration conflicts for a specific command name.
+ * @param commandName - The name of the command whose conflicts should be resolved.
+ * @param resolution - The resolution strategy to apply ('disable' or 'priority').
+ * @param options - Command options controlling verbosity.
+ * @returns Resolves when the conflict resolution attempt completes.
+ */
 // Resolve command conflicts
 export async function resolveCommandConflicts(
   commandName: string,
@@ -248,6 +266,11 @@ export async function resolveCommandConflicts(
   }
 }
 
+/**
+ * Show aggregate statistics for the plugin command registry.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the statistics have been displayed.
+ */
 // Show command registry statistics
 export async function showCommandStats(
   options: CommandCommandOptions = {}
@@ -319,6 +342,13 @@ export async function showCommandStats(
   }
 }
 
+/**
+ * Register a command from a plugin for testing or development purposes.
+ * @param pluginName - The name of the plugin providing the command.
+ * @param commandDefinition - JSON string defining the command.
+ * @param options - Command options controlling verbosity.
+ * @returns Resolves when the registration attempt completes.
+ */
 // Register a command from a plugin (for testing/development)
 export async function registerTestCommand(
   pluginName: string,
@@ -391,6 +421,12 @@ export async function registerTestCommand(
   }
 }
 
+/**
+ * Unregister a previously registered command by its identifier.
+ * @param commandId - The unique identifier of the command to remove.
+ * @param options - Command options controlling verbosity.
+ * @returns Resolves when the unregistration attempt completes.
+ */
 // Unregister a command
 export async function unregisterCommand(
   commandId: string,
@@ -436,6 +472,12 @@ export async function unregisterCommand(
   }
 }
 
+/**
+ * Show detailed information about a specific registered command.
+ * @param commandId - The unique identifier of the command to inspect.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the command information has been displayed.
+ */
 // Show detailed information about a specific command
 export async function showCommandInfo(
   commandId: string,

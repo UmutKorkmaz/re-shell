@@ -6,6 +6,10 @@ import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { ChangeImpactAnalyzer, createChangeImpactAnalyzer, ImpactAnalysisResult } from '../utils/change-impact-analyzer';
 
+/**
+ * Options for the change impact analysis command.
+ * Controls which files to analyze, output format, depth, and what to include.
+ */
 export interface ChangeImpactCommandOptions {
   files?: string[];
   output?: string;
@@ -18,7 +22,13 @@ export interface ChangeImpactCommandOptions {
   workspace?: string;
 }
 
-// Main command handler for change impact analysis
+/**
+ * Main command handler for change impact analysis.
+ * Analyzes the impact of changed files across workspace dependencies and outputs the result.
+ *
+ * @param options - Command options controlling analysis scope and output format.
+ * @returns Resolves when the analysis and output complete.
+ */
 export async function manageChangeImpact(options: ChangeImpactCommandOptions = {}): Promise<void> {
   const spinner = new ProgressSpinner({ text: 'Analyzing change impact...' });
   
@@ -80,7 +90,13 @@ export async function manageChangeImpact(options: ChangeImpactCommandOptions = {
   }
 }
 
-// Analyze specific workspace
+/**
+ * Analyze the change impact for a specific workspace.
+ *
+ * @param workspaceName - The name of the workspace to analyze.
+ * @param options - Command options controlling analysis scope and output format.
+ * @returns Resolves when the analysis and output complete.
+ */
 export async function analyzeWorkspaceImpact(workspaceName: string, options: ChangeImpactCommandOptions = {}): Promise<void> {
   const spinner = new ProgressSpinner({ text: 'Analyzing change impact...' });
   
@@ -113,7 +129,13 @@ export async function analyzeWorkspaceImpact(workspaceName: string, options: Cha
   }
 }
 
-// Get dependency graph visualization
+/**
+ * Display or save the workspace dependency graph.
+ * Supports text, JSON, and Mermaid output formats.
+ *
+ * @param options - Command options controlling output format and destination.
+ * @returns Resolves when the graph has been displayed or saved.
+ */
 export async function showDependencyGraph(options: ChangeImpactCommandOptions = {}): Promise<void> {
   const spinner = new ProgressSpinner({ text: 'Analyzing change impact...' });
   
@@ -411,7 +433,11 @@ function getNodeShape(type: string): string {
   }
 }
 
-// Register change impact commands
+/**
+ * Register the change impact commands (analyze, workspace, graph) on the given Commander program.
+ *
+ * @param program - The Commander program instance to register commands on.
+ */
 export function registerChangeImpactCommands(program: Command): void {
   const changeImpact = program
     .command('change-impact')

@@ -14,6 +14,10 @@ import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { jsonSuccess, jsonError, enableJsonMode } from '../utils/json-output';
 
+/**
+ * Options for the workspace health command, including full check, quick check,
+ * topology validation, monitoring, and fix flags.
+ */
 export interface WorkspaceHealthCommandOptions {
   check?: boolean;
   topology?: boolean;
@@ -40,6 +44,14 @@ export interface WorkspaceHealthCommandOptions {
 
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
+/**
+ * Entry point for the workspace health command. Dispatches to the appropriate
+ * sub-operation (check, topology, quick, watch, fix, or interactive) based on
+ * the provided options.
+ *
+ * @param options - Configuration flags controlling the health operation.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageWorkspaceHealth(options: WorkspaceHealthCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

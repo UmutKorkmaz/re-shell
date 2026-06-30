@@ -7,6 +7,10 @@ import { ProgressSpinner, flushOutput } from '../utils/spinner';
 import { processManager } from '../utils/error-handler';
 import { resolveProfile, EnvironmentProfile } from './profile';
 
+/**
+ * Options for the development mode command.
+ * Controls start/stop/restart/status behavior, hot-reload settings, and profile selection.
+ */
 export interface DevModeCommandOptions {
   start?: boolean;
   stop?: boolean;
@@ -26,6 +30,13 @@ export interface DevModeCommandOptions {
   selectServices?: boolean;
 }
 
+/**
+ * Main entry point for the development mode command.
+ * Dispatches to start, stop, restart, status, or interactive based on the provided options.
+ *
+ * @param options - Command options controlling the operation and hot-reload behavior.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageDevMode(options: DevModeCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

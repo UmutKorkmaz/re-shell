@@ -13,6 +13,10 @@ import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { jsonSuccess, jsonError, enableJsonMode } from '../utils/json-output';
 
+/**
+ * Options for the workspace dependency graph command, including analysis,
+ * cycle detection, build order, critical path, and visualization flags.
+ */
 export interface WorkspaceGraphCommandOptions {
   analyze?: boolean;
   cycles?: boolean;
@@ -38,6 +42,14 @@ export interface WorkspaceGraphCommandOptions {
 
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
 
+/**
+ * Entry point for the workspace graph command. Dispatches to the appropriate
+ * sub-operation (analyze, cycles, order, critical, visualize, or interactive)
+ * based on the provided options.
+ *
+ * @param options - Configuration flags controlling the graph operation.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageWorkspaceGraph(options: WorkspaceGraphCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

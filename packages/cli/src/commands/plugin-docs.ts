@@ -14,6 +14,7 @@ import {
 } from '../utils/plugin-command-docs';
 import { createPluginCommandRegistry } from '../utils/plugin-command-registry';
 
+/** Options for the plugin documentation and help commands. */
 interface DocsCommandOptions {
   verbose?: boolean;
   json?: boolean;
@@ -31,6 +32,12 @@ interface DocsCommandOptions {
   complexity?: string;
 }
 
+/**
+ * Generate documentation for plugin commands in the specified format.
+ * @param commands - Optional list of command names to document; defaults to all commands.
+ * @param options - Command options controlling format, output, and verbosity.
+ * @returns Resolves when the documentation has been generated.
+ */
 // Generate documentation for plugin commands
 export async function generatePluginDocumentation(
   commands: string[] = [],
@@ -138,6 +145,12 @@ export async function generatePluginDocumentation(
   }
 }
 
+/**
+ * Show help text for a specific command.
+ * @param commandName - The name or alias of the command to display help for.
+ * @param options - Command options controlling display mode and verbosity.
+ * @returns Resolves when the help text has been displayed.
+ */
 // Show help for a specific command
 export async function showCommandHelp(
   commandName: string,
@@ -196,6 +209,11 @@ export async function showCommandHelp(
   }
 }
 
+/**
+ * List all commands available for documentation, optionally filtered.
+ * @param options - Command options for filtering and output format.
+ * @returns Resolves when the command list has been displayed.
+ */
 // List all documented commands
 export async function listDocumentedCommands(
   options: DocsCommandOptions = {}
@@ -296,6 +314,12 @@ export async function listDocumentedCommands(
   }
 }
 
+/**
+ * Search command documentation for a given query string.
+ * @param query - The search term to look for in the documentation.
+ * @param options - Command options for filtering and output format.
+ * @returns Resolves when the search results have been displayed.
+ */
 // Search documentation
 export async function searchDocumentation(
   query: string,
@@ -373,6 +397,11 @@ export async function searchDocumentation(
   }
 }
 
+/**
+ * Show statistics about the generated command documentation.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the documentation statistics have been displayed.
+ */
 // Show documentation statistics
 export async function showDocumentationStats(
   options: DocsCommandOptions = {}
@@ -450,6 +479,13 @@ export async function showDocumentationStats(
   }
 }
 
+/**
+ * Update a single help system configuration setting.
+ * @param setting - The configuration key to update.
+ * @param value - The new value as a string (parsed based on the setting type).
+ * @param options - Command options controlling verbosity.
+ * @returns Resolves when the configuration has been applied.
+ */
 // Configure help system
 export async function configureHelpSystem(
   setting: string,
@@ -513,6 +549,11 @@ export async function configureHelpSystem(
   }
 }
 
+/**
+ * Show the available documentation templates and their structure.
+ * @param options - Command options controlling output format and verbosity.
+ * @returns Resolves when the templates have been displayed.
+ */
 // Show available documentation templates
 export async function showDocumentationTemplates(
   options: DocsCommandOptions = {}

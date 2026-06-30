@@ -8,6 +8,10 @@ import { configManager } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the configuration diff/merge command.
+ * Controls whether to diff, merge, or apply patches, along with output and merge strategy settings.
+ */
 export interface ConfigDiffCommandOptions {
   diff?: boolean;
   merge?: boolean;
@@ -25,6 +29,13 @@ export interface ConfigDiffCommandOptions {
   spinner?: ProgressSpinner;
 }
 
+/**
+ * Main entry point for the configuration diff/merge command.
+ * Dispatches to diff, merge, apply, interactive, or status display based on the provided options.
+ *
+ * @param options - Command options controlling the operation and output.
+ * @returns Resolves when the requested operation completes.
+ */
 export async function manageConfigDiff(options: ConfigDiffCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 
