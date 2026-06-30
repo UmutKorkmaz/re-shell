@@ -11,16 +11,22 @@ import { randomUUID } from 'crypto';
 // Types and Enums
 // ============================================================================
 
+/** Role assigned to a team member. */
 export type TeamRole = 'owner' | 'admin' | 'moderator' | 'member' | 'guest' | 'viewer';
 export type ChannelType = 'text' | 'voice' | 'video' | 'announcement' | 'private' | 'archived';
+/** Type of message content. */
 export type MessageType = 'text' | 'file' | 'code' | 'image' | 'video' | 'audio' | 'emoji' | 'system';
 export type ReactionType = 'thumbs_up' | 'thumbs_down' | 'laugh' | 'celebrate' | 'thinking' | 'heart' | 'fire' | 'eyes';
+/** Lifecycle status of a collaborative task. */
 export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
 export type TaskPriority = 'critical' | 'high' | 'medium' | 'low';
+/** Type of shared document. */
 export type DocumentType = 'document' | 'spreadsheet' | 'presentation' | 'code' | 'design' | 'whiteboard';
 export type ReviewStatus = 'pending' | 'in_review' | 'approved' | 'changes_requested' | 'rejected';
+/** Category of notification event. */
 export type NotificationType = 'mention' | 'reply' | 'assignment' | 'reminder' | 'announcement' | 'system';
 export type NotificationPriority = 'urgent' | 'high' | 'normal' | 'low';
+/** Type of team meeting. */
 export type MeetingType = 'standup' | 'sprint_planning' | 'retrospective' | 'review' | 'one_on_one' | 'all_hands' | 'ad_hoc';
 export type MeetingStatus = 'scheduled' | 'started' | 'paused' | 'ended' | 'cancelled';
 
@@ -28,6 +34,7 @@ export type MeetingStatus = 'scheduled' | 'started' | 'paused' | 'ended' | 'canc
 // Interfaces
 // ============================================================================
 
+/** Represents a collaboration platform user. */
 export interface User {
   id: string;
   name: string;
@@ -44,6 +51,7 @@ export interface User {
   joinedAt: Date;
 }
 
+/** Represents a team in the collaboration platform. */
 export interface Team {
   id: string;
   name: string;
@@ -56,6 +64,7 @@ export interface Team {
   createdAt: Date;
 }
 
+/** A user's membership within a team. */
 export interface TeamMember {
   userId: string;
   role: TeamRole;
@@ -63,6 +72,7 @@ export interface TeamMember {
   permissions: string[];
 }
 
+/** Configuration settings for a team. */
 export interface TeamSettings {
   isPublic: boolean;
   allowGuestAccess: boolean;
@@ -73,6 +83,7 @@ export interface TeamSettings {
   requireApprovalForGuests: boolean;
 }
 
+/** A communication channel within a team. */
 export interface Channel {
   id: string;
   teamId: string;
@@ -88,6 +99,7 @@ export interface Channel {
   parentChannelId?: string;
 }
 
+/** A message posted in a channel or thread. */
 export interface Message {
   id: string;
   channelId: string;
@@ -105,6 +117,7 @@ export interface Message {
   createdAt: Date;
 }
 
+/** A file attached to a message. */
 export interface MessageAttachment {
   id: string;
   name: string;
@@ -114,11 +127,13 @@ export interface MessageAttachment {
   thumbnail?: string;
 }
 
+/** An emoji reaction on a message. */
 export interface MessageReaction {
   emoji: ReactionType;
   userIds: string[];
 }
 
+/** A threaded reply chain on a message. */
 export interface Thread {
   id: string;
   channelId: string;
@@ -128,6 +143,7 @@ export interface Thread {
   participantIds: string[];
 }
 
+/** A shared document in the collaboration workspace. */
 export interface Document {
   id: string;
   name: string;
@@ -144,12 +160,14 @@ export interface Document {
   updatedAt: Date;
 }
 
+/** Permission entry for a document. */
 export interface DocumentPermission {
   userId?: string;
   teamId?: string;
   role: 'owner' | 'editor' | 'commenter' | 'viewer';
 }
 
+/** A code review with reviewers and comments. */
 export interface CodeReview {
   id: string;
   title: string;
@@ -170,12 +188,14 @@ export interface CodeReview {
   closedAt?: Date;
 }
 
+/** A participant in a code review. */
 export interface Reviewer {
   userId: string;
   status: 'pending' | 'approved' | 'changes_requested' | 'declined';
   submittedAt?: Date;
 }
 
+/** A comment on a code review. */
 export interface ReviewComment {
   id: string;
   authorId: string;
@@ -187,6 +207,7 @@ export interface ReviewComment {
   resolvedAt?: Date;
 }
 
+/** A collaborative task with assignees and metadata. */
 export interface TaskCollab {
   id: string;
   title: string;
@@ -210,6 +231,7 @@ export interface TaskCollab {
   updatedAt: Date;
 }
 
+/** A child task within a collaborative task. */
 export interface SubTask {
   id: string;
   title: string;
@@ -217,6 +239,7 @@ export interface SubTask {
   completedAt?: Date;
 }
 
+/** A comment on a collaborative task. */
 export interface TaskComment {
   id: string;
   authorId: string;
@@ -225,6 +248,7 @@ export interface TaskComment {
   editedAt?: Date;
 }
 
+/** A scheduled or past team meeting. */
 export interface Meeting {
   id: string;
   title: string;
@@ -245,12 +269,14 @@ export interface Meeting {
   createdAt: Date;
 }
 
+/** Recurrence rules for a meeting. */
 export interface RecurringSchedule {
   frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
   daysOfWeek?: number[]; // 0-6 (Sunday-Saturday)
   endDate?: Date;
 }
 
+/** A notification dispatched to a user. */
 export interface Notification {
   id: string;
   userId: string;
@@ -264,6 +290,7 @@ export interface Notification {
   createdAt: Date;
 }
 
+/** An activity feed entry. */
 export interface Activity {
   id: string;
   userId: string;
@@ -274,6 +301,7 @@ export interface Activity {
   createdAt: Date;
 }
 
+/** Analytics aggregation for the collaboration platform. */
 export interface Analytics {
   period: 'day' | 'week' | 'month' | 'quarter' | 'year';
   startDate: Date;
@@ -281,6 +309,7 @@ export interface Analytics {
   metrics: AnalyticsMetrics;
 }
 
+/** Detailed metrics snapshot for analytics. */
 export interface AnalyticsMetrics {
   users: {
     total: number;
@@ -331,6 +360,7 @@ export interface AnalyticsMetrics {
 // Example Configuration Data
 // ============================================================================
 
+/** Sample user records for demos and tests. */
 export const exampleUsers: User[] = [
   {
     id: 'usr-001',
@@ -391,6 +421,7 @@ export const exampleUsers: User[] = [
   },
 ];
 
+/** Sample team records for demos and tests. */
 export const exampleTeams: Team[] = [
   {
     id: 'team-001',
@@ -435,6 +466,7 @@ export const exampleTeams: Team[] = [
   },
 ];
 
+/** Sample channel records for demos and tests. */
 export const exampleChannels: Channel[] = [
   {
     id: 'chan-001',
@@ -474,6 +506,7 @@ export const exampleChannels: Channel[] = [
   },
 ];
 
+/** Sample message records for demos and tests. */
 export const exampleMessages: Message[] = [
   {
     id: 'msg-001',
@@ -506,6 +539,7 @@ export const exampleMessages: Message[] = [
   },
 ];
 
+/** Sample document records for demos and tests. */
 export const exampleDocuments: Document[] = [
   {
     id: 'doc-001',
@@ -543,6 +577,7 @@ export const exampleDocuments: Document[] = [
   },
 ];
 
+/** Sample code review records for demos and tests. */
 export const exampleCodeReviews: CodeReview[] = [
   {
     id: 'rev-001',
@@ -577,6 +612,7 @@ export const exampleCodeReviews: CodeReview[] = [
   },
 ];
 
+/** Sample task records for demos and tests. */
 export const exampleTasks: TaskCollab[] = [
   {
     id: 'task-001',
@@ -603,6 +639,7 @@ export const exampleTasks: TaskCollab[] = [
   },
 ];
 
+/** Sample meeting records for demos and tests. */
 export const exampleMeetings: Meeting[] = [
   {
     id: 'mtg-001',
@@ -640,6 +677,7 @@ export const exampleMeetings: Meeting[] = [
 // Manager Class
 // ============================================================================
 
+/** Top-level configuration for collaboration feature generation. */
 export interface CollaborationConfig {
   organization: string;
   description?: string;
@@ -653,6 +691,7 @@ export interface CollaborationConfig {
   maxTeamSize?: number;
 }
 
+/** Manages team collaboration state including channels, messages, tasks, and meetings. */
 export class CollaborationManager {
   private users: Map<string, User> = new Map();
   private teams: Map<string, Team> = new Map();
@@ -1127,6 +1166,7 @@ export class CollaborationManager {
 // Generators
 // ============================================================================
 
+/** Generate Markdown documentation for a collaboration setup. */
 export function generateMarkdown(name: string, manager: CollaborationManager): string {
   const summary = manager.getSummary();
   const analytics = manager.getAnalytics('month', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), new Date());
@@ -1249,6 +1289,7 @@ const task = manager.createTask({
 `;
 }
 
+/** Generate Terraform infrastructure code for a collaboration deployment. */
 export function generateTerraform(provider: 'aws' | 'azure' | 'gcp', name: string, config: CollaborationConfig): string {
   const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
 
@@ -1655,6 +1696,7 @@ resource "google_cloud_tasks_queue" "notifications" {
 `;
 }
 
+/** Generate TypeScript client code for collaboration features. */
 export function generateTypeScript(name: string, config: CollaborationConfig): string {
   const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
 
@@ -1668,6 +1710,7 @@ import { randomUUID } from 'crypto';
 // Enums
 // ============================================================================
 
+/** Role assigned to a team member. */
 export enum TeamRole {
   OWNER = 'owner',
   ADMIN = 'admin',
@@ -1677,6 +1720,7 @@ export enum TeamRole {
   VIEWER = 'viewer'
 }
 
+/** Type of communication channel. */
 export enum ChannelType {
   TEXT = 'text',
   VOICE = 'voice',
@@ -1686,6 +1730,7 @@ export enum ChannelType {
   ARCHIVED = 'archived'
 }
 
+/** Lifecycle status of a collaborative task. */
 export enum TaskStatus {
   BACKLOG = 'backlog',
   TODO = 'todo',
@@ -1695,6 +1740,7 @@ export enum TaskStatus {
   CANCELLED = 'cancelled'
 }
 
+/** Priority level of a collaborative task. */
 export enum TaskPriority {
   CRITICAL = 'critical',
   HIGH = 'high',
@@ -1702,6 +1748,7 @@ export enum TaskPriority {
   LOW = 'low'
 }
 
+/** Type of team meeting. */
 export enum MeetingType {
   STANDUP = 'standup',
   SPRINT_PLANNING = 'sprint_planning',
@@ -1716,6 +1763,7 @@ export enum MeetingType {
 // Interfaces
 // ============================================================================
 
+/** Represents a collaboration platform user. */
 export interface User {
   id: string;
   name: string;
@@ -1725,6 +1773,7 @@ export interface User {
   joinedAt: Date;
 }
 
+/** A message posted in a channel or thread. */
 export interface Message {
   id: string;
   channelId: string;
@@ -1733,6 +1782,7 @@ export interface Message {
   createdAt: Date;
 }
 
+/** Task export. */
 export interface Task {
   id: string;
   title: string;
@@ -1743,6 +1793,7 @@ export interface Task {
   createdAt: Date;
 }
 
+/** A scheduled or past team meeting. */
 export interface Meeting {
   id: string;
   title: string;
@@ -1756,6 +1807,7 @@ export interface Meeting {
 // Manager Class
 // ============================================================================
 
+/** Manages team collaboration state including channels, messages, tasks, and meetings. */
 export class CollaborationManager extends EventEmitter {
   private users: Map<string, User> = new Map();
   private messages: Map<string, Message> = new Map();
@@ -1948,6 +2000,7 @@ export { manager as collaborationManager };
 `;
 }
 
+/** Generate Python client code for collaboration features. */
 export function generatePython(name: string, config: CollaborationConfig): string {
   const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
 
@@ -2199,6 +2252,7 @@ if __name__ == "__main__":
 `;
 }
 
+/** Write all generated collaboration files to the filesystem. */
 export async function writeCollaborationFiles(
   config: CollaborationConfig,
   outputDir: string,
@@ -2273,6 +2327,7 @@ export async function writeCollaborationFiles(
   await fs.writeFile(path.join(outputDir, 'collaboration-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/** Create a pre-populated example collaboration configuration. */
 export function createExampleCollaborationConfig(): CollaborationConfig {
   return {
     organization: 'Acme Corp',
@@ -2288,6 +2343,7 @@ export function createExampleCollaborationConfig(): CollaborationConfig {
   };
 }
 
+/** Format and display a collaboration configuration for terminal output. */
 export function displayCollaborationConfig(config: CollaborationConfig, language: string, output: string): void {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const chalk = require('chalk');

@@ -11,11 +11,23 @@ import { randomUUID } from 'crypto';
 // Types and Enums
 // ============================================================================
 
+/** Supported value types for a feature flag. */
+/** FlagType export. */
 export type FlagType = 'boolean' | 'string' | 'number' | 'json' | 'percentage';
+/** Lifecycle status of a feature flag. */
+/** FlagStatus export. */
 export type FlagStatus = 'active' | 'inactive' | 'scheduled' | 'archived';
+/** Strategy used to determine which users receive a flag's value. */
+/** RolloutStrategy export. */
 export type RolloutStrategy = 'all' | 'percentage' | 'whitelist' | 'gradual' | 'experiment';
+/** Lifecycle status of an experiment. */
+/** ExperimentStatus export. */
 export type ExperimentStatus = 'draft' | 'running' | 'paused' | 'completed' | 'cancelled';
+/** Comparison operators available for targeting conditions. */
+/** ConditionOperator export. */
 export type ConditionOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'contains' | 'regex';
+/** Identifier for a variant within an A/B experiment. */
+/** VariantType export. */
 export type VariantType = 'control' | 'treatment' | 'treatment_a' | 'treatment_b';
 
 interface FlagMetrics {
@@ -29,6 +41,8 @@ interface FlagMetrics {
 // Interfaces
 // ============================================================================
 
+/** Represents a feature flag and all of its evaluation configuration. */
+/** FeatureFlag export. */
 export interface FeatureFlag {
   id: string;
   key: string;
@@ -51,6 +65,8 @@ export interface FeatureFlag {
   dependencies: string[]; // flag keys that must be enabled
 }
 
+/** A single targeting rule applied to user/context attributes when evaluating a flag. */
+/** TargetCondition export. */
 export interface TargetCondition {
   id: string;
   attribute: string; // userId, email, tier, country, customAttribute
@@ -59,6 +75,8 @@ export interface TargetCondition {
   enabled: boolean;
 }
 
+/** A reusable group of users defined by one or more targeting conditions. */
+/** UserSegment export. */
 export interface UserSegment {
   id: string;
   name: string;
@@ -69,6 +87,8 @@ export interface UserSegment {
   updatedAt: Date;
 }
 
+/** An A/B test or experiment associated with a feature flag. */
+/** Experiment export. */
 export interface Experiment {
   id: string;
   key: string;
@@ -88,6 +108,8 @@ export interface Experiment {
   updatedAt: Date;
 }
 
+/** A single variant (control or treatment) within an experiment. */
+/** ExperimentVariant export. */
 export interface ExperimentVariant {
   id: string;
   key: string;
@@ -98,6 +120,8 @@ export interface ExperimentVariant {
   config: Record<string, unknown>;
 }
 
+/** Outcome and statistical analysis produced when an experiment is concluded. */
+/** ExperimentResults export. */
 export interface ExperimentResults {
   status: 'significant' | 'not_significant' | 'inconclusive';
   winner?: string; // variant key
@@ -108,6 +132,8 @@ export interface ExperimentResults {
   concludedAt: Date;
 }
 
+/** Aggregated metric values collected for a single experiment variant. */
+/** VariantMetric export. */
 export interface VariantMetric {
   variantKey: string;
   sampleSize: number;
@@ -117,6 +143,8 @@ export interface VariantMetric {
   stdDev?: number;
 }
 
+/** Result of evaluating a flag for a specific user context. */
+/** Result of evaluating a feature flag for a specific user context. */
 export interface FlagEvaluation {
   flagKey: string;
   enabled: boolean;
@@ -126,6 +154,8 @@ export interface FlagEvaluation {
   timestamp: Date;
 }
 
+/** A multi-step rollout plan that gradually increases a flag's exposure with monitoring. */
+/** RolloutPlan export. */
 export interface RolloutPlan {
   id: string;
   flagKey: string;
@@ -139,6 +169,8 @@ export interface RolloutPlan {
   updatedAt: Date;
 }
 
+/** A single stage within a rollout plan, defining percentage and gating criteria. */
+/** RolloutStep export. */
 export interface RolloutStep {
   step: number;
   percentage: number;
@@ -150,12 +182,16 @@ export interface RolloutStep {
   completedAt?: Date;
 }
 
+/** Health thresholds that must be satisfied before a rollout step can advance. */
+/** RolloutCriteria export. */
 export interface RolloutCriteria {
   errorRateThreshold: number; // percentage
   latencyThreshold: number; // milliseconds
   customMetrics?: Record<string, number>;
 }
 
+/** Configuration describing which signals and channels are monitored during a rollout. */
+/** MonitoringConfig export. */
 export interface MonitoringConfig {
   enabled: boolean;
   errorRate: boolean;
@@ -164,11 +200,14 @@ export interface MonitoringConfig {
   alertChannels: string[];
 }
 
+/** Declares that a flag requires another flag to be in a specific state. */
+/** FlagDependency export. */
 export interface FlagDependency {
   flagKey: string;
   requiredValue: boolean;
 }
 
+/** AuditLog export. */
 export interface AuditLog {
   id: string;
   timestamp: Date;
@@ -180,6 +219,7 @@ export interface AuditLog {
   reason?: string;
 }
 
+/** FlagTemplate export. */
 export interface FlagTemplate {
   key: string;
   name: string;
@@ -194,6 +234,7 @@ export interface FlagTemplate {
 // Example Configuration Data
 // ============================================================================
 
+/** exampleFeatureFlags export. */
 export const exampleFeatureFlags: FeatureFlag[] = [
   {
     id: 'flag-001',
@@ -266,6 +307,7 @@ export const exampleFeatureFlags: FeatureFlag[] = [
   }
 ];
 
+/** exampleSegments export. */
 export const exampleSegments: UserSegment[] = [
   {
     id: 'seg-001',
@@ -320,6 +362,7 @@ export const exampleSegments: UserSegment[] = [
   }
 ];
 
+/** exampleExperiments export. */
 export const exampleExperiments: Experiment[] = [
   {
     id: 'exp-001',
@@ -359,6 +402,7 @@ export const exampleExperiments: Experiment[] = [
   }
 ];
 
+/** exampleRolloutPlan export. */
 export const exampleRolloutPlan: RolloutPlan = {
   id: 'roll-001',
   flagKey: 'new-api-version',
@@ -430,6 +474,7 @@ export const exampleRolloutPlan: RolloutPlan = {
 // Manager Class
 // ============================================================================
 
+/** Top-level configuration for feature flag generation. */
 export interface FeatureFlagConfig {
   organization: string;
   description?: string;
@@ -439,6 +484,7 @@ export interface FeatureFlagConfig {
   storageBackend?: 'memory' | 'redis' | 'database';
 }
 
+/** Runtime manager for feature flag evaluation, rollout, and experimentation. */
 export class FeatureFlagManager {
   private flags: Map<string, FeatureFlag> = new Map();
   private segments: Map<string, UserSegment> = new Map();
@@ -996,6 +1042,7 @@ export class FeatureFlagManager {
 // Generators
 // ============================================================================
 
+/** generateMarkdown export. */
 export function generateMarkdown(name: string, manager: FeatureFlagManager): string {
   const summary = manager.getSummary();
 
@@ -1124,6 +1171,7 @@ console.log(assignment);
 `;
 }
 
+/** generateTerraform export. */
 export function generateTerraform(provider: 'aws' | 'azure' | 'gcp', name: string, config: FeatureFlagConfig): string {
   const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
 
@@ -1414,6 +1462,7 @@ resource "google_monitoring_dashboard" "feature_flags" {
 `;
 }
 
+/** Generate TypeScript client code for feature flag integration. */
 export function generateTypeScript(name: string, config: FeatureFlagConfig): string {
   const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
 
@@ -1427,6 +1476,7 @@ import { randomUUID } from 'crypto';
 // Enums
 // ============================================================================
 
+/** FlagType export. */
 export enum FlagType {
   BOOLEAN = 'boolean',
   STRING = 'string',
@@ -1435,6 +1485,7 @@ export enum FlagType {
   PERCENTAGE = 'percentage'
 }
 
+/** FlagStatus export. */
 export enum FlagStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
@@ -1442,6 +1493,7 @@ export enum FlagStatus {
   ARCHIVED = 'archived'
 }
 
+/** RolloutStrategy export. */
 export enum RolloutStrategy {
   ALL = 'all',
   PERCENTAGE = 'percentage',
@@ -1450,6 +1502,7 @@ export enum RolloutStrategy {
   EXPERIMENT = 'experiment'
 }
 
+/** ExperimentStatus export. */
 export enum ExperimentStatus {
   DRAFT = 'draft',
   RUNNING = 'running',
@@ -1462,6 +1515,7 @@ export enum ExperimentStatus {
 // Interfaces
 // ============================================================================
 
+/** FeatureFlag export. */
 export interface FeatureFlag {
   id: string;
   key: string;
@@ -1477,6 +1531,7 @@ export interface FeatureFlag {
   rolloutPercentage: number;
 }
 
+/** Experiment export. */
 export interface Experiment {
   id: string;
   key: string;
@@ -1492,6 +1547,7 @@ export interface Experiment {
   endDate: Date;
 }
 
+/** ExperimentVariant export. */
 export interface ExperimentVariant {
   id: string;
   key: string;
@@ -1502,6 +1558,7 @@ export interface ExperimentVariant {
   config: Record<string, unknown>;
 }
 
+/** Result of evaluating a feature flag for a specific user context. */
 export interface FlagEvaluation {
   flagKey: string;
   enabled: boolean;
@@ -1514,6 +1571,7 @@ export interface FlagEvaluation {
 // Manager Class
 // ============================================================================
 
+/** Runtime manager for feature flag evaluation, rollout, and experimentation. */
 export class FeatureFlagManager extends EventEmitter {
   private flags: Map<string, FeatureFlag> = new Map();
   private experiments: Map<string, Experiment> = new Map();
@@ -1689,10 +1747,12 @@ const evaluation = manager.evaluateFlag('new-feature', {
 
 console.log('Evaluation:', evaluation);
 
+/** Default singleton feature flag manager instance. */
 export { manager as featureFlagManager };
 `;
 }
 
+/** Generate Python client code for feature flag integration. */
 export function generatePython(name: string, config: FeatureFlagConfig): string {
   const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
 
@@ -2023,6 +2083,7 @@ if __name__ == "__main__":
 `;
 }
 
+/** Write all generated feature flag files to the filesystem. */
 export async function writeFeatureFlagFiles(
   config: FeatureFlagConfig,
   outputDir: string,
@@ -2090,6 +2151,7 @@ export async function writeFeatureFlagFiles(
   await fs.writeFile(path.join(outputDir, 'feature-flag-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/** Create a pre-populated example feature flag configuration. */
 export function createExampleFeatureFlagConfig(): FeatureFlagConfig {
   return {
     organization: 'Acme Corp',
@@ -2101,6 +2163,7 @@ export function createExampleFeatureFlagConfig(): FeatureFlagConfig {
   };
 }
 
+/** Format and display a feature flag configuration for terminal output. */
 export function displayFeatureFlagConfig(config: FeatureFlagConfig, language: string, output: string): void {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const chalk = require('chalk');

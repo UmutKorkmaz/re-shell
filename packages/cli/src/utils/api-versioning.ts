@@ -7,9 +7,15 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/**
+ * Supported API versioning strategies.
+ */
 // Versioning strategies
 export type VersioningStrategy = 'url' | 'header' | 'query' | 'content-type' | 'none';
 
+/**
+ * Represents a single API version with its lifecycle status and metadata.
+ */
 export interface APIVersion {
   version: string;
   status: 'active' | 'deprecated' | 'sunset' | 'retired';
@@ -21,6 +27,9 @@ export interface APIVersion {
   breakingChanges: BreakingChange[];
 }
 
+/**
+ * Describes a single breaking change between two API versions.
+ */
 export interface BreakingChange {
   field: string;
   type: 'field-removed' | 'type-changed' | 'required-added' | 'enum-changed' | 'endpoint-removed' | 'response-changed';
@@ -28,6 +37,9 @@ export interface BreakingChange {
   migrationPath?: string;
 }
 
+/**
+ * Configuration for API versioning including strategy, versions, and deprecation policy.
+ */
 export interface VersioningConfig {
   strategy: VersioningStrategy;
   defaultVersion: string;
@@ -37,6 +49,9 @@ export interface VersioningConfig {
   deprecationPolicy: DeprecationPolicy;
 }
 
+/**
+ * Policy defining how deprecated API versions are handled and communicated.
+ */
 export interface DeprecationPolicy {
   warningPeriod: number; // days
   sunsetPeriod: number; // days
@@ -44,6 +59,9 @@ export interface DeprecationPolicy {
   addDeprecationHeaders: boolean;
 }
 
+/**
+ * Represents a versioned route with its supported versions and lifecycle info.
+ */
 // Route versioning patterns
 export interface VersionedRoute {
   path: string;
@@ -54,6 +72,10 @@ export interface VersionedRoute {
   alternatives?: VersionedRoute[];
 }
 
+/**
+ * Versioning pattern templates for a specific framework, including URL, header,
+ * middleware patterns, and example code.
+ */
 // Versioning pattern templates for different frameworks
 export interface FrameworkVersioningTemplate {
   framework: string;
@@ -64,6 +86,9 @@ export interface FrameworkVersioningTemplate {
   exampleCode: string;
 }
 
+/**
+ * Regular expression patterns used to detect common breaking changes in text.
+ */
 // Common breaking change detection patterns
 export const BREAKING_CHANGE_PATTERNS = {
   fieldRemoved: /removed\s+(\w+)\s+field/i,
@@ -73,6 +98,12 @@ export const BREAKING_CHANGE_PATTERNS = {
   responseChanged: /response\s+structure\s+changed/i,
 };
 
+/**
+ * Retrieves the versioning template for the specified framework.
+ *
+ * @param framework - The framework identifier (e.g., 'express', 'fastapi').
+ * @returns The matching versioning template, or undefined if not found.
+ */
 // Get versioning patterns for a framework
 export function getVersioningTemplate(framework: string): FrameworkVersioningTemplate | undefined {
   const templates: Record<string, FrameworkVersioningTemplate> = {
@@ -265,6 +296,17 @@ HttpServer::new(move || {
   return templates[framework];
 }
 
+/**
+ * Generates versioned route code for a given framework and set of options.
+ *
+ * @param framework - The target framework identifier.
+ * @param options - Route configuration including path, method, versions, and optional strategy.
+ * @param options.routePath - The route path to version.
+ * @param options.method - The HTTP method for the route.
+ * @param options.versions - List of versions to generate routes for.
+ * @param options.strategy - Optional versioning strategy (defaults to 'url').
+ * @returns Generated versioned route code as a string.
+ */
 // Generate versioned route code
 export function generateVersionedRoute(framework: string, options: {
   routePath: string;
@@ -299,6 +341,13 @@ export function generateVersionedRoute(framework: string, options: {
   return code + template.exampleCode;
 }
 
+/**
+ * Detects breaking changes between two API specifications (e.g., OpenAPI specs).
+ *
+ * @param oldSpec - The previous API specification.
+ * @param newSpec - The new API specification to compare against.
+ * @returns An array of detected breaking changes.
+ */
 // Detect breaking changes between two API specs
 export function detectBreakingChanges(oldSpec: any, newSpec: any): BreakingChange[] {
   const changes: BreakingChange[] = [];
@@ -381,6 +430,12 @@ export function detectBreakingChanges(oldSpec: any, newSpec: any): BreakingChang
   return changes;
 }
 
+/**
+ * Calculates the deprecation timeline and current status for an API version.
+ *
+ * @param apiVersion - The API version to evaluate.
+ * @returns An object containing deprecation, sunset, retirement dates, days until sunset, and status.
+ */
 // Calculate deprecation timeline
 export function calculateDeprecationTimeline(apiVersion: APIVersion): {
   deprecationDate?: Date;
@@ -416,6 +471,14 @@ export function calculateDeprecationTimeline(apiVersion: APIVersion): {
   return result;
 }
 
+/**
+ * Generates a Markdown migration guide between two API versions.
+ *
+ * @param fromVersion - The source version being migrated from.
+ * @param toVersion - The target version being migrated to.
+ * @param breakingChanges - The list of breaking changes to document.
+ * @returns A Markdown-formatted migration guide string.
+ */
 // Generate migration guide between versions
 export function generateMigrationGuide(fromVersion: string, toVersion: string, breakingChanges: BreakingChange[]): string {
   const lines: string[] = [];
@@ -449,6 +512,10 @@ export function generateMigrationGuide(fromVersion: string, toVersion: string, b
   return lines.join('\n');
 }
 
+/**
+ * Generator class for creating and managing API versioning configurations
+ * and middleware code for various frameworks.
+ */
 // Versioning configuration generator class
 export class APIVersioningGenerator {
   private projectPath: string;
@@ -459,6 +526,12 @@ export class APIVersioningGenerator {
     this.framework = framework;
   }
 
+  /**
+   * Generates a complete versioning configuration with defaults.
+   *
+   * @param options - Partial configuration overrides.
+   * @returns A fully populated versioning configuration.
+   */
   // Generate versioning configuration
   generateVersioningConfig(options: Partial<VersioningConfig> = {}): VersioningConfig {
     return {
@@ -483,12 +556,25 @@ export class APIVersioningGenerator {
     };
   }
 
+  /**
+   * Writes the versioning configuration to a JSON file.
+   *
+   * @param outputPath - The file path to write the configuration to.
+   * @param config - The versioning configuration to persist.
+   * @returns A promise that resolves when the file is written.
+   */
   // Write versioning config file
   async writeConfig(outputPath: string, config: VersioningConfig): Promise<void> {
     await fs.ensureDir(path.dirname(outputPath));
     await fs.writeJson(outputPath, config, { spaces: 2 });
   }
 
+  /**
+   * Generates versioning middleware code for the given strategy.
+   *
+   * @param strategy - The versioning strategy to generate middleware for.
+   * @returns Middleware code as a string.
+   */
   // Generate middleware for the framework
   generateVersioningMiddleware(strategy: VersioningStrategy): string {
     const templates: Record<VersioningStrategy, string> = {
@@ -573,6 +659,12 @@ function apiVersionMiddleware(req, res, next) {
 app.use(apiVersionMiddleware);`;
   }
 
+  /**
+   * Generates deprecation and sunset response header code for a deprecated API version.
+   *
+   * @param apiVersion - The API version to generate headers for.
+   * @returns Header-setting code as a string.
+   */
   // Generate deprecation warning headers
   generateDeprecationHeaders(apiVersion: APIVersion): string {
     const lines: string[] = [];
@@ -591,6 +683,11 @@ app.use(apiVersionMiddleware);`;
     return lines.join('\n');
   }
 
+  /**
+   * Returns a list of all frameworks that support versioning templates.
+   *
+   * @returns An array of supported framework identifiers.
+   */
   // Get all supported frameworks for versioning
   getSupportedFrameworks(): string[] {
     return Object.keys({
@@ -606,11 +703,26 @@ app.use(apiVersionMiddleware);`;
   }
 }
 
+/**
+ * Creates an instance of the API versioning generator.
+ *
+ * @param projectPath - The path to the project root.
+ * @param framework - Optional target framework identifier.
+ * @returns A promise resolving to a new APIVersioningGenerator instance.
+ */
 // Factory functions
 export async function createVersioningGenerator(projectPath: string, framework?: string): Promise<APIVersioningGenerator> {
   return new APIVersioningGenerator(projectPath, framework);
 }
 
+/**
+ * Generates a versioning configuration and writes it to a file.
+ *
+ * @param projectPath - The path to the project root.
+ * @param outputPath - The file path to write the configuration to.
+ * @param options - Optional partial configuration overrides.
+ * @returns A promise that resolves when the configuration file is written.
+ */
 export async function generateVersioningConfig(
   projectPath: string,
   outputPath: string,
@@ -621,6 +733,12 @@ export async function generateVersioningConfig(
   await generator.writeConfig(outputPath, config);
 }
 
+/**
+ * Formats a versioning configuration into a human-readable, colorized string for display.
+ *
+ * @param config - The versioning configuration to format.
+ * @returns A formatted string suitable for terminal output.
+ */
 // Format for display
 export function formatVersioningConfig(config: VersioningConfig): string {
   const lines: string[] = [];
@@ -654,6 +772,12 @@ export function formatVersioningConfig(config: VersioningConfig): string {
   return lines.join('\n');
 }
 
+/**
+ * Formats a list of breaking changes into a human-readable, colorized string for display.
+ *
+ * @param changes - The breaking changes to format.
+ * @returns A formatted string suitable for terminal output.
+ */
 export function formatBreakingChanges(changes: BreakingChange[]): string {
   if (changes.length === 0) {
     return chalk.green('\n✓ No breaking changes detected\n');

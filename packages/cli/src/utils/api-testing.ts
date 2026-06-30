@@ -8,6 +8,10 @@
 import chalk from 'chalk';
 
 // Test configuration interfaces
+/**
+ * Top-level configuration for API test suite generation.
+ * Defines the target framework, output location, and which test types to include.
+ */
 export interface APITestConfig {
   framework: string;
   baseUrl?: string;
@@ -19,8 +23,15 @@ export interface APITestConfig {
   includeLoadTests: boolean;
 }
 
+/**
+ * The categories of API tests that can be generated.
+ */
 export type TestType = 'unit' | 'integration' | 'e2e' | 'contract' | 'performance' | 'security';
 
+/**
+ * Describes a single API test case, including the HTTP method, path, expected
+ * status, and optional request/response fixtures.
+ */
 export interface APITestCase {
   name: string;
   method: string;
@@ -34,6 +45,10 @@ export interface APITestCase {
   tags?: string[];
 }
 
+/**
+ * Configuration options for a mock API server, such as the listening port,
+ * host, CORS handling, and optional simulated latency.
+ */
 export interface MockServerConfig {
   port: number;
   host: string;
@@ -42,6 +57,10 @@ export interface MockServerConfig {
   specPath?: string;
 }
 
+/**
+ * Configuration for load testing, defining the target base URL, test duration,
+ * concurrency level, ramp-up period, and the scenarios to run.
+ */
 export interface LoadTestConfig {
   baseUrl: string;
   duration: number; // seconds
@@ -50,6 +69,10 @@ export interface LoadTestConfig {
   scenarios: LoadTestScenario[];
 }
 
+/**
+ * A single load test scenario with an assigned traffic weight and the
+ * sequence of HTTP requests that make up the scenario.
+ */
 export interface LoadTestScenario {
   name: string;
   weight: number; // percentage of traffic
@@ -63,6 +86,10 @@ export interface LoadTestScenario {
 }
 
 // Contract testing configuration
+/**
+ * Configuration for consumer-driven contract testing, identifying the
+ * provider, consumer, pact output directory, and API spec path.
+ */
 export interface ContractTestConfig {
   providerName: string;
   consumerName: string;
@@ -71,6 +98,10 @@ export interface ContractTestConfig {
 }
 
 // Framework testing templates
+/**
+ * Describes the testing setup for a specific framework, including file paths
+ * for each test type, required dependencies, and setup commands.
+ */
 export interface FrameworkTestTemplate {
   framework: string;
   language: string;
@@ -86,6 +117,11 @@ export interface FrameworkTestTemplate {
 }
 
 // Get testing template for a framework
+/**
+ * Returns the testing template for the given framework, if one is registered.
+ * @param framework - The framework identifier (e.g. 'express', 'nestjs').
+ * @returns The matching {@link FrameworkTestTemplate}, or `undefined` if unsupported.
+ */
 export function getTestingTemplate(framework: string): FrameworkTestTemplate | undefined {
   const templates: Record<string, FrameworkTestTemplate> = {
     express: {
@@ -305,6 +341,13 @@ export function getTestingTemplate(framework: string): FrameworkTestTemplate | u
 }
 
 // Generate unit test code
+/**
+ * Generates unit test source code for the given framework, driven by the
+ * provided test cases.
+ * @param framework - The target framework identifier.
+ * @param testCases - The API test cases to render into the unit tests.
+ * @returns The generated unit test code as a string.
+ */
 export function generateUnitTestCode(framework: string, testCases: APITestCase[]): string {
   const template = getTestingTemplate(framework);
   if (!template) return `// No test template found for ${framework}`;
@@ -528,6 +571,13 @@ ${testCases.map(tc => `async fn test_${tc.name.replace(/\s+/g, '_').toLowerCase(
 }
 
 // Generate integration test code
+/**
+ * Generates integration test source code for the given framework, exercising
+ * the provided test cases against the running application.
+ * @param framework - The target framework identifier.
+ * @param testCases - The API test cases to render into the integration tests.
+ * @returns The generated integration test code as a string.
+ */
 export function generateIntegrationTestCode(framework: string, testCases: APITestCase[]): string {
   const template = getTestingTemplate(framework);
   if (!template) return `// No integration test template found for ${framework}`;
@@ -794,6 +844,13 @@ ${testCases.map(tc => `async fn test_${tc.name.replace(/\s+/g, '_').toLowerCase(
 }
 
 // Generate contract test code
+/**
+ * Generates consumer-driven contract test source code using the given
+ * framework's tooling (e.g. Pact).
+ * @param framework - The target framework identifier.
+ * @param config - The contract test configuration describing provider/consumer.
+ * @returns The generated contract test code as a string.
+ */
 export function generateContractTestCode(framework: string, config: ContractTestConfig): string {
   const templates: Record<string, string> = {
     express: `// API Contract Tests for Express using Pact
@@ -1072,6 +1129,13 @@ async fn test_api_contract() {
 }
 
 // Generate mock server code
+/**
+ * Generates mock server source code for the given framework, configured per
+ * the supplied mock server options.
+ * @param framework - The target framework identifier.
+ * @param config - The mock server configuration (port, host, latency, etc.).
+ * @returns The generated mock server code as a string.
+ */
 export function generateMockServerCode(framework: string, config: MockServerConfig): string {
   const templates: Record<string, string> = {
     express: `// Mock Server for Express using MSW
@@ -1332,6 +1396,13 @@ pub async fn start_mock_server() -> MockServer {
 }
 
 // Generate load test code
+/**
+ * Generates load test source code for the given framework, reflecting the
+ * configured duration, concurrency, ramp-up, and scenarios.
+ * @param framework - The target framework identifier.
+ * @param config - The load test configuration.
+ * @returns The generated load test code as a string.
+ */
 export function generateLoadTestCode(framework: string, config: LoadTestConfig): string {
   const templates: Record<string, string> = {
     express: `// Load Tests for Express using Artillery
@@ -1521,6 +1592,13 @@ ${config.scenarios.map(s => `        Scenario::new("${s.name}")
 }
 
 // Generate test configuration file
+/**
+ * Generates the test runner configuration file contents (e.g. Jest config)
+ * appropriate for the given framework and selected test types.
+ * @param framework - The target framework identifier.
+ * @param testTypes - The types of tests to account for in the configuration.
+ * @returns The generated configuration file contents as a string.
+ */
 export function generateTestConfig(framework: string, testTypes: TestType[]): string {
   const config: Record<string, string> = {
     express: `// Jest configuration for API testing
@@ -1642,6 +1720,12 @@ rustflags = ["-C", "link-args=-rdynamic"]
 }
 
 // Format for display
+/**
+ * Formats the API test configuration into a human-readable, colored summary
+ * suitable for console output.
+ * @param config - The API test configuration to format.
+ * @returns A formatted string representation of the configuration.
+ */
 export function formatAPITestConfig(config: APITestConfig): string {
   const lines: string[] = [];
 
@@ -1669,6 +1753,11 @@ export function formatAPITestConfig(config: APITestConfig): string {
 }
 
 // List all supported frameworks
+/**
+ * Lists all frameworks supported by the API testing generator, along with
+ * their language and associated test framework.
+ * @returns An array of framework summary objects.
+ */
 export function listTestingFrameworks(): Array<{ name: string; language: string; testFramework: string }> {
   const frameworks = ['express', 'nestjs', 'fastify', 'fastapi', 'django', 'aspnet-core', 'spring-boot', 'gin', 'rust-axum'];
 

@@ -8,8 +8,17 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Validation types
+/**
+ * Defines the strictness level for request/response validation.
+ * - `strict`: Rejects on any validation failure.
+ * - `lenient`: Allows minor deviations while rejecting critical errors.
+ * - `permissive`: Applies minimal validation constraints.
+ */
 export type ValidationMode = 'strict' | 'lenient' | 'permissive';
 
+/**
+ * Configuration options for validation middleware behavior.
+ */
 export interface ValidationConfig {
   mode: ValidationMode;
   validateRequest: boolean;
@@ -20,16 +29,28 @@ export interface ValidationConfig {
   errorResponses: ErrorResponseConfig;
 }
 
+/**
+ * Signature for a custom validator function that validates a value against a schema.
+ * @param value - The value to validate.
+ * @param schema - The schema to validate against.
+ * @returns A `ValidationResult` or a Promise resolving to one.
+ */
 export interface ValidatorFunction {
   (value: any, schema: any): ValidationResult | Promise<ValidationResult>;
 }
 
+/**
+ * The outcome of a validation check, including validity status and any errors.
+ */
 export interface ValidationResult {
   valid: boolean;
   errors?: ValidationError[];
   value?: any;
 }
 
+/**
+ * Represents a single validation failure for a specific field.
+ */
 export interface ValidationError {
   field: string;
   message: string;
@@ -37,6 +58,9 @@ export interface ValidationError {
   path?: string;
 }
 
+/**
+ * Configuration for how validation errors are formatted in responses.
+ */
 export interface ErrorResponseConfig {
   includeDetails: boolean;
   includeSchema: boolean;
@@ -45,6 +69,10 @@ export interface ErrorResponseConfig {
 }
 
 // Framework-specific validation middleware
+/**
+ * Describes a framework-specific validation middleware template, including
+ * dependencies, imports, code, and usage examples.
+ */
 export interface FrameworkValidationTemplate {
   framework: string;
   language: string;
@@ -56,6 +84,10 @@ export interface FrameworkValidationTemplate {
 }
 
 // Common validation patterns
+/**
+ * Common regex patterns for validating strings such as emails, UUIDs, URLs,
+ * date strings, and ISO 8601 timestamps.
+ */
 export const VALIDATION_PATTERNS = {
   email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -65,6 +97,11 @@ export const VALIDATION_PATTERNS = {
 };
 
 // Built-in validators
+/**
+ * A collection of built-in validator functions covering common constraints
+ * such as required fields, email format, length, numeric range, regex
+ * patterns, and enum membership.
+ */
 export const BUILT_IN_VALIDATORS = {
   required: (value: any) => ({
     valid: value !== null && value !== undefined && value !== '',
@@ -101,6 +138,11 @@ export const BUILT_IN_VALIDATORS = {
 };
 
 // Get validation template for a framework
+/**
+ * Retrieves the validation middleware template for the given framework.
+ * @param framework - The name of the target framework (e.g. `express`, `fastapi`).
+ * @returns The matching `FrameworkValidationTemplate`, or `undefined` if none exists.
+ */
 export function getValidationTemplate(framework: string): FrameworkValidationTemplate | undefined {
   const templates: Record<string, FrameworkValidationTemplate> = {
     express: {
@@ -802,6 +844,15 @@ pub async fn create_user(
 }
 
 // Generate validation middleware for a framework
+/**
+ * Generates validation middleware code for the given framework, annotated with
+ * the provided validation options.
+ * @param framework - The name of the target framework.
+ * @param options - Optional settings controlling validation mode, request/response
+ *   validation, and unknown-property stripping.
+ * @returns The generated middleware code as a string, or `undefined` if no
+ *   template exists for the framework.
+ */
 export function generateValidationMiddleware(
   framework: string,
   options: {
@@ -834,6 +885,10 @@ export function generateValidationMiddleware(
 }
 
 // Validation generator class
+/**
+ * Generates and writes framework-specific validation middleware files into a
+ * project, with optional framework auto-detection.
+ */
 export class ValidationMiddlewareGenerator {
   private projectPath: string;
   private framework?: string;
@@ -844,6 +899,10 @@ export class ValidationMiddlewareGenerator {
   }
 
   // Detect framework from project files
+  /**
+   * Detects the backend framework by inspecting project files for known markers.
+   * @returns A Promise resolving to the detected framework name, defaulting to `express`.
+   */
   async detectFramework(): Promise<string> {
     const frameworkFiles: Record<string, string[]> = {
       'express': ['package.json'],
@@ -870,6 +929,12 @@ export class ValidationMiddlewareGenerator {
   }
 
   // Generate validation middleware file
+  /**
+   * Generates and writes the validation middleware file to the given output path.
+   * @param outputPath - The relative path within the project to write the file to.
+   * @returns A Promise that resolves once the file has been written.
+   * @throws {Error} If no template is found for the detected or specified framework.
+   */
   async generate(outputPath: string): Promise<void> {
     const framework = this.framework || await this.detectFramework();
     const template = getValidationTemplate(framework);
@@ -892,6 +957,11 @@ export class ValidationMiddlewareGenerator {
   }
 
   // Generate package.json install commands
+  /**
+   * Returns the list of dependency install commands for the given framework.
+   * @param framework - The name of the target framework.
+   * @returns An array of dependency strings, or an empty array if no template exists.
+   */
   getInstallCommands(framework: string): string[] {
     const template = getValidationTemplate(framework);
     if (!template) {
@@ -902,17 +972,34 @@ export class ValidationMiddlewareGenerator {
   }
 
   // Get all supported frameworks
+  /**
+   * Returns a list of all framework names for which validation templates are available.
+   * @returns An array of supported framework names.
+   */
   getSupportedFrameworks(): string[] {
     return Object.keys(getValidationTemplate(null) || {});
   }
 }
 
 // Factory functions
+/**
+ * Factory function that creates a `ValidationMiddlewareGenerator` instance for
+ * the given project path and optional framework.
+ * @param projectPath - The absolute path to the target project.
+ * @param framework - Optional framework name to override auto-detection.
+ * @returns A Promise resolving to a new `ValidationMiddlewareGenerator`.
+ */
 export async function createValidationGenerator(projectPath: string, framework?: string): Promise<ValidationMiddlewareGenerator> {
   return new ValidationMiddlewareGenerator(projectPath, framework);
 }
 
 // Format for display
+/**
+ * Formats a `FrameworkValidationTemplate` into a human-readable string with
+ * colorized output for terminal display.
+ * @param template - The validation template to format.
+ * @returns A formatted string suitable for console output.
+ */
 export function formatValidationTemplate(template: FrameworkValidationTemplate): string {
   const lines: string[] = [];
 

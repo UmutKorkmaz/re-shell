@@ -7,7 +7,9 @@
 
 import chalk from 'chalk';
 
-// Gateway type
+/**
+ * Supported API gateway provider types.
+ */
 export type GatewayType =
   | 'kong'
   | 'traefik'
@@ -19,7 +21,10 @@ export type GatewayType =
   | 'express-gateway'
   | 'krakenD';
 
-// Gateway configuration interfaces
+/**
+ * Top-level configuration for an API gateway, including routes, services, and
+ * optional rate limit, CORS, and auth settings.
+ */
 export interface GatewayConfig {
   name: string;
   type: GatewayType;
@@ -30,6 +35,9 @@ export interface GatewayConfig {
   auth?: AuthConfig;
 }
 
+/**
+ * Represents a single route mapping incoming requests to a backend service.
+ */
 export interface GatewayRoute {
   id: string;
   path: string;
@@ -39,6 +47,9 @@ export interface GatewayRoute {
   timeout?: number;
 }
 
+/**
+ * Represents a backend service that the gateway proxies traffic to.
+ */
 export interface GatewayService {
   id: string;
   name: string;
@@ -46,6 +57,9 @@ export interface GatewayService {
   healthCheck?: HealthCheckConfig;
 }
 
+/**
+ * Health check configuration for monitoring service availability.
+ */
 export interface HealthCheckConfig {
   path: string;
   interval: number;
@@ -54,12 +68,18 @@ export interface HealthCheckConfig {
   healthyThreshold: number;
 }
 
+/**
+ * Rate limiting configuration to control request throughput.
+ */
 export interface RateLimitConfig {
   enabled: boolean;
   window: number;
   limit: number;
 }
 
+/**
+ * CORS configuration controlling cross-origin request handling.
+ */
 export interface CORSConfig {
   enabled: boolean;
   origins: string[];
@@ -69,11 +89,20 @@ export interface CORSConfig {
   maxAge: number;
 }
 
+/**
+ * Authentication configuration specifying the auth strategy for the gateway.
+ */
 export interface AuthConfig {
   type: 'none' | 'jwt' | 'oauth2' | 'api-key';
 }
 
-// Get gateway template info
+/**
+ * Returns metadata for a given gateway type, including config format, path,
+ * description, and documentation URL.
+ *
+ * @param type - The gateway type to look up.
+ * @returns The matching gateway template, or undefined if not found.
+ */
 export function getGatewayTemplate(type: GatewayType): GatewayTemplate | undefined {
   const templates: Record<GatewayType, GatewayTemplate> = {
     kong: {
@@ -144,6 +173,9 @@ export function getGatewayTemplate(type: GatewayType): GatewayTemplate | undefin
   return templates[type];
 }
 
+/**
+ * Metadata describing a gateway template, such as format and documentation.
+ */
 export interface GatewayTemplate {
   type: GatewayType;
   format: 'yaml' | 'json' | 'conf';
@@ -152,7 +184,12 @@ export interface GatewayTemplate {
   docsUrl: string;
 }
 
-// Generate Kong Gateway configuration
+/**
+ * Generates a Kong Gateway YAML configuration from the given gateway config.
+ *
+ * @param config - The gateway configuration to render.
+ * @returns The Kong configuration as a YAML string.
+ */
 export function generateKongConfig(config: GatewayConfig): string {
   const lines: string[] = [];
 
@@ -220,7 +257,12 @@ export function generateKongConfig(config: GatewayConfig): string {
   return lines.join('\n');
 }
 
-// Generate Traefik configuration
+/**
+ * Generates a Traefik YAML configuration from the given gateway config.
+ *
+ * @param config - The gateway configuration to render.
+ * @returns The Traefik configuration as a YAML string.
+ */
 export function generateTraefikConfig(config: GatewayConfig): string {
   const lines: string[] = [];
 
@@ -269,7 +311,12 @@ export function generateTraefikConfig(config: GatewayConfig): string {
   return lines.join('\n');
 }
 
-// Generate NGINX configuration
+/**
+ * Generates an NGINX configuration file from the given gateway config.
+ *
+ * @param config - The gateway configuration to render.
+ * @returns The NGINX configuration as a string.
+ */
 export function generateNginxConfig(config: GatewayConfig): string {
   const lines: string[] = [];
 
@@ -331,7 +378,12 @@ export function generateNginxConfig(config: GatewayConfig): string {
   return lines.join('\n');
 }
 
-// Generate Envoy configuration
+/**
+ * Generates an Envoy proxy YAML configuration from the given gateway config.
+ *
+ * @param config - The gateway configuration to render.
+ * @returns The Envoy configuration as a YAML string.
+ */
 export function generateEnvoyConfig(config: GatewayConfig): string {
   const lines: string[] = [];
 
@@ -389,7 +441,12 @@ export function generateEnvoyConfig(config: GatewayConfig): string {
   return lines.join('\n');
 }
 
-// Generate docker-compose for gateway
+/**
+ * Generates a docker-compose configuration for running the given gateway type.
+ *
+ * @param type - The gateway type to generate a compose file for.
+ * @returns The docker-compose configuration as a string.
+ */
 export function generateGatewayDockerCompose(type: GatewayType): string {
   const templates: Record<GatewayType, string> = {
     kong: `version: '3.8'
@@ -490,7 +547,13 @@ networks:
   return templates[type];
 }
 
-// Generate gateway configuration file
+/**
+ * Generates a gateway configuration file for the specified gateway type.
+ *
+ * @param type - The gateway type to generate configuration for.
+ * @param config - The gateway configuration to render.
+ * @returns The generated configuration as a string.
+ */
 export function generateGatewayConfig(type: GatewayType, config: GatewayConfig): string {
   switch (type) {
     case 'kong':
@@ -506,7 +569,11 @@ export function generateGatewayConfig(type: GatewayType, config: GatewayConfig):
   }
 }
 
-// List supported gateway types
+/**
+ * Lists all supported gateway types with their descriptions and docs URLs.
+ *
+ * @returns An array of objects describing each supported gateway type.
+ */
 export function listGatewayTypes(): Array<{ type: GatewayType; description: string; docs: string }> {
   const types: GatewayType[] = [
     'kong',
@@ -530,7 +597,13 @@ export function listGatewayTypes(): Array<{ type: GatewayType; description: stri
   });
 }
 
-// Format for display
+/**
+ * Formats a gateway configuration into a human-readable colored string for
+ * terminal display.
+ *
+ * @param config - The gateway configuration to format.
+ * @returns A formatted string representation of the configuration.
+ */
 export function formatGatewayConfig(config: GatewayConfig): string {
   const lines: string[] = [];
 
