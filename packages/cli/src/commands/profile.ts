@@ -1246,7 +1246,6 @@ export async function exportProfile(profileName: string): Promise<{
   }
 
   const resolved = await resolveProfile(profileName);
-  const inheritedFrom = baseProfile.extends || [];
 
   // Get inheritance chain
   const chain = await getInheritanceChain(profileName, config);

@@ -524,7 +524,6 @@ export async function optimizeCache(
     console.log(chalk.yellow('Optimization Recommendations:\n'));
 
     recommendations.forEach((rec, index) => {
-      const priorityColor = rec.priority === 'high' ? 'red' : 
                           rec.priority === 'medium' ? 'yellow' : 'blue';
       const priorityIcon = rec.priority === 'high' ? '🔴' : 
                           rec.priority === 'medium' ? '🟡' : '🔵';

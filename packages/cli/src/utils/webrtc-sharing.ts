@@ -2,14 +2,6 @@
 import chalk from 'chalk';
 // Generated at: 2026-01-13T12:45:00.000Z
 
-/**
- * Represents the type of signaling server protocol used for WebRTC session negotiation.
- */
-type SignalingServer = 'websocket' | 'socket.io' | 'signalr' | 'grpc';
-
-/**
- * Represents a STUN (Session Traversal Utilities for NAT) server URL.
- */
 type StunServer = string;
 
 /**

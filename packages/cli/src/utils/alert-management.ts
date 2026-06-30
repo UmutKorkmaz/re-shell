@@ -4,7 +4,6 @@
 import chalk from 'chalk';
 type AlertSeverity = 'info' | 'warning' | 'critical' | 'emergency';
 type ChannelType = 'email' | 'slack' | 'pagerduty' | 'sms' | 'webhook';
-type IncidentStatus = 'open' | 'acknowledged' | 'resolved' | 'closed';
 type EscalationAction = 'notify' | 'page' | 'email' | 'call';
 
 interface AlertConfig {

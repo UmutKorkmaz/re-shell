@@ -23,12 +23,6 @@ interface SafetyCheck {
   onFailure: 'abort' | 'warn' | 'continue';
 }
 
-interface PreFlightCheck {
-  healthCheck: boolean;
-  backupCheck: boolean;
-  resourceCheck: boolean;
-  compatibilityCheck: boolean;
-}
 
 interface ClusterManagerConfig {
   projectName: string;
