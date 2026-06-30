@@ -5,6 +5,9 @@ import { configManager, WorkspaceConfig } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the workspace configuration command.
+ */
 export interface WorkspaceConfigCommandOptions {
   show?: boolean;
   init?: boolean;
@@ -21,6 +24,13 @@ export interface WorkspaceConfigCommandOptions {
   spinner?: ProgressSpinner;
 }
 
+/**
+ * Entry point for the `workspace-config` command. Dispatches to the appropriate
+ * subcommand based on the provided options.
+ *
+ * @param options - Options describing the desired workspace configuration operation
+ * @returns Promise that resolves when the operation completes
+ */
 export async function manageWorkspaceConfig(options: WorkspaceConfigCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

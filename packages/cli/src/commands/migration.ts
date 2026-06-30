@@ -4,6 +4,9 @@ import { migrationManager, MigrationResult } from '../utils/migration';
 import { ProgressSpinner } from '../utils/spinner';
 
 
+/**
+ * Options for the `re-shell migration` command.
+ */
 export interface MigrationCommandOptions {
   global?: boolean;
   project?: boolean;
@@ -18,6 +21,15 @@ export interface MigrationCommandOptions {
   spinner?: ProgressSpinner;
 }
 
+/**
+ * Manages configuration migrations between re-shell schema versions.
+ *
+ * Dispatches to the appropriate sub-command based on the provided options
+ * (auto-migrate, status check, history, rollback, interactive, global, or project).
+ *
+ * @param options - Options controlling which migration operation to perform
+ * @returns Promise that resolves when the migration operation is complete
+ */
 export async function manageMigration(options: MigrationCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 

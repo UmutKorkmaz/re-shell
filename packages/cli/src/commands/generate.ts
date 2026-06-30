@@ -3,6 +3,9 @@ import * as path from 'path';
 import chalk from 'chalk';
 import { findMonorepoRoot } from '../utils/monorepo';
 
+/**
+ * Options for configuring code generation
+ */
 interface GenerateOptions {
   spinner?: { text?: string; succeed?: (msg?: string) => void; fail?: (msg?: string) => void; stop?: () => void; start?: (msg?: string) => void };
   verbose?: boolean;
@@ -16,12 +19,22 @@ interface GenerateOptions {
   port?: string;
 }
 
+/**
+ * Template describing the files and dependencies for a generated component
+ */
 interface ComponentTemplate {
   name: string;
   files: { path: string; content: string }[];
   dependencies?: string[];
 }
 
+/**
+ * Generates code (component, hook, service, etc.) in a Re-Shell monorepo workspace
+ *
+ * @param name - Name of the item to generate
+ * @param options - Generation options including type, framework, and workspace
+ * @returns Promise that resolves when code generation is complete
+ */
 export async function generateCode(name: string, options: GenerateOptions = {}) {
   try {
     const monorepoRoot = await findMonorepoRoot(process.cwd());
@@ -53,6 +66,13 @@ export async function generateCode(name: string, options: GenerateOptions = {}) 
   }
 }
 
+/**
+ * Generates a test suite (config, setup, utilities) for the specified workspace
+ *
+ * @param workspace - Target workspace to generate tests for
+ * @param options - Generation options including spinner and verbose output
+ * @returns Promise that resolves when the test suite is generated
+ */
 export async function generateTests(workspace: string, options: GenerateOptions = {}) {
   try {
     const monorepoRoot = await findMonorepoRoot(process.cwd());
@@ -83,6 +103,12 @@ export async function generateTests(workspace: string, options: GenerateOptions 
   }
 }
 
+/**
+ * Generates project documentation including README, API docs, and TypeDoc configuration
+ *
+ * @param options - Generation options including spinner and verbose output
+ * @returns Promise that resolves when documentation generation is complete
+ */
 export async function generateDocumentation(options: GenerateOptions = {}) {
   try {
     const monorepoRoot = await findMonorepoRoot(process.cwd());

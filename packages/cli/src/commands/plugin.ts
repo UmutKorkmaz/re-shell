@@ -15,6 +15,9 @@ import {
 } from '../utils/plugin-installer';
 import { ok, fail } from '../utils/json-output';
 
+/**
+ * Options for the `re-shell plugin` command.
+ */
 interface PluginCommandOptions {
   verbose?: boolean;
   json?: boolean;
@@ -29,6 +32,15 @@ interface PluginCommandOptions {
 }
 
 // Main plugin management function
+/**
+ * Lists all installed plugins managed by the registry.
+ *
+ * Initializes the plugin registry and displays the managed plugins, optionally
+ * emitting JSON output for scripting.
+ *
+ * @param options - Options controlling output format and verbosity
+ * @returns Promise that resolves when the plugin list has been displayed
+ */
 export async function managePlugins(options: PluginCommandOptions = {}): Promise<void> {
   const { verbose = false, json = false } = options;
 
@@ -79,6 +91,12 @@ export async function managePlugins(options: PluginCommandOptions = {}): Promise
 }
 
 // Discover available plugins
+/**
+ * Discovers available plugins from local, npm, and built-in sources.
+ *
+ * @param options - Options controlling discovery sources, timeouts, and output format
+ * @returns Promise that resolves when discovery results have been displayed
+ */
 export async function discoverPlugins(options: PluginCommandOptions = {}): Promise<void> {
   const { 
     verbose = false, 
@@ -149,6 +167,16 @@ export async function discoverPlugins(options: PluginCommandOptions = {}): Promi
 // the @re-shell/* scope); copies it into
 // <workspace>/.re-shell/plugins/<name>; and registers it in plugins.json.
 // Supports --json and --dry-run (resolve + validate, no writes).
+/**
+ * Installs a plugin from a local path, git URL, or npm package identifier.
+ *
+ * Resolves and validates the plugin manifest, copies it into the workspace
+ * plugins directory, and registers it. Supports dry runs for validation only.
+ *
+ * @param pluginIdentifier - Local path, git URL, or npm package name of the plugin
+ * @param options - Options controlling dry-run, force, JSON output, and verbosity
+ * @returns Promise that resolves when the plugin has been installed
+ */
 export async function installPlugin(
   pluginIdentifier: string,
   options: PluginCommandOptions = {}
@@ -210,6 +238,15 @@ export async function installPlugin(
 }
 
 // Uninstall a plugin
+/**
+ * Uninstalls a managed plugin by name.
+ *
+ * Deactivates, unloads, and unregisters the plugin from the registry.
+ *
+ * @param pluginName - Name of the plugin to uninstall
+ * @param options - Options controlling confirmation, verbosity, and force behavior
+ * @returns Promise that resolves when the plugin has been uninstalled
+ */
 export async function uninstallPlugin(
   pluginName: string, 
   options: PluginCommandOptions = {}
@@ -256,6 +293,13 @@ export async function uninstallPlugin(
 }
 
 // Show plugin information
+/**
+ * Displays detailed information about a single managed plugin.
+ *
+ * @param pluginName - Name of the plugin to inspect
+ * @param options - Options controlling JSON output and verbosity
+ * @returns Promise that resolves when the plugin details have been displayed
+ */
 export async function showPluginInfo(
   pluginName: string, 
   options: PluginCommandOptions = {}
@@ -301,6 +345,15 @@ export async function showPluginInfo(
 }
 
 // Enable a plugin
+/**
+ * Enables a plugin by loading, initializing, and activating it.
+ *
+ * Progresses the plugin through its lifecycle states until it is active.
+ *
+ * @param pluginName - Name of the plugin to enable
+ * @param options - Options controlling verbosity of lifecycle output
+ * @returns Promise that resolves when the plugin is active
+ */
 export async function enablePlugin(
   pluginName: string, 
   options: PluginCommandOptions = {}
@@ -351,6 +404,13 @@ export async function enablePlugin(
 }
 
 // Disable a plugin
+/**
+ * Disables an active plugin by deactivating it.
+ *
+ * @param pluginName - Name of the plugin to disable
+ * @param options - Options controlling verbosity
+ * @returns Promise that resolves when the plugin has been deactivated
+ */
 export async function disablePlugin(
   pluginName: string, 
   options: PluginCommandOptions = {}
@@ -391,6 +451,12 @@ export async function disablePlugin(
 }
 
 // Update plugins
+/**
+ * Checks all installed plugins for available updates.
+ *
+ * @param options - Options controlling verbosity
+ * @returns Promise that resolves when the update check is complete
+ */
 export async function updatePlugins(options: PluginCommandOptions = {}): Promise<void> {
   const { verbose = false } = options;
 
@@ -568,6 +634,13 @@ function displayPluginDetails(plugin: ManagedPluginRegistration, verbose: boolea
 }
 
 // Validate plugin compatibility
+/**
+ * Validates plugin compatibility by checking manifest, structure, dependencies, and security.
+ *
+ * @param pluginPath - Filesystem path to the plugin to validate
+ * @param options - Options controlling JSON output and verbosity
+ * @returns Promise that resolves when validation has completed
+ */
 export async function validatePlugin(
   pluginPath: string, 
   options: PluginCommandOptions = {}
@@ -602,6 +675,12 @@ export async function validatePlugin(
 }
 
 // Clear plugin cache
+/**
+ * Clears the plugin discovery cache maintained by the registry.
+ *
+ * @param options - Options controlling verbosity
+ * @returns Promise that resolves when the cache has been cleared
+ */
 export async function clearPluginCache(options: PluginCommandOptions = {}): Promise<void> {
   const { verbose = false } = options;
 
@@ -619,6 +698,12 @@ export async function clearPluginCache(options: PluginCommandOptions = {}): Prom
 }
 
 // Show plugin lifecycle statistics
+/**
+ * Displays plugin lifecycle statistics including state distribution and performance.
+ *
+ * @param options - Options controlling JSON output and verbosity
+ * @returns Promise that resolves when the statistics have been displayed
+ */
 export async function showPluginStats(options: PluginCommandOptions = {}): Promise<void> {
   const { verbose = false, json = false } = options;
 
@@ -679,6 +764,13 @@ export async function showPluginStats(options: PluginCommandOptions = {}): Promi
 }
 
 // Reload a plugin
+/**
+ * Reloads a plugin by unloading and loading it again.
+ *
+ * @param pluginName - Name of the plugin to reload
+ * @param options - Options controlling verbosity
+ * @returns Promise that resolves when the plugin has been reloaded
+ */
 export async function reloadPlugin(
   pluginName: string, 
   options: PluginCommandOptions = {}
@@ -717,6 +809,13 @@ export async function reloadPlugin(
 }
 
 // Show plugin hooks
+/**
+ * Displays registered plugin hooks, optionally filtered to a single plugin.
+ *
+ * @param pluginName - Optional plugin name to filter hooks by
+ * @param options - Options controlling JSON output and verbosity
+ * @returns Promise that resolves when the hooks overview has been displayed
+ */
 export async function showPluginHooks(
   pluginName?: string,
   options: PluginCommandOptions = {}
@@ -807,6 +906,14 @@ export async function showPluginHooks(
 }
 
 // Execute a hook manually
+/**
+ * Manually executes a plugin hook with the given JSON data.
+ *
+ * @param hookType - The type of hook to execute
+ * @param data - JSON string payload passed to the hook handlers
+ * @param options - Options controlling JSON output and verbosity
+ * @returns Promise that resolves when the hook execution result has been displayed
+ */
 export async function executeHook(
   hookType: string,
   data = '{}',
@@ -875,6 +982,12 @@ export async function executeHook(
 }
 
 // List available hook types
+/**
+ * Lists all available plugin hook types grouped by category.
+ *
+ * @param options - Options controlling JSON output
+ * @returns Promise that resolves when the hook types have been displayed
+ */
 export async function listHookTypes(options: PluginCommandOptions = {}): Promise<void> {
   const { json = false } = options;
 

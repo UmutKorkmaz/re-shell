@@ -6,6 +6,9 @@ import { findMonorepoRoot } from '../utils/monorepo';
 import { jsonSuccess, jsonError, enableJsonMode } from '../utils/json-output';
 import { ProgressSpinner } from '../utils/spinner';
 
+/**
+ * Options for configuring the project analysis command
+ */
 interface AnalyzeOptions {
   spinner?: ProgressSpinner;
   verbose?: boolean;
@@ -15,6 +18,9 @@ interface AnalyzeOptions {
   output?: string;
 }
 
+/**
+ * Results of a bundle size analysis for a workspace
+ */
 interface BundleAnalysis {
   workspace: string;
   size: {
@@ -29,6 +35,9 @@ interface BundleAnalysis {
   };
 }
 
+/**
+ * Results of a dependency analysis for a workspace
+ */
 interface DependencyAnalysis {
   workspace: string;
   total: number;
@@ -40,6 +49,9 @@ interface DependencyAnalysis {
   licenses: { license: string; packages: string[] }[];
 }
 
+/**
+ * Results of a performance analysis for a workspace
+ */
 interface PerformanceAnalysis {
   workspace: string;
   buildTime: number;
@@ -52,6 +64,12 @@ interface PerformanceAnalysis {
   suggestions: string[];
 }
 
+/**
+ * Runs project analysis across one or more workspaces in a Re-Shell monorepo
+ *
+ * @param options - Configuration options for the analysis (type, output, workspace, etc.)
+ * @returns Promise that resolves when analysis is complete and results are displayed
+ */
 export async function runProjectAnalysis(options: AnalyzeOptions = {}) {
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {

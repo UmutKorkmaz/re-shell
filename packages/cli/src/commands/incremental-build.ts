@@ -6,6 +6,9 @@ import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 import { IncrementalBuilder, createIncrementalBuilder, BuildResult} from '../utils/incremental-builder';
 
+/**
+ * Options for the incremental build command.
+ */
 export interface IncrementalBuildCommandOptions {
   targets?: string[];
   changedFiles?: string[];
@@ -25,7 +28,13 @@ export interface IncrementalBuildCommandOptions {
   clearCache?: boolean;
 }
 
-// Main command handler for incremental building
+/**
+ * Entry point for the `incremental-build` command. Initializes the incremental
+ * builder and dispatches to the appropriate subcommand handler.
+ *
+ * @param options - Options describing the desired build operation
+ * @returns Promise that resolves when the operation completes
+ */
 export async function manageIncrementalBuild(options: IncrementalBuildCommandOptions = {}): Promise<void> {
   const spinner = new ProgressSpinner({ text: 'Initializing incremental builder...' });
   
@@ -291,7 +300,12 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
-// Register incremental build commands
+/**
+ * Registers the incremental-build command and its subcommands on the given
+ * Commander program.
+ *
+ * @param program - The Commander program to register commands on
+ */
 export function registerIncrementalBuildCommands(program: Command): void {
   const incrementalBuild = program
     .command('incremental-build')

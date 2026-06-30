@@ -6,6 +6,9 @@ import { configBackupManager, RestoreOptions } from '../utils/config-backup';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
 
+/**
+ * Options for the backup management command
+ */
 export interface BackupCommandOptions {
   create?: boolean;
   restore?: string;
@@ -33,6 +36,15 @@ export interface BackupCommandOptions {
   spinner?: ProgressSpinner;
 }
 
+/**
+ * Entry point for managing configuration backups
+ *
+ * Dispatches to the appropriate subcommand based on the provided options
+ * (create, restore, list, delete, export, import, cleanup, stats, interactive).
+ *
+ * @param options - Configuration options specifying which backup operation to perform
+ * @returns Promise that resolves when the backup operation is complete
+ */
 export async function manageBackups(options: BackupCommandOptions = {}): Promise<void> {
   const { spinner} = options;
 
