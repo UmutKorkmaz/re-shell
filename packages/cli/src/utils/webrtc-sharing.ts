@@ -1,7 +1,6 @@
 // Auto-generated WebRTC Sharing Utility
 // Generated at: 2026-01-13T12:45:00.000Z
 
-type SignalingServer = 'websocket' | 'socket.io' | 'signalr' | 'grpc';
 type StunServer = string;
 type TurnServer = string;
 type CodecType = 'vp8' | 'vp9' | 'h264' | 'av1';

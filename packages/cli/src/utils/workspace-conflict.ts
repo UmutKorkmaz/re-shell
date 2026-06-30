@@ -242,7 +242,7 @@ export class WorkspaceConflictManager {
 
     // Check for reserved names
     const reservedNames = ['build', 'test', 'dev', 'prod', 'staging', 'config'];
-    for (const [name, workspace] of Object.entries(definition.workspaces)) {
+    for (const [name, _workspace] of Object.entries(definition.workspaces)) {
       if (reservedNames.includes(name.toLowerCase())) {
         this.conflicts.set(`reserved-${name}`, {
           id: `reserved-${name}`,

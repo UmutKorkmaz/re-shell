@@ -1,7 +1,6 @@
 // Auto-generated Team Coding Sessions Utility
 // Generated at: 2026-01-13T13:25:00.000Z
 
-type SessionRole = 'host' | 'moderator' | 'editor' | 'viewer' | 'guest';
 type ActivityType = 'edit' | 'comment' | 'review' | 'suggestion' | 'breakpoint';
 
 interface PermissionConfig {

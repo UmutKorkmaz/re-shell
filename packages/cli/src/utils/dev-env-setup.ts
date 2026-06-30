@@ -287,7 +287,6 @@ export class DevEnvManager extends EventEmitter {
       }
 
       // Setup port forwarding using docker/podman
-      const args = ['port-forward', container.name, `${allocatedPort}:${containerPort}`];
 
       // For Docker Desktop, we need a different approach
       const dockerArgs = ['run', '-d', '--publish', `${allocatedPort}:${containerPort}`,

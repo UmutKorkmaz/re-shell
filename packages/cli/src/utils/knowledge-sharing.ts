@@ -5,7 +5,6 @@ import chalk from 'chalk';
 
 type DocType = 'guide' | 'tutorial' | 'api-reference' | 'faq' | 'runbook' | 'architecture-decision-record';
 type SearchProvider = 'elasticsearch' | 'algolia' | 'lunrjs' | 'meilisearch' | 'typesense';
-type ContentType = 'markdown' | 'asciidoc' | 'restructuredtext' | 'html' | 'wiki';
 
 interface SearchConfig {
   provider: SearchProvider;

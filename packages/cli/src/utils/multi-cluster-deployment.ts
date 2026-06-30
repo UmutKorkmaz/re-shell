@@ -13,17 +13,6 @@ interface Cluster {
   environment: string;
 }
 
-interface DeploymentStrategy {
-  name: string;
-  primaryCluster: string;
-  secondaryClusters: string[];
-  failoverPolicy: string;
-  healthCheck: {
-    enabled: boolean;
-    interval: number;
-    endpoint: string;
-  };
-}
 
 interface MultiClusterConfig {
   projectName: string;

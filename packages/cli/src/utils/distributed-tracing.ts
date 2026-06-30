@@ -3,7 +3,6 @@
 import chalk from 'chalk';
 
 type TracingBackend = 'jaeger' | 'zipkin' | 'tempo' | 'xray';
-type SamplingStrategy = 'probability' | 'rate-limiting' | 'dynamic';
 type Protocol = 'http' | 'grpc' | 'thrift';
 
 interface TraceConfig {
