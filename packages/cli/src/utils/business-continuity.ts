@@ -5,15 +5,24 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Type Definitions
+/** Severity of impact a disruption has on the business. */
 export type ImpactLevel = 'critical' | 'high' | 'medium' | 'low';
+/** Priority ordering used when recovering business functions. */
 export type RecoveryPriority = 'immediate' | 'urgent' | 'important' | 'routine';
+/** Lifecycle status of a disaster recovery test. */
 export type DRTestStatus = 'pending' | 'in-progress' | 'passed' | 'failed' | 'skipped';
+/** The kind of disaster recovery test being performed. */
 export type DRTestType = 'tabletop' | 'simulation' | 'parallel' | 'full-interruption';
+/** Lifecycle status of a business impact analysis. */
 export type BIAStatus = 'draft' | 'in-review' | 'approved' | 'outdated';
+/** Lifecycle status of a continuity or recovery plan. */
 export type PlanStatus = 'draft' | 'active' | 'testing' | 'deprecated';
+/** Categories used to classify identified risks. */
 export type RiskCategory = 'operational' | 'financial' | 'reputational' | 'regulatory' | 'strategic';
+/** Classification of threats considered during risk assessment. */
 export type ThreatType = 'natural' | 'technological' | 'human' | 'terrorism' | 'pandemic';
 
+/** Root configuration object describing a full business continuity program. */
 export interface BusinessContinuityConfig {
   projectName: string;
   organization: string;
@@ -30,6 +39,7 @@ export interface BusinessContinuityConfig {
   dependencies: ServiceDependency[];
 }
 
+/** Global settings controlling BIA updates, DR testing cadence, and thresholds. */
 export interface BCSettings {
   autoBIAUpdate: boolean;
   biaUpdateFrequency: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
@@ -50,6 +60,7 @@ export interface BCSettings {
   complianceFrameworks: Array<'iso-22301' | 'soc-2' | 'pci-dss' | 'hipaa' | 'custom'>;
 }
 
+/** An organizational unit that owns critical business functions. */
 export interface BusinessUnit {
   id: string;
   name: string;
@@ -65,6 +76,7 @@ export interface BusinessUnit {
   riskTolerance: 'low' | 'medium' | 'high';
 }
 
+/** A business function whose disruption would significantly impact the organization. */
 export interface CriticalFunction {
   id: string;
   name: string;
@@ -103,6 +115,7 @@ export interface CriticalFunction {
   };
 }
 
+/** Result of analyzing the impact of disrupting a critical function over time. */
 export interface BusinessImpactAnalysis {
   id: string;
   functionId: string;
@@ -134,6 +147,7 @@ export interface BusinessImpactAnalysis {
   nextReviewDate: Date;
 }
 
+/** A discrete scenario evaluated within a business impact analysis. */
 export interface ImpactScenario {
   scenario: string;
   duration: string; // e.g., '1-4 hours', '1-2 days', '1+ weeks'
@@ -145,6 +159,7 @@ export interface ImpactScenario {
   mitigation: string;
 }
 
+/** Quantified monetary impact associated with a disruption scenario. */
 export interface FinancialImpact {
   dailyRevenue: number;
   dailyExpenses: number;
@@ -160,6 +175,7 @@ export interface FinancialImpact {
   };
 }
 
+/** Operational consequences (e.g. downtime, SLA breaches) of a disruption. */
 export interface OperationalImpact {
   internalProcesses: string[];
   externalProcesses: string[];
@@ -168,6 +184,7 @@ export interface OperationalImpact {
   workarounds: string[];
 }
 
+/** Impact a disruption has on internal and external stakeholders. */
 export interface StakeholderImpact {
   customers: {
     impact: string;
@@ -191,6 +208,7 @@ export interface StakeholderImpact {
   };
 }
 
+/** Strategy describing how a critical function will be recovered after a disruption. */
 export interface RecoveryStrategy {
   id: string;
   name: string;
@@ -228,6 +246,7 @@ export interface RecoveryStrategy {
   roi: number; // percentage
 }
 
+/** A scheduled milestone within a recovery strategy or plan. */
 export interface Milestone {
   name: string;
   dueDate: Date;
@@ -235,6 +254,7 @@ export interface Milestone {
   completedDate?: Date;
 }
 
+/** A documented disaster recovery plan including sites, teams, and procedures. */
 export interface DisasterRecoveryPlan {
   id: string;
   name: string;
@@ -276,6 +296,7 @@ export interface DisasterRecoveryPlan {
   appendices: string[];
 }
 
+/** A physical or cloud recovery site used by a DR plan. */
 export interface Site {
   name: string;
   type: 'primary' | 'secondary' | 'alternate' | 'mobile';
@@ -287,6 +308,7 @@ export interface Site {
   equipment: string[];
 }
 
+/** A team responsible for executing disaster recovery procedures. */
 export interface DRTeam {
   name: string;
   lead: string;
@@ -296,6 +318,7 @@ export interface DRTeam {
   alternateLead?: string;
 }
 
+/** Contact details for a team member or stakeholder. */
 export interface ContactInfo {
   email: string;
   phone: string;
@@ -303,6 +326,7 @@ export interface ContactInfo {
   slack?: string;
 }
 
+/** A procedure to be executed during disaster recovery. */
 export interface DRProcedure {
   id: string;
   name: string;
@@ -314,6 +338,7 @@ export interface DRProcedure {
   successCriteria: string[];
 }
 
+/** An ordered step within a DR procedure. */
 export interface ProcedureStep {
   stepNumber: number;
   action: string;
@@ -323,6 +348,7 @@ export interface ProcedureStep {
   fallback?: string;
 }
 
+/** Strategy describing how a DR plan will be tested. */
 export interface DRTestStrategy {
   frequency: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
   types: DRTestType[];
@@ -331,6 +357,7 @@ export interface DRTestStrategy {
   reporting: string[];
 }
 
+/** A disaster recovery test execution and its recorded results. */
 export interface DRTest {
   id: string;
   name: string;
@@ -377,6 +404,7 @@ export interface DRTest {
   followUpActions: string[];
 }
 
+/** A scenario exercised during a DR test. */
 export interface TestScenario {
   name: string;
   description: string;
@@ -387,6 +415,7 @@ export interface TestScenario {
   passed?: boolean;
 }
 
+/** An objective that a DR test is intended to validate. */
 export interface TestObjective {
   objective: string;
   successCriteria: string;
@@ -396,6 +425,7 @@ export interface TestObjective {
   passed?: boolean;
 }
 
+/** An issue or defect identified during a DR test. */
 export interface TestIssue {
   severity: 'critical' | 'major' | 'minor';
   description: string;
@@ -406,6 +436,7 @@ export interface TestIssue {
   resolvedAt?: Date;
 }
 
+/** An assessment of risks and threats to business operations. */
 export interface RiskAssessment {
   id: string;
   name: string;
@@ -430,6 +461,7 @@ export interface RiskAssessment {
   monitoredBy: string;
 }
 
+/** A specific threat considered within a risk assessment. */
 export interface Threat {
   id: string;
   type: ThreatType;
@@ -441,6 +473,7 @@ export interface Threat {
   owner: string;
 }
 
+/** An entry in a risk matrix mapping likelihood and impact to a rating. */
 export interface RiskMatrixEntry {
   threat: string;
   likelihood: string;
@@ -449,6 +482,7 @@ export interface RiskMatrixEntry {
   level: 'low' | 'medium' | 'high' | 'critical';
 }
 
+/** Plan governing communications during a disruption or DR event. */
 export interface CommunicationPlan {
   id: string;
   name: string;
@@ -470,6 +504,7 @@ export interface CommunicationPlan {
   escalationMatrix: EscalationLevel[];
 }
 
+/** A stakeholder targeted by a communication plan. */
 export interface CommunicationStakeholder {
   name: string;
   type: 'customer' | 'employee' | 'partner' | 'regulator' | 'public' | 'media';
@@ -479,6 +514,7 @@ export interface CommunicationStakeholder {
   templateId?: string;
 }
 
+/** A reusable message template for incident communications. */
 export interface CommunicationTemplate {
   id: string;
   name: string;
@@ -489,6 +525,7 @@ export interface CommunicationTemplate {
   approvalRequired: boolean;
 }
 
+/** A channel used to deliver incident communications. */
 export interface CommunicationChannel {
   name: string;
   type: 'email' | 'sms' | 'voice' | 'web' | 'slack' | 'teams' | 'pager';
@@ -498,6 +535,7 @@ export interface CommunicationChannel {
   fallback?: string;
 }
 
+/** A level of escalation within a communication plan. */
 export interface EscalationLevel {
   level: number;
   name: string;
@@ -507,6 +545,7 @@ export interface EscalationLevel {
   channels: string[];
 }
 
+/** A dependency between services that affects recovery planning. */
 export interface ServiceDependency {
   id: string;
   source: string; // function ID
@@ -523,6 +562,11 @@ export interface ServiceDependency {
 }
 
 // Manager Class
+/**
+ * Manages the in-memory state of a business continuity program, including
+ * business units, critical functions, BIA records, recovery strategies,
+ * DR plans/tests, risk assessments, communication plans, and dependencies.
+ */
 export class BusinessContinuityManager {
   private businessUnits: Map<string, BusinessUnit> = new Map();
   private criticalFunctions: Map<string, CriticalFunction> = new Map();
@@ -864,6 +908,7 @@ export class BusinessContinuityManager {
   }
 }
 
+/** Aggregate summary metrics derived from a business continuity configuration. */
 export interface BCPSummary {
   totalFunctions: number;
   highRiskFunctions: number;
@@ -881,6 +926,11 @@ export interface BCPSummary {
 }
 
 // Generate Markdown Documentation
+/**
+ * Generates a Markdown document describing the business continuity configuration.
+ * @param config - The business continuity configuration to render.
+ * @returns The Markdown representation of the configuration.
+ */
 export function generateBCPMarkdown(config: BusinessContinuityConfig): string {
   let md = '# Business Continuity and Disaster Recovery Planning\n\n';
   md += '## Overview\n\n';
@@ -961,6 +1011,12 @@ function calculateRTOPSummary(functions: CriticalFunction[]): {
 }
 
 // Generate Terraform Configuration
+/**
+ * Generates Terraform infrastructure-as-code for the configured DR resources.
+ * @param config - The business continuity configuration to provision.
+ * @param provider - The cloud provider to target (aws, azure, or gcp).
+ * @returns The generated Terraform code as a string.
+ */
 export function generateBCPTerraform(config: BusinessContinuityConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   let tf = `# Terraform for Business Continuity - ${provider.toUpperCase()}\n`;
   tf += `# Generated for ${config.projectName}\n\n`;
@@ -1111,6 +1167,11 @@ export function generateBCPTerraform(config: BusinessContinuityConfig, provider:
 }
 
 // Generate TypeScript Manager
+/**
+ * Generates a TypeScript implementation of a BusinessContinuityManager.
+ * @param config - The business continuity configuration to encode.
+ * @returns The generated TypeScript source code as a string.
+ */
 export function generateTypeScriptManager(config: BusinessContinuityConfig): string {
   let code = `// Business Continuity Manager - TypeScript\n`;
   code += `// Generated for ${config.projectName}\n\n`;
@@ -1324,6 +1385,11 @@ export function generateTypeScriptManager(config: BusinessContinuityConfig): str
 }
 
 // Generate Python Manager
+/**
+ * Generates a Python implementation of a BusinessContinuityManager.
+ * @param config - The business continuity configuration to encode.
+ * @returns The generated Python source code as a string.
+ */
 export function generatePythonManager(config: BusinessContinuityConfig): string {
   let code = `# Business Continuity Manager - Python\n`;
   code += `# Generated for ${config.projectName}\n\n`;
@@ -1593,6 +1659,12 @@ export async function writeBCPFiles(
 }
 
 // Display configuration
+/**
+ * Prints a summary of the business continuity configuration and writes generated artifacts.
+ * @param config - The business continuity configuration to display.
+ * @param language - The target language for generated manager code.
+ * @param outputDir - The directory where generated artifacts are written.
+ */
 export function displayBCPConfig(config: BusinessContinuityConfig, language: 'typescript' | 'python', outputDir: string): void {
   console.log(chalk.cyan('\n✨ Business Continuity and Disaster Recovery Planning'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -1635,6 +1707,10 @@ export function displayBCPConfig(config: BusinessContinuityConfig, language: 'ty
 }
 
 // Create example configuration
+/**
+ * Constructs a sample business continuity configuration for demos and testing.
+ * @returns A fully populated example BusinessContinuityConfig.
+ */
 export function createExampleBCPConfig(): BusinessContinuityConfig {
   return {
     projectName: 'my-bcp',

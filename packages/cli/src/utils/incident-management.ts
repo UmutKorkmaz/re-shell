@@ -4,16 +4,26 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/** Union of supported security incident types. */
 export type IncidentType = 'malware' | 'phishing' | 'data-breach' | 'ddos' | 'insider-threat' | 'ransomware' | 'social-engineering' | 'zero-day' | 'misconfiguration' | 'custom';
+/** Severity levels for an incident, ordered from most to least severe. */
 export type IncidentSeverity = 'critical' | 'high' | 'medium' | 'low';
+/** Lifecycle status values for an incident. */
 export type IncidentStatus = 'open' | 'investigating' | 'containing' | 'eradication' | 'recovery' | 'closed' | 'false-positive';
+/** Phases that an incident moves through during its lifecycle. */
 export type IncidentPhase = 'identification' | 'triage' | 'containment' | 'investigation' | 'eradication' | 'recovery' | 'post-incident' | 'closed';
+/** Priority levels from p1 (highest) to p5 (lowest). */
 export type Priority = 'p1' | 'p2' | 'p3' | 'p4' | 'p5';
+/** Status values for an investigation or investigation task. */
 export type InvestigationStatus = 'pending' | 'in-progress' | 'completed' | 'blocked' | 'skipped';
+/** Categories of forensic artifacts that can be collected. */
 export type ArtifactType = 'log' | 'screenshot' | 'memory-dump' | 'network-capture' | 'disk-image' | 'file' | 'registry' | 'process-list' | 'email' | 'chat' | 'custom';
+/** Categories of evidence that may be associated with an incident. */
 export type EvidenceType = 'digital' | 'physical' | 'testimony' | 'documentation' | 'custom';
+/** Lifecycle status values for an incident playbook. */
 export type PlaybookStatus = 'draft' | 'active' | 'deprecated' | 'archived';
 
+/** Root configuration object for the incident management system. */
 export interface IncidentManagementConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -28,6 +38,7 @@ export interface IncidentManagementConfig {
   integrations: IncidentIntegration[];
 }
 
+/** Global settings governing triage, containment, and evidence handling behavior. */
 export interface ManagementSettings {
   autoTriage: boolean;
   autoContainment: boolean;
@@ -49,6 +60,7 @@ export interface ManagementSettings {
   postmortemTemplate?: string;
 }
 
+/** A named escalation rule with conditions and resulting actions. */
 export interface EscalationRule {
   id: string;
   name: string;
@@ -58,18 +70,21 @@ export interface EscalationRule {
   notifyChannels: string[];
 }
 
+/** A single condition used to determine when an escalation rule fires. */
 export interface EscalationCondition {
   field: 'severity' | 'priority' | 'age' | 'affectedUsers' | 'dataLoss';
   operator: 'equals' | 'greater-than' | 'less-than' | 'contains';
   value: any;
 }
 
+/** An action performed when an escalation rule is triggered. */
 export interface EscalationAction {
   type: 'notify' | 'escalate' | 'auto-remediate' | 'declare-incident';
   target: string;
   message?: string;
 }
 
+/** Represents a single security incident and all associated tracking data. */
 export interface Incident {
   id: string;
   title: string;
@@ -103,6 +118,7 @@ export interface Incident {
   };
 }
 
+/** Describes an asset affected by an incident and its compromise state. */
 export interface AffectedAssetIncident {
   id: string;
   name: string;
@@ -114,6 +130,7 @@ export interface AffectedAssetIncident {
   evidenceCollected: number;
 }
 
+/** An indicator of compromise (IOC) associated with an incident. */
 export interface IncidentIndicator {
   id: string;
   type: 'ip' | 'domain' | 'url' | 'hash' | 'email' | 'file' | 'certificate' | 'process' | 'registry' | 'custom';
@@ -126,6 +143,7 @@ export interface IncidentIndicator {
   iocType?: 'file-hash' | 'ip-address' | 'domain-name' | 'url' | 'email-address';
 }
 
+/** A single entry in the audit timeline of an incident. */
 export interface IncidentTimelineEntry {
   id: string;
   timestamp: Date;
@@ -137,6 +155,7 @@ export interface IncidentTimelineEntry {
   automated: boolean;
 }
 
+/** A reusable playbook defining the response procedure for incident types. */
 export interface IncidentPlaybook {
   id: string;
   name: string;
@@ -158,6 +177,7 @@ export interface IncidentPlaybook {
   variables: PlaybookVariable[];
 }
 
+/** An ordered phase within an incident playbook. */
 export interface PlaybookPhase {
   id: string;
   name: string;
@@ -168,6 +188,7 @@ export interface PlaybookPhase {
   dependencies: string[];
 }
 
+/** A discrete step executed within a playbook phase. */
 export interface PlaybookStep {
   id: string;
   order: number;
@@ -184,6 +205,7 @@ export interface PlaybookStep {
   dependencies: string[];
 }
 
+/** A configurable variable accepted by a playbook. */
 export interface PlaybookVariable {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
@@ -193,6 +215,7 @@ export interface PlaybookVariable {
   options?: any[];
 }
 
+/** Represents an investigation into one or more incidents. */
 export interface Investigation {
   id: string;
   incidentId: string;
@@ -214,6 +237,7 @@ export interface Investigation {
   tools: Tool[];
 }
 
+/** A single task within an investigation. */
 export interface InvestigationTask {
   id: string;
   name: string;
@@ -229,6 +253,7 @@ export interface InvestigationTask {
   findings: string[];
 }
 
+/** A finding produced during an investigation. */
 export interface InvestigationFinding {
   id: string;
   category: string;
@@ -241,6 +266,7 @@ export interface InvestigationFinding {
   verified: boolean;
 }
 
+/** A hypothesis tested during an investigation. */
 export interface Hypothesis {
   id: string;
   description: string;
@@ -251,6 +277,7 @@ export interface Hypothesis {
   testedAt?: Date;
 }
 
+/** Describes a forensic or investigative tool used during an investigation. */
 export interface Tool {
   name: string;
   version: string;
@@ -262,6 +289,7 @@ export interface Tool {
   executedBy: string;
 }
 
+/** A collected forensic artifact with chain-of-custody tracking. */
 export interface ForensicArtifact {
   id: string;
   incidentId: string;
@@ -281,6 +309,7 @@ export interface ForensicArtifact {
   accessLog: AccessLog[];
 }
 
+/** A single entry recording custody of an artifact or piece of evidence. */
 export interface ChainOfCustodyEntry {
   timestamp: Date;
   action: 'collected' | 'transferred' | 'accessed' | 'modified' | 'disposed';
@@ -290,6 +319,7 @@ export interface ChainOfCustodyEntry {
   signature?: string;
 }
 
+/** An entry in an artifact's access log. */
 export interface AccessLog {
   timestamp: Date;
   user: string;
@@ -298,6 +328,7 @@ export interface AccessLog {
   authorized: boolean;
 }
 
+/** Represents a piece of evidence associated with an incident. */
 export interface Evidence {
   id: string;
   incidentId: string;
@@ -319,6 +350,7 @@ export interface Evidence {
   tags: string[];
 }
 
+/** A communication (notification, update, escalation, or report) about an incident. */
 export interface IncidentCommunication {
   id: string;
   incidentId: string;
@@ -335,12 +367,14 @@ export interface IncidentCommunication {
   responses: CommunicationResponse[];
 }
 
+/** A response to an incident communication. */
 export interface CommunicationResponse {
   user: string;
   response: string;
   timestamp: Date;
 }
 
+/** Aggregated analytics for incidents over a reporting period. */
 export interface IncidentAnalytics {
   id: string;
   period: string;
@@ -362,6 +396,7 @@ export interface IncidentAnalytics {
   teamPerformance: TeamPerformance[];
 }
 
+/** Aggregated metrics for incidents of a given type. */
 export interface IncidentTypeData {
   type: IncidentType;
   count: number;
@@ -369,6 +404,7 @@ export interface IncidentTypeData {
   avgCost: number;
 }
 
+/** A single data point in an incident trend series. */
 export interface AnalyticsTrend {
   date: Date;
   count: number;
@@ -376,12 +412,14 @@ export interface AnalyticsTrend {
   type: IncidentType;
 }
 
+/** Aggregated statistics for a root cause category. */
 export interface RootCauseData {
   cause: string;
   count: number;
   percentage: number;
 }
 
+/** Performance metrics for a response team. */
 export interface TeamPerformance {
   team: string;
   incidents: number;
@@ -391,6 +429,7 @@ export interface TeamPerformance {
   satisfaction: number; // 0-10
 }
 
+/** Configuration for an external integration used by the incident management system. */
 export interface IncidentIntegration {
   id: string;
   name: string;
@@ -406,6 +445,11 @@ export interface IncidentIntegration {
 }
 
 // Markdown Generation
+/**
+ * Generates a Markdown documentation string summarizing the incident management configuration.
+ * @param config - The incident management configuration to document.
+ * @returns A Markdown string describing incidents, playbooks, investigations, and other state.
+ */
 export function generateIncidentManagementMarkdown(config: IncidentManagementConfig): string {
   return `# Security Incident Management and Forensics
 
@@ -502,6 +546,12 @@ ${investigation.conclusions.map(c => `- ${c}`).join('\n')}
 }
 
 // Terraform Generation
+/**
+ * Generates Terraform configuration for the specified cloud provider.
+ * @param config - The incident management configuration to provision resources for.
+ * @param provider - The target cloud provider.
+ * @returns A Terraform HCL string for the given provider.
+ */
 export function generateIncidentManagementTerraform(config: IncidentManagementConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   if (provider === 'aws') {
     return `# AWS Incident Management
@@ -661,6 +711,11 @@ resource "google_cloudfunctions_function" "incident_automation" {
 }
 
 // TypeScript Manager Generation
+/**
+ * Generates TypeScript source for an incident management manager class.
+ * @param config - The incident management configuration driving the generated manager.
+ * @returns A TypeScript source string implementing the manager.
+ */
 export function generateIncidentManagerTypeScript(config: IncidentManagementConfig): string {
   return `// Auto-generated Incident Management Manager
 // Generated at: ${new Date().toISOString()}
@@ -763,6 +818,11 @@ export { IncidentManagementManager };
 }
 
 // Python Manager Generation
+/**
+ * Generates Python source for an incident management manager class.
+ * @param config - The incident management configuration driving the generated manager.
+ * @returns A Python source string implementing the manager.
+ */
 export function generateIncidentManagerPython(config: IncidentManagementConfig): string {
   return `# Auto-generated Incident Management Manager
 # Generated at: ${new Date().toISOString()}
@@ -870,6 +930,13 @@ class IncidentManagementManager:
 }
 
 // Write Files
+/**
+ * Writes incident management documentation, Terraform, and manager source files to disk.
+ * @param config - The incident management configuration to materialize.
+ * @param outputDir - Directory to write generated files into (created if missing).
+ * @param language - Target language for the generated manager code.
+ * @returns Resolves when all files have been written.
+ */
 export async function writeIncidentManagementFiles(
   config: IncidentManagementConfig,
   outputDir: string,
@@ -932,6 +999,10 @@ export async function writeIncidentManagementFiles(
   );
 }
 
+/**
+ * Prints a human-readable summary of the incident management configuration to the console.
+ * @param config - The incident management configuration to display.
+ */
 export function displayIncidentManagementConfig(config: IncidentManagementConfig): void {
   console.log(chalk.cyan('🔍 Security Incident Management and Forensics'));
   console.log(chalk.gray('─'.repeat(60)));
