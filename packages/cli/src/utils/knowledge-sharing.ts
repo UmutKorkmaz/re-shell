@@ -14,11 +14,6 @@ type DocType = 'guide' | 'tutorial' | 'api-reference' | 'faq' | 'runbook' | 'arc
 type SearchProvider = 'elasticsearch' | 'algolia' | 'lunrjs' | 'meilisearch' | 'typesense';
 
 /**
- * Supported source content formats for documents.
- */
-type ContentType = 'markdown' | 'asciidoc' | 'restructuredtext' | 'html' | 'wiki';
-
-/**
  * Configuration options for the document search subsystem.
  */
 interface SearchConfig {

@@ -685,7 +685,7 @@ function selectInjectionPattern(
   }
 
   // Language fallback
-  for (const [key, pattern] of Object.entries(INJECTION_PATTERNS)) {
+  for (const [_key, pattern] of Object.entries(INJECTION_PATTERNS)) {
     if (pattern.language === language) {
       return pattern;
     }

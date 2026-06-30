@@ -595,12 +595,6 @@ async function checkSensitiveFiles(workspacePath: string): Promise<string[]> {
 async function scanForSecrets(workspacePath: string): Promise<string[]> {
   // Basic secret pattern detection
   const secretPatterns: string[] = [];
-  const patterns = [
-    /api[_-]?key/i,
-    /secret[_-]?key/i,
-    /password/i,
-    /token/i
-  ];
   
   try {
     const srcPath = path.join(workspacePath, 'src');

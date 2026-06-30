@@ -52,23 +52,6 @@ interface LimitRange {
   }>;
 }
 
-interface NetworkPolicy {
-  name: string;
-  namespace: string;
-  podSelector: Record<string, string>;
-  policyTypes: Array<'Ingress' | 'Egress'>;
-  ingress?: Array<{
-    from: Array<{
-      namespaceSelector?: Record<string, string>;
-      podSelector?: Record<string, string>;
-    }>;
-  }>;
-  egress?: Array<{
-    to: Array<{
-      namespaceSelector?: Record<string, string>;
-    }>;
-  }>;
-}
 
 interface TenantConfig {
   projectName: string;

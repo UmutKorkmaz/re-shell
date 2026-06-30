@@ -19,11 +19,6 @@ type AutomationTrigger = 'code-change' | 'commit' | 'schedule' | 'manual' | 'api
 type AIAssistance = 'summarization' | 'generation' | 'translation' | 'enhancement' | 'formatting';
 
 /**
- * Available export formats for generated documentation artifacts.
- */
-type ExportFormat = 'markdown' | 'html' | 'pdf' | 'json' | 'openapi';
-
-/**
  * Represents a reusable documentation template with optional variables.
  */
 interface DocumentationTemplate {

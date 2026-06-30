@@ -87,7 +87,8 @@ async function initializeWorkspaceConfig(
   // Get project and global config for defaults
   const mergedConfig = await configManager.getMergedConfig();
   
-  const config = await configManager.createWorkspaceConfig(
+  // The call persists the workspace config; the returned object is unused here.
+  await configManager.createWorkspaceConfig(
     workspaceName,
     workspaceType,
     {
@@ -115,6 +116,7 @@ async function initializeWorkspaceConfig(
     },
     workspacePath
   );
+  
   
   if (spinner) {
     spinner.succeed(chalk.green('Workspace configuration initialized!'));

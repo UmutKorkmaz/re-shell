@@ -345,7 +345,6 @@ export function generateVSCodeLaunchConfig(project: ProjectDebugInfo): VSCodeLau
 
   // Ruby / Rails configurations
   if (language === 'ruby' || framework === 'rails') {
-    const scriptPath = entryPoint || 'bin/rails';
 
     configs.push({
       ...baseConfig,

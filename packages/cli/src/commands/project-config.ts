@@ -77,7 +77,8 @@ async function initializeProjectConfig(options: ProjectConfigCommandOptions, spi
   // Get global config for defaults
   const globalConfig = await configManager.loadGlobalConfig();
   
-  const config = await configManager.createProjectConfig(
+  // The call persists the project config; the returned object is unused here.
+  await configManager.createProjectConfig(
     projectName,
     {
       type: 'monorepo',
@@ -91,6 +92,7 @@ async function initializeProjectConfig(options: ProjectConfigCommandOptions, spi
       }
     }
   );
+  
   
   if (spinner) {
     spinner.succeed(chalk.green('Project configuration initialized!'));

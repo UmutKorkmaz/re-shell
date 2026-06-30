@@ -442,7 +442,7 @@ export class WorkspaceDependencyGraph {
     }
 
     // Calculate in-degrees
-    for (const [from, edges] of this.edges) {
+    for (const [_from, edges] of this.edges) {
       for (const edge of edges) {
         inDegree.set(edge.to, (inDegree.get(edge.to) || 0) + 1);
       }
@@ -719,7 +719,7 @@ export class WorkspaceDependencyGraph {
 
     const edges: Array<{ from: string; to: string; label: string; color: string }> = [];
     
-    for (const [from, edgeList] of this.edges) {
+    for (const [_from, edgeList] of this.edges) {
       for (const edge of edgeList) {
         const color = this.getEdgeColor(edge.type);
         edges.push({

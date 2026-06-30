@@ -63,21 +63,6 @@ interface DocumentState {
   locks: { [key: string]: string };
 }
 
-/**
- * A single edit operation applied to the document.
- */
-interface Operation {
-  /** The kind of edit operation being performed. */
-  type: 'insert' | 'delete' | 'retain';
-  /** The zero-based character offset where the operation applies. */
-  position: number;
-  /** Text content to insert (required when `type` is `'insert'`). */
-  content?: string;
-  /** Number of characters affected (required for `'delete'` and `'retain'`). */
-  length?: number;
-  /** Optional attribute overrides applied to the affected range. */
-  attributes?: { [key: string]: any };
-}
 
 /**
  * Toggles for optional collaboration features.
