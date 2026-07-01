@@ -7,10 +7,10 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
-// Data formats
+/** Supported data formats for type conversion. */
 export type DataFormat = 'json' | 'protobuf' | 'avro' | 'msgpack' | 'xml' | 'yaml' | 'csv';
 
-// Type mappings between formats
+/** Type mapping between different data formats. */
 export interface TypeMapping {
   jsonType: string;
   protobufType: string;
@@ -21,7 +21,7 @@ export interface TypeMapping {
   csvType: string;
 }
 
-// Common type mappings
+/** Common type mappings for standard data types across all supported formats. */
 export const TYPE_MAPPINGS: Record<string, TypeMapping> = {
   string: {
     jsonType: 'string',
@@ -133,7 +133,7 @@ export const TYPE_MAPPINGS: Record<string, TypeMapping> = {
   },
 };
 
-// Schema definition
+/** Schema definition for a data structure to be converted. */
 export interface SchemaDefinition {
   name: string;
   namespace?: string;
@@ -142,6 +142,7 @@ export interface SchemaDefinition {
   doc?: string;
 }
 
+/** Definition of a single field within a schema. */
 export interface FieldDefinition {
   name: string;
   type: string;
@@ -150,7 +151,7 @@ export interface FieldDefinition {
   doc?: string;
 }
 
-// Conversion result
+/** Result of a data format conversion operation. */
 export interface ConversionResult {
   success: boolean;
   data: any;
@@ -158,7 +159,7 @@ export interface ConversionResult {
   errors?: string[];
 }
 
-// Converter configuration
+/** Configuration options for the data type converter. */
 export interface ConverterConfig {
   sourceFormat: DataFormat;
   targetFormat: DataFormat;
@@ -168,7 +169,12 @@ export interface ConverterConfig {
   dateAsTimestamp: boolean;
 }
 
-// Generate converter config
+/**
+ * Generate a converter configuration for the specified source and target formats.
+ * @param sourceFormat - The data format to convert from.
+ * @param targetFormat - The data format to convert to.
+ * @returns A `ConverterConfig` with default options.
+ */
 export async function generateConverterConfig(
   sourceFormat: DataFormat,
   targetFormat: DataFormat
@@ -183,7 +189,11 @@ export async function generateConverterConfig(
   };
 }
 
-// Generate TypeScript implementation
+/**
+ * Generate a TypeScript implementation of the data type converter.
+ * @param config - The converter configuration.
+ * @returns An object containing generated files and their dependencies.
+ */
 export async function generateTypeScriptConverter(
   config: ConverterConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -563,7 +573,11 @@ if (require.main === module) {
   return { files, dependencies };
 }
 
-// Generate Python implementation
+/**
+ * Generate a Python implementation of the data type converter.
+ * @param config - The converter configuration.
+ * @returns An object containing generated files and their dependencies.
+ */
 export async function generatePythonConverter(
   config: ConverterConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -680,7 +694,11 @@ if __name__ == '__main__':
   return { files, dependencies };
 }
 
-// Generate Go implementation
+/**
+ * Generate a Go implementation of the data type converter.
+ * @param config - The converter configuration.
+ * @returns An object containing generated files and their dependencies.
+ */
 export async function generateGoConverter(
   config: ConverterConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -791,7 +809,14 @@ func main() {
   return { files, dependencies };
 }
 
-// Write generated files
+/**
+ * Write generated converter files to the specified output directory.
+ * @param serviceName - The name of the service.
+ * @param integration - The integration object containing files to write.
+ * @param outputDir - The directory to write files to.
+ * @param language - The target programming language.
+ * @throws {Error} If file system operations fail.
+ */
 export async function writeConverterFiles(
   serviceName: string,
   integration: any,
@@ -813,7 +838,10 @@ export async function writeConverterFiles(
   await fs.writeFile(path.join(outputDir, 'BUILD.md'), buildContent);
 }
 
-// Display configuration
+/**
+ * Display the converter configuration in a human-readable format.
+ * @param config - The converter configuration to display.
+ */
 export async function displayConverterConfig(config: ConverterConfig): Promise<void> {
   console.log(chalk.bold.blue('\n🔄 Data Type Converter'));
   console.log(chalk.gray('─'.repeat(50)));

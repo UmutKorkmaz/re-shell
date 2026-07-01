@@ -7,7 +7,9 @@
 
 import chalk from 'chalk';
 
-// Gateway type
+/**
+ * Supported API gateway backend types.
+ */
 export type GatewayType =
   | 'kong'
   | 'traefik'
@@ -19,7 +21,9 @@ export type GatewayType =
   | 'express-gateway'
   | 'krakenD';
 
-// Gateway configuration interfaces
+/**
+ * Top-level API gateway configuration containing routes, services, and optional policies.
+ */
 export interface GatewayConfig {
   name: string;
   type: GatewayType;
@@ -30,6 +34,9 @@ export interface GatewayConfig {
   auth?: AuthConfig;
 }
 
+/**
+ * A route mapping a path and HTTP method(s) to a backend service through the gateway.
+ */
 export interface GatewayRoute {
   id: string;
   path: string;
@@ -39,6 +46,9 @@ export interface GatewayRoute {
   timeout?: number;
 }
 
+/**
+ * A backend service reachable through the gateway, with an optional health check.
+ */
 export interface GatewayService {
   id: string;
   name: string;
@@ -46,6 +56,9 @@ export interface GatewayService {
   healthCheck?: HealthCheckConfig;
 }
 
+/**
+ * Configuration for periodic health checks against a gateway service.
+ */
 export interface HealthCheckConfig {
   path: string;
   interval: number;
@@ -54,12 +67,18 @@ export interface HealthCheckConfig {
   healthyThreshold: number;
 }
 
+/**
+ * Rate limiting policy applied to gateway traffic.
+ */
 export interface RateLimitConfig {
   enabled: boolean;
   window: number;
   limit: number;
 }
 
+/**
+ * CORS policy configuration for the gateway.
+ */
 export interface CORSConfig {
   enabled: boolean;
   origins: string[];
@@ -69,11 +88,19 @@ export interface CORSConfig {
   maxAge: number;
 }
 
+/**
+ * Authentication strategy configuration for the gateway.
+ */
 export interface AuthConfig {
   type: 'none' | 'jwt' | 'oauth2' | 'api-key';
 }
 
-// Get gateway template info
+/**
+ * Retrieves template metadata (format, config path, docs URL) for the given gateway type.
+ *
+ * @param type - The gateway implementation type.
+ * @returns The matching {@link GatewayTemplate}, or `undefined` if not found.
+ */
 export function getGatewayTemplate(type: GatewayType): GatewayTemplate | undefined {
   const templates: Record<GatewayType, GatewayTemplate> = {
     kong: {
@@ -144,6 +171,9 @@ export function getGatewayTemplate(type: GatewayType): GatewayTemplate | undefin
   return templates[type];
 }
 
+/**
+ * Metadata describing a gateway template, including file format and documentation references.
+ */
 export interface GatewayTemplate {
   type: GatewayType;
   format: 'yaml' | 'json' | 'conf';
@@ -152,7 +182,12 @@ export interface GatewayTemplate {
   docsUrl: string;
 }
 
-// Generate Kong Gateway configuration
+/**
+ * Generates a Kong Gateway configuration (YAML) from the provided gateway config.
+ *
+ * @param config - The gateway configuration containing routes, services, and policies.
+ * @returns A Kong-compatible YAML configuration string.
+ */
 export function generateKongConfig(config: GatewayConfig): string {
   const lines: string[] = [];
 
@@ -220,7 +255,13 @@ export function generateKongConfig(config: GatewayConfig): string {
   return lines.join('\n');
 }
 
-// Generate Traefik configuration
+/**
+ * Generates a Traefik configuration (YAML) including entry points, routers, and services.
+ *
+ * @param config - The gateway configuration containing routes and services.
+ * @returns A Traefik-compatible YAML configuration string.
+ * @throws When a service URL is invalid and cannot be parsed by the URL constructor.
+ */
 export function generateTraefikConfig(config: GatewayConfig): string {
   const lines: string[] = [];
 
@@ -269,7 +310,13 @@ export function generateTraefikConfig(config: GatewayConfig): string {
   return lines.join('\n');
 }
 
-// Generate NGINX configuration
+/**
+ * Generates an NGINX configuration file with upstream services and reverse proxy routes.
+ *
+ * @param config - The gateway configuration containing routes, services, and optional CORS.
+ * @returns An NGINX-compatible configuration string.
+ * @throws When a service URL is invalid and cannot be parsed by the URL constructor.
+ */
 export function generateNginxConfig(config: GatewayConfig): string {
   const lines: string[] = [];
 
@@ -331,7 +378,13 @@ export function generateNginxConfig(config: GatewayConfig): string {
   return lines.join('\n');
 }
 
-// Generate Envoy configuration
+/**
+ * Generates an Envoy proxy configuration (YAML) with listeners, routes, and clusters.
+ *
+ * @param config - The gateway configuration containing routes and services.
+ * @returns An Envoy-compatible YAML configuration string.
+ * @throws When a service URL is invalid and cannot be parsed by the URL constructor.
+ */
 export function generateEnvoyConfig(config: GatewayConfig): string {
   const lines: string[] = [];
 
@@ -389,7 +442,12 @@ export function generateEnvoyConfig(config: GatewayConfig): string {
   return lines.join('\n');
 }
 
-// Generate docker-compose for gateway
+/**
+ * Generates a docker-compose configuration string for the specified gateway type.
+ *
+ * @param type - The gateway implementation type.
+ * @returns A docker-compose YAML string tailored for the gateway type.
+ */
 export function generateGatewayDockerCompose(type: GatewayType): string {
   const templates: Record<GatewayType, string> = {
     kong: `version: '3.8'
@@ -490,7 +548,13 @@ networks:
   return templates[type];
 }
 
-// Generate gateway configuration file
+/**
+ * Dispatches to the appropriate generator function based on gateway type.
+ *
+ * @param type - The gateway implementation type (e.g. kong, traefik, nginx, envoy).
+ * @param config - The gateway configuration containing routes and services.
+ * @returns A gateway-specific configuration string for the given type.
+ */
 export function generateGatewayConfig(type: GatewayType, config: GatewayConfig): string {
   switch (type) {
     case 'kong':
@@ -506,7 +570,11 @@ export function generateGatewayConfig(type: GatewayType, config: GatewayConfig):
   }
 }
 
-// List supported gateway types
+/**
+ * Lists all supported gateway types with their descriptions and documentation URLs.
+ *
+ * @returns An array of objects containing the gateway type, description, and docs URL.
+ */
 export function listGatewayTypes(): Array<{ type: GatewayType; description: string; docs: string }> {
   const types: GatewayType[] = [
     'kong',
@@ -530,7 +598,12 @@ export function listGatewayTypes(): Array<{ type: GatewayType; description: stri
   });
 }
 
-// Format for display
+/**
+ * Formats a gateway configuration into a human-readable, colorized display string.
+ *
+ * @param config - The gateway configuration to format.
+ * @returns A styled string suitable for terminal output.
+ */
 export function formatGatewayConfig(config: GatewayConfig): string {
   const lines: string[] = [];
 
