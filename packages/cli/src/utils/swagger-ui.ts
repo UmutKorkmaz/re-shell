@@ -7,7 +7,9 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
-// Swagger UI configuration
+/**
+ * Configuration options for the Swagger UI page, including branding, services, and display settings.
+ */
 export interface SwaggerUIConfig {
   title: string;
   description?: string;
@@ -27,6 +29,9 @@ export interface SwaggerUIConfig {
   syntaxHighlightTheme?: 'agate' | 'arta' | 'monokai' | 'nord' | 'obsidian' | 'tomorrow-night';
 }
 
+/**
+ * Represents a single API service entry displayed in the Swagger UI.
+ */
 export interface SwaggerUIService {
   name: string;
   url?: string;
@@ -36,7 +41,12 @@ export interface SwaggerUIService {
   baseUrl?: string;
 }
 
-// Generate HTML for Swagger UI with custom branding
+/**
+ * Generates the full HTML document for the Swagger UI page with custom branding and multi-service support.
+ *
+ * @param config - The Swagger UI configuration including services, branding, and display options.
+ * @returns A complete HTML string ready to be written to a file.
+ */
 export function generateSwaggerUIHTML(config: SwaggerUIConfig): string {
   const services = config.services.map((s, i) => ({
     name: s.name,
@@ -456,7 +466,9 @@ export function generateSwaggerUIHTML(config: SwaggerUIConfig): string {
 </html>`;
 }
 
-// Swagger UI Generator Class
+/**
+ * Generator class that produces Swagger UI files on disk from a configuration.
+ */
 export class SwaggerUIGenerator {
   private outputPath: string;
   private config: SwaggerUIConfig;
@@ -466,7 +478,12 @@ export class SwaggerUIGenerator {
     this.config = config;
   }
 
-  // Generate Swagger UI files
+  /**
+   * Writes the generated Swagger UI HTML file to the configured output path.
+   *
+   * @returns A promise that resolves when the file has been written.
+   * @throws If the directory cannot be created or the file cannot be written.
+   */
   async generate(): Promise<void> {
     await fs.ensureDir(path.dirname(this.outputPath));
 
@@ -475,7 +492,11 @@ export class SwaggerUIGenerator {
     await fs.writeFile(this.outputPath, html, 'utf-8');
   }
 
-  // Add service to existing config
+  /**
+   * Adds or replaces a service in the configuration. If a service with the same name exists, it is replaced.
+   *
+   * @param service - The service definition to add or update.
+   */
   addService(service: SwaggerUIService): void {
     const existing = this.config.services.findIndex(s => s.name === service.name);
     if (existing >= 0) {
@@ -485,7 +506,11 @@ export class SwaggerUIGenerator {
     }
   }
 
-  // Generate service card HTML for multi-service view
+  /**
+   * Generates the HTML fragment for service cards used in the multi-service grid view.
+   *
+   * @returns An HTML string containing all service cards.
+   */
   generateServiceCardHTML(): string {
     return this.config.services.map(service => `
       <div class="service-card">
@@ -496,23 +521,44 @@ export class SwaggerUIGenerator {
     `).join('');
   }
 
-  // Generate config for embedding in existing app
+  /**
+   * Produces a pretty-printed JSON string of the full configuration for embedding in an existing application.
+   *
+   * @returns A JSON string representation of the current configuration.
+   */
   generateEmbedConfig(): string {
     return JSON.stringify(this.config, null, 2);
   }
 }
 
-// Factory functions
+/**
+ * Creates a {@link SwaggerUIGenerator} instance for the given output path and configuration.
+ *
+ * @param outputPath - The file path where the generated HTML will be written.
+ * @param config - The Swagger UI configuration.
+ * @returns A promise resolving to a new SwaggerUIGenerator instance.
+ */
 export async function createSwaggerUI(outputPath: string, config: SwaggerUIConfig): Promise<SwaggerUIGenerator> {
   return new SwaggerUIGenerator(outputPath, config);
 }
 
+/**
+ * Convenience function that creates a generator and immediately writes the Swagger UI HTML to disk.
+ *
+ * @param outputPath - The file path where the generated HTML will be written.
+ * @param config - The Swagger UI configuration.
+ * @returns A promise that resolves when the file has been written.
+ */
 export async function generateSwaggerUI(outputPath: string, config: SwaggerUIConfig): Promise<void> {
   const generator = await createSwaggerUI(outputPath, config);
   await generator.generate();
 }
 
-// Get default theme colors
+/**
+ * Returns a set of predefined theme color presets for the Swagger UI.
+ *
+ * @returns A record mapping preset keys to their color and display name.
+ */
 export function getThemePresets(): Record<string, { color: string; name: string }> {
   return {
     blue: { color: '#3b82f6', name: 'Blue' },
@@ -526,7 +572,12 @@ export function getThemePresets(): Record<string, { color: string; name: string 
   };
 }
 
-// Auto-detect services from workspace
+/**
+ * Scans the `apps` and `packages` directories of a project for OpenAPI spec files and returns detected services.
+ *
+ * @param projectPath - The root path of the project to scan.
+ * @returns A promise resolving to an array of detected SwaggerUIService entries.
+ */
 export async function detectServices(projectPath: string): Promise<SwaggerUIService[]> {
   const services: SwaggerUIService[] = [];
   const appsPath = path.join(projectPath, 'apps');
@@ -562,7 +613,12 @@ export async function detectServices(projectPath: string): Promise<SwaggerUIServ
   return services;
 }
 
-// Format for display
+/**
+ * Formats a Swagger UI configuration into a human-readable, colorized string for terminal display.
+ *
+ * @param config - The Swagger UI configuration to format.
+ * @returns A formatted string suitable for console output.
+ */
 export function formatSwaggerUIConfig(config: SwaggerUIConfig): string {
   const lines: string[] = [];
 
