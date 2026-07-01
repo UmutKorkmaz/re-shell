@@ -4,14 +4,22 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/** Supported SBOM (Software Bill of Materials) document formats. */
 export type SBOMFormat = 'cyclonedx' | 'spdx' | 'swid';
+/** Classification of a component tracked in the supply chain. */
 export type ComponentType = 'library' | 'framework' | 'application' | 'operating-system' | 'device' | 'firmware' | 'file' | 'container' | 'data' | 'custom';
+/** The scope at which a dependency is required within the project. */
 export type DependencyScope = 'required' | 'optional' | 'runtime' | 'development' | 'test' | 'provided' | 'custom';
+/** Severity levels for supply chain vulnerabilities. */
 export type VulnerabilitySeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+/** Approval status of a license within the configured policy. */
 export type LicenseStatus = 'approved' | 'prohibited' | 'review-required' | 'unknown';
+/** Overall compliance status for a component or project. */
 export type ComplianceStatus = 'compliant' | 'non-compliant' | 'pending-review';
+/** Outcome of an integrity verification check. */
 export type IntegrityCheck = 'passed' | 'failed' | 'warning' | 'skipped';
 
+/** Top-level configuration for supply chain security, SBOM generation, and verification. */
 export interface SupplyChainSecurityConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -26,6 +34,7 @@ export interface SupplyChainSecurityConfig {
   integrations: SecurityIntegration[];
 }
 
+/** Tunable settings controlling SBOM generation, scanning, verification, and policy enforcement. */
 export interface SecuritySettings {
   autoGenerate: boolean;
   format: SBOMFormat;
@@ -45,6 +54,7 @@ export interface SecuritySettings {
   attestationsRequired: boolean;
 }
 
+/** Represents a generated Software Bill of Materials document and its metadata. */
 export interface SBOMDocument {
   id: string;
   name: string;
@@ -60,6 +70,7 @@ export interface SBOMDocument {
   uri?: string;
 }
 
+/** Metadata describing how and by whom an SBOM document was produced. */
 export interface DocumentMetadata {
   authors: string[];
   timestamp: Date;
@@ -68,6 +79,7 @@ export interface DocumentMetadata {
   dataLicense: string;
 }
 
+/** Cryptographic signature attached to an SBOM document. */
 export interface DocumentSignature {
   algorithm: 'RSA' | 'ECDSA' | 'ED25519' | 'PGP' | 'custom';
   value: string;
@@ -77,6 +89,7 @@ export interface DocumentSignature {
   verified: boolean;
 }
 
+/** Describes a single component tracked within an SBOM. */
 export interface Component {
   id: string;
   type: ComponentType;
@@ -99,11 +112,13 @@ export interface Component {
   attestation?: ComponentAttestation;
 }
 
+/** Hash digest used to verify a component's integrity. */
 export interface ComponentHash {
   algorithm: 'SHA-256' | 'SHA-512' | 'SHA-1' | 'MD5' | 'custom';
   value: string;
 }
 
+/** External reference (such as a website or advisory) related to a component. */
 export interface ExternalReference {
   type: 'website' | 'advisories' | 'bom' | 'documentation' | 'issue-tracker' | 'license' | 'distribution' | 'vcs' | 'build-meta' | 'build-system' | 'other';
   url: string;
@@ -111,23 +126,27 @@ export interface ExternalReference {
   hashes?: ComponentHash[];
 }
 
+/** A name/value property attached to a component. */
 export interface ComponentProperty {
   name: string;
   value: string;
 }
 
+/** Information about the supplier of a component. */
 export interface Supplier {
   name: string;
   url: string;
   contact: Contact;
 }
 
+/** Contact details for a supplier or entity. */
 export interface Contact {
   name: string;
   email: string;
   phone?: string;
 }
 
+/** Provenance attestation (such as SLSA or in-toto) for a component build. */
 export interface ComponentAttestation {
   type: 'SLSA' | 'in-toto' | 'custom';
   predicateType: string;
@@ -138,11 +157,13 @@ export interface ComponentAttestation {
   signature?: DocumentSignature;
 }
 
+/** A build material consumed by an attested build process. */
 export interface Material {
   uri: string;
   hash: ComponentHash;
 }
 
+/** Describes a dependency relationship between components in the SBOM graph. */
 export interface Dependency {
   id: string;
   ref: string; // Component reference
@@ -153,6 +174,7 @@ export interface Dependency {
   depth: number;
 }
 
+/** Represents a known vulnerability affecting a component in the supply chain. */
 export interface SupplyChainVulnerability {
   id: string;
   bomRef: string; // Component reference
@@ -174,11 +196,13 @@ export interface SupplyChainVulnerability {
   suppressionReason?: string;
 }
 
+/** The database or feed a vulnerability was reported by. */
 export interface VulnerabilitySource {
   name: string; // e.g., 'NVD', 'GitHub Advisories', 'OSS Index'
   url: string;
 }
 
+/** A scoring entry quantifying the severity of a vulnerability. */
 export interface VulnerabilityScore {
   method: 'CVSS' | 'OWASP' | 'SSVC' | 'custom';
   version: string;
@@ -189,6 +213,7 @@ export interface VulnerabilityScore {
   severity: VulnerabilitySeverity;
 }
 
+/** A policy entry describing how a specific license is treated. */
 export interface LicensePolicy {
   id: string;
   licenseId: string;
@@ -204,12 +229,14 @@ export interface LicensePolicy {
   text?: string;
 }
 
+/** An obligation triggered by using a particular license. */
 export interface LicenseObligation {
   type: 'attribution' | 'copyleft' | 'documentation' | 'disclosure' | 'source-availability' | 'custom';
   description: string;
   triggeredBy: string[];
 }
 
+/** Result of an integrity verification check performed on a component. */
 export interface IntegrityVerification {
   id: string;
   componentId: string;
@@ -221,6 +248,7 @@ export interface IntegrityVerification {
   details: string;
 }
 
+/** Detailed outcome of a verification operation. */
 export interface VerificationResult {
   algorithm?: string;
   expected?: string;
@@ -230,6 +258,7 @@ export interface VerificationResult {
   certificate?: CertificateInfo;
 }
 
+/** Information about a certificate used during signature verification. */
 export interface CertificateInfo {
   issuer: string;
   subject: string;
@@ -238,6 +267,7 @@ export interface CertificateInfo {
   fingerprint: string;
 }
 
+/** Aggregated security analytics for a reporting period. */
 export interface SecurityAnalytics {
   id: string;
   period: string;
@@ -256,6 +286,7 @@ export interface SecurityAnalytics {
   supplyChainRisks: SupplyChainRisk[];
 }
 
+/** Vulnerability statistics for a single component. */
 export interface ComponentVulnerabilityStat {
   componentName: string;
   componentVersion: string;
@@ -263,6 +294,7 @@ export interface ComponentVulnerabilityStat {
   severity: VulnerabilitySeverity;
 }
 
+/** A supply chain risk affecting one or more components. */
 export interface SupplyChainRisk {
   type: 'vulnerability' | 'license' | 'integrity' | 'provenance' | 'custom';
   severity: VulnerabilitySeverity;
@@ -271,6 +303,7 @@ export interface SupplyChainRisk {
   recommendations: string[];
 }
 
+/** A configured external security integration (scanner, repository, etc.). */
 export interface SecurityIntegration {
   id: string;
   name: string;

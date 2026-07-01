@@ -5,16 +5,26 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Type Definitions
+/** Lifecycle status of a governance policy. */
 export type PolicyStatus = 'draft' | 'pending-review' | 'under-review' | 'approved' | 'rejected' | 'deprecated' | 'archived';
+/** Classification category for grouping related policies. */
 export type PolicyCategory = 'security' | 'compliance' | 'operational' | 'financial' | 'hr' | 'legal' | 'it' | 'data-privacy' | 'risk-management' | 'custom';
+/** Kind of governance artifact a policy represents. */
 export type PolicyType = 'standard' | 'procedure' | 'guideline' | 'policy' | 'regulation' | 'framework';
+/** State of an approval request within an approval chain. */
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'conditional' | 'escalated';
+/** Execution state of a governance workflow. */
 export type WorkflowStatus = 'active' | 'suspended' | 'completed' | 'cancelled';
+/** Role that a workflow step plays in the approval process. */
 export type WorkflowStepType = 'review' | 'approval' | 'notification' | 'conditional' | 'escalation' | 'automated-check';
+/** How strongly a policy is enforced. */
 export type ComplianceLevel = 'mandatory' | 'required' | 'recommended' | 'optional';
+/** Severity of a policy violation. */
 export type ViolationSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+/** Kind of governance event recorded in the audit log. */
 export type AuditEventType = 'policy-created' | 'policy-updated' | 'policy-approved' | 'policy-rejected' | 'policy-deprecated' | 'workflow-started' | 'workflow-completed' | 'violation-detected' | 'compliance-check';
 
+/** Top-level configuration object describing a project's governance setup. */
 export interface GovernanceConfig {
   projectName: string;
   organization: string;
@@ -28,6 +38,7 @@ export interface GovernanceConfig {
   complianceFrameworks: ComplianceFramework[];
 }
 
+/** Tunable governance behaviors such as approvals, notifications, and review cadence. */
 export interface GovernanceSettings {
   requireApproval: boolean;
   requiredApprovers: number;
@@ -54,6 +65,7 @@ export interface GovernanceSettings {
   stakeholders: string[];
 }
 
+/** Represents a single governance policy and its full lifecycle metadata. */
 export interface Policy {
   id: string;
   name: string;
@@ -107,6 +119,7 @@ export interface Policy {
   dependents: string[]; // policy IDs that depend on this
 }
 
+/** A procedure attached to a policy, composed of ordered steps. */
 export interface PolicyProcedure {
   id: string;
   name: string;
@@ -117,6 +130,7 @@ export interface PolicyProcedure {
   requiredResources: string[];
 }
 
+/** A single action within a policy procedure. */
 export interface ProcedureStep {
   stepNumber: number;
   action: string;
@@ -126,6 +140,7 @@ export interface ProcedureStep {
   references?: string[];
 }
 
+/** Describes the responsibilities and authority assigned to a role under a policy. */
 export interface PolicyResponsibility {
   role: string;
   responsibilities: string[];
@@ -133,6 +148,7 @@ export interface PolicyResponsibility {
   authority: string[];
 }
 
+/** Records a single approver's decision for a policy. */
 export interface PolicyApproval {
   approverId: string;
   approverName: string;
@@ -150,6 +166,7 @@ export interface PolicyApproval {
   };
 }
 
+/** A condition that must be met for a policy to take or remain in effect. */
 export interface PolicyCondition {
   type: 'effective-date' | 'expiry-date' | 'compliance-score' | 'framework-approval' | 'custom';
   description: string;
@@ -158,6 +175,7 @@ export interface PolicyCondition {
   lastChecked?: Date;
 }
 
+/** A control implemented to enforce or validate a policy. */
 export interface PolicyControl {
   id: string;
   controlId: string; // external framework ID

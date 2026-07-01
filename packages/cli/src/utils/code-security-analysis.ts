@@ -4,15 +4,24 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/** Supported programming languages for security analysis. */
 export type Language = 'typescript' | 'javascript' | 'python' | 'java' | 'go' | 'csharp' | 'cpp' | 'ruby' | 'php' | 'rust' | 'swift';
+/** Severity levels for analysis issues, ordered from most to least severe. */
 export type IssueSeverity = 'blocker' | 'critical' | 'major' | 'minor' | 'info';
+/** Categories of issues that can be detected during analysis. */
 export type IssueType = 'vulnerability' | 'bug' | 'code-smell' | 'security' | 'hotspot' | 'custom';
+/** Classification of security rules. */
 export type RuleType = 'vulnerability' | 'bug' | 'code-smell' | 'security-hotspot' | 'custom';
+/** Lifecycle status of a security rule. */
 export type RuleStatus = 'active' | 'deprecated' | 'removed' | 'beta';
+/** Status indicating whether a quality gate passed, failed, or was skipped. */
 export type QualityGateStatus = 'passed' | 'failed' | 'warned' | 'skipped';
+/** Status of a security scan execution. */
 export type ScanStatus = 'success' | 'failed' | 'in-progress' | 'pending' | 'cancelled';
+/** Categories describing the purpose of an AI model in the analysis pipeline. */
 export type AIModelType = 'rule-generation' | 'issue-detection' | 'remediation' | 'pattern-matching';
 
+/** Top-level configuration for the code security analysis module. */
 export interface CodeSecurityAnalysisConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -26,6 +35,7 @@ export interface CodeSecurityAnalysisConfig {
   reports: AnalysisReport[];
 }
 
+/** Settings controlling when and how security analysis runs. */
 export interface AnalysisSettings {
   enabled: boolean;
   frequency: 'on-commit' | 'on-push' | 'scheduled' | 'manual';
@@ -44,6 +54,7 @@ export interface AnalysisSettings {
   maxAnalysisTime: number; // minutes
 }
 
+/** Represents a codebase under security analysis, including metrics and issues. */
 export interface Codebase {
   id: string;
   name: string;
@@ -68,6 +79,7 @@ export interface Codebase {
   metrics: CodeMetrics;
 }
 
+/** Aggregated code metrics for files, functions, classes, and other dimensions. */
 export interface CodeMetrics {
   files: FileMetric[];
   functions: FunctionMetric[];
@@ -77,6 +89,7 @@ export interface CodeMetrics {
   duplication: DuplicationMetric[];
 }
 
+/** Metrics describing a single analyzed file. */
 export interface FileMetric {
   path: string;
   lines: number;
@@ -89,6 +102,7 @@ export interface FileMetric {
   coverage: number;
 }
 
+/** Metrics describing a single function within a codebase. */
 export interface FunctionMetric {
   name: string;
   file: string;
@@ -101,6 +115,7 @@ export interface FunctionMetric {
   issues: string[];
 }
 
+/** Metrics describing a single class within a codebase. */
 export interface ClassMetric {
   name: string;
   file: string;
@@ -114,6 +129,7 @@ export interface ClassMetric {
   issues: string[];
 }
 
+/** A single complexity measurement against a configured threshold. */
 export interface ComplexityMetric {
   name: string;
   type: 'cyclomatic' | 'cognitive' | 'nesting';
@@ -122,6 +138,7 @@ export interface ComplexityMetric {
   severity: IssueSeverity;
 }
 
+/** A coverage measurement for a specific coverage type. */
 export interface CoverageMetric {
   name: string;
   type: 'line' | 'branch' | 'path' | 'condition';
@@ -131,6 +148,7 @@ export interface CoverageMetric {
   threshold: number;
 }
 
+/** Duplication measurement for a file, including duplicated line counts. */
 export interface DuplicationMetric {
   file: string;
   lines: number;
@@ -139,6 +157,7 @@ export interface DuplicationMetric {
   threshold: number;
 }
 
+/** A security issue or code quality finding detected during analysis. */
 export interface SecurityIssue {
   id: string;
   ruleId: string;
@@ -170,6 +189,7 @@ export interface SecurityIssue {
   owasp?: string[];
 }
 
+/** A security hotspot requiring manual review to confirm exploitability. */
 export interface SecurityHotspot {
   id: string;
   ruleId: string;
@@ -190,6 +210,7 @@ export interface SecurityHotspot {
   cwe: string[];
 }
 
+/** A rule used to detect security issues and code quality problems. */
 export interface SecurityRule {
   id: string;
   key: string;
@@ -213,6 +234,7 @@ export interface SecurityRule {
   trainingData?: TrainingData[];
 }
 
+/** A configurable parameter for a security rule. */
 export interface RuleParameter {
   key: string;
   name: string;
@@ -221,6 +243,7 @@ export interface RuleParameter {
   defaultValue: any;
 }
 
+/** Training data used to generate or refine AI-based security rules. */
 export interface TrainingData {
   id: string;
   description: string;
@@ -229,6 +252,7 @@ export interface TrainingData {
   outcomes: RuleOutcome[];
 }
 
+/** A pair of vulnerable and secure code examples used for rule training. */
 export interface CodeExample {
   vulnerable: string;
   secure: string;
@@ -236,24 +260,28 @@ export interface CodeExample {
   language: Language;
 }
 
+/** A code pattern used for matching during AI-based analysis. */
 export interface Pattern {
   type: string;
   pattern: string;
   description: string;
 }
 
+/** The expected outcome classification for a matched rule pattern. */
 export interface RuleOutcome {
   type: 'vulnerability' | 'bug' | 'code-smell';
   severity: IssueSeverity;
   confidence: number;
 }
 
+/** An external reference linking an issue to a standard or resource. */
 export interface IssueReference {
   type: 'cwe' | 'owasp' | 'owasp-top10' | 'sans-top25' | 'pci-dss' | 'nist' | 'article';
   url: string;
   title: string;
 }
 
+/** A quality gate enforcing one or more conditions on analysis results. */
 export interface QualityGate {
   id: string;
   name: string;
@@ -264,6 +292,7 @@ export interface QualityGate {
   evaluatedBy: string;
 }
 
+/** A single condition evaluated as part of a quality gate. */
 export interface GateCondition {
   id: string;
   metric: string;
@@ -273,6 +302,7 @@ export interface GateCondition {
   actualValue: number;
 }
 
+/** Describes an AI model used for security analysis tasks. */
 export interface AIModel {
   id: string;
   name: string;
@@ -291,6 +321,7 @@ export interface AIModel {
   config: any;
 }
 
+/** Configuration for an external security analysis tool integration. */
 export interface AnalysisIntegration {
   tool: 'sonarqube' | 'sonarcloud' | 'fortify' | 'checkmarx' | 'veracode' | 'custom';
   enabled: boolean;
@@ -302,6 +333,7 @@ export interface AnalysisIntegration {
   status: 'connected' | 'disconnected' | 'error';
 }
 
+/** A generated analysis report with summary, sections, and charts. */
 export interface AnalysisReport {
   id: string;
   name: string;
@@ -314,6 +346,7 @@ export interface AnalysisReport {
   charts: ReportChart[];
 }
 
+/** Aggregate counts and ratings summarizing an analysis report. */
 export interface ReportSummary {
   totalIssues: number;
   vulnerabilities: number;
@@ -328,6 +361,7 @@ export interface ReportSummary {
   maintainabilityRating: string;
 }
 
+/** A titled content section within an analysis report. */
 export interface ReportSection {
   title: string;
   content: string;
@@ -335,6 +369,7 @@ export interface ReportSection {
   includeInSummary: boolean;
 }
 
+/** A chart visualization included in an analysis report. */
 export interface ReportChart {
   type: 'bar' | 'line' | 'pie' | 'heatmap';
   title: string;
@@ -342,6 +377,12 @@ export interface ReportChart {
   order: number;
 }
 
+/**
+ * Builds the code security analysis configuration object from the supplied config.
+ *
+ * @param config - The code security analysis configuration input.
+ * @returns The normalized configuration object.
+ */
 // Main configuration function
 export function codeSecurityAnalysis(config: CodeSecurityAnalysisConfig) {
   return {
