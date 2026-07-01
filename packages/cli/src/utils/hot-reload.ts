@@ -10,7 +10,9 @@ import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import chalk from 'chalk';
 
-// Framework detection patterns
+/**
+ * Describes a framework's detection rules and hot-reload behavior.
+ */
 export interface FrameworkPattern {
   language: string;
   framework: string;
@@ -24,7 +26,9 @@ export interface FrameworkPattern {
   port?: number;
 }
 
-// Hot reload configuration
+/**
+ * Configuration options for the hot reload manager.
+ */
 export interface HotReloadConfig {
   projectPath: string;
   framework?: string;
@@ -38,6 +42,9 @@ export interface HotReloadConfig {
   onError?: (error: Error) => void;
 }
 
+/**
+ * Represents the kind of file event that triggered a reload.
+ */
 export type ReloadType = 'initial' | 'change' | 'add' | 'unlink' | 'error';
 
 // Process manager for dev servers
@@ -49,7 +56,9 @@ interface DevServerProcess {
   isRestarting: boolean;
 }
 
-// Framework detection result
+/**
+ * Result of detecting a framework within a project directory.
+ */
 export interface DetectedFramework {
   framework: string;
   language: string;
@@ -506,7 +515,9 @@ const FRAMEWORK_PATTERNS: Record<string, FrameworkPattern> = {
   },
 };
 
-// Hot Reload Manager class
+/**
+ * Manages file watching, framework detection, and dev-server lifecycle for hot reloading.
+ */
 export class HotReloadManager extends EventEmitter {
   private projectPath: string;
   private framework: FrameworkPattern | null = null;
@@ -528,7 +539,11 @@ export class HotReloadManager extends EventEmitter {
     };
   }
 
-  // Detect the framework used in the project
+  /**
+   * Scans the project to detect the framework in use.
+   *
+   * @returns The best-matching detected framework, or null if none matched.
+   */
   async detectFramework(): Promise<DetectedFramework | null> {
     const results: DetectedFramework[] = [];
 
@@ -591,12 +606,20 @@ export class HotReloadManager extends EventEmitter {
     return false;
   }
 
-  // Get detected frameworks list
+  /**
+   * Returns the list of frameworks detected during the last detection run.
+   *
+   * @returns Detected frameworks sorted by confidence.
+   */
   getDetectedFrameworks(): DetectedFramework[] {
     return this.detectedFrameworks;
  }
 
-  // Start hot reload
+  /**
+   * Starts watching files and launches the dev server.
+   *
+   * @throws When the framework cannot be detected or fails to start.
+   */
   async start(): Promise<void> {
     if (!this.framework) {
       const detected = await this.detectFramework();
@@ -844,7 +867,9 @@ export class HotReloadManager extends EventEmitter {
     }
   }
 
-  // Stop hot reload
+  /**
+   * Stops the watcher and terminates the dev server.
+   */
   async stop(): Promise<void> {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
@@ -863,7 +888,9 @@ export class HotReloadManager extends EventEmitter {
     this.emit('stopped');
   }
 
-  // Get current status
+  /**
+   * Returns the current runtime status of the manager.
+   */
   getStatus(): {
     framework: string | null;
     isWatching: boolean;
@@ -882,12 +909,20 @@ export class HotReloadManager extends EventEmitter {
     };
   }
 
-  // Add watch path
+  /**
+   * Adds a new glob pattern to the file watcher at runtime.
+   *
+   * @param pattern - Glob pattern to add.
+   */
   addWatchPath(pattern: string): void {
     this.watcher?.add(pattern);
   }
 
-  // Remove watch path
+  /**
+   * Removes a glob pattern from the file watcher at runtime.
+   *
+   * @param pattern - Glob pattern to remove.
+   */
   removeWatchPath(pattern: string): void {
     this.watcher?.unwatch(pattern);
   }
@@ -896,7 +931,10 @@ export class HotReloadManager extends EventEmitter {
 // Utility functions
 
 /**
- * Create a hot reload manager
+ * Creates a hot reload manager, detecting the framework if not explicitly provided.
+ *
+ * @param config - Configuration options for the hot reload manager.
+ * @returns A configured HotReloadManager instance.
  */
 export async function createHotReload(config: HotReloadConfig): Promise<HotReloadManager> {
   const manager = new HotReloadManager(config);
@@ -909,7 +947,10 @@ export async function createHotReload(config: HotReloadConfig): Promise<HotReloa
 }
 
 /**
- * Detect framework in a directory
+ * Detects the framework used in the given directory.
+ *
+ * @param projectPath - Absolute path to the project root.
+ * @returns The best-matching detected framework, or null if none matched.
  */
 export async function detectProjectFramework(projectPath: string): Promise<DetectedFramework | null> {
   const manager = new HotReloadManager({ projectPath });
@@ -917,7 +958,9 @@ export async function detectProjectFramework(projectPath: string): Promise<Detec
 }
 
 /**
- * List all supported frameworks
+ * Lists all frameworks supported by the hot reload system.
+ *
+ * @returns Array of framework descriptors with id, language, strategy, and port.
  */
 export function listSupportedFrameworks(): Array<{
   id: string;
@@ -934,7 +977,10 @@ export function listSupportedFrameworks(): Array<{
 }
 
 /**
- * Get framework pattern by ID
+ * Retrieves the framework pattern configuration for the given framework id.
+ *
+ * @param id - Identifier of the framework (e.g. 'express', 'nestjs').
+ * @returns The matching FrameworkPattern, or undefined if not found.
  */
 export function getFrameworkPattern(id: string): FrameworkPattern | undefined {
   return FRAMEWORK_PATTERNS[id];
