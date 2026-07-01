@@ -8,6 +8,9 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Encryption algorithms
+/**
+ * Supported encryption algorithms for data encryption operations.
+ */
 export type EncryptionAlgorithm =
   | 'aes-256-gcm'
   | 'aes-256-cbc'
@@ -16,9 +19,15 @@ export type EncryptionAlgorithm =
   | 'hybrid';
 
 // Key types
+/**
+ * Categorizes encryption keys as symmetric, asymmetric, or hybrid.
+ */
 export type KeyType = 'symmetric' | 'asymmetric' | 'hybrid';
 
 // Key exchange protocols
+/**
+ * Supported key exchange protocols for securely sharing keys between parties.
+ */
 export type KeyExchangeProtocol =
   | 'diffie-hellman'
   | 'rsa'
@@ -26,6 +35,9 @@ export type KeyExchangeProtocol =
   | 'x25519';
 
 // Encryption mode
+/**
+ * Operation mode for encryption-related operations.
+ */
 export type EncryptionMode =
   | 'encrypt'
   | 'decrypt'
@@ -33,6 +45,9 @@ export type EncryptionMode =
   | 'verify';
 
 // Encrypted data payload
+/**
+ * Represents an encrypted data payload including algorithm, ciphertext, IV, and optional metadata.
+ */
 export interface EncryptedPayload {
   algorithm: EncryptionAlgorithm;
   keyId?: string;
@@ -43,6 +58,9 @@ export interface EncryptedPayload {
 }
 
 // Encryption result
+/**
+ * Result of an encryption operation, containing the encrypted payload and size metrics.
+ */
 export interface EncryptionResult {
   encrypted: EncryptedPayload;
   originalSize: number;
@@ -52,6 +70,9 @@ export interface EncryptionResult {
 }
 
 // Key management
+/**
+ * Interface for managing encryption keys including generation, storage, retrieval, rotation, and deletion.
+ */
 export interface KeyManager {
   generateKey: (algorithm: EncryptionAlgorithm) => Promise<{ keyId: string; key: Buffer }>;
   getKey: (keyId: string) => Promise<Buffer | null>;
@@ -61,6 +82,9 @@ export interface KeyManager {
 }
 
 // Encryption config
+/**
+ * Configuration for a data encryption service instance.
+ */
 export interface EncryptionConfig {
   serviceName: string;
   defaultAlgorithm: EncryptionAlgorithm;
@@ -72,6 +96,13 @@ export interface EncryptionConfig {
 }
 
 // Generate encryption config
+/**
+ * Generates a default encryption configuration for the given service name.
+ *
+ * @param serviceName - Name of the service using encryption.
+ * @param defaultAlgorithm - Default encryption algorithm to use (defaults to 'aes-256-gcm').
+ * @returns A populated EncryptionConfig object.
+ */
 export async function generateEncryptionConfig(
   serviceName: string,
   defaultAlgorithm: EncryptionAlgorithm = 'aes-256-gcm'
@@ -88,6 +119,12 @@ export async function generateEncryptionConfig(
 }
 
 // Generate TypeScript implementation
+/**
+ * Generates TypeScript data encryption source files and dependencies for the given configuration.
+ *
+ * @param config - Encryption configuration to use for code generation.
+ * @returns An object containing generated file paths/contents and a list of dependencies.
+ */
 export async function generateTypeScriptEncryption(
   config: EncryptionConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -588,6 +625,12 @@ if (require.main === module) {
 }
 
 // Generate Python implementation
+/**
+ * Generates Python data encryption source files and dependencies for the given configuration.
+ *
+ * @param config - Encryption configuration to use for code generation.
+ * @returns An object containing generated file paths/contents and a list of dependencies.
+ */
 export async function generatePythonEncryption(
   config: EncryptionConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -801,6 +844,12 @@ if __name__ == '__main__':
 }
 
 // Generate Go implementation
+/**
+ * Generates Go data encryption source files and dependencies for the given configuration.
+ *
+ * @param config - Encryption configuration to use for code generation.
+ * @returns An object containing generated file paths/contents and a list of dependencies.
+ */
 export async function generateGoEncryption(
   config: EncryptionConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -1051,6 +1100,14 @@ func main() {
 }
 
 // Write generated files
+/**
+ * Writes generated encryption files and a BUILD.md guide to the specified output directory.
+ *
+ * @param serviceName - Name of the service for which files are being written.
+ * @param integration - Generated integration object containing files and dependencies.
+ * @param outputDir - Directory where files will be written.
+ * @param language - Target programming language, used in the build documentation.
+ */
 export async function writeEncryptionFiles(
   serviceName: string,
   integration: any,
@@ -1072,6 +1129,11 @@ export async function writeEncryptionFiles(
 }
 
 // Display configuration
+/**
+ * Prints the encryption configuration details to the console in a formatted display.
+ *
+ * @param config - Encryption configuration to display.
+ */
 export async function displayEncryptionConfig(config: EncryptionConfig): Promise<void> {
   console.log(chalk.bold.magenta('\n🔐 Data Encryption: ' + config.serviceName));
   console.log(chalk.gray('─'.repeat(50)));

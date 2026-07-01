@@ -7,6 +7,9 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/**
+ * Supported compression algorithms for data serialization.
+ */
 // Compression algorithms
 export type CompressionType =
   | 'none'
@@ -17,6 +20,9 @@ export type CompressionType =
   | 'snappy'
   | 'adaptive';
 
+/**
+ * Supported serialization formats for data encoding.
+ */
 // Serialization formats
 export type SerializationFormat =
   | 'json'
@@ -27,6 +33,9 @@ export type SerializationFormat =
   | 'smile'
   | 'binary';
 
+/**
+ * Optimization strategies controlling the trade-off between speed and compression ratio.
+ */
 // Optimization strategy
 export type OptimizationStrategy =
   | 'speed'
@@ -34,9 +43,15 @@ export type OptimizationStrategy =
   | 'balanced'
   | 'adaptive';
 
+/**
+ * Numeric compression level ranging from 0 (no compression) to 9 (maximum compression).
+ */
 // Compression level
 export type CompressionLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
+/**
+ * Options controlling the serialization and compression behavior.
+ */
 // Serialization options
 export interface SerializationOptions {
   format: SerializationFormat;
@@ -48,6 +63,9 @@ export interface SerializationOptions {
   chunkSize?: number;
 }
 
+/**
+ * Result and metadata for a compression operation.
+ */
 // Compression result
 export interface CompressionResult {
   originalSize: number;
@@ -57,6 +75,9 @@ export interface CompressionResult {
   algorithm: CompressionType;
 }
 
+/**
+ * Result of a serialization operation, including optional compression metadata.
+ */
 // Serialization result
 export interface SerializationResult {
   data: Buffer;
@@ -66,6 +87,9 @@ export interface SerializationResult {
   compression?: CompressionResult;
 }
 
+/**
+ * Configuration for a serialization optimizer instance.
+ */
 // Optimizer configuration
 export interface OptimizerConfig {
   serviceName: string;
@@ -77,6 +101,14 @@ export interface OptimizerConfig {
   minSizeForCompression: number;
 }
 
+/**
+ * Generates a default optimizer configuration for the given service.
+ *
+ * @param serviceName - Name of the service the optimizer is configured for.
+ * @param defaultFormat - Default serialization format (defaults to 'json').
+ * @param defaultCompression - Default compression algorithm (defaults to 'gzip').
+ * @returns A populated `OptimizerConfig` object with sensible defaults.
+ */
 // Generate optimizer config
 export async function generateOptimizerConfig(
   serviceName: string,
@@ -100,6 +132,12 @@ function calculateCompressionRatio(original: number, compressed: number): number
   return ((original - compressed) / original) * 100;
 }
 
+/**
+ * Generates a TypeScript serialization optimizer module for the given configuration.
+ *
+ * @param config - The optimizer configuration to generate code for.
+ * @returns An object containing the generated files and their dependencies.
+ */
 // Generate TypeScript optimizer
 export async function generateTypeScriptOptimizer(
   config: OptimizerConfig
@@ -532,6 +570,12 @@ if (require.main === module) {
   return { files, dependencies };
 }
 
+/**
+ * Generates a Python serialization optimizer module for the given configuration.
+ *
+ * @param config - The optimizer configuration to generate code for.
+ * @returns An object containing the generated files and their dependencies.
+ */
 // Generate Python optimizer
 export async function generatePythonOptimizer(
   config: OptimizerConfig
@@ -747,6 +791,12 @@ if __name__ == '__main__':
   return { files, dependencies };
 }
 
+/**
+ * Generates a Go serialization optimizer module for the given configuration.
+ *
+ * @param config - The optimizer configuration to generate code for.
+ * @returns An object containing the generated files and their dependencies.
+ */
 // Generate Go optimizer
 export async function generateGoOptimizer(
   config: OptimizerConfig
@@ -996,6 +1046,15 @@ func main() {
   return { files, dependencies };
 }
 
+/**
+ * Writes generated optimizer files to the specified output directory and produces a BUILD.md guide.
+ *
+ * @param serviceName - Name of the service for the build instructions.
+ * @param integration - The generated integration object containing files to write.
+ * @param outputDir - Directory path where files will be written.
+ * @param language - Target language for build instructions.
+ * @throws Re-throws any filesystem errors encountered during writing.
+ */
 // Write generated files
 export async function writeOptimizerFiles(
   serviceName: string,
@@ -1017,6 +1076,11 @@ export async function writeOptimizerFiles(
   await fs.writeFile(path.join(outputDir, 'BUILD.md'), buildContent);
 }
 
+/**
+ * Prints a human-readable summary of the optimizer configuration to the console.
+ *
+ * @param config - The optimizer configuration to display.
+ */
 // Display configuration
 export async function displayOptimizerConfig(config: OptimizerConfig): Promise<void> {
   console.log(chalk.bold.magenta('\n⚡ Serialization Optimizer: ' + config.serviceName));
