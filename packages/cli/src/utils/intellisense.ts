@@ -7,7 +7,9 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 
 
-// Language server configuration
+/**
+ * Configuration for a language server providing IntelliSense for a specific language.
+ */
 export interface LanguageServerConfig {
   language: string;
   fileExtensions: string[];
@@ -21,7 +23,9 @@ export interface LanguageServerConfig {
   configFiles?: string[];
 }
 
-// IntelliSense configuration
+/**
+ * Aggregated IntelliSense configuration covering languages, language servers, and editor-specific settings.
+ */
 export interface IntelliSenseConfig {
   languages: string[];
   languageServers: LanguageServerConfig[];
@@ -31,7 +35,9 @@ export interface IntelliSenseConfig {
   emacsSettings: string;
 }
 
-// Project type for IntelliSense setup
+/**
+ * Describes a project type used to drive IntelliSense setup, including languages, frameworks, and additional files.
+ */
 export interface ProjectType {
   name: string;
   languages: string[];
@@ -293,18 +299,28 @@ const LANGUAGE_SERVERS: Record<string, LanguageServerConfig> = {
   },
 };
 
-// IntelliSense generator class
+/**
+ * Generates IntelliSense and language server configurations for a project based on detected or specified languages.
+ */
 export class IntelliSenseGenerator {
   private projectPath: string;
   private projectType?: string;
   private languages: Set<string> = new Set();
 
+  /**
+   * @param projectPath Absolute path to the project root directory.
+   * @param projectType Optional project type hint used to influence configuration generation.
+   */
   constructor(projectPath: string, projectType?: string) {
     this.projectPath = projectPath;
     this.projectType = projectType;
   }
 
-  // Detect languages used in the project
+  /**
+   * Scans the project directory and detects programming languages based on file extensions.
+   *
+   * @returns Promise resolving to an array of detected language identifiers.
+   */
   async detectLanguages(): Promise<string[]> {
     const extensions: Record<string, number> = {};
 
@@ -369,7 +385,12 @@ export class IntelliSenseGenerator {
     return Array.from(detected);
   }
 
-  // Setup IntelliSense for detected languages
+  /**
+   * Builds an IntelliSense configuration for the given or detected languages, including language servers and editor configs.
+   *
+   * @param languages Optional explicit list of language identifiers; detected automatically if omitted.
+   * @returns Promise resolving to the assembled IntelliSense configuration.
+   */
   async setupIntelliSense(languages?: string[]): Promise<IntelliSenseConfig> {
     const detectedLanguages = languages || await this.detectLanguages();
     detectedLanguages.forEach(l => this.languages.add(l));
@@ -418,7 +439,12 @@ export class IntelliSenseGenerator {
     };
   }
 
-  // Generate VS Code settings
+  /**
+   * Writes VS Code settings.json and extensions.json files for the project.
+   *
+   * @param config The IntelliSense configuration to materialize.
+   * @returns Promise that resolves once the files have been written.
+   */
   async generateVSCodeSettings(config: IntelliSenseConfig): Promise<void> {
     const vscodeDir = path.join(this.projectPath, '.vscode');
     await fs.ensureDir(vscodeDir);
@@ -481,7 +507,12 @@ export class IntelliSenseGenerator {
     await fs.writeJson(extensionsPath, { recommendations: recommended }, { spaces: 2 });
   }
 
-  // Generate Vim/Neovim LSP config
+  /**
+   * Generates a Neovim LSP configuration string for the provided language servers.
+   *
+   * @param servers Language server configurations to include.
+   * @returns Neovim Lua-based LSP configuration as a string.
+   */
   generateVimConfig(servers: LanguageServerConfig[]): string {
     const lines: string[] = [];
     lines.push('" LSP Configuration for Neovim');
@@ -501,7 +532,12 @@ export class IntelliSenseGenerator {
     return lines.join('\n');
   }
 
-  // Generate Emacs LSP config
+  /**
+   * Generates an Emacs lsp-mode configuration string for the provided language servers.
+   *
+   * @param servers Language server configurations to include.
+   * @returns Emacs Lisp configuration as a string.
+   */
   generateEmacsConfig(servers: LanguageServerConfig[]): string {
     const lines: string[] = [];
     lines.push(';; LSP Configuration for Emacs');
@@ -521,7 +557,12 @@ export class IntelliSenseGenerator {
     return lines.join('\n');
   }
 
-  // Generate .clangd for C/C++
+  /**
+   * Writes a `.clangd` configuration file with recommended compile flags and diagnostics settings for C/C++ projects.
+   *
+   * @returns Promise that resolves once the file has been written.
+   * @throws When the YAML module cannot be required or writing the file fails.
+   */
   async generateClangdConfig(): Promise<void> {
     const configPath = path.join(this.projectPath, '.clangd');
     const config = {
@@ -539,7 +580,11 @@ export class IntelliSenseGenerator {
     await fs.writeFile(configPath, yaml.stringify(config), 'utf-8');
   }
 
-  // Generate pyrightconfig.json for Python
+  /**
+   * Writes a `pyrightconfig.json` file with sensible defaults for Python projects.
+   *
+   * @returns Promise that resolves once the file has been written.
+   */
   async generatePyrightConfig(): Promise<void> {
     const configPath = path.join(this.projectPath, 'pyrightconfig.json');
     const config = {
@@ -554,7 +599,11 @@ export class IntelliSenseGenerator {
     await fs.writeJson(configPath, config, { spaces: 2 });
   }
 
-  // Generate go.mod if needed
+  /**
+   * Creates a `go.mod` file in the project root if one does not already exist.
+   *
+   * @returns Promise that resolves once the file has been written or found to exist.
+   */
   async generateGoMod(): Promise<void> {
     const goModPath = path.join(this.projectPath, 'go.mod');
     if (!(await fs.pathExists(goModPath))) {
@@ -563,7 +612,11 @@ export class IntelliSenseGenerator {
     }
   }
 
-  // Write all IntelliSense configurations
+  /**
+   * Detects languages, generates VS Code settings, and writes language-specific configuration files.
+   *
+   * @returns Promise that resolves once all configurations have been written.
+   */
   async writeAll(): Promise<void> {
     const config = await this.setupIntelliSense();
     await this.generateVSCodeSettings(config);
@@ -580,17 +633,30 @@ export class IntelliSenseGenerator {
     }
   }
 
-  // Get language server info
+  /**
+   * Returns all known language server configurations.
+   *
+   * @returns Array of all language server configurations.
+   */
   getLanguageServers(): LanguageServerConfig[] {
     return Object.values(LANGUAGE_SERVERS);
   }
 
-  // Get language server for a specific language
+  /**
+   * Returns the language server configuration for a specific language.
+   *
+   * @param language Language identifier (case-insensitive).
+   * @returns The matching language server configuration, or undefined if unsupported.
+   */
   getLanguageServer(language: string): LanguageServerConfig | undefined {
     return LANGUAGE_SERVERS[language.toLowerCase()];
   }
 
-  // Get supported languages
+  /**
+   * Returns the list of all supported language identifiers.
+   *
+   * @returns Array of supported language identifiers.
+   */
   getSupportedLanguages(): string[] {
     return Object.keys(LANGUAGE_SERVERS);
   }
@@ -599,7 +665,11 @@ export class IntelliSenseGenerator {
 // Factory functions
 
 /**
- * Create IntelliSense generator
+ * Creates an IntelliSenseGenerator instance for the given project.
+ *
+ * @param projectPath Absolute path to the project root directory.
+ * @param projectType Optional project type hint.
+ * @returns Promise resolving to a new IntelliSenseGenerator instance.
  */
 export async function createIntelliSenseGenerator(projectPath: string, projectType?: string): Promise<IntelliSenseGenerator> {
   const generator = new IntelliSenseGenerator(projectPath, projectType);
@@ -607,7 +677,11 @@ export async function createIntelliSenseGenerator(projectPath: string, projectTy
 }
 
 /**
- * Setup IntelliSense for a project
+ * Sets up IntelliSense for a project by generating and writing all relevant configuration files.
+ *
+ * @param projectPath Absolute path to the project root directory.
+ * @param languages Optional explicit list of language identifiers.
+ * @returns Promise resolving to the generated IntelliSense configuration.
  */
 export async function setupIntelliSense(projectPath: string, languages?: string[]): Promise<IntelliSenseConfig> {
   const generator = await createIntelliSenseGenerator(projectPath);
@@ -617,7 +691,10 @@ export async function setupIntelliSense(projectPath: string, languages?: string[
 }
 
 /**
- * Get recommended extensions for a language
+ * Returns recommended VS Code extension identifiers for the given language.
+ *
+ * @param language Language identifier (case-insensitive).
+ * @returns Array of extension identifiers, or an empty array if the language is unsupported.
  */
 export function getRecommendedExtensions(language: string): string[] {
   const extMap: Record<string, string[]> = {
@@ -679,7 +756,9 @@ export function getRecommendedExtensions(language: string): string[] {
 }
 
 /**
- * Get all supported language servers
+ * Returns all built-in language server configurations keyed by language identifier.
+ *
+ * @returns Record mapping language identifiers to their language server configurations.
  */
 export function getAllLanguageServers(): Record<string, LanguageServerConfig> {
   return LANGUAGE_SERVERS;

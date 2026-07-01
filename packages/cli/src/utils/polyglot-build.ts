@@ -13,6 +13,9 @@ import { ProgressSpinner } from './spinner';
 
 const execAsync = promisify(exec);
 
+/**
+ * Supported programming languages for polyglot builds.
+ */
 export type LanguageType =
   | 'typescript'
   | 'javascript'
@@ -25,8 +28,14 @@ export type LanguageType =
   | 'ruby'
   | 'unknown';
 
+/**
+ * Categories of build targets within a workspace.
+ */
 export type BuildTarget = 'frontend' | 'backend' | 'fullstack' | 'package' | 'lib' | 'tool';
 
+/**
+ * Describes a detected service within the workspace.
+ */
 export interface ServiceInfo {
   name: string;
   path: string;
@@ -38,6 +47,9 @@ export interface ServiceInfo {
   dependencies?: string[]; // Services that must build first
 }
 
+/**
+ * Options controlling polyglot build behavior, including parallelism, filtering, and output.
+ */
 export interface PolyglotBuildOptions {
   production?: boolean;
   parallel?: boolean;
@@ -51,6 +63,9 @@ export interface PolyglotBuildOptions {
   };
 }
 
+/**
+ * Outcome of building a single service, including status, timing, and any errors.
+ */
 export interface BuildResult {
   service: ServiceInfo;
   success: boolean;
@@ -60,7 +75,10 @@ export interface BuildResult {
 }
 
 /**
- * Detect the programming language of a service
+ * Detect the programming language of a service by inspecting its manifest files.
+ *
+ * @param servicePath - Absolute path to the service directory.
+ * @returns The detected {@link LanguageType}, or `'unknown'` if no known manifest is found.
  */
 export function detectLanguage(servicePath: string): LanguageType {
   // Check for language-specific files
@@ -124,7 +142,11 @@ export function detectLanguage(servicePath: string): LanguageType {
 }
 
 /**
- * Detect the framework of a service
+ * Detect the framework used by a service based on its dependencies.
+ *
+ * @param servicePath - Absolute path to the service directory.
+ * @param language - The language of the service, used to determine which files to inspect.
+ * @returns The detected framework name, or `undefined` if none is recognized.
  */
 export function detectFramework(servicePath: string, language: LanguageType): string | undefined {
   try {
@@ -250,7 +272,11 @@ export function detectFramework(servicePath: string, language: LanguageType): st
 }
 
 /**
- * Get build command for a language
+ * Get the build command appropriate for a service's language and tooling.
+ *
+ * @param language - The language of the service.
+ * @param servicePath - Absolute path to the service directory.
+ * @returns The build command string, or `undefined` if no suitable command exists.
  */
 export function getBuildCommand(language: LanguageType, servicePath: string): string | undefined {
   switch (language) {
@@ -332,7 +358,10 @@ export function getBuildCommand(language: LanguageType, servicePath: string): st
 }
 
 /**
- * Scan the workspace for all services
+ * Scan the workspace for all services under the standard directories.
+ *
+ * @param rootPath - The workspace root to scan. Defaults to the current working directory.
+ * @returns An array of detected {@link ServiceInfo} entries.
  */
 export function scanWorkspace(rootPath: string = process.cwd()): ServiceInfo[] {
   const services: ServiceInfo[] = [];
@@ -383,7 +412,11 @@ export function scanWorkspace(rootPath: string = process.cwd()): ServiceInfo[] {
 }
 
 /**
- * Build a single service
+ * Build a single service by executing its detected build command.
+ *
+ * @param service - The service to build.
+ * @param options - Build options such as production mode and verbosity.
+ * @returns A {@link BuildResult} describing the outcome of the build.
  */
 export async function buildService(
   service: ServiceInfo,
@@ -447,7 +480,11 @@ export async function buildService(
 }
 
 /**
- * Build multiple services
+ * Build multiple services, either in parallel or sequentially.
+ *
+ * @param services - The list of services to build.
+ * @param options - Build options controlling parallelism, filtering, and output.
+ * @returns An array of {@link BuildResult} entries, one per service.
  */
 export async function buildServices(
   services: ServiceInfo[],
@@ -478,7 +515,10 @@ export async function buildServices(
 }
 
 /**
- * Get output path for built artifacts
+ * Get the output path where built artifacts are placed for a service.
+ *
+ * @param service - The service whose output path is requested.
+ * @returns The absolute output path, or `undefined` if unknown for the language.
  */
 export function getOutputPath(service: ServiceInfo): string | undefined {
   switch (service.language) {
@@ -513,7 +553,11 @@ export function getOutputPath(service: ServiceInfo): string | undefined {
 }
 
 /**
- * Filter services based on options
+ * Filter services based on the provided options' type, language, and name criteria.
+ *
+ * @param services - The list of services to filter.
+ * @param options - Options whose `filter` property constrains the result set.
+ * @returns The filtered list of services.
  */
 export function filterServices(services: ServiceInfo[], options: PolyglotBuildOptions): ServiceInfo[] {
   let filtered = [...services];
@@ -534,7 +578,9 @@ export function filterServices(services: ServiceInfo[], options: PolyglotBuildOp
 }
 
 /**
- * Print build results summary
+ * Print a human-readable summary of build results to the console.
+ *
+ * @param results - The build results to summarize.
  */
 export function printBuildResults(results: BuildResult[]): void {
   const successful = results.filter(r => r.success);

@@ -24,6 +24,7 @@ export type FetchLike = (
   init?: { headers?: Record<string, string>; signal?: AbortSignal }
 ) => Promise<FetchResponse>;
 
+/** Minimal subset of a fetch Response used by {@link FetchLike}. */
 export interface FetchResponse {
   ok: boolean;
   status: number;
@@ -105,6 +106,7 @@ export interface RegistryKey {
   expires?: string | null;
 }
 
+/** Construction options for {@link RegistryClient}. */
 export interface RegistryClientOptions {
   registryUrl?: string;
   /** Injected for tests; defaults to the global `fetch`. */
@@ -113,11 +115,22 @@ export interface RegistryClientOptions {
   timeoutMs?: number;
 }
 
+/**
+ * Typed client for the public npm registry used by the Re-Shell plugin marketplace.
+ *
+ * Provides search, packument/version lookup, and signing-key retrieval, all
+ * routed through a single timeout-guarded JSON getter that translates transport
+ * failures into {@link RegistryUnreachableError}.
+ */
 export class RegistryClient {
   private readonly registryUrl: string;
   private readonly fetchImpl: FetchLike;
   private readonly timeoutMs: number;
 
+  /**
+   * @param options - Optional registry URL, fetch implementation, and timeout.
+   * @throws {RegistryUnreachableError} when no fetch implementation is available.
+   */
   constructor(options: RegistryClientOptions = {}) {
     this.registryUrl = (options.registryUrl ?? DEFAULT_REGISTRY_URL).replace(/\/+$/, '');
     const injected = options.fetchImpl;
@@ -136,6 +149,11 @@ export class RegistryClient {
    * Search the registry for plugins. We bias the query toward Re-Shell plugins
    * by appending the `keywords:reshell-plugin` qualifier the npm search API
    * understands, so the result set is plugins rather than arbitrary packages.
+   *
+   * @param query - Optional free-text search term.
+   * @param limit - Maximum number of hits to return (clamped to 1-250).
+   * @returns Matching registry search hits.
+   * @throws {RegistryUnreachableError} on transport failure or non-OK status.
    */
   async search(query: string | undefined, limit: number): Promise<RegistrySearchHit[]> {
     const text = [query?.trim(), `keywords:${PLUGIN_KEYWORD}`].filter(Boolean).join(' ');
@@ -152,7 +170,13 @@ export class RegistryClient {
       .filter((p): p is RegistrySearchHit => !!p && typeof p.name === 'string');
   }
 
-  /** Fetch the full packument for a package. */
+  /**
+   * Fetch the full packument for a package.
+   *
+   * @param name - The npm package name.
+   * @returns The packument for the package.
+   * @throws {RegistryUnreachableError} on transport failure or malformed packument.
+   */
   async getPackument(name: string): Promise<RegistryPackument> {
     const url = `${this.registryUrl}/${encodeURIComponent(name).replace('%40', '@')}`;
     const body = await this.getJson(url);
@@ -163,7 +187,14 @@ export class RegistryClient {
     return packument;
   }
 
-  /** Resolve a concrete version object for a package + version/tag (default: latest). */
+  /**
+   * Resolve a concrete version object for a package + version/tag (default: latest).
+   *
+   * @param name - The npm package name.
+   * @param versionOrTag - A semver version or dist-tag; defaults to `latest`.
+   * @returns The resolved registry version object.
+   * @throws {RegistryUnreachableError} when the version/tag cannot be resolved.
+   */
   async getVersion(name: string, versionOrTag?: string): Promise<RegistryVersion> {
     const packument = await this.getPackument(name);
     const tag = versionOrTag ?? 'latest';
@@ -180,7 +211,12 @@ export class RegistryClient {
     return packument.versions[resolved];
   }
 
-  /** Fetch the registry's published signing keys. */
+  /**
+   * Fetch the registry's published signing keys.
+   *
+   * @returns The signing keys (empty array if none returned).
+   * @throws {RegistryUnreachableError} on transport failure or non-OK status.
+   */
   async getSigningKeys(): Promise<RegistryKey[]> {
     const url = `${this.registryUrl}/-/npm/v1/keys`;
     const body = await this.getJson(url);
@@ -244,6 +280,10 @@ export interface SignatureVerification {
  * Returns `{ verified: false, reason }` when the version has no signatures, no
  * integrity, or no signature validates against a known, unexpired key. It never
  * returns `verified: true` without a real cryptographic check passing.
+ *
+ * @param version - The registry version whose signature should be verified.
+ * @param keys - The registry's published signing keys.
+ * @returns The outcome of the verification attempt.
  */
 export function verifyRegistrySignature(
   version: RegistryVersion,

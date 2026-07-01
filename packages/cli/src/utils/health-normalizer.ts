@@ -7,8 +7,18 @@ import type { WorkspaceHealthReport } from './workspace-health';
  * consumers (UI, CI) only ever parse one schema.
  */
 export type CanonicalHealthStatus = 'healthy' | 'degraded' | 'critical';
+
+/**
+ * Tri-state severity for an individual health check within a
+ * {@link CanonicalHealth} report.
+ */
 export type CanonicalCheckStatus = 'healthy' | 'warning' | 'critical';
 
+/**
+ * A single normalized health check entry. `details` is intentionally
+ * `unknown` so callers can attach arbitrary structured metadata without
+ * constraining the canonical schema.
+ */
 export interface CanonicalHealthCheck {
   name: string;
   status: CanonicalCheckStatus;
@@ -16,6 +26,11 @@ export interface CanonicalHealthCheck {
   details?: unknown;
 }
 
+/**
+ * Top-level canonical health payload consumed by `--json` downstream
+ * consumers. The `score` is a 0-100 integer and `status` is the
+ * coarse-grained bucket derived from it.
+ */
 export interface CanonicalHealth {
   score: number; // 0-100
   status: CanonicalHealthStatus;
@@ -131,6 +146,9 @@ function normalizeLightweight(input: LightweightHealth): CanonicalHealth {
  *
  * - Rich path: maps categories -> checks and uses the report's own score.
  * - Lightweight path: derives a numeric score from check severities.
+ *
+ * @param input - The raw health payload (rich report, lightweight shape, or unknown).
+ * @returns A {@link CanonicalHealth} object. Malformed input yields an empty, critical report.
  */
 export function normalizeHealth(input: unknown): CanonicalHealth {
   if (isRichReport(input)) {
