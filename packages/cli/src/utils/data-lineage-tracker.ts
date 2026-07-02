@@ -7,7 +7,20 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
-// Data flow event types
+/**
+ * Represents the kinds of events that can occur during data flow between services.
+ *
+ * - `transform`: Data is transformed from one shape to another.
+ * - `validate`: Data is validated against a schema or set of rules.
+ * - `enrich`: Data is augmented with additional information.
+ * - `aggregate`: Multiple data records are combined into a summary.
+ * - `filter`: A subset of data is selected based on conditions.
+ * - `join`: Two or more datasets are joined together.
+ * - `split`: A single dataset is split into multiple outputs.
+ * - `serialize`: Data is serialized for transport or storage.
+ * - `deserialize`: Serialized data is read back into an in-memory representation.
+ * - `store`: Data is persisted to a storage system.
+ */
 export type DataEventType =
   | 'transform'
   | 'validate'
@@ -20,82 +33,159 @@ export type DataEventType =
   | 'deserialize'
   | 'store';
 
-// Service types
+/**
+ * Categorizes the role a service plays in the data lineage graph.
+ *
+ * - `producer`: Originates data.
+ * - `consumer`: Receives and consumes data.
+ * - `transformer`: Modifies or transforms data passing through.
+ * - `storage`: Persists data.
+ * - `gateway`: Acts as an entry point or router for data.
+ */
 export type ServiceType = 'producer' | 'consumer' | 'transformer' | 'storage' | 'gateway';
 
-// Visualization formats
+/**
+ * Supported output formats for visualizing the lineage graph.
+ *
+ * - `dot`: Graphviz DOT format.
+ * - `json`: Raw JSON export.
+ * - `mermaid`: Mermaid diagram syntax.
+ * - `plantuml`: PlantUML diagram syntax.
+ * - `html`: Self-contained interactive HTML page.
+ */
 export type VisualizationFormat = 'dot' | 'json' | 'mermaid' | 'plantuml' | 'html';
 
-// Data lineage node
+/**
+ * A single service node within the data lineage graph.
+ */
 export interface LineageNode {
+  /** Unique identifier for the node, typically derived from the service name. */
   id: string;
+  /** The role the service plays in the lineage (producer, consumer, etc.). */
   type: ServiceType;
+  /** Human-readable name of the service. */
   service: string;
+  /** Implementation language of the service (e.g. `TypeScript`, `Python`). */
   language: string;
+  /** When the node was first registered. */
   timestamp: Date;
+  /** Optional additional key/value information about the node. */
   metadata?: Record<string, unknown>;
 }
 
-// Data lineage edge
+/**
+ * A directed edge describing data flow between two lineage nodes.
+ */
 export interface LineageEdge {
+  /** Unique identifier for the edge. */
   id: string;
+  /** Identifier of the source node. */
   source: string;
+  /** Identifier of the target node. */
   target: string;
+  /** The kind of data flow event this edge represents. */
   eventType: DataEventType;
+  /** Format of the data transferred (e.g. `json`, `protobuf`). */
   dataFormat: string;
+  /** Size of the transferred data in bytes. */
   dataSize: number;
+  /** Optional name of the transformation applied to the data. */
   transformation?: string;
+  /** When the edge was recorded. */
   timestamp: Date;
 }
 
-// Data flow event
+/**
+ * An individual data flow event captured by the lineage tracker.
+ */
 export interface DataFlowEvent {
+  /** Unique identifier for the event. */
   eventId: string;
+  /** Name of the service that produced the data. */
   sourceService: string;
+  /** Name of the service that received the data. */
   targetService: string;
+  /** The kind of data flow event. */
   eventType: DataEventType;
+  /** Format of the data transferred. */
   dataFormat: string;
+  /** Size of the transferred data in bytes. */
   dataSize: number;
+  /** Optional name of the transformation applied to the data. */
   transformation?: string;
+  /** Optional additional key/value information about the event. */
   metadata?: Record<string, unknown>;
+  /** When the event occurred. */
   timestamp: Date;
 }
 
-// Lineage graph
+/**
+ * The complete lineage graph: all nodes, edges, events, and summary metadata.
+ */
 export interface LineageGraph {
+  /** All registered service nodes. */
   nodes: LineageNode[];
+  /** All recorded data flow edges. */
   edges: LineageEdge[];
+  /** All captured data flow events, sorted chronologically. */
   events: DataFlowEvent[];
+  /** Aggregate statistics about the captured lineage. */
   metadata: {
+    /** Timestamp of the earliest event. */
     startTime: Date;
+    /** Timestamp of the latest event. */
     endTime: Date;
+    /** Total number of events captured. */
     totalEvents: number;
+    /** Sum of all transferred data sizes in bytes. */
     totalDataVolume: number;
   };
 }
 
-// Visualization output
+/**
+ * The result of producing a visualization from a lineage graph.
+ */
 export interface VisualizationOutput {
+  /** The format of the produced `content`. */
   format: VisualizationFormat;
+  /** The rendered visualization content as a string. */
   content: string;
+  /** Summary counts describing the visualized graph. */
   metadata: {
+    /** Number of nodes included in the visualization. */
     nodeCount: number;
+    /** Number of edges included in the visualization. */
     edgeCount: number;
+    /** Number of events included in the visualization. */
     eventCount: number;
   };
 }
 
-// Lineage tracker configuration
+/**
+ * Configuration options controlling how the lineage tracker behaves.
+ */
 export interface LineageTrackerConfig {
+  /** Name of the service this tracker is associated with. */
   serviceName: string;
+  /** Whether visualization output is enabled. */
   enableVisualization: boolean;
+  /** Default format used when no format is explicitly requested. */
   defaultFormat: VisualizationFormat;
+  /** Maximum number of events to retain before older events are pruned. */
   maxEvents: number;
+  /** Number of days to retain events before they are considered stale. */
   retentionDays: number;
+  /** Whether per-service metrics collection is enabled. */
   enableMetrics: boolean;
 }
 
-// Generate lineage tracker config
+/**
+ * Builds a default `LineageTrackerConfig` for the given service.
+ *
+ * @param serviceName - Name of the service the tracker will be associated with.
+ * @param defaultFormat - Visualization format to use by default; defaults to `mermaid`.
+ * @returns A resolved `LineageTrackerConfig` with sensible defaults applied.
+ */
 export async function generateLineageTrackerConfig(
   serviceName: string,
   defaultFormat: VisualizationFormat = 'mermaid'
@@ -110,7 +200,15 @@ export async function generateLineageTrackerConfig(
   };
 }
 
-// Generate TypeScript implementation
+/**
+ * Generates a TypeScript implementation of a data lineage tracker based on the
+ * provided configuration. The returned files contain a ready-to-use tracker
+ * class along with usage examples.
+ *
+ * @param config - Configuration describing the target service and options.
+ * @returns An object containing the generated `files` (path + content) and the
+ *   list of external `dependencies` required by the generated code.
+ */
 export async function generateTypeScriptLineageTracker(
   config: LineageTrackerConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -713,7 +811,15 @@ if (require.main === module) {
   return { files, dependencies };
 }
 
-// Generate Python implementation
+/**
+ * Generates a Python implementation of a data lineage tracker based on the
+ * provided configuration. The returned files contain a ready-to-use tracker
+ * class along with usage examples.
+ *
+ * @param config - Configuration describing the target service and options.
+ * @returns An object containing the generated `files` (path + content) and the
+ *   list of external `dependencies` required by the generated code.
+ */
 export async function generatePythonLineageTracker(
   config: LineageTrackerConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -1005,7 +1111,15 @@ if __name__ == '__main__':
   return { files, dependencies };
 }
 
-// Generate Go implementation
+/**
+ * Generates a Go implementation of a data lineage tracker based on the
+ * provided configuration. The returned files contain a ready-to-use tracker
+ * struct along with usage examples.
+ *
+ * @param config - Configuration describing the target service and options.
+ * @returns An object containing the generated `files` (path + content) and the
+ *   list of external `dependencies` required by the generated code.
+ */
 export async function generateGoLineageTracker(
   config: LineageTrackerConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -1294,7 +1408,17 @@ func main() {
   return { files, dependencies };
 }
 
-// Write generated files
+/**
+ * Writes the files produced by a lineage tracker generator to disk, placing
+ * them under `outputDir` and appending a generated `BUILD.md` instructions file.
+ *
+ * @param serviceName - Name of the service the tracker is for.
+ * @param integration - Result of one of the `generate*LineageTracker` functions,
+ *   containing the `files` to write.
+ * @param outputDir - Directory where generated files will be written.
+ * @param language - Target language identifier, used in the build instructions.
+ * @returns Resolves once all files have been written.
+ */
 export async function writeLineageTrackerFiles(
   serviceName: string,
   integration: any,
@@ -1315,7 +1439,14 @@ export async function writeLineageTrackerFiles(
   await fs.writeFile(path.join(outputDir, 'BUILD.md'), buildContent);
 }
 
-// Display configuration
+/**
+ * Prints a human-readable summary of a lineage tracker configuration to the
+ * console, including options, supported event types, service types,
+ * visualization formats, and feature highlights.
+ *
+ * @param config - The configuration to display.
+ * @returns Resolves once the configuration has been printed.
+ */
 export async function displayLineageTrackerConfig(config: LineageTrackerConfig): Promise<void> {
   console.log(chalk.bold.magenta('\n🔍 Data Lineage Tracker: ' + config.serviceName));
   console.log(chalk.gray('─'.repeat(50)));
@@ -1363,7 +1494,17 @@ export async function displayLineageTrackerConfig(config: LineageTrackerConfig):
   console.log(chalk.gray('─'.repeat(50)));
 }
 
-// Generate BUILD.md
+/**
+ * Produces the Markdown content for the `BUILD.md` instructions file describing
+ * how to use the generated lineage tracker, including architecture overview and
+ * usage examples.
+ *
+ * @param serviceName - Name of the service the tracker is for.
+ * @param integration - Result of one of the `generate*LineageTracker` functions,
+ *   used to derive class names and references.
+ * @param language - Target language identifier included in the header.
+ * @returns The rendered Markdown string.
+ */
 function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
   const toPascalCase = (str: string) =>
     str.replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase()).replace(/[-_]/g, '');
