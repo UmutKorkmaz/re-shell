@@ -1,43 +1,88 @@
+/**
+ * @file Advanced file system event debouncing and batching utilities.
+ * @description Provides classes and factory functions for collecting, deduplicating,
+ * and batching high-frequency file system events before emitting them to consumers.
+ */
+
 import { EventEmitter } from 'events';
 
 
+/**
+ * @description Represents a single debounced file system event.
+ */
 export interface DebouncedEvent {
+  /** @description Unique identifier for this event. */
   id: string;
+  /** @description The type of file system change that occurred. */
   type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
+  /** @description The file system path of the affected file or directory. */
   path: string;
+  /** @description Unix timestamp (ms) at which the event was recorded. */
   timestamp: number;
+  /** @description Optional fs.Stats-like metadata for the affected file. */
   stats?: any;
 }
 
+/**
+ * @description A collection of debounced events emitted together as a batch.
+ */
 export interface BatchedEvents {
+  /** @description Unique identifier for this batch. */
   id: string;
+  /** @description The list of events contained in this batch. */
   events: DebouncedEvent[];
+  /** @description Timestamp (ms) of the earliest event in the batch. */
   startTime: number;
+  /** @description Timestamp (ms) of the latest event in the batch. */
   endTime: number;
+  /** @description Total number of events in the batch (before deduplication). */
   totalEvents: number;
+  /** @description Whether deduplication reduced the number of events in this batch. */
   deduplicated: boolean;
 }
 
+/**
+ * @description Configuration options controlling debounce timing, batching, and deduplication behavior.
+ */
 export interface DebounceOptions {
+  /** @description Delay in milliseconds to wait before processing an event after the last change. */
   delay: number;
+  /** @description Maximum delay in milliseconds before an event is forced to process regardless of ongoing changes. */
   maxDelay: number;
+  /** @description Maximum number of events allowed in a single batch before it is flushed. */
   maxBatchSize: number;
+  /** @description Whether to deduplicate events that share the same key. */
   enableDeduplication: boolean;
+  /** @description Whether to group processed events into batches before emitting. */
   enableBatching: boolean;
+  /** @description Whether to group batched events by their event type. */
   groupByType: boolean;
+  /** @description Whether to attach file stats metadata to each event. */
   includeStats: boolean;
 }
 
+/**
+ * @description A filter definition used to include or exclude file system events from debouncer processing.
+ */
 export interface EventFilter {
+  /** @description Regular expression patterns that event paths must match to be included. */
   patterns: RegExp[];
+  /** @description Event types that are allowed through the filter. */
   types: string[];
+  /** @description Optional minimum file size (bytes) required to pass the filter. */
   minFileSize?: number;
+  /** @description Optional maximum file size (bytes) required to pass the filter. */
   maxFileSize?: number;
+  /** @description Optional list of file extensions allowed through the filter. */
   extensions?: string[];
+  /** @description Regular expression patterns whose matching event paths are excluded. */
   excludePatterns?: RegExp[];
 }
 
-// Advanced file system event debouncer with batching and deduplication
+/**
+ * @description Advanced file system event debouncer with batching and deduplication.
+ * @description Extends EventEmitter to emit `debounced-event`, `batched-events`, and `event-added` events.
+ */
 export class EventDebouncer extends EventEmitter {
   private pendingEvents: Map<string, DebouncedEvent> = new Map();
   private timers: Map<string, NodeJS.Timeout> = new Map();
@@ -47,6 +92,10 @@ export class EventDebouncer extends EventEmitter {
   private filters: EventFilter[];
   private eventCounter = 0;
 
+  /**
+   * @description Creates a new EventDebouncer instance.
+   * @param options - Partial override of the default debounce options. Unspecified fields use sensible defaults.
+   */
   constructor(options: Partial<DebounceOptions> = {}) {
     super();
     this.options = {
@@ -62,7 +111,14 @@ export class EventDebouncer extends EventEmitter {
     this.filters = [];
   }
 
-  // Add file system event to debouncer
+  /**
+   * @description Adds a file system event to the debouncer for processing.
+   * @description Applies configured filters, deduplicates if enabled, and schedules processing via debounce and max-delay timers.
+   * @param type - The type of file system event (e.g. 'add', 'change', 'unlink').
+   * @param path - The file system path the event applies to.
+   * @param stats - Optional fs.Stats-like metadata for the affected file.
+   * @returns void
+   */
   addEvent(type: string, path: string, stats?: any): void {
     const event: DebouncedEvent = {
       id: this.generateEventId(),
@@ -325,44 +381,70 @@ export class EventDebouncer extends EventEmitter {
     return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
   }
 
-  // Add event filter
+  /**
+   * @description Appends an event filter to the active filter chain.
+   * @param filter - The EventFilter to add.
+   * @returns void
+   */
   addFilter(filter: EventFilter): void {
     this.filters.push(filter);
   }
 
-  // Remove event filter
+  /**
+   * @description Removes an event filter by its index in the filter list. No-op if the index is out of range.
+   * @param index - The zero-based index of the filter to remove.
+   * @returns void
+   */
   removeFilter(index: number): void {
     if (index >= 0 && index < this.filters.length) {
       this.filters.splice(index, 1);
     }
   }
 
-  // Clear all filters
+  /**
+   * @description Clears all configured event filters.
+   * @returns void
+   */
   clearFilters(): void {
     this.filters = [];
   }
 
-  // Get current filter count
+  /**
+   * @description Returns the number of currently registered event filters.
+   * @returns The count of active filters.
+   */
   getFilterCount(): number {
     return this.filters.length;
   }
 
-  // Get pending events count
+  /**
+   * @description Returns the number of events currently awaiting debounce processing.
+   * @returns The count of pending events.
+   */
   getPendingEventsCount(): number {
     return this.pendingEvents.size;
   }
 
-  // Get active timers count
+  /**
+   * @description Returns the number of active debounce timers.
+   * @returns The count of active timers.
+   */
   getActiveTimersCount(): number {
     return this.timers.size;
   }
 
-  // Get batch count
+  /**
+   * @description Returns the number of event batches currently being accumulated.
+   * @returns The count of active batches.
+   */
   getBatchCount(): number {
     return this.eventBatches.size;
   }
 
-  // Force flush all pending events
+  /**
+   * @description Forces immediate processing of all pending events and in-progress batches, ignoring remaining timers.
+   * @returns void
+   */
   flush(): void {
     // Process all pending events immediately
     for (const [eventKey] of this.pendingEvents) {
@@ -375,7 +457,10 @@ export class EventDebouncer extends EventEmitter {
     }
   }
 
-  // Clear all pending events and timers
+  /**
+   * @description Cancels all pending timers and clears all pending events and batches without emitting them.
+   * @returns void
+   */
   clear(): void {
     // Clear all timers
     for (const timer of this.timers.values()) {
@@ -393,7 +478,10 @@ export class EventDebouncer extends EventEmitter {
     this.eventBatches.clear();
   }
 
-  // Get debouncer statistics
+  /**
+   * @description Returns runtime statistics about the debouncer's current state.
+   * @returns An object containing pending events count, active timers count, active batches count, total filters count, and current options.
+   */
   getStatistics(): {
     pendingEvents: number;
     activeTimers: number;
@@ -410,13 +498,20 @@ export class EventDebouncer extends EventEmitter {
     };
   }
 
-  // Update debounce options
+  /**
+   * @description Merges new option values into the existing debounce options.
+   * @param newOptions - Partial debounce options to override the current configuration.
+   * @returns void
+   */
   updateOptions(newOptions: Partial<DebounceOptions>): void {
     this.options = { ...this.options, ...newOptions };
   }
 }
 
-// File system event batcher for high-frequency operations
+/**
+ * @description File system event batcher for high-frequency operations.
+ * @description Collects events into batches keyed by directory (or a single default key) and emits them on interval or when batch size is reached.
+ */
 export class EventBatcher extends EventEmitter {
   private batches: Map<string, DebouncedEvent[]> = new Map();
   private batchTimers: Map<string, NodeJS.Timeout> = new Map();
@@ -426,6 +521,10 @@ export class EventBatcher extends EventEmitter {
     groupByDirectory: boolean;
   };
 
+  /**
+   * @description Creates a new EventBatcher instance.
+   * @param options - Partial override of batch interval, max batch size, and groupByDirectory settings.
+   */
   constructor(options: Partial<{
     batchInterval: number;
     maxBatchSize: number;
@@ -440,7 +539,11 @@ export class EventBatcher extends EventEmitter {
     };
   }
 
-  // Add event to batcher
+  /**
+   * @description Adds an event to the batcher, starting a batch timer if necessary and emitting when max batch size is reached.
+   * @param event - The DebouncedEvent to add to the batcher.
+   * @returns void
+   */
   addEvent(event: DebouncedEvent): void {
     const batchKey = this.getBatchKey(event);
     
@@ -504,14 +607,20 @@ export class EventBatcher extends EventEmitter {
     this.emit('batch', batch);
   }
 
-  // Flush all pending batches
+  /**
+   * @description Emits all pending batches immediately, bypassing their remaining timers.
+   * @returns void
+   */
   flush(): void {
     for (const batchKey of this.batches.keys()) {
       this.emitBatch(batchKey);
     }
   }
 
-  // Clear all batches
+  /**
+   * @description Cancels all batch timers and clears all accumulated batches without emitting them.
+   * @returns void
+   */
   clear(): void {
     // Clear all timers
     for (const timer of this.batchTimers.values()) {
@@ -521,12 +630,18 @@ export class EventBatcher extends EventEmitter {
     this.batches.clear();
   }
 
-  // Get current batch count
+  /**
+   * @description Returns the number of batches currently being accumulated.
+   * @returns The count of active batches.
+   */
   getBatchCount(): number {
     return this.batches.size;
   }
 
-  // Get total pending events
+  /**
+   * @description Returns the total number of events across all pending batches.
+   * @returns The total pending event count.
+   */
   getPendingEventCount(): number {
     let total = 0;
     for (const batch of this.batches.values()) {
@@ -536,11 +651,20 @@ export class EventBatcher extends EventEmitter {
   }
 }
 
-// Utility functions
+/**
+ * @description Factory function that creates and returns a new EventDebouncer instance.
+ * @param options - Optional partial debounce options to override defaults.
+ * @returns A configured EventDebouncer instance.
+ */
 export function createEventDebouncer(options?: Partial<DebounceOptions>): EventDebouncer {
   return new EventDebouncer(options);
 }
 
+/**
+ * @description Factory function that creates and returns a new EventBatcher instance.
+ * @param options - Optional partial configuration for batch interval, max batch size, and directory grouping.
+ * @returns A configured EventBatcher instance.
+ */
 export function createEventBatcher(options?: Partial<{
   batchInterval: number;
   maxBatchSize: number;
@@ -549,7 +673,11 @@ export function createEventBatcher(options?: Partial<{
   return new EventBatcher(options);
 }
 
-// Pre-configured debouncer for common use cases
+/**
+ * @description Creates a pre-configured EventDebouncer tuned for typical webpack development workflows.
+ * @description Filters for source file types and excludes common build/vendor directories.
+ * @returns An EventDebouncer configured for webpack file watching.
+ */
 export function createWebpackDebouncer(): EventDebouncer {
   const debouncer = new EventDebouncer({
     delay: 300,
@@ -570,6 +698,11 @@ export function createWebpackDebouncer(): EventDebouncer {
   return debouncer;
 }
 
+/**
+ * @description Creates a pre-configured EventDebouncer tuned for test file watching.
+ * @description Uses short delays and filters for test/spec files, with batching disabled.
+ * @returns An EventDebouncer configured for test runner file watching.
+ */
 export function createTestDebouncer(): EventDebouncer {
   const debouncer = new EventDebouncer({
     delay: 100,
