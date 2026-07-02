@@ -11,7 +11,9 @@ import {
   PluginCommandOption,
 } from './plugin-command-registry';
 
-// Documentation formats
+/**
+ * Supported output formats for generated plugin command documentation.
+ */
 export enum DocumentationFormat {
   MARKDOWN = 'markdown',
   HTML = 'html',
@@ -21,7 +23,9 @@ export enum DocumentationFormat {
   PDF = 'pdf'
 }
 
-// Documentation sections
+/**
+ * Logical sections that can be included in generated documentation.
+ */
 export enum DocumentationSection {
   SYNOPSIS = 'synopsis',
   DESCRIPTION = 'description',
@@ -35,7 +39,9 @@ export enum DocumentationSection {
   EXIT_CODES = 'exit-codes'
 }
 
-// Help display modes
+/**
+ * Modes controlling how command help is displayed to the user.
+ */
 export enum HelpDisplayMode {
   COMPACT = 'compact',
   DETAILED = 'detailed',
@@ -44,112 +50,203 @@ export enum HelpDisplayMode {
   SEARCHABLE = 'searchable'
 }
 
-// Documentation template
+/**
+ * Defines a template used to generate plugin command documentation.
+ */
 export interface DocumentationTemplate {
+  /** Human-readable template name. */
   name: string;
+  /** Output format produced by this template. */
   format: DocumentationFormat;
+  /** Ordered list of sections to include in the generated documentation. */
   sections: DocumentationSection[];
+  /** Optional map of custom section names to their content. */
   customSections?: Record<string, string>;
+  /** Optional styling configuration for the generated output. */
   styles?: DocumentationStyles;
+  /** Optional arbitrary metadata attached to the template. */
   metadata?: Record<string, unknown>;
 }
 
-// Documentation styles
+/**
+ * Styling configuration for generated documentation output.
+ */
 export interface DocumentationStyles {
+  /** Optional color palette used for colorized output formats. */
   colors?: {
+    /** Primary color used for headings and emphasis. */
     primary: string;
+    /** Secondary color used for supporting text. */
     secondary: string;
+    /** Accent color for highlights. */
     accent: string;
+    /** Color used for warning indicators. */
     warning: string;
+    /** Color used for error indicators. */
     error: string;
+    /** Color used for success indicators. */
     success: string;
   };
+  /** Optional typography markers for different text levels. */
   typography?: {
+    /** Prefix/marker for level-1 headings. */
     heading1: string;
+    /** Prefix/marker for level-2 headings. */
     heading2: string;
+    /** Prefix/marker for level-3 headings. */
     heading3: string;
+    /** Marker for body text. */
     body: string;
+    /** Delimiter for inline code. */
     code: string;
+    /** Delimiter for emphasized text. */
     emphasis: string;
   };
+  /** Optional layout dimensions for the rendered output. */
   layout?: {
+    /** Maximum line width in characters. */
     width: number;
+    /** Indentation size in characters. */
     indent: number;
+    /** Number of blank lines between blocks. */
     lineSpacing: number;
   };
 }
 
-// Generated documentation
+/**
+ * Represents the full result of generating documentation for a command.
+ */
 export interface GeneratedDocumentation {
+  /** Name of the documented command. */
   command: string;
+  /** Format used to generate the documentation. */
   format: DocumentationFormat;
+  /** Full rendered documentation content as a single string. */
   content: string;
+  /** Metadata about the generated documentation. */
   metadata: {
+    /** Timestamp at which the documentation was generated. */
     generatedAt: number;
+    /** Version of the documentation generator output. */
     version: string;
+    /** Name of the template used. */
     template: string;
+    /** Total word count of the generated content. */
     wordCount: number;
+    /** Estimated reading time in minutes. */
     estimatedReadingTime: number;
   };
+  /** Mapping of section type to its rendered content. */
   sections: Record<DocumentationSection, string>;
+  /** Examples included with the command. */
   examples: CommandExample[];
+  /** Names of related commands. */
   relatedCommands: string[];
 }
 
-// Command example
+/**
+ * Represents a single usage example for a command.
+ */
 export interface CommandExample {
+  /** Short title describing the example. */
   title: string;
+  /** Human-readable description of what the example demonstrates. */
   description: string;
+  /** The example command invocation. */
   command: string;
+  /** Optional expected output of the command. */
   output?: string;
+  /** Optional explanation of how the command works. */
   explanation?: string;
+  /** Difficulty level of the example. */
   complexity: 'basic' | 'intermediate' | 'advanced';
+  /** Tags used to categorize the example. */
   tags: string[];
 }
 
-// Help configuration
+/**
+ * Configuration controlling how command help is displayed and organized.
+ */
 export interface HelpConfiguration {
+  /** How the help output should be presented. */
   displayMode: HelpDisplayMode;
+  /** Maximum line width of the help output. */
   maxWidth: number;
+  /** Whether to include examples in help output. */
   showExamples: boolean;
+  /** Whether to include related commands in help output. */
   showRelatedCommands: boolean;
+  /** Whether search functionality is enabled. */
   enableSearch: boolean;
+  /** Whether filtering of commands is enabled. */
   enableFiltering: boolean;
+  /** Strategy used to sort commands in help output. */
   sortBy: 'alphabetical' | 'category' | 'usage' | 'priority';
+  /** Strategy used to group commands in help output. */
   groupBy: 'plugin' | 'category' | 'type' | 'none';
+  /** Whether hidden commands should be included. */
   includeHidden: boolean;
+  /** Verbosity level of the help output. */
   verbosityLevel: 'minimal' | 'normal' | 'verbose' | 'debug';
 }
 
-// Documentation generation options
+/**
+ * Options passed when generating documentation for one or more commands.
+ */
 export interface DocumentationGenerationOptions {
+  /** Desired output format for the generated documentation. */
   format: DocumentationFormat;
+  /** Name of the template to use, if not the default. */
   template?: string;
+  /** Directory where generated documentation files should be written. */
   outputDir?: string;
+  /** Whether to include private (hidden) commands. */
   includePrivate?: boolean;
+  /** Whether to include deprecated commands. */
   includeDeprecated?: boolean;
+  /** Whether to include usage examples. */
   includeExamples?: boolean;
+  /** Whether to generate an index file alongside the documentation. */
   generateIndex?: boolean;
+  /** Whether to enable cross-references between commands. */
   enableCrossReferences?: boolean;
+  /** Whether to validate generated content. */
   validateContent?: boolean;
+  /** Whether to minify the generated output. */
   minifyOutput?: boolean;
 }
 
-// Documentation index entry
+/**
+ * A single entry in the searchable documentation index.
+ */
 export interface DocumentationIndexEntry {
+  /** Name of the command. */
   command: string;
+  /** Display title of the command. */
   title: string;
+  /** Short description of the command. */
   description: string;
+  /** Category the command belongs to. */
   category: string;
+  /** Name of the plugin providing the command. */
   plugin: string;
+  /** Tags associated with the command. */
   tags: string[];
+  /** Complexity level of the command. */
   complexity: string;
+  /** Timestamp of the command's last modification. */
   lastModified: number;
+  /** Path to the generated documentation file, if any. */
   filePath: string;
+  /** Terms used when searching the index. */
   searchTerms: string[];
 }
 
-// Plugin command documentation generator
+/**
+ * Generates, formats, and manages documentation for plugin commands.
+ * Emits events when commands are registered, documentation is generated,
+ * templates change, and configuration is updated.
+ */
 export class PluginCommandDocumentationGenerator extends EventEmitter {
   private commands: Map<string, RegisteredCommand> = new Map();
   private templates: Map<string, DocumentationTemplate> = new Map();
@@ -157,6 +254,11 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
   private helpConfig: HelpConfiguration;
   private documentationIndex: Map<string, DocumentationIndexEntry> = new Map();
 
+  /**
+   * Creates a new documentation generator.
+   *
+   * @param helpConfig - Optional partial help configuration overrides.
+   */
   constructor(helpConfig?: Partial<HelpConfiguration>) {
     super();
     
@@ -177,7 +279,10 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     this.initializeDefaultTemplates();
   }
 
-  // Initialize default documentation templates
+  /**
+   * Populates the template map with the built-in default templates
+   * (markdown, plain-text, and man-page).
+   */
   private initializeDefaultTemplates(): void {
     // Markdown template
     this.templates.set('markdown', {
@@ -254,7 +359,12 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     });
   }
 
-  // Register commands for documentation generation
+  /**
+   * Registers a set of commands to be available for documentation generation.
+   * Clears any previously registered commands and updates the documentation index.
+   *
+   * @param commands - The commands to register.
+   */
   registerCommands(commands: RegisteredCommand[]): void {
     this.commands.clear();
     commands.forEach(cmd => {
@@ -265,7 +375,11 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     this.emit('commands-registered', { count: commands.length });
   }
 
-  // Update documentation index
+  /**
+   * Creates or refreshes the documentation index entry for a command.
+   *
+   * @param command - The command whose index entry should be updated.
+   */
   private updateDocumentationIndex(command: RegisteredCommand): void {
     const searchTerms = [
       command.definition.name,
@@ -292,7 +406,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     this.documentationIndex.set(command.id, indexEntry);
   }
 
-  // Determine command complexity
+  /**
+   * Computes a complexity label based on the number of arguments, options,
+   * and subcommands defined on a command.
+   *
+   * @param definition - The command definition to evaluate.
+   * @returns One of `basic`, `intermediate`, or `advanced`.
+   */
   private determineComplexity(definition: PluginCommandDefinition): string {
     let complexity = 0;
     
@@ -318,7 +438,14 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return 'advanced';
   }
 
-  // Generate help text for a command
+  /**
+   * Generates formatted help text for a single registered command.
+   *
+   * @param commandId - The unique identifier of the command.
+   * @param options - Optional partial help configuration overrides.
+   * @returns The rendered help text.
+   * @throws {ValidationError} When the command id is not registered.
+   */
   generateHelpText(commandId: string, options: Partial<HelpConfiguration> = {}): string {
     const command = this.commands.get(commandId);
     if (!command) {
@@ -367,7 +494,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return helpText;
   }
 
-  // Format command header
+  /**
+   * Formats the header (name, aliases, deprecation, description) of a command.
+   *
+   * @param definition - The command definition.
+   * @param config - The active help configuration.
+   * @returns The formatted header text.
+   */
   private formatCommandHeader(definition: PluginCommandDefinition, config: HelpConfiguration): string {
     let header = '';
     
@@ -390,7 +523,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return header + '\n';
   }
 
-  // Format synopsis section
+  /**
+   * Formats the synopsis (usage line) section of a command.
+   *
+   * @param definition - The command definition.
+   * @param config - The active help configuration.
+   * @returns The formatted synopsis text.
+   */
   private formatSynopsis(definition: PluginCommandDefinition, config: HelpConfiguration): string {
     let synopsis = this.formatSectionHeader('SYNOPSIS', config);
     
@@ -414,7 +553,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return synopsis;
   }
 
-  // Format arguments section
+  /**
+   * Formats the arguments section listing each command argument.
+   *
+   * @param args - The command arguments.
+   * @param config - The active help configuration.
+   * @returns The formatted arguments text.
+   */
   private formatArguments(args: PluginCommandArgument[], config: HelpConfiguration): string {
     let section = this.formatSectionHeader('ARGUMENTS', config);
     
@@ -440,7 +585,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return section + '\n';
   }
 
-  // Format options section
+  /**
+   * Formats the options section listing each command option.
+   *
+   * @param options - The command options.
+   * @param config - The active help configuration.
+   * @returns The formatted options text.
+   */
   private formatOptions(options: PluginCommandOption[], config: HelpConfiguration): string {
     let section = this.formatSectionHeader('OPTIONS', config);
     
@@ -474,7 +625,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return section + '\n';
   }
 
-  // Format examples section
+  /**
+   * Formats the examples section listing enumerated usage examples.
+   *
+   * @param examples - The example command strings.
+   * @param config - The active help configuration.
+   * @returns The formatted examples text.
+   */
   private formatExamples(examples: string[], config: HelpConfiguration): string {
     let section = this.formatSectionHeader('EXAMPLES', config);
     
@@ -485,7 +642,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return section + '\n';
   }
 
-  // Format related commands section
+  /**
+   * Formats the "SEE ALSO" section listing related commands.
+   *
+   * @param relatedCommands - The related commands to display.
+   * @param config - The active help configuration.
+   * @returns The formatted related-commands text.
+   */
   private formatRelatedCommands(relatedCommands: RegisteredCommand[], config: HelpConfiguration): string {
     let section = this.formatSectionHeader('SEE ALSO', config);
     
@@ -496,19 +659,39 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return section + '\n';
   }
 
-  // Format section header
+  /**
+   * Formats a bold, underlined section header.
+   *
+   * @param title - The section title.
+   * @param config - The active help configuration.
+   * @returns The formatted section header.
+   */
   private formatSectionHeader(title: string, config: HelpConfiguration): string {
     return chalk.bold.underline(title) + '\n';
   }
 
-  // Format generic section
+  /**
+   * Formats a generic titled section with wrapped content.
+   *
+   * @param title - The section title.
+   * @param content - The section body text.
+   * @param config - The active help configuration.
+   * @returns The formatted section text.
+   */
   private formatSection(title: string, content: string, config: HelpConfiguration): string {
     let section = this.formatSectionHeader(title, config);
     section += this.wrapText(content, config.maxWidth - 2, '  ') + '\n\n';
     return section;
   }
 
-  // Wrap text to specified width
+  /**
+   * Word-wraps the given text to the specified width with optional indentation.
+   *
+   * @param text - The text to wrap.
+   * @param width - Maximum line width.
+   * @param indent - Optional indentation prefix prepended to each line.
+   * @returns The wrapped text.
+   */
   private wrapText(text: string, width: number, indent = ''): string {
     const words = text.split(' ');
     const lines: string[] = [];
@@ -530,7 +713,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return lines.join('\n');
   }
 
-  // Find related commands
+  /**
+   * Finds commands related to the given command, based on shared plugin,
+   * shared category, or name similarity. Limited to at most 5 results.
+   *
+   * @param command - The reference command.
+   * @returns Related commands.
+   */
   private findRelatedCommands(command: RegisteredCommand): RegisteredCommand[] {
     const related: RegisteredCommand[] = [];
     
@@ -558,7 +747,14 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return related.slice(0, 5); // Limit to 5 related commands
   }
 
-  // Check if command names are similar
+  /**
+   * Determines whether two dash-separated command names are similar
+   * based on substring matches between their constituent words.
+   *
+   * @param name1 - First command name.
+   * @param name2 - Second command name.
+   * @returns True when the names are considered similar.
+   */
   private isNameSimilar(name1: string, name2: string): boolean {
     // Simple similarity check - could be enhanced with more sophisticated algorithms
     const words1 = name1.split('-');
@@ -571,7 +767,14 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     );
   }
 
-  // Generate comprehensive documentation
+  /**
+   * Generates documentation for the specified commands (or all registered commands).
+   *
+   * @param commandIds - Optional list of command ids to document; defaults to all registered commands.
+   * @param options - Options controlling the documentation generation.
+   * @returns An array of generated documentation objects.
+   * @throws {ValidationError} When the requested template is not found.
+   */
   async generateDocumentation(
     commandIds: string[] = [],
     options: DocumentationGenerationOptions
@@ -607,7 +810,14 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return generatedDocs;
   }
 
-  // Generate documentation for a single command
+  /**
+   * Generates documentation for a single command using the supplied template.
+   *
+   * @param command - The command to document.
+   * @param template - The documentation template to apply.
+   * @param options - Options controlling the documentation generation.
+   * @returns The generated documentation object.
+   */
   private async generateCommandDocumentation(
     command: RegisteredCommand,
     template: DocumentationTemplate,
@@ -650,7 +860,14 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return documentation;
   }
 
-  // Generate documentation section
+  /**
+   * Generates the content for a single documentation section type.
+   *
+   * @param command - The command being documented.
+   * @param sectionType - The section to generate.
+   * @param template - The active documentation template.
+   * @returns The rendered section content.
+   */
   private generateDocumentationSection(
     command: RegisteredCommand,
     sectionType: DocumentationSection,
@@ -691,7 +908,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     }
   }
 
-  // Generate synopsis section for documentation
+  /**
+   * Generates the synopsis section according to the template format.
+   *
+   * @param definition - The command definition.
+   * @param template - The active documentation template.
+   * @returns The rendered synopsis section.
+   */
   private generateSynopsisSection(definition: PluginCommandDefinition, template: DocumentationTemplate): string {
     if (template.format === DocumentationFormat.MARKDOWN) {
       return `## Synopsis\n\n\`${definition.name}\``;
@@ -699,7 +922,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return `SYNOPSIS\n${definition.name}`;
   }
 
-  // Generate description section for documentation
+  /**
+   * Generates the description section according to the template format.
+   *
+   * @param definition - The command definition.
+   * @param template - The active documentation template.
+   * @returns The rendered description section.
+   */
   private generateDescriptionSection(definition: PluginCommandDefinition, template: DocumentationTemplate): string {
     if (!definition.description) return '';
     
@@ -709,7 +938,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return `DESCRIPTION\n${definition.description}`;
   }
 
-  // Generate arguments section for documentation
+  /**
+   * Generates the arguments section according to the template format.
+   *
+   * @param args - The command arguments.
+   * @param template - The active documentation template.
+   * @returns The rendered arguments section.
+   */
   private generateArgumentsSection(args: PluginCommandArgument[], template: DocumentationTemplate): string {
     if (template.format === DocumentationFormat.MARKDOWN) {
       let section = '## Arguments\n\n';
@@ -731,7 +966,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return section;
   }
 
-  // Generate options section for documentation
+  /**
+   * Generates the options section according to the template format.
+   *
+   * @param options - The command options.
+   * @param template - The active documentation template.
+   * @returns The rendered options section.
+   */
   private generateOptionsSection(options: PluginCommandOption[], template: DocumentationTemplate): string {
     if (template.format === DocumentationFormat.MARKDOWN) {
       let section = '## Options\n\n';
@@ -753,7 +994,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return section;
   }
 
-  // Generate examples section for documentation
+  /**
+   * Generates the examples section according to the template format.
+   *
+   * @param examples - The example command strings.
+   * @param template - The active documentation template.
+   * @returns The rendered examples section.
+   */
   private generateExamplesSection(examples: string[], template: DocumentationTemplate): string {
     if (template.format === DocumentationFormat.MARKDOWN) {
       let section = '## Examples\n\n';
@@ -771,7 +1018,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return section;
   }
 
-  // Generate see also section for documentation
+  /**
+   * Generates the "see also" section listing related commands.
+   *
+   * @param related - Related commands.
+   * @param template - The active documentation template.
+   * @returns The rendered see-also section.
+   */
   private generateSeeAlsoSection(related: RegisteredCommand[], template: DocumentationTemplate): string {
     if (template.format === DocumentationFormat.MARKDOWN) {
       let section = '## See Also\n\n';
@@ -788,7 +1041,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return section;
   }
 
-  // Generate author section for documentation
+  /**
+   * Generates the author section naming the contributing plugin.
+   *
+   * @param command - The command being documented.
+   * @param template - The active documentation template.
+   * @returns The rendered author section.
+   */
   private generateAuthorSection(command: RegisteredCommand, template: DocumentationTemplate): string {
     if (template.format === DocumentationFormat.MARKDOWN) {
       return `## Author\n\nPlugin: ${command.pluginName}`;
@@ -796,7 +1055,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return `AUTHOR\nPlugin: ${command.pluginName}`;
   }
 
-  // Generate version section for documentation
+  /**
+   * Generates the version section showing when the command was registered.
+   *
+   * @param command - The command being documented.
+   * @param template - The active documentation template.
+   * @returns The rendered version section.
+   */
   private generateVersionSection(command: RegisteredCommand, template: DocumentationTemplate): string {
     if (template.format === DocumentationFormat.MARKDOWN) {
       return `## Version\n\nRegistered: ${new Date(command.registeredAt).toLocaleDateString()}`;
@@ -804,7 +1069,13 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return `VERSION\nRegistered: ${new Date(command.registeredAt).toLocaleDateString()}`;
   }
 
-  // Generate command examples
+  /**
+   * Builds structured {@link CommandExample} objects from a command's
+   * raw example strings.
+   *
+   * @param command - The command whose examples should be generated.
+   * @returns The generated command examples.
+   */
   private generateCommandExamples(command: RegisteredCommand): CommandExample[] {
     const examples: CommandExample[] = [];
     
@@ -823,7 +1094,14 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return examples;
   }
 
-  // Generate documentation index
+  /**
+   * Generates and optionally writes an index file summarizing the
+   * generated documentation.
+   *
+   * @param docs - The generated documentation entries to index.
+   * @param options - Options controlling generation; index is written when `outputDir` is set.
+   * @returns Resolves once the index has been generated.
+   */
   private async generateDocumentationIndex(
     docs: GeneratedDocumentation[],
     options: DocumentationGenerationOptions
@@ -848,7 +1126,14 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     }
   }
 
-  // Search documentation
+  /**
+   * Searches the documentation index for entries matching the query, with
+   * optional filters. Results are ranked by relevance score.
+   *
+   * @param query - The free-text search query.
+   * @param filters - Optional filters by plugin, category, complexity, or format.
+   * @returns Matching index entries sorted by relevance.
+   */
   searchDocumentation(query: string, filters: {
     plugin?: string;
     category?: string;
@@ -877,7 +1162,14 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     );
   }
 
-  // Calculate search score
+  /**
+   * Calculates a relevance score for a set of search terms against the
+   * indexed search terms. Exact matches score higher than partial matches.
+   *
+   * @param queryTerms - Lowercase query terms to match.
+   * @param searchTerms - Indexed search terms for a command.
+   * @returns The numeric relevance score.
+   */
   private calculateSearchScore(queryTerms: string[], searchTerms: string[]): number {
     let score = 0;
     const lowerSearchTerms = searchTerms.map(term => term.toLowerCase());
@@ -893,7 +1185,11 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return score;
   }
 
-  // Get documentation statistics
+  /**
+   * Returns summary statistics about registered commands and generated documentation.
+   *
+   * @returns An object describing coverage, word counts, reading time, and distributions.
+   */
   getDocumentationStats(): any {
     const commands = Array.from(this.commands.values());
     const docs = Array.from(this.generatedDocs.values());
@@ -919,24 +1215,42 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     };
   }
 
-  // Get help configuration
+  /**
+   * Returns a copy of the current help configuration.
+   *
+   * @returns The active help configuration.
+   */
   getHelpConfiguration(): HelpConfiguration {
     return { ...this.helpConfig };
   }
 
-  // Update help configuration
+  /**
+   * Updates the help configuration by merging the given partial updates.
+   *
+   * @param updates - Partial configuration values to apply.
+   */
   updateHelpConfiguration(updates: Partial<HelpConfiguration>): void {
     this.helpConfig = { ...this.helpConfig, ...updates };
     this.emit('help-configuration-updated', this.helpConfig);
   }
 
-  // Add custom documentation template
+  /**
+   * Registers a custom documentation template.
+   *
+   * @param name - The key under which to store the template.
+   * @param template - The template definition.
+   */
   addDocumentationTemplate(name: string, template: DocumentationTemplate): void {
     this.templates.set(name, template);
     this.emit('template-added', { name, template });
   }
 
-  // Remove documentation template
+  /**
+   * Removes a documentation template by name.
+   *
+   * @param name - The name of the template to remove.
+   * @returns True if a template was removed.
+   */
   removeDocumentationTemplate(name: string): boolean {
     const deleted = this.templates.delete(name);
     if (deleted) {
@@ -945,12 +1259,18 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
     return deleted;
   }
 
-  // Get available templates
+  /**
+   * Returns all currently registered documentation templates.
+   *
+   * @returns Array of documentation templates.
+   */
   getAvailableTemplates(): DocumentationTemplate[] {
     return Array.from(this.templates.values());
   }
 
-  // Clear generated documentation
+  /**
+   * Clears all generated documentation and the documentation index.
+   */
   clearGeneratedDocumentation(): void {
     this.generatedDocs.clear();
     this.documentationIndex.clear();
@@ -958,18 +1278,37 @@ export class PluginCommandDocumentationGenerator extends EventEmitter {
   }
 }
 
-// Utility functions
+/**
+ * Creates a new {@link PluginCommandDocumentationGenerator} instance.
+ *
+ * @param helpConfig - Optional partial help configuration overrides.
+ * @returns A new documentation generator.
+ */
 export function createDocumentationGenerator(
   helpConfig?: Partial<HelpConfiguration>
 ): PluginCommandDocumentationGenerator {
   return new PluginCommandDocumentationGenerator(helpConfig);
 }
 
+/**
+ * Estimates the reading time for a body of text.
+ *
+ * @param text - The text to read.
+ * @param wordsPerMinute - Average reading speed in words per minute (default 200).
+ * @returns Estimated reading time in minutes, rounded up.
+ */
 export function estimateReadingTime(text: string, wordsPerMinute = 200): number {
   const wordCount = text.split(/\s+/).length;
   return Math.ceil(wordCount / wordsPerMinute);
 }
 
+/**
+ * Computes and formats a human-readable total size for a set of
+ * generated documentation entries.
+ *
+ * @param docs - The generated documentation entries.
+ * @returns A human-readable size string (bytes, KB, or MB).
+ */
 export function formatDocumentationSize(docs: GeneratedDocumentation[]): string {
   const totalSize = docs.reduce((sum, doc) => sum + doc.content.length, 0);
   
@@ -978,6 +1317,12 @@ export function formatDocumentationSize(docs: GeneratedDocumentation[]): string 
   return `${(totalSize / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Validates a documentation template and returns a list of validation errors.
+ *
+ * @param template - The template to validate.
+ * @returns An array of error messages; empty when the template is valid.
+ */
 export function validateDocumentationTemplate(template: DocumentationTemplate): string[] {
   const errors: string[] = [];
   
