@@ -1,16 +1,32 @@
-// Advanced Threat Detection and Response with Machine Learning
+/**
+ * @file Advanced Threat Detection and Response with Machine Learning.
+ * @description Provides types, configuration interfaces, and code/markdown/Terraform generators
+ * for a threat detection and response system that integrates ML models, incident management,
+ * analytics, and multi-cloud provider support.
+ */
 
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/** Categories of threats that can be detected by the system. */
 export type ThreatType = 'malware' | 'phishing' | 'ddos' | 'sql-injection' | 'xss' | 'ransomware' | 'insider-threat' | 'data-exfiltration' | 'zero-day' | 'custom';
+/** Severity levels for threats, ordered from most to least severe. */
 export type ThreatSeverity = 'critical' | 'high' | 'medium' | 'low';
+/** Lifecycle states of a threat from detection through resolution. */
 export type ThreatStatus = 'detected' | 'analyzing' | 'containing' | 'remediated' | 'false-positive';
+/** Actions that can be taken in response to a detected threat. */
 export type ResponseAction = 'block' | 'quarantine' | 'isolate' | 'monitor' | 'alert' | 'investigate' | 'patch';
+/** Types of machine learning models used for threat detection. */
 export type MLModelType = 'anomaly-detection' | 'classification' | 'clustering' | 'neural-network' | 'random-forest' | 'svm';
+/** Sources from which threat telemetry and detection data can originate. */
 export type DataSource = 'network' | 'endpoint' | 'application' | 'cloud' | 'identity' | 'database' | 'custom';
 
+/**
+ * Top-level configuration for the threat detection and response system.
+ * @description Aggregates project metadata, detection settings, detected threats,
+ * ML models, response plans, incidents, analytics, and third-party integrations.
+ */
 export interface ThreatDetectionConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -23,6 +39,11 @@ export interface ThreatDetectionConfig {
   integrations: ThreatIntegration[];
 }
 
+/**
+ * Operational settings that control how threat detection and response are performed.
+ * @description Includes detection mode, analysis cadence, ML configuration,
+ * behavioral baselining, and acceptable false-positive/recall thresholds.
+ */
 export interface DetectionSettings {
   enabled: boolean;
   mode: 'detect-only' | 'detect-and-respond' | 'auto-remediate';
@@ -42,6 +63,11 @@ export interface DetectionSettings {
   dataSource: DataSource[];
 }
 
+/**
+ * Represents a detected threat with its classification, lifecycle, and impact details.
+ * @description Includes severity, confidence, affected assets, indicators of compromise,
+ * MITRE ATT&CK mappings, and the response actions taken or planned.
+ */
 export interface Threat {
   id: string;
   type: ThreatType;
@@ -66,6 +92,7 @@ export interface Threat {
   metadata: Record<string, unknown>;
 }
 
+/** Describes an asset impacted by a threat, including its type, location, and compromise state. */
 export interface AffectedAsset {
   id: string;
   name: string;
@@ -79,6 +106,11 @@ export interface AffectedAsset {
   isolated: boolean;
 }
 
+/**
+ * An indicator of compromise (IOC) associated with a threat.
+ * @description Represents observable evidence such as IPs, domains, hashes, or
+ * registry keys used to identify and correlate malicious activity.
+ */
 export interface ThreatIndicator {
   id: string;
   type: 'ip' | 'domain' | 'url' | 'hash' | 'email' | 'file' | 'certificate' | 'process' | 'registry' | 'custom';
@@ -92,6 +124,11 @@ export interface ThreatIndicator {
   iocType?: 'file-hash' | 'ip-address' | 'domain-name' | 'url' | 'email-address';
 }
 
+/**
+ * Represents a machine learning model used for threat detection.
+ * @description Includes model metadata, training/evaluation metrics, feature
+ * definitions, hyperparameters, deployment status, and runtime performance.
+ */
 export interface MLModel {
   id: string;
   name: string;
@@ -117,6 +154,7 @@ export interface MLModel {
   lastDriftCheck: Date;
 }
 
+/** Describes a single feature used by an ML model, including its type, importance, and statistics. */
 export interface ModelFeature {
   name: string;
   type: 'numeric' | 'categorical' | 'text' | 'binary';
@@ -130,6 +168,7 @@ export interface ModelFeature {
   };
 }
 
+/** Runtime performance metrics for a deployed ML model. */
 export interface ModelPerformance {
   latency: number; // milliseconds
   throughput: number; // predictions per second
@@ -139,6 +178,11 @@ export interface ModelPerformance {
   uptime: number; // percentage
 }
 
+/**
+ * A predefined plan for responding to specific threat types and severities.
+ * @description Defines automated/manual execution, required approvals, ordered steps,
+ * rollback procedures, and historical execution metrics.
+ */
 export interface ResponsePlan {
   id: string;
   name: string;
@@ -157,6 +201,7 @@ export interface ResponsePlan {
   executions: number;
 }
 
+/** A single ordered step within a response plan, describing the action, target, and execution details. */
 export interface ResponseStep {
   id: string;
   order: number;
@@ -172,6 +217,11 @@ export interface ResponseStep {
   rollback?: string;
 }
 
+/**
+ * Represents a security incident aggregating one or more related threats.
+ * @description Tracks the incident lifecycle through identification, containment,
+ * eradication, recovery, and lessons-learned phases, with timeline and artifacts.
+ */
 export interface Incident {
   id: string;
   title: string;
@@ -193,6 +243,7 @@ export interface Incident {
   lessonsLearned?: string[];
 }
 
+/** A timestamped entry in an incident's timeline recording an action taken during response. */
 export interface IncidentTimeline {
   timestamp: Date;
   phase: string;
@@ -202,6 +253,7 @@ export interface IncidentTimeline {
   evidence: string[];
 }
 
+/** A piece of evidence collected during incident investigation (e.g., logs, dumps, captures). */
 export interface IncidentArtifact {
   id: string;
   type: 'log' | 'screenshot' | 'memory-dump' | 'network-capture' | 'file' | 'registry' | 'custom';
@@ -213,6 +265,11 @@ export interface IncidentArtifact {
   collectedBy: string;
 }
 
+/**
+ * Aggregated analytics for threats over a reporting period.
+ * @description Includes detection/remediation counts, mean times, breakdowns by type
+ * and severity, trends, and top affected assets and indicators.
+ */
 export interface ThreatAnalytics {
   id: string;
   period: string;
@@ -229,6 +286,7 @@ export interface ThreatAnalytics {
   topIndicators: IndicatorData[];
 }
 
+/** A single data point in a threat analytics trend series. */
 export interface AnalyticsTrend {
   date: Date;
   count: number;
@@ -236,6 +294,7 @@ export interface AnalyticsTrend {
   type: ThreatType;
 }
 
+/** Threat summary data for a specific asset, including counts and risk score. */
 export interface AssetThreatData {
   assetId: string;
   assetName: string;
@@ -244,6 +303,7 @@ export interface AssetThreatData {
   riskScore: number; // 0-100
 }
 
+/** Aggregated data for a threat indicator, including occurrence count and last seen time. */
 export interface IndicatorData {
   indicator: string;
   count: number;
@@ -251,6 +311,11 @@ export interface IndicatorData {
   severity: ThreatSeverity;
 }
 
+/**
+ * Describes a third-party security tool integration (e.g., SIEM, EDR, SOAR).
+ * @description Includes provider details, connection status, sync metadata,
+ * and ingested event/threat counts.
+ */
 export interface ThreatIntegration {
   id: string;
   name: string;
@@ -265,7 +330,13 @@ export interface ThreatIntegration {
   errorMessage?: string;
 }
 
-// Markdown Generation
+/**
+ * Generates a Markdown documentation string summarizing the threat detection configuration.
+ * @description Renders detection settings, threats, ML models, response plans, incidents,
+ * and analytics into a human-readable Markdown report.
+ * @param config - The threat detection configuration to document.
+ * @returns A Markdown string describing the configuration.
+ */
 export function generateThreatDetectionMarkdown(config: ThreatDetectionConfig): string {
   return `# Advanced Threat Detection and Response
 
@@ -350,7 +421,14 @@ ${model.features.slice(0, 5).map(f => `- ${f.name}: ${(f.importance * 100).toFix
 `;
 }
 
-// Terraform Generation
+/**
+ * Generates Terraform configuration for threat detection on the specified cloud provider.
+ * @description Produces provider-specific resources (e.g., AWS GuardDuty, Azure Security Center,
+ * GCP Security Command Center) along with ML and response infrastructure.
+ * @param config - The threat detection configuration to provision.
+ * @param provider - The target cloud provider.
+ * @returns A Terraform configuration string.
+ */
 export function generateThreatDetectionTerraform(config: ThreatDetectionConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   if (provider === 'aws') {
     return `# AWS Threat Detection
@@ -458,7 +536,13 @@ resource "google_cloud_tasks_queue" "response_queue" {
   }
 }
 
-// TypeScript Manager Generation
+/**
+ * Generates a TypeScript `ThreatDetectionManager` class source from the configuration.
+ * @description Produces a self-contained TypeScript module with threat analysis,
+ * model training, and response capabilities backed by an EventEmitter.
+ * @param config - The threat detection configuration to scaffold.
+ * @returns A TypeScript source string.
+ */
 export function generateThreatManagerTypeScript(config: ThreatDetectionConfig): string {
   return `// Auto-generated Threat Detection Manager
 // Generated at: ${new Date().toISOString()}
@@ -527,7 +611,13 @@ export { ThreatDetectionManager };
 `;
 }
 
-// Python Manager Generation
+/**
+ * Generates a Python `ThreatDetectionManager` class source from the configuration.
+ * @description Produces a self-contained Python module with dataclasses for threats
+ * and models, plus async methods for analysis, training, and response.
+ * @param config - The threat detection configuration to scaffold.
+ * @returns A Python source string.
+ */
 export function generateThreatManagerPython(config: ThreatDetectionConfig): string {
   return `# Auto-generated Threat Detection Manager
 # Generated at: ${new Date().toISOString()}
@@ -586,7 +676,15 @@ class ThreatDetectionManager:
 `;
 }
 
-// Write Files
+/**
+ * Writes all threat detection files to the specified output directory.
+ * @description Generates Markdown documentation, per-provider Terraform configs,
+ * a TypeScript or Python manager module with dependencies, and a JSON config file.
+ * @param config - The threat detection configuration to materialize.
+ * @param outputDir - The directory to write generated files into.
+ * @param language - The target language for the manager module.
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeThreatDetectionFiles(
   config: ThreatDetectionConfig,
   outputDir: string,
@@ -649,6 +747,13 @@ export async function writeThreatDetectionFiles(
   );
 }
 
+/**
+ * Prints a concise summary of the threat detection configuration to the console.
+ * @description Displays project name, providers, detection mode, ML status, and counts
+ * of threats, models, response plans, and incidents using styled output.
+ * @param config - The threat detection configuration to display.
+ * @returns No return value; output is written to stdout.
+ */
 export function displayThreatDetectionConfig(config: ThreatDetectionConfig): void {
   console.log(chalk.cyan('🛡️ Advanced Threat Detection and Response'));
   console.log(chalk.gray('─'.repeat(60)));

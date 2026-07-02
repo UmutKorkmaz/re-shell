@@ -1,17 +1,35 @@
-// Infrastructure Security Scanning and Compliance Checking with Remediation
+/**
+ * @file Infrastructure Security Scanning and Compliance Checking with Remediation
+ * @description Provides types, configuration interfaces, and code generators for
+ * scanning cloud and infrastructure resources, tracking security findings,
+ * managing remediations, and producing compliance reports across multiple
+ * cloud providers (AWS, Azure, GCP) and Kubernetes.
+ */
 
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/** Supported infrastructure scan targets (cloud providers, IaC tools, or custom). */
 export type ScanTarget = 'aws' | 'azure' | 'gcp' | 'kubernetes' | 'terraform' | 'cloudformation' | 'arm' | 'custom';
+/** Categories of cloud resources that can be scanned. */
 export type ResourceType = 'compute' | 'storage' | 'network' | 'database' | 'security' | 'identity' | 'container' | 'serverless' | 'custom';
+/** Compliance and security standards supported for reporting. */
 export type ComplianceStandard = 'cis-benchmark' | 'nist-800-53' | 'pci-dss' | 'hipaa' | 'gdpr' | 'soc2' | 'iso-27001' | 'custom';
+/** Severity levels ordered from most to least severe. */
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info';
+/** Lifecycle states for a security finding. */
 export type FindingStatus = 'open' | 'investigating' | 'remediating' | 'resolved' | 'accepted' | 'false-positive';
+/** Lifecycle states for a remediation action. */
 export type RemediationStatus = 'pending' | 'in-progress' | 'completed' | 'failed' | 'skipped';
+/** Level of automation applied to a remediation action. */
 export type RemediationType = 'automatic' | 'manual' | 'semi-automatic';
 
+/**
+ * Top-level configuration object for infrastructure security scanning,
+ * holding all scan settings, resources, findings, remediations, reports,
+ * benchmarks, and integrations for a project.
+ */
 export interface InfrastructureSecurityConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -24,6 +42,10 @@ export interface InfrastructureSecurityConfig {
   integrations: SecurityIntegration[];
 }
 
+/**
+ * Configuration controlling when and how security scans run, including
+ * frequency, severity thresholds, scan categories, and remediation behavior.
+ */
 export interface ScanSettings {
   enabled: boolean;
   frequency: 'on-deploy' | 'on-schedule' | 'on-demand' | 'continuous';
@@ -45,6 +67,10 @@ export interface ScanSettings {
   generateReports: boolean;
 }
 
+/**
+ * Represents a cloud or infrastructure resource that has been discovered
+ * and is tracked for security scanning, drift detection, and findings.
+ */
 export interface Resource {
   id: string;
   name: string;
@@ -66,6 +92,10 @@ export interface Resource {
   findings: string[]; // Finding IDs
 }
 
+/**
+ * A security issue detected during a scan, including severity, status,
+ * the affected resource, related compliance references, and remediation info.
+ */
 export interface SecurityFinding {
   id: string;
   title: string;
@@ -87,6 +117,10 @@ export interface SecurityFinding {
   metadata: Record<string, unknown>;
 }
 
+/**
+ * Lightweight reference to a resource, used within findings to avoid
+ * duplicating full resource details.
+ */
 export interface ResourceReference {
   id: string;
   name: string;
@@ -97,6 +131,10 @@ export interface ResourceReference {
   resourceId?: string;
 }
 
+/**
+ * Describes a security control (from a framework such as CIS or NIST)
+ * that a finding maps to, including its implementation and validation.
+ */
 export interface SecurityControl {
   id: string;
   name: string;
@@ -107,6 +145,10 @@ export interface SecurityControl {
   validation: string;
 }
 
+/**
+ * Links a finding to a specific requirement and control within a
+ * compliance standard.
+ */
 export interface ComplianceReference {
   standard: ComplianceStandard;
   requirement: string;
@@ -114,6 +156,10 @@ export interface ComplianceReference {
   severity: SeverityLevel;
 }
 
+/**
+ * Summary reference to a remediation action associated with a finding,
+ * including type, status, estimated time, complexity, and risk.
+ */
 export interface RemediationReference {
   id: string;
   type: RemediationType;
@@ -123,12 +169,21 @@ export interface RemediationReference {
   risk: 'low' | 'medium' | 'high';
 }
 
+/**
+ * An external reference (e.g. CWE, OWASP, NIST, CIS) attached to a finding
+ * for additional context.
+ */
 export interface FindingReference {
   type: 'cwe' | 'owasp' | 'nist' | 'cis' | 'custom';
   url: string;
   title: string;
 }
 
+/**
+ * A full remediation plan for a finding, including ordered steps,
+ * pre/post conditions, a rollback plan, approval tracking, and
+ * optional automated scripts or manual instructions.
+ */
 export interface Remediation {
   id: string;
   findingId: string;
@@ -154,6 +209,11 @@ export interface Remediation {
   validationResults?: ValidationResult[];
 }
 
+/**
+ * A single step within a remediation plan, which may be automated
+ * (via command or script) or performed manually, and may depend on
+ * other steps.
+ */
 export interface RemediationStep {
   id: string;
   title: string;
@@ -165,6 +225,10 @@ export interface RemediationStep {
   dependencies: string[];
 }
 
+/**
+ * The outcome of a validation check performed after a remediation step
+ * or plan to verify the issue is resolved.
+ */
 export interface ValidationResult {
   check: string;
   status: 'passed' | 'failed' | 'skipped';
@@ -172,6 +236,11 @@ export interface ValidationResult {
   timestamp: Date;
 }
 
+/**
+ * A compliance report for a specific standard, summarizing the overall
+ * score, individual requirement results, scanned resources, findings,
+ * and recommendations.
+ */
 export interface ComplianceReport {
   id: string;
   name: string;
@@ -190,6 +259,10 @@ export interface ComplianceReport {
   frameworks: string[];
 }
 
+/**
+ * A single requirement within a compliance report, with its pass/fail
+ * status, severity, related controls, findings, and optional evidence.
+ */
 export interface Requirement {
   id: string;
   name: string;
@@ -202,6 +275,11 @@ export interface Requirement {
   evidence?: string[];
 }
 
+/**
+ * Results of evaluating resources against a security benchmark
+ * (e.g. CIS Benchmark), including an aggregate score, level, and
+ * individual control outcomes.
+ */
 export interface SecurityBenchmark {
   id: string;
   name: string;
@@ -216,6 +294,11 @@ export interface SecurityBenchmark {
   duration: number; // seconds
 }
 
+/**
+ * A single control within a security benchmark, with its status,
+ * severity, associated code, references, affected resources, and
+ * optional audit/remediation commands.
+ */
 export interface BenchmarkControl {
   id: string;
   title: string;
@@ -230,6 +313,11 @@ export interface BenchmarkControl {
   remediationCommand?: string;
 }
 
+/**
+ * Configuration for an external security tool integration (e.g.
+ * Prisma Cloud, Prowler, CIS-CAT) including connection status and
+ * last sync time.
+ */
 export interface SecurityIntegration {
   id: string;
   name: string;
@@ -241,7 +329,15 @@ export interface SecurityIntegration {
   errorMessage?: string;
 }
 
-// Markdown Generation
+/**
+ * Generates a Markdown documentation string summarizing the infrastructure
+ * security configuration, including scan settings, resources, findings,
+ * remediations, compliance reports, and benchmarks.
+ *
+ * @description Produces human-readable Markdown from the given config.
+ * @param config - The infrastructure security configuration to document.
+ * @returns A Markdown string describing the security posture.
+ */
 export function generateInfrastructureSecurityMarkdown(config: InfrastructureSecurityConfig): string {
   return `# Infrastructure Security Scanning and Compliance
 
@@ -292,7 +388,16 @@ ${config.findings.map(finding => `
 `;
 }
 
-// Terraform Generation
+/**
+ * Generates Terraform configuration for the requested cloud provider,
+ * setting up the provider's native security scanning and compliance
+ * resources.
+ *
+ * @description Returns provider-specific Terraform (HCL) for AWS, Azure, or GCP.
+ * @param config - The infrastructure security configuration to provision.
+ * @param provider - The target cloud provider.
+ * @returns A Terraform configuration string for the given provider.
+ */
 export function generateInfrastructureSecurityTerraform(config: InfrastructureSecurityConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   if (provider === 'aws') {
     return `# AWS Infrastructure Security
@@ -345,7 +450,14 @@ resource "google_security_health_analytics_settings" "main" {
   }
 }
 
-// TypeScript Manager Generation
+/**
+ * Generates a TypeScript `InfrastructureSecurityManager` class source
+ * string that can scan infrastructure and remediate findings.
+ *
+ * @description Produces a self-contained TypeScript module from the config.
+ * @param config - The infrastructure security configuration to base the manager on.
+ * @returns TypeScript source code as a string.
+ */
 export function generateSecurityManagerTypeScript(config: InfrastructureSecurityConfig): string {
   return `// Auto-generated Infrastructure Security Manager
 // Generated at: ${new Date().toISOString()}
@@ -385,7 +497,14 @@ export { InfrastructureSecurityManager };
 `;
 }
 
-// Python Manager Generation
+/**
+ * Generates a Python `InfrastructureSecurityManager` class source
+ * string that can scan infrastructure and track findings.
+ *
+ * @description Produces a self-contained Python module from the config.
+ * @param config - The infrastructure security configuration to base the manager on.
+ * @returns Python source code as a string.
+ */
 export function generateSecurityManagerPython(config: InfrastructureSecurityConfig): string {
   return `# Auto-generated Infrastructure Security Manager
 # Generated at: ${new Date().toISOString()}
@@ -418,7 +537,18 @@ class InfrastructureSecurityManager:
 `;
 }
 
-// Write Files
+/**
+ * Writes all infrastructure security artifacts to disk, including the
+ * Markdown documentation, per-provider Terraform configs, the security
+ * manager source (TypeScript or Python) with its dependencies, and the
+ * raw configuration JSON.
+ *
+ * @description Creates the output directory and writes all generated files.
+ * @param config - The infrastructure security configuration to materialize.
+ * @param outputDir - Directory where files will be written (created if missing).
+ * @param language - Target language for the generated security manager.
+ * @returns Resolves when all files have been written.
+ */
 export async function writeInfrastructureSecurityFiles(
   config: InfrastructureSecurityConfig,
   outputDir: string,
@@ -481,6 +611,15 @@ export async function writeInfrastructureSecurityFiles(
   );
 }
 
+/**
+ * Prints a concise summary of the infrastructure security configuration
+ * to the console, including project name, providers, and counts of
+ * resources, findings, remediations, and compliance reports.
+ *
+ * @description Renders a formatted, colorized console overview.
+ * @param config - The infrastructure security configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayInfrastructureSecurityConfig(config: InfrastructureSecurityConfig): void {
   console.log(chalk.cyan('🛡️ Infrastructure Security Scanning and Compliance'));
   console.log(chalk.gray('─'.repeat(60)));

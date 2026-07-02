@@ -1,8 +1,19 @@
+/**
+ * @file Plugin hook system for the re-shell CLI.
+ * @description Provides a comprehensive hook/lifecycle system that allows plugins to register
+ * handlers for various CLI, command, workspace, file, build, plugin, and configuration events.
+ * Includes priority-based execution, middleware support, conditional handlers, and debugging.
+ */
+
 import { EventEmitter } from 'events';
 import chalk from 'chalk';
 
 
-// Hook types and priorities
+/**
+ * Built-in hook types that plugins can listen to.
+ * @description Enumerates all lifecycle and event hook types available in the system,
+ * covering CLI lifecycle, commands, workspace, files, builds, plugins, configuration, and custom hooks.
+ */
 export enum HookType {
   // CLI lifecycle hooks
   CLI_INIT = 'cli:init',
@@ -47,66 +58,133 @@ export enum HookType {
   CUSTOM = 'custom'
 }
 
+/**
+ * Priority levels for hook handlers.
+ * @description Lower numbers execute first. Use these constants to control the order
+ * in which handlers run for a given hook type.
+ */
 export enum HookPriority {
+  /** Executes first, before all other handlers. */
   HIGHEST = 1,
+  /** Executes after HIGHEST but before NORMAL handlers. */
   HIGH = 25,
+  /** Default priority for handlers when none is specified. */
   NORMAL = 50,
+  /** Executes after NORMAL but before LOWEST handlers. */
   LOW = 75,
+  /** Executes last, after all other handlers. */
   LOWEST = 100
 }
 
-// Hook handler interface
+/**
+ * Represents a registered hook handler.
+ * @description Describes a single handler subscribed to a hook type, including its identity,
+ * owning plugin, callback, priority, and optional execution constraints.
+ */
 export interface HookHandler {
+  /** Unique identifier for this handler. */
   id: string;
+  /** Name of the plugin that registered this handler. */
   pluginName: string;
+  /** The callback function invoked when the hook is executed. */
   handler: (...args: any[]) => any;
+  /** Execution priority; lower numbers run first. */
   priority: HookPriority;
+  /** If true, the handler is automatically removed after its first invocation. */
   once?: boolean;
+  /** Optional predicate that must return true for the handler to execute. */
   condition?: (data: any) => boolean;
+  /** Optional human-readable description of what this handler does. */
   description?: string;
+  /** Optional arbitrary metadata associated with the handler. */
   metadata?: Record<string, unknown>;
 }
 
-// Hook execution context
+/**
+ * Context object passed to hook handlers during execution.
+ * @description Provides contextual information about the current hook execution,
+ * including the hook type, the plugin currently executing, timing, payload data,
+ * and any error or abort signals.
+ */
 export interface HookContext {
+  /** The type of hook being executed. */
   hookType: HookType;
+  /** Name of the plugin whose handler is currently executing. */
   pluginName: string;
+  /** Timestamp (epoch milliseconds) when execution began. */
   timestamp: number;
+  /** The data payload passed to the hook. */
   data: any;
+  /** The result produced so far during execution, if any. */
   result?: any;
+  /** Error encountered during execution, if any. */
   error?: Error;
+  /** Whether the hook execution was aborted. */
   aborted?: boolean;
+  /** Optional arbitrary metadata for the execution context. */
   metadata?: Record<string, unknown>;
 }
 
-// Hook execution result
+/**
+ * Result of executing a hook and all its registered handlers.
+ * @description Contains the aggregate outcome of running every handler for a hook type,
+ * including individual results, errors, abort status, and timing information.
+ */
 export interface HookResult {
+  /** Whether the hook executed successfully with no errors or aborts. */
   success: boolean;
+  /** Array of individual handler results. */
   results: any[];
+  /** Array of errors encountered, each with the responsible plugin name. */
   errors: Array<{ pluginName: string; error: Error }>;
+  /** Whether the hook execution was aborted by a handler. */
   aborted: boolean;
+  /** Total execution time in milliseconds. */
   executionTime: number;
+  /** The context object associated with this execution. */
   context: HookContext;
 }
 
-// Hook registration options
+/**
+ * Options used when registering a hook handler.
+ * @description Allows configuring the handler's priority, lifetime, execution condition,
+ * and optional metadata at registration time.
+ */
 export interface HookRegistrationOptions {
+  /** Execution priority for the handler; defaults to NORMAL. */
   priority?: HookPriority;
+  /** If true, the handler is removed after its first successful invocation. */
   once?: boolean;
+  /** Optional predicate; the handler only executes when it returns true. */
   condition?: (data: any) => boolean;
+  /** Optional human-readable description of the handler. */
   description?: string;
+  /** Optional arbitrary metadata to attach to the handler. */
   metadata?: Record<string, unknown>;
 }
 
-// Hook middleware interface
+/**
+ * Middleware for intercepting hook execution lifecycle phases.
+ * @description Middleware can run logic before handlers execute, after they complete,
+ * or when errors occur, enabling cross-cutting concerns such as logging or metrics.
+ */
 export interface HookMiddleware {
+  /** Unique name identifying this middleware. */
   name: string;
+  /** Called before any handlers are executed for a hook. */
   before?: (context: HookContext) => Promise<void> | void;
+  /** Called after all handlers have finished executing for a hook. */
   after?: (context: HookContext, result: any) => Promise<void> | void;
+  /** Called when a handler throws an error during execution. */
   error?: (context: HookContext, error: Error) => Promise<void> | void;
 }
 
-// Plugin hooks system
+/**
+ * Central plugin hook system managing registration, execution, and lifecycle of hooks.
+ * @description Extends EventEmitter to provide a priority-based hook execution engine
+ * with middleware support, conditional handlers, one-time handlers, statistics tracking,
+ * and debugging capabilities. Plugins interact with this system to respond to CLI events.
+ */
 export class PluginHookSystem extends EventEmitter {
   private hooks: Map<HookType, HookHandler[]> = new Map();
   private middleware: HookMiddleware[] = [];
@@ -114,6 +192,11 @@ export class PluginHookSystem extends EventEmitter {
   private isEnabled = true;
   private debugMode = false;
 
+  /**
+   * Creates a new PluginHookSystem instance.
+   * @description Initializes all built-in hook types and registers the default logging middleware.
+   * @param options - Optional configuration; set `debugMode` to enable verbose logging.
+   */
   constructor(options: { debugMode?: boolean } = {}) {
     super();
     this.debugMode = options.debugMode || false;
@@ -141,7 +224,16 @@ export class PluginHookSystem extends EventEmitter {
     });
   }
 
-  // Register a hook handler
+  /**
+   * Registers a handler for a specific hook type.
+   * @description Adds the handler to the hook's handler list, sorted by priority,
+   * and emits a `hook-registered` event. Supports both built-in and custom hook types.
+   * @param hookType - The hook type to listen to (built-in or custom string).
+   * @param handler - The callback function to invoke when the hook executes.
+   * @param pluginName - The name of the plugin registering the handler.
+   * @param options - Optional registration settings (priority, once, condition, etc.).
+   * @returns The unique handler ID, which can be used to unregister the handler later.
+   */
   register(
     hookType: HookType | string,
     handler: (...args: any[]) => any,
@@ -186,7 +278,14 @@ export class PluginHookSystem extends EventEmitter {
     return handlerId;
   }
 
-  // Unregister a hook handler
+  /**
+   * Unregisters a specific hook handler by its ID.
+   * @description Removes the handler with the given ID from the specified hook type
+   * and emits a `hook-unregistered` event.
+   * @param hookType - The hook type the handler was registered for.
+   * @param handlerId - The unique ID of the handler to remove.
+   * @returns True if the handler was found and removed; false otherwise.
+   */
   unregister(hookType: HookType | string, handlerId: string): boolean {
     const hookKey = hookType as HookType;
     const handlers = this.hooks.get(hookKey);
@@ -211,7 +310,13 @@ export class PluginHookSystem extends EventEmitter {
     return true;
   }
 
-  // Unregister all hooks for a plugin
+  /**
+   * Unregisters all handlers belonging to a specific plugin across all hook types.
+   * @description Removes every handler owned by the given plugin and emits a
+   * `plugin-hooks-unregistered` event with the count of removed handlers.
+   * @param pluginName - The name of the plugin whose hooks should be removed.
+   * @returns The number of handlers that were removed.
+   */
   unregisterAll(pluginName: string): number {
     let removed = 0;
     
@@ -230,7 +335,15 @@ export class PluginHookSystem extends EventEmitter {
     return removed;
   }
 
-  // Execute hooks
+  /**
+   * Executes all handlers registered for a hook type asynchronously.
+   * @description Runs middleware before/after phases, invokes each handler in priority order,
+   * respects conditional and one-time handlers, collects results and errors, and supports
+   * abort signals. Emits a `hooks-executed` event upon completion.
+   * @param hookType - The hook type to execute.
+   * @param data - Optional data payload to pass to each handler.
+   * @returns A HookResult containing aggregate results, errors, timing, and context.
+   */
   async execute(hookType: HookType | string, data: Record<string, unknown> = {}): Promise<HookResult> {
     if (!this.isEnabled) {
       return {
@@ -362,7 +475,15 @@ export class PluginHookSystem extends EventEmitter {
     return result;
   }
 
-  // Execute hooks synchronously (for simple cases)
+  /**
+   * Executes all handlers for a hook type synchronously.
+   * @description A simpler, non-async variant of execute that does not invoke middleware.
+   * Useful for cases where async overhead is unnecessary. Errors are caught and logged
+   * in debug mode rather than propagated.
+   * @param hookType - The hook type to execute.
+   * @param data - Optional data payload to pass to each handler.
+   * @returns An array of handler results, each with the plugin name and result value.
+   */
   executeSync(hookType: HookType | string, data: Record<string, unknown> = {}): any[] {
     if (!this.isEnabled) return [];
 
@@ -405,7 +526,12 @@ export class PluginHookSystem extends EventEmitter {
     return results;
   }
 
-  // Add middleware
+  /**
+   * Adds a middleware to the hook system.
+   * @description Middleware intercept hook lifecycle phases (before, after, error).
+   * Emits a `middleware-added` event.
+   * @param middleware - The middleware object to add.
+   */
   addMiddleware(middleware: HookMiddleware): void {
     this.middleware.push(middleware);
     
@@ -416,7 +542,13 @@ export class PluginHookSystem extends EventEmitter {
     }
   }
 
-  // Remove middleware
+  /**
+   * Removes a middleware by its name.
+   * @description Finds and removes the middleware with the matching name.
+   * Emits a `middleware-removed` event.
+   * @param name - The name of the middleware to remove.
+   * @returns True if the middleware was found and removed; false otherwise.
+   */
   removeMiddleware(name: string): boolean {
     const index = this.middleware.findIndex(m => m.name === name);
     if (index === -1) return false;
@@ -455,7 +587,13 @@ export class PluginHookSystem extends EventEmitter {
     }
   }
 
-  // Get registered hooks
+  /**
+   * Retrieves registered hooks, optionally filtered by hook type.
+   * @description When a hook type is provided, returns the handlers for that type.
+   * When omitted, returns the entire hook-to-handlers map.
+   * @param hookType - Optional hook type to filter by.
+   * @returns An array of handlers for the given type, or a Map of all hooks if no type is given.
+   */
   getHooks(hookType?: HookType | string): Map<HookType, HookHandler[]> | HookHandler[] {
     if (hookType) {
       return this.hooks.get(hookType as HookType) || [];
@@ -463,7 +601,12 @@ export class PluginHookSystem extends EventEmitter {
     return new Map(this.hooks);
   }
 
-  // Get hooks for a specific plugin
+  /**
+   * Retrieves all hook handlers registered by a specific plugin.
+   * @description Searches across all hook types and returns every handler owned by the plugin.
+   * @param pluginName - The name of the plugin to query.
+   * @returns An array of HookHandler objects registered by the plugin.
+   */
   getPluginHooks(pluginName: string): HookHandler[] {
     const pluginHooks: HookHandler[] = [];
     
@@ -474,7 +617,12 @@ export class PluginHookSystem extends EventEmitter {
     return pluginHooks;
   }
 
-  // Get hook statistics
+  /**
+   * Retrieves statistics about the hook system.
+   * @description Returns aggregate counts of hooks by type and plugin, execution time
+   * statistics, and the list of registered middleware names.
+   * @returns A statistics object with totalHooks, hooksByType, hooksByPlugin, executionStats, and middleware fields.
+   */
   getStats(): any {
     const stats = {
       totalHooks: 0,
@@ -510,19 +658,33 @@ export class PluginHookSystem extends EventEmitter {
     return `${pluginName}_${hookType}_${timestamp}_${random}`;
   }
 
-  // Enable/disable hook system
+  /**
+   * Enables or disables the entire hook system.
+   * @description When disabled, `execute` returns immediately with a no-op result.
+   * Emits a `system-toggled` event.
+   * @param enabled - True to enable the system; false to disable.
+   */
   setEnabled(enabled: boolean): void {
     this.isEnabled = enabled;
     this.emit('system-toggled', { enabled });
   }
 
-  // Set debug mode
+  /**
+   * Toggles debug mode for verbose logging.
+   * @description When enabled, the system logs hook registrations, executions, and errors.
+   * Emits a `debug-toggled` event.
+   * @param debug - True to enable debug mode; false to disable.
+   */
   setDebugMode(debug: boolean): void {
     this.debugMode = debug;
     this.emit('debug-toggled', { debug });
   }
 
-  // Clear all hooks
+  /**
+   * Clears all registered hooks and resets the system to its initial state.
+   * @description Removes all handlers, resets execution statistics, re-initializes
+   * built-in hooks, and re-adds the default middleware. Emits a `system-cleared` event.
+   */
   clear(): void {
     this.hooks.clear();
     this.executionStats.clear();
@@ -530,20 +692,38 @@ export class PluginHookSystem extends EventEmitter {
     this.emit('system-cleared');
   }
 
-  // Create a scoped hook system for a plugin
+  /**
+   * Creates a plugin-scoped API instance for convenient hook management.
+   * @description Returns a PluginHookAPI bound to the given plugin name, so the plugin
+   * does not need to pass its name on every call.
+   * @param pluginName - The name of the plugin to scope the API to.
+   * @returns A PluginHookAPI instance for the specified plugin.
+   */
   createPluginScope(pluginName: string): PluginHookAPI {
     return new PluginHookAPI(this, pluginName);
   }
 }
 
-// Plugin-scoped hook API
+/**
+ * Plugin-scoped API for interacting with the hook system.
+ * @description Wraps the PluginHookSystem with a bound plugin name so that plugins
+ * can register, unregister, and execute hooks without repeating their identity.
+ * Also provides convenience methods for common hook patterns.
+ */
 export class PluginHookAPI {
   constructor(
     private hookSystem: PluginHookSystem,
     private pluginName: string
   ) {}
 
-  // Register a hook (automatically includes plugin name)
+  /**
+   * Registers a hook handler on behalf of the bound plugin.
+   * @description Delegates to PluginHookSystem.register with the plugin's name automatically supplied.
+   * @param hookType - The hook type to listen to.
+   * @param handler - The callback function invoked when the hook executes.
+   * @param options - Optional registration settings (priority, once, condition, etc.).
+   * @returns The unique handler ID for the registration.
+   */
   register(
     hookType: HookType | string,
     handler: (...args: any[]) => any,
@@ -552,33 +732,69 @@ export class PluginHookAPI {
     return this.hookSystem.register(hookType, handler, this.pluginName, options);
   }
 
-  // Unregister a hook
+  /**
+   * Unregisters a hook handler by its ID.
+   * @description Delegates to PluginHookSystem.unregister.
+   * @param hookType - The hook type the handler was registered for.
+   * @param handlerId - The unique ID of the handler to remove.
+   * @returns True if the handler was found and removed; false otherwise.
+   */
   unregister(hookType: HookType | string, handlerId: string): boolean {
     return this.hookSystem.unregister(hookType, handlerId);
   }
 
-  // Execute hooks
+  /**
+   * Executes all handlers for a hook type asynchronously.
+   * @description Delegates to PluginHookSystem.execute.
+   * @param hookType - The hook type to execute.
+   * @param data - Optional data payload to pass to handlers.
+   * @returns A HookResult containing aggregate results, errors, and timing.
+   */
   async execute(hookType: HookType | string, data?: any): Promise<HookResult> {
     return this.hookSystem.execute(hookType, data);
   }
 
-  // Execute hooks synchronously
+  /**
+   * Executes all handlers for a hook type synchronously.
+   * @description Delegates to PluginHookSystem.executeSync.
+   * @param hookType - The hook type to execute.
+   * @param data - Optional data payload to pass to handlers.
+   * @returns An array of handler results.
+   */
   executeSync(hookType: HookType | string, data?: any): any[] {
     return this.hookSystem.executeSync(hookType, data);
   }
 
-  // Get plugin's hooks
+  /**
+   * Retrieves all hooks registered by the bound plugin.
+   * @description Delegates to PluginHookSystem.getPluginHooks with the plugin's name.
+   * @returns An array of HookHandler objects owned by this plugin.
+   */
   getHooks(): HookHandler[] {
     return this.hookSystem.getPluginHooks(this.pluginName);
   }
 
-  // Register a custom hook type
+  /**
+   * Generates a custom hook type name scoped to the plugin.
+   * @description Creates a namespaced hook type string in the format `pluginName:name`
+   * so plugins can define and execute their own custom hooks without collisions.
+   * @param name - The descriptive name for the custom hook.
+   * @returns The fully qualified custom hook type string.
+   */
   registerCustomHook(name: string): string {
     const customHookType = `${this.pluginName}:${name}`;
     return customHookType;
   }
 
-  // Convenience methods for common hooks
+  /**
+   * Registers a handler that fires before a specific command is executed.
+   * @description Convenience wrapper that listens to COMMAND_BEFORE and only invokes
+   * the handler when the command name matches.
+   * @param command - The command name to match.
+   * @param handler - The callback function to invoke when the command runs.
+   * @param options - Optional registration settings.
+   * @returns The unique handler ID for the registration.
+   */
   onCommand(command: string, handler: (...args: any[]) => any, options?: HookRegistrationOptions): string {
     return this.register(
       HookType.COMMAND_BEFORE,
@@ -591,6 +807,15 @@ export class PluginHookAPI {
     );
   }
 
+  /**
+   * Registers a handler that fires when a file matching the given pattern changes.
+   * @description Convenience wrapper that listens to FILE_CHANGE and invokes the handler
+   * only when the file path matches the provided string or RegExp pattern.
+   * @param pattern - A RegExp or string to match against the changed file path.
+   * @param handler - The callback function to invoke on matching file changes.
+   * @param options - Optional registration settings.
+   * @returns The unique handler ID for the registration.
+   */
   onFileChange(pattern: RegExp | string, handler: (...args: any[]) => any, options?: HookRegistrationOptions): string {
     return this.register(
       HookType.FILE_CHANGE,
@@ -604,6 +829,15 @@ export class PluginHookAPI {
     );
   }
 
+  /**
+   * Registers a handler that fires when a build starts for a specific workspace.
+   * @description Convenience wrapper that listens to BUILD_START and invokes the handler
+   * when the workspace name matches, or when `'*'` is passed to match all workspaces.
+   * @param workspace - The workspace name to match, or `'*'` for all workspaces.
+   * @param handler - The callback function to invoke when the build starts.
+   * @param options - Optional registration settings.
+   * @returns The unique handler ID for the registration.
+   */
   onWorkspaceBuild(workspace: string, handler: (...args: any[]) => any, options?: HookRegistrationOptions): string {
     return this.register(
       HookType.BUILD_START,
@@ -617,13 +851,25 @@ export class PluginHookAPI {
   }
 }
 
-// Utility functions
+/**
+ * Creates and returns a new PluginHookSystem instance.
+ * @description Factory function for instantiating a hook system with optional debug mode.
+ * @param options - Optional configuration; set `debugMode` to enable verbose logging.
+ * @returns A new PluginHookSystem instance.
+ */
 export function createHookSystem(options?: { debugMode?: boolean }): PluginHookSystem {
   return new PluginHookSystem(options);
 }
 
+/**
+ * Checks whether a string is a valid built-in hook type.
+ * @description Validates the given string against all values of the HookType enum.
+ * @param hookType - The string to validate.
+ * @returns True if the string matches a built-in HookType value; false otherwise.
+ */
 export function isValidHookType(hookType: string): boolean {
   return Object.values(HookType).includes(hookType as HookType);
 }
 
+/** Alias for the HookType enum, re-exported as BuiltinHooks. */
 export { HookType as BuiltinHooks };
