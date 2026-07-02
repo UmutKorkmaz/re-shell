@@ -7,57 +7,111 @@ import { PluginRegistration } from './plugin-system';
 import { createMiddlewareChainManager, MiddlewareType } from './plugin-command-middleware';
 import { createConflictResolver} from './plugin-command-conflicts';
 
-// Command definition from plugin
+/**
+ * Represents a complete command definition provided by a plugin.
+ * This interface describes all aspects of a command including its name,
+ * arguments, options, handler, middleware, and metadata.
+ */
 export interface PluginCommandDefinition {
+  /** The unique name of the command, must be lowercase with letters, numbers, and hyphens. */
   name: string;
+  /** A human-readable description of what the command does. */
   description: string;
+  /** Optional alternative names that can be used to invoke the command. */
   aliases?: string[];
+  /** Optional list of positional arguments accepted by the command. */
   arguments?: PluginCommandArgument[];
+  /** Optional list of flags/options accepted by the command. */
   options?: PluginCommandOption[];
+  /** Optional nested subcommands under this command. */
   subcommands?: PluginCommandDefinition[];
+  /** The handler function executed when the command is invoked. */
   handler: PluginCommandHandler;
+  /** Optional command-specific middleware executed before the handler. */
   middleware?: PluginCommandMiddleware[];
+  /** Optional priority value used for conflict resolution (higher wins). */
   priority?: number;
+  /** Optional category label for grouping commands in help output. */
   category?: string;
+  /** Optional example usage strings shown in help text. */
   examples?: string[];
+  /** Whether the command should be hidden from help output. */
   hidden?: boolean;
+  /** Whether the command is deprecated and may be removed in future versions. */
   deprecated?: boolean;
+  /** Optional permission identifier required to execute the command. */
   permission?: string;
 }
 
-// Command argument definition
+/**
+ * Defines a single positional argument for a plugin command.
+ */
 export interface PluginCommandArgument {
+  /** The name of the argument as displayed in help output. */
   name: string;
+  /** A description of what the argument represents. */
   description: string;
+  /** Whether the argument must be provided by the user. */
   required: boolean;
+  /** Whether the argument accepts multiple values (e.g. variadic args). */
   variadic?: boolean;
+  /** The expected data type of the argument value. */
   type?: 'string' | 'number' | 'boolean';
+  /** Optional list of allowed values for the argument. */
   choices?: string[];
+  /** Optional default value used when the argument is not supplied. */
   defaultValue?: any;
+  /** Optional custom validation function for the argument value. */
   validation?: PluginArgumentValidator;
 }
 
-// Command option definition
+/**
+ * Defines a single option (flag) for a plugin command.
+ */
 export interface PluginCommandOption {
+  /** The flag string, e.g. `-v` or `--verbose`. */
   flag: string;
+  /** A description of what the option does. */
   description: string;
+  /** The expected data type of the option value. */
   type?: 'string' | 'number' | 'boolean';
+  /** Whether the option must be provided by the user. */
   required?: boolean;
+  /** Optional list of allowed values for the option. */
   choices?: string[];
+  /** Optional default value used when the option is not supplied. */
   defaultValue?: any;
+  /** Optional custom validation function for the option value. */
   validation?: PluginArgumentValidator;
+  /** Optional list of other flags that cannot be used together with this option. */
   conflicts?: string[];
+  /** Optional list of other flags that must be present when this option is used. */
   implies?: string[];
 }
 
-// Command handler function
+/**
+ * Function signature for a plugin command handler.
+ *
+ * @param args - The processed positional arguments keyed by argument name.
+ * @param options - The processed options keyed by option flag name.
+ * @param context - The execution context providing CLI utilities and plugin info.
+ * @returns A promise that resolves when the handler completes, or void.
+ */
 export type PluginCommandHandler = (
   args: Record<string, any>,
   options: Record<string, any>,
   context: PluginCommandContext
 ) => Promise<void> | void;
 
-// Command middleware function
+/**
+ * Function signature for command-specific middleware that wraps the handler call.
+ *
+ * @param args - The processed positional arguments keyed by argument name.
+ * @param options - The processed options keyed by option flag name.
+ * @param context - The execution context providing CLI utilities and plugin info.
+ * @param next - Callback to continue to the next middleware or the handler.
+ * @returns A promise that resolves when the middleware logic completes.
+ */
 export type PluginCommandMiddleware = (
   args: Record<string, any>,
   options: Record<string, any>,
@@ -65,65 +119,121 @@ export type PluginCommandMiddleware = (
   next: () => Promise<void>
 ) => Promise<void>;
 
-// Argument validator function
+/**
+ * Function signature for a custom argument/option validator.
+ *
+ * @param value - The value to validate.
+ * @returns `true` if valid, or an error message string if invalid.
+ */
 export type PluginArgumentValidator = (value: any) => boolean | string;
 
-// Command execution context
+/**
+ * Execution context passed to command handlers and middleware.
+ * Provides access to the command definition, plugin info, CLI internals,
+ * a logger, and shared utilities.
+ */
 export interface PluginCommandContext {
+  /** The definition of the command currently being executed. */
   command: PluginCommandDefinition;
+  /** The registration info of the plugin that owns this command. */
   plugin: PluginRegistration;
+  /** CLI-level information and the Commander program instance. */
   cli: {
+    /** The Commander program instance. */
     program: Command;
+    /** The root working directory of the CLI. */
     rootPath: string;
+    /** The path to the configuration file or directory. */
     configPath: string;
+    /** The current CLI version string. */
     version: string;
   };
+  /** A scoped logger with debug, info, warn, and error methods. */
   logger: {
+    /** Log a debug-level message. */
     debug: (msg: string, ...args: any[]) => void;
+    /** Log an info-level message. */
     info: (msg: string, ...args: any[]) => void;
+    /** Log a warning-level message. */
     warn: (msg: string, ...args: any[]) => void;
+    /** Log an error-level message. */
     error: (msg: string, ...args: any[]) => void;
   };
+  /** Shared utility helpers available to all command handlers. */
   utils: {
+    /** The Node.js path module. */
     path: typeof path;
+    /** The chalk styling library. */
     chalk: typeof chalk;
+    /** A spinner instance for progress indication (may be null). */
     spinner: any;
   };
 }
 
-// Registered command information
+/**
+ * Represents a command that has been successfully registered in the registry.
+ * Contains both the original definition and runtime metadata.
+ */
 export interface RegisteredCommand {
+  /** The unique identifier for the command (pluginName:commandName). */
   id: string;
+  /** The name of the plugin that registered the command. */
   pluginName: string;
+  /** The original command definition provided by the plugin. */
   definition: PluginCommandDefinition;
+  /** The underlying Commander Command instance. */
   commanderCommand: Command;
+  /** Timestamp (ms) when the command was registered. */
   registeredAt: number;
+  /** Number of times the command has been invoked. */
   usageCount: number;
+  /** Timestamp (ms) of the last invocation, if any. */
   lastUsed?: number;
+  /** Whether the command is currently active and visible. */
   isActive: boolean;
+  /** List of command IDs that conflict with this command. */
   conflicts: string[];
 }
 
-// Command registration result
+/**
+ * The result returned after attempting to register a command.
+ */
 export interface CommandRegistrationResult {
+  /** Whether the registration succeeded. */
   success: boolean;
+  /** The unique ID assigned to the command. */
   commandId: string;
+  /** List of conflicting command IDs, if any. */
   conflicts: string[];
+  /** Non-fatal warning messages produced during registration. */
   warnings: string[];
+  /** Error messages produced when registration fails. */
   errors: string[];
 }
 
-// Command registry configuration
+/**
+ * Configuration options for the plugin command registry.
+ */
 export interface CommandRegistryConfig {
+  /** Whether commands with name conflicts are allowed to register. */
   allowConflicts: boolean;
+  /** The strategy used to resolve conflicts between commands. */
   conflictResolution: 'first' | 'last' | 'priority' | 'manual';
+  /** Whether the middleware pipeline is enabled for command execution. */
   enableMiddleware: boolean;
+  /** Whether command permissions are validated before execution. */
   validatePermissions: boolean;
+  /** Whether command usage (invocation count, timestamps) is tracked. */
   trackUsage: boolean;
+  /** Whether executed commands are logged. */
   logCommands: boolean;
 }
 
-// Plugin command registry
+/**
+ * Central registry for managing plugin-provided commands.
+ * Handles registration, conflict resolution, middleware execution,
+ * usage tracking, and integration with the Commander CLI program.
+ */
 export class PluginCommandRegistry extends EventEmitter {
   private commands: Map<string, RegisteredCommand> = new Map();
   private aliases: Map<string, string> = new Map(); // alias -> commandId
@@ -134,6 +244,12 @@ export class PluginCommandRegistry extends EventEmitter {
   private middlewareManager = createMiddlewareChainManager();
   private conflictResolver = createConflictResolver();
 
+  /**
+   * Creates a new PluginCommandRegistry instance.
+   *
+   * @param program - The Commander program instance to attach commands to.
+   * @param config - Partial configuration; omitted values use sensible defaults.
+   */
   constructor(program: Command, config: Partial<CommandRegistryConfig> = {}) {
     super();
     this.program = program;
@@ -148,7 +264,13 @@ export class PluginCommandRegistry extends EventEmitter {
     };
   }
 
-  // Initialize the command registry
+  /**
+   * Initializes the registry, setting up usage tracking if enabled.
+   * Emits `registry-initializing` and `registry-initialized` events.
+   *
+   * @returns A promise that resolves once initialization is complete.
+   * @throws If an error occurs during initialization; emits `registry-error`.
+   */
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
@@ -169,7 +291,15 @@ export class PluginCommandRegistry extends EventEmitter {
     }
   }
 
-  // Register a command from a plugin
+  /**
+   * Registers a command from a plugin into the registry and the Commander program.
+   * Validates the definition, checks for conflicts (optionally auto-resolving),
+   * creates the Commander command, and emits lifecycle events.
+   *
+   * @param plugin - The registration info of the plugin providing the command.
+   * @param definition - The full command definition.
+   * @returns A result object indicating success, conflicts, warnings, and errors.
+   */
   async registerCommand(
     plugin: PluginRegistration,
     definition: PluginCommandDefinition
@@ -283,7 +413,12 @@ export class PluginCommandRegistry extends EventEmitter {
     }
   }
 
-  // Unregister a command
+  /**
+   * Removes a command from the registry and detaches it from its Commander parent.
+   *
+   * @param commandId - The unique ID of the command to unregister.
+   * @returns `true` if the command was found and removed; `false` otherwise.
+   */
   async unregisterCommand(commandId: string): Promise<boolean> {
     const command = this.commands.get(commandId);
     if (!command) {
@@ -328,7 +463,12 @@ export class PluginCommandRegistry extends EventEmitter {
     }
   }
 
-  // Unregister all commands from a plugin
+  /**
+   * Unregisters all commands belonging to a specific plugin.
+   *
+   * @param pluginName - The name of the plugin whose commands should be removed.
+   * @returns The number of commands that were successfully unregistered.
+   */
   async unregisterPluginCommands(pluginName: string): Promise<number> {
     const pluginCommands = Array.from(this.commands.values())
       .filter(cmd => cmd.pluginName === pluginName);
@@ -346,23 +486,42 @@ export class PluginCommandRegistry extends EventEmitter {
     return unregisteredCount;
   }
 
-  // Get registered command by ID
+  /**
+   * Retrieves a registered command by its unique ID.
+   *
+   * @param commandId - The unique ID of the command.
+   * @returns The registered command, or `undefined` if not found.
+   */
   getCommand(commandId: string): RegisteredCommand | undefined {
     return this.commands.get(commandId);
   }
 
-  // Get all registered commands
+  /**
+   * Returns all commands currently registered in the registry.
+   *
+   * @returns An array of all registered commands.
+   */
   getCommands(): RegisteredCommand[] {
     return Array.from(this.commands.values());
   }
 
-  // Get commands by plugin
+  /**
+   * Returns all commands registered by a specific plugin.
+   *
+   * @param pluginName - The name of the plugin to filter by.
+   * @returns An array of commands belonging to that plugin.
+   */
   getPluginCommands(pluginName: string): RegisteredCommand[] {
     return Array.from(this.commands.values())
       .filter(cmd => cmd.pluginName === pluginName);
   }
 
-  // Get command by name or alias
+  /**
+   * Looks up a command by its name or one of its aliases.
+   *
+   * @param nameOrAlias - The command name or alias to search for.
+   * @returns The matching registered command, or `undefined` if not found.
+   */
   findCommand(nameOrAlias: string): RegisteredCommand | undefined {
     // Check direct command names
     for (const command of this.commands.values()) {
@@ -380,12 +539,24 @@ export class PluginCommandRegistry extends EventEmitter {
     return undefined;
   }
 
-  // List all conflicts
+  /**
+   * Returns a copy of the current command-name-to-conflicting-IDs conflict map.
+   *
+   * @returns A map of command names to arrays of conflicting command IDs.
+   */
   getConflicts(): Map<string, string[]> {
     return new Map(this.conflicts);
   }
 
-  // Resolve command conflicts
+  /**
+   * Resolves conflicts for a given command name by disabling all but the
+   * preferred command. Emits conflict resolution lifecycle events.
+   *
+   * @param commandName - The name of the command with conflicts to resolve.
+   * @param resolution - The resolution strategy: `disable` keeps the first command,
+   *   `priority` keeps the command with the highest priority value.
+   * @returns `true` if conflicts were resolved; `false` if none existed or resolution failed.
+   */
   async resolveConflicts(commandName: string, resolution: 'disable' | 'priority'): Promise<boolean> {
     const conflictingIds = this.conflicts.get(commandName);
     if (!conflictingIds || conflictingIds.length <= 1) {
@@ -426,7 +597,13 @@ export class PluginCommandRegistry extends EventEmitter {
     }
   }
 
-  // Validate command definition
+  /**
+   * Validates a command definition for correctness, ensuring required
+   * fields are present and naming/argument/option rules are satisfied.
+   *
+   * @param definition - The command definition to validate.
+   * @throws {ValidationError} If any validation rule is violated.
+   */
   private validateCommandDefinition(definition: PluginCommandDefinition): void {
     if (!definition.name || typeof definition.name !== 'string') {
       throw new ValidationError('Command name is required and must be a string');
@@ -473,7 +650,13 @@ export class PluginCommandRegistry extends EventEmitter {
     }
   }
 
-  // Check for command conflicts
+  /**
+   * Checks whether a command definition's name or aliases conflict with
+   * any already-registered command.
+   *
+   * @param definition - The command definition to check.
+   * @returns An array of conflicting command IDs.
+   */
   private checkForConflicts(definition: PluginCommandDefinition): string[] {
     const conflicts: string[] = [];
 
@@ -496,7 +679,15 @@ export class PluginCommandRegistry extends EventEmitter {
     return conflicts;
   }
 
-  // Create Commander command from definition
+  /**
+   * Creates a Commander Command instance from a plugin command definition,
+   * wiring up aliases, arguments, options, the action handler, and the
+   * full middleware execution pipeline.
+   *
+   * @param plugin - The plugin providing the command.
+   * @param definition - The command definition to create from.
+   * @returns The configured Commander Command instance.
+   */
   private createCommanderCommand(
     plugin: PluginRegistration,
     definition: PluginCommandDefinition
@@ -652,7 +843,15 @@ export class PluginCommandRegistry extends EventEmitter {
     return command;
   }
 
-  // Process command arguments
+  /**
+   * Processes raw positional arguments from Commander, applying type
+   * conversion, choice validation, and custom validators.
+   *
+   * @param definition - The command definition containing argument specs.
+   * @param args - The raw positional arguments from Commander.
+   * @returns A keyed object of processed argument values.
+   * @throws {ValidationError} If a required argument is missing or validation fails.
+   */
   private processArguments(definition: PluginCommandDefinition, args: any[]): Record<string, any> {
     const processed: Record<string, any> = {};
 
@@ -702,7 +901,15 @@ export class PluginCommandRegistry extends EventEmitter {
     return processed;
   }
 
-  // Process command options
+  /**
+   * Processes raw options from Commander, applying type conversion,
+   * choice validation, custom validators, and relationship checks.
+   *
+   * @param definition - The command definition containing option specs.
+   * @param options - The raw options object from Commander.
+   * @returns A processed options object.
+   * @throws {ValidationError} If a required option is missing or validation fails.
+   */
   private processOptions(definition: PluginCommandDefinition, options: Record<string, any>): Record<string, any> {
     const processed: Record<string, any> = { ...options };
 
@@ -754,9 +961,16 @@ export class PluginCommandRegistry extends EventEmitter {
     return processed;
   }
 
-  // Validate option conflicts and implications
+  /**
+   * Validates that option conflicts (mutually exclusive) and implications
+   * (required companions) are satisfied among the processed options.
+   *
+   * @param options - The option definitions from the command.
+   * @param processedOptions - The resolved option values keyed by flag name.
+   * @throws {ValidationError} If a conflict or implication rule is violated.
+   */
   private validateOptionRelationships(
-    options: PluginCommandOption[], 
+    options: PluginCommandOption[],
     processedOptions: Record<string, any>
   ): void {
     for (const option of options) {
@@ -786,22 +1000,39 @@ export class PluginCommandRegistry extends EventEmitter {
     }
   }
 
-  // Get middleware manager
+  /**
+   * Returns the middleware chain manager used by the registry.
+   *
+   * @returns The middleware chain manager instance.
+   */
   getMiddlewareManager() {
     return this.middlewareManager;
   }
 
-  // Get conflict resolver
+  /**
+   * Returns the conflict resolver used by the registry.
+   *
+   * @returns The conflict resolver instance.
+   */
   getConflictResolver() {
     return this.conflictResolver;
   }
 
-  // Update conflict resolver with current commands
+  /**
+   * Refreshes the conflict resolver's command data with all currently
+   * registered commands.
+   */
   updateConflictResolver(): void {
     this.conflictResolver.registerCommands(Array.from(this.commands.values()));
   }
 
-  // Create command execution context
+  /**
+   * Builds the execution context object passed to handlers and middleware.
+   *
+   * @param plugin - The plugin providing the command.
+   * @param definition - The command definition.
+   * @returns The fully constructed execution context.
+   */
   private createCommandContext(
     plugin: PluginRegistration,
     definition: PluginCommandDefinition
@@ -824,7 +1055,13 @@ export class PluginCommandRegistry extends EventEmitter {
     };
   }
 
-  // Create command logger
+  /**
+   * Creates a scoped logger instance prefixed with the plugin and command name.
+   *
+   * @param pluginName - The name of the plugin owning the command.
+   * @param commandName - The name of the command.
+   * @returns A logger object with debug, info, warn, and error methods.
+   */
   private createLogger(pluginName: string, commandName: string): any {
     const prefix = `[${pluginName}:${commandName}]`;
     return {
@@ -835,23 +1072,42 @@ export class PluginCommandRegistry extends EventEmitter {
     };
   }
 
-  // Extract option name from flag
+  /**
+   * Extracts the camelCase option name from a CLI flag string.
+   * For example, `--output-dir` becomes `outputDir`.
+   *
+   * @param flag - The flag string (e.g. `-v`, `--verbose`, `--output-dir`).
+   * @returns The extracted camelCase name, or the original flag if no match.
+   */
   private extractOptionName(flag: string): string {
     const match = flag.match(/--?([a-zA-Z][a-zA-Z0-9-]*)/);
     return match ? match[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()) : flag;
   }
 
-  // Generate unique command ID
+  /**
+   * Generates a unique command ID from the plugin name and command name.
+   *
+   * @param pluginName - The name of the plugin.
+   * @param commandName - The name of the command.
+   * @returns The unique command ID in the format `pluginName:commandName`.
+   */
   private generateCommandId(pluginName: string, commandName: string): string {
     return `${pluginName}:${commandName}`;
   }
 
-  // Setup usage tracking
+  /**
+   * Sets up persistent usage tracking for registered commands.
+   * Intended to be overridden or extended for persistent storage.
+   */
   private setupUsageTracking(): void {
     // Would implement persistent usage tracking
   }
 
-  // Track command usage
+  /**
+   * Increments the usage count and updates the last-used timestamp for a command.
+   *
+   * @param commandId - The unique ID of the command that was invoked.
+   */
   private trackCommandUsage(commandId: string): void {
     const command = this.commands.get(commandId);
     if (command) {
@@ -860,7 +1116,12 @@ export class PluginCommandRegistry extends EventEmitter {
     }
   }
 
-  // Update conflict tracking
+  /**
+   * Adds a command ID to the conflict list for a given command name.
+   *
+   * @param commandName - The name of the command with conflicts.
+   * @param commandId - The ID of the conflicting command to add.
+   */
   private updateConflictTracking(commandName: string, commandId: string): void {
     if (!this.conflicts.has(commandName)) {
       this.conflicts.set(commandName, []);
@@ -868,7 +1129,13 @@ export class PluginCommandRegistry extends EventEmitter {
     this.conflicts.get(commandName)!.push(commandId);
   }
 
-  // Remove from conflict tracking
+  /**
+   * Removes a command ID from the conflict list for a given command name,
+   * cleaning up the entry entirely when no conflicts remain.
+   *
+   * @param commandName - The name of the command with conflicts.
+   * @param commandId - The ID of the command to remove from the conflict list.
+   */
   private removeFromConflictTracking(commandName: string, commandId: string): void {
     const conflicts = this.conflicts.get(commandName);
     if (conflicts) {
@@ -882,7 +1149,13 @@ export class PluginCommandRegistry extends EventEmitter {
     }
   }
 
-  // Get registry statistics
+  /**
+   * Computes summary statistics about the registry, including total/active
+   * command counts, aliases, conflicts, per-plugin breakdowns, most used
+   * commands, and recently used commands.
+   *
+   * @returns A statistics object describing the current registry state.
+   */
   getStats(): any {
     const stats = {
       totalCommands: this.commands.size,
@@ -927,7 +1200,14 @@ export class PluginCommandRegistry extends EventEmitter {
   }
 }
 
-// Utility functions
+/**
+ * Creates and returns a new PluginCommandRegistry instance with the given
+ * Commander program and optional configuration.
+ *
+ * @param program - The Commander program instance to attach commands to.
+ * @param config - Optional partial configuration for the registry.
+ * @returns A new PluginCommandRegistry instance.
+ */
 export function createPluginCommandRegistry(
   program: Command,
   config?: Partial<CommandRegistryConfig>
@@ -935,10 +1215,26 @@ export function createPluginCommandRegistry(
   return new PluginCommandRegistry(program, config);
 }
 
+/**
+ * Validates that a command name follows naming conventions: lowercase
+ * letters, numbers, and hyphens only, starting with a letter, and no
+ * consecutive double spaces.
+ *
+ * @param name - The command name to validate.
+ * @returns `true` if the name is valid; `false` otherwise.
+ */
 export function validateCommandName(name: string): boolean {
   return /^[a-z][a-z0-9-]*$/.test(name) && !name.includes('  ');
 }
 
+/**
+ * Normalizes a command name by converting to lowercase, replacing any
+ * non-alphanumeric/hyphen characters with hyphens, and collapsing
+ * consecutive hyphens into a single one.
+ *
+ * @param name - The raw command name to normalize.
+ * @returns The normalized command name.
+ */
 export function normalizeCommandName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
 }
