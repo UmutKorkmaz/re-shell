@@ -44,6 +44,14 @@ interface BusinessMetricsConfig {
   enableReporting: boolean;
 }
 
+/**
+ * Prints a formatted summary of the business metrics and KPI tracking configuration to the console.
+ *
+ * Outputs the project name, providers, dashboard provider, metrics/KPI counts, and the status
+ * of real-time, alerting, and reporting features using colored output.
+ *
+ * @param config - The business metrics configuration to display.
+ */
 export function displayConfig(config: BusinessMetricsConfig): void {
   console.log(chalk.cyan('📈 Business Metrics and KPI Tracking with Real-Time Dashboards'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -58,6 +66,16 @@ export function displayConfig(config: BusinessMetricsConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown overview of the business metrics and KPI tracking feature.
+ *
+ * The returned Markdown includes a header and a feature list describing capabilities such as
+ * real-time metric collection, custom KPIs, multi-category metrics, dashboards, reporting,
+ * aggregation, time-series analysis, visualizations, and multi-cloud support.
+ *
+ * @param config - The business metrics configuration used to scope the documentation.
+ * @returns A Markdown string documenting the business metrics feature.
+ */
 export function generateBusinessMetricsMD(config: BusinessMetricsConfig): string {
   let md = '# Business Metrics and KPI Tracking\n\n';
   md += '## Features\n\n';
@@ -74,12 +92,31 @@ export function generateBusinessMetricsMD(config: BusinessMetricsConfig): string
   return md;
 }
 
+/**
+ * Generates a Terraform header stub for provisioning business metrics resources.
+ *
+ * The returned code includes the project name and the current ISO timestamp. It is intended to
+ * serve as the starting point for Terraform configuration related to the business metrics setup.
+ *
+ * @param config - The business metrics configuration to source the project name from.
+ * @returns A Terraform code string containing header comments for the given project.
+ */
 export function generateTerraformBusinessMetrics(config: BusinessMetricsConfig): string {
   let code = '# Auto-generated Business Metrics Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript `BusinessMetricsManager` class definition from the given configuration.
+ *
+ * The returned source code imports `EventEmitter` from the Node.js `events` module and defines a
+ * `BusinessMetricsManager` class that extends `EventEmitter`. A default singleton instance is
+ * created and exported. The header comment includes the project name and the current ISO timestamp.
+ *
+ * @param config - The business metrics configuration used to populate the generated manager.
+ * @returns A TypeScript source string implementing a `BusinessMetricsManager` class.
+ */
 export function generateTypeScriptBusinessMetrics(config: BusinessMetricsConfig): string {
   let code = '// Auto-generated Business Metrics Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -94,6 +131,16 @@ export function generateTypeScriptBusinessMetrics(config: BusinessMetricsConfig)
   return code;
 }
 
+/**
+ * Generates a Python `BusinessMetricsManager` class definition from the given configuration.
+ *
+ * The returned source code uses `asyncio` and includes type hints (`Dict`, `Any`). The class
+ * constructor accepts a project name, defaulting to the project name from the provided config.
+ * A module-level singleton instance is created at the end of the generated file.
+ *
+ * @param config - The business metrics configuration used to populate the generated manager.
+ * @returns A Python source string implementing a `BusinessMetricsManager` class.
+ */
 export function generatePythonBusinessMetrics(config: BusinessMetricsConfig): string {
   let code = '# Auto-generated Business Metrics Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -106,6 +153,21 @@ export function generatePythonBusinessMetrics(config: BusinessMetricsConfig): st
   return code;
 }
 
+/**
+ * Writes the generated business metrics files to the specified output directory.
+ *
+ * Always writes the Terraform file (`business-metrics.tf`) and the Markdown documentation
+ * (`BUSINESS_METRICS.md`). For `typescript` language output, also writes the TypeScript manager
+ * (`business-metrics-manager.ts`) and a `package.json` with the required dependencies. For any
+ * other language, writes a Python manager (`business_metrics_manager.py`) and a `requirements.txt`
+ * instead. Finally, writes a `business-metrics-config.json` reflecting the provided configuration.
+ *
+ * @param config - The business metrics configuration used to generate the files.
+ * @param outputDir - The directory where files will be written. It will be created if missing.
+ * @param language - The target language (`typescript` for TS output; anything else for Python).
+ * @returns A promise that resolves when all files have been written.
+ * @throws {Error} If the underlying `fs-extra` write operations fail (e.g. permission errors).
+ */
 export async function writeFiles(config: BusinessMetricsConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -152,6 +214,15 @@ export async function writeFiles(config: BusinessMetricsConfig, outputDir: strin
   await fs.writeFile(path.join(outputDir, 'business-metrics-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided business metrics configuration unchanged.
+ *
+ * This is a pass-through helper that can be used as a normalization/validation entry point for
+ * business metrics configuration in pipelines where the config may be transformed or validated later.
+ *
+ * @param config - The business metrics configuration to return.
+ * @returns The same `BusinessMetricsConfig` instance that was passed in.
+ */
 export function businessMetrics(config: BusinessMetricsConfig): BusinessMetricsConfig {
   return config;
 }
