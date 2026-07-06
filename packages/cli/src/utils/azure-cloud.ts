@@ -49,6 +49,16 @@ interface AzureCloudConfig {
   enableKeyVault: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the Azure Cloud configuration to the console.
+ *
+ * The summary includes the project name, a masked subscription id, AKS cluster
+ * details (name, resource group, location, version, node count, VM size,
+ * auto-scaling/private-cluster flags), the Azure DevOps organization, and
+ * whether ACR/Key Vault are enabled.
+ *
+ * @param config - The Azure cloud configuration to display.
+ */
 export function displayConfig(config: AzureCloudConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Azure AKS with ARM/Bicep Integration and Azure DevOps');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -68,6 +78,14 @@ export function displayConfig(config: AzureCloudConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates the Markdown documentation (`AZURE_CLOUD.md`) for the Azure Cloud
+ * template, describing the available features and providing example Bicep/Azure
+ * CLI commands for deploying and connecting to the AKS cluster.
+ *
+ * @param config - The Azure cloud configuration used to populate the examples.
+ * @returns The Markdown documentation as a string.
+ */
 export function generateAzureCloudMD(config: AzureCloudConfig): string {
   let md = '# Azure AKS with ARM/Bicep Integration and Azure DevOps\n\n';
   md += '## Features\n\n';
@@ -97,6 +115,20 @@ export function generateAzureCloudMD(config: AzureCloudConfig): string {
   return md;
 }
 
+/**
+ * Generates a Bicep template (`main.bicep`) that provisions the AKS cluster and
+ * optional supporting Azure resources based on the supplied configuration.
+ *
+ * Depending on the configuration the generated template may include an Azure
+ * Container Registry, an Azure Key Vault, a user-assigned managed identity, and
+ * the AKS managed cluster with auto-scaling, private cluster, networking, RBAC,
+ * Key Vault secrets provider and Log Analytics add-on profiles. Deployment
+ * outputs for resource ids and endpoints are appended at the end.
+ *
+ * @param config - The Azure cloud configuration describing the cluster and
+ *   optional resources to include in the template.
+ * @returns The generated Bicep template as a string.
+ */
 export function generateBicepTemplate(config: AzureCloudConfig): string {
   let code = '// Auto-generated AKS Bicep Template for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -239,6 +271,19 @@ export function generateBicepTemplate(config: AzureCloudConfig): string {
   return code;
 }
 
+/**
+ * Generates a TypeScript module that wraps Azure CLI (`az`) invocations to
+ * deploy and manage the AKS cluster and related Azure resources.
+ *
+ * The generated module defines an `AzureCloudManager` class with asynchronous
+ * methods for creating the resource group, deploying the AKS cluster, ACR and
+ * Key Vault, configuring Azure DevOps, retrieving cluster credentials and
+ * deploying monitoring. A default singleton instance is exported.
+ *
+ * @param config - The Azure cloud configuration used to populate the generated
+ *   deployment commands and constructor defaults.
+ * @returns The generated TypeScript source code as a string.
+ */
 export function generateTypeScriptAzureCloud(config: AzureCloudConfig): string {
   let code = '// Auto-generated Azure Cloud Infrastructure for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -360,6 +405,19 @@ export function generateTypeScriptAzureCloud(config: AzureCloudConfig): string {
   return code;
 }
 
+/**
+ * Generates a Python module that wraps Azure CLI (`az`) invocations to deploy
+ * and manage the AKS cluster and related Azure resources.
+ *
+ * The generated module defines an `AzureCloudManager` class with methods for
+ * creating the resource group, deploying the AKS cluster, ACR and Key Vault,
+ * and retrieving cluster credentials. A default singleton instance is created
+ * using values derived from the supplied configuration.
+ *
+ * @param config - The Azure cloud configuration used to populate the generated
+ *   deployment commands and constructor defaults.
+ * @returns The generated Python source code as a string.
+ */
 export function generatePythonAzureCloud(config: AzureCloudConfig): string {
   let code = '# Auto-generated Azure Cloud Infrastructure for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -446,6 +504,25 @@ export function generatePythonAzureCloud(config: AzureCloudConfig): string {
   return code;
 }
 
+/**
+ * Writes the generated Azure Cloud project files into the specified output
+ * directory.
+ *
+ * Always writes the Bicep template (`main.bicep`) and the Markdown
+ * documentation (`AZURE_CLOUD.md`), plus an `azure-config.json` snapshot of the
+ * configuration. Depending on the requested `language`, additional runtime
+ * files are written:
+ *   - `typescript`: `azure-cloud-manager.ts` and a `package.json`.
+ *   - otherwise (e.g. `python`): `azure_cloud_manager.py` and a
+ *     `requirements.txt`.
+ *
+ * @param config - The Azure cloud configuration used to generate the files.
+ * @param outputDir - The target directory; created if it does not exist.
+ * @param language - The implementation language to generate (`typescript` or
+ *   `python`).
+ * @returns A promise that resolves when all files have been written.
+ * @throws Rejects if any underlying file system operation fails.
+ */
 export async function writeFiles(config: AzureCloudConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');

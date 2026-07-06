@@ -96,6 +96,13 @@ interface BestPracticesConfig {
   practiceVisibility: 'public' | 'private' | 'team';
 }
 
+/**
+ * Prints a formatted summary of the best-practices configuration to the console.
+ * Outputs project name, providers, number of practice libraries, and toggles for
+ * community voting, auto enforcement, discussions, reputation system, and visibility.
+ *
+ * @param config - The best-practices configuration to display.
+ */
 export function displayConfig(config: BestPracticesConfig): void {
   console.log(chalk.cyan('📚 Best Practices Sharing and Enforcement'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -111,6 +118,13 @@ export function displayConfig(config: BestPracticesConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document summarizing the best-practices sharing and
+ * enforcement features, enforcement levels, and community capabilities.
+ *
+ * @param config - The best-practices configuration used to scope the document.
+ * @returns A Markdown string describing the best-practices feature set.
+ */
 export function generateBestPracticesMD(config: BestPracticesConfig): string {
   let md = '# Best Practices Sharing and Enforcement\n\n';
   md += '## Features\n\n';
@@ -145,12 +159,31 @@ export function generateBestPracticesMD(config: BestPracticesConfig): string {
   return md;
 }
 
+/**
+ * Generates a Terraform file header for best-practices provisioning based on the
+ * provided configuration. The output includes an auto-generated banner with the
+ * project name and current ISO timestamp.
+ *
+ * @param config - The best-practices configuration to source the project name from.
+ * @returns A Terraform source string containing the generated header.
+ */
 export function generateTerraformBestPractices(config: BestPracticesConfig): string {
   let code = '# Auto-generated Best Practices Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a complete TypeScript module implementing a `BestPracticesManager`
+ * class. The generated module extends `EventEmitter` and provides methods to
+ * create practices, vote on them, add comments, query practices by category,
+ * and compute community metrics. The generated code is parameterized by the
+ * supplied configuration (voting threshold and community voting toggle).
+ *
+ * @param config - The best-practices configuration used to parameterize the
+ *   generated TypeScript manager.
+ * @returns A string containing the full TypeScript source for the manager.
+ */
 export function generateTypeScriptBestPractices(config: BestPracticesConfig): string {
   let code = '// Auto-generated Best Practices Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -252,6 +285,18 @@ export function generateTypeScriptBestPractices(config: BestPracticesConfig): st
   return code;
 }
 
+/**
+ * Generates a complete Python module implementing a `BestPracticesManager`
+ * class. The generated module defines `EnforcementLevel` and `PracticeStatus`
+ * enums, a `BestPractice` dataclass, and a manager class with methods to create
+ * practices, vote on them, add comments, query practices by category, and
+ * compute community metrics. The generated code is parameterized by the
+ * supplied configuration (project name, voting threshold, and voting toggle).
+ *
+ * @param config - The best-practices configuration used to parameterize the
+ *   generated Python manager.
+ * @returns A string containing the full Python source for the manager.
+ */
 export function generatePythonBestPractices(config: BestPracticesConfig): string {
   let code = '# Auto-generated Best Practices Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -359,6 +404,21 @@ export function generatePythonBestPractices(config: BestPracticesConfig): string
   return code;
 }
 
+/**
+ * Writes all generated best-practices files to the specified output directory.
+ * Always writes the Terraform file, the Markdown documentation, and a JSON
+ * configuration snapshot. Depending on the `language` parameter, also writes
+ * the TypeScript or Python manager source plus its dependency manifest.
+ *
+ * @param config - The best-practices configuration to generate files from.
+ * @param outputDir - The target directory; created if it does not exist.
+ * @param language - Either `'typescript'` to emit TypeScript sources and a
+ *   `package.json`, or any other value to emit Python sources and a
+ *   `requirements.txt`.
+ * @returns A promise that resolves when all files have been written.
+ * @throws Re-throws any error raised by the underlying `fs-extra` file
+ *   operations (e.g. permission errors or invalid paths).
+ */
 export async function writeFiles(config: BestPracticesConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -407,6 +467,15 @@ export async function writeFiles(config: BestPracticesConfig, outputDir: string,
   await fs.writeFile(path.join(outputDir, 'best-practices-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided best-practices configuration unchanged.
+ *
+ * Intended as a pass-through / identity helper for the best-practices
+ * configuration object, useful for registration or aggregation flows.
+ *
+ * @param config - The best-practices configuration to return.
+ * @returns The same `BestPracticesConfig` instance that was passed in.
+ */
 export function bestPractices(config: BestPracticesConfig): BestPracticesConfig {
   return config;
 }

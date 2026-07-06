@@ -81,6 +81,15 @@ interface BurnoutDetectionConfig {
   };
 }
 
+/**
+ * Prints a human-readable summary of the burnout detection configuration to the console.
+ *
+ * Outputs the project name, providers, team member and intervention counts, and key
+ * toggles (real-time monitoring, automated interventions, anonymous surveys, survey
+ * frequency, and risk threshold) using colorized chalk output.
+ *
+ * @param config - The burnout detection configuration to display.
+ */
 export function displayConfig(config: BurnoutDetectionConfig): void {
   console.log(chalk.cyan('🧘 Team Burnout Detection and Wellness Monitoring'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -96,6 +105,17 @@ export function displayConfig(config: BurnoutDetectionConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string describing the burnout detection feature.
+ *
+ * The generated Markdown includes an overview of supported wellness metrics, risk
+ * levels, indicators, risk factor categories, and intervention strategies organized
+ * by risk severity. The `config` parameter is accepted for API symmetry but the
+ * output content is static and does not vary based on the provided configuration.
+ *
+ * @param config - The burnout detection configuration (used for API consistency).
+ * @returns A Markdown string documenting the burnout detection feature.
+ */
 export function generateBurnoutDetectionMD(config: BurnoutDetectionConfig): string {
   let md = '# Team Burnout Detection and Wellness Monitoring\n\n';
   md += '## Features\n\n';
@@ -125,12 +145,36 @@ export function generateBurnoutDetectionMD(config: BurnoutDetectionConfig): stri
   return md;
 }
 
+/**
+ * Generates a Terraform header stub for the burnout detection configuration.
+ *
+ * Produces a two-line Terraform file containing a project name header and an
+ * ISO-8601 generation timestamp. This is intended as a starting scaffold that
+ * callers can extend with additional Terraform resource blocks.
+ *
+ * @param config - The burnout detection configuration providing the project name.
+ * @returns A Terraform code string prefixed with comment headers.
+ */
 export function generateTerraformBurnoutDetection(config: BurnoutDetectionConfig): string {
   let code = '# Auto-generated Burnout Detection Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a complete TypeScript module implementing a burnout detection manager.
+ *
+ * The returned source string defines a `BurnoutDetectionManager` class extending
+ * `EventEmitter`, along with `WellnessIndicator` and `BurnoutRiskFactor` interfaces.
+ * The class supports adding team members, calculating weighted risk scores from
+ * wellness indicators, assessing wellness and triggering automated interventions
+ * when the configured risk threshold is exceeded, and generating risk-sorted reports.
+ * The module is bootstrapped using the provided `config` values for risk threshold
+ * and automated intervention toggle.
+ *
+ * @param config - The burnout detection configuration used to populate manager options.
+ * @returns A TypeScript source string defining the burnout detection manager module.
+ */
 export function generateTypeScriptBurnoutDetection(config: BurnoutDetectionConfig): string {
   let code = '// Auto-generated Burnout Detection Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -271,6 +315,19 @@ export function generateTypeScriptBurnoutDetection(config: BurnoutDetectionConfi
   return code;
 }
 
+/**
+ * Generates a complete Python module implementing a burnout detection manager.
+ *
+ * The returned source string defines a `RiskLevel` enum, a `WellnessIndicator`
+ * dataclass, and a `BurnoutDetectionManager` class with the same capabilities as
+ * the TypeScript variant: adding team members, computing risk scores, assessing
+ * wellness, triggering risk-level-appropriate interventions, and producing
+ * risk-sorted reports. The manager is instantiated with values derived from the
+ * provided `config`.
+ *
+ * @param config - The burnout detection configuration used to populate manager options.
+ * @returns A Python source string defining the burnout detection manager module.
+ */
 export function generatePythonBurnoutDetection(config: BurnoutDetectionConfig): string {
   let code = '# Auto-generated Burnout Detection Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -378,6 +435,21 @@ export function generatePythonBurnoutDetection(config: BurnoutDetectionConfig): 
   return code;
 }
 
+/**
+ * Writes the burnout detection artifacts to disk for the given configuration.
+ *
+ * Ensures the output directory exists, then writes a Terraform stub file, a
+ * language-specific manager module (`burnout-detection-manager.ts` for TypeScript
+ * or `burnout_detection_manager.py` for Python) with its associated package
+ * metadata (`package.json` or `requirements.txt`), a Markdown documentation file,
+ * and a JSON serialization of the full configuration.
+ *
+ * @param config - The burnout detection configuration to render and persist.
+ * @param outputDir - The target directory where artifacts will be written.
+ * @param language - The implementation language, either `'typescript'` or `'python'`.
+ * @returns A promise that resolves when all files have been written.
+ * @throws {Error} When the filesystem operations fail (e.g. permission denied, disk full).
+ */
 export async function writeFiles(config: BurnoutDetectionConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -427,6 +499,15 @@ export async function writeFiles(config: BurnoutDetectionConfig, outputDir: stri
   await fs.writeFile(path.join(outputDir, 'burnout-detection-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided burnout detection configuration unchanged.
+ *
+ * Acts as a pass-through identity function useful for validation pipelines or
+ * registration with the broader re-shell configuration system.
+ *
+ * @param config - The burnout detection configuration to return.
+ * @returns The same `config` instance that was passed in.
+ */
 export function burnoutDetection(config: BurnoutDetectionConfig): BurnoutDetectionConfig {
   return config;
 }

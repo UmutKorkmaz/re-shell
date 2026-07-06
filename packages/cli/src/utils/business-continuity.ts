@@ -5,15 +5,52 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Type Definitions
+
+/**
+ * Severity of impact a disruption can have on the business.
+ */
 export type ImpactLevel = 'critical' | 'high' | 'medium' | 'low';
+
+/**
+ * Priority level that determines how quickly a function must be recovered.
+ */
 export type RecoveryPriority = 'immediate' | 'urgent' | 'important' | 'routine';
+
+/**
+ * Lifecycle status of a disaster recovery test.
+ */
 export type DRTestStatus = 'pending' | 'in-progress' | 'passed' | 'failed' | 'skipped';
+
+/**
+ * Categorization of disaster recovery test methodologies.
+ */
 export type DRTestType = 'tabletop' | 'simulation' | 'parallel' | 'full-interruption';
+
+/**
+ * Workflow status for a Business Impact Analysis document.
+ */
 export type BIAStatus = 'draft' | 'in-review' | 'approved' | 'outdated';
+
+/**
+ * Lifecycle status of a disaster recovery or continuity plan.
+ */
 export type PlanStatus = 'draft' | 'active' | 'testing' | 'deprecated';
+
+/**
+ * Classification of risk categories used during risk assessment.
+ */
 export type RiskCategory = 'operational' | 'financial' | 'reputational' | 'regulatory' | 'strategic';
+
+/**
+ * Classification of threat sources evaluated in risk assessments.
+ */
 export type ThreatType = 'natural' | 'technological' | 'human' | 'terrorism' | 'pandemic';
 
+/**
+ * Root configuration object for business continuity and disaster recovery planning.
+ * Aggregates all business units, critical functions, analyses, plans, tests, risks,
+ * communication plans, and service dependencies for an organization.
+ */
 export interface BusinessContinuityConfig {
   projectName: string;
   organization: string;
@@ -30,6 +67,10 @@ export interface BusinessContinuityConfig {
   dependencies: ServiceDependency[];
 }
 
+/**
+ * Global settings controlling BIA updates, DR testing, risk monitoring,
+ * notifications, and compliance reporting for business continuity.
+ */
 export interface BCSettings {
   autoBIAUpdate: boolean;
   biaUpdateFrequency: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
@@ -50,6 +91,9 @@ export interface BCSettings {
   complianceFrameworks: Array<'iso-22301' | 'soc-2' | 'pci-dss' | 'hipaa' | 'custom'>;
 }
 
+/**
+ * Represents an organizational unit with its services, criticality, and risk tolerance.
+ */
 export interface BusinessUnit {
   id: string;
   name: string;
@@ -65,6 +109,10 @@ export interface BusinessUnit {
   riskTolerance: 'low' | 'medium' | 'high';
 }
 
+/**
+ * Represents a critical business function with recovery objectives (RTO/RPO),
+ * impact analysis, resources, dependencies, and operational metrics.
+ */
 export interface CriticalFunction {
   id: string;
   name: string;
@@ -103,6 +151,11 @@ export interface CriticalFunction {
   };
 }
 
+/**
+ * Captures the business impact analysis for a critical function, including
+ * impact scenarios, financial/operational/stakeholder impacts, recovery
+ * requirements, and reviewer approvals.
+ */
 export interface BusinessImpactAnalysis {
   id: string;
   functionId: string;
@@ -134,6 +187,10 @@ export interface BusinessImpactAnalysis {
   nextReviewDate: Date;
 }
 
+/**
+ * Describes a single impact scenario within a business impact analysis,
+ * including duration, impact level, financial loss, and mitigation.
+ */
 export interface ImpactScenario {
   scenario: string;
   duration: string; // e.g., '1-4 hours', '1-2 days', '1+ weeks'
@@ -145,6 +202,11 @@ export interface ImpactScenario {
   mitigation: string;
 }
 
+/**
+ * Quantifies the financial impact of a disruption, including daily revenue/expenses,
+ * per-hour and per-day impact, max tolerable downtime, and projected losses
+ * at various durations.
+ */
 export interface FinancialImpact {
   dailyRevenue: number;
   dailyExpenses: number;
@@ -160,6 +222,10 @@ export interface FinancialImpact {
   };
 }
 
+/**
+ * Describes the operational impact of a disruption on internal and external
+ * processes, supply chain, vendors, and available workarounds.
+ */
 export interface OperationalImpact {
   internalProcesses: string[];
   externalProcesses: string[];
@@ -168,6 +234,10 @@ export interface OperationalImpact {
   workarounds: string[];
 }
 
+/**
+ * Captures the impact of a disruption on each stakeholder group: customers,
+ * employees, partners, and regulators.
+ */
 export interface StakeholderImpact {
   customers: {
     impact: string;
@@ -191,6 +261,10 @@ export interface StakeholderImpact {
   };
 }
 
+/**
+ * Defines a recovery strategy covering people, process, technology, facility,
+ * or supplier aspects, including implementation progress, testing, cost, and ROI.
+ */
 export interface RecoveryStrategy {
   id: string;
   name: string;
@@ -228,6 +302,9 @@ export interface RecoveryStrategy {
   roi: number; // percentage
 }
 
+/**
+ * Represents a milestone within a recovery strategy implementation plan.
+ */
 export interface Milestone {
   name: string;
   dueDate: Date;
@@ -235,6 +312,10 @@ export interface Milestone {
   completedDate?: Date;
 }
 
+/**
+ * Comprehensive disaster recovery plan covering scope, activation triggers,
+ * teams, procedures, recovery objectives, sites, and references.
+ */
 export interface DisasterRecoveryPlan {
   id: string;
   name: string;
@@ -276,6 +357,10 @@ export interface DisasterRecoveryPlan {
   appendices: string[];
 }
 
+/**
+ * Describes a physical or cloud site used for primary, secondary, alternate,
+ * or mobile disaster recovery operations.
+ */
 export interface Site {
   name: string;
   type: 'primary' | 'secondary' | 'alternate' | 'mobile';
@@ -287,6 +372,10 @@ export interface Site {
   equipment: string[];
 }
 
+/**
+ * Represents a disaster recovery team with its lead, members, responsibilities,
+ * and contact information.
+ */
 export interface DRTeam {
   name: string;
   lead: string;
@@ -296,6 +385,9 @@ export interface DRTeam {
   alternateLead?: string;
 }
 
+/**
+ * Contact details for a disaster recovery team member or lead.
+ */
 export interface ContactInfo {
   email: string;
   phone: string;
@@ -303,6 +395,10 @@ export interface ContactInfo {
   slack?: string;
 }
 
+/**
+ * Defines a disaster recovery procedure with ordered steps, estimated duration,
+ * dependencies, and success criteria.
+ */
 export interface DRProcedure {
   id: string;
   name: string;
@@ -314,6 +410,9 @@ export interface DRProcedure {
   successCriteria: string[];
 }
 
+/**
+ * Represents a single step within a disaster recovery procedure.
+ */
 export interface ProcedureStep {
   stepNumber: number;
   action: string;
@@ -323,6 +422,10 @@ export interface ProcedureStep {
   fallback?: string;
 }
 
+/**
+ * Defines the testing strategy for a disaster recovery plan, including
+ * frequency, test types, required participants, success criteria, and reporting.
+ */
 export interface DRTestStrategy {
   frequency: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
   types: DRTestType[];
@@ -331,6 +434,10 @@ export interface DRTestStrategy {
   reporting: string[];
 }
 
+/**
+ * Represents a disaster recovery test with scope, scenarios, execution details,
+ * results, objectives, issues, lessons learned, and approval workflow.
+ */
 export interface DRTest {
   id: string;
   name: string;
@@ -377,6 +484,10 @@ export interface DRTest {
   followUpActions: string[];
 }
 
+/**
+ * Represents a single test scenario within a DR test, including the injected
+ * fault, expected outcome, and actual results.
+ */
 export interface TestScenario {
   name: string;
   description: string;
@@ -387,6 +498,10 @@ export interface TestScenario {
   passed?: boolean;
 }
 
+/**
+ * Represents a measurable objective within a DR test, including success criteria,
+ * measurement method, target value, and actual result.
+ */
 export interface TestObjective {
   objective: string;
   successCriteria: string;
@@ -396,6 +511,10 @@ export interface TestObjective {
   passed?: boolean;
 }
 
+/**
+ * Represents an issue discovered during a DR test, including severity,
+ * description, discovery details, and resolution tracking.
+ */
 export interface TestIssue {
   severity: 'critical' | 'major' | 'minor';
   description: string;
@@ -406,6 +525,10 @@ export interface TestIssue {
   resolvedAt?: Date;
 }
 
+/**
+ * Captures a risk assessment including threats, risk matrix, overall and
+ * residual risk levels, mitigation strategies, and monitoring details.
+ */
 export interface RiskAssessment {
   id: string;
   name: string;
@@ -430,6 +553,10 @@ export interface RiskAssessment {
   monitoredBy: string;
 }
 
+/**
+ * Represents an individual threat identified during a risk assessment,
+ * including likelihood, impact, risk score, mitigations, and owner.
+ */
 export interface Threat {
   id: string;
   type: ThreatType;
@@ -441,6 +568,10 @@ export interface Threat {
   owner: string;
 }
 
+/**
+ * A single entry in the risk matrix mapping a threat to its likelihood,
+ * impact, score, and overall risk level.
+ */
 export interface RiskMatrixEntry {
   threat: string;
   likelihood: string;
@@ -449,6 +580,10 @@ export interface RiskMatrixEntry {
   level: 'low' | 'medium' | 'high' | 'critical';
 }
 
+/**
+ * Defines a communication plan for incidents, including stakeholders,
+ * templates, channels, and escalation matrix.
+ */
 export interface CommunicationPlan {
   id: string;
   name: string;
@@ -470,6 +605,10 @@ export interface CommunicationPlan {
   escalationMatrix: EscalationLevel[];
 }
 
+/**
+ * Represents a stakeholder in a communication plan, including type,
+ * contact method, priority, and notification requirements.
+ */
 export interface CommunicationStakeholder {
   name: string;
   type: 'customer' | 'employee' | 'partner' | 'regulator' | 'public' | 'media';
@@ -479,6 +618,10 @@ export interface CommunicationStakeholder {
   templateId?: string;
 }
 
+/**
+ * Represents a reusable communication template with subject, body, variables,
+ * and approval requirements.
+ */
 export interface CommunicationTemplate {
   id: string;
   name: string;
@@ -489,6 +632,10 @@ export interface CommunicationTemplate {
   approvalRequired: boolean;
 }
 
+/**
+ * Describes a communication channel used during incidents, including type,
+ * status, capacity, owner, and fallback options.
+ */
 export interface CommunicationChannel {
   name: string;
   type: 'email' | 'sms' | 'voice' | 'web' | 'slack' | 'teams' | 'pager';
@@ -498,6 +645,10 @@ export interface CommunicationChannel {
   fallback?: string;
 }
 
+/**
+ * Defines an escalation level within a communication plan, including trigger
+ * conditions, recipients, required response time, and channels.
+ */
 export interface EscalationLevel {
   level: number;
   name: string;
@@ -507,6 +658,10 @@ export interface EscalationLevel {
   channels: string[];
 }
 
+/**
+ * Maps a dependency between two critical functions (or external services),
+ * including type, criticality, failure impact, workaround, and SLA details.
+ */
 export interface ServiceDependency {
   id: string;
   source: string; // function ID
@@ -523,6 +678,13 @@ export interface ServiceDependency {
 }
 
 // Manager Class
+
+/**
+ * Central manager for business continuity and disaster recovery operations.
+ * Provides CRUD operations for business units, critical functions, BIAs,
+ * recovery strategies, DR plans, DR tests, risk assessments, and communication
+ * plans, as well as analytics and reporting capabilities.
+ */
 export class BusinessContinuityManager {
   private businessUnits: Map<string, BusinessUnit> = new Map();
   private criticalFunctions: Map<string, CriticalFunction> = new Map();
@@ -535,6 +697,13 @@ export class BusinessContinuityManager {
   private dependencies: Map<string, ServiceDependency> = new Map();
 
   // Business Unit Management
+
+  /**
+   * Creates and stores a new business unit, generating a unique ID.
+   *
+   * @param bu - The business unit data (without an ID).
+   * @returns The newly created business unit with a generated ID.
+   */
   createBusinessUnit(bu: Omit<BusinessUnit, 'id'>): BusinessUnit {
     const id = this.generateId('bu');
     const newBu: BusinessUnit = { ...bu, id };
@@ -542,15 +711,34 @@ export class BusinessContinuityManager {
     return newBu;
   }
 
+  /**
+   * Retrieves a business unit by its ID.
+   *
+   * @param id - The unique identifier of the business unit.
+   * @returns The matching business unit, or `undefined` if not found.
+   */
   getBusinessUnit(id: string): BusinessUnit | undefined {
     return this.businessUnits.get(id);
   }
 
+  /**
+   * Lists all registered business units.
+   *
+   * @returns An array of all business units.
+   */
   listBusinessUnits(): BusinessUnit[] {
     return Array.from(this.businessUnits.values());
   }
 
   // Critical Function Management
+
+  /**
+   * Creates and stores a new critical function, generating a unique ID and
+   * computing the next test date based on the function's recovery priority.
+   *
+   * @param func - The critical function data (without ID and next test date).
+   * @returns The newly created critical function with generated ID and test date.
+   */
   createCriticalFunction(func: Omit<CriticalFunction, 'id' | 'nextTestDate'>): CriticalFunction {
     const id = this.generateId('func');
     const newFunc: CriticalFunction = {
@@ -563,10 +751,25 @@ export class BusinessContinuityManager {
     return newFunc;
   }
 
+  /**
+   * Retrieves a critical function by its ID.
+   *
+   * @param id - The unique identifier of the critical function.
+   * @returns The matching critical function, or `undefined` if not found.
+   */
   getCriticalFunction(id: string): CriticalFunction | undefined {
     return this.criticalFunctions.get(id);
   }
 
+  /**
+   * Lists critical functions, optionally filtered by business unit and/or
+   * recovery priority. Results are sorted by priority (immediate first).
+   *
+   * @param filters - Optional filter criteria.
+   * @param filters.businessUnit - Filter by business unit ID.
+   * @param filters.priority - Filter by recovery priority.
+   * @returns Filtered and sorted array of critical functions.
+   */
   listCriticalFunctions(filters?: { businessUnit?: string; priority?: RecoveryPriority }): CriticalFunction[] {
     let functions = Array.from(this.criticalFunctions.values());
 
@@ -584,6 +787,15 @@ export class BusinessContinuityManager {
   }
 
   // Business Impact Analysis
+
+  /**
+   * Creates and stores a new Business Impact Analysis (BIA) record, generating
+   * a unique ID, setting the analysis date to now, and initializing status to
+   * 'draft'.
+   *
+   * @param bia - The BIA data (without ID, analysis date, and status).
+   * @returns The newly created BIA with generated fields.
+   */
   createBIA(bia: Omit<BusinessImpactAnalysis, 'id' | 'analysisDate' | 'status'>): BusinessImpactAnalysis {
     const id = this.generateId('bia');
     const newBIA: BusinessImpactAnalysis = {
@@ -596,6 +808,14 @@ export class BusinessContinuityManager {
     return newBIA;
   }
 
+  /**
+   * Updates an existing Business Impact Analysis with the provided partial
+   * data using shallow merge.
+   *
+   * @param id - The unique identifier of the BIA to update.
+   * @param updates - Partial BIA fields to merge into the existing record.
+   * @returns The updated BIA, or `undefined` if the BIA was not found.
+   */
   updateBIA(id: string, updates: Partial<BusinessImpactAnalysis>): BusinessImpactAnalysis | undefined {
     const bia = this.bia.get(id);
     if (!bia) return undefined;
@@ -605,6 +825,14 @@ export class BusinessContinuityManager {
     return updated;
   }
 
+  /**
+   * Approves a Business Impact Analysis, setting its status to 'approved'
+   * and recording the approver and approval timestamp.
+   *
+   * @param id - The unique identifier of the BIA to approve.
+   * @param approver - The name or identifier of the approver.
+   * @returns The approved BIA, or `undefined` if the BIA was not found.
+   */
   approveBIA(id: string, approver: string): BusinessImpactAnalysis | undefined {
     const bia = this.bia.get(id);
     if (!bia) return undefined;
@@ -616,10 +844,23 @@ export class BusinessContinuityManager {
     return bia;
   }
 
+  /**
+   * Retrieves a Business Impact Analysis by its ID.
+   *
+   * @param id - The unique identifier of the BIA.
+   * @returns The matching BIA, or `undefined` if not found.
+   */
   getBIA(id: string): BusinessImpactAnalysis | undefined {
     return this.bia.get(id);
   }
 
+  /**
+   * Lists Business Impact Analyses, optionally filtered by function ID.
+   * Results are sorted by analysis date in descending order (most recent first).
+   *
+   * @param functionId - Optional function ID to filter by.
+   * @returns Filtered and sorted array of BIAs.
+   */
   listBIA(functionId?: string): BusinessImpactAnalysis[] {
     let analyses = Array.from(this.bia.values());
     if (functionId) {
@@ -629,6 +870,14 @@ export class BusinessContinuityManager {
   }
 
   // Recovery Strategy Management
+
+  /**
+   * Creates and stores a new recovery strategy, generating a unique ID and
+   * initializing the implementation status to 'not-started'.
+   *
+   * @param strategy - The recovery strategy data (without ID and implementation).
+   * @returns The newly created recovery strategy with generated fields.
+   */
   createRecoveryStrategy(strategy: Omit<RecoveryStrategy, 'id' | 'implementation'>): RecoveryStrategy {
     const id = this.generateId('rs');
     const newStrategy: RecoveryStrategy = {
@@ -646,10 +895,21 @@ export class BusinessContinuityManager {
     return newStrategy;
   }
 
+  /**
+   * Retrieves a recovery strategy by its ID.
+   *
+   * @param id - The unique identifier of the recovery strategy.
+   * @returns The matching recovery strategy, or `undefined` if not found.
+   */
   getRecoveryStrategy(id: string): RecoveryStrategy | undefined {
     return this.recoveryStrategies.get(id);
   }
 
+  /**
+   * Lists all recovery strategies sorted by priority (immediate first).
+   *
+   * @returns Sorted array of recovery strategies.
+   */
   listRecoveryStrategies(): RecoveryStrategy[] {
     return Array.from(this.recoveryStrategies.values()).sort((a, b) => {
       const priorityOrder = { immediate: 0, urgent: 1, important: 2, routine: 3 };
@@ -658,6 +918,14 @@ export class BusinessContinuityManager {
   }
 
   // Disaster Recovery Plan Management
+
+  /**
+   * Creates and stores a new disaster recovery plan, generating a unique ID,
+   * setting the last updated date to now, and computing the next review date.
+   *
+   * @param plan - The DR plan data (without ID, last updated, and next review date).
+   * @returns The newly created DR plan with generated fields.
+   */
   createDRPlan(plan: Omit<DisasterRecoveryPlan, 'id' | 'lastUpdated' | 'nextReviewDate'>): DisasterRecoveryPlan {
     const id = this.generateId('drp');
     const newPlan: DisasterRecoveryPlan = {
@@ -670,15 +938,35 @@ export class BusinessContinuityManager {
     return newPlan;
   }
 
+  /**
+   * Retrieves a disaster recovery plan by its ID.
+   *
+   * @param id - The unique identifier of the DR plan.
+   * @returns The matching DR plan, or `undefined` if not found.
+   */
   getDRPlan(id: string): DisasterRecoveryPlan | undefined {
     return this.drPlans.get(id);
   }
 
+  /**
+   * Lists all disaster recovery plans sorted by last updated date in
+   * descending order (most recently updated first).
+   *
+   * @returns Sorted array of DR plans.
+   */
   listDRPlans(): DisasterRecoveryPlan[] {
     return Array.from(this.drPlans.values()).sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime());
   }
 
   // DR Test Management
+
+  /**
+   * Creates and stores a new DR test, generating a unique ID and initializing
+   * the status to 'pending'.
+   *
+   * @param test - The DR test data (without ID and status).
+   * @returns The newly created DR test with generated fields.
+   */
   createDRTest(test: Omit<DRTest, 'id' | 'status'>): DRTest {
     const id = this.generateId('test');
     const newTest: DRTest = {
@@ -690,6 +978,14 @@ export class BusinessContinuityManager {
     return newTest;
   }
 
+  /**
+   * Executes a disaster recovery test by simulating its scenarios and objectives,
+   * then calculating the final test score. The test status transitions to
+   * 'in-progress' and then to 'passed' upon completion.
+   *
+   * @param testId - The unique identifier of the DR test to execute.
+   * @returns The completed DR test with results, or `undefined` if not found.
+   */
   async executeDRTest(testId: string): Promise<DRTest | undefined> {
     const test = this.drTests.get(testId);
     if (!test) return undefined;
@@ -709,6 +1005,13 @@ export class BusinessContinuityManager {
     return test;
   }
 
+  /**
+   * Simulates the execution of a DR test by marking all scenarios as passed
+   * and generating objective actual values within 90-105% of their targets.
+   *
+   * @param test - The DR test to simulate execution for.
+   * @returns A promise that resolves when simulation is complete.
+   */
   private async simulateTestExecution(test: DRTest): Promise<void> {
     // Simulate test scenarios
     for (const scenario of test.scenarios) {
@@ -723,6 +1026,13 @@ export class BusinessContinuityManager {
     }
   }
 
+  /**
+   * Calculates the test score as the percentage of passed objectives.
+   * Returns 100 if there are no objectives.
+   *
+   * @param test - The DR test whose objectives to evaluate.
+   * @returns An integer score from 0 to 100.
+   */
   private calculateTestScore(test: DRTest): number {
     if (test.objectives.length === 0) return 100;
 
@@ -730,10 +1040,24 @@ export class BusinessContinuityManager {
     return Math.round((passedObjectives / test.objectives.length) * 100);
   }
 
+  /**
+   * Retrieves a DR test by its ID.
+   *
+   * @param id - The unique identifier of the DR test.
+   * @returns The matching DR test, or `undefined` if not found.
+   */
   getDRTest(id: string): DRTest | undefined {
     return this.drTests.get(id);
   }
 
+  /**
+   * Lists DR tests, optionally filtered by plan ID and/or status. Results are
+   * sorted by scheduled date in descending order (most recent first).
+   *
+   * @param planId - Optional plan ID to filter by.
+   * @param status - Optional test status to filter by.
+   * @returns Filtered and sorted array of DR tests.
+   */
   listDRTests(planId?: string, status?: DRTestStatus): DRTest[] {
     let tests = Array.from(this.drTests.values());
     if (planId) {
@@ -746,6 +1070,14 @@ export class BusinessContinuityManager {
   }
 
   // Risk Assessment Management
+
+  /**
+   * Creates and stores a new risk assessment, generating a unique ID and
+   * setting the assessment date to now.
+   *
+   * @param assessment - The risk assessment data (without ID and assessment date).
+   * @returns The newly created risk assessment with generated fields.
+   */
   createRiskAssessment(assessment: Omit<RiskAssessment, 'id' | 'assessmentDate'>): RiskAssessment {
     const id = this.generateId('risk');
     const newAssessment: RiskAssessment = {
@@ -757,15 +1089,35 @@ export class BusinessContinuityManager {
     return newAssessment;
   }
 
+  /**
+   * Retrieves a risk assessment by its ID.
+   *
+   * @param id - The unique identifier of the risk assessment.
+   * @returns The matching risk assessment, or `undefined` if not found.
+   */
   getRiskAssessment(id: string): RiskAssessment | undefined {
     return this.riskAssessments.get(id);
   }
 
+  /**
+   * Lists all risk assessments sorted by assessment date in descending order
+   * (most recent first).
+   *
+   * @returns Sorted array of risk assessments.
+   */
   listRiskAssessments(): RiskAssessment[] {
     return Array.from(this.riskAssessments.values()).sort((a, b) => b.assessmentDate.getTime() - a.assessmentDate.getTime());
   }
 
   // Communication Plan Management
+
+  /**
+   * Creates and stores a new communication plan, generating a unique ID and
+   * setting the last updated date to now.
+   *
+   * @param plan - The communication plan data (without ID and last updated date).
+   * @returns The newly created communication plan with generated fields.
+   */
   createCommunicationPlan(plan: Omit<CommunicationPlan, 'id' | 'lastUpdated'>): CommunicationPlan {
     const id = this.generateId('comm');
     const newPlan: CommunicationPlan = {
@@ -777,11 +1129,25 @@ export class BusinessContinuityManager {
     return newPlan;
   }
 
+  /**
+   * Retrieves a communication plan by its ID.
+   *
+   * @param id - The unique identifier of the communication plan.
+   * @returns The matching communication plan, or `undefined` if not found.
+   */
   getCommunicationPlan(id: string): CommunicationPlan | undefined {
     return this.communicationPlans.get(id);
   }
 
   // Analytics & Reporting
+
+  /**
+   * Generates a summary of all business continuity planning metrics including
+   * counts of functions, plans, tests, and risks, average RTO/RPO, test scores,
+   * overdue tests, and an overall readiness score.
+   *
+   * @returns A comprehensive BCP summary object.
+   */
   getBCPSummary(): BCPSummary {
     const functions = this.listCriticalFunctions();
     const tests = this.listDRTests();
@@ -815,6 +1181,12 @@ export class BusinessContinuityManager {
     };
   }
 
+  /**
+   * Calculates the overall readiness score (0-100) based on tested functions,
+   * recent passed tests (within 90 days), and the ratio of DR plans to functions.
+   *
+   * @returns An integer readiness score from 0 to 100.
+   */
   private calculateReadinessScore(): number {
     const functions = this.listCriticalFunctions();
     const tests = this.listDRTests();
@@ -841,10 +1213,25 @@ export class BusinessContinuityManager {
   }
 
   // Helper methods
+
+  /**
+   * Generates a unique identifier using a prefix, current timestamp, and a
+   * random alphanumeric suffix.
+   *
+   * @param prefix - The prefix to prepend to the generated ID.
+   * @returns A unique identifier string.
+   */
   private generateId(prefix: string): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
   }
 
+  /**
+   * Calculates the next test date based on recovery priority intervals:
+   * immediate (30 days), urgent (60 days), important (90 days), routine (180 days).
+   *
+   * @param priority - The recovery priority of the function.
+   * @returns The computed next test date.
+   */
   private calculateNextTestDate(priority: RecoveryPriority): Date {
     const intervals = {
       immediate: 30, // 30 days
@@ -857,6 +1244,11 @@ export class BusinessContinuityManager {
     return date;
   }
 
+  /**
+   * Calculates the next review date for a DR plan, set to one year from now.
+   *
+   * @returns The computed next review date.
+   */
   private calculateNextReviewDate(): Date {
     const date = new Date();
     date.setFullYear(date.getFullYear() + 1);
@@ -864,6 +1256,10 @@ export class BusinessContinuityManager {
   }
 }
 
+/**
+ * Summary metrics for business continuity planning, aggregating counts,
+ * averages, and a readiness score across all managed entities.
+ */
 export interface BCPSummary {
   totalFunctions: number;
   highRiskFunctions: number;
@@ -881,6 +1277,15 @@ export interface BCPSummary {
 }
 
 // Generate Markdown Documentation
+
+/**
+ * Generates a Markdown documentation string for the business continuity and
+ * disaster recovery configuration, including an overview, feature list, business
+ * units, critical functions table, RTO/RPO summary, and usage examples.
+ *
+ * @param config - The business continuity configuration to document.
+ * @returns A Markdown-formatted documentation string.
+ */
 export function generateBCPMarkdown(config: BusinessContinuityConfig): string {
   let md = '# Business Continuity and Disaster Recovery Planning\n\n';
   md += '## Overview\n\n';
@@ -961,6 +1366,16 @@ function calculateRTOPSummary(functions: CriticalFunction[]): {
 }
 
 // Generate Terraform Configuration
+
+/**
+ * Generates Terraform infrastructure-as-code configuration for business
+ * continuity resources on the specified cloud provider (AWS, Azure, or GCP),
+ * including storage, databases, serverless functions, and scheduled DR testing.
+ *
+ * @param config - The business continuity configuration.
+ * @param provider - The target cloud provider ('aws', 'azure', or 'gcp').
+ * @returns A Terraform configuration string.
+ */
 export function generateBCPTerraform(config: BusinessContinuityConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   let tf = `# Terraform for Business Continuity - ${provider.toUpperCase()}\n`;
   tf += `# Generated for ${config.projectName}\n\n`;
@@ -1111,6 +1526,15 @@ export function generateBCPTerraform(config: BusinessContinuityConfig, provider:
 }
 
 // Generate TypeScript Manager
+
+/**
+ * Generates a complete TypeScript implementation of a BusinessContinuityManager
+ * class as source code, including enums, interfaces, and methods for managing
+ * critical functions, DR tests, and summary reporting.
+ *
+ * @param config - The business continuity configuration to use for code generation.
+ * @returns A TypeScript source code string.
+ */
 export function generateTypeScriptManager(config: BusinessContinuityConfig): string {
   let code = `// Business Continuity Manager - TypeScript\n`;
   code += `// Generated for ${config.projectName}\n\n`;
@@ -1324,6 +1748,15 @@ export function generateTypeScriptManager(config: BusinessContinuityConfig): str
 }
 
 // Generate Python Manager
+
+/**
+ * Generates a complete Python implementation of a BusinessContinuityManager
+ * class as source code, including enums, dataclasses, and methods for managing
+ * critical functions, DR tests, and summary reporting.
+ *
+ * @param config - The business continuity configuration to use for code generation.
+ * @returns A Python source code string.
+ */
 export function generatePythonManager(config: BusinessContinuityConfig): string {
   let code = `# Business Continuity Manager - Python\n`;
   code += `# Generated for ${config.projectName}\n\n`;
@@ -1532,6 +1965,18 @@ export function generatePythonManager(config: BusinessContinuityConfig): string 
 }
 
 // Write files
+
+/**
+ * Writes all business continuity files to the specified output directory,
+ * including Markdown documentation, JSON configuration, Terraform configs
+ * for each provider, and manager source code in the specified language.
+ *
+ * @param config - The business continuity configuration to write.
+ * @param outputDir - The directory path to write files into.
+ * @param language - The programming language for the generated manager code.
+ * @returns A promise that resolves when all files have been written.
+ * @throws Re-throws any filesystem errors encountered during writing.
+ */
 export async function writeBCPFiles(
   config: BusinessContinuityConfig,
   outputDir: string,
@@ -1593,6 +2038,16 @@ export async function writeBCPFiles(
 }
 
 // Display configuration
+
+/**
+ * Displays the business continuity configuration to the console using
+ * colorized output, including project details, configuration counts, settings,
+ * cloud providers, and expected output files.
+ *
+ * @param config - The business continuity configuration to display.
+ * @param language - The target programming language.
+ * @param outputDir - The output directory path.
+ */
 export function displayBCPConfig(config: BusinessContinuityConfig, language: 'typescript' | 'python', outputDir: string): void {
   console.log(chalk.cyan('\n✨ Business Continuity and Disaster Recovery Planning'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -1635,6 +2090,14 @@ export function displayBCPConfig(config: BusinessContinuityConfig, language: 'ty
 }
 
 // Create example configuration
+
+/**
+ * Creates an example business continuity configuration with sample business
+ * units, critical functions, a BIA, recovery strategies, DR plans, DR tests,
+ * risk assessments, communication plans, and service dependencies.
+ *
+ * @returns A fully populated example BusinessContinuityConfig.
+ */
 export function createExampleBCPConfig(): BusinessContinuityConfig {
   return {
     projectName: 'my-bcp',
