@@ -37,6 +37,10 @@ export interface GenerateChartResult {
   written: string[];
 }
 
+/**
+ * Options accepted by {@link generateChart}. All fields are optional; when no
+ * config can be resolved and `out` is unset the call is treated as a dry run.
+ */
 export interface GenerateChartOptions {
   /** Directory containing the workspace v2 config (default: cwd). */
   cwd?: string;
