@@ -109,8 +109,34 @@ async function detectPackageManager(root: string): Promise<string> {
 
 /**
  * Discover the workspace surface rooted at `root` and assemble the pure-
- * generator input. `program` supplies the command catalogue so the root doc can
- * list the real CLI command groups (omit it to skip that section).
+ * generator input consumed by the doc generator in agents-doc.ts.
+ *
+ * This is the single filesystem-facing entry point for `re-shell agents`. It:
+ * - Reads the root package.json for the project name, description, and scripts.
+ * - Parses `pnpm-workspace.yaml` (falling back to default globs) to locate
+ *   every workspace package, then reads each package's package.json.
+ * - Resolves internal (workspace) dependency edges by matching declared
+ *   dependency names against the set of discovered package names.
+ * - Locates the contracts package entry (`src/index.ts`) when present so the
+ *   generator can emit the JSON-contract note.
+ * - Derives the do-not-touch zone list from well-known build/output directories
+ *   at the root plus each package's `dist/` folder.
+ * - Detects the package manager from the lockfile present at the root.
+ * - Optionally extracts the top-level CLI command groups from the given
+ *   commander `program` so the root AGENTS.md can list them.
+ *
+ * Output is sorted deterministically so generated docs are byte-stable across
+ * runs regardless of glob or filesystem ordering.
+ *
+ * @param root - Absolute path to the workspace root to discover.
+ * @param program - Optional commander `Command` instance whose catalogue is
+ *   used to enumerate CLI command groups. Omit to skip the command-groups
+ *   section in the generated output.
+ * @returns A promise resolving to the plain-data {@link AgentsWorkspaceInput}
+ *   consumed by the pure doc generator.
+ * @throws When the underlying filesystem/glob libraries reject an operation
+ *   (e.g. unreadable `package.json` despite passing an existence check). Missing
+ *   or malformed files are otherwise swallowed and treated as absent.
  */
 export async function discoverWorkspace(
   root: string,
