@@ -6,7 +6,10 @@ import * as fs from 'fs/promises';
 import chalk from 'chalk';
 
 /**
- * VS Code launch configuration
+ * Represents a single VS Code launch configuration entry used inside
+ * `.vscode/launch.json`. Each configuration describes how a debug session
+ * should be started (program to run, runtime arguments, environment
+ * variables, source map settings, etc.).
  */
 export interface VSCodeLaunchConfig {
   name: string;
@@ -29,7 +32,9 @@ export interface VSCodeLaunchConfig {
 }
 
 /**
- * JetBrains IDE run configuration
+ * Represents a JetBrains (IntelliJ, PyCharm, WebStorm, GoLand, etc.)
+ * run/debug configuration entry. These map to the XML run configurations
+ * stored under the `.idea/runConfigurations/` directory of a project.
  */
 export interface JetBrainsRunConfig {
   name: string;
@@ -50,7 +55,10 @@ export interface JetBrainsRunConfig {
 }
 
 /**
- * Debug configuration result
+ * The result of generating debug configurations for a project. Each result
+ * is targeted at a specific IDE and contains both the structured config
+ * object and the list of files (with their content) that should be written
+ * to disk.
  */
 export interface DebugConfigResult {
   ide: 'vscode' | 'jetbrains' | 'chrome';
@@ -59,7 +67,9 @@ export interface DebugConfigResult {
 }
 
 /**
- * Project type for debugging
+ * Describes the project for which debug configurations should be generated.
+ * Contains metadata such as the framework, language, entry point, port and
+ * optional environment file that drive the generated debug setup.
  */
 export interface ProjectDebugInfo {
   name: string;
@@ -72,7 +82,18 @@ export interface ProjectDebugInfo {
 }
 
 /**
- * Generate VS Code launch configuration for a project
+ * Generate one or more VS Code launch configurations for the given project.
+ *
+ * The generated configurations adapt to the project's language and framework,
+ * producing appropriate Node.js, Chrome, Python (debugpy), Go, Rust (lldb),
+ * Java, .NET (coreclr), Ruby, PHP (Xdebug) and C++ (cppdbg) launch entries.
+ * When the environment is not explicitly supported, a generic Node.js
+ * fallback configuration is emitted. A Jest/pytest/test runner debug
+ * configuration is also included where applicable.
+ *
+ * @param project - Metadata describing the project to generate configs for.
+ * @returns An array of VS Code launch configuration objects ready to be
+ *   serialized into a `launch.json` file.
  */
 export function generateVSCodeLaunchConfig(project: ProjectDebugInfo): VSCodeLaunchConfig[] {
   const configs: VSCodeLaunchConfig[] = [];
@@ -418,7 +439,16 @@ export function generateVSCodeLaunchConfig(project: ProjectDebugInfo): VSCodeLau
 }
 
 /**
- * Generate JetBrains (IntelliJ, PyCharm, WebStorm, GoLand) run configurations
+ * Generate JetBrains IDE run/debug configurations for the given project.
+ *
+ * The returned configurations adapt to the project's language and framework,
+ * producing entries for Node.js (Express/Fastify, Next.js), Python
+ * (FastAPI/Django/Flask), Go, Rust (Cargo), Java/Spring Boot, Ruby/Rails and
+ * PHP/Laravel projects.
+ *
+ * @param project - Metadata describing the project to generate configs for.
+ * @returns An array of JetBrains run configuration objects suitable for
+ *   serialization into `.idea/runConfigurations/` XML files.
  */
 export function generateJetbrainsRunConfig(project: ProjectDebugInfo): JetBrainsRunConfig[] {
   const configs: JetBrainsRunConfig[] = [];
@@ -556,7 +586,17 @@ function loadEnvFile(envPath: string): Record<string, string> {
 }
 
 /**
- * Generate debug configuration files for a project
+ * Generate the full set of debug configuration files for a project.
+ *
+ * Produces VS Code configuration artifacts: the `launch.json` debug
+ * configurations, an `extensions.json` with recommended extensions for the
+ * project's stack, and a `tasks.json` containing build/run tasks. Each
+ * returned entry includes the target file path and its serialized content.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param project - Metadata describing the project to generate configs for.
+ * @returns An array of {@link DebugConfigResult} objects, each representing
+ *   a group of files to be written for a specific IDE.
  */
 export async function generateDebugConfigs(
   projectPath: string,
@@ -765,7 +805,19 @@ function generateBuildTasks(project: ProjectDebugInfo): any[] {
 }
 
 /**
- * Write debug configuration files to project
+ * Write the generated debug configuration files into the project directory.
+ *
+ * Internally calls {@link generateDebugConfigs} and persists each produced
+ * file to disk, creating any required parent directories. Existing files are
+ * skipped unless the `force` option is set, and progress can be logged when
+ * the `verbose` option is enabled.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param project - Metadata describing the project to generate configs for.
+ * @param options - Optional behavior switches:
+ *   - `force`: overwrite existing files when `true`. Defaults to `false`.
+ *   - `verbose`: log each created/skipped file path when `true`. Defaults to `false`.
+ * @returns A promise that resolves once all files have been written.
  */
 export async function writeDebugConfigs(
   projectPath: string,
@@ -805,7 +857,14 @@ export async function writeDebugConfigs(
 }
 
 /**
- * Display debug configuration information
+ * Print a human-readable summary of the debug configuration for a project.
+ *
+ * Logs the project's framework, language and type, lists every VS Code
+ * launch configuration that would be generated, and groups the recommended
+ * VS Code extensions by publisher. Output is written to the console using
+ * colored formatting.
+ *
+ * @param project - Metadata describing the project to summarize.
  */
 export function displayDebugConfigInfo(project: ProjectDebugInfo): void {
   console.log(chalk.bold(`\n🐛 Debug Configuration for ${project.name}\n`));

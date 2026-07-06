@@ -8,6 +8,10 @@ import { analyzeProject} from './framework-detection';
  * Analyzes existing services and generates dependency injection code
  */
 
+/**
+ * Describes a single service discovered in the workspace, including its
+ * capabilities, dependencies, and runtime metadata used by the analyzer.
+ */
 export interface ServiceDefinition {
   name: string;
   type: 'app' | 'package' | 'lib' | 'tool';
@@ -17,22 +21,38 @@ export interface ServiceDefinition {
   language: string;
   exports: string[];
   imports: string[];
-  dependencies: string[]; // Other services this depends on
-  dependents: string[]; // Services that depend on this one
-  provides: string[]; // Interfaces/features this service provides
-  consumes: string[]; // Interfaces/features this service needs
+  /** Names of other services this service depends on. */
+  dependencies: string[];
+  /** Names of services that depend on this service. */
+  dependents: string[];
+  /** Interfaces or features this service provides to others. */
+  provides: string[];
+  /** Interfaces or features this service needs from others. */
+  consumes: string[];
   healthCheck?: string;
   exposedPorts?: number[];
   envVars?: Record<string, string>;
 }
 
+/**
+ * Directed graph of services and their inter-dependencies, including
+ * reverse edges for dependent lookup and any detected dependency cycles.
+ */
 export interface DependencyGraph {
   nodes: Map<string, ServiceDefinition>;
-  edges: Map<string, Set<string>>; // service -> dependencies
-  reverseEdges: Map<string, Set<string>>; // service -> dependents
-  cycles: string[][]; // Detected circular dependencies
+  /** Maps a service name to the set of services it depends on. */
+  edges: Map<string, Set<string>>;
+  /** Maps a service name to the set of services that depend on it. */
+  reverseEdges: Map<string, Set<string>>;
+  /** Lists of service names forming each detected circular dependency. */
+  cycles: string[][];
 }
 
+/**
+ * Describes how dependency injection should be applied for a particular
+ * framework/language combination, including decorator names, module
+ * registration style, and a code example.
+ */
 export interface InjectionPattern {
   framework: string;
   language: string;
@@ -133,7 +153,14 @@ module.exports = fp(userServicePlugin);`,
 };
 
 /**
- * Analyze workspace for services and their dependencies
+ * Analyzes the workspace at the given directory for services and their
+ * inter-dependencies, building and displaying a dependency graph.
+ *
+ * If a `re-shell.workspaces.yaml` file is present, each declared workspace
+ * is analyzed; otherwise the current directory is treated as a single service.
+ *
+ * @param cwd - The root directory to analyze. Defaults to the current process directory.
+ * @returns A promise resolving to the constructed {@link DependencyGraph}.
  */
 export async function analyzeServices(cwd: string = process.cwd()): Promise<DependencyGraph> {
   console.log(chalk.cyan.bold('\n🔍 Analyzing Services for Dependency Injection\n'));
@@ -609,7 +636,15 @@ function displayDependencyGraph(graph: DependencyGraph): void {
 }
 
 /**
- * Generate dependency injection code for a service
+ * Generates dependency injection boilerplate code for the specified service
+ * based on its framework, language, and resolved dependencies.
+ *
+ * @param serviceName - The name of the service to generate code for.
+ * @param graph - The dependency graph containing the service and its dependencies.
+ * @param targetLanguage - Optional override for the output language.
+ * @param targetFramework - Optional override for the target framework.
+ * @returns A promise resolving to the generated DI source code as a string.
+ * @throws {Error} If `serviceName` is not present in the provided graph.
  */
 export async function generateInjectionCode(
   serviceName: string,
@@ -844,7 +879,13 @@ function generateModuleConfig(
 }
 
 /**
- * Generate auto-wiring configuration file
+ * Generates an auto-wiring configuration JSON file describing every service
+ * in the graph along with its injection wiring rules and any circular
+ * dependency warnings.
+ *
+ * @param graph - The dependency graph to serialize.
+ * @param outputPath - Absolute path where the configuration JSON will be written.
+ * @returns A promise that resolves once the file has been written.
  */
 export async function generateAutoWiringConfig(
   graph: DependencyGraph,
@@ -930,7 +971,12 @@ function parseWorkspaceConfig(content: string): any {
 }
 
 /**
- * Display recommended injection patterns
+ * Prints recommended dependency injection patterns for each service in the
+ * graph, including detected dependencies and warnings for services that
+ * participate in circular dependency chains.
+ *
+ * @param graph - The dependency graph to derive recommendations from.
+ * @returns A promise that resolves once all recommendations are printed.
  */
 export async function showInjectionRecommendations(
   graph: DependencyGraph
