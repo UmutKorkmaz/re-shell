@@ -56,6 +56,13 @@ interface AWSCloudConfig {
   enableLogging: boolean;
 }
 
+/**
+ * Prints a formatted summary of the AWS cloud configuration to the console,
+ * including project name, region, EKS cluster details, ECS service settings,
+ * auto-scaling parameters, and cost optimization flags.
+ *
+ * @param config - The AWS cloud configuration object to display.
+ */
 export function displayConfig(config: AWSCloudConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ AWS ECS/EKS with CDK Templates and Auto-Scaling');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -73,6 +80,14 @@ export function displayConfig(config: AWSCloudConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates Markdown documentation describing the AWS ECS/EKS CDK utility's
+ * features and usage examples (deploying EKS/ECS, configuring auto-scaling,
+ * and enabling cost optimization).
+ *
+ * @param config - The AWS cloud configuration used to scope the documentation.
+ * @returns A Markdown string documenting the generated AWS cloud stack.
+ */
 export function generateAWSCloudMD(config: AWSCloudConfig): string {
   let md = '# AWS ECS/EKS with CDK Templates and Auto-Scaling\n\n';
   md += '## Features\n\n';
@@ -104,6 +119,14 @@ export function generateAWSCloudMD(config: AWSCloudConfig): string {
   return md;
 }
 
+/**
+ * Generates a TypeScript AWS CDK stack source file for the given configuration,
+ * including VPC, EKS cluster, ECS Fargate service, load balancer, auto-scaling,
+ * optional CloudWatch alarms, and stack outputs.
+ *
+ * @param config - The AWS cloud configuration to generate the TypeScript CDK code from.
+ * @returns A string containing the generated TypeScript CDK stack source code.
+ */
 export function generateTypeScriptAWSCloud(config: AWSCloudConfig): string {
   let code = '// Auto-generated AWS Cloud Infrastructure for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -283,6 +306,14 @@ export function generateTypeScriptAWSCloud(config: AWSCloudConfig): string {
   return code;
 }
 
+/**
+ * Generates a Python AWS CDK stack source file for the given configuration,
+ * including VPC, EKS cluster, ECS Fargate service, load balancer, auto-scaling,
+ * and stack outputs.
+ *
+ * @param config - The AWS cloud configuration to generate the Python CDK code from.
+ * @returns A string containing the generated Python CDK stack source code.
+ */
 export function generatePythonAWSCloud(config: AWSCloudConfig): string {
   let code = '# Auto-generated AWS Cloud Infrastructure for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -407,6 +438,17 @@ export function generatePythonAWSCloud(config: AWSCloudConfig): string {
   return code;
 }
 
+/**
+ * Writes the generated AWS cloud stack files to the specified output directory.
+ * For TypeScript it emits the CDK stack, a package.json, the Markdown docs, and
+ * a JSON config; for Python it emits the stack, a requirements.txt, the Markdown
+ * docs, and the JSON config. The output directory is created if it does not exist.
+ *
+ * @param config - The AWS cloud configuration to use for generation.
+ * @param outputDir - The directory where generated files will be written.
+ * @param language - Target language for the stack; either 'typescript' or another value for Python.
+ * @throws Re-throws any error from `fs-extra` file or directory operations.
+ */
 export async function writeFiles(config: AWSCloudConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
