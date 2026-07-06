@@ -4,10 +4,17 @@ import * as yaml from 'yaml';
 import chalk from 'chalk';
 import { ValidationError } from './error-handler';
 
-// Diff operation types
+/**
+ * Represents the kind of operation recorded for a single configuration
+ * difference. `add` indicates a newly introduced value, `remove` a deleted
+ * value, `change` a modified value, `move` a relocated value, and
+ * `no-change` an unchanged value.
+ */
 export type DiffOperation = 'add' | 'remove' | 'change' | 'move' | 'no-change';
 
-// Diff entry representing a single change
+/**
+ * Describes a single change detected between two configuration values.
+ */
 export interface DiffEntry {
   operation: DiffOperation;
   path: string;
@@ -19,7 +26,11 @@ export interface DiffEntry {
   category?: 'structure' | 'value' | 'type' | 'metadata';
 }
 
-// Diff result containing all changes
+/**
+ * Represents the full result of comparing two configurations, including a
+ * summary of operation counts, the list of individual changes, and metadata
+ * about the comparison itself.
+ */
 export interface ConfigDiff {
   summary: {
     total: number;
@@ -38,7 +49,10 @@ export interface ConfigDiff {
   };
 }
 
-// Merge strategy options
+/**
+ * Options that control how two configurations are merged together, including
+ * array handling, conflict resolution policy, and optional custom resolver.
+ */
 export interface MergeStrategy {
   arrayMerge: 'replace' | 'concat' | 'union' | 'intersect' | 'custom';
   conflictResolution: 'left' | 'right' | 'interactive' | 'custom';
@@ -47,7 +61,10 @@ export interface MergeStrategy {
   customResolver?: (left: any, right: any, path: string) => any;
 }
 
-// Merge result
+/**
+ * Represents the outcome of a merge operation, including the merged value,
+ * any conflicts that arose, warnings produced, and metadata about the merge.
+ */
 export interface MergeResult {
   merged: any;
   conflicts: ConflictEntry[];
@@ -60,7 +77,10 @@ export interface MergeResult {
   };
 }
 
-// Conflict entry for merge operations
+/**
+ * Represents a single conflict encountered during a merge, capturing both
+ * values, how (or whether) it was resolved, and the reason for the conflict.
+ */
 export interface ConflictEntry {
   path: string;
   leftValue: any;
@@ -70,7 +90,12 @@ export interface ConflictEntry {
   reason: string;
 }
 
-// Configuration differ and merger
+/**
+ * Compares and merges configuration objects or files. Supports deep
+ * recursive diffing with order-sensitive or order-insensitive array
+ * comparison, configurable merge strategies, diff application, and
+ * human-readable report generation.
+ */
 export class ConfigDiffer {
   private readonly options: {
     ignoreOrder?: boolean;
@@ -79,6 +104,13 @@ export class ConfigDiffer {
     deepComparison?: boolean;
   };
 
+  /**
+   * Creates a new ConfigDiffer instance.
+   *
+   * @param options - Optional settings controlling comparison behavior such as
+   *   ignoring array order, excluding paths, including metadata, and enabling
+   *   deep comparison.
+   */
   constructor(options: {
     ignoreOrder?: boolean;
     ignorePaths?: string[];
@@ -94,7 +126,16 @@ export class ConfigDiffer {
     };
   }
 
-  // Compare two configuration objects
+  /**
+   * Compares two configuration objects and returns the set of differences.
+   *
+   * @param left - The left (base) configuration object.
+   * @param right - The right (incoming) configuration object.
+   * @param leftSource - Label identifying the left source. Defaults to 'left'.
+   * @param rightSource - Label identifying the right source. Defaults to 'right'.
+   * @returns A promise resolving to the complete diff result including summary
+   *   and metadata.
+   */
   async diff(
     left: any, 
     right: any,
@@ -122,7 +163,15 @@ export class ConfigDiffer {
     };
   }
 
-  // Compare configuration files
+  /**
+   * Reads two YAML configuration files from disk, parses them, and returns
+   * the diff between their contents.
+   *
+   * @param leftPath - Path to the left (base) configuration file.
+   * @param rightPath - Path to the right (incoming) configuration file.
+   * @returns A promise resolving to the diff result between the two files.
+   * @throws {ValidationError} If either file cannot be read or parsed.
+   */
   async diffFiles(leftPath: string, rightPath: string): Promise<ConfigDiff> {
     try {
       const leftContent = await fs.readFile(leftPath, 'utf8');
@@ -137,7 +186,19 @@ export class ConfigDiffer {
     }
   }
 
-  // Merge two configuration objects
+  /**
+   * Merges two configuration objects according to the provided strategy,
+   * recording any conflicts and warnings encountered.
+   *
+   * @param left - The left (base) configuration object.
+   * @param right - The right (incoming) configuration object.
+   * @param strategy - The merge strategy controlling array handling and
+   *   conflict resolution.
+   * @param leftSource - Label identifying the left source. Defaults to 'left'.
+   * @param rightSource - Label identifying the right source. Defaults to 'right'.
+   * @returns A promise resolving to the merge result including the merged
+   *   value, conflicts, warnings, and metadata.
+   */
   async merge(
     left: any,
     right: any,
@@ -164,7 +225,19 @@ export class ConfigDiffer {
     };
   }
 
-  // Merge configuration files
+  /**
+   * Reads two YAML configuration files, merges their contents using the
+   * provided strategy, and writes the merged result to an output file.
+   *
+   * @param leftPath - Path to the left (base) configuration file.
+   * @param rightPath - Path to the right (incoming) configuration file.
+   * @param outputPath - Path where the merged configuration will be written.
+   * @param strategy - The merge strategy controlling array handling and
+   *   conflict resolution.
+   * @returns A promise resolving to the merge result including the merged
+   *   value, conflicts, warnings, and metadata.
+   * @throws {ValidationError} If files cannot be read, parsed, or written.
+   */
   async mergeFiles(
     leftPath: string,
     rightPath: string,
@@ -191,7 +264,16 @@ export class ConfigDiffer {
     }
   }
 
-  // Apply a diff to a configuration
+  /**
+   * Applies a previously computed diff to a base configuration object,
+   * producing a new object with the changes applied. Supports add, remove,
+   * and change operations.
+   *
+   * @param base - The base configuration object to apply changes to. This
+   *   object is not mutated; a deep clone is used internally.
+   * @param diff - The diff to apply.
+   * @returns A promise resolving to the resulting configuration object.
+   */
   async applyDiff(base: any, diff: ConfigDiff): Promise<unknown> {
     const result = JSON.parse(JSON.stringify(base)); // Deep clone
 
@@ -213,7 +295,13 @@ export class ConfigDiffer {
     return result;
   }
 
-  // Generate a human-readable diff report
+  /**
+   * Generates a human-readable diff report in the requested format.
+   *
+   * @param diff - The diff to render.
+   * @param format - Output format: 'text' (default), 'html', or 'json'.
+   * @returns The formatted report as a string.
+   */
   generateDiffReport(diff: ConfigDiff, format: 'text' | 'html' | 'json' = 'text'): string {
     switch (format) {
       case 'json':
@@ -768,9 +856,17 @@ export class ConfigDiffer {
   }
 }
 
-// Default merge strategies
+/**
+ * A collection of ready-to-use merge strategy factories for common merge
+ * scenarios.
+ */
 export const MergeStrategies = {
-  // Prefer left (base) configuration
+  /**
+   * Builds a strategy that prefers the left (base) configuration on
+   * conflicts and replaces arrays entirely.
+   *
+   * @returns A MergeStrategy configured for left-wins behavior.
+   */
   leftWins: (): MergeStrategy => ({
     arrayMerge: 'replace',
     conflictResolution: 'left',
@@ -778,7 +874,12 @@ export const MergeStrategies = {
     preserveOrder: true
   }),
 
-  // Prefer right (incoming) configuration
+  /**
+   * Builds a strategy that prefers the right (incoming) configuration on
+   * conflicts and replaces arrays entirely.
+   *
+   * @returns A MergeStrategy configured for right-wins behavior.
+   */
   rightWins: (): MergeStrategy => ({
     arrayMerge: 'replace',
     conflictResolution: 'right',
@@ -786,7 +887,12 @@ export const MergeStrategies = {
     preserveOrder: true
   }),
 
-  // Smart merge with array concatenation
+  /**
+   * Builds a strategy that unions arrays (deduplicated) and prefers the
+   * right configuration on conflicts, without preserving order.
+   *
+   * @returns A MergeStrategy configured for smart merge behavior.
+   */
   smartMerge: (): MergeStrategy => ({
     arrayMerge: 'union',
     conflictResolution: 'right',
@@ -794,7 +900,12 @@ export const MergeStrategies = {
     preserveOrder: false
   }),
 
-  // Conservative merge (preserve existing)
+  /**
+   * Builds a strategy that concatenates arrays and prefers the left
+   * configuration on conflicts, preserving order.
+   *
+   * @returns A MergeStrategy configured for conservative merge behavior.
+   */
   conservative: (): MergeStrategy => ({
     arrayMerge: 'concat',
     conflictResolution: 'left',
@@ -802,7 +913,12 @@ export const MergeStrategies = {
     preserveOrder: true
   }),
 
-  // Interactive merge (requires user input)
+  /**
+   * Builds a strategy intended for interactive merges, unioning arrays and
+   * marking conflicts as unresolved so they can be decided by the user.
+   *
+   * @returns A MergeStrategy configured for interactive merge behavior.
+   */
   interactive: (): MergeStrategy => ({
     arrayMerge: 'union',
     conflictResolution: 'interactive',
@@ -811,5 +927,8 @@ export const MergeStrategies = {
   })
 };
 
-// Export singleton instance
+/**
+ * A shared singleton ConfigDiffer instance using default options, convenient
+ * for one-off diff and merge operations without creating a new instance.
+ */
 export const configDiffer = new ConfigDiffer();
