@@ -6,15 +6,51 @@ import chalk from 'chalk';
 
 
 // Type Definitions
+
+/**
+ * Represents the set of auditable event categories tracked by the audit trail system.
+ */
 export type AuditEventType = 'user-login' | 'user-logout' | 'permission-granted' | 'permission-revoked' | 'data-access' | 'data-modified' | 'data-deleted' | 'config-change' | 'policy-violation' | 'system-start' | 'system-stop' | 'api-call' | 'custom';
+
+/**
+ * Severity levels for audit events, ranging from informational to critical.
+ */
 export type AuditSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+
+/**
+ * Supported retention durations for keeping audit logs before deletion or archival.
+ */
 export type LogRetention = '7-days' | '30-days' | '90-days' | '180-days' | '365-days' | '7-years' | 'permanent';
+
+/**
+ * Output formats available for serializing audit log entries.
+ */
 export type LogFormat = 'json' | 'csv' | 'plaintext' | 'cef' | 'custom';
+
+/**
+ * Cryptographic hash algorithms supported for computing tamper-evident log hashes.
+ */
 export type HashAlgorithm = 'sha256' | 'sha384' | 'sha512' | 'blake2b' | 'blake2s';
+
+/**
+ * Signature mechanisms used to authenticate audit log entries.
+ */
 export type SignatureType = 'hmac' | 'digital' | 'blockchain' | 'none';
+
+/**
+ * Lifecycle statuses for an audit log entry.
+ */
 export type LogStatus = 'active' | 'archived' | 'deleted' | 'corrupted' | 'verified';
+
+/**
+ * Compliance framework tiers available for the audit trail configuration.
+ */
 export type ComplianceLevel = 'basic' | 'standard' | 'enhanced' | 'sox' | 'hipaa' | 'pci-dss' | 'gdpr' | 'custom';
 
+/**
+ * Root configuration object describing the audit trail and tamper-proof logging setup,
+ * including providers, sources, retention rules, alerts, and compliance posture.
+ */
 export interface AuditConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -28,6 +64,10 @@ export interface AuditConfig {
   compliance: ComplianceConfig;
 }
 
+/**
+ * Runtime settings governing tamper-proof logging, hashing, signing, retention,
+ * indexing, anomaly detection, forwarding, and backup behavior.
+ */
 export interface AuditSettings {
   enableTamperProof: boolean;
   hashAlgorithm: HashAlgorithm;
@@ -59,6 +99,9 @@ export interface AuditSettings {
   backupInterval: number; // hours
 }
 
+/**
+ * Describes an external destination to which audit logs are forwarded.
+ */
 export interface ForwardTarget {
   type: 'syslog' | 'splunk' | 'elasticsearch' | 's3' | 'datadog' | 'custom';
   endpoint: string;
@@ -67,6 +110,10 @@ export interface ForwardTarget {
   apiKey?: string;
 }
 
+/**
+ * Represents a single source of audit log data, including its type, format,
+ * priority, filters, and optional retention override.
+ */
 export interface LogSource {
   id: string;
   name: string;
@@ -80,6 +127,10 @@ export interface LogSource {
   retentionOverride?: LogRetention;
 }
 
+/**
+ * A predicate used to filter audit log entries by field value, with support
+ * for comparison operators and optional case sensitivity.
+ */
 export interface LogFilter {
   field: string;
   operator: 'equals' | 'not-equals' | 'contains' | 'not-contains' | 'regex' | 'gt' | 'lt' | 'in' | 'not-in';
@@ -87,6 +138,11 @@ export interface LogFilter {
   caseSensitive?: boolean;
 }
 
+/**
+ * Defines a retention policy that controls how long audit entries of a given
+ * event type (or all types) are kept, archived, and deleted, along with any
+ * compliance requirements and additional conditions.
+ */
 export interface RetentionPolicy {
   id: string;
   name: string;
@@ -100,6 +156,10 @@ export interface RetentionPolicy {
   enabled: boolean;
 }
 
+/**
+ * A condition attached to a retention policy that scopes retention behavior
+ * based on severity, source, user, or a custom field.
+ */
 export interface RetentionCondition {
   type: 'severity' | 'source' | 'user' | 'custom';
   field: string;
@@ -107,6 +167,10 @@ export interface RetentionCondition {
   value: any;
 }
 
+/**
+ * A single immutable audit log record capturing an event, including identity,
+ * resource, outcome, integrity hash/signature, and lifecycle metadata.
+ */
 export interface AuditEntry {
   id: string;
   timestamp: Date;
@@ -136,6 +200,10 @@ export interface AuditEntry {
   archiveLocation?: string;
 }
 
+/**
+ * Result of an integrity verification run over a range of audit log entries,
+ * including the verification method, hash chain references, and any discrepancies found.
+ */
 export interface IntegrityCheck {
   id: string;
   timestamp: Date;
@@ -152,6 +220,9 @@ export interface IntegrityCheck {
   result: 'passed' | 'failed' | 'warning';
 }
 
+/**
+ * Describes a single integrity discrepancy detected for a log entry during a verification run.
+ */
 export interface Discrepancy {
   logId: string;
   type: 'missing' | 'modified' | 'corrupted' | 'out-of-order' | 'hash-mismatch';
@@ -159,6 +230,10 @@ export interface Discrepancy {
   severity: AuditSeverity;
 }
 
+/**
+ * Defines an alert rule with trigger conditions, actions, severity, throttling,
+ * and notification channels for the audit trail system.
+ */
 export interface AuditAlert {
   id: string;
   name: string;
@@ -172,6 +247,9 @@ export interface AuditAlert {
   notificationChannels: string[];
 }
 
+/**
+ * A single condition used to evaluate whether an audit alert should fire.
+ */
 export interface AlertCondition {
   type: 'event-type' | 'severity' | 'frequency' | 'pattern' | 'anomaly' | 'custom';
   field?: string;
@@ -180,12 +258,20 @@ export interface AlertCondition {
   timeWindow?: number; // minutes
 }
 
+/**
+ * An action taken when an audit alert is triggered, such as sending a notification
+ * or blocking/quarantining activity.
+ */
 export interface AlertAction {
   type: 'email' | 'sms' | 'webhook' | 'slack' | 'pagerduty' | 'block' | 'quarantine' | 'custom';
   target: string;
   config: Record<string, unknown>;
 }
 
+/**
+ * Compliance configuration controlling required frameworks, immutability,
+ * chain of custody, tamper evidence, retention minimums, review cadence, and reporting.
+ */
 export interface ComplianceConfig {
   level: ComplianceLevel;
   enabledFrameworks: ('sox' | 'hipaa' | 'pci-dss' | 'gdpr' | 'iso-27001' | 'soc-2')[];
@@ -205,6 +291,15 @@ export interface ComplianceConfig {
 }
 
 // Markdown Generation
+
+/**
+ * Generates a human-readable Markdown document summarizing the full audit trail
+ * configuration, including settings, log sources, event types, retention policies,
+ * sample audit logs, integrity checks, alerts, and compliance posture.
+ *
+ * @param config - The audit configuration to render as Markdown.
+ * @returns A Markdown string describing the audit trail configuration.
+ */
 export function generateAuditMarkdown(config: AuditConfig): string {
   return `# Comprehensive Audit Trail and Tamper-Proof Logging
 
@@ -302,6 +397,15 @@ ${config.alerts.map(alert => `
 }
 
 // Terraform Generation for AWS
+
+/**
+ * Generates Terraform configuration for deploying the audit trail infrastructure
+ * on AWS, including S3 buckets, CloudWatch Log Groups, KMS encryption, CloudTrail,
+ * Lambda processing, IAM roles, and scheduling.
+ *
+ * @param config - The audit configuration used to parameterize the Terraform output.
+ * @returns A string containing the AWS Terraform configuration.
+ */
 export function generateAuditTerraformAWS(config: AuditConfig): string {
   return `# Terraform configuration for Audit Logging on AWS
 # Generated at: ${new Date().toISOString()}
@@ -509,6 +613,15 @@ resource "aws_cloudwatch_event_rule" "audit_trigger" {
 }
 
 // Terraform Generation for Azure
+
+/**
+ * Generates Terraform configuration for deploying the audit trail infrastructure
+ * on Azure, including resource groups, storage accounts, Log Analytics workspaces,
+ * activity log alerts, and action groups.
+ *
+ * @param config - The audit configuration used to parameterize the Terraform output.
+ * @returns A string containing the Azure Terraform configuration.
+ */
 export function generateAuditTerraformAzure(config: AuditConfig): string {
   return `# Terraform configuration for Audit Logging on Azure
 # Generated at: ${new Date().toISOString()}
@@ -591,6 +704,15 @@ resource "azurerm_monitor_action_group" "audit_actions" {
 }
 
 // TypeScript Manager Generation
+
+/**
+ * Generates a complete TypeScript `AuditManager` class as source code, including
+ * enums, interfaces, hashing, signing, integrity verification, querying,
+ * archiving, export, and compliance report generation.
+ *
+ * @param config - The audit configuration used to parameterize the generated manager.
+ * @returns A string containing the TypeScript source code of the audit manager.
+ */
 export function generateAuditTypeScriptManager(config: AuditConfig): string {
   return `// Auto-generated Audit Trail and Tamper-Proof Logging Manager
 // Generated at: ${new Date().toISOString()}
@@ -858,6 +980,15 @@ export class AuditManager {
 }
 
 // Python Manager Generation
+
+/**
+ * Generates a complete Python `AuditManager` class as source code, including
+ * enums, dataclasses, hashing, signing, integrity verification, querying,
+ * archiving, export, and compliance report generation.
+ *
+ * @param config - The audit configuration used to parameterize the generated manager.
+ * @returns A string containing the Python source code of the audit manager.
+ */
 export function generateAuditPythonManager(config: AuditConfig): string {
   return `# Auto-generated Audit Trail and Tamper-Proof Logging Manager
 # Generated at: ${new Date().toISOString()}
@@ -1122,6 +1253,15 @@ class AuditManager:
 }
 
 // Package.json generation
+
+/**
+ * Generates dependency manifest content for the audit trail manager based on the
+ * target language. For TypeScript it returns a `package.json` string; for Python
+ * it returns a `requirements.txt` string.
+ *
+ * @param language - Either `'typescript'` or `'python'`.
+ * @returns The serialized dependency manifest content for the given language.
+ */
 export function generateAuditPackageJSON(language: string): string {
   if (language === 'typescript') {
     return JSON.stringify({
@@ -1155,6 +1295,14 @@ pytest-asyncio==0.21.0`;
 }
 
 // Config JSON generation
+
+/**
+ * Serializes an audit configuration to a pretty-printed JSON string, converting
+ * any `Date` values to ISO strings for portability.
+ *
+ * @param config - The audit configuration to serialize.
+ * @returns A JSON string representation of the configuration.
+ */
 export function generateAuditConfigJSON(config: AuditConfig): string {
   return JSON.stringify(config, (key, value) => {
     if (value instanceof Date) {
@@ -1165,6 +1313,14 @@ export function generateAuditConfigJSON(config: AuditConfig): string {
 }
 
 // Display function
+
+/**
+ * Prints a formatted summary of the audit configuration to the console, including
+ * project name, providers, tamper-proof status, hash algorithm, signature type,
+ * retention, and counts of sources, events, policies, and alerts.
+ *
+ * @param config - The audit configuration to display.
+ */
 export function displayAuditConfig(config: AuditConfig): void {
   console.log(chalk.cyan('📋 Comprehensive Audit Trail and Tamper-Proof Logging'));
   console.log(chalk.gray('─'.repeat(60)));
@@ -1182,6 +1338,18 @@ export function displayAuditConfig(config: AuditConfig): void {
 }
 
 // Main write function
+
+/**
+ * Writes the full set of audit trail files to the specified output directory,
+ * including the Markdown documentation, Terraform files for configured providers,
+ * the language-specific manager source code, dependency manifest, and JSON config.
+ *
+ * @param config - The audit configuration used to generate the files.
+ * @param outputDir - The directory to write files into. It will be created if it does not exist.
+ * @param language - The target language for the manager code, either `'typescript'` or `'python'`.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Re-throws any filesystem errors encountered while creating directories or writing files.
+ */
 export async function writeAuditFiles(
   config: AuditConfig,
   outputDir: string,

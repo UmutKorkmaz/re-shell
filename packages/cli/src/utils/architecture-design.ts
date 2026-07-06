@@ -39,6 +39,13 @@ interface ArchitectureDesignConfig {
   enableTemplates: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the architecture design configuration to the console.
+ * Uses colored output (via chalk) to highlight labels and values such as project name,
+ * providers, diagram settings, collaboration options, and feature toggles.
+ *
+ * @param config - The architecture design configuration to display.
+ */
 export function displayConfig(config: ArchitectureDesignConfig): void {
   console.log(chalk.cyan('🏗️  Collaborative Architecture Design and Planning Tools'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -56,6 +63,14 @@ export function displayConfig(config: ArchitectureDesignConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the collaborative architecture design
+ * feature set, including supported diagram types, export formats, collaboration
+ * capabilities, and template system.
+ *
+ * @param config - The architecture design configuration used to scope the document.
+ * @returns A Markdown string summarizing the architecture design features.
+ */
 export function generateArchitectureDesignMD(config: ArchitectureDesignConfig): string {
   let md = '# Collaborative Architecture Design and Planning\n\n';
   md += '## Features\n\n';
@@ -73,12 +88,27 @@ export function generateArchitectureDesignMD(config: ArchitectureDesignConfig): 
   return md;
 }
 
+/**
+ * Generates a Terraform header block for the architecture design of the given project.
+ * The output includes the project name and a timestamp marking when it was generated.
+ *
+ * @param config - The architecture design configuration containing the project name.
+ * @returns A Terraform-formatted string with a generated header comment.
+ */
 export function generateTerraformArchitectureDesign(config: ArchitectureDesignConfig): string {
   let code = '# Auto-generated Architecture Design Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates TypeScript source code defining an `ArchitectureDesignManager` class
+ * that extends `EventEmitter`, along with a default exported instance. The output
+ * is prefixed with the project name and a generation timestamp.
+ *
+ * @param config - The architecture design configuration containing the project name.
+ * @returns TypeScript source code as a string.
+ */
 export function generateTypeScriptArchitectureDesign(config: ArchitectureDesignConfig): string {
   let code = '// Auto-generated Architecture Design Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -93,6 +123,14 @@ export function generateTypeScriptArchitectureDesign(config: ArchitectureDesignC
   return code;
 }
 
+/**
+ * Generates Python source code defining an `ArchitectureDesignManager` class
+ * along with a module-level instance. The output includes the project name
+ * (embedded in the constructor default) and a generation timestamp.
+ *
+ * @param config - The architecture design configuration containing the project name.
+ * @returns Python source code as a string.
+ */
 export function generatePythonArchitectureDesign(config: ArchitectureDesignConfig): string {
   let code = '# Auto-generated Architecture Design Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -105,6 +143,22 @@ export function generatePythonArchitectureDesign(config: ArchitectureDesignConfi
   return code;
 }
 
+/**
+ * Writes the architecture design artifacts to the specified output directory.
+ *
+ * Depending on the chosen `language`, this function writes:
+ * - `architecture-design.tf`: Terraform header for the design.
+ * - For TypeScript: `architecture-design-manager.ts` and `package.json`.
+ * - For other languages (treated as Python): `architecture_design_manager.py` and `requirements.txt`.
+ * - `ARCHITECTURE_DESIGN.md`: Markdown documentation of the feature set.
+ * - `architecture-design-config.json`: The resolved configuration as JSON.
+ *
+ * @param config - The architecture design configuration to materialize into files.
+ * @param outputDir - The target directory; created if it does not exist.
+ * @param language - The implementation language, e.g. `'typescript'` (otherwise Python is assumed).
+ * @returns A promise that resolves once all files have been written.
+ * @throws {Error} If directory creation or any file write fails.
+ */
 export async function writeFiles(config: ArchitectureDesignConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -151,6 +205,13 @@ export async function writeFiles(config: ArchitectureDesignConfig, outputDir: st
   await fs.writeFile(path.join(outputDir, 'architecture-design-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided architecture design configuration unchanged.
+ * Acts as an identity passthrough/normalization entry point for the design config.
+ *
+ * @param config - The architecture design configuration to return.
+ * @returns The same `ArchitectureDesignConfig` instance that was passed in.
+ */
 export function architectureDesign(config: ArchitectureDesignConfig): ArchitectureDesignConfig {
   return config;
 }

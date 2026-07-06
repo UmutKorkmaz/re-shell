@@ -52,6 +52,15 @@ interface ApmIntegrationConfig {
   enableProfiling: boolean;
 }
 
+/**
+ * Displays a formatted summary of the APM integration configuration to the console.
+ * Prints project metadata, APM backend details, profiling mode, sample rate, counts of
+ * configured metrics/alerts/AI insights, and the status of each monitoring capability
+ * (distributed tracing, error tracking, security monitoring, profiling).
+ *
+ * @param config - The full APM integration configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: ApmIntegrationConfig): void {
   console.log(chalk.cyan('📊 Application Performance Monitoring (APM) with AI-Powered Insights'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -71,6 +80,14 @@ export function displayConfig(config: ApmIntegrationConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown overview document describing the APM integration features,
+ * including multi-platform APM backend support, AI-powered insights, distributed
+ * tracing, error tracking, security monitoring, profiling, and multi-cloud integration.
+ *
+ * @param config - The APM integration configuration used to scope the document.
+ * @returns A Markdown string describing the APM integration capabilities.
+ */
 export function generateApmIntegrationMD(config: ApmIntegrationConfig): string {
   let md = '# Application Performance Monitoring (APM) with AI Insights\n\n';
   md += '## Features\n\n';
@@ -88,12 +105,28 @@ export function generateApmIntegrationMD(config: ApmIntegrationConfig): string {
   return md;
 }
 
+/**
+ * Generates a Terraform header stub for provisioning APM integration resources.
+ * The returned string contains the project name and an ISO timestamp marking when
+ * the configuration was generated.
+ *
+ * @param config - The APM integration configuration providing the project name.
+ * @returns A Terraform-formatted string header for APM integration.
+ */
 export function generateTerraformApmIntegration(config: ApmIntegrationConfig): string {
   let code = '# Auto-generated APM Integration Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file string that defines an `ApmIntegrationManager`
+ * class extending `EventEmitter`, along with a default exported singleton instance.
+ * The generated file header records the project name and the ISO timestamp of generation.
+ *
+ * @param config - The APM integration configuration providing the project name.
+ * @returns A TypeScript source string implementing the APM integration manager.
+ */
 export function generateTypeScriptApmIntegration(config: ApmIntegrationConfig): string {
   let code = '// Auto-generated APM Integration Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -108,6 +141,15 @@ export function generateTypeScriptApmIntegration(config: ApmIntegrationConfig): 
   return code;
 }
 
+/**
+ * Generates a Python source file string that defines an `ApmIntegrationManager`
+ * class along with a module-level singleton instance. The class is initialized
+ * with the configured project name, and the generated file header records the
+ * ISO timestamp of generation.
+ *
+ * @param config - The APM integration configuration providing the project name.
+ * @returns A Python source string implementing the APM integration manager.
+ */
 export function generatePythonApmIntegration(config: ApmIntegrationConfig): string {
   let code = '# Auto-generated APM Integration Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -120,6 +162,25 @@ export function generatePythonApmIntegration(config: ApmIntegrationConfig): stri
   return code;
 }
 
+/**
+ * Writes the generated APM integration files to the specified output directory.
+ *
+ * Always writes the Terraform stub (`apm-integration.tf`) and the Markdown
+ * overview (`APM_INTEGRATION.md`), plus a JSON serialization of the full
+ * configuration (`apm-config.json`).
+ *
+ * When `language` is `'typescript'`, additionally writes the TypeScript manager
+ * source (`apm-integration-manager.ts`) and a `package.json` with Node/TypeScript
+ * dependencies. For any other `language` value, writes a Python manager source
+ * (`apm_integration_manager.py`) and a `requirements.txt` listing asyncio,
+ * datadog, and newrelic packages.
+ *
+ * @param config - The APM integration configuration to materialize.
+ * @param outputDir - The target directory; it will be created if it does not exist.
+ * @param language - Target implementation language (`'typescript'` or `'python'`).
+ * @returns Resolves when all files have been written.
+ * @throws Rejected if the directory cannot be created or any file write fails.
+ */
 export async function writeFiles(config: ApmIntegrationConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -168,6 +229,16 @@ export async function writeFiles(config: ApmIntegrationConfig, outputDir: string
   await fs.writeFile(path.join(outputDir, 'apm-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided APM integration configuration unchanged.
+ *
+ * Currently acts as an identity passthrough, allowing callers to pipe the config
+ * through a stable entry point that may be extended with validation or
+ * transformation logic in the future.
+ *
+ * @param config - The APM integration configuration to pass through.
+ * @returns The same `ApmIntegrationConfig` instance that was provided.
+ */
 export function apmIntegration(config: ApmIntegrationConfig): ApmIntegrationConfig {
   return config;
 }

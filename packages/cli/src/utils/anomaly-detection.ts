@@ -47,6 +47,13 @@ interface AnomalyDetectionConfig {
   enableExplainability: boolean;
 }
 
+/**
+ * Displays the anomaly detection configuration to the console in a human-readable format.
+ * Prints project metadata, ML algorithm details, sensitivity, configured patterns, alerts,
+ * response rules, and feature flags (auto-response, auto-retraining, explainability).
+ *
+ * @param config - The anomaly detection configuration to display.
+ */
 export function displayConfig(config: AnomalyDetectionConfig): void {
   console.log(chalk.cyan('🤖 Anomaly Detection with Machine Learning and Automated Response'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -65,6 +72,14 @@ export function displayConfig(config: AnomalyDetectionConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string summarizing the anomaly detection features.
+ * The output includes a feature list describing supported ML algorithms, real-time
+ * analysis, alerting, automated responses, self-learning, explainability, and more.
+ *
+ * @param config - The anomaly detection configuration used to scope the documentation.
+ * @returns A Markdown string containing the anomaly detection feature overview.
+ */
 export function generateAnomalyDetectionMD(config: AnomalyDetectionConfig): string {
   let md = '# Anomaly Detection with Machine Learning\n\n';
   md += '## Features\n\n';
@@ -81,12 +96,27 @@ export function generateAnomalyDetectionMD(config: AnomalyDetectionConfig): stri
   return md;
 }
 
+/**
+ * Generates a Terraform code stub for provisioning anomaly detection resources.
+ * The output includes a header comment with the project name and the generation timestamp.
+ *
+ * @param config - The anomaly detection configuration to provision.
+ * @returns A Terraform code string with header comments for the given project.
+ */
 export function generateTerraformAnomalyDetection(config: AnomalyDetectionConfig): string {
   let code = '# Auto-generated Anomaly Detection Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source string defining an `AnomalyDetectionManager` class
+ * that extends `EventEmitter`, along with a default exported singleton instance.
+ * The generated code includes a header comment with the project name and timestamp.
+ *
+ * @param config - The anomaly detection configuration used to scope the generated manager.
+ * @returns A TypeScript source string containing the anomaly detection manager definition.
+ */
 export function generateTypeScriptAnomalyDetection(config: AnomalyDetectionConfig): string {
   let code = '// Auto-generated Anomaly Detection Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -101,6 +131,15 @@ export function generateTypeScriptAnomalyDetection(config: AnomalyDetectionConfi
   return code;
 }
 
+/**
+ * Generates a Python source string defining an `AnomalyDetectionManager` class
+ * with an `__init__` method that accepts a project name, plus a module-level
+ * singleton instance. The generated code includes a header comment with the
+ * project name and timestamp.
+ *
+ * @param config - The anomaly detection configuration used to scope the generated manager.
+ * @returns A Python source string containing the anomaly detection manager definition.
+ */
 export function generatePythonAnomalyDetection(config: AnomalyDetectionConfig): string {
   let code = '# Auto-generated Anomaly Detection Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -113,6 +152,21 @@ export function generatePythonAnomalyDetection(config: AnomalyDetectionConfig): 
   return code;
 }
 
+/**
+ * Writes the anomaly detection artifacts to the specified output directory.
+ *
+ * Ensures the output directory exists, then writes a Terraform file and,
+ * depending on the chosen language, either TypeScript sources (with a
+ * `package.json`) or Python sources (with a `requirements.txt`). Always
+ * emits a Markdown documentation file and a JSON configuration snapshot.
+ *
+ * @param config - The anomaly detection configuration to materialize.
+ * @param outputDir - The target directory where files will be written. Created if missing.
+ * @param language - The implementation language; `'typescript'` produces TS artifacts,
+ *   any other value produces Python artifacts.
+ * @returns A promise that resolves when all files have been written.
+ * @throws {Error} If the filesystem operations fail (e.g. permission errors).
+ */
 export async function writeFiles(config: AnomalyDetectionConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -160,6 +214,15 @@ export async function writeFiles(config: AnomalyDetectionConfig, outputDir: stri
   await fs.writeFile(path.join(outputDir, 'anomaly-detection-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided anomaly detection configuration unchanged.
+ *
+ * Acts as a pass-through/identity helper that can be used as an extension
+ * point or for normalizing config objects in pipelines.
+ *
+ * @param config - The anomaly detection configuration to return.
+ * @returns The same `AnomalyDetectionConfig` instance that was passed in.
+ */
 export function anomalyDetection(config: AnomalyDetectionConfig): AnomalyDetectionConfig {
   return config;
 }
