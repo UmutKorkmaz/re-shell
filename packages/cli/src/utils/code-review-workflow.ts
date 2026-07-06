@@ -44,6 +44,14 @@ interface CodeReviewWorkflowConfig {
   enableNotifications: boolean;
 }
 
+/**
+ * Displays a human-readable summary of the code review workflow configuration
+ * to the console, including project name, providers, integration provider,
+ * approval thresholds, blocking checks, comments, rules, and feature toggles.
+ *
+ * @param config - The code review workflow configuration to display.
+ * @returns No return value; output is written to stdout via console.
+ */
 export function displayConfig(config: CodeReviewWorkflowConfig): void {
   console.log(chalk.cyan('🔍 Real-Time Code Review and Approval Workflows'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -61,6 +69,13 @@ export function displayConfig(config: CodeReviewWorkflowConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the feature set of the
+ * real-time code review and approval workflows.
+ *
+ * @param config - The code review workflow configuration used to derive the document.
+ * @returns A Markdown string summarizing the supported review features.
+ */
 export function generateCodeReviewWorkflowMD(config: CodeReviewWorkflowConfig): string {
   let md = '# Real-Time Code Review and Approval Workflows\n\n';
   md += '## Features\n\n';
@@ -78,12 +93,27 @@ export function generateCodeReviewWorkflowMD(config: CodeReviewWorkflowConfig): 
   return md;
 }
 
+/**
+ * Generates a Terraform header for the code review workflow configuration,
+ * including the project name and a timestamped generation marker.
+ *
+ * @param config - The code review workflow configuration to source the project name from.
+ * @returns A Terraform-formatted string containing the workflow header.
+ */
 export function generateTerraformCodeReviewWorkflow(config: CodeReviewWorkflowConfig): string {
   let code = '# Auto-generated Code Review Workflow Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file containing a stub
+ * `CodeReviewWorkflowManager` class that extends `EventEmitter`, along with a
+ * default exported instance, based on the provided configuration.
+ *
+ * @param config - The code review workflow configuration used to derive the project name.
+ * @returns A TypeScript source string for the code review workflow manager.
+ */
 export function generateTypeScriptCodeReviewWorkflow(config: CodeReviewWorkflowConfig): string {
   let code = '// Auto-generated Code Review Workflow Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -98,6 +128,13 @@ export function generateTypeScriptCodeReviewWorkflow(config: CodeReviewWorkflowC
   return code;
 }
 
+/**
+ * Generates a Python source file containing a stub `CodeReviewWorkflowManager`
+ * class and a module-level instance, based on the provided configuration.
+ *
+ * @param config - The code review workflow configuration used to derive the project name.
+ * @returns A Python source string for the code review workflow manager.
+ */
 export function generatePythonCodeReviewWorkflow(config: CodeReviewWorkflowConfig): string {
   let code = '# Auto-generated Code Review Workflow Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -110,6 +147,20 @@ export function generatePythonCodeReviewWorkflow(config: CodeReviewWorkflowConfi
   return code;
 }
 
+/**
+ * Writes the generated code review workflow files to the specified output directory.
+ *
+ * Depending on the target language, this emits a Terraform file, either a
+ * TypeScript manager module with a `package.json` or a Python manager module
+ * with a `requirements.txt`, plus a shared Markdown document and a JSON
+ * configuration file mirroring the provided config.
+ *
+ * @param config - The code review workflow configuration to materialize.
+ * @param outputDir - The target directory where files will be written. It is created if missing.
+ * @param language - The implementation language to generate; either 'typescript' or any other value for Python.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Rejected if the output directory cannot be created or any file write fails.
+ */
 export async function writeFiles(config: CodeReviewWorkflowConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -157,6 +208,14 @@ export async function writeFiles(config: CodeReviewWorkflowConfig, outputDir: st
   await fs.writeFile(path.join(outputDir, 'code-review-workflow-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Identity-style factory that returns the provided code review workflow
+ * configuration unchanged. Useful as a normalization or validation hook
+ * for callers that want a typed configuration object.
+ *
+ * @param config - The code review workflow configuration to return.
+ * @returns The same configuration object that was passed in.
+ */
 export function codeReviewWorkflow(config: CodeReviewWorkflowConfig): CodeReviewWorkflowConfig {
   return config;
 }

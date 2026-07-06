@@ -4,15 +4,42 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/**
+ * Supported programming languages for code security analysis.
+ */
 export type Language = 'typescript' | 'javascript' | 'python' | 'java' | 'go' | 'csharp' | 'cpp' | 'ruby' | 'php' | 'rust' | 'swift';
+/**
+ * Severity levels for security issues, ordered from most to least severe.
+ */
 export type IssueSeverity = 'blocker' | 'critical' | 'major' | 'minor' | 'info';
+/**
+ * Categories classifying the nature of a detected issue.
+ */
 export type IssueType = 'vulnerability' | 'bug' | 'code-smell' | 'security' | 'hotspot' | 'custom';
+/**
+ * Classification of the kind of rule used during analysis.
+ */
 export type RuleType = 'vulnerability' | 'bug' | 'code-smell' | 'security-hotspot' | 'custom';
+/**
+ * Lifecycle status of a security rule.
+ */
 export type RuleStatus = 'active' | 'deprecated' | 'removed' | 'beta';
+/**
+ * Result status of a quality gate evaluation.
+ */
 export type QualityGateStatus = 'passed' | 'failed' | 'warned' | 'skipped';
+/**
+ * Status of a security scan execution.
+ */
 export type ScanStatus = 'success' | 'failed' | 'in-progress' | 'pending' | 'cancelled';
+/**
+ * The purpose/function a configured AI model serves in the analysis pipeline.
+ */
 export type AIModelType = 'rule-generation' | 'issue-detection' | 'remediation' | 'pattern-matching';
 
+/**
+ * Top-level configuration object for the code security analysis feature.
+ */
 export interface CodeSecurityAnalysisConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -26,6 +53,9 @@ export interface CodeSecurityAnalysisConfig {
   reports: AnalysisReport[];
 }
 
+/**
+ * Settings controlling when and how the security analysis is performed.
+ */
 export interface AnalysisSettings {
   enabled: boolean;
   frequency: 'on-commit' | 'on-push' | 'scheduled' | 'manual';
@@ -44,6 +74,9 @@ export interface AnalysisSettings {
   maxAnalysisTime: number; // minutes
 }
 
+/**
+ * Represents a single codebase tracked by the security analysis system.
+ */
 export interface Codebase {
   id: string;
   name: string;
@@ -68,6 +101,9 @@ export interface Codebase {
   metrics: CodeMetrics;
 }
 
+/**
+ * Aggregated metrics for a codebase, covering files, functions, classes, and more.
+ */
 export interface CodeMetrics {
   files: FileMetric[];
   functions: FunctionMetric[];
@@ -77,6 +113,9 @@ export interface CodeMetrics {
   duplication: DuplicationMetric[];
 }
 
+/**
+ * Metrics describing a single source file within a codebase.
+ */
 export interface FileMetric {
   path: string;
   lines: number;
@@ -89,6 +128,9 @@ export interface FileMetric {
   coverage: number;
 }
 
+/**
+ * Metrics describing a single function within a codebase.
+ */
 export interface FunctionMetric {
   name: string;
   file: string;
@@ -101,6 +143,9 @@ export interface FunctionMetric {
   issues: string[];
 }
 
+/**
+ * Metrics describing a single class within a codebase.
+ */
 export interface ClassMetric {
   name: string;
   file: string;
@@ -114,6 +159,9 @@ export interface ClassMetric {
   issues: string[];
 }
 
+/**
+ * A complexity measurement against a defined threshold.
+ */
 export interface ComplexityMetric {
   name: string;
   type: 'cyclomatic' | 'cognitive' | 'nesting';
@@ -122,6 +170,9 @@ export interface ComplexityMetric {
   severity: IssueSeverity;
 }
 
+/**
+ * A test coverage measurement against a defined threshold.
+ */
 export interface CoverageMetric {
   name: string;
   type: 'line' | 'branch' | 'path' | 'condition';
@@ -131,6 +182,9 @@ export interface CoverageMetric {
   threshold: number;
 }
 
+/**
+ * A code duplication measurement for a file against a defined threshold.
+ */
 export interface DuplicationMetric {
   file: string;
   lines: number;
@@ -139,6 +193,9 @@ export interface DuplicationMetric {
   threshold: number;
 }
 
+/**
+ * Represents a single detected security issue or code quality problem.
+ */
 export interface SecurityIssue {
   id: string;
   ruleId: string;
@@ -170,6 +227,9 @@ export interface SecurityIssue {
   owasp?: string[];
 }
 
+/**
+ * Represents a security-sensitive code location requiring manual review.
+ */
 export interface SecurityHotspot {
   id: string;
   ruleId: string;
@@ -190,6 +250,9 @@ export interface SecurityHotspot {
   cwe: string[];
 }
 
+/**
+ * Defines a security or quality rule used to detect issues during analysis.
+ */
 export interface SecurityRule {
   id: string;
   key: string;
@@ -213,6 +276,9 @@ export interface SecurityRule {
   trainingData?: TrainingData[];
 }
 
+/**
+ * A configurable parameter accepted by a security rule.
+ */
 export interface RuleParameter {
   key: string;
   name: string;
@@ -221,6 +287,9 @@ export interface RuleParameter {
   defaultValue: any;
 }
 
+/**
+ * Training data used by AI-assisted rule generation and issue detection.
+ */
 export interface TrainingData {
   id: string;
   description: string;
@@ -229,6 +298,9 @@ export interface TrainingData {
   outcomes: RuleOutcome[];
 }
 
+/**
+ * A pair of vulnerable and secure code examples used for AI training.
+ */
 export interface CodeExample {
   vulnerable: string;
   secure: string;
@@ -236,24 +308,36 @@ export interface CodeExample {
   language: Language;
 }
 
+/**
+ * A code pattern recognized by AI-assisted rules during analysis.
+ */
 export interface Pattern {
   type: string;
   pattern: string;
   description: string;
 }
 
+/**
+ * The expected outcome classification for a matched rule pattern.
+ */
 export interface RuleOutcome {
   type: 'vulnerability' | 'bug' | 'code-smell';
   severity: IssueSeverity;
   confidence: number;
 }
 
+/**
+ * An external reference (e.g. CWE, OWASP) attached to a security issue.
+ */
 export interface IssueReference {
   type: 'cwe' | 'owasp' | 'owasp-top10' | 'sans-top25' | 'pci-dss' | 'nist' | 'article';
   url: string;
   title: string;
 }
 
+/**
+ * A quality gate that enforces conditions on analysis metrics before code can pass.
+ */
 export interface QualityGate {
   id: string;
   name: string;
@@ -264,6 +348,9 @@ export interface QualityGate {
   evaluatedBy: string;
 }
 
+/**
+ * A single condition within a quality gate, comparing a metric against a threshold.
+ */
 export interface GateCondition {
   id: string;
   metric: string;
@@ -273,6 +360,9 @@ export interface GateCondition {
   actualValue: number;
 }
 
+/**
+ * Describes a configured AI model used for security analysis enhancement.
+ */
 export interface AIModel {
   id: string;
   name: string;
@@ -291,6 +381,9 @@ export interface AIModel {
   config: any;
 }
 
+/**
+ * Describes an integration with an external analysis tool (e.g. SonarQube, Checkmarx).
+ */
 export interface AnalysisIntegration {
   tool: 'sonarqube' | 'sonarcloud' | 'fortify' | 'checkmarx' | 'veracode' | 'custom';
   enabled: boolean;
@@ -302,6 +395,9 @@ export interface AnalysisIntegration {
   status: 'connected' | 'disconnected' | 'error';
 }
 
+/**
+ * A generated analysis report containing summaries, sections, and charts.
+ */
 export interface AnalysisReport {
   id: string;
   name: string;
@@ -314,6 +410,9 @@ export interface AnalysisReport {
   charts: ReportChart[];
 }
 
+/**
+ * High-level summary metrics included in an analysis report.
+ */
 export interface ReportSummary {
   totalIssues: number;
   vulnerabilities: number;
@@ -328,6 +427,9 @@ export interface ReportSummary {
   maintainabilityRating: string;
 }
 
+/**
+ * A titled content section within an analysis report.
+ */
 export interface ReportSection {
   title: string;
   content: string;
@@ -335,6 +437,9 @@ export interface ReportSection {
   includeInSummary: boolean;
 }
 
+/**
+ * A chart visualization included in an analysis report.
+ */
 export interface ReportChart {
   type: 'bar' | 'line' | 'pie' | 'heatmap';
   title: string;
@@ -343,6 +448,16 @@ export interface ReportChart {
 }
 
 // Main configuration function
+/**
+ * Builds the internal runtime configuration object from the provided
+ * {@link CodeSecurityAnalysisConfig}.
+ *
+ * The returned object is a normalized shape consumed by the display,
+ * documentation, and code generation helpers in this module.
+ *
+ * @param config - The full code security analysis configuration.
+ * @returns A normalized configuration object ready for downstream use.
+ */
 export function codeSecurityAnalysis(config: CodeSecurityAnalysisConfig) {
   return {
     projectName: config.projectName,
@@ -359,6 +474,13 @@ export function codeSecurityAnalysis(config: CodeSecurityAnalysisConfig) {
 }
 
 // Display configuration
+/**
+ * Prints a human-readable summary of the code security analysis
+ * configuration to the console using colored output.
+ *
+ * @param config - The normalized configuration object returned by
+ *   {@link codeSecurityAnalysis}.
+ */
 export function displayConfig(config: ReturnType<typeof codeSecurityAnalysis>) {
   console.log(chalk.cyan('🔍 Code Security Analysis with SonarQube and AI Enhancement'));
   console.log(chalk.gray('─'.repeat(60)));
@@ -379,6 +501,15 @@ export function displayConfig(config: ReturnType<typeof codeSecurityAnalysis>) {
 }
 
 // Generate markdown documentation
+/**
+ * Generates a Markdown documentation string describing the configured code
+ * security analysis, including features, codebases, issue summaries, AI
+ * models, and quality gates.
+ *
+ * @param config - The normalized configuration object returned by
+ *   {@link codeSecurityAnalysis}.
+ * @returns A Markdown string documenting the analysis configuration.
+ */
 export function generateMD(config: ReturnType<typeof codeSecurityAnalysis>): string {
   let md = '';
 
@@ -459,6 +590,14 @@ export function generateMD(config: ReturnType<typeof codeSecurityAnalysis>): str
 }
 
 // Generate Terraform configuration
+/**
+ * Generates Terraform infrastructure code for the specified cloud provider.
+ *
+ * @param config - The normalized configuration object returned by
+ *   {@link codeSecurityAnalysis}.
+ * @param provider - The target cloud provider (aws, azure, or gcp).
+ * @returns A Terraform configuration string for the chosen provider.
+ */
 export function generateTerraform(config: ReturnType<typeof codeSecurityAnalysis>, provider: 'aws' | 'azure' | 'gcp'): string {
   let tf = '';
 
@@ -661,6 +800,14 @@ function generateGCP(config: ReturnType<typeof codeSecurityAnalysis>): string {
 }
 
 // Generate TypeScript manager class
+/**
+ * Generates a TypeScript `CodeSecurityManager` class string that simulates
+ * scanning a codebase and producing AI-assisted custom rules.
+ *
+ * @param config - The normalized configuration object returned by
+ *   {@link codeSecurityAnalysis}.
+ * @returns A TypeScript source string containing the manager class.
+ */
 export function generateTypeScript(config: ReturnType<typeof codeSecurityAnalysis>): string {
   let ts = '';
 
@@ -789,6 +936,14 @@ export function generateTypeScript(config: ReturnType<typeof codeSecurityAnalysi
 }
 
 // Generate Python manager class
+/**
+ * Generates a Python `CodeSecurityManager` class string that simulates
+ * scanning a codebase and reporting detected issues.
+ *
+ * @param config - The normalized configuration object returned by
+ *   {@link codeSecurityAnalysis}.
+ * @returns A Python source string containing the manager class.
+ */
 export function generatePython(config: ReturnType<typeof codeSecurityAnalysis>): string {
   let py = '';
 
@@ -861,6 +1016,20 @@ export function generatePython(config: ReturnType<typeof codeSecurityAnalysis>):
 }
 
 // Write files to disk
+/**
+ * Generates and writes all code security analysis artifacts to disk,
+ * including Terraform configurations, the manager class, Markdown
+ * documentation, a JSON config file, and language-specific dependency files.
+ *
+ * @param config - The normalized configuration object returned by
+ *   {@link codeSecurityAnalysis}.
+ * @param outputDir - The directory where generated files will be written.
+ *   The directory is created if it does not exist.
+ * @param language - The target language for the generated manager class
+ *   (typescript or python).
+ * @returns A promise that resolves once all files have been written.
+ * @throws Re-throws any error raised by the underlying file system operations.
+ */
 export async function writeFiles(
   config: ReturnType<typeof codeSecurityAnalysis>,
   outputDir: string,
