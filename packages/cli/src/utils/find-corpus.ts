@@ -78,6 +78,12 @@ function templateToDoc(t: TemplateSummary): IndexDoc {
  * Build the full searchable corpus (commands + templates) from a live program.
  * Pure relative to its inputs — snapshots the catalogue and registry at call
  * time and performs no I/O beyond reading those in-memory structures.
+ *
+ * @param program - The commander {@link Command} instance whose command tree
+ *   provides the entries that get adapted into command index docs.
+ * @returns A flat list of {@link IndexDoc} entries covering every command in
+ *   the catalogue and every backend template in the registry, ready to feed
+ *   into the pure ranker in `find-index.ts`.
  */
 export function buildFindCorpus(program: Command): IndexDoc[] {
   const commandDocs = buildCommandCatalog(program).map(commandToDoc);

@@ -45,10 +45,15 @@ export interface IndexField {
  * `fields` are the weighted text the ranker scores against.
  */
 export interface IndexDoc {
+  /** Discriminator copied verbatim into the emitted {@link FindResult}. */
   type: FindResultType;
+  /** Stable, unique identity of the document within its corpus (e.g. command path or template id). */
   id: string;
+  /** Human-readable label shown verbatim in `find` output. */
   title: string;
+  /** Optional invocation/example string surfaced in the result when present. */
   usage?: string;
+  /** Weighted text fields the ranker scores the query against. */
   fields: IndexField[];
 }
 
@@ -118,6 +123,10 @@ const STOP_WORDS: ReadonlySet<string> = new Set([
  * Lower-case word tokens. Splits on any non-alphanumeric/non-dash run, so
  * punctuation and shell metacharacters act purely as delimiters and never
  * become tokens. Pure and order-preserving.
+ *
+ * @param text - Raw input string (field text or user query) to tokenise.
+ * @returns Lower-cased, order-preserving array of word/dash tokens; empty
+ *   substrings are dropped, so `[]` is returned for blank or all-delimiter input.
  */
 export function tokenize(text: string): string[] {
   return text
@@ -217,6 +226,9 @@ function toConfidence(raw: number, termCount: number, doc: IndexDoc): number {
 // Public ranking entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * Caller-supplied options that shape the output of {@link rankDocs}.
+ */
 export interface RankOptions {
   /** Max results to return after ranking. */
   limit: number;
@@ -230,6 +242,15 @@ export interface RankOptions {
  * Deterministic: results are sorted by score desc, then (to break ties)
  * command-before-template, then by id lexicographically. Docs with zero matches
  * are dropped. Pure — no side effects, no I/O.
+ *
+ * @param query - Free-text user query; tokenised with {@link tokenize} and
+ *   stripped of stop-words before scoring.
+ * @param docs - Pre-built searchable documents spanning one or both corpora.
+ * @param options - Controls the maximum number of returned hits and optional
+ *   per-corpus filtering via {@link RankOptions}.
+ * @returns Top-ranked {@link FindResult} hits, at most `options.limit` long,
+ *   in descending score order. Returns `[]` when the query yields no usable
+ *   terms or no documents match.
  */
 export function rankDocs(
   query: string,
@@ -291,10 +312,20 @@ export function rankDocs(
  *    offline guarantee holds regardless of this interface's existence.
  */
 export interface EmbeddingReranker {
+  /** Short, human-readable identifier of the adapter (used for diagnostics/logging). */
   readonly name: string;
   /**
    * Reorder (and optionally trim) `results` for `query`. Implementations may be
    * async (network/provider calls) — but are never invoked on the default path.
+   *
+   * @param query - Original user query the keyword pass already scored against.
+   * @param results - The keyword-ranked hits eligible for reranking; the
+   *   implementation should treat this set as authoritative for ids.
+   * @returns A promise resolving to the reranker's preferred ordering of the
+   *   hits. Callers (e.g. {@link applyReranker}) re-filter against the original
+   *   id set, so returning foreign ids is tolerated and discarded.
+   * @throws Implementations may reject on provider/network failure; such errors
+   *   propagate to the caller of the surrounding helper.
    */
   rerank(query: string, results: readonly FindResult[]): Promise<FindResult[]>;
 }
@@ -303,6 +334,17 @@ export interface EmbeddingReranker {
  * Apply a reranker defensively: the returned list is filtered back down to the
  * id set of the original keyword results, so a misbehaving adapter can only ever
  * reorder/trim vetted hits — it can never inject an unknown id into output.
+ *
+ * @param reranker - The adapter implementing {@link EmbeddingReranker}.
+ * @param query - Original user query, forwarded verbatim to the reranker.
+ * @param results - Keyword-ranked hits produced by {@link rankDocs}; these are
+ *   the only objects that may appear in the output, regardless of what the
+ *   adapter returns.
+ * @returns A promise resolving to a deduplicated, original-object-preserving
+ *   permutation (or subset) of `results` in the reranker's preferred order.
+ * @throws Any error propagated from `reranker.rerank` (e.g. network failures in
+ *   a real provider adapter) bubbles up to the caller; this helper adds none of
+ *   its own.
  */
 export async function applyReranker(
   reranker: EmbeddingReranker,
