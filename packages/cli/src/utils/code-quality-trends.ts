@@ -53,6 +53,17 @@ interface QualityTrendConfig {
   enableDebtPrioritization: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the code quality trends configuration to the console.
+ *
+ * The output includes the project name, configured cloud providers, counts of
+ * tracked quality metrics, technical debt items, and recommendations, as well as
+ * flags indicating whether automated analysis, trend prediction, and debt
+ * prioritization are enabled.
+ *
+ * @param config - The quality trend configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: QualityTrendConfig): void {
   console.log(chalk.cyan('📊 Code Quality Trends and Technical Debt Tracking'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -67,6 +78,17 @@ export function displayConfig(config: QualityTrendConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the code quality trends and
+ * technical debt tracking features for the given configuration.
+ *
+ * The resulting Markdown lists the supported quality metrics, technical debt
+ * categories, severity levels, effort estimation capabilities, debt interest
+ * calculation, trend analysis options, and recommendation types.
+ *
+ * @param config - The quality trend configuration used to scope the document.
+ * @returns A Markdown string summarizing the available quality tracking features.
+ */
 export function generateQualityTrendMD(config: QualityTrendConfig): string {
   let md = '# Code Quality Trends and Technical Debt Tracking\n\n';
   md += '## Features\n\n';
@@ -86,12 +108,33 @@ export function generateQualityTrendMD(config: QualityTrendConfig): string {
   return md;
 }
 
+/**
+ * Generates a Terraform file header for the code quality trends configuration.
+ *
+ * The generated content includes an auto-generated banner with the project name
+ * and a timestamp of when the file was produced. The returned string is intended
+ * to be written to a `.tf` file.
+ *
+ * @param config - The quality trend configuration providing the project name.
+ * @returns A string containing the Terraform header content.
+ */
 export function generateTerraformQualityTrend(config: QualityTrendConfig): string {
   let code = '# Auto-generated Code Quality Trends Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file that scaffolds a code quality trends
+ * manager for the given project.
+ *
+ * The emitted code defines a `CodeQualityTrendsManager` class extending
+ * `EventEmitter`, instantiates a default singleton, and exports it. The string
+ * is intended to be written to a `.ts` file.
+ *
+ * @param config - The quality trend configuration providing the project name.
+ * @returns A TypeScript source string containing the generated manager class.
+ */
 export function generateTypeScriptQualityTrend(config: QualityTrendConfig): string {
   let code = '// Auto-generated Code Quality Trends Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -106,6 +149,17 @@ export function generateTypeScriptQualityTrend(config: QualityTrendConfig): stri
   return code;
 }
 
+/**
+ * Generates a Python source file that scaffolds a code quality trends manager
+ * for the given project.
+ *
+ * The emitted code defines a `CodeQualityTrendsManager` class with a
+ * `project_name` attribute, then instantiates a module-level singleton. The
+ * string is intended to be written to a `.py` file.
+ *
+ * @param config - The quality trend configuration providing the project name.
+ * @returns A Python source string containing the generated manager class.
+ */
 export function generatePythonQualityTrend(config: QualityTrendConfig): string {
   let code = '# Auto-generated Code Quality Trends Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -118,6 +172,24 @@ export function generatePythonQualityTrend(config: QualityTrendConfig): string {
   return code;
 }
 
+/**
+ * Writes the generated code quality trends files to the specified output directory.
+ *
+ * This always writes a Terraform file and a Markdown documentation file. When
+ * `language` is `'typescript'`, it additionally writes a TypeScript manager
+ * module and a `package.json`; otherwise it writes a Python manager module and
+ * a `requirements.txt`. A JSON configuration file capturing the full quality
+ * trend configuration is also emitted.
+ *
+ * @param config - The quality trend configuration to generate files from.
+ * @param outputDir - The target directory where files will be written. It is
+ *   created if it does not already exist.
+ * @param language - The implementation language to generate. Use `'typescript'`
+ *   for TypeScript output; any other value produces Python output.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Rejected if the filesystem operations fail, for example due to
+ *   permission errors or an invalid output directory path.
+ */
 export async function writeFiles(config: QualityTrendConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -164,6 +236,16 @@ export async function writeFiles(config: QualityTrendConfig, outputDir: string, 
   await fs.writeFile(path.join(outputDir, 'code-quality-trends-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided quality trend configuration unchanged.
+ *
+ * This acts as a passthrough/identity accessor, allowing callers to obtain a
+ * typed reference to a `QualityTrendConfig` value, for example for validation
+ * or registration within a larger configuration pipeline.
+ *
+ * @param config - The quality trend configuration to return.
+ * @returns The same `QualityTrendConfig` instance that was passed in.
+ */
 export function codeQualityTrends(config: QualityTrendConfig): QualityTrendConfig {
   return config;
 }

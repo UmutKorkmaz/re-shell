@@ -40,6 +40,13 @@ interface ClusterManagerConfig {
   enableLogging: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the cluster manager configuration to the
+ * console, including project name, context, namespace, upgrade versions, and
+ * selected safety options.
+ *
+ * @param config - The cluster manager configuration to display.
+ */
 export function displayConfig(config: ClusterManagerConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Kubernetes Cluster Management and Upgrade Automation');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -55,6 +62,13 @@ export function displayConfig(config: ClusterManagerConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates a Markdown documentation string describing the cluster management
+ * features, usage examples, and capabilities for the given configuration.
+ *
+ * @param config - The cluster manager configuration used to contextualize the docs.
+ * @returns A Markdown string containing feature list and usage examples.
+ */
 export function generateClusterManagerMD(config: ClusterManagerConfig): string {
   let md = '# Kubernetes Cluster Management and Upgrade Automation\n\n';
   md += '## Features\n\n';
@@ -87,6 +101,15 @@ export function generateClusterManagerMD(config: ClusterManagerConfig): string {
   return md;
 }
 
+/**
+ * Generates a complete TypeScript implementation of a Kubernetes cluster
+ * manager class, including upgrade orchestration, pre-flight checks, safety
+ * checks, node draining, backup/restore, and rollback logic, tailored to the
+ * provided configuration.
+ *
+ * @param config - The cluster manager configuration to embed in the generated code.
+ * @returns A string containing the full TypeScript source code.
+ */
 export function generateTypeScriptClusterManager(config: ClusterManagerConfig): string {
   let code = '// Auto-generated Cluster Management for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -450,6 +473,14 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   return code;
 }
 
+/**
+ * Generates a complete Python implementation of a Kubernetes cluster manager
+ * class, including upgrade orchestration, pre-flight checks, node draining,
+ * backup/restore, and rollback logic, tailored to the provided configuration.
+ *
+ * @param config - The cluster manager configuration to embed in the generated code.
+ * @returns A string containing the full Python source code.
+ */
 export function generatePythonClusterManager(config: ClusterManagerConfig): string {
   let code = '# Auto-generated Cluster Management for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -604,6 +635,23 @@ export function generatePythonClusterManager(config: ClusterManagerConfig): stri
   return code;
 }
 
+/**
+ * Writes the generated cluster manager source code, documentation, and
+ * configuration files to the specified output directory. The generated
+ * language is selected via the `language` parameter (`"typescript"` or
+ * `"python"`).
+ *
+ * For TypeScript output it writes the cluster manager source, a package.json,
+ * a Markdown documentation file, and a JSON configuration file. For Python
+ * output it writes the cluster manager source, a requirements.txt, the
+ * Markdown documentation, and the JSON configuration file.
+ *
+ * @param config - The cluster manager configuration to render into the outputs.
+ * @param outputDir - The target directory where files will be written.
+ * @param language - The target language, either `"typescript"` or `"python"`.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Rejects if any file system operation fails.
+ */
 export async function writeFiles(config: ClusterManagerConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');

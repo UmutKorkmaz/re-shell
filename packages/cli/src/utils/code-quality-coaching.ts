@@ -97,6 +97,16 @@ interface CodeQualityCoachingConfig {
   reviewFrequency: number; // in days
 }
 
+/**
+ * Prints a summary of the code quality coaching configuration to the console.
+ *
+ * The output includes the project name, configured cloud providers, counts of
+ * developer profiles, recommendations, and coaching sessions, as well as flags
+ * for automated analysis, personalized coaching, and progress tracking, plus
+ * the default coaching style and severity threshold.
+ *
+ * @param config - The code quality coaching configuration to display.
+ */
 export function displayConfig(config: CodeQualityCoachingConfig): void {
   console.log(chalk.cyan('💻 Code Quality Coaching and Automated Feedback'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -113,6 +123,16 @@ export function displayConfig(config: CodeQualityCoachingConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the code quality coaching feature.
+ *
+ * The document covers supported quality metrics (complexity, maintainability,
+ * test coverage, documentation, security, performance), severity levels,
+ * coaching styles, feedback formats, and the available coaching approaches.
+ *
+ * @param config - The code quality coaching configuration used to scope the document.
+ * @returns A Markdown string summarizing the coaching features and metrics.
+ */
 export function generateCodeQualityCoachingMD(config: CodeQualityCoachingConfig): string {
   let md = '# Code Quality Coaching and Automated Feedback\n\n';
   md += '## Features\n\n';
@@ -152,12 +172,36 @@ export function generateCodeQualityCoachingMD(config: CodeQualityCoachingConfig)
   return md;
 }
 
+/**
+ * Generates a Terraform header stub for provisioning code quality coaching
+ * infrastructure for the configured project.
+ *
+ * The output includes the project name and a generation timestamp. The body of
+ * the Terraform configuration is left for the caller to extend.
+ *
+ * @param config - The code quality coaching configuration providing the project name.
+ * @returns A Terraform-formatted string containing header comments for the project.
+ */
 export function generateTerraformCodeQualityCoaching(config: CodeQualityCoachingConfig): string {
   let code = '# Auto-generated Code Quality Coaching Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file string implementing a
+ * `CodeQualityCoachingManager` class based on the provided configuration.
+ *
+ * The generated class extends `EventEmitter` and exposes methods for analyzing
+ * code quality, generating recommendations, scheduling coaching sessions, and
+ * querying developer progress. It is seeded with the project name, severity
+ * threshold, and automated analysis flag from the configuration.
+ *
+ * @param config - The code quality coaching configuration used to parameterize
+ *   the generated manager class.
+ * @returns A TypeScript source string containing the manager class and a
+ *   default exported instance.
+ */
 export function generateTypeScriptCodeQualityCoaching(config: CodeQualityCoachingConfig): string {
   let code = '// Auto-generated Code Quality Coaching Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -282,6 +326,20 @@ export function generateTypeScriptCodeQualityCoaching(config: CodeQualityCoachin
   return code;
 }
 
+/**
+ * Generates a Python source file string implementing a
+ * `CodeQualityCoachingManager` class based on the provided configuration.
+ *
+ * The generated class stores per-developer profiles and provides methods for
+ * analyzing code quality, generating recommendations, and querying developer
+ * progress. It is seeded with the project name, severity threshold, and
+ * automated analysis flag from the configuration.
+ *
+ * @param config - The code quality coaching configuration used to parameterize
+ *   the generated manager class.
+ * @returns A Python source string containing the manager class and a default
+ *   module-level instance.
+ */
 export function generatePythonCodeQualityCoaching(config: CodeQualityCoachingConfig): string {
   let code = '# Auto-generated Code Quality Coaching Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -357,6 +415,22 @@ export function generatePythonCodeQualityCoaching(config: CodeQualityCoachingCon
   return code;
 }
 
+/**
+ * Writes the generated code quality coaching artifacts to disk under the
+ * specified output directory.
+ *
+ * Always writes the Terraform stub and the Markdown documentation. Depending on
+ * the requested language, it also writes a TypeScript manager (with a
+ * `package.json`) or a Python manager (with a `requirements.txt`). Finally it
+ * writes a JSON representation of the configuration.
+ *
+ * @param config - The code quality coaching configuration to materialize.
+ * @param outputDir - The directory where the files will be written. It is
+ *   created if it does not already exist.
+ * @param language - The target implementation language; pass `'typescript'`
+ *   for TypeScript output, otherwise Python output is generated.
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(config: CodeQualityCoachingConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -407,6 +481,15 @@ export async function writeFiles(config: CodeQualityCoachingConfig, outputDir: s
   await fs.writeFile(path.join(outputDir, 'code-quality-coaching-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided code quality coaching configuration unchanged.
+ *
+ * This acts as a pass-through accessor that can be used as an extension point
+ * or for normalizing configuration in downstream consumers.
+ *
+ * @param config - The code quality coaching configuration to return.
+ * @returns The same configuration object that was passed in.
+ */
 export function codeQualityCoaching(config: CodeQualityCoachingConfig): CodeQualityCoachingConfig {
   return config;
 }

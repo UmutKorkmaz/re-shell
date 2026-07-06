@@ -74,6 +74,12 @@ interface CloudDatabaseConfig {
   monitoring: MonitoringConfig;
 }
 
+/**
+ * Logs a human-readable summary of the cloud database configuration to the console,
+ * including project name, engine, providers, disaster recovery, and monitoring status.
+ *
+ * @param config - The cloud database configuration to display.
+ */
 export function displayConfig(config: CloudDatabaseConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Cloud-Native Database Integration with Backup Strategies');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -87,6 +93,13 @@ export function displayConfig(config: CloudDatabaseConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates a Markdown document describing the cloud-native database integration,
+ * including supported features, database engines, and a TypeScript usage example.
+ *
+ * @param config - The cloud database configuration used to seed the example.
+ * @returns A Markdown string documenting the integration.
+ */
 export function generateCloudDatabaseMD(config: CloudDatabaseConfig): string {
   let md = '# Cloud-Native Database Integration with Backup Strategies\n\n';
   md += '## Features\n\n';
@@ -122,6 +135,14 @@ export function generateCloudDatabaseMD(config: CloudDatabaseConfig): string {
   return md;
 }
 
+/**
+ * Generates Terraform infrastructure-as-code for the configured cloud database
+ * providers (AWS RDS, Azure Cosmos DB, GCP Cloud SQL), including cross-region
+ * replicas, backup configuration, and disaster recovery resources when enabled.
+ *
+ * @param config - The cloud database configuration describing providers and their settings.
+ * @returns A string of Terraform HCL defining the database resources.
+ */
 export function generateTerraformDatabase(config: CloudDatabaseConfig): string {
   let code = '# Auto-generated Cloud-Native Database Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -279,6 +300,14 @@ export function generateTerraformDatabase(config: CloudDatabaseConfig): string {
   return code;
 }
 
+/**
+ * Generates the source code for a TypeScript `CloudDatabaseManager` class that
+ * orchestrates deployment, backup, restore, and failover across the configured
+ * cloud providers using Terraform under the hood.
+ *
+ * @param config - The cloud database configuration describing providers and capabilities.
+ * @returns A string containing TypeScript source code for the generated manager.
+ */
 export function generateTypeScriptCloudDatabase(config: CloudDatabaseConfig): string {
   let code = '// Auto-generated Cloud-Native Database Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -406,6 +435,14 @@ export function generateTypeScriptCloudDatabase(config: CloudDatabaseConfig): st
   return code;
 }
 
+/**
+ * Generates the source code for a Python `CloudDatabaseManager` class that
+ * orchestrates deployment, backup, restore, and failover across the configured
+ * cloud providers using Terraform via `subprocess`.
+ *
+ * @param config - The cloud database configuration describing providers and capabilities.
+ * @returns A string containing Python source code for the generated manager.
+ */
 export function generatePythonCloudDatabase(config: CloudDatabaseConfig): string {
   let code = '# Auto-generated Cloud-Native Database Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -510,6 +547,18 @@ export function generatePythonCloudDatabase(config: CloudDatabaseConfig): string
   return code;
 }
 
+/**
+ * Writes the generated cloud database configuration files to the specified output
+ * directory. Always writes the Terraform configuration and Markdown documentation,
+ * then writes either TypeScript or Python manager source along with the appropriate
+ * dependency manifest (`package.json` or `requirements.txt`), and a JSON config file.
+ *
+ * @param config - The cloud database configuration to generate files from.
+ * @param outputDir - The directory where the generated files will be written.
+ * @param language - The target language for the manager source: "typescript" or "python".
+ * @returns A promise that resolves once all files have been written.
+ * @throws Re-throws any error raised by the underlying file system operations.
+ */
 export async function writeFiles(config: CloudDatabaseConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
