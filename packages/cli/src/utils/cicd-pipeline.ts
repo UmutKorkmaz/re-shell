@@ -39,6 +39,14 @@ interface CICDPipelineConfig {
   enableRollback: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the CI/CD pipeline configuration to the
+ * console using ANSI color codes. The summary includes the project name,
+ * namespace, Git repository, branch, pipeline stages, progressive delivery
+ * strategy, and notification/rollback flags.
+ *
+ * @param config - The CI/CD pipeline configuration to display.
+ */
 export function displayConfig(config: CICDPipelineConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Kubernetes-Native CI/CD Pipeline');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -53,6 +61,14 @@ export function displayConfig(config: CICDPipelineConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates a Markdown documentation string describing the features and usage
+ * of the Kubernetes-native CI/CD pipeline. The output includes a feature list
+ * and a TypeScript usage example.
+ *
+ * @param config - The CI/CD pipeline configuration used to contextualize the docs.
+ * @returns A Markdown string containing the pipeline documentation.
+ */
 export function generateCICDMD(config: CICDPipelineConfig): string {
   let md = '# Kubernetes-Native CI/CD Pipeline\n\n';
   md += '## Features\n\n';
@@ -83,6 +99,18 @@ export function generateCICDMD(config: CICDPipelineConfig): string {
   return md;
 }
 
+/**
+ * Generates a complete, self-contained TypeScript source file (as a string)
+ * that implements a Kubernetes-native CI/CD pipeline using Tekton. The
+ * generated code defines a `CICDPipeline` class with methods to deploy the
+ * pipeline CRDs, Tekton pipeline, triggers, notifications, progressive
+ * delivery resources, create PipelineRuns, and query status. The output also
+ * includes a default instance configured from the provided config.
+ *
+ * @param config - The CI/CD pipeline configuration used to populate the
+ *   generated TypeScript code.
+ * @returns A string containing the full TypeScript source code for the pipeline.
+ */
 export function generateTypeScriptCICD(config: CICDPipelineConfig): string {
   let code = '// Auto-generated CI/CD Pipeline for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -627,6 +655,17 @@ export function generateTypeScriptCICD(config: CICDPipelineConfig): string {
   return code;
 }
 
+/**
+ * Generates a Python source file (as a string) that implements a lightweight
+ * CI/CD pipeline client. The generated code defines `PipelineStage` and
+ * `ProgressiveDeliveryConfig` dataclasses, a `CICDPipeline` class with
+ * `deploy` and `get_status` async methods, and a default instance configured
+ * from the provided config.
+ *
+ * @param config - The CI/CD pipeline configuration used to populate the
+ *   generated Python code.
+ * @returns A string containing the full Python source code for the pipeline.
+ */
 export function generatePythonCICD(config: CICDPipelineConfig): string {
   let code = '# Auto-generated CI/CD Pipeline for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -692,6 +731,19 @@ export function generatePythonCICD(config: CICDPipelineConfig): string {
   return code;
 }
 
+/**
+ * Writes the full set of generated CI/CD pipeline files to the specified
+ * output directory. This includes the TypeScript implementation, Python
+ * implementation, Markdown documentation, a `package.json` with the required
+ * Node.js dependencies, a `requirements.txt` with the Python dependencies,
+ * and a `cicd-config.json` snapshot of the configuration. The output
+ * directory (and any missing parent directories) is created automatically.
+ *
+ * @param config - The CI/CD pipeline configuration used to generate the files.
+ * @param outputDir - The absolute or relative path of the directory where the
+ *   files will be written.
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(
   config: CICDPipelineConfig,
   outputDir: string

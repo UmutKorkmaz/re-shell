@@ -9,7 +9,14 @@
 //
 // No mutation of any input is ever performed — every builder returns fresh data.
 
-/** Minimal service input the engine needs (projected from ServiceConfig). */
+/**
+ * Minimal service input the engine needs (projected from ServiceConfig).
+ *
+ * Represents a single backend/frontend/worker/function service discovered in
+ * the workspace. The command layer is responsible for projecting the richer
+ * `ServiceConfig` shape onto this minimal contract before handing it to the
+ * pure engine; no field on this interface is ever mutated by the engine.
+ */
 export interface CatalogServiceInput {
   readonly name: string;
   readonly path?: string;
@@ -24,7 +31,13 @@ export interface CatalogServiceInput {
   readonly healthCheck?: unknown;
 }
 
-/** A discovered microfrontend input. */
+/**
+ * A discovered microfrontend input.
+ *
+ * Describes a single microfrontend entry discovered in the workspace. The
+ * engine maps each microfrontend onto a Backstage Component of type `website`
+ * scoped to the workspace System.
+ */
 export interface CatalogMicrofrontendInput {
   readonly name: string;
   readonly path?: string;
@@ -34,7 +47,15 @@ export interface CatalogMicrofrontendInput {
   readonly dependsOn?: readonly string[];
 }
 
-/** The complete input surface the command feeds the pure engine. */
+/**
+ * The complete input surface the command feeds the pure engine.
+ *
+ * Aggregates every input the catalog builder needs: the workspace system
+ * name, all discovered services, all discovered microfrontends, and optional
+ * workspace-wide defaults (internal package names for library tagging and a
+ * fallback owner). The command layer populates this; the engine never reads
+ * from disk itself.
+ */
 export interface CatalogInputs {
   readonly systemName: string;
   readonly services: readonly CatalogServiceInput[];
@@ -45,16 +66,40 @@ export interface CatalogInputs {
   readonly defaultOwner?: string;
 }
 
-/** The Backstage apiVersion the emitted kinds target. */
+/**
+ * The Backstage apiVersion the emitted kinds target.
+ *
+ * Every catalog entity produced by this engine is stamped with this value so
+ * the resulting `catalog-info.yaml` is consumable by Backstage's descriptor
+ * parser.
+ */
 export const CATALOG_API_VERSION = 'backstage.io/v1alpha1';
 
-/** The default owner applied when a service declares none. */
+/**
+ * The default owner applied when a service declares none.
+ *
+ * Used as the fallback `spec.owner` for any Component, API, or System entity
+ * whose source input does not carry an explicit owner. Registering this owner
+ * guarantees the System entity always has a resolvable Group.
+ */
 export const DEFAULT_CATALOG_OWNER = 'team-platform';
 
-/** The default lifecycle applied when a service declares none. */
+/**
+ * The default lifecycle applied when a service declares none.
+ *
+ * Backstage expects `spec.lifecycle` to be one of `experimental`, `production`,
+ * or `deprecated`. This value is used whenever an input does not specify one.
+ */
 export const DEFAULT_CATALOG_LIFECYCLE = 'production';
 
-/** A native catalog entity (mirrors the contracts CatalogEntity shape). */
+/**
+ * A native catalog entity (mirrors the contracts CatalogEntity shape).
+ *
+ * Lightweight representation of a single Backstage catalog entity used by the
+ * pure engine and the serializer. The `kind` union restricts the entity kinds
+ * this module is capable of emitting; `spec` is intentionally left open as a
+ * string-keyed record so each builder can populate kind-specific fields.
+ */
 export interface CatalogEntityLite {
   readonly apiVersion: string;
   readonly kind: 'Component' | 'API' | 'Resource' | 'Group' | 'System' | 'Domain';
@@ -69,7 +114,14 @@ export interface CatalogEntityLite {
   readonly spec: Readonly<Record<string, unknown>>;
 }
 
-/** The pure build output: entities + counts + warnings. */
+/**
+ * The pure build output: entities + counts + warnings.
+ *
+ * Returned by {@link buildCatalogModel}. Contains the full ordered list of
+ * catalog entities, per-kind counts for quick reporting, and a list of
+ * non-fatal warnings (empty slugs, owner collisions, empty workspaces) the
+ * command layer may surface to the user.
+ */
 export interface CatalogModel {
   readonly system: string;
   readonly entities: readonly CatalogEntityLite[];
@@ -83,7 +135,20 @@ export interface CatalogModel {
   readonly warnings: readonly string[];
 }
 
-/** Lowercase + replace runs of non-[a-z0-9-_.] with '-' for entity names. */
+/**
+ * Lowercase and sanitize a raw name into a valid Backstage entity name.
+ *
+ * Lowercases the input, replaces runs of characters outside the allowed set
+ * (anything other than `a-z0-9._-`) with a single dash, trims leading and
+ * trailing non-alphanumerics so the result always starts and ends with an
+ * alphanumeric character, and truncates to 63 characters. The output
+ * satisfies the Backstage entity-name regex `^[a-z0-9A-Z][a-z0-9A-Z._-]*$`.
+ *
+ * @param name - The raw name to slugify (e.g. a service name or owner string).
+ * @returns A sanitized entity-name slug of at most 63 characters. May be the
+ *   empty string when the input contains no alphanumeric characters; callers
+ *   are expected to skip or warn on such results.
+ */
 export function slugifyEntityName(name: string): string {
   return name
     .toLowerCase()
@@ -148,15 +213,28 @@ function buildGroupEntities(
 }
 
 /**
- * Build the full catalog model from the input surface:
- *   - one Component per workspace service (backend/worker/function → service,
- *     frontend → website),
- *   - one Component per microfrontend (website),
+ * Build the full catalog model from the input surface.
+ *
+ * Produces a Backstage-compatible catalog entity graph from the discovered
+ * workspace inputs. The model contains:
+ *   - one Component per workspace service (backend/worker/function map to
+ *     `service`, frontend maps to `website`),
+ *   - one Component per microfrontend (always `website`),
  *   - one API per service that exposes a port or health endpoint,
- *   - one Group per distinct owner,
+ *   - one Group per distinct owner (keyed on slug to avoid duplicates),
  *   - one System scoped to the workspace.
- * Every dependsOn edge is mapped to a Backstage `component:default/<dep>` ref;
- * every exposed API is wired via providesApis on its owning Component.
+ *
+ * Every `dependsOn` edge is mapped to a `component:default/<dep>` Backstage
+ * ref, and every exposed API is wired via `providesApis` on its owning
+ * Component. No input is mutated; every builder returns fresh data.
+ *
+ * Non-fatal issues (empty slugs, owner collisions, an empty workspace) are
+ * recorded as warnings in the returned model rather than thrown.
+ *
+ * @param inputs - The complete input surface (system name, services,
+ *   microfrontends, optional packages and default owner).
+ * @returns A {@link CatalogModel} containing the ordered entity list, per-kind
+ *   counts, and any warnings produced during the build.
  */
 export function buildCatalogModel(inputs: CatalogInputs): CatalogModel {
   const warnings: string[] = [];

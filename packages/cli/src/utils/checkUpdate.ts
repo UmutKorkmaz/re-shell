@@ -21,6 +21,25 @@ function isNewerVersion(candidate: string | null | undefined, currentVersion: st
   return semver.gt(candidate, currentVersion);
 }
 
+/**
+ * Checks whether a newer version of the `@re-shell/cli` package is available on
+ * the npm registry and, if so, displays an update notification to the user.
+ *
+ * The check is skipped entirely when the `CI` or `RE_SHELL_SKIP_UPDATE_CHECK`
+ * environment variables are set. To avoid hitting the npm registry on every
+ * CLI invocation, results are cached for 24 hours in a JSON file located at
+ * `~/.re-shell-update-check`. When a cached entry indicates that an update is
+ * available and the cached latest version is still newer than the currently
+ * running version, the update notification is replayed from the cache.
+ *
+ * Any errors encountered during the check are silently swallowed so that
+ * update checks never disrupt normal CLI usage.
+ *
+ * @param currentVersion - The semver version string of the currently
+ *   installed CLI (e.g. `"0.29.2"`).
+ * @returns A promise that resolves once the check (or cache lookup) has
+ *   completed. The promise never rejects; failures are handled internally.
+ */
 export async function checkForUpdates(currentVersion: string): Promise<void> {
   try {
     // Check if we should skip the update check (e.g., in CI environments)
@@ -142,6 +161,22 @@ function showUpdateNotification(currentVersion: string, latestVersion: string): 
   process.stderr.write('');
 }
 
+/**
+ * Runs the interactive `re-shell update` command.
+ *
+ * Reads the CLI's current version from its `package.json`, queries the npm
+ * registry for the latest published version of `@re-shell/cli`, and compares
+ * the two. When a newer version is available, the user is prompted to confirm
+ * an automatic update; if accepted, the detected package manager (pnpm, yarn,
+ * or npm) is used to install the latest version globally. When the CLI is
+ * already up to date, a success message is shown instead.
+ *
+ * Errors during the update itself are caught and the user is advised to run
+ * the install command manually using whichever package manager they prefer.
+ *
+ * @returns A promise that resolves once the update flow (check, optional
+ *   prompt, and optional install) has completed.
+ */
 export async function runUpdateCommand(): Promise<void> {
   const { createSpinner, flushOutput } = await import('./spinner');
   const prompts = await import('prompts');

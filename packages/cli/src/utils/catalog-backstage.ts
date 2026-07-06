@@ -11,7 +11,16 @@
 import * as yaml from 'js-yaml';
 import type { CatalogEntityLite } from './catalog-engine';
 
-/** Repo-relative path a given entity's catalog-info.yaml should be written to. */
+/**
+ * Compute the repo-relative path where a given entity's catalog-info.yaml
+ * descriptor should be written. Group entities are placed under an `owners`
+ * directory while Component, API, and Resource entities are placed under a
+ * kind-specific pluralized directory (e.g. `components`, `apis`, `resources`).
+ *
+ * @param entity - The lightweight catalog entity to compute a path for.
+ * @param baseDir - Root directory the kind directories sit beneath. Defaults to `.`.
+ * @returns The repo-relative YAML file path for the entity's descriptor.
+ */
 export function catalogFilePath(entity: CatalogEntityLite, baseDir = '.'): string {
   // Group entities under owners/; Component/API/Resource under their kind dir.
   const dir =
@@ -43,8 +52,13 @@ function orderEntity(entity: CatalogEntityLite): Record<string, unknown> {
 }
 
 /**
- * Serialize a single entity to a catalog-info.yaml document string. The output
- * is a complete, standalone Backstage descriptor file.
+ * Serialize a single entity to a `catalog-info.yaml` document string. The
+ * output is a complete, standalone Backstage descriptor file with
+ * deterministically ordered keys (apiVersion, kind, metadata, spec) so that
+ * re-running sync after a graph change produces a clean, reviewable diff.
+ *
+ * @param entity - The lightweight catalog entity to serialize.
+ * @returns A YAML string representing a single Backstage entity descriptor.
  */
 export function serializeEntity(entity: CatalogEntityLite): string {
   return yaml.dump(orderEntity(entity), {
@@ -56,17 +70,26 @@ export function serializeEntity(entity: CatalogEntityLite): string {
 }
 
 /**
- * Serialize a list of entities into a single multi-document YAML stream
- * (documents separated by `---`). Used when emitting one combined file.
+ * Serialize a list of entities into a single multi-document YAML stream whose
+ * documents are separated by `---`. Used when emitting all entities into one
+ * combined descriptor file rather than one file per entity.
+ *
+ * @param entities - The readonly list of catalog entities to serialize.
+ * @returns A multi-document YAML string with each entity separated by `---`.
  */
 export function serializeEntities(entities: readonly CatalogEntityLite[]): string {
   return entities.map(serializeEntity).join('\n---\n');
 }
 
 /**
- * A minimal validator for the Backstage descriptor shape: every entity needs
- * apiVersion, kind, metadata.name. Returns the list of violations (empty when
- * valid) so the command can warn before writing malformed files.
+ * Minimal validator for the Backstage descriptor shape. Every entity requires
+ * an `apiVersion`, `kind`, and a valid `metadata.name`. Component and API
+ * entities additionally require `spec.type` and `spec.owner`, and API entities
+ * require a defined `spec.definition`. Returns the list of violations so the
+ * calling command can warn the user before writing malformed descriptor files.
+ *
+ * @param entity - The lightweight catalog entity to validate.
+ * @returns An array of human-readable violation strings; empty when the entity is valid.
  */
 export function validateBackstageEntity(entity: CatalogEntityLite): string[] {
   const violations: string[] = [];
