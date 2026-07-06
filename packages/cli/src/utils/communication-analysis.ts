@@ -57,6 +57,13 @@ interface CommunicationAnalysisConfig {
   enableAutoOptimization: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the communication analysis configuration
+ * to the console, including the project name, configured providers, counts of
+ * patterns and insights, and the status of optional analysis features.
+ *
+ * @param config - The communication analysis configuration to display.
+ */
 export function displayConfig(config: CommunicationAnalysisConfig): void {
   console.log(chalk.cyan('💬 Team Communication Pattern Analysis and Optimization'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -70,6 +77,14 @@ export function displayConfig(config: CommunicationAnalysisConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Builds a Markdown document describing the features of the team communication
+ * pattern analysis, such as supported channels, tracked metrics, event types,
+ * insight categories, and optional analysis capabilities.
+ *
+ * @param config - The communication analysis configuration used to scope the document.
+ * @returns A Markdown string summarizing the communication analysis features.
+ */
 export function generateCommunicationAnalysisMD(config: CommunicationAnalysisConfig): string {
   let md = '# Team Communication Pattern Analysis and Optimization\n\n';
   md += '## Features\n\n';
@@ -89,12 +104,28 @@ export function generateCommunicationAnalysisMD(config: CommunicationAnalysisCon
   return md;
 }
 
+/**
+ * Generates a Terraform header snippet for provisioning communication analysis
+ * resources, tagged with the project name and the current generation timestamp.
+ *
+ * @param config - The communication analysis configuration providing the project name.
+ * @returns A Terraform-formatted string containing the generated header.
+ */
 export function generateTerraformCommunicationAnalysis(config: CommunicationAnalysisConfig): string {
   let code = '# Auto-generated Communication Analysis Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript module that defines a `CommunicationAnalysisManager`
+ * class extending `EventEmitter`, along with a default exported instance. The
+ * generated source includes the project name and generation timestamp in its
+ * header comments.
+ *
+ * @param config - The communication analysis configuration providing the project name.
+ * @returns A TypeScript source string implementing the manager class and export.
+ */
 export function generateTypeScriptCommunicationAnalysis(config: CommunicationAnalysisConfig): string {
   let code = '// Auto-generated Communication Analysis Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -109,6 +140,15 @@ export function generateTypeScriptCommunicationAnalysis(config: CommunicationAna
   return code;
 }
 
+/**
+ * Generates a Python module that defines a `CommunicationAnalysisManager`
+ * class storing the project name, along with a module-level instance. The
+ * generated source includes the project name and generation timestamp in its
+ * header comments.
+ *
+ * @param config - The communication analysis configuration providing the project name.
+ * @returns A Python source string implementing the manager class and instance.
+ */
 export function generatePythonCommunicationAnalysis(config: CommunicationAnalysisConfig): string {
   let code = '# Auto-generated Communication Analysis Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -121,6 +161,20 @@ export function generatePythonCommunicationAnalysis(config: CommunicationAnalysi
   return code;
 }
 
+/**
+ * Writes the generated communication analysis artifacts to the specified output
+ * directory. Always writes the Terraform file and a Markdown documentation
+ * file. Depending on the chosen language, additionally writes either the
+ * TypeScript manager module plus a package.json, or the Python manager module
+ * plus a requirements.txt. A JSON representation of the configuration is also
+ * written for downstream tooling.
+ *
+ * @param config - The communication analysis configuration to materialize.
+ * @param outputDir - The target directory where files will be created.
+ * @param language - The implementation language to generate ("typescript" or otherwise Python).
+ * @returns A promise that resolves once all files have been written.
+ * @throws Rejections from the underlying fs-extra operations if any write or directory creation fails.
+ */
 export async function writeFiles(config: CommunicationAnalysisConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -166,6 +220,14 @@ export async function writeFiles(config: CommunicationAnalysisConfig, outputDir:
   await fs.writeFile(path.join(outputDir, 'communication-analysis-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided communication analysis configuration unchanged. Acts as
+ * an identity passthrough that can be used to validate or normalize the config
+ * shape at call boundaries.
+ *
+ * @param config - The communication analysis configuration to return.
+ * @returns The same configuration object that was passed in.
+ */
 export function communicationAnalysis(config: CommunicationAnalysisConfig): CommunicationAnalysisConfig {
   return config;
 }

@@ -2,19 +2,31 @@ import { Command, Option, Argument } from 'commander';
 
 /**
  * A single declared argument for a catalog entry.
+ *
+ * Represents one positional argument of a CLI command, including whether the
+ * argument must be supplied by the user.
  */
 export interface CatalogArg {
+  /** Human-readable name of the argument as declared by the command. */
   name: string;
+  /** Whether the user must provide this argument when invoking the command. */
   required: boolean;
 }
 
 /**
  * A single declared flag/option for a catalog entry.
+ *
+ * Describes one Commander-style option (e.g. `--json`, `--output <file>`) that
+ * a command accepts, including whether it consumes a value and any default.
  */
 export interface CatalogFlag {
+  /** Canonical flag name, preferring the long form (e.g. `--json`). */
   name: string;
+  /** Help text describing the flag's purpose. */
   description: string;
+  /** Default value applied when the flag is omitted, if any. */
   default?: unknown;
+  /** Whether the flag expects a value (as opposed to a boolean switch). */
   takesValue: boolean;
 }
 
@@ -24,13 +36,21 @@ export interface CatalogFlag {
  * per group/subgroup that has its own action — i.e. anything that can be run.
  */
 export interface CommandCatalogEntry {
+  /** Space-delimited command path from the program root (e.g. `service run`). */
   path: string;
+  /** Alternative names the command can be invoked by. */
   aliases: string[];
+  /** Human-readable description of what the command does. */
   description: string;
+  /** Positional arguments declared by the command. */
   args: CatalogArg[];
+  /** Flags/options declared by the command. */
   flags: CatalogFlag[];
+  /** Whether the command supports machine-readable JSON output. */
   supportsJson: boolean;
+  /** Whether the command supports a dry-run (no side effects) mode. */
   supportsDryRun: boolean;
+  /** Whether the command may cause data loss or irreversible side effects. */
   destructive: boolean;
 }
 
@@ -162,6 +182,9 @@ function walk(command: Command, parentPath: string, out: CommandCatalogEntry[]):
  * derived metadata (JSON/dry-run support, destructiveness).
  *
  * Entries are returned sorted by `path` for stable, diff-friendly output.
+ *
+ * @param program - The root Commander program to inspect.
+ * @returns A sorted array of catalog entries, one per runnable command.
  */
 export function buildCommandCatalog(program: Command): CommandCatalogEntry[] {
   const out: CommandCatalogEntry[] = [];
