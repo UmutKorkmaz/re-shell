@@ -53,11 +53,24 @@ export interface CachedResult {
  * the runner falls back to a real run rather than trusting bad bytes).
  */
 export interface CacheBackend {
-  /** Cheap existence probe (does not materialise artifacts). */
+  /**
+   * Cheap existence probe (does not materialise artifacts).
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @returns `true` if an entry exists for `key`, `false` otherwise.
+   */
   has(key: string): Promise<boolean>;
-  /** Fetch + verify an entry, or undefined on miss/verification failure. */
+  /**
+   * Fetch + verify an entry, or undefined on miss/verification failure.
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @returns The materialised {@link CachedResult} on a verified hit, or `undefined` on a miss / tampered entry.
+   */
   get(key: string): Promise<CachedResult | undefined>;
-  /** Store an entry under `key` (overwrites any existing entry). */
+  /**
+   * Store an entry under `key` (overwrites any existing entry).
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @param result - The cached result to persist (exit code, logs, files).
+   * @returns Resolves when the entry has been durably written.
+   */
   put(key: string, result: CachedResult): Promise<void>;
 }
 
@@ -108,7 +121,10 @@ function canonicalFilesDigest(fileHashes: Record<string, string>): string {
 
 /** Options shared by both backends. */
 export interface CacheBackendOptions {
-  /** HMAC secret. Required for signed put/verify. */
+  /**
+   * HMAC secret used to sign records on `put` and to verify them on `get`.
+   * Required for signed put/verify.
+   */
   secret: string;
 }
 
@@ -118,7 +134,10 @@ export interface CacheBackendOptions {
 
 /** Options for {@link LocalFsCache}. */
 export interface LocalFsCacheOptions extends CacheBackendOptions {
-  /** Absolute cache root directory. */
+  /**
+   * Absolute path to the cache root directory. Entries are sharded under
+   * `<root>/<key[0:2]>/<key>/`.
+   */
   root: string;
 }
 
@@ -133,6 +152,10 @@ export class LocalFsCache implements CacheBackend {
   private readonly root: string;
   private readonly secret: string;
 
+  /**
+   * Create a new {@link LocalFsCache}.
+   * @param options - The root directory and HMAC secret.
+   */
   constructor(options: LocalFsCacheOptions) {
     this.root = path.resolve(options.root);
     this.secret = options.secret;
@@ -143,10 +166,23 @@ export class LocalFsCache implements CacheBackend {
     return path.join(this.root, key.slice(0, 2), key);
   }
 
+  /**
+   * Existence probe: true when a `record.json` is present for `key`.
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @returns `true` if the entry directory has a `record.json`, `false` otherwise.
+   */
   async has(key: string): Promise<boolean> {
     return fs.pathExists(path.join(this.entryDir(key), 'record.json'));
   }
 
+  /**
+   * Read, fully verify, and materialise a cached entry from disk.
+   * Verifies the record HMAC, the canonical files-digest HMAC, and re-hashes
+   * every artifact against its bound hash. Any mismatch or missing sidecar
+   * yields `undefined` (treated as a miss, never trusted).
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @returns The verified {@link CachedResult} or `undefined` on miss/tamper.
+   */
   async get(key: string): Promise<CachedResult | undefined> {
     const dir = this.entryDir(key);
     const recordPath = path.join(dir, 'record.json');
@@ -217,6 +253,14 @@ export class LocalFsCache implements CacheBackend {
     };
   }
 
+  /**
+   * Persist a cached result under `key`, writing signed record and artifact
+   * files. Writes atomically into a temp directory then moves it into place.
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @param result - The cached result (exit code, logs, artifacts) to persist.
+   * @throws {Error} when an artifact's relative path would escape the cache
+   *   directory (path-traversal guard).
+   */
   async put(key: string, result: CachedResult): Promise<void> {
     const dir = this.entryDir(key);
     // Write atomically-ish: build into a temp dir, then move into place.
@@ -265,11 +309,24 @@ export class LocalFsCache implements CacheBackend {
 
 /** The minimal HTTP transport the remote cache needs; injectable for tests. */
 export interface CacheHttpTransport {
-  /** HEAD-like probe: resolve true if the key exists remotely. */
+  /**
+   * HEAD-like probe: resolve true if the key exists remotely.
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @returns `true` when the remote reports the key exists.
+   */
   head(key: string): Promise<boolean>;
-  /** GET the signed entry envelope bytes, or undefined on 404. */
+  /**
+   * GET the signed entry envelope bytes, or undefined on 404.
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @returns The {@link RemoteEnvelope} on success, or `undefined` if absent.
+   */
   getRaw(key: string): Promise<RemoteEnvelope | undefined>;
-  /** PUT the signed entry envelope. */
+  /**
+   * PUT the signed entry envelope.
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @param envelope - The signed wire envelope to store remotely.
+   * @returns Resolves when the remote has accepted the envelope.
+   */
   putRaw(key: string, envelope: RemoteEnvelope): Promise<void>;
 }
 
@@ -279,8 +336,11 @@ export interface CacheHttpTransport {
  * local backend (record signature + files-digest signature + per-file hashes).
  */
 export interface RemoteEnvelope {
+  /** The on-disk-style record (exit code, outputs, logs, per-file hashes). */
   record: CachedRecord;
+  /** HMAC-SHA256 over the canonical record bytes (hex). */
   recordSig: string;
+  /** HMAC-SHA256 over the canonical files digest (hex). */
   filesSig: string;
   /** base64 artifact contents keyed by relative path. */
   files: Record<string, string>;
@@ -288,6 +348,7 @@ export interface RemoteEnvelope {
 
 /** Options for {@link RemoteCache}. */
 export interface RemoteCacheOptions extends CacheBackendOptions {
+  /** The injectable HTTP transport used to talk to the remote hub. */
   transport: CacheHttpTransport;
 }
 
@@ -301,21 +362,43 @@ export class RemoteCache implements CacheBackend {
   private readonly transport: CacheHttpTransport;
   private readonly secret: string;
 
+  /**
+   * Create a new {@link RemoteCache}.
+   * @param options - The HTTP transport and HMAC secret.
+   */
   constructor(options: RemoteCacheOptions) {
     this.transport = options.transport;
     this.secret = options.secret;
   }
 
+  /**
+   * Existence probe delegated to the transport's `head`.
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @returns `true` if the remote reports the key as present.
+   */
   async has(key: string): Promise<boolean> {
     return this.transport.head(key);
   }
 
+  /**
+   * Fetch + verify a remote envelope. Network/transport errors bubble to the
+   * caller; a tampered or malformed envelope is reported as `undefined`.
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @returns The verified {@link CachedResult}, or `undefined` on miss/failed verification.
+   */
   async get(key: string): Promise<CachedResult | undefined> {
     const envelope = await this.transport.getRaw(key);
     if (!envelope) return undefined;
     return verifyEnvelope(envelope, this.secret);
   }
 
+  /**
+   * Build and sign a remote envelope for `result`, then upload it via the
+   * transport's `putRaw`. Transport errors bubble to the caller.
+   * @param key - The content-addressed cache key (64-char hex sha256).
+   * @param result - The cached result (exit code, logs, artifacts) to persist.
+   * @throws {Error} when the transport's PUT fails (non-2xx response).
+   */
   async put(key: string, result: CachedResult): Promise<void> {
     const fileHashes: Record<string, string> = {};
     const files: Record<string, string> = {};
@@ -386,6 +469,11 @@ function verifyEnvelope(
  * An optional bearer token is sent as `Authorization: Bearer <token>`. Uses the
  * global `fetch` (Node 18+); no new dependency. Network failures bubble to the
  * RemoteCache, which treats get/put errors as a miss / best-effort push.
+ *
+ * @param opts - Base URL of the hub and an optional bearer token.
+ * @param opts.baseUrl - The hub origin (e.g. `https://hub.example.com`).
+ * @param opts.token - Optional bearer token sent as `Authorization`.
+ * @returns A {@link CacheHttpTransport} backed by the global `fetch`.
  */
 export function createHttpCacheTransport(opts: {
   baseUrl: string;
@@ -427,6 +515,10 @@ export function createHttpCacheTransport(opts: {
  * Capture the declared `outputs` of a package as {@link CapturedFile}s, reading
  * each matched file's bytes. Globs are resolved relative to the package dir; the
  * captured `path` is the package-relative POSIX path so restore is symmetric.
+ *
+ * @param packageDir - Absolute path to the package directory.
+ * @param outputs - Glob patterns of files to capture, relative to the package dir.
+ * @returns The materialised {@link CapturedFile} array (path + content), sorted by relative path.
  */
 export async function captureOutputs(
   packageDir: string,
@@ -450,6 +542,10 @@ export async function captureOutputs(
  * Restore captured artifacts back to disk under the package dir. Each file's
  * relative path is re-joined under the package dir; parent dirs are created as
  * needed. Refuses to escape the package dir (path-traversal guard).
+ *
+ * @param packageDir - Absolute path to the package directory.
+ * @param files - The captured artifacts to write back to disk.
+ * @throws {Error} when a file's relative path would escape `packageDir`.
  */
 export async function restoreOutputs(
   packageDir: string,
@@ -474,8 +570,11 @@ export async function restoreOutputs(
 
 /** A point-in-time measurement of a local cache root. */
 export interface CacheStats {
+  /** Absolute path of the measured cache root. */
   location: string;
+  /** Number of cache entries (directories containing a `record.json`). */
   entries: number;
+  /** Total bytes consumed by the cache root on disk. */
   sizeBytes: number;
 }
 
@@ -506,6 +605,9 @@ async function dirSize(dir: string): Promise<number> {
 /**
  * Count entries (directories containing a record.json) and total size under a
  * local cache root. Returns zeros for a non-existent root.
+ *
+ * @param root - Absolute (or resolvable) path to the cache root.
+ * @returns A {@link CacheStats} snapshot of entries and total bytes.
  */
 export async function computeCacheStats(root: string): Promise<CacheStats> {
   const absRoot = path.resolve(root);
@@ -523,14 +625,20 @@ export async function computeCacheStats(root: string): Promise<CacheStats> {
 
 /** The result of {@link cleanCache}. */
 export interface CleanResult {
+  /** Absolute path of the cache root that was pruned. */
   location: string;
+  /** Number of cache entries removed. */
   removedEntries: number;
+  /** Total bytes reclaimed by removing the cache root. */
   reclaimedBytes: number;
 }
 
 /**
  * Prune the entire local cache root: removes every entry and reports how many
  * entries and bytes were reclaimed. A non-existent root is a no-op (zeros).
+ *
+ * @param root - Absolute (or resolvable) path to the cache root.
+ * @returns A {@link CleanResult} describing how much was removed.
  */
 export async function cleanCache(root: string): Promise<CleanResult> {
   const before = await computeCacheStats(root);

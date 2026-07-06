@@ -36,26 +36,56 @@ import { recordCacheTelemetry } from './cache-telemetry';
 import { nodeId } from './task-scheduler';
 import type { DiscoveredPackage, PackageManager } from './task-runner';
 
-/** A successful cache restore the runner replays instead of spawning. */
+/**
+ * A successful cache restore the runner replays instead of spawning the task.
+ *
+ * Instead of executing the underlying package script, the runner consumes the
+ * captured `exitCode` and `logs` and surfaces them as if the task had just run.
+ */
 export interface CacheHit {
+  /** The exit code captured from the original run that produced this cache entry. */
   exitCode: number;
+  /** The combined stdout/stderr log text captured from the original run. */
   logs: string;
 }
 
-/** A node the controller operates on (mirrors the runner's node view). */
+/**
+ * A node the controller operates on (mirrors the runner's node view).
+ *
+ * A node is the (package, task) pair that is the unit of caching: each node has
+ * its own cache key derived from its command, inputs, toolchain, env, and the
+ * keys of its dependency closure.
+ */
 export interface CacheNode {
+  /** The package name this node belongs to. */
   package: string;
+  /** The task name within that package (e.g. `"build"`, `"test"`). */
   task: string;
 }
 
-/** Construction inputs for {@link CacheController}. */
+/**
+ * Construction inputs for {@link CacheController}.
+ *
+ * The controller is constructed once per `runTask` invocation; the options bind
+ * it to the workspace, the discovered package set, the dependency graph, and the
+ * configured cache backends for that run.
+ */
 export interface CacheControllerOptions {
+  /** Absolute path to the workspace root (monorepo root). */
   workspaceRoot: string;
+  /** Discovered packages keyed by package name. */
   packages: ReadonlyMap<string, DiscoveredPackage>;
-  /** Dependency edges: nodeId -> the set of nodeIds it depends on. */
+  /**
+   * Dependency edges: nodeId -> the set of nodeIds it depends on. The controller
+   * walks this map to fold upstream keys into each node's own key.
+   */
   dependencies: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Parsed task configuration (inputs/outputs globs per task name). */
   tasksConfig: TasksConfig;
-  /** Resolve the package manager for a package (memoised by the runner). */
+  /**
+   * Resolve the package manager for a package (memoised by the runner). Used to
+   * derive the toolchain fingerprint.
+   */
   pmFor: (pkg: DiscoveredPackage) => PackageManager;
   /** The local backend (always present when caching is on). */
   local: CacheBackend;
@@ -83,6 +113,9 @@ export class CacheController {
   private hits = 0;
   private misses = 0;
 
+  /**
+   * @param options - Construction inputs; see {@link CacheControllerOptions}.
+   */
   constructor(options: CacheControllerOptions) {
     this.opts = options;
   }
@@ -90,6 +123,9 @@ export class CacheController {
   /**
    * Flush accumulated hit/miss counts to the local telemetry file. Called once
    * by the runner after a run completes. No-op when no local root was provided.
+   *
+   * @returns Resolves once the telemetry record has been written (or immediately
+   *   when telemetry is disabled).
    */
   async flushTelemetry(): Promise<void> {
     if (!this.opts.localRoot) return;
@@ -132,6 +168,13 @@ export class CacheController {
   /**
    * Compute (and memoise) the cache key for a node. Recurses into the node's
    * dependency closure first so an upstream change cascades into this key.
+   *
+   * Memoisation is keyed by node id, so a node shared by many downstream
+   * consumers is hashed exactly once per run.
+   *
+   * @param node - The (package, task) node to compute a key for.
+   * @returns The deterministic cache key for the node. Nodes with no discovered
+   *   package resolve to a stable `no-pkg:<id>` sentinel.
    */
   keyFor(node: CacheNode): Promise<string> {
     const id = nodeId(node.package, node.task);
@@ -181,7 +224,15 @@ export class CacheController {
    * Attempt to restore a node from the cache. Remote-then-local lookup order
    * means a CI runner with a configured remote hydrates from it first, falling
    * back to the local store. On a HIT the declared outputs are written to disk
-   * and the captured logs + exit code are returned. Returns undefined on a miss.
+   * and the captured logs + exit code are returned.
+   *
+   * Side effects on a HIT: declared output files are restored to the package
+   * directory and the local hit counter is incremented. On a MISS the miss
+   * counter is incremented and no files are written.
+   *
+   * @param node - The (package, task) node to restore.
+   * @returns The captured {@link CacheHit} on a HIT, or `undefined` on a miss
+   *   (including the case where the package is not discovered).
    */
   async tryRestore(node: CacheNode): Promise<CacheHit | undefined> {
     const pkg = this.opts.packages.get(node.package);
@@ -220,8 +271,19 @@ export class CacheController {
   /**
    * Store a node's result after a real run. Captures the declared `outputs`
    * globs, persists exit code + logs + artifacts under the key in the local
-   * store, and pushes to the remote when configured. Only successful runs
-   * (exitCode 0) are cached: a failure must not be replayed as a hit.
+   * store, and pushes to the remote when configured.
+   *
+   * Only successful runs (`exitCode === 0`) are cached: a failure must never be
+   * replayed as a hit, so non-zero exit codes short-circuit and return early.
+   * Nodes with no discovered package are also skipped. A remote push failure is
+   * swallowed (non-fatal); the local entry remains valid.
+   *
+   * @param node - The (package, task) node whose result is being stored.
+   * @param exitCode - The task's exit code. Anything other than `0` aborts the
+   *   store so failures are not cached.
+   * @param logs - The combined stdout/stderr captured from the task run.
+   * @returns Resolves once the result has been persisted to the local backend
+   *   (and pushed to the remote when configured).
    */
   async store(node: CacheNode, exitCode: number, logs: string): Promise<void> {
     if (exitCode !== 0) return;

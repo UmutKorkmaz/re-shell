@@ -14,17 +14,36 @@ import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
 
-/** Env var holding the HMAC secret for cache artifact signing. */
+/**
+ * Name of the environment variable that holds the HMAC secret used to sign and
+ * verify build-cache artifacts. When unset, a stable per-machine default is
+ * derived by {@link resolveCacheSecret}.
+ */
 export const CACHE_SECRET_ENV = 'RE_SHELL_CACHE_SECRET';
-/** Env var holding the remote cache base URL (enables the remote backend). */
+/**
+ * Name of the environment variable that holds the remote cache base URL.
+ * Setting this to a non-empty http(s) URL enables the remote cache backend;
+ * leaving it unset keeps the remote backend disabled.
+ */
 export const REMOTE_CACHE_ENV = 'RE_SHELL_REMOTE_CACHE';
-/** Env var holding the bearer token for the remote cache, if any. */
+/**
+ * Name of the environment variable that holds the optional bearer token used
+ * to authenticate against the remote cache backend. Only consulted when
+ * {@link REMOTE_CACHE_ENV} is also set.
+ */
 export const REMOTE_CACHE_TOKEN_ENV = 'RE_SHELL_REMOTE_CACHE_TOKEN';
 
 /**
- * Resolve the cache root for a workspace. An explicit `--cache-dir` wins;
- * otherwise the workspace-local `<root>/.re-shell/cache` is used so caches stay
- * scoped to a checkout. (A global `~/.re-shell/cache` is available via override.)
+ * Resolve the cache root directory for a workspace. An explicit `--cache-dir`
+ * override always wins; otherwise the workspace-local `<root>/.re-shell/cache`
+ * directory is used so caches stay scoped to a checkout. (A global
+ * `~/.re-shell/cache` is available via the same override mechanism.)
+ *
+ * @param workspaceRoot - Absolute (or resolvable) path to the workspace root
+ *   used when no override is supplied.
+ * @param override - Optional explicit cache directory, typically sourced from
+ *   the `--cache-dir` CLI flag. Whitespace-only values are ignored.
+ * @returns The absolute path to the resolved cache root directory.
  */
 export function resolveCacheRoot(workspaceRoot: string, override?: string): string {
   if (override && override.trim().length > 0) {
@@ -34,10 +53,17 @@ export function resolveCacheRoot(workspaceRoot: string, override?: string): stri
 }
 
 /**
- * Resolve the HMAC secret. Prefers the explicit env var; falls back to a stable
- * per-user default derived from the home dir + a fixed salt so local signing is
- * deterministic across runs without configuration. The default is NOT a
- * security boundary — it only makes single-machine local caching tamper-evident.
+ * Resolve the HMAC secret used to sign and verify cache artifacts. Prefers the
+ * explicit value from {@link CACHE_SECRET_ENV}; when that is unset or empty,
+ * falls back to a stable per-user default derived from the home directory and
+ * a fixed salt so local signing is deterministic across runs without any
+ * configuration. The default is NOT a security boundary — it only makes
+ * single-machine local caching tamper-evident. A shared/remote cache MUST set
+ * an explicit secret.
+ *
+ * @param source - The record (defaults to `process.env`) from which to read the
+ *   {@link CACHE_SECRET_ENV} value.
+ * @returns The resolved HMAC secret string.
  */
 export function resolveCacheSecret(
   source: Readonly<Record<string, string | undefined>> = process.env
@@ -49,16 +75,30 @@ export function resolveCacheSecret(
     .digest('hex');
 }
 
-/** The resolved remote-cache settings, or undefined when the remote is off. */
+/**
+ * Resolved remote-cache settings. Returned by {@link resolveRemoteCacheSettings}
+ * only when the remote cache backend is enabled; `undefined` is returned
+ * otherwise (meaning the remote is OFF).
+ */
 export interface RemoteCacheSettings {
+  /** Base URL of the remote cache backend (trailing slashes removed). */
   baseUrl: string;
+  /** Optional bearer token used to authenticate against the remote backend. */
   token?: string;
 }
 
 /**
- * Resolve remote-cache settings from the environment. Returns undefined (remote
- * OFF) unless {@link REMOTE_CACHE_ENV} is set to a non-empty URL.
- * Throws a clear error when the URL scheme is not http or https.
+ * Resolve remote-cache settings from the environment. Returns `undefined`
+ * (remote backend OFF) unless {@link REMOTE_CACHE_ENV} is set to a non-empty
+ * URL. When enabled, the URL must parse successfully and use either the
+ * `http:` or `https:` scheme; otherwise a descriptive error is thrown.
+ *
+ * @param source - The record (defaults to `process.env`) from which to read the
+ *   {@link REMOTE_CACHE_ENV} and {@link REMOTE_CACHE_TOKEN_ENV} values.
+ * @returns The resolved {@link RemoteCacheSettings} when the remote cache is
+ *   enabled, or `undefined` when it is disabled.
+ * @throws {Error} When the value of {@link REMOTE_CACHE_ENV} is not a valid URL.
+ * @throws {Error} When the URL scheme is something other than `http` or `https`.
  */
 export function resolveRemoteCacheSettings(
   source: Readonly<Record<string, string | undefined>> = process.env
