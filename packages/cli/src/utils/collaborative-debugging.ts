@@ -46,6 +46,14 @@ interface CollaborativeDebuggingConfig {
   enableHotReload: boolean;
 }
 
+/**
+ * Prints a formatted summary of the collaborative debugging configuration to the
+ * console, including project name, providers, protocol, breakpoint/session counts,
+ * collaboration flags, and feature toggles.
+ *
+ * @param config - The collaborative debugging configuration to display.
+ * @returns Nothing; output is written to stdout via `console.log`.
+ */
 export function displayConfig(config: CollaborativeDebuggingConfig): void {
   console.log(chalk.cyan('🐛 Collaborative Debugging Across Multiple Services'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -64,6 +72,17 @@ export function displayConfig(config: CollaborativeDebuggingConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string describing the collaborative
+ * debugging features (shared breakpoints, multi-service coordination,
+ * supported protocols, role-based access, multi-cloud support, etc.).
+ *
+ * The returned Markdown is static and does not currently vary based on the
+ * provided configuration values.
+ *
+ * @param config - The collaborative debugging configuration used as context.
+ * @returns A Markdown string documenting the collaborative debugging features.
+ */
 export function generateCollaborativeDebuggingMD(config: CollaborativeDebuggingConfig): string {
   let md = '# Collaborative Debugging Across Multiple Services\n\n';
   md += '## Features\n\n';
@@ -82,12 +101,27 @@ export function generateCollaborativeDebuggingMD(config: CollaborativeDebuggingC
   return md;
 }
 
+/**
+ * Generates a Terraform header snippet for collaborative debugging, embedding
+ * the project name and the current ISO timestamp as comments.
+ *
+ * @param config - The collaborative debugging configuration providing the project name.
+ * @returns A Terraform-formatted string containing comment headers.
+ */
 export function generateTerraformCollaborativeDebugging(config: CollaborativeDebuggingConfig): string {
   let code = '# Auto-generated Collaborative Debugging Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates TypeScript source code for a `CollaborativeDebuggingManager`
+ * class that extends `EventEmitter`, along with a default exported instance.
+ * The generated file is self-contained and includes a timestamped header.
+ *
+ * @param config - The collaborative debugging configuration providing the project name.
+ * @returns TypeScript source code as a string.
+ */
 export function generateTypeScriptCollaborativeDebugging(config: CollaborativeDebuggingConfig): string {
   let code = '// Auto-generated Collaborative Debugging Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -102,6 +136,15 @@ export function generateTypeScriptCollaborativeDebugging(config: CollaborativeDe
   return code;
 }
 
+/**
+ * Generates Python source code for a `CollaborativeDebuggingManager` class
+ * and a module-level instance. The generated module uses `asyncio` and
+ * basic typing imports, and the project name is embedded in the constructor
+ * default.
+ *
+ * @param config - The collaborative debugging configuration providing the project name.
+ * @returns Python source code as a string.
+ */
 export function generatePythonCollaborativeDebugging(config: CollaborativeDebuggingConfig): string {
   let code = '# Auto-generated Collaborative Debugging Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -114,6 +157,21 @@ export function generatePythonCollaborativeDebugging(config: CollaborativeDebugg
   return code;
 }
 
+/**
+ * Writes the generated collaborative debugging files to the specified output
+ * directory. Always writes the Terraform file, the Markdown documentation, and
+ * the JSON config. Depending on the chosen `language`, it also writes either the
+ * TypeScript manager plus `package.json`, or the Python manager plus
+ * `requirements.txt`. The output directory is created if it does not exist.
+ *
+ * @param config - The collaborative debugging configuration to serialize.
+ * @param outputDir - The target directory where files will be written.
+ * @param language - Either `'typescript'` (or `'ts'`) to emit TypeScript output,
+ *   or any other value to emit Python output.
+ * @returns A promise that resolves once all files have been written.
+ * @throws {Error} If the filesystem operations fail (for example, due to
+ *   permission errors or an invalid output path).
+ */
 export async function writeFiles(config: CollaborativeDebuggingConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -160,6 +218,14 @@ export async function writeFiles(config: CollaborativeDebuggingConfig, outputDir
   await fs.writeFile(path.join(outputDir, 'collaborative-debugging-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided collaborative debugging configuration unchanged.
+ * Acts as an identity passthrough, useful for validation pipelines or as a
+ * no-op transform hook.
+ *
+ * @param config - The collaborative debugging configuration to pass through.
+ * @returns The same `config` instance that was supplied.
+ */
 export function collaborativeDebugging(config: CollaborativeDebuggingConfig): CollaborativeDebuggingConfig {
   return config;
 }
