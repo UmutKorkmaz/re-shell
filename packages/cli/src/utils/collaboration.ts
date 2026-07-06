@@ -12,57 +12,57 @@ import { randomUUID } from 'crypto';
 // ============================================================================
 
 /**
- * Role assigned to a team member, governing permissions within a team.
+ * Role assigned to a team member, controlling their permissions within a team.
  */
 export type TeamRole = 'owner' | 'admin' | 'moderator' | 'member' | 'guest' | 'viewer';
 
 /**
- * Category of communication channel available within a team.
+ * Categorization of a communication channel by its medium and purpose.
  */
 export type ChannelType = 'text' | 'voice' | 'video' | 'announcement' | 'private' | 'archived';
 
 /**
- * Format or kind of content conveyed by a message.
+ * Format of a message's payload, such as plain text, a file, or a code snippet.
  */
 export type MessageType = 'text' | 'file' | 'code' | 'image' | 'video' | 'audio' | 'emoji' | 'system';
 
 /**
- * Emoji reaction that can be applied to a message.
+ * Supported emoji reactions that can be applied to a message.
  */
 export type ReactionType = 'thumbs_up' | 'thumbs_down' | 'laugh' | 'celebrate' | 'thinking' | 'heart' | 'fire' | 'eyes';
 
 /**
- * Workflow state of a collaborative task.
+ * Lifecycle state of a collaborative task.
  */
 export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
 
 /**
- * Importance level assigned to a task.
+ * Relative importance level assigned to a collaborative task.
  */
 export type TaskPriority = 'critical' | 'high' | 'medium' | 'low';
 
 /**
- * Format or category of a shared document.
+ * Kind of shared document, such as a text document, spreadsheet, or design file.
  */
 export type DocumentType = 'document' | 'spreadsheet' | 'presentation' | 'code' | 'design' | 'whiteboard';
 
 /**
- * Workflow state of a code review.
+ * Lifecycle state of a code review request.
  */
 export type ReviewStatus = 'pending' | 'in_review' | 'approved' | 'changes_requested' | 'rejected';
 
 /**
- * Category describing the purpose of a notification.
+ * Category of a user-facing notification.
  */
 export type NotificationType = 'mention' | 'reply' | 'assignment' | 'reminder' | 'announcement' | 'system';
 
 /**
- * Urgency level of a notification.
+ * Urgency level assigned to a notification.
  */
 export type NotificationPriority = 'urgent' | 'high' | 'normal' | 'low';
 
 /**
- * Purpose or format of a scheduled meeting.
+ * Purpose of a scheduled meeting, such as a standup or sprint planning.
  */
 export type MeetingType = 'standup' | 'sprint_planning' | 'retrospective' | 'review' | 'one_on_one' | 'all_hands' | 'ad_hoc';
 
@@ -79,367 +79,590 @@ export type MeetingStatus = 'scheduled' | 'started' | 'paused' | 'ended' | 'canc
  * Represents a registered user of the collaboration platform.
  */
 export interface User {
+  /** Unique identifier of the user. */
   id: string;
+  /** Display name of the user. */
   name: string;
+  /** Email address used for contact and authentication. */
   email: string;
+  /** Optional URL to the user's avatar image. */
   avatar?: string;
+  /** Optional job title. */
   title?: string;
+  /** Optional department the user belongs to. */
   department?: string;
+  /** Optional geographic location. */
   location?: string;
+  /** IANA timezone identifier, e.g. `America/Los_Angeles`. */
   timezone: string;
+  /** Current presence status of the user. */
   status: 'online' | 'away' | 'busy' | 'offline' | 'in_meeting';
+  /** Timestamp of the user's most recent activity. */
   lastSeen: Date;
+  /** List of skills associated with the user. */
   skills: string[];
+  /** Languages the user can communicate in. */
   languages: string[];
+  /** Date the user joined the platform. */
   joinedAt: Date;
 }
 
 /**
- * A team grouping members, channels, and shared settings.
+ * Represents a team within the collaboration platform.
  */
 export interface Team {
+  /** Unique identifier of the team. */
   id: string;
+  /** Human-readable name of the team. */
   name: string;
+  /** Short description of the team's purpose. */
   description: string;
+  /** Optional URL to the team's avatar image. */
   avatar?: string;
-  owner: string; // user ID
+  /** User ID of the team owner. */
+  owner: string;
+  /** Members that belong to the team. */
   members: TeamMember[];
+  /** Communication channels associated with the team. */
   channels: Channel[];
+  /** Configuration settings for the team. */
   settings: TeamSettings;
+  /** Date the team was created. */
   createdAt: Date;
 }
 
 /**
- * Represents a user's membership within a team, including role and permissions.
+ * Describes a user's membership in a team, including their role and permissions.
  */
 export interface TeamMember {
+  /** ID of the user who is a member of the team. */
   userId: string;
+  /** Role assigned to the user within the team. */
   role: TeamRole;
+  /** Date the user joined the team. */
   joinedAt: Date;
+  /** List of permission strings granted to the member. */
   permissions: string[];
 }
 
 /**
- * Configuration options controlling visibility, retention, and access for a team.
+ * Configuration options that govern team behavior and access policies.
  */
 export interface TeamSettings {
+  /** Whether the team is visible to non-members. */
   isPublic: boolean;
+  /** Whether guest-level access is permitted. */
   allowGuestAccess: boolean;
+  /** Whether content can be shared outside the organization. */
   allowExternalSharing: boolean;
+  /** Default channel type created for the team. */
   defaultChannelType: ChannelType;
-  messageRetention: number; // days
-  fileRetention: number; // days
+  /** Number of days messages are retained before deletion. */
+  messageRetention: number;
+  /** Number of days files are retained before deletion. */
+  fileRetention: number;
+  /** Whether guests require explicit approval to join. */
   requireApprovalForGuests: boolean;
 }
 
 /**
- * A communication channel within a team for messages and conversations.
+ * Represents a communication channel within a team.
  */
 export interface Channel {
+  /** Unique identifier of the channel. */
   id: string;
+  /** ID of the team the channel belongs to. */
   teamId: string;
+  /** Human-readable name of the channel. */
   name: string;
+  /** Optional description of the channel's purpose. */
   description?: string;
+  /** Type of the channel (text, voice, video, etc.). */
   type: ChannelType;
-  members: string[]; // user IDs
-  createdBy: string; // user ID
+  /** IDs of the users who are members of the channel. */
+  members: string[];
+  /** ID of the user who created the channel. */
+  createdBy: string;
+  /** Date the channel was created. */
   createdAt: Date;
+  /** Optional date the channel was archived. */
   archivedAt?: Date;
+  /** Whether the channel is private and restricted to invited members. */
   isPrivate: boolean;
+  /** Whether the channel is read-only for most members. */
   isReadOnly: boolean;
+  /** Optional ID of a parent channel, when channels are nested. */
   parentChannelId?: string;
 }
 
 /**
- * A single message posted within a channel, optionally part of a thread.
+ * Represents a message posted to a channel.
  */
 export interface Message {
+  /** Unique identifier of the message. */
   id: string;
+  /** ID of the channel the message belongs to. */
   channelId: string;
+  /** Optional ID of the parent thread, if the message is in a thread. */
   threadId?: string;
+  /** ID of the user who authored the message. */
   authorId: string;
+  /** Textual content of the message. */
   content: string;
+  /** Type of the message payload. */
   type: MessageType;
+  /** Files attached to the message. */
   attachments: MessageAttachment[];
+  /** Emoji reactions applied to the message. */
   reactions: MessageReaction[];
+  /** Number of replies the message has received. */
   replies: number;
+  /** Optional date the message was last edited. */
   editedAt?: Date;
+  /** Optional date the message was soft-deleted. */
   deletedAt?: Date;
+  /** Whether the message is pinned in its channel. */
   pinned: boolean;
-  mentions: string[]; // user IDs
+  /** IDs of users mentioned in the message. */
+  mentions: string[];
+  /** Date the message was created. */
   createdAt: Date;
 }
 
 /**
- * Metadata for a file attached to a message.
+ * Represents a file attached to a message.
  */
 export interface MessageAttachment {
+  /** Unique identifier of the attachment. */
   id: string;
+  /** File name of the attachment. */
   name: string;
+  /** Size of the file in bytes. */
   size: number;
+  /** MIME type of the file. */
   mimeType: string;
+  /** URL where the file can be downloaded. */
   url: string;
+  /** Optional URL to a thumbnail preview of the attachment. */
   thumbnail?: string;
 }
 
 /**
- * An emoji reaction applied to a message by one or more users.
+ * Represents an emoji reaction applied to a message by one or more users.
  */
 export interface MessageReaction {
+  /** The emoji used for the reaction. */
   emoji: ReactionType;
+  /** IDs of the users who applied the reaction. */
   userIds: string[];
 }
 
 /**
- * A threaded conversation originating from a parent message in a channel.
+ * Represents a threaded conversation stemming from a parent message.
  */
 export interface Thread {
+  /** Unique identifier of the thread. */
   id: string;
+  /** ID of the channel the thread belongs to. */
   channelId: string;
+  /** ID of the parent message that started the thread. */
   parentMessageId: string;
+  /** Messages that make up the thread. */
   messages: Message[];
+  /** Lifecycle status of the thread. */
   status: 'active' | 'resolved' | 'archived';
+  /** IDs of users participating in the thread. */
   participantIds: string[];
 }
 
 /**
- * A shared document with versioning, permissions, and tagging support.
+ * Represents a shared document owned by a user or team.
  */
 export interface Document {
+  /** Unique identifier of the document. */
   id: string;
+  /** Human-readable name of the document. */
   name: string;
+  /** Type of the document. */
   type: DocumentType;
+  /** Textual or serialized content of the document. */
   content: string;
+  /** ID of the user who owns the document. */
   ownerId: string;
+  /** Optional ID of the team the document belongs to. */
   teamId?: string;
+  /** Optional ID of the folder containing the document. */
   folderId?: string;
+  /** Current version number of the document. */
   version: number;
+  /** Whether the document is a reusable template. */
   isTemplate: boolean;
+  /** Tags used to categorize the document. */
   tags: string[];
+  /** Access permissions applied to the document. */
   permissions: DocumentPermission[];
+  /** Date the document was created. */
   createdAt: Date;
+  /** Date the document was last updated. */
   updatedAt: Date;
 }
 
 /**
- * Access permission granting a user or team a specific role on a document.
+ * Defines the access level a user or team has for a document.
  */
 export interface DocumentPermission {
+  /** ID of the user the permission applies to, if applicable. */
   userId?: string;
+  /** ID of the team the permission applies to, if applicable. */
   teamId?: string;
+  /** Access role controlling what can be done with the document. */
   role: 'owner' | 'editor' | 'commenter' | 'viewer';
 }
 
 /**
- * A code review tracking changes between branches, reviewers, and approval status.
+ * Represents a code review (pull request) for a repository.
  */
 export interface CodeReview {
+  /** Unique identifier of the review. */
   id: string;
+  /** Title summarizing the review. */
   title: string;
+  /** Description of what the review changes or adds. */
   description: string;
+  /** ID of the repository the review belongs to. */
   repositoryId: string;
+  /** Name of the branch containing the changes. */
   sourceBranch: string;
+  /** Name of the branch the changes are intended to merge into. */
   targetBranch: string;
+  /** ID of the user who authored the review. */
   authorId: string;
+  /** Reviewers assigned to the review. */
   reviewers: Reviewer[];
+  /** Current lifecycle status of the review. */
   status: ReviewStatus;
+  /** Number of commits included in the review. */
   commits: number;
+  /** Number of lines added by the review. */
   additions: number;
+  /** Number of lines removed by the review. */
   deletions: number;
+  /** Number of files changed by the review. */
   changedFiles: number;
+  /** Inline comments left on the review. */
   comments: ReviewComment[];
+  /** Date the review was created. */
   createdAt: Date;
+  /** Optional date the review was merged. */
   mergedAt?: Date;
+  /** Optional date the review was closed without merging. */
   closedAt?: Date;
 }
 
 /**
- * A reviewer assigned to a code review along with their review status.
+ * Represents a reviewer assigned to a code review and their review decision.
  */
 export interface Reviewer {
+  /** ID of the user assigned as reviewer. */
   userId: string;
+  /** Reviewer's current decision on the review. */
   status: 'pending' | 'approved' | 'changes_requested' | 'declined';
+  /** Optional date the reviewer submitted their decision. */
   submittedAt?: Date;
 }
 
 /**
- * An inline comment attached to a specific file and line within a code review.
+ * Represents an inline comment left on a specific file and line in a code review.
  */
 export interface ReviewComment {
+  /** Unique identifier of the comment. */
   id: string;
+  /** ID of the user who wrote the comment. */
   authorId: string;
+  /** Textual content of the comment. */
   content: string;
+  /** Relative path of the file the comment refers to. */
   file: string;
+  /** Line number the comment is attached to. */
   line: number;
+  /** Whether the comment has been resolved. */
   resolved: boolean;
+  /** Date the comment was created. */
   createdAt: Date;
+  /** Optional date the comment was resolved. */
   resolvedAt?: Date;
 }
 
 /**
- * A collaborative task with assignees, subtasks, dependencies, and comments.
+ * Represents a collaborative task that can be assigned, tracked, and discussed.
  */
 export interface TaskCollab {
+  /** Unique identifier of the task. */
   id: string;
+  /** Short title of the task. */
   title: string;
+  /** Detailed description of the task. */
   description: string;
+  /** Current lifecycle status of the task. */
   status: TaskStatus;
+  /** Priority of the task. */
   priority: TaskPriority;
+  /** IDs of users assigned to the task. */
   assigneeIds: string[];
+  /** ID of the user who created the task. */
   creatorId: string;
+  /** Optional ID of the team the task belongs to. */
   teamId?: string;
+  /** Optional date the task is due. */
   dueDate?: Date;
+  /** Optional date work on the task is expected to start. */
   startDate?: Date;
+  /** Optional estimated effort in hours. */
   estimatedHours?: number;
+  /** Optional actual effort spent in hours. */
   actualHours?: number;
+  /** Tags used to categorize the task. */
   tags: string[];
-  dependencies: string[]; // task IDs
+  /** IDs of tasks that must be completed before this one. */
+  dependencies: string[];
+  /** Subtasks belonging to the task. */
   subtasks: SubTask[];
+  /** Comments left on the task. */
   comments: TaskComment[];
-  attachments: string[]; // file IDs
+  /** IDs of files attached to the task. */
+  attachments: string[];
+  /** Optional date the task was completed. */
   completedAt?: Date;
+  /** Date the task was created. */
   createdAt: Date;
+  /** Date the task was last updated. */
   updatedAt: Date;
 }
 
 /**
- * A child item of a task used to break work into smaller tracked pieces.
+ * Represents a smaller unit of work nested under a parent task.
  */
 export interface SubTask {
+  /** Unique identifier of the subtask. */
   id: string;
+  /** Short title of the subtask. */
   title: string;
+  /** Whether the subtask has been completed. */
   completed: boolean;
+  /** Optional date the subtask was completed. */
   completedAt?: Date;
 }
 
 /**
- * A comment left on a collaborative task by a user.
+ * Represents a comment left on a task by a user.
  */
 export interface TaskComment {
+  /** Unique identifier of the comment. */
   id: string;
+  /** ID of the user who wrote the comment. */
   authorId: string;
+  /** Textual content of the comment. */
   content: string;
+  /** Date the comment was created. */
   createdAt: Date;
+  /** Optional date the comment was last edited. */
   editedAt?: Date;
 }
 
 /**
- * A scheduled or ad-hoc meeting with participants, optional recurrence, and recording settings.
+ * Represents a scheduled or in-progress meeting with participants.
  */
 export interface Meeting {
+  /** Unique identifier of the meeting. */
   id: string;
+  /** Title of the meeting. */
   title: string;
+  /** Optional description or agenda. */
   description?: string;
+  /** Purpose category of the meeting. */
   type: MeetingType;
+  /** Current lifecycle status of the meeting. */
   status: MeetingStatus;
+  /** ID of the user hosting the meeting. */
   hostId: string;
+  /** IDs of users invited to the meeting. */
   participantIds: string[];
+  /** Date and time the meeting is scheduled to begin. */
   scheduledFor: Date;
-  duration: number; // minutes
+  /** Planned duration of the meeting in minutes. */
+  duration: number;
+  /** Optional recurring schedule configuration. */
   recurring?: RecurringSchedule;
+  /** Whether recording is enabled for the meeting. */
   recordingEnabled: boolean;
+  /** Whether live transcription is enabled for the meeting. */
   transcriptEnabled: boolean;
+  /** Optional free-form notes for the meeting. */
   notes?: string;
-  actionItems?: string[]; // task IDs
+  /** Optional IDs of tasks derived as action items from the meeting. */
+  actionItems?: string[];
+  /** Optional URL to the meeting recording. */
   recordingUrl?: string;
+  /** Optional URL to the meeting transcript. */
   transcriptUrl?: string;
+  /** Date the meeting record was created. */
   createdAt: Date;
 }
 
 /**
- * Defines the recurrence pattern for a repeating meeting.
+ * Defines how and when a meeting repeats over time.
  */
 export interface RecurringSchedule {
+  /** How often the meeting recurs. */
   frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
-  daysOfWeek?: number[]; // 0-6 (Sunday-Saturday)
+  /** Days of the week (0-6, Sunday-Saturday) the meeting recurs on. */
+  daysOfWeek?: number[];
+  /** Optional date after which the recurrence stops. */
   endDate?: Date;
 }
 
 /**
- * A notification addressed to a user describing an event or action item.
+ * Represents a notification delivered to a user.
  */
 export interface Notification {
+  /** Unique identifier of the notification. */
   id: string;
+  /** ID of the user the notification is addressed to. */
   userId: string;
+  /** Category of the notification. */
   type: NotificationType;
+  /** Urgency of the notification. */
   priority: NotificationPriority;
+  /** Short title for the notification. */
   title: string;
+  /** Detailed content of the notification. */
   content: string;
+  /** Optional URL the user can navigate to in response. */
   actionUrl?: string;
+  /** Whether the notification has been read. */
   read: boolean;
+  /** Whether the notification has been dismissed by the user. */
   dismissed: boolean;
+  /** Date the notification was created. */
   createdAt: Date;
 }
 
 /**
- * An audit record capturing a user action against a collaboration entity.
+ * Represents an activity event recorded in the collaboration platform's audit log.
  */
 export interface Activity {
+  /** Unique identifier of the activity entry. */
   id: string;
+  /** ID of the user who performed the activity, or `system`. */
   userId: string;
+  /** Short description of the action performed. */
   action: string;
+  /** Kind of entity the activity relates to. */
   entityType: 'message' | 'document' | 'task' | 'meeting' | 'review' | 'user' | 'team' | 'channel';
+  /** ID of the entity the activity relates to. */
   entityId: string;
+  /** Optional additional context about the activity. */
   metadata?: Record<string, unknown>;
+  /** Date the activity occurred. */
   createdAt: Date;
 }
 
 /**
- * Aggregated analytics report scoped to a time period.
+ * Represents a set of analytics computed for a specific time period.
  */
 export interface Analytics {
+  /** Granularity of the reporting period. */
   period: 'day' | 'week' | 'month' | 'quarter' | 'year';
+  /** Start of the reporting window. */
   startDate: Date;
+  /** End of the reporting window. */
   endDate: Date;
+  /** Aggregated metrics for the period. */
   metrics: AnalyticsMetrics;
 }
 
 /**
- * Detailed metric breakdowns for users, teams, messages, documents, reviews, tasks, and meetings.
+ * Aggregated metrics covering users, teams, messages, documents, reviews, tasks, and meetings.
  */
 export interface AnalyticsMetrics {
+  /** User-related metrics. */
   users: {
+    /** Total number of registered users. */
     total: number;
+    /** Number of currently active users. */
     active: number;
+    /** Number of users who joined during the period. */
     new: number;
-    retention: number; // percentage
+    /** Retention percentage. */
+    retention: number;
   };
+  /** Team-related metrics. */
   teams: {
+    /** Total number of teams. */
     total: number;
+    /** Number of active teams. */
     active: number;
+    /** Average number of members per team. */
     avgSize: number;
   };
+  /** Messaging-related metrics. */
   messages: {
+    /** Messages sent during the period. */
     sent: number;
+    /** Messages read during the period. */
     read: number;
-    avgResponseTime: number; // minutes
+    /** Average response time in minutes. */
+    avgResponseTime: number;
+    /** Channels with the highest message counts. */
     mostActiveChannels: { channelId: string; count: number }[];
   };
+  /** Document-related metrics. */
   documents: {
+    /** Documents created during the period. */
     created: number;
+    /** Documents edited during the period. */
     edited: number;
+    /** Documents shared during the period. */
     shared: number;
+    /** Documents with the most views. */
     mostViewed: { docId: string; views: number }[];
   };
+  /** Code review-related metrics. */
   codeReviews: {
+    /** Reviews opened during the period. */
     opened: number;
+    /** Reviews merged during the period. */
     merged: number;
+    /** Reviews closed without merging during the period. */
     closed: number;
-    avgReviewTime: number; // hours
-    approvalRate: number; // percentage
+    /** Average time to complete a review in hours. */
+    avgReviewTime: number;
+    /** Percentage of reviews that were approved. */
+    approvalRate: number;
   };
+  /** Task-related metrics. */
   tasks: {
+    /** Tasks created during the period. */
     created: number;
+    /** Tasks completed during the period. */
     completed: number;
+    /** Tasks that are past their due date. */
     overdue: number;
-    avgCompletionTime: number; // hours
+    /** Average time to complete a task in hours. */
+    avgCompletionTime: number;
   };
+  /** Meeting-related metrics. */
   meetings: {
+    /** Meetings scheduled during the period. */
     scheduled: number;
+    /** Meetings completed during the period. */
     completed: number;
+    /** Meetings cancelled during the period. */
     cancelled: number;
-    avgDuration: number; // minutes
-    attendanceRate: number; // percentage
+    /** Average meeting duration in minutes. */
+    avgDuration: number;
+    /** Attendance rate as a percentage. */
+    attendanceRate: number;
   };
 }
 
@@ -448,7 +671,7 @@ export interface AnalyticsMetrics {
 // ============================================================================
 
 /**
- * Sample users used to seed the collaboration manager with example data.
+ * Sample users used to seed the collaboration manager with initial data.
  */
 export const exampleUsers: User[] = [
   {
@@ -511,7 +734,7 @@ export const exampleUsers: User[] = [
 ];
 
 /**
- * Sample teams used to seed the collaboration manager with example data.
+ * Sample teams used to seed the collaboration manager with initial data.
  */
 export const exampleTeams: Team[] = [
   {
@@ -558,7 +781,7 @@ export const exampleTeams: Team[] = [
 ];
 
 /**
- * Sample channels used to seed the collaboration manager with example data.
+ * Sample channels used to seed the collaboration manager with initial data.
  */
 export const exampleChannels: Channel[] = [
   {
@@ -600,7 +823,7 @@ export const exampleChannels: Channel[] = [
 ];
 
 /**
- * Sample messages used to seed the collaboration manager with example data.
+ * Sample messages used to seed the collaboration manager with initial data.
  */
 export const exampleMessages: Message[] = [
   {
@@ -635,7 +858,7 @@ export const exampleMessages: Message[] = [
 ];
 
 /**
- * Sample documents used to seed the collaboration manager with example data.
+ * Sample documents used to seed the collaboration manager with initial data.
  */
 export const exampleDocuments: Document[] = [
   {
@@ -675,7 +898,7 @@ export const exampleDocuments: Document[] = [
 ];
 
 /**
- * Sample code reviews used to seed the collaboration manager with example data.
+ * Sample code reviews used to seed the collaboration manager with initial data.
  */
 export const exampleCodeReviews: CodeReview[] = [
   {
@@ -712,7 +935,7 @@ export const exampleCodeReviews: CodeReview[] = [
 ];
 
 /**
- * Sample collaborative tasks used to seed the collaboration manager with example data.
+ * Sample collaborative tasks used to seed the collaboration manager with initial data.
  */
 export const exampleTasks: TaskCollab[] = [
   {
@@ -741,7 +964,7 @@ export const exampleTasks: TaskCollab[] = [
 ];
 
 /**
- * Sample meetings used to seed the collaboration manager with example data.
+ * Sample meetings used to seed the collaboration manager with initial data.
  */
 export const exampleMeetings: Meeting[] = [
   {
@@ -781,24 +1004,35 @@ export const exampleMeetings: Meeting[] = [
 // ============================================================================
 
 /**
- * Configuration options for instantiating and tuning a CollaborationManager.
+ * Configuration for the collaboration platform, controlling enabled features and limits.
  */
 export interface CollaborationConfig {
+  /** Name of the organization using the platform. */
   organization: string;
+  /** Optional description of the deployment. */
   description?: string;
+  /** Whether messaging is enabled. */
   enableMessaging?: boolean;
+  /** Whether file sharing is enabled. */
   enableFileSharing?: boolean;
+  /** Whether code review workflows are enabled. */
   enableCodeReview?: boolean;
+  /** Whether task management is enabled. */
   enableTaskManagement?: boolean;
+  /** Whether video conferencing is enabled. */
   enableVideoConferencing?: boolean;
+  /** Whether analytics reporting is enabled. */
   enableAnalytics?: boolean;
-  maxFileSize?: number; // MB
+  /** Maximum allowed file size in megabytes. */
+  maxFileSize?: number;
+  /** Maximum number of members allowed in a team. */
   maxTeamSize?: number;
 }
 
 /**
- * Central manager for collaboration entities including users, teams, channels,
- * messages, documents, code reviews, tasks, meetings, notifications, and activity.
+ * Central manager for the collaboration platform. Stores and orchestrates users,
+ * teams, channels, messages, documents, code reviews, tasks, meetings,
+ * notifications, and activity logs.
  */
 export class CollaborationManager {
   private users: Map<string, User> = new Map();
@@ -814,9 +1048,9 @@ export class CollaborationManager {
   private activities: Map<string, Activity> = new Map();
 
   /**
-   * Creates a new CollaborationManager seeded with example data.
+   * Creates a new CollaborationManager and seeds it with example data.
    *
-   * @param config - Configuration controlling enabled features and limits.
+   * @param config - Configuration for the collaboration platform.
    */
   constructor(private config: CollaborationConfig) {
     this.initializeExampleData();
@@ -837,22 +1071,22 @@ export class CollaborationManager {
   }
 
   /**
-   * Generates a unique identifier using a prefix, timestamp, and random segment.
+   * Generates a unique identifier combining a prefix, timestamp, and random segment.
    *
-   * @param prefix - Short label prepended to the generated identifier.
+   * @param prefix - Prefix prepended to the generated identifier.
    * @returns A unique identifier string.
    */
   generateId(prefix: string): string {
     return `${prefix}-${Date.now()}-${randomUUID().slice(0, 8)}`;
   }
 
-  // User Management
   /**
-   * Creates and stores a new user, generating an identifier and timestamps.
+   * Creates a new user and records the creation as an activity.
    *
-   * @param user - User attributes excluding generated fields.
-   * @returns The newly created user.
+   * @param user - User attributes excluding `id`, `joinedAt`, and `lastSeen`.
+   * @returns The newly created user with generated identifiers.
    */
+  // User Management
   createUser(user: Omit<User, 'id' | 'joinedAt' | 'lastSeen'>): User {
     const id = this.generateId('usr');
     const newUser: User = {
@@ -867,20 +1101,20 @@ export class CollaborationManager {
   }
 
   /**
-   * Retrieves a user by identifier.
+   * Retrieves a user by ID.
    *
-   * @param id - The user identifier.
-   * @returns The matching user, or undefined if not found.
+   * @param id - ID of the user to look up.
+   * @returns The user, or `undefined` if not found.
    */
   getUser(id: string): User | undefined {
     return this.users.get(id);
   }
 
   /**
-   * Lists users, optionally filtered by status and department, sorted by name.
+   * Lists users, optionally filtered by status or department, sorted by name.
    *
-   * @param filters - Optional criteria to narrow the returned users.
-   * @returns Matching users sorted alphabetically by name.
+   * @param filters - Optional filters for status and department.
+   * @returns Array of matching users sorted alphabetically by name.
    */
   listUsers(filters?: { status?: User['status']; department?: string }): User[] {
     let users = Array.from(this.users.values());
@@ -894,10 +1128,10 @@ export class CollaborationManager {
   }
 
   /**
-   * Updates a user's presence status and refreshes their last seen timestamp.
+   * Updates a user's presence status and refreshes their last-seen timestamp.
    *
-   * @param userId - The identifier of the user to update.
-   * @param status - The new presence status.
+   * @param userId - ID of the user to update.
+   * @param status - New presence status.
    */
   updateUserStatus(userId: string, status: User['status']): void {
     const user = this.users.get(userId);
@@ -907,13 +1141,13 @@ export class CollaborationManager {
     }
   }
 
-  // Team Management
   /**
-   * Creates and stores a new team, generating an identifier and timestamp.
+   * Creates a new team and records the creation as an activity.
    *
-   * @param team - Team attributes excluding generated fields.
-   * @returns The newly created team.
+   * @param team - Team attributes excluding `id`, `createdAt`, and `channels`.
+   * @returns The newly created team with generated identifiers.
    */
+  // Team Management
   createTeam(team: Omit<Team, 'id' | 'createdAt' | 'channels'>): Team {
     const id = this.generateId('team');
     const newTeam: Team = {
@@ -928,11 +1162,11 @@ export class CollaborationManager {
   }
 
   /**
-   * Adds a user to a team with the specified role if not already a member.
+   * Adds a user to a team with the specified role, if not already a member.
    *
-   * @param teamId - The team to add the user to.
-   * @param userId - The user to add.
-   * @param role - The role to assign to the new member.
+   * @param teamId - ID of the team to add the user to.
+   * @param userId - ID of the user to add.
+   * @param role - Role to assign to the new member.
    */
   addTeamMember(teamId: string, userId: string, role: TeamRole): void {
     const team = this.teams.get(teamId);
@@ -951,10 +1185,10 @@ export class CollaborationManager {
   }
 
   /**
-   * Lists teams, optionally filtered to those containing a given user.
+   * Lists teams, optionally filtered to those a user belongs to, sorted by name.
    *
-   * @param userId - Optional user identifier to filter teams by membership.
-   * @returns Matching teams sorted alphabetically by name.
+   * @param userId - Optional user ID to filter teams by membership.
+   * @returns Array of matching teams sorted alphabetically by name.
    */
   listTeams(userId?: string): Team[] {
     let teams = Array.from(this.teams.values());
@@ -964,13 +1198,13 @@ export class CollaborationManager {
     return teams.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  // Channel Management
   /**
-   * Creates and stores a new channel, generating an identifier and timestamp.
+   * Creates a new communication channel and records the creation as an activity.
    *
-   * @param channel - Channel attributes excluding generated fields.
-   * @returns The newly created channel.
+   * @param channel - Channel attributes excluding `id` and `createdAt`.
+   * @returns The newly created channel with generated identifiers.
    */
+  // Channel Management
   createChannel(channel: Omit<Channel, 'id' | 'createdAt'>): Channel {
     const id = this.generateId('chan');
     const newChannel: Channel = {
@@ -984,22 +1218,22 @@ export class CollaborationManager {
   }
 
   /**
-   * Retrieves a channel by identifier.
+   * Retrieves a channel by ID.
    *
-   * @param id - The channel identifier.
-   * @returns The matching channel, or undefined if not found.
+   * @param id - ID of the channel to look up.
+   * @returns The channel, or `undefined` if not found.
    */
   getChannel(id: string): Channel | undefined {
     return this.channels.get(id);
   }
 
-  // Message Management
   /**
-   * Sends a message to a channel, optionally within a thread, and logs activity.
+   * Sends a message to a channel, updating the parent thread if applicable.
    *
-   * @param message - Message attributes excluding generated fields.
-   * @returns The newly created message.
+   * @param message - Message attributes excluding `id`, `createdAt`, `reactions`, and `replies`.
+   * @returns The newly created message with generated identifiers.
    */
+  // Message Management
   sendMessage(message: Omit<Message, 'id' | 'createdAt' | 'reactions' | 'replies'>): Message {
     const id = this.generateId('msg');
     const newMessage: Message = {
@@ -1024,11 +1258,11 @@ export class CollaborationManager {
   }
 
   /**
-   * Adds a reaction from a user to a message, creating the reaction if absent.
+   * Adds an emoji reaction from a user to a message, creating the reaction if new.
    *
-   * @param messageId - The message to react to.
-   * @param emoji - The reaction emoji to apply.
-   * @param userId - The user applying the reaction.
+   * @param messageId - ID of the message to react to.
+   * @param emoji - Reaction emoji to apply.
+   * @param userId - ID of the user adding the reaction.
    */
   addReaction(messageId: string, emoji: ReactionType, userId: string): void {
     const message = this.messages.get(messageId);
@@ -1045,11 +1279,11 @@ export class CollaborationManager {
   }
 
   /**
-   * Returns recent non-deleted messages for a channel, newest first.
+   * Retrieves recent non-deleted messages for a channel, newest first.
    *
-   * @param channelId - The channel to retrieve messages for.
+   * @param channelId - ID of the channel to fetch messages for.
    * @param limit - Maximum number of messages to return. Defaults to 50.
-   * @returns Matching messages sorted newest first.
+   * @returns Array of messages sorted from newest to oldest.
    */
   getChannelMessages(channelId: string, limit = 50): Message[] {
     return Array.from(this.messages.values())
@@ -1058,13 +1292,13 @@ export class CollaborationManager {
       .slice(0, limit);
   }
 
-  // Document Management
   /**
-   * Creates and stores a new document starting at version 1.
+   * Creates a new document at version 1 and records the creation as an activity.
    *
-   * @param document - Document attributes excluding generated fields.
-   * @returns The newly created document.
+   * @param document - Document attributes excluding `id`, `createdAt`, `updatedAt`, and `version`.
+   * @returns The newly created document with generated identifiers.
    */
+  // Document Management
   createDocument(document: Omit<Document, 'id' | 'createdAt' | 'updatedAt' | 'version'>): Document {
     const id = this.generateId('doc');
     const newDocument: Document = {
@@ -1080,20 +1314,21 @@ export class CollaborationManager {
   }
 
   /**
-   * Retrieves a document by identifier.
+   * Retrieves a document by ID.
    *
-   * @param id - The document identifier.
-   * @returns The matching document, or undefined if not found.
+   * @param id - ID of the document to look up.
+   * @returns The document, or `undefined` if not found.
    */
   getDocument(id: string): Document | undefined {
     return this.documents.get(id);
   }
 
   /**
-   * Lists documents, optionally filtered to those owned by or shared with a user.
+   * Lists documents, optionally filtered to those owned by or shared with a user,
+   * sorted by most recently updated.
    *
-   * @param userId - Optional user identifier used to scope results.
-   * @returns Matching documents sorted by most recently updated.
+   * @param userId - Optional user ID to filter documents by ownership or permission.
+   * @returns Array of matching documents sorted by last update time.
    */
   listDocuments(userId?: string): Document[] {
     let docs = Array.from(this.documents.values());
@@ -1103,13 +1338,13 @@ export class CollaborationManager {
     return docs.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }
 
-  // Code Review Management
   /**
-   * Creates a code review in pending status and notifies assigned reviewers.
+   * Creates a new code review in `pending` status and notifies assigned reviewers.
    *
-   * @param review - Code review attributes excluding generated fields.
-   * @returns The newly created code review.
+   * @param review - Review attributes excluding `id`, `createdAt`, `status`, and `comments`.
+   * @returns The newly created code review with generated identifiers.
    */
+  // Code Review Management
   createCodeReview(review: Omit<CodeReview, 'id' | 'createdAt' | 'status' | 'comments'>): CodeReview {
     const id = this.generateId('rev');
     const newReview: CodeReview = {
@@ -1138,12 +1373,13 @@ export class CollaborationManager {
   }
 
   /**
-   * Records a reviewer's decision and updates the overall review status accordingly.
+   * Records a reviewer's decision on a code review and recalculates the review's
+   * overall status based on all reviewer submissions.
    *
-   * @param reviewId - The code review being submitted.
-   * @param userId - The reviewer submitting their decision.
-   * @param status - The reviewer's decision status.
-   * @param commentId - Optional associated comment identifier.
+   * @param reviewId - ID of the code review being submitted.
+   * @param userId - ID of the reviewer submitting their decision.
+   * @param status - The reviewer's decision.
+   * @param commentId - Optional ID of an associated comment.
    */
   submitReview(reviewId: string, userId: string, status: Reviewer['status'], commentId?: string): void {
     const review = this.reviews.get(reviewId);
@@ -1169,13 +1405,13 @@ export class CollaborationManager {
     }
   }
 
-  // Task Management
   /**
-   * Creates a collaborative task and notifies assignees other than the creator.
+   * Creates a new collaborative task and notifies assignees (excluding the creator).
    *
-   * @param task - Task attributes excluding generated fields.
-   * @returns The newly created task.
+   * @param task - Task attributes excluding `id`, `createdAt`, and `updatedAt`.
+   * @returns The newly created task with generated identifiers.
    */
+  // Task Management
   createTask(task: Omit<TaskCollab, 'id' | 'createdAt' | 'updatedAt'>): TaskCollab {
     const id = this.generateId('task');
     const newTask: TaskCollab = {
@@ -1205,10 +1441,10 @@ export class CollaborationManager {
   }
 
   /**
-   * Updates a task's status, setting completion time when marked done.
+   * Updates the status of a task, setting the completed timestamp when marked done.
    *
-   * @param taskId - The task to update.
-   * @param status - The new task status.
+   * @param taskId - ID of the task to update.
+   * @param status - New status for the task.
    */
   updateTaskStatus(taskId: string, status: TaskStatus): void {
     const task = this.tasks.get(taskId);
@@ -1222,13 +1458,13 @@ export class CollaborationManager {
     }
   }
 
-  // Meeting Management
   /**
-   * Creates a scheduled meeting and notifies participants other than the host.
+   * Creates a new meeting in `scheduled` status and notifies invited participants.
    *
-   * @param meeting - Meeting attributes excluding generated fields.
-   * @returns The newly created meeting.
+   * @param meeting - Meeting attributes excluding `id`, `createdAt`, and `status`.
+   * @returns The newly created meeting with generated identifiers.
    */
+  // Meeting Management
   createMeeting(meeting: Omit<Meeting, 'id' | 'createdAt' | 'status'>): Meeting {
     const id = this.generateId('mtg');
     const newMeeting: Meeting = {
@@ -1258,9 +1494,9 @@ export class CollaborationManager {
   }
 
   /**
-   * Transitions a meeting into the started status and logs the change.
+   * Marks a scheduled meeting as started and logs the transition as an activity.
    *
-   * @param meetingId - The meeting to start.
+   * @param meetingId - ID of the meeting to start.
    */
   startMeeting(meetingId: string): void {
     const meeting = this.meetings.get(meetingId);
@@ -1270,13 +1506,13 @@ export class CollaborationManager {
     }
   }
 
-  // Notification Management
   /**
-   * Creates an unread, undismissed notification for a user.
+   * Creates a new unread, undismissed notification for a user.
    *
-   * @param notification - Notification attributes excluding generated fields.
-   * @returns The newly created notification.
+   * @param notification - Notification attributes excluding `id`, `read`, `dismissed`, and `createdAt`.
+   * @returns The newly created notification with generated identifiers.
    */
+  // Notification Management
   createNotification(notification: Omit<Notification, 'id' | 'read' | 'dismissed' | 'createdAt'>): Notification {
     const id = this.generateId('notif');
     const newNotification: Notification = {
@@ -1291,11 +1527,11 @@ export class CollaborationManager {
   }
 
   /**
-   * Lists a user's notifications, optionally limited to unread items.
+   * Lists notifications for a user, optionally limited to unread items, newest first.
    *
-   * @param userId - The user whose notifications to return.
-   * @param unreadOnly - When true, only unread notifications are returned.
-   * @returns Matching notifications sorted newest first.
+   * @param userId - ID of the user whose notifications to retrieve.
+   * @param unreadOnly - Whether to return only unread notifications. Defaults to false.
+   * @returns Array of matching notifications sorted from newest to oldest.
    */
   getUserNotifications(userId: string, unreadOnly = false): Notification[] {
     let notifications = Array.from(this.notifications.values()).filter(n => n.userId === userId);
@@ -1306,9 +1542,9 @@ export class CollaborationManager {
   }
 
   /**
-   * Marks a notification as read.
+   * Marks a single notification as read.
    *
-   * @param notificationId - The notification to mark read.
+   * @param notificationId - ID of the notification to mark as read.
    */
   markNotificationRead(notificationId: string): void {
     const notification = this.notifications.get(notificationId);
@@ -1317,15 +1553,15 @@ export class CollaborationManager {
     }
   }
 
-  // Analytics
   /**
-   * Computes aggregated analytics for the given period and date range.
+   * Computes aggregated analytics for the platform across a given date range.
    *
-   * @param period - The granularity of the reporting period.
-   * @param startDate - Inclusive start of the analytics window.
-   * @param endDate - Inclusive end of the analytics window.
-   * @returns Aggregated analytics for the requested window.
+   * @param period - Granularity of the reporting period.
+   * @param startDate - Start of the reporting window.
+   * @param endDate - End of the reporting window.
+   * @returns An Analytics object containing metrics for the period.
    */
+  // Analytics
   getAnalytics(period: Analytics['period'], startDate: Date, endDate: Date): Analytics {
     const messages = Array.from(this.messages.values());
     const reviews = Array.from(this.reviews.values());
@@ -1417,9 +1653,10 @@ export class CollaborationManager {
   }
 
   /**
-   * Returns a summary of platform counts along with the last month's metrics.
+   * Builds a high-level summary of the platform including counts of each entity
+   * type and the last month's analytics metrics.
    *
-   * @returns A summary object containing totals and monthly analytics metrics.
+   * @returns A summary object with organization name, entity counts, and monthly metrics.
    */
   getSummary(): Record<string, unknown> {
     const analytics = this.getAnalytics('month', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), new Date());
@@ -1447,11 +1684,12 @@ export class CollaborationManager {
 // ============================================================================
 
 /**
- * Generates a Markdown collaboration guide summarizing platform features and usage.
+ * Generates a Markdown documentation guide for the collaboration platform,
+ * including a platform summary, feature descriptions, and usage examples.
  *
- * @param name - Display name of the organization.
- * @param manager - Collaboration manager providing summary and analytics data.
- * @returns A Markdown string describing the collaboration platform.
+ * @param name - Name of the organization the guide is generated for.
+ * @param manager - CollaborationManager instance used to compute summaries and analytics.
+ * @returns A Markdown string describing the platform.
  */
 export function generateMarkdown(name: string, manager: CollaborationManager): string {
   const summary = manager.getSummary();
@@ -1576,12 +1814,13 @@ const task = manager.createTask({
 }
 
 /**
- * Generates Terraform infrastructure code for the collaboration platform.
+ * Generates Terraform infrastructure code for the collaboration platform
+ * targeting the specified cloud provider.
  *
- * @param provider - Cloud provider to target ('aws', 'azure', or 'gcp').
- * @param name - Display name of the organization.
- * @param config - Configuration influencing resource naming and limits.
- * @returns Terraform source code as a string.
+ * @param provider - Cloud provider to generate Terraform for (`aws`, `azure`, or `gcp`).
+ * @param name - Name of the organization, used to derive resource names.
+ * @param config - Collaboration configuration influencing resource settings.
+ * @returns A Terraform configuration string for the chosen provider.
  */
 export function generateTerraform(provider: 'aws' | 'azure' | 'gcp', name: string, config: CollaborationConfig): string {
   const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
@@ -1990,11 +2229,13 @@ resource "google_cloud_tasks_queue" "notifications" {
 }
 
 /**
- * Generates TypeScript source code defining a standalone collaboration manager.
+ * Generates a self-contained TypeScript source file implementing a simplified
+ * collaboration manager, including enums, interfaces, a manager class, and a
+ * usage example.
  *
- * @param name - Display name of the organization.
- * @param config - Configuration used to populate the generated example.
- * @returns TypeScript source code as a string.
+ * @param name - Name of the organization the code is generated for.
+ * @param config - Collaboration configuration (currently unused beyond the name).
+ * @returns A TypeScript source code string.
  */
 export function generateTypeScript(name: string, config: CollaborationConfig): string {
   const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
@@ -2290,11 +2531,13 @@ export { manager as collaborationManager };
 }
 
 /**
- * Generates Python source code defining a standalone collaboration manager.
+ * Generates a self-contained Python source file implementing a simplified
+ * collaboration manager, including enums, data classes, a manager class, and a
+ * usage example.
  *
- * @param name - Display name of the organization.
- * @param config - Configuration used to populate the generated example.
- * @returns Python source code as a string.
+ * @param name - Name of the organization the code is generated for.
+ * @param config - Collaboration configuration (currently unused beyond the name).
+ * @returns A Python source code string.
  */
 export function generatePython(name: string, config: CollaborationConfig): string {
   const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
@@ -2548,14 +2791,14 @@ if __name__ == "__main__":
 }
 
 /**
- * Writes collaboration platform files to disk, including Terraform, language
- * implementation, Markdown guide, and configuration JSON.
+ * Writes collaboration platform files to disk, including Terraform infrastructure
+ * code, a language-specific manager implementation, a Markdown guide, and a JSON
+ * configuration file.
  *
- * @param config - Configuration for the collaboration platform.
- * @param outputDir - Directory where files will be written.
- * @param language - Target implementation language ('typescript' or 'python').
+ * @param config - Collaboration configuration to drive file generation.
+ * @param outputDir - Directory where generated files are written.
+ * @param language - Target implementation language (`typescript` or `python`).
  * @returns A promise that resolves when all files have been written.
- * @throws Rejected promise if filesystem operations fail.
  */
 export async function writeCollaborationFiles(
   config: CollaborationConfig,
@@ -2632,9 +2875,9 @@ export async function writeCollaborationFiles(
 }
 
 /**
- * Returns an example CollaborationConfig populated with sensible defaults.
+ * Returns an example CollaborationConfig with all features enabled and default limits.
  *
- * @returns A CollaborationConfig object with all features enabled.
+ * @returns A fully populated example configuration object.
  */
 export function createExampleCollaborationConfig(): CollaborationConfig {
   return {
@@ -2652,10 +2895,11 @@ export function createExampleCollaborationConfig(): CollaborationConfig {
 }
 
 /**
- * Prints a formatted summary of the collaboration configuration to the console.
+ * Prints a formatted summary of the collaboration configuration to the console,
+ * including organization details, enabled features, settings, and expected output files.
  *
- * @param config - Configuration to display.
- * @param language - Target implementation language being generated.
+ * @param config - Collaboration configuration to display.
+ * @param language - Target implementation language (`typescript` or `python`).
  * @param output - Output directory path to include in the summary.
  */
 export function displayCollaborationConfig(config: CollaborationConfig, language: string, output: string): void {

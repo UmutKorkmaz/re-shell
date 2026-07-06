@@ -57,6 +57,13 @@ interface CollaborativeTestingConfig {
   enableAnalytics: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the collaborative testing configuration
+ * to the console, including project name, providers, environment and suite
+ * counts, quality thresholds, execution mode, and feature toggles.
+ *
+ * @param config - The collaborative testing configuration to display.
+ */
 export function displayConfig(config: CollaborativeTestingConfig): void {
   console.log(chalk.cyan('🧪 Collaborative Testing and Quality Assurance'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -74,6 +81,14 @@ export function displayConfig(config: CollaborativeTestingConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Builds a Markdown documentation string that describes the collaborative
+ * testing and quality assurance features derived from the given configuration.
+ *
+ * @param config - The collaborative testing configuration used as the source
+ *   for the generated documentation.
+ * @returns A Markdown string describing the available testing features.
+ */
 export function generateCollaborativeTestingMD(config: CollaborativeTestingConfig): string {
   let md = '# Collaborative Testing and Quality Assurance\n\n';
   md += '## Features\n\n';
@@ -91,12 +106,29 @@ export function generateCollaborativeTestingMD(config: CollaborativeTestingConfi
   return md;
 }
 
+/**
+ * Generates a Terraform header snippet for the collaborative testing setup,
+ * annotated with the project name and the current ISO timestamp.
+ *
+ * @param config - The collaborative testing configuration providing the
+ *   project name.
+ * @returns A Terraform-formatted string with header comments.
+ */
 export function generateTerraformCollaborativeTesting(config: CollaborativeTestingConfig): string {
   let code = '# Auto-generated Collaborative Testing Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source string that defines a stub
+ * `CollaborativeTestingManager` class extending `EventEmitter` and exports a
+ * default singleton instance, based on the provided configuration.
+ *
+ * @param config - The collaborative testing configuration providing the
+ *   project name.
+ * @returns A TypeScript source code string.
+ */
 export function generateTypeScriptCollaborativeTesting(config: CollaborativeTestingConfig): string {
   let code = '// Auto-generated Collaborative Testing Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -111,6 +143,15 @@ export function generateTypeScriptCollaborativeTesting(config: CollaborativeTest
   return code;
 }
 
+/**
+ * Generates a Python source string that defines a stub
+ * `CollaborativeTestingManager` class and a module-level singleton instance,
+ * based on the provided configuration.
+ *
+ * @param config - The collaborative testing configuration providing the
+ *   project name.
+ * @returns A Python source code string.
+ */
 export function generatePythonCollaborativeTesting(config: CollaborativeTestingConfig): string {
   let code = '# Auto-generated Collaborative Testing Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -123,6 +164,22 @@ export function generatePythonCollaborativeTesting(config: CollaborativeTestingC
   return code;
 }
 
+/**
+ * Writes the collaborative testing scaffold files into the specified output
+ * directory. Depending on the chosen language, it emits the Terraform file,
+ * either TypeScript or Python manager source plus dependency manifests, a
+ * Markdown documentation file, and a JSON configuration file.
+ *
+ * @param config - The collaborative testing configuration to materialize.
+ * @param outputDir - The target directory where files will be written. It is
+ *   created if it does not exist.
+ * @param language - Either "typescript" to emit TypeScript sources and a
+ *   package.json, or any other value to emit Python sources and a
+ *   requirements.txt.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Rejected promise from the underlying fs-extra operations if any
+ *   file system write fails.
+ */
 export async function writeFiles(config: CollaborativeTestingConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -171,6 +228,14 @@ export async function writeFiles(config: CollaborativeTestingConfig, outputDir: 
   await fs.writeFile(path.join(outputDir, 'collaborative-testing-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Identity helper that returns the provided collaborative testing
+ * configuration unchanged. Useful as a validation or pass-through entry
+ * point for the configuration pipeline.
+ *
+ * @param config - The collaborative testing configuration to return.
+ * @returns The same configuration object that was passed in.
+ */
 export function collaborativeTesting(config: CollaborativeTestingConfig): CollaborativeTestingConfig {
   return config;
 }
