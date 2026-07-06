@@ -4,16 +4,66 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/**
+ * Identifies the regulatory or industry compliance framework that a report,
+ * control, requirement, finding, or evidence record belongs to.
+ */
 export type ComplianceFramework = 'SOX' | 'GDPR' | 'HIPAA' | 'PCI-DSS' | 'NIST-800-53' | 'ISO-27001' | 'SOC-2' | 'custom';
+
+/**
+ * Tracks the lifecycle state of a compliance report as it moves through
+ * authoring, review, approval, and archival.
+ */
 export type ReportStatus = 'draft' | 'in-review' | 'approved' | 'rejected' | 'archived';
+
+/**
+ * Categorizes the kind of artifact collected as evidence for a compliance
+ * control, such as a screenshot, log file, configuration, or certificate.
+ */
 export type EvidenceType = 'screenshot' | 'log-file' | 'configuration' | 'document' | 'certificate' | 'audit-trail' | 'interview-notes' | 'custom';
+
+/**
+ * Represents the assessed compliance posture of an individual control,
+ * ranging from fully compliant through non-compliant or pending review.
+ */
 export type ControlStatus = 'compliant' | 'non-compliant' | 'partial' | 'not-applicable' | 'pending-review';
+
+/**
+ * Qualitative severity used to prioritize findings and controls. Critical
+ * indicates the highest urgency while low indicates informational risk.
+ */
 export type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
+
+/**
+ * Output format options for generated compliance reports.
+ */
 export type ReportFormat = 'pdf' | 'html' | 'json' | 'xml' | 'csv' | 'custom';
+
+/**
+ * Lifecycle state of collected evidence, including whether it is currently
+ * valid, has expired, is awaiting validation, or has been superseded.
+ */
 export type EvidenceStatus = 'valid' | 'expired' | 'pending' | 'rejected' | 'superseded';
+
+/**
+ * Lifecycle state of a remediation task, from not started through completed
+ * or cancelled.
+ */
 export type TaskStatus = 'not-started' | 'in-progress' | 'completed' | 'overdue' | 'cancelled';
+
+/**
+ * Delivery channel for compliance notifications emitted by the reporting
+ * system, such as email, Slack, Microsoft Teams, webhooks, or SMS.
+ */
 export type NotificationType = 'email' | 'slack' | 'teams' | 'webhook' | 'sms' | 'custom';
 
+/**
+ * Root configuration object for the compliance reporting system. Aggregates
+ * project-level metadata, cloud provider targets, reporting settings, and the
+ * full set of frameworks, reports, controls, requirements, evidence,
+ * assessments, findings, remediation plans, and notification definitions that
+ * make up the compliance program.
+ */
 export interface ComplianceReportingConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -29,6 +79,10 @@ export interface ComplianceReportingConfig {
   notifications: NotificationConfig[];
 }
 
+/**
+ * Configurable options that govern how compliance reports are generated,
+ * distributed, approved, encrypted, and retained.
+ */
 export interface ReportingSettings {
   autoGenerate: boolean;
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual' | 'on-demand';
@@ -50,6 +104,12 @@ export interface ReportingSettings {
   encryptionEnabled: boolean;
 }
 
+/**
+ * Represents a single generated compliance report, including the framework it
+ * covers, the reporting period, the overall compliance score, summaries of
+ * evaluated controls and findings, attached evidence, recommendations,
+ * sign-offs, and audit metadata.
+ */
 export interface ComplianceReport {
   id: string;
   name: string;
@@ -72,6 +132,11 @@ export interface ComplianceReport {
   metadata: ReportMetadata;
 }
 
+/**
+ * Aggregate metrics for a compliance report, summarizing counts of controls by
+ * status, findings by severity, overall completion percentage, and a derived
+ * risk score.
+ */
 export interface ReportSummary {
   totalControls: number;
   compliantControls: number;
@@ -87,6 +152,11 @@ export interface ReportSummary {
   riskScore: number; // 0-100
 }
 
+/**
+ * Describes the evaluation of a single control within a compliance report,
+ * including its status, tester, supporting evidence, risk level, and the date
+ * it is next due for review.
+ */
 export interface ReportControl {
   controlId: string;
   title: string;
@@ -100,6 +170,11 @@ export interface ReportControl {
   nextReviewDate: Date;
 }
 
+/**
+ * A compliance finding captured within a report, describing a defect or gap
+ * discovered during testing, its impact and severity, recommended remediation,
+ * the current status, the responsible assignee, and the due date.
+ */
 export interface ReportFinding {
   id: string;
   control: string;
@@ -116,6 +191,11 @@ export interface ReportFinding {
   relatedEvidence: string[];
 }
 
+/**
+ * Metadata for an evidence artifact referenced by a compliance report, such as
+ * its type, collection details, file location and hash, size, format,
+ * expiration, and tags.
+ */
 export interface ReportEvidence {
   id: string;
   type: EvidenceType;
@@ -132,6 +212,11 @@ export interface ReportEvidence {
   tags: string[];
 }
 
+/**
+ * Records an approval signature for a compliance report, capturing the
+ * approver's role, name, contact details, signing timestamp, signature value,
+ * and any accompanying comments.
+ */
 export interface ReportSignoff {
   role: string;
   name: string;
@@ -141,6 +226,10 @@ export interface ReportSignoff {
   comments: string;
 }
 
+/**
+ * Represents a supplementary file attached to a compliance report, including
+ * its name, type, size, storage location, and upload metadata.
+ */
 export interface ReportAttachment {
   name: string;
   type: string;
@@ -150,6 +239,10 @@ export interface ReportAttachment {
   uploadedBy: string;
 }
 
+/**
+ * Internal metadata for a compliance report, tracking its version, modification
+ * history, review cycle, audit trail of changes, and descriptive tags.
+ */
 export interface ReportMetadata {
   version: string;
   lastModified: Date;
@@ -159,6 +252,10 @@ export interface ReportMetadata {
   tags: string[];
 }
 
+/**
+ * A single entry in a report's audit trail, recording who performed an action,
+ * when it occurred, the action taken, and any additional details.
+ */
 export interface AuditEntry {
   timestamp: Date;
   user: string;
@@ -166,6 +263,12 @@ export interface AuditEntry {
   details: string;
 }
 
+/**
+ * Defines a compliance control within a framework, including its identity,
+ * description, category, status, risk level, testing cadence, ownership, the
+ * test procedures and automated or manual checks used to validate it, evidence
+ * requirements, and mappings to controls in other frameworks.
+ */
 export interface ComplianceControl {
   id: string;
   framework: ComplianceFramework;
@@ -189,6 +292,11 @@ export interface ComplianceControl {
   complianceMappings: ComplianceMapping[];
 }
 
+/**
+ * A documented procedure for testing a compliance control, comprising an
+ * ordered set of steps, expected results, required tools, and an estimated
+ * time to complete.
+ */
 export interface TestProcedure {
   id: string;
   name: string;
@@ -199,6 +307,10 @@ export interface TestProcedure {
   estimatedTime: number; // minutes
 }
 
+/**
+ * A single step within a test procedure, describing the action to perform, the
+ * expected result, and whether a screenshot should be captured as evidence.
+ */
 export interface TestStep {
   order: number;
   action: string;
@@ -206,6 +318,11 @@ export interface TestStep {
   screenshot: boolean;
 }
 
+/**
+ * An automated compliance check executed via a script, API call, configuration
+ * scan, or log analysis, including its schedule, most recent run result, and
+ * the pass or fail threshold.
+ */
 export interface AutomatedCheck {
   id: string;
   name: string;
@@ -217,6 +334,11 @@ export interface AutomatedCheck {
   threshold: string;
 }
 
+/**
+ * A manual compliance check performed by a human, consisting of instructions,
+ * a checklist of items, the frequency of execution, the responsible assignee,
+ * and the due date.
+ */
 export interface ManualCheck {
   id: string;
   name: string;
@@ -227,6 +349,10 @@ export interface ManualCheck {
   dueDate: Date;
 }
 
+/**
+ * An individual item in a manual check checklist, tracking whether it has been
+ * completed, by whom, when, along with optional notes.
+ */
 export interface ChecklistItem {
   item: string;
   completed: boolean;
@@ -235,6 +361,11 @@ export interface ChecklistItem {
   notes?: string;
 }
 
+/**
+ * Specifies the evidence that must be collected for a control, including the
+ * type of evidence, whether it is mandatory, the retention period, the
+ * collection method, the source, and the collection frequency.
+ */
 export interface EvidenceRequirement {
   id: string;
   type: EvidenceType;
@@ -246,6 +377,10 @@ export interface EvidenceRequirement {
   frequency: string;
 }
 
+/**
+ * Maps a control to an equivalent or related control in another compliance
+ * framework, with notes describing the nature of the mapping.
+ */
 export interface ComplianceMapping {
   framework: ComplianceFramework;
   controlId: string;
@@ -253,6 +388,12 @@ export interface ComplianceMapping {
   notes: string;
 }
 
+/**
+ * Represents a regulatory or organizational requirement that the compliance
+ * program must satisfy, including the related control and evidence IDs, the
+ * obligation type, current status, assignee, risk level, and assessment
+ * schedule.
+ */
 export interface ComplianceRequirement {
   id: string;
   framework: ComplianceFramework;
@@ -271,6 +412,12 @@ export interface ComplianceRequirement {
   nextAssessment: Date;
 }
 
+/**
+ * A stored record of collected evidence, including its identity, type,
+ * associated control IDs, collection details, file metadata, integrity hash
+ * and algorithm, expiration and retention dates, tags, and any additional
+ * metadata.
+ */
 export interface EvidenceRecord {
   id: string;
   type: EvidenceType;
@@ -293,6 +440,12 @@ export interface EvidenceRecord {
   metadata: Record<string, unknown>;
 }
 
+/**
+ * Describes a compliance assessment event, such as an internal audit, external
+ * assessment, self-assessment, or certification, including the scope,
+ * evaluated controls and findings, the resulting score, the report path, and
+ * the next scheduled assessment date.
+ */
 export interface ComplianceAssessment {
   id: string;
   name: string;
@@ -311,6 +464,11 @@ export interface ComplianceAssessment {
   nextAssessment: Date;
 }
 
+/**
+ * Defines the boundaries of a compliance assessment by listing the assets,
+ * locations, departments, processes, and third parties that are included or
+ * excluded from the review.
+ */
 export interface AssessmentScope {
   includedAssets: string[];
   excludedAssets: string[];
@@ -320,6 +478,12 @@ export interface AssessmentScope {
   thirdParties: string[];
 }
 
+/**
+ * A compliance finding raised during an assessment or testing, detailing the
+ * severity, impact, root cause, recommended remediation, discovery metadata,
+ * current status, assignee, due date, estimated and actual effort, related
+ * findings, and supporting evidence.
+ */
 export interface ComplianceFinding {
   id: string;
   framework: ComplianceFramework;
@@ -343,6 +507,11 @@ export interface ComplianceFinding {
   evidence: string[];
 }
 
+/**
+ * A plan to remediate a compliance finding, consisting of prioritized tasks,
+ * milestones, estimated and actual completion dates, overall progress, the
+ * responsible assignee, optional budget, and any blockers.
+ */
 export interface RemediationPlan {
   id: string;
   findingId: string;
@@ -358,6 +527,11 @@ export interface RemediationPlan {
   blockers: string[];
 }
 
+/**
+ * An individual task within a remediation plan, including its assignee, due
+ * date, status, estimated and actual hours, task dependencies, completion
+ * date, and notes.
+ */
 export interface RemediationTask {
   id: string;
   title: string;
@@ -372,6 +546,11 @@ export interface RemediationTask {
   notes: string[];
 }
 
+/**
+ * A milestone within a remediation plan, representing a target date for a
+ * group of related tasks and tracking whether it has been completed or
+ * missed.
+ */
 export interface Milestone {
   id: string;
   name: string;
@@ -381,6 +560,11 @@ export interface Milestone {
   tasks: string[];
 }
 
+/**
+ * Configuration for a compliance notification channel, specifying the delivery
+ * type, enabled state, recipients, triggering events, message template,
+ * delivery frequency, and the timestamp of the last notification sent.
+ */
 export interface NotificationConfig {
   id: string;
   type: NotificationType;
@@ -392,6 +576,12 @@ export interface NotificationConfig {
   lastSent: Date;
 }
 
+/**
+ * Defines a condition that causes a compliance notification to fire, such as a
+ * report becoming ready, a finding being detected, a deadline approaching or
+ * being missed, or remediation completing, optionally filtered by severity or
+ * a numeric threshold.
+ */
 export interface NotificationTrigger {
   event: 'report-ready' | 'finding-detected' | 'deadline-approaching' | 'deadline-missed' | 'remediation-complete' | 'custom';
   severity?: RiskLevel;
@@ -399,6 +589,16 @@ export interface NotificationTrigger {
 }
 
 // Markdown Generation
+
+/**
+ * Produces a Markdown document summarizing the compliance reporting
+ * configuration, including project metadata, providers, frameworks, reporting
+ * settings, and section counts for reports, controls, requirements, evidence,
+ * assessments, findings, and remediation plans.
+ *
+ * @param config - The full compliance reporting configuration to render.
+ * @returns A Markdown string representing the compliance reporting overview.
+ */
 export function generateComplianceReportingMarkdown(config: ComplianceReportingConfig): string {
   return `# SOX, GDPR, HIPAA Compliance Reporting and Automation with Evidence Collection
 
@@ -438,6 +638,20 @@ ${config.frameworks.map(fw => `
 }
 
 // Terraform Generation
+
+/**
+ * Generates Terraform infrastructure-as-code for the compliance reporting
+ * system tailored to the specified cloud provider. For AWS this includes an
+ * encrypted S3 bucket, an IAM role, a Lambda compliance checker, a CloudWatch
+ * schedule, and an SNS alerts topic. For Azure it provisions a storage
+ * account, Key Vault, and policy assignment. For GCP it creates a storage
+ * bucket, Cloud Scheduler job, Cloud Function scanner, and Pub/Sub alerts
+ * topic.
+ *
+ * @param config - The compliance reporting configuration to provision for.
+ * @param provider - The target cloud provider (aws, azure, or gcp).
+ * @returns A Terraform configuration string for the selected provider.
+ */
 export function generateComplianceReportingTerraform(config: ComplianceReportingConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   if (provider === 'aws') {
     return `# AWS Compliance Reporting Infrastructure
@@ -613,6 +827,18 @@ resource "google_pubsub_topic" "compliance_alerts" {
 }
 
 // TypeScript Manager Generation
+
+/**
+ * Generates a TypeScript implementation of a ComplianceReportingManager class
+ * that emits events for report generation, evidence collection, finding
+ * creation, evidence expiry, and overdue findings. The generated module can be
+ * written to disk and used as a starting point for a runtime compliance
+ * reporting service.
+ *
+ * @param config - The compliance reporting configuration used to seed the
+ *   generated manager.
+ * @returns A string containing the TypeScript source code of the manager.
+ */
 export function generateComplianceManagerTypeScript(config: ComplianceReportingConfig): string {
   return `// Auto-generated Compliance Reporting Manager
 // Generated at: ${new Date().toISOString()}
@@ -755,6 +981,17 @@ export { ComplianceReportingManager };
 }
 
 // Python Manager Generation
+
+/**
+ * Generates a Python implementation of a ComplianceReportingManager class,
+ * including dataclasses for reports, evidence, and findings, enums for status
+ * values, and async methods for report generation, evidence collection,
+ * finding creation, evidence expiry checks, and overdue finding escalation.
+ *
+ * @param config - The compliance reporting configuration used to seed the
+ *   generated manager.
+ * @returns A string containing the Python source code of the manager.
+ */
 export function generateComplianceManagerPython(config: ComplianceReportingConfig): string {
   return `# Auto-generated Compliance Reporting Manager
 # Generated at: ${new Date().toISOString()}
@@ -914,6 +1151,23 @@ class ComplianceReportingManager:
 }
 
 // Write Files
+
+/**
+ * Writes all compliance reporting artifacts to the specified output directory.
+ * This includes the Markdown overview, a Terraform file per configured cloud
+ * provider, a TypeScript or Python manager module (along with its package
+ * manifest or requirements file) based on the selected language, and a JSON
+ * dump of the configuration.
+ *
+ * @param config - The compliance reporting configuration to render and persist.
+ * @param outputDir - The directory to write generated files into. It will be
+ *   created if it does not exist.
+ * @param language - The implementation language for the generated manager
+ *   module, either 'typescript' or 'python'.
+ * @returns A promise that resolves when all files have been written.
+ * @throws Rejections from the underlying fs-extra file system operations if a
+ *   directory cannot be created or a file cannot be written.
+ */
 export async function writeComplianceReportingFiles(
   config: ComplianceReportingConfig,
   outputDir: string,
@@ -969,6 +1223,14 @@ export async function writeComplianceReportingFiles(
   );
 }
 
+/**
+ * Prints a concise, colorized summary of the compliance reporting
+ * configuration to the console, including the project name, providers,
+ * frameworks, auto-generation flag, reporting frequency, and counts of
+ * reports and controls.
+ *
+ * @param config - The compliance reporting configuration to display.
+ */
 export function displayComplianceReportingConfig(config: ComplianceReportingConfig): void {
   console.log(chalk.cyan('📊 SOX, GDPR, HIPAA Compliance Reporting and Automation'));
   console.log(chalk.gray('─'.repeat(60)));
