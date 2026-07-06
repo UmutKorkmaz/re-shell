@@ -55,6 +55,14 @@ interface CustomAnalyticsConfig {
   enableDataExport: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the custom analytics configuration to the
+ * console, including project name, providers, number of reports/dashboards,
+ * drill-down settings, and enabled feature flags.
+ *
+ * @param config - The custom analytics configuration to display.
+ * @returns No return value; output is written to stdout.
+ */
 export function displayConfig(config: CustomAnalyticsConfig): void {
   console.log(chalk.cyan('📊 Custom Analytics for Management Insights'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -70,6 +78,14 @@ export function displayConfig(config: CustomAnalyticsConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the features and capabilities of the
+ * custom analytics module (report types, chart formats, export formats,
+ * drill-down levels, aggregations, dashboards, multi-cloud support, etc.).
+ *
+ * @param config - The custom analytics configuration used as context for the document.
+ * @returns A Markdown string summarizing the analytics module's features.
+ */
 export function generateCustomAnalyticsMD(config: CustomAnalyticsConfig): string {
   let md = '# Custom Analytics for Management Insights and Reporting\n\n';
   md += '## Features\n\n';
@@ -89,12 +105,28 @@ export function generateCustomAnalyticsMD(config: CustomAnalyticsConfig): string
   return md;
 }
 
+/**
+ * Generates a Terraform file header stub for provisioning custom analytics
+ * resources, tagged with the project name and the current generation timestamp.
+ *
+ * @param config - The custom analytics configuration providing the project name.
+ * @returns A string containing the Terraform file header.
+ */
 export function generateTerraformCustomAnalytics(config: CustomAnalyticsConfig): string {
   let code = '# Auto-generated Custom Analytics Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file that defines a `CustomAnalyticsManager`
+ * class extending `EventEmitter`, instantiates a default manager, and exports
+ * it as the module default. The file is tagged with the project name and the
+ * current generation timestamp.
+ *
+ * @param config - The custom analytics configuration providing the project name.
+ * @returns A string containing the TypeScript source code for the analytics manager.
+ */
 export function generateTypeScriptCustomAnalytics(config: CustomAnalyticsConfig): string {
   let code = '// Auto-generated Custom Analytics Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -109,6 +141,15 @@ export function generateTypeScriptCustomAnalytics(config: CustomAnalyticsConfig)
   return code;
 }
 
+/**
+ * Generates a Python source file that defines a `CustomAnalyticsManager` class
+ * with an `asyncio`-based constructor, instantiates a default manager, and
+ * provides it for use. The file is tagged with the project name and the current
+ * generation timestamp.
+ *
+ * @param config - The custom analytics configuration providing the project name.
+ * @returns A string containing the Python source code for the analytics manager.
+ */
 export function generatePythonCustomAnalytics(config: CustomAnalyticsConfig): string {
   let code = '# Auto-generated Custom Analytics Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -121,6 +162,19 @@ export function generatePythonCustomAnalytics(config: CustomAnalyticsConfig): st
   return code;
 }
 
+/**
+ * Writes the generated custom analytics files to the specified output directory.
+ * Always writes the Terraform file, a Markdown documentation file, and a JSON
+ * configuration file. Depending on the target language, also writes the
+ * corresponding manager source file plus language-specific dependency manifests
+ * (package.json for TypeScript, requirements.txt for Python).
+ *
+ * @param config - The custom analytics configuration to materialize into files.
+ * @param outputDir - The directory where files will be written. Created if missing.
+ * @param language - The target implementation language; either 'typescript' or another value for Python.
+ * @returns A promise that resolves once all files have been written.
+ * @throws {Error} If the output directory cannot be created or any file write fails.
+ */
 export async function writeFiles(config: CustomAnalyticsConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -167,6 +221,14 @@ export async function writeFiles(config: CustomAnalyticsConfig, outputDir: strin
   await fs.writeFile(path.join(outputDir, 'custom-analytics-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided custom analytics configuration unchanged. Acts as an
+ * identity passthrough that can be used to validate or normalize a config
+ * object within the analytics pipeline.
+ *
+ * @param config - The custom analytics configuration to pass through.
+ * @returns The same `CustomAnalyticsConfig` instance that was supplied.
+ */
 export function customAnalytics(config: CustomAnalyticsConfig): CustomAnalyticsConfig {
   return config;
 }
