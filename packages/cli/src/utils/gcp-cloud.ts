@@ -46,6 +46,16 @@ interface GCPCloudConfig {
   enableArtifactRegistry: boolean;
 }
 
+/**
+ * Prints a formatted summary of the GCP cloud configuration to the console.
+ *
+ * The output includes project details, GKE cluster settings, Cloud Build
+ * trigger information, and ML/registry feature flags, rendered with ANSI
+ * color codes for terminal display.
+ *
+ * @param config - The full GCP cloud configuration to display.
+ * @returns No return value; output is written to stdout.
+ */
 export function displayConfig(config: GCPCloudConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ GCP GKE with Cloud Deployment Manager and Cloud Build');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -65,6 +75,16 @@ export function displayConfig(config: GCPCloudConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates a Markdown documentation string describing the GCP GKE cloud setup.
+ *
+ * The produced Markdown lists supported features (GKE provisioning, Cloud Build
+ * pipelines, Vertex AI integration, etc.) and includes example shell commands
+ * for deploying the cluster and retrieving credentials.
+ *
+ * @param config - The GCP cloud configuration used to populate the example commands.
+ * @returns A Markdown string documenting the generated cloud configuration.
+ */
 export function generateGCPCloudMD(config: GCPCloudConfig): string {
   let md = '# GCP GKE with Cloud Deployment Manager and Cloud Build\n\n';
   md += '## Features\n\n';
@@ -92,6 +112,17 @@ export function generateGCPCloudMD(config: GCPCloudConfig): string {
   return md;
 }
 
+/**
+ * Generates a Cloud Deployment Manager Jinja template for the GKE cluster.
+ *
+ * The template describes a `container.v1.cluster` resource, including node
+ * configuration, optional private-cluster and Autopilot settings, and Vertical
+ * Pod Autoscaling. When Google Container Registry (GCR) is enabled, an output
+ * reference for the container registry is appended.
+ *
+ * @param config - The GCP cloud configuration used to populate the template.
+ * @returns A string containing the Jinja template content.
+ */
 export function generateJinjaTemplate(config: GCPCloudConfig): string {
   let code = '{# Auto-generated GKE Jinja Template for ' + config.projectName + ' #}\n';
   code += '{# Generated at: ' + new Date().toISOString() + ' #}\n\n';
@@ -136,6 +167,18 @@ export function generateJinjaTemplate(config: GCPCloudConfig): string {
   return code;
 }
 
+/**
+ * Generates TypeScript source code for managing the GCP cloud infrastructure.
+ *
+ * The generated code defines a `GCPCloudManager` class with methods to deploy a
+ * GKE cluster, create an Artifact Registry repository, set up a Cloud Build
+ * trigger, optionally deploy Vertex AI endpoints, fetch cluster credentials,
+ * and deploy monitoring resources. The class is instantiated and exported as
+ * the default export, along with a named export of the class itself.
+ *
+ * @param config - The GCP cloud configuration used to populate the generated code.
+ * @returns A string of TypeScript source code implementing the cloud manager.
+ */
 export function generateTypeScriptGCPCloud(config: GCPCloudConfig): string {
   let code = '// Auto-generated GCP Cloud Infrastructure for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -254,6 +297,17 @@ export function generateTypeScriptGCPCloud(config: GCPCloudConfig): string {
   return code;
 }
 
+/**
+ * Generates Python source code for managing the GCP cloud infrastructure.
+ *
+ * The generated code defines a `GCPCloudManager` class with methods to deploy a
+ * GKE cluster, create an Artifact Registry repository, fetch cluster
+ * credentials, and optionally deploy Vertex AI endpoints. A default instance
+ * is created using values derived from the provided configuration.
+ *
+ * @param config - The GCP cloud configuration used to populate the generated code.
+ * @returns A string of Python source code implementing the cloud manager.
+ */
 export function generatePythonGCPCloud(config: GCPCloudConfig): string {
   let code = '# Auto-generated GCP Cloud Infrastructure for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -330,6 +384,20 @@ export function generatePythonGCPCloud(config: GCPCloudConfig): string {
   return code;
 }
 
+/**
+ * Writes the generated GCP cloud files to the specified output directory.
+ *
+ * Always writes the Jinja cluster template and the Markdown documentation. For
+ * TypeScript output, writes the cloud-manager source plus a `package.json`; for
+ * Python output, writes the cloud-manager source plus a `requirements.txt`. A
+ * `gcp-config.json` snapshot of the configuration is also written.
+ *
+ * @param config - The GCP cloud configuration to generate files from.
+ * @param outputDir - The directory where generated files will be written.
+ * @param language - The target language, either 'typescript' or 'python'.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Re-throws any error raised by the underlying file system operations.
+ */
 export async function writeFiles(config: GCPCloudConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');

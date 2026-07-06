@@ -5,17 +5,33 @@
 
 import { OpenAPISpec, toMethodName, toCamelCase } from './typescript-client';
 
+/**
+ * Options for configuring a framework-specific SDK bundle generation.
+ */
 export interface SdkOptions {
+  /** Optional name of the generated API client class. Defaults to a camelCase derivation of the spec title plus "Client". */
   clientName?: string;
+  /** Target framework for the generated SDK. Defaults to "generic" when omitted. */
   framework?: 'react' | 'vue' | 'angular' | 'svelte' | 'generic';
+  /** Whether to enable tree-shaking optimizations in the generated bundle. */
   includeTreeShaking?: boolean;
+  /** Whether to enable lazy loading of the API client in the generated bundle. */
   includeLazyLoading?: boolean;
+  /** Whether to include developer tooling helpers in the generated bundle. */
   includeDevTools?: boolean;
 }
 
 /**
- * Generate optimized SDK bundle configuration for different frameworks
- * Includes tree-shaking, code splitting, and framework-specific optimizations
+ * Generate optimized SDK bundle configuration for different frameworks.
+ * Includes tree-shaking, code splitting, and framework-specific optimizations.
+ *
+ * Based on the selected framework, this delegates to the appropriate generator
+ * (React, Vue, Angular, Svelte) and falls back to a generic generator for
+ * unrecognized frameworks.
+ *
+ * @param spec - The OpenAPI specification used to derive API methods and the default client name.
+ * @param options - Optional SDK generation settings, including framework and client name.
+ * @returns The generated SDK source code as a single string.
  */
 export function generateFrameworkSdkBundle(spec: OpenAPISpec, options: SdkOptions = {}): string {
   const lines: string[] = [];
@@ -318,7 +334,14 @@ function generateGenericSdkOptimizations(spec: OpenAPISpec, clientName: string):
 }
 
 /**
- * Generate bundle configuration for optimal tree-shaking
+ * Generate bundle configuration for optimal tree-shaking.
+ *
+ * Returns a ready-to-use configuration string for the requested bundler. When
+ * the provided framework name is not recognized, the Vite configuration is
+ * returned as a fallback.
+ *
+ * @param framework - The target bundler: "vite", "webpack", or "rollup".
+ * @returns The bundle configuration source code as a string.
  */
 export function generateBundleConfig(framework: 'vite' | 'webpack' | 'rollup'): string {
   const configs: Record<string, string> = {
@@ -380,5 +403,8 @@ export default {
   return configs[framework.toLowerCase()] || configs.vite;
 }
 
-// Re-export utility functions
+/**
+ * Re-export utility functions from the typescript-client module so consumers of
+ * the framework SDK module can access shared naming helpers.
+ */
 export { toMethodName, toCamelCase } from './typescript-client';
