@@ -1,10 +1,13 @@
 // Auto-generated CRD Generator
 // Generated at: 2026-01-12T23:16:00.000Z
 
-
-
-
-
+/**
+ * Represents a Kubernetes Custom Resource Definition (CRD) manifest.
+ *
+ * This interface describes the structure of a CRD including its metadata,
+ * API group, versions, scope, and naming conventions used when generating
+ * and deploying custom resources to a Kubernetes cluster.
+ */
 interface CustomResourceDefinition {
   metadata: {
     name: string;
@@ -40,6 +43,12 @@ interface CustomResourceDefinition {
   };
 }
 
+/**
+ * Configuration object describing the desired Kubernetes operator setup.
+ *
+ * Contains the project name, target namespace, the list of CRDs to generate,
+ * and toggles for enabling the controller and webhook resources.
+ */
 interface OperatorConfig {
   projectName: string;
   namespace: string;
@@ -62,6 +71,14 @@ interface OperatorConfig {
   enableWebhooks: boolean;
 }
 
+/**
+ * Prints a formatted summary of the operator configuration to the console.
+ *
+ * Outputs the project name, namespace, CRD kinds, and whether the controller
+ * and webhooks are enabled, using ANSI-colored output for readability.
+ *
+ * @param config - The operator configuration to display.
+ */
 export function displayConfig(config: OperatorConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Custom Resource Definitions & Operators');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -73,6 +90,13 @@ export function displayConfig(config: OperatorConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates a Markdown documentation string describing the CRD and operator
+ * features, including a list of capabilities and a TypeScript usage example.
+ *
+ * @param config - The operator configuration used to derive the documentation content.
+ * @returns A Markdown string containing feature descriptions and usage instructions.
+ */
 export function generateCRDMD(config: OperatorConfig): string {
   let md = '# Custom Resource Definitions & Operators\n\n';
   md += '## Features\n\n';
@@ -100,6 +124,18 @@ export function generateCRDMD(config: OperatorConfig): string {
   return md;
 }
 
+/**
+ * Generates a complete TypeScript source file for a CRD operator based on the
+ * provided configuration.
+ *
+ * The generated code includes a `CRDOperator` class that can deploy CRDs,
+ * manage RBAC resources, deploy the controller, and create custom resource
+ * instances via the Kubernetes client-node library. It also produces a
+ * default operator instance with sample CRDs derived from the config.
+ *
+ * @param config - The operator configuration used to template the generated code.
+ * @returns A string containing the full TypeScript source code for the CRD operator.
+ */
 export function generateTypeScriptCRD(config: OperatorConfig): string {
   let code = '// Auto-generated CRD Generator for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -478,6 +514,17 @@ export function generateTypeScriptCRD(config: OperatorConfig): string {
   return code;
 }
 
+/**
+ * Generates a complete Python source file for a CRD operator based on the
+ * provided configuration.
+ *
+ * The generated code defines a `CustomResourceDefinition` dataclass and a
+ * `CRDOperator` class capable of deploying CRDs to a Kubernetes cluster
+ * using `kubectl` and PyYAML. A default operator instance is included.
+ *
+ * @param config - The operator configuration used to template the generated code.
+ * @returns A string containing the full Python source code for the CRD operator.
+ */
 export function generatePythonCRD(config: OperatorConfig): string {
   let code = '# Auto-generated CRD Generator for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -568,6 +615,18 @@ export function generatePythonCRD(config: OperatorConfig): string {
   return code;
 }
 
+/**
+ * Writes all generated CRD operator files to the specified output directory.
+ *
+ * Creates the output directory if it does not exist, then writes the generated
+ * TypeScript source, Python source, Markdown documentation, a `package.json`
+ * with the required dependencies, a `requirements.txt` for the Python tooling,
+ * and a `crd-config.json` snapshot of the provided configuration.
+ *
+ * @param config - The operator configuration used to drive file generation.
+ * @param outputDir - The absolute or relative path of the directory to write files into.
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(
   config: OperatorConfig,
   outputDir: string

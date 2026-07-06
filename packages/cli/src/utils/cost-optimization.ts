@@ -5,9 +5,20 @@
 
 
 
+/**
+ * Supported categories of cloud cost optimization strategies.
+ */
 type CostOptimizationType = 'rightsizing' | 'reserved-instances' | 'spot-instances' | 'savings-plans' | 'schedules';
+
+/**
+ * Severity levels for budget and cost alerts.
+ */
 type AlertSeverity = 'info' | 'warning' | 'critical';
 
+/**
+ * Describes a single resource optimization recommendation, including
+ * current versus projected cost and the expected percentage of savings.
+ */
 interface ResourceConfig {
   type: string;
   currentCost: number;
@@ -16,6 +27,11 @@ interface ResourceConfig {
   savingsPercentage: number;
 }
 
+/**
+ * Represents a budget alert rule, including the threshold at which it
+ * fires, current spend relative to the threshold, severity, and the
+ * actions to take when the alert is triggered.
+ */
 interface BudgetAlert {
   name: string;
   threshold: number;
@@ -24,6 +40,11 @@ interface BudgetAlert {
   actions: ('notify' | 'shutdown' | 'scale-down' | 'alert-only')[];
 }
 
+/**
+ * Configuration for cost anomaly detection, controlling whether it is
+ * enabled, the detection threshold, the lookback window, and whether
+ * anomalies raise alerts.
+ */
 interface CostAnomalyDetection {
   enabled: boolean;
   threshold: number;
@@ -31,6 +52,11 @@ interface CostAnomalyDetection {
   alertOnAnomaly: boolean;
 }
 
+/**
+ * Top-level configuration for the cloud cost optimization generator.
+ * Defines the project, cloud providers, budgets, optimization toggles,
+ * anomaly detection settings, and reporting preferences.
+ */
 interface CostOptimizationConfig {
   projectName: string;
   providers: ('aws' | 'azure' | 'gcp')[];
@@ -57,6 +83,13 @@ interface CostOptimizationConfig {
   };
 }
 
+/**
+ * Prints a human-readable summary of the cost optimization configuration
+ * to the console, including project name, providers, budget amounts, and
+ * the status of each optimization toggle.
+ *
+ * @param config - The cost optimization configuration to display.
+ */
 export function displayConfig(config: CostOptimizationConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Cloud Cost Optimization and Budget Management with Alerts and Recommendations');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -72,6 +105,13 @@ export function displayConfig(config: CostOptimizationConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates a Markdown document describing the cloud cost optimization
+ * features, recommended usage patterns, and an example code snippet.
+ *
+ * @param config - The cost optimization configuration used to seed the example.
+ * @returns A Markdown string documenting the cost optimization capabilities.
+ */
 export function generateCostOptimizationMD(config: CostOptimizationConfig): string {
   let md = '# Cloud Cost Optimization and Budget Management\n\n';
   md += '## Features\n\n';
@@ -100,6 +140,15 @@ export function generateCostOptimizationMD(config: CostOptimizationConfig): stri
   return md;
 }
 
+/**
+ * Generates Terraform infrastructure-as-code for cost optimization across
+ * the configured cloud providers. Produces budget resources, optional
+ * scheduled start/stop resources, and spot instance data feed
+ * subscriptions based on the enabled optimizations and providers.
+ *
+ * @param config - The cost optimization configuration to render into Terraform.
+ * @returns A string of Terraform HCL implementing the cost optimization setup.
+ */
 export function generateTerraformCostOptimization(config: CostOptimizationConfig): string {
   let code = '# Auto-generated Cost Optimization Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -222,6 +271,16 @@ export function generateTerraformCostOptimization(config: CostOptimizationConfig
   return code;
 }
 
+/**
+ * Generates a TypeScript CostOptimizationManager class source file that
+ * can analyze cloud costs, apply optimization recommendations, detect
+ * anomalies, configure budget alerts, and produce cost reports. The
+ * emitted code is customized based on the enabled optimizations and
+ * anomaly detection settings from the provided configuration.
+ *
+ * @param config - The cost optimization configuration used to customize the emitted class.
+ * @returns The full TypeScript source code as a string.
+ */
 export function generateTypeScriptCostOptimization(config: CostOptimizationConfig): string {
   let code = '// Auto-generated Cost Optimization Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -338,6 +397,16 @@ export function generateTypeScriptCostOptimization(config: CostOptimizationConfi
   return code;
 }
 
+/**
+ * Generates a Python CostOptimizationManager class source file that can
+ * analyze cloud costs, apply optimization recommendations, configure
+ * budget alerts, and produce cost reports. The emitted code includes a
+ * ResourceConfig dataclass and is customized based on the rightsizing
+ * optimization toggle from the provided configuration.
+ *
+ * @param config - The cost optimization configuration used to customize the emitted class.
+ * @returns The full Python source code as a string.
+ */
 export function generatePythonCostOptimization(config: CostOptimizationConfig): string {
   let code = '# Auto-generated Cost Optimization Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -408,6 +477,19 @@ export function generatePythonCostOptimization(config: CostOptimizationConfig): 
   return code;
 }
 
+/**
+ * Writes the generated cost optimization artifacts to disk. Always
+ * produces a Terraform file and a Markdown documentation file. Depending
+ * on the requested language, also emits either a TypeScript manager with
+ * a package.json or a Python manager with a requirements.txt. A JSON
+ * configuration file capturing the full setup is always written.
+ *
+ * @param config - The cost optimization configuration to generate files from.
+ * @param outputDir - The directory where generated files will be written.
+ * @param language - The implementation language to generate; 'typescript' or Python otherwise.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Rejected if the directory cannot be created or any file write fails.
+ */
 export async function writeFiles(config: CostOptimizationConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
