@@ -5,6 +5,14 @@ import * as yaml from 'yaml';
 import { ValidationError } from './error-handler';
 
 // Configuration schema definitions
+
+/**
+ * Represents the global configuration stored in the user's home directory.
+ *
+ * Holds CLI-wide preferences such as the default package manager, framework,
+ * template, user information, plugin settings, and filesystem paths used by
+ * re-shell across all projects.
+ */
 export interface GlobalConfig {
   version: string;
   packageManager: 'npm' | 'yarn' | 'pnpm' | 'bun';
@@ -36,6 +44,13 @@ export interface GlobalConfig {
   };
 }
 
+/**
+ * Represents the configuration for a single re-shell project.
+ *
+ * Contains project-level settings including type, package manager, framework,
+ * template, environment definitions, workspace layout, git options, build
+ * configuration, dev server options, and quality tooling settings.
+ */
 export interface ProjectConfig {
   name: string;
   version: string;
@@ -80,6 +95,13 @@ export interface ProjectConfig {
   };
 }
 
+/**
+ * Represents the configuration for a specific deployment environment.
+ *
+ * Defines environment variables, build settings (mode, optimization,
+ * sourcemaps), and deployment provider details for environments such as
+ * development, staging, and production.
+ */
 export interface EnvironmentConfig {
   name: string;
   variables: Record<string, string>;
@@ -106,6 +128,13 @@ export interface EnvironmentConfig {
   };
 }
 
+/**
+ * Represents the configuration for an individual workspace within a monorepo.
+ *
+ * Describes a single workspace's type (app, package, lib, or tool), its
+ * framework and template, dependencies, build and dev server settings,
+ * quality tooling, and deployment configuration.
+ */
 export interface WorkspaceConfig {
   name: string;
   type: 'app' | 'package' | 'lib' | 'tool';
@@ -148,6 +177,13 @@ export interface WorkspaceConfig {
   environment?: Record<string, unknown>;
 }
 
+/**
+ * Represents a reusable project configuration preset.
+ *
+ * Stores a named, partial project configuration along with a description,
+ * tags, and timestamps so users can quickly bootstrap new projects from a
+ * predefined set of options.
+ */
 export interface ProjectPreset {
   name: string;
   description: string;
@@ -190,6 +226,14 @@ const GLOBAL_CONFIG_SCHEMA = {
 };
 
 // Default configurations
+
+/**
+ * The default global configuration applied when no global config file exists.
+ *
+ * Uses pnpm as the package manager, react-ts as the framework, and stores
+ * templates, cache, and plugins under the `.re-shell` directory in the
+ * user's home folder.
+ */
 export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   version: '1.0.0',
   packageManager: 'pnpm',
@@ -217,6 +261,13 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   }
 };
 
+/**
+ * The default project configuration values used as a base for new projects.
+ *
+ * Provides sensible defaults for project type, package manager, framework,
+ * environments (development, staging, production), workspace patterns, git
+ * settings, build targets, dev server, and quality tooling thresholds.
+ */
 export const DEFAULT_PROJECT_CONFIG: Partial<ProjectConfig> = {
   type: 'monorepo',
   packageManager: 'pnpm',
@@ -290,6 +341,13 @@ export const DEFAULT_PROJECT_CONFIG: Partial<ProjectConfig> = {
 };
 
 // Path utilities
+
+/**
+ * Standard filesystem paths used by re-shell to locate configuration files.
+ *
+ * Includes the global configuration directory, the global config file path,
+ * and the relative paths for project-level and workspace-level config files.
+ */
 export const CONFIG_PATHS = {
   GLOBAL_DIR: path.join(os.homedir(), '.re-shell'),
   GLOBAL_CONFIG: path.join(os.homedir(), '.re-shell', 'config.yaml'),
@@ -299,11 +357,32 @@ export const CONFIG_PATHS = {
 };
 
 // Configuration manager class
+
+/**
+ * Manages loading, saving, merging, validating, and migrating re-shell
+ * configuration across global, project, and workspace scopes.
+ *
+ * The manager caches loaded global and project configuration in memory and
+ * provides methods for preset management, configuration backup and restore,
+ * and deep merging of hierarchical configuration layers.
+ */
 export class ConfigManager {
   private globalConfig: GlobalConfig | null = null;
   private projectConfig: ProjectConfig | null = null;
 
   // Global configuration management
+
+  /**
+   * Loads the global configuration from disk, creating a default config file
+   * if one does not already exist.
+   *
+   * The loaded config is cached in memory so subsequent calls return the
+   * cached value without re-reading from disk.
+   *
+   * @returns A promise that resolves to the loaded {@link GlobalConfig}.
+   * @throws {ValidationError} If the config file exists but cannot be read or
+   *   parsed, or if validation fails.
+   */
   async loadGlobalConfig(): Promise<GlobalConfig> {
     if (this.globalConfig) {
       return this.globalConfig;
@@ -327,6 +406,17 @@ export class ConfigManager {
     return this.globalConfig;
   }
 
+  /**
+   * Persists the given global configuration to disk after validating it.
+   *
+   * Ensures the global config directory exists, validates the config, writes
+   * it as YAML, and updates the in-memory cache.
+   *
+   * @param config - The global configuration to save.
+   * @returns A promise that resolves when the configuration has been written.
+   * @throws {ValidationError} If the directory cannot be created, validation
+   *   fails, or the file cannot be written.
+   */
   async saveGlobalConfig(config: GlobalConfig): Promise<void> {
     try {
       await fs.ensureDir(CONFIG_PATHS.GLOBAL_DIR);
@@ -339,6 +429,15 @@ export class ConfigManager {
     }
   }
 
+  /**
+   * Deep-merges partial updates into the current global configuration and
+   * persists the result.
+   *
+   * @param updates - A partial global configuration whose values override the
+   *   existing configuration.
+   * @returns A promise that resolves to the updated {@link GlobalConfig}.
+   * @throws {ValidationError} If loading or saving the configuration fails.
+   */
   async updateGlobalConfig(updates: Partial<GlobalConfig>): Promise<GlobalConfig> {
     const config = await this.loadGlobalConfig();
     const updatedConfig = this.mergeConfig(config, updates) as GlobalConfig;
@@ -347,6 +446,18 @@ export class ConfigManager {
   }
 
   // Project configuration management
+
+  /**
+   * Loads the project configuration from the `.re-shell/config.yaml` file
+   * within the given project path.
+   *
+   * @param projectPath - The root directory of the project. Defaults to the
+   *   current working directory.
+   * @returns A promise that resolves to the loaded {@link ProjectConfig}, or
+   *   `null` if no project config file exists.
+   * @throws {ValidationError} If the config file exists but cannot be read or
+   *   parsed, or if validation fails.
+   */
   async loadProjectConfig(projectPath: string = process.cwd()): Promise<ProjectConfig | null> {
     const configPath = path.join(projectPath, CONFIG_PATHS.PROJECT_CONFIG);
     
@@ -364,6 +475,20 @@ export class ConfigManager {
     return null;
   }
 
+  /**
+   * Persists the given project configuration to the
+   * `.re-shell/config.yaml` file within the given project path.
+   *
+   * Ensures the `.re-shell` directory exists, validates the config, writes it
+   * as YAML, and updates the in-memory project config cache.
+   *
+   * @param config - The project configuration to save.
+   * @param projectPath - The root directory of the project. Defaults to the
+   *   current working directory.
+   * @returns A promise that resolves when the configuration has been written.
+   * @throws {ValidationError} If the directory cannot be created, validation
+   *   fails, or the file cannot be written.
+   */
   async saveProjectConfig(config: ProjectConfig, projectPath: string = process.cwd()): Promise<void> {
     try {
       const configDir = path.join(projectPath, '.re-shell');
@@ -379,6 +504,21 @@ export class ConfigManager {
     }
   }
 
+  /**
+   * Creates a new project configuration file from defaults, global settings,
+   * and the provided options.
+   *
+   * Merges {@link DEFAULT_PROJECT_CONFIG} with the supplied options, applies
+   * global defaults for package manager, framework, and template when not
+   * explicitly provided, then persists the result.
+   *
+   * @param name - The name of the project.
+   * @param options - Optional partial project configuration to override defaults.
+   * @param projectPath - The root directory where the config will be written.
+   *   Defaults to the current working directory.
+   * @returns A promise that resolves to the newly created {@link ProjectConfig}.
+   * @throws {ValidationError} If saving the configuration fails.
+   */
   async createProjectConfig(
     name: string,
     options: Partial<ProjectConfig> = {},
@@ -403,6 +543,17 @@ export class ConfigManager {
   }
 
   // Workspace configuration management
+
+  /**
+   * Loads the workspace configuration from the `.re-shell/workspace.yaml`
+   * file within the given workspace path.
+   *
+   * @param workspacePath - The root directory of the workspace.
+   * @returns A promise that resolves to the loaded {@link WorkspaceConfig},
+   *   or `null` if no workspace config file exists.
+   * @throws {ValidationError} If the config file exists but cannot be read or
+   *   parsed, or if validation fails.
+   */
   async loadWorkspaceConfig(workspacePath: string): Promise<WorkspaceConfig | null> {
     const configPath = path.join(workspacePath, CONFIG_PATHS.WORKSPACE_DIR_CONFIG);
     
@@ -420,6 +571,19 @@ export class ConfigManager {
     return null;
   }
 
+  /**
+   * Persists the given workspace configuration to the
+   * `.re-shell/workspace.yaml` file within the given workspace path.
+   *
+   * Ensures the `.re-shell` directory exists, validates the config, and
+   * writes it as YAML.
+   *
+   * @param config - The workspace configuration to save.
+   * @param workspacePath - The root directory of the workspace.
+   * @returns A promise that resolves when the configuration has been written.
+   * @throws {ValidationError} If the directory cannot be created, validation
+   *   fails, or the file cannot be written.
+   */
   async saveWorkspaceConfig(config: WorkspaceConfig, workspacePath: string): Promise<void> {
     try {
       const configDir = path.join(workspacePath, '.re-shell');
@@ -434,6 +598,17 @@ export class ConfigManager {
     }
   }
 
+  /**
+   * Creates a new workspace configuration file from the provided name, type,
+   * and options.
+   *
+   * @param name - The name of the workspace.
+   * @param type - The workspace type (app, package, lib, or tool).
+   * @param options - Optional partial workspace configuration to override defaults.
+   * @param workspacePath - The root directory where the config will be written.
+   * @returns A promise that resolves to the newly created {@link WorkspaceConfig}.
+   * @throws {ValidationError} If saving the configuration fails.
+   */
   async createWorkspaceConfig(
     name: string, 
     type: 'app' | 'package' | 'lib' | 'tool',
@@ -450,7 +625,18 @@ export class ConfigManager {
     return config;
   }
 
-  // Configuration merging with inheritance (global → project → workspace)
+  // Configuration merging with inheritance (global, then project, then workspace)
+
+  /**
+   * Computes the merged project configuration by layering global settings on
+   * top of the default project config, then applying project-specific overrides.
+   *
+   * @param projectPath - The root directory of the project. Defaults to the
+   *   current working directory.
+   * @returns A promise that resolves to an object containing the global config,
+   *   the project config (or null), and the deeply merged result.
+   * @throws {ValidationError} If loading or validating configuration fails.
+   */
   async getMergedConfig(projectPath: string = process.cwd()): Promise<{
     global: GlobalConfig;
     project: ProjectConfig | null;
@@ -485,6 +671,22 @@ export class ConfigManager {
   }
 
   // Enhanced configuration merging including workspace config
+
+  /**
+   * Computes the fully merged configuration across global, project, and
+   * workspace scopes.
+   *
+   * Builds on {@link getMergedConfig} and then applies workspace-specific
+   * overrides for package manager, framework, template, and deep-merges build,
+   * dev, and quality settings.
+   *
+   * @param workspacePath - The root directory of the workspace.
+   * @param projectPath - The root directory of the project. Defaults to the
+   *   current working directory.
+   * @returns A promise that resolves to an object containing the global config,
+   *   project config, workspace config, and the fully merged result.
+   * @throws {ValidationError} If loading or validating configuration fails.
+   */
   async getMergedWorkspaceConfig(workspacePath: string, projectPath: string = process.cwd()): Promise<{
     global: GlobalConfig;
     project: ProjectConfig | null;
@@ -524,6 +726,18 @@ export class ConfigManager {
   }
 
   // Preset management
+
+  /**
+   * Saves a reusable project configuration preset to the global configuration.
+   *
+   * Creates a {@link ProjectPreset} with the given name and partial project
+   * config, then persists it within the global config's presets map.
+   *
+   * @param name - The unique name of the preset.
+   * @param config - The partial project configuration to store in the preset.
+   * @returns A promise that resolves when the preset has been saved.
+   * @throws {ValidationError} If loading or saving the global configuration fails.
+   */
   async savePreset(name: string, config: Partial<ProjectConfig>): Promise<void> {
     const globalConfig = await this.loadGlobalConfig();
     
@@ -540,16 +754,39 @@ export class ConfigManager {
     await this.saveGlobalConfig(globalConfig);
   }
 
+  /**
+   * Loads a previously saved project preset by name from the global
+   * configuration.
+   *
+   * @param name - The name of the preset to load.
+   * @returns A promise that resolves to the matching {@link ProjectPreset}, or
+   *   `null` if no preset with the given name exists.
+   * @throws {ValidationError} If loading the global configuration fails.
+   */
   async loadPreset(name: string): Promise<ProjectPreset | null> {
     const globalConfig = await this.loadGlobalConfig();
     return globalConfig.presets[name] || null;
   }
 
+  /**
+   * Lists all saved project presets from the global configuration.
+   *
+   * @returns A promise that resolves to an array of all stored
+   *   {@link ProjectPreset} values.
+   * @throws {ValidationError} If loading the global configuration fails.
+   */
   async listPresets(): Promise<ProjectPreset[]> {
     const globalConfig = await this.loadGlobalConfig();
     return Object.values(globalConfig.presets);
   }
 
+  /**
+   * Deletes a project preset by name from the global configuration.
+   *
+   * @param name - The name of the preset to delete.
+   * @returns A promise that resolves when the preset has been removed.
+   * @throws {ValidationError} If loading or saving the global configuration fails.
+   */
   async deletePreset(name: string): Promise<void> {
     const globalConfig = await this.loadGlobalConfig();
     delete globalConfig.presets[name];
@@ -557,6 +794,17 @@ export class ConfigManager {
   }
 
   // Configuration migration
+
+  /**
+   * Migrates the configuration schema from one version to another.
+   *
+   * Currently logs the migration request; this method will be expanded as the
+   * configuration schema evolves between releases.
+   *
+   * @param fromVersion - The semantic version of the current config schema.
+   * @param toVersion - The semantic version of the target config schema.
+   * @returns A promise that resolves when the migration is complete.
+   */
   async migrateConfig(fromVersion: string, toVersion: string): Promise<void> {
     // Implementation for config migrations between versions
     // This will be expanded as the config schema evolves
@@ -653,6 +901,18 @@ export class ConfigManager {
   }
 
   // Configuration backup and restore
+
+  /**
+   * Creates a timestamped backup of the current global configuration.
+   *
+   * Writes a YAML copy of the global config to the `backups` subdirectory of
+   * the global config directory.
+   *
+   * @returns A promise that resolves to the filesystem path of the created
+   *   backup file.
+   * @throws {ValidationError} If the backup directory cannot be created or the
+   *   file cannot be written.
+   */
   async backupConfig(): Promise<string> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupDir = path.join(CONFIG_PATHS.GLOBAL_DIR, 'backups');
@@ -667,6 +927,17 @@ export class ConfigManager {
     return backupPath;
   }
 
+  /**
+   * Restores the global configuration from a previously created backup file.
+   *
+   * Reads, parses, and validates the backup YAML, then persists it as the new
+   * global configuration.
+   *
+   * @param backupPath - The filesystem path of the backup file to restore from.
+   * @returns A promise that resolves when the configuration has been restored.
+   * @throws {ValidationError} If the backup file does not exist or cannot be
+   *   read, or if saving the restored configuration fails.
+   */
   async restoreConfig(backupPath: string): Promise<void> {
     if (!await fs.pathExists(backupPath)) {
       throw new ValidationError(`Backup file not found: ${backupPath}`);
@@ -679,21 +950,66 @@ export class ConfigManager {
 }
 
 // Export singleton instance
+
+/**
+ * Shared singleton instance of {@link ConfigManager} used throughout the CLI
+ * for consistent configuration access.
+ */
 export const configManager = new ConfigManager();
 
 // Helper functions for easy access
+
+/**
+ * Convenience helper that loads and returns the global configuration via the
+ * shared {@link configManager} singleton.
+ *
+ * @returns A promise that resolves to the loaded {@link GlobalConfig}.
+ * @throws {ValidationError} If the global configuration cannot be loaded.
+ */
 export async function getGlobalConfig(): Promise<GlobalConfig> {
   return configManager.loadGlobalConfig();
 }
 
+/**
+ * Convenience helper that loads and returns the project configuration for the
+ * given path via the shared {@link configManager} singleton.
+ *
+ * @param projectPath - Optional root directory of the project. Defaults to the
+ *   current working directory when omitted.
+ * @returns A promise that resolves to the loaded {@link ProjectConfig}, or
+ *   `null` if no project config exists.
+ * @throws {ValidationError} If the project configuration cannot be loaded.
+ */
 export async function getProjectConfig(projectPath?: string): Promise<ProjectConfig | null> {
   return configManager.loadProjectConfig(projectPath);
 }
 
+/**
+ * Convenience helper that computes the merged project configuration (defaults,
+ * global, and project overrides) via the shared {@link configManager}
+ * singleton.
+ *
+ * @param projectPath - Optional root directory of the project. Defaults to the
+ *   current working directory when omitted.
+ * @returns A promise that resolves to the merged configuration result object
+ *   containing global, project, and merged fields.
+ * @throws {ValidationError} If configuration loading or validation fails.
+ */
 export async function getMergedConfig(projectPath?: string) {
   return configManager.getMergedConfig(projectPath);
 }
 
+/**
+ * Initializes the global re-shell configuration directory structure and loads
+ * (or creates) the global configuration.
+ *
+ * Ensures the templates, cache, plugins, and backups subdirectories exist
+ * under the global config directory before loading the configuration.
+ *
+ * @returns A promise that resolves to the loaded {@link GlobalConfig}.
+ * @throws {ValidationError} If the directories cannot be created or the
+ *   configuration cannot be loaded.
+ */
 export async function initializeGlobalConfig(): Promise<GlobalConfig> {
   const configDir = CONFIG_PATHS.GLOBAL_DIR;
   
