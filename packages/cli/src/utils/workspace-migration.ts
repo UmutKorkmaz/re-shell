@@ -7,51 +7,104 @@ import { WorkspaceDefinition} from './workspace-schema';
 import { createWorkspaceBackupManager } from './workspace-backup';
 
 // Migration interfaces
+
+/**
+ * Represents a single migration step that transforms a workspace definition
+ * from one version to another.
+ */
 export interface MigrationStep {
+  /** Unique identifier for the migration step. */
   id: string;
+  /** Human-readable name of the migration step. */
   name: string;
+  /** Detailed description of what the migration step does. */
   description: string;
+  /** The semantic version the step migrates from. */
   fromVersion: string;
+  /** The semantic version the step migrates to. */
   toVersion: string;
+  /** Whether the migration step introduces breaking changes. */
   breaking: boolean;
+  /** Asynchronous function that applies the migration to a workspace definition. */
   execute: (definition: WorkspaceDefinition) => Promise<WorkspaceDefinition>;
+  /** Optional asynchronous function that validates a definition before executing the migration. */
   validate?: (definition: WorkspaceDefinition) => Promise<ValidationResult>;
+  /** Optional asynchronous function that reverses the migration, restoring the previous definition. */
   rollback?: (definition: WorkspaceDefinition) => Promise<WorkspaceDefinition>;
 }
 
+/**
+ * Result of validating a workspace definition, including any errors,
+ * warnings, and improvement suggestions.
+ */
 export interface ValidationResult {
+  /** Whether the workspace definition is valid. */
   valid: boolean;
+  /** List of validation errors that block migration. */
   errors: string[];
+  /** List of non-blocking warnings about the definition. */
   warnings: string[];
+  /** List of optional suggestions for improving the definition. */
   suggestions: string[];
 }
 
+/**
+ * Plan describing the sequence of migration steps required to move a
+ * workspace from one version to another.
+ */
 export interface MigrationPlan {
+  /** The current semantic version of the workspace. */
   currentVersion: string;
+  /** The target semantic version the workspace will be migrated to. */
   targetVersion: string;
+  /** Ordered list of migration steps to execute. */
   steps: MigrationStep[];
+  /** Whether the plan includes any breaking changes. */
   hasBreakingChanges: boolean;
+  /** Whether a backup should be created before executing the plan. */
   backupRequired: boolean;
+  /** Estimated total duration of the migration in seconds. */
   estimatedDuration: number; // in seconds
 }
 
+/**
+ * Outcome of executing a migration plan, including the status, executed
+ * steps, backup reference, and any errors or warnings.
+ */
 export interface MigrationResult {
+  /** Whether the migration completed successfully. */
   success: boolean;
+  /** The semantic version the workspace was migrated from. */
   fromVersion: string;
+  /** The semantic version the workspace was migrated to. */
   toVersion: string;
+  /** Identifiers of the migration steps that were executed. */
   stepsExecuted: string[];
+  /** Identifier of the backup created before migration, if any. */
   backupId?: string;
+  /** Errors encountered during migration. */
   errors: string[];
+  /** Warnings produced during migration. */
   warnings: string[];
+  /** Total migration duration in milliseconds. */
   duration: number;
 }
 
+/**
+ * Options controlling the behavior of a workspace upgrade.
+ */
 export interface UpgradeOptions {
+  /** Optional explicit target version to upgrade to. */
   targetVersion?: string;
+  /** Whether to force the upgrade even if validation fails. */
   force?: boolean;
+  /** Whether to perform a dry run without applying changes. */
   dryRun?: boolean;
+  /** Whether to create a backup before upgrading. */
   backup?: boolean;
+  /** Whether to skip pre-migration validation of each step. */
   skipValidation?: boolean;
+  /** Whether to run the upgrade in interactive mode. */
   interactive?: boolean;
 }
 
@@ -71,16 +124,33 @@ const VERSION_COMPATIBILITY: Record<string, string[]> = {
   '2.1.1': ['2.2.0']
 };
 
-// Workspace migration manager
+/**
+ * Manager responsible for planning, executing, and recording workspace
+ * schema migrations across semantic versions.
+ */
 export class WorkspaceMigrationManager {
   private migrationSteps: Map<string, MigrationStep> = new Map();
   private rootPath: string;
 
+  /**
+   * Creates a new WorkspaceMigrationManager for the given project root.
+   *
+   * @param rootPath - The project root path. Defaults to the current working directory.
+   */
   constructor(rootPath: string = process.cwd()) {
     this.rootPath = rootPath;
     this.initializeMigrationSteps();
   }
 
+  /**
+   * Builds a migration plan describing the steps required to migrate a
+   * workspace from the current version to a target version.
+   *
+   * @param currentVersion - The current semantic version of the workspace.
+   * @param targetVersion - The target semantic version to migrate to.
+   * @returns A promise resolving to the generated migration plan.
+   * @throws {ValidationError} If either version is invalid or the target is not higher than the current.
+   */
   // Create migration plan
   async createMigrationPlan(
     currentVersion: string,
@@ -109,6 +179,15 @@ export class WorkspaceMigrationManager {
     };
   }
 
+  /**
+   * Executes the given migration plan against a workspace file, optionally
+   * creating a backup and running validation along the way.
+   *
+   * @param workspaceFile - Path to the workspace definition file to migrate.
+   * @param plan - The migration plan to execute.
+   * @param options - Optional upgrade configuration. Defaults to `{}`.
+   * @returns A promise resolving to the migration result.
+   */
   // Execute migration
   async executeMigration(
     workspaceFile: string,
@@ -191,6 +270,13 @@ export class WorkspaceMigrationManager {
     return result;
   }
 
+  /**
+   * Checks which upgrades are available for the given current version.
+   *
+   * @param currentVersion - The current semantic version of the workspace.
+   * @returns A promise resolving to an object listing available upgrades,
+   * the recommended upgrade, and any breaking upgrades.
+   */
   // Check for available upgrades
   async checkUpgrades(currentVersion: string): Promise<{
     available: string[];
@@ -198,13 +284,20 @@ export class WorkspaceMigrationManager {
     breaking: string[];
   }> {
     const available = VERSION_COMPATIBILITY[currentVersion] || [];
-    const recommended = available.find(v => semver.diff(currentVersion, v) === 'minor') || 
+    const recommended = available.find(v => semver.diff(currentVersion, v) === 'minor') ||
                       available[0];
     const breaking = available.filter(v => semver.major(v) > semver.major(currentVersion));
 
     return { available, recommended, breaking };
   }
 
+  /**
+   * Validates a workspace definition, collecting errors, warnings, and
+   * suggestions for improvement.
+   *
+   * @param definition - The workspace definition to validate.
+   * @returns A promise resolving to the validation result.
+   */
   // Validate workspace definition
   async validateDefinition(definition: WorkspaceDefinition): Promise<ValidationResult> {
     const result: ValidationResult = {
@@ -276,6 +369,12 @@ export class WorkspaceMigrationManager {
     return result;
   }
 
+  /**
+   * Retrieves the recorded migration history for a workspace.
+   *
+   * @param workspaceFile - Path to the workspace definition file.
+   * @returns A promise resolving to an object containing the list of past migrations.
+   */
   // Get migration history
   async getMigrationHistory(workspaceFile: string): Promise<{
     migrations: Array<{
@@ -286,7 +385,7 @@ export class WorkspaceMigrationManager {
     }>;
   }> {
     const historyFile = path.join(this.rootPath, '.re-shell', 'migration-history.json');
-    
+
     try {
       if (await fs.pathExists(historyFile)) {
         return await fs.readJson(historyFile);
@@ -298,6 +397,14 @@ export class WorkspaceMigrationManager {
     return { migrations: [] };
   }
 
+  /**
+   * Records a completed migration in the migration history file.
+   *
+   * @param fromVersion - The semantic version migrated from.
+   * @param toVersion - The semantic version migrated to.
+   * @param backupId - Optional identifier of the backup created for this migration.
+   * @returns A promise that resolves once the migration has been recorded.
+   */
   // Record migration in history
   async recordMigration(
     fromVersion: string,
@@ -305,7 +412,7 @@ export class WorkspaceMigrationManager {
     backupId?: string
   ): Promise<void> {
     const historyFile = path.join(this.rootPath, '.re-shell', 'migration-history.json');
-    
+
     let history;
     try {
       history = await fs.readJson(historyFile);
@@ -324,6 +431,15 @@ export class WorkspaceMigrationManager {
     await fs.writeJson(historyFile, history, { spaces: 2 });
   }
 
+  /**
+   * Computes the ordered list of migration steps required to move from
+   * one version to another, creating generic steps where specific ones
+   * are not registered.
+   *
+   * @param fromVersion - The semantic version to start migrating from.
+   * @param toVersion - The target semantic version to migrate to.
+   * @returns The ordered list of migration steps connecting the two versions.
+   */
   // Find migration path between versions
   private findMigrationPath(fromVersion: string, toVersion: string): MigrationStep[] {
     const path: MigrationStep[] = [];
@@ -333,7 +449,7 @@ export class WorkspaceMigrationManager {
     while (semver.lt(currentVersion, toVersion)) {
       const nextVersion = this.getNextVersion(currentVersion, toVersion);
       const stepId = `${currentVersion}-to-${nextVersion}`;
-      
+
       const step = this.migrationSteps.get(stepId);
       if (step) {
         path.push(step);
@@ -341,13 +457,21 @@ export class WorkspaceMigrationManager {
         // Create generic migration step
         path.push(this.createGenericMigrationStep(currentVersion, nextVersion));
       }
-      
+
       currentVersion = nextVersion;
     }
 
     return path;
   }
 
+  /**
+   * Determines the next version to migrate to based on the compatibility
+   * matrix and the desired target version.
+   *
+   * @param currentVersion - The current semantic version.
+   * @param targetVersion - The desired target semantic version.
+   * @returns The next semantic version to migrate to.
+   */
   // Get next version in migration path
   private getNextVersion(currentVersion: string, targetVersion: string): string {
     const compatible = VERSION_COMPATIBILITY[currentVersion];
@@ -361,6 +485,14 @@ export class WorkspaceMigrationManager {
     return candidates.length > 0 ? candidates[0] : compatible[0];
   }
 
+  /**
+   * Creates a generic migration step that simply updates the version field
+   * of the workspace definition.
+   *
+   * @param fromVersion - The semantic version the step migrates from.
+   * @param toVersion - The semantic version the step migrates to.
+   * @returns A generic migration step instance.
+   */
   // Create generic migration step
   private createGenericMigrationStep(fromVersion: string, toVersion: string): MigrationStep {
     return {
@@ -377,10 +509,14 @@ export class WorkspaceMigrationManager {
     };
   }
 
+  /**
+   * Initializes the registry of built-in migration steps for known
+   * version transitions.
+   */
   // Initialize migration steps
   private initializeMigrationSteps(): void {
     // Add specific migration steps here
-    
+
     // Migration from 1.0.0 to 1.1.0 - Add workspace types
     this.migrationSteps.set('1.0.0-to-1.1.0', {
       id: '1.0.0-to-1.1.0',
@@ -490,13 +626,20 @@ export class WorkspaceMigrationManager {
             (workspace as unknown as Record<string, unknown>).port = workspace.dev.port.toString();
           }
         }
-        
+
         definition.version = '1.2.0';
         return definition;
       }
     });
   }
 
+  /**
+   * Loads and parses a workspace definition from a YAML file.
+   *
+   * @param filePath - Path to the workspace definition file.
+   * @returns A promise resolving to the parsed workspace definition.
+   * @throws {ValidationError} If the workspace file does not exist.
+   */
   // Helper methods
   private async loadWorkspaceDefinition(filePath: string): Promise<WorkspaceDefinition> {
     if (!(await fs.pathExists(filePath))) {
@@ -507,6 +650,13 @@ export class WorkspaceMigrationManager {
     return yaml.parse(content) as WorkspaceDefinition;
   }
 
+  /**
+   * Serializes a workspace definition and writes it to a YAML file.
+   *
+   * @param filePath - Path to the workspace definition file.
+   * @param definition - The workspace definition to persist.
+   * @returns A promise that resolves once the file has been written.
+   */
   private async saveWorkspaceDefinition(
     filePath: string,
     definition: WorkspaceDefinition
@@ -516,6 +666,12 @@ export class WorkspaceMigrationManager {
   }
 }
 
+/**
+ * Creates and returns a WorkspaceMigrationManager for the given project root.
+ *
+ * @param rootPath - Optional project root path. Defaults to the current working directory.
+ * @returns A promise resolving to a new WorkspaceMigrationManager instance.
+ */
 // Utility functions
 export async function createWorkspaceMigrationManager(
   rootPath?: string
@@ -523,6 +679,14 @@ export async function createWorkspaceMigrationManager(
   return new WorkspaceMigrationManager(rootPath);
 }
 
+/**
+ * Performs a quick upgrade check against a workspace file, reporting the
+ * current version and any available, recommended, and breaking upgrades.
+ *
+ * @param workspaceFile - Path to the workspace definition file to inspect.
+ * @returns A promise resolving to the current version along with available,
+ * recommended, and breaking upgrade targets.
+ */
 // Quick upgrade check
 export async function checkForUpgrades(
   workspaceFile: string
@@ -535,13 +699,20 @@ export async function checkForUpgrades(
   const manager = new WorkspaceMigrationManager();
   const definition = await manager['loadWorkspaceDefinition'](workspaceFile);
   const upgrades = await manager.checkUpgrades(definition.version);
-  
+
   return {
     currentVersion: definition.version,
     ...upgrades
   };
 }
 
+/**
+ * Validates the workspace definition stored in the given file.
+ *
+ * @param workspaceFile - Path to the workspace definition file to validate.
+ * @returns A promise resolving to the validation result, including errors,
+ * warnings, and suggestions.
+ */
 // Validate workspace
 export async function validateWorkspace(
   workspaceFile: string

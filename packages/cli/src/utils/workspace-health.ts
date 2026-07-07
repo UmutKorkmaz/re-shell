@@ -5,85 +5,154 @@ import { ValidationError } from './error-handler';
 import { WorkspaceDefinition, WorkspaceEntry, loadWorkspaceDefinition } from './workspace-schema';
 import { WorkspaceDependencyGraph, createWorkspaceDependencyGraph } from './workspace-graph';
 
-// Health check severity levels
+/**
+ * Severity levels for health check results, indicating the importance
+ * and impact of a given check outcome.
+ */
 export type HealthSeverity = 'critical' | 'error' | 'warning' | 'info' | 'success';
 
-// Health check result
+/**
+ * Represents the outcome of a single workspace health check.
+ */
 export interface HealthCheckResult {
+  /** Unique identifier for the check. */
   id: string;
+  /** Human-readable name of the check. */
   name: string;
+  /** Short description of what the check validates. */
   description: string;
+  /** Severity level assigned to this check. */
   severity: HealthSeverity;
+  /** Outcome status of the check. */
   status: 'pass' | 'fail' | 'warning' | 'info';
+  /** Descriptive message explaining the result. */
   message: string;
+  /** Optional list of remediation suggestions. */
   suggestions?: string[];
+  /** Optional metadata providing additional context about the check. */
   metadata?: Record<string, unknown>;
+  /** Optional duration of the check execution in milliseconds. */
   duration?: number;
 }
 
-// Health check category
+/**
+ * Groups related health checks into a category and aggregates their results.
+ */
 export interface HealthCheckCategory {
+  /** Unique identifier for the category. */
   id: string;
+  /** Human-readable name of the category. */
   name: string;
+  /** Description of what the category covers. */
   description: string;
+  /** List of individual health checks within this category. */
   checks: HealthCheckResult[];
+  /** Aggregated totals for the checks in this category. */
   summary: {
+    /** Total number of checks performed. */
     total: number;
+    /** Number of checks that passed. */
     passed: number;
+    /** Number of checks that failed. */
     failed: number;
+    /** Number of checks that produced warnings. */
     warnings: number;
+    /** Category score from 0 to 100 based on the pass rate. */
     score: number; // 0-100
   };
 }
 
-// Complete health report
+/**
+ * Full workspace health report combining all categories, overall metrics,
+ * and recommendations produced by a health check run.
+ */
 export interface WorkspaceHealthReport {
+  /** ISO timestamp when the report was generated. */
   timestamp: string;
+  /** Name of the workspace definition file checked. */
   workspaceFile: string;
+  /** Total duration of the health check run in milliseconds. */
   duration: number;
+  /** Aggregated overall status and score. */
   overall: {
+    /** High-level health status derived from the overall score. */
     status: 'healthy' | 'degraded' | 'unhealthy';
+    /** Overall health score from 0 to 100. */
     score: number; // 0-100
+    /** Human-readable summary of overall health. */
     summary: string;
   };
+  /** All health check categories evaluated. */
   categories: HealthCheckCategory[];
+  /** Actionable recommendations derived from failed checks. */
   recommendations: string[];
+  /** Quantitative metrics about the workspace structure. */
   metrics: {
+    /** Total number of workspaces defined. */
     workspaceCount: number;
+    /** Total number of inter-workspace dependencies. */
     dependencyCount: number;
+    /** Number of circular dependency cycles detected. */
     cycleCount: number;
+    /** Number of orphaned workspaces with no dependencies. */
     orphanedCount: number;
+    /** Definition completeness score from 0 to 100. */
     coverageScore: number;
   };
 }
 
-// Topology validation result
+/**
+ * Result of validating the structural topology of a workspace graph.
+ */
 export interface TopologyValidation {
+  /** Whether the topology passed validation with no errors. */
   isValid: boolean;
+  /** Validation errors that prevent a valid topology. */
   errors: ValidationError[];
+  /** Non-blocking warnings about the topology. */
   warnings: string[];
+  /** Suggestions to improve the topology. */
   suggestions: string[];
+  /** Quantitative metrics describing the workspace graph structure. */
   structure: {
+    /** Maximum dependency depth of the graph. */
     depth: number;
+    /** Maximum breadth (widest level) of the graph. */
     breadth: number;
+    /** Edge-to-node ratio indicating overall complexity. */
     complexity: number;
+    /** Balance ratio from 0 to 1, where 1 is perfectly balanced. */
     balance: number; // 0-1, 1 = perfectly balanced
   };
 }
 
-// Workspace health checker
+/**
+ * Performs comprehensive health checks against a workspace definition,
+ * covering structure, dependencies, build configuration, filesystem state,
+ * package metadata, TypeScript configuration, and security.
+ */
 export class WorkspaceHealthChecker {
   private definition: WorkspaceDefinition;
   private graph: WorkspaceDependencyGraph;
   private rootPath: string;
 
+  /**
+   * Creates a new WorkspaceHealthChecker instance.
+   *
+   * @param definition - The parsed workspace definition to validate.
+   * @param rootPath - Root directory used to resolve workspace paths. Defaults to the current working directory.
+   */
   constructor(definition: WorkspaceDefinition, rootPath: string = process.cwd()) {
     this.definition = definition;
     this.graph = createWorkspaceDependencyGraph(definition);
     this.rootPath = rootPath;
   }
 
-  // Perform comprehensive health check
+  /**
+   * Runs all configured health check categories and produces an aggregate report.
+   *
+   * @returns Promise resolving to a complete workspace health report.
+   */
   async performHealthCheck(): Promise<WorkspaceHealthReport> {
     const startTime = Date.now();
     const categories: HealthCheckCategory[] = [];
@@ -139,7 +208,12 @@ export class WorkspaceHealthChecker {
     };
   }
 
-  // Validate workspace topology
+  /**
+   * Validates the topology of the workspace dependency graph, detecting
+   * cycles, excessive depth, orphaned nodes, and structural issues.
+   *
+   * @returns Promise resolving to a topology validation result.
+   */
   async validateTopology(): Promise<TopologyValidation> {
     const errors: ValidationError[] = [];
     const warnings: string[] = [];
@@ -201,7 +275,11 @@ export class WorkspaceHealthChecker {
     }
   }
 
-  // Check workspace structure
+  /**
+   * Runs all structure-related health checks.
+   *
+   * @returns Promise resolving to the workspace structure health check category.
+   */
   private async checkWorkspaceStructure(): Promise<HealthCheckCategory> {
     const checks: HealthCheckResult[] = [];
 
@@ -231,7 +309,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
-  // Check dependency health
+  /**
+   * Runs all dependency-related health checks.
+   *
+   * @returns Promise resolving to the dependency health check category.
+   */
   private async checkDependencyHealth(): Promise<HealthCheckCategory> {
     const checks: HealthCheckResult[] = [];
 
@@ -258,7 +340,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
-  // Check build configuration
+  /**
+   * Runs all build configuration health checks.
+   *
+   * @returns Promise resolving to the build configuration health check category.
+   */
   private async checkBuildConfiguration(): Promise<HealthCheckCategory> {
     const checks: HealthCheckResult[] = [];
 
@@ -282,7 +368,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
-  // Check file system health
+  /**
+   * Runs all filesystem-related health checks.
+   *
+   * @returns Promise resolving to the filesystem health check category.
+   */
   private async checkFileSystemHealth(): Promise<HealthCheckCategory> {
     const checks: HealthCheckResult[] = [];
 
@@ -306,7 +396,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
-  // Check package.json health
+  /**
+   * Runs all package.json-related health checks.
+   *
+   * @returns Promise resolving to the package configuration health check category.
+   */
   private async checkPackageJsonHealth(): Promise<HealthCheckCategory> {
     const checks: HealthCheckResult[] = [];
 
@@ -330,7 +424,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
-  // Check TypeScript health
+  /**
+   * Runs all TypeScript-related health checks.
+   *
+   * @returns Promise resolving to the TypeScript health check category.
+   */
   private async checkTypeScriptHealth(): Promise<HealthCheckCategory> {
     const checks: HealthCheckResult[] = [];
 
@@ -351,7 +449,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
-  // Check security health
+  /**
+   * Runs all security-related health checks.
+   *
+   * @returns Promise resolving to the security health check category.
+   */
   private async checkSecurityHealth(): Promise<HealthCheckCategory> {
     const checks: HealthCheckResult[] = [];
 
@@ -373,6 +475,11 @@ export class WorkspaceHealthChecker {
   }
 
   // Individual health check implementations
+  /**
+   * Checks whether the workspace definition file exists on disk.
+   *
+   * @returns Promise resolving to a health check result indicating file presence.
+   */
   private async checkWorkspaceDefinitionExists(): Promise<HealthCheckResult> {
     const definitionPath = path.join(this.rootPath, 're-shell.workspaces.yaml');
     const exists = await fs.pathExists(definitionPath);
@@ -393,6 +500,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Verifies that every workspace directory referenced in the definition exists.
+   *
+   * @returns Promise resolving to a health check result listing any missing directories.
+   */
   private async checkWorkspaceDirectories(): Promise<HealthCheckResult> {
     const missingDirectories: string[] = [];
     
@@ -420,6 +532,12 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Checks for naming and configuration consistency between workspace definitions
+   * and their corresponding directories.
+   *
+   * @returns Promise resolving to a health check result listing any inconsistencies.
+   */
   private async checkWorkspaceConsistency(): Promise<HealthCheckResult> {
     const inconsistencies: string[] = [];
     
@@ -444,6 +562,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Validates that all workspace names follow the kebab-case naming convention.
+   *
+   * @returns Promise resolving to a health check result listing any naming violations.
+   */
   private async checkNamingConventions(): Promise<HealthCheckResult> {
     const violations: string[] = [];
     const kebabCaseRegex = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
@@ -470,6 +593,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Validates that every workspace references a defined workspace type.
+   *
+   * @returns Promise resolving to a health check result listing any invalid type references.
+   */
   private async checkWorkspaceTypes(): Promise<HealthCheckResult> {
     const invalidTypes: string[] = [];
     const validTypes = new Set(Object.keys(this.definition.types));
@@ -496,6 +624,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Detects circular dependencies between workspaces using the dependency graph.
+   *
+   * @returns Promise resolving to a health check result describing any cycles found.
+   */
   private async checkCircularDependencies(): Promise<HealthCheckResult> {
     const analysis = this.graph.analyzeGraph();
     const cycles = analysis.cycles.cycles;
@@ -519,6 +652,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Checks for dependency version consistency across workspaces.
+   *
+   * @returns Promise resolving to a health check result describing version consistency.
+   */
   private async checkDependencyVersions(): Promise<HealthCheckResult> {
     // This would check for version consistency across workspaces
     // Simplified implementation for now
@@ -532,6 +670,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Detects dependency references that point to non-existent workspaces.
+   *
+   * @returns Promise resolving to a health check result listing any missing dependencies.
+   */
   private async checkMissingDependencies(): Promise<HealthCheckResult> {
     const missingDeps: string[] = [];
     
@@ -556,6 +699,12 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Analyzes the dependency graph for optimization opportunities such as
+   * overly high average dependencies or deep dependency chains.
+   *
+   * @returns Promise resolving to a health check result with optimization suggestions.
+   */
   private async checkDependencyOptimization(): Promise<HealthCheckResult> {
     const analysis = this.graph.analyzeGraph();
     const suggestions: string[] = [];
@@ -581,7 +730,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
-  // Placeholder implementations for other checks
+  /**
+   * Validates build tool configuration. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for build tools.
+   */
   private async checkBuildTools(): Promise<HealthCheckResult> {
     return {
       id: 'build-tools',
@@ -593,6 +746,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Checks build script consistency across workspaces. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for build scripts.
+   */
   private async checkBuildScripts(): Promise<HealthCheckResult> {
     return {
       id: 'build-scripts',
@@ -604,6 +762,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Validates build output configuration. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for output configuration.
+   */
   private async checkOutputConfiguration(): Promise<HealthCheckResult> {
     return {
       id: 'output-config',
@@ -615,6 +778,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Detects uncommonly large files in the workspace. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for large file detection.
+   */
   private async checkLargeFiles(): Promise<HealthCheckResult> {
     return {
       id: 'large-files',
@@ -626,6 +794,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Checks for node_modules bloat. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for node_modules analysis.
+   */
   private async checkNodeModules(): Promise<HealthCheckResult> {
     return {
       id: 'node-modules',
@@ -637,6 +810,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Validates file permissions across the workspace. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for file permissions.
+   */
   private async checkFilePermissions(): Promise<HealthCheckResult> {
     return {
       id: 'file-permissions',
@@ -648,6 +826,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Validates package.json files across workspaces. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for package.json validity.
+   */
   private async checkPackageJsonValidity(): Promise<HealthCheckResult> {
     return {
       id: 'package-json-validity',
@@ -659,6 +842,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Checks npm script consistency across workspaces. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for script consistency.
+   */
   private async checkScriptConsistency(): Promise<HealthCheckResult> {
     return {
       id: 'script-consistency',
@@ -670,6 +858,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Validates dependency consistency in package.json files. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for package dependency consistency.
+   */
   private async checkPackageDependencyConsistency(): Promise<HealthCheckResult> {
     return {
       id: 'package-dependency-consistency',
@@ -681,6 +874,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Validates TypeScript configuration files. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for TypeScript configuration.
+   */
   private async checkTypeScriptConfig(): Promise<HealthCheckResult> {
     return {
       id: 'typescript-config',
@@ -692,6 +890,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Checks availability of type definitions across workspaces. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for type definitions.
+   */
   private async checkTypeDefinitions(): Promise<HealthCheckResult> {
     return {
       id: 'type-definitions',
@@ -703,6 +906,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Scans for known security vulnerabilities. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for security vulnerabilities.
+   */
   private async checkSecurityVulnerabilities(): Promise<HealthCheckResult> {
     return {
       id: 'security-vulnerabilities',
@@ -714,6 +922,11 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Detects potentially sensitive files in the workspace. Placeholder implementation.
+   *
+   * @returns Promise resolving to a health check result for sensitive files.
+   */
   private async checkSensitiveFiles(): Promise<HealthCheckResult> {
     return {
       id: 'sensitive-files',
@@ -725,7 +938,12 @@ export class WorkspaceHealthChecker {
     };
   }
 
-  // Helper methods
+  /**
+   * Calculates aggregate summary statistics for a list of health checks.
+   *
+   * @param checks - The health checks to summarize.
+   * @returns An object containing total, passed, failed, warnings, and score values.
+   */
   private calculateCategorySummary(checks: HealthCheckResult[]) {
     const total = checks.length;
     const passed = checks.filter(c => c.status === 'pass').length;
@@ -736,6 +954,13 @@ export class WorkspaceHealthChecker {
     return { total, passed, failed, warnings, score };
   }
 
+  /**
+   * Generates actionable recommendations from failed checks, deduplicated
+   * and limited to the most important suggestions.
+   *
+   * @param categories - All health check categories to derive recommendations from.
+   * @returns Deduplicated list of recommendation strings, limited to 10 entries.
+   */
   private generateRecommendations(categories: HealthCheckCategory[]): string[] {
     const recommendations: string[] = [];
     
@@ -753,6 +978,14 @@ export class WorkspaceHealthChecker {
     return Array.from(new Set(recommendations)).slice(0, 10);
   }
 
+  /**
+   * Produces a human-readable summary message describing the overall health status.
+   *
+   * @param status - The overall health status string.
+   * @param score - The overall health score from 0 to 100.
+   * @param failedChecks - The number of checks that failed.
+   * @returns A summary string describing overall workspace health.
+   */
   private generateOverallSummary(status: string, score: number, failedChecks: number): string {
     if (status === 'healthy') {
       return `Workspace is healthy with ${score}% of checks passing`;
@@ -763,6 +996,13 @@ export class WorkspaceHealthChecker {
     }
   }
 
+  /**
+   * Calculates a coverage score (0-100) representing the completeness of the
+   * workspace definition based on the presence of workspaces, dependencies,
+   * build configuration, scripts, and workspace types.
+   *
+   * @returns Coverage score from 0 to 100.
+   */
   private calculateCoverageScore(): number {
     // Simple coverage calculation based on workspace definition completeness
     let score = 0;
@@ -786,6 +1026,11 @@ export class WorkspaceHealthChecker {
     return Math.min(score, maxScore);
   }
 
+  /**
+   * Groups all defined workspaces by their workspace type.
+   *
+   * @returns A map of workspace type names to arrays of workspace entries.
+   */
   private getWorkspacesByType(): Record<string, WorkspaceEntry[]> {
     const result: Record<string, WorkspaceEntry[]> = {};
     
@@ -799,6 +1044,13 @@ export class WorkspaceHealthChecker {
     return result;
   }
 
+  /**
+   * Calculates structural metrics (depth, breadth, complexity, balance) from
+   * the dependency graph analysis.
+   *
+   * @param analysis - The graph analysis result containing statistics and levels.
+   * @returns An object containing depth, breadth, complexity, and balance metrics.
+   */
   private calculateStructureMetrics(analysis: any) {
     return {
       depth: analysis.statistics.maxDepth,
@@ -808,6 +1060,13 @@ export class WorkspaceHealthChecker {
     };
   }
 
+  /**
+   * Calculates a balance ratio (0-1) for the graph levels, where 1 indicates
+   * all levels have the same number of nodes.
+   *
+   * @param levels - The dependency graph levels, each containing its nodes.
+   * @returns Balance ratio from 0 to 1.
+   */
   private calculateBalance(levels: any[][]): number {
     if (levels.length === 0) return 1;
     
@@ -819,7 +1078,14 @@ export class WorkspaceHealthChecker {
   }
 }
 
-// Utility functions
+/**
+ * Loads a workspace definition from the given file and constructs a
+ * WorkspaceHealthChecker instance for it.
+ *
+ * @param workspaceFile - Path to the workspace definition YAML file.
+ * @param rootPath - Optional root directory used to resolve workspace paths. Defaults to the current working directory.
+ * @returns Promise resolving to a configured WorkspaceHealthChecker instance.
+ */
 export async function createWorkspaceHealthChecker(
   workspaceFile: string,
   rootPath?: string
@@ -828,6 +1094,14 @@ export async function createWorkspaceHealthChecker(
   return new WorkspaceHealthChecker(definition, rootPath);
 }
 
+/**
+ * Runs a quick health check and returns a summarized result with overall
+ * status, score, and the count of critical issues.
+ *
+ * @param workspaceFile - Path to the workspace definition YAML file.
+ * @param rootPath - Optional root directory used to resolve workspace paths. Defaults to the current working directory.
+ * @returns Promise resolving to an object containing status, score, and criticalIssues count.
+ */
 export async function performQuickHealthCheck(
   workspaceFile: string,
   rootPath?: string

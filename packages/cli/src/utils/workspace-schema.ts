@@ -5,214 +5,333 @@ import * as yaml from 'yaml';
 import glob from 'glob';
 import { ValidationError } from './error-handler';
 
-// Workspace definition schema
+/**
+ * Root schema describing a workspace definition for a Re-Shell monorepo.
+ *
+ * This structure is the source of truth for how workspaces are discovered,
+ * typed, built, tested, and interrelated within a single repository.
+ */
 export interface WorkspaceDefinition {
+  /** Schema version of the workspace definition (e.g. `"1.0"`). */
   version: string;
+  /** Human-readable name of the workspace/monorepo. */
   name: string;
+  /** Optional short description of the workspace's purpose. */
   description?: string;
+  /** Root directory of the monorepo, relative to the definition file. */
   root: string;
-  
-  // Workspace discovery patterns
+
+  /** Glob patterns used to discover workspace directories. */
   patterns: string[];
-  
-  // Workspace types and their configurations
+
+  /**
+   * Mapping of workspace type identifiers (e.g. `app`, `package`) to their
+   * respective configuration objects.
+   */
   types: {
     [key: string]: WorkspaceTypeConfig;
   };
-  
-  // Individual workspace definitions
+
+  /** Mapping of individual workspace identifiers to their definitions. */
   workspaces: {
     [key: string]: WorkspaceEntry;
   };
-  
-  // Dependencies between workspaces
+
+  /** Mapping of workspace identifiers to their declared dependencies. */
   dependencies: {
     [key: string]: WorkspaceDependency[];
   };
-  
-  // Build and development configuration
+
+  /** Build and development configuration applied to all workspaces. */
   build: {
+    /** ECMAScript build target (e.g. `es2020`). */
     target?: string;
+    /** Whether builds may run in parallel. */
     parallel?: boolean;
+    /** Maximum number of workspaces that may build concurrently. */
     maxConcurrency?: number;
+    /** Whether build caching is enabled. */
     cache?: boolean;
+    /** Directory where build output is written. */
     outputDir?: string;
+    /** Whether sourcemaps should be generated. */
     sourcemap?: boolean;
   };
-  
-  // Development server configuration
+
+  /** Development server configuration for running workspaces locally. */
   dev: {
+    /** Whether dev servers should run concurrently or sequentially. */
     mode?: 'concurrent' | 'sequential';
+    /** Optional path-to-URL proxy mappings for the dev server. */
     proxy?: Record<string, string>;
+    /** Whether CORS headers should be enabled. */
     cors?: boolean;
+    /** Whether hot module reloading is enabled. */
     hot?: boolean;
   };
-  
-  // Testing configuration
+
+  /** Testing configuration applied across workspaces. */
   test: {
+    /** Coverage collection settings. */
     coverage?: {
+      /** Whether coverage collection is enabled. */
       enabled: boolean;
+      /** Minimum coverage percentage required (0-100). */
       threshold: number;
+      /** Glob patterns of paths to exclude from coverage. */
       exclude?: string[];
     };
+    /** Whether tests may run in parallel. */
     parallel?: boolean;
+    /** Maximum duration in milliseconds a test run may take before timing out. */
     timeout?: number;
   };
-  
-  // Scripts that can be run across workspaces
+
+  /** Named scripts that can be run across one or more workspaces. */
   scripts: {
     [key: string]: WorkspaceScript;
   };
-  
-  // Environment-specific overrides
+
+  /** Optional per-environment overrides keyed by environment name. */
   environments?: {
     [key: string]: Partial<WorkspaceDefinition>;
   };
-  
-  // Plugin configuration
+
+  /** Optional list of plugins to load for this workspace. */
   plugins?: string[];
-  
-  // Metadata
+
+  /** Optional metadata tracking creation/modification and tags. */
   metadata?: {
+    /** ISO timestamp of when the workspace was created. */
     created: string;
+    /** ISO timestamp of the last modification. */
     lastModified: string;
+    /** Optional author identifier. */
     author?: string;
+    /** Optional list of free-form tags. */
     tags?: string[];
+    /** Allows additional arbitrary metadata fields. */
     [key: string]: any;
   };
 }
 
-// Workspace type configuration
+/**
+ * Configuration for a category of workspace (e.g. `app`, `package`, `tool`).
+ *
+ * A `WorkspaceTypeConfig` defines how workspaces of a given type are built,
+ * tested, linted, detected, and structured on disk.
+ */
 export interface WorkspaceTypeConfig {
+  /** Display name of the workspace type. */
   name: string;
+  /** Optional description of the workspace type. */
   description?: string;
+  /** Optional framework identifier (e.g. `react`, `vue`). */
   framework?: string;
+  /** Optional template identifier used to scaffold this type. */
   template?: string;
-  
-  // Build configuration for this type
+
+  /** Build configuration for this workspace type. */
   build?: {
+    /** Command used to build the workspace. */
     command?: string;
+    /** Directory where build output is emitted. */
     outputDir?: string;
+    /** Environment variables to set during the build. */
     env?: Record<string, string>;
+    /** Additional dependencies required to build this type. */
     dependencies?: string[];
   };
-  
-  // Development configuration
+
+  /** Development configuration for this workspace type. */
   dev?: {
+    /** Command used to start the dev server. */
     command?: string;
+    /** Port the dev server listens on. */
     port?: number;
+    /** Environment variables to set for the dev server. */
     env?: Record<string, string>;
   };
-  
-  // Testing configuration
+
+  /** Testing configuration for this workspace type. */
   test?: {
+    /** Command used to run tests. */
     command?: string;
+    /** Glob pattern matching test files. */
     pattern?: string;
+    /** Environment variables to set when running tests. */
     env?: Record<string, string>;
   };
-  
-  // Linting configuration
+
+  /** Linting configuration for this workspace type. */
   lint?: {
+    /** Command used to run the linter. */
     command?: string;
+    /** Files or globs to lint. */
     files?: string[];
+    /** Environment variables to set when linting. */
     env?: Record<string, string>;
   };
-  
-  // Type checking configuration
+
+  /** Type checking configuration for this workspace type. */
   typecheck?: {
+    /** Command used to run type checking. */
     command?: string;
+    /** Files or globs to type check. */
     files?: string[];
+    /** Environment variables to set when type checking. */
     env?: Record<string, string>;
   };
-  
-  // File patterns for this workspace type
+
+  /** File patterns describing the layout of this workspace type. */
   patterns?: {
+    /** Globs matching source files. */
     source?: string[];
+    /** Globs matching test files. */
     test?: string[];
+    /** Globs matching configuration files. */
     config?: string[];
+    /** Globs matching static asset files. */
     assets?: string[];
   };
-  
-  // Required files for this type
+
+  /** Files that must exist for a workspace of this type to be valid. */
   requiredFiles?: string[];
-  
-  // Auto-detection rules
+
+  /** Rules used to auto-detect whether a directory matches this type. */
   detection?: {
+    /** Files whose presence indicates this type. */
     files?: string[];
+    /** package.json fields whose presence indicates this type. */
     packageJsonFields?: string[];
+    /** Commands whose availability indicates this type. */
     commands?: string[];
   };
 }
 
-// Individual workspace entry
+/**
+ * Definition of an individual workspace within the monorepo.
+ *
+ * A `WorkspaceEntry` references a workspace type and may override any of the
+ * type-level configuration sections for this specific workspace.
+ */
 export interface WorkspaceEntry {
+  /** Identifier of the workspace, unique within the definition. */
   name: string;
+  /** Key into `WorkspaceDefinition.types` describing this workspace's type. */
   type: string;
+  /** Path to the workspace directory, relative to the workspace root. */
   path: string;
+  /** Optional human-readable description of the workspace. */
   description?: string;
-  
-  // Override type-level configuration
+
+  /** Optional override of the type-level build configuration. */
   build?: Partial<WorkspaceTypeConfig['build']>;
+  /** Optional override of the type-level dev configuration. */
   dev?: Partial<WorkspaceTypeConfig['dev']>;
+  /** Optional override of the type-level test configuration. */
   test?: Partial<WorkspaceTypeConfig['test']>;
+  /** Optional override of the type-level lint configuration. */
   lint?: Partial<WorkspaceTypeConfig['lint']>;
+  /** Optional override of the type-level typecheck configuration. */
   typecheck?: Partial<WorkspaceTypeConfig['typecheck']>;
-  
-  // Workspace-specific environment variables
+
+  /** Workspace-specific environment variables applied to all commands. */
   env?: Record<string, string>;
-  
-  // Tags for grouping and filtering
+
+  /** Tags used to group or filter this workspace. */
   tags?: string[];
-  
-  // Whether this workspace is active
+
+  /** Whether this workspace is currently active. */
   active?: boolean;
-  
-  // Custom metadata
+
+  /** Free-form custom metadata for this workspace. */
   metadata?: Record<string, unknown>;
 }
 
-// Workspace dependency definition
+/**
+ * Describes a dependency from one workspace to another.
+ */
 export interface WorkspaceDependency {
+  /** Name of the workspace this dependency points to. */
   name: string;
+  /** Phase in which the dependency is required. */
   type: 'build' | 'dev' | 'test' | 'runtime';
+  /** Optional version constraint for the dependency. */
   version?: string;
+  /** Whether the dependency is optional. */
   optional?: boolean;
+  /** Named conditions under which this dependency applies. */
   conditions?: string[];
 }
 
-// Workspace script definition
+/**
+ * Definition of a named script that can be executed across workspaces.
+ */
 export interface WorkspaceScript {
+  /** Optional human-readable description of what the script does. */
   description?: string;
+  /** Shell command executed by this script. */
   command: string;
+  /** Workspaces to run the command in, or `'all'` for every workspace. */
   workspaces?: string[] | 'all';
+  /** Whether the script may run across workspaces in parallel. */
   parallel?: boolean;
+  /** Whether execution should continue after a workspace fails. */
   continueOnError?: boolean;
+  /** Environment variables to set when running the script. */
   env?: Record<string, string>;
+  /** Maximum duration in milliseconds the script may run before timing out. */
   timeout?: number;
+  /** Whether results of this script should be cached. */
   cache?: boolean;
 }
 
-// Validation result
+/**
+ * Outcome of validating a workspace definition or on-disk structure.
+ */
 export interface ValidationResult {
+  /** `true` when no errors were found; `false` otherwise. */
   valid: boolean;
+  /** Errors that block the workspace from being considered valid. */
   errors: ValidationError[];
+  /** Non-blocking issues that the user may want to address. */
   warnings: ValidationWarning[];
+  /** Optional improvements the user may apply. */
   suggestions: ValidationSuggestion[];
 }
 
+/**
+ * A non-blocking warning produced during validation.
+ */
 export interface ValidationWarning {
+  /** Dotted path to the offending field in the definition. */
   path: string;
+  /** Human-readable description of the warning. */
   message: string;
+  /** Severity of the warning. */
   severity: 'low' | 'medium' | 'high';
 }
 
+/**
+ * A suggested improvement produced during validation.
+ */
 export interface ValidationSuggestion {
+  /** Dotted path to the relevant field in the definition. */
   path: string;
+  /** Human-readable description of the suggestion. */
   message: string;
+  /** Optional instructions for applying the suggested fix. */
   fix?: string;
 }
 
-// Default workspace definition
+/**
+ * Default workspace definition used as the baseline for new Re-Shell monorepos.
+ *
+ * Includes sensible defaults for workspace types (`app`, `package`, `tool`),
+ * build/dev/test configuration, and the `build:all`, `test:all`, and
+ * `lint:all` scripts.
+ */
 export const DEFAULT_WORKSPACE_DEFINITION: WorkspaceDefinition = {
   version: '1.0',
   name: 'monorepo',
@@ -332,17 +451,36 @@ export const DEFAULT_WORKSPACE_DEFINITION: WorkspaceDefinition = {
   }
 };
 
-// Workspace schema validator
+/**
+ * Validates a `WorkspaceDefinition` for structural correctness and consistency
+ * against the files on disk.
+ *
+ * A validator instance is bound to a single definition and root path, and
+ * exposes methods to validate the definition itself, the workspace structure
+ * on disk, and to auto-detect workspaces from the configured patterns.
+ */
 export class WorkspaceSchemaValidator {
   private definition: WorkspaceDefinition;
   private rootPath: string;
 
+  /**
+   * Create a new validator for the given definition.
+   *
+   * @param definition - The workspace definition to validate.
+   * @param rootPath - Absolute path used as the workspace root for on-disk checks.
+   * Defaults to the current working directory.
+   */
   constructor(definition: WorkspaceDefinition, rootPath: string = process.cwd()) {
     this.definition = definition;
     this.rootPath = rootPath;
   }
 
-  // Validate the entire workspace definition
+  /**
+   * Validate the entire workspace definition for correctness and consistency.
+   *
+   * @returns A promise resolving to the validation result containing any
+   * errors, warnings, and suggestions produced.
+   */
   async validateDefinition(): Promise<ValidationResult> {
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
@@ -385,7 +523,17 @@ export class WorkspaceSchemaValidator {
     };
   }
 
-  // Validate workspace structure on disk
+  /**
+   * Validate the workspace definition against the actual structure on disk.
+   *
+   * Verifies that referenced workspace directories exist, that any
+   * type-required files are present, and that workspace `package.json`
+   * files are consistent with their definitions. Also reports orphaned
+   * directories that look like workspaces but are not defined.
+   *
+   * @returns A promise resolving to the validation result containing any
+   * errors, warnings, and suggestions produced.
+   */
   async validateWorkspaceStructure(): Promise<ValidationResult> {
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
@@ -443,7 +591,14 @@ export class WorkspaceSchemaValidator {
     };
   }
 
-  // Auto-detect workspaces based on patterns and types
+  /**
+   * Auto-detect workspaces by matching the configured patterns against the
+   * filesystem and inferring each match's type from the configured detection
+   * rules.
+   *
+   * @returns A promise resolving to the list of detected workspace entries.
+   * @throws {ValidationError} When the detection process fails.
+   */
   async autoDetectWorkspaces(): Promise<WorkspaceEntry[]> {
     const detected: WorkspaceEntry[] = [];
 
@@ -766,7 +921,14 @@ export class WorkspaceSchemaValidator {
   }
 }
 
-// Utility functions
+/**
+ * Load and validate a workspace definition from a YAML file on disk.
+ *
+ * @param filePath - Absolute or relative path to the workspace definition file.
+ * @returns A promise resolving to the parsed and validated `WorkspaceDefinition`.
+ * @throws {ValidationError} When the file is missing, cannot be parsed, or
+ * fails validation.
+ */
 export async function loadWorkspaceDefinition(filePath: string): Promise<WorkspaceDefinition> {
   try {
     if (!(await fs.pathExists(filePath))) {
@@ -794,6 +956,18 @@ export async function loadWorkspaceDefinition(filePath: string): Promise<Workspa
   }
 }
 
+/**
+ * Validate and persist a workspace definition to a YAML file on disk.
+ *
+ * The definition is validated before saving and its `metadata.lastModified`
+ * timestamp is updated. The parent directory is created if it does not exist.
+ *
+ * @param definition - The workspace definition to save.
+ * @param filePath - Absolute or relative path to the destination file.
+ * @returns A promise that resolves once the file has been written.
+ * @throws {ValidationError} When the definition is invalid or the file
+ * cannot be written.
+ */
 export async function saveWorkspaceDefinition(
   definition: WorkspaceDefinition,
   filePath: string
@@ -831,6 +1005,14 @@ export async function saveWorkspaceDefinition(
   }
 }
 
+/**
+ * Create a new workspace definition seeded from `DEFAULT_WORKSPACE_DEFINITION`.
+ *
+ * @param name - Name to assign to the new workspace definition.
+ * @param options - Optional overrides applied on top of the defaults.
+ * @returns A new `WorkspaceDefinition` with default values and the provided
+ * overrides applied.
+ */
 export function createDefaultWorkspaceDefinition(
   name: string,
   options: Partial<WorkspaceDefinition> = {}
