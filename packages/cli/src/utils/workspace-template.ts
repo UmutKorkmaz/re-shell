@@ -4,76 +4,145 @@ import * as yaml from 'yaml';
 import { ValidationError } from './error-handler';
 import { WorkspaceDefinition, WorkspaceEntry, WorkspaceTypeConfig } from './workspace-schema';
 
-// Template interfaces
+/**
+ * Represents a workspace template definition that can be applied to generate
+ * workspace configurations. Templates support variable substitution, inheritance,
+ * and provide sensible defaults for workspace entries.
+ */
 export interface WorkspaceTemplate {
+  /** Unique identifier name of the template. */
   name: string;
+  /** Optional human-readable description of the template's purpose. */
   description?: string;
+  /** Semantic version string of the template (e.g. "1.0.0"). */
   version: string;
-  extends?: string; // Parent template name
+  /** Optional name of a parent template to inherit configuration from. */
+  extends?: string;
+  /** Optional list of variables that consumers of the template must or may supply. */
   variables?: TemplateVariable[];
+  /** Optional default values applied to workspace entries created from this template. */
   workspaceDefaults?: Partial<WorkspaceEntry>;
+  /** Optional map of workspace type names to their default configuration. */
   typeDefaults?: Record<string, Partial<WorkspaceTypeConfig>>;
+  /** Optional list of glob patterns describing the workspace structure (e.g. "apps/*"). */
   patterns?: string[];
+  /** Optional map of dependency names to version specifiers. */
   dependencies?: Record<string, any>;
+  /** Optional map of script names to their command strings. */
   scripts?: Record<string, any>;
+  /** Optional free-form metadata associated with the template. */
   metadata?: Record<string, any>;
 }
 
+/**
+ * Describes a single variable that a template accepts, including its type,
+ * validation rules, and default value.
+ */
 export interface TemplateVariable {
+  /** The variable name used for `{{name}}` substitution and lookup. */
   name: string;
+  /** Optional human-readable description of the variable. */
   description?: string;
+  /** The expected JavaScript type of the variable value. */
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  /** Optional default value used when the variable is not provided. */
   default?: any;
+  /** Whether the variable must be supplied by the consumer. Defaults to false. */
   required?: boolean;
+  /** Optional list of allowed values the variable may take. */
   enum?: any[];
+  /** Optional regex pattern (as a string) that string-typed values must match. */
   pattern?: string;
 }
 
+/**
+ * Context object supplied when applying a template, carrying variable values
+ * and optionally a target workspace and definition.
+ */
 export interface TemplateContext {
+  /** Map of variable names to their resolved values for substitution. */
   variables: Record<string, any>;
+  /** Optional target workspace entry to receive the template's workspace defaults. */
   workspace?: WorkspaceEntry;
+  /** Optional originating workspace definition, when applicable. */
   definition?: WorkspaceDefinition;
 }
 
+/**
+ * Result of resolving a template's inheritance chain, including the ordered
+ * list of ancestor templates, merged variable definitions, and the fully
+ * merged template.
+ */
 export interface InheritanceChain {
+  /** Ordered list of templates in the chain, starting from the root parent. */
   templates: WorkspaceTemplate[];
+  /** Map of variable names to their merged definitions across the chain. */
   variables: Record<string, TemplateVariable>;
+  /** The fully merged template after applying all ancestors in order. */
   merged: WorkspaceTemplate;
 }
 
-// Template registry
+/**
+ * On-disk registry tracking all known templates along with versioning and
+ * timestamp metadata.
+ */
 export interface TemplateRegistry {
+  /** Schema version of the registry file. */
   version: string;
+  /** Map of template names to their definitions. */
   templates: Record<string, WorkspaceTemplate>;
+  /** Metadata describing the registry's lifecycle. */
   metadata: {
+    /** ISO timestamp of when the registry was first created. */
     created: string;
+    /** ISO timestamp of the most recent modification. */
     modified: string;
+    /** Number of templates currently stored in the registry. */
     count: number;
   };
 }
 
-// Workspace template manager
+/**
+ * Manager for workspace templates. Handles loading, creating, listing,
+ * deleting, and applying templates, as well as resolving inheritance chains
+ * and performing variable substitution.
+ */
 export class WorkspaceTemplateManager {
   private templatesPath: string;
   private registry: TemplateRegistry;
   private templateCache: Map<string, WorkspaceTemplate> = new Map();
 
+  /**
+   * Creates a new WorkspaceTemplateManager rooted at the given project path.
+   *
+   * @param rootPath - Project root directory. Defaults to the current working directory.
+   */
   constructor(rootPath: string = process.cwd()) {
     this.templatesPath = path.join(rootPath, '.re-shell', 'templates');
     this.registry = this.createDefaultRegistry();
   }
 
-  // Initialize template system
+  /**
+   * Initializes the template system by ensuring the templates directory exists,
+   * loading the existing registry, and seeding built-in templates.
+   *
+   * @returns Resolves once initialization is complete.
+   */
   async init(): Promise<void> {
     await fs.ensureDir(this.templatesPath);
     await this.loadRegistry();
     await this.loadBuiltInTemplates();
   }
 
-  // Load template registry
+  /**
+   * Loads the template registry from disk, creating a default registry if the
+   * file does not exist or fails to parse.
+   *
+   * @returns Resolves once the registry has been loaded or initialized.
+   */
   async loadRegistry(): Promise<void> {
     const registryPath = path.join(this.templatesPath, 'registry.json');
-    
+
     try {
       if (await fs.pathExists(registryPath)) {
         this.registry = await fs.readJson(registryPath);
@@ -85,16 +154,28 @@ export class WorkspaceTemplateManager {
     }
   }
 
-  // Save template registry
+  /**
+   * Persists the current registry to disk, updating its modification timestamp
+   * and template count.
+   *
+   * @returns Resolves once the registry file has been written.
+   */
   async saveRegistry(): Promise<void> {
     const registryPath = path.join(this.templatesPath, 'registry.json');
     this.registry.metadata.modified = new Date().toISOString();
     this.registry.metadata.count = Object.keys(this.registry.templates).length;
-    
+
     await fs.writeJson(registryPath, this.registry, { spaces: 2 });
   }
 
-  // Create new template
+  /**
+   * Creates and persists a new template after validating it and confirming
+   * no existing template shares its name.
+   *
+   * @param template - The template definition to register.
+   * @returns Resolves once the template has been written and the registry updated.
+   * @throws {ValidationError} If the template is invalid or a template with the same name exists.
+   */
   async createTemplate(template: WorkspaceTemplate): Promise<void> {
     // Validate template
     this.validateTemplate(template);
@@ -116,7 +197,13 @@ export class WorkspaceTemplateManager {
     this.templateCache.delete(template.name);
   }
 
-  // Get template by name
+  /**
+   * Retrieves a template by name, using an in-memory cache to avoid repeated
+   * disk reads on subsequent lookups.
+   *
+   * @param name - Name of the template to retrieve.
+   * @returns The matching template, or `null` if it cannot be found or loaded.
+   */
   async getTemplate(name: string): Promise<WorkspaceTemplate | null> {
     // Check cache first
     if (this.templateCache.has(name)) {
@@ -147,7 +234,13 @@ export class WorkspaceTemplateManager {
     return null;
   }
 
-  // List all templates
+  /**
+   * Lists all templates currently registered, resolving each from disk (or
+   * cache).
+   *
+   * @returns An array of all registered templates. Templates that fail to
+   * load are omitted from the result.
+   */
   async listTemplates(): Promise<WorkspaceTemplate[]> {
     const templates: WorkspaceTemplate[] = [];
     
@@ -161,7 +254,14 @@ export class WorkspaceTemplateManager {
     return templates;
   }
 
-  // Delete template
+  /**
+   * Deletes a template by name. Refuses to delete templates that other
+   * templates extend.
+   *
+   * @param name - Name of the template to delete.
+   * @returns Resolves once the template file and registry entry have been removed.
+   * @throws {ValidationError} If the template does not exist or is extended by other templates.
+   */
   async deleteTemplate(name: string): Promise<void> {
     if (!this.registry.templates[name]) {
       throw new ValidationError(`Template '${name}' not found`);
@@ -187,7 +287,16 @@ export class WorkspaceTemplateManager {
     this.templateCache.delete(name);
   }
 
-  // Apply template with variable substitution
+  /**
+   * Applies a named template against the supplied context, resolving its
+   * inheritance chain, validating variables, and producing a partial workspace
+   * definition with substituted values.
+   *
+   * @param templateName - Name of the template to apply.
+   * @param context - Context providing variable values and optional target workspace.
+   * @returns A partial workspace definition derived from the template.
+   * @throws {ValidationError} If the template is missing, variables are invalid, or inheritance fails.
+   */
   async applyTemplate(
     templateName: string,
     context: TemplateContext
@@ -209,7 +318,14 @@ export class WorkspaceTemplateManager {
     return result;
   }
 
-  // Resolve template inheritance chain
+  /**
+   * Resolves the full inheritance chain for the given template, walking up the
+   * `extends` references and merging variables and configuration along the way.
+   *
+   * @param templateName - Name of the template whose chain should be resolved.
+   * @returns The resolved inheritance chain including merged variables and template.
+   * @throws {ValidationError} If a referenced template is missing or a circular inheritance is detected.
+   */
   async resolveInheritanceChain(templateName: string): Promise<InheritanceChain> {
     const templates: WorkspaceTemplate[] = [];
     const variables: Record<string, TemplateVariable> = {};
@@ -248,7 +364,14 @@ export class WorkspaceTemplateManager {
     return { templates, variables, merged };
   }
 
-  // Merge templates in inheritance chain
+  /**
+   * Merges a chain of templates into a single combined template, with child
+   * templates overriding their parents for scalar fields while arrays and
+   * maps are concatenated or shallow-merged.
+   *
+   * @param templates - Ordered templates to merge, parents first.
+   * @returns The merged template.
+   */
   private mergeTemplates(templates: WorkspaceTemplate[]): WorkspaceTemplate {
     let merged: WorkspaceTemplate = {
       name: templates[templates.length - 1].name,
@@ -291,7 +414,14 @@ export class WorkspaceTemplateManager {
     return merged;
   }
 
-  // Apply template with context
+  /**
+   * Applies a merged template against the supplied context, producing a partial
+   * workspace definition and mutating the context's workspace with defaults.
+   *
+   * @param template - The merged template to apply.
+   * @param context - Context providing variable values and optional target workspace.
+   * @returns A partial workspace definition with substituted values.
+   */
   private applyTemplateWithInheritance(
     template: WorkspaceTemplate,
     context: TemplateContext
@@ -342,7 +472,13 @@ export class WorkspaceTemplateManager {
     return result;
   }
 
-  // Validate template
+  /**
+   * Validates a template definition, ensuring required fields are present,
+   * variable definitions are well-formed, and self-inheritance is avoided.
+   *
+   * @param template - The template to validate.
+   * @throws {ValidationError} If any validation rule is violated.
+   */
   private validateTemplate(template: WorkspaceTemplate): void {
     if (!template.name) {
       throw new ValidationError('Template name is required');
@@ -365,7 +501,14 @@ export class WorkspaceTemplateManager {
     }
   }
 
-  // Validate variable definition
+  /**
+   * Validates a single variable definition, ensuring it has a name, an allowed
+   * type, a default value consistent with its enum, and a pattern only when
+   * string-typed.
+   *
+   * @param variable - The variable definition to validate.
+   * @throws {ValidationError} If the variable definition is invalid.
+   */
   private validateVariableDefinition(variable: TemplateVariable): void {
     if (!variable.name) {
       throw new ValidationError('Variable name is required');
@@ -388,7 +531,15 @@ export class WorkspaceTemplateManager {
     }
   }
 
-  // Validate variables against requirements
+  /**
+   * Validates a set of supplied variable values against the variable
+   * definitions declared by a template, checking requiredness, types,
+   * enum membership, and pattern conformance.
+   *
+   * @param definitions - Map of variable names to their declared definitions.
+   * @param values - Map of variable names to supplied values.
+   * @throws {ValidationError} If any value fails validation.
+   */
   private validateVariables(
     definitions: Record<string, TemplateVariable>,
     values: Record<string, any>
@@ -429,7 +580,13 @@ export class WorkspaceTemplateManager {
     }
   }
 
-  // Type validation
+  /**
+   * Determines whether a value matches the declared variable type.
+   *
+   * @param value - The value to inspect.
+   * @param type - The declared type (one of string, number, boolean, array, object).
+   * @returns `true` if the value's runtime type matches `type`; otherwise `false`.
+   */
   private isValidType(value: any, type: string): boolean {
     switch (type) {
       case 'string':
@@ -447,7 +604,14 @@ export class WorkspaceTemplateManager {
     }
   }
 
-  // Variable substitution
+  /**
+   * Recursively walks an arbitrary value and substitutes `{{name}}` placeholders
+   * in any nested strings using the provided variable map.
+   *
+   * @param obj - The value to process (string, array, object, or primitive).
+   * @param variables - Map of variable names to their resolved values.
+   * @returns A new value of the same shape with substitutions applied.
+   */
   private substituteVariables(obj: any, variables: Record<string, any>): any {
     if (typeof obj === 'string') {
       return this.substituteString(obj, variables);
@@ -468,7 +632,14 @@ export class WorkspaceTemplateManager {
     return obj;
   }
 
-  // String variable substitution
+  /**
+   * Replaces `{{name}}` placeholders in a string with the corresponding values
+   * from the provided variable map. Unknown placeholders are left unchanged.
+   *
+   * @param str - The string containing zero or more placeholders.
+   * @param variables - Map of variable names to their resolved values.
+   * @returns The string with matching placeholders replaced.
+   */
   private substituteString(str: string, variables: Record<string, any>): string {
     return str.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
       if (varName in variables) {
@@ -478,7 +649,13 @@ export class WorkspaceTemplateManager {
     });
   }
 
-  // Find templates that depend on a given template
+  /**
+   * Returns the names of all templates that extend the given template, used to
+   * prevent deletion of templates that are still depended upon.
+   *
+   * @param templateName - Name of the potential parent template.
+   * @returns Array of template names that extend `templateName`.
+   */
   private async findDependentTemplates(templateName: string): Promise<string[]> {
     const dependents: string[] = [];
     
@@ -491,7 +668,13 @@ export class WorkspaceTemplateManager {
     return dependents;
   }
 
-  // Load built-in templates
+  /**
+   * Seeds the registry with built-in templates (microfrontend, library,
+   * service, monorepo) the first time the manager is initialized. Existing
+   * templates with the same name are preserved.
+   *
+   * @returns Resolves once all built-in templates have been considered.
+   */
   private async loadBuiltInTemplates(): Promise<void> {
     const builtInTemplates = [
       this.createMicrofrontendTemplate(),
@@ -511,7 +694,12 @@ export class WorkspaceTemplateManager {
     }
   }
 
-  // Built-in template definitions
+  /**
+   * Builds the built-in "microfrontend" template, defining a standard
+   * microfrontend application with framework selection and dev port.
+   *
+   * @returns The microfrontend template definition.
+   */
   private createMicrofrontendTemplate(): WorkspaceTemplate {
     return {
       name: 'microfrontend',
@@ -557,6 +745,12 @@ export class WorkspaceTemplateManager {
     };
   }
 
+  /**
+   * Builds the built-in "library" template, defining a shared library with
+   * a configurable library type.
+   *
+   * @returns The library template definition.
+   */
   private createLibraryTemplate(): WorkspaceTemplate {
     return {
       name: 'library',
@@ -588,6 +782,12 @@ export class WorkspaceTemplateManager {
     };
   }
 
+  /**
+   * Builds the built-in "service" template, defining a backend service with
+   * runtime selection. This template extends the "base" template.
+   *
+   * @returns The service template definition.
+   */
   private createServiceTemplate(): WorkspaceTemplate {
     return {
       name: 'service',
@@ -620,6 +820,12 @@ export class WorkspaceTemplateManager {
     };
   }
 
+  /**
+   * Builds the built-in "monorepo" template, defining a full monorepo layout
+   * with workspace patterns, type defaults, and package-manager-aware scripts.
+   *
+   * @returns The monorepo template definition.
+   */
   private createMonorepoTemplate(): WorkspaceTemplate {
     return {
       name: 'monorepo',
@@ -668,7 +874,12 @@ export class WorkspaceTemplateManager {
     };
   }
 
-  // Utility methods
+  /**
+   * Creates a fresh, empty registry with current timestamps, ready for first
+   * use.
+   *
+   * @returns A default TemplateRegistry instance.
+   */
   private createDefaultRegistry(): TemplateRegistry {
     return {
       version: '1.0.0',
@@ -682,7 +893,14 @@ export class WorkspaceTemplateManager {
   }
 }
 
-// Utility functions
+/**
+ * Factory helper that constructs a WorkspaceTemplateManager rooted at the
+ * given path and initializes it (ensuring directories, loading the registry,
+ * and seeding built-in templates).
+ *
+ * @param rootPath - Optional project root directory. Defaults to the current working directory.
+ * @returns A promise resolving to the initialized WorkspaceTemplateManager.
+ */
 export async function createWorkspaceTemplateManager(
   rootPath?: string
 ): Promise<WorkspaceTemplateManager> {
@@ -691,7 +909,16 @@ export async function createWorkspaceTemplateManager(
   return manager;
 }
 
-// Export template from workspace definition
+/**
+ * Converts an existing workspace definition into a reusable WorkspaceTemplate,
+ * copying its patterns, type defaults, and scripts, and tagging the result
+ * with export metadata.
+ *
+ * @param definition - The source workspace definition to export from.
+ * @param templateName - Name to assign to the generated template.
+ * @param variables - Optional list of variable definitions to expose on the template.
+ * @returns A promise resolving to the generated WorkspaceTemplate.
+ */
 export async function exportWorkspaceAsTemplate(
   definition: WorkspaceDefinition,
   templateName: string,
