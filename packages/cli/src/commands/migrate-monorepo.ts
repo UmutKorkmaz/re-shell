@@ -17,6 +17,12 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { globSync } from 'glob';
 
+/**
+ * Identifies which kind of source monorepo is being migrated.
+ *
+ * - `'nx'`     — an Nx workspace (uses nx.json + per-project project.json).
+ * - `'turbo'`  — a Turborepo workspace (uses turbo.json + workspace globs).
+ */
 export type MigrateSource = 'nx' | 'turbo';
 
 /**
@@ -41,21 +47,31 @@ export interface DetectedService {
  * Structured result of a migration: what was detected plus the rendered YAML.
  */
 export interface MigrationResult {
+  /** The source monorepo flavor that was scanned. */
   source: MigrateSource;
+  /** Schema-safe workspace name derived from the root package or directory. */
   workspaceName: string;
+  /** List of services distilled from the source monorepo. */
   detected: DetectedService[];
+  /** The rendered v2 workspace document serialized as YAML. */
   yaml: string;
 }
 
+/**
+ * Options accepted by {@link migrateMonorepo}.
+ */
 export interface MigrateMonorepoOptions {
+  /** Which kind of source monorepo to migrate. */
   source: MigrateSource;
   /** Directory containing the source monorepo (defaults to process.cwd()). */
   cwd?: string;
   /** When set (and not a dry run) the YAML is written here. */
   output?: string;
+  /** When true, skip writing any files even if `output` is provided. */
   dryRun?: boolean;
   /** Emit a JSON envelope instead of human-readable text. */
   json?: boolean;
+  /** Optional spinner handle stopped before non-JSON output is printed. */
   spinner?: { stop: () => void } | undefined;
 }
 
@@ -89,6 +105,9 @@ const VALID_LANGUAGES = new Set([
  * Convert an arbitrary package name into a schema-valid service key.
  * The v2 schema requires `^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`, so we strip
  * any npm scope, lowercase, replace invalid runs with a hyphen, and trim.
+ *
+ * @param raw - The original package/project name (may include an npm scope).
+ * @returns A non-empty, lowercased, kebab-cased key no longer than 63 chars.
  */
 export function sanitizeServiceName(raw: string): string {
   const withoutScope = raw.includes('/') ? raw.slice(raw.lastIndexOf('/') + 1) : raw;
@@ -308,6 +327,11 @@ function buildService(originalName: string, projectPath: string, pkg: PackageLik
 /**
  * Render the detected services to a v2 workspace document. Built as a plain
  * object and serialized with js-yaml so the output is well-formed.
+ *
+ * @param workspaceName - Schema-safe name to emit as the document `name`.
+ * @param source - The source monorepo flavor, surfaced in the description.
+ * @param services - Detected services to emit under the `services` key.
+ * @returns The v2 workspace document serialized as a YAML string.
  */
 export function renderWorkspaceYaml(
   workspaceName: string,
@@ -347,6 +371,9 @@ export function renderWorkspaceYaml(
 /**
  * Core migration entry point. Pure with respect to the filesystem unless an
  * output path is supplied without --dry-run.
+ *
+ * @param options - Configuration for the migration (source, cwd, output, etc.).
+ * @returns A {@link MigrationResult} with the detected services and rendered YAML.
  */
 export async function migrateMonorepo(
   options: MigrateMonorepoOptions

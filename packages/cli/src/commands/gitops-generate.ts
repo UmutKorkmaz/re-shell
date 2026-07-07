@@ -8,17 +8,34 @@ import {
 import { ok, fail, enableJsonMode } from '../utils/json-output';
 import type { ProgressSpinner } from '../utils/spinner';
 
+/**
+ * Options accepted by {@link runGitOpsGenerate}.
+ *
+ * Mirrors the flags of the `k8s gitops generate` CLI command. All fields are
+ * optional; sensible defaults are applied by the underlying generator.
+ */
 export interface GitOpsGenerateCommandOptions {
+  /** GitOps tool to target (`"argocd"` or `"flux"`). */
   tool?: string;
+  /** Output directory to write rendered manifests into. When omitted (or with `dryRun`) nothing is written. */
   out?: string;
+  /** Kubernetes namespace the deployed app should run in. */
   namespace?: string;
+  /** Git repository URL the GitOps tool reconciles manifests from. */
   repoUrl?: string;
+  /** Git revision/branch the GitOps tool should track. */
   revision?: string;
+  /** Path within the repository that points at the chart or raw manifests. */
   chartPath?: string;
+  /** When `true`, emit a machine-readable JSON envelope instead of human-friendly output. */
   json?: boolean;
+  /** When `true`, compute and report manifests without writing any files to disk. */
   dryRun?: boolean;
+  /** Working directory used to discover the workspace v2 config (defaults to `process.cwd()`). */
   cwd?: string;
+  /** Explicit path to a `workspace.yaml`; overrides `cwd`-based discovery. */
   configPath?: string;
+  /** Optional progress spinner to stop before printing results. */
   spinner?: ProgressSpinner;
 }
 
@@ -28,12 +45,17 @@ function normalizeTool(tool: string | undefined): GitOpsTool {
 }
 
 /**
- * `k8s gitops generate --tool argocd|flux` — read the workspace v2 config and
- * emit GitOps manifests (ArgoCD Application or Flux GitRepository+Kustomization)
- * plus an Ingress with cert-manager TLS. In `--json`/`--dry-run` mode nothing is
+ * Run the `k8s gitops generate --tool argocd|flux` command.
+ *
+ * Reads the workspace v2 config and emits GitOps manifests (an ArgoCD
+ * `Application`, or a Flux `GitRepository` + `Kustomization`) plus an `Ingress`
+ * with cert-manager TLS annotations. In `--json`/`--dry-run` mode nothing is
  * written; the ok envelope carries `{ tool, manifests, written }`. With `--out`
  * (and not dry-run) manifests are written to disk. Errors map to a
  * `GITOPS_GENERATE_ERROR` envelope (exit 1).
+ *
+ * @param options - Command-line options (see {@link GitOpsGenerateCommandOptions}). Defaults to `{}`.
+ * @returns Resolves once generation (and any disk writes / JSON output) has completed. The promise never rejects — failures are surfaced via `process.exitCode` or a JSON error envelope.
  */
 export async function runGitOpsGenerate(
   options: GitOpsGenerateCommandOptions = {}
