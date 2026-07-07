@@ -14,21 +14,45 @@ const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 const ENV_VAULT_PATH = '.re-shell/env-vault.json';
 
 
+/**
+ * Represents a single environment variable entry, optionally encrypted at rest.
+ *
+ * Encrypted entries store the ciphertext value together with the AES-256-GCM
+ * initialization vector and authentication tag required for decryption.
+ */
 export interface EncryptedEnvVar {
+  /** The environment variable name (e.g. `DATABASE_URL`). */
   name: string;
+  /** The variable value. When `encrypted` is true this is the ciphertext (hex). */
   value: string;
+  /** Whether the `value` is encrypted at rest. */
   encrypted: boolean;
+  /** Initialization vector used for AES-256-GCM encryption (hex), present when `encrypted` is true. */
   iv?: string; // Initialization vector
+  /** Authentication tag produced by AES-256-GCM (hex), present when `encrypted` is true. */
   authTag?: string; // Authentication tag
+  /** Optional human-readable description of the variable's purpose. */
   description?: string;
+  /** Whether the variable must be present in the runtime environment. */
   required?: boolean;
 }
 
+/**
+ * On-disk schema for the encrypted environment variable vault (`.re-shell/env-vault.json`).
+ *
+ * The vault holds a set of named profiles, each with its own environment,
+ * variable map, and key identifier.
+ */
 export interface EnvVault {
+  /** Schema version of the vault file. */
   version: string;
+  /** Map of profile name to profile-specific environment configuration. */
   profiles: Record<string, {
+    /** Logical environment label associated with the profile (e.g. `production`). */
     environment: string;
+    /** Map of variable name to {@link EncryptedEnvVar} entry. */
     variables: Record<string, EncryptedEnvVar>;
+    /** Identifier of the encryption key used for the profile (not the actual key). */
     encryptionKey: string; // Key identifier (not the actual key)
   }>;
 }
@@ -91,7 +115,9 @@ function decryptValue(
 }
 
 /**
- * Load environment vault
+ * Load the environment vault from disk, creating an empty vault if it does not exist.
+ *
+ * @returns The loaded (or newly created) {@link EnvVault} instance.
  */
 export async function loadEnvVault(): Promise<EnvVault> {
   const vaultPath = path.join(process.cwd(), ENV_VAULT_PATH);
@@ -118,7 +144,20 @@ async function saveEnvVault(vault: EnvVault): Promise<void> {
 }
 
 /**
- * Add encrypted environment variable to profile
+ * Add an environment variable to a profile, encrypting it at rest when requested.
+ *
+ * If the profile does not yet exist in the vault it is initialized with a
+ * `custom` environment label. When `options.encrypt` is true the value is
+ * encrypted using AES-256-GCM before being persisted.
+ *
+ * @param profileName - Name of the target profile.
+ * @param varName - Name of the environment variable.
+ * @param value - Raw value of the variable (will be encrypted when `encrypt` is true).
+ * @param options - Optional behavior flags.
+ * @param options.encrypt - Whether to encrypt the value at rest (default `true`).
+ * @param options.description - Optional human-readable description of the variable.
+ * @param options.required - Whether the variable is required at runtime (default `false`).
+ * @returns Resolves once the variable has been persisted to the vault.
  */
 export async function addEnvVariable(
   profileName: string,
@@ -170,7 +209,11 @@ export async function addEnvVariable(
 }
 
 /**
- * Get decrypted environment variable from profile
+ * Retrieve the decrypted value of an environment variable from a profile.
+ *
+ * @param profileName - Name of the profile to read from.
+ * @param varName - Name of the environment variable to retrieve.
+ * @returns The decrypted (or plaintext) value, or `null` when the profile or variable does not exist.
  */
 export async function getEnvVariable(
   profileName: string,
@@ -202,7 +245,13 @@ export async function getEnvVariable(
 }
 
 /**
- * List all environment variables for a profile
+ * Print all environment variables belonging to a profile to the console.
+ *
+ * Variables are rendered with badges indicating encryption/required status and
+ * a masked value for encrypted entries.
+ *
+ * @param profileName - Name of the profile whose variables should be listed.
+ * @returns Resolves once the listing has been printed.
  */
 export async function listEnvVariables(profileName: string): Promise<void> {
   const vault = await loadEnvVault();
@@ -235,7 +284,11 @@ export async function listEnvVariables(profileName: string): Promise<void> {
 }
 
 /**
- * Remove environment variable from profile
+ * Remove an environment variable from a profile and persist the change.
+ *
+ * @param profileName - Name of the profile to remove the variable from.
+ * @param varName - Name of the variable to remove.
+ * @returns Resolves once the vault has been updated (or after warning that the profile/variable was missing).
  */
 export async function removeEnvVariable(profileName: string, varName: string): Promise<void> {
   const vault = await loadEnvVault();
@@ -257,7 +310,16 @@ export async function removeEnvVariable(profileName: string, varName: string): P
 }
 
 /**
- * Export environment variables to .env file
+ * Export a profile's environment variables to a `.env`-style file.
+ *
+ * Encrypted variables are decrypted before being written when `options.decrypt`
+ * is true; otherwise their ciphertext is written verbatim.
+ *
+ * @param profileName - Name of the profile to export.
+ * @param options - Optional export configuration.
+ * @param options.outputPath - Relative path of the output file (default `.env`).
+ * @param options.decrypt - Whether to decrypt encrypted values before writing (default `true`).
+ * @returns Resolves once the file has been written.
  */
 export async function exportEnvVariables(
   profileName: string,
@@ -325,7 +387,14 @@ export async function exportEnvVariables(
 }
 
 /**
- * Validate required environment variables
+ * Validate that all required variables for a profile are present in the current
+ * `process.env`.
+ *
+ * @param profileName - Name of the profile whose required variables should be checked.
+ * @returns An object describing the validation result:
+ *   - `valid` is `true` when no required variables are missing.
+ *   - `missing` lists required variable names that are absent from `process.env`.
+ *   - `present` lists required variable names that are available in `process.env`.
  */
 export async function validateRequiredEnvVars(profileName: string): Promise<{
   valid: boolean;
@@ -362,7 +431,16 @@ export async function validateRequiredEnvVars(profileName: string): Promise<{
 }
 
 /**
- * Migrate existing environment variables to encrypted storage
+ * Migrate variables from a plaintext `.env` file into the encrypted vault.
+ *
+ * Variables whose names suggest they are sensitive (`secret`, `password`,
+ * `key`, `token`, `api`) are stored encrypted; all others are stored as
+ * plaintext. After the migration completes the user is prompted to back up and
+ * remove the original source file.
+ *
+ * @param sourceFile - Path to the plaintext `.env` file to migrate (default `.env`).
+ * @param targetProfile - Name of the profile to migrate the variables into (default `production`).
+ * @returns Resolves once the migration (and optional backup) has completed.
  */
 export async function migrateToEncryptedStorage(
   sourceFile = '.env',

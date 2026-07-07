@@ -13,18 +13,36 @@ import {
   formatFileSize,
 } from '../utils/plugin-marketplace';
 
+/**
+ * Options accepted by the marketplace CLI subcommands.
+ *
+ * These mirror the public flags surfaced by Commander and are consumed by
+ * every `show*`/`search*`/`install*` entry point in this module.
+ */
 interface MarketplaceCommandOptions {
+  /** When true, prints supplementary detail (keywords, sizes, timestamps). */
   verbose?: boolean;
+  /** When true, emits machine-readable JSON via the shared json-output helpers. */
   json?: boolean;
+  /** Maximum number of results to fetch or display. */
   limit?: number;
+  /** Optional plugin category filter forwarded to the marketplace search. */
   category?: PluginCategory;
+  /** Restrict results to featured plugins only. */
   featured?: boolean;
+  /** Restrict results to cryptographically signed plugins only. */
   verified?: boolean;
+  /** Restrict results to free-of-charge plugins only. */
   free?: boolean;
+  /** Sort dimension applied to the result set. */
   sort?: 'relevance' | 'downloads' | 'rating' | 'updated' | 'created' | 'name';
+  /** Sort direction applied to the result set. */
   order?: 'asc' | 'desc';
+  /** Operate against the global (user-wide) installation scope. */
   global?: boolean;
+  /** Force installation even when preconditions would otherwise block it. */
   force?: boolean;
+  /** Resolve and report the install plan without writing anything to disk. */
   dryRun?: boolean;
   /** Commander maps `--no-verify` to `verify: false` (defaults to true). */
   verify?: boolean;
@@ -51,6 +69,18 @@ function classifyError(error: unknown, defaultCode: ErrorCode = 'MARKETPLACE_ERR
   return { code: defaultCode, message };
 }
 
+/**
+ * Search the marketplace for plugins matching the supplied query and filters.
+ *
+ * Results are fetched from the real npm registry via the keyword-scoped
+ * marketplace client. When `options.json` is set, structured output is
+ * emitted through the shared json-output helpers; otherwise a human-readable
+ * table is printed to stdout.
+ *
+ * @param query - Optional free-text search term.
+ * @param options - Command flags controlling pagination, filtering, sorting and output mode.
+ * @returns Resolves once the results have been rendered or emitted.
+ */
 // Search plugins in marketplace (real npm registry, keyword-scoped).
 export async function searchMarketplace(
   query?: string,
@@ -124,6 +154,17 @@ export async function searchMarketplace(
   }
 }
 
+/**
+ * Fetch and display detailed information about a single plugin.
+ *
+ * Looks up the plugin by ID in the registry and renders either a JSON
+ * document (when `options.json` is set) or a multi-section human-readable
+ * summary including author, version, compatibility and links.
+ *
+ * @param pluginId - Unique marketplace identifier of the plugin to inspect.
+ * @param options - Command flags (only `verbose` and `json` are consulted).
+ * @returns Resolves once the details have been rendered or emitted.
+ */
 // Show plugin details from the registry.
 export async function showPluginDetails(
   pluginId: string,
@@ -170,6 +211,19 @@ export async function showPluginDetails(
   }
 }
 
+/**
+ * Install a plugin from the marketplace.
+ *
+ * Performs a (by default) signature-gated resolution and delegates the
+ * filesystem work to the underlying installer. Honors `force`, `dryRun`
+ * and the signature-verification toggle carried on `options`. Output is
+ * either a structured JSON document or a coloured terminal summary.
+ *
+ * @param pluginId - Unique marketplace identifier of the plugin to install.
+ * @param version - Optional semver version to pin; defaults to the latest release.
+ * @param options - Command flags controlling verification, dry-run and output mode.
+ * @returns Resolves once the install result has been rendered or emitted.
+ */
 // Install plugin from marketplace (gated signature verify + delegate to installer).
 export async function installMarketplacePlugin(
   pluginId: string,
@@ -246,6 +300,15 @@ export async function installMarketplacePlugin(
   }
 }
 
+/**
+ * Display the registry's currently featured plugins.
+ *
+ * Featured plugins are top-relevance hits curated by the marketplace.
+ * Output respects `options.json` and `options.verbose`.
+ *
+ * @param options - Command flags (only `verbose`, `json` and `limit` are consulted).
+ * @returns Resolves once the featured list has been rendered or emitted.
+ */
 // Featured plugins (top relevance hits from the registry).
 export async function showFeaturedPlugins(options: MarketplaceCommandOptions = {}): Promise<void> {
   const { verbose = false, json = false, limit = 6 } = options;
@@ -282,6 +345,16 @@ export async function showFeaturedPlugins(options: MarketplaceCommandOptions = {
   }
 }
 
+/**
+ * Display the most popular plugins, optionally scoped to a category.
+ *
+ * Popularity is derived from registry download counts. Output respects
+ * `options.json` and `options.verbose`.
+ *
+ * @param category - Optional category to scope the popular listing.
+ * @param options - Command flags (only `verbose`, `json` and `limit` are consulted).
+ * @returns Resolves once the popular list has been rendered or emitted.
+ */
 // Popular plugins.
 export async function showPopularPlugins(
   category?: PluginCategory,
@@ -326,6 +399,15 @@ export async function showPopularPlugins(
   }
 }
 
+/**
+ * List all plugin categories with live counts derived from a registry search pass.
+ *
+ * When `options.json` is set the categories array is emitted as a structured
+ * document; otherwise a coloured listing with totals is printed.
+ *
+ * @param options - Command flags (only `verbose` and `json` are consulted).
+ * @returns Resolves once the categories have been rendered or emitted.
+ */
 // Plugin categories (live counts derived from a registry search pass).
 export async function showCategories(options: MarketplaceCommandOptions = {}): Promise<void> {
   const { verbose = false, json = false } = options;
@@ -364,6 +446,11 @@ export async function showCategories(options: MarketplaceCommandOptions = {}): P
   }
 }
 
+/**
+ * Clear the in-memory marketplace cache used to avoid repeated registry calls.
+ *
+ * @returns Resolves once the cache has been cleared and a confirmation printed.
+ */
 // Clear marketplace cache.
 export async function clearMarketplaceCache(): Promise<void> {
   try {
@@ -377,6 +464,15 @@ export async function clearMarketplaceCache(): Promise<void> {
   }
 }
 
+/**
+ * Print high-level marketplace statistics.
+ *
+ * Reports the configured registry URL, the current cache size and timeout,
+ * and whether signature verification is enabled. Intended for human
+ * consumption; there is no JSON mode for this command.
+ *
+ * @returns Resolves once the statistics have been printed.
+ */
 // Marketplace statistics.
 export async function showMarketplaceStats(): Promise<void> {
   try {
