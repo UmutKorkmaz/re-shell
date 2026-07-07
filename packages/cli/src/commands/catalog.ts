@@ -33,16 +33,42 @@ const CONFIG_CANDIDATES = ['re-shell.workspaces.yaml', 're-shell.workspaces.yml'
 /** Directory under the workspace root where sync writes catalog-info.yaml files. */
 const CATALOG_DIR = 'catalog';
 
-/** Options accepted by the `catalog` command. */
+/**
+ * Options accepted by the `catalog` and `catalog sync` commands.
+ *
+ * The command operates in two modes:
+ *  - **Dry-run (default)**: builds the catalog model and reports it without
+ *    touching the filesystem.
+ *  - **Sync (`sync: true` with `noDryRun: true`)**: writes Backstage
+ *    `catalog-info.yaml` files to disk under the configured output directory.
+ */
 export interface CatalogCommandOptions {
+  /**
+   * When true, emit a machine-readable JSON envelope to stdout instead of the
+   * coloured human-readable report. Useful for scripting and CI integration.
+   */
   json?: boolean;
-  /** When false (sync only), write catalog-info.yaml to disk. */
+  /**
+   * When `false` (sync mode only), write the generated `catalog-info.yaml`
+   * files to disk. When omitted or `true`, the command stays in dry-run mode
+   * and only reports what would be written.
+   */
   noDryRun?: boolean;
-  /** Sync subcommand flag. */
+  /**
+   * Selects the `sync` subcommand behaviour: reconciles `catalog-info.yaml`
+   * files on disk (writing new entities, pruning orphaned ones).
+   */
   sync?: boolean;
-  /** Output directory override (tests). */
+  /**
+   * Override for the output directory used by sync. Defaults to
+   * `<workspaceRoot>/catalog`. Primarily used by tests to write into a
+   * sandboxed temp directory.
+   */
   outDir?: string;
-  /** Working directory override (tests). */
+  /**
+   * Override for the working directory used to resolve the workspace root.
+   * Defaults to `process.cwd()`. Primarily used by tests.
+   */
   cwd?: string;
 }
 
@@ -161,11 +187,28 @@ function toWireEntity(lite: CatalogEntityLite): CatalogEntity {
 }
 
 /**
- * `re-shell catalog` / `re-shell catalog sync`.
+ * Implementation of `re-shell catalog` and `re-shell catalog sync`.
  *
- * Builds the catalog model from real graph state and either emits it (default,
- * dry-run) or writes Backstage catalog-info.yaml files (sync with --no-dry-run).
- * The model is generated entirely from discovery — no hand-written YAML.
+ * Builds the catalog model from the real workspace graph state and either
+ * emits it (default dry-run mode) or writes Backstage `catalog-info.yaml`
+ * files to disk (sync mode with `noDryRun`). The model is generated entirely
+ * from discovery — no hand-written YAML is required.
+ *
+ * Flow:
+ *  1. Resolve the workspace v2 config under the working directory.
+ *  2. Parse it into named services via {@link WorkspaceParser}.
+ *  3. Discover microfrontends from `apps/` and packages via best-effort
+ *     workspace discovery.
+ *  4. Build the typed catalog model with {@link buildCatalogModel}.
+ *  5. Validate every entity against the Backstage shape contract.
+ *  6. In sync mode, reconcile `catalog-info.yaml` files on disk (writing
+ *     new ones and pruning orphaned ones when not a dry-run).
+ *  7. Emit either a JSON envelope or a coloured human-readable report.
+ *
+ * @param options - Command options controlling output format, sync behaviour,
+ *   and directory overrides. See {@link CatalogCommandOptions}.
+ * @returns A promise that resolves once the catalog has been built, optionally
+ *   written, and reported. Sets `process.exitCode` to `1` on failure.
  */
 export async function runCatalog(options: CatalogCommandOptions): Promise<void> {
   const json = Boolean(options.json);

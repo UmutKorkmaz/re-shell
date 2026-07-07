@@ -20,8 +20,16 @@ import {
 } from '../utils/boundaries-engine';
 import type { BoundaryViolation, BoundariesResponse } from '@re-shell/contracts';
 
-/** Options accepted by the `boundaries` command. */
+/**
+ * Options accepted by the `boundaries` command.
+ *
+ * Controls how the module-boundary evaluation discovers packages, resolves the
+ * ruleset, and emits its report. Several fields exist primarily for testing
+ * (injecting synthetic graphs and working directories) and are not surfaced on
+ * the CLI surface itself.
+ */
 export interface BoundariesOptions {
+  /** Emit the report as a machine-readable JSON envelope instead of human-readable text. */
   json?: boolean;
   /** Path to a JSON ruleset (overrides the default rules). */
   rules?: string;
@@ -72,9 +80,16 @@ function toWireViolation(v: BoundaryViolationLite): BoundaryViolation {
 /**
  * `re-shell boundaries` — module-boundary enforcement.
  *
- * Gate semantics: any violation still emits a success envelope (advisory data)
- * but exits non-zero so CI can gate. A genuine error (not in a workspace) is
+ * Discovers the workspace packages, derives their tags and import edges,
+ * evaluates the active boundary ruleset, and emits a CI report. Gate semantics:
+ * any violation still emits a success envelope (advisory data) but exits
+ * non-zero so CI can gate. A genuine error (e.g. not run inside a workspace) is
  * reported via the BOUNDARIES_ERROR envelope.
+ *
+ * @param options - Command options controlling JSON output, ruleset selection,
+ *   edge injection, and working directory.
+ * @returns Resolves once the report has been emitted. Sets `process.exitCode`
+ *   to `1` on any boundary violation or fatal error so CI runs fail.
  */
 export async function runBoundaries(options: BoundariesOptions): Promise<void> {
   const json = Boolean(options.json);
