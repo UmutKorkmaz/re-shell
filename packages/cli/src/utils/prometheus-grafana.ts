@@ -64,6 +64,14 @@ interface MonitoringConfig {
   enableAlerting: boolean;
 }
 
+/**
+ * Prints a formatted summary of the Prometheus/Grafana monitoring configuration
+ * to the console, including project name, enabled providers, metric/dashboard/alert
+ * counts, and feature toggles.
+ *
+ * @param config - The monitoring configuration to display.
+ * @returns No return value; output is written to stdout.
+ */
 export function displayConfig(config: MonitoringConfig): void {
   console.log(chalk.cyan('✨ Prometheus/Grafana Integration with Auto-Configuration'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -79,6 +87,14 @@ export function displayConfig(config: MonitoringConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string describing the Prometheus/Grafana
+ * integration, including feature list, usage instructions, configured dashboards,
+ * and the metrics registered for the project.
+ *
+ * @param config - The monitoring configuration used to drive the documentation content.
+ * @returns A Markdown string representation of the integration documentation.
+ */
 export function generatePrometheusGrafanaMD(config: MonitoringConfig): string {
   let md = '# Prometheus/Grafana Integration\n\n';
   md += '## Features\n\n';
@@ -111,6 +127,15 @@ export function generatePrometheusGrafanaMD(config: MonitoringConfig): string {
   return md;
 }
 
+/**
+ * Generates a Terraform configuration string for provisioning Prometheus and
+ * Grafana resources across the requested cloud providers (AWS, Azure, GCP),
+ * along with the local Prometheus and (optional) Alertmanager configuration files.
+ *
+ * @param config - The monitoring configuration specifying providers, Prometheus,
+ *   Grafana, and alerting settings.
+ * @returns A Terraform HCL string containing the generated monitoring resources.
+ */
 export function generateTerraformMonitoring(config: MonitoringConfig): string {
   let code = '# Auto-generated Prometheus/Grafana Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -218,6 +243,16 @@ export function generateTerraformMonitoring(config: MonitoringConfig): string {
   return code;
 }
 
+/**
+ * Generates a TypeScript module string containing a `PrometheusGrafanaManager`
+ * class that initializes, configures, and exposes the monitoring stack defined
+ * by the supplied configuration. The emitted module exports an instance and the
+ * class itself.
+ *
+ * @param config - The monitoring configuration used to populate the generated
+ *   manager's defaults.
+ * @returns A TypeScript source code string implementing the manager.
+ */
 export function generateTypeScriptMonitoring(config: MonitoringConfig): string {
   let code = '// Auto-generated Prometheus/Grafana Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -336,6 +371,16 @@ export function generateTypeScriptMonitoring(config: MonitoringConfig): string {
   return code;
 }
 
+/**
+ * Generates a Python module string containing a `PrometheusGrafanaManager`
+ * class (plus a `MetricType` enum) that asynchronously initializes, configures,
+ * and exposes the monitoring stack defined by the supplied configuration. The
+ * emitted module ends with a default manager instance.
+ *
+ * @param config - The monitoring configuration used to populate the generated
+ *   manager's defaults.
+ * @returns A Python source code string implementing the manager.
+ */
 export function generatePythonMonitoring(config: MonitoringConfig): string {
   let code = '# Auto-generated Prometheus/Grafana Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -440,6 +485,21 @@ export function generatePythonMonitoring(config: MonitoringConfig): string {
   return code;
 }
 
+/**
+ * Writes the generated monitoring files for the given configuration to disk.
+ * Always emits the Terraform configuration (`monitoring.tf`), the integration
+ * Markdown documentation (`PROMETHEUS_GRAFANA.md`), and a serialized
+ * `monitoring-config.json`. When `language` is `typescript` it also emits the
+ * TypeScript manager plus its `package.json`; otherwise it emits the Python
+ * manager plus a `requirements.txt`.
+ *
+ * @param config - The monitoring configuration to materialize as files.
+ * @param outputDir - Absolute or relative path of the directory to write into;
+ *   it will be created if it does not exist.
+ * @param language - Target implementation language, either `'typescript'` or
+ *   any other value (treated as `'python'`).
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(config: MonitoringConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -500,6 +560,14 @@ export async function writeFiles(config: MonitoringConfig, outputDir: string, la
   await fs.writeFile(path.join(outputDir, 'monitoring-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Identity helper that returns the supplied monitoring configuration unchanged.
+ * Useful as a pass-through/validation entry point for callers that want a
+ * normalized configuration object.
+ *
+ * @param config - The monitoring configuration to return.
+ * @returns The same `MonitoringConfig` instance that was passed in.
+ */
 export function prometheusGrafana(config: MonitoringConfig): MonitoringConfig {
   return config;
 }

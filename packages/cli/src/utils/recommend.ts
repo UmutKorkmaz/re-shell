@@ -64,6 +64,10 @@ function templateToDoc(t: TemplateSummary): IndexDoc {
 /**
  * Build the TEMPLATE-only corpus from the live backend registry. Pure relative
  * to its inputs — snapshots the static registry and performs no I/O.
+ *
+ * @returns An array of {@link IndexDoc} entries, one per backend template,
+ * each tagged with `type: 'template'` and weighted identically to the `find`
+ * template adapter.
  */
 export function buildTemplateCorpus(): IndexDoc[] {
   return listBackendTemplates().map(toTemplateSummary).map(templateToDoc);
@@ -92,6 +96,13 @@ function categoryOf(t: Pick<TemplateSummary, 'tags'>): string | undefined {
  *   ranker never emits zero-match hits, but the formatter stays total).
  * - The language/framework clause renders whichever of the two are present.
  * - The category clause is appended only when a proxy category exists.
+ *
+ * @param matched - Read-only list of query terms that matched the template.
+ *                  When empty, the "Matches ..." clause is omitted.
+ * @param meta    - Template metadata subset (`language`, `framework`, `tags`)
+ *                  used to phrase the stack and category clauses.
+ * @returns The deterministic rationale string. Returns `"Suggested template"`
+ *          when no clause can be derived from the inputs.
  */
 export function buildRationale(
   matched: readonly string[],
@@ -138,8 +149,22 @@ export function buildRationale(
  *    offline guarantee holds regardless of this interface's existence.
  */
 export interface RationalePhraser {
+  /** Human-readable name of the phraser implementation (used for diagnostics). */
   readonly name: string;
-  /** Rewrite the rationale text for each recommendation. May be async. */
+  /**
+   * Rewrite the rationale text for each recommendation. May be async.
+   *
+   * Implementations MUST preserve the ids, scores, and ordering of the input
+   * recommendations; only the `rationale` text is consumed by the caller via
+   * {@link applyPhraser}.
+   *
+   * @param query           - The original user query string.
+   * @param recommendations - Read-only list of already-built deterministic
+   *                          recommendations whose rationale text should be
+   *                          rephrased.
+   * @returns A promise resolving to a new array of recommendations with
+   *          potentially updated `rationale` strings.
+   */
   phrase(
     query: string,
     recommendations: readonly TemplateRecommendation[]
@@ -150,6 +175,15 @@ export interface RationalePhraser {
  * Apply a phraser defensively: the returned list is realigned to the original
  * id order and only the `rationale` field is taken from the phraser's output, so
  * a misbehaving adapter can never reorder, drop, or re-score vetted results.
+ *
+ * @param phraser         - The {@link RationalePhraser} used to rewrite
+ *                          rationale text.
+ * @param query           - The original user query string, forwarded to the
+ *                          phraser.
+ * @param recommendations - Read-only list of vetted recommendations to phrase.
+ * @returns A promise resolving to a new recommendation list in the SAME order
+ *          and with the SAME ids/scores as the input, but with `rationale`
+ *          text replaced where the phraser returned a non-empty string.
  */
 export async function applyPhraser(
   phraser: RationalePhraser,
@@ -170,8 +204,13 @@ export async function applyPhraser(
 // Public entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * Options bag for {@link recommendTemplates}.
+ */
 export interface RecommendOptions {
-  /** Max recommendations to return. */
+  /**
+   * Max recommendations to return.
+   */
   limit: number;
 }
 
@@ -181,6 +220,14 @@ export interface RecommendOptions {
  *
  * Reuses `rankDocs` (no reimplemented ranking) over the template-only corpus and
  * joins each ranked hit back to its registry metadata to phrase the rationale.
+ *
+ * @param query   - The free-text search query entered by the user.
+ * @param options - Configuration for the recommendation pass; most notably
+ *                  `options.limit` caps the number of returned items.
+ * @returns An array of {@link TemplateRecommendation} entries, best match first,
+ *          each carrying a deterministic `rationale` string and optional
+ *          metadata (`language`, `framework`, `category`) when present on the
+ *          source template.
  */
 export function recommendTemplates(
   query: string,
