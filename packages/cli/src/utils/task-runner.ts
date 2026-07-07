@@ -33,7 +33,12 @@ import { LocalFsCache, type CacheBackend } from './cache-store';
 /** Conventional monorepo workspace roots scanned for packages. */
 const WORKSPACE_DIRS = ['apps', 'packages', 'libs', 'tools'] as const;
 
-/** Supported package managers for running scripts. */
+/**
+ * Supported package managers for running scripts.
+ *
+ * The detected manager is used to build the spawn argv for each task so the
+ * correct script runner (e.g. `pnpm run`, `yarn`, `npm run`) is invoked.
+ */
 export type PackageManager = 'pnpm' | 'yarn' | 'npm';
 
 /** A discovered workspace package. */
@@ -50,15 +55,33 @@ export interface DiscoveredPackage {
   workspaceDeps: string[];
 }
 
-/** Result of {@link discoverWorkspace}. */
+/**
+ * Result of {@link discoverWorkspace}.
+ *
+ * Bundles the discovered package map together with the workspace dependency
+ * graph the scheduler consumes.
+ */
 export interface WorkspaceDiscovery {
+  /** Discovered packages keyed by their package.json `name`. */
   packages: ReadonlyMap<string, DiscoveredPackage>;
+  /**
+   * Upstream workspace dependency graph: each entry maps a package name to the
+   * list of OTHER discovered packages it directly depends on.
+   */
   graph: WorkspaceDepGraph;
 }
 
 /**
  * Detect the package manager for a directory by walking up to the workspace
  * root looking for a lockfile. Defaults to npm when none is found.
+ *
+ * The walk starts at `startDir` and ascends directory-by-directory checking
+ * for `pnpm-lock.yaml`, `yarn.lock`, and `package-lock.json`, stopping once
+ * `rootDir` is reached. The first lockfile found wins.
+ *
+ * @param startDir - Directory to start searching from (typically a package dir).
+ * @param rootDir - Workspace root that bounds the upward walk.
+ * @returns The detected {@link PackageManager}, or `'npm'` when no lockfile is found.
  */
 export function detectPackageManager(startDir: string, rootDir: string): PackageManager {
   let dir = path.resolve(startDir);
@@ -77,7 +100,17 @@ export function detectPackageManager(startDir: string, rootDir: string): Package
   return 'npm';
 }
 
-/** Build the argv (command + args) to run a named script via the given PM. */
+/**
+ * Build the argv (command + args) to run a named script via the given PM.
+ *
+ * The returned `cmd`/`args` pair is always passed to `child_process.spawn`
+ * as a literal argv array (`shell: false`) so script/task names can never be
+ * re-interpreted by a shell.
+ *
+ * @param pm - The package manager to build an invocation for.
+ * @param script - The script name from package.json `scripts` to run.
+ * @returns An object with the executable `cmd` and its argv `args` array.
+ */
 export function buildRunArgv(pm: PackageManager, script: string): { cmd: string; args: string[] } {
   switch (pm) {
     case 'pnpm':
@@ -96,6 +129,14 @@ export function buildRunArgv(pm: PackageManager, script: string): { cmd: string;
  * dependency graph by intersecting every package's deps with the set of
  * discovered package names (a dep only becomes a graph edge when it resolves to
  * another package IN this workspace).
+ *
+ * Conventional roots scanned (see {@link WORKSPACE_DIRS}): `apps`, `packages`,
+ * `libs`, `tools`. Malformed package.json files are silently skipped rather
+ * than aborting discovery.
+ *
+ * @param rootPath - Absolute (or resolvable) workspace root path.
+ * @returns A {@link WorkspaceDiscovery} containing the package map and the
+ *   computed upstream dependency graph keyed by package name.
  */
 export async function discoverWorkspace(rootPath: string): Promise<WorkspaceDiscovery> {
   const root = path.resolve(rootPath);
@@ -164,6 +205,12 @@ export async function discoverWorkspace(rootPath: string): Promise<WorkspaceDisc
  *
  * `getChangedFiles` is injectable for tests so the analysis can be exercised
  * without a real git repository.
+ *
+ * @param rootPath - Absolute (or resolvable) workspace root path.
+ * @param discovery - The workspace discovery produced by {@link discoverWorkspace}.
+ * @param getChangedFiles - Optional injector returning changed file paths
+ *   relative to `rootPath`; defaults to {@link gitChangedFiles}. Useful for tests.
+ * @returns An array of affected package names (de-duplicated, order unspecified).
  */
 export async function resolveAffectedPackages(
   rootPath: string,
@@ -246,6 +293,10 @@ const WORKSPACE_CONFIG_FILE = 're-shell.workspaces.yaml';
  * at the workspace root, merged over the built-in defaults. Returns the merged
  * defaults when no file or no `tasks` section is present. A malformed `tasks`
  * section throws so the runner can surface it rather than silently mis-ordering.
+ *
+ * @param rootPath - Absolute (or resolvable) workspace root path.
+ * @returns The merged {@link TasksConfig} (user-provided overrides on top of
+ *   defaults) or the defaults alone when no config file or `tasks` section exists.
  */
 export async function loadTasksConfig(rootPath: string): Promise<TasksConfig> {
   const configPath = path.join(path.resolve(rootPath), WORKSPACE_CONFIG_FILE);
@@ -265,6 +316,14 @@ export async function loadTasksConfig(rootPath: string): Promise<TasksConfig> {
  * Mirrors the shape enforced by the workspace JSON schema + the contracts zod
  * schema, but is inlined so the CLS's CommonJS build never has to `require` the
  * ESM-only contracts package. Throws a clear error on any structural problem.
+ *
+ * Recognised fields per task entry: `dependsOn` (string array; a `^` prefix is
+ * allowed and stripped), `inputs` (glob array), and `outputs` (glob array).
+ *
+ * @param value - The untrusted value taken from the parsed YAML `tasks` section.
+ * @returns The validated, narrowed {@link TasksConfig} object.
+ * @throws {Error} When the value or any nested field has the wrong shape, or
+ *   when a glob list entry or `dependsOn` entry is empty/non-string.
  */
 export function parseTasksConfig(value: unknown): TasksConfig {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -338,11 +397,21 @@ function parseGlobList(value: unknown, label: string): string[] | undefined {
   return value as string[];
 }
 
-/** Options controlling a single `re-shell run` invocation. */
+/**
+ * Options controlling a single `re-shell run` invocation.
+ *
+ * Constructed by the CLI command layer from parsed flags and passed to
+ * {@link runTask} for execution.
+ */
 export interface RunTaskOptions {
+  /** Absolute (or resolvable) workspace root path. */
   rootPath: string;
+  /** Name of the script (from each package.json `scripts`) to run. */
   task: string;
-  /** Bounded parallelism. Defaults to the CPU count. */
+  /**
+   * Bounded parallelism: the maximum number of nodes the scheduler will keep
+   * in flight at once. Defaults to the CPU count when omitted or non-positive.
+   */
   concurrency?: number;
   /** Restrict targets to these package names (the `--filter` option). */
   filter?: string[];
@@ -385,8 +454,14 @@ export interface RunCacheConfig {
   remote?: CacheBackend;
 }
 
-/** Outcome of running one (package, task) node. */
+/**
+ * Outcome of running one (package, task) node.
+ *
+ * Produced by a {@link SpawnTask} implementation after the child process exits
+ * (or fails to spawn). Captured alongside the per-node {@link TaskRunResult}.
+ */
 export interface SpawnOutcome {
+  /** The child process exit code; non-zero indicates failure. */
   exitCode: number;
   /**
    * The combined stdout/stderr the child produced, captured so it can be stored
@@ -396,21 +471,44 @@ export interface SpawnOutcome {
   logs?: string;
 }
 
-/** Spawns one script and resolves with its exit code. Injectable for tests. */
+/**
+ * Spawns one script and resolves with its exit code. Injectable for tests.
+ *
+ * Implementations must NOT use `shell: true`; arguments are passed as a literal
+ * argv array. The default real implementation is {@link defaultSpawnTask}.
+ */
 export type SpawnTask = (args: {
+  /** The discovered package whose script should be spawned. */
   pkg: DiscoveredPackage;
+  /** The script name to invoke from the package's `scripts`. */
   task: string;
+  /** Package manager used to construct the spawn argv. */
   pm: PackageManager;
+  /** Optional sink for streamed, prefixed task output. */
   onOutput?: (line: string) => void;
 }) => Promise<SpawnOutcome>;
 
-/** The full result of {@link runTask}. */
+/**
+ * The full result of {@link runTask}.
+ *
+ * Returned to the CLI command layer which renders and/or serialises it. A
+ * {@link RunTaskResult.cycleError} indicates the plan could not be built (a
+ * dependency cycle) and NO node was executed; the caller should fail hard.
+ */
 export interface RunTaskResult {
+  /** The task name that was run across the workspace. */
   task: string;
+  /** The effective concurrency cap used by the scheduler. */
   concurrency: number;
+  /** Per-node run results, ordered alphabetically by node id (stable). */
   results: TaskRunResult[];
+  /** When `--affected` was used, the affected package names that were targeted. */
   affected?: string[];
-  /** Set when the plan could not be built (cycle); no node was executed. */
+  /**
+   * Set when the plan could not be built (cycle); no node was executed.
+   * Contains the offending cycle (a list of node ids) and a human-readable
+   * `message` describing the problem.
+   */
   cycleError?: { cycle: string[]; message: string };
   /** True if any node finished `failed`. */
   hadFailure: boolean;
@@ -446,6 +544,16 @@ const defaultSpawnTask: SpawnTask = ({ pkg, task, pm, onOutput }) =>
  * and execute it with bounded parallelism. Returns a structured result the
  * command layer renders/serialises. Cycles are reported WITHOUT running any
  * node so the caller can fail hard before side effects.
+ *
+ * Flow: discover workspace → load/merge tasks config → resolve target set
+ * (filter/affected) → build execution plan → on cycle, return early → else
+ * drive a {@link ReadySetScheduler} worker pool, consulting the cache (when
+ * configured) before spawning and storing successful misses.
+ *
+ * @param options - The {@link RunTaskOptions} describing this invocation.
+ * @returns A {@link RunTaskResult}. When `cycleError` is set, no node ran and
+ *   `hadFailure` is `true`; otherwise `results` contains one entry per node
+ *   and `hadFailure` summarises whether any failed.
  */
 export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
   const {
@@ -707,4 +815,12 @@ function orderResults(
   return out;
 }
 
+/**
+ * Re-exported node-id helper from the task scheduler module.
+ *
+ * Builds the canonical stable identifier for a (package, task) node so callers
+ * outside this module can construct keys consistent with the execution plan.
+ *
+ * See {@link nodeId} in `./task-scheduler` for parameter and return details.
+ */
 export { nodeId };
