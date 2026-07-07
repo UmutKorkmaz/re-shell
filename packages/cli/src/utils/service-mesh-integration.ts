@@ -5,20 +5,41 @@
 
 
 
+/**
+ * Configuration options for service mesh integration setup.
+ */
 interface ServiceMeshConfig {
+  /** The name of the project that the service mesh is being integrated into. */
   projectName: string;
+  /** The type of service mesh to use, either Istio or Linkerd. */
   mesh: 'istio' | 'linkerd';
+  /** The list of services to be managed by the service mesh. */
   services: ServiceConfig[];
+  /** Whether to enable mutual TLS (mTLS) for secure service-to-service communication. */
   enableMTLS: boolean;
+  /** Whether to enable traffic management features such as routing and splitting. */
   enableTrafficManagement: boolean;
 }
 
+/**
+ * Configuration describing an individual service to be registered with the mesh.
+ */
 interface ServiceConfig {
+  /** The name of the service. */
   name: string;
+  /** The port on which the service listens for incoming traffic. */
   port: number;
+  /** The Kubernetes namespace in which the service is deployed. */
   namespace: string;
 }
 
+/**
+ * Prints the service mesh integration configuration to the console in a formatted,
+ * colorized layout for quick inspection by the user.
+ *
+ * @param config - The service mesh configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: ServiceMeshConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Service Mesh Integration');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -30,6 +51,13 @@ export function displayConfig(config: ServiceMeshConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates a Markdown document describing the service mesh integration, including
+ * the supported features and a TypeScript usage example.
+ *
+ * @param config - The service mesh configuration used to scope the documentation.
+ * @returns A Markdown string representing the service mesh integration guide.
+ */
 export function generateServiceMeshMD(config: ServiceMeshConfig): string {
   let md = '# Service Mesh Integration\n\n';
   md += '## Features\n\n';
@@ -56,6 +84,15 @@ export function generateServiceMeshMD(config: ServiceMeshConfig): string {
   return md;
 }
 
+/**
+ * Generates the TypeScript source code for a service mesh integration module
+ * based on the supplied configuration. The generated module exposes a
+ * `ServiceMeshIntegration` class capable of installing Istio or Linkerd,
+ * configuring individual services, and enabling mTLS.
+ *
+ * @param config - The service mesh configuration used to template the generated code.
+ * @returns A string containing the full TypeScript source code for the integration module.
+ */
 export function generateTypeScriptServiceMesh(config: ServiceMeshConfig): string {
   let code = '// Auto-generated Service Mesh Integration for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -267,6 +304,14 @@ export function generateTypeScriptServiceMesh(config: ServiceMeshConfig): string
   return code;
 }
 
+/**
+ * Generates the Python source code for a service mesh integration module based
+ * on the supplied configuration. The generated module exposes a
+ * `ServiceMeshIntegration` class capable of installing Istio or Linkerd.
+ *
+ * @param config - The service mesh configuration used to template the generated code.
+ * @returns A string containing the full Python source code for the integration module.
+ */
 export function generatePythonServiceMesh(config: ServiceMeshConfig): string {
   let code = '# Auto-generated Service Mesh Integration for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -325,6 +370,17 @@ export function generatePythonServiceMesh(config: ServiceMeshConfig): string {
   return code;
 }
 
+/**
+ * Writes the complete service mesh integration scaffold to disk under the given
+ * output directory. The generated files include the TypeScript and Python
+ * integration modules, a Markdown documentation file, a `package.json`,
+ * a `requirements.txt`, and a JSON representation of the configuration.
+ *
+ * @param config - The service mesh configuration used to drive file generation.
+ * @param outputDir - The absolute or relative directory path where files will be written.
+ *                    The directory (and any missing parents) will be created automatically.
+ * @returns A promise that resolves once all files have been written successfully.
+ */
 export async function writeFiles(
   config: ServiceMeshConfig,
   outputDir: string

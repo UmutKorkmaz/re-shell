@@ -78,6 +78,14 @@ interface ServerlessConfig {
   monitoring: MonitoringConfig;
 }
 
+/**
+ * Prints a human-readable summary of a serverless function deployment configuration
+ * to the console, including project name, function name, runtime, handler, providers,
+ * trigger types, and monitoring status.
+ *
+ * @param config - The serverless deployment configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: ServerlessConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Serverless Function Deployment (Lambda, Azure Functions, Cloud Functions)');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -91,6 +99,13 @@ export function displayConfig(config: ServerlessConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates a Markdown document describing the serverless function deployment,
+ * including the supported feature set and a TypeScript usage example.
+ *
+ * @param config - The serverless deployment configuration used to render the example.
+ * @returns A Markdown string documenting the deployment features and usage.
+ */
 export function generateServerlessMD(config: ServerlessConfig): string {
   let md = '# Serverless Function Deployment\n\n';
   md += '## Features\n\n';
@@ -119,6 +134,15 @@ export function generateServerlessMD(config: ServerlessConfig): string {
   return md;
 }
 
+/**
+ * Generates Terraform infrastructure-as-code for the serverless function deployment,
+ * covering AWS Lambda (with HTTP and scheduled triggers), Azure Function Apps,
+ * and GCP Cloud Functions (2nd gen) based on the selected providers.
+ *
+ * @param config - The serverless deployment configuration describing providers,
+ *   triggers, and per-provider settings.
+ * @returns A string containing the generated Terraform configuration (HCL).
+ */
 export function generateTerraformServerless(config: ServerlessConfig): string {
   let code = '# Auto-generated Serverless Functions Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -306,6 +330,16 @@ export function generateTerraformServerless(config: ServerlessConfig): string {
   return code;
 }
 
+/**
+ * Generates a TypeScript implementation of a `ServerlessManager` class that wraps
+ * Terraform deploy commands for the selected cloud providers. The generated class
+ * extends `EventEmitter`, exposes per-provider deploy methods plus a unified
+ * `deploy()`, and provides a `getFunctionUrl()` helper.
+ *
+ * @param config - The serverless deployment configuration used to parameterize
+ *   the generated manager (project name, function name, runtime, providers).
+ * @returns A string containing the generated TypeScript source code.
+ */
 export function generateTypeScriptServerless(config: ServerlessConfig): string {
   let code = '// Auto-generated Serverless Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -413,6 +447,16 @@ export function generateTypeScriptServerless(config: ServerlessConfig): string {
   return code;
 }
 
+/**
+ * Generates a Python implementation of a `ServerlessManager` class that wraps
+ * Terraform deploy commands for the selected cloud providers. The generated class
+ * exposes async per-provider deploy methods plus a unified async `deploy()`,
+ * and provides a `get_function_url()` helper.
+ *
+ * @param config - The serverless deployment configuration used to parameterize
+ *   the generated manager (project name, function name, runtime, providers).
+ * @returns A string containing the generated Python source code.
+ */
 export function generatePythonServerless(config: ServerlessConfig): string {
   let code = '# Auto-generated Serverless Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -495,6 +539,21 @@ export function generatePythonServerless(config: ServerlessConfig): string {
   return code;
 }
 
+/**
+ * Writes the full set of generated serverless deployment artifacts to disk under
+ * the specified output directory. Always emits the Terraform configuration and
+ * the Markdown documentation; additionally emits a TypeScript or Python manager,
+ * a sample handler, project manifest files, and a JSON config snapshot based on
+ * the requested language.
+ *
+ * @param config - The serverless deployment configuration to materialize.
+ * @param outputDir - Absolute or relative path of the directory to write files into;
+ *   it will be created if it does not exist.
+ * @param language - Target implementation language, either `'typescript'` (produces
+ *   `.ts` files and a `package.json`) or any other value (produces `.py` files and
+ *   a `requirements.txt`).
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeFiles(config: ServerlessConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');

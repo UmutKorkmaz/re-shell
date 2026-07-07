@@ -3,46 +3,99 @@
 
 import chalk from 'chalk';
 
+/**
+ * Supported output formats for a session recording.
+ */
 type RecordingFormat = 'json' | 'mp4' | 'webm' | 'gif';
+
+/**
+ * Identifiers for the storage backends that can persist session recordings.
+ */
 type StorageBackend = 's3' | 'azure-blob' | 'gcs' | 'local';
+
+/**
+ * Compression levels available when storing session recordings.
+ */
 type CompressionLevel = 'none' | 'low' | 'medium' | 'high';
 
+/**
+ * Configuration for the recording capture itself.
+ */
 interface RecordingConfig {
+  /** Whether recording capture is enabled. */
   enabled: boolean;
+  /** Output container/format used for the recording. */
   format: RecordingFormat;
+  /** Backend used to persist the finished recording. */
   storage: StorageBackend;
+  /** Compression level applied to the recording. */
   compression: CompressionLevel;
+  /** Numeric quality value for the recording (0-100 typical). */
   quality: number;
+  /** Frames per second to capture. */
   fps: number;
 }
 
+/**
+ * Controls which metadata fields are captured alongside a recording.
+ */
 interface MetadataConfig {
+  /** Whether to record the executing user. */
   captureUser: boolean;
+  /** Whether to record timestamps for events. */
   captureTimestamp: boolean;
+  /** Whether to capture environment variables/state. */
   captureEnvironment: boolean;
+  /** Whether to capture the terminal dimensions. */
   captureTerminalSize: boolean;
+  /** Whether to allow manual markers during recording. */
   addMarkers: boolean;
 }
 
+/**
+ * Controls the available replay/playback features for a recording.
+ */
 interface ReplayConfig {
+  /** Whether basic playback is enabled. */
   enablePlayback: boolean;
+  /** Whether playback speed can be adjusted. */
   enableSpeedControl: boolean;
+  /** Whether step-through (frame-by-frame) playback is enabled. */
   enableStepThrough: boolean;
+  /** Whether user annotations can be added during replay. */
   enableAnnotations: boolean;
+  /** Whether the recording can be exported to other formats. */
   enableExport: boolean;
 }
 
+/**
+ * Top-level configuration object describing a session recording setup.
+ */
 interface SessionRecordingConfig {
+  /** Name of the project this recording configuration belongs to. */
   projectName: string;
+  /** Cloud providers targeted by the recording pipeline. */
   providers: ('aws' | 'azure' | 'gcp')[];
+  /** Recording capture settings. */
   recording: RecordingConfig;
+  /** Metadata capture settings. */
   metadata: MetadataConfig;
+  /** Replay feature flags. */
   replay: ReplayConfig;
+  /** Whether to start recording automatically on session start. */
   enableAutoRecording: boolean;
+  /** Whether privacy mode (masking sensitive data) is enabled. */
   enablePrivacyMode: boolean;
+  /** Whether full-text search across recordings is enabled. */
   enableSearch: boolean;
 }
 
+/**
+ * Pretty-prints a session recording configuration to the console using chalk styling.
+ *
+ * @param config - The session recording configuration to display.
+ * @returns Nothing; output is written to stdout.
+ */
 export function displayConfig(config: SessionRecordingConfig): void {
   console.log(chalk.cyan('🎬 Session Recording and Replay Capabilities'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -62,6 +115,13 @@ export function displayConfig(config: SessionRecordingConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Builds a Markdown document summarizing the session recording capabilities
+ * described by the provided configuration.
+ *
+ * @param config - The session recording configuration to document.
+ * @returns A Markdown string representing the feature overview.
+ */
 export function generateSessionRecordingMD(config: SessionRecordingConfig): string {
   let md = '# Session Recording and Replay\n\n';
   md += '## Features\n\n';
@@ -80,12 +140,26 @@ export function generateSessionRecordingMD(config: SessionRecordingConfig): stri
   return md;
 }
 
+/**
+ * Generates a Terraform header stub for provisioning session recording resources
+ * for the project named in the configuration.
+ *
+ * @param config - The session recording configuration to provision for.
+ * @returns A string containing Terraform code with the project name and timestamp.
+ */
 export function generateTerraformSessionRecording(config: SessionRecordingConfig): string {
   let code = '# Auto-generated Session Recording Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript `SessionRecordingManager` class stub based on the
+ * provided configuration.
+ *
+ * @param config - The session recording configuration used to template the manager.
+ * @returns A string containing TypeScript source code for the manager.
+ */
 export function generateTypeScriptSessionRecording(config: SessionRecordingConfig): string {
   let code = '// Auto-generated Session Recording Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -100,6 +174,13 @@ export function generateTypeScriptSessionRecording(config: SessionRecordingConfi
   return code;
 }
 
+/**
+ * Generates a Python `SessionRecordingManager` class stub based on the
+ * provided configuration.
+ *
+ * @param config - The session recording configuration used to template the manager.
+ * @returns A string containing Python source code for the manager.
+ */
 export function generatePythonSessionRecording(config: SessionRecordingConfig): string {
   let code = '# Auto-generated Session Recording Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -112,6 +193,15 @@ export function generatePythonSessionRecording(config: SessionRecordingConfig): 
   return code;
 }
 
+/**
+ * Writes the generated session recording assets (Terraform, source code, docs and
+ * configuration) to the specified output directory.
+ *
+ * @param config - The session recording configuration to materialize.
+ * @param outputDir - Absolute or relative path of the directory to write into.
+ * @param language - Target language; either `'typescript'` or `'python'`.
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(config: SessionRecordingConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -158,6 +248,15 @@ export async function writeFiles(config: SessionRecordingConfig, outputDir: stri
   await fs.writeFile(path.join(outputDir, 'session-recording-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided session recording configuration unchanged.
+ *
+ * Useful as a pass-through/normalization hook for callers that want a single
+ * point of indirection when constructing a configuration object.
+ *
+ * @param config - The session recording configuration to return.
+ * @returns The same `SessionRecordingConfig` instance that was provided.
+ */
 export function sessionRecording(config: SessionRecordingConfig): SessionRecordingConfig {
   return config;
 }
