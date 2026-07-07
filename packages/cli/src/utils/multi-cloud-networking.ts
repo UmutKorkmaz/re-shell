@@ -3,59 +3,137 @@
 
 import chalk from 'chalk';
 
+/**
+ * Supported cloud provider identifiers.
+ */
 type CloudProvider = 'aws' | 'azure' | 'gcp';
-type ConnectionType = 'vpn' | 'direct-link' | 'express-route' | 'interconnect' | 'transit-gateway';
-type RoutingStrategy = 'latency-based' | 'cost-based' | 'geo-based' | 'weighted' | 'priority';
+
+/**
+ * Supported inter-cloud connection types.
+ */
+type ConnectionType =
+  | 'vpn'
+  | 'direct-link'
+  | 'express-route'
+  | 'interconnect'
+  | 'transit-gateway';
+
+/**
+ * Available traffic routing strategies for selecting between endpoints.
+ */
+type RoutingStrategy =
+  | 'latency-based'
+  | 'cost-based'
+  | 'geo-based'
+  | 'weighted'
+  | 'priority';
+
+/**
+ * Network protocols supported by the multi-cloud networking stack.
+ */
 type Protocol = 'tcp' | 'udp' | 'http' | 'https' | 'grpc';
 
+/**
+ * Represents a single network endpoint exposed by a cloud provider.
+ */
 interface NetworkEndpoint {
+  /** Unique identifier for the endpoint. */
   id: string;
+  /** Cloud provider hosting the endpoint. */
   provider: CloudProvider;
+  /** Cloud region where the endpoint is located (e.g. `us-east-1`). */
   region: string;
+  /** IP address or hostname of the endpoint. */
   address: string;
+  /** TCP/UDP port the endpoint listens on. */
   port: number;
+  /** Whether active health checks are performed against this endpoint. */
   healthCheckEnabled: boolean;
 }
 
+/**
+ * Configuration describing how two endpoints are connected.
+ */
 interface ConnectionConfig {
+  /** The type of inter-cloud connection to establish. */
   type: ConnectionType;
+  /** Provisioned bandwidth for the connection, in Mbps. */
   bandwidthMbps: number;
+  /** Maximum acceptable latency before the connection is considered degraded, in milliseconds. */
   latencyThresholdMs: number;
+  /** Whether traffic over the connection should be encrypted. */
   encryption: boolean;
+  /** Whether a redundant fallback path should be provisioned. */
   redundancy: boolean;
 }
 
+/**
+ * Settings controlling the behaviour of the load balancer.
+ */
 interface LoadBalancerConfig {
+  /** Algorithm used to distribute traffic across endpoints. */
   algorithm: 'round-robin' | 'least-connections' | 'ip-hash' | 'weighted';
+  /** Interval between consecutive health checks, in seconds. */
   healthCheckInterval: number;
+  /** Number of consecutive failed checks before an endpoint is marked unhealthy. */
   unhealthyThreshold: number;
+  /** Number of consecutive successful checks before an endpoint is marked healthy. */
   healthyThreshold: number;
+  /** Timeout for each health check probe, in seconds. */
   timeoutSeconds: number;
 }
 
+/**
+ * Toggles for various network performance optimisations.
+ */
 interface PerformanceOptimization {
+  /** Enable response caching. */
   enableCaching: boolean;
+  /** Enable payload compression over the wire. */
   enableCompression: boolean;
+  /** Route static assets through a Content Delivery Network. */
   enableCDN: boolean;
+  /** Apply TCP-level tuning (e.g. window scaling, congestion control). */
   tcpOptimization: boolean;
+  /** Reuse connections via HTTP keep-alive. */
   keepAliveEnabled: boolean;
+  /** Reuse outbound connections through a connection pool. */
   connectionPooling: boolean;
 }
 
+/**
+ * Top-level configuration object describing a multi-cloud networking setup.
+ */
 interface MultiCloudNetworkingConfig {
+  /** Human-readable name for the project / networking stack. */
   projectName: string;
+  /** List of cloud providers participating in the mesh. */
   providers: CloudProvider[];
+  /** Endpoints that make up the network. */
   endpoints: NetworkEndpoint[];
+  /** Named connection configurations keyed by an identifier. */
   connections: {
     [key: string]: ConnectionConfig;
   };
+  /** Strategy used to route requests between endpoints. */
   routingStrategy: RoutingStrategy;
+  /** Load balancer settings. */
   loadBalancer: LoadBalancerConfig;
+  /** Performance optimisation toggles. */
   performance: PerformanceOptimization;
+  /** Whether network monitoring and analytics are enabled. */
   enableMonitoring: boolean;
+  /** Whether automatic failover to healthy endpoints is enabled. */
   enableFailover: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the multi-cloud networking configuration
+ * to the console, highlighting providers, routing strategy, and feature toggles.
+ *
+ * @param config - The multi-cloud networking configuration to display.
+ * @returns Nothing; output is written to stdout.
+ */
 export function displayConfig(config: MultiCloudNetworkingConfig): void {
   console.log(chalk.cyan('✨ Multi-Cloud Networking and Connectivity with Performance Optimization'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -72,6 +150,14 @@ export function displayConfig(config: MultiCloudNetworkingConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string describing the multi-cloud
+ * networking setup, including features, usage examples, configured endpoints,
+ * and the active performance options.
+ *
+ * @param config - The multi-cloud networking configuration to document.
+ * @returns A Markdown string ready to be written to a `.md` file.
+ */
 export function generateMultiCloudNetworkingMD(config: MultiCloudNetworkingConfig): string {
   let md = '# Multi-Cloud Networking and Connectivity\n\n';
   md += '## Features\n\n';
@@ -106,6 +192,14 @@ export function generateMultiCloudNetworkingMD(config: MultiCloudNetworkingConfi
   return md;
 }
 
+/**
+ * Produces Terraform HCL code that provisions the networking resources defined
+ * by the supplied configuration across AWS, Azure, and GCP, including VPCs,
+ * subnets, routing, health checks, and CDN resources where enabled.
+ *
+ * @param config - The multi-cloud networking configuration to generate from.
+ * @returns A string of Terraform code ready to be written to a `.tf` file.
+ */
 export function generateTerraformNetworking(config: MultiCloudNetworkingConfig): string {
   let code = '# Auto-generated Multi-Cloud Networking Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -205,6 +299,14 @@ export function generateTerraformNetworking(config: MultiCloudNetworkingConfig):
   return code;
 }
 
+/**
+ * Generates a TypeScript source file implementing a `MultiCloudNetworkManager`
+ * class that mirrors the supplied configuration, including connection
+ * establishment, performance optimisation, and request routing logic.
+ *
+ * @param config - The multi-cloud networking configuration to generate from.
+ * @returns A string of TypeScript source code ready to be written to a `.ts` file.
+ */
 export function generateTypeScriptNetworking(config: MultiCloudNetworkingConfig): string {
   let code = '// Auto-generated Multi-Cloud Network Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -345,6 +447,14 @@ export function generateTypeScriptNetworking(config: MultiCloudNetworkingConfig)
   return code;
 }
 
+/**
+ * Generates a Python source file implementing a `MultiCloudNetworkManager`
+ * class (using `asyncio`) that mirrors the supplied configuration, including
+ * connection establishment, performance optimisation, and request routing.
+ *
+ * @param config - The multi-cloud networking configuration to generate from.
+ * @returns A string of Python source code ready to be written to a `.py` file.
+ */
 export function generatePythonNetworking(config: MultiCloudNetworkingConfig): string {
   let code = '# Auto-generated Multi-Cloud Network Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -480,7 +590,25 @@ export function generatePythonNetworking(config: MultiCloudNetworkingConfig): st
   return code;
 }
 
-export async function writeFiles(config: MultiCloudNetworkingConfig, outputDir: string, language: string): Promise<void> {
+/**
+ * Writes the generated multi-cloud networking artifacts to disk.
+ *
+ * The function always emits Terraform code and a Markdown documentation file.
+ * Depending on the requested `language`, it additionally emits a TypeScript or
+ * Python implementation together with the relevant dependency manifest
+ * (`package.json` or `requirements.txt`). A JSON serialisation of the supplied
+ * configuration is also written for reference.
+ *
+ * @param config - The multi-cloud networking configuration to generate from.
+ * @param outputDir - Absolute or relative path of the directory to write into; it will be created if missing.
+ * @param language - Target implementation language: `'typescript'` for TypeScript, anything else for Python.
+ * @returns A promise that resolves once all files have been written.
+ */
+export async function writeFiles(
+  config: MultiCloudNetworkingConfig,
+  outputDir: string,
+  language: string,
+): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
 
@@ -543,6 +671,14 @@ export async function writeFiles(config: MultiCloudNetworkingConfig, outputDir: 
   await fs.writeFile(path.join(outputDir, 'networking-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Identity-style factory that validates and returns the supplied multi-cloud
+ * networking configuration. Useful as a normalisation / entry point before
+ * passing the configuration to other generator functions.
+ *
+ * @param config - The multi-cloud networking configuration to return.
+ * @returns The same configuration object that was passed in.
+ */
 export function multiCloudNetworking(config: MultiCloudNetworkingConfig): MultiCloudNetworkingConfig {
   return config;
 }

@@ -5,85 +5,162 @@
 
 
 
+/**
+ * Represents a Kubernetes ResourceQuota applied to a tenant namespace.
+ * Used to limit aggregate resource consumption within a namespace.
+ */
 interface ResourceQuota {
+  /** The name of the resource quota. */
   name: string;
+  /** The Kubernetes namespace the quota is applied to. */
   namespace: string;
+  /** The hard limits enforced by the quota. */
   hard: {
+    /** Optional request-level limits for compute and storage resources. */
     requests?: {
+      /** Maximum CPU requests (e.g. "4"). */
       cpu?: string;
+      /** Maximum memory requests (e.g. "8Gi"). */
       memory?: string;
+      /** Maximum storage requests. */
       storage?: string;
     };
+    /** Optional limit-level constraints for compute resources. */
     limits?: {
+      /** Maximum CPU limits. */
       cpu?: string;
+      /** Maximum memory limits. */
       memory?: string;
     };
+    /** Maximum number of pods allowed. */
     pods?: string;
+    /** Maximum number of persistent volume claims allowed. */
     persistentvolumeclaims?: string;
+    /** Maximum number of services allowed. */
     services?: string;
+    /** Maximum number of secrets allowed. */
     secrets?: string;
+    /** Maximum number of config maps allowed. */
     configmaps?: string;
   };
+  /** Optional list of quota scopes (e.g. "Terminating", "NotTerminating"). */
   scopes?: string[];
 }
 
+/**
+ * Represents a Kubernetes LimitRange applied to a tenant namespace.
+ * Used to set default, minimum, and maximum resource constraints on individual resources.
+ */
 interface LimitRange {
+  /** The name of the limit range. */
   name: string;
+  /** The Kubernetes namespace the limit range is applied to. */
   namespace: string;
+  /** The list of limit items defining per-resource constraints. */
   limits: Array<{
+    /** The Kubernetes resource type the limit applies to. */
     type: 'Container' | 'Pod' | 'PersistentVolumeClaim';
+    /** Default resource limits applied when none are specified by the workload. */
     default?: {
+      /** Default CPU limit. */
       cpu?: string;
+      /** Default memory limit. */
       memory?: string;
     };
+    /** Default resource requests applied when none are specified by the workload. */
     defaultRequest?: {
+      /** Default CPU request. */
       cpu?: string;
+      /** Default memory request. */
       memory?: string;
     };
+    /** Maximum allowed resource values. */
     max?: {
+      /** Maximum CPU allowed. */
       cpu?: string;
+      /** Maximum memory allowed. */
       memory?: string;
     };
+    /** Minimum allowed resource values. */
     min?: {
+      /** Minimum CPU allowed. */
       cpu?: string;
+      /** Minimum memory allowed. */
       memory?: string;
     };
   }>;
 }
 
+/**
+ * Represents a Kubernetes NetworkPolicy used for tenant network isolation.
+ * Controls ingress and/or egress traffic to a set of pods.
+ */
 interface NetworkPolicy {
+  /** The name of the network policy. */
   name: string;
+  /** The Kubernetes namespace the policy is applied to. */
   namespace: string;
+  /** Label selector used to match the pods the policy applies to. */
   podSelector: Record<string, string>;
+  /** The types of traffic the policy governs (ingress, egress, or both). */
   policyTypes: Array<'Ingress' | 'Egress'>;
+  /** Optional list of ingress rules defining allowed incoming traffic sources. */
   ingress?: Array<{
+    /** Allowed source peers for incoming traffic. */
     from: Array<{
+      /** Optional namespace label selector for matching source namespaces. */
       namespaceSelector?: Record<string, string>;
+      /** Optional pod label selector for matching source pods. */
       podSelector?: Record<string, string>;
     }>;
   }>;
+  /** Optional list of egress rules defining allowed outgoing traffic destinations. */
   egress?: Array<{
+    /** Allowed destination peers for outgoing traffic. */
     to: Array<{
+      /** Optional namespace label selector for matching destination namespaces. */
       namespaceSelector?: Record<string, string>;
     }>;
   }>;
 }
 
+/**
+ * Configuration object describing a multi-tenant isolation setup for a project.
+ * Drives the generation of namespace manifests, quotas, limit ranges, and policies.
+ */
 interface TenantConfig {
+  /** The name of the project the configuration applies to. */
   projectName: string;
+  /** The list of tenant namespaces to create and configure. */
   namespaces: Array<{
+    /** The Kubernetes namespace name. */
     name: string;
+    /** The tenant identifier the namespace belongs to. */
     tenant: string;
+    /** The deployment environment for the namespace (e.g. "dev", "prod"). */
     environment: string;
+    /** Optional resource quota applied to the namespace. */
     resourceQuota?: ResourceQuota;
+    /** Optional limit range applied to the namespace. */
     limitRange?: LimitRange;
   }>;
+  /** Whether to enable network isolation between tenants. */
   enableNetworkIsolation: boolean;
+  /** Whether to enable Kubernetes resource quotas. */
   enableResourceQuotas: boolean;
+  /** Whether to enable Kubernetes limit ranges. */
   enableLimitRanges: boolean;
+  /** Whether to enable pod security policies/admission labels. */
   enablePodSecurityPolicies: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the multi-tenant isolation configuration to the console.
+ * Includes the project name, namespaces, tenants, and the status of each enabled feature.
+ *
+ * @param config - The tenant configuration to display.
+ * @returns Nothing; output is written to stdout.
+ */
 export function displayConfig(config: TenantConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Multi-Tenant Isolation & Resource Quotas');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -97,6 +174,13 @@ export function displayConfig(config: TenantConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates the Markdown documentation describing the multi-tenant isolation setup,
+ * including its features and example usage in TypeScript.
+ *
+ * @param config - The tenant configuration used to title the documentation.
+ * @returns A Markdown string documenting the multi-tenant isolation features and usage.
+ */
 export function generateMultiTenantMD(config: TenantConfig): string {
   let md = '# Multi-Tenant Isolation & Resource Quotas\n\n';
   md += '## Features\n\n';
@@ -125,6 +209,16 @@ export function generateMultiTenantMD(config: TenantConfig): string {
   return md;
 }
 
+/**
+ * Generates a complete TypeScript module that implements the multi-tenant isolation
+ * setup for the given project. The generated module includes a `MultiTenantIsolation`
+ * class capable of creating namespaces, applying quotas/limits, enforcing network
+ * isolation, applying pod security policies, deploying RBAC, and monitoring resources,
+ * along with a default configured instance.
+ *
+ * @param config - The tenant configuration used to drive the generated TypeScript code.
+ * @returns A string containing the full TypeScript source for the multi-tenant isolation module.
+ */
 export function generateTypeScriptMultiTenant(config: TenantConfig): string {
   let code = '// Auto-generated Multi-Tenant Isolation for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -605,6 +699,15 @@ export function generateTypeScriptMultiTenant(config: TenantConfig): string {
   return code;
 }
 
+/**
+ * Generates a Python module that implements a subset of the multi-tenant isolation
+ * setup for the given project. The generated module defines `ResourceQuota`,
+ * `LimitRange`, and `MultiTenantIsolation` dataclasses/classes and includes a
+ * default configured instance.
+ *
+ * @param config - The tenant configuration used to drive the generated Python code.
+ * @returns A string containing the full Python source for the multi-tenant isolation module.
+ */
 export function generatePythonMultiTenant(config: TenantConfig): string {
   let code = '# Auto-generated Multi-Tenant Isolation for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -672,6 +775,16 @@ export function generatePythonMultiTenant(config: TenantConfig): string {
   return code;
 }
 
+/**
+ * Writes the full multi-tenant isolation project to disk, creating the output
+ * directory if it does not exist. Emits the generated TypeScript module, Python
+ * module, Markdown documentation, a package.json, requirements.txt, and the
+ * serialized tenant configuration as JSON.
+ *
+ * @param config - The tenant configuration used to generate the project files.
+ * @param outputDir - The absolute or relative directory path where files will be written.
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(
   config: TenantConfig,
   outputDir: string
