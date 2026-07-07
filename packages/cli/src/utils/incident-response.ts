@@ -63,6 +63,14 @@ interface IncidentResponseConfig {
   enablePostmortem: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the incident response configuration to the
+ * console, including project name, providers, counts of incidents, timeline
+ * entries, communication rules, escalation policies, and feature toggles.
+ *
+ * @param config - The incident response configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: IncidentResponseConfig): void {
   console.log(chalk.cyan('🚨 Collaborative Incident Response'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -78,6 +86,14 @@ export function displayConfig(config: IncidentResponseConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the features of the collaborative
+ * incident response setup (severity levels, status tracking, roles, timeline,
+ * notifications, escalation, impact assessment, etc.).
+ *
+ * @param config - The incident response configuration used to scope the document.
+ * @returns A Markdown string summarizing the incident response features.
+ */
 export function generateIncidentResponseMD(config: IncidentResponseConfig): string {
   let md = '# Collaborative Incident Response\n\n';
   md += '## Features\n\n';
@@ -97,12 +113,27 @@ export function generateIncidentResponseMD(config: IncidentResponseConfig): stri
   return md;
 }
 
+/**
+ * Generates a Terraform header snippet for the incident response setup,
+ * including the project name and the generation timestamp.
+ *
+ * @param config - The incident response configuration providing the project name.
+ * @returns A string containing Terraform code header comments.
+ */
 export function generateTerraformIncidentResponse(config: IncidentResponseConfig): string {
   let code = '# Auto-generated Incident Response Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript module that defines an `IncidentResponseManager`
+ * class extending `EventEmitter`, along with a default exported instance.
+ * The module header includes the project name and generation timestamp.
+ *
+ * @param config - The incident response configuration providing the project name.
+ * @returns A string containing the TypeScript source code for the manager.
+ */
 export function generateTypeScriptIncidentResponse(config: IncidentResponseConfig): string {
   let code = '// Auto-generated Incident Response Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -117,6 +148,14 @@ export function generateTypeScriptIncidentResponse(config: IncidentResponseConfi
   return code;
 }
 
+/**
+ * Generates a Python module that defines an `IncidentResponseManager` class
+ * with an `__init__` accepting a project name, along with a module-level
+ * instance. The module header includes the project name and timestamp.
+ *
+ * @param config - The incident response configuration providing the project name.
+ * @returns A string containing the Python source code for the manager.
+ */
 export function generatePythonIncidentResponse(config: IncidentResponseConfig): string {
   let code = '# Auto-generated Incident Response Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -129,6 +168,22 @@ export function generatePythonIncidentResponse(config: IncidentResponseConfig): 
   return code;
 }
 
+/**
+ * Writes the generated incident response artifacts to the specified output
+ * directory. Always writes the Terraform file, the Markdown documentation,
+ * and a JSON config file. Depending on the chosen language, also writes the
+ * TypeScript manager (plus package.json) or the Python manager (plus
+ * requirements.txt).
+ *
+ * @param config - The incident response configuration to serialize and emit.
+ * @param outputDir - The target directory where files will be written. It is
+ *   created if it does not already exist.
+ * @param language - The implementation language to generate; `'typescript'`
+ *   emits TypeScript sources, any other value emits Python sources.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Rejected promise from the underlying `fs-extra` operations if any
+ *   file or directory operation fails.
+ */
 export async function writeFiles(config: IncidentResponseConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -176,6 +231,13 @@ export async function writeFiles(config: IncidentResponseConfig, outputDir: stri
   await fs.writeFile(path.join(outputDir, 'incident-response-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided incident response configuration unchanged. Acts as an
+ * identity passthrough / validation anchor for the configuration.
+ *
+ * @param config - The incident response configuration to return.
+ * @returns The same incident response configuration instance that was passed in.
+ */
 export function incidentResponse(config: IncidentResponseConfig): IncidentResponseConfig {
   return config;
 }

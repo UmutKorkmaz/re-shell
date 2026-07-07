@@ -5,61 +5,126 @@ import { ValidationError } from './error-handler';
 import { ChangeDetector } from './change-detector';
 import { ChangeImpactAnalyzer } from './change-impact-analyzer';
 
+/**
+ * Represents a single buildable unit within the project (an app, package,
+ * library, or tool). Contains the metadata required to schedule, execute,
+ * cache, and validate builds for the unit.
+ */
 export interface BuildTarget {
+  /** Logical name of the target, typically the workspace or package name. */
   name: string;
+  /** Absolute or root-relative filesystem path to the target directory. */
   path: string;
+  /** Category of the target used for build-time heuristics and ordering. */
   type: 'app' | 'package' | 'lib' | 'tool';
+  /** Shell command (as declared in the target's package.json) used to build. */
   buildScript: string;
+  /** Optional shell command used to run tests for the target. */
   testScript?: string;
+  /** Names of other build targets that must be built before this one. */
   dependencies: string[];
+  /** Relative paths of directories or files produced by the build. */
   outputs: string[];
+  /** Relative paths of source and config files consumed by the build. */
   inputs: string[];
+  /** Timestamp of the most recent successful build, if known. */
   lastBuildTime?: number;
+  /** Hash of the target's inputs used for cache validation. */
   buildHash?: string;
 }
 
+/**
+ * Describes the optimized execution plan produced for a single incremental
+ * build run, including which targets to build, in what order, grouped for
+ * parallel execution, and any optimization notes.
+ */
 export interface BuildPlan {
+  /** Targets that need to be rebuilt for this plan. */
   targets: BuildTarget[];
+  /** Target names ordered to respect inter-target dependencies. */
   buildOrder: string[];
+  /** Groups of target names that can be built concurrently within each step. */
   parallelGroups: string[][];
+  /** Rough estimate of total wall-clock time, in milliseconds. */
   totalEstimatedTime: number;
+  /** Human-readable optimization suggestions applied to the plan. */
   optimizations: string[];
 }
 
+/**
+ * Represents the outcome of building a single target, including timing,
+ * success status, captured output, and cache information.
+ */
 export interface BuildResult {
+  /** Name of the target this result refers to. */
   target: string;
+  /** Whether the build script completed successfully. */
   success: boolean;
+  /** Duration of the build in milliseconds. */
   duration: number;
+  /** Combined stdout/stderr output captured from the build process. */
   output: string;
+  /** Error message if the build failed, otherwise undefined. */
   error?: string;
+  /** Total size in bytes of the produced build output, if computed. */
   outputSize?: number;
+  /** Whether the result came from a valid cache entry instead of a real build. */
   cacheHit?: boolean;
 }
 
+/**
+ * Configuration options that control the behavior of an incremental build run,
+ * including parallelism, caching, timeouts, and reporting verbosity.
+ */
 export interface IncrementalBuildOptions {
+  /** Maximum number of targets that may be built concurrently. */
   maxParallelBuilds: number;
+  /** Whether to use and update the persistent build cache. */
   enableCache: boolean;
+  /** Filesystem path where the build cache JSON file is stored. */
   cacheLocation: string;
+  /** When true, all targets are rebuilt regardless of cache validity. */
   cleanBuild: boolean;
+  /** When true, the plan is computed and printed but no build is executed. */
   dryRun: boolean;
+  /** When true, detailed progress information is printed to the console. */
   verbose: boolean;
+  /** When true, test scripts are skipped during the build. */
   skipTests: boolean;
+  /** When true, the build aborts on the first failing target group. */
   failFast: boolean;
+  /** Maximum time in milliseconds a single build script may run before timing out. */
   buildTimeout: number;
 }
 
+/**
+ * Shape of the persisted build cache. Stores a versioned map of per-target
+ * build metadata used to skip unchanged work on subsequent runs.
+ */
 export interface BuildCache {
+  /** Schema version of the cache file format. */
   version: string;
+  /** Map of target name to its cached build metadata. */
   builds: Record<string, {
+    /** Content hash of the target's inputs at the time of the cached build. */
     hash: string;
+    /** Epoch timestamp (ms) when the cached build completed. */
     timestamp: number;
+    /** Duration of the cached build in milliseconds. */
     duration: number;
+    /** Whether the cached build was successful. */
     success: boolean;
+    /** Total size in bytes of the output produced by the cached build. */
     outputSize: number;
   }>;
 }
 
-// Incremental build optimizer
+/**
+ * Incremental build optimizer that discovers build targets in a monorepo,
+ * determines which targets are affected by a set of changes, computes an
+ * optimal (possibly parallel) build order, executes the build, and maintains
+ * a persistent cache to skip redundant work on subsequent runs.
+ */
 export class IncrementalBuilder {
   private rootPath: string;
   private changeDetector: ChangeDetector;
@@ -67,6 +132,12 @@ export class IncrementalBuilder {
   private buildCache: BuildCache;
   private options: IncrementalBuildOptions;
 
+  /**
+   * Creates a new IncrementalBuilder rooted at the given path.
+   *
+   * @param rootPath - Absolute or relative path to the project root.
+   * @param options - Partial overrides for the default build options.
+   */
   constructor(rootPath: string, options: Partial<IncrementalBuildOptions> = {}) {
     this.rootPath = path.resolve(rootPath);
     this.changeDetector = new ChangeDetector(rootPath);
@@ -90,14 +161,29 @@ export class IncrementalBuilder {
     };
   }
 
-  // Initialize the incremental builder
+  /**
+   * Initializes the builder by initializing the change detector, impact
+   * analyzer, and loading the persistent build cache from disk.
+   *
+   * @returns A promise that resolves once initialization is complete.
+   */
   async initialize(): Promise<void> {
     await this.changeDetector.initialize();
     await this.impactAnalyzer.initialize();
     await this.loadBuildCache();
   }
 
-  // Create optimized build plan based on changes
+  /**
+   * Creates an optimized build plan for the project, taking into account the
+   * provided or detected file changes, inter-target dependencies, cache
+   * validity, and the configured build options.
+   *
+   * @param changedFiles - Optional explicit list of changed files. If omitted,
+   *   changes are detected automatically via the change detector.
+   * @returns A BuildPlan describing which targets to build and how.
+   * @throws {ValidationError} If a circular dependency is detected while
+   *   computing the build order.
+   */
   async createBuildPlan(changedFiles?: string[]): Promise<BuildPlan> {
     const targets = await this.discoverBuildTargets();
     
@@ -153,7 +239,16 @@ export class IncrementalBuilder {
     };
   }
 
-  // Execute incremental build plan
+  /**
+   * Executes the given build plan, running each parallel group in sequence and
+   * the targets within a group concurrently. Updates the build cache after a
+   * successful run. In dry-run mode, only prints what would be built.
+   *
+   * @param plan - The BuildPlan to execute.
+   * @returns An array of BuildResult entries, one per built target.
+   * @throws {ValidationError} If fail-fast is enabled and one or more targets
+   *   in a group fail to build.
+   */
   async executeBuildPlan(plan: BuildPlan): Promise<BuildResult[]> {
     if (this.options.dryRun) {
       console.log('🔍 Dry run - showing what would be built:');
@@ -213,7 +308,13 @@ export class IncrementalBuilder {
     return results;
   }
 
-  // Build a specific target
+  /**
+   * Builds a single target, returning the cached result if the cache is valid,
+   * otherwise executing the target's build script and computing the output size.
+   *
+   * @param target - The BuildTarget to build.
+   * @returns A BuildResult describing the outcome of the build.
+   */
   async buildTarget(target: BuildTarget): Promise<BuildResult> {
     const startTime = Date.now();
     
@@ -760,7 +861,14 @@ export class IncrementalBuilder {
     await this.saveBuildCache();
   }
 
-  // Get build statistics
+  /**
+   * Returns summary statistics derived from the current build cache, including
+   * total number of cached builds, cache hit rate, average build time, and the
+   * cumulative size of cached outputs.
+   *
+   * @returns An object with totalBuilds, cacheHitRate, averageBuildTime, and
+   *   totalCacheSize fields.
+   */
   getBuildStats(): {
     totalBuilds: number;
     cacheHitRate: number;
@@ -785,7 +893,12 @@ export class IncrementalBuilder {
     };
   }
 
-  // Clear build cache
+  /**
+   * Clears the in-memory build cache and removes the persistent cache file
+   * from disk if it exists.
+   *
+   * @returns A promise that resolves once the cache has been cleared.
+   */
   async clearCache(): Promise<void> {
     this.buildCache = { version: '1.0', builds: {} };
     
@@ -795,13 +908,32 @@ export class IncrementalBuilder {
   }
 }
 
-// Utility functions
+/**
+ * Convenience factory that constructs an IncrementalBuilder for the given root
+ * path, initializes it, and returns the ready-to-use instance.
+ *
+ * @param rootPath - Absolute or relative path to the project root.
+ * @param options - Optional partial overrides for the default build options.
+ * @returns A promise that resolves to an initialized IncrementalBuilder.
+ */
 export async function createIncrementalBuilder(rootPath: string, options?: Partial<IncrementalBuildOptions>): Promise<IncrementalBuilder> {
   const builder = new IncrementalBuilder(rootPath, options);
   await builder.initialize();
   return builder;
 }
 
+/**
+ * Convenience helper that runs a full incremental build for the given project
+ * root: it creates the builder, computes a build plan for the changed files,
+ * and executes that plan.
+ *
+ * @param rootPath - Absolute or relative path to the project root.
+ * @param changedFiles - Optional explicit list of changed files. If omitted,
+ *   changes are detected automatically.
+ * @param options - Optional partial overrides for the default build options.
+ * @returns A promise that resolves to the BuildResult entries produced by the
+ *   build.
+ */
 export async function runIncrementalBuild(rootPath: string, changedFiles?: string[], options?: Partial<IncrementalBuildOptions>): Promise<BuildResult[]> {
   const builder = await createIncrementalBuilder(rootPath, options);
   const plan = await builder.createBuildPlan(changedFiles);

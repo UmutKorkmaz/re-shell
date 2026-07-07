@@ -57,6 +57,14 @@ interface IngressManagerConfig {
   authType?: 'basic' | 'oauth2' | 'jwt';
 }
 
+/**
+ * Prints a human-readable summary of the provided ingress manager configuration
+ * to the console, including project metadata, hosts, SSL issuer, WAF mode, and
+ * the state of optional features (CORS, compression).
+ *
+ * @param config - The ingress manager configuration to display.
+ * @returns No return value; output is written to standard output.
+ */
 export function displayConfig(config: IngressManagerConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Advanced Ingress Management');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -71,6 +79,13 @@ export function displayConfig(config: IngressManagerConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Builds a Markdown document describing the features and example usage of the
+ * advanced ingress management module, based on the provided configuration.
+ *
+ * @param config - The ingress manager configuration used to scope the documentation.
+ * @returns A Markdown string containing the feature list and usage examples.
+ */
 export function generateIngressMD(config: IngressManagerConfig): string {
   let md = '# Advanced Ingress Management\n\n';
   md += '## Features\n\n';
@@ -105,6 +120,15 @@ export function generateIngressMD(config: IngressManagerConfig): string {
   return md;
 }
 
+/**
+ * Generates the source code for a TypeScript ingress manager module that can
+ * deploy and manage Kubernetes Ingress resources, including certificate manager
+ * integration, WAF configuration, and rule updates. The returned string is a
+ * complete, self-contained TypeScript source file.
+ *
+ * @param config - The ingress manager configuration used to parameterize the generated module.
+ * @returns The generated TypeScript source code as a string.
+ */
 export function generateTypeScriptIngress(config: IngressManagerConfig): string {
   let code = '// Auto-generated Ingress Management for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -429,6 +453,15 @@ export function generateTypeScriptIngress(config: IngressManagerConfig): string 
   return code;
 }
 
+/**
+ * Generates the source code for a Python ingress manager module that can deploy
+ * and manage Kubernetes Ingress resources, including certificate manager
+ * integration and WAF configuration. The returned string is a complete,
+ * self-contained Python source file.
+ *
+ * @param config - The ingress manager configuration used to parameterize the generated module.
+ * @returns The generated Python source code as a string.
+ */
 export function generatePythonIngress(config: IngressManagerConfig): string {
   let code = '# Auto-generated Ingress Management for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -684,6 +717,19 @@ export function generatePythonIngress(config: IngressManagerConfig): string {
   return code;
 }
 
+/**
+ * Writes the generated ingress manager files for the requested language to the
+ * specified output directory. For TypeScript it emits the ingress manager
+ * source and a package.json; for Python it emits the source and a
+ * requirements.txt. In both cases it also writes a Markdown documentation file
+ * and a JSON representation of the configuration.
+ *
+ * @param config - The ingress manager configuration to materialize.
+ * @param outputDir - The directory where generated files will be written. It will be created if it does not exist.
+ * @param language - The target language, either "typescript" or "python".
+ * @returns A promise that resolves once all files have been written.
+ * @throws Rejects if any underlying file system operation fails.
+ */
 export async function writeFiles(config: IngressManagerConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
