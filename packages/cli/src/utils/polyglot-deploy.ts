@@ -14,6 +14,13 @@ import { ServiceInfo, detectFramework} from './polyglot-build';
 
 const execAsync = promisify(exec);
 
+/**
+ * Supported deployment target platforms for polyglot applications.
+ *
+ * Includes container orchestration systems (Docker, Kubernetes), major cloud
+ * providers (AWS, GCP, Azure), and Platform-as-a-Service offerings
+ * (Vercel, Netlify, Heroku, Railway, Render, Fly.io, DigitalOcean).
+ */
 export type DeploymentTarget =
   | 'docker'
   | 'kubernetes'
@@ -32,51 +39,104 @@ export type DeploymentTarget =
   | 'fly-io'
   | 'digitalocean';
 
+/**
+ * Represents a deployment lifecycle environment.
+ *
+ * - `development`: Local or development environment for active iteration.
+ * - `staging`: Pre-production environment for integration testing.
+ * - `production`: Live environment serving end users.
+ */
 export type DeploymentEnvironment = 'development' | 'staging' | 'production';
 
+/**
+ * Configuration object describing how and where to deploy one or more services.
+ */
 export interface DeploymentConfig {
+  /** The target platform to deploy to (e.g. `docker`, `kubernetes`, `vercel`). */
   target: DeploymentTarget;
+  /** The deployment environment to target. */
   environment: DeploymentEnvironment;
+  /** Optional cloud region for deployment (e.g. `us-east-1`, `europe-west1`). */
   region?: string;
+  /** Optional custom domain name to associate with the deployment. */
   domain?: string;
+  /** Optional map of non-sensitive environment variable names to values. */
   envVars?: Record<string, string>;
+  /** Optional map of secret names to their values. Kept separate from `envVars`. */
   secrets?: Record<string, string>;
+  /** Optional container/service resource requests and limits. */
   resources?: {
+    /** CPU limit/request value (e.g. `1`, `500m`). */
     cpu?: string;
+    /** Memory limit/request value (e.g. `512M`, `128Mi`). */
     memory?: string;
+    /** Number of replicas to provision. */
     replicas?: number;
   };
+  /** Optional autoscaling configuration for the deployment. */
   scaling?: {
+    /** Minimum number of replicas when scaling down. */
     min?: number;
+    /** Maximum number of replicas when scaling up. */
     max?: number;
+    /** Target CPU utilization percentage for scaling decisions. */
     targetCpu?: number;
+    /** Target memory utilization percentage for scaling decisions. */
     targetMemory?: number;
   };
 }
 
+/**
+ * Optional flags and filters controlling deployment execution behavior.
+ */
 export interface DeploymentOptions {
+  /** When true, simulate deployment without making any changes. */
   dryRun?: boolean;
+  /** When true, emit additional diagnostic output during deployment. */
   verbose?: boolean;
+  /** When true, skip the build step before deploying. */
   skipBuild?: boolean;
+  /** Optional progress spinner used to display deployment progress. */
   spinner?: ProgressSpinner;
+  /** Optional filter to restrict which services are deployed. */
   filter?: {
+    /** Only deploy services matching one of these service types. */
     type?: string[];
+    /** Only deploy services written in one of these languages. */
     language?: string[];
+    /** Only deploy services matching one of these names. */
     name?: string[];
   };
 }
 
+/**
+ * Outcome of deploying a single service to a target platform.
+ */
 export interface DeploymentResult {
+  /** The service that was deployed. */
   service: ServiceInfo;
+  /** The target platform the service was deployed to. */
   target: DeploymentTarget;
+  /** Whether the deployment completed successfully. */
   success: boolean;
+  /** Total deployment duration in milliseconds. */
   duration: number;
+  /** Error message describing why the deployment failed, if applicable. */
   error?: string;
+  /** The URL the deployed service is reachable at, if available. */
   url?: string;
 }
 
 /**
- * Generate Docker Compose configuration for all services
+ * Generate Docker Compose configuration for all services.
+ *
+ * Builds a Docker Compose v3.8 configuration object containing one service entry
+ * per provided `ServiceInfo`, applying environment variables, build args, resource
+ * limits, port mappings, and health checks based on the supplied config.
+ *
+ * @param services - Array of services to include in the compose configuration.
+ * @param config - Deployment configuration controlling environment and resources.
+ * @returns A JSON-formatted string representing the Docker Compose configuration.
  */
 export function generateDockerCompose(services: ServiceInfo[], config: DeploymentConfig): string {
   const servicesConfig: Record<string, unknown> = {};
@@ -130,7 +190,17 @@ export function generateDockerCompose(services: ServiceInfo[], config: Deploymen
 }
 
 /**
- * Generate Kubernetes manifests for all services
+ * Generate Kubernetes manifests for all services.
+ *
+ * Produces Deployment, Service, and HorizontalPodAutoscaler manifests for each
+ * service. For frontend services with a configured domain, an Ingress manifest
+ * with TLS and Let's Encrypt annotations is also generated.
+ *
+ * @param services - Array of services to generate manifests for.
+ * @param config - Deployment configuration controlling environment, resources,
+ *   scaling, and optional domain-based ingress.
+ * @returns A map of manifest file names (e.g. `myapp-deployment.yaml`) to their
+ *   JSON-serialized manifest content.
  */
 export function generateKubernetesManifests(services: ServiceInfo[], config: DeploymentConfig): Record<string, string> {
   const manifests: Record<string, string> = {};
@@ -336,7 +406,16 @@ export function generateKubernetesManifests(services: ServiceInfo[], config: Dep
 }
 
 /**
- * Generate AWS Lambda deployment configuration
+ * Generate AWS Lambda deployment configuration for a single service.
+ *
+ * Maps the service's language to an appropriate Lambda runtime, configures the
+ * function handler, timeout, memory, environment variables, and tagging.
+ *
+ * @param service - The service to generate Lambda configuration for.
+ * @param config - Deployment configuration providing environment variables and
+ *   environment metadata.
+ * @returns An AWS Lambda configuration object suitable for use with the AWS SDK
+ *   or CloudFormation.
  */
 export function generateAwsLambdaConfig(service: ServiceInfo, config: DeploymentConfig): any {
   const runtimeMap: Record<string, string> = {
@@ -364,7 +443,16 @@ export function generateAwsLambdaConfig(service: ServiceInfo, config: Deployment
 }
 
 /**
- * Generate Vercel deployment configuration
+ * Generate Vercel deployment configuration for frontend services.
+ *
+ * Iterates over all provided services and creates Vercel project entries for any
+ * service of type `frontend`, including detected framework, build command,
+ * output directory, and environment variables.
+ *
+ * @param services - Array of services to consider for Vercel deployment.
+ * @param config - Deployment configuration providing environment variables and
+ *   environment metadata.
+ * @returns A Vercel configuration object conforming to the `vercel.json` schema.
  */
 export function generateVercelConfig(services: ServiceInfo[], config: DeploymentConfig): any {
   const projects: Record<string, unknown> = {};
@@ -387,7 +475,15 @@ export function generateVercelConfig(services: ServiceInfo[], config: Deployment
 }
 
 /**
- * Generate Netlify deployment configuration
+ * Generate Netlify deployment configuration for a single service.
+ *
+ * Configures the build command, publish directory, environment variables, and
+ * function directory for deployment to Netlify.
+ *
+ * @param service - The service to generate Netlify configuration for.
+ * @param config - Deployment configuration providing environment variables and
+ *   environment metadata.
+ * @returns A Netlify configuration object suitable for `netlify.toml`.
  */
 export function generateNetlifyConfig(service: ServiceInfo, config: DeploymentConfig): any {
   return {
@@ -404,7 +500,17 @@ export function generateNetlifyConfig(service: ServiceInfo, config: DeploymentCo
 }
 
 /**
- * Generate deployment scripts
+ * Generate shell deployment scripts for the configured target platform.
+ *
+ * Produces ready-to-run bash scripts for Docker Compose, Kubernetes, and AWS ECS
+ * deployments. Each script orchestrates building, pushing, and rolling out the
+ * provided services based on the deployment configuration.
+ *
+ * @param services - Array of services the scripts should operate on.
+ * @param config - Deployment configuration controlling environment, region, and
+ *   namespace selection.
+ * @returns A map of script file names (e.g. `deploy-docker.sh`) to their script
+ *   content as a string.
  */
 export function generateDeploymentScripts(
   services: ServiceInfo[],
@@ -487,7 +593,19 @@ echo "✅ Services deployed to AWS ECS!"
 }
 
 /**
- * Deploy a single service
+ * Deploy a single service to the specified target platform.
+ *
+ * Dispatches to the appropriate platform-specific deploy routine based on the
+ * `target` argument. Supports Docker, Kubernetes, Vercel, Netlify, and AWS ECS.
+ * When `options.dryRun` is true, returns a simulated successful result without
+ * performing any real deployment work. Errors from underlying routines are
+ * captured and returned as a failed `DeploymentResult`.
+ *
+ * @param service - The service to deploy.
+ * @param target - The target platform to deploy to.
+ * @param config - Deployment configuration for the target platform.
+ * @param options - Optional deployment behavior flags such as `dryRun` or `verbose`.
+ * @returns A promise resolving to the deployment outcome for the service.
  */
 export async function deployService(
   service: ServiceInfo,
@@ -776,7 +894,14 @@ async function deployToAwsEcs(
 }
 
 /**
- * Print deployment results summary
+ * Print a human-readable summary of deployment results to the console.
+ *
+ * Lists successful deployments with their URLs and durations, followed by any
+ * failures with their error messages, and finally the total time spent across
+ * all deployments.
+ *
+ * @param results - Array of deployment results to summarize.
+ * @returns Nothing; output is written to stdout.
  */
 export function printDeploymentResults(results: DeploymentResult[]): void {
   const successful = results.filter(r => r.success);

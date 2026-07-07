@@ -5,45 +5,111 @@
 
 
 
+/**
+ * Represents a Kubernetes Pod Security Admission profile.
+ *
+ * A security profile defines the Pod Security Standard level applied to a
+ * namespace along with the mode-specific enforcement, audit, and warn flags.
+ */
 interface SecurityProfile {
+  /** Human-readable name of the security profile. */
   name: string;
+  /** Pod Security Standard level applied to the namespace. */
   level: 'privileged' | 'baseline' | 'restricted';
+  /** Kubernetes version this profile targets (e.g. `v1.25`) or `latest`. */
   version: 'v1.24' | 'v1.25' | 'latest';
+  /** Whether non-compliant pods are rejected at admission. */
   enforce: boolean;
+  /** Whether audit events are recorded for policy violations. */
   audit: boolean;
+  /** Whether warnings are returned to the user for policy violations. */
   warn: boolean;
 }
 
+/**
+ * Represents an admission control rule for validating Kubernetes resources.
+ *
+ * An admission rule defines which operations on which resources/API groups
+ * should be intercepted and how the admission controller should react when
+ * the validation webhook is unreachable.
+ */
 interface AdmissionRule {
+  /** Human-readable name of the admission rule. */
   name: string;
+  /** Kubernetes namespace the rule applies to. */
   namespace: string;
+  /** List of operations (e.g. `CREATE`, `UPDATE`) that the rule intercepts. */
   operations: string[];
+  /** List of Kubernetes resources (e.g. `pods`, `deployments`) matched by the rule. */
   resources: string[];
+  /** List of API groups the rule applies to. */
   apiGroups: string[];
+  /** Policy used when the admission webhook is unreachable (`Fail` or `Ignore`). */
   failurePolicy: 'Fail' | 'Ignore';
+  /** Optional CEL match conditions used to filter requests before validation. */
   matchConditions?: any[];
+  /** List of CEL validation expressions evaluated against matched requests. */
   validations: any[];
 }
 
+/**
+ * Represents a compliance policy that is enforced by the pod security setup.
+ *
+ * A compliance policy bundles a set of rules with metadata describing its
+ * severity and the remediation steps operators should follow when the policy
+ * is violated.
+ */
 interface CompliancePolicy {
+  /** Human-readable name of the compliance policy. */
   name: string;
+  /** Short human-readable description of what the policy enforces. */
   description: string;
+  /** List of rule identifiers or expressions belonging to the policy. */
   rules: string[];
+  /** Severity level used to prioritise remediation of violations. */
   severity: 'low' | 'medium' | 'high' | 'critical';
+  /** Recommended steps to remediate a violation of this policy. */
   remediation: string;
 }
 
+/**
+ * Top-level configuration object describing a pod security deployment.
+ *
+ * It bundles together the project metadata, the active security profile, the
+ * admission rules, compliance policies, and feature toggles that control
+ * whether additional resources (network policies, resource quotas, limit
+ * ranges) are generated.
+ */
 interface PodSecurityConfig {
+  /** Name of the project this configuration belongs to. */
   projectName: string;
+  /** Kubernetes namespace the configuration targets. */
   namespace: string;
+  /** Security profile applied to the namespace. */
   securityProfile: SecurityProfile;
+  /** List of admission rules to install. */
   admissionRules: AdmissionRule[];
+  /** List of compliance policies to evaluate against the namespace. */
   compliancePolicies: CompliancePolicy[];
+  /** Whether to generate and apply Kubernetes NetworkPolicies. */
   enableNetworkPolicies: boolean;
+  /** Whether to generate and apply Kubernetes ResourceQuotas. */
   enableResourceQuotas: boolean;
+  /** Whether to generate and apply Kubernetes LimitRanges. */
   enableLimitRanges: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the pod security configuration to stdout.
+ *
+ * The summary includes the project name, namespace, the active security
+ * profile, the number of admission rules and compliance policies, and the
+ * state of the optional network policy, resource quota and limit range
+ * features.
+ *
+ * @param config - The pod security configuration to display.
+ * @returns Nothing (`void`); output is written to the console.
+ */
 export function displayConfig(config: PodSecurityConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Pod Security Policies and Admission Controllers');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -60,6 +126,17 @@ export function displayConfig(config: PodSecurityConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates the Markdown documentation for the pod security module.
+ *
+ * The returned string describes the available features (Pod Security
+ * Standards, Validating Admission Policies, compliance enforcement, etc.)
+ * and includes a TypeScript usage example showing how to deploy, validate,
+ * and check compliance.
+ *
+ * @param config - The pod security configuration the documentation is generated for.
+ * @returns A Markdown string describing the pod security module.
+ */
 export function generatePodSecurityMD(config: PodSecurityConfig): string {
   let md = '# Pod Security Policies and Admission Controllers\n\n';
   md += '## Features\n\n';
@@ -90,6 +167,20 @@ export function generatePodSecurityMD(config: PodSecurityConfig): string {
   return md;
 }
 
+/**
+ * Generates the TypeScript source code that manages pod security for a project.
+ *
+ * The generated code defines a `PodSecurityManager` class that, when executed,
+ * applies Pod Security Admission labels to the namespace, deploys
+ * ValidatingAdmissionPolicies and ValidatingWebhookConfigurations, optionally
+ * creates NetworkPolicies, ResourceQuotas and LimitRanges, and exposes
+ * `validate` and `checkCompliance` helpers. The behaviour of the generated
+ * code depends on the provided configuration (e.g. only `restricted` profiles
+ * emit the no-privileged / no-root admission policies).
+ *
+ * @param config - The pod security configuration used to template the code.
+ * @returns A string containing the complete TypeScript source for the manager.
+ */
 export function generateTypeScriptPodSecurity(config: PodSecurityConfig): string {
   let code = '// Auto-generated Pod Security Policies for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -457,6 +548,18 @@ export function generateTypeScriptPodSecurity(config: PodSecurityConfig): string
   return code;
 }
 
+/**
+ * Generates the Python source code that manages pod security for a project.
+ *
+ * The generated code mirrors the TypeScript output: it defines dataclasses
+ * for `SecurityProfile`, `AdmissionRule` and `CompliancePolicy` plus a
+ * `PodSecurityManager` class that applies Pod Security Admission labels,
+ * deploys admission policies, network policies, resource quotas and limit
+ * ranges, and provides `validate` and `check_compliance` helpers.
+ *
+ * @param config - The pod security configuration used to template the code.
+ * @returns A string containing the complete Python source for the manager.
+ */
 export function generatePythonPodSecurity(config: PodSecurityConfig): string {
   let code = '# Auto-generated Pod Security Policies for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -703,6 +806,21 @@ export function generatePythonPodSecurity(config: PodSecurityConfig): string {
   return code;
 }
 
+/**
+ * Writes the generated pod security artefacts to disk.
+ *
+ * Depending on the requested `language`, the function emits the TypeScript
+ * manager together with a `package.json`, or the Python manager together with
+ * a `requirements.txt`. In both cases it also writes the Markdown
+ * documentation (`POD_SECURITY.md`) and a JSON serialization of the supplied
+ * configuration (`pod-security-config.json`). The output directory is created
+ * if it does not exist.
+ *
+ * @param config - The pod security configuration to materialise.
+ * @param outputDir - Absolute or relative path of the directory to write into.
+ * @param language - Target language for the manager code (`typescript` or `python`).
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(config: PodSecurityConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
