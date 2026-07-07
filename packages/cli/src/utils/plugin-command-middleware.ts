@@ -4,85 +4,217 @@ import { ValidationError } from './error-handler';
 import { PluginCommandContext, PluginCommandMiddleware } from './plugin-command-registry';
 import type { PluginPermission } from './plugin-system';
 
-// Middleware types
+/**
+ * Enumerates the supported middleware lifecycle phases and categories.
+ *
+ * Middlewares are categorized by type so that they can be grouped into chains
+ * that execute at specific points during a plugin command's lifecycle
+ * (e.g. before validation, after execution) or by cross-cutting concern
+ * (e.g. logging, caching, rate limiting).
+ */
 export enum MiddlewareType {
+  /** Runs before the validation phase to allow early argument normalization or rejection. */
   PRE_VALIDATION = 'pre-validation',
+  /** Validates command arguments and options against a schema or rule set. */
   VALIDATION = 'validation',
+  /** Runs immediately before the command handler is invoked. */
   PRE_EXECUTION = 'pre-execution',
+  /** Runs after the command handler has completed successfully. */
   POST_EXECUTION = 'post-execution',
+  /** Handles errors thrown during the middleware chain or command execution. */
   ERROR_HANDLER = 'error-handler',
+  /** Logs execution details such as start, completion, and failure events. */
   LOGGER = 'logger',
+  /** Enforces request rate limits per plugin/command combination. */
   RATE_LIMITER = 'rate-limiter',
+  /** Caches middleware results to avoid redundant computation. */
   CACHE = 'cache',
+  /** Transforms arguments or options before they reach subsequent middlewares. */
   TRANSFORM = 'transform',
+  /** Verifies that the invoking plugin holds the required permissions. */
   AUTHORIZATION = 'authorization'
 }
 
-// Middleware registration
+/**
+ * Represents a registered middleware entry managed by the {@link MiddlewareChainManager}.
+ *
+ * A registration record tracks the middleware's identity, owning plugin, type,
+ * execution priority, runtime options, and any filters that determine the
+ * commands or contexts to which it applies.
+ */
 export interface MiddlewareRegistration {
+  /** Unique identifier generated for the middleware registration. */
   id: string;
+  /** Name of the plugin that registered the middleware. */
   pluginName: string;
+  /** Lifecycle phase or category the middleware belongs to. */
   type: MiddlewareType;
+  /** Numeric priority; higher values execute earlier within a chain. */
   priority: number;
+  /** The underlying handler function invoked when the middleware executes. */
   handler: PluginCommandMiddleware;
+  /** Optional runtime options such as timeout, caching, and rate limiting. */
   options?: MiddlewareOptions;
+  /** Whether the middleware is currently active and eligible for execution. */
   isActive: boolean;
+  /** Optional filter restricting the commands, plugins, or categories the middleware applies to. */
   appliesTo?: MiddlewareFilter;
+  /** Arbitrary plugin-defined metadata associated with the registration. */
   metadata?: Record<string, unknown>;
 }
 
-// Middleware options
+/**
+ * Runtime options that control how a middleware executes.
+ *
+ * These options enable features such as execution timeouts, error handling
+ * behavior, caching, and rate limiting without requiring custom logic in
+ * the middleware handler itself.
+ */
 export interface MiddlewareOptions {
+  /** Maximum execution time in milliseconds before the middleware is aborted. */
   timeout?: number;
+  /** When true, remaining middlewares are skipped after this middleware errors. */
   skipOnError?: boolean;
+  /** When true, the middleware may be executed asynchronously without blocking the chain. */
   runAsync?: boolean;
+  /** Optional caching configuration for storing and reusing middleware results. */
   cache?: {
+    /** Whether caching is enabled for the middleware. */
     enabled: boolean;
+    /** Time-to-live for cached entries in milliseconds. */
     ttl: number;
+    /** Optional custom function used to build the cache key from args and options. */
     key?: (args: any, options: any) => string;
   };
+  /** Optional rate limiting configuration applied to middleware invocations. */
   rateLimit?: {
+    /** Maximum number of requests allowed within the rolling time window. */
     maxRequests: number;
+    /** Length of the rate limiting window in milliseconds. */
     windowMs: number;
+    /** When true, failed requests are excluded from rate limit counts. */
     skipFailedRequests?: boolean;
   };
 }
 
-// Middleware filter for selective application
+/**
+ * Filter criteria used to determine the commands, plugins, and contexts
+ * to which a middleware applies.
+ *
+ * All specified conditions must match for the middleware to be included in
+ * the execution chain for a given command context.
+ */
 export interface MiddlewareFilter {
+  /** Optional list of command names the middleware applies to. */
   commands?: string[];
+  /** Optional list of plugin names the middleware applies to. */
   plugins?: string[];
+  /** Optional list of command categories the middleware applies to. */
   categories?: string[];
+  /** Optional regular expressions tested against the command name. */
   patterns?: RegExp[];
+  /** Optional custom predicate evaluated against the command context. */
   custom?: (context: PluginCommandContext) => boolean;
 }
 
-// Middleware execution result
+/**
+ * Describes the outcome of executing a single middleware or an entire chain.
+ *
+ * The result captures whether execution succeeded, how long it took, any
+ * error encountered, optional returned data, modifications made to args or
+ * options, and whether subsequent middlewares should be skipped.
+ */
 export interface MiddlewareResult {
+  /** Whether the middleware (or chain) completed without throwing. */
   success: boolean;
+  /** Total execution duration in milliseconds. */
   duration: number;
+  /** Error captured when execution failed, if any. */
   error?: Error;
+  /** Optional data returned by the middleware. */
   data?: any;
+  /** Optional modifications applied to the command arguments or options. */
   modified?: {
+    /** Modified argument values to merge into the running arguments. */
     args?: Record<string, unknown>;
+    /** Modified option values to merge into the running options. */
     options?: Record<string, unknown>;
   };
+  /** When true, signals that remaining middlewares in the chain should be skipped. */
   skipRemaining?: boolean;
 }
 
-// Built-in middleware factory functions
+/**
+ * Collection of factory functions that produce common, reusable middleware
+ * handlers. Each factory returns a {@link PluginCommandMiddleware} configured
+ * for a specific cross-cutting concern.
+ */
 export interface BuiltinMiddleware {
+  /**
+   * Creates a validation middleware that checks arguments and options against a schema.
+   * @param schema - Schema describing required fields and expected types for arguments and options.
+   * @returns A {@link PluginCommandMiddleware} that validates the incoming command data.
+   */
   validation: (schema: any) => PluginCommandMiddleware;
+  /**
+   * Creates an authorization middleware that ensures the invoking plugin holds the required permissions.
+   * @param permissions - List of permission identifiers required to proceed.
+   * @returns A {@link PluginCommandMiddleware} that enforces the permission requirements.
+   */
   authorization: (permissions: string[]) => PluginCommandMiddleware;
+  /**
+   * Creates a rate limiting middleware that restricts request frequency.
+   * @param options - Rate limiting configuration including max requests and time window.
+   * @param options.maxRequests - Maximum number of requests permitted within the window.
+   * @param options.windowMs - Duration of the rate limiting window in milliseconds.
+   * @returns A {@link PluginCommandMiddleware} that enforces the rate limit.
+   */
   rateLimit: (options: { maxRequests: number; windowMs: number }) => PluginCommandMiddleware;
+  /**
+   * Creates a caching middleware that stores results to avoid redundant computation.
+   * @param options - Cache configuration including time-to-live and optional key generator.
+   * @param options.ttl - Time-to-live for cached entries in milliseconds.
+   * @param options.key - Optional function used to build cache keys from args and options.
+   * @returns A {@link PluginCommandMiddleware} that caches results.
+   */
   cache: (options: { ttl: number; key?: (args: any, options: any) => string }) => PluginCommandMiddleware;
+  /**
+   * Creates a logging middleware that records execution lifecycle events.
+   * @param options - Optional logging configuration including level and format.
+   * @param options.level - Log level to use (e.g. "info" or "debug").
+   * @param options.format - Optional custom log format.
+   * @returns A {@link PluginCommandMiddleware} that logs execution details.
+   */
   logger: (options?: { level: string; format?: string }) => PluginCommandMiddleware;
+  /**
+   * Creates a transform middleware that mutates arguments and options before downstream execution.
+   * @param transformers - Optional transformer functions for args and options.
+   * @param transformers.args - Function used to transform the command arguments.
+   * @param transformers.options - Function used to transform the command options.
+   * @returns A {@link PluginCommandMiddleware} that applies the transformations.
+   */
   transform: (transformers: { args?: (args: any) => any; options?: (options: any) => any }) => PluginCommandMiddleware;
+  /**
+   * Creates an error handler middleware that intercepts and reports errors thrown downstream.
+   * @param handler - Callback invoked with the captured error and the active command context.
+   * @returns A {@link PluginCommandMiddleware} that wraps downstream execution in error handling.
+   */
   errorHandler: (handler: (error: Error, context: PluginCommandContext) => void) => PluginCommandMiddleware;
+  /**
+   * Creates a timing middleware that records execution durations and exposes timer utilities.
+   * @returns A {@link PluginCommandMiddleware} that instruments execution timing.
+   */
   timing: () => PluginCommandMiddleware;
 }
 
-// Middleware chain manager
+/**
+ * Manages registration, ordering, and execution of plugin command middleware chains.
+ *
+ * The manager maintains middleware registrations grouped by {@link MiddlewareType},
+ * supports command-specific middleware, and emits lifecycle events via the
+ * underlying {@link EventEmitter}. It also provides integrated caching and
+ * rate limiting facilities driven by {@link MiddlewareOptions}.
+ */
 export class MiddlewareChainManager extends EventEmitter {
   private middlewares: Map<string, MiddlewareRegistration> = new Map();
   private typeChains: Map<MiddlewareType, string[]> = new Map();
@@ -95,14 +227,27 @@ export class MiddlewareChainManager extends EventEmitter {
     this.initializeTypeChains();
   }
 
-  // Initialize middleware type chains
+  /**
+   * Initializes an empty chain for each value of {@link MiddlewareType}.
+   */
   private initializeTypeChains(): void {
     Object.values(MiddlewareType).forEach(type => {
       this.typeChains.set(type, []);
     });
   }
 
-  // Register middleware
+  /**
+   * Registers a new middleware with the chain manager.
+   *
+   * The middleware is stored, the relevant type chain is refreshed, and a
+   * `middleware-registered` event is emitted.
+   *
+   * @param pluginName - Name of the plugin registering the middleware.
+   * @param type - Lifecycle phase or category the middleware belongs to.
+   * @param handler - Function invoked when the middleware executes.
+   * @param options - Optional registration options including priority, runtime options, filters, and metadata.
+   * @returns The unique identifier assigned to the newly registered middleware.
+   */
   registerMiddleware(
     pluginName: string,
     type: MiddlewareType,
@@ -135,7 +280,16 @@ export class MiddlewareChainManager extends EventEmitter {
     return id;
   }
 
-  // Unregister middleware
+  /**
+   * Removes a previously registered middleware by its identifier.
+   *
+   * The middleware is deleted from the manager, its type chain is refreshed,
+   * and any command-specific associations are cleaned up. A
+   * `middleware-unregistered` event is emitted on success.
+   *
+   * @param id - Identifier of the middleware to remove.
+   * @returns `true` if the middleware was found and removed; `false` otherwise.
+   */
   unregisterMiddleware(id: string): boolean {
     const middleware = this.middlewares.get(id);
     if (!middleware) {
@@ -157,7 +311,14 @@ export class MiddlewareChainManager extends EventEmitter {
     return true;
   }
 
-  // Register middleware for specific command
+  /**
+   * Associates an existing middleware with a specific command.
+   *
+   * If the middleware is already associated with the command, the call is a no-op.
+   *
+   * @param commandId - Name or identifier of the command.
+   * @param middlewareId - Identifier of the middleware to associate.
+   */
   registerCommandMiddleware(commandId: string, middlewareId: string): void {
     if (!this.commandMiddleware.has(commandId)) {
       this.commandMiddleware.set(commandId, []);
@@ -169,7 +330,19 @@ export class MiddlewareChainManager extends EventEmitter {
     }
   }
 
-  // Execute middleware chain
+  /**
+   * Executes the middleware chain for a given type and command context.
+   *
+   * Middlewares run in priority order, with their argument and option
+   * modifications merged into the running state. Execution stops early when
+   * a middleware signals `skipRemaining` or when a non-skippable error occurs.
+   *
+   * @param type - The middleware category whose chain should be executed.
+   * @param args - Initial command arguments passed to each middleware.
+   * @param options - Initial command options passed to each middleware.
+   * @param context - Execution context describing the plugin and command.
+   * @returns A {@link MiddlewareResult} describing the chain outcome and any modifications.
+   */
   async executeChain(
     type: MiddlewareType,
     args: Record<string, unknown>,
@@ -237,7 +410,16 @@ export class MiddlewareChainManager extends EventEmitter {
     }
   }
 
-  // Execute single middleware
+  /**
+   * Executes a single middleware, honoring configured caching, rate limiting,
+   * and timeout options.
+   *
+   * @param middleware - The middleware registration to execute.
+   * @param args - Command arguments at the current point in the chain.
+   * @param options - Command options at the current point in the chain.
+   * @param context - Execution context describing the plugin and command.
+   * @returns A {@link MiddlewareResult} describing the middleware outcome.
+   */
   private async executeMiddleware(
     middleware: MiddlewareRegistration,
     args: Record<string, unknown>,
@@ -338,7 +520,17 @@ export class MiddlewareChainManager extends EventEmitter {
     }
   }
 
-  // Get middleware chain for type and context
+  /**
+   * Builds the ordered list of middlewares applicable to a type and context.
+   *
+   * Combines type-level and command-level registrations, filters inactive or
+   * non-applicable entries, and sorts the remaining middlewares by priority
+   * (descending).
+   *
+   * @param type - The middleware category to build the chain for.
+   * @param context - Execution context used to evaluate applicability filters.
+   * @returns Ordered array of middleware registrations to execute.
+   */
   private getMiddlewareChain(
     type: MiddlewareType,
     context: PluginCommandContext
@@ -359,7 +551,14 @@ export class MiddlewareChainManager extends EventEmitter {
       .sort((a, b) => b.priority - a.priority);
   }
 
-  // Check if middleware applies to context
+  /**
+   * Determines whether a middleware should run for the given command context
+   * by evaluating its {@link MiddlewareFilter} criteria.
+   *
+   * @param middleware - The middleware whose filter is being evaluated.
+   * @param context - Execution context describing the plugin and command.
+   * @returns `true` if the middleware applies; `false` otherwise.
+   */
   private appliesTo(
     middleware: MiddlewareRegistration,
     context: PluginCommandContext
@@ -397,7 +596,11 @@ export class MiddlewareChainManager extends EventEmitter {
     return true;
   }
 
-  // Update type chain after registration/unregistration
+  /**
+   * Rebuilds the priority-ordered chain of middleware IDs for a given type.
+   *
+   * @param type - The middleware category whose chain should be refreshed.
+   */
   private updateTypeChain(type: MiddlewareType): void {
     const middlewares = Array.from(this.middlewares.values())
       .filter(m => m.type === type && m.isActive)
@@ -407,12 +610,26 @@ export class MiddlewareChainManager extends EventEmitter {
     this.typeChains.set(type, middlewares);
   }
 
-  // Generate unique middleware ID
+  /**
+   * Generates a unique identifier for a middleware registration.
+   *
+   * @param pluginName - Name of the registering plugin.
+   * @param type - Middleware category.
+   * @returns A unique identifier string combining the plugin, type, and timestamp.
+   */
   private generateMiddlewareId(pluginName: string, type: MiddlewareType): string {
     return `${pluginName}:${type}:${Date.now()}`;
   }
 
-  // Cache management
+  /**
+   * Computes the cache key for a middleware invocation, preferring the
+   * configured key generator and falling back to a serialized representation.
+   *
+   * @param middleware - The middleware to compute a key for.
+   * @param args - Command arguments used in the key.
+   * @param options - Command options used in the key.
+   * @returns The computed cache key string.
+   */
   private getCacheKey(
     middleware: MiddlewareRegistration,
     args: Record<string, unknown>,
@@ -424,6 +641,12 @@ export class MiddlewareChainManager extends EventEmitter {
     return `${middleware.id}:${JSON.stringify({ args, options })}`;
   }
 
+  /**
+   * Retrieves a value from the cache if it exists and has not expired.
+   *
+   * @param key - Cache key to look up.
+   * @returns The cached data, or `undefined` when the entry is missing or expired.
+   */
   private getFromCache(key: string): any {
     const cached = this.cache.get(key);
     if (cached && cached.expires > Date.now()) {
@@ -433,6 +656,13 @@ export class MiddlewareChainManager extends EventEmitter {
     return undefined;
   }
 
+  /**
+   * Stores a value in the cache with the specified time-to-live.
+   *
+   * @param key - Cache key to associate with the value.
+   * @param data - Value to cache.
+   * @param ttl - Time-to-live in milliseconds from now.
+   */
   private setInCache(key: string, data: any, ttl: number): void {
     this.cache.set(key, {
       data,
@@ -440,7 +670,13 @@ export class MiddlewareChainManager extends EventEmitter {
     });
   }
 
-  // Rate limiting
+  /**
+   * Builds the rate limit key used to bucket requests for a middleware.
+   *
+   * @param middleware - The middleware to build a key for.
+   * @param context - Execution context describing the plugin and command.
+   * @returns A rate limit key scoped to the plugin and command.
+   */
   private getRateLimitKey(
     middleware: MiddlewareRegistration,
     context: PluginCommandContext
@@ -448,6 +684,14 @@ export class MiddlewareChainManager extends EventEmitter {
     return `${context.plugin.manifest.name}:${context.command.name}`;
   }
 
+  /**
+   * Evaluates the rate limit for a middleware and key, recording the current
+   * request timestamp when permitted.
+   *
+   * @param middleware - The middleware whose rate limit configuration applies.
+   * @param key - Rate limit bucket key.
+   * @returns `true` when the request is allowed; `false` when the limit has been exceeded.
+   */
   private checkRateLimit(
     middleware: MiddlewareRegistration,
     key: string
@@ -483,30 +727,53 @@ export class MiddlewareChainManager extends EventEmitter {
     return true;
   }
 
-  // Get all middlewares
+  /**
+   * Returns all registered middlewares regardless of type or active state.
+   *
+   * @returns Array of all middleware registrations.
+   */
   getMiddlewares(): MiddlewareRegistration[] {
     return Array.from(this.middlewares.values());
   }
 
-  // Get middlewares by type
+  /**
+   * Returns all middlewares matching a specific type.
+   *
+   * @param type - Middleware category to filter by.
+   * @returns Array of middleware registrations of the given type.
+   */
   getMiddlewaresByType(type: MiddlewareType): MiddlewareRegistration[] {
     return Array.from(this.middlewares.values())
       .filter(m => m.type === type);
   }
 
-  // Get middlewares by plugin
+  /**
+   * Returns all middlewares registered by a specific plugin.
+   *
+   * @param pluginName - Name of the plugin to filter by.
+   * @returns Array of middleware registrations owned by the plugin.
+   */
   getMiddlewaresByPlugin(pluginName: string): MiddlewareRegistration[] {
     return Array.from(this.middlewares.values())
       .filter(m => m.pluginName === pluginName);
   }
 
-  // Clear cache
+  /**
+   * Removes all entries from the middleware cache and emits a `cache-cleared` event.
+   */
   clearCache(): void {
     this.cache.clear();
     this.emit('cache-cleared');
   }
 
-  // Get statistics
+  /**
+   * Aggregates statistics describing the current state of the manager.
+   *
+   * The returned object includes total and active middleware counts,
+   * breakdowns by type and plugin, cache size, and rate limiter counts.
+   *
+   * @returns A statistics object summarizing registered middlewares and caches.
+   */
   getStats(): any {
     const stats = {
       totalMiddlewares: this.middlewares.size,
@@ -531,7 +798,11 @@ export class MiddlewareChainManager extends EventEmitter {
   }
 }
 
-// Create built-in middleware factories
+/**
+ * Built-in middleware factory implementations providing common reusable
+ * middleware handlers for validation, authorization, rate limiting,
+ * caching, logging, transformation, error handling, and timing.
+ */
 export const builtinMiddleware: BuiltinMiddleware = {
   // Validation middleware
   validation: (schema: any) => {
@@ -747,11 +1018,23 @@ export const builtinMiddleware: BuiltinMiddleware = {
   }
 };
 
-// Utility functions
+/**
+ * Creates and returns a new {@link MiddlewareChainManager} instance.
+ *
+ * @returns A freshly initialized middleware chain manager.
+ */
 export function createMiddlewareChainManager(): MiddlewareChainManager {
   return new MiddlewareChainManager();
 }
 
+/**
+ * Composes multiple middlewares into a single middleware that executes them
+ * in order, chaining each to the next before invoking the provided `next`
+ * callback.
+ *
+ * @param middlewares - Ordered list of middleware handlers to compose.
+ * @returns A single {@link PluginCommandMiddleware} representing the composed chain.
+ */
 export function composeMiddleware(
   ...middlewares: PluginCommandMiddleware[]
 ): PluginCommandMiddleware {

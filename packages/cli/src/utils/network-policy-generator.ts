@@ -1,81 +1,147 @@
 // Auto-generated Network Policy Generator
 // Generated at: 2026-01-12T23:12:00.000Z
 
-
-
-
-
+/**
+ * Represents a single network policy rule that controls either ingress or egress traffic
+ * for a set of pods, optionally filtering by ports and peer selectors.
+ */
 interface NetworkPolicyRule {
+  /** Direction of traffic the rule applies to. */
   direction: 'Ingress' | 'Egress';
+  /** Optional list of port ranges to filter for this rule. */
   ports?: Array<{
+    /** Protocol of the port (TCP, UDP, or SCTP). */
     protocol: 'TCP' | 'UDP' | 'SCTP';
+    /** Port number or named port to match. */
     port: number | string;
+    /** Optional upper bound to define an inclusive port range. */
     endPort?: number;
   }>;
+  /** Optional ingress peer selectors describing allowed sources. */
   from?: Array<{
+    /** Selector matching source pods by labels. */
     podSelector?: {
+      /** Label key/value pairs that the source pod must have. */
       matchLabels?: Record<string, string>;
     };
+    /** Selector matching source namespaces by labels. */
     namespaceSelector?: {
+      /** Label key/value pairs that the source namespace must have. */
       matchLabels?: Record<string, string>;
     };
+    /** IP block based peer selector. */
     ipBlock?: {
+      /** CIDR range to allow or deny. */
       cidr: string;
+      /** Optional list of CIDR ranges to exclude from the block. */
       except?: string[];
     };
   }>;
+  /** Optional egress peer selectors describing allowed destinations. */
   to?: Array<{
+    /** Selector matching destination pods by labels. */
     podSelector?: {
+      /** Label key/value pairs that the destination pod must have. */
       matchLabels?: Record<string, string>;
     };
+    /** Selector matching destination namespaces by labels. */
     namespaceSelector?: {
+      /** Label key/value pairs that the destination namespace must have. */
       matchLabels?: Record<string, string>;
     };
+    /** IP block based peer selector. */
     ipBlock?: {
+      /** CIDR range to allow or deny. */
       cidr: string;
+      /** Optional list of CIDR ranges to exclude from the block. */
       except?: string[];
     };
   }>;
 }
 
+/**
+ * Security context applied to a pod or container to restrict privileges and
+ * enforce runtime hardening (runAs settings, seccomp, capabilities, etc.).
+ */
 interface SecurityContext {
+  /** UID to run the pod/container entrypoint process as. */
   runAsUser?: number;
+  /** GID to run the pod/container entrypoint process as. */
   runAsGroup?: number;
+  /** Whether the container must run as a non-root user. */
   runAsNonRoot?: boolean;
+  /** seccomp profile applied to the container. */
   seccompProfile?: {
+    /** Type of seccomp profile to apply. */
     type: 'RuntimeDefault' | 'Localhost' | 'Unconfined';
+    /** Path to a local seccomp profile when type is `Localhost`. */
     localhostProfile?: string;
   };
+  /** Linux capabilities to add or drop. */
   capabilities?: {
+    /** List of capabilities to drop. */
     drop?: string[];
+    /** List of capabilities to add. */
     add?: string[];
   };
+  /** Whether the root filesystem should be mounted read-only. */
   readOnlyRootFilesystem?: boolean;
+  /** Whether the process may escalate privileges (e.g. via setuid). */
   allowPrivilegeEscalation?: boolean;
+  /** Whether the container should run in privileged mode. */
   privileged?: boolean;
 }
 
+/**
+ * Aggregated pod security policy covering different isolation profiles
+ * (baseline, restricted, privileged) for use across the generated controller.
+ */
 interface PodSecurityPolicy {
+  /** Security context applied under the baseline profile. */
   baseline?: SecurityContext;
+  /** Security context applied under the restricted profile. */
   restricted?: SecurityContext;
+  /** Security context applied under the privileged profile. */
   privileged?: SecurityContext;
 }
 
+/**
+ * Top-level configuration object describing the network policies, security
+ * contexts, and segmentation behavior to be generated for a project.
+ */
 interface NetworkPolicyConfig {
+  /** Human-readable name of the project the policies are generated for. */
   projectName: string;
+  /** Kubernetes namespace the policies target. */
   namespace: string;
+  /** Whether micro-segmentation policies should be generated. */
   microSegmentation: boolean;
+  /** Whether a default deny-all ingress policy should be generated. */
   denyAllIngress: boolean;
+  /** Whether a default deny-all egress policy should be generated. */
   denyAllEgress: boolean;
+  /** List of named network policies to generate. */
   policies: Array<{
+    /** Name of the network policy resource. */
     name: string;
+    /** Labels used to select the pods the policy applies to. */
     podSelector: Record<string, string>;
+    /** Policy types indicating whether the policy is ingress, egress, or both. */
     policyTypes: Array<'Ingress' | 'Egress'>;
+    /** Traffic rules applied by this policy. */
     rules: NetworkPolicyRule[];
   }>;
+  /** Pod security policy profiles applied to generated workloads. */
   podSecurityPolicy: PodSecurityPolicy;
 }
 
+/**
+ * Pretty-prints a summary of the supplied network policy configuration to the
+ * console, including project name, namespace, policies, and toggle states.
+ *
+ * @param config - The network policy configuration to display.
+ * @returns Nothing; output is written to stdout.
+ */
 export function displayConfig(config: NetworkPolicyConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Network Policies & Security Contexts');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -88,6 +154,13 @@ export function displayConfig(config: NetworkPolicyConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates Markdown documentation describing the network policy features and
+ * example usage for the supplied configuration.
+ *
+ * @param config - The network policy configuration used to derive the documentation.
+ * @returns A Markdown string documenting features and usage examples.
+ */
 export function generateNetworkPolicyMD(config: NetworkPolicyConfig): string {
   let md = '# Network Policies & Security Contexts\n\n';
   md += '## Features\n\n';
@@ -116,6 +189,18 @@ export function generateNetworkPolicyMD(config: NetworkPolicyConfig): string {
   return md;
 }
 
+/**
+ * Generates a self-contained TypeScript `NetworkPolicyController` module
+ * (including imports, class definition, deployment logic, and a default
+ * configured instance) based on the supplied configuration.
+ *
+ * The returned source code writes Kubernetes manifests to disk and applies
+ * them via `kubectl`, supporting deny-all policies, named policies,
+ * micro-segmentation, security contexts, and isolation verification.
+ *
+ * @param config - The network policy configuration to bake into the generated controller.
+ * @returns A string containing the full TypeScript source of the controller module.
+ */
 export function generateTypeScriptNetworkPolicy(config: NetworkPolicyConfig): string {
   let code = '// Auto-generated Network Policy Generator for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -435,6 +520,18 @@ export function generateTypeScriptNetworkPolicy(config: NetworkPolicyConfig): st
   return code;
 }
 
+/**
+ * Generates a self-contained Python `NetworkPolicyController` module
+ * (including imports, dataclasses, and a default configured instance) based
+ * on the supplied configuration.
+ *
+ * The returned source code writes Kubernetes manifests to disk and applies
+ * them via `kubectl`, supporting deny-all policies, named policies,
+ * micro-segmentation, and isolation verification.
+ *
+ * @param config - The network policy configuration to bake into the generated controller.
+ * @returns A string containing the full Python source of the controller module.
+ */
 export function generatePythonNetworkPolicy(config: NetworkPolicyConfig): string {
   let code = '# Auto-generated Network Policy Generator for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -543,6 +640,16 @@ export function generatePythonNetworkPolicy(config: NetworkPolicyConfig): string
   return code;
 }
 
+/**
+ * Writes the generated network policy artifacts (TypeScript controller, Python
+ * controller, Markdown documentation, package.json, requirements.txt, and the
+ * raw configuration JSON) to the specified output directory, creating it if it
+ * does not already exist.
+ *
+ * @param config - The network policy configuration used to generate the artifacts.
+ * @param outputDir - Absolute or relative path of the directory to write files into.
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(
   config: NetworkPolicyConfig,
   outputDir: string
