@@ -12,10 +12,21 @@
 
 import semver from 'semver';
 
-/** Semantic-version bump level applied to a releasable unit. */
+/**
+ * Semantic-version bump level applied to a releasable unit.
+ *
+ * - `major`: breaking changes (X.0.0)
+ * - `minor`: backwards-compatible features (0.X.0)
+ * - `patch`: backwards-compatible fixes (0.0.X)
+ */
 export type BumpLevel = 'major' | 'minor' | 'patch';
 
-/** Why a unit is in the release plan. */
+/**
+ * Reason a unit appears in the release plan.
+ *
+ * - `changed`: the unit had direct commits in this release.
+ * - `dependent`: the unit was bumped only because it depends on a changed unit.
+ */
 export type ReleaseReason = 'changed' | 'dependent';
 
 /** A workspace package that can be released. */
@@ -48,7 +59,9 @@ export interface ReleasePlanEntry extends ReleasableUnit {
 
 /** A fully composed, deterministic release plan. */
 export interface ReleasePlan {
+  /** Ordered release plan entries, one per releasable unit that could be safely bumped. */
   readonly entries: readonly ReleasePlanEntry[];
+  /** Human-readable warnings for units that were skipped (unknown registry, invalid version, etc.). */
   readonly warnings: readonly string[];
 }
 
@@ -67,15 +80,22 @@ function maxBump(a: BumpLevel, b: BumpLevel): BumpLevel {
 /**
  * Propagate bumps across the internal dependency graph.
  *
- *   - Each CHANGED unit is bumped at its requested level (defaulting to `patch`
- *     when not in `requestedBumps`), reason `changed`.
- *   - Every transitive internal DEPENDENT of a changed unit (reverse-graph BFS)
- *     is bumped `patch`, reason `dependent` — UNLESS that dependent is itself
- *     changed with a higher requested bump, in which case the higher
- *     changed-bump wins (and the reason stays `changed`).
+ * - Each CHANGED unit is bumped at its requested level (defaulting to `patch`
+ *   when not in `requestedBumps`), reason `changed`.
+ * - Every transitive internal DEPENDENT of a changed unit (reverse-graph BFS)
+ *   is bumped `patch`, reason `dependent` — UNLESS that dependent is itself
+ *   changed with a higher requested bump, in which case the higher
+ *   changed-bump wins (and the reason stays `changed`).
  *
  * `graph` maps each unit to its UPSTREAM dependencies; dependents are the
  * reverse edges.
+ *
+ * @param changedNames - Set of package names that had direct changes this release.
+ * @param requestedBumps - Map from package name to the bump level requested for it.
+ *   Packages absent from this map default to `patch`.
+ * @param graph - Dependency graph mapping each package name to its upstream
+ *   (internal) dependencies. Reverse edges are treated as dependents.
+ * @returns Map from every affected package name to the resolved bump level and reason.
  */
 export function propagateBumps(
   changedNames: Set<string>,
@@ -130,8 +150,14 @@ export function propagateBumps(
 }
 
 /**
- * Bump `current` by `level` using semver arithmetic. Throws a clear error when
- * `current` is not a valid semantic version.
+ * Bump `current` by `level` using semver arithmetic.
+ *
+ * Throws a clear error when `current` is not a valid semantic version.
+ *
+ * @param current - The current semantic version string to bump (e.g. "1.2.3").
+ * @param level - The bump level to apply (`major`, `minor`, or `patch`).
+ * @returns The next semantic version after applying the bump.
+ * @throws {Error} When `current` is not a valid semantic version.
  */
 export function bumpVersion(current: string, level: BumpLevel): string {
   const next = semver.inc(current, level);
@@ -143,7 +169,17 @@ export function bumpVersion(current: string, level: BumpLevel): string {
   return next;
 }
 
-/** Map a detected language to its default package registry name. */
+/**
+ * Map a detected language to its default package registry name.
+ *
+ * Known mappings include `typescript`/`javascript` -> `npm`, `python` -> `pypi`,
+ * `rust` -> `crates.io`, `java` -> `maven`, `csharp` -> `nuget`,
+ * `php` -> `packagist`, and `ruby` -> `rubygems`. Any other language yields
+ * `"unknown"`, which causes the unit to be skipped during plan computation.
+ *
+ * @param language - The detected language identifier (e.g. "typescript", "rust").
+ * @returns The default registry name for the language, or `"unknown"` if unsupported.
+ */
 export function registryForLanguage(language: string): string {
   switch (language) {
     case 'typescript':
@@ -167,10 +203,18 @@ export function registryForLanguage(language: string): string {
 }
 
 /**
- * Render a markdown changelog fragment for one unit. For a `changed` unit it
- * lists the commit subjects as bullets (falling back to a generic note when the
- * subject list is empty); for a `dependent` bump with no commits it emits a
- * "dependency bump" note so the entry is never blank.
+ * Render a markdown changelog fragment for one unit.
+ *
+ * For a `changed` unit it lists the commit subjects as bullets (falling back to
+ * a generic note when the subject list is empty); for a `dependent` bump with no
+ * commits it emits a "dependency bump" note so the entry is never blank.
+ *
+ * @param name - The package name this fragment belongs to.
+ * @param version - The next version the package will be released as.
+ * @param reason - Why the package is in the release plan (`changed` or `dependent`).
+ * @param commitLines - Raw commit subject lines to render as bullets. Whitespace-only
+ *   and empty entries are filtered out.
+ * @returns A markdown changelog fragment ending with a trailing newline.
  */
 export function buildChangelogEntry(
   name: string,
@@ -195,9 +239,22 @@ export function buildChangelogEntry(
 
 /**
  * Compose a full release plan: propagate bumps across the graph, compute each
- * unit's next version, and render its changelog fragment. Units with an
- * `unknown` registry or an unbumpable (invalid) current version are recorded as
- * warnings and excluded from the entries (they cannot be safely released).
+ * unit's next version, and render its changelog fragment.
+ *
+ * Units with an `unknown` registry or an unbumpable (invalid) current version
+ * are recorded as warnings and excluded from the entries (they cannot be safely
+ * released).
+ *
+ * @param units - All releasable units discovered in the workspace.
+ * @param changedNames - Set of package names that had direct changes this release.
+ * @param requestedBumps - Map from package name to the bump level requested for it.
+ *   Packages absent from this map default to `patch`.
+ * @param graph - Dependency graph mapping each package name to its upstream
+ *   (internal) dependencies.
+ * @param commitsByPkg - Map from package name to its raw commit subject lines,
+ *   used to render changelog entries.
+ * @returns A fully composed, deterministic release plan with entries sorted
+ *   alphabetically by package name and any warnings for skipped units.
  */
 export function computeReleasePlan(
   units: ReleasableUnit[],

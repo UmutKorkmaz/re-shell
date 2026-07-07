@@ -39,9 +39,13 @@ export type ApiBreakingKind =
 
 /** One backward-incompatible spec finding. */
 export interface ApiFindingLite {
+  /** The severity classification of the finding. */
   readonly severity: 'breaking' | 'skew' | 'info';
+  /** The category of breaking change this finding represents. */
   readonly kind: ApiBreakingKind;
+  /** Human-readable description of the finding. */
   readonly message: string;
+  /** The operation id the finding pertains to, when applicable. */
   readonly operation?: string;
   /** The consuming services impacted by this change (blast radius). */
   readonly consumers: readonly string[];
@@ -59,6 +63,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Normalize a raw OpenAPI-ish document into an ApiSpecLite. Reads `paths` →
  * path+method operations, each operation's required `parameters` and the fields
  * of its 2xx response schema. Tolerates missing pieces (degrades to empty).
+ *
+ * @param raw - The raw OpenAPI-ish document to normalize. May be unknown-shaped.
+ * @param name - The producer/API name to assign to the resulting spec.
+ * @returns A normalized {@link ApiSpecLite} with operations keyed by their stable id.
  */
 export function normalizeOpenApi(
   raw: unknown,
@@ -128,9 +136,13 @@ function extractResponseType(op: Record<string, unknown>): string | undefined {
 
 /** The breaking-change diff of a spec against its baseline. */
 export interface ApiSpecDiff {
+  /** Operation ids that existed in the baseline but are gone in the current spec. */
   readonly removedOperations: readonly string[];
+  /** Response fields declared in the baseline but absent in the current spec. */
   readonly removedResponseFields: readonly { operation: string; field: string }[];
+  /** Request parameters that became required in the current spec. */
   readonly newlyRequiredParams: readonly { operation: string; param: string }[];
+  /** Response body types that were narrowed from the baseline. */
   readonly narrowedResponseTypes: readonly { operation: string; from?: string; to?: string }[];
 }
 
@@ -141,6 +153,10 @@ export interface ApiSpecDiff {
  *   - a param that BECAME required (consumers omitting it break),
  *   - a response type narrowed (e.g. any → string) (consumers break).
  * Additions (new operations/fields, optional params) are non-breaking.
+ *
+ * @param baseline - The previous/baseline normalized API spec.
+ * @param current - The current normalized API spec to compare against the baseline.
+ * @returns An {@link ApiSpecDiff} enumerating the backward-incompatible changes.
  */
 export function diffApiSpec(
   baseline: ApiSpecLite,
@@ -198,6 +214,10 @@ function isWideningType(from: string, to: string): boolean {
  * Compute the transitive CONSUMERS of a producer across the workspace graph: the
  * services that depend (directly or transitively) on the producer. A producer
  * spec change impacts these consumers — the cross-service blast radius.
+ *
+ * @param graph - The workspace dependency graph (each service → its upstream deps).
+ * @param producer - The producer/service name whose consumers should be computed.
+ * @returns A sorted list of transitive consumer service names.
  */
 export function computeBlastRadius(
   graph: ApiGraph,
@@ -228,6 +248,11 @@ export function computeBlastRadius(
 /**
  * Turn a spec diff into findings, tagging each with the producer's blast radius
  * (its transitive consumers) so the report shows which services break.
+ *
+ * @param producer - The producer/API name the diff pertains to.
+ * @param consumers - The transitive consumers impacted by changes to the producer.
+ * @param diff - The backward-incompatible spec diff to convert into findings.
+ * @returns An array of {@link ApiFindingLite} entries, one per breaking change.
  */
 export function diffToApiFindings(
   producer: string,
@@ -276,8 +301,11 @@ export function diffToApiFindings(
 
 /** The outcome of validating a single response against an operation's fields. */
 export interface ResponseViolation {
+  /** The operation id whose response was validated. */
   readonly operation: string;
+  /** The declared field that was missing from the response. */
   readonly field: string;
+  /** Human-readable description of the violation. */
   readonly message: string;
 }
 
@@ -286,6 +314,10 @@ export interface ResponseViolation {
  * Reports each DECLARED field that is absent from the response (the offending
  * field). Pure: takes the spec + response, returns violations. (Live-service
  * validation is the command layer's job; this is the pure check.)
+ *
+ * @param operation - The normalized API operation whose declared fields are checked.
+ * @param response - The actual response object to validate against the operation.
+ * @returns An array of {@link ResponseViolation} entries, one per missing declared field.
  */
 export function validateResponse(
   operation: ApiOperation,
