@@ -55,6 +55,14 @@ interface MultiCloudConfig {
   enableObservability: boolean;
 }
 
+/**
+ * Displays the multi-cloud deployment configuration to the console with
+ * colored output, including project name, enabled providers, deployment
+ * strategy, vendor lock-in prevention flags, and cost optimization state.
+ *
+ * @param config - The complete multi-cloud deployment configuration to display.
+ * @returns No return value; output is written to stdout.
+ */
 export function displayConfig(config: MultiCloudConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Multi-Cloud Deployment Optimization and Vendor Lock-in Prevention');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -71,6 +79,14 @@ export function displayConfig(config: MultiCloudConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates a Markdown documentation string describing the multi-cloud
+ * deployment optimization and vendor lock-in prevention features, including
+ * a list of supported capabilities and a TypeScript usage example.
+ *
+ * @param config - The multi-cloud deployment configuration used to scope the documentation.
+ * @returns A Markdown-formatted string containing feature overview and usage instructions.
+ */
 export function generateMultiCloudMD(config: MultiCloudConfig): string {
   let md = '# Multi-Cloud Deployment Optimization and Vendor Lock-in Prevention\n\n';
   md += '## Features\n\n';
@@ -103,6 +119,15 @@ export function generateMultiCloudMD(config: MultiCloudConfig): string {
   return md;
 }
 
+/**
+ * Generates a Terraform configuration file as a string based on the provided
+ * multi-cloud configuration. Includes provider blocks for each enabled cloud,
+ * per-provider deployment modules, optional spot instance/auto-scaling flags,
+ * and a unified API gateway module when enabled.
+ *
+ * @param config - The multi-cloud deployment configuration to render into Terraform code.
+ * @returns A string containing the full Terraform (HCL) configuration for the project.
+ */
 export function generateTerraformConfig(config: MultiCloudConfig): string {
   let code = '# Auto-generated Multi-Cloud Terraform Configuration for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -159,6 +184,16 @@ export function generateTerraformConfig(config: MultiCloudConfig): string {
   return code;
 }
 
+/**
+ * Generates a complete TypeScript `MultiCloudManager` class as a string based
+ * on the provided multi-cloud configuration. The generated class supports the
+ * configured deployment strategy (active-active, active-passive, blue-green,
+ * or canary), per-provider deploy methods, optional failover, and optional
+ * health checks.
+ *
+ * @param config - The multi-cloud deployment configuration used to build the TypeScript manager class.
+ * @returns A string containing the TypeScript source code for a `MultiCloudManager` class.
+ */
 export function generateTypeScriptMultiCloud(config: MultiCloudConfig): string {
   let code = '// Auto-generated Multi-Cloud Deployment Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -319,6 +354,15 @@ export function generateTypeScriptMultiCloud(config: MultiCloudConfig): string {
   return code;
 }
 
+/**
+ * Generates a complete Python `MultiCloudManager` class as a string based on
+ * the provided multi-cloud configuration. The generated class supports the
+ * configured deployment strategy (active-active or active-passive), per-cloud
+ * deploy methods backed by `terraform`, and optional failover behavior.
+ *
+ * @param config - The multi-cloud deployment configuration used to build the Python manager class.
+ * @returns A string containing the Python source code for a `MultiCloudManager` class.
+ */
 export function generatePythonMultiCloud(config: MultiCloudConfig): string {
   let code = '# Auto-generated Multi-Cloud Deployment Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -437,6 +481,18 @@ export function generatePythonMultiCloud(config: MultiCloudConfig): string {
   return code;
 }
 
+/**
+ * Writes the multi-cloud deployment artifacts to the specified output directory.
+ * Always generates `main.tf` (Terraform), `MULTICLOUD.md` documentation, and
+ * `multicloud-config.json`. When `language` is `'typescript'`, additionally
+ * writes `multicloud-manager.ts` and `package.json`; otherwise writes
+ * `multicloud_manager.py` and `requirements.txt`.
+ *
+ * @param config - The multi-cloud deployment configuration used to generate the artifacts.
+ * @param outputDir - Absolute or relative path to the directory where files will be written. Created if missing.
+ * @param language - Target implementation language; `'typescript'` produces TypeScript artifacts, any other value produces Python artifacts.
+ * @returns A Promise that resolves when all files have been written successfully.
+ */
 export async function writeFiles(config: MultiCloudConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');

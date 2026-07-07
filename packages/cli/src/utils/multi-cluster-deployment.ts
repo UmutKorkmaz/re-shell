@@ -5,32 +5,65 @@
 
 
 
+/**
+ * Represents a single Kubernetes cluster target within a multi-cluster deployment topology.
+ */
 interface Cluster {
+  /** Human-readable identifier for the cluster (e.g. "us-east"). */
   name: string;
+  /** The kubectl context name used to authenticate against and target this cluster. */
   context: string;
+  /** Cloud region where the cluster is provisioned (e.g. "us-east-1"). */
   region: string;
+  /** Cloud provider hosting the cluster (e.g. "aws", "gcp", "azure"). */
   provider: string;
+  /** Deployment environment label for the cluster (e.g. "prod", "dr", "staging"). */
   environment: string;
 }
 
+/**
+ * Defines a high-level deployment strategy governing failover and health checking
+ * behavior across a primary cluster and one or more secondary clusters.
+ */
 interface DeploymentStrategy {
+  /** Name of the strategy. */
   name: string;
+  /** Name of the cluster that serves as the primary traffic target. */
   primaryCluster: string;
+  /** Names of the clusters that act as secondary/failover targets. */
   secondaryClusters: string[];
+  /** Failover policy identifier (e.g. "automatic", "manual"). */
   failoverPolicy: string;
+  /** Health probe configuration used to assess cluster availability. */
   healthCheck: {
+    /** Whether the health check is enabled. */
     enabled: boolean;
+    /** Probe interval in milliseconds. */
     interval: number;
+    /** HTTP endpoint polled by the health check. */
     endpoint: string;
   };
 }
 
+/**
+ * Top-level configuration object describing a multi-cluster deployment setup,
+ * including the target clusters and the failover strategy to employ.
+ */
 interface MultiClusterConfig {
+  /** Name of the project being deployed across clusters. */
   projectName: string;
+  /** List of clusters participating in the deployment. */
   clusters: Cluster[];
+  /** Strategy governing how traffic and failover are handled across clusters. */
   strategy: 'active-active' | 'active-passive' | 'geo-distributed';
 }
 
+/**
+ * Prints a human-readable summary of a multi-cluster deployment configuration to the console.
+ *
+ * @param config - The multi-cluster configuration to display.
+ * @returns Nothing; output is written to stdout.
+ */
 export function displayConfig(config: MultiClusterConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ Multi-Cluster Deployment');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -40,6 +73,13 @@ export function displayConfig(config: MultiClusterConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates Markdown documentation describing the multi-cluster deployment feature,
+ * including its capabilities and example usage snippets.
+ *
+ * @param config - The multi-cluster configuration used to seed the documentation.
+ * @returns A Markdown string containing the feature overview and usage examples.
+ */
 export function generateMultiClusterMD(config: MultiClusterConfig): string {
   let md = '# Multi-Cluster Deployment Strategies\n\n';
   md += '## Features\n\n';
@@ -66,6 +106,15 @@ export function generateMultiClusterMD(config: MultiClusterConfig): string {
   return md;
 }
 
+/**
+ * Generates a self-contained TypeScript module implementing a multi-cluster
+ * deployment orchestrator for the supplied configuration. The generated module
+ * exposes a `MultiClusterDeployment` class with deploy, health-monitoring,
+ * failover, and config-export capabilities.
+ *
+ * @param config - The multi-cluster configuration used to populate the generated module.
+ * @returns The generated TypeScript source code as a string.
+ */
 export function generateTypeScriptMultiCluster(config: MultiClusterConfig): string {
   let code = '// Auto-generated Multi-Cluster Deployment for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -190,6 +239,14 @@ export function generateTypeScriptMultiCluster(config: MultiClusterConfig): stri
   return code;
 }
 
+/**
+ * Generates a self-contained Python module implementing a multi-cluster
+ * deployment orchestrator for the supplied configuration. The generated module
+ * exposes a `MultiClusterDeployment` class with deploy capabilities.
+ *
+ * @param config - The multi-cluster configuration used to populate the generated module.
+ * @returns The generated Python source code as a string.
+ */
 export function generatePythonMultiCluster(config: MultiClusterConfig): string {
   let code = '# Auto-generated Multi-Cluster Deployment for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -250,6 +307,16 @@ export function generatePythonMultiCluster(config: MultiClusterConfig): string {
   return code;
 }
 
+/**
+ * Writes the complete set of multi-cluster deployment artifacts to disk under the
+ * specified output directory. Artifacts include the generated TypeScript and
+ * Python modules, Markdown documentation, a `package.json`, an empty
+ * `requirements.txt`, and a JSON serialization of the configuration.
+ *
+ * @param config - The multi-cluster configuration to generate artifacts from.
+ * @param outputDir - Directory where the generated files will be written. Created if missing.
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(
   config: MultiClusterConfig,
   outputDir: string
