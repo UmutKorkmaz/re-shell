@@ -8,26 +8,52 @@ import chalk from 'chalk';
  * Provides transaction-like safety for project generation operations
  */
 
+/**
+ * Represents a snapshot of the project state taken before a risky operation.
+ * Contains all the metadata needed to undo file creations, file modifications,
+ * and to restore the project to its previous working state.
+ */
 export interface RollbackSnapshot {
+  /** Unique identifier for the snapshot, typically `${operation}-${timestamp}`. */
   id: string;
+  /** ISO 8601 timestamp marking when the snapshot was created. */
   timestamp: string;
+  /** Human-readable name of the operation this snapshot protects. */
   operation: string;
+  /** Absolute path of the working directory the snapshot was taken from. */
   statePath: string;
+  /** List of absolute file paths created by the tracked operation. */
   filesCreated: string[];
+  /** List of absolute file paths modified by the tracked operation. */
   filesModified: string[];
+  /** Path to the directory storing backup copies of pre-existing files. */
   backupPath: string;
+  /**
+   * Arbitrary metadata about the operation, including optional project details.
+   */
   metadata: {
+    /** Optional project name associated with the snapshot. */
     projectName?: string;
+    /** Optional framework the project uses. */
     framework?: string;
+    /** Optional template used to generate the project. */
     template?: string;
+    /** Index signature allowing additional metadata fields. */
     [key: string]: any;
   };
 }
 
+/**
+ * Options that influence how a snapshot is created, rolled back, or reported.
+ */
 export interface RollbackOptions {
+  /** Whether to create a backup of pre-existing files before the operation. */
   createBackup?: boolean;
+  /** Whether to keep the backup/snapshot on disk after a successful rollback. */
   keepBackup?: boolean;
+  /** Whether to force the operation, bypassing confirmation prompts. */
   force?: boolean;
+  /** Whether to emit verbose progress information to the console. */
   verbose?: boolean;
 }
 
@@ -35,7 +61,13 @@ const SNAPSHOT_DIR = '.re-shell/rollback-snapshots';
 const BACKUP_DIR = '.re-shell/backups';
 
 /**
- * Create a rollback snapshot before making changes
+ * Create a rollback snapshot before making changes to the project.
+ * Captures the current working-directory state so that the operation can be
+ * undone if it fails. Optionally backs up pre-existing configuration files.
+ *
+ * @param operation - Human-readable name of the operation being protected.
+ * @param options - Optional behavior flags controlling backup and verbosity.
+ * @returns Resolves with the unique snapshot ID assigned to the new snapshot.
  */
 export async function createSnapshot(
   operation: string,
@@ -79,7 +111,13 @@ export async function createSnapshot(
 }
 
 /**
- * Track file creation during generation
+ * Record that a file was created during the operation tracked by the snapshot.
+ * Appends the path to the snapshot's `filesCreated` list so it can be removed
+ * on rollback. No-ops silently if the snapshot cannot be found.
+ *
+ * @param snapshotId - ID of the snapshot to update.
+ * @param filePath - Absolute path of the file that was created.
+ * @returns Resolves when the snapshot metadata has been persisted.
  */
 export async function trackFileCreation(
   snapshotId: string,
@@ -99,7 +137,14 @@ export async function trackFileCreation(
 }
 
 /**
- * Track file modification during generation
+ * Record that an existing file was modified during the operation tracked by
+ * the snapshot. Appends the path to the snapshot's `filesModified` list so it
+ * can be restored from backup on rollback. No-ops silently if the snapshot
+ * cannot be found.
+ *
+ * @param snapshotId - ID of the snapshot to update.
+ * @param filePath - Absolute path of the file that was modified.
+ * @returns Resolves when the snapshot metadata has been persisted.
  */
 export async function trackFileModification(
   snapshotId: string,
@@ -119,7 +164,15 @@ export async function trackFileModification(
 }
 
 /**
- * Rollback a failed operation
+ * Roll back a failed operation by reverting the changes captured in a snapshot.
+ * Removes files that were created and restores modified files from the backup,
+ * printing a summary of actions taken. The snapshot (and optionally the backup)
+ * is removed unless `keepBackup` is set in the options.
+ *
+ * @param snapshotId - ID of the snapshot to roll back.
+ * @param options - Optional flags; `keepBackup` controls post-rollback cleanup.
+ * @returns Resolves with `true` if the rollback completed without errors,
+ *   `false` if the snapshot was missing or some files could not be reverted.
  */
 export async function rollbackOperation(
   snapshotId: string,
@@ -200,7 +253,12 @@ export async function rollbackOperation(
 }
 
 /**
- * Clean up old snapshots
+ * Remove the oldest rollback snapshots, keeping only the most recent ones.
+ * Snapshots are sorted by creation time and the oldest beyond the retention
+ * count are deleted. No-ops silently if no snapshots directory exists.
+ *
+ * @param keepCount - Number of most-recent snapshots to retain. Defaults to 5.
+ * @returns Resolves when cleanup has completed.
  */
 export async function cleanupSnapshots(keepCount = 5): Promise<void> {
   const snapshotsDir = path.join(process.cwd(), SNAPSHOT_DIR);
@@ -246,7 +304,18 @@ export async function cleanupSnapshots(keepCount = 5): Promise<void> {
 }
 
 /**
- * Execute an operation with automatic rollback on failure
+ * Execute an operation with automatic rollback on failure.
+ * Creates a snapshot (with backup enabled) before running the provided
+ * function. If the function resolves, the snapshot is cleaned up; if it
+ * rejects, the operation is rolled back before the error is re-thrown.
+ *
+ * @typeParam T - The value type returned by the wrapped operation.
+ * @param operation - Human-readable name of the operation being executed.
+ * @param fn - Async function performing the work; receives the snapshot ID so
+ *   it can track created/modified files.
+ * @param options - Optional flags influencing backup and cleanup behavior.
+ * @returns Resolves with the value returned by `fn` on success.
+ * @throws Re-throws any error from `fn` after attempting rollback.
  */
 export async function executeWithRollback<T>(
   operation: string,
@@ -289,7 +358,11 @@ export async function executeWithRollback<T>(
 }
 
 /**
- * Show available snapshots
+ * List all rollback snapshots stored in the current project directory.
+ * Prints snapshot ID, operation, creation timestamp, and tracked file counts
+ * for each snapshot found. Reports a friendly message if none exist.
+ *
+ * @returns Resolves once all snapshots have been printed.
  */
 export async function listSnapshots(): Promise<void> {
   const snapshotsDir = path.join(process.cwd(), SNAPSHOT_DIR);
@@ -381,7 +454,13 @@ function formatDate(isoString: string): string {
 }
 
 /**
- * Recover from a specific snapshot
+ * Interactively recover from a specific snapshot.
+ * Loads the snapshot, prompts the user for confirmation, and on approval
+ * delegates to {@link rollbackOperation} to restore the project state.
+ *
+ * @param snapshotId - ID of the snapshot to recover from.
+ * @returns Resolves with `true` if recovery succeeded, `false` if the
+ *   snapshot was not found or the user declined the confirmation prompt.
  */
 export async function recoverFromSnapshot(
   snapshotId: string

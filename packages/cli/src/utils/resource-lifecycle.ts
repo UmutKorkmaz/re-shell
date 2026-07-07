@@ -59,6 +59,14 @@ interface ResourceLifecycleConfig {
   };
 }
 
+/**
+ * Displays the cloud resource tagging and lifecycle management configuration
+ * to the console with colorized output. Prints project name, providers, tag
+ * policy details, lifecycle rules count, auto-tagging status, and scheduling info.
+ *
+ * @param config - The resource lifecycle configuration to display
+ * @returns No return value (outputs to console)
+ */
 export function displayConfig(config: ResourceLifecycleConfig): void {
   console.log(chalk.cyan('✨ Cloud Resource Tagging and Lifecycle Management with Automation'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -73,6 +81,14 @@ export function displayConfig(config: ResourceLifecycleConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string describing the cloud resource
+ * tagging and lifecycle management setup. Includes features overview, usage
+ * examples, required tags from the tag policy, and lifecycle rules summary.
+ *
+ * @param config - The resource lifecycle configuration to document
+ * @returns A Markdown string containing the full documentation
+ */
 export function generateResourceLifecycleMD(config: ResourceLifecycleConfig): string {
   let md = '# Cloud Resource Tagging and Lifecycle Management\n\n';
   md += '## Features\n\n';
@@ -112,6 +128,15 @@ export function generateResourceLifecycleMD(config: ResourceLifecycleConfig): st
   return md;
 }
 
+/**
+ * Generates Terraform infrastructure-as-code for cloud resource tagging and
+ * lifecycle management. Produces provider-specific resources for AWS (tagging
+ * policy, S3 lifecycle, EC2 auto-tagging Lambda), Azure (resource group tags,
+ * policy definitions), and GCP (tag keys and values).
+ *
+ * @param config - The resource lifecycle configuration to generate Terraform from
+ * @returns A string containing the complete Terraform configuration
+ */
 export function generateTerraformLifecycle(config: ResourceLifecycleConfig): string {
   let code = '# Auto-generated Resource Lifecycle Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -249,6 +274,15 @@ export function generateTerraformLifecycle(config: ResourceLifecycleConfig): str
   return code;
 }
 
+/**
+ * Generates a TypeScript implementation of the `ResourceLifecycleManager` class
+ * as a string. The generated class extends `EventEmitter` and provides methods
+ * for applying tags, checking compliance, transitioning states, and auto-remediation.
+ * The output code is conditionally customized based on the provided configuration.
+ *
+ * @param config - The resource lifecycle configuration to generate TypeScript code from
+ * @returns A string containing the complete TypeScript source code
+ */
 export function generateTypeScriptLifecycle(config: ResourceLifecycleConfig): string {
   let code = '// Auto-generated Resource Lifecycle Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -371,6 +405,16 @@ export function generateTypeScriptLifecycle(config: ResourceLifecycleConfig): st
   return code;
 }
 
+/**
+ * Generates a Python implementation of the `ResourceLifecycleManager` class
+ * as a string. The generated class provides async methods for applying tags,
+ * checking compliance, transitioning states, and auto-remediation using
+ * Python dataclasses and enums. The output code is conditionally customized
+ * based on the provided configuration.
+ *
+ * @param config - The resource lifecycle configuration to generate Python code from
+ * @returns A string containing the complete Python source code
+ */
 export function generatePythonLifecycle(config: ResourceLifecycleConfig): string {
   let code = '# Auto-generated Resource Lifecycle Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -475,6 +519,17 @@ export function generatePythonLifecycle(config: ResourceLifecycleConfig): string
   return code;
 }
 
+/**
+ * Writes all generated resource lifecycle files to the specified output directory.
+ * Always generates the Terraform config and Markdown documentation. Additionally
+ * generates either TypeScript (with `package.json`) or Python (with `requirements.txt`)
+ * code based on the specified language. Also writes a JSON config file.
+ *
+ * @param config - The resource lifecycle configuration to generate files from
+ * @param outputDir - The directory path where generated files will be written
+ * @param language - The target language for code generation ('typescript' or 'python')
+ * @returns A promise that resolves when all files have been written
+ */
 export async function writeFiles(config: ResourceLifecycleConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -537,6 +592,14 @@ export async function writeFiles(config: ResourceLifecycleConfig, outputDir: str
   await fs.writeFile(path.join(outputDir, 'lifecycle-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Identity function that returns the provided resource lifecycle configuration as-is.
+ * Useful for type validation, configuration passthrough, and ensuring the config
+ * conforms to the `ResourceLifecycleConfig` type.
+ *
+ * @param config - The resource lifecycle configuration to return
+ * @returns The same configuration object that was passed in
+ */
 export function resourceLifecycle(config: ResourceLifecycleConfig): ResourceLifecycleConfig {
   return config;
 }
