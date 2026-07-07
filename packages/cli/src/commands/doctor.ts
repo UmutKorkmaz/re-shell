@@ -13,22 +13,49 @@ import {
 } from '../utils/doctor-remediation';
 import type { Suggestion, FixPlan } from '@re-shell/contracts';
 
+/**
+ * Represents the outcome of a single doctor diagnostic check.
+ */
 interface HealthCheck {
+  /** Unique identifier for the check (e.g. "package-json", "security-audit"). */
   name: string;
+  /** Result severity of the check. */
   status: 'success' | 'warning' | 'error';
+  /** Human-readable description of the check result. */
   message: string;
+  /** Optional actionable advice shown to the user when the check did not pass. */
   suggestion?: string;
 }
 
+/**
+ * Options accepted by the `doctor` command and its main entry point.
+ */
 interface DoctorOptions {
+  /** When true, compute and (with `yes`) apply a remediation fix plan. */
   fix?: boolean;
+  /** When true, print verbose output including per-check suggestions. */
   verbose?: boolean;
+  /** Optional spinner instance whose lifecycle the command will manage. */
   spinner?: any;
+  /** When true, emit machine-readable JSON output instead of a formatted report. */
   json?: boolean;
+  /** When true, include causes and suggested fixes for each failing/warning check. */
   explain?: boolean;
+  /** When true (combined with `fix`), actually execute allow-listed fix commands. Without it, `fix` is a dry run. */
   yes?: boolean;
 }
 
+/**
+ * Run the Re-Shell doctor diagnostic against the current monorepo.
+ *
+ * This orchestrates a series of health checks covering the root package.json,
+ * dependency health, security vulnerabilities, workspace configuration, git
+ * state, build configuration, performance, and file system health. When the
+ * `fix` option is set, a remediation plan is composed (and optionally applied).
+ *
+ * @param options - Optional configuration flags controlling output format, verbosity, and fix behavior.
+ * @returns A Promise that resolves once all checks have run and results have been displayed or emitted.
+ */
 export async function runDoctorCheck(options: DoctorOptions = {}) {
   const restoreJson = options.json ? enableJsonMode() : () => {};
   const checks: HealthCheck[] = [];

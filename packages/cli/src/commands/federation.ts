@@ -36,8 +36,15 @@ const MANIFEST_CANDIDATES = [
 /** Conventional roots scanned for manifests. */
 const MANIFEST_DIRS = ['apps', 'packages', 'services', 'dist'];
 
-/** Options accepted by the `federation check` command. */
+/**
+ * Options accepted by the `federation check` command.
+ *
+ * These flags control how the command discovers manifests, whether it diffs
+ * against a baseline, and how it renders output (machine-readable JSON vs.
+ * human-readable text).
+ */
 export interface FederationCommandOptions {
+  /** When true, emit a machine-readable JSON envelope instead of styled text. */
   json?: boolean;
   /** Baseline directory (a previous manifest set) to diff against. */
   baseline?: string;
@@ -207,10 +214,19 @@ function toWireFinding(f: FederationFindingLite): FederationFinding {
 /**
  * `re-shell federation check` — continuous MF contract & type enforcement.
  *
+ * Discovers Module-Federation manifests across the workspace, parses each into
+ * a normalized remote, optionally diffs the current set against a baseline for
+ * breaking export/type changes, detects shared-dependency version skew across
+ * remotes, and emits a CI report.
+ *
  * Gate semantics: when there is any breaking change or shared-dep skew the
  * command STILL emits a success envelope (the findings are advisory data) but
  * exits non-zero so CI can gate on it. A genuine error (no manifests found) is
  * reported via the FEDERATION_ERROR envelope instead.
+ *
+ * @param options - Command-line options controlling discovery, baseline diff, and output format.
+ * @returns A promise that resolves once the check has run. The process `exitCode`
+ *   is set to `1` on any breaking change, skew, or genuine error so CI can gate.
  */
 export async function runFederationCheck(
   options: FederationCommandOptions

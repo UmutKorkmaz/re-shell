@@ -21,10 +21,22 @@ import {
 } from '../utils/fix-loop-engine';
 import type { FixCiResponse } from '@re-shell/contracts';
 
-/** Options accepted by the `fix --ci` command. */
+/**
+ * Options accepted by the `fix --ci` command.
+ *
+ * Controls dry-run vs. live behavior, the iteration budget, and exposes
+ * injection points (gate evaluator, fix applier, PR opener) primarily used
+ * by tests to substitute the real command-layer adapters.
+ */
 export interface FixCiOptions {
+  /** Emit machine-readable JSON output instead of the human-friendly rendering. */
   json?: boolean;
-  /** When false (the safe default), only report; when true, open a PR after gates pass. */
+  /**
+   * When false (the safe default), only report; when true, open a PR after gates pass.
+   *
+   * @remarks Setting this to `true` is the only way the loop will actually
+   * open a pull request — and only when the loop reaches the `pr-ready` outcome.
+   */
   noDryRun?: boolean;
   /** Max loop iterations (backstop). */
   maxIterations?: number;
@@ -60,11 +72,21 @@ function defaultApplier(): FixApplier {
 /**
  * `re-shell fix --ci` — autonomous CI fixer.
  *
+ * Wires the pure fix-loop engine to (optionally injected) evaluators and a fix
+ * applier, drives remediation toward green gates under a bounded budget, and —
+ * only when gates pass AND `noDryRun` is set — opens a pull request.
+ *
  * Safety contract:
  *   - Dry-run is the default: nothing is committed or pushed.
  *   - A PR is opened ONLY under BOTH --no-dry-run AND outcome `pr-ready`.
  *   - The loop NEVER merges and NEVER pushes to a protected branch.
  *   - The iteration budget + the no-progress rollback boundary cap the work.
+ *
+ * @param options - Command options controlling output mode, dry-run behavior,
+ *   iteration budget, and injectable adapters.
+ * @returns Resolves once the loop has finished and any output (JSON or
+ *   human-readable) has been emitted. Rejection only happens on unrecoverable
+ *   errors inside the loop itself.
  */
 export async function runFixCi(options: FixCiOptions): Promise<void> {
   const json = Boolean(options.json);
@@ -130,7 +152,18 @@ export async function runFixCi(options: FixCiOptions): Promise<void> {
   }
 }
 
-/** Emit a FIX_CI_ERROR envelope (json) or red message + non-zero exit. */
+/**
+ * Emit a FIX_CI_ERROR envelope (json) or red message + non-zero exit.
+ *
+ * Used by the command's top-level error path to surface failures in a form
+ * consistent with the chosen output mode.
+ *
+ * @param json - When `true`, emit a structured `FIX_CI_ERROR` envelope via
+ *   `fail`. When `false`, write a red message to stderr and set a non-zero
+ *   exit code.
+ * @param message - Human-readable error description to surface to the caller.
+ * @returns Nothing; output is a side effect (stdout/stderr / exit code).
+ */
 export function emitFixCiError(json: boolean, message: string): void {
   if (json) {
     fail('FIX_CI_ERROR', message);
