@@ -1,9 +1,3 @@
-/**
- * @file Utilities for detecting, initializing, and inspecting monorepo workspaces.
- * Provides helpers to scaffold a new monorepo, enumerate workspace packages,
- * and traverse the filesystem to locate the monorepo root.
- */
-
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import YAML from 'yaml';
@@ -11,27 +5,24 @@ import { globSync } from 'glob';
 import * as semver from 'semver';
 
 /**
- * Configuration describing the structure and tooling of a monorepo.
- *
- * @description Returned by {@link initializeMonorepo} and used to describe
- * the created layout, package manager, and workspace glob patterns.
+ * Configuration describing how a monorepo should be initialized and laid out.
  */
 export interface MonorepoConfig {
-  /** The monorepo's package name (root package.json `name` field). */
+  /** Name of the monorepo project (used as the root package name). */
   name: string;
-  /** The package manager that orchestrates workspaces. */
+  /** Package manager that orchestrates the workspace. */
   packageManager: 'npm' | 'yarn' | 'pnpm';
-  /** Glob patterns representing the workspace package locations. */
+  /** Glob patterns describing the workspace package locations. */
   workspaces: string[];
-  /** Directory names for each logical section of the monorepo. */
+  /** Directory layout used to organize apps, packages, libraries, tools, and docs. */
   structure: {
-    /** Directory containing application packages. */
+    /** Directory containing application workspaces. */
     apps: string;
-    /** Directory containing shared/reusable packages. */
+    /** Directory containing shared package workspaces. */
     packages: string;
-    /** Directory containing library packages. */
+    /** Directory containing library workspaces. */
     libs: string;
-    /** Directory containing tooling packages. */
+    /** Directory containing tooling workspaces. */
     tools: string;
     /** Directory containing documentation. */
     docs: string;
@@ -39,31 +30,26 @@ export interface MonorepoConfig {
 }
 
 /**
- * Metadata describing a single workspace package within a monorepo.
- *
- * @description Produced by {@link getWorkspaces} for each discovered workspace,
- * capturing its identity, location, category, framework, and dependencies.
+ * Metadata describing a single discovered workspace within a monorepo.
  */
 export interface WorkspaceInfo {
-  /** The workspace package's name from its package.json. */
+  /** Package name of the workspace, falling back to its directory name. */
   name: string;
-  /** Relative path to the workspace directory from the monorepo root. */
+  /** Relative path of the workspace from the monorepo root. */
   path: string;
-  /** Logical category inferred from the workspace's parent directory. */
+  /** Logical category of the workspace inferred from its location. */
   type: 'app' | 'package' | 'lib' | 'tool';
-  /** Detected framework (e.g. `react-ts`, `vue`), if any. */
+  /** Detected framework (e.g. `react-ts`, `angular`), if any. */
   framework?: string;
-  /** Semantic version string from the workspace's package.json. */
+  /** Semver version declared by the workspace package. */
   version: string;
-  /** List of dependency names (combined dependencies and devDependencies). */
+  /** List of dependency names merged from dependencies and devDependencies. */
   dependencies: string[];
 }
 
 /**
- * Default directory names for each section of a freshly scaffolded monorepo.
- *
- * @description Used as the baseline structure by {@link initializeMonorepo}
- * unless the caller supplies custom overrides.
+ * Default directory names used for each section of the monorepo structure
+ * when no custom structure is supplied.
  */
 export const DEFAULT_MONOREPO_STRUCTURE = {
   apps: 'apps',
@@ -90,19 +76,13 @@ function getRecommendedCliVersion(): string {
 }
 
 /**
- * Scaffolds a new monorepo at the given path with standard directories,
- * root package.json, workspace configuration, and a .gitignore file.
+ * Initializes a new monorepo on disk by creating its directory structure,
+ * root `package.json`, workspace configuration, and `.gitignore`.
  *
- * @description Creates the project folder, apps/packages/libs/tools directories,
- * a root package.json with workspace-aware scripts, the appropriate workspace
- * config for the chosen package manager (pnpm-workspace.yaml or package.json
- * workspaces), and a comprehensive .gitignore.
- *
- * @param name - The monorepo (and root package) name.
- * @param packageManager - Which package manager to configure for. Defaults to `pnpm`.
- * @param customStructure - Optional overrides for directory names; merged with
- *   {@link DEFAULT_MONOREPO_STRUCTURE}.
- * @returns A {@link MonorepoConfig} describing the created monorepo.
+ * @param name - Name of the project; used for the directory and root package name.
+ * @param packageManager - Package manager to target (`npm`, `yarn`, or `pnpm`). Defaults to `pnpm`.
+ * @param customStructure - Optional overrides for any directory in the monorepo layout.
+ * @returns Resolves with the {@link MonorepoConfig} describing the created monorepo.
  */
 export async function initializeMonorepo(
   name: string,
@@ -247,15 +227,13 @@ temp/
 }
 
 /**
- * Discovers and returns metadata for every workspace package under a monorepo root.
+ * Discovers and returns all workspaces declared by the monorepo located at the
+ * given path. Workspace patterns are read from `package.json` (npm/yarn) or
+ * `pnpm-workspace.yaml` (pnpm).
  *
- * @description Reads the root package.json (and pnpm-workspace.yaml when present)
- * to resolve workspace glob patterns, then inspects each matched directory's
- * package.json to collect name, version, type, framework, and dependencies.
- *
- * @param rootPath - The monorepo root directory to scan. Defaults to the current working directory.
- * @returns An array of {@link WorkspaceInfo} objects, one per detected workspace.
- * @throws {Error} When no package.json is found at `rootPath`.
+ * @param rootPath - Path to the monorepo root. Defaults to the current working directory.
+ * @returns Resolves with an array of {@link WorkspaceInfo} objects, one per matched workspace.
+ * @throws When `package.json` cannot be found at the root path.
  */
 export async function getWorkspaces(rootPath: string = process.cwd()): Promise<WorkspaceInfo[]> {
   const packageJsonPath = path.join(rootPath, 'package.json');
@@ -341,13 +319,12 @@ function detectFrameworkFromPackage(packageJson: any): string | undefined {
 }
 
 /**
- * Determines whether the given directory is the root of a monorepo.
+ * Determines whether the provided directory is the root of a monorepo by
+ * checking for workspace configuration in `package.json` or the presence of
+ * a `pnpm-workspace.yaml` file.
  *
- * @description A directory qualifies as a monorepo root when its package.json
- * declares `workspaces` or it contains a `pnpm-workspace.yaml` file.
- *
- * @param dirPath - The directory to check. Defaults to the current working directory.
- * @returns `true` if the directory is a monorepo root, otherwise `false`.
+ * @param dirPath - Directory path to inspect. Defaults to the current working directory.
+ * @returns Resolves with `true` if the directory looks like a monorepo root, otherwise `false`.
  */
 export async function isMonorepoRoot(dirPath: string = process.cwd()): Promise<boolean> {
   const packageJsonPath = path.join(dirPath, 'package.json');
@@ -365,14 +342,12 @@ export async function isMonorepoRoot(dirPath: string = process.cwd()): Promise<b
 }
 
 /**
- * Walks up the directory tree from a starting path to locate the nearest monorepo root.
+ * Walks up the directory tree from the given start path looking for a
+ * monorepo root. The search stops after 10 levels to prevent traversing
+ * too far up the filesystem.
  *
- * @description Traverses parent directories (up to a bounded depth) and uses
- * {@link isMonorepoRoot} on each candidate, stopping at the first match or
- * when the filesystem root is reached.
- *
- * @param startPath - The path to begin searching from. Defaults to the current working directory.
- * @returns The absolute path of the nearest monorepo root, or `null` if none is found.
+ * @param startPath - Path to begin searching from. Defaults to the current working directory.
+ * @returns Resolves with the absolute path of the monorepo root, or `null` if none is found.
  */
 export async function findMonorepoRoot(startPath: string = process.cwd()): Promise<string | null> {
   let currentPath = path.resolve(startPath);
