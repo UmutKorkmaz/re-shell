@@ -9,8 +9,11 @@ import { getDatabaseConfig, type DatabaseType } from './database';
  * dry run (the target directory does not exist yet, so nothing is overwritten).
  */
 export interface DryRunFile {
+  /** Project-relative path the file would be written to. */
   path: string;
+  /** Size of the rendered file in bytes (UTF-8). */
   bytes: number;
+  /** Always `'create'` for a dry run, since the target dir does not exist. */
   action: 'create';
 }
 
@@ -21,21 +24,34 @@ export interface DryRunFile {
  * happens in a throwaway tmp dir that is removed before this returns.
  */
 export interface DryRunResult {
+  /** The template id that produced this result. */
   templateId: string;
+  /** Project name used for placeholder substitution. */
   projectName: string;
+  /** The exact set of files the scaffold WOULD write. */
   files: DryRunFile[];
+  /** Sum of every rendered file's byte length. */
   totalBytes: number;
+  /** Map of file path to a short head of its rendered contents. */
   previews: Record<string, string>;
 }
 
+/**
+ * Options for a dry-run computation, mirroring the live `create` flow so
+ * rendered output stays identical.
+ */
 export interface DryRunOptions {
   /** Project name substituted for {{projectName}}/{{name}} placeholders. */
   projectName: string;
   /** Optional database integration to fold in, mirroring `create`. */
   db?: DatabaseType;
+  /** Organization name substituted for {{org}} (defaults to `re-shell`). */
   org?: string;
+  /** Team name substituted for {{team}} (defaults to empty). */
   team?: string;
+  /** Project description substituted for {{description}} (defaults to empty). */
   description?: string;
+  /** Port number substituted for {{port}} (defaults to empty). */
   port?: string;
   /** Max characters captured per-file preview (default 400). */
   previewLimit?: number;
@@ -91,6 +107,9 @@ function materialize(
  * is rendered to a throwaway tmp directory, diffed (every file is a `create`
  * because the real target does not exist yet), then the tmp dir is discarded.
  *
+ * @param templateId - Id of the backend template to materialize.
+ * @param opts - Dry-run options (project name, db, ports, etc.).
+ * @returns The dry-run result, including per-file metadata and previews.
  * @throws if the template id is unknown.
  */
 export async function computeBackendDryRun(
@@ -142,6 +161,9 @@ export async function computeBackendDryRun(
 
 /**
  * True when the given id maps to a known backend template.
+ *
+ * @param templateId - The template id to test.
+ * @returns `true` if a backend template is registered for this id.
  */
 export function isBackendTemplate(templateId: string): boolean {
   return getBackendTemplate(templateId) !== undefined;
