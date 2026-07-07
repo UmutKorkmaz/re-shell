@@ -18,22 +18,63 @@ import * as path from 'path';
  * per launch and supplied here at request time.
  */
 
+/**
+ * Options for configuring the static SPA file server.
+ *
+ * Used both to bind the HTTP listener (host/port) and to drive per-request
+ * behavior such as the root directory to serve files from and the runtime
+ * hub credentials injected into the SPA shell.
+ */
 export interface StaticServerOptions {
-  /** Absolute path to the directory containing index.html + assets. */
+  /**
+   * Absolute path to the directory containing the prebuilt dashboard's
+   * `index.html` and its static assets (JS/CSS/images/fonts/etc.).
+   */
   rootDir: string;
-  /** Loopback host to bind. */
+  /**
+   * Loopback host to bind the HTTP listener to (e.g. `127.0.0.1`).
+   * Should be a loopback address since the server is local-only.
+   */
   host: string;
-  /** Port to bind. */
+  /**
+   * TCP port to bind the HTTP listener to. Pass `0` to let the OS
+   * assign an ephemeral port; the actually-bound port is exposed via
+   * the resolved {@link StaticServer.url}.
+   */
   port: number;
-  /** Per-launch hub base URL injected into the SPA at runtime. */
+  /**
+   * Per-launch hub base URL injected into the SPA at runtime. The SPA
+   * reads this from `window.__RE_SHELL_HUB__.url` at boot.
+   */
   hubUrl: string;
-  /** Per-launch hub session token injected into the SPA at runtime. */
+  /**
+   * Per-launch hub session token injected into the SPA at runtime. The
+   * SPA reads this from `window.__RE_SHELL_HUB__.token` at boot.
+   */
   hubToken: string;
 }
 
+/**
+ * Handle representing a running static SPA server.
+ *
+ * Returned by {@link startStaticServer} once the underlying HTTP listener
+ * is bound and ready to accept connections. Call {@link StaticServer.close}
+ * to stop the server.
+ */
 export interface StaticServer {
+  /** The underlying Node.js `http.Server` instance. */
   server: http.Server;
+  /**
+   * Fully-qualified URL the server is reachable at, including the
+   * actually-bound port (useful when `options.port` was `0`).
+   */
   url: string;
+  /**
+   * Stop the server and release the bound port.
+   *
+   * @returns A promise that resolves once the server has fully closed
+   *   and is no longer listening.
+   */
   close(): Promise<void>;
 }
 
@@ -67,6 +108,13 @@ function contentTypeFor(filePath: string): string {
  * Build the runtime-config script tag. The values are JSON-serialized so they
  * are safely escaped; `</script>` sequences inside the JSON are neutralized to
  * prevent breaking out of the script element.
+ *
+ * The returned `<script>` tag assigns the `{ url, token }` payload to
+ * `window.__RE_SHELL_HUB__`, which the SPA reads at boot to resolve the hub.
+ *
+ * @param hubUrl - Per-launch hub base URL to inject.
+ * @param hubToken - Per-launch hub session token to inject.
+ * @returns A `<script>` element string that sets `window.__RE_SHELL_HUB__`.
  */
 export function buildRuntimeConfigScript(hubUrl: string, hubToken: string): string {
   const payload = JSON.stringify({ url: hubUrl, token: hubToken }).replace(/<\//g, '<\\/');
@@ -77,6 +125,17 @@ export function buildRuntimeConfigScript(hubUrl: string, hubToken: string): stri
  * Insert the runtime-config script into the SPA shell BEFORE the app's first
  * module script so the global is present before any app code resolves the hub.
  * Falls back to injecting before </head>, then before </body>, then prepending.
+ *
+ * The insertion order is:
+ *   1. Before the first `<script type="module">` tag (preferred).
+ *   2. Before `</head>` if no module script is found.
+ *   3. Before `</body>` if no `</head>` is present.
+ *   4. Prepended to the document if neither `</head>` nor `</body>` exist.
+ *
+ * @param html - The original SPA `index.html` contents.
+ * @param hubUrl - Per-launch hub base URL to inject.
+ * @param hubToken - Per-launch hub session token to inject.
+ * @returns The `html` string with the runtime-config script inserted.
  */
 export function injectRuntimeConfig(html: string, hubUrl: string, hubToken: string): string {
   const script = buildRuntimeConfigScript(hubUrl, hubToken);
@@ -209,6 +268,19 @@ function handleRequest(
 /**
  * Start the static SPA server. Binds the provided loopback host/port and
  * resolves once listening.
+ *
+ * The server serves files from `options.rootDir`, injects the per-launch
+ * hub config into `index.html` on each request, applies SPA fallback for
+ * extensionless routes, and returns 404 for missing assets. Any
+ * per-request handler error is contained and surfaces as a 500 response.
+ *
+ * When `options.port` is `0`, the OS assigns an ephemeral port and the
+ * resolved {@link StaticServer.url} reflects the actually-bound port.
+ *
+ * @param options - Configuration for the server (root directory, host/port,
+ *   and the per-launch hub credentials).
+ * @returns A promise that resolves with a {@link StaticServer} handle once
+ *   the server is listening. Rejects if binding fails.
  */
 export function startStaticServer(options: StaticServerOptions): Promise<StaticServer> {
   return new Promise((resolve, reject) => {

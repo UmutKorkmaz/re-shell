@@ -1,49 +1,108 @@
 // Auto-generated WebRTC Sharing Utility
 // Generated at: 2026-01-13T12:45:00.000Z
 
+/**
+ * Represents the type of signaling server protocol used for WebRTC session negotiation.
+ */
 type SignalingServer = 'websocket' | 'socket.io' | 'signalr' | 'grpc';
+
+/**
+ * Represents a STUN (Session Traversal Utilities for NAT) server URL.
+ */
 type StunServer = string;
+
+/**
+ * Represents a TURN (Traversal Using Relays around NAT) server URL.
+ */
 type TurnServer = string;
+
+/**
+ * Represents the supported video codec types for WebRTC streams.
+ */
 type CodecType = 'vp8' | 'vp9' | 'h264' | 'av1';
 
+/**
+ * Configuration options for the WebRTC connection layer.
+ */
 interface WebRTCConfig {
+  /** Whether WebRTC sharing is enabled. */
   enabled: boolean;
+  /** The URL of the signaling server used for session negotiation. */
   signalingUrl: string;
+  /** List of STUN server URLs used for NAT traversal. */
   stunServers: StunServer[];
+  /** List of TURN server URLs used as relays for NAT traversal. */
   turnServers: TurnServer[];
+  /** The ICE transport policy, either allowing all candidates or only relay candidates. */
   iceTransportPolicy: 'all' | 'relay';
+  /** The video codec to use for the WebRTC stream. */
   codec: CodecType;
+  /** The maximum bitrate (in kbps) for the WebRTC stream. */
   maxBitrate: number;
 }
 
+/**
+ * Configuration options for a WebRTC sharing session.
+ */
 interface SessionConfig {
+  /** The human-readable name of the session. */
   name: string;
+  /** The maximum number of participants allowed in the session. */
   maxParticipants: number;
+  /** Optional password used to restrict access to the session. */
   password?: string;
+  /** Whether session recording is enabled. */
   recordingEnabled: boolean;
+  /** Whether the in-session chat is enabled. */
   chatEnabled: boolean;
+  /** Whether audio streaming is enabled. */
   audioEnabled: boolean;
+  /** Whether video streaming is enabled. */
   videoEnabled: boolean;
 }
 
+/**
+ * Access control settings governing authentication, authorization, and encryption.
+ */
 interface AccessControl {
+  /** Whether authentication is required to join the session. */
   authentication: boolean;
+  /** List of authorization roles or scopes permitted to access the session. */
   authorization: string[];
+  /** Whether the session traffic is encrypted. */
   encryption: boolean;
+  /** List of IP addresses allowed to connect to the session. */
   allowedIPs: string[];
 }
 
+/**
+ * Top-level configuration for WebRTC-based code sharing and pair programming.
+ */
 interface CodeSharingConfig {
+  /** The name of the project using WebRTC sharing. */
   projectName: string;
+  /** Cloud providers integrated with the WebRTC sharing deployment. */
   providers: ('aws' | 'azure' | 'gcp')[];
+  /** The WebRTC connection configuration. */
   webrtc: WebRTCConfig;
+  /** The session-level configuration. */
   session: SessionConfig;
+  /** The access control configuration. */
   accessControl: AccessControl;
+  /** Whether screen sharing is enabled. */
   enableScreenSharing: boolean;
+  /** Whether file transfer is enabled during the session. */
   enableFileTransfer: boolean;
+  /** Whether cursor tracking is enabled for collaborative editing. */
   enableCursorTracking: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the WebRTC sharing configuration to the console.
+ *
+ * @param config - The code sharing configuration to display.
+ * @returns Nothing; output is written to stdout.
+ */
 export function displayConfig(config: CodeSharingConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '🎥 WebRTC-Based Code Sharing and Pair Programming');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -63,6 +122,12 @@ export function displayConfig(config: CodeSharingConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Generates a Markdown document describing the WebRTC code sharing features.
+ *
+ * @param config - The code sharing configuration used to derive the document content.
+ * @returns A Markdown string summarizing the WebRTC sharing capabilities.
+ */
 export function generateWebRTCSharingMD(config: CodeSharingConfig): string {
   let md = '# WebRTC-Based Code Sharing and Pair Programming\n\n';
   md += '## Features\n\n';
@@ -81,12 +146,24 @@ export function generateWebRTCSharingMD(config: CodeSharingConfig): string {
   return md;
 }
 
+/**
+ * Generates a Terraform header snippet for provisioning WebRTC sharing resources.
+ *
+ * @param config - The code sharing configuration containing the project name.
+ * @returns A Terraform-formatted string with a generated header for the project.
+ */
 export function generateTerraformWebRTCSharing(config: CodeSharingConfig): string {
   let code = '# Auto-generated WebRTC Sharing Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file scaffolding a WebRTC sharing manager.
+ *
+ * @param config - The code sharing configuration containing the project name.
+ * @returns A TypeScript source string defining a `WebRTCSharingManager` class.
+ */
 export function generateTypeScriptWebRTCSharing(config: CodeSharingConfig): string {
   let code = '// Auto-generated WebRTC Sharing Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -101,6 +178,12 @@ export function generateTypeScriptWebRTCSharing(config: CodeSharingConfig): stri
   return code;
 }
 
+/**
+ * Generates a Python source file scaffolding a WebRTC sharing manager.
+ *
+ * @param config - The code sharing configuration containing the project name.
+ * @returns A Python source string defining a `WebRTCSharingManager` class.
+ */
 export function generatePythonWebRTCSharing(config: CodeSharingConfig): string {
   let code = '# Auto-generated WebRTC Sharing Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -113,6 +196,17 @@ export function generatePythonWebRTCSharing(config: CodeSharingConfig): string {
   return code;
 }
 
+/**
+ * Writes the generated WebRTC sharing files to the specified output directory.
+ *
+ * The generated files include Terraform, runtime source code (TypeScript or Python),
+ * documentation, dependency manifests, and a JSON configuration file.
+ *
+ * @param config - The code sharing configuration used to generate the files.
+ * @param outputDir - The directory where the generated files will be written.
+ * @param language - The target runtime language, either `'typescript'` or `'python'`.
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(config: CodeSharingConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -159,6 +253,14 @@ export async function writeFiles(config: CodeSharingConfig, outputDir: string, l
   await fs.writeFile(path.join(outputDir, 'webrtc-sharing-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided WebRTC sharing configuration unchanged.
+ *
+ * This function serves as a passthrough/identity helper for the code sharing configuration.
+ *
+ * @param config - The code sharing configuration to return.
+ * @returns The same `CodeSharingConfig` instance that was provided.
+ */
 export function webrtcSharing(config: CodeSharingConfig): CodeSharingConfig {
   return config;
 }
