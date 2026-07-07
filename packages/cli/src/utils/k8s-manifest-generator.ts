@@ -5,40 +5,83 @@
 
 
 
+/**
+ * Represents a generic Kubernetes resource manifest.
+ */
 interface K8sResource {
+  /** The Kubernetes API version used by this resource (e.g. `v1`, `apps/v1`). */
   apiVersion: string;
+  /** The Kubernetes resource kind (e.g. `Pod`, `Deployment`, `Service`). */
   kind: string;
+  /** Standard Kubernetes metadata for the resource. */
   metadata: {
+    /** Unique name of the resource within its namespace. */
     name: string;
+    /** Optional namespace where the resource lives. Defaults to `default` when omitted. */
     namespace?: string;
+    /** Optional key/value labels applied to the resource. */
     labels?: Record<string, string>;
+    /** Optional key/value annotations applied to the resource. */
     annotations?: Record<string, string>;
   };
+  /** Optional resource specification. Structure depends on the resource `kind`. */
   spec?: any;
 }
 
+/**
+ * Configuration describing a workspace and the services it contains.
+ */
 interface WorkspaceConfig {
+  /** Human-readable name of the project used for resource naming and labels. */
   projectName: string;
+  /** List of services that should be deployed by the manifest generator. */
   services: ServiceConfig[];
+  /** Optional Kubernetes namespace to deploy into. Falls back to `default`. */
   namespace?: string;
+  /** Default replica count applied to services that do not override it. */
   replicas?: number;
+  /** Optional default resource requests/limits for the generated containers. */
   resources?: ResourceLimits;
 }
 
+/**
+ * Describes a single service that should be materialised as Kubernetes resources.
+ */
 interface ServiceConfig {
+  /** Identifier for the service. Used as the Deployment and Service name. */
   name: string;
+  /** Implementation language of the service (e.g. `typescript`, `python`). */
   language: string;
+  /** Container port the service listens on. */
   port: number;
+  /** Container image reference (including tag) used by the Deployment. */
   image: string;
+  /** Environment variables injected into the container as key/value pairs. */
   env: Record<string, string>;
+  /** Optional per-service replica count overriding the workspace default. */
   replicas?: number;
 }
 
+/**
+ * Container resource requests or limits expressed as Kubernetes quantities.
+ */
 interface ResourceLimits {
+  /** CPU quantity string (e.g. `100m`, `0.5`). */
   cpu: string;
+  /** Memory quantity string (e.g. `128Mi`, `512Mi`). */
   memory: string;
 }
 
+/**
+ * Pretty-prints the resolved K8s workspace configuration to the console.
+ *
+ * The output includes the project name, list of services, namespace
+ * (or `default` when unset) and the configured replica count
+ * (or `3` when unset).
+ *
+ * @param config - The workspace configuration to display.
+ * @returns Nothing; this function only writes to `stdout`.
+ */
 export function displayConfig(config: WorkspaceConfig): void {
   console.log('\x1b[36m%s\x1b[0m', '✨ K8s Manifest Generator');
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
@@ -49,6 +92,19 @@ export function displayConfig(config: WorkspaceConfig): void {
   console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
 }
 
+/**
+ * Builds the Markdown documentation (`K8S_MANIFESTS.md`) describing the
+ * Kubernetes manifest generator feature set and basic usage examples.
+ *
+ * The generated document lists supported features (Deployments, Services,
+ * ConfigMaps, Ingress, probes, HPA, etc.) and includes sample TypeScript
+ * snippets showing how to call the generator.
+ *
+ * @param config - Workspace configuration used to scope the documentation. The
+ *   `projectName` and other fields are not interpolated into the Markdown, but
+ *   the config is required to keep the generator API consistent.
+ * @returns The full Markdown document as a single string.
+ */
 export function generateK8sMD(config: WorkspaceConfig): string {
   let md = '# Kubernetes Manifest Generator\n\n';
   md += '## Features\n\n';
@@ -73,6 +129,21 @@ export function generateK8sMD(config: WorkspaceConfig): string {
   return md;
 }
 
+/**
+ * Produces the source code for a self-contained TypeScript Kubernetes
+ * manifest generator tailored to the supplied workspace.
+ *
+ * The returned string contains a complete `K8sManifestGenerator` class that
+ * can generate Namespace, ConfigMap, Deployment, Service, Ingress and
+ * HorizontalPodAutoscaler resources, export them to individual YAML files or
+ * a combined YAML file, and a default instance pre-configured from
+ * `config.services`.
+ *
+ * @param config - Workspace configuration whose services and defaults are
+ *   embedded into the generated source.
+ * @returns The full TypeScript source as a string. The `projectName` is used
+ *   in the file header comment.
+ */
 export function generateTypeScriptK8s(config: WorkspaceConfig): string {
   let code = '// Auto-generated K8s Manifest Generator for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -386,6 +457,20 @@ export function generateTypeScriptK8s(config: WorkspaceConfig): string {
   return code;
 }
 
+/**
+ * Produces the source code for a self-contained Python Kubernetes manifest
+ * generator tailored to the supplied workspace.
+ *
+ * The returned string defines a `ServiceConfig` dataclass and a
+ * `K8sManifestGenerator` class capable of generating Namespace, ConfigMap,
+ * Deployment, Service and Ingress manifests for the configured services. A
+ * pre-configured `k8s_generator` instance is included at the bottom of the
+ * file.
+ *
+ * @param config - Workspace configuration whose `projectName` is embedded in
+ *   the file header comment and whose shape drives the example instance.
+ * @returns The full Python source as a string.
+ */
 export function generatePythonK8s(config: WorkspaceConfig): string {
   let code = '# Auto-generated K8s Manifest Generator for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -561,6 +646,21 @@ export function generatePythonK8s(config: WorkspaceConfig): string {
   return code;
 }
 
+/**
+ * Writes the full Kubernetes manifest generator project to disk.
+ *
+ * The function creates `outputDir` (if missing) and then emits the
+ * TypeScript generator (`k8s-manifest-generator.ts`), the Python generator
+ * (`k8s-manifest-generator.py`), the Markdown documentation
+ * (`K8S_MANIFESTS.md`), a `package.json` with the required runtime
+ * dependencies, a `requirements.txt` for the Python toolchain and a
+ * `k8s-config.json` snapshot of the supplied workspace configuration.
+ *
+ * @param config - Workspace configuration used to drive all generated files.
+ * @param outputDir - Absolute or relative path of the directory to write into.
+ *   The directory and any missing parents are created automatically.
+ * @returns A promise that resolves once every file has been written.
+ */
 export async function writeFiles(
   config: WorkspaceConfig,
   outputDir: string
