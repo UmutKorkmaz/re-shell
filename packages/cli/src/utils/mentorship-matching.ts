@@ -113,6 +113,14 @@ interface MentorshipConfig {
   sessionReminderHours: number; // hours before session
 }
 
+/**
+ * Prints a human-readable summary of the mentorship configuration to the console,
+ * including project name, provider list, counts of users, programs, pairs, sessions,
+ * feedback entries, and the status of the auto-matching, feedback, and progress tracking features.
+ *
+ * @param config - The mentorship configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: MentorshipConfig): void {
   console.log(chalk.cyan('🤝 Mentorship Matching and Collaboration Tools'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -130,6 +138,14 @@ export function displayConfig(config: MentorshipConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown overview document describing the mentorship matching and
+ * collaboration tools, including the feature list, matching algorithm criteria,
+ * and supported collaboration types.
+ *
+ * @param config - The mentorship configuration used to drive the generated document.
+ * @returns A Markdown-formatted string containing the mentorship feature documentation.
+ */
 export function generateMentorshipMD(config: MentorshipConfig): string {
   let md = '# Mentorship Matching and Collaboration Tools\n\n';
   md += '## Features\n\n';
@@ -162,12 +178,30 @@ export function generateMentorshipMD(config: MentorshipConfig): string {
   return md;
 }
 
+/**
+ * Generates the Terraform header boilerplate for the mentorship infrastructure
+ * associated with the given configuration, including the project name and a
+ * current ISO timestamp comment.
+ *
+ * @param config - The mentorship configuration whose project name is used in the header.
+ * @returns A string containing the Terraform header preamble for the mentorship project.
+ */
 export function generateTerraformMentorship(config: MentorshipConfig): string {
   let code = '# Auto-generated Mentorship Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates the TypeScript source code for a `MentorshipManager` class based on
+ * the supplied configuration. The generated code defines user/pair interfaces,
+ * an EventEmitter-based manager with user registration, match scoring, pair
+ * creation, and program statistics, plus a default exported manager instance.
+ *
+ * @param config - The mentorship configuration used to seed the generated manager
+ *   (match threshold and auto-matching flag are interpolated into the output).
+ * @returns A string containing the full TypeScript source code of the mentorship manager.
+ */
 export function generateTypeScriptMentorship(config: MentorshipConfig): string {
   let code = '// Auto-generated Mentorship Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -292,6 +326,17 @@ export function generateTypeScriptMentorship(config: MentorshipConfig): string {
   return code;
 }
 
+/**
+ * Generates the Python source code for a `MentorshipManager` class based on
+ * the supplied configuration. The generated code defines a `UserProfile`
+ * dataclass and a manager class exposing user registration, match scoring,
+ * match finding, pair creation, and program statistics.
+ *
+ * @param config - The mentorship configuration used to seed the generated manager
+ *   (project name, match threshold, and auto-matching flag are interpolated
+ *   into the output).
+ * @returns A string containing the full Python source code of the mentorship manager.
+ */
 export function generatePythonMentorship(config: MentorshipConfig): string {
   let code = '# Auto-generated Mentorship Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -386,6 +431,20 @@ export function generatePythonMentorship(config: MentorshipConfig): string {
   return code;
 }
 
+/**
+ * Writes the mentorship project files to disk for the given configuration.
+ * Always writes the Terraform file (`mentorship.tf`) and the Markdown
+ * documentation (`MENTORSHIP.md`), plus a JSON serialization of the
+ * configuration (`mentorship-config.json`). Depending on the requested
+ * language, also writes either the TypeScript manager and `package.json`
+ * or the Python manager and `requirements.txt`.
+ *
+ * @param config - The mentorship configuration to materialize as files.
+ * @param outputDir - The directory to write generated files into; created if missing.
+ * @param language - Target language for the manager implementation; when
+ *   `'typescript'` the TypeScript files are written, otherwise the Python files.
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeFiles(config: MentorshipConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -436,6 +495,13 @@ export async function writeFiles(config: MentorshipConfig, outputDir: string, la
   await fs.writeFile(path.join(outputDir, 'mentorship-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided mentorship configuration unchanged. Acts as the canonical
+ * entry point/identity helper for producing a `MentorshipConfig` value.
+ *
+ * @param config - The mentorship configuration to return.
+ * @returns The same `MentorshipConfig` instance that was passed in.
+ */
 export function mentorship(config: MentorshipConfig): MentorshipConfig {
   return config;
 }

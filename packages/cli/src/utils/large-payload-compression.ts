@@ -7,8 +7,16 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+// Encoding strategies
 /**
- * Supported encoding strategies for payload serialization.
+ * Strategy for encoding chunked/compressed payload data into a textual or binary representation.
+ *
+ * - `base64`: Base64 encoding, safe for transport over text-only channels.
+ * - `hex`: Hexadecimal encoding; doubles size but is human-readable.
+ * - `utf8`: UTF-8 text encoding.
+ * - `ascii`: 7-bit ASCII text encoding.
+ * - `binary`: Raw binary data, no encoding transformation.
+ * - `none`: Skip encoding entirely.
  */
 export type EncodingStrategy =
   | 'base64'
@@ -18,8 +26,15 @@ export type EncodingStrategy =
   | 'binary'
   | 'none';
 
+// Chunking strategies
 /**
- * Strategies for splitting payloads into processable chunks.
+ * Strategy used to split a large payload into processable chunks.
+ *
+ * - `fixed-size`: Uniform chunks of a configured byte size.
+ * - `adaptive`: Chunk size is adjusted based on data entropy.
+ * - `content-based`: Chunks split at natural content delimiters.
+ * - `line-based`: Chunks split at newline boundaries.
+ * - `record-based`: Chunks split at structured record boundaries (e.g. JSON lines).
  */
 export type ChunkingStrategy =
   | 'fixed-size'
@@ -28,16 +43,29 @@ export type ChunkingStrategy =
   | 'line-based'
   | 'record-based';
 
+// Compression mode
 /**
- * Compression processing modes (streaming, batch, or hybrid).
+ * Operating mode that determines how compression is applied across chunks.
+ *
+ * - `streaming`: Compress data incrementally as it flows through a stream.
+ * - `batch`: Compress all chunks together in a single batch operation.
+ * - `hybrid`: Combine streaming and batch processing depending on payload size.
  */
 export type CompressionMode =
   | 'streaming'
   | 'batch'
   | 'hybrid';
 
+// Adaptive algorithm selection
 /**
- * Adaptive algorithm selection strategies for choosing compression approaches dynamically.
+ * Strategy used by the adaptive algorithm selector to pick the best
+ * compression algorithm for each individual chunk.
+ *
+ * - `entropy-based`: Choose based on the measured Shannon entropy of the chunk.
+ * - `speed-priority`: Always pick the fastest available algorithm.
+ * - `size-priority`: Always pick the algorithm yielding the smallest output.
+ * - `ml-based`: Reserved for a (future) machine-learning based selector.
+ * - `heuristic`: Apply combined heuristics based on entropy, size, and type.
  */
 export type AdaptiveStrategy =
   | 'entropy-based'
@@ -46,79 +74,121 @@ export type AdaptiveStrategy =
   | 'ml-based'
   | 'heuristic';
 
+// Large payload options
 /**
- * Configuration options for large payload compression and chunking.
+ * Options that control how a large payload is processed.
  */
 export interface LargePayloadOptions {
+  /** Encoding strategy applied to processed chunk data. */
   encoding: EncodingStrategy;
+  /** Strategy used to split the payload into chunks. */
   chunking: ChunkingStrategy;
+  /** Operating mode that drives how compression is applied. */
   compression: CompressionMode;
+  /** Strategy used by the adaptive algorithm selector. */
   adaptive: AdaptiveStrategy;
+  /** Target byte size for each chunk. */
   chunkSize: number;
+  /** Maximum number of chunks to produce. */
   maxChunks: number;
+  /** Whether chunks may be processed in parallel. */
   enableParallel: boolean;
+  /** Whether to compute and store per-chunk checksums. */
   enableChecksum: boolean;
+  /** Soft upper bound on memory consumption, in bytes. */
   memoryLimit: number; // in bytes
 }
 
+// Chunk metadata
 /**
- * Metadata describing a single chunk's position, size, checksum, and encoding details.
+ * Metadata describing a single processed chunk within a larger payload.
  */
 export interface ChunkMetadata {
+  /** Zero-based position of the chunk within the original payload. */
   index: number;
+  /** Byte offset of the chunk's start within the original payload. */
   offset: number;
+  /** Original (uncompressed) size of the chunk in bytes. */
   size: number;
+  /** SHA-256 checksum of the compressed chunk, or empty when disabled. */
   checksum: string;
+  /** Name of the compression algorithm applied to this chunk. */
   compressionAlgorithm: string;
+  /** Encoding applied to the chunk's data. */
   encoding: string;
 }
 
+// Chunk result
 /**
- * Result of processing a single chunk, including its data, metadata, and performance metrics.
+ * The output of processing a single chunk, including its compressed data and metadata.
  */
 export interface ChunkResult {
+  /** Compressed (and possibly encoded) chunk bytes. */
   data: Buffer;
+  /** Metadata describing the chunk within the original payload. */
   metadata: ChunkMetadata;
+  /** Optional percentage reduction achieved by compression. */
   compressionRatio?: number;
+  /** Wall-clock time spent processing this chunk, in milliseconds. */
   processingTime: number;
 }
 
+// Payload processing result
 /**
- * Aggregate result of processing a large payload into compressed chunks.
+ * Aggregate result returned after processing a complete large payload.
  */
 export interface PayloadProcessingResult {
+  /** Ordered list of processed chunk results. */
   chunks: ChunkResult[];
+  /** Original (uncompressed) size of the payload in bytes. */
   totalSize: number;
+  /** Total size after compression in bytes. */
   compressedSize: number;
+  /** Overall compression ratio achieved, as a percentage. */
   compressionRatio: number;
+  /** Total wall-clock processing time in milliseconds. */
   processingTime: number;
+  /** Number of chunks the payload was split into. */
   chunkCount: number;
+  /** Additional information about the processing run. */
   metadata: {
+    /** Encoding of the original payload data. */
     originalEncoding: string;
+    /** Encoding applied to the final processed output. */
     finalEncoding: string;
+    /** Per-chunk record of the algorithm chosen by the adaptive selector. */
     adaptiveChoices: Array<{ chunk: number; algorithm: string; reason: string }>;
   };
 }
 
+// Compression strategy config
 /**
- * Configuration for a service-specific compression strategy, including encoding defaults and resource limits.
+ * High-level configuration for a per-service compression strategy, used to
+ * generate language-specific implementations and to drive runtime behavior.
  */
 export interface CompressionStrategyConfig {
+  /** Name of the service this strategy is generated for. */
   serviceName: string;
+  /** Default encoding applied when none is specified by the caller. */
   defaultEncoding: EncodingStrategy;
+  /** Default chunking strategy applied when none is specified by the caller. */
   defaultChunking: ChunkingStrategy;
+  /** Whether the adaptive algorithm selector is enabled. */
   enableAdaptive: boolean;
+  /** Maximum allowed memory usage, in bytes. */
   maxMemoryUsage: number;
+  /** Whether chunks may be processed in parallel. */
   parallelProcessing: boolean;
 }
 
+// Generate compression strategy config
 /**
- * Generates a default compression strategy configuration for the given service.
+ * Build a `CompressionStrategyConfig` with sensible defaults for the given service.
  *
- * @param serviceName - Name of the service the strategy is built for.
- * @param defaultEncoding - Default encoding strategy to apply (defaults to 'base64').
- * @param defaultChunking - Default chunking strategy to apply (defaults to 'adaptive').
- * @returns A populated {@link CompressionStrategyConfig} with sensible defaults.
+ * @param serviceName - Name of the service the configuration is generated for.
+ * @param defaultEncoding - Encoding used when callers do not specify one. Defaults to `'base64'`.
+ * @param defaultChunking - Chunking strategy used when callers do not specify one. Defaults to `'adaptive'`.
+ * @returns Resolves to a populated `CompressionStrategyConfig` instance.
  */
 export async function generateCompressionStrategyConfig(
   serviceName: string,
@@ -160,12 +230,14 @@ function estimateEntropy(data: Buffer): number {
   return entropy;
 }
 
+// Generate TypeScript implementation
 /**
- * Generates a TypeScript implementation of the large payload compression strategy
- * for the configured service, including types, class, and usage example.
+ * Generate a TypeScript implementation of the large payload compression
+ * strategy described by `config`, including a runnable usage example.
  *
- * @param config - The compression strategy configuration to generate from.
- * @returns An object containing the generated file(s) and their runtime dependencies.
+ * @param config - Configuration describing the service and desired defaults.
+ * @returns Resolves to an object containing the generated `files` (path/content pairs)
+ * and the list of npm/runtime `dependencies` required by the implementation.
  */
 export async function generateTypeScriptCompressionStrategy(
   config: CompressionStrategyConfig
@@ -764,12 +836,14 @@ if (require.main === module) {
   return { files, dependencies };
 }
 
+// Generate Python implementation
 /**
- * Generates a Python implementation of the large payload compression strategy
- * for the configured service, including types, class, and usage example.
+ * Generate a Python implementation of the large payload compression
+ * strategy described by `config`, including a runnable usage example.
  *
- * @param config - The compression strategy configuration to generate from.
- * @returns An object containing the generated file(s) and their runtime dependencies.
+ * @param config - Configuration describing the service and desired defaults.
+ * @returns Resolves to an object containing the generated `files` (path/content pairs)
+ * and the list of Python module `dependencies` required by the implementation.
  */
 export async function generatePythonCompressionStrategy(
   config: CompressionStrategyConfig
@@ -1050,12 +1124,14 @@ if __name__ == '__main__':
   return { files, dependencies };
 }
 
+// Generate Go implementation
 /**
- * Generates a Go implementation of the large payload compression strategy
- * for the configured service, including types, class, and usage example.
+ * Generate a Go implementation of the large payload compression
+ * strategy described by `config`, including a runnable usage example.
  *
- * @param config - The compression strategy configuration to generate from.
- * @returns An object containing the generated file(s) and their runtime dependencies.
+ * @param config - Configuration describing the service and desired defaults.
+ * @returns Resolves to an object containing the generated `files` (path/content pairs)
+ * and the list of Go module `dependencies` required by the implementation.
  */
 export async function generateGoCompressionStrategy(
   config: CompressionStrategyConfig
@@ -1321,15 +1397,17 @@ func main() {
   return { files, dependencies };
 }
 
+// Write generated files
 /**
- * Writes the generated compression strategy files to the specified output directory
- * and produces a BUILD.md with build instructions for the target language.
+ * Persist generated compression strategy files to disk, creating any missing
+ * directories along the way, and emits a `BUILD.md` documenting the integration.
  *
- * @param serviceName - Name of the service the strategy belongs to.
- * @param integration - The generated strategy output containing files and dependencies.
- * @param outputDir - Directory where generated files will be written.
- * @param language - Target language for build instructions (e.g. 'typescript', 'python', 'go').
- * @throws Re-throws any filesystem errors encountered during writing.
+ * @param serviceName - Name of the service the strategy was generated for.
+ * @param integration - Result returned by one of the `generate*CompressionStrategy` functions;
+ * must expose `files` and `dependencies`.
+ * @param outputDir - Directory under which generated files are written.
+ * @param language - Target language identifier (e.g. `typescript`, `python`, `go`) used in BUILD.md.
+ * @returns Resolves once all files and the BUILD.md have been written.
  */
 export async function writeCompressionStrategyFiles(
   serviceName: string,
@@ -1351,10 +1429,14 @@ export async function writeCompressionStrategyFiles(
   await fs.writeFile(path.join(outputDir, 'BUILD.md'), buildContent);
 }
 
+// Display configuration
 /**
- * Pretty-prints the compression strategy configuration to the console.
+ * Pretty-print a human-readable summary of a `CompressionStrategyConfig`,
+ * including supported chunking, encoding, adaptive algorithm, and performance
+ * feature options.
  *
- * @param config - The compression strategy configuration to display.
+ * @param config - Configuration to display.
+ * @returns Resolves once the configuration has been printed to stdout.
  */
 export async function displayCompressionStrategyConfig(config: CompressionStrategyConfig): Promise<void> {
   console.log(chalk.bold.magenta('\n📦 Large Payload Compression: ' + config.serviceName));
