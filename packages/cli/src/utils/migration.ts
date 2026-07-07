@@ -6,20 +6,43 @@ import { ValidationError } from './error-handler';
 import semver from 'semver';
 
 // Migration system for configuration upgrades
+/**
+ * Represents a single configuration migration that upgrades config from one version to another.
+ *
+ * Each migration describes a version transition and provides functions to apply,
+ * optionally revert, and optionally validate the resulting configuration.
+ */
 export interface Migration {
+  /** Semantic version string this migration upgrades the configuration to. */
   version: string;
+  /** Human-readable summary describing what the migration changes. */
   description: string;
+  /** Applies the migration to the given configuration and returns the upgraded configuration. */
   up: (config: any) => any;
+  /** Optional function that reverts the migration, restoring the previous configuration shape. */
   down?: (config: any) => any;
+  /** Optional predicate that validates the migrated configuration is well-formed. */
   validate?: (config: any) => boolean;
 }
 
+/**
+ * Represents the outcome of a migration or rollback operation.
+ *
+ * Includes the source and target versions, the list of migrations that were
+ * applied, and any errors or warnings encountered during the process.
+ */
 export interface MigrationResult {
+  /** Indicates whether the migration operation completed without errors. */
   success: boolean;
+  /** The configuration version before the migration was attempted. */
   fromVersion: string;
+  /** The configuration version the migration attempted to reach. */
   toVersion: string;
+  /** List of migration version identifiers that were successfully applied. */
   appliedMigrations: string[];
+  /** Optional list of error messages produced during the migration. */
   errors?: string[];
+  /** Optional list of non-fatal warning messages produced during the migration. */
   warnings?: string[];
 }
 
@@ -137,20 +160,48 @@ const PROJECT_CONFIG_MIGRATIONS: Migration[] = [
 ];
 
 // Migration manager class
+/**
+ * Manages configuration migrations for both global and project-level configurations.
+ *
+ * The manager registers the known migrations at construction time and exposes
+ * methods to detect when migrations are needed, apply forward migrations,
+ * perform rollbacks, validate configuration integrity, and report migration history.
+ */
 export class MigrationManager {
   private migrations: Map<string, Migration[]> = new Map();
 
+  /**
+   * Creates a new `MigrationManager` and registers the built-in global and
+   * project configuration migrations.
+   */
   constructor() {
     this.migrations.set('global', GLOBAL_CONFIG_MIGRATIONS);
     this.migrations.set('project', PROJECT_CONFIG_MIGRATIONS);
   }
 
+  /**
+   * Determines whether the given configuration type requires migration to
+   * the latest known config version.
+   *
+   * @param configType - Whether to inspect the 'global' or 'project' configuration.
+   * @param currentVersion - Optional explicit version to compare against. If omitted, the current version is detected automatically.
+   * @returns Resolves to `true` when the configuration version is older than the latest supported version.
+   */
   // Check if migration is needed
   async needsMigration(configType: 'global' | 'project', currentVersion?: string): Promise<boolean> {
     const version = currentVersion || await this.getCurrentVersion(configType);
     return semver.lt(version, CURRENT_CONFIG_VERSION);
   }
 
+  /**
+   * Retrieves the current configuration version for the specified configuration type.
+   *
+   * Falls back to `'1.0.0'` when the version cannot be determined or the configuration cannot be loaded.
+   *
+   * @param configType - Whether to inspect the 'global' or 'project' configuration.
+   * @param projectPath - Optional path to the project directory, used when `configType` is `'project'`.
+   * @returns Resolves to the detected semantic version string of the configuration.
+   */
   // Get current configuration version
   async getCurrentVersion(configType: 'global' | 'project', projectPath?: string): Promise<string> {
     try {
@@ -166,6 +217,15 @@ export class MigrationManager {
     }
   }
 
+  /**
+   * Returns the list of migrations applicable between the specified version range,
+   * sorted in ascending semantic-version order.
+   *
+   * @param configType - The configuration type whose migrations should be considered.
+   * @param fromVersion - The lower-bound (exclusive) version. Migrations newer than this are included.
+   * @param toVersion - The upper-bound (inclusive) version. Defaults to the latest config version.
+   * @returns The matching `Migration` objects sorted from oldest to newest applicable version.
+   */
   // Get available migrations for version range
   getAvailableMigrations(configType: 'global' | 'project', fromVersion: string, toVersion: string = CURRENT_CONFIG_VERSION): Migration[] {
     const migrations = this.migrations.get(configType) || [];
@@ -175,6 +235,19 @@ export class MigrationManager {
     }).sort((a, b) => semver.compare(a.version, b.version));
   }
 
+  /**
+   * Applies all pending forward migrations to bring the specified configuration
+   * up to the latest supported version.
+   *
+   * The method creates a backup before mutating the configuration, applies each
+   * applicable migration sequentially, validates the result, and persists the
+   * updated configuration. If any migration fails, processing halts and the
+   * errors are reported in the result.
+   *
+   * @param configType - Whether to migrate the 'global' or 'project' configuration.
+   * @param projectPath - Optional path to the project directory, required when `configType` is `'project'`.
+   * @returns Resolves to a `MigrationResult` describing the outcome of the migration attempt.
+   */
   // Apply migrations
   async migrate(configType: 'global' | 'project', projectPath?: string): Promise<MigrationResult> {
     const fromVersion = await this.getCurrentVersion(configType, projectPath);
@@ -264,6 +337,15 @@ export class MigrationManager {
     }
   }
 
+  /**
+   * Rolls the configuration back to a previous version by invoking the `down`
+   * function of each applicable migration in reverse order.
+   *
+   * @param configType - Whether to roll back the 'global' or 'project' configuration.
+   * @param targetVersion - The semantic version to roll back to. Must be lower than the current version.
+   * @param projectPath - Optional path to the project directory, used when `configType` is `'project'`.
+   * @returns Resolves to a `MigrationResult` describing which migrations were reverted and any errors encountered.
+   */
   // Rollback to previous version
   async rollback(configType: 'global' | 'project', targetVersion: string, projectPath?: string): Promise<MigrationResult> {
     const currentVersion = await this.getCurrentVersion(configType, projectPath);
@@ -340,6 +422,17 @@ export class MigrationManager {
     }
   }
 
+  /**
+   * Writes a timestamped YAML backup of the configuration to disk before applying a migration.
+   *
+   * Backups are stored under a `backups/migrations` directory within either the global
+   * re-shell home directory or the project's `.re-shell` folder, depending on the config type.
+   *
+   * @param configType - Whether the backup is for the 'global' or 'project' configuration.
+   * @param config - The configuration object to persist as a backup.
+   * @param projectPath - Optional path to the project directory, used when `configType` is `'project'`.
+   * @returns Resolves to the absolute path of the created backup file.
+   */
   // Create migration backup
   private async createMigrationBackup(configType: 'global' | 'project', config: any, projectPath?: string): Promise<string> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -356,11 +449,25 @@ export class MigrationManager {
     return backupPath;
   }
 
+  /**
+   * Inspects the configuration to verify its integrity against the expected schema.
+   *
+   * Reports any detected issues (such as an outdated version or failed validation)
+   * along with actionable recommendations for resolving them.
+   *
+   * @param configType - Whether to inspect the 'global' or 'project' configuration.
+   * @param projectPath - Optional path to the project directory, used when `configType` is `'project'`.
+   * @returns Resolves to an object containing whether the configuration is valid, the detected version, identified issues, and recommended actions.
+   */
   // Check configuration integrity
   async checkIntegrity(configType: 'global' | 'project', projectPath?: string): Promise<{
+    /** Indicates whether the configuration passed all integrity checks. */
     valid: boolean;
+    /** The configuration version detected during inspection. */
     version: string;
+    /** List of problems detected in the configuration. */
     issues: string[];
+    /** Suggested actions to resolve the reported issues. */
     recommendations: string[];
   }> {
     const issues: string[] = [];
@@ -413,6 +520,14 @@ export class MigrationManager {
     }
   }
 
+  /**
+   * Automatically migrates both global and project configurations when needed.
+   *
+   * Intended to be called on CLI startup. Project migration is only attempted
+   * when the current directory contains a project configuration.
+   *
+   * @returns Resolves to an object containing the optional `MigrationResult` for each of the global and project configurations.
+   */
   // Auto-migrate on CLI startup if needed
   async autoMigrate(): Promise<{ global: MigrationResult | null; project: MigrationResult | null }> {
     const results = { global: null as MigrationResult | null, project: null as MigrationResult | null };
@@ -435,11 +550,24 @@ export class MigrationManager {
     return results;
   }
 
+  /**
+   * Returns a summary of migration state for the specified configuration type,
+   * including the current version, all known versions, and which migrations
+   * have been applied versus which are still pending.
+   *
+   * @param configType - Whether to inspect the 'global' or 'project' configuration.
+   * @param projectPath - Optional path to the project directory, used when `configType` is `'project'`.
+   * @returns Resolves to an object describing the current version and the applied/pending migration versions.
+   */
   // Get migration history
   async getMigrationHistory(configType: 'global' | 'project', projectPath?: string): Promise<{
+    /** The configuration version currently in use. */
     currentVersion: string;
+    /** All migration versions known to the manager for this configuration type. */
     availableVersions: string[];
+    /** Migration versions that have already been applied to reach the current version. */
     appliedMigrations: string[];
+    /** Migration versions newer than the current version that have not yet been applied. */
     pendingMigrations: string[];
   }> {
     const currentVersion = await this.getCurrentVersion(configType, projectPath);
@@ -463,22 +591,48 @@ export class MigrationManager {
   }
 }
 
+/** Shared singleton `MigrationManager` instance used by the helper functions below. */
 // Export singleton instance
 export const migrationManager = new MigrationManager();
 
 // Helper functions
+/**
+ * Convenience wrapper around `migrationManager.autoMigrate()` that migrates both
+ * global and project configurations automatically when outdated versions are detected.
+ *
+ * @returns Resolves to an object containing the optional `MigrationResult` for each of the global and project configurations.
+ */
 export async function autoMigrate(): Promise<{ global: MigrationResult | null; project: MigrationResult | null }> {
   return migrationManager.autoMigrate();
 }
 
+/**
+ * Convenience wrapper that migrates the global configuration to the latest version.
+ *
+ * @returns Resolves to the `MigrationResult` produced by migrating the global configuration.
+ */
 export async function migrateGlobalConfig(): Promise<MigrationResult> {
   return migrationManager.migrate('global');
 }
 
+/**
+ * Convenience wrapper that migrates the project configuration at the given path
+ * to the latest version.
+ *
+ * @param projectPath - Optional path to the project directory to migrate. Defaults to the current working directory's project configuration.
+ * @returns Resolves to the `MigrationResult` produced by migrating the project configuration.
+ */
 export async function migrateProjectConfig(projectPath?: string): Promise<MigrationResult> {
   return migrationManager.migrate('project', projectPath);
 }
 
+/**
+ * Convenience wrapper that checks the integrity of the specified configuration type.
+ *
+ * @param configType - Whether to inspect the 'global' or 'project' configuration.
+ * @param projectPath - Optional path to the project directory, used when `configType` is `'project'`.
+ * @returns Resolves to the integrity report produced by `MigrationManager.checkIntegrity`.
+ */
 export async function checkConfigIntegrity(configType: 'global' | 'project', projectPath?: string) {
   return migrationManager.checkIntegrity(configType, projectPath);
 }

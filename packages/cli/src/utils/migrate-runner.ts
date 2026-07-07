@@ -15,36 +15,63 @@ import * as yaml from 'js-yaml';
 import type { MigrationRecipe } from './migrate-engine';
 
 /**
- * Runs ast-grep with the given argv in `cwd`, resolving with its stdout. The
- * default implementation shells out via execFile; tests inject a stub. A missing
- * binary (ENOENT) must propagate so the caller can map it to `skipped`.
+ * Function signature for running ast-grep with the given argv in `cwd`,
+ * resolving with its stdout. The default implementation shells out via
+ * execFile; tests inject a stub. A missing binary (ENOENT) must propagate so
+ * the caller can map it to `skipped`.
+ *
+ * @param args - The argv array passed to the `ast-grep` binary (no shell interpolation).
+ * @param cwd - The absolute directory in which to spawn the `ast-grep` process.
+ * @returns A promise resolving to the captured stdout string from `ast-grep`.
  */
 export type AstGrepRunner = (args: string[], cwd: string) => Promise<string>;
 
-/** A target file resolved on disk: its path plus the parsed document. */
+/**
+ * A target file resolved on disk: its path plus the parsed document.
+ */
 export interface ResolvedTarget {
+  /** The canonical (realpath-resolved) absolute path of the target file. */
   readonly path: string;
+  /** The parsed document as a plain key/value record (YAML or JSON). */
   readonly doc: Record<string, unknown>;
 }
 
-/** Outcome of applying a recipe to a single file. */
+/**
+ * Outcome of applying a recipe to a single file.
+ *
+ * - `applied` - the recipe transformed the file successfully.
+ * - `skipped` - the file was not transformed (e.g. ast-grep missing or unparseable file).
+ * - `failed` - an unexpected error occurred while applying the recipe.
+ */
 export type ApplyOutcome = 'applied' | 'skipped' | 'failed';
 
-/** A discovered package paired with its absolute directory. */
+/**
+ * A discovered package paired with its absolute directory.
+ */
 export interface PackageDir {
+  /** The package name (as declared in the workspace). */
   readonly name: string;
+  /** The absolute filesystem path to the package directory. */
   readonly dir: string;
 }
 
-/** Result of an apply attempt across a recipe's targets. */
+/**
+ * Result of an apply attempt across a recipe's targets.
+ */
 export interface ApplyResult {
+  /** The aggregate outcome of the apply attempt. */
   readonly outcome: ApplyOutcome;
+  /** Human-readable warning messages accumulated during the attempt. */
   readonly warnings: string[];
 }
 
 /**
  * Default real ast-grep runner: argv via execFile (no shell interpolation). A
  * missing binary surfaces as an ENOENT error which the caller maps to `skipped`.
+ *
+ * @param args - The argv array forwarded to `ast-grep`.
+ * @param cwd - The directory in which to spawn the `ast-grep` child process.
+ * @returns A promise resolving to the captured stdout from `ast-grep`.
  */
 export const defaultAstGrepRunner: AstGrepRunner = async (args, cwd) => {
   const { execFile } = await import('child_process');
@@ -85,6 +112,11 @@ function serializeDoc(filePath: string, doc: Record<string, unknown>): string {
  * dir (in the order given) for `recipe.targetFile`, read+parse each, and return
  * those whose parsed document satisfies `recipe.matches`. Unreadable or
  * unparseable files are skipped silently here (they simply do not match).
+ *
+ * @param recipe - The migration recipe whose target file is being resolved.
+ * @param rootDir - Absolute path to the repository root.
+ * @param packagesTopo - Discovered packages in topological order, each with its absolute dir.
+ * @returns An array of resolved targets (path + parsed doc) that match the recipe's predicate.
  */
 export function resolveCandidateTargets(
   recipe: MigrationRecipe,
@@ -130,6 +162,10 @@ export function resolveCandidateTargets(
  * transformed, so the backup always matches what was rewritten (no TOCTOU gap
  * from a second independent disk read). Writes via a temp file + rename so a
  * crash mid-write never leaves a half-written backup.
+ *
+ * @param filePath - Absolute path of the file to back up (the backup is written next to it).
+ * @param content - The exact pre-transform content to write into the `.bak` file.
+ * @returns No return value; the backup is created as a side effect on disk.
  */
 export function backupFile(filePath: string, content: string): void {
   const tmp = `${filePath}.bak.tmp`;
@@ -145,6 +181,11 @@ export function backupFile(filePath: string, content: string): void {
  *     degrades to `skipped` with a warning rather than failing the run.
  *
  * Any other error returns `failed` with the message captured as a warning.
+ *
+ * @param recipe - The migration recipe describing the transform to apply.
+ * @param filePath - Absolute path of the file to transform.
+ * @param runner - Optional ast-grep runner (defaults to the real execFile-based runner). Tests inject a stub.
+ * @returns A promise resolving to the apply result (outcome + accumulated warnings).
  */
 export async function applyRecipeToFile(
   recipe: MigrationRecipe,

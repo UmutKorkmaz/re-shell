@@ -76,6 +76,14 @@ interface LogAggregationConfig {
   enableMetrics: boolean;
 }
 
+/**
+ * Displays the log aggregation configuration to the console in a human-readable format.
+ * Renders project, provider, backend, format, level, retention, and infrastructure details
+ * using colored output via chalk.
+ *
+ * @param config - The full log aggregation configuration to display.
+ * @returns No return value; output is written to stdout.
+ */
 export function displayConfig(config: LogAggregationConfig): void {
   console.log(chalk.cyan('🪵 Log Aggregation with ELK/EFK Stack and Structured Logging'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -94,6 +102,13 @@ export function displayConfig(config: LogAggregationConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string describing the log aggregation features
+ * provided by the ELK/EFK stack integration.
+ *
+ * @param config - The log aggregation configuration used to scope the documentation.
+ * @returns A Markdown-formatted string summarizing the log aggregation features.
+ */
 export function generateLogAggregationMD(config: LogAggregationConfig): string {
   let md = '# Log Aggregation with ELK/EFK Stack\n\n';
   md += '## Features\n\n';
@@ -111,12 +126,27 @@ export function generateLogAggregationMD(config: LogAggregationConfig): string {
   return md;
 }
 
+/**
+ * Generates a Terraform header snippet for provisioning log aggregation resources.
+ * The snippet includes the project name and a timestamp of generation.
+ *
+ * @param config - The log aggregation configuration providing the project name and metadata.
+ * @returns A string containing the Terraform header comment for log aggregation.
+ */
 export function generateTerraformLogAggregation(config: LogAggregationConfig): string {
   let code = '# Auto-generated Log Aggregation Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file string defining a `LogAggregationManager` class
+ * that extends `EventEmitter`. Includes the project name and a generation timestamp
+ * in the file header.
+ *
+ * @param config - The log aggregation configuration providing the project name.
+ * @returns A TypeScript source string for the log aggregation manager module.
+ */
 export function generateTypeScriptLogAggregation(config: LogAggregationConfig): string {
   let code = '// Auto-generated Log Aggregation Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -131,6 +161,14 @@ export function generateTypeScriptLogAggregation(config: LogAggregationConfig): 
   return code;
 }
 
+/**
+ * Generates a Python source file string defining a `LogAggregationManager` class
+ * with async support. Includes the project name and a generation timestamp
+ * in the file header.
+ *
+ * @param config - The log aggregation configuration providing the project name.
+ * @returns A Python source string for the log aggregation manager module.
+ */
 export function generatePythonLogAggregation(config: LogAggregationConfig): string {
   let code = '# Auto-generated Log Aggregation Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -143,6 +181,17 @@ export function generatePythonLogAggregation(config: LogAggregationConfig): stri
   return code;
 }
 
+/**
+ * Writes the generated log aggregation files to the specified output directory.
+ * Generates Terraform, language-specific manager code (TypeScript or Python),
+ * Markdown documentation, and a JSON configuration file. Ensures the output
+ * directory exists before writing.
+ *
+ * @param config - The log aggregation configuration to serialize and render.
+ * @param outputDir - The target directory where files will be written.
+ * @param language - The implementation language to generate; either `'typescript'` or `'python'`.
+ * @returns A promise that resolves once all files have been written successfully.
+ */
 export async function writeFiles(config: LogAggregationConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -192,6 +241,13 @@ export async function writeFiles(config: LogAggregationConfig, outputDir: string
   await fs.writeFile(path.join(outputDir, 'log-aggregation-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided log aggregation configuration unchanged.
+ * Acts as a pass-through/normalization entry point for the log aggregation utility.
+ *
+ * @param config - The log aggregation configuration to return.
+ * @returns The same `LogAggregationConfig` instance that was provided.
+ */
 export function logAggregation(config: LogAggregationConfig): LogAggregationConfig {
   return config;
 }
