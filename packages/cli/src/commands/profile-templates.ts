@@ -9,11 +9,17 @@ import { EnvironmentProfile} from './profile';
  */
 
 export interface ProfileTemplate {
+  /** Unique identifier for the template */
   id: string;
+  /** Human-readable display name */
   name: string;
+  /** Short summary of what the template configures */
   description: string;
+  /** Category grouping the template by deployment scenario */
   category: 'development' | 'staging' | 'production' | 'testing' | 'custom';
+  /** Optional framework this template is tailored for (e.g. react, nextjs) */
   framework?: string;
+  /** The environment profile that will be created when the template is applied */
   profile: EnvironmentProfile;
 }
 
@@ -374,7 +380,9 @@ export const PROFILE_TEMPLATES: ProfileTemplate[] = [
 ];
 
 /**
- * List all available templates
+ * List all available profile templates grouped by category.
+ *
+ * @returns No return value; output is written to the console.
  */
 export function listTemplates(): void {
   console.log(chalk.cyan.bold('\n📋 Available Profile Templates\n'));
@@ -397,14 +405,23 @@ export function listTemplates(): void {
 }
 
 /**
- * Get template by ID
+ * Retrieve a profile template by its unique identifier.
+ *
+ * @param id - The unique template identifier to look up.
+ * @returns The matching `ProfileTemplate`, or `null` when no template has the given id.
  */
 export function getTemplate(id: string): ProfileTemplate | null {
   return PROFILE_TEMPLATES.find(t => t.id === id) || null;
 }
 
 /**
- * Apply template to create a new profile
+ * Apply a profile template to create a new profile in the local vault.
+ *
+ * @param templateId - The unique identifier of the template to apply.
+ * @param profileName - The name to assign to the newly created profile.
+ * @param options - Optional settings for the apply operation.
+ * @param options.overwrite - When `true`, replaces an existing profile with the same name.
+ * @returns Resolves once the profile has been written to the vault file.
  */
 export async function applyTemplate(
   templateId: string,
@@ -464,7 +481,10 @@ export async function applyTemplate(
 }
 
 /**
- * Show template details
+ * Display detailed information about a specific profile template.
+ *
+ * @param id - The unique identifier of the template to display.
+ * @returns No return value; details are printed to the console.
  */
 export function showTemplate(id: string): void {
   const template = getTemplate(id);
@@ -510,7 +530,11 @@ export function showTemplate(id: string): void {
 }
 
 /**
- * Search templates by keyword
+ * Search available profile templates by a keyword across id, name, description,
+ * category, and framework fields.
+ *
+ * @param keyword - The search term used for case-insensitive matching.
+ * @returns No return value; matching templates are printed to the console.
  */
 export function searchTemplates(keyword: string): void {
   const lowerKeyword = keyword.toLowerCase();

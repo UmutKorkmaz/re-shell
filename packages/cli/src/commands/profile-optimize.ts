@@ -10,31 +10,57 @@ import { generateProfileInsights } from './profile-analytics';
  * Analyze usage patterns and provide actionable optimization suggestions
  */
 
+/**
+ * Represents a single optimization recommendation for a profile.
+ */
 export interface OptimizationRecommendation {
+  /** Unique identifier for the recommendation. */
   id: string;
+  /** Category of the recommendation (performance, security, etc.). */
   category: 'performance' | 'security' | 'maintainability' | 'usage' | 'configuration';
+  /** Severity level indicating how urgent the recommendation is. */
   severity: 'low' | 'medium' | 'high' | 'critical';
+  /** Short human-readable title of the recommendation. */
   title: string;
+  /** Detailed explanation of the recommendation. */
   description: string;
+  /** Expected impact of applying the recommendation. */
   impact: string;
+  /** Effort required to apply the recommendation. */
   effort: 'easy' | 'medium' | 'hard';
+  /** Actionable advice for resolving the issue. */
   recommendation: string;
-  code?: string; // Suggested configuration changes
-  estimatedSavings?: string; // Performance or storage savings
+  /** Suggested configuration changes as a code snippet. */
+  code?: string;
+  /** Estimated performance or storage savings from applying the recommendation. */
+  estimatedSavings?: string;
 }
 
+/**
+ * Aggregated optimization report for a profile.
+ */
 export interface OptimizationReport {
+  /** Name of the profile that was analyzed. */
   profileName: string;
+  /** Total number of recommendations produced. */
   totalRecommendations: number;
+  /** Recommendation counts grouped by category. */
   categories: Record<string, number>;
+  /** Recommendation counts grouped by severity. */
   bySeverity: Record<string, number>;
+  /** Full list of recommendations. */
   recommendations: OptimizationRecommendation[];
-  overallScore: number; // 0-100
+  /** Overall optimization score from 0 to 100. */
+  overallScore: number;
+  /** ISO timestamp of when the report was generated. */
   optimizedAt: string;
 }
 
 /**
- * Generate optimization recommendations for a profile
+ * Generate optimization recommendations for a profile.
+ *
+ * @param profileName - Name of the profile to analyze.
+ * @returns Resolves with an optimization report containing categorized recommendations.
  */
 export async function generateOptimizations(profileName: string): Promise<OptimizationReport> {
   const config = await loadProfileConfig();
@@ -89,7 +115,11 @@ export async function generateOptimizations(profileName: string): Promise<Optimi
 }
 
 /**
- * Apply optimization recommendations
+ * Apply optimization recommendations to a profile.
+ *
+ * @param profileName - Name of the profile to optimize.
+ * @param recommendationIds - IDs of the recommendations to apply.
+ * @returns Resolves when the requested optimizations have been applied and saved.
  */
 export async function applyOptimizations(
   profileName: string,
@@ -147,7 +177,10 @@ export async function applyOptimizations(
 }
 
 /**
- * Show optimization report
+ * Display a formatted optimization report for a profile.
+ *
+ * @param profileName - Name of the profile to report on.
+ * @returns Resolves when the report has been printed to the console.
  */
 export async function showOptimizationReport(profileName: string): Promise<void> {
   const report = await generateOptimizations(profileName);
@@ -209,7 +242,10 @@ export async function showOptimizationReport(profileName: string): Promise<void>
 }
 
 /**
- * Auto-optimize profile (apply safe optimizations automatically)
+ * Automatically apply safe, low-effort optimizations to a profile after user confirmation.
+ *
+ * @param profileName - Name of the profile to auto-optimize.
+ * @returns Resolves when the auto-optimization flow completes.
  */
 export async function autoOptimizeProfile(profileName: string): Promise<void> {
   const report = await generateOptimizations(profileName);

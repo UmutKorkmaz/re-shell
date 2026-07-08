@@ -15,31 +15,60 @@ const SYNC_DIR = '.re-shell/sync';
 
 const SYNC_METADATA_FILE = '.re-shell/sync-metadata.json';
 
+/**
+ * Metadata tracking the state and history of profile synchronization.
+ */
 export interface SyncMetadata {
+  /** ISO timestamp of the most recent synchronization. */
   lastSync: string;
+  /** Identifier (e.g. username) of the user who performed the last sync. */
   lastSyncBy: string;
+  /** Map of profile names to their SHA-256 content hashes. */
   profileHashes: Record<string, string>;
+  /** Map of profile names to their unresolved conflict information. */
   conflicts: Record<string, ConflictInfo>;
 }
 
+/**
+ * Describes a conflict between local and remote versions of a profile.
+ */
 export interface ConflictInfo {
+  /** The profile definition as it exists locally. */
   localProfile: EnvironmentProfile;
+  /** The profile definition as it exists on the remote source. */
   remoteProfile: EnvironmentProfile;
+  /** The kind of change that caused the conflict. */
   conflictType: 'modified' | 'deleted' | 'created';
+  /** ISO timestamp of when the conflict was detected. */
   detectedAt: string;
 }
 
+/**
+ * Options controlling how profile synchronization is performed.
+ */
 export interface SyncOptions {
+  /** The synchronization transport to use. */
   method?: 'git' | 'cloud' | 'local';
+  /** Git remote name or URL to sync with. */
   remote?: string;
+  /** Git branch to sync with. */
   branch?: string;
+  /** Whether to force the operation without interactive prompts. */
   force?: boolean;
+  /** Strategy for resolving conflicts between local and remote profiles. */
   strategy?: 'local' | 'remote' | 'merge' | 'manual';
+  /** Whether to output results in JSON format. */
   json?: boolean;
 }
 
 /**
- * Export profiles to a sync directory
+ * Export one or more profiles to a sync directory as YAML files.
+ *
+ * @param profileNames - Optional list of profile names to export; defaults to all profiles.
+ * @param options - Optional settings controlling the export destination and metadata.
+ * @param options.outputPath - Directory to write exported profiles to.
+ * @param options.includeMetadata - Whether to write accompanying `.meta.json` files.
+ * @returns Resolves once all profiles have been exported.
  */
 export async function exportProfiles(
   profileNames?: string[],
@@ -122,7 +151,14 @@ export async function exportProfiles(
 }
 
 /**
- * Import profiles from a sync directory
+ * Import profiles from a sync directory, resolving conflicts as needed.
+ *
+ * @param sourcePath - Directory to read profile YAML files from; defaults to the local sync directory.
+ * @param options - Optional settings controlling import behavior.
+ * @param options.overwrite - Whether to overwrite existing profiles without prompting.
+ * @param options.merge - Whether to merge imported profiles with existing ones.
+ * @param options.strategy - Strategy for resolving conflicts when profiles differ.
+ * @returns Resolves once all profiles have been imported and saved.
  */
 export async function importProfiles(
   sourcePath?: string,
@@ -251,7 +287,10 @@ export async function importProfiles(
 }
 
 /**
- * Sync profiles via Git
+ * Synchronize profiles using a Git remote repository.
+ *
+ * @param options - Configuration controlling the Git sync behavior.
+ * @returns Resolves when the Git synchronization flow completes.
  */
 export async function syncProfilesGit(options: SyncOptions = {}): Promise<void> {
   const syncPath = path.join(process.cwd(), SYNC_DIR);
@@ -352,7 +391,10 @@ export async function syncProfilesGit(options: SyncOptions = {}): Promise<void> 
 }
 
 /**
- * Sync profiles to local directory
+ * Synchronize profiles to a local directory without a remote repository.
+ *
+ * @param options - Configuration controlling the local sync behavior.
+ * @returns Resolves when the local synchronization completes.
  */
 export async function syncProfilesLocal(options: SyncOptions = {}): Promise<void> {
   const syncPath = path.join(process.cwd(), SYNC_DIR, 'profiles');
@@ -373,7 +415,10 @@ export async function syncProfilesLocal(options: SyncOptions = {}): Promise<void
 }
 
 /**
- * Show sync status
+ * Display the current profile synchronization status, including synced
+ * profiles, last sync metadata, pending conflicts, and Git state.
+ *
+ * @returns Resolves once the status information has been printed.
  */
 export async function showSyncStatus(): Promise<void> {
   const syncPath = path.join(process.cwd(), SYNC_DIR);
@@ -424,7 +469,9 @@ export async function showSyncStatus(): Promise<void> {
 }
 
 /**
- * Resolve conflicts interactively
+ * Interactively resolve pending profile conflicts recorded in sync metadata.
+ *
+ * @returns Resolves once all conflicts have been processed and metadata updated.
  */
 export async function resolveConflicts(): Promise<void> {
   const metadataPath = path.join(process.cwd(), SYNC_METADATA_FILE);

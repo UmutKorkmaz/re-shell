@@ -12,6 +12,7 @@ import { configManager } from '../utils/config';
 
 let signalReceived: string | null = null;
 
+/** Options for the `init` command. */
 interface InitOptions {
   packageManager?: 'npm' | 'yarn' | 'pnpm' | 'bun';
   structure?: Partial<typeof DEFAULT_MONOREPO_STRUCTURE>;
@@ -51,7 +52,11 @@ const TEMPLATES = {
 };
 
 /**
- * Wrapper around inquirer prompts
+ * Wrapper around inquirer prompts that optionally logs debug information.
+ *
+ * @param questions - Array of inquirer question definitions.
+ * @param options - Debug options.
+ * @returns The prompt answers typed as `T`.
  */
 async function safePrompt<T = Record<string, unknown>>(questions: DistinctQuestion<Record<string, unknown>>[], options: { debug?: boolean } = {}): Promise<T> {
   if (options.debug) {
@@ -67,7 +72,11 @@ async function safePrompt<T = Record<string, unknown>>(questions: DistinctQuesti
   return result;
 }
 
-// Helper functions
+/**
+ * Check that the system meets the minimum requirements (Node.js version, git).
+ *
+ * @returns An object with `errors` (blocking) and `warnings` (non-blocking) arrays.
+ */
 async function checkSystemRequirements(): Promise<{ errors: string[]; warnings: string[] }> {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -100,6 +109,11 @@ async function checkSystemRequirements(): Promise<{ errors: string[]; warnings: 
   return { errors, warnings };
 }
 
+/**
+ * Detect the best available package manager by checking lockfiles and CLI availability.
+ *
+ * @returns The detected package manager identifier.
+ */
 async function detectPackageManager(): Promise<'npm' | 'yarn' | 'pnpm' | 'bun'> {
   // Check for lockfiles in current directory (parallel checks)
   const lockfileChecks = await Promise.all([
@@ -174,12 +188,24 @@ async function detectPackageManager(): Promise<'npm' | 'yarn' | 'pnpm' | 'bun'> 
   return 'npm';
 }
 
+/**
+ * Save an init preset configuration to the user's config directory.
+ *
+ * @param name - Preset name.
+ * @param config - Preset configuration object.
+ */
 async function savePreset(name: string, config: Record<string, unknown>): Promise<void> {
   const presetsDir = path.join(os.homedir(), '.re-shell', 'presets');
   await fs.ensureDir(presetsDir);
   await fs.writeJSON(path.join(presetsDir, `${name}.json`), config, { spaces: 2 });
 }
 
+/**
+ * Load a previously saved init preset by name.
+ *
+ * @param name - Preset name.
+ * @returns The preset configuration, or `null` if it does not exist.
+ */
 async function loadPreset(name: string): Promise<unknown> {
   const presetsDir = path.join(os.homedir(), '.re-shell', 'presets');
   const presetPath = path.join(presetsDir, `${name}.json`);
@@ -190,10 +216,14 @@ async function loadPreset(name: string): Promise<unknown> {
 }
 
 /**
- * Initialize a new monorepo workspace with Re-Shell CLI
+ * Initialize a new monorepo workspace with Re-Shell CLI.
  *
- * @param name - Name of the monorepo
- * @param options - Initialization options
+ * Performs system requirement checks, detects or prompts for a package manager,
+ * creates the monorepo directory structure, optionally applies a starter
+ * template, and installs dependencies.
+ *
+ * @param name - Name of the monorepo (used as the project directory name).
+ * @param options - Initialization options (package manager, template, git, etc.).
  */
 export async function initMonorepo(name: string, options: InitOptions = {}): Promise<void> {
   // Register signal handlers for this command
@@ -844,6 +874,14 @@ out/
   }
 }
 
+/**
+ * Apply a starter template (blank, ecommerce, dashboard, saas) to the newly
+ * created monorepo by writing additional config files and installing deps.
+ *
+ * @param projectPath - Absolute path to the project root.
+ * @param template - Template key from {@link TEMPLATES}.
+ * @param options - Package manager and structure overrides.
+ */
 async function applyTemplate(projectPath: string, template: string, options: { packageManager?: string; structure?: { apps?: string; packages?: string } }): Promise<void> {
   const templateConfig = TEMPLATES[template as keyof typeof TEMPLATES];
   if (!templateConfig) return;
@@ -978,6 +1016,13 @@ ${
   await fs.writeFile(readmePath, templateReadme);
 }
 
+/**
+ * Create additional configuration files (tsconfig, eslint, .gitignore, CI, etc.)
+ * in the project after the monorepo structure is initialized.
+ *
+ * @param projectPath - Absolute path to the project root.
+ * @param options - Package manager, git, submodules, template, and structure info.
+ */
 async function createAdditionalConfigs(
   projectPath: string,
   options: { packageManager: string; git: boolean; submodules: boolean; template?: string; structure?: Record<string, unknown> }
