@@ -15,113 +15,195 @@ import type { ValidationResult, ValidationError } from '../parsers/workspace-par
 
 const execAsync = promisify(exec);
 
+/** Options for the `workspace list` command. */
 interface WorkspaceListOptions {
+  /** Whether to output results as a JSON envelope. */
   json?: boolean;
+  /** Filter workspaces by type (app, package, lib, or tool). */
   type?: 'app' | 'package' | 'lib' | 'tool';
+  /** Filter workspaces by framework name. */
   framework?: string;
+  /** Optional progress spinner for status updates. */
   spinner?: ProgressSpinner;
 }
 
+/** Options for the `workspace update` command. */
 interface WorkspaceUpdateOptions {
+  /** Name or path fragment of a specific workspace to update. */
   workspace?: string;
+  /** Name of a single dependency to update (requires `version`). */
   dependency?: string;
+  /** Target version for the dependency being updated. */
   version?: string;
+  /** Whether to save the dependency as a dev dependency. */
   dev?: boolean;
+  /** Optional progress spinner for status updates. */
   spinner?: ProgressSpinner;
 }
 
+/** Options for the `workspace graph` command. */
 interface WorkspaceGraphOptions {
+  /** File path to write the graph output to (defaults to stdout). */
   output?: string;
+  /** Output format: text, json, mermaid, svg, or d3. */
   format?: 'text' | 'json' | 'mermaid' | 'svg' | 'd3';
+  /** Whether to output results as a JSON envelope. */
   json?: boolean;
+  /** Optional progress spinner for status updates. */
   spinner?: ProgressSpinner;
 }
 
+/** Options for the `workspace init` command. */
 interface WorkspaceInitOptions {
+  /** Optional progress spinner for status updates. */
   spinner?: ProgressSpinner;
+  /** Whether to skip interactive prompts and use defaults. */
   yes?: boolean;
+  /** Whether to output results as a JSON envelope. */
   json?: boolean;
 }
 
+/** Options for the `workspace validate` command. */
 interface WorkspaceValidateOptions {
+  /** Optional progress spinner for status updates. */
   spinner?: ProgressSpinner;
+  /** Whether to attempt automatic fixes for detected issues. */
   fix?: boolean;
+  /** Whether to output results as a JSON envelope. */
   json?: boolean;
+  /** Whether to watch the config file and re-validate on changes. */
   watch?: boolean;
+  /** Custom path to the workspace config file. */
   config?: string;
 }
 
+/** Options for the `workspace health` command. */
 interface WorkspaceHealthOptions {
+  /** Optional progress spinner for status updates. */
   spinner?: ProgressSpinner;
+  /** Whether to output results as a JSON envelope. */
   json?: boolean;
+  /** Whether to show detailed information for each check. */
   verbose?: boolean;
+  /** Whether to include remediation suggestions in the output. */
   explain?: boolean;
 }
 
+/** Options for the `workspace migrate` command. */
 interface WorkspaceMigrateOptions {
+  /** Optional progress spinner for status updates. */
   spinner?: ProgressSpinner;
+  /** Target configuration version to migrate to. */
   to?: string;
+  /** Whether to preview changes without applying them. */
   dryRun?: boolean;
+  /** Whether to create a backup of the config before migrating. */
   backup?: boolean;
+  /** Custom path to the workspace config file. */
   config?: string;
 }
 
+/** Options for the `workspace optimize` command. */
 interface WorkspaceOptimizeOptions {
+  /** Optional progress spinner for status updates. */
   spinner?: ProgressSpinner;
+  /** Filter recommendations by optimization type. */
   type?: string;
+  /** Filter recommendations by severity level. */
   severity?: string;
+  /** Whether to apply available automated fixes. */
   fix?: boolean;
+  /** Whether to output results as a JSON envelope. */
   json?: boolean;
+  /** Whether to show detailed information for each recommendation. */
   verbose?: boolean;
+  /** Custom path to the workspace config file. */
   config?: string;
 }
 
+/** Options for the `workspace template` command. */
 interface WorkspaceTemplateOptions {
+  /** Optional progress spinner for status updates. */
   spinner?: ProgressSpinner;
+  /** Template subcommand action: list, show, create, validate, export, import, delete, chain. */
   action?: string;
+  /** Identifier of the template to operate on. */
   templateId?: string;
+  /** Path to a file for import/export operations. */
   filePath?: string;
+  /** Output path for export operations. */
   output?: string;
+  /** Whether to output results as a JSON envelope. */
   json?: boolean;
+  /** Name for a new template being created. */
   name?: string;
+  /** Description for a new template being created. */
   description?: string;
+  /** Type classification for a new template. */
   type?: string;
 }
 
+/** Represents a detected service during project structure scanning. */
 interface ServiceDetection {
+  /** Service name (typically the directory name). */
   name: string;
+  /** Relative path from the monorepo root. */
   path: string;
+  /** Service category: frontend, backend, etc. */
   type: string;
+  /** Primary language: typescript, javascript, python, etc. */
   language: string;
+  /** Framework used by the service: react, vue, express, etc. */
   framework: string;
 }
 
+/** Type and language information detected for a service directory. */
 interface ServiceTypeInfo {
+  /** Service category: frontend, backend, etc. */
   type: string;
+  /** Primary language: typescript, javascript, python, etc. */
   language: string;
+  /** Framework used by the service: react, vue, express, etc. */
   framework: string;
 }
 
+/** Result of scanning the project root for languages, frameworks, and services. */
 interface ProjectDetection {
+  /** Whether a package.json file was found. */
   hasPackageJson: boolean;
+  /** Whether Python project files were found. */
   hasPython: boolean;
+  /** Whether a go.mod file was found. */
   hasGo: boolean;
+  /** Whether a Cargo.toml file was found. */
   hasRust: boolean;
+  /** Whether Java/Kotlin build files were found. */
   hasJava: boolean;
+  /** Whether a Dockerfile was found. */
   hasDocker: boolean;
+  /** List of detected framework identifiers. */
   frameworks: string[];
+  /** Services discovered in apps/, packages/, and services/ directories. */
   services: ServiceDetection[];
 }
 
+/** User responses collected during the interactive setup wizard. */
 interface SetupResponses {
+  /** Workspace name entered by the user. */
   name: string;
+  /** Optional workspace description. */
   description?: string;
+  /** Chosen configuration schema version. */
   version: string;
+  /** Whether to include detected services in the generated config. */
   includeServices?: boolean;
 }
 
 /**
- * List all workspaces in the monorepo
+ * List all workspaces in the monorepo, optionally filtered by type or framework.
+ *
+ * @param options - Filtering and output configuration.
+ * @returns Resolves when the workspaces have been listed.
  */
 export async function listWorkspaces(options: WorkspaceListOptions = {}): Promise<void> {
   const restoreJson = options.json ? enableJsonMode() : () => {};
@@ -230,7 +312,10 @@ export async function listWorkspaces(options: WorkspaceListOptions = {}): Promis
 }
 
 /**
- * Update dependencies across workspaces
+ * Update dependencies across one or all workspaces in the monorepo.
+ *
+ * @param options - Update scope and dependency targeting configuration.
+ * @returns Resolves when the dependency updates are complete.
  */
 export async function updateWorkspaces(options: WorkspaceUpdateOptions = {}): Promise<void> {
   const { spinner } = options;
@@ -350,7 +435,10 @@ async function updateSingleWorkspace(
 }
 
 /**
- * Generate workspace dependency graph
+ * Generate and display a workspace dependency graph in the requested format.
+ *
+ * @param options - Output format, destination, and spinner configuration.
+ * @returns Resolves when the graph has been generated and output.
  */
 export async function generateWorkspaceGraph(options: WorkspaceGraphOptions = {}): Promise<void> {
   const restoreJson = options.format === 'json' && !options.output ? enableJsonMode() : () => {};
@@ -495,15 +583,23 @@ async function buildDependencyGraph(workspaces: WorkspaceInfo[], rootPath: strin
   return graph;
 }
 
+/** A single workspace node in the consumer contract graph. */
 interface ContractGraphNode {
+  /** Workspace package name. */
   name: string;
+  /** Relative path from the monorepo root. */
   path: string;
+  /** Framework identifier, or null if none was detected. */
   framework: string | null;
+  /** Internal workspace-to-workspace dependency names. */
   dependencies: string[];
 }
 
+/** Consumer-facing graph shape split into apps and services. */
 interface ContractGraph {
+  /** Workspaces classified as applications (type === 'app'). */
   apps: ContractGraphNode[];
+  /** All other workspaces (packages, libs, tools). */
   services: ContractGraphNode[];
 }
 
@@ -541,21 +637,33 @@ function buildContractGraph(
   return { apps, services };
 }
 
+/** A node in the internal dependency graph representing a workspace. */
 interface GraphNode {
+  /** Unique workspace name. */
   id: string;
+  /** Workspace type: app, package, lib, or tool. */
   type: string;
+  /** Framework identifier if detected. */
   framework?: string | null;
+  /** Relative path from the monorepo root. */
   path?: string;
 }
 
+/** A directed edge between two workspaces in the dependency graph. */
 interface GraphEdge {
+  /** Name of the workspace that declares the dependency. */
   from: string;
+  /** Name of the workspace being depended upon. */
   to: string;
+  /** Whether this is a production or dev dependency. */
   type: 'dependency' | 'devDependency';
 }
 
+/** Complete dependency graph composed of workspace nodes and dependency edges. */
 interface DependencyGraph {
+  /** All workspace nodes in the graph. */
   nodes: GraphNode[];
+  /** All dependency edges connecting the nodes. */
   edges: GraphEdge[];
 }
 
@@ -796,15 +904,23 @@ async function detectPackageManager(rootPath: string): Promise<'npm' | 'yarn' | 
  * normalized health pass into a single object for UI/CI consumers.
  */
 export interface WorkspaceSummary {
+  /** Absolute path to the monorepo root. */
   root: string;
+  /** Detected package manager based on lock file presence. */
   packageManager: 'npm' | 'yarn' | 'pnpm';
+  /** Discovered workspace packages. */
   workspaces: WorkspaceInfo[];
+  /** Consumer contract graph of apps and services. */
   graph: ContractGraph;
+  /** Normalized health status for the workspace. */
   health: CanonicalHealth;
 }
 
+/** Options for producing a workspace summary. */
 interface WorkspaceSummaryOptions {
+  /** Whether to output the summary as a JSON envelope. */
   json?: boolean;
+  /** Optional progress spinner for status updates. */
   spinner?: ProgressSpinner;
 }
 
@@ -833,6 +949,12 @@ async function createWorkspaceSummary(monorepoRoot: string): Promise<WorkspaceSu
   };
 }
 
+/**
+ * Build an aggregate workspace summary starting from the given path.
+ *
+ * @param startPath - Directory to begin searching for the monorepo root from.
+ * @returns A {@link WorkspaceSummary} containing workspaces, graph, and health.
+ */
 export async function buildWorkspaceSummary(startPath: string = process.cwd()): Promise<WorkspaceSummary> {
   const monorepoRoot = await findMonorepoRoot(startPath);
   if (!monorepoRoot) {
@@ -848,6 +970,9 @@ export async function buildWorkspaceSummary(startPath: string = process.cwd()): 
  * pass and {@link normalizeHealth} mapping that powers the `workspace summary`
  * --json surface, so callers (e.g. the TUI) get the real, scoped health for a
  * single workspace config rather than the whole discovered monorepo.
+ *
+ * @param configPath - Absolute path to the re-shell.workspaces.yaml file.
+ * @returns A normalized {@link CanonicalHealth} object for the config.
  */
 export async function buildConfigHealth(configPath: string): Promise<CanonicalHealth> {
   const healthChecks = await runHealthChecks(configPath);
@@ -866,6 +991,9 @@ export async function buildConfigHealth(configPath: string): Promise<CanonicalHe
  * projection ({@link buildContractGraph}), and a P2-06 health pass normalized
  * via {@link normalizeHealth}. When not inside a monorepo it emits an error
  * envelope (and sets a non-zero exit via {@link fail}).
+ *
+ * @param options - JSON output and spinner configuration.
+ * @returns Resolves when the summary has been emitted.
  */
 export async function produceWorkspaceSummary(
   options: WorkspaceSummaryOptions = {}
@@ -910,7 +1038,10 @@ export async function produceWorkspaceSummary(
 }
 
 /**
- * Initialize a new workspace configuration
+ * Initialize a new workspace configuration via an interactive setup wizard.
+ *
+ * @param options - Spinner, non-interactive mode, and JSON output options.
+ * @returns Resolves when the workspace config file has been created.
  */
 export async function initWorkspace(options: WorkspaceInitOptions = {}): Promise<void> {
   const { spinner, yes = false } = options;
@@ -1230,7 +1361,10 @@ function showNextSteps(responses: SetupResponses): void {
 }
 
 /**
- * Validate workspace configuration
+ * Validate the workspace configuration file for syntax, schema, and topology issues.
+ *
+ * @param options - Fix, watch, JSON output, and spinner configuration.
+ * @returns Resolves when validation is complete (exits with code 1 on failure).
  */
 export async function validateWorkspaceConfig(options: WorkspaceValidateOptions = {}): Promise<void> {
   const { spinner, fix = false, json = false, watch = false } = options;
@@ -1571,7 +1705,10 @@ async function attemptAutoFix(result: ValidationResult, configPath: string): Pro
 }
 
 /**
- * Check workspace health
+ * Run health checks against the workspace and display the results.
+ *
+ * @param options - Verbose, explain, JSON output, and spinner configuration.
+ * @returns Resolves when health checks have been displayed.
  */
 export async function checkWorkspaceHealth(options: WorkspaceHealthOptions = {}): Promise<void> {
   const { spinner, json = false, verbose = false, explain = false } = options;
@@ -1654,10 +1791,15 @@ export async function checkWorkspaceHealth(options: WorkspaceHealthOptions = {})
   }
 }
 
+/** Result of a single workspace health check. */
 interface HealthCheck {
+  /** Human-readable name of the check (e.g. "Config File", "Services"). */
   name: string;
+  /** Severity level of the check result. */
   status: 'healthy' | 'warning' | 'critical';
+  /** Short summary message describing the result. */
   message: string;
+  /** Optional additional detail lines for verbose output. */
   details?: string[];
 }
 
@@ -2100,7 +2242,10 @@ function displayHealthResults(
 }
 
 /**
- * Migrate workspace configuration
+ * Migrate the workspace configuration from one schema version to another.
+ *
+ * @param options - Target version, dry-run, backup, and spinner configuration.
+ * @returns Resolves when the migration has been completed or previewed.
  */
 export async function migrateWorkspace(options: WorkspaceMigrateOptions = {}): Promise<void> {
   const { spinner, to, dryRun = false, backup = true } = options;
@@ -2443,7 +2588,10 @@ async function performMigration(
 }
 
 /**
- * Optimize workspace configuration
+ * Analyze the workspace configuration and display optimization recommendations.
+ *
+ * @param options - Filter, fix, verbose, JSON output, and spinner configuration.
+ * @returns Resolves when optimization analysis is complete.
  */
 export async function optimizeWorkspace(options: WorkspaceOptimizeOptions = {}): Promise<void> {
   const { spinner, type, severity, fix = false, json = false, verbose = false } = options;
@@ -2631,7 +2779,10 @@ export async function optimizeWorkspace(options: WorkspaceOptimizeOptions = {}):
 }
 
 /**
- * Template management subcommands
+ * Dispatch a template management subcommand (list, show, create, validate, etc.).
+ *
+ * @param options - Action, template ID, file paths, and output configuration.
+ * @returns Resolves when the requested template action is complete.
  */
 export async function manageWorkspaceTemplates(options: WorkspaceTemplateOptions = {}): Promise<void> {
   const { spinner, action = 'list', templateId, filePath, output, json = false } = options;

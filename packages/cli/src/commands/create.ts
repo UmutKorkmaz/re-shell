@@ -77,6 +77,10 @@ import { AnalogTemplate } from '../templates/frontend/analog';
 import { BaseTemplate, TemplateContext } from '../templates/index';
 import { ProgressSpinner, flushOutput } from '../utils/spinner';
 
+/**
+ * Options accepted by the `createProject` command, covering team/org metadata,
+ * framework selections, workspace type, and operational flags like `dryRun`.
+ */
 interface CreateProjectOptions {
   team?: string;
   org?: string;
@@ -199,6 +203,13 @@ export async function createProject(name: string, options: CreateProjectOptions)
   }
 }
 
+/**
+ * Prints a dry-run preview of the project layout without creating any files.
+ *
+ * @param name - The project name provided by the user.
+ * @param options - The full options object received from the CLI.
+ * @param monorepoRoot - Detected monorepo root, if running inside one.
+ */
 function previewProjectCreation(
   name: string,
   options: CreateProjectOptions,
@@ -515,7 +526,10 @@ async function createPolyglotProject(
 }
 
 /**
- * Get an icon for a programming language
+ * Get an icon (emoji) for a programming language.
+ *
+ * @param language - The programming language name (case-sensitive).
+ * @returns The emoji icon for the language, or a default package icon.
  */
 function getServiceIcon(language: string): string {
   const icons: Record<string, string> = {
@@ -765,7 +779,10 @@ async function createMicrofrontendProject(
 }
 
 /**
- * Generate microfrontend project files with Module Federation
+ * Generate microfrontend project files with Module Federation.
+ *
+ * @param projectPath - Root directory where the project will be created.
+ * @param config - Microfrontend project configuration (shell, remotes, shared deps).
  */
 async function generateMicrofrontendProjectFiles(
   projectPath: string,
@@ -840,7 +857,10 @@ async function generateMicrofrontendProjectFiles(
 }
 
 /**
- * Generate shared package for utilities and types
+ * Generate shared package for utilities and types.
+ *
+ * @param sharedPath - Directory where the shared package will be created.
+ * @param config - Microfrontend project configuration.
  */
 async function generateSharedPackage(sharedPath: string, config: MicrofrontendConfig): Promise<void> {
   const { normalizedName } = config;
@@ -929,7 +949,10 @@ ${config.remotes.map((r) => `  { path: '${r.route}', label: '${toPascalCase(r.na
 }
 
 /**
- * Generate shell application with Module Federation
+ * Generate shell application with Module Federation.
+ *
+ * @param shellPath - Directory where the shell application will be created.
+ * @param config - Microfrontend project configuration.
  */
 async function generateShellApp(shellPath: string, config: MicrofrontendConfig): Promise<void> {
   const { shellFramework, remotes, sharedDeps } = config;
@@ -979,7 +1002,13 @@ async function generateShellApp(shellPath: string, config: MicrofrontendConfig):
 }
 
 /**
- * Create Module Federation shell template
+ * Create a Module Federation shell template instance.
+ *
+ * @param framework - Framework identifier (e.g. 'react-module-federation').
+ * @param context - Template context used for file generation.
+ * @param remotes - List of remote microfrontend entries.
+ * @param sharedDeps - Dependencies shared as singletons across all apps.
+ * @returns A `BaseTemplate` subclass configured as a Module Federation shell.
  */
 function createMfShellTemplate(
   framework: string,
@@ -1005,7 +1034,10 @@ function createMfShellTemplate(
 }
 
 /**
- * Generate shell routing configuration
+ * Generate shell routing configuration.
+ *
+ * @param shellPath - Directory where the shell application is located.
+ * @param config - Microfrontend project configuration.
  */
 async function generateShellRouting(shellPath: string, config: MicrofrontendConfig): Promise<void> {
   const { shellFramework} = config;
@@ -1020,7 +1052,10 @@ async function generateShellRouting(shellPath: string, config: MicrofrontendConf
 }
 
 /**
- * Generate React routing for shell
+ * Generate React routing for the shell application.
+ *
+ * @param config - Microfrontend project configuration.
+ * @returns JSX/TSX routing source code as a string.
  */
 function generateReactRouting(config: MicrofrontendConfig): string {
   const { remotes } = config;
@@ -1055,7 +1090,10 @@ ${remotes.map((r) => `          <Route path="${r.route}" element={<${toPascalCas
 }
 
 /**
- * Generate Vue routing for shell
+ * Generate Vue routing for the shell application.
+ *
+ * @param config - Microfrontend project configuration.
+ * @returns Vue Router source code as a string.
  */
 function generateVueRouting(config: MicrofrontendConfig): string {
   const { remotes } = config;
@@ -1085,7 +1123,11 @@ export default createRouter({
 }
 
 /**
- * Generate remote microfrontend application
+ * Generate a remote microfrontend application.
+ *
+ * @param remotePath - Directory where the remote will be created.
+ * @param remote - Remote microfrontend metadata.
+ * @param config - Microfrontend project configuration.
  */
 async function generateRemoteApp(
   remotePath: string,
@@ -1134,7 +1176,13 @@ async function generateRemoteApp(
 }
 
 /**
- * Create Module Federation remote template
+ * Create a Module Federation remote template instance.
+ *
+ * @param framework - Framework identifier (e.g. 'react-module-federation').
+ * @param context - Template context used for file generation.
+ * @param remote - Remote microfrontend metadata.
+ * @param sharedDeps - Dependencies shared as singletons across all apps.
+ * @returns A `BaseTemplate` subclass configured as a Module Federation remote.
  */
 function createMfRemoteTemplate(
   framework: string,
@@ -1159,7 +1207,10 @@ function createMfRemoteTemplate(
 }
 
 /**
- * Generate microfrontend README
+ * Generate the README.md for a microfrontend project.
+ *
+ * @param projectPath - Root directory of the project.
+ * @param config - Microfrontend project configuration.
  */
 async function generateMicrofrontendReadme(projectPath: string, config: MicrofrontendConfig): Promise<void> {
   const { shellFramework, remotes, normalizedName } = config;
@@ -1335,7 +1386,10 @@ Generated with ❤️ by [Re-Shell CLI](https://github.com/umutkorkmaz/re-shell-
 }
 
 /**
- * Generate polyglot project files
+ * Generate polyglot project files including services, gateway, frontend, and README.
+ *
+ * @param projectPath - Root directory where the project will be created.
+ * @param config - Polyglot project configuration.
  */
 async function generatePolyglotProjectFiles(
   projectPath: string,
@@ -1422,7 +1476,10 @@ async function generatePolyglotProjectFiles(
 }
 
 /**
- * Generate Docker Compose configuration for polyglot project
+ * Generate Docker Compose configuration for a polyglot project.
+ *
+ * @param config - Polyglot project configuration.
+ * @returns Docker Compose YAML as a string.
  */
 function generateDockerCompose(config: PolyglotConfig): string {
   const { services, database} = config;
@@ -1507,7 +1564,11 @@ volumes:
 }
 
 /**
- * Generate shared types package
+ * Generate a shared types package containing TypeScript interfaces and types.
+ *
+ * @param sharedPath - Directory where the shared package will be created.
+ * @param config - Polyglot project configuration.
+ * @param db - Database type identifier.
  */
 async function generateSharedTypes(sharedPath: string, config: PolyglotConfig, db: string): Promise<void> {
   const sharedPackageJson = {
@@ -1589,7 +1650,10 @@ export interface ${toPascalCase(s.name)}Response {
 }
 
 /**
- * Generate API Gateway
+ * Generate the API Gateway (Node.js or proxy-based) for the polyglot project.
+ *
+ * @param gatewayPath - Directory where the gateway will be created.
+ * @param config - Polyglot project configuration.
  */
 async function generateApiGateway(gatewayPath: string, config: PolyglotConfig): Promise<void> {
   const { gatewayFramework} = config;
@@ -1603,7 +1667,10 @@ async function generateApiGateway(gatewayPath: string, config: PolyglotConfig): 
 }
 
 /**
- * Generate Node.js API Gateway (Express/Fastify/NestJS)
+ * Generate a Node.js API Gateway (Express, Fastify, or NestJS).
+ *
+ * @param gatewayPath - Directory where the gateway will be created.
+ * @param config - Polyglot project configuration.
  */
 async function generateNodeGateway(gatewayPath: string, config: PolyglotConfig): Promise<void> {
   const { gatewayFramework, services, normalizedName } = config;
@@ -1677,7 +1744,10 @@ ${services.map((s) => `${s.name.toUpperCase()}_SERVICE_URL=http://${s.name}:${s.
 }
 
 /**
- * Generate Express gateway code
+ * Generate Express gateway source code.
+ *
+ * @param config - Polyglot project configuration.
+ * @returns Express gateway TypeScript source code as a string.
  */
 function generateExpressGateway(config: PolyglotConfig): string {
   const { services } = config;
@@ -1734,7 +1804,10 @@ app.listen(PORT, () => {
 }
 
 /**
- * Generate Fastify gateway code
+ * Generate Fastify gateway source code.
+ *
+ * @param config - Polyglot project configuration.
+ * @returns Fastify gateway TypeScript source code as a string.
  */
 function generateFastifyGateway(config: PolyglotConfig): string {
   const { services } = config;
@@ -1787,7 +1860,10 @@ start();
 }
 
 /**
- * Generate NestJS gateway code
+ * Generate NestJS gateway source code.
+ *
+ * @param config - Polyglot project configuration.
+ * @returns NestJS gateway TypeScript source code as a string.
  */
 function generateNestJSGateway(config: PolyglotConfig): string {
   const { services } = config;
@@ -1832,7 +1908,10 @@ bootstrap();
 }
 
 /**
- * Generate proxy-based gateway (Traefik/Kong config)
+ * Generate a proxy-based gateway (Traefik or Kong configuration files).
+ *
+ * @param gatewayPath - Directory where the gateway will be created.
+ * @param config - Polyglot project configuration.
  */
 async function generateProxyGateway(gatewayPath: string, config: PolyglotConfig): Promise<void> {
   const { gatewayFramework, services} = config;
@@ -1922,7 +2001,11 @@ ${services.map((s) => `
 }
 
 /**
- * Generate a single service
+ * Generate a single polyglot microservice.
+ *
+ * @param servicePath - Directory where the service will be created.
+ * @param service - Service metadata (name, framework, language, port).
+ * @param config - Polyglot project configuration.
  */
 async function generateService(
   servicePath: string,
@@ -1966,7 +2049,11 @@ async function generateService(
 }
 
 /**
- * Generate Dockerfile for a service
+ * Generate a Dockerfile for a polyglot service based on its language.
+ *
+ * @param service - Service metadata (name, language, port).
+ * @param config - Polyglot project configuration.
+ * @returns Dockerfile content as a string.
  */
 function generateServiceDockerfile(service: PolyglotService, config: PolyglotConfig): string {
   const { language } = service;
@@ -2053,7 +2140,11 @@ CMD ["./${service.name}"]
 }
 
 /**
- * Generate frontend application
+ * Generate a frontend application for a polyglot project.
+ *
+ * @param frontendPath - Directory where the frontend will be created.
+ * @param frontendFramework - Framework identifier for the frontend.
+ * @param config - Polyglot project configuration.
  */
 async function generateFrontend(
   frontendPath: string,
@@ -2093,7 +2184,11 @@ async function generateFrontend(
 }
 
 /**
- * Generate API client for services
+ * Generate an API client for communicating with polyglot services through the gateway.
+ *
+ * @param frontendPath - Directory where the frontend is located.
+ * @param config - Polyglot project configuration.
+ * @param frontendFramework - Framework identifier for the frontend.
  */
 async function generateApiClient(
   frontendPath: string,
@@ -2165,7 +2260,10 @@ export const ${camelCase(s.name)}Api = {
 }
 
 /**
- * Generate polyglot project README
+ * Generate the README.md for a polyglot microservices project.
+ *
+ * @param projectPath - Root directory of the project.
+ * @param config - Polyglot project configuration.
  */
 async function generatePolyglotReadme(projectPath: string, config: PolyglotConfig): Promise<void> {
   const { services, gatewayFramework, frontendFramework, database} = config;
@@ -2301,6 +2399,12 @@ Generated with ❤️ by [Re-Shell CLI](https://github.com/umutkorkmaz/re-shell-
 /**
  * Utility functions
  */
+/**
+ * Convert a kebab-case or snake_case string to PascalCase.
+ *
+ * @param str - The input string in kebab-case or snake_case.
+ * @returns The PascalCase version of the string.
+ */
 function toPascalCase(str: string): string {
   return str
     .split(/[-_]/)
@@ -2308,13 +2412,23 @@ function toPascalCase(str: string): string {
     .join('');
 }
 
+/**
+ * Convert a kebab-case or snake_case string to camelCase.
+ *
+ * @param str - The input string in kebab-case or snake_case.
+ * @returns The camelCase version of the string.
+ */
 function camelCase(str: string): string {
   const pascal = toPascalCase(str);
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
 /**
- * Get the primary programming language from frontend/backend selection
+ * Get the primary programming language from frontend/backend selection.
+ *
+ * @param backend - Backend framework identifier, if specified.
+ * @param frontend - Frontend framework identifier, if specified.
+ * @returns The primary programming language, or null if it cannot be determined.
  */
 function getPrimaryLanguage(backend?: string, frontend?: string): string | null {
   if (backend) {
@@ -2337,7 +2451,11 @@ function getPrimaryLanguage(backend?: string, frontend?: string): string | null 
 }
 
 /**
- * Auto-register service in workspace YAML
+ * Auto-register a service in the workspace YAML configuration.
+ *
+ * @param monorepoRoot - Absolute path to the monorepo root.
+ * @param serviceName - Normalized name of the service to register.
+ * @param config - Service metadata including type, frameworks, port, and path.
  */
 async function autoRegisterInWorkspace(
   monorepoRoot: string,
@@ -2414,7 +2532,10 @@ async function autoRegisterInWorkspace(
 }
 
 /**
- * Convert kebab-case to display name
+ * Convert a kebab-case name to a human-readable display name.
+ *
+ * @param name - The kebab-case name to convert.
+ * @returns The display name with each word capitalized and space-separated.
  */
 function toDisplayName(name: string): string {
   return name
@@ -2424,7 +2545,10 @@ function toDisplayName(name: string): string {
 }
 
 /**
- * Detect language from framework string
+ * Detect the programming language from a framework identifier.
+ *
+ * @param framework - Framework identifier (e.g. 'react', 'fastapi', 'gin').
+ * @returns The detected language name (lowercase), defaulting to 'javascript'.
  */
 function detectLanguage(framework?: string): string {
   if (!framework) return 'javascript';
@@ -2457,7 +2581,15 @@ function detectLanguage(framework?: string): string {
 }
 
 /**
- * Creates a new workspace (app/package/lib/tool) in an existing monorepo
+ * Creates a new workspace (app/package/lib/tool) in an existing monorepo.
+ *
+ * Handles interactive prompts for missing options, validates framework
+ * compatibility, generates frontend/backend files, and auto-registers
+ * the service in the workspace YAML.
+ *
+ * @param name - Name of the workspace to create.
+ * @param options - Additional options for workspace creation.
+ * @param monorepoRoot - Detected monorepo root path, if inside a monorepo.
  */
 async function createWorkspace(
   name: string,
@@ -3014,7 +3146,10 @@ async function createWorkspace(
 }
 
 /**
- * Creates a new monorepo project (legacy function for backward compatibility)
+ * Creates a new monorepo project (legacy function for backward compatibility).
+ *
+ * @param name - Name of the monorepo project to create.
+ * @param options - Additional options for project creation.
  */
 async function createMonorepoProject(name: string, options: CreateProjectOptions): Promise<void> {
   const {
@@ -3327,7 +3462,8 @@ For more information, see the [Re-Shell documentation](https://github.com/your-o
 }
 
 /**
- * Backend template context for generating backend files
+ * Backend template context used for placeholder substitution when generating
+ * backend service files.
  */
 interface BackendTemplateContext {
   name: string;
@@ -3340,8 +3476,12 @@ interface BackendTemplateContext {
 }
 
 /**
- * Get backend template choices for interactive prompts
- * Shows popular frameworks first, then all options grouped by language
+ * Get backend template choices for interactive prompts.
+ *
+ * Shows popular frameworks first, then all options grouped by language.
+ *
+ * @returns Array of prompt choices with separators, popular frameworks, and
+ *   all backend frameworks.
  */
 function getBackendTemplateChoices() {
   const popular = getPopularBackendFrameworks();
@@ -3360,7 +3500,15 @@ function getBackendTemplateChoices() {
 }
 
 /**
- * Create files from a backend template
+ * Create files from a backend template.
+ *
+ * Flattens the template's nested file tree, applies placeholder substitution
+ * using the provided context, and optionally merges database configuration
+ * files.
+ *
+ * @param template - The backend template to generate files from.
+ * @param context - Context values used for placeholder substitution and database config.
+ * @returns Array of generated file objects with path, content, and optional executable flag.
  */
 async function createBackendTemplate(
   template: BackendTemplate,
@@ -3407,7 +3555,11 @@ async function createBackendTemplate(
 }
 
 /**
- * Creates appropriate template instance based on framework
+ * Creates the appropriate template instance based on the framework name.
+ *
+ * @param framework - Framework configuration identifying which template to use.
+ * @param context - Template context used for file generation.
+ * @returns An instance of a `BaseTemplate` subclass matching the framework.
  */
 function createTemplate(framework: FrameworkConfig, context: TemplateContext): BaseTemplate {
   switch (framework.name) {
@@ -3506,7 +3658,20 @@ function createTemplate(framework: FrameworkConfig, context: TemplateContext): B
  * These extend the existing Module Federation templates with remote configuration
  */
 
+/**
+ * React Module Federation shell template.
+ *
+ * Extends the base React Module Federation template by injecting the list of
+ * remote microfrontends and shared dependencies into the generated
+ * `webpack.config.js`.
+ */
 class ReactModuleFederationShellTemplate extends ReactModuleFederationTemplate {
+  /**
+   * @param framework - Framework configuration for the shell.
+   * @param context - Template context used for file generation.
+   * @param remotes - List of remote microfrontend entries the shell will load.
+   * @param sharedDeps - Dependencies shared as singletons across all apps.
+   */
   constructor(
     framework: FrameworkConfig,
     context: TemplateContext,
@@ -3516,6 +3681,12 @@ class ReactModuleFederationShellTemplate extends ReactModuleFederationTemplate {
     super(framework, context);
   }
 
+  /**
+   * Generate files for the React shell, overriding the webpack config with
+   * remote and shared dependency configuration.
+   *
+   * @returns Array of generated file objects with path and content.
+   */
   async generateFiles(): Promise<{ path: string; content: string; executable?: boolean }[]> {
     const files = await super.generateFiles();
 
@@ -3581,7 +3752,20 @@ ${sharedConfig}
   }
 }
 
+/**
+ * Vue Module Federation shell template.
+ *
+ * Extends the base Vue Module Federation template by injecting the list of
+ * remote microfrontends and shared dependencies into the generated
+ * `webpack.config.js`.
+ */
 class VueModuleFederationShellTemplate extends VueModuleFederationTemplate {
+  /**
+   * @param framework - Framework configuration for the shell.
+   * @param context - Template context used for file generation.
+   * @param remotes - List of remote microfrontend entries the shell will load.
+   * @param sharedDeps - Dependencies shared as singletons across all apps.
+   */
   constructor(
     framework: FrameworkConfig,
     context: TemplateContext,
@@ -3591,6 +3775,12 @@ class VueModuleFederationShellTemplate extends VueModuleFederationTemplate {
     super(framework, context);
   }
 
+  /**
+   * Generate files for the Vue shell, overriding the webpack config with
+   * remote and shared dependency configuration.
+   *
+   * @returns Array of generated file objects with path and content.
+   */
   async generateFiles(): Promise<{ path: string; content: string; executable?: boolean }[]> {
     const files = await super.generateFiles();
 
@@ -3657,7 +3847,19 @@ ${sharedConfig}
   }
 }
 
+/**
+ * Angular Module Federation shell template.
+ *
+ * Extends the base Angular Module Federation template. Angular uses its own
+ * federation configuration, so file generation is delegated to the parent.
+ */
 class AngularModuleFederationShellTemplate extends AngularModuleFederationTemplate {
+  /**
+   * @param framework - Framework configuration for the shell.
+   * @param context - Template context used for file generation.
+   * @param remotes - List of remote microfrontend entries the shell will load.
+   * @param sharedDeps - Dependencies shared as singletons across all apps.
+   */
   constructor(
     framework: FrameworkConfig,
     context: TemplateContext,
@@ -3667,6 +3869,11 @@ class AngularModuleFederationShellTemplate extends AngularModuleFederationTempla
     super(framework, context);
   }
 
+  /**
+   * Generate files for the Angular shell.
+   *
+   * @returns Array of generated file objects with path and content.
+   */
   async generateFiles(): Promise<{ path: string; content: string; executable?: boolean }[]> {
     const files = await super.generateFiles();
     // Angular uses its own federation config
@@ -3674,7 +3881,20 @@ class AngularModuleFederationShellTemplate extends AngularModuleFederationTempla
   }
 }
 
+/**
+ * Svelte Module Federation shell template.
+ *
+ * Extends the base Svelte Module Federation template by injecting the list of
+ * remote microfrontends and shared dependencies into the generated
+ * `webpack.config.js`.
+ */
 class SvelteModuleFederationShellTemplate extends SvelteModuleFederationTemplate {
+  /**
+   * @param framework - Framework configuration for the shell.
+   * @param context - Template context used for file generation.
+   * @param remotes - List of remote microfrontend entries the shell will load.
+   * @param sharedDeps - Dependencies shared as singletons across all apps.
+   */
   constructor(
     framework: FrameworkConfig,
     context: TemplateContext,
@@ -3684,6 +3904,12 @@ class SvelteModuleFederationShellTemplate extends SvelteModuleFederationTemplate
     super(framework, context);
   }
 
+  /**
+   * Generate files for the Svelte shell, overriding the webpack config with
+   * remote and shared dependency configuration.
+   *
+   * @returns Array of generated file objects with path and content.
+   */
   async generateFiles(): Promise<{ path: string; content: string; executable?: boolean }[]> {
     const files = await super.generateFiles();
 
@@ -3750,7 +3976,20 @@ ${sharedConfig}
  * These extend the existing Module Federation templates with expose configuration
  */
 
+/**
+ * React Module Federation remote template.
+ *
+ * Extends the base React Module Federation template by injecting the remote's
+ * exposed modules and shared dependencies into the generated
+ * `webpack.config.js`.
+ */
 class ReactModuleFederationRemoteTemplate extends ReactModuleFederationTemplate {
+  /**
+   * @param framework - Framework configuration for the remote.
+   * @param context - Template context used for file generation.
+   * @param remote - Remote microfrontend metadata (name, port, exposes).
+   * @param sharedDeps - Dependencies shared as singletons across all apps.
+   */
   constructor(
     framework: FrameworkConfig,
     context: TemplateContext,
@@ -3760,6 +3999,12 @@ class ReactModuleFederationRemoteTemplate extends ReactModuleFederationTemplate 
     super(framework, context);
   }
 
+  /**
+   * Generate files for the React remote, overriding the webpack config with
+   * exposed modules and shared dependency configuration.
+   *
+   * @returns Array of generated file objects with path and content.
+   */
   async generateFiles(): Promise<{ path: string; content: string; executable?: boolean }[]> {
     const files = await super.generateFiles();
 
@@ -3826,7 +4071,20 @@ ${sharedConfig}
   }
 }
 
+/**
+ * Vue Module Federation remote template.
+ *
+ * Extends the base Vue Module Federation template by injecting the remote's
+ * exposed modules and shared dependencies into the generated
+ * `webpack.config.js`.
+ */
 class VueModuleFederationRemoteTemplate extends VueModuleFederationTemplate {
+  /**
+   * @param framework - Framework configuration for the remote.
+   * @param context - Template context used for file generation.
+   * @param remote - Remote microfrontend metadata (name, port, exposes).
+   * @param sharedDeps - Dependencies shared as singletons across all apps.
+   */
   constructor(
     framework: FrameworkConfig,
     context: TemplateContext,
@@ -3836,6 +4094,12 @@ class VueModuleFederationRemoteTemplate extends VueModuleFederationTemplate {
     super(framework, context);
   }
 
+  /**
+   * Generate files for the Vue remote, overriding the webpack config with
+   * exposed modules and shared dependency configuration.
+   *
+   * @returns Array of generated file objects with path and content.
+   */
   async generateFiles(): Promise<{ path: string; content: string; executable?: boolean }[]> {
     const files = await super.generateFiles();
 
@@ -3903,7 +4167,19 @@ ${sharedConfig}
   }
 }
 
+/**
+ * Angular Module Federation remote template.
+ *
+ * Extends the base Angular Module Federation template. Angular uses its own
+ * federation configuration, so file generation is delegated to the parent.
+ */
 class AngularModuleFederationRemoteTemplate extends AngularModuleFederationTemplate {
+  /**
+   * @param framework - Framework configuration for the remote.
+   * @param context - Template context used for file generation.
+   * @param remote - Remote microfrontend metadata (name, port, exposes).
+   * @param sharedDeps - Dependencies shared as singletons across all apps.
+   */
   constructor(
     framework: FrameworkConfig,
     context: TemplateContext,
@@ -3913,6 +4189,11 @@ class AngularModuleFederationRemoteTemplate extends AngularModuleFederationTempl
     super(framework, context);
   }
 
+  /**
+   * Generate files for the Angular remote.
+   *
+   * @returns Array of generated file objects with path and content.
+   */
   async generateFiles(): Promise<{ path: string; content: string; executable?: boolean }[]> {
     const files = await super.generateFiles();
     // Angular uses its own federation config
@@ -3920,7 +4201,20 @@ class AngularModuleFederationRemoteTemplate extends AngularModuleFederationTempl
   }
 }
 
+/**
+ * Svelte Module Federation remote template.
+ *
+ * Extends the base Svelte Module Federation template by injecting the remote's
+ * exposed modules and shared dependencies into the generated
+ * `webpack.config.js`.
+ */
 class SvelteModuleFederationRemoteTemplate extends SvelteModuleFederationTemplate {
+  /**
+   * @param framework - Framework configuration for the remote.
+   * @param context - Template context used for file generation.
+   * @param remote - Remote microfrontend metadata (name, port, exposes).
+   * @param sharedDeps - Dependencies shared as singletons across all apps.
+   */
   constructor(
     framework: FrameworkConfig,
     context: TemplateContext,
@@ -3930,6 +4224,12 @@ class SvelteModuleFederationRemoteTemplate extends SvelteModuleFederationTemplat
     super(framework, context);
   }
 
+  /**
+   * Generate files for the Svelte remote, overriding the webpack config with
+   * exposed modules and shared dependency configuration.
+   *
+   * @returns Array of generated file objects with path and content.
+   */
   async generateFiles(): Promise<{ path: string; content: string; executable?: boolean }[]> {
     const files = await super.generateFiles();
 

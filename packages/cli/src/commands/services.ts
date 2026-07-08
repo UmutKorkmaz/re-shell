@@ -9,7 +9,7 @@ import { glob } from 'glob';
 import type { BackendTemplate } from '../templates/backend/index';
 
 /**
- * Service configuration from docker-compose.yml
+ * Service configuration extracted from a docker-compose.yml file or package.json scripts.
  */
 export interface ServiceConfig {
   name: string;
@@ -32,7 +32,7 @@ export interface ServiceConfig {
 }
 
 /**
- * Process information for running services
+ * Runtime information for a service that is currently running as a process.
  */
 export interface RunningService {
   name: string;
@@ -46,7 +46,7 @@ export interface RunningService {
 }
 
 /**
- * Service dependency graph
+ * Represents a service dependency graph with topologically sorted startup levels.
  */
 export interface ServiceDependencyGraph {
   nodes: Map<string, ServiceConfig>;
@@ -55,7 +55,7 @@ export interface ServiceDependencyGraph {
 }
 
 /**
- * Options for services up command
+ * Options for the `services up` command.
  */
 export interface ServicesUpOptions {
   detached?: boolean;
@@ -69,7 +69,7 @@ export interface ServicesUpOptions {
 }
 
 /**
- * Options for services down command
+ * Options for the `services down` command.
  */
 export interface ServicesDownOptions {
   volumes?: boolean;
@@ -80,7 +80,7 @@ export interface ServicesDownOptions {
 }
 
 /**
- * Options for services health command
+ * Options for the `services health` command.
  */
 export interface ServicesHealthOptions {
   watch?: boolean;
@@ -91,7 +91,10 @@ export interface ServicesHealthOptions {
 }
 
 /**
- * Parse docker-compose.yml to extract service configurations
+ * Parse a docker-compose file (or fall back to package.json scripts) to extract service configurations.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @returns Array of parsed service configurations; empty if none found.
  */
 export async function parseDockerCompose(projectPath: string): Promise<ServiceConfig[]> {
   const composeFiles = [
@@ -209,7 +212,10 @@ async function detectServicesFromPackageJson(projectPath: string): Promise<Servi
 }
 
 /**
- * Build dependency graph from service configurations
+ * Build a dependency graph from service configurations, computing topological startup levels.
+ *
+ * @param services - Array of service configurations to include in the graph.
+ * @returns A dependency graph with nodes, dependency edges, and startup levels.
  */
 export function buildDependencyGraph(services: ServiceConfig[]): ServiceDependencyGraph {
   const nodes = new Map<string, ServiceConfig>();
@@ -271,7 +277,12 @@ export function buildDependencyGraph(services: ServiceConfig[]): ServiceDependen
 }
 
 /**
- * Start services with intelligent dependency resolution
+ * Start services with intelligent dependency resolution, using Docker Compose when available
+ * and falling back to npm scripts otherwise.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param options - Optional configuration for detached mode, build, scale, and more.
+ * @returns Resolves when all services have been started.
  */
 export async function servicesUp(
   projectPath: string,
@@ -478,7 +489,11 @@ async function startServiceProcess(
 }
 
 /**
- * Stop services with graceful shutdown
+ * Stop services with graceful shutdown, using Docker Compose or terminating npm-script processes.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param options - Optional configuration for volume removal, orphan cleanup, and timeouts.
+ * @returns Resolves when all services have been stopped.
  */
 export async function servicesDown(
   projectPath: string,
@@ -560,7 +575,11 @@ async function stopNpmProcesses(
 }
 
 /**
- * Check service health
+ * Check the health status of running services, optionally in watch mode.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param options - Optional configuration for watch mode, interval, and JSON output.
+ * @returns Resolves when the health check (or watch session) completes.
  */
 export async function servicesHealth(
   projectPath: string,
@@ -796,7 +815,12 @@ async function runCommand(
 }
 
 /**
- * Get service logs
+ * Retrieve and display logs for one or all services.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param service - Optional name of a specific service to show logs for.
+ * @param options - Optional configuration for follow mode, tail line count, and verbosity.
+ * @returns Resolves when logs have been retrieved and displayed.
  */
 export async function servicesLogs(
   projectPath: string,
@@ -855,7 +879,12 @@ export async function servicesLogs(
 }
 
 /**
- * Restart a service with zero downtime if possible
+ * Restart a specific service with zero downtime if possible.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param service - Name of the service to restart.
+ * @param options - Optional configuration for timeout, verbosity, and spinner.
+ * @returns Resolves when the service has been restarted.
  */
 export async function servicesRestart(
   projectPath: string,
@@ -898,7 +927,13 @@ export async function servicesRestart(
 }
 
 /**
- * Scale services
+ * Scale a service to a specified number of replicas (Docker Compose only).
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param service - Name of the service to scale.
+ * @param replicas - Target number of service instances.
+ * @param options - Optional configuration for timeout, verbosity, and spinner.
+ * @returns Resolves when the service has been scaled.
  */
 export async function servicesScale(
   projectPath: string,
@@ -932,7 +967,13 @@ export async function servicesScale(
 }
 
 /**
- * Execute command in service container
+ * Execute a command inside a running service container (Docker Compose only).
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param service - Name of the target service container.
+ * @param command - Command and arguments to execute inside the container.
+ * @param options - Optional configuration for interactive mode, verbosity, and spinner.
+ * @returns Resolves when the command has finished executing.
  */
 export async function servicesExec(
   projectPath: string,
@@ -967,7 +1008,7 @@ export async function servicesExec(
 }
 
 /**
- * Service inspection result with detailed metrics
+ * Detailed inspection result for a single service, including status, ports, dependencies, and resource usage.
  */
 export interface ServiceInspection {
   name: string;
@@ -995,7 +1036,12 @@ export interface ServiceInspection {
 }
 
 /**
- * Inspect service with detailed metrics and dependency information
+ * Inspect a service with detailed metrics, ports, health, and dependency information.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param serviceName - Name of the service to inspect.
+ * @param options - Optional configuration for JSON output, verbosity, and spinner.
+ * @returns A detailed inspection object for the requested service.
  */
 export async function servicesInspect(
   projectPath: string,
@@ -1290,7 +1336,7 @@ function displayInspection(inspection: ServiceInspection): void {
 }
 
 /**
- * Migration options
+ * Options for migrating a service from one framework to another.
  */
 export interface ServiceMigrateOptions {
   sourceFramework: string;
@@ -1303,7 +1349,7 @@ export interface ServiceMigrateOptions {
 }
 
 /**
- * Migration plan with steps
+ * A complete migration plan including source/target details, ordered steps, and warnings.
  */
 export interface MigrationPlan {
   source: {
@@ -1324,7 +1370,7 @@ export interface MigrationPlan {
 }
 
 /**
- * Single migration step
+ * A single step within a migration plan, describing files, commands, and whether it requires manual action.
  */
 export interface MigrationStep {
   id: string;
@@ -1336,7 +1382,12 @@ export interface MigrationStep {
 }
 
 /**
- * Migrate service from one framework to another
+ * Migrate a service from one backend framework to another, generating and optionally executing a migration plan.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param serviceName - Name of the service to migrate.
+ * @param options - Migration configuration including source/target frameworks, dry-run, and backup settings.
+ * @returns The generated migration plan with steps and warnings.
  */
 export async function servicesMigrate(
   projectPath: string,
@@ -1692,7 +1743,10 @@ async function executeMigration(projectPath: string, serviceName: string, plan: 
 }
 
 /**
- * List available framework migrations
+ * List available framework migration targets, optionally filtered by a source framework.
+ *
+ * @param sourceFramework - Optional framework ID to show compatible migration targets for.
+ * @returns Resolves when the list has been displayed.
  */
 export async function listMigrationTargets(sourceFramework?: string): Promise<void> {
   const { listBackendTemplates, getBackendTemplate } = await import('../templates/backend/index');
@@ -1738,7 +1792,7 @@ export async function listMigrationTargets(sourceFramework?: string): Promise<vo
 }
 
 /**
- * Service optimization recommendation
+ * A single optimization recommendation for a service, including category, priority, and expected impact.
  */
 export interface OptimizationRecommendation {
   category: 'performance' | 'memory' | 'cpu' | 'security' | 'scalability';
@@ -1752,7 +1806,7 @@ export interface OptimizationRecommendation {
 }
 
 /**
- * Optimization analysis result
+ * Result of an optimization analysis, containing current metrics and a list of recommendations.
  */
 export interface OptimizationAnalysis {
   serviceName: string;
@@ -1950,7 +2004,12 @@ const genericOptimizations: OptimizationRecommendation[] = [
 ];
 
 /**
- * Analyze and optimize service with performance recommendations
+ * Analyze a service for optimization opportunities and optionally apply framework-specific recommendations.
+ *
+ * @param projectPath - Absolute path to the project root directory.
+ * @param serviceName - Name of the service to optimize.
+ * @param options - Optional configuration for framework override, apply mode, and dry-run.
+ * @returns An optimization analysis with current metrics and prioritized recommendations.
  */
 export async function servicesOptimize(
   projectPath: string,
@@ -2122,7 +2181,10 @@ async function applyOptimizations(
 }
 
 /**
- * List all available optimization recommendations
+ * List all available optimization recommendations, optionally filtered to a specific framework.
+ *
+ * @param framework - Optional framework ID to show framework-specific recommendations for.
+ * @returns Resolves when the recommendations have been displayed.
  */
 export async function listOptimizationRecommendations(framework?: string): Promise<void> {
   console.log(chalk.bold('\n🔧 Available Optimizations\n'));
