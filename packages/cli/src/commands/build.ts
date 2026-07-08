@@ -7,9 +7,13 @@ import { ProgressSpinner, flushOutput } from '../utils/spinner';
 
 const execAsync = promisify(exec);
 
+/** Options for building one or all microfrontends. */
 interface BuildOptions {
+  /** When true, set NODE_ENV=production for the build. */
   production?: boolean;
+  /** When true, pass `--analyze` to the build script for bundle analysis. */
   analyze?: boolean;
+  /** Spinner instance to reflect build progress. */
   spinner?: ProgressSpinner;
 }
 

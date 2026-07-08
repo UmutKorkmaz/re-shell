@@ -7,13 +7,21 @@ import { GENERATED_PKG_SCOPE } from '../utils/scope';
 
 const CORE_PKG = `${GENERATED_PKG_SCOPE}/core`;
 
+/** Options for creating a new microfrontend via {@link addMicrofrontend}. */
 interface AddMicrofrontendOptions {
+  /** Team name recorded as the package author. */
   team?: string;
+  /** Organisation scope for the generated package name. Defaults to "re-shell". */
   org?: string;
+  /** Human-readable description written to package.json. */
   description?: string;
+  /** Template to use: "react" or "react-ts". Prompted when omitted. */
   template?: string;
+  /** Route path the microfrontend mounts at (e.g. "/dashboard"). */
   route?: string;
+  /** Dev-server port written into vite config. Defaults to "5173". */
   port?: string;
+  /** Spinner instance paused during interactive prompts. */
   spinner?: ProgressSpinner;
 }
 

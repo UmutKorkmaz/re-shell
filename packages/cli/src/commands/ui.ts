@@ -22,15 +22,25 @@ const UI_APP_PACKAGE_NAMES = new Set([
   ])
 ]);
 
+/** Options accepted by the `re-shell ui` command. */
 export interface UiCommandOptions {
+  /** Explicit path to the dashboard app, forcing vite-dev mode. */
   uiPath?: string;
+  /** Explicit UI root directory override (alias for `uiPath`). */
   uiRoot?: string;
+  /** Workspace directory the dashboard manages. Defaults to `process.cwd()`. */
   workspace?: string;
+  /** Port the dashboard listens on. Defaults to 3333. */
   port?: string;
+  /** Host the dashboard binds to. Defaults to 127.0.0.1. */
   host?: string;
+  /** Package manager to use for vite-dev launches. */
   packageManager?: string;
+  /** When true, print the launch plan and exit without starting servers. */
   dryRun?: boolean;
+  /** When true, emit the launch plan as JSON to stdout. */
   json?: boolean;
+  /** When true, open the dashboard in the default browser after launch. */
   open?: boolean;
 }
 
@@ -43,23 +53,37 @@ export interface UiCommandOptions {
  */
 export type UiLaunchMode = 'static' | 'vite-dev';
 
+/** Fully-resolved launch configuration produced by {@link createUiLaunchPlan}. */
 export interface UiLaunchPlan {
+  /** Selected launch mode. */
   mode: UiLaunchMode;
+  /** Resolved UI root directory. */
   uiRoot: string;
+  /** Resolved dashboard app directory. */
   appPath: string;
   /** In static mode, the bundled dashboard directory (dist/dashboard). */
   dashboardDir?: string;
   /** Path to the hub bundle to spawn with `node` (both modes when available). */
   hubBundlePath?: string;
+  /** Workspace directory the dashboard manages. */
   workspace: string;
+  /** Package manager used for vite-dev launches ("node" in static mode). */
   packageManager: string;
+  /** Executable to spawn for the dashboard process. */
   command: string;
+  /** Arguments passed to {@link UiLaunchPlan.command}. */
   args: string[];
+  /** Full dashboard URL (host + port). */
   url: string;
+  /** Full hub URL (host + hub port). */
   hubUrl: string;
+  /** Port the hub server listens on. */
   hubPort: string;
+  /** Per-launch session token authenticating hub requests. */
   hubToken: string;
+  /** Whether to open the dashboard in a browser after launch. */
   open: boolean;
+  /** Environment variables for the dashboard and hub child processes. */
   env: Record<string, string>;
 }
 
@@ -147,6 +171,14 @@ function resolveCandidate(candidate: string): { uiRoot: string; appPath: string 
   return undefined;
 }
 
+/**
+ * Locate the dashboard app directory across monorepo, standalone-repo, and
+ * explicit-path layouts. Throws when no dashboard can be found.
+ *
+ * @param uiPath - Optional explicit dashboard path override.
+ * @param cwd - Working directory used for relative candidate resolution.
+ * @returns Resolved `{ uiRoot, appPath }` of the discovered dashboard project.
+ */
 export function resolveUiProject(uiPath?: string, cwd = process.cwd()): { uiRoot: string; appPath: string } {
   // In the merged monorepo the dashboard lives at <root>/apps/web. The compiled
   // CLI runs from <root>/packages/cli/dist/commands, so the monorepo root is four
@@ -267,6 +299,14 @@ function openBrowser(url: string): void {
   }
 }
 
+/**
+ * Build the fully-resolved launch plan for the dashboard + hub. Selects between
+ * the bundled static dashboard (installed CLI) and the monorepo vite-dev flow,
+ * normalising host/port, generating a hub token, and assembling the child env.
+ *
+ * @param options - Command-line / programmatic options.
+ * @returns A complete {@link UiLaunchPlan}.
+ */
 export function createUiLaunchPlan(options: UiCommandOptions = {}): UiLaunchPlan {
   ensureSupportedNodeVersion();
 
@@ -580,6 +620,13 @@ async function launchViteDev(plan: UiLaunchPlan): Promise<void> {
   }
 }
 
+/**
+ * Entry point for the `re-shell ui` command. Resolves a launch plan and either
+ * prints it (`--dry-run` / `--json`) or starts the dashboard + hub processes.
+ *
+ * @param options - Command-line / programmatic options.
+ * @returns Resolves once the dashboard process has exited.
+ */
 export async function launchUi(options: UiCommandOptions = {}): Promise<void> {
   const plan = createUiLaunchPlan(options);
 
