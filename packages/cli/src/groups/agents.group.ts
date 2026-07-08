@@ -3,6 +3,10 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import chalk from 'chalk';
 import { createAsyncCommand, processManager } from '../utils/error-handler';
+
+interface AgentsCommandOptions {
+  json?: boolean;
+}
 import { createSpinner, flushOutput } from '../utils/spinner';
 import { enableJsonMode, ok, fail } from '../utils/json-output';
 import { discoverWorkspace } from '../utils/agents-discovery';
@@ -99,7 +103,7 @@ async function detectDrift(
 
 /** Shared init/sync handler: generate, write, then report. */
 function makeWriteAction(program: Command, verb: 'init' | 'sync') {
-  return createAsyncCommand(async (options) => {
+  return createAsyncCommand(async (options: AgentsCommandOptions) => {
     const restoreJson = options.json ? enableJsonMode() : () => {};
     const spinner = options.json
       ? undefined
@@ -173,7 +177,7 @@ export function registerAgentsGroup(program: Command): void {
     .description('Drift check: fail (non-zero) when on-disk docs are stale (for CI)')
     .option('--json', 'Output as JSON')
     .action(
-      createAsyncCommand(async (options) => {
+      createAsyncCommand(async (options: AgentsCommandOptions) => {
         const restoreJson = options.json ? enableJsonMode() : () => {};
         const spinner = options.json
           ? undefined
