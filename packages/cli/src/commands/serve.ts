@@ -5,18 +5,27 @@ import chalk from 'chalk';
 import { ProgressSpinner } from '../utils/spinner';
 import { processManager } from '../utils/error-handler';
 
+/** Options for the `serve` command. */
 interface ServeOptions {
+  /** Port number for the dev server (default: `3000`). */
   port?: string;
+  /** Hostname to bind (default: `localhost`). */
   host?: string;
+  /** Open the browser automatically on start. */
   open?: boolean;
+  /** Optional progress spinner. */
   spinner?: ProgressSpinner;
 }
 
 /**
- * Starts development server for one or all microfrontends
+ * Starts a development server for one or all microfrontends.
  *
- * @param name - Name of the microfrontend to serve (optional, serves all if omitted)
- * @param options - Server options
+ * When a specific microfrontend name is given, starts its dev server in the
+ * `apps/<name>` directory. When no name is provided, starts the workspace-wide
+ * dev command using the detected package manager.
+ *
+ * @param name - Name of the microfrontend to serve (optional, serves all if omitted).
+ * @param options - Server options (port, host, open, spinner).
  * @version 0.1.0
  */
 export async function serveMicrofrontend(name?: string, options: ServeOptions = {}): Promise<void> {
