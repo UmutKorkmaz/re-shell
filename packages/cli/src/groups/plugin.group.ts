@@ -49,6 +49,14 @@ import {
   generateValidationTemplate,
 } from '../commands/plugin-validation';
 
+/**
+ * Registers the `plugin` command group on the given program, exposing plugin
+ * lifecycle management, marketplace, dependency resolution, security scanning,
+ * command registration, middleware, conflict resolution, documentation,
+ * validation, and cache commands.
+ *
+ * @param program - The Commander program to register the plugin command group onto.
+ */
 export function registerPluginGroup(program: Command): void {
   const pluginCommand = new Command('plugin')
     .description('Manage CLI plugins and extensions');

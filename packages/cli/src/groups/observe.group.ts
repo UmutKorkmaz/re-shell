@@ -3,6 +3,13 @@ import { createAsyncCommand } from '../utils/error-handler';
 import { withTimeout } from '../utils/error-handler';
 import chalk from 'chalk';
 
+/**
+ * Registers the `observe` command group on the given program, exposing
+ * observability-related commands such as metrics, tracing, log aggregation,
+ * APM, business metrics, anomaly detection, predictive scaling, and alerting.
+ *
+ * @param program - The Commander program to register the observe command group onto.
+ */
 export function registerObserveGroup(program: Command): void {
   const observe = new Command('observe')
     .description('Metrics, tracing, logging, and performance monitoring');

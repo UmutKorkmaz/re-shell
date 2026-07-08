@@ -1,6 +1,14 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 
+/**
+ * Registers the `data` command group, which provides database migration,
+ * pooling, cache, and ORM utilities including data type conversion, schema
+ * evolution, serialization optimization, compression, lineage tracking,
+ * encryption, format negotiation, and caching strategies.
+ *
+ * @param program - The root Commander program to attach the `data` command group to.
+ */
 export function registerDataGroup(program: Command): void {
   const data = new Command('data')
     .description('Database migration, pooling, cache, and ORM utilities');

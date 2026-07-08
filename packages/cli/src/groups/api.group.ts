@@ -158,6 +158,13 @@ ${fields.map(f => {
   return templates[framework] || `// No schema template for ${framework}`;
 }
 
+/**
+ * Registers the `api` command group, which provides API-related commands
+ * including versioning, gateway setup, analytics, testing, and validation
+ * middleware generation.
+ *
+ * @param program - The root Commander program to attach the `api` command group to.
+ */
 export function registerApiGroup(program: Command): void {
   const api = program.command('api').description('API development tools: OpenAPI, Swagger, versioning, validation, testing, docs, gateway, analytics, and client generation');
 
