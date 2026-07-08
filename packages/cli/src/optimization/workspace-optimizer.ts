@@ -4,6 +4,9 @@
 import { dependencyGraphEngine } from '../graph/dependency-graph-engine';
 
 
+/**
+ * Represents a single optimization recommendation produced by the workspace optimizer.
+ */
 export interface OptimizationRecommendation {
   id: string;
   type: 'performance' | 'structure' | 'security' | 'maintainability' | 'scalability';
@@ -21,6 +24,10 @@ export interface OptimizationRecommendation {
   };
 }
 
+/**
+ * Represents the full optimization report, including recommendations, a summary,
+ * and estimated impact across performance, maintainability, and scalability.
+ */
 export interface OptimizationReport {
   recommendations: OptimizationRecommendation[];
   summary: {
@@ -38,9 +45,17 @@ export interface OptimizationReport {
   };
 }
 
+/**
+ * Analyzes a workspace configuration and generates optimization recommendations
+ * covering circular dependencies, service isolation, resource allocation, naming
+ * conventions, unused dependencies, security practices, and scalability.
+ */
 export class WorkspaceOptimizer {
   /**
-   * Analyze workspace and generate recommendations
+   * Analyze workspace and generate recommendations.
+   *
+   * @param config - The workspace configuration to analyze.
+   * @returns An optimization report containing sorted recommendations, a summary, and estimated impact.
    */
   analyze(config: any): OptimizationReport {
     const recommendations: OptimizationRecommendation[] = [];
@@ -83,7 +98,11 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Apply automated fixes
+   * Apply automated fixes for the specified recommendations.
+   *
+   * @param config - The workspace configuration to apply fixes to.
+   * @param recommendationIds - The IDs of the recommendations whose automated fixes should be applied.
+   * @returns A promise resolving to the updated configuration.
    */
   async applyAutomatedFixes(config: any, recommendationIds: string[]): Promise<unknown> {
     const result = { ...config };
@@ -98,7 +117,10 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Check for circular dependencies
+   * Check for circular dependencies in the workspace graph.
+   *
+   * @param config - The workspace configuration to analyze.
+   * @returns An array of recommendations for detected circular dependencies.
    */
   private checkCircularDependencies(config: any): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
@@ -132,7 +154,10 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Check for service isolation
+   * Check for service isolation issues such as shared databases.
+   *
+   * @param config - The workspace configuration to analyze.
+   * @returns An array of recommendations for service isolation issues.
    */
   private checkServiceIsolation(config: any): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
@@ -174,7 +199,10 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Check for resource optimization
+   * Check for resource optimization issues such as over- or under-provisioned CPU and memory.
+   *
+   * @param config - The workspace configuration to analyze.
+   * @returns An array of recommendations for resource optimization issues.
    */
   private checkResourceOptimization(config: any): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
@@ -247,7 +275,10 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Check for naming conventions
+   * Check that service names follow kebab-case naming conventions.
+   *
+   * @param config - The workspace configuration to analyze.
+   * @returns An array of recommendations for naming convention violations.
    */
   private checkNamingConventions(config: any): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
@@ -285,7 +316,10 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Check for unused dependencies
+   * Check for unused dependencies across services.
+   *
+   * @param config - The workspace configuration to analyze.
+   * @returns An array of recommendations for services with unused dependencies.
    */
   private checkUnusedDependencies(config: any): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
@@ -336,7 +370,10 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Check for security best practices
+   * Check for security best practices such as health checks and authentication.
+   *
+   * @param config - The workspace configuration to analyze.
+   * @returns An array of recommendations for security practice violations.
    */
   private checkSecurityPractices(config: any): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
@@ -395,7 +432,10 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Check for scalability
+   * Check for scalability issues such as missing auto-scaling configuration.
+   *
+   * @param config - The workspace configuration to analyze.
+   * @returns An array of recommendations for scalability issues.
    */
   private checkScalability(config: any): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
@@ -434,7 +474,10 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Generate summary
+   * Generate a summary of the collected recommendations.
+   *
+   * @param recommendations - The full list of recommendations to summarize.
+   * @returns An object containing total counts, per-severity counts, and per-type counts.
    */
   private generateSummary(recommendations: OptimizationRecommendation[]): {
     total: number;
@@ -462,7 +505,10 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Estimate impact
+   * Estimate the impact of addressing the collected recommendations.
+   *
+   * @param recommendations - The full list of recommendations to evaluate.
+   * @returns An object with estimated impact levels for performance, maintainability, and scalability.
    */
   private estimateImpact(recommendations: OptimizationRecommendation[]): {
     performance: string;
@@ -481,7 +527,10 @@ export class WorkspaceOptimizer {
   }
 
   /**
-   * Estimate improvement level
+   * Estimate the improvement level for a subset of recommendations.
+   *
+   * @param recs - The filtered list of recommendations for a specific category.
+   * @returns A human-readable string describing the expected improvement level.
    */
   private estimateLevel(recs: OptimizationRecommendation[]): string {
     const criticalAndHigh = recs.filter(r => r.severity === 'critical' || r.severity === 'high').length;
@@ -493,4 +542,7 @@ export class WorkspaceOptimizer {
   }
 }
 
+/**
+ * Shared singleton instance of {@link WorkspaceOptimizer} for analyzing workspace configurations.
+ */
 export const workspaceOptimizer = new WorkspaceOptimizer();

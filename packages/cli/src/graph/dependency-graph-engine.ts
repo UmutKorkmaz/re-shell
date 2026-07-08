@@ -1,6 +1,11 @@
 // Dependency Graph Engine
 // Build, analyze, and resolve service dependency graphs
 
+/**
+ * Represents a single node in the dependency graph.
+ * Each node corresponds to a service, database, cache, queue, or storage entity
+ * and tracks its incoming and outgoing dependencies.
+ */
 export interface GraphNode {
   id: string;
   type: 'service' | 'database' | 'cache' | 'queue' | 'storage';
@@ -10,11 +15,18 @@ export interface GraphNode {
   dependents: string[];
 }
 
+/**
+ * Represents the full dependency graph structure consisting of nodes and edges.
+ */
 export interface DependencyGraph {
   nodes: Map<string, GraphNode>;
   edges: Map<string, Set<string>>;
 }
 
+/**
+ * Represents the result of analyzing a dependency graph, including node/edge counts,
+ * detected cycles, deployment layers, orphan nodes, and the critical path.
+ */
 export interface GraphAnalysis {
   nodes: number;
   edges: number;
@@ -24,12 +36,20 @@ export interface GraphAnalysis {
   criticalPath: string[];
 }
 
+/**
+ * Represents a plan for resolving dependency conflicts, including ordered steps,
+ * whether resolution is possible, and any errors encountered.
+ */
 export interface ResolutionPlan {
   steps: ResolutionStep[];
   canResolve: boolean;
   errors: string[];
 }
 
+/**
+ * Represents a single step within a resolution plan, describing the action to take
+ * for a given service and its associated dependencies and dependents.
+ */
 export interface ResolutionStep {
   order: number;
   service: string;
@@ -38,6 +58,11 @@ export interface ResolutionStep {
   dependents: string[];
 }
 
+/**
+ * Engine for building, analyzing, and resolving service dependency graphs.
+ * Provides utilities for cycle detection, topological sorting, deployment layer
+ * calculation, critical path analysis, and export to visualization formats.
+ */
 export class DependencyGraphEngine {
   private graph: DependencyGraph;
 
@@ -49,7 +74,12 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Build dependency graph from workspace configuration
+   * Build dependency graph from workspace configuration.
+   * Clears any existing graph data and populates the graph with service nodes,
+   * external dependency nodes, and edges derived from routes and package dependencies.
+   *
+   * @param config - The workspace configuration object containing services and dependencies.
+   * @returns The constructed dependency graph.
    */
   buildFromConfig(config: any): DependencyGraph {
     // Clear existing graph
@@ -118,7 +148,12 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Add a node to the graph
+   * Add a node to the graph. If a node with the given id already exists, it is not replaced.
+   *
+   * @param id - The unique identifier for the node.
+   * @param type - The type of the node (service, database, cache, queue, or storage).
+   * @param name - The human-readable name of the node.
+   * @param language - Optional programming language associated with the node.
    */
   addNode(id: string, type: GraphNode['type'], name: string, language?: string): void {
     if (!this.graph.nodes.has(id)) {
@@ -135,7 +170,12 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Add an edge between two nodes
+   * Add a directed edge between two nodes, indicating a dependency relationship.
+   * Also updates the dependency and dependent metadata on the respective nodes.
+   * Does nothing if either node does not exist.
+   *
+   * @param from - The id of the source (dependent) node.
+   * @param to - The id of the target (dependency) node.
    */
   addEdge(from: string, to: string): void {
     if (!this.graph.nodes.has(from) || !this.graph.nodes.has(to)) {
@@ -158,7 +198,9 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Detect cycles using DFS
+   * Detect cycles in the graph using depth-first search (DFS).
+   *
+   * @returns An array of cycles, where each cycle is represented as an array of node ids.
    */
   detectCycles(): string[][] {
     const visited = new Set<string>();
@@ -195,7 +237,10 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Topological sort (Kahn's algorithm)
+   * Perform a topological sort of the graph's nodes using Kahn's algorithm.
+   * Throws an error if the graph contains cycles.
+   *
+   * @returns An array of node ids in topological order.
    */
   topologicalSort(): string[] {
     const inDegree = new Map<string, number>();
@@ -235,7 +280,11 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Calculate deployment layers using BFS
+   * Calculate deployment layers using a BFS-like approach.
+   * Each layer contains nodes whose dependencies have all been resolved
+   * by previous layers, enabling parallel deployment within a layer.
+   *
+   * @returns An array of layers, where each layer is an array of node ids.
    */
   calculateDeploymentLayers(): string[][] {
     const layers: string[][] = [];
@@ -279,7 +328,10 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Find critical path (longest path through graph)
+   * Find the critical path, defined as the longest path through the dependency graph.
+   * The critical path determines the minimum time required to deploy all services.
+   *
+   * @returns An array of node ids representing the critical path.
    */
   findCriticalPath(): string[] {
     const dist = new Map<string, number>();
@@ -328,7 +380,10 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Analyze graph structure
+   * Analyze the graph structure, producing a comprehensive report that includes
+   * cycle detection, deployment layers, orphan nodes, edge counts, and the critical path.
+   *
+   * @returns A {@link GraphAnalysis} object with the analysis results.
    */
   analyze(): GraphAnalysis {
     const cycles = this.detectCycles();
@@ -355,7 +410,11 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Generate resolution plan for dependency conflicts
+   * Generate a resolution plan for dependency conflicts based on the current graph.
+   * The plan uses deployment layers to determine the order in which services should
+   * be deployed, and reports any cycles or errors that prevent resolution.
+   *
+   * @returns A {@link ResolutionPlan} containing ordered steps and any errors.
    */
   generateResolutionPlan(): ResolutionPlan {
     const analysis = this.analyze();
@@ -403,7 +462,9 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Export graph as DOT format for visualization
+   * Export the graph in DOT format for visualization with Graphviz tools.
+   *
+   * @returns A DOT-formatted string representation of the graph.
    */
   exportToDot(): string {
     let dot = 'digraph DependencyGraph {\\n';
@@ -428,7 +489,9 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Export graph as JSON
+   * Export the graph as a JSON string containing serialized nodes and edges.
+   *
+   * @returns A JSON-formatted string representation of the graph.
    */
   exportToJson(): string {
     const nodes = Array.from(this.graph.nodes.values());
@@ -455,7 +518,11 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Get dependency chain for a specific node
+   * Get the full dependency chain for a specific node, computed via DFS.
+   * The chain lists all transitive dependencies of the node in dependency-first order.
+   *
+   * @param nodeId - The id of the node to inspect.
+   * @returns An array of node ids forming the complete dependency chain.
    */
   getDependencyChain(nodeId: string): string[] {
     const chain: string[] = [];
@@ -480,7 +547,11 @@ export class DependencyGraphEngine {
   }
 
   /**
-   * Get all dependents (transitive) for a node
+   * Get all transitive dependents of a specific node, computed via DFS.
+   * This returns every node that directly or indirectly depends on the given node.
+   *
+   * @param nodeId - The id of the node to inspect.
+   * @returns An array of node ids that are transitive dependents of the given node.
    */
   getAllDependents(nodeId: string): string[] {
     const dependents: string[] = [];
@@ -506,4 +577,7 @@ export class DependencyGraphEngine {
   }
 }
 
+/**
+ * Default singleton instance of {@link DependencyGraphEngine} for convenient reuse.
+ */
 export const dependencyGraphEngine = new DependencyGraphEngine();
