@@ -252,7 +252,7 @@ export function generateTypeScriptAzureCloud(config: AzureCloudConfig): string {
   code += '  private resourceGroupName: string;\n';
   code += '  private projectName: string;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.subscriptionId = options.subscriptionId || process.env.AZURE_SUBSCRIPTION_ID;\n';
   code += '    this.resourceGroupName = options.resourceGroupName || \'' + config.aksConfig.resourceGroupName + '\';\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
@@ -288,7 +288,7 @@ export function generateTypeScriptAzureCloud(config: AzureCloudConfig): string {
   code += '    try {\n';
   code += '      execSync(deployCmd, { stdio: \'inherit\' });\n';
   code += '      console.log(\'[AzureCloud] ✓ AKS cluster deployed\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[AzureCloud] ✗ Failed to deploy AKS:\', error.message);\n';
   code += '      throw error;\n';
   code += '    }\n';
@@ -300,7 +300,7 @@ export function generateTypeScriptAzureCloud(config: AzureCloudConfig): string {
   code += '    try {\n';
   code += '      execSync(cmd, { stdio: \'pipe\' });\n';
   code += '      console.log(\'[AzureCloud] ✓ Resource group created\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[AzureCloud] Resource group may already exist\');\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -311,7 +311,7 @@ export function generateTypeScriptAzureCloud(config: AzureCloudConfig): string {
   code += '    try {\n';
   code += '      execSync(cmd, { stdio: \'inherit\' });\n';
   code += '      console.log(\'[AzureCloud] ✓ ACR deployed\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[AzureCloud] ✗ Failed to deploy ACR:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -322,7 +322,7 @@ export function generateTypeScriptAzureCloud(config: AzureCloudConfig): string {
   code += '    try {\n';
   code += '      execSync(cmd, { stdio: \'inherit\' });\n';
   code += '      console.log(\'[AzureCloud] ✓ Key Vault deployed\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[AzureCloud] ✗ Failed to deploy Key Vault:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -338,7 +338,7 @@ export function generateTypeScriptAzureCloud(config: AzureCloudConfig): string {
   code += '    try {\n';
   code += '      execSync(cmd, { stdio: \'pipe\' });\n';
   code += '      console.log(\'[AzureCloud] ✓ Credentials configured\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[AzureCloud] ✗ Failed to get credentials:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
