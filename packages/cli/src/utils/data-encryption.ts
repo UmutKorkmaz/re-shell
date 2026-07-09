@@ -131,11 +131,11 @@ export interface EncryptionResult {
 }
 
 export class ${toPascalCase(config.serviceName)}DataEncryption {
-  private config: any;
+  private config: unknown;
   private keys: Map<string, Buffer>;
   private keyStore: Map<string, { key: Buffer; createdAt: Date; algorithm: EncryptionAlgorithm }>;
 
-  constructor(config: any) {
+  constructor(config: unknown) {
     this.config = config;
     this.keys = new Map();
     this.keyStore = new Map();
@@ -527,7 +527,7 @@ export class ${toPascalCase(config.serviceName)}DataEncryption {
 }
 
 // Factory function
-export function createDataEncryption(config: any) {
+export function createDataEncryption(config: unknown) {
   return new ${toPascalCase(config.serviceName)}DataEncryption(config);
 }
 
@@ -1053,13 +1053,13 @@ func main() {
 // Write generated files
 export async function writeEncryptionFiles(
   serviceName: string,
-  integration: any,
+  integration: Record<string, unknown>,
   outputDir: string,
   language: string
 ): Promise<void> {
   await fs.ensureDir(outputDir);
 
-  for (const file of integration.files) {
+  for (const file of (integration.files as Array<{ path: string; content: string }>)) {
     const filePath = path.join(outputDir, file.path);
     const fileDir = path.dirname(filePath);
 
@@ -1115,7 +1115,7 @@ export async function displayEncryptionConfig(config: EncryptionConfig): Promise
 }
 
 // Generate BUILD.md
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: unknown, language: string): string {
   const toPascalCase = (str: string) =>
     str.replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase()).replace(/[-_]/g, '');
 
