@@ -140,10 +140,10 @@ export function generateTypeScriptHPA(config: HPAConfig): string {
   code += '  private minReplicas: number;\n';
   code += '  private maxReplicas: number;\n';
   code += '  private targetMetrics: Metric[];\n';
-  code += '  private behavior: any;\n';
+  code += '  private behavior: unknown;\n';
   code += '  private predictiveScaling: PredictiveScalingConfig;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.namespace = options.namespace || \'default\';\n';
   code += '    this.minReplicas = options.minReplicas || 2;\n';
@@ -171,8 +171,8 @@ export function generateTypeScriptHPA(config: HPAConfig): string {
   code += '    console.log(\'[HPA] ✓ HPA deployed successfully\');\n';
   code += '  }\n\n';
 
-  code += '  private generateHPA(): any {\n';
-  code += '    const hpa: any = {\n';
+  code += '  private generateHPA(): unknown {\n';
+  code += '    const hpa: unknown = {\n';
   code += '      apiVersion: \'autoscaling/v2\',\n';
   code += '      kind: \'HorizontalPodAutoscaler\',\n';
   code += '      metadata: {\n';
@@ -198,7 +198,7 @@ export function generateTypeScriptHPA(config: HPAConfig): string {
   code += '    return hpa;\n';
   code += '  }\n\n';
 
-  code += '  private generateMetricSpec(metric: Metric): any {\n';
+  code += '  private generateMetricSpec(metric: Metric): unknown {\n';
   code += '    switch (metric.type) {\n';
   code += '      case \'Resource\':\n';
   code += '        return {\n';
@@ -284,7 +284,7 @@ export function generateTypeScriptHPA(config: HPAConfig): string {
   code += '      execSync(`kubectl apply -f ${adapterPath}`, {\n';
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[HPA] Failed to deploy Prometheus Adapter:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -351,7 +351,7 @@ export function generateTypeScriptHPA(config: HPAConfig): string {
   code += '      execSync(`kubectl apply -f ${deploymentPath}`, {\n';
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[HPA] Failed to deploy predictive scaling service:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -372,16 +372,16 @@ export function generateTypeScriptHPA(config: HPAConfig): string {
 
   code += '      if (hpa.status.currentMetrics) {\n';
   code += '        console.log(\'[HPA] Current Metrics:\');\n';
-  code += '        hpa.status.currentMetrics.forEach((metric: any) => {\n';
+  code += '        hpa.status.currentMetrics.forEach((metric: unknown) => {\n';
   code += '          console.log(`  - ${metric.type}: ${JSON.stringify(metric.resource || metric.pods || metric.external)}`);\n';
   code += '        });\n';
   code += '      }\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[HPA] Failed to get status:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private toYaml(obj: any): string {\n';
+  code += '  private toYaml(obj: unknown): string {\n';
   code += '    const yaml = require(\'js-yaml\');\n';
   code += '    return yaml.dump(obj);\n';
   code += '  }\n';
