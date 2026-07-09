@@ -129,10 +129,10 @@ export function generateTypeScriptNetworkPolicy(config: NetworkPolicyConfig): st
   code += '  private microSegmentation: boolean;\n';
   code += '  private denyAllIngress: boolean;\n';
   code += '  private denyAllEgress: boolean;\n';
-  code += '  private policies: any[];\n';
+  code += '  private policies: unknown[];\n';
   code += '  private podSecurityPolicy: PodSecurityPolicy;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.namespace = options.namespace || \'default\';\n';
   code += '    this.microSegmentation = options.microSegmentation !== false;\n';
@@ -166,7 +166,7 @@ export function generateTypeScriptNetworkPolicy(config: NetworkPolicyConfig): st
   code += '  private async deployDenyAllPolicy(): Promise<void> {\n';
   code += '    console.log(\'[NetworkPolicy] Deploying deny-all policy...\');\n\n';
 
-  code += '    const denyAllPolicy: any = {\n';
+  code += '    const denyAllPolicy: unknown = {\n';
   code += '      apiVersion: \'networking.k8s.io/v1\',\n';
   code += '      kind: \'NetworkPolicy\',\n';
   code += '      metadata: {\n';
@@ -195,15 +195,15 @@ export function generateTypeScriptNetworkPolicy(config: NetworkPolicyConfig): st
   code += '      execSync(`kubectl apply -f ${policyPath}`, {\n';
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[NetworkPolicy] Failed to deploy deny-all policy:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private async deployPolicy(policy: any): Promise<void> {\n';
+  code += '  private async deployPolicy(policy: unknown): Promise<void> {\n';
   code += '    console.log(`[NetworkPolicy] Deploying policy: ${policy.name}...`);\n\n';
 
-  code += '    const networkPolicy: any = {\n';
+  code += '    const networkPolicy: unknown = {\n';
   code += '      apiVersion: \'networking.k8s.io/v1\',\n';
   code += '      kind: \'NetworkPolicy\',\n';
   code += '      metadata: {\n';
@@ -237,13 +237,13 @@ export function generateTypeScriptNetworkPolicy(config: NetworkPolicyConfig): st
   code += '      execSync(`kubectl apply -f ${policyPath}`, {\n';
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(`[NetworkPolicy] Failed to deploy policy ${policy.name}:`, error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private generateIngressRule(rule: NetworkPolicyRule): any {\n';
-  code += '    const ingressRule: any = {};\n\n';
+  code += '  private generateIngressRule(rule: NetworkPolicyRule): unknown {\n';
+  code += '    const ingressRule: unknown = {};\n\n';
 
   code += '    if (rule.ports) {\n';
   code += '      ingressRule.ports = rule.ports;\n';
@@ -256,8 +256,8 @@ export function generateTypeScriptNetworkPolicy(config: NetworkPolicyConfig): st
   code += '    return ingressRule;\n';
   code += '  }\n\n';
 
-  code += '  private generateEgressRule(rule: NetworkPolicyRule): any {\n';
-  code += '    const egressRule: any = {};\n\n';
+  code += '  private generateEgressRule(rule: NetworkPolicyRule): unknown {\n';
+  code += '    const egressRule: unknown = {};\n\n';
 
   code += '    if (rule.ports) {\n';
   code += '      egressRule.ports = rule.ports;\n';
@@ -322,7 +322,7 @@ export function generateTypeScriptNetworkPolicy(config: NetworkPolicyConfig): st
   code += '      execSync(`kubectl apply -f ${policyPath}`, {\n';
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[NetworkPolicy] Failed to deploy namespace isolation:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -386,12 +386,12 @@ export function generateTypeScriptNetworkPolicy(config: NetworkPolicyConfig): st
   code += '        console.log(`    Pod Selector: ${JSON.stringify(policy.spec.podSelector)}`);\n';
   code += '        console.log(`    Policy Types: ${policy.spec.policyTypes.join(\', \')}`);\n';
   code += '      }\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[NetworkPolicy] Failed to verify isolation:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private toYaml(obj: any): string {\n';
+  code += '  private toYaml(obj: unknown): string {\n';
   code += '    const yaml = require(\'js-yaml\');\n';
   code += '    return yaml.dump(obj);\n';
   code += '  }\n';
