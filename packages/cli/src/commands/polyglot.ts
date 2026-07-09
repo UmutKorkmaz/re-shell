@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import chalk from 'chalk';
-import { flushOutput } from '../utils/spinner';
+import { flushOutput, createSpinner, ProgressSpinner } from '../utils/spinner';
 import {
   scanWorkspace,
   filterServices,
@@ -107,7 +107,18 @@ export async function buildAll(options: PolyglotBuildOptions = {}): Promise<void
 export async function generateDeploymentConfig(
   target: DeploymentTarget,
   environment: DeploymentEnvironment,
-  options: any = {}
+  options: {
+    spinner?: ProgressSpinner;
+    verbose?: boolean;
+    type?: string;
+    language?: string;
+    name?: string;
+    region?: string;
+    domain?: string;
+    env?: string;
+    resources?: string;
+    scaling?: string;
+  } = {}
 ): Promise<void> {
   const { spinner, verbose = false } = options;
 
@@ -349,7 +360,7 @@ export async function deployServices(
 /**
  * List all services in the workspace
  */
-export async function listServices(options: any = {}): Promise<void> {
+export async function listServices(options: { verbose?: boolean; json?: boolean } = {}): Promise<void> {
   try {
     const services = scanWorkspace();
 

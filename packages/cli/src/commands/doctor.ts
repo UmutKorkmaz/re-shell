@@ -12,6 +12,7 @@ import {
   type RemediableCheck,
 } from '../utils/doctor-remediation';
 import type { Suggestion, FixPlan } from '@re-shell/contracts';
+import type ora from 'ora';
 
 interface HealthCheck {
   name: string;
@@ -23,7 +24,7 @@ interface HealthCheck {
 interface DoctorOptions {
   fix?: boolean;
   verbose?: boolean;
-  spinner?: any;
+  spinner?: ora.Ora;
   json?: boolean;
   explain?: boolean;
   yes?: boolean;
