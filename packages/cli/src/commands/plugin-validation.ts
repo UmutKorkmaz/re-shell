@@ -498,7 +498,7 @@ export async function showValidationStats(
 
   try {
     const validator = createCommandValidator();
-    const stats = validator.getValidationStats();
+    const stats = validator.getValidationStats() as Record<string, any>;
 
     if (json) {
       console.log(JSON.stringify(stats, null, 2));

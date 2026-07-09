@@ -118,7 +118,7 @@ export interface ParameterTransformation {
  * @returns `true` if the rule should run, otherwise `false`.
  */
 export type ValidationCondition = (
-  value: any,
+  value: unknown,
   args: Record<string, unknown>,
   options: Record<string, unknown>,
   context: PluginCommandContext
@@ -134,7 +134,7 @@ export type ValidationCondition = (
  * @returns `true` when valid, `false` when invalid, or a custom error message string.
  */
 export type ValidationFunction = (
-  value: any,
+  value: unknown,
   args: Record<string, unknown>,
   options: Record<string, unknown>,
   context: PluginCommandContext
@@ -151,7 +151,7 @@ export type ValidationFunction = (
  * @returns `true` if the transformation should run, otherwise `false`.
  */
 export type TransformationCondition = (
-  value: any,
+  value: unknown,
   args: Record<string, unknown>,
   options: Record<string, unknown>,
   context: PluginCommandContext
@@ -167,11 +167,11 @@ export type TransformationCondition = (
  * @returns The transformed value.
  */
 export type TransformationFunction = (
-  value: any,
+  value: unknown,
   args: Record<string, unknown>,
   options: Record<string, unknown>,
   context: PluginCommandContext
-) => any;
+) => unknown;
 
 /**
  * The outcome of validating (and transforming) a command's parameters.
@@ -204,7 +204,7 @@ export interface ValidationIssue {
   /** Human-readable description of the issue. */
   message: string;
   /** The value that failed validation. */
-  value: any;
+  value: unknown;
   /** The original rule that produced the issue, if applicable. */
   rule?: ValidationRule;
 }
@@ -280,7 +280,7 @@ export interface BuiltInValidationRules {
   /** Creates a rule validating the value against a regular expression. */
   pattern: (pattern: RegExp, message?: string) => ValidationRule;
   /** Creates a rule restricting the value to a predefined set. */
-  enum: (values: any[], message?: string) => ValidationRule;
+  enum: (values: unknown[], message?: string) => ValidationRule;
   /** Creates a rule validating that the value is a well-formed email address. */
   email: (message?: string) => ValidationRule;
   /** Creates a rule validating that the value is a well-formed URL. */
@@ -418,7 +418,7 @@ export class PluginCommandValidator extends EventEmitter {
         validator: (value) => typeof value === 'string' && pattern.test(value)
       }),
 
-      enum: (values: any[], message?: string) => ({
+      enum: (values: unknown[], message?: string) => ({
         type: ValidationRuleType.ENUM,
         severity: ValidationSeverity.ERROR,
         message: message || `Field must be one of: ${values.join(', ')}`,
@@ -441,7 +441,7 @@ export class PluginCommandValidator extends EventEmitter {
         message,
         validator: (value) => {
           try {
-            new URL(value);
+            new URL(value as string);
             return true;
           } catch {
             return false;
@@ -904,7 +904,7 @@ export class PluginCommandValidator extends EventEmitter {
    */
   private async applyTransformationChain(
     transformations: ParameterTransformation[],
-    value: any,
+    value: unknown,
     args: Record<string, unknown>,
     options: Record<string, unknown>,
     context: PluginCommandContext
@@ -974,7 +974,7 @@ export class PluginCommandValidator extends EventEmitter {
   private async applyValidationRule(
     rule: ValidationRule,
     fieldName: string,
-    value: any,
+    value: unknown,
     args: Record<string, unknown>,
     options: Record<string, unknown>,
     result: ValidationResult,
@@ -1058,7 +1058,7 @@ export class PluginCommandValidator extends EventEmitter {
    */
   private checkDependencies(
     fieldName: string,
-    value: any,
+    value: unknown,
     dependencies: string[],
     params: Record<string, unknown>,
     result: ValidationResult
@@ -1090,7 +1090,7 @@ export class PluginCommandValidator extends EventEmitter {
    */
   private checkConflicts(
     fieldName: string,
-    value: any,
+    value: unknown,
     conflicts: string[],
     params: Record<string, unknown>,
     result: ValidationResult
@@ -1122,7 +1122,7 @@ export class PluginCommandValidator extends EventEmitter {
    */
   private checkImplications(
     fieldName: string,
-    value: any,
+    value: unknown,
     implications: string[],
     params: Record<string, unknown>,
     result: ValidationResult
@@ -1209,7 +1209,7 @@ export class PluginCommandValidator extends EventEmitter {
    *
    * @returns An object containing validation statistics.
    */
-  getValidationStats(): any {
+  getValidationStats(): Record<string, unknown> {
     return {
       totalSchemas: this.schemas.size,
       cacheSize: this.validationCache.size,

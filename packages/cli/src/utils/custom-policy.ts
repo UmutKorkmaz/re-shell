@@ -160,9 +160,9 @@ export interface PolicyChange {
   /** Reason given for the change. */
   reason: string;
   /** Previous value before the change, if applicable. */
-  previousValue?: any;
+  previousValue?: unknown;
   /** New value after the change, if applicable. */
-  newValue?: any;
+  newValue?: unknown;
 }
 
 /**
@@ -206,7 +206,7 @@ export interface RuleCondition {
   /** Operator used to compare the field and value. */
   operator: ConditionOperator;
   /** The value to compare against. */
-  value: any;
+  value: unknown;
   /** Whether string comparisons are case-sensitive. */
   caseSensitive?: boolean;
   /** Whether to negate the result of the comparison. */
@@ -266,7 +266,7 @@ export interface RuleParameter {
   /** Expected value type. */
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   /** Default value used when the parameter is not supplied. */
-  defaultValue: any;
+  defaultValue: unknown;
   /** Whether the parameter must be provided. */
   required: boolean;
   /** Human-readable description of the parameter. */
@@ -456,9 +456,9 @@ export interface ConditionEvaluation {
   /** Whether the condition passed. */
   result: boolean;
   /** The actual value found on the target. */
-  evaluatedValue: any;
+  evaluatedValue: unknown;
   /** The value the condition expected. */
-  expectedValue: any;
+  expectedValue: unknown;
   /** Whether the evaluated value matched the expected value. */
   matched: boolean;
 }
@@ -530,11 +530,11 @@ export interface TemplateParameter {
   /** Human-readable description. */
   description: string;
   /** Default value used when the parameter is omitted. */
-  defaultValue: any;
+  defaultValue: unknown;
   /** Whether the parameter must be provided. */
   required: boolean;
   /** Allowed values for enum-like parameters. */
-  options?: any[];
+  options?: unknown[];
 }
 
 /**
@@ -812,7 +812,7 @@ interface Exception {
   policyId: string;
   status: string;
   expiresAt: Date;
-  conditions: any[];
+  conditions: unknown[];
 }
 
 interface EnforcementRecord {
@@ -839,7 +839,7 @@ class CustomPolicyManager extends EventEmitter {
     this.emit('rule-created', rule);
   }
 
-  async enforcePolicy(policyId: string, target: any): Promise<EnforcementRecord> {
+  async enforcePolicy(policyId: string, target: unknown): Promise<EnforcementRecord> {
     const policy = this.policies.get(policyId);
     if (!policy || policy.status !== 'active') {
       throw new Error('Policy not found or not active');
@@ -873,7 +873,7 @@ class CustomPolicyManager extends EventEmitter {
     return record;
   }
 
-  private async enforceRule(rule: Rule, target: any): Promise<void> {
+  private async enforceRule(rule: Rule, target: unknown): Promise<void> {
     // Evaluate conditions
     const conditionsMet = this.evaluateConditions(rule, target);
 
@@ -895,12 +895,12 @@ class CustomPolicyManager extends EventEmitter {
     }
   }
 
-  private evaluateConditions(rule: Rule, target: any): boolean {
+  private evaluateConditions(rule: Rule, target: unknown): boolean {
     // Simplified condition evaluation
     return true;
   }
 
-  findActiveException(policyId: string, target: any): Exception | null {
+  findActiveException(policyId: string, target: unknown): Exception | null {
     const now = new Date();
     for (const exception of this.exceptions.values()) {
       if (exception.policyId === policyId &&

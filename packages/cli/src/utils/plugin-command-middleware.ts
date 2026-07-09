@@ -84,7 +84,7 @@ export interface MiddlewareOptions {
     /** Time-to-live for cached entries in milliseconds. */
     ttl: number;
     /** Optional custom function used to build the cache key from args and options. */
-    key?: (args: any, options: any) => string;
+    key?: (args: unknown, options: unknown) => string;
   };
   /** Optional rate limiting configuration applied to middleware invocations. */
   rateLimit?: {
@@ -132,7 +132,7 @@ export interface MiddlewareResult {
   /** Error captured when execution failed, if any. */
   error?: Error;
   /** Optional data returned by the middleware. */
-  data?: any;
+  data?: unknown;
   /** Optional modifications applied to the command arguments or options. */
   modified?: {
     /** Modified argument values to merge into the running arguments. */
@@ -155,7 +155,7 @@ export interface BuiltinMiddleware {
    * @param schema - Schema describing required fields and expected types for arguments and options.
    * @returns A {@link PluginCommandMiddleware} that validates the incoming command data.
    */
-  validation: (schema: any) => PluginCommandMiddleware;
+  validation: (schema: unknown) => PluginCommandMiddleware;
   /**
    * Creates an authorization middleware that ensures the invoking plugin holds the required permissions.
    * @param permissions - List of permission identifiers required to proceed.
@@ -177,7 +177,7 @@ export interface BuiltinMiddleware {
    * @param options.key - Optional function used to build cache keys from args and options.
    * @returns A {@link PluginCommandMiddleware} that caches results.
    */
-  cache: (options: { ttl: number; key?: (args: any, options: any) => string }) => PluginCommandMiddleware;
+  cache: (options: { ttl: number; key?: (args: unknown, options: unknown) => string }) => PluginCommandMiddleware;
   /**
    * Creates a logging middleware that records execution lifecycle events.
    * @param options - Optional logging configuration including level and format.
@@ -193,7 +193,7 @@ export interface BuiltinMiddleware {
    * @param transformers.options - Function used to transform the command options.
    * @returns A {@link PluginCommandMiddleware} that applies the transformations.
    */
-  transform: (transformers: { args?: (args: any) => any; options?: (options: any) => any }) => PluginCommandMiddleware;
+  transform: (transformers: { args?: (args: unknown) => unknown; options?: (options: unknown) => unknown }) => PluginCommandMiddleware;
   /**
    * Creates an error handler middleware that intercepts and reports errors thrown downstream.
    * @param handler - Callback invoked with the captured error and the active command context.
@@ -219,7 +219,7 @@ export class MiddlewareChainManager extends EventEmitter {
   private middlewares: Map<string, MiddlewareRegistration> = new Map();
   private typeChains: Map<MiddlewareType, string[]> = new Map();
   private commandMiddleware: Map<string, string[]> = new Map();
-  private cache: Map<string, { data: any; expires: number }> = new Map();
+  private cache: Map<string, { data: unknown; expires: number }> = new Map();
   private rateLimiters: Map<string, Map<string, number[]>> = new Map();
 
   constructor() {
@@ -453,7 +453,7 @@ export class MiddlewareChainManager extends EventEmitter {
 
       // Create middleware execution context
       const middlewareContext = { ...context };
-      let result: any;
+      let result: unknown;
       const modifiedArgs = args;
       const modifiedOptions = options;
       const skipRemaining = false;
@@ -647,7 +647,7 @@ export class MiddlewareChainManager extends EventEmitter {
    * @param key - Cache key to look up.
    * @returns The cached data, or `undefined` when the entry is missing or expired.
    */
-  private getFromCache(key: string): any {
+  private getFromCache(key: string): unknown {
     const cached = this.cache.get(key);
     if (cached && cached.expires > Date.now()) {
       return cached.data;
@@ -663,7 +663,7 @@ export class MiddlewareChainManager extends EventEmitter {
    * @param data - Value to cache.
    * @param ttl - Time-to-live in milliseconds from now.
    */
-  private setInCache(key: string, data: any, ttl: number): void {
+  private setInCache(key: string, data: unknown, ttl: number): void {
     this.cache.set(key, {
       data,
       expires: Date.now() + ttl
@@ -774,7 +774,7 @@ export class MiddlewareChainManager extends EventEmitter {
    *
    * @returns A statistics object summarizing registered middlewares and caches.
    */
-  getStats(): any {
+  getStats(): Record<string, unknown> {
     const stats = {
       totalMiddlewares: this.middlewares.size,
       activeMiddlewares: Array.from(this.middlewares.values()).filter(m => m.isActive).length,
@@ -805,12 +805,13 @@ export class MiddlewareChainManager extends EventEmitter {
  */
 export const builtinMiddleware: BuiltinMiddleware = {
   // Validation middleware
-  validation: (schema: any) => {
+  validation: (schema: unknown) => {
     return async (args, options, context, next) => {
       try {
+        const schemaRecord = schema as Record<string, unknown>;
         // Validate against schema (simplified - would use a real validator)
-        if (schema.args) {
-          Object.entries(schema.args).forEach(([key, rules]: [string, any]) => {
+        if (schemaRecord.args) {
+          Object.entries(schemaRecord.args as Record<string, any>).forEach(([key, rules]: [string, any]) => {
             const value = args[key];
             if (rules.required && value === undefined) {
               throw new ValidationError(`Argument '${key}' is required`);
@@ -821,8 +822,8 @@ export const builtinMiddleware: BuiltinMiddleware = {
           });
         }
 
-        if (schema.options) {
-          Object.entries(schema.options).forEach(([key, rules]: [string, any]) => {
+        if (schemaRecord.options) {
+          Object.entries(schemaRecord.options as Record<string, any>).forEach(([key, rules]: [string, any]) => {
             const value = options[key];
             if (rules.required && value === undefined) {
               throw new ValidationError(`Option '${key}' is required`);
@@ -890,20 +891,20 @@ export const builtinMiddleware: BuiltinMiddleware = {
 
   // Caching middleware
   cache: ({ ttl, key }) => {
-    const cache = new Map<string, { data: any; expires: number }>();
+    const cache = new Map<string, { data: unknown; expires: number }>();
 
     return async (args, options, context, next) => {
       const cacheKey = key ? key(args, options) : JSON.stringify({ args, options });
-      
+
       const cached = cache.get(cacheKey);
       if (cached && cached.expires > Date.now()) {
         context.logger.debug('Cache hit');
-        return cached.data;
+        return;
       }
 
-      let result: any;
+      let result: unknown;
       const originalNext = next;
-      
+
       // Intercept next to capture result
       await originalNext();
 
@@ -914,7 +915,7 @@ export const builtinMiddleware: BuiltinMiddleware = {
         });
       }
 
-      return result;
+      return;
     };
   },
 
