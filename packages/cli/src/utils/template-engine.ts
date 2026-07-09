@@ -15,7 +15,7 @@ export interface TemplateVariable {
   /** Human-readable description of what the variable represents. */
   description: string;
   /** Optional default value used when the variable is not explicitly provided. */
-  default?: any;
+  default?: unknown;
   /** Whether the variable must be provided when rendering the template. */
   required?: boolean;
   /** Optional validation rules applied to the variable value during rendering. */
@@ -27,7 +27,7 @@ export interface TemplateVariable {
     /** Maximum allowed numeric value or string length. */
     max?: number;
     /** Allowed enumerable values the variable may take. */
-    options?: any[];
+    options?: unknown[];
   };
 }
 
@@ -50,7 +50,7 @@ export interface ConfigTemplate {
   /** Variable definitions describing inputs accepted by the template. */
   variables: TemplateVariable[];
   /** The actual configuration template with variables to be substituted during rendering. */
-  template: any; // The actual configuration template with variables
+  template: unknown; // The actual configuration template with variables
   /** Optional named examples demonstrating usage of the template. */
   examples?: Record<string, unknown>;
   /** ISO timestamp marking when the template was created. */
@@ -266,7 +266,7 @@ export class ConfigTemplateEngine {
    */
   async createTemplate(
     name: string,
-    config: any,
+    config: unknown,
     variables: TemplateVariable[],
     options: {
       description?: string;
@@ -319,7 +319,7 @@ export class ConfigTemplateEngine {
    * @param context - The fully built context used for substitution.
    * @returns The substituted value with the same structural shape as `obj`.
    */
-  private substituteVariables(obj: any, context: TemplateContext): any {
+  private substituteVariables(obj: unknown, context: TemplateContext): unknown {
     if (typeof obj === 'string') {
       return this.substituteString(obj, context);
     } else if (Array.isArray(obj)) {
@@ -328,7 +328,7 @@ export class ConfigTemplateEngine {
       const result: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj)) {
         // Allow template key substitution
-        const newKey = this.substituteString(key, context);
+        const newKey = this.substituteString(key, context) as string;
         result[newKey] = this.substituteVariables(value, context);
       }
       return result;
@@ -349,7 +349,7 @@ export class ConfigTemplateEngine {
    * @param context - The fully built context used for substitution.
    * @returns The substituted and coerced value.
    */
-  private substituteString(str: string, context: TemplateContext): any {
+  private substituteString(str: string, context: TemplateContext): unknown {
     let result = str;
 
     // Handle different template syntaxes
@@ -413,9 +413,9 @@ export class ConfigTemplateEngine {
    * @param context - The fully built context used for lookup.
    * @returns The resolved value, or `undefined` when the path does not exist.
    */
-  private getVariableValue(path: string, context: TemplateContext): any {
+  private getVariableValue(path: string, context: TemplateContext): unknown {
     const keys = path.split('.');
-    let current: any = context;
+    let current: unknown = context;
 
     for (const key of keys) {
       if (current && typeof current === 'object' && key in current) {
@@ -438,7 +438,7 @@ export class ConfigTemplateEngine {
    * @returns The result of evaluating the expression.
    * @throws {ValidationError} If the expression contains disallowed syntax or fails to evaluate.
    */
-  private evaluateExpression(expression: string, context: TemplateContext): any {
+  private evaluateExpression(expression: string, context: TemplateContext): unknown {
     // Replace variables in expression
     const substituted = expression.replace(/([a-zA-Z_][a-zA-Z0-9_.]*)/g, (match) => {
       const value = this.getVariableValue(match, context);
@@ -581,7 +581,7 @@ export class ConfigTemplateEngine {
    * @param value - The value supplied for the variable.
    * @throws {ValidationError} If the value's type does not match the declared type.
    */
-  private validateVariableType(varDef: TemplateVariable, value: any): void {
+  private validateVariableType(varDef: TemplateVariable, value: unknown): void {
     const actualType = Array.isArray(value) ? 'array' : typeof value;
     
     if (actualType !== varDef.type) {
@@ -600,7 +600,7 @@ export class ConfigTemplateEngine {
    * @param value - The value supplied for the variable.
    * @throws {ValidationError} If the value violates any declared validation rule.
    */
-  private validateVariableRules(varDef: TemplateVariable, value: any): void {
+  private validateVariableRules(varDef: TemplateVariable, value: unknown): void {
     const rules = varDef.validation!;
 
     if (rules.pattern && typeof value === 'string') {

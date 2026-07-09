@@ -680,7 +680,7 @@ async function applyTemplate(templateName: string, options: TemplateCommandOptio
                 varDef.type === 'number' ? 'number' : 'text',
           name: 'value',
           message: `${varDef.description}:`,
-          initial: varDef.default,
+          initial: varDef.default as string,
           validate: varDef.required ? 
             (value: any) => value !== undefined && value !== '' ? true : `${varDef.name} is required` :
             undefined,

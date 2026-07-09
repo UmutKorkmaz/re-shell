@@ -145,9 +145,9 @@ export interface Example {
   /** Optional source code for the example. */
   code?: string;
   /** Optional sample input value. */
-  input?: any;
+  input?: unknown;
   /** Optional sample output value. */
-  output?: any;
+  output?: unknown;
   /** Language of the included code, when present. */
   language?: string;
   /** Tags used to categorize the example. */
@@ -417,7 +417,7 @@ export interface TriggerCondition {
   /** Description of when the trigger fires. */
   description: string;
   /** Provider-specific configuration for the trigger. */
-  config: any;
+  config: unknown;
 }
 
 /**
@@ -455,7 +455,7 @@ export interface QualityCheck {
   /** Severity reported when the check fails. */
   severity: 'error' | 'warning' | 'info';
   /** Provider-specific configuration for the check. */
-  config: any;
+  config: unknown;
   /** Whether detected issues should be auto-fixed when possible. */
   autoFix: boolean;
 }
@@ -481,7 +481,7 @@ export interface AutoGenerationRule {
   /** Whether the rule is currently enabled. */
   enabled: boolean;
   /** Provider-specific configuration for the rule. */
-  config: any;
+  config: unknown;
 }
 
 /**
@@ -1264,7 +1264,7 @@ export function generateTypeScript(config: ReturnType<typeof technicalDocumentat
   ts += `  status: string;\n`;
   ts += `  content: string;\n`;
   ts += `  sections: DocumentSection[];\n`;
-  ts += `  metadata: any;\n`;
+  ts += `  metadata: unknown;\n`;
   ts += `  version: string;\n`;
   ts += `  lastReviewed: Date;\n`;
   ts += `  nextReviewDate: Date;\n`;
@@ -1322,8 +1322,8 @@ export function generateTypeScript(config: ReturnType<typeof technicalDocumentat
   ts += `  title: string;\n`;
   ts += `  description: string;\n`;
   ts += `  code?: string;\n`;
-  ts += `  input?: any;\n`;
-  ts += `  output?: any;\n`;
+  ts += `  input?: unknown;\n`;
+  ts += `  output?: unknown;\n`;
   ts += `  language?: string;\n`;
   ts += `  tags: string[];\n`;
   ts += `}\n\n`;
@@ -1339,10 +1339,10 @@ export function generateTypeScript(config: ReturnType<typeof technicalDocumentat
 
   ts += `class TechnicalDocumentationManager extends EventEmitter {\n`;
   ts += `  private documents: Map<string, TechnicalDoc> = new Map();\n`;
-  ts += `  private aiConfig: any;\n`;
-  ts += `  private versioning: any;\n\n`;
+  ts += `  private aiConfig: unknown;\n`;
+  ts += `  private versioning: unknown;\n\n`;
 
-  ts += `  constructor(options: any = {}) {\n`;
+  ts += `  constructor(options: unknown = {}) {\n`;
   ts += `    super();\n`;
   ts += `    this.aiConfig = options.aiConfig || {};\n`;
   ts += `    this.versioning = options.versioning || { enabled: false };\n`;
@@ -1540,7 +1540,7 @@ export function generateTypeScript(config: ReturnType<typeof technicalDocumentat
   ts += `      throw new Error(\`Document not found: \${docId}\`);\n`;
   ts += `    }\n\n`;
 
-  ts += `    const issues: any[] = [];\n\n`;
+  ts += `    const issues: unknown[] = [];\n\n`;
 
   ts += `    // Check for broken links (simplified)\n`;
   ts += `    const linkRegex = /\\[([^\\]]+)\\]\\(([^)]+)\\)/g;\n`;
