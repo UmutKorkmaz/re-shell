@@ -146,14 +146,14 @@ export interface FieldDefinition {
   name: string;
   type: string;
   required: boolean;
-  default?: any;
+  default?: unknown;
   doc?: string;
 }
 
 // Conversion result
 export interface ConversionResult {
   success: boolean;
-  data: any;
+  data: unknown;
   schema?: string;
   errors?: string[];
 }
@@ -209,21 +209,21 @@ export interface TypeMapping {
 
 export interface ConversionResult {
   success: boolean;
-  data: any;
+  data: unknown;
   errors?: string[];
 }
 
 export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetFormat)}Converter {
-  private config: any;
+  private config: unknown;
 
-  constructor(config: any) {
+  constructor(config: unknown) {
     this.config = config;
   }
 
   /**
    * Convert data from source format to target format
    */
-  convert(data: any, schema?: any): ConversionResult {
+  convert(data: unknown, schema?: unknown): ConversionResult {
     try {
       const converted = this.performConversion(data, schema);
 
@@ -243,7 +243,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * Perform the actual conversion
    */
-  private performConversion(data: any, schema?: any): any {
+  private performConversion(data: unknown, schema?: unknown): unknown {
     if (this.config.sourceFormat === 'json' && this.config.targetFormat === 'protobuf') {
       return this.jsonToProtobuf(data, schema);
     }
@@ -275,7 +275,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * JSON to Protobuf conversion
    */
-  private jsonToProtobuf(data: any, schema?: any): any {
+  private jsonToProtobuf(data: unknown, schema?: unknown): unknown {
     if (!schema || !schema.fields) {
       return this.mapTypesJsonToProtobuf(data);
     }
@@ -301,7 +301,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * Convert value to Protobuf format
    */
-  private convertValueToProtobuf(value: any, targetType: string): any {
+  private convertValueToProtobuf(value: unknown, targetType: string): unknown {
     const typeMap: Record<string, string> = {
       'string': 'string',
       'integer': 'number',
@@ -330,7 +330,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * Map types from JSON to Protobuf
    */
-  private mapTypesJsonToProtobuf(data: any): any {
+  private mapTypesJsonToProtobuf(data: unknown): unknown {
     if (Array.isArray(data)) {
       return data.map(item => this.mapTypesJsonToProtobuf(item));
     }
@@ -349,7 +349,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * JSON to Avro conversion
    */
-  private jsonToAvro(data: any, schema?: any): any {
+  private jsonToAvro(data: unknown, schema?: unknown): unknown {
     // Avro uses similar structure to JSON but with type preservation
     return JSON.parse(JSON.stringify(data));
   }
@@ -357,7 +357,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * JSON to MessagePack conversion
    */
-  private jsonToMsgpack(data: any): any {
+  private jsonToMsgpack(data: unknown): unknown {
     // MessagePack is binary, return representation
     return {
       format: 'msgpack',
@@ -369,14 +369,14 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * Protobuf to JSON conversion
    */
-  private protobufToJson(data: any): any {
+  private protobufToJson(data: unknown): unknown {
     return this.mapTypesProtobufToJson(data);
   }
 
   /**
    * Map types from Protobuf to JSON
    */
-  private mapTypesProtobufToJson(data: any): any {
+  private mapTypesProtobufToJson(data: unknown): unknown {
     if (Array.isArray(data)) {
       return data.map(item => this.mapTypesProtobufToJson(item));
     }
@@ -395,7 +395,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * Avro to JSON conversion
    */
-  private avroToJson(data: any): any {
+  private avroToJson(data: unknown): unknown {
     // Avro to JSON is straightforward
     return JSON.parse(JSON.stringify(data));
   }
@@ -403,7 +403,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * MessagePack to JSON conversion
    */
-  private msgpackToJson(data: any): any {
+  private msgpackToJson(data: unknown): unknown {
     if (data.format === 'msgpack' && data.data) {
       return JSON.parse(data.data);
     }
@@ -465,7 +465,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * Convert schema between formats
    */
-  convertSchema(schema: any, targetFormat: DataFormat): string {
+  convertSchema(schema: unknown, targetFormat: DataFormat): string {
     if (targetFormat === 'protobuf') {
       return this.convertToProtobufSchema(schema);
     }
@@ -484,7 +484,7 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * Convert to Protobuf schema
    */
-  private convertToProtobufSchema(schema: any): string {
+  private convertToProtobufSchema(schema: unknown): string {
     let proto = \`syntax = "proto3";\\n\\n\`;
 
     if (schema.namespace) {
@@ -507,12 +507,12 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
   /**
    * Convert to Avro schema
    */
-  private convertToAvroSchema(schema: any): string {
-    const avroSchema: any = {
+  private convertToAvroSchema(schema: unknown): string {
+    const avroSchema: unknown = {
       type: 'record',
       name: schema.name,
       namespace: schema.namespace,
-      fields: schema.fields.map((field: any) => ({
+      fields: schema.fields.map((field: unknown) => ({
         name: field.name,
         type: this.getTypeMapping(field.type).avroType,
         doc: field.doc,
@@ -522,14 +522,14 @@ export class ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetF
     return JSON.stringify(avroSchema, null, 2);
   }
 
-  private getFieldNumber(field: any): number {
+  private getFieldNumber(field: unknown): number {
     // Simple hash of field name for demo
     return field.name.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) % 100 + 1;
   }
 }
 
 // Factory function
-export function createConverter(config: any) {
+export function createConverter(config: unknown) {
   return new ${toPascalCase(config.sourceFormat)}To${toPascalCase(config.targetFormat)}Converter(config);
 }
 
@@ -794,13 +794,13 @@ func main() {
 // Write generated files
 export async function writeConverterFiles(
   serviceName: string,
-  integration: any,
+  integration: Record<string, unknown>,
   outputDir: string,
   language: string
 ): Promise<void> {
   await fs.ensureDir(outputDir);
 
-  for (const file of integration.files) {
+  for (const file of (integration.files as Array<{ path: string; content: string }>)) {
     const filePath = path.join(outputDir, file.path);
     const fileDir = path.dirname(filePath);
 
@@ -809,7 +809,7 @@ export async function writeConverterFiles(
   }
 
   // Generate BUILD.md
-  const buildContent = generateBuildMarkdown(serviceName, integration, language);
+  const buildContent = generateBuildMarkdown(serviceName, integration as Record<string, unknown>, language);
   await fs.writeFile(path.join(outputDir, 'BUILD.md'), buildContent);
 }
 
@@ -839,7 +839,7 @@ export async function displayConverterConfig(config: ConverterConfig): Promise<v
 }
 
 // Generate BUILD.md
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: Record<string, unknown>, language: string): string {
   return `# Data Type Converter Build Instructions
 
 ## Language: ${language.toUpperCase()}

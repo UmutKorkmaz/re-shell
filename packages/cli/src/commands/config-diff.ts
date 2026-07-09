@@ -710,7 +710,7 @@ async function resolveConflictsInteractively(result: MergeResult): Promise<void>
     }
 
     // Apply resolution to merged result
-    setValueAtPath(result.merged, conflict.path, conflict.resolvedValue);
+    setValueAtPath(result.merged as Record<string, unknown>, conflict.path, conflict.resolvedValue);
   }
 }
 
