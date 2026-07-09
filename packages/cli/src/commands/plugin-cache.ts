@@ -147,7 +147,7 @@ export async function configureCacheSettings(
     }
 
     // Parse value based on setting type
-    let parsedValue: any = value;
+    let parsedValue: string | boolean | number | CacheStorageStrategy | PerformanceMonitoringLevel = value;
     
     switch (setting) {
       case 'enabled':
@@ -459,7 +459,7 @@ export async function optimizeCache(
       issue: string;
       recommendation: string;
       setting?: string;
-      newValue?: any;
+      newValue?: unknown;
       priority: 'high' | 'medium' | 'low';
     }> = [];
 

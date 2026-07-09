@@ -1,11 +1,12 @@
 import chalk from 'chalk';
 import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
-import { 
+import {
   createDependencyResolver,
   ResolutionResult,
   DependencyConflict,
-  InstallationStep
+  InstallationStep,
+  DependencyNode
 } from '../utils/plugin-dependency';
 import { createPluginRegistry } from '../utils/plugin-system';
 
@@ -272,7 +273,12 @@ export async function validateVersions(options: DependencyCommandOptions = {}): 
     await registry.initialize();
 
     const plugins = registry.getPlugins();
-    const validationResults: any[] = [];
+    const validationResults: Array<{
+      plugin: string;
+      version: string;
+      valid: boolean;
+      issues: string[];
+    }> = [];
 
     const spinner = createSpinner('Validating plugin versions...');
     spinner.start();
@@ -512,8 +518,8 @@ function displayInstallationPlan(plan: InstallationStep[]): void {
 
 // Display dependency node in tree format
 function displayDependencyNode(
-  node: any,
-  graph: Map<string, any>,
+  node: DependencyNode,
+  graph: Map<string, DependencyNode>,
   depth: number,
   visited: Set<string>,
   verbose: boolean

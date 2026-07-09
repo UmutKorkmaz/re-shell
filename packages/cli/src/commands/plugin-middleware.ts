@@ -1,12 +1,13 @@
 import chalk from 'chalk';
 import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
-import { 
+import {
   createMiddlewareChainManager,
   MiddlewareType,
   MiddlewareRegistration,
   builtinMiddleware
 } from '../utils/plugin-command-middleware';
+import { PluginCommandMiddleware, PluginCommandContext } from '../utils/plugin-command-registry';
 
 
 /** Options for the plugin middleware management commands. */
@@ -214,7 +215,7 @@ export async function testMiddleware(
 
   try {
     // Parse test data
-    let parsedData: { args?: any; options?: any };
+    let parsedData: { args?: Record<string, unknown>; options?: Record<string, unknown> };
     try {
       parsedData = JSON.parse(testData);
     } catch {
@@ -225,7 +226,7 @@ export async function testMiddleware(
     spinner.start();
 
     // Create test context
-    const testContext: any = {
+    const testContext = {
       command: {
         name: 'test-command',
         description: 'Test command'
@@ -252,7 +253,7 @@ export async function testMiddleware(
     };
 
     // Get middleware factory
-    let middleware: any;
+    let middleware: PluginCommandMiddleware;
     
     switch (middlewareType) {
       case 'validation':
@@ -285,7 +286,7 @@ export async function testMiddleware(
       
       case 'transform':
         middleware = builtinMiddleware.transform({
-          args: (args: any) => ({ ...args, transformed: true })
+          args: (args: Record<string, any>) => ({ ...args, transformed: true })
         });
         break;
       
@@ -305,7 +306,7 @@ export async function testMiddleware(
     await middleware(
       args,
       opts,
-      testContext,
+      testContext as unknown as PluginCommandContext,
       async () => {
         executionComplete = true;
         console.log(chalk.green('\n✓ Middleware execution passed'));

@@ -509,7 +509,7 @@ export async function configureHelpSystem(
     }
 
     // Parse value based on setting type
-    let parsedValue: any = value;
+    let parsedValue: string | boolean | number | HelpDisplayMode = value;
     
     if (setting === 'maxWidth') {
       parsedValue = parseInt(value, 10);
