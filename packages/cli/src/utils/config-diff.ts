@@ -11,8 +11,8 @@ export type DiffOperation = 'add' | 'remove' | 'change' | 'move' | 'no-change';
 export interface DiffEntry {
   operation: DiffOperation;
   path: string;
-  oldValue?: any;
-  newValue?: any;
+  oldValue?: unknown;
+  newValue?: unknown;
   type?: string;
   description?: string;
   severity?: 'low' | 'medium' | 'high' | 'critical';
@@ -44,12 +44,12 @@ export interface MergeStrategy {
   conflictResolution: 'left' | 'right' | 'interactive' | 'custom';
   preserveComments: boolean;
   preserveOrder: boolean;
-  customResolver?: (left: any, right: any, path: string) => any;
+  customResolver?: (left: unknown, right: unknown, path: string) => unknown;
 }
 
 // Merge result
 export interface MergeResult {
-  merged: any;
+  merged: unknown;
   conflicts: ConflictEntry[];
   warnings: string[];
   metadata: {
@@ -63,10 +63,10 @@ export interface MergeResult {
 // Conflict entry for merge operations
 export interface ConflictEntry {
   path: string;
-  leftValue: any;
-  rightValue: any;
+  leftValue: unknown;
+  rightValue: unknown;
   resolution: 'left' | 'right' | 'custom' | 'unresolved';
-  resolvedValue?: any;
+  resolvedValue?: unknown;
   reason: string;
 }
 
@@ -96,8 +96,8 @@ export class ConfigDiffer {
 
   // Compare two configuration objects
   async diff(
-    left: any, 
-    right: any,
+    left: unknown, 
+    right: unknown,
     leftSource = 'left',
     rightSource = 'right'
   ): Promise<ConfigDiff> {
@@ -139,8 +139,8 @@ export class ConfigDiffer {
 
   // Merge two configuration objects
   async merge(
-    left: any,
-    right: any,
+    left: unknown,
+    right: unknown,
     strategy: MergeStrategy,
     leftSource = 'left',
     rightSource = 'right'
@@ -192,7 +192,7 @@ export class ConfigDiffer {
   }
 
   // Apply a diff to a configuration
-  async applyDiff(base: any, diff: ConfigDiff): Promise<unknown> {
+  async applyDiff(base: unknown, diff: ConfigDiff): Promise<unknown> {
     const result = JSON.parse(JSON.stringify(base)); // Deep clone
 
     for (const change of diff.changes) {
@@ -227,7 +227,7 @@ export class ConfigDiffer {
   }
 
   // Deep comparison implementation
-  private deepDiff(left: any, right: any, currentPath: string, changes: DiffEntry[]): void {
+  private deepDiff(left: unknown, right: unknown, currentPath: string, changes: DiffEntry[]): void {
     // Skip ignored paths
     if (this.options.ignorePaths?.some(ignorePath => currentPath.startsWith(ignorePath))) {
       return;
@@ -286,7 +286,7 @@ export class ConfigDiffer {
     if (leftType === 'object') {
       this.diffObjects(left, right, currentPath, changes);
     } else if (leftType === 'array') {
-      this.diffArrays(left, right, currentPath, changes);
+      this.diffArrays(left as unknown[], right as unknown[], currentPath, changes);
     } else {
       // Primitive comparison
       if (left !== right) {
@@ -305,7 +305,7 @@ export class ConfigDiffer {
   }
 
   // Compare objects
-  private diffObjects(left: any, right: any, currentPath: string, changes: DiffEntry[]): void {
+  private diffObjects(left: unknown, right: unknown, currentPath: string, changes: DiffEntry[]): void {
     const leftKeys = new Set(Object.keys(left));
     const rightKeys = new Set(Object.keys(right));
     const allKeys = new Set([...leftKeys, ...rightKeys]);
@@ -343,7 +343,7 @@ export class ConfigDiffer {
   }
 
   // Compare arrays
-  private diffArrays(left: any[], right: any[], currentPath: string, changes: DiffEntry[]): void {
+  private diffArrays(left: unknown[], right: unknown[], currentPath: string, changes: DiffEntry[]): void {
     if (this.options.ignoreOrder) {
       // Order-independent comparison
       this.diffArraysIgnoreOrder(left, right, currentPath, changes);
@@ -354,7 +354,7 @@ export class ConfigDiffer {
   }
 
   // Array comparison ignoring order
-  private diffArraysIgnoreOrder(left: any[], right: any[], currentPath: string, changes: DiffEntry[]): void {
+  private diffArraysIgnoreOrder(left: unknown[], right: unknown[], currentPath: string, changes: DiffEntry[]): void {
     const leftSet = new Set(left.map(item => JSON.stringify(item)));
     const rightSet = new Set(right.map(item => JSON.stringify(item)));
 
@@ -392,7 +392,7 @@ export class ConfigDiffer {
   }
 
   // Array comparison preserving order
-  private diffArraysWithOrder(left: any[], right: any[], currentPath: string, changes: DiffEntry[]): void {
+  private diffArraysWithOrder(left: unknown[], right: unknown[], currentPath: string, changes: DiffEntry[]): void {
     const maxLength = Math.max(left.length, right.length);
 
     for (let i = 0; i < maxLength; i++) {
@@ -429,13 +429,13 @@ export class ConfigDiffer {
 
   // Deep merge implementation
   private deepMerge(
-    left: any,
-    right: any,
+    left: unknown,
+    right: unknown,
     currentPath: string,
     strategy: MergeStrategy,
     conflicts: ConflictEntry[],
     warnings: string[]
-  ): any {
+  ): unknown {
     // Handle null/undefined cases
     if (left === undefined || left === null) return right;
     if (right === undefined || right === null) return left;
@@ -470,7 +470,7 @@ export class ConfigDiffer {
     if (leftType === 'object') {
       return this.mergeObjects(left, right, currentPath, strategy, conflicts, warnings);
     } else if (leftType === 'array') {
-      return this.mergeArrays(left, right, currentPath, strategy, conflicts, warnings);
+      return this.mergeArrays(left as unknown[], right as unknown[], currentPath, strategy, conflicts, warnings);
     } else {
       // Primitive values - check for conflicts
       if (left !== right) {
@@ -501,20 +501,21 @@ export class ConfigDiffer {
 
   // Merge objects
   private mergeObjects(
-    left: any,
-    right: any,
+    left: unknown,
+    right: unknown,
     currentPath: string,
     strategy: MergeStrategy,
     conflicts: ConflictEntry[],
     warnings: string[]
-  ): any {
-    const result: any = { ...left };
-    
-    for (const [key, rightValue] of Object.entries(right)) {
+  ): unknown {
+    const result: Record<string, unknown> = { ...(left as Record<string, unknown>) };
+
+    for (const [key, rightValue] of Object.entries(right as Record<string, unknown>)) {
       const newPath = currentPath ? `${currentPath}.${key}` : key;
-      
-      if (key in left) {
-        result[key] = this.deepMerge(left[key], rightValue, newPath, strategy, conflicts, warnings);
+      const leftRecord = left as Record<string, unknown>;
+
+      if (key in leftRecord) {
+        result[key] = this.deepMerge(leftRecord[key], rightValue, newPath, strategy, conflicts, warnings);
       } else {
         result[key] = rightValue;
       }
@@ -525,13 +526,13 @@ export class ConfigDiffer {
 
   // Merge arrays
   private mergeArrays(
-    left: any[],
-    right: any[],
+    left: unknown[],
+    right: unknown[],
     currentPath: string,
     strategy: MergeStrategy,
     conflicts: ConflictEntry[],
     warnings: string[]
-  ): any[] {
+  ): unknown[] {
     switch (strategy.arrayMerge) {
       case 'replace':
         return right;
@@ -549,7 +550,7 @@ export class ConfigDiffer {
         }
       case 'custom':
         if (strategy.customResolver) {
-          return strategy.customResolver(left, right, currentPath);
+          return strategy.customResolver(left as unknown, right as unknown, currentPath) as unknown[];
         }
         warnings.push(`Custom array merge resolver not provided for ${currentPath}, using concat`);
         return [...left, ...right];
@@ -559,14 +560,14 @@ export class ConfigDiffer {
   }
 
   // Utility methods
-  private getValueType(value: any): string {
+  private getValueType(value: unknown): string {
     if (value === null) return 'null';
     if (value === undefined) return 'undefined';
     if (Array.isArray(value)) return 'array';
     return typeof value;
   }
 
-  private formatValue(value: any): string {
+  private formatValue(value: unknown): string {
     if (typeof value === 'string') return `"${value}"`;
     if (value === null) return 'null';
     if (value === undefined) return 'undefined';
@@ -621,31 +622,31 @@ export class ConfigDiffer {
     return summary;
   }
 
-  private setValueAtPath(obj: any, path: string, value: any): void {
+  private setValueAtPath(obj: unknown, path: string, value: unknown): void {
     const keys = path.split('.');
     const lastKey = keys.pop()!;
-    
-    let current = obj;
+
+    let current: Record<string, unknown> = obj as Record<string, unknown>;
     for (const key of keys) {
       if (!(key in current)) {
         current[key] = {};
       }
-      current = current[key];
+      current = current[key] as Record<string, unknown>;
     }
-    
+
     current[lastKey] = value;
   }
 
-  private removeValueAtPath(obj: any, path: string): void {
+  private removeValueAtPath(obj: unknown, path: string): void {
     const keys = path.split('.');
     const lastKey = keys.pop()!;
-    
-    let current = obj;
+
+    let current: Record<string, unknown> = obj as Record<string, unknown>;
     for (const key of keys) {
       if (!(key in current)) return;
-      current = current[key];
+      current = current[key] as Record<string, unknown>;
     }
-    
+
     delete current[lastKey];
   }
 

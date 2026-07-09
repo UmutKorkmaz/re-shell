@@ -19,11 +19,11 @@ export interface ValidationRule {
   /** Human-readable message describing what a failed validation means. */
   message: string;
   /** Optional custom validator function for `'custom'` rule types. */
-  validator?: (value: any, context?: any) => boolean;
+  validator?: (value: unknown, context?: unknown) => boolean;
   /** Additional constraint details that refine how the rule is evaluated. */
   details?: {
     /** Permitted values for `'enum'` rule types. */
-    allowedValues?: any[];
+    allowedValues?: unknown[];
     /** Regular expression that the field must match for `'pattern'` rule types. */
     pattern?: RegExp;
     /** Lower bound (inclusive) for `'range'` rule types. */
@@ -62,9 +62,9 @@ export interface ValidationErrorDetail {
   /** Machine-readable error code for programmatic handling. */
   code: string;
   /** The invalid value that triggered the error, if available. */
-  value?: any;
+  value?: unknown;
   /** The value or constraint that was expected. */
-  expectedValue?: any;
+  expectedValue?: unknown;
   /** Suggested fixes for the error. */
   suggestions?: string[];
   /** Optional additional context about where the error occurred. */
@@ -102,7 +102,7 @@ export interface ValidationSuggestion {
   /** Whether the suggestion can be applied automatically without user input. */
   autoFixable: boolean;
   /** The value to use when applying the fix automatically, if applicable. */
-  autoFixValue?: any;
+  autoFixValue?: unknown;
 }
 
 /**
@@ -282,18 +282,20 @@ export class ConfigurationValidator {
    * trigger additional contextual validations and prefix field paths.
    * @returns The aggregated validation result containing errors, warnings, and suggestions.
    */
-  validateConfiguration(config: any, schema: ValidationRule[], context = ''): ValidationResult {
+  validateConfiguration(config: unknown, schema: ValidationRule[], context = ''): ValidationResult {
     this.reset();
 
+    const configRecord = config as Record<string, unknown>;
+
     for (const rule of schema) {
-      const value = this.getNestedValue(config, rule.field);
+      const value = this.getNestedValue(configRecord, rule.field);
       const fieldContext = context ? `${context}.${rule.field}` : rule.field;
 
-      this.validateField(value, rule, fieldContext, config);
+      this.validateField(value, rule, fieldContext, configRecord);
     }
 
     // Add additional contextual validations
-    this.performContextualValidations(config, context);
+    this.performContextualValidations(configRecord, context);
 
     return {
       valid: this.errors.filter(e => e.severity === 'error').length === 0,
@@ -304,7 +306,7 @@ export class ConfigurationValidator {
   }
 
   // Validate individual field
-  private validateField(value: any, rule: ValidationRule, fieldPath: string, fullConfig: any): void {
+  private validateField(value: unknown, rule: ValidationRule, fieldPath: string, fullConfig: unknown): void {
     switch (rule.type) {
       case 'required':
         this.validateRequired(value, rule, fieldPath);
@@ -327,7 +329,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateRequired(value: any, rule: ValidationRule, fieldPath: string): void {
+  private validateRequired(value: unknown, rule: ValidationRule, fieldPath: string): void {
     if (value === undefined || value === null || value === '') {
       this.addError({
         field: fieldPath,
@@ -340,7 +342,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateType(value: any, rule: ValidationRule, fieldPath: string): void {
+  private validateType(value: unknown, rule: ValidationRule, fieldPath: string): void {
     if (value === undefined || value === null) return;
 
     const expectedType = rule.details?.expectedType;
@@ -364,7 +366,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateEnum(value: any, rule: ValidationRule, fieldPath: string): void {
+  private validateEnum(value: unknown, rule: ValidationRule, fieldPath: string): void {
     if (value === undefined || value === null) return;
 
     const allowedValues = rule.details?.allowedValues || [];
@@ -381,7 +383,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validatePattern(value: any, rule: ValidationRule, fieldPath: string): void {
+  private validatePattern(value: unknown, rule: ValidationRule, fieldPath: string): void {
     if (value === undefined || value === null) return;
 
     const pattern = rule.details?.pattern;
@@ -397,7 +399,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateRange(value: any, rule: ValidationRule, fieldPath: string): void {
+  private validateRange(value: unknown, rule: ValidationRule, fieldPath: string): void {
     if (value === undefined || value === null) return;
 
     const { min, max } = rule.details || {};
@@ -427,7 +429,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateCustom(value: any, rule: ValidationRule, fieldPath: string, fullConfig: any): void {
+  private validateCustom(value: unknown, rule: ValidationRule, fieldPath: string, fullConfig: unknown): void {
     if (rule.validator && !rule.validator(value, fullConfig)) {
       this.addError({
         field: fieldPath,
@@ -441,7 +443,7 @@ export class ConfigurationValidator {
   }
 
   // Contextual validations
-  private performContextualValidations(config: any, context: string): void {
+  private performContextualValidations(config: Record<string, unknown>, context: string): void {
     if (context === 'global') {
       this.validateGlobalContextual(config);
     } else if (context === 'project') {
@@ -449,7 +451,7 @@ export class ConfigurationValidator {
     }
   }
 
-  private validateGlobalContextual(config: any): void {
+  private validateGlobalContextual(config: Record<string, unknown>): void {
     // Check if directories exist
     if (config.paths) {
       for (const [key, dirPath] of Object.entries(config.paths)) {
@@ -476,20 +478,25 @@ export class ConfigurationValidator {
     }
 
     // Check plugin registry accessibility
-    if (config.plugins?.marketplace?.registry) {
-      this.addSuggestion({
-        field: 'plugins.marketplace.registry',
-        suggestion: 'Verify registry URL is accessible',
-        reason: 'Ensure plugin marketplace functionality',
-        autoFixable: false
-      });
+    const plugins = config.plugins as Record<string, unknown> | undefined;
+    if (plugins?.marketplace) {
+      const marketplace = plugins.marketplace as Record<string, unknown>;
+      if (marketplace.registry) {
+        this.addSuggestion({
+          field: 'plugins.marketplace.registry',
+          suggestion: 'Verify registry URL is accessible',
+          reason: 'Ensure plugin marketplace functionality',
+          autoFixable: false
+        });
+      }
     }
   }
 
-  private validateProjectContextual(config: any): void {
+  private validateProjectContextual(config: Record<string, unknown>): void {
     // Validate workspace patterns
-    if (config.workspaces?.patterns) {
-      for (const pattern of config.workspaces.patterns) {
+    const workspaces = config.workspaces as Record<string, unknown> | undefined;
+    if (workspaces?.patterns) {
+      for (const pattern of workspaces.patterns as unknown[]) {
         if (typeof pattern === 'string' && pattern.includes('..')) {
           this.addWarning({
             field: 'workspaces.patterns',
@@ -503,9 +510,9 @@ export class ConfigurationValidator {
 
     // Validate environment consistency
     if (config.environments) {
-      const envNames = Object.keys(config.environments);
+      const envNames = Object.keys(config.environments as Record<string, unknown>);
       const requiredEnvs = ['development', 'staging', 'production'];
-      
+
       for (const required of requiredEnvs) {
         if (!envNames.includes(required)) {
           this.addWarning({
@@ -519,12 +526,13 @@ export class ConfigurationValidator {
     }
 
     // Check port conflicts
-    if (config.dev?.port) {
+    const dev = config.dev as Record<string, unknown> | undefined;
+    if (dev?.port) {
       const commonPorts = [3000, 8080, 8000, 5000, 3001];
-      if (commonPorts.includes(config.dev.port)) {
+      if (commonPorts.includes(dev.port as number)) {
         this.addWarning({
           field: 'dev.port',
-          message: `Port ${config.dev.port} is commonly used and may cause conflicts`,
+          message: `Port ${dev.port} is commonly used and may cause conflicts`,
           suggestion: 'Consider using a different port',
           impact: 'low'
         });
@@ -544,7 +552,7 @@ export class ConfigurationValidator {
     return suggestions[fieldPath] || [`Provide a value for ${fieldPath}`];
   }
 
-  private generateTypeSuggestions(value: any, expectedType: string): string[] {
+  private generateTypeSuggestions(value: unknown, expectedType: string): string[] {
     if (expectedType === 'array' && !Array.isArray(value)) {
       return [`Convert to array: [${JSON.stringify(value)}]`, 'Use empty array: []'];
     }
@@ -557,7 +565,7 @@ export class ConfigurationValidator {
     return [`Convert to ${expectedType}`];
   }
 
-  private generateEnumSuggestions(value: any, allowedValues: any[]): string[] {
+  private generateEnumSuggestions(value: unknown, allowedValues: unknown[]): string[] {
     // Find close matches using simple string similarity
     if (typeof value === 'string') {
       const closeMatches = allowedValues
@@ -588,7 +596,7 @@ export class ConfigurationValidator {
     return suggestions[fieldPath] || [`Match pattern: ${pattern.source}`];
   }
 
-  private generateCustomSuggestions(fieldPath: string, value: any): string[] {
+  private generateCustomSuggestions(fieldPath: string, value: unknown): string[] {
     if (fieldPath === 'environments') {
       return ['Add at least one environment (development, staging, or production)'];
     }
@@ -596,7 +604,7 @@ export class ConfigurationValidator {
   }
 
   // Utility methods
-  private getNestedValue(obj: any, path: string): any {
+  private getNestedValue(obj: unknown, path: string): unknown {
     return path.split('.').reduce((current, key) => current?.[key], obj);
   }
 
@@ -656,7 +664,7 @@ export const configValidator = new ConfigurationValidator();
  * @param config - The global configuration object to validate.
  * @returns The validation result containing any errors, warnings, and suggestions.
  */
-export function validateGlobalConfig(config: any): ValidationResult {
+export function validateGlobalConfig(config: unknown): ValidationResult {
   return configValidator.validateConfiguration(config, GLOBAL_CONFIG_SCHEMA, 'global');
 }
 
@@ -665,7 +673,7 @@ export function validateGlobalConfig(config: any): ValidationResult {
  * @param config - The project configuration object to validate.
  * @returns The validation result containing any errors, warnings, and suggestions.
  */
-export function validateProjectConfig(config: any): ValidationResult {
+export function validateProjectConfig(config: unknown): ValidationResult {
   return configValidator.validateConfiguration(config, PROJECT_CONFIG_SCHEMA, 'project');
 }
 
@@ -696,7 +704,7 @@ export async function validateConfigFile(filePath: string, configType: 'global' 
     }
 
     const content = await fs.readFile(filePath, 'utf8');
-    let config: any;
+    let config: unknown;
 
     try {
       config = yaml.parse(content);
