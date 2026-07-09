@@ -39,7 +39,7 @@ export async function showCacheStats(
 
   try {
     const cacheManager = createCommandCacheManager();
-    const stats = cacheManager.getCacheStats();
+    const stats = cacheManager.getCacheStats() as Record<string, any>;
     const metrics = cacheManager.getMetrics();
     const config = cacheManager.getConfiguration();
 
@@ -253,7 +253,7 @@ export async function clearCache(
       
     } else {
       // Clear all cache
-      const statsBefore = cacheManager.getCacheStats();
+      const statsBefore = cacheManager.getCacheStats() as Record<string, any>;
       await cacheManager.clearAll();
       clearedCount = statsBefore.size;
       spinner.stop();
@@ -407,7 +407,7 @@ export async function testCachePerformance(
 
     if (verbose) {
       console.log(chalk.yellow('\nCache Statistics:'));
-      const stats = cacheManager.getCacheStats();
+      const stats = cacheManager.getCacheStats() as Record<string, any>;
       console.log(`  Cache size: ${stats.size} entries`);
       console.log(`  Memory usage: ${formatCacheSize(stats.memoryUsage)}`);
 
@@ -449,7 +449,7 @@ export async function optimizeCache(
 
   try {
     const cacheManager = createCommandCacheManager();
-    const stats = cacheManager.getCacheStats();
+    const stats = cacheManager.getCacheStats() as Record<string, any>;
     const metrics = cacheManager.getMetrics();
     const config = cacheManager.getConfiguration();
 
@@ -595,7 +595,7 @@ export async function listCachedCommands(
 
   try {
     const cacheManager = createCommandCacheManager();
-    const stats = cacheManager.getCacheStats();
+    const stats = cacheManager.getCacheStats() as Record<string, any>;
 
     // Mock getting cache entries (would be implemented in real cache manager)
     const mockEntries = [

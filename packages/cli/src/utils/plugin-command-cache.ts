@@ -351,7 +351,7 @@ export class PluginCommandCacheManager extends EventEmitter {
   // Set cache entry
   private async setCacheEntry(
     key: string,
-    value: any,
+    value: unknown,
     metadata: CacheEntryMetadata
   ): Promise<void> {
     const now = Date.now();
@@ -753,7 +753,7 @@ export class PluginCommandCacheManager extends EventEmitter {
   }
 
   // Calculate object size
-  private calculateSize(obj: any): number {
+  private calculateSize(obj: unknown): number {
     return Buffer.byteLength(JSON.stringify(obj), 'utf8');
   }
 
@@ -819,7 +819,7 @@ export class PluginCommandCacheManager extends EventEmitter {
   }
 
   // Hash object for comparison
-  private hashObject(obj: any): string {
+  private hashObject(obj: unknown): string {
     return crypto.createHash('md5').update(JSON.stringify(this.normalizeForHashing(obj))).digest('hex');
   }
 
@@ -834,7 +834,7 @@ export class PluginCommandCacheManager extends EventEmitter {
   }
 
   // Normalize object for hashing
-  private normalizeForHashing(obj: any): any {
+  private normalizeForHashing(obj: unknown): unknown {
     if (obj === null || obj === undefined) return obj;
     
     if (Array.isArray(obj)) {
@@ -916,7 +916,7 @@ export class PluginCommandCacheManager extends EventEmitter {
   }
 
   // Get cache statistics
-  getCacheStats(): any {
+  getCacheStats(): Record<string, unknown> {
     return {
       size: this.memoryCache.size,
       memoryUsage: this.calculateTotalMemoryUsage(),

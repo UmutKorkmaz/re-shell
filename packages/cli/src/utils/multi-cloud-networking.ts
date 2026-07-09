@@ -223,10 +223,10 @@ export function generateTypeScriptNetworking(config: MultiCloudNetworkingConfig)
   code += '  private projectName: string;\n';
   code += '  private routingStrategy: string;\n';
   code += '  private connections: Map<string, Connection>;\n';
-  code += '  private loadBalancer: any;\n';
-  code += '  private performance: any;\n\n';
+  code += '  private loadBalancer: unknown;\n';
+  code += '  private performance: unknown;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.routingStrategy = options.routingStrategy || \'' + config.routingStrategy + '\';\n';
@@ -270,7 +270,7 @@ export function generateTypeScriptNetworking(config: MultiCloudNetworkingConfig)
   code += '    return results;\n';
   code += '  }\n\n';
 
-  code += '  private async establishConnection(endpoint: any): Promise<Connection> {\n';
+  code += '  private async establishConnection(endpoint: unknown): Promise<Connection> {\n';
   code += '    console.log(`[MultiCloudNetwork] Connecting to ${endpoint.provider} in ${endpoint.region}`);\n';
   code += '    // Connection logic\n';
   code += '    return {\n';
@@ -327,7 +327,7 @@ export function generateTypeScriptNetworking(config: MultiCloudNetworkingConfig)
   code += '    return connections.sort((a, b) => a.bandwidth - b.bandwidth)[0];\n';
   code += '  }\n\n';
 
-  code += '  getNetworkStatus(): any {\n';
+  code += '  getNetworkStatus(): unknown {\n';
   code += '    return {\n';
   code += '      projectName: this.projectName,\n';
   code += '      routingStrategy: this.routingStrategy,\n';
