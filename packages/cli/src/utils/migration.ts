@@ -9,9 +9,9 @@ import semver from 'semver';
 export interface Migration {
   version: string;
   description: string;
-  up: (config: any) => any;
-  down?: (config: any) => any;
-  validate?: (config: any) => boolean;
+  up: (config: Record<string, any>) => Record<string, any>;
+  down?: (config: Record<string, any>) => Record<string, any>;
+  validate?: (config: Record<string, any>) => boolean;
 }
 
 export interface MigrationResult {
@@ -197,7 +197,7 @@ export class MigrationManager {
 
     try {
       // Load current configuration
-      let config: any;
+      let config: Record<string, any>;
       if (configType === 'global') {
         config = await configManager.loadGlobalConfig();
       } else {
@@ -238,9 +238,9 @@ export class MigrationManager {
         config.version = toVersion;
         
         if (configType === 'global') {
-          await configManager.saveGlobalConfig(config);
+          await configManager.saveGlobalConfig(config as any);
         } else {
-          await configManager.saveProjectConfig(config, projectPath);
+          await configManager.saveProjectConfig(config as any, projectPath);
         }
       }
 
@@ -287,7 +287,7 @@ export class MigrationManager {
 
     try {
       // Load current configuration
-      let config: any;
+      let config: Record<string, any>;
       if (configType === 'global') {
         config = await configManager.loadGlobalConfig();
       } else {
@@ -315,9 +315,9 @@ export class MigrationManager {
         config.version = targetVersion;
         
         if (configType === 'global') {
-          await configManager.saveGlobalConfig(config);
+          await configManager.saveGlobalConfig(config as any);
         } else {
-          await configManager.saveProjectConfig(config, projectPath);
+          await configManager.saveProjectConfig(config as any, projectPath);
         }
       }
 
@@ -341,7 +341,7 @@ export class MigrationManager {
   }
 
   // Create migration backup
-  private async createMigrationBackup(configType: 'global' | 'project', config: any, projectPath?: string): Promise<string> {
+  private async createMigrationBackup(configType: 'global' | 'project', config: unknown, projectPath?: string): Promise<string> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupDir = configType === 'global' 
       ? path.join(process.env.HOME || '~', '.re-shell', 'backups', 'migrations')
@@ -376,7 +376,7 @@ export class MigrationManager {
       }
 
       // Load and validate configuration
-      let config: any;
+      let config: Record<string, any>;
       if (configType === 'global') {
         config = await configManager.loadGlobalConfig();
       } else {

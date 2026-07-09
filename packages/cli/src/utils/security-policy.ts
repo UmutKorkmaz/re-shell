@@ -124,9 +124,9 @@ export interface PolicyParameter {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   description: string;
-  defaultValue: any;
+  defaultValue: unknown;
   required: boolean;
-  allowedValues?: any[];
+  allowedValues?: unknown[];
   validation?: string;
 }
 
@@ -139,7 +139,7 @@ export interface PolicyCondition {
 export interface ConditionExpression {
   field: string;
   operator: 'equals' | 'not-equals' | 'contains' | 'not-contains' | 'greater-than' | 'less-than' | 'regex' | 'in' | 'not-in';
-  value: any;
+  value: unknown;
 }
 
 export interface EnforcementConfig {
@@ -218,11 +218,11 @@ export interface PolicyViolation {
 }
 
 export interface ViolationEvidence {
-  snapshot: any;
+  snapshot: unknown;
   logs: string[];
   screenshots: string[];
   metrics: Record<string, number>;
-  configurationDiff: any;
+  configurationDiff: unknown;
 }
 
 export interface PolicyException {
@@ -262,8 +262,8 @@ export interface PolicyAudit {
 
 export interface AuditDetails {
   action: string;
-  previousState?: any;
-  newState?: any;
+  previousState?: unknown;
+  newState?: unknown;
   reason?: string;
   ipAddress?: string;
   userAgent?: string;

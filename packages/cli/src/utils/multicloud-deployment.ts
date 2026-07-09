@@ -178,7 +178,7 @@ export function generateTypeScriptMultiCloud(config: MultiCloudConfig): string {
   code += '  private projectName: string;\n';
   code += '  private currentProvider: CloudProvider | null;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.providers = ';
@@ -198,7 +198,7 @@ export function generateTypeScriptMultiCloud(config: MultiCloudConfig): string {
     code += '        try {\n';
     code += '          await this.deployToProvider(provider);\n';
     code += '          this.emit(\'deployed\', provider);\n';
-    code += '        } catch (error: any) {\n';
+    code += '        } catch (error: unknown) {\n';
     code += '          console.error(`[MultiCloud] Failed to deploy to ${provider.name}:`, error.message);\n';
     code += '          this.emit(\'deploy-failed\', provider, error);\n';
     code += '        }\n';
@@ -221,7 +221,7 @@ export function generateTypeScriptMultiCloud(config: MultiCloudConfig): string {
   code += '    console.log(\'[MultiCloud] ✓ Deployment completed\');\n';
   code += '  }\n\n';
 
-  code += '  private async deployToProvider(provider: CloudProvider, options: any = {}): Promise<void> {\n';
+  code += '  private async deployToProvider(provider: CloudProvider, options: unknown = {}): Promise<void> {\n';
   code += '    console.log(`[MultiCloud] Deploying to ${provider.name}...`);\n\n';
 
   code += '    switch (provider.name) {\n';
@@ -237,7 +237,7 @@ export function generateTypeScriptMultiCloud(config: MultiCloudConfig): string {
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private async deployToAWS(provider: CloudProvider, options: any): Promise<void> {\n';
+  code += '  private async deployToAWS(provider: CloudProvider, options: unknown): Promise<void> {\n';
   code += '    const cmd = \'terraform apply -auto-approve \\\n';
   code += '      -var="project=' + config.projectName + '" \\\n';
   code += '      -var="region=\' + provider.region + \'" \\\n';
@@ -249,7 +249,7 @@ export function generateTypeScriptMultiCloud(config: MultiCloudConfig): string {
   code += '    console.log(`[MultiCloud] ✓ AWS deployment complete`);\n';
   code += '  }\n\n';
 
-  code += '  private async deployToAzure(provider: CloudProvider, options: any): Promise<void> {\n';
+  code += '  private async deployToAzure(provider: CloudProvider, options: unknown): Promise<void> {\n';
   code += '    const cmd = \'terraform apply -auto-approve \\\n';
   code += '      -var="project=' + config.projectName + '" \\\n';
   code += '      -var="region=\' + provider.region + \'" \\\n';
@@ -261,7 +261,7 @@ export function generateTypeScriptMultiCloud(config: MultiCloudConfig): string {
   code += '    console.log(`[MultiCloud] ✓ Azure deployment complete`);\n';
   code += '  }\n\n';
 
-  code += '  private async deployToGCP(provider: CloudProvider, options: any): Promise<void> {\n';
+  code += '  private async deployToGCP(provider: CloudProvider, options: unknown): Promise<void> {\n';
   code += '    const cmd = \'terraform apply -auto-approve \\\n';
   code += '      -var="project=' + config.projectName + '" \\\n';
   code += '      -var="region=\' + provider.region + \'" \\\n';
@@ -294,7 +294,7 @@ export function generateTypeScriptMultiCloud(config: MultiCloudConfig): string {
     code += '        const isHealthy = await this.checkProviderHealth(provider);\n';
     code += '        provider.status = isHealthy ? \'active\' : \'degraded\';\n';
     code += '        this.emit(\'health-check\', provider, isHealthy);\n';
-    code += '      } catch (error: any) {\n';
+    code += '      } catch (error: unknown) {\n';
     code += '        provider.status = \'down\';\n';
     code += '        this.emit(\'health-check-failed\', provider, error);\n';
     code += '      }\n';

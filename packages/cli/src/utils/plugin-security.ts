@@ -680,7 +680,7 @@ export class PluginSecurityValidator extends EventEmitter {
   }
 
   // Get security statistics
-  getSecurityStats(): any {
+  getSecurityStats(): Record<string, unknown> {
     const stats = {
       totalScans: this.securityCache.size,
       trustedKeys: this.trustedPublicKeys.size,
@@ -715,8 +715,8 @@ export class PluginSandbox extends EventEmitter {
 
   // Execute plugin in sandbox
   async executeInSandbox(
-    pluginFunction: (...args: any[]) => any,
-    context: any,
+    pluginFunction: (...args: unknown[]) => unknown,
+    context: unknown,
     timeout?: number
   ): Promise<unknown> {
     const executionTimeout = timeout || this.config.timeoutLimit;
@@ -758,7 +758,7 @@ export class PluginSandbox extends EventEmitter {
   }
 
   // Create sandboxed context
-  private createSandboxedContext(originalContext: any): any {
+  private createSandboxedContext(originalContext: Record<string, any>): Record<string, any> {
     const sandboxedContext = { ...originalContext };
 
     // Override dangerous functions
@@ -781,7 +781,7 @@ export class PluginSandbox extends EventEmitter {
   }
 
   // Create sandboxed filesystem interface
-  private createSandboxedFS(): any {
+  private createSandboxedFS(): unknown {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const originalFS = require('fs-extra');
     const sandboxedFS = { ...originalFS };
@@ -790,7 +790,7 @@ export class PluginSandbox extends EventEmitter {
     const writeOperations = ['writeFile', 'writeFileSync', 'writeJSON', 'writeJSONSync', 'remove', 'removeSync'];
     
     writeOperations.forEach(operation => {
-      sandboxedFS[operation] = (filePath: string, ...args: any[]) => {
+      sandboxedFS[operation] = (filePath: string, ...args: unknown[]) => {
         if (!this.isPathAllowed(filePath)) {
           throw new Error(`Filesystem access denied: ${filePath}`);
         }
@@ -802,7 +802,7 @@ export class PluginSandbox extends EventEmitter {
   }
 
   // Create sandboxed process interface
-  private createSandboxedProcess(): any {
+  private createSandboxedProcess(): unknown {
     return {
       env: {},
       cwd: () => this.config.allowedPaths[0] || process.cwd(),
