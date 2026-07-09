@@ -285,10 +285,10 @@ export class ${toPascalCase(config.serviceName)}DataLineageTracker {
   private nodes: Map<string, LineageNode>;
   private edges: Map<string, LineageEdge>;
   private events: DataFlowEvent[];
-  private config: any;
+  private config: unknown;
   private metrics: Map<string, number>;
 
-  constructor(config: any) {
+  constructor(config: unknown) {
     this.nodes = new Map();
     this.edges = new Map();
     this.events = [];
@@ -749,7 +749,7 @@ export class ${toPascalCase(config.serviceName)}DataLineageTracker {
 }
 
 // Factory function
-export function createDataLineageTracker(config: any) {
+export function createDataLineageTracker(config: unknown) {
   return new ${toPascalCase(config.serviceName)}DataLineageTracker(config);
 }
 
@@ -1421,13 +1421,13 @@ func main() {
  */
 export async function writeLineageTrackerFiles(
   serviceName: string,
-  integration: any,
+  integration: Record<string, unknown>,
   outputDir: string,
   language: string
 ): Promise<void> {
   await fs.ensureDir(outputDir);
 
-  for (const file of integration.files) {
+  for (const file of (integration.files as Array<{ path: string; content: string }>)) {
     const filePath = path.join(outputDir, file.path);
     const fileDir = path.dirname(filePath);
 
@@ -1505,7 +1505,7 @@ export async function displayLineageTrackerConfig(config: LineageTrackerConfig):
  * @param language - Target language identifier included in the header.
  * @returns The rendered Markdown string.
  */
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: unknown, language: string): string {
   const toPascalCase = (str: string) =>
     str.replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase()).replace(/[-_]/g, '');
 

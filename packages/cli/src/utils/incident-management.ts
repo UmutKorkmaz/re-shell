@@ -74,7 +74,7 @@ export interface EscalationRule {
 export interface EscalationCondition {
   field: 'severity' | 'priority' | 'age' | 'affectedUsers' | 'dataLoss';
   operator: 'equals' | 'greater-than' | 'less-than' | 'contains';
-  value: any;
+  value: unknown;
 }
 
 /** An action performed when an escalation rule is triggered. */
@@ -211,8 +211,8 @@ export interface PlaybookVariable {
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   description: string;
   required: boolean;
-  defaultValue?: any;
-  options?: any[];
+  defaultValue?: unknown;
+  options?: unknown[];
 }
 
 /** Represents an investigation into one or more incidents. */
@@ -436,7 +436,7 @@ export interface IncidentIntegration {
   type: 'siem' | 'edr' | 'ticketing' | 'communication' | 'forensics' | 'threat-intel' | 'custom';
   provider: string;
   enabled: boolean;
-  config: any;
+  config: unknown;
   status: 'connected' | 'disconnected' | 'error';
   lastSync: Date;
   incidentsImported: number;
@@ -754,7 +754,7 @@ class IncidentManagementManager extends EventEmitter {
   private investigations: Map<string, Investigation> = new Map();
   private artifacts: Map<string, Artifact> = new Map();
 
-  async createIncident(data: any): Promise<Incident> {
+  async createIncident(data: unknown): Promise<Incident> {
     const incident: Incident = {
       id: \`incident-\${Date.now()}\`,
       type: 'malware',

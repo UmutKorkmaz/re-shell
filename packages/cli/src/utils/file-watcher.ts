@@ -86,13 +86,13 @@ export interface WatchOptions {
   /** Platform-specific watcher overrides keyed by Node `process.platform`. */
   platformSpecific?: {
     /** Overrides applied when running on macOS. */
-    darwin?: any;
+    darwin?: unknown;
     /** Overrides applied when running on Linux. */
-    linux?: any;
+    linux?: unknown;
     /** Overrides applied when running on Windows. */
-    win32?: any;
+    win32?: unknown;
     /** Index signature allowing additional platform keys. */
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -791,7 +791,7 @@ export class FileWatcher extends EventEmitter {
     activeTimers: number;
     activeBatches: number;
     totalFilters: number;
-    options: any;
+    options: unknown;
   } {
     return this.eventDebouncer.getStatistics();
   }

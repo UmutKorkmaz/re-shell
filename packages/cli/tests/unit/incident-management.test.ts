@@ -363,7 +363,7 @@ describe('generateIncidentManagerTypeScript', () => {
   });
 
   it('declares the async CRUD methods and re-exports the class', () => {
-    expect(ts).toContain('async createIncident(data: any): Promise<Incident> {');
+    expect(ts).toContain('async createIncident(data: unknown): Promise<Incident> {');
     expect(ts).toContain('async startInvestigation(incidentId: string)');
     expect(ts).toContain('async collectArtifact(incidentId: string, type: string, name: string, path: string)');
     expect(ts).toContain('async updateIncidentStatus(incidentId: string, status: string, phase: string)');
