@@ -40,10 +40,10 @@ export interface PlatformWatchOptions {
   enableFallbacks?: boolean;
   fallbackOptions?: Partial<WatcherFallbackOptions>;
   platformSpecific?: {
-    darwin?: any;
-    linux?: any;
-    win32?: any;
-    [key: string]: any;
+    darwin?: unknown;
+    linux?: unknown;
+    win32?: unknown;
+    [key: string]: unknown;
   };
 }
 
@@ -215,8 +215,8 @@ export class PlatformWatcher extends EventEmitter {
   }
 
   // Apply platform-specific optimizations
-  private applyPlatformOptimizations(options: PlatformWatchOptions): any {
-    const baseOptions: any = {
+  private applyPlatformOptimizations(options: PlatformWatchOptions): Record<string, unknown> {
+    const baseOptions: Record<string, unknown> = {
       persistent: true,
       ignoreInitial: true,
       followSymlinks: false,
@@ -225,7 +225,7 @@ export class PlatformWatcher extends EventEmitter {
     };
 
     // Platform-specific optimizations
-    const platformOptions = options.platformSpecific?.[this.capabilities.platform] || {};
+    const platformOptions = (options.platformSpecific?.[this.capabilities.platform] || {}) as Record<string, unknown>;
     
     switch (this.capabilities.platform) {
       case 'darwin':
@@ -289,7 +289,7 @@ export class PlatformWatcher extends EventEmitter {
   // Create primary watcher with method detection
   private async createPrimaryWatcher(
     watchPath: string,
-    options: any
+    options: Record<string, unknown>
   ): Promise<chokidar.FSWatcher> {
     const method = this.fallbackOptions.primaryMethod;
     
@@ -325,7 +325,7 @@ export class PlatformWatcher extends EventEmitter {
   // Create hybrid watcher (combines multiple methods)
   private async createHybridWatcher(
     watchPath: string,
-    options: any
+    options: Record<string, unknown>
   ): Promise<chokidar.FSWatcher> {
     // For now, hybrid mode uses native with polling fallback
     // This could be enhanced to run multiple watchers simultaneously
@@ -343,7 +343,7 @@ export class PlatformWatcher extends EventEmitter {
   private async setupFallbackWatcher(
     watcherId: string,
     watchPath: string,
-    options: any
+    options: Record<string, unknown>
   ): Promise<void> {
     // Prepare fallback but don't activate unless primary fails
     const fallbackMethod = this.fallbackOptions.fallbackMethods[0];
@@ -351,7 +351,7 @@ export class PlatformWatcher extends EventEmitter {
 
     try {
       // Create fallback options
-      const fallbackOptions: any = {
+      const fallbackOptions: Record<string, unknown> = {
         ...options,
         usePolling: fallbackMethod === 'polling'
       };
@@ -386,7 +386,7 @@ export class PlatformWatcher extends EventEmitter {
           console.log(`Attempting fallback watcher method: ${method} for ${watchPath}`);
         }
 
-        let fallbackOptions: any;
+        let fallbackOptions: unknown;
         
         switch (method) {
           case 'polling':
@@ -713,10 +713,10 @@ export interface WatcherHealthStatus {
   lastCheck: number;
   failureCount: number;
   fallbackReady: boolean;
-  lastError?: any;
+  lastError?: unknown;
   fallbackOptions?: {
     watchPath: string;
-    options: any;
+    options: Record<string, unknown>;
   };
 }
 
