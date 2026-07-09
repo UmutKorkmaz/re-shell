@@ -71,16 +71,16 @@ export interface APIParameter {
   type: 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object';
   format?: string;
   enum?: string[];
-  default?: any;
-  example?: any;
-  schema?: any;
+  default?: unknown;
+  example?: unknown;
+  schema?: unknown;
 }
 
 export interface APIRequestBody {
   description?: string;
   required: boolean;
   contentType: string;
-  schema?: any;
+  schema?: unknown;
   examples?: Record<string, unknown>;
 }
 
@@ -88,9 +88,9 @@ export interface APIResponse {
   statusCode: number;
   description: string;
   contentType?: string;
-  schema?: any;
-  example?: any;
-  headers?: Record<string, { description: string; schema: any }>;
+  schema?: unknown;
+  example?: unknown;
+  headers?: Record<string, { description: string; schema: unknown }>;
 }
 
 export interface APIExample {
@@ -98,12 +98,12 @@ export interface APIExample {
   description?: string;
   request: {
     parameters?: Record<string, unknown>;
-    body?: any;
+    body?: unknown;
     headers?: Record<string, string>;
   };
   response: {
     statusCode: number;
-    body: any;
+    body: unknown;
     headers?: Record<string, string>;
   };
 }
@@ -1054,14 +1054,14 @@ export function generateInteractiveDocsHTML(config: InteractiveDocsConfig): stri
 }
 
 // Convert OpenAPI spec to InteractiveDocsConfig
-export function openAPIToInteractiveDocs(spec: any, baseUrl: string): InteractiveDocsConfig {
+export function openAPIToInteractiveDocs(spec: Record<string, any>, baseUrl: string): InteractiveDocsConfig {
   const paths = spec.paths || {};
   const endpoints: APIDocumentationEndpoint[] = [];
   const groups: APIGroup[] = [];
 
   // Extract tags as groups
   if (spec.tags) {
-    spec.tags.forEach((tag: any, index: number) => {
+    spec.tags.forEach((tag: Record<string, any>, index: number) => {
       groups.push({
         id: tag.name,
         name: tag.name,
@@ -1087,7 +1087,7 @@ export function openAPIToInteractiveDocs(spec: any, baseUrl: string): Interactiv
         parameters: [
           ...(operation.parameters || []),
           ...(methods.parameters || []),
-        ].map((p: any) => ({
+        ].map((p: Record<string, any>) => ({
           name: p.name,
           in: p.in,
           description: p.description,
