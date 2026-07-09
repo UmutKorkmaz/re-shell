@@ -245,7 +245,7 @@ async function setWorkspaceConfigValue(
   }
 
   // Parse value
-  let parsedValue: any;
+  let parsedValue: string | number | boolean | object;
   try {
     parsedValue = JSON.parse(value);
   } catch {
@@ -623,7 +623,7 @@ async function showInheritanceChain(workspacePath: string): Promise<void> {
 }
 
 // Utility functions
-function displayConfigSection(config: any, indent = 0): void {
+function displayConfigSection(config: object, indent = 0): void {
   const prefix = '  '.repeat(indent);
   
   for (const [key, value] of Object.entries(config)) {
@@ -640,16 +640,16 @@ function displayConfigSection(config: any, indent = 0): void {
   }
 }
 
-function getNestedValue(obj: any, path: string): any {
-  return path.split('.').reduce((current, key) => current?.[key], obj);
+function getNestedValue(obj: object, path: string): unknown {
+  return path.split('.').reduce<unknown>((current, key) => (current as Record<string, unknown>)?.[key], obj);
 }
 
-function setNestedValue(obj: any, path: string, value: any): void {
+function setNestedValue(obj: object, path: string, value: unknown): void {
   const keys = path.split('.');
   const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => {
+  const target = keys.reduce<Record<string, unknown>>((current, key) => {
     if (!(key in current)) current[key] = {};
-    return current[key];
-  }, obj);
+    return current[key] as Record<string, unknown>;
+  }, obj as Record<string, unknown>);
   target[lastKey] = value;
 }
