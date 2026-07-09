@@ -715,6 +715,7 @@ export function registerK8sGroup(program: Command): void {
           const tenants = options.tenants.split(',');
           const environments = options.environments.split(',');
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const namespaces: any[] = [];
           for (const tenant of tenants) {
             for (const env of environments) {

@@ -116,17 +116,17 @@ export class WorkspaceParser {
       const content = fs.readFileSync(filePath, 'utf8');
 
       // Parse YAML with detailed error messages
-      let config: any;
+      let config: Record<string, unknown>;
       try {
         config = yaml.load(content, {
           filename: filePath,
-          onWarning: (warning: any) => {
+          onWarning: (warning: { message: string }) => {
             result.warnings.push({
               path: 'yaml',
               message: `YAML warning: ${warning.message}`,
             });
           },
-        });
+        }) as Record<string, unknown>;
       } catch (error: unknown) {
         // Enhanced YAML error reporting with line numbers
         const yamlError = error as yaml.YAMLException;
@@ -191,7 +191,7 @@ export class WorkspaceParser {
   /**
    * Validate custom business rules beyond JSON schema
    */
-  private validateCustomRules(config: any, result: ValidationResult): void {
+  private validateCustomRules(config: Record<string, unknown>, result: ValidationResult): void {
     // Validate service names
     if (config.services) {
       for (const [serviceName, service] of Object.entries(config.services)) {
@@ -287,7 +287,7 @@ export class WorkspaceParser {
     }
   }
 
-  private validateBuildConfig(serviceName: string, build: any, result: ValidationResult): void {
+  private validateBuildConfig(serviceName: string, build: Record<string, unknown>, result: ValidationResult): void {
     if (build.dockerfile && !build.context) {
       result.warnings.push({
         path: `services.${serviceName}.build`,
@@ -303,7 +303,7 @@ export class WorkspaceParser {
     }
   }
 
-  private validateResourceConfig(serviceName: string, resources: any, result: ValidationResult): void {
+  private validateResourceConfig(serviceName: string, resources: Record<string, unknown>, result: ValidationResult): void {
     if (resources.cpu) {
       if (resources.cpu.request) {
         const match = resources.cpu.request.match(/^([0-9]+)m$/);
@@ -353,7 +353,7 @@ export class WorkspaceParser {
     }
   }
 
-  private validateDependencies(serviceName: string, dependencies: any, result: ValidationResult): void {
+  private validateDependencies(serviceName: string, dependencies: Record<string, unknown>, result: ValidationResult): void {
     const allDeps = { ...dependencies.production, ...dependencies.development };
 
     // Check for conflicting versions
@@ -375,7 +375,7 @@ export class WorkspaceParser {
     }
   }
 
-  private validatePortConflicts(config: any, result: ValidationResult): void {
+  private validatePortConflicts(config: Record<string, unknown>, result: ValidationResult): void {
     const portMap: Record<number, string[]> = {};
 
     for (const [serviceName, service] of Object.entries(config.services || {})) {
@@ -399,7 +399,7 @@ export class WorkspaceParser {
     }
   }
 
-  private validateCircularDependencies(config: any, result: ValidationResult): void {
+  private validateCircularDependencies(config: Record<string, unknown>, result: ValidationResult): void {
     const graph = this.buildDependencyGraph(config);
     const cycles = this.detectCycles(graph);
 
@@ -413,7 +413,7 @@ export class WorkspaceParser {
     }
   }
 
-  private buildDependencyGraph(config: any): Record<string, string[]> {
+  private buildDependencyGraph(config: Record<string, unknown>): Record<string, string[]> {
     const graph: Record<string, string[]> = {};
 
     for (const [serviceName, service] of Object.entries(config.services || {})) {

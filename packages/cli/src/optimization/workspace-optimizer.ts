@@ -42,7 +42,7 @@ export class WorkspaceOptimizer {
   /**
    * Analyze workspace and generate recommendations
    */
-  analyze(config: any): OptimizationReport {
+  analyze(config: Record<string, unknown>): OptimizationReport {
     const recommendations: OptimizationRecommendation[] = [];
 
     // Check for circular dependencies
@@ -85,7 +85,7 @@ export class WorkspaceOptimizer {
   /**
    * Apply automated fixes
    */
-  async applyAutomatedFixes(config: any, recommendationIds: string[]): Promise<unknown> {
+  async applyAutomatedFixes(config: Record<string, unknown>, recommendationIds: string[]): Promise<unknown> {
     const result = { ...config };
 
     for (const id of recommendationIds) {
@@ -100,7 +100,7 @@ export class WorkspaceOptimizer {
   /**
    * Check for circular dependencies
    */
-  private checkCircularDependencies(config: any): OptimizationRecommendation[] {
+  private checkCircularDependencies(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     try {
@@ -134,7 +134,7 @@ export class WorkspaceOptimizer {
   /**
    * Check for service isolation
    */
-  private checkServiceIsolation(config: any): OptimizationRecommendation[] {
+  private checkServiceIsolation(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
@@ -176,7 +176,7 @@ export class WorkspaceOptimizer {
   /**
    * Check for resource optimization
    */
-  private checkResourceOptimization(config: any): OptimizationRecommendation[] {
+  private checkResourceOptimization(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
@@ -249,7 +249,7 @@ export class WorkspaceOptimizer {
   /**
    * Check for naming conventions
    */
-  private checkNamingConventions(config: any): OptimizationRecommendation[] {
+  private checkNamingConventions(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
@@ -287,7 +287,7 @@ export class WorkspaceOptimizer {
   /**
    * Check for unused dependencies
    */
-  private checkUnusedDependencies(config: any): OptimizationRecommendation[] {
+  private checkUnusedDependencies(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
@@ -338,7 +338,7 @@ export class WorkspaceOptimizer {
   /**
    * Check for security best practices
    */
-  private checkSecurityPractices(config: any): OptimizationRecommendation[] {
+  private checkSecurityPractices(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
@@ -397,7 +397,7 @@ export class WorkspaceOptimizer {
   /**
    * Check for scalability
    */
-  private checkScalability(config: any): OptimizationRecommendation[] {
+  private checkScalability(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};

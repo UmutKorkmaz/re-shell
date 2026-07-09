@@ -691,7 +691,7 @@ export function registerApiGroup(program: Command): void {
         flushOutput();
 
         await withTimeout(async () => {
-          let breakingChanges: any[] = [];
+          let breakingChanges: ReturnType<typeof detectBreakingChanges> = [];
 
           if (options.oldSpec && options.newSpec) {
             const oldSpec = await fs.readJson(path.resolve(options.oldSpec));
