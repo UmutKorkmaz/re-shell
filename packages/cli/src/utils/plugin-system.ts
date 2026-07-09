@@ -828,7 +828,7 @@ export class PluginRegistry extends EventEmitter {
 
   // Get hook statistics
   getHookStats(): Record<string, unknown> {
-    return this.hookSystem.getStats();
+    return this.hookSystem.getStats() as Record<string, unknown>;
   }
 
   // Dependency resolver methods
