@@ -283,7 +283,7 @@ export async function showCommandStats(
     const commandRegistry = createPluginCommandRegistry(tempProgram);
     await commandRegistry.initialize();
 
-    const stats = commandRegistry.getStats();
+    const stats = commandRegistry.getStats() as Record<string, any>;
 
     if (json) {
       console.log(JSON.stringify(stats, null, 2));
