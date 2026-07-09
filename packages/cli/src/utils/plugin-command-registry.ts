@@ -60,7 +60,7 @@ export interface PluginCommandArgument {
   /** Optional list of allowed values for the argument. */
   choices?: string[];
   /** Optional default value used when the argument is not supplied. */
-  defaultValue?: any;
+  defaultValue?: unknown;
   /** Optional custom validation function for the argument value. */
   validation?: PluginArgumentValidator;
 }
@@ -80,7 +80,7 @@ export interface PluginCommandOption {
   /** Optional list of allowed values for the option. */
   choices?: string[];
   /** Optional default value used when the option is not supplied. */
-  defaultValue?: any;
+  defaultValue?: unknown;
   /** Optional custom validation function for the option value. */
   validation?: PluginArgumentValidator;
   /** Optional list of other flags that cannot be used together with this option. */
@@ -98,8 +98,8 @@ export interface PluginCommandOption {
  * @returns A promise that resolves when the handler completes, or void.
  */
 export type PluginCommandHandler = (
-  args: Record<string, any>,
-  options: Record<string, any>,
+  args: Record<string, unknown>,
+  options: Record<string, unknown>,
   context: PluginCommandContext
 ) => Promise<void> | void;
 
@@ -113,8 +113,8 @@ export type PluginCommandHandler = (
  * @returns A promise that resolves when the middleware logic completes.
  */
 export type PluginCommandMiddleware = (
-  args: Record<string, any>,
-  options: Record<string, any>,
+  args: Record<string, unknown>,
+  options: Record<string, unknown>,
   context: PluginCommandContext,
   next: () => Promise<void>
 ) => Promise<void>;
@@ -125,7 +125,7 @@ export type PluginCommandMiddleware = (
  * @param value - The value to validate.
  * @returns `true` if valid, or an error message string if invalid.
  */
-export type PluginArgumentValidator = (value: any) => boolean | string;
+export type PluginArgumentValidator = (value: unknown) => boolean | string;
 
 /**
  * Execution context passed to command handlers and middleware.
@@ -151,13 +151,13 @@ export interface PluginCommandContext {
   /** A scoped logger with debug, info, warn, and error methods. */
   logger: {
     /** Log a debug-level message. */
-    debug: (msg: string, ...args: any[]) => void;
+    debug: (msg: string, ...args: unknown[]) => void;
     /** Log an info-level message. */
-    info: (msg: string, ...args: any[]) => void;
+    info: (msg: string, ...args: unknown[]) => void;
     /** Log a warning-level message. */
-    warn: (msg: string, ...args: any[]) => void;
+    warn: (msg: string, ...args: unknown[]) => void;
     /** Log an error-level message. */
-    error: (msg: string, ...args: any[]) => void;
+    error: (msg: string, ...args: unknown[]) => void;
   };
   /** Shared utility helpers available to all command handlers. */
   utils: {
@@ -166,7 +166,7 @@ export interface PluginCommandContext {
     /** The chalk styling library. */
     chalk: typeof chalk;
     /** A spinner instance for progress indication (may be null). */
-    spinner: any;
+    spinner: unknown;
   };
 }
 
@@ -713,7 +713,7 @@ export class PluginCommandRegistry extends EventEmitter {
     // Add options
     if (definition.options) {
       definition.options.forEach(opt => {
-        command.option(opt.flag, opt.description, opt.defaultValue);
+        command.option(opt.flag, opt.description, opt.defaultValue as string | boolean | string[]);
       });
     }
 
@@ -730,8 +730,8 @@ export class PluginCommandRegistry extends EventEmitter {
       // Create context
       const context = this.createCommandContext(plugin, definition);
 
-      let processedArgs: Record<string, any> = {};
-      let processedOptions: Record<string, any> = {};
+      let processedArgs: Record<string, unknown> = {};
+      let processedOptions: Record<string, unknown> = {};
 
       try {
         // Process arguments
@@ -852,8 +852,8 @@ export class PluginCommandRegistry extends EventEmitter {
    * @returns A keyed object of processed argument values.
    * @throws {ValidationError} If a required argument is missing or validation fails.
    */
-  private processArguments(definition: PluginCommandDefinition, args: any[]): Record<string, any> {
-    const processed: Record<string, any> = {};
+  private processArguments(definition: PluginCommandDefinition, args: unknown[]): Record<string, unknown> {
+    const processed: Record<string, unknown> = {};
 
     if (definition.arguments) {
       definition.arguments.forEach((argDef, index) => {
@@ -868,7 +868,7 @@ export class PluginCommandRegistry extends EventEmitter {
           let convertedValue = value;
           if (argDef.type === 'number') {
             convertedValue = Number(value);
-            if (isNaN(convertedValue)) {
+            if (isNaN(convertedValue as number)) {
               throw new ValidationError(`Argument '${argDef.name}' must be a number`);
             }
           } else if (argDef.type === 'boolean') {
@@ -876,7 +876,7 @@ export class PluginCommandRegistry extends EventEmitter {
           }
 
           // Choice validation
-          if (argDef.choices && !argDef.choices.includes(convertedValue)) {
+          if (argDef.choices && !argDef.choices.includes(convertedValue as string)) {
             throw new ValidationError(`Argument '${argDef.name}' must be one of: ${argDef.choices.join(', ')}`);
           }
 
@@ -910,8 +910,8 @@ export class PluginCommandRegistry extends EventEmitter {
    * @returns A processed options object.
    * @throws {ValidationError} If a required option is missing or validation fails.
    */
-  private processOptions(definition: PluginCommandDefinition, options: Record<string, any>): Record<string, any> {
-    const processed: Record<string, any> = { ...options };
+  private processOptions(definition: PluginCommandDefinition, options: Record<string, unknown>): Record<string, unknown> {
+    const processed: Record<string, unknown> = { ...options };
 
     if (definition.options) {
       definition.options.forEach(optDef => {
@@ -927,7 +927,7 @@ export class PluginCommandRegistry extends EventEmitter {
           let convertedValue = value;
           if (optDef.type === 'number') {
             convertedValue = Number(value);
-            if (isNaN(convertedValue)) {
+            if (isNaN(convertedValue as number)) {
               throw new ValidationError(`Option '${optDef.flag}' must be a number`);
             }
           } else if (optDef.type === 'boolean') {
@@ -935,7 +935,7 @@ export class PluginCommandRegistry extends EventEmitter {
           }
 
           // Choice validation
-          if (optDef.choices && !optDef.choices.includes(convertedValue)) {
+          if (optDef.choices && !optDef.choices.includes(convertedValue as string)) {
             throw new ValidationError(`Option '${optDef.flag}' must be one of: ${optDef.choices.join(', ')}`);
           }
 
@@ -971,7 +971,7 @@ export class PluginCommandRegistry extends EventEmitter {
    */
   private validateOptionRelationships(
     options: PluginCommandOption[],
-    processedOptions: Record<string, any>
+    processedOptions: Record<string, unknown>
   ): void {
     for (const option of options) {
       const flagName = this.extractOptionName(option.flag);
@@ -1062,13 +1062,13 @@ export class PluginCommandRegistry extends EventEmitter {
    * @param commandName - The name of the command.
    * @returns A logger object with debug, info, warn, and error methods.
    */
-  private createLogger(pluginName: string, commandName: string): any {
+  private createLogger(pluginName: string, commandName: string): { debug: (msg: string, ...args: unknown[]) => void; info: (msg: string, ...args: unknown[]) => void; warn: (msg: string, ...args: unknown[]) => void; error: (msg: string, ...args: unknown[]) => void } {
     const prefix = `[${pluginName}:${commandName}]`;
     return {
-      debug: (msg: string, ...args: any[]) => console.debug(chalk.gray(`${prefix} ${msg}`), ...args),
-      info: (msg: string, ...args: any[]) => console.info(chalk.blue(`${prefix} ${msg}`), ...args),
-      warn: (msg: string, ...args: any[]) => console.warn(chalk.yellow(`${prefix} ${msg}`), ...args),
-      error: (msg: string, ...args: any[]) => console.error(chalk.red(`${prefix} ${msg}`), ...args)
+      debug: (msg: string, ...args: unknown[]) => console.debug(chalk.gray(`${prefix} ${msg}`), ...args),
+      info: (msg: string, ...args: unknown[]) => console.info(chalk.blue(`${prefix} ${msg}`), ...args),
+      warn: (msg: string, ...args: unknown[]) => console.warn(chalk.yellow(`${prefix} ${msg}`), ...args),
+      error: (msg: string, ...args: unknown[]) => console.error(chalk.red(`${prefix} ${msg}`), ...args)
     };
   }
 
@@ -1156,7 +1156,7 @@ export class PluginCommandRegistry extends EventEmitter {
    *
    * @returns A statistics object describing the current registry state.
    */
-  getStats(): any {
+  getStats(): Record<string, unknown> {
     const stats = {
       totalCommands: this.commands.size,
       activeCommands: Array.from(this.commands.values()).filter(cmd => cmd.isActive).length,

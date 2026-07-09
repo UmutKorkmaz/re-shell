@@ -613,7 +613,7 @@ export function generateEnhancedClient(spec: OpenAPISpec, options: ClientOptions
     lines.push(`  enabled?: boolean;`);
     lines.push(`  ttl?: number; // Time to live in milliseconds`);
     lines.push(`  maxSize?: number;`);
-    lines.push(`  cacheKeyGenerator?: (url: string, params: any) => string;`);
+    lines.push(`  cacheKeyGenerator?: (url: string, params: unknown) => string;`);
     lines.push(`}`);
     lines.push(``);
     lines.push(`interface CacheEntry {`);
@@ -716,7 +716,7 @@ export function generateEnhancedClient(spec: OpenAPISpec, options: ClientOptions
 // Generate cache helper methods
 function generateCacheHelpers(): string {
   return `  // Cache helper methods
-  private getCacheKey(url: string, params?: any): string {
+  private getCacheKey(url: string, params?: unknown): string {
     if (this.cacheConfig.cacheKeyGenerator) {
       return this.cacheConfig.cacheKeyGenerator(url, params);
     }
@@ -1222,7 +1222,7 @@ export function generateReactQueryHooks(spec: OpenAPISpec, clientName: string): 
         const hookName = `use${toMethodName(opId)}`;
         lines.push(`export function ${hookName}(`);
         lines.push(`  client: ${clientName},`);
-        lines.push(`  params: any,`);
+        lines.push(`  params: unknown,`);
         lines.push(`  options?: Omit<UseQueryOptions<unknown>, 'queryKey' | 'queryFn'>`);
         lines.push(`) {`);
         lines.push(`  return useQuery({`);
@@ -1238,7 +1238,7 @@ export function generateReactQueryHooks(spec: OpenAPISpec, clientName: string): 
         const hookName = `use${toMethodName(opId)}Mutation`;
         lines.push(`export function ${hookName}(`);
         lines.push(`  client: ${clientName},`);
-        lines.push(`  options?: Omit<UseMutationOptions<unknown, unknown, any>, 'mutationFn'>`);
+        lines.push(`  options?: Omit<UseMutationOptions<unknown, unknown, unknown>, 'mutationFn'>`);
         lines.push(`) {`);
         lines.push(`  return useMutation({`);
         lines.push(`    mutationFn: (params) => client.${toMethodName(opId)}(params),`);
@@ -1353,7 +1353,7 @@ export function generateVueComposables(spec: OpenAPISpec, clientName: string): s
         lines.push(` */`);
         lines.push(`export function ${hookName}(`);
         lines.push(`  client: Ref<${clientName}>,`);
-        lines.push(`  params: any,`);
+        lines.push(`  params: unknown,`);
         lines.push(`  options?: Omit<UseQueryOptions<unknown>, 'queryKey' | 'queryFn'>`);
         lines.push(`) {`);
         lines.push(`  return useQuery({`);
@@ -1371,10 +1371,10 @@ export function generateVueComposables(spec: OpenAPISpec, clientName: string): s
         lines.push(` */`);
         lines.push(`export function ${hookName}(`);
         lines.push(`  client: Ref<${clientName}>,`);
-        lines.push(`  options?: Omit<UseMutationOptions<unknown, unknown, any>, 'mutationFn'>`);
+        lines.push(`  options?: Omit<UseMutationOptions<unknown, unknown, unknown>, 'mutationFn'>`);
         lines.push(`) {`);
         lines.push(`  return useMutation({`);
-        lines.push(`    mutationFn: (params: any) => client.value.${toMethodName(opId)}(params),`);
+        lines.push(`    mutationFn: (params: unknown) => client.value.${toMethodName(opId)}(params),`);
         lines.push(`    ...options,`);
         lines.push(`  });`);
         lines.push(`}`);
@@ -1431,7 +1431,7 @@ export function generatePiniaStores(spec: OpenAPISpec, clientName: string): stri
       const methodName = toMethodName(opId);
 
       if (method.toLowerCase() === 'get') {
-        lines.push(`  async function ${methodName}(params?: any) {`);
+        lines.push(`  async function ${methodName}(params?: unknown) {`);
         lines.push(`    loading.value = true;`);
         lines.push(`    error.value = null;`);
         lines.push(`    try {`);
@@ -1445,7 +1445,7 @@ export function generatePiniaStores(spec: OpenAPISpec, clientName: string): stri
         lines.push(`    }`);
         lines.push(`  }`);
       } else {
-        lines.push(`  async function ${methodName}(params: any) {`);
+        lines.push(`  async function ${methodName}(params: unknown) {`);
         lines.push(`    loading.value = true;`);
         lines.push(`    error.value = null;`);
         lines.push(`    try {`);
@@ -1531,7 +1531,7 @@ export function generateAngularService(spec: OpenAPISpec, serviceName: string): 
       // Add parameters
       const params = operation.parameters || [];
       if (operation.requestBody) {
-        lines.push(`    body: any,`);
+        lines.push(`    body: unknown,`);
       }
       if (params.length > 0) {
         params.forEach((param, i) => {
@@ -1663,7 +1663,7 @@ export function generateSvelteStores(spec: OpenAPISpec, clientName: string): str
         lines.push(`export const ${opId} = writable<unknown>(null);`);
         lines.push(`export const ${opId}Loading = derived(loading, ($loading) => $loading);`);
         lines.push('');
-        lines.push(`export async function fetch${methodName}(params?: any) {`);
+        lines.push(`export async function fetch${methodName}(params?: unknown) {`);
         lines.push(`  loading.set(true);`);
         lines.push(`  error.set(null);`);
         lines.push(`  try {`);
@@ -1680,7 +1680,7 @@ export function generateSvelteStores(spec: OpenAPISpec, clientName: string): str
         lines.push('');
       } else {
         lines.push(`// ${operation.summary || operation.description || `${method.toUpperCase()} ${path}`}`);
-        lines.push(`export async function ${methodName}(data: any) {`);
+        lines.push(`export async function ${methodName}(data: unknown) {`);
         lines.push(`  loading.set(true);`);
         lines.push(`  error.set(null);`);
         lines.push(`  try {`);
@@ -1759,7 +1759,7 @@ export function generateSvelteKitSdk(spec: OpenAPISpec, clientName: string): str
       lines.push(` * Action for ${operation.summary || operation.description || path}`);
       lines.push(` * Usage: +page.server.ts or form actions`);
       lines.push(` */`);
-      lines.push(`export async function ${actionFnName}(data: any) {`);
+      lines.push(`export async function ${actionFnName}(data: unknown) {`);
       lines.push(`  return await ${clientVar}.${toMethodName(opId)}(data);`);
       lines.push(`}`);
       lines.push('');
@@ -1795,7 +1795,7 @@ export function generateMockServer(spec: OpenAPISpec, options: ClientOptions = {
 
   // Add in-memory data store
   lines.push(`// In-memory data store`);
-  lines.push(`const dataStore: Record<string, any[]> = {};`);
+  lines.push(`const dataStore: Record<string, unknown[]> = {};`);
   lines.push(``);
 
   // Generate routes for each path
@@ -1827,7 +1827,7 @@ export function generateMockServer(spec: OpenAPISpec, options: ClientOptions = {
         const resourcePath = path.split('{')[0].replace(/\/$/, '');
         lines.push(`  const { id } = req.params;`);
         lines.push(`  const collection = dataStore['${resourcePath}'] || [];`);
-        lines.push(`  const item = collection.find((i: any) => i.id === id);`);
+        lines.push(`  const item = collection.find((i: unknown) => i.id === id);`);
         lines.push(`  if (!item) {`);
         lines.push(`    return res.status(404).json({ error: 'Resource not found' });`);
         lines.push(`  }`);
@@ -1854,7 +1854,7 @@ export function generateMockServer(spec: OpenAPISpec, options: ClientOptions = {
         const resourcePath = path.replace(/\/{[^}]+}$/, '');
         lines.push(`  const { id } = req.params;`);
         lines.push(`  const collection = dataStore['${resourcePath}'] || [];`);
-        lines.push(`  const index = collection.findIndex((i: any) => i.id === id);`);
+        lines.push(`  const index = collection.findIndex((i: unknown) => i.id === id);`);
         lines.push(`  if (index === -1) {`);
         lines.push(`    return res.status(404).json({ error: 'Resource not found' });`);
         lines.push(`  }`);
@@ -1865,7 +1865,7 @@ export function generateMockServer(spec: OpenAPISpec, options: ClientOptions = {
         const resourcePath = path.replace(/\/{[^}]+}$/, '');
         lines.push(`  const { id } = req.params;`);
         lines.push(`  const collection = dataStore['${resourcePath}'] || [];`);
-        lines.push(`  const index = collection.findIndex((i: any) => i.id === id);`);
+        lines.push(`  const index = collection.findIndex((i: unknown) => i.id === id);`);
         lines.push(`  if (index === -1) {`);
         lines.push(`    return res.status(404).json({ error: 'Resource not found' });`);
         lines.push(`  }`);
@@ -1968,7 +1968,7 @@ function generateMockDataGenerator(name: string, schema: Schema): string {
   const lines: string[] = [];
   const functionName = 'createMock' + toCamelCase(name);
 
-  lines.push('function ' + functionName + '(overrides: Partial<any> = {}): any {');
+  lines.push('function ' + functionName + '(overrides: Partial<any> = {}): unknown {');
   lines.push('  return {');
 
   if (schema.properties) {
