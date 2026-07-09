@@ -168,10 +168,10 @@ export interface SerializationResult {
 }
 
 export class ${toPascalCase(config.serviceName)}SerializationOptimizer {
-  private config: any;
+  private config: unknown;
   private compressionCache: Map<string, CompressionResult>;
 
-  constructor(config: any) {
+  constructor(config: unknown) {
     this.config = config;
     this.compressionCache = new Map();
   }
@@ -180,7 +180,7 @@ export class ${toPascalCase(config.serviceName)}SerializationOptimizer {
    * Serialize data with optimal format and compression
    */
   async serialize(
-    data: any,
+    data: unknown,
     options?: Partial<SerializationOptions>
   ): Promise<SerializationResult> {
     const opts: SerializationOptions = {
@@ -255,7 +255,7 @@ export class ${toPascalCase(config.serviceName)}SerializationOptimizer {
   /**
    * Serialize data to specific format
    */
-  private async performSerialization(data: any, format: SerializationFormat): Promise<Buffer> {
+  private async performSerialization(data: unknown, format: SerializationFormat): Promise<Buffer> {
     switch (format) {
       case 'json':
         return Buffer.from(JSON.stringify(data));
@@ -369,7 +369,7 @@ export class ${toPascalCase(config.serviceName)}SerializationOptimizer {
   /**
    * Promisify zlib functions
    */
-  private promisifyZlib(fn: any, data: Buffer, options?: any): Promise<Buffer> {
+  private promisifyZlib(fn: unknown, data: Buffer, options?: unknown): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       fn(data, options, (err: Error | null, result: Buffer) => {
         if (err) reject(err);
@@ -468,7 +468,7 @@ export class ${toPascalCase(config.serviceName)}SerializationOptimizer {
 }
 
 // Factory function
-export function createSerializationOptimizer(config: any) {
+export function createSerializationOptimizer(config: unknown) {
   return new ${toPascalCase(config.serviceName)}SerializationOptimizer(config);
 }
 
@@ -999,13 +999,13 @@ func main() {
 // Write generated files
 export async function writeOptimizerFiles(
   serviceName: string,
-  integration: any,
+  integration: Record<string, unknown>,
   outputDir: string,
   language: string
 ): Promise<void> {
   await fs.ensureDir(outputDir);
 
-  for (const file of integration.files) {
+  for (const file of (integration.files as Array<{ path: string; content: string }>)) {
     const filePath = path.join(outputDir, file.path);
     const fileDir = path.dirname(filePath);
 
@@ -1062,7 +1062,7 @@ export async function displayOptimizerConfig(config: OptimizerConfig): Promise<v
 }
 
 // Generate BUILD.md
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: unknown, language: string): string {
   const toPascalCase = (str: string) =>
     str.replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase()).replace(/[-_]/g, '');
 

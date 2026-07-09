@@ -225,12 +225,12 @@ export function generateTypeScriptMonitoring(config: MonitoringConfig): string {
 
   code += 'class PrometheusGrafanaManager extends EventEmitter {\n';
   code += '  private projectName: string;\n';
-  code += '  private prometheusConfig: any;\n';
-  code += '  private grafanaConfig: any;\n';
-  code += '  private metrics: any[];\n';
-  code += '  private alerts: any[];\n\n';
+  code += '  private prometheusConfig: unknown;\n';
+  code += '  private grafanaConfig: unknown;\n';
+  code += '  private metrics: unknown[];\n';
+  code += '  private alerts: unknown[];\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.projectName = options.projectName || \'' + config.projectName + '\';\n';
   code += '    this.prometheusConfig = options.prometheus || ' + JSON.stringify(config.prometheus) + ';\n';
@@ -307,17 +307,17 @@ export function generateTypeScriptMonitoring(config: MonitoringConfig): string {
   code += '    // Alert configuration logic\n';
   code += '  }\n\n';
 
-  code += '  addMetric(metric: any): void {\n';
+  code += '  addMetric(metric: unknown): void {\n';
   code += '    this.metrics.push(metric);\n';
   code += '    console.log(`[PrometheusGrafana] Added metric: ${metric.name}`);\n';
   code += '  }\n\n';
 
-  code += '  addAlert(alert: any): void {\n';
+  code += '  addAlert(alert: unknown): void {\n';
   code += '    this.alerts.push(alert);\n';
   code += '    console.log(`[PrometheusGrafana] Added alert: ${alert.name}`);\n';
   code += '  }\n\n';
 
-  code += '  getMonitoringStatus(): any {\n';
+  code += '  getMonitoringStatus(): unknown {\n';
   code += '    return {\n';
   code += '      projectName: this.projectName,\n';
   code += '      prometheusEnabled: this.prometheusConfig.enabled,\n';

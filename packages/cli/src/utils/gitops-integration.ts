@@ -82,9 +82,9 @@ export function generateTypeScriptGitOps(config: GitOpsConfig): string {
   code += '  name: string;\n';
   code += '  namespace: string;\n';
   code += '  project: string;\n';
-  code += '  source: any;\n';
-  code += '  destination: any;\n';
-  code += '  syncPolicy: any;\n';
+  code += '  source: unknown;\n';
+  code += '  destination: unknown;\n';
+  code += '  syncPolicy: unknown;\n';
   code += '}\n\n';
 
   code += 'class GitOpsIntegration {\n';
@@ -95,7 +95,7 @@ export function generateTypeScriptGitOps(config: GitOpsConfig): string {
   code += '  private namespaces: string[];\n';
   code += '  private syncPolicy: string;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.platform = options.platform || \'argocd\';\n';
   code += '    this.gitRepo = options.gitRepo || \'https://github.com/example/app.git\';\n';
@@ -228,7 +228,7 @@ export function generateTypeScriptGitOps(config: GitOpsConfig): string {
   code += '    fs.writeFileSync(path.join(outputDir, \'gitrepository.yaml\'), this.toYaml(gitRepo));\n';
   code += '  }\n\n';
 
-  code += '  private toYaml(obj: any): string {\n';
+  code += '  private toYaml(obj: unknown): string {\n';
   code += '    const yaml = require(\'js-yaml\');\n';
   code += '    return yaml.dump(obj);\n';
   code += '  }\n\n';
@@ -243,7 +243,7 @@ export function generateTypeScriptGitOps(config: GitOpsConfig): string {
   code += '        stdio: \'inherit\',\n';
   code += '      });\n';
   code += '      console.log(\'[GitOps] Manifests applied successfully\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[GitOps] Failed to apply manifests:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -257,7 +257,7 @@ export function generateTypeScriptGitOps(config: GitOpsConfig): string {
   code += '          stdio: \'inherit\',\n';
   code += '        });\n';
   code += '        console.log(\'[GitOps] Rollback completed\');\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(\'[GitOps] Rollback failed:\', error.message);\n';
   code += '      }\n';
   code += '    } else {\n';
@@ -266,7 +266,7 @@ export function generateTypeScriptGitOps(config: GitOpsConfig): string {
   code += '          stdio: \'inherit\',\n';
   code += '        });\n';
   code += '        console.log(\'[GitOps] Rollback completed\');\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(\'[GitOps] Rollback failed:\', error.message);\n';
   code += '      }\n';
   code += '    }\n';
