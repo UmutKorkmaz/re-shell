@@ -106,7 +106,7 @@ function generateReactSdkOptimizations(spec: OpenAPISpec, clientName: string): s
 
   methods.forEach((methodName) => {
     lines.push(`  const ${toCamelCase(methodName)} = useCallback(`);
-    lines.push(`    (params: any) => client.${methodName}(params),`);
+    lines.push(`    (params: unknown) => client.${methodName}(params),`);
     lines.push(`    [client]`);
     lines.push(`  );`);
   });
@@ -138,7 +138,7 @@ function generateVueSdkOptimizations(spec: OpenAPISpec, clientName: string): str
   lines.push(`// Reactive singleton instance`);
   lines.push(`const clientInstance = ref<${clientName} | null>(null);`);
   lines.push(``);
-  lines.push(`export function useApiClient(config?: any) {`);
+  lines.push(`export function useApiClient(config?: unknown) {`);
   lines.push(`  if (!clientInstance.value) {`);
   lines.push(`    clientInstance.value = new ${clientName}(config);`);
   lines.push(`  }`);
@@ -160,7 +160,7 @@ function generateVueSdkOptimizations(spec: OpenAPISpec, clientName: string): str
       const methodName = toMethodName(operation.operationId || `${method}_${path}`);
       methods.push(methodName);
 
-      lines.push(`  async ${toCamelCase(methodName)}(params: any) {`);
+      lines.push(`  async ${toCamelCase(methodName)}(params: unknown) {`);
       lines.push(`    loading.value = true;`);
       lines.push(`    error.value = null;`);
       lines.push(`    try {`);
@@ -219,7 +219,7 @@ function generateAngularSdkOptimizations(spec: OpenAPISpec, clientName: string):
       if (!operation || typeof operation !== 'object') return;
       const methodName = toMethodName(operation.operationId || `${method}_${path}`);
 
-      lines.push(`  ${toCamelCase(methodName)}(params: any): Observable<any> {`);
+      lines.push(`  ${toCamelCase(methodName)}(params: unknown): Observable<any> {`);
       lines.push(`    return this.client.${methodName}(params).pipe(`);
       lines.push(`      tap(() => {`);
       lines.push(`        this.loading.set(true);`);
@@ -251,7 +251,7 @@ function generateSvelteSdkOptimizations(spec: OpenAPISpec, clientName: string): 
   lines.push(`// Client store for Svelte reactivity`);
   lines.push(`const client = writable<${clientName} | null>(null);`);
   lines.push(``);
-  lines.push(`export function initApiClient(config?: any) {`);
+  lines.push(`export function initApiClient(config?: unknown) {`);
   lines.push(`  const instance = new ${clientName}(config);`);
   lines.push(`  client.set(instance);`);
   lines.push(`  return instance;`);
@@ -271,7 +271,7 @@ function generateSvelteSdkOptimizations(spec: OpenAPISpec, clientName: string): 
       methods.push(methodName);
 
       lines.push(`// ${operation.summary || operation.description || `${method.toUpperCase()} ${path}`}`);
-      lines.push(`export function ${toCamelCase(methodName)}Store(params: any) {`);
+      lines.push(`export function ${toCamelCase(methodName)}Store(params: unknown) {`);
       lines.push(`  return derived(client, ($client) => {`);
       lines.push(`    return async () => {`);
       lines.push(`      apiLoading.set(true);`);
@@ -324,7 +324,7 @@ function generateGenericSdkOptimizations(spec: OpenAPISpec, clientName: string):
       const methodName = toMethodName(operation.operationId || `${method}_${path}`);
       methods.push(methodName);
 
-      lines.push(`export function ${toCamelCase(methodName)}(params: any) {`);
+      lines.push(`export function ${toCamelCase(methodName)}(params: unknown) {`);
       lines.push(`  return getClient().${methodName}(params);`);
       lines.push(`}`);
     });

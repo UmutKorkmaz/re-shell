@@ -26,7 +26,7 @@ interface K8sResource {
     annotations?: Record<string, string>;
   };
   /** Optional resource specification. Structure depends on the resource `kind`. */
-  spec?: any;
+  spec?: unknown;
 }
 
 /**
@@ -156,8 +156,8 @@ export function generateTypeScriptK8s(config: WorkspaceConfig): string {
   code += 'interface K8sResource {\n';
   code += '  apiVersion: string;\n';
   code += '  kind: string;\n';
-  code += '  metadata: any;\n';
-  code += '  spec?: any;\n';
+  code += '  metadata: unknown;\n';
+  code += '  spec?: unknown;\n';
   code += '}\n\n';
 
   code += 'interface ServiceConfig {\n';
@@ -174,9 +174,9 @@ export function generateTypeScriptK8s(config: WorkspaceConfig): string {
   code += '  private services: ServiceConfig[];\n';
   code += '  private namespace: string;\n';
   code += '  private replicas: number;\n';
-  code += '  private resources: any;\n\n';
+  code += '  private resources: unknown;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.services = options.services || [];\n';
   code += '    this.namespace = options.namespace || \'default\';\n';
@@ -231,7 +231,7 @@ export function generateTypeScriptK8s(config: WorkspaceConfig): string {
   code += '  }\n\n';
 
   code += '  private generateConfigMap(): K8sResource {\n';
-  code += '    const configData: any = {};\n';
+  code += '    const configData: unknown = {};\n';
 
   code += '    for (const service of this.services) {\n';
   code += '      configData[`${service.name}-config`] = JSON.stringify({\n';
@@ -343,7 +343,7 @@ export function generateTypeScriptK8s(config: WorkspaceConfig): string {
   code += '  }\n\n';
 
   code += '  private generateIngress(): K8sResource {\n';
-  code += '    const hosts: any[] = [];\n\n';
+  code += '    const hosts: unknown[] = [];\n\n';
 
   code += '    for (const service of this.services) {\n';
   code += '      hosts.push({\n';

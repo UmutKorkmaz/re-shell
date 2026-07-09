@@ -144,9 +144,9 @@ export interface PolicyParameter {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   description: string;
-  defaultValue: any;
+  defaultValue: unknown;
   required: boolean;
-  allowedValues?: any[];
+  allowedValues?: unknown[];
   validation?: string;
 }
 
@@ -161,7 +161,7 @@ export interface PolicyCondition {
 export interface ConditionExpression {
   field: string;
   operator: 'equals' | 'not-equals' | 'contains' | 'not-contains' | 'greater-than' | 'less-than' | 'regex' | 'in' | 'not-in';
-  value: any;
+  value: unknown;
 }
 
 /** Configuration controlling how a policy is enforced and escalated. */
@@ -248,11 +248,11 @@ export interface PolicyViolation {
 
 /** Evidence captured when a violation is detected. */
 export interface ViolationEvidence {
-  snapshot: any;
+  snapshot: unknown;
   logs: string[];
   screenshots: string[];
   metrics: Record<string, number>;
-  configurationDiff: any;
+  configurationDiff: unknown;
 }
 
 /** A time-bound exception granting a resource relief from a policy. */
@@ -296,8 +296,8 @@ export interface PolicyAudit {
 /** Detailed information captured for an audit event. */
 export interface AuditDetails {
   action: string;
-  previousState?: any;
-  newState?: any;
+  previousState?: unknown;
+  newState?: unknown;
   reason?: string;
   ipAddress?: string;
   userAgent?: string;

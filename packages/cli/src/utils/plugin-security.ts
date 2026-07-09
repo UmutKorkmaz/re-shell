@@ -838,7 +838,7 @@ export class PluginSecurityValidator extends EventEmitter {
    *
    * @returns An object describing current validator statistics.
    */
-  getSecurityStats(): any {
+  getSecurityStats(): Record<string, unknown> {
     const stats = {
       totalScans: this.securityCache.size,
       trustedKeys: this.trustedPublicKeys.size,
@@ -889,8 +889,8 @@ export class PluginSandbox extends EventEmitter {
    * @returns The value returned by the plugin function.
    */
   async executeInSandbox(
-    pluginFunction: (...args: any[]) => any,
-    context: any,
+    pluginFunction: (...args: unknown[]) => unknown,
+    context: unknown,
     timeout?: number
   ): Promise<unknown> {
     const executionTimeout = timeout || this.config.timeoutLimit;
@@ -938,7 +938,7 @@ export class PluginSandbox extends EventEmitter {
    * @param originalContext The original execution context.
    * @returns The hardened context object.
    */
-  private createSandboxedContext(originalContext: any): any {
+  private createSandboxedContext(originalContext: Record<string, any>): Record<string, any> {
     const sandboxedContext = { ...originalContext };
 
     // Override dangerous functions
@@ -966,7 +966,7 @@ export class PluginSandbox extends EventEmitter {
    *
    * @returns A sandboxed filesystem module proxy.
    */
-  private createSandboxedFS(): any {
+  private createSandboxedFS(): unknown {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const originalFS = require('fs-extra');
     const sandboxedFS = { ...originalFS };
@@ -975,7 +975,7 @@ export class PluginSandbox extends EventEmitter {
     const writeOperations = ['writeFile', 'writeFileSync', 'writeJSON', 'writeJSONSync', 'remove', 'removeSync'];
     
     writeOperations.forEach(operation => {
-      sandboxedFS[operation] = (filePath: string, ...args: any[]) => {
+      sandboxedFS[operation] = (filePath: string, ...args: unknown[]) => {
         if (!this.isPathAllowed(filePath)) {
           throw new Error(`Filesystem access denied: ${filePath}`);
         }
@@ -992,7 +992,7 @@ export class PluginSandbox extends EventEmitter {
    *
    * @returns The sandboxed process interface.
    */
-  private createSandboxedProcess(): any {
+  private createSandboxedProcess(): unknown {
     return {
       env: {},
       cwd: () => this.config.allowedPaths[0] || process.cwd(),
