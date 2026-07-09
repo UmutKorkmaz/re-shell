@@ -16,11 +16,11 @@ interface CustomResourceDefinition {
       served: boolean;
       storage: boolean;
       schema?: {
-        openAPIV3Schema: any;
+        openAPIV3Schema: unknown;
       };
       subresources?: {
-        status?: any;
-        scale?: any;
+        status?: unknown;
+        scale?: unknown;
       };
       additionalPrinterColumns?: Array<{
         name: string;
@@ -111,13 +111,13 @@ export function generateTypeScriptCRD(config: OperatorConfig): string {
   code += 'class CRDOperator {\n';
   code += '  private projectName: string;\n';
   code += '  private namespace: string;\n';
-  code += '  private crds: any[];\n';
+  code += '  private crds: unknown[];\n';
   code += '  private enableController: boolean;\n';
   code += '  private enableWebhooks: boolean;\n';
   code += '  private kc: KubeConfig;\n';
   code += '  private customObjectsApi: CustomObjectsApi;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.namespace = options.namespace || \'default\';\n';
   code += '    this.crds = options.crds || [];\n';
@@ -139,7 +139,7 @@ export function generateTypeScriptCRD(config: OperatorConfig): string {
   code += '    console.log(\'[CRD] ✓ CRDs deployed successfully\');\n';
   code += '  }\n\n';
 
-  code += '  private async deployCRD(crd: any): Promise<void> {\n';
+  code += '  private async deployCRD(crd: unknown): Promise<void> {\n';
   code += '    console.log(`[CRD] Deploying CRD: ${crd.kind}...`);\n\n';
 
   code += '    const crdYaml = this.generateCRDManifest(crd);\n';
@@ -151,13 +151,13 @@ export function generateTypeScriptCRD(config: OperatorConfig): string {
   code += '      execSync(`kubectl apply -f ${crdPath}`, {\n';
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(`[CRD] Failed to deploy ${crd.kind}:`, error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private generateCRDManifest(crd: any): string {\n';
-  code += '    const crdManifest: any = {\n';
+  code += '  private generateCRDManifest(crd: unknown): string {\n';
+  code += '    const crdManifest: unknown = {\n';
   code += '      apiVersion: \'apiextensions.k8s.io/v1\',\n';
   code += '      kind: \'CustomResourceDefinition\',\n';
   code += '      metadata: {\n';
@@ -209,12 +209,12 @@ export function generateTypeScriptCRD(config: OperatorConfig): string {
   code += '    return this.toYaml(crdManifest);\n';
   code += '  }\n\n';
 
-  code += '  private generatePropertiesSchema(properties: any): any {\n';
-  code += '    const schema: any = {};\n';
+  code += '  private generatePropertiesSchema(properties: unknown): unknown {\n';
+  code += '    const schema: unknown = {};\n';
   code += '    const required: string[] = [];\n\n';
 
   code += '    for (const [name, prop] of Object.entries(properties)) {\n';
-  code += '      const propSchema: any = {\n';
+  code += '      const propSchema: unknown = {\n';
   code += '        type: prop.type,\n';
   code += '        description: prop.description,\n';
   code += '      };\n\n';
@@ -373,7 +373,7 @@ export function generateTypeScriptCRD(config: OperatorConfig): string {
   code += '    console.log(\'[CRD] ✓ RBAC resources deployed successfully\');\n';
   code += '  }\n\n';
 
-  code += '  async createInstance(crdName: string, instance: any): Promise<void> {\n';
+  code += '  async createInstance(crdName: string, instance: unknown): Promise<void> {\n';
   code += '    console.log(`[CRD] Creating instance of ${crdName}...`);\n\n';
 
   code += '    const crd = this.crds.find(c => c.kind === crdName);\n';
@@ -391,12 +391,12 @@ export function generateTypeScriptCRD(config: OperatorConfig): string {
   code += '      );\n\n';
 
   code += '      console.log(`[CRD] ✓ Instance created successfully`);\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(`[CRD] Failed to create instance:`, error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private toYaml(obj: any): string {\n';
+  code += '  private toYaml(obj: unknown): string {\n';
   code += '    const yaml = require(\'js-yaml\');\n';
   code += '    return yaml.dump(obj);\n';
   code += '  }\n';

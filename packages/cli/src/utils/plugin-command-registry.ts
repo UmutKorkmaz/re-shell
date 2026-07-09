@@ -33,7 +33,7 @@ export interface PluginCommandArgument {
   variadic?: boolean;
   type?: 'string' | 'number' | 'boolean';
   choices?: string[];
-  defaultValue?: any;
+  defaultValue?: unknown;
   validation?: PluginArgumentValidator;
 }
 
@@ -44,7 +44,7 @@ export interface PluginCommandOption {
   type?: 'string' | 'number' | 'boolean';
   required?: boolean;
   choices?: string[];
-  defaultValue?: any;
+  defaultValue?: unknown;
   validation?: PluginArgumentValidator;
   conflicts?: string[];
   implies?: string[];
@@ -52,21 +52,21 @@ export interface PluginCommandOption {
 
 // Command handler function
 export type PluginCommandHandler = (
-  args: Record<string, any>,
-  options: Record<string, any>,
+  args: Record<string, unknown>,
+  options: Record<string, unknown>,
   context: PluginCommandContext
 ) => Promise<void> | void;
 
 // Command middleware function
 export type PluginCommandMiddleware = (
-  args: Record<string, any>,
-  options: Record<string, any>,
+  args: Record<string, unknown>,
+  options: Record<string, unknown>,
   context: PluginCommandContext,
   next: () => Promise<void>
 ) => Promise<void>;
 
 // Argument validator function
-export type PluginArgumentValidator = (value: any) => boolean | string;
+export type PluginArgumentValidator = (value: unknown) => boolean | string;
 
 // Command execution context
 export interface PluginCommandContext {
@@ -79,15 +79,15 @@ export interface PluginCommandContext {
     version: string;
   };
   logger: {
-    debug: (msg: string, ...args: any[]) => void;
-    info: (msg: string, ...args: any[]) => void;
-    warn: (msg: string, ...args: any[]) => void;
-    error: (msg: string, ...args: any[]) => void;
+    debug: (msg: string, ...args: unknown[]) => void;
+    info: (msg: string, ...args: unknown[]) => void;
+    warn: (msg: string, ...args: unknown[]) => void;
+    error: (msg: string, ...args: unknown[]) => void;
   };
   utils: {
     path: typeof path;
     chalk: typeof chalk;
-    spinner: any;
+    spinner: unknown;
   };
 }
 
@@ -522,7 +522,7 @@ export class PluginCommandRegistry extends EventEmitter {
     // Add options
     if (definition.options) {
       definition.options.forEach(opt => {
-        command.option(opt.flag, opt.description, opt.defaultValue);
+        command.option(opt.flag, opt.description, opt.defaultValue as string | boolean | string[]);
       });
     }
 
@@ -539,8 +539,8 @@ export class PluginCommandRegistry extends EventEmitter {
       // Create context
       const context = this.createCommandContext(plugin, definition);
 
-      let processedArgs: Record<string, any> = {};
-      let processedOptions: Record<string, any> = {};
+      let processedArgs: Record<string, unknown> = {};
+      let processedOptions: Record<string, unknown> = {};
 
       try {
         // Process arguments
@@ -653,8 +653,8 @@ export class PluginCommandRegistry extends EventEmitter {
   }
 
   // Process command arguments
-  private processArguments(definition: PluginCommandDefinition, args: any[]): Record<string, any> {
-    const processed: Record<string, any> = {};
+  private processArguments(definition: PluginCommandDefinition, args: unknown[]): Record<string, unknown> {
+    const processed: Record<string, unknown> = {};
 
     if (definition.arguments) {
       definition.arguments.forEach((argDef, index) => {
@@ -669,7 +669,7 @@ export class PluginCommandRegistry extends EventEmitter {
           let convertedValue = value;
           if (argDef.type === 'number') {
             convertedValue = Number(value);
-            if (isNaN(convertedValue)) {
+            if (isNaN(convertedValue as number)) {
               throw new ValidationError(`Argument '${argDef.name}' must be a number`);
             }
           } else if (argDef.type === 'boolean') {
@@ -677,7 +677,7 @@ export class PluginCommandRegistry extends EventEmitter {
           }
 
           // Choice validation
-          if (argDef.choices && !argDef.choices.includes(convertedValue)) {
+          if (argDef.choices && !argDef.choices.includes(convertedValue as string)) {
             throw new ValidationError(`Argument '${argDef.name}' must be one of: ${argDef.choices.join(', ')}`);
           }
 
@@ -703,8 +703,8 @@ export class PluginCommandRegistry extends EventEmitter {
   }
 
   // Process command options
-  private processOptions(definition: PluginCommandDefinition, options: Record<string, any>): Record<string, any> {
-    const processed: Record<string, any> = { ...options };
+  private processOptions(definition: PluginCommandDefinition, options: Record<string, unknown>): Record<string, unknown> {
+    const processed: Record<string, unknown> = { ...options };
 
     if (definition.options) {
       definition.options.forEach(optDef => {
@@ -720,7 +720,7 @@ export class PluginCommandRegistry extends EventEmitter {
           let convertedValue = value;
           if (optDef.type === 'number') {
             convertedValue = Number(value);
-            if (isNaN(convertedValue)) {
+            if (isNaN(convertedValue as number)) {
               throw new ValidationError(`Option '${optDef.flag}' must be a number`);
             }
           } else if (optDef.type === 'boolean') {
@@ -728,7 +728,7 @@ export class PluginCommandRegistry extends EventEmitter {
           }
 
           // Choice validation
-          if (optDef.choices && !optDef.choices.includes(convertedValue)) {
+          if (optDef.choices && !optDef.choices.includes(convertedValue as string)) {
             throw new ValidationError(`Option '${optDef.flag}' must be one of: ${optDef.choices.join(', ')}`);
           }
 
@@ -757,7 +757,7 @@ export class PluginCommandRegistry extends EventEmitter {
   // Validate option conflicts and implications
   private validateOptionRelationships(
     options: PluginCommandOption[], 
-    processedOptions: Record<string, any>
+    processedOptions: Record<string, unknown>
   ): void {
     for (const option of options) {
       const flagName = this.extractOptionName(option.flag);
@@ -825,13 +825,13 @@ export class PluginCommandRegistry extends EventEmitter {
   }
 
   // Create command logger
-  private createLogger(pluginName: string, commandName: string): any {
+  private createLogger(pluginName: string, commandName: string): { debug: (msg: string, ...args: unknown[]) => void; info: (msg: string, ...args: unknown[]) => void; warn: (msg: string, ...args: unknown[]) => void; error: (msg: string, ...args: unknown[]) => void } {
     const prefix = `[${pluginName}:${commandName}]`;
     return {
-      debug: (msg: string, ...args: any[]) => console.debug(chalk.gray(`${prefix} ${msg}`), ...args),
-      info: (msg: string, ...args: any[]) => console.info(chalk.blue(`${prefix} ${msg}`), ...args),
-      warn: (msg: string, ...args: any[]) => console.warn(chalk.yellow(`${prefix} ${msg}`), ...args),
-      error: (msg: string, ...args: any[]) => console.error(chalk.red(`${prefix} ${msg}`), ...args)
+      debug: (msg: string, ...args: unknown[]) => console.debug(chalk.gray(`${prefix} ${msg}`), ...args),
+      info: (msg: string, ...args: unknown[]) => console.info(chalk.blue(`${prefix} ${msg}`), ...args),
+      warn: (msg: string, ...args: unknown[]) => console.warn(chalk.yellow(`${prefix} ${msg}`), ...args),
+      error: (msg: string, ...args: unknown[]) => console.error(chalk.red(`${prefix} ${msg}`), ...args)
     };
   }
 
@@ -883,7 +883,7 @@ export class PluginCommandRegistry extends EventEmitter {
   }
 
   // Get registry statistics
-  getStats(): any {
+  getStats(): Record<string, unknown> {
     const stats = {
       totalCommands: this.commands.size,
       activeCommands: Array.from(this.commands.values()).filter(cmd => cmd.isActive).length,
