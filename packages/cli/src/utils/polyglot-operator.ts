@@ -164,7 +164,7 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '  private appsV1Api: AppsV1Api;\n';
   code += '  private watch: Watch;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.namespace = options.namespace || \'default\';\n';
   code += '    this.languages = options.languages || [];\n';
@@ -302,7 +302,7 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '      execSync(`kubectl apply -f ${crdPath}`, {\n';
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[Operator] Failed to deploy CRD:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -483,14 +483,14 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '    this.watch.watch(\n';
   code += '      `/apis/re-shell.io/v1/namespaces/${this.namespace}/polyglotapplications`,\n';
   code += '      {},\n';
-  code += '      (phase: string, obj: any) => this.handleEvent(phase, obj),\n';
-  code += '      (err: any) => console.error(\'[Operator] Watch error:\', err)\n';
+  code += '      (phase: string, obj: unknown) => this.handleEvent(phase, obj),\n';
+  code += '      (err: unknown) => console.error(\'[Operator] Watch error:\', err)\n';
   code += '    );\n\n';
 
   code += '    console.log(\'[Operator] ✓ Operator started successfully\');\n';
   code += '  }\n\n';
 
-  code += '  private async handleEvent(phase: string, obj: any): Promise<void> {\n';
+  code += '  private async handleEvent(phase: string, obj: unknown): Promise<void> {\n';
   code += '    console.log(`[Operator] Event: ${phase} for ${obj.metadata?.name}`);\n\n';
 
   code += '    switch (phase) {\n';
@@ -506,7 +506,7 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private async reconcile(app: any): Promise<void> {\n';
+  code += '  private async reconcile(app: unknown): Promise<void> {\n';
   code += '    const appName = app.metadata?.name;\n';
   code += '    const namespace = app.metadata?.namespace;\n';
   code += '    const spec = app.spec;\n\n';
@@ -547,7 +547,7 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '    console.log(`[Operator] ✓ Reconciliation complete for ${appName}`);\n';
   code += '  }\n\n';
 
-  code += '  private async createDeployment(app: any, lang: ApplicationLanguage): Promise<void> {\n';
+  code += '  private async createDeployment(app: unknown, lang: ApplicationLanguage): Promise<void> {\n';
   code += '    const appName = app.metadata?.name;\n';
   code += '    const namespace = app.metadata?.namespace;\n';
   code += '    const spec = app.spec;\n\n';
@@ -636,12 +636,12 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '      execSync(`kubectl apply -f ${deployPath}`, {\n';
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(`[Operator] Failed to create deployment for ${appName}:`, error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private async createService(app: any, lang: ApplicationLanguage): Promise<void> {\n';
+  code += '  private async createService(app: unknown, lang: ApplicationLanguage): Promise<void> {\n';
   code += '    const appName = app.metadata?.name;\n';
   code += '    const namespace = app.metadata?.namespace;\n\n';
 
@@ -676,12 +676,12 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '      execSync(`kubectl apply -f ${servicePath}`, {\n';
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(`[Operator] Failed to create service for ${appName}:`, error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private async executeHooks(app: any, hookType: string): Promise<void> {\n';
+  code += '  private async executeHooks(app: unknown, hookType: string): Promise<void> {\n';
   code += '    const hooks = this.lifecycleHooks.filter(h => h.type === hookType);\n\n';
 
   code += '    for (const hook of hooks) {\n';
@@ -694,7 +694,7 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '          cwd: process.cwd(),\n';
   code += '        });\n';
   code += '        console.log(`[Operator] ✓ Hook ${hook.name} executed successfully`);\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[Operator] ✗ Hook ${hook.name} failed:`, error.message);\n';
 
   code += '        if (this.enableRollback) {\n';
@@ -705,7 +705,7 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private async rollback(app: any): Promise<void> {\n';
+  code += '  private async rollback(app: unknown): Promise<void> {\n';
   code += '    const appName = app.metadata?.name;\n';
   code += '    console.log(`[Operator] Rolling back ${appName}...`);\n\n';
 
@@ -714,12 +714,12 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '        stdio: \'inherit\',\n';
   code += '      });\n';
   code += '      console.log(`[Operator] ✓ Rollback complete for ${appName}`);\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(`[Operator] Rollback failed for ${appName}:`, error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private async handleDelete(app: any): Promise<void> {\n';
+  code += '  private async handleDelete(app: unknown): Promise<void> {\n';
   code += '    const appName = app.metadata?.name;\n';
   code += '    console.log(`[Operator] Handling deletion of ${appName}...`);\n\n';
 
@@ -731,7 +731,7 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '    console.log(`[Operator] ✓ Deletion handled for ${appName}`);\n';
   code += '  }\n\n';
 
-  code += '  private async updateStatus(app: any, status: any): Promise<void> {\n';
+  code += '  private async updateStatus(app: unknown, status: unknown): Promise<void> {\n';
   code += '    const appName = app.metadata?.name;\n';
   code += '    const namespace = app.metadata?.namespace;\n\n';
 
@@ -747,12 +747,12 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   code += '        undefined,\n';
   code += '        \'application/merge-patch+json\'\n';
   code += '      );\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(`[Operator] Failed to update status for ${appName}:`, error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private toYaml(obj: any): string {\n';
+  code += '  private toYaml(obj: unknown): string {\n';
   code += '    const yaml = require(\'js-yaml\');\n';
   code += '    return yaml.dump(obj);\n';
   code += '  }\n';

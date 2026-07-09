@@ -57,7 +57,7 @@ export interface NegotiationOptions {
  */
 export interface FormatConverter {
   canConvert(from: DataFormat, to: DataFormat): boolean;
-  convert(data: any, from: DataFormat, to: DataFormat): any;
+  convert(data: unknown, from: DataFormat, to: DataFormat): unknown;
 }
 
 /**
@@ -169,7 +169,7 @@ export interface NegotiationOptions {
 
 export interface FormatConverter {
   canConvert(from: DataFormat, to: DataFormat): boolean;
-  convert(data: any, from: DataFormat, to: DataFormat): any;
+  convert(data: unknown, from: DataFormat, to: DataFormat): unknown;
 }
 
 // Format to content-type mapping
@@ -205,10 +205,10 @@ const CONTENT_TYPE_TO_FORMAT: Record<string, DataFormat> = {
 };
 
 export class ${toPascalCase(config.serviceName)}FormatNegotiator {
-  private config: any;
+  private config: unknown;
   private converters: Map<string, FormatConverter>;
 
-  constructor(config: any) {
+  constructor(config: unknown) {
     this.config = config;
     this.converters = new Map();
     this.initializeConverters();
@@ -313,7 +313,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
   /**
    * Convert data between formats
    */
-  convertData(data: any, fromFormat: DataFormat, toFormat: DataFormat): any {
+  convertData(data: unknown, fromFormat: DataFormat, toFormat: DataFormat): unknown {
     if (fromFormat === toFormat) {
       return data;
     }
@@ -326,7 +326,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
   /**
    * Convert any format to intermediate (JSON/object)
    */
-  private toIntermediate(data: any, format: DataFormat): any {
+  private toIntermediate(data: unknown, format: DataFormat): unknown {
     switch (format) {
       case 'json':
         return typeof data === 'string' ? JSON.parse(data) : data;
@@ -360,7 +360,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
   /**
    * Convert intermediate (JSON/object) to target format
    */
-  private fromIntermediate(data: any, format: DataFormat): any {
+  private fromIntermediate(data: unknown, format: DataFormat): unknown {
     switch (format) {
       case 'json':
         return JSON.stringify(data, null, 2);
@@ -391,7 +391,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
   /**
    * Convert CSV to JSON
    */
-  private csvToJson(csv: string): any {
+  private csvToJson(csv: string): unknown {
     const lines = csv.trim().split('\\n');
     const headers = lines[0].split(',').map(h => h.trim());
     const rows = lines.slice(1);
@@ -409,7 +409,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
   /**
    * Convert JSON to CSV
    */
-  private jsonToCsv(data: any): string {
+  private jsonToCsv(data: unknown): string {
     const arr = Array.isArray(data) ? data : [data];
     if (arr.length === 0) return '';
 
@@ -427,7 +427,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
   /**
    * Serialize data to format
    */
-  serialize(data: any, format: DataFormat): string | Buffer {
+  serialize(data: unknown, format: DataFormat): string | Buffer {
     switch (format) {
       case 'json':
         return JSON.stringify(data);
@@ -452,7 +452,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
   /**
    * Deserialize data from format
    */
-  deserialize(data: string | Buffer, format: DataFormat): any {
+  deserialize(data: string | Buffer, format: DataFormat): unknown {
     const dataStr = data.toString();
 
     switch (format) {
@@ -544,7 +544,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
   /**
    * Create response with negotiated content type
    */
-  createResponse(data: any, acceptHeader?: string): { data: any; contentType: string; format: DataFormat } {
+  createResponse(data: unknown, acceptHeader?: string): { data: unknown; contentType: string; format: DataFormat } {
     const negotiation = this.negotiate({
       acceptHeader,
       supportedFormats: this.config.supportedFormats,
@@ -563,7 +563,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
   /**
    * Parse request with content negotiation
    */
-  parseRequest(body: string | Buffer, contentTypeHeader: string): any {
+  parseRequest(body: string | Buffer, contentTypeHeader: string): unknown {
     const contentType = this.parseContentType(contentTypeHeader);
     const format = this.contentTypeToFormat(contentType) || this.config.defaultFormat;
 
@@ -579,7 +579,7 @@ export class ${toPascalCase(config.serviceName)}FormatNegotiator {
 }
 
 // Factory function
-export function createFormatNegotiator(config: any) {
+export function createFormatNegotiator(config: unknown) {
   return new ${toPascalCase(config.serviceName)}FormatNegotiator(config);
 }
 
@@ -1154,13 +1154,13 @@ func main() {
  */
 export async function writeFormatNegotiatorFiles(
   serviceName: string,
-  integration: any,
+  integration: Record<string, unknown>,
   outputDir: string,
   language: string
 ): Promise<void> {
   await fs.ensureDir(outputDir);
 
-  for (const file of integration.files) {
+  for (const file of (integration.files as Array<{ path: string; content: string }>)) {
     const filePath = path.join(outputDir, file.path);
     const fileDir = path.dirname(filePath);
 
@@ -1223,7 +1223,7 @@ export async function displayFormatNegotiatorConfig(config: FormatNegotiatorConf
 }
 
 // Generate BUILD.md
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: unknown, language: string): string {
   const toPascalCase = (str: string) =>
     str.replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase()).replace(/[-_]/g, '');
 

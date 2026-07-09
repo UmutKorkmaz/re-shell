@@ -87,13 +87,13 @@ export interface HookHandler {
   /** Name of the plugin that registered this handler. */
   pluginName: string;
   /** The callback function invoked when the hook is executed. */
-  handler: (...args: any[]) => any;
+  handler: (...args: unknown[]) => unknown;
   /** Execution priority; lower numbers run first. */
   priority: HookPriority;
   /** If true, the handler is automatically removed after its first invocation. */
   once?: boolean;
   /** Optional predicate that must return true for the handler to execute. */
-  condition?: (data: any) => boolean;
+  condition?: (data: unknown) => boolean;
   /** Optional human-readable description of what this handler does. */
   description?: string;
   /** Optional arbitrary metadata associated with the handler. */
@@ -114,15 +114,31 @@ export interface HookContext {
   /** Timestamp (epoch milliseconds) when execution began. */
   timestamp: number;
   /** The data payload passed to the hook. */
-  data: any;
+  data: unknown;
   /** The result produced so far during execution, if any. */
-  result?: any;
+  result?: unknown;
   /** Error encountered during execution, if any. */
   error?: Error;
   /** Whether the hook execution was aborted. */
   aborted?: boolean;
   /** Optional arbitrary metadata for the execution context. */
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * A single handler's outcome within a hook execution.
+ * @description Records which plugin handler ran, its unique handler ID, the value it
+ * produced (if any), and how long the handler took to execute.
+ */
+export interface HookResultItem {
+  /** Name of the plugin whose handler produced this result. */
+  pluginName: string;
+  /** Unique ID of the handler registration that produced this result. */
+  handlerId: string;
+  /** The value returned by the handler, if any. */
+  result?: unknown;
+  /** Handler execution time in milliseconds. */
+  executionTime: number;
 }
 
 /**
@@ -134,7 +150,7 @@ export interface HookResult {
   /** Whether the hook executed successfully with no errors or aborts. */
   success: boolean;
   /** Array of individual handler results. */
-  results: any[];
+  results: HookResultItem[];
   /** Array of errors encountered, each with the responsible plugin name. */
   errors: Array<{ pluginName: string; error: Error }>;
   /** Whether the hook execution was aborted by a handler. */
@@ -156,7 +172,7 @@ export interface HookRegistrationOptions {
   /** If true, the handler is removed after its first successful invocation. */
   once?: boolean;
   /** Optional predicate; the handler only executes when it returns true. */
-  condition?: (data: any) => boolean;
+  condition?: (data: unknown) => boolean;
   /** Optional human-readable description of the handler. */
   description?: string;
   /** Optional arbitrary metadata to attach to the handler. */
@@ -174,7 +190,7 @@ export interface HookMiddleware {
   /** Called before any handlers are executed for a hook. */
   before?: (context: HookContext) => Promise<void> | void;
   /** Called after all handlers have finished executing for a hook. */
-  after?: (context: HookContext, result: any) => Promise<void> | void;
+  after?: (context: HookContext, result: unknown) => Promise<void> | void;
   /** Called when a handler throws an error during execution. */
   error?: (context: HookContext, error: Error) => Promise<void> | void;
 }
@@ -236,7 +252,7 @@ export class PluginHookSystem extends EventEmitter {
    */
   register(
     hookType: HookType | string,
-    handler: (...args: any[]) => any,
+    handler: (...args: unknown[]) => unknown,
     pluginName: string,
     options: HookRegistrationOptions = {}
   ): string {
@@ -423,7 +439,7 @@ export class PluginHookSystem extends EventEmitter {
           }
 
           // Check for abort signal
-          if (handlerResult && handlerResult.abort) {
+          if (handlerResult && (handlerResult as Record<string, unknown>).abort) {
             result.aborted = true;
             break;
           }
@@ -484,12 +500,12 @@ export class PluginHookSystem extends EventEmitter {
    * @param data - Optional data payload to pass to each handler.
    * @returns An array of handler results, each with the plugin name and result value.
    */
-  executeSync(hookType: HookType | string, data: Record<string, unknown> = {}): any[] {
+  executeSync(hookType: HookType | string, data: Record<string, unknown> = {}): unknown[] {
     if (!this.isEnabled) return [];
 
     const hookKey = hookType as HookType;
     const handlers = this.hooks.get(hookKey) || [];
-    const results: any[] = [];
+    const results: unknown[] = [];
 
     for (const handler of handlers) {
       // Check condition if specified
@@ -568,7 +584,7 @@ export class PluginHookSystem extends EventEmitter {
   private async executeMiddleware(
     phase: 'before' | 'after' | 'error',
     context: HookContext,
-    extra?: any
+    extra?: unknown
   ): Promise<void> {
     for (const middleware of this.middleware) {
       try {
@@ -577,7 +593,7 @@ export class PluginHookSystem extends EventEmitter {
         } else if (phase === 'after' && middleware.after) {
           await middleware.after(context, extra);
         } else if (phase === 'error' && middleware.error) {
-          await middleware.error(context, extra);
+          await middleware.error(context, extra as Error);
         }
       } catch (error) {
         if (this.debugMode) {
@@ -623,7 +639,7 @@ export class PluginHookSystem extends EventEmitter {
    * statistics, and the list of registered middleware names.
    * @returns A statistics object with totalHooks, hooksByType, hooksByPlugin, executionStats, and middleware fields.
    */
-  getStats(): any {
+  getStats(): unknown {
     const stats = {
       totalHooks: 0,
       hooksByType: {} as Record<string, number>,
@@ -726,7 +742,7 @@ export class PluginHookAPI {
    */
   register(
     hookType: HookType | string,
-    handler: (...args: any[]) => any,
+    handler: (...args: unknown[]) => unknown,
     options?: HookRegistrationOptions
   ): string {
     return this.hookSystem.register(hookType, handler, this.pluginName, options);
@@ -750,8 +766,8 @@ export class PluginHookAPI {
    * @param data - Optional data payload to pass to handlers.
    * @returns A HookResult containing aggregate results, errors, and timing.
    */
-  async execute(hookType: HookType | string, data?: any): Promise<HookResult> {
-    return this.hookSystem.execute(hookType, data);
+  async execute(hookType: HookType | string, data?: unknown): Promise<HookResult> {
+    return this.hookSystem.execute(hookType, data as Record<string, unknown>);
   }
 
   /**
@@ -761,8 +777,8 @@ export class PluginHookAPI {
    * @param data - Optional data payload to pass to handlers.
    * @returns An array of handler results.
    */
-  executeSync(hookType: HookType | string, data?: any): any[] {
-    return this.hookSystem.executeSync(hookType, data);
+  executeSync(hookType: HookType | string, data?: unknown): unknown[] {
+    return this.hookSystem.executeSync(hookType, data as Record<string, unknown>);
   }
 
   /**
@@ -795,11 +811,11 @@ export class PluginHookAPI {
    * @param options - Optional registration settings.
    * @returns The unique handler ID for the registration.
    */
-  onCommand(command: string, handler: (...args: any[]) => any, options?: HookRegistrationOptions): string {
+  onCommand(command: string, handler: (...args: unknown[]) => unknown, options?: HookRegistrationOptions): string {
     return this.register(
       HookType.COMMAND_BEFORE,
-      (data: any, context: HookContext) => {
-        if (data.command === command) {
+      (data: unknown, context: HookContext) => {
+        if ((data as Record<string, unknown>).command === command) {
           return handler(data, context);
         }
       },
@@ -816,11 +832,12 @@ export class PluginHookAPI {
    * @param options - Optional registration settings.
    * @returns The unique handler ID for the registration.
    */
-  onFileChange(pattern: RegExp | string, handler: (...args: any[]) => any, options?: HookRegistrationOptions): string {
+  onFileChange(pattern: RegExp | string, handler: (...args: unknown[]) => unknown, options?: HookRegistrationOptions): string {
     return this.register(
       HookType.FILE_CHANGE,
-      (data: any, context: HookContext) => {
-        const filePath = data.filePath || data.path;
+      (data: unknown, context: HookContext) => {
+        const dataRecord = data as Record<string, unknown>;
+        const filePath = (dataRecord.filePath || dataRecord.path) as string;
         if (pattern instanceof RegExp ? pattern.test(filePath) : filePath.includes(pattern)) {
           return handler(data, context);
         }
@@ -838,11 +855,11 @@ export class PluginHookAPI {
    * @param options - Optional registration settings.
    * @returns The unique handler ID for the registration.
    */
-  onWorkspaceBuild(workspace: string, handler: (...args: any[]) => any, options?: HookRegistrationOptions): string {
+  onWorkspaceBuild(workspace: string, handler: (...args: unknown[]) => unknown, options?: HookRegistrationOptions): string {
     return this.register(
       HookType.BUILD_START,
-      (data: any, context: HookContext) => {
-        if (data.workspace === workspace || workspace === '*') {
+      (data: unknown, context: HookContext) => {
+        if ((data as Record<string, unknown>).workspace === workspace || workspace === '*') {
           return handler(data, context);
         }
       },
