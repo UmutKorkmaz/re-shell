@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { createAsyncCommand} from '../utils/error-handler';
 import { createSpinner, flushOutput } from '../utils/spinner';
+import { createPluginCommand, validatePublish } from '../commands/plugin-create';
 
 import {
   managePlugins, discoverPlugins, installPlugin, uninstallPlugin,
@@ -889,6 +890,41 @@ export function registerPluginGroup(program: Command): void {
     .action(
       createAsyncCommand(async (options) => {
         await listCachedCommands(options);
+      })
+    );
+
+  // Plugin authoring commands
+  pluginCommand
+    .command('create <name>')
+    .description('Create a new plugin project with interactive wizard')
+    .option('--no-interactive', 'Skip prompts, use flags/defaults')
+    .option('--description <text>', 'Plugin description')
+    .option('--author <name>', 'Author name')
+    .option('--license <type>', 'License (MIT, Apache-2.0, ISC, Unlicense)', 'MIT')
+    .option('--type <type>', 'Plugin type (hooks, commands, both)', 'both')
+    .option('--hooks <list>', 'Comma-separated hook names')
+    .option('--commands <list>', 'Comma-separated command names')
+    .option('--permissions <list>', 'Comma-separated permissions')
+    .option('--framework <name>', 'Framework target', 'universal')
+    .option('--no-tests', 'Skip test setup')
+    .option('--no-ci', 'Skip CI workflow')
+    .option('--force', 'Overwrite existing directory')
+    .option('--dry-run', 'Show files without writing')
+    .option('--json', 'Output as JSON')
+    .action(
+      createAsyncCommand(async (name, options) => {
+        await createPluginCommand(name, options);
+      })
+    );
+
+  pluginCommand
+    .command('validate-publish [path]')
+    .description('Validate a plugin before publishing to npm')
+    .option('--json', 'Output as JSON')
+    .option('--verbose', 'Show passed checks too')
+    .action(
+      createAsyncCommand(async (pluginPath, options) => {
+        await validatePublish(pluginPath || process.cwd(), options);
       })
     );
 
