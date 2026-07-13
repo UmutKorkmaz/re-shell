@@ -1,0 +1,41 @@
+name: policy-test-ws
+version: "2.0.0"
+services:
+  api-gateway:
+    name: api-gateway
+    language: typescript
+    framework: express
+    type: backend
+    port: 3000
+    healthCheck:
+      path: /health
+      interval: 30
+    resources:
+      cpu:
+        request: 500m
+        limit: 1000m
+      memory:
+        request: 256Mi
+        limit: 512Mi
+    scaling:
+      minReplicas: 3
+    dependsOn: [auth-service]
+    env:
+      DATABASE_URL: postgres://localhost:5432/db
+      LOG_LEVEL: info
+
+  worker:
+    name: worker
+    language: python
+    framework: flask
+    type: worker
+    dependsOn: [redis]
+    env:
+      DATABASE_URL: postgres://localhost:5432/db
+
+  frontend:
+    name: frontend
+    language: typescript
+    framework: react
+    type: frontend
+    port: 8080
