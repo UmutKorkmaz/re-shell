@@ -3,8 +3,10 @@ import * as path from 'path';
 import * as chokidar from 'chokidar';
 import chalk from 'chalk';
 import { EventEmitter } from 'events';
-import { configManager, CONFIG_PATHS } from './config';
+import { configManager, CONFIG_PATHS, GlobalConfig, ProjectConfig, WorkspaceConfig } from './config';
 import { ValidationError } from './error-handler';
+
+type LoadedConfig = GlobalConfig | ProjectConfig | WorkspaceConfig | null;
 
 // Configuration change event types
 export interface ConfigChangeEvent {
@@ -12,7 +14,7 @@ export interface ConfigChangeEvent {
   path: string;
   configType: 'global' | 'project' | 'workspace';
   timestamp: Date;
-  config?: any;
+  config?: unknown;
   error?: Error;
 }
 
@@ -26,7 +28,7 @@ export interface HotReloadOptions {
   verbose?: boolean;
   includeWorkspaces?: boolean;
   excludePatterns?: string[];
-  profile?: any;
+  profile?: unknown;
   services?: string[];
 }
 
@@ -36,7 +38,7 @@ export class ConfigWatcher extends EventEmitter {
   private debounceTimers: Map<string, NodeJS.Timeout> = new Map();
   private isWatching = false;
   private options: Required<HotReloadOptions>;
-  private lastConfigs: Map<string, any> = new Map();
+  private lastConfigs: Map<string, LoadedConfig> = new Map();
   private backupIds: Map<string, string> = new Map();
 
   constructor(options: HotReloadOptions = {}) {
@@ -345,7 +347,7 @@ export class ConfigWatcher extends EventEmitter {
       }
 
       // Load and validate the new configuration
-      let newConfig: any;
+      let newConfig: LoadedConfig;
       
       switch (configType) {
         case 'global':
@@ -399,7 +401,7 @@ export class ConfigWatcher extends EventEmitter {
     }
   }
 
-  private async validateConfig(config: any, configType: string): Promise<void> {
+  private async validateConfig(config: LoadedConfig, configType: string): Promise<void> {
     // Basic validation - can be extended with schema validation
     if (!config || typeof config !== 'object') {
       throw new ValidationError(`Invalid ${configType} configuration: must be an object`);
@@ -408,17 +410,17 @@ export class ConfigWatcher extends EventEmitter {
     // Type-specific validation
     switch (configType) {
       case 'global':
-        if (!config.version) {
+        if (config && 'version' in config && !config.version) {
           throw new ValidationError('Global configuration missing version field');
         }
         break;
       case 'project':
-        if (!config.name) {
+        if (config && 'name' in config && !config.name) {
           throw new ValidationError('Project configuration missing name field');
         }
         break;
       case 'workspace':
-        if (!config.name || !config.type) {
+        if (config && ('name' in config && !config.name) || ('type' in config && !config.type)) {
           throw new ValidationError('Workspace configuration missing required fields (name, type)');
         }
         break;
