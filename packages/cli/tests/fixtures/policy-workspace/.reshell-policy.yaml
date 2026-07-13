@@ -1,0 +1,38 @@
+name: production-ready
+description: Production readiness policy for testing
+rules:
+  - id: hc-required
+    type: healthcheck-required
+    severity: error
+    serviceTypes: [backend, worker]
+  - id: res-limits
+    type: resource-limits
+    severity: warning
+    requireCpu: true
+    requireMemory: true
+  - id: port-range
+    type: port-range
+    severity: error
+    min: 1024
+    max: 65535
+  - id: min-deps
+    type: service-dependency
+    severity: warning
+    min: 1
+  - id: env-vars
+    type: required-env
+    severity: error
+    variables: [DATABASE_URL]
+  - id: fw-allow
+    type: framework-allowlist
+    severity: warning
+    allowed: [express, react, flask]
+  - id: lang-allow
+    type: language-allowlist
+    severity: error
+    allowed: [typescript, python]
+  - id: scaling
+    type: scaling-required
+    severity: warning
+    serviceTypes: [backend]
+    requireMinReplicas: 2

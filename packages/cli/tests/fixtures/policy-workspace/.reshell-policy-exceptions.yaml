@@ -1,0 +1,6 @@
+- service: worker
+  rule: hc-required
+  reason: "Worker does not have HTTP healthcheck"
+- service: worker
+  rule: res-limits
+  reason: "Worker runs on dedicated nodes"
