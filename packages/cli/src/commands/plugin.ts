@@ -491,10 +491,10 @@ function displayDiscoveredPluginList(plugins: PluginRegistration[], verbose: boo
   plugins.forEach((plugin, index) => {
     const status = plugin.isActive ? chalk.green('●') : plugin.isLoaded ? chalk.yellow('●') : chalk.gray('●');
     const statusText = plugin.isActive ? 'active' : plugin.isLoaded ? 'loaded' : 'inactive';
-    
-    console.log(`${status} ${chalk.white(plugin.manifest.name)} ${chalk.gray(`v${plugin.manifest.version}`)}`);
+
+    console.log(`${status} ${chalk.white.bold(plugin.manifest.name)} ${chalk.gray(`v${plugin.manifest.version}`)}`);
     console.log(`  ${chalk.gray(plugin.manifest.description)}`);
-    
+
     if (verbose) {
       console.log(`  ${chalk.gray(`Path: ${plugin.pluginPath}`)}`);
       console.log(`  ${chalk.gray(`Status: ${statusText}`)}`);
@@ -502,9 +502,9 @@ function displayDiscoveredPluginList(plugins: PluginRegistration[], verbose: boo
         console.log(`  ${chalk.gray(`Usage: ${plugin.usageCount} times`)}`);
       }
     }
-    
+
     if (index < plugins.length - 1) {
-      console.log('');
+      console.log(chalk.gray('─'.repeat(60)));
     }
   });
 }
@@ -537,98 +537,106 @@ function displayPluginList(plugins: ManagedPluginRegistration[], verbose: boolea
 // Display detailed plugin information
 function displayPluginDetails(plugin: ManagedPluginRegistration, verbose: boolean): void {
   const manifest = plugin.manifest;
-  
-  console.log(chalk.yellow('Description:'));
-  console.log(`  ${manifest.description}\n`);
-  
+
+  console.log(`  ${chalk.cyan.bold('Description')}`);
+  console.log(`    ${manifest.description}`);
+  console.log('');
+
   if (manifest.author) {
-    console.log(chalk.yellow('Author:'));
-    console.log(`  ${manifest.author}\n`);
-  }
-  
-  console.log(chalk.yellow('Version:'));
-  console.log(`  ${manifest.version}\n`);
-  
-  if (manifest.license) {
-    console.log(chalk.yellow('License:'));
-    console.log(`  ${manifest.license}\n`);
-  }
-  
-  if (manifest.homepage) {
-    console.log(chalk.yellow('Homepage:'));
-    console.log(`  ${manifest.homepage}\n`);
-  }
-  
-  if (manifest.keywords && manifest.keywords.length > 0) {
-    console.log(chalk.yellow('Keywords:'));
-    console.log(`  ${manifest.keywords.join(', ')}\n`);
-  }
-  
-  console.log(chalk.yellow('Installation:'));
-  console.log(`  Path: ${plugin.pluginPath}`);
-  console.log(`  State: ${plugin.state}`);
-  console.log(`  Status: ${plugin.isActive ? 'Active' : plugin.isLoaded ? 'Loaded' : 'Inactive'}`);
-  
-  if (plugin.usageCount > 0) {
-    console.log(`  Usage Count: ${plugin.usageCount}`);
-  }
-  
-  if (plugin.lastUsed) {
-    console.log(`  Last Used: ${new Date(plugin.lastUsed).toLocaleString()}`);
+    console.log(`  ${chalk.cyan.bold('Author')}`);
+    console.log(`    ${chalk.blue(manifest.author)}`);
+    console.log('');
   }
 
-  console.log(`\n${chalk.yellow('Lifecycle:')}`);
-  console.log(`  Load Time: ${plugin.performance.loadDuration}ms`);
-  console.log(`  Init Time: ${plugin.performance.initDuration}ms`);
-  console.log(`  Activation Time: ${plugin.performance.activationDuration}ms`);
-  
+  console.log(`  ${chalk.cyan.bold('Version & License')}`);
+  console.log(`    ${chalk.gray('Version:')} ${manifest.version}`);
+  if (manifest.license) console.log(`    ${chalk.gray('License:')} ${manifest.license}`);
+  console.log('');
+
+  if (manifest.homepage) {
+    console.log(`  ${chalk.cyan.bold('Homepage')}`);
+    console.log(`    ${manifest.homepage}`);
+    console.log('');
+  }
+
+  if (manifest.keywords && manifest.keywords.length > 0) {
+    console.log(`  ${chalk.cyan.bold('Keywords')}`);
+    console.log(`    ${manifest.keywords.join(', ')}`);
+    console.log('');
+  }
+
+  console.log(`  ${chalk.cyan.bold('Installation')}`);
+  console.log(`    ${chalk.gray('Path:')}   ${plugin.pluginPath}`);
+  console.log(`    ${chalk.gray('State:')}  ${plugin.state}`);
+  console.log(`    ${chalk.gray('Status:')} ${plugin.isActive ? chalk.green('Active') : plugin.isLoaded ? chalk.yellow('Loaded') : chalk.gray('Inactive')}`);
+
+  if (plugin.usageCount > 0) {
+    console.log(`    ${chalk.gray('Usage:')}  ${plugin.usageCount} times`);
+  }
+
+  if (plugin.lastUsed) {
+    console.log(`    ${chalk.gray('Last Used:')} ${new Date(plugin.lastUsed).toLocaleString()}`);
+  }
+  console.log('');
+
+  console.log(`  ${chalk.cyan.bold('Lifecycle')}`);
+  console.log(`    ${chalk.gray('Load Time:')}       ${plugin.performance.loadDuration}ms`);
+  console.log(`    ${chalk.gray('Init Time:')}       ${plugin.performance.initDuration}ms`);
+  console.log(`    ${chalk.gray('Activation Time:')} ${plugin.performance.activationDuration}ms`);
+
   if (plugin.dependencies.length > 0) {
-    console.log(`\n${chalk.yellow('Dependencies:')}`);
+    console.log('');
+    console.log(`  ${chalk.cyan.bold('Dependencies')}`);
     plugin.dependencies.forEach(dep => {
       const status = dep.resolved ? chalk.green('✓') : chalk.red('✗');
-      console.log(`  ${status} ${dep.name} (${dep.version}) ${dep.required ? '' : '(optional)'}`);
+      console.log(`    ${status} ${dep.name} (${dep.version}) ${dep.required ? '' : chalk.gray('(optional)')}`);
     });
   }
-  
+
   if (plugin.dependents.length > 0) {
-    console.log(`\n${chalk.yellow('Dependents:')}`);
+    console.log('');
+    console.log(`  ${chalk.cyan.bold('Dependents')}`);
     plugin.dependents.forEach(dep => {
-      console.log(`  - ${dep}`);
+      console.log(`    ${dep}`);
     });
   }
-  
+
   if (plugin.errors.length > 0) {
-    console.log(`\n${chalk.red('Recent Errors:')}`);
+    console.log('');
+    console.log(`  ${chalk.red.bold('Recent Errors')}`);
     plugin.errors.slice(-3).forEach((error, index) => {
-      console.log(`  ${index + 1}. [${error.stage}] ${error.error.message}`);
-      console.log(`     ${chalk.gray(new Date(error.timestamp).toLocaleString())}`);
+      console.log(`    ${index + 1}. [${error.stage}] ${error.error.message}`);
+      console.log(`       ${chalk.gray(new Date(error.timestamp).toLocaleString())}`);
     });
   }
-  
+
   if (verbose) {
-    console.log(`\n${chalk.yellow('Manifest:')}`);
-    console.log(`  Main: ${manifest.main}`);
-    
+    console.log('');
+    console.log(`  ${chalk.cyan.bold('Manifest')}`);
+    console.log(`    ${chalk.gray('Main:')} ${manifest.main}`);
+
     if (manifest.engines) {
-      console.log(`  Engines: ${JSON.stringify(manifest.engines)}`);
+      console.log(`    ${chalk.gray('Engines:')} ${JSON.stringify(manifest.engines)}`);
     }
-    
+
     if (manifest.dependencies) {
-      console.log(`  Dependencies: ${Object.keys(manifest.dependencies).length}`);
+      console.log(`    ${chalk.gray('Dependencies:')} ${Object.keys(manifest.dependencies).length}`);
     }
-    
+
     if (manifest.reshell) {
-      console.log(`  Re-Shell Config: ${JSON.stringify(manifest.reshell, null, 2)}`);
+      console.log(`    ${chalk.gray('Re-Shell Config:')} ${JSON.stringify(manifest.reshell, null, 2)}`);
     }
-    
+
     if (plugin.loadError) {
-      console.log(`\n${chalk.red('Load Error:')}`);
-      console.log(`  ${plugin.loadError.message}`);
+      console.log('');
+      console.log(`  ${chalk.red.bold('Load Error')}`);
+      console.log(`    ${plugin.loadError.message}`);
     }
-    
+
     if (plugin.activationError) {
-      console.log(`\n${chalk.red('Activation Error:')}`);
-      console.log(`  ${plugin.activationError.message}`);
+      console.log('');
+      console.log(`  ${chalk.red.bold('Activation Error')}`);
+      console.log(`    ${plugin.activationError.message}`);
     }
   }
 }
