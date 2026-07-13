@@ -104,13 +104,74 @@ export interface FailedRule {
   target: string;
 }
 
+/** Letter grade corresponding to the numeric readiness score. */
+export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
+
+/** A failed rule that has been waived by a policy exception. */
+export interface WaivedRule extends FailedRule {
+  waiveReason?: string;
+  waiveExpires?: string;
+}
+
+/**
+ * A single rule evaluation result, used for the `results` array in
+ * `PolicyCheckResult`. Covers both passing and failing evaluations across
+ * all rule types (package.json-level and service-level).
+ */
+export interface PolicyResultItem {
+  service?: string;
+  workspace?: string;
+  ruleId: string;
+  ruleType: string;
+  passed: boolean;
+  severity: RuleSeverity;
+  message: string;
+  waived?: boolean;
+  waiveReason?: string;
+  waiveExpires?: string;
+}
+
+/** Details of a policy exception whose expiry date has passed. */
+export interface ExpiredException {
+  service: string;
+  rule: string;
+  expires: string;
+}
+
 export interface PolicyCheckResult {
   pack: string;
   score: number;
+  /** Letter grade derived from `score`. */
+  grade: Grade;
   passed: string[];
   failed: FailedRule[];
+  /** Failed rules that were waived by a non-expired exception. */
+  waived: WaivedRule[];
+  /** Per-rule per-target evaluation results (pass + fail + waived). */
+  results: PolicyResultItem[];
   /** True when at least one error-severity rule failed (drives exit code). */
   hasErrors: boolean;
+  /** Exceptions that matched failures but have passed their expiry date. */
+  expiredExceptions: ExpiredException[];
+}
+
+/**
+ * Convert a numeric 0-100 score to a letter grade.
+ *
+ * | Score  | Grade |
+ * |--------|-------|
+ * | 90-100 | A     |
+ * | 80-89  | B     |
+ * | 70-79  | C     |
+ * | 60-69  | D     |
+ * | 0-59   | F     |
+ */
+export function scoreToGrade(score: number): Grade {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  if (score >= 60) return 'D';
+  return 'F';
 }
 
 interface RootPackageJson {
@@ -398,8 +459,12 @@ export async function evaluatePolicyPack(
   return {
     pack: pack.name,
     score,
+    grade: scoreToGrade(score),
     passed,
     failed,
+    waived: [],
+    results: [],
     hasErrors,
+    expiredExceptions: [],
   };
 }
