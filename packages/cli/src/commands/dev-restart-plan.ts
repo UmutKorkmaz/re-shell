@@ -16,14 +16,30 @@ import {
   type RestartTarget,
 } from '../utils/dev-fusion-engine';
 
-/** Options accepted by the restart-plan resolver. */
+/**
+ * Options accepted by the restart-plan resolver.
+ *
+ * Drives the behavior of {@link runRestartPlan}: how the changed packages are
+ * detected, where the workspace root lives, and how the resolved plan is
+ * rendered back to the caller.
+ */
 export interface RestartPlanOptions {
+  /** Emit the plan as a JSON envelope (`ok`/`fail`) instead of human-readable text. */
   json?: boolean;
   /** Explicitly changed package names (overrides git detection). */
   changed?: string[];
-  /** Git-changed-files provider (tests). */
+  /**
+   * Git-changed-files provider (tests).
+   *
+   * Called with the resolved workspace root and expected to return a list of
+   * repository-relative file paths that are considered "changed". In production
+   * this is wired to git working-tree detection; in tests it can be stubbed.
+   *
+   * @param root - Absolute path to the workspace root.
+   * @returns Resolves to a list of changed file paths (repository-relative).
+   */
   getChangedFiles?: (root: string) => Promise<string[]>;
-  /** Working directory override (tests). */
+  /** Working directory override (tests). Defaults to `process.cwd()`. */
   cwd?: string;
 }
 
@@ -50,9 +66,20 @@ function filesToPackages(
 /**
  * Resolve and emit the ordered restart plan for the changed packages.
  *
+ * Wires the pure dev-fusion engine to a real CLI surface: discover the
+ * workspace, resolve the changed packages (explicit `--changed` or git
+ * working-tree changes mapped to their owning packages), and emit the ordered
+ * restart plan (changed packages + transitive dependents,
+ * deps-before-dependents).
+ *
  * Gate: this is a planning command — it never restarts anything, so it always
  * exits 0 on success. A genuine error (not in a workspace) is reported via the
  * DEV_FUSION_ERROR envelope.
+ *
+ * @param options - Resolver options; see {@link RestartPlanOptions}.
+ * @returns Resolves once the plan has been rendered (JSON envelope or
+ *   human-readable text). Always resolves; failures are surfaced through the
+ *   emitted output and `process.exitCode`.
  */
 export async function runRestartPlan(options: RestartPlanOptions): Promise<void> {
   const json = Boolean(options.json);

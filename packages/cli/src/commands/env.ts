@@ -21,16 +21,23 @@ import {
 } from '../utils/env-engine';
 import type { EnvResponse } from '@re-shell/contracts';
 
-/** Options accepted by the `env` command. */
+/**
+ * Options accepted by the `env` command.
+ *
+ * Controls whether the command emits machine-readable JSON or a human-readable
+ * report, which subcommand (`init` vs `verify`) to run, whether files are
+ * written to disk, and provides injection points for tests.
+ */
 export interface EnvOptions {
+  /** When `true`, emit a machine-readable JSON envelope instead of styled text. */
   json?: boolean;
-  /** `init` (generate) or `verify` (check drift). */
+  /** `init` (generate configs) or `verify` (check drift against current detection). */
   mode?: 'init' | 'verify';
-  /** When false (default), only report; when true, write the files. */
+  /** When `false` (default), only report; when `true`, write the generated files to disk. */
   noDryRun?: boolean;
-  /** Working directory override (tests). */
+  /** Working directory override; defaults to `process.cwd()`. Primarily used by tests. */
   cwd?: string;
-  /** Injectable toolchain detection (tests). */
+  /** Injectable toolchain detection function; primarily used by tests to bypass filesystem scanning. */
   detect?: () => DetectedToolchain[];
 }
 
@@ -52,12 +59,19 @@ function serialize(obj: Record<string, unknown>): string {
 }
 
 /**
- * `re-shell env init|verify`.
+ * Entry point for the `re-shell env init|verify` command.
  *
- * `init` emits devbox.json + .devcontainer/devcontainer.json from detected
- * toolchains (dry-run by default; --no-dry-run writes them). `verify` checks a
- * previously-generated devbox.json against the current detection and reports
- * drift. Producing the config is pure/offline.
+ * - `init`: emits `devbox.json` and `.devcontainer/devcontainer.json` from the
+ *   detected toolchains. Runs as a dry-run by default; pass `noDryRun: true` to
+ *   write the files. Re-running after a toolchain change updates the pinned
+ *   versions (idempotent).
+ * - `verify`: reads an existing `devbox.json`, re-detects the current
+ *   toolchains, and reports any drift (missing or extra entries).
+ *
+ * Generating the config is pure/offline; no network calls are made.
+ *
+ * @param options - Configuration controlling mode, output format, and write behavior.
+ * @returns A promise that resolves once the command has finished rendering its report.
  */
 export async function runEnv(options: EnvOptions): Promise<void> {
   const json = Boolean(options.json);
