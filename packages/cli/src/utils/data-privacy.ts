@@ -5,14 +5,29 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Type Definitions
+
+/** Sensitivity level assigned to a data asset. */
 export type DataClassification = 'public' | 'internal' | 'confidential' | 'restricted' | 'critical';
+
+/** Category describing the nature of the data an asset holds. */
 export type DataType = 'personal' | 'financial' | 'health' | 'academic' | 'employee' | 'customer' | 'proprietary' | 'custom';
+
+/** Identifier for a supported privacy or data-protection regulation. */
 export type PrivacyRegulation = 'gdpr' | 'ccpa' | 'hipaa' | 'ferpa' | 'glba' | 'sox' | 'pci-dss' | 'custom';
+
+/** Lawful basis under which personal data may be processed. */
 export type ProcessingBasis = 'consent' | 'contract' | 'legal-obligation' | 'vital-interests' | 'public-task' | 'legitimate-interests';
+
+/** Right that a data subject may exercise regarding their personal data. */
 export type DataSubjectRight = 'access' | 'rectification' | 'erasure' | 'portability' | 'restriction' | 'object' | 'automated-decision';
+
+/** Severity grading for a data breach. */
 export type BreachSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+/** Reason a retention period is enforced for a category of data. */
 export type RetentionBasis = 'legal' | 'regulatory' | 'contractual' | 'operational' | 'custom';
 
+/** Top-level configuration object describing a project's data-privacy posture. */
 export interface DataPrivacyConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -29,6 +44,7 @@ export interface DataPrivacyConfig {
   transfers: DataTransfer[];
 }
 
+/** Toggles and thresholds controlling privacy features such as classification, encryption, and consent. */
 export interface PrivacySettings {
   enableAutoClassification: boolean;
   enableDataDiscovery: boolean;
@@ -60,6 +76,7 @@ export interface PrivacySettings {
   enableDataLineage: boolean;
 }
 
+/** Represents a discovered or registered data asset in the privacy inventory. */
 export interface DataAsset {
   id: string;
   name: string;
@@ -89,6 +106,7 @@ export interface DataAsset {
   metadata: AssetMetadata;
 }
 
+/** Describes a single personally identifiable field within a data asset. */
 export interface PIIField {
   name: string;
   type: 'direct' | 'indirect' | 'quasi';
@@ -98,6 +116,7 @@ export interface PIIField {
   tokenized: boolean;
 }
 
+/** Contextual and legal metadata associated with a data asset. */
 export interface AssetMetadata {
   creator: string;
   source: string;
@@ -114,6 +133,7 @@ export interface AssetMetadata {
   riskScore: number; // 0-100
 }
 
+/** Single hop in a data asset's lineage from source to destination. */
 export interface DataLineageEntry {
   source: string;
   transformation: string;
@@ -121,6 +141,7 @@ export interface DataLineageEntry {
   timestamp: Date;
 }
 
+/** Rule that automatically assigns classification and triggers actions based on conditions. */
 export interface ClassificationRule {
   id: string;
   name: string;
@@ -134,6 +155,7 @@ export interface ClassificationRule {
   lastTuned: Date;
 }
 
+/** A single predicate evaluated when applying classification rules. */
 export interface ClassificationCondition {
   type: 'content' | 'location' | 'format' | 'metadata' | 'pattern' | 'custom';
   field?: string;
@@ -142,6 +164,7 @@ export interface ClassificationCondition {
   caseSensitive?: boolean;
 }
 
+/** Action taken when a classification rule's conditions are satisfied. */
 export interface ClassificationAction {
   type: 'classify' | 'encrypt' | 'mask' | 'restrict-access' | 'alert' | 'quarantine' | 'custom';
   classification?: DataClassification;
@@ -149,6 +172,7 @@ export interface ClassificationAction {
   notification?: string;
 }
 
+/** Record of a processing activity for Article 30 / RoPA compliance. */
 export interface ProcessingActivity {
   id: string;
   name: string;
@@ -177,6 +201,7 @@ export interface ProcessingActivity {
   nextReviewDate: Date;
 }
 
+/** Individual whose personal data is processed by the project. */
 export interface DataSubject {
   id: string;
   type: 'customer' | 'employee' | 'prospect' | 'vendor' | 'partner' | 'student' | 'patient' | 'custom';
@@ -194,6 +219,7 @@ export interface DataSubject {
   metadata: SubjectMetadata;
 }
 
+/** Communication and processing preferences chosen by a data subject. */
 export interface SubjectPreferences {
   marketingOptIn: boolean;
   analyticsOptIn: boolean;
@@ -203,6 +229,7 @@ export interface SubjectPreferences {
   dataRetentionPreference?: string;
 }
 
+/** Regulatory and demographic metadata for a data subject. */
 export interface SubjectMetadata {
   jurisdiction: string;
   primaryRegulation: PrivacyRegulation;
@@ -212,6 +239,7 @@ export interface SubjectMetadata {
   employeeData: boolean;
 }
 
+/** Captures a single consent grant or withdrawal for a processing purpose. */
 export interface ConsentRecord {
   id: string;
   subjectId: string;
@@ -230,6 +258,7 @@ export interface ConsentRecord {
   legitimateInterestDetails?: string;
 }
 
+/** Reference to a document presented and accepted as part of consent. */
 export interface ConsentDocument {
   type: 'privacy-notice' | 'terms-of-service' | 'cookie-policy' | 'consent-form' | 'custom';
   version: string;
@@ -237,6 +266,7 @@ export interface ConsentDocument {
   ipAddress?: string;
 }
 
+/** A data subject's request to exercise a privacy right (access, erasure, etc.). */
 export interface DataSubjectRequest {
   id: string;
   requestId: string;
@@ -261,12 +291,14 @@ export interface DataSubjectRequest {
   metadata: RequestMetadata;
 }
 
+/** Field withheld from a data subject request response and the reason for it. */
 export interface Redaction {
   field: string;
   reason: string;
   basis: 'third-party' | 'legal-privilege' | 'security' | 'commercial' | 'custom';
 }
 
+/** Metadata describing how a subject request was received and handled. */
 export interface RequestMetadata {
   channel: 'web-portal' | 'email' | 'phone' | 'mail' | 'in-person' | 'custom';
   language: string;
@@ -276,6 +308,7 @@ export interface RequestMetadata {
   actualHours?: number;
 }
 
+/** Full lifecycle record of a detected or suspected data breach. */
 export interface BreachRecord {
   id: string;
   name: string;
@@ -302,12 +335,14 @@ export interface BreachRecord {
   forensicReport?: string;
 }
 
+/** Categorization of a breach event along with its vector and description. */
 export interface BreachType {
   type: 'unauthorized-access' | 'disclosure' | 'loss' | 'theft' | 'alteration' | 'destruction' | 'custom';
   description: string;
   vector: string;
 }
 
+/** A remediation step taken during breach response. */
 export interface ResponseAction {
   action: string;
   takenAt: Date;
@@ -315,6 +350,7 @@ export interface ResponseAction {
   effectiveness: 'high' | 'medium' | 'low';
 }
 
+/** Record of a notification issued as part of breach response. */
 export interface Notification {
   recipient: string;
   method: 'email' | 'mail' | 'phone' | 'web' | 'press-release' | 'custom';
@@ -323,6 +359,7 @@ export interface Notification {
   delayReason?: string;
 }
 
+/** Policy defining how long data is kept and how it is disposed of. */
 export interface DataRetentionPolicy {
   id: string;
   name: string;
@@ -343,6 +380,7 @@ export interface DataRetentionPolicy {
   nextReviewDate: Date;
 }
 
+/** Approved exception to a retention policy for a specific case. */
 export interface PolicyException {
   reason: string;
   justification: string;
@@ -351,6 +389,7 @@ export interface PolicyException {
   expiresAt?: Date;
 }
 
+/** Data Protection Impact Assessment record for a high-risk processing activity. */
 export interface DPIARecord {
   id: string;
   projectName: string;
@@ -374,6 +413,7 @@ export interface DPIARecord {
   documentLocation?: string;
 }
 
+/** Identified risk with its likelihood, impact, and resulting score. */
 export interface RiskAssessment {
   risk: string;
   likelihood: 'very-low' | 'low' | 'medium' | 'high' | 'very-high';
@@ -382,6 +422,7 @@ export interface RiskAssessment {
   mitigationRequired: boolean;
 }
 
+/** Mitigation measure proposed or applied to reduce an identified risk. */
 export interface MitigationMeasure {
   measure: string;
   implemented: boolean;
@@ -390,6 +431,7 @@ export interface MitigationMeasure {
   verifiedAt?: Date;
 }
 
+/** Cross-border or third-party transfer of personal data. */
 export interface DataTransfer {
   id: string;
   name: string;
@@ -412,6 +454,7 @@ export interface DataTransfer {
   nextReview: Date;
 }
 
+/** Legal or technical safeguard underpinning a data transfer. */
 export interface Safeguard {
   type: 'sccs' | 'bcra' | 'standard-contractual-clauses' | 'binding-corporate-rules' | 'codes-of-conduct' | 'certifications' | 'custom';
   reference: string;
@@ -419,6 +462,11 @@ export interface Safeguard {
 }
 
 // Markdown Generation
+/**
+ * Renders a data-privacy compliance report as Markdown.
+ * @param config - Project privacy configuration to render.
+ * @returns A Markdown string summarizing assets, subjects, requests, and policies.
+ */
 export function generatePrivacyMarkdown(config: DataPrivacyConfig): string {
   return `# Data Privacy and Protection Compliance
 
@@ -543,6 +591,11 @@ ${config.transfers.map(transfer => `
 }
 
 // Terraform Generation for AWS
+/**
+ * Generates Terraform configuration for data-privacy controls on AWS.
+ * @param config - Project privacy configuration to provision from.
+ * @returns A Terraform configuration string for AWS resources.
+ */
 export function generatePrivacyTerraformAWS(config: DataPrivacyConfig): string {
   return `# Terraform configuration for Data Privacy on AWS
 # Generated at: ${new Date().toISOString()}
@@ -772,6 +825,11 @@ resource "sns_topic_subscription" "breach_email" {
 }
 
 // TypeScript Manager Generation
+/**
+ * Generates a self-contained TypeScript DataPrivacyManager module.
+ * @param config - Project privacy configuration driving manager defaults.
+ * @returns TypeScript source code implementing a privacy manager.
+ */
 export function generatePrivacyTypeScriptManager(config: DataPrivacyConfig): string {
   return `// Auto-generated Data Privacy and Protection Manager
 // Generated at: ${new Date().toISOString()}
@@ -1057,6 +1115,11 @@ export class DataPrivacyManager {
 }
 
 // Python Manager Generation
+/**
+ * Generates a self-contained Python DataPrivacyManager module.
+ * @param config - Project privacy configuration driving manager defaults.
+ * @returns Python source code implementing a privacy manager.
+ */
 export function generatePrivacyPythonManager(config: DataPrivacyConfig): string {
   return `# Auto-generated Data Privacy and Protection Manager
 # Generated at: ${new Date().toISOString()}
@@ -1294,6 +1357,10 @@ class DataPrivacyManager:
 }
 
 // Display function
+/**
+ * Prints a human-readable summary of the privacy configuration to the console.
+ * @param config - Project privacy configuration to display.
+ */
 export function displayPrivacyConfig(config: DataPrivacyConfig): void {
   console.log(chalk.cyan('🔒 Data Privacy and Protection Compliance'));
   console.log(chalk.gray('─'.repeat(60)));
@@ -1311,6 +1378,11 @@ export function displayPrivacyConfig(config: DataPrivacyConfig): void {
 }
 
 // Package.json generation
+/**
+ * Generates a package manifest for the generated privacy manager.
+ * @param language - Target language ('typescript' or 'python').
+ * @returns A serialized package.json or pip requirements string.
+ */
 export function generatePrivacyPackageJSON(language: string): string {
   if (language === 'typescript') {
     return JSON.stringify({
@@ -1337,6 +1409,11 @@ pydantic==2.0.0`;
 }
 
 // Config JSON generation
+/**
+ * Serializes the privacy configuration to a JSON string with ISO dates.
+ * @param config - Project privacy configuration to serialize.
+ * @returns A pretty-printed JSON string of the configuration.
+ */
 export function generatePrivacyConfigJSON(config: DataPrivacyConfig): string {
   return JSON.stringify(config, (key, value) => {
     if (value instanceof Date) {
@@ -1347,6 +1424,13 @@ export function generatePrivacyConfigJSON(config: DataPrivacyConfig): string {
 }
 
 // Main write function
+/**
+ * Writes all generated privacy artifacts to the given output directory.
+ * @param config - Project privacy configuration to render.
+ * @param outputDir - Target directory where files are written.
+ * @param language - Output language ('typescript' or 'python').
+ * @returns Resolves once all files have been written.
+ */
 export async function writePrivacyFiles(
   config: DataPrivacyConfig,
   outputDir: string,

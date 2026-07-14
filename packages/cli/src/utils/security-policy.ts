@@ -4,16 +4,26 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/** Supported categories of security policies. */
 export type PolicyType = 'access-control' | 'data-classification' | 'encryption' | 'network-security' | 'compliance' | 'incident-response' | 'identity-management' | 'resource-security' | 'audit-logging' | 'custom';
+/** Lifecycle status of a security policy. */
 export type PolicyStatus = 'draft' | 'active' | 'deprecated' | 'archived' | 'disabled';
+/** Severity levels used to rank policies, rules, and violations. */
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info';
+/** Modes that determine how a policy is enforced when a violation occurs. */
 export type EnforcementMode = 'audit-only' | 'warn' | 'block' | 'auto-remediate';
+/** Compliance frameworks that policies may be aligned to. */
 export type ComplianceFramework = 'NIST-800-53' | 'ISO-27001' | 'SOC-2' | 'PCI-DSS' | 'HIPAA' | 'GDPR' | 'CIS' | 'custom';
+/** Cloud resource types that policies can target. */
 export type ResourceType = 's3-bucket' | 'ec2-instance' | 'rds-database' | 'lambda-function' | 'iam-role' | 'sns-topic' | 'sqs-queue' | 'storage-account' | 'vm' | 'key-vault' | 'function-app' | 'gcs-bucket' | 'compute-instance' | 'cloud-sql' | 'cloud-function' | 'custom';
+/** Lifecycle status of a policy violation. */
 export type ViolationStatus = 'open' | 'investigating' | 'remediating' | 'resolved' | 'false-positive' | 'accepted-risk';
+/** Types of events recorded in the policy audit log. */
 export type AuditEventType = 'policy-creation' | 'policy-update' | 'policy-deletion' | 'violation-detected' | 'enforcement-action' | 'exception-approved' | 'compliance-check' | 'custom';
+/** Lifecycle status of a policy exception request. */
 export type ExceptionStatus = 'pending' | 'approved' | 'denied' | 'expired' | 'revoked';
 
+/** Root configuration object for a security policy as code project. */
 export interface SecurityPolicyConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -27,6 +37,7 @@ export interface SecurityPolicyConfig {
   enforcement: EnforcementAction[];
 }
 
+/** Global settings controlling enforcement, scanning, notifications, and reporting. */
 export interface PolicySettings {
   autoEnforce: boolean;
   enforcementMode: EnforcementMode;
@@ -46,6 +57,7 @@ export interface PolicySettings {
   customPolicyPath?: string;
 }
 
+/** Represents a single security policy with controls, resources, and enforcement rules. */
 export interface SecurityPolicy {
   id: string;
   name: string;
@@ -65,6 +77,7 @@ export interface SecurityPolicy {
   metadata: PolicyMetadata;
 }
 
+/** A security control within a policy, including implementation and validation details. */
 export interface PolicyControl {
   id: string;
   name: string;
@@ -76,6 +89,7 @@ export interface PolicyControl {
   remediation: RemediationSteps;
 }
 
+/** Describes how a control is implemented (e.g. language, code, dependencies). */
 export interface ControlImplementation {
   language: 'terraform' | 'cloudformation' | 'arm' | 'python' | 'custom';
   code: string;
@@ -83,6 +97,7 @@ export interface ControlImplementation {
   dependencies: string[];
 }
 
+/** Defines how a control is validated and how often validation runs. */
 export interface ControlValidation {
   method: 'automated-test' | 'manual-review' | 'third-party-scan' | 'custom';
   script?: string;
@@ -90,6 +105,7 @@ export interface ControlValidation {
   frequency: 'on-change' | 'hourly' | 'daily' | 'weekly';
 }
 
+/** Steps and metadata for remediating a control or violation. */
 export interface RemediationSteps {
   automatic: boolean;
   steps: RemediationStep[];
@@ -98,6 +114,7 @@ export interface RemediationSteps {
   impact: 'low' | 'medium' | 'high';
 }
 
+/** A single ordered remediation action. */
 export interface RemediationStep {
   order: number;
   action: string;
@@ -106,6 +123,7 @@ export interface RemediationStep {
   timeout: number;
 }
 
+/** A cloud resource targeted by a policy, including selection and tag filters. */
 export interface TargetResource {
   type: ResourceType;
   selector: ResourceSelector;
@@ -114,12 +132,14 @@ export interface TargetResource {
   resourceIds: string[];
 }
 
+/** Selector used to match target resources by pattern and attribute. */
 export interface ResourceSelector {
   pattern: string;
   matchType: 'exact' | 'glob' | 'regex';
   attribute: string;
 }
 
+/** A configurable parameter accepted by a policy. */
 export interface PolicyParameter {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
@@ -130,18 +150,21 @@ export interface PolicyParameter {
   validation?: string;
 }
 
+/** A logical condition (and/or/not) composing nested condition expressions. */
 export interface PolicyCondition {
   id: string;
   type: 'and' | 'or' | 'not';
   conditions: ConditionExpression[];
 }
 
+/** A single field-based comparison used within a policy condition. */
 export interface ConditionExpression {
   field: string;
   operator: 'equals' | 'not-equals' | 'contains' | 'not-contains' | 'greater-than' | 'less-than' | 'regex' | 'in' | 'not-in';
   value: any;
 }
 
+/** Configuration controlling how a policy is enforced and escalated. */
 export interface EnforcementConfig {
   mode: EnforcementMode;
   blockOnViolation: boolean;
@@ -151,6 +174,7 @@ export interface EnforcementConfig {
   gracePeriod: number; // minutes
 }
 
+/** Rule describing when and how an enforcement event is escalated. */
 export interface EscalationRule {
   id: string;
   name: string;
@@ -160,6 +184,7 @@ export interface EscalationRule {
   threshold: number;
 }
 
+/** Authorship, review, tagging, and risk metadata for a policy. */
 export interface PolicyMetadata {
   author: string;
   createdAt: Date;
@@ -171,6 +196,7 @@ export interface PolicyMetadata {
   riskScore: number; // 0-100
 }
 
+/** A rule belonging to a policy that defines a condition and actions. */
 export interface PolicyRule {
   id: string;
   policyId: string;
@@ -183,18 +209,21 @@ export interface PolicyRule {
   schedule?: ScheduleConfig;
 }
 
+/** An action taken when a rule matches, such as alerting or blocking. */
 export interface RuleAction {
   type: 'log' | 'alert' | 'block' | 'remediate' | 'tag' | 'quarantine' | 'custom';
   config: Record<string, unknown>;
   order: number;
 }
 
+/** Schedule configuration for when a rule is evaluated. */
 export interface ScheduleConfig {
   type: 'cron' | 'interval' | 'one-time';
   expression: string;
   timezone: string;
 }
 
+/** Represents a detected violation of a policy rule against a resource. */
 export interface PolicyViolation {
   id: string;
   policyId: string;
@@ -217,6 +246,7 @@ export interface PolicyViolation {
   metadata: Record<string, unknown>;
 }
 
+/** Evidence captured when a violation is detected. */
 export interface ViolationEvidence {
   snapshot: any;
   logs: string[];
@@ -225,6 +255,7 @@ export interface ViolationEvidence {
   configurationDiff: any;
 }
 
+/** A time-bound exception granting a resource relief from a policy. */
 export interface PolicyException {
   id: string;
   policyId: string;
@@ -242,6 +273,7 @@ export interface PolicyException {
   comments: ExceptionComment[];
 }
 
+/** A comment added to a policy exception during review. */
 export interface ExceptionComment {
   id: string;
   author: string;
@@ -249,6 +281,7 @@ export interface ExceptionComment {
   timestamp: Date;
 }
 
+/** An entry in the audit log tracking policy-related events. */
 export interface PolicyAudit {
   id: string;
   eventType: AuditEventType;
@@ -260,6 +293,7 @@ export interface PolicyAudit {
   metadata: Record<string, unknown>;
 }
 
+/** Detailed information captured for an audit event. */
 export interface AuditDetails {
   action: string;
   previousState?: any;
@@ -270,6 +304,7 @@ export interface AuditDetails {
   result: 'success' | 'failure' | 'partial';
 }
 
+/** A compliance report summarizing posture against a framework. */
 export interface ComplianceReport {
   id: string;
   framework: ComplianceFramework;
@@ -284,6 +319,7 @@ export interface ComplianceReport {
   nextReviewDate: Date;
 }
 
+/** A single control assessed within a compliance report. */
 export interface ComplianceControl {
   id: string;
   controlId: string;
@@ -295,6 +331,7 @@ export interface ComplianceControl {
   lastValidated: Date;
 }
 
+/** A gap identified between current state and a compliance control. */
 export interface ComplianceGap {
   control: string;
   severity: SeverityLevel;
@@ -304,6 +341,7 @@ export interface ComplianceGap {
   priority: number;
 }
 
+/** Records an enforcement action taken in response to a violation. */
 export interface EnforcementAction {
   id: string;
   violationId: string;
@@ -317,6 +355,11 @@ export interface EnforcementAction {
 }
 
 // Markdown Generation
+/**
+ * Generates a Markdown summary of the security policy configuration.
+ * @param config - The security policy configuration to render.
+ * @returns A Markdown string describing policies, rules, violations, and reports.
+ */
 export function generateSecurityPolicyMarkdown(config: SecurityPolicyConfig): string {
   return `# Security Policy as Code with Automated Enforcement and Auditing
 
@@ -358,6 +401,12 @@ ${config.policies.slice(0, 5).map(policy => `
 }
 
 // Terraform Generation
+/**
+ * Generates Terraform infrastructure code for the given cloud provider.
+ * @param config - The security policy configuration to render.
+ * @param provider - The target cloud provider (aws, azure, or gcp).
+ * @returns A Terraform HCL string provisioning policy artifacts and enforcement resources.
+ */
 export function generateSecurityPolicyTerraform(config: SecurityPolicyConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   if (provider === 'aws') {
     return `# AWS Security Policy Infrastructure
@@ -512,6 +561,11 @@ resource "google_pubsub_topic" "violation_alerts" {
 }
 
 // TypeScript Manager Generation
+/**
+ * Generates a TypeScript SecurityPolicyManager module for runtime enforcement.
+ * @param config - The security policy configuration to embed in the generated code.
+ * @returns A TypeScript source string implementing the policy manager.
+ */
 export function generatePolicyManagerTypeScript(config: SecurityPolicyConfig): string {
   return `// Auto-generated Security Policy Manager
 // Generated at: ${new Date().toISOString()}
@@ -624,6 +678,11 @@ export { SecurityPolicyManager };
 }
 
 // Python Manager Generation
+/**
+ * Generates a Python SecurityPolicyManager module for runtime enforcement.
+ * @param config - The security policy configuration to embed in the generated code.
+ * @returns A Python source string implementing the policy manager.
+ */
 export function generatePolicyManagerPython(config: SecurityPolicyConfig): string {
   return `# Auto-generated Security Policy Manager
 # Generated at: ${new Date().toISOString()}
@@ -752,6 +811,13 @@ class SecurityPolicyManager:
 }
 
 // Write Files
+/**
+ * Writes Markdown, Terraform, manager source, and config files to disk.
+ * @param config - The security policy configuration to generate files from.
+ * @param outputDir - Directory where files will be written (created if missing).
+ * @param language - Target language for the generated policy manager module.
+ * @returns Resolves when all files have been written.
+ */
 export async function writeSecurityPolicyFiles(
   config: SecurityPolicyConfig,
   outputDir: string,
@@ -807,6 +873,10 @@ export async function writeSecurityPolicyFiles(
   );
 }
 
+/**
+ * Prints a human-readable summary of the security policy configuration to the console.
+ * @param config - The security policy configuration to display.
+ */
 export function displaySecurityPolicyConfig(config: SecurityPolicyConfig): void {
   console.log(chalk.cyan('🛡️  Security Policy as Code with Automated Enforcement and Auditing'));
   console.log(chalk.gray('─'.repeat(60)));

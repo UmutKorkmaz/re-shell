@@ -4,14 +4,22 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/** Identifiers for the available security training modules. */
 export type TrainingModule = 'phishing' | 'password-security' | 'data-handling' | 'social-engineering' | 'physical-security' | 'incident-reporting' | 'compliance' | 'secure-coding' | 'mobile-security' | 'cloud-security' | 'custom';
+/** Difficulty tiers supported by training modules and questions. */
 export type Difficulty = 'beginner' | 'intermediate' | 'advanced' | 'expert';
+/** Lifecycle status of a user's training module enrollment. */
 export type TrainingStatus = 'not-started' | 'in-progress' | 'completed' | 'failed' | 'expired';
+/** Categories of achievements that can be awarded to users. */
 export type AchievementType = 'completion' | 'speed' | 'accuracy' | 'streak' | 'perfect-score' | 'participation' | 'custom';
+/** Types of rewards that can be granted through gamification. */
 export type RewardType = 'points' | 'badge' | 'level' | 'certificate' | 'unlock' | 'custom';
+/** Scope at which a leaderboard ranks participants. */
 export type LeaderboardType = 'individual' | 'team' | 'department' | 'organization';
+/** Supported question formats for training assessments. */
 export type QuestionType = 'multiple-choice' | 'true-false' | 'scenario' | 'simulation' | 'drag-drop' | 'fill-blank' | 'practical' | 'custom';
 
+/** Top-level configuration for the security training program. */
 export interface SecurityTrainingConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -26,6 +34,7 @@ export interface SecurityTrainingConfig {
   integrations: TrainingIntegration[];
 }
 
+/** General settings controlling training scheduling, scoring, and feature flags. */
 export interface TrainingSettings {
   autoAssign: boolean;
   frequency: 'one-time' | 'monthly' | 'quarterly' | 'annual' | 'on-demand';
@@ -48,6 +57,7 @@ export interface TrainingSettings {
   electiveModules: TrainingModule[];
 }
 
+/** Metadata and content describing a single training module. */
 export interface TrainingModuleData {
   id: string;
   name: string;
@@ -69,6 +79,7 @@ export interface TrainingModuleData {
   lastUpdated: Date;
 }
 
+/** A piece of instructional content within a training module. */
 export interface ModuleContent {
   id: string;
   type: 'video' | 'text' | 'interactive' | 'simulation' | 'quiz' | 'document' | 'custom';
@@ -80,6 +91,7 @@ export interface ModuleContent {
   metadata: Record<string, unknown>;
 }
 
+/** A question used in training assessments. */
 export interface Question {
   id: string;
   type: QuestionType;
@@ -95,6 +107,7 @@ export interface Question {
   hints: string[];
 }
 
+/** A branching scenario attached to a question for applied learning. */
 export interface Scenario {
   id: string;
   title: string;
@@ -104,6 +117,7 @@ export interface Scenario {
   outcome: string;
 }
 
+/** A single step in a scenario with selectable options. */
 export interface ScenarioStep {
   id: string;
   step: number;
@@ -113,12 +127,14 @@ export interface ScenarioStep {
   explanation: string;
 }
 
+/** A selectable option within a scenario step. */
 export interface ScenarioOption {
   id: string;
   text: string;
   consequence: string;
 }
 
+/** A user enrolled in the security training program. */
 export interface TrainingUser {
   id: string;
   name: string;
@@ -132,6 +148,7 @@ export interface TrainingUser {
   isActive: boolean;
 }
 
+/** Tracks a user's progress, score, and gamification state for a module. */
 export interface UserProgress {
   id: string;
   userId: string;
@@ -154,6 +171,7 @@ export interface UserProgress {
   certificates: Certificate[];
 }
 
+/** A badge earned by a user through training achievements. */
 export interface Badge {
   id: string;
   name: string;
@@ -166,6 +184,7 @@ export interface Badge {
   target?: number;
 }
 
+/** A progression level with required points and privileges. */
 export interface Level {
   id: string;
   name: string;
@@ -175,6 +194,7 @@ export interface Level {
   icon: string;
 }
 
+/** A certificate issued to a user upon module completion or excellence. */
 export interface Certificate {
   id: string;
   type: 'completion' | 'excellence' | 'mastery' | 'custom';
@@ -185,6 +205,7 @@ export interface Certificate {
   verified: boolean;
 }
 
+/** Configuration for points, badges, levels, leaderboards, and challenges. */
 export interface GamificationConfig {
   enabled: boolean;
   pointsPerCorrectAnswer: number;
@@ -198,6 +219,7 @@ export interface GamificationConfig {
   teams: Team[];
 }
 
+/** A rule granting bonus points when its condition is met. */
 export interface BonusRule {
   id: string;
   name: string;
@@ -207,6 +229,7 @@ export interface BonusRule {
   maxPerDay?: number;
 }
 
+/** Template describing how a badge can be earned. */
 export interface BadgeDefinition {
   id: string;
   name: string;
@@ -218,6 +241,7 @@ export interface BadgeDefinition {
   points: number;
 }
 
+/** A leaderboard ranking participants over a period and category. */
 export interface Leaderboard {
   id: string;
   name: string;
@@ -228,6 +252,7 @@ export interface Leaderboard {
   topScores: LeaderboardEntry[];
 }
 
+/** A single entry in a leaderboard. */
 export interface LeaderboardEntry {
   userId: string;
   userName: string;
@@ -236,6 +261,7 @@ export interface LeaderboardEntry {
   change: number; // rank change
 }
 
+/** A time-bound challenge that participants can compete in for a reward. */
 export interface Challenge {
   id: string;
   name: string;
@@ -249,6 +275,7 @@ export interface Challenge {
   progress: ChallengeProgress[];
 }
 
+/** A participant's progress in a challenge. */
 export interface ChallengeProgress {
   userId: string;
   userName: string;
@@ -256,6 +283,7 @@ export interface ChallengeProgress {
   score: number;
 }
 
+/** A reward unlocked when a points threshold is reached. */
 export interface Reward {
   id: string;
   type: RewardType;
@@ -266,6 +294,7 @@ export interface Reward {
   unlockThreshold: number;
 }
 
+/** A team that can compete collectively in gamification features. */
 export interface Team {
   id: string;
   name: string;
@@ -276,6 +305,7 @@ export interface Team {
   avatar: string;
 }
 
+/** A scheduled assessment evaluating participant competency. */
 export interface Assessment {
   id: string;
   name: string;
@@ -290,6 +320,7 @@ export interface Assessment {
   passRate: number;
 }
 
+/** An individual participant's result for an assessment. */
 export interface AssessmentResult {
   userId: string;
   userName: string;
@@ -299,6 +330,7 @@ export interface AssessmentResult {
   completedAt: Date;
 }
 
+/** Aggregated analytics for training over a reporting period. */
 export interface TrainingAnalytics {
   id: string;
   period: string;
@@ -314,6 +346,7 @@ export interface TrainingAnalytics {
   trends: TrainingTrend[];
 }
 
+/** Training statistics aggregated for a department. */
 export interface DepartmentStats {
   participants: number;
   completed: number;
@@ -321,6 +354,7 @@ export interface DepartmentStats {
   completionRate: number;
 }
 
+/** Statistics describing participation and performance for a module. */
 export interface ModuleStats {
   attempts: number;
   completions: number;
@@ -330,6 +364,7 @@ export interface ModuleStats {
   questionStats: QuestionStats[];
 }
 
+/** Statistics describing how participants answered a specific question. */
 export interface QuestionStats {
   questionId: string;
   correctRate: number; // percentage
@@ -337,6 +372,7 @@ export interface QuestionStats {
   mostCommonWrongAnswer: string;
 }
 
+/** A topic area where participants show weakness, tracked over time. */
 export interface VulnerabilityArea {
   area: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
@@ -345,6 +381,7 @@ export interface VulnerabilityArea {
   improvement: number; // percentage change from previous period
 }
 
+/** Engagement metrics measuring user activity in the training program. */
 export interface EngagementMetrics {
   activeUsers: number;
   totalPoints: number;
@@ -355,6 +392,7 @@ export interface EngagementMetrics {
   leaderboardParticipation: number;
 }
 
+/** A time-series data point capturing training trends. */
 export interface TrainingTrend {
   date: Date;
   participants: number;
@@ -363,6 +401,7 @@ export interface TrainingTrend {
   engagement: number;
 }
 
+/** An external system integration for the training program. */
 export interface TrainingIntegration {
   id: string;
   name: string;
@@ -378,6 +417,11 @@ export interface TrainingIntegration {
 }
 
 // Markdown Generation
+/**
+ * Generates a Markdown summary of the security training configuration.
+ * @param config - The security training configuration to summarize.
+ * @returns A Markdown string describing settings, modules, and counts.
+ */
 export function generateSecurityTrainingMarkdown(config: SecurityTrainingConfig): string {
   return `# Security Training Integration and Awareness Programs
 
@@ -421,6 +465,12 @@ ${config.moduleData.slice(0, 5).map(mod => `
 }
 
 // Terraform Generation
+/**
+ * Generates Terraform infrastructure code for the given cloud provider.
+ * @param config - The security training configuration.
+ * @param provider - The target cloud provider.
+ * @returns Terraform HCL source as a string.
+ */
 export function generateSecurityTrainingTerraform(config: SecurityTrainingConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   if (provider === 'aws') {
     return `# AWS Security Training Infrastructure
@@ -491,6 +541,11 @@ resource "google_firebase_project" "gamification" {
 }
 
 // TypeScript Manager Generation
+/**
+ * Generates a TypeScript SecurityTrainingManager class source file.
+ * @param config - The security training configuration.
+ * @returns TypeScript source code as a string.
+ */
 export function generateTrainingManagerTypeScript(config: SecurityTrainingConfig): string {
   return `// Auto-generated Security Training Manager
 // Generated at: ${new Date().toISOString()}
@@ -580,6 +635,11 @@ export { SecurityTrainingManager };
 }
 
 // Python Manager Generation
+/**
+ * Generates a Python SecurityTrainingManager source file.
+ * @param config - The security training configuration.
+ * @returns Python source code as a string.
+ */
 export function generateTrainingManagerPython(config: SecurityTrainingConfig): string {
   return `# Auto-generated Security Training Manager
 # Generated at: ${new Date().toISOString()}
@@ -656,6 +716,13 @@ class SecurityTrainingManager:
 }
 
 // Write Files
+/**
+ * Writes the generated security training files to the output directory.
+ * @param config - The security training configuration.
+ * @param outputDir - Directory to write generated files into.
+ * @param language - Target language for the manager implementation.
+ * @returns Resolves when all files have been written.
+ */
 export async function writeSecurityTrainingFiles(
   config: SecurityTrainingConfig,
   outputDir: string,
@@ -711,6 +778,11 @@ export async function writeSecurityTrainingFiles(
   );
 }
 
+/**
+ * Prints a summary of the security training configuration to the console.
+ * @param config - The security training configuration to display.
+ * @returns Nothing; output is written to stdout.
+ */
 export function displaySecurityTrainingConfig(config: SecurityTrainingConfig): void {
   console.log(chalk.cyan('🎓 Security Training Integration and Awareness Programs'));
   console.log(chalk.gray('─'.repeat(60)));
