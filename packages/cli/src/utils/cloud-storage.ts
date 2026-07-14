@@ -136,6 +136,15 @@ interface CloudStorageConfig {
   governance: GovernanceConfig;
 }
 
+/**
+ * Prints a human-readable summary of the cloud storage configuration to the
+ * console using ANSI-colored output. The summary covers the project name,
+ * configured providers, whether the data pipeline is enabled, and the status
+ * of each governance feature (data classification, retention policies, audit
+ * logging, and compliance standards).
+ *
+ * @param config - The full cloud storage configuration to display.
+ */
 export function displayConfig(config: CloudStorageConfig): void {
   console.log(chalk.cyan('✨ Cloud Storage Integration and Data Pipeline Automation with Governance'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -149,6 +158,16 @@ export function displayConfig(config: CloudStorageConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Produces a Markdown document describing the cloud storage integration and
+ * data pipeline automation capabilities. The document includes a static list
+ * of supported features (multi-cloud storage, lifecycle management,
+ * versioning, encryption, replication, ETL, governance, and compliance) and a
+ * TypeScript usage example.
+ *
+ * @param config - The cloud storage configuration used to render the document.
+ * @returns A Markdown string containing the feature list and usage example.
+ */
 export function generateCloudStorageMD(config: CloudStorageConfig): string {
   let md = '# Cloud Storage Integration and Data Pipeline Automation\n\n';
   md += '## Features\n\n';
@@ -179,6 +198,20 @@ export function generateCloudStorageMD(config: CloudStorageConfig): string {
   return md;
 }
 
+/**
+ * Generates Terraform infrastructure-as-code for the cloud storage resources
+ * described by the given configuration. Depending on the configured
+ * providers, the output includes AWS S3 buckets (with optional versioning,
+ * server-side encryption, public access blocks, lifecycle rules, and
+ * logging), Azure storage accounts and containers (with optional versioning
+ * and lifecycle management policies), and GCP storage buckets (with optional
+ * lifecycle rules and uniform bucket-level access). When audit logging is
+ * enabled, dedicated audit storage resources are emitted for AWS and Azure.
+ *
+ * @param config - The cloud storage configuration describing providers,
+ *   resources, and governance settings to translate into Terraform.
+ * @returns A string of Terraform HCL provisioning the configured resources.
+ */
 export function generateTerraformStorage(config: CloudStorageConfig): string {
   let code = '# Auto-generated Cloud Storage Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -348,6 +381,20 @@ export function generateTerraformStorage(config: CloudStorageConfig): string {
   return code;
 }
 
+/**
+ * Generates the source code of a TypeScript `CloudStorageManager` class that
+ * extends `EventEmitter` and orchestrates deployments to the configured cloud
+ * providers via Terraform. The generated class includes provider-specific
+ * deployment methods (added only for configured providers), a combined
+ * `deploy` method that runs all provider deployments in parallel, optional
+ * `setupDataPipeline` and `classifyData` methods when those features are
+ * enabled, and a `getStorageInfo` helper that returns endpoint metadata for a
+ * provider.
+ *
+ * @param config - The cloud storage configuration driving which methods and
+ *   provider endpoints are included in the generated class.
+ * @returns A string containing the complete TypeScript source file.
+ */
 export function generateTypeScriptCloudStorage(config: CloudStorageConfig): string {
   let code = '// Auto-generated Cloud Storage Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -475,6 +522,20 @@ export function generateTypeScriptCloudStorage(config: CloudStorageConfig): stri
   return code;
 }
 
+/**
+ * Generates the source code of a Python `CloudStorageManager` class that
+ * deploys cloud storage resources to the configured providers using Terraform
+ * via `subprocess`. The generated class mirrors the TypeScript variant and
+ * includes provider-specific asynchronous deployment methods for each
+ * configured provider, a combined `deploy` method that schedules all
+ * deployments concurrently with `asyncio.gather`, optional
+ * `setup_data_pipeline` and `classify_data` methods, and a
+ * `get_storage_info` helper returning endpoint metadata for a provider.
+ *
+ * @param config - The cloud storage configuration driving which methods and
+ *   provider endpoints are included in the generated class.
+ * @returns A string containing the complete Python source file.
+ */
 export function generatePythonCloudStorage(config: CloudStorageConfig): string {
   let code = '# Auto-generated Cloud Storage Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -576,6 +637,26 @@ export function generatePythonCloudStorage(config: CloudStorageConfig): string {
   return code;
 }
 
+/**
+ * Writes the generated cloud storage artifacts to disk in the specified
+ * output directory. Always emits the Terraform configuration
+ * (`storage.tf`) and the Markdown documentation (`CLOUD_STORAGE.md`), and a
+ * serialized configuration summary (`storage-config.json`). Depending on the
+ * requested language, it additionally emits the TypeScript manager source
+ * and a `package.json` (when `language` is `'typescript'`), or the Python
+ * manager source and a `requirements.txt` (for any other language).
+ *
+ * @param config - The cloud storage configuration used to generate the
+ *   Terraform, manager source, and documentation files.
+ * @param outputDir - The target directory where all generated files are
+ *   written. It is created if it does not already exist.
+ * @param language - The implementation language for the manager source;
+ *   `'typescript'` produces TypeScript output, any other value produces
+ *   Python output.
+ * @returns A promise that resolves once all files have been written.
+ * @throws {Error} Rethrows any filesystem error encountered while ensuring
+ *   the directory exists or writing files.
+ */
 export async function writeFiles(config: CloudStorageConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
