@@ -44,6 +44,14 @@ interface VoiceVideoIntegrationConfig {
   enableTranslation: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the voice/video integration configuration
+ * to the console, including audio/video codecs, collaboration options, and
+ * transcription/translation toggles.
+ *
+ * @param config - The voice/video integration configuration to display.
+ * @returns No return value; output is written to standard output.
+ */
 export function displayConfig(config: VoiceVideoIntegrationConfig): void {
   console.log(chalk.cyan('🎤 Voice/Video Integration for Remote Collaboration'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -64,6 +72,14 @@ export function displayConfig(config: VoiceVideoIntegrationConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Builds a Markdown document describing the feature set of the voice/video
+ * integration, such as HD audio/video, AI-powered noise cancellation, screen
+ * sharing, recording, transcription, translation, and multi-participant support.
+ *
+ * @param config - The voice/video integration configuration used to scope the document.
+ * @returns A Markdown string summarizing the available features.
+ */
 export function generateVoiceVideoIntegrationMD(config: VoiceVideoIntegrationConfig): string {
   let md = '# Voice/Video Integration for Remote Collaboration\n\n';
   md += '## Features\n\n';
@@ -82,12 +98,28 @@ export function generateVoiceVideoIntegrationMD(config: VoiceVideoIntegrationCon
   return md;
 }
 
+/**
+ * Generates a Terraform header snippet for provisioning the voice/video
+ * integration resources for the given project, including a timestamp of
+ * when the snippet was generated.
+ *
+ * @param config - The voice/video integration configuration providing the project name.
+ * @returns A Terraform source string (header/comments only) scoped to the project.
+ */
 export function generateTerraformVoiceVideoIntegration(config: VoiceVideoIntegrationConfig): string {
   let code = '# Auto-generated Voice/Video Integration Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file string that defines a
+ * `VoiceVideoIntegrationManager` class extending `EventEmitter`, along with a
+ * default exported singleton instance, scoped to the given project.
+ *
+ * @param config - The voice/video integration configuration providing the project name.
+ * @returns A TypeScript source string containing the manager class and singleton export.
+ */
 export function generateTypeScriptVoiceVideoIntegration(config: VoiceVideoIntegrationConfig): string {
   let code = '// Auto-generated Voice/Video Integration Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -102,6 +134,14 @@ export function generateTypeScriptVoiceVideoIntegration(config: VoiceVideoIntegr
   return code;
 }
 
+/**
+ * Generates a Python source file string that defines a
+ * `VoiceVideoIntegrationManager` class along with a module-level singleton
+ * instance, scoped to the given project.
+ *
+ * @param config - The voice/video integration configuration providing the project name.
+ * @returns A Python source string containing the manager class and singleton instance.
+ */
 export function generatePythonVoiceVideoIntegration(config: VoiceVideoIntegrationConfig): string {
   let code = '# Auto-generated Voice/Video Integration Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -114,6 +154,17 @@ export function generatePythonVoiceVideoIntegration(config: VoiceVideoIntegratio
   return code;
 }
 
+/**
+ * Writes the generated voice/video integration files to the specified output
+ * directory. Always writes the Terraform, Markdown, and JSON config files; in
+ * addition, writes TypeScript (with `package.json`) or Python (with
+ * `requirements.txt`) files depending on the chosen language.
+ *
+ * @param config - The voice/video integration configuration to materialize into files.
+ * @param outputDir - Absolute or relative path of the directory to write files into.
+ * @param language - Target implementation language; either `'typescript'` or `'python'`.
+ * @returns A promise that resolves once all files have been written successfully.
+ */
 export async function writeFiles(config: VoiceVideoIntegrationConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -159,6 +210,14 @@ export async function writeFiles(config: VoiceVideoIntegrationConfig, outputDir:
   await fs.writeFile(path.join(outputDir, 'voice-video-integration-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Identity-style helper that returns the provided voice/video integration
+ * configuration unchanged. Useful as a pass-through for validation or
+ * normalization pipelines.
+ *
+ * @param config - The voice/video integration configuration to return.
+ * @returns The same `VoiceVideoIntegrationConfig` instance that was passed in.
+ */
 export function voiceVideoIntegration(config: VoiceVideoIntegrationConfig): VoiceVideoIntegrationConfig {
   return config;
 }
