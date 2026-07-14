@@ -17,43 +17,69 @@ export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
  * weight, weighted contribution, pass flag, and optional human detail.
  */
 export interface DimensionResult {
+  /** Stable identifier of the dimension (e.g. `health`, `policy`). */
   readonly id: string;
+  /** Human-readable label used for rendering the scorecard. */
   readonly label: string;
+  /** Relative weight of this dimension, between 0 and 1. */
   readonly weight: number;
+  /** Normalised 0-100 score for this dimension. */
   readonly score: number;
+  /** The dimension's weighted contribution to the total (`score * weight`). */
   readonly weighted: number;
+  /** `true` when {@link score} is at or above the dimension pass threshold. */
   readonly pass: boolean;
+  /** Optional explanatory text (e.g. why a signal is not applicable). */
   readonly detail?: string;
 }
 
 /** A single service's computed scorecard. */
 export interface ServiceScorecard {
+  /** Logical service name taken from the workspace definition. */
   readonly service: string;
+  /** Filesystem path to the service on disk. */
   readonly path: string;
+  /** Weighted aggregate score across all dimensions, normalised to 0-100. */
   readonly totalScore: number;
+  /** Letter grade derived from {@link totalScore}. */
   readonly grade: Grade;
+  /** Per-dimension results in canonical rendering order. */
   readonly dimensions: readonly DimensionResult[];
+  /** Service-specific advisory messages (kept empty by the engine today). */
   readonly warnings: readonly string[];
 }
 
 /** The monorepo rollup over all per-service scorecards. */
 export interface ScorecardRollup {
+  /** Average of per-service total scores, normalised to 0-100. */
   readonly score: number;
+  /** Letter grade derived from {@link score}. */
   readonly grade: Grade;
+  /** Pass threshold the rollup was gated against. */
   readonly threshold: number;
+  /** `true` when {@link score} is at or above {@link threshold}. */
   readonly pass: boolean;
+  /** Per-service scorecards that fed into the rollup. */
   readonly services: readonly ServiceScorecard[];
+  /** Number of detected dependency-drift entries reported (not scored). */
   readonly driftEntries: number;
+  /** Policy-pack score reported (mirrors the input). */
   readonly policyScore: number;
+  /** Rollup-level advisory messages (e.g. empty workspace, threshold miss). */
   readonly warnings: readonly string[];
 }
 
 /** Minimal service shape the engine needs (a projection of ServiceConfig). */
 export interface ScorecardServiceInput {
+  /** Logical service name taken from the workspace definition. */
   readonly name: string;
+  /** Filesystem path to the service on disk. */
   readonly path: string;
+  /** Optional map of npm-style scripts (e.g. `build`, `test`). */
   readonly scripts?: Readonly<Record<string, string>>;
+  /** Optional health-check declaration; presence implies a health endpoint. */
   readonly healthCheck?: unknown;
+  /** Optional port number; presence implies a health endpoint. */
   readonly port?: number;
 }
 
@@ -71,7 +97,9 @@ export interface ScorecardSignals {
 
 /** Rollup metadata that is reported but not scored per-service. */
 export interface RollupMeta {
+  /** Number of detected dependency-drift entries, surfaced verbatim in the rollup. */
   readonly driftEntries: number;
+  /** Policy-pack score, surfaced verbatim in the rollup. */
   readonly policyScore: number;
 }
 
@@ -92,6 +120,14 @@ const EMPTY_WORKSPACE_SCORE = 100;
 /**
  * The six weighted dimensions. Weights MUST sum to 1.0 (asserted in tests). The
  * order is the canonical rendering order.
+ *
+ * Dimensions:
+ *  - `health`            (0.30) Workspace health.
+ *  - `policy`            (0.25) Policy-pack compliance.
+ *  - `drift`             (0.15) Dependency drift.
+ *  - `has-build`         (0.15) Build script presence.
+ *  - `has-tests`         (0.10) Test script presence.
+ *  - `has-health-endpoint` (0.05) Health endpoint declaration.
  */
 export const WEIGHTS: readonly DimensionSpec[] = [
   { id: 'health', label: 'Workspace health', weight: 0.3 },
@@ -102,7 +138,14 @@ export const WEIGHTS: readonly DimensionSpec[] = [
   { id: 'has-health-endpoint', label: 'Health endpoint', weight: 0.05 },
 ];
 
-/** Map a 0-100 score to its letter grade. */
+/**
+ * Map a 0-100 score to its letter grade.
+ *
+ * Thresholds: A >= 90, B >= 80, C >= 70, D >= 60, otherwise F.
+ *
+ * @param score - Numeric score in the 0-100 range (no clamping is applied).
+ * @returns The {@link Grade} bucket the score falls into.
+ */
 export function toGrade(score: number): Grade {
   if (score >= 90) return 'A';
   if (score >= 80) return 'B';
@@ -161,6 +204,10 @@ function detailFor(id: string, signals: ScorecardSignals): string | undefined {
 /**
  * Compute a single service's scorecard from the shared monorepo signals and the
  * service's own build/test/health-endpoint presence.
+ *
+ * @param service - The service input (name, path, scripts, health signals).
+ * @param signals - Shared monorepo-wide signals (health, policy, drift).
+ * @returns The fully computed {@link ServiceScorecard} for the service.
  */
 export function computeServiceScorecard(
   service: ScorecardServiceInput,
@@ -201,6 +248,11 @@ export function computeServiceScorecard(
  * Roll the per-service scorecards up into a monorepo score (the average of the
  * per-service totals), grading and gating it against `threshold`. An empty
  * workspace scores {@link EMPTY_WORKSPACE_SCORE} with an explanatory warning.
+ *
+ * @param scorecards - Computed per-service scorecards to aggregate.
+ * @param threshold - Minimum rollup score required for `pass` to be `true`.
+ * @param meta - Report-only metadata (drift entries, policy score) to attach.
+ * @returns The rollup containing the aggregate score, grade, services, and warnings.
  */
 export function computeRollup(
   scorecards: readonly ServiceScorecard[],

@@ -103,6 +103,14 @@ interface SkillAssessmentConfig {
   passingScoreThreshold: number; // percentage
 }
 
+/**
+ * Prints a human-readable summary of the skill assessment configuration to the console.
+ * Outputs project metadata, provider list, employee/career path counts, and the status
+ * of automated assessments, certification tracking, and skill gap analysis.
+ *
+ * @param config - The skill assessment configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: SkillAssessmentConfig): void {
   console.log(chalk.cyan('🎯 Skill Assessment and Certification Tracking'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -119,6 +127,14 @@ export function displayConfig(config: SkillAssessmentConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the skill assessment and certification tracking system.
+ * The document covers supported features, industry standards (cloud platforms, project management,
+ * technical skills), and the skill gap analysis priority levels.
+ *
+ * @param config - The skill assessment configuration used to scope the generated documentation.
+ * @returns A Markdown string containing the feature overview and standards reference.
+ */
 export function generateSkillAssessmentMD(config: SkillAssessmentConfig): string {
   let md = '# Skill Assessment and Certification Tracking\n\n';
   md += '## Features\n\n';
@@ -160,12 +176,29 @@ export function generateSkillAssessmentMD(config: SkillAssessmentConfig): string
   return md;
 }
 
+/**
+ * Generates a Terraform header snippet for the skill assessment configuration.
+ * The output includes the project name and a timestamp marking when the file was generated.
+ *
+ * @param config - The skill assessment configuration providing the project name.
+ * @returns A Terraform-compatible string with an auto-generated header comment.
+ */
 export function generateTerraformSkillAssessment(config: SkillAssessmentConfig): string {
   let code = '# Auto-generated Skill Assessment Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript implementation of a `SkillAssessmentManager` class based on the
+ * provided configuration. The generated code includes skill and certification interfaces,
+ * an `EventEmitter`-based manager with methods for adding employees, assessing skills,
+ * analyzing skill gaps, checking certification expiry, and producing reports.
+ *
+ * @param config - The skill assessment configuration supplying project name, passing score
+ *   threshold, and certification tracking toggle.
+ * @returns A string containing the TypeScript source code for the skill assessment manager.
+ */
 export function generateTypeScriptSkillAssessment(config: SkillAssessmentConfig): string {
   let code = '// Auto-generated Skill Assessment Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -306,6 +339,16 @@ export function generateTypeScriptSkillAssessment(config: SkillAssessmentConfig)
   return code;
 }
 
+/**
+ * Generates a Python implementation of a `SkillAssessmentManager` class based on the
+ * provided configuration. The generated code uses dataclasses, enums, and type hints,
+ * exposing methods for adding employees, assessing skills, analyzing skill gaps,
+ * checking certification expiry, and producing reports.
+ *
+ * @param config - The skill assessment configuration supplying project name, passing score
+ *   threshold, and certification tracking toggle.
+ * @returns A string containing the Python source code for the skill assessment manager.
+ */
 export function generatePythonSkillAssessment(config: SkillAssessmentConfig): string {
   let code = '# Auto-generated Skill Assessment Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -419,6 +462,18 @@ export function generatePythonSkillAssessment(config: SkillAssessmentConfig): st
   return code;
 }
 
+/**
+ * Writes the generated skill assessment artifacts to the specified output directory.
+ * Always writes the Terraform file and Markdown documentation; additionally writes either
+ * the TypeScript manager plus `package.json`, or the Python manager plus `requirements.txt`
+ * depending on the selected language. A JSON configuration file is also emitted.
+ *
+ * @param config - The skill assessment configuration to materialize into files.
+ * @param outputDir - The target directory where artifacts will be written. Created if missing.
+ * @param language - The implementation language to generate; `'typescript'` produces TS
+ *   artifacts, any other value produces Python artifacts.
+ * @returns A promise that resolves when all files have been written successfully.
+ */
 export async function writeFiles(config: SkillAssessmentConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -468,6 +523,13 @@ export async function writeFiles(config: SkillAssessmentConfig, outputDir: strin
   await fs.writeFile(path.join(outputDir, 'skill-assessment-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided skill assessment configuration unchanged.
+ * Acts as a pass-through/identity accessor for the configuration object.
+ *
+ * @param config - The skill assessment configuration to return.
+ * @returns The same `SkillAssessmentConfig` instance that was passed in.
+ */
 export function skillAssessment(config: SkillAssessmentConfig): SkillAssessmentConfig {
   return config;
 }
