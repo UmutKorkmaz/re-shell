@@ -16,8 +16,8 @@ export interface WorkspaceDiffOptions {
 interface ConfigChange {
   type: 'added' | 'removed' | 'modified';
   path: string;
-  oldValue?: any;
-  newValue?: any;
+  oldValue?: unknown;
+  newValue?: unknown;
 }
 
 interface ServiceChange {
@@ -228,7 +228,7 @@ function compareServices(fromServices: Record<string, unknown>, toServices: Reco
 /**
  * Recursively compare two values and return changes
  */
-function compareValues(from: any, to: any, basePath: string): ConfigChange[] {
+function compareValues(from: unknown, to: unknown, basePath: string): ConfigChange[] {
   const changes: ConfigChange[] = [];
 
   // Handle null/undefined

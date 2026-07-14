@@ -605,7 +605,7 @@ function displayCycleDetection(cycles: CycleDetectionResult, fileName: string, d
   }
 }
 
-function displayCycles(cycles: any[], detailed: boolean): void {
+function displayCycles(cycles: Array<{ path: string[]; type: string; suggestions: string[] }>, detailed: boolean): void {
   for (let i = 0; i < cycles.length; i++) {
     const cycle = cycles[i];
     console.log(`\\n  ${i + 1}. ${cycle.path.join(' → ')}`);
@@ -693,7 +693,7 @@ function displayCriticalPath(criticalPath: string[], fileName: string): void {
   console.log(`  • The build time is primarily determined by: ${criticalPath.join(' → ')}`);
 }
 
-function displayTextVisualization(vizData: any, fileName: string): void {
+function displayTextVisualization(vizData: { nodes: Array<{ group: string; label: string }>; edges: Array<{ label: string; from: string; to: string }> }, fileName: string): void {
   console.log(chalk.cyan(`\\n👀 Workspace Graph Visualization`));
   console.log(chalk.gray(`File: ${fileName}`));
   console.log(chalk.gray('═'.repeat(50)));
@@ -701,7 +701,7 @@ function displayTextVisualization(vizData: any, fileName: string): void {
   console.log(`\\n📦 Workspaces (${vizData.nodes.length}):`);
   
   // Group nodes by type
-  const nodesByType = vizData.nodes.reduce((acc: any, node: any) => {
+  const nodesByType = vizData.nodes.reduce((acc: Record<string, string[]>, node) => {
     if (!acc[node.group]) acc[node.group] = [];
     acc[node.group].push(node.label);
     return acc;
@@ -718,7 +718,7 @@ function displayTextVisualization(vizData: any, fileName: string): void {
   console.log(`\\n🔗 Dependencies (${vizData.edges.length}):`);
   
   // Group edges by type
-  const edgesByType = vizData.edges.reduce((acc: any, edge: any) => {
+  const edgesByType = vizData.edges.reduce((acc: Record<string, string[]>, edge) => {
     if (!acc[edge.label]) acc[edge.label] = [];
     acc[edge.label].push(`${edge.from} → ${edge.to}`);
     return acc;
