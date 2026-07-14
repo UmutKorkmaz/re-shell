@@ -16,21 +16,46 @@ import * as yaml from 'js-yaml';
 
 import { WorkspaceParser, type ServiceConfig } from '../parsers/workspace-parser';
 
-/** A single rendered manifest entry. */
+/**
+ * A single rendered manifest entry.
+ *
+ * Represents one Kubernetes manifest (e.g. Deployment, Service) after it has
+ * been serialized to a YAML string. The `kind` and `name` metadata are kept
+ * alongside the YAML so callers can route or name output files without having
+ * to re-parse the YAML.
+ */
 export interface RenderedManifest {
+  /** Kubernetes kind of the manifest (e.g. `Deployment`, `Service`). */
   kind: string;
+  /** Resource name taken from `metadata.name`. */
   name: string;
+  /** The full manifest serialized as a YAML document. */
   yaml: string;
 }
 
-/** Result of a manifest-generation run. */
+/**
+ * Result of a manifest-generation run.
+ *
+ * Returned by {@link generateManifests}. Contains the resolved namespace, all
+ * rendered manifests in emission order, and the list of files written to disk
+ * (which is empty for dry-run invocations).
+ */
 export interface GenerateManifestsResult {
+  /** Kubernetes namespace the manifests were rendered for. */
   namespace: string;
+  /** Ordered list of rendered manifest entries (Deployment, Service, HPA, NetworkPolicy per service). */
   manifests: RenderedManifest[];
   /** Files written to disk (absolute paths); empty for dry-run. */
   written: string[];
 }
 
+/**
+ * Options accepted by {@link generateManifests}.
+ *
+ * All fields are optional. The generator falls back to sensible defaults
+ * (process cwd, `default` namespace, dry-run-only output) when individual
+ * options are omitted.
+ */
 export interface GenerateManifestsOptions {
   /** Directory containing the workspace v2 config (default: cwd). */
   cwd?: string;
@@ -86,7 +111,17 @@ interface K8sManifest {
   spec?: Record<string, unknown>;
 }
 
-/** Discover the workspace v2 config path under `cwd`. */
+/**
+ * Discover the workspace v2 config path under `cwd`.
+ *
+ * If `explicit` is provided and the file exists, it is returned as-is. Otherwise
+ * the directory is scanned for a set of well-known candidate filenames (see
+ * {@link CONFIG_CANDIDATES}) and the first match is returned.
+ *
+ * @param cwd - Directory to search when `explicit` is not supplied.
+ * @param explicit - Optional explicit config path; overrides discovery.
+ * @returns The resolved config path, or `undefined` when no candidate exists.
+ */
 export function resolveWorkspaceConfigPath(
   cwd: string,
   explicit?: string
@@ -276,6 +311,9 @@ function renderManifest(manifest: K8sManifest): RenderedManifest {
  * Reads + validates the config via {@link WorkspaceParser}, then emits four
  * manifests per service. When `out` is set and `dryRun` is not, each manifest is
  * written to `<out>/<kind>-<name>.yaml`.
+ *
+ * @param options - Generator options (cwd, configPath, namespace, out, dryRun). All optional.
+ * @returns The resolved namespace, the ordered list of rendered manifests, and the list of files written to disk.
  *
  * @throws Error when the config cannot be found, fails to parse, or defines no
  *   services. The command layer maps these to a `K8S_GENERATE_ERROR` envelope.

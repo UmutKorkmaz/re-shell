@@ -11,6 +11,11 @@ import type {
  * CLI exposes a stable surface to its own modules. These are the single source
  * of truth (zod-backed in @re-shell/contracts); the CLI no longer declares
  * its own copies.
+ *
+ * - `ErrorCode`: Union of machine-readable error code strings.
+ * - `JsonError`: Envelope shape for failure responses (`ok: false`).
+ * - `JsonResponse`: Envelope shape for any response (success or failure).
+ * - `JsonSuccess`: Envelope shape for success responses (`ok: true`).
  */
 export type { ErrorCode, JsonError, JsonResponse, JsonSuccess };
 
@@ -33,6 +38,8 @@ let jsonModeActive = false;
 
 /**
  * Returns true while a `--json` command is suppressing incidental stdout.
+ *
+ * @returns `true` if JSON mode is currently active, `false` otherwise.
  */
 export function isJsonModeActive(): boolean {
   return jsonModeActive;
@@ -41,6 +48,8 @@ export function isJsonModeActive(): boolean {
 /**
  * Silences spinners and returns a write stream that only outputs valid JSON.
  * Use this in JSON mode to prevent spinner/banner noise from corrupting output.
+ *
+ * @returns A `Writable` stream that forwards only JSON-safe bytes to stdout.
  */
 export function createJsonWriter(): Writable {
   return new Writable({
@@ -63,6 +72,10 @@ export function createJsonWriter(): Writable {
  * Buffers, multi-line text) are swallowed unconditionally so every JSON
  * command emits exactly one parseable document on stdout and nothing else.
  * Real errors are still surfaced on stderr so failures are never silently lost.
+ *
+ * @returns A restore function that, when invoked, returns stdout, console,
+ *   and stderr to their original behavior and clears the JSON-mode flag. Calling
+ *   `enableJsonMode` while already active is a no-op and returns a no-op restore.
  */
 export function enableJsonMode(): () => void {
   // Re-entrancy guard: nested enable calls must not double-patch or clobber the
@@ -128,6 +141,10 @@ export function enableJsonMode(): () => void {
  * touches stdout so the contract (exactly one JSON object, newline-terminated)
  * stays centralized. The emit gate is opened only for this one write so that,
  * under JSON mode, exactly these bytes reach stdout and nothing else.
+ *
+ * @typeParam T - The payload type carried inside `data` when the envelope is a success.
+ * @param res - The JSON response envelope (success or error) to serialize and emit.
+ * @returns No return value; writes directly to stdout.
  */
 export function emitJson<T>(res: JsonResponse<T>): void {
   const line = JSON.stringify(res) + '\n';
@@ -142,6 +159,12 @@ export function emitJson<T>(res: JsonResponse<T>): void {
 
 /**
  * Emit a success envelope: { ok: true, data, warnings }.
+ *
+ * @typeParam T - The type of the success payload.
+ * @param data - The success payload to place under `data`.
+ * @param warnings - Optional non-fatal warning strings surfaced under `warnings`.
+ *   Defaults to an empty array when omitted.
+ * @returns No return value; emits the envelope to stdout via `emitJson`.
  */
 export function ok<T>(data: T, warnings: string[] = []): void {
   emitJson<T>({ ok: true, data, warnings });
@@ -151,6 +174,13 @@ export function ok<T>(data: T, warnings: string[] = []): void {
  * Emit an error envelope and mark the process as failed (exitCode = 1).
  * `details` is omitted from the envelope when not provided so success/error
  * shapes stay minimal.
+ *
+ * @param code - Machine-readable error code from the `ErrorCode` union.
+ * @param message - Human-readable error message describing what went wrong.
+ * @param details - Optional structured details attached under `error.details`.
+ *   When omitted, the `details` key is absent from the emitted envelope.
+ * @returns No return value; emits the envelope to stdout via `emitJson` and
+ *   sets `process.exitCode = 1`.
  */
 export function fail(
   code: ErrorCode,
@@ -167,6 +197,13 @@ export function fail(
 
 /**
  * Output a JSON success response.
+ *
+ * @typeParam T - The type of the success payload.
+ * @param data - The success payload to place under `data`.
+ * @param warnings - Optional non-fatal warning strings surfaced under `warnings`.
+ *   Defaults to an empty array when omitted.
+ * @returns No return value; emits a `JsonSuccess<T>` envelope to stdout via
+ *   `emitJson`.
  */
 export function jsonSuccess<T>(data: T, warnings: string[] = []): void {
   emitJson<T>({ ok: true, data, warnings } as JsonSuccess<T>);
@@ -177,6 +214,13 @@ export function jsonSuccess<T>(data: T, warnings: string[] = []): void {
  *
  * Mirrors the success shape by always including `warnings`, omits `details`
  * when undefined, and marks the process as failed (exitCode = 1).
+ *
+ * @param code - Machine-readable error code from the `ErrorCode` union.
+ * @param message - Human-readable error message describing what went wrong.
+ * @param details - Optional structured details attached under `error.details`.
+ *   When omitted, the `details` key is absent from the emitted envelope.
+ * @returns No return value; emits a `JsonError` envelope to stdout via
+ *   `emitJson` and sets `process.exitCode = 1`.
  */
 export function jsonError(
   code: ErrorCode,
@@ -193,7 +237,13 @@ export function jsonError(
 }
 
 /**
- * Check if --json flag is present in argv
+ * Check if --json flag is present in argv.
+ *
+ * Detects either `--json` or the legacy `--json-output` flag on the current
+ * process invocation. Call this to decide whether to engage JSON mode before
+ * running any command logic.
+ *
+ * @returns `true` if a JSON flag is present in `process.argv`, `false` otherwise.
  */
 export function isJsonMode(): boolean {
   return process.argv.includes('--json') || process.argv.includes('--json-output');
