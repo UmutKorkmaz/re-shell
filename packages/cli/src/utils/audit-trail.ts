@@ -6,15 +6,24 @@ import chalk from 'chalk';
 
 
 // Type Definitions
+/** Categorizes the type of auditable event, such as user activity, data access, or system changes. */
 export type AuditEventType = 'user-login' | 'user-logout' | 'permission-granted' | 'permission-revoked' | 'data-access' | 'data-modified' | 'data-deleted' | 'config-change' | 'policy-violation' | 'system-start' | 'system-stop' | 'api-call' | 'custom';
+/** Represents the severity level of an audit event, from informational to critical. */
 export type AuditSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+/** Defines how long audit logs are retained before archiving or deletion. */
 export type LogRetention = '7-days' | '30-days' | '90-days' | '180-days' | '365-days' | '7-years' | 'permanent';
+/** Specifies the serialization format used for audit log output. */
 export type LogFormat = 'json' | 'csv' | 'plaintext' | 'cef' | 'custom';
+/** Identifies the cryptographic hash algorithm used to ensure log integrity. */
 export type HashAlgorithm = 'sha256' | 'sha384' | 'sha512' | 'blake2b' | 'blake2s';
+/** Indicates the method used to sign audit log entries for tamper-proofing. */
 export type SignatureType = 'hmac' | 'digital' | 'blockchain' | 'none';
+/** Tracks the current lifecycle status of an audit log entry. */
 export type LogStatus = 'active' | 'archived' | 'deleted' | 'corrupted' | 'verified';
+/** Represents the compliance framework level applied to the audit configuration. */
 export type ComplianceLevel = 'basic' | 'standard' | 'enhanced' | 'sox' | 'hipaa' | 'pci-dss' | 'gdpr' | 'custom';
 
+/** Top-level configuration for the audit trail and tamper-proof logging system. */
 export interface AuditConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -28,6 +37,7 @@ export interface AuditConfig {
   compliance: ComplianceConfig;
 }
 
+/** Settings controlling tamper-proofing, signing, encryption, retention, and forwarding of audit logs. */
 export interface AuditSettings {
   enableTamperProof: boolean;
   hashAlgorithm: HashAlgorithm;
@@ -59,6 +69,7 @@ export interface AuditSettings {
   backupInterval: number; // hours
 }
 
+/** Describes a destination where audit logs are forwarded (e.g. syslog, Splunk, Elasticsearch). */
 export interface ForwardTarget {
   type: 'syslog' | 'splunk' | 'elasticsearch' | 's3' | 'datadog' | 'custom';
   endpoint: string;
@@ -67,6 +78,7 @@ export interface ForwardTarget {
   apiKey?: string;
 }
 
+/** Represents a source emitting audit log events (e.g. application, system, database, API). */
 export interface LogSource {
   id: string;
   name: string;
@@ -80,6 +92,7 @@ export interface LogSource {
   retentionOverride?: LogRetention;
 }
 
+/** A single field-based filter applied to incoming audit log events. */
 export interface LogFilter {
   field: string;
   operator: 'equals' | 'not-equals' | 'contains' | 'not-contains' | 'regex' | 'gt' | 'lt' | 'in' | 'not-in';
@@ -87,6 +100,7 @@ export interface LogFilter {
   caseSensitive?: boolean;
 }
 
+/** Defines how long a specific category of audit events is retained before archiving or deletion. */
 export interface RetentionPolicy {
   id: string;
   name: string;
@@ -100,6 +114,7 @@ export interface RetentionPolicy {
   enabled: boolean;
 }
 
+/** A condition that scopes when a retention policy applies based on severity, source, user, or custom fields. */
 export interface RetentionCondition {
   type: 'severity' | 'source' | 'user' | 'custom';
   field: string;
@@ -107,6 +122,7 @@ export interface RetentionCondition {
   value: any;
 }
 
+/** A single immutable audit log entry with tamper-proof hash and signature metadata. */
 export interface AuditEntry {
   id: string;
   timestamp: Date;
@@ -136,6 +152,7 @@ export interface AuditEntry {
   archiveLocation?: string;
 }
 
+/** Records the result of an integrity verification run over a range of audit log entries. */
 export interface IntegrityCheck {
   id: string;
   timestamp: Date;
@@ -152,6 +169,7 @@ export interface IntegrityCheck {
   result: 'passed' | 'failed' | 'warning';
 }
 
+/** Describes a discrepancy detected during an integrity check, such as a missing or modified entry. */
 export interface Discrepancy {
   logId: string;
   type: 'missing' | 'modified' | 'corrupted' | 'out-of-order' | 'hash-mismatch';
@@ -159,6 +177,7 @@ export interface Discrepancy {
   severity: AuditSeverity;
 }
 
+/** A configurable alert that triggers when audit events meet specified conditions. */
 export interface AuditAlert {
   id: string;
   name: string;
@@ -172,6 +191,7 @@ export interface AuditAlert {
   notificationChannels: string[];
 }
 
+/** A condition used to evaluate whether an audit alert should fire. */
 export interface AlertCondition {
   type: 'event-type' | 'severity' | 'frequency' | 'pattern' | 'anomaly' | 'custom';
   field?: string;
@@ -180,12 +200,14 @@ export interface AlertCondition {
   timeWindow?: number; // minutes
 }
 
+/** An action executed when an audit alert is triggered (e.g. notify, block, quarantine). */
 export interface AlertAction {
   type: 'email' | 'sms' | 'webhook' | 'slack' | 'pagerduty' | 'block' | 'quarantine' | 'custom';
   target: string;
   config: Record<string, unknown>;
 }
 
+/** Configuration for the compliance framework applied to the audit trail system. */
 export interface ComplianceConfig {
   level: ComplianceLevel;
   enabledFrameworks: ('sox' | 'hipaa' | 'pci-dss' | 'gdpr' | 'iso-27001' | 'soc-2')[];
@@ -205,6 +227,11 @@ export interface ComplianceConfig {
 }
 
 // Markdown Generation
+/**
+ * Generates a Markdown representation of the audit trail configuration.
+ * @param config - The audit configuration to render.
+ * @returns A Markdown string summarizing settings, sources, logs, alerts, and compliance.
+ */
 export function generateAuditMarkdown(config: AuditConfig): string {
   return `# Comprehensive Audit Trail and Tamper-Proof Logging
 

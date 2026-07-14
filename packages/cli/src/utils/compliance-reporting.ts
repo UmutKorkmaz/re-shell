@@ -4,16 +4,26 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/** Supported compliance frameworks for reporting and assessment. */
 export type ComplianceFramework = 'SOX' | 'GDPR' | 'HIPAA' | 'PCI-DSS' | 'NIST-800-53' | 'ISO-27001' | 'SOC-2' | 'custom';
+/** Lifecycle status of a compliance report. */
 export type ReportStatus = 'draft' | 'in-review' | 'approved' | 'rejected' | 'archived';
+/** Categories of evidence that can be collected for compliance. */
 export type EvidenceType = 'screenshot' | 'log-file' | 'configuration' | 'document' | 'certificate' | 'audit-trail' | 'interview-notes' | 'custom';
+/** Compliance status of an individual control. */
 export type ControlStatus = 'compliant' | 'non-compliant' | 'partial' | 'not-applicable' | 'pending-review';
+/** Severity level of a risk or finding. */
 export type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
+/** Output format for generated compliance reports. */
 export type ReportFormat = 'pdf' | 'html' | 'json' | 'xml' | 'csv' | 'custom';
+/** Lifecycle status of collected evidence. */
 export type EvidenceStatus = 'valid' | 'expired' | 'pending' | 'rejected' | 'superseded';
+/** Lifecycle status of a remediation or assessment task. */
 export type TaskStatus = 'not-started' | 'in-progress' | 'completed' | 'overdue' | 'cancelled';
+/** Channels through which compliance notifications can be delivered. */
 export type NotificationType = 'email' | 'slack' | 'teams' | 'webhook' | 'sms' | 'custom';
 
+/** Top-level configuration for compliance reporting, including frameworks, controls, evidence, and notifications. */
 export interface ComplianceReportingConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -29,6 +39,7 @@ export interface ComplianceReportingConfig {
   notifications: NotificationConfig[];
 }
 
+/** General reporting settings such as frequency, format, approval, and retention options. */
 export interface ReportingSettings {
   autoGenerate: boolean;
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual' | 'on-demand';
@@ -50,6 +61,7 @@ export interface ReportingSettings {
   encryptionEnabled: boolean;
 }
 
+/** A generated compliance report covering a specific framework and reporting period. */
 export interface ComplianceReport {
   id: string;
   name: string;
@@ -72,6 +84,7 @@ export interface ComplianceReport {
   metadata: ReportMetadata;
 }
 
+/** Aggregate metrics summarizing the results of a compliance report. */
 export interface ReportSummary {
   totalControls: number;
   compliantControls: number;
@@ -87,6 +100,7 @@ export interface ReportSummary {
   riskScore: number; // 0-100
 }
 
+/** A control entry embedded within a compliance report, including test results and risk level. */
 export interface ReportControl {
   controlId: string;
   title: string;
@@ -100,6 +114,7 @@ export interface ReportControl {
   nextReviewDate: Date;
 }
 
+/** A finding discovered during a compliance report's control testing. */
 export interface ReportFinding {
   id: string;
   control: string;
@@ -116,6 +131,7 @@ export interface ReportFinding {
   relatedEvidence: string[];
 }
 
+/** An evidence artifact referenced within a compliance report. */
 export interface ReportEvidence {
   id: string;
   type: EvidenceType;
@@ -132,6 +148,7 @@ export interface ReportEvidence {
   tags: string[];
 }
 
+/** A formal approval signature recorded on a compliance report. */
 export interface ReportSignoff {
   role: string;
   name: string;
@@ -141,6 +158,7 @@ export interface ReportSignoff {
   comments: string;
 }
 
+/** A supplementary file attached to a compliance report. */
 export interface ReportAttachment {
   name: string;
   type: string;
@@ -150,6 +168,7 @@ export interface ReportAttachment {
   uploadedBy: string;
 }
 
+/** Metadata describing versioning, audit history, and tags for a compliance report. */
 export interface ReportMetadata {
   version: string;
   lastModified: Date;
@@ -159,6 +178,7 @@ export interface ReportMetadata {
   tags: string[];
 }
 
+/** A single entry in an audit trail recording user actions and details. */
 export interface AuditEntry {
   timestamp: Date;
   user: string;
@@ -166,6 +186,7 @@ export interface AuditEntry {
   details: string;
 }
 
+/** A compliance control definition with testing procedures, checks, and evidence requirements. */
 export interface ComplianceControl {
   id: string;
   framework: ComplianceFramework;
@@ -189,6 +210,7 @@ export interface ComplianceControl {
   complianceMappings: ComplianceMapping[];
 }
 
+/** A defined procedure for testing a compliance control, including steps and expected results. */
 export interface TestProcedure {
   id: string;
   name: string;
@@ -199,6 +221,7 @@ export interface TestProcedure {
   estimatedTime: number; // minutes
 }
 
+/** A single ordered step within a test procedure. */
 export interface TestStep {
   order: number;
   action: string;
@@ -206,6 +229,7 @@ export interface TestStep {
   screenshot: boolean;
 }
 
+/** An automated compliance check executed via script, API call, or scan on a schedule. */
 export interface AutomatedCheck {
   id: string;
   name: string;
@@ -217,6 +241,7 @@ export interface AutomatedCheck {
   threshold: string;
 }
 
+/** A manual compliance check consisting of a checklist and assignee instructions. */
 export interface ManualCheck {
   id: string;
   name: string;
@@ -227,6 +252,7 @@ export interface ManualCheck {
   dueDate: Date;
 }
 
+/** An individual item within a manual check's checklist. */
 export interface ChecklistItem {
   item: string;
   completed: boolean;
@@ -235,6 +261,7 @@ export interface ChecklistItem {
   notes?: string;
 }
 
+/** A requirement describing what evidence must be collected for a control. */
 export interface EvidenceRequirement {
   id: string;
   type: EvidenceType;
@@ -246,6 +273,7 @@ export interface EvidenceRequirement {
   frequency: string;
 }
 
+/** A mapping between a control and its equivalent in another compliance framework. */
 export interface ComplianceMapping {
   framework: ComplianceFramework;
   controlId: string;
@@ -253,6 +281,7 @@ export interface ComplianceMapping {
   notes: string;
 }
 
+/** A regulatory or organizational requirement that controls and evidence must satisfy. */
 export interface ComplianceRequirement {
   id: string;
   framework: ComplianceFramework;
@@ -271,6 +300,7 @@ export interface ComplianceRequirement {
   nextAssessment: Date;
 }
 
+/** A stored evidence record with file metadata, hashing, and retention details. */
 export interface EvidenceRecord {
   id: string;
   type: EvidenceType;
@@ -293,6 +323,7 @@ export interface EvidenceRecord {
   metadata: Record<string, unknown>;
 }
 
+/** A compliance assessment event, including scope, assessor, and outcome. */
 export interface ComplianceAssessment {
   id: string;
   name: string;
@@ -311,6 +342,7 @@ export interface ComplianceAssessment {
   nextAssessment: Date;
 }
 
+/** The scope of a compliance assessment, including included and excluded assets and organizational units. */
 export interface AssessmentScope {
   includedAssets: string[];
   excludedAssets: string[];
