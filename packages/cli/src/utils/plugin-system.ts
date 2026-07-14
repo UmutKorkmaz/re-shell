@@ -20,11 +20,12 @@ import {
   HookResult,
   createHookSystem
 } from './plugin-hooks';
-import { 
+import {
   PluginDependencyResolver,
   createDependencyResolver,
   ResolutionResult
 } from './plugin-dependency';
+import { PermissionEnforcer, wrapPluginUtils } from './plugin-permission-enforcer';
 
 // Plugin interface definitions
 export interface PluginManifest {
@@ -872,7 +873,7 @@ export class PluginRegistry extends EventEmitter {
       },
       logger: this.createPluginLogger(registration.manifest.name),
       hooks: this.createPluginHookAPI(registration.manifest.name),
-      utils: this.createPluginUtils()
+      utils: this.createSecuredUtils(registration)
     };
   }
 
@@ -913,6 +914,21 @@ export class PluginRegistry extends EventEmitter {
         });
       }
     };
+  }
+
+  // Create permission-enforced plugin utilities
+  private createSecuredUtils(registration: PluginRegistration): PluginUtils {
+    const rawUtils = this.createPluginUtils();
+    const permissions = registration.manifest.reshell?.permissions || [];
+    const dataPath = path.join(this.rootPath, '.re-shell', 'data', registration.manifest.name);
+    const cachePath = path.join(this.rootPath, '.re-shell', 'cache', registration.manifest.name);
+    const enforcer = new PermissionEnforcer(
+      registration.manifest.name,
+      permissions,
+      dataPath,
+      cachePath
+    );
+    return wrapPluginUtils(rawUtils, enforcer);
   }
 }
 
