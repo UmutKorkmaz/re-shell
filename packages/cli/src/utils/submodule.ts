@@ -1,3 +1,9 @@
+/**
+ * @file Utilities for managing Git submodules within a re-shell project.
+ * @description Provides functions to initialize Git repositories, add/remove/update
+ * submodules, query their status, and generate documentation and helper scripts.
+ */
+
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { exec } from 'child_process';
@@ -5,22 +11,44 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+/**
+ * @description Represents the parsed status information of a single Git submodule.
+ */
 export interface SubmoduleInfo {
+  /** The display name of the submodule, derived from its path basename. */
   name: string;
+  /** The relative filesystem path where the submodule is checked out. */
   path: string;
+  /** The remote repository URL the submodule tracks. */
   url: string;
+  /** The branch the submodule is configured to follow. */
   branch: string;
+  /** The short (8-character) commit hash the submodule currently points to. */
   commit: string;
+  /** The working-tree synchronization status of the submodule. */
   status: 'clean' | 'modified' | 'untracked' | 'ahead' | 'behind';
 }
 
+/**
+ * @description Describes the configuration options used when adding a new Git submodule.
+ */
 export interface SubmoduleConfig {
+  /** The relative filesystem path where the submodule should be placed. */
   path: string;
+  /** The remote repository URL to clone the submodule from. */
   url: string;
+  /** Optional branch to track; defaults to the repository default when omitted. */
   branch?: string;
+  /** Optional strategy for integrating upstream changes into the submodule. */
   update?: 'checkout' | 'rebase' | 'merge';
 }
 
+/**
+ * @description Initializes a new Git repository at the given path and creates an initial commit.
+ * @param projectPath - The absolute or relative path where the repository should be initialized.
+ * @returns A promise that resolves once the repository is initialized and the initial commit is created.
+ * @throws {Error} If `git init`, `git add`, or `git commit` fails.
+ */
 export async function initializeGitRepository(projectPath: string): Promise<void> {
   try {
     await execAsync('git init', { cwd: projectPath });
@@ -33,6 +61,15 @@ export async function initializeGitRepository(projectPath: string): Promise<void
   }
 }
 
+/**
+ * @description Adds a Git submodule to the current repository and initializes it recursively.
+ * @param submodulePath - The logical path identifier for the submodule.
+ * @param repositoryUrl - The remote URL of the submodule repository to clone.
+ * @param branch - The branch to track; defaults to `'main'`.
+ * @param targetPath - Optional explicit checkout path; falls back to `submodulePath` when omitted.
+ * @returns A promise that resolves once the submodule has been added and updated.
+ * @throws {Error} If the `git submodule add` or update command fails.
+ */
 export async function addSubmodule(
   submodulePath: string,
   repositoryUrl: string,
@@ -59,6 +96,13 @@ export async function addSubmodule(
   }
 }
 
+/**
+ * @description Removes an existing Git submodule from the repository, including its entry in
+ * `.gitmodules`, the cached metadata under `.git/modules`, and the working-tree checkout.
+ * @param submodulePath - The relative path of the submodule to remove.
+ * @returns A promise that resolves once the submodule has been fully removed.
+ * @throws {Error} If `git submodule deinit`, the cache removal, or `git rm` fails.
+ */
 export async function removeSubmodule(submodulePath: string): Promise<void> {
   try {
     // Remove from .gitmodules
@@ -76,6 +120,12 @@ export async function removeSubmodule(submodulePath: string): Promise<void> {
   }
 }
 
+/**
+ * @description Updates one or all Git submodules to their latest remote commits, recursively.
+ * @param specificPath - Optional path of a single submodule to update; updates all when omitted.
+ * @returns A promise that resolves once the update operation completes.
+ * @throws {Error} If the `git submodule update --remote` command fails.
+ */
 export async function updateSubmodules(specificPath?: string): Promise<void> {
   try {
     const command = specificPath 
@@ -89,6 +139,13 @@ export async function updateSubmodules(specificPath?: string): Promise<void> {
   }
 }
 
+/**
+ * @description Queries the status of all Git submodules in the current repository and returns
+ * parsed `SubmoduleInfo` entries.
+ * @returns A promise resolving to an array of `SubmoduleInfo` objects describing each submodule.
+ * @throws {Error} If the underlying `git submodule status` command fails for a reason other than
+ * having no submodules configured.
+ */
 export async function getSubmoduleStatus(): Promise<SubmoduleInfo[]> {
   try {
     const { stdout } = await execAsync('git submodule status --recursive');
@@ -154,6 +211,13 @@ async function getSubmoduleInfo(submodulePath: string): Promise<{ url: string; b
   }
 }
 
+/**
+ * @description Generates a Markdown documentation file (`docs/SUBMODULES.md`) describing the
+ * project's submodules, common workflows, and troubleshooting guidance.
+ * @param projectPath - The root path of the project where the `docs` directory will be created.
+ * @param submodules - The list of `SubmoduleInfo` entries to document.
+ * @returns A promise that resolves once the documentation file has been written.
+ */
 export async function createSubmoduleDocumentation(
   projectPath: string,
   submodules: SubmoduleInfo[]
@@ -269,6 +333,12 @@ git submodule update --force <path>
   await fs.writeFile(submoduleDocPath, content);
 }
 
+/**
+ * @description Generates an executable Bash helper script (`scripts/submodule-helper.sh`)
+ * providing common submodule management commands such as init, update, status, and reset.
+ * @param projectPath - The root path of the project where the `scripts` directory will be created.
+ * @returns A promise that resolves once the script has been written and made executable.
+ */
 export async function generateSubmoduleScript(projectPath: string): Promise<void> {
   const scriptsPath = path.join(projectPath, 'scripts');
   await fs.ensureDir(scriptsPath);
@@ -381,6 +451,11 @@ esac
   await fs.chmod(scriptPath, '755');
 }
 
+/**
+ * @description Determines whether the given directory is inside a Git repository.
+ * @param dirPath - The directory to check; defaults to the current working directory.
+ * @returns A promise resolving to `true` if the directory is within a Git repository, otherwise `false`.
+ */
 export async function isGitRepository(dirPath: string = process.cwd()): Promise<boolean> {
   try {
     await execAsync('git rev-parse --git-dir', { cwd: dirPath });

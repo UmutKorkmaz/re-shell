@@ -1,80 +1,165 @@
+/**
+ * @file Workspace dependency graph engine for analyzing inter-workspace relationships.
+ *
+ * Provides graph-based algorithms for cycle detection, topological ordering,
+ * build order generation, and critical path analysis across workspaces defined
+ * in a workspace definition.
+ */
+
 import chalk from 'chalk';
 import { ValidationError } from './error-handler';
 import { WorkspaceDefinition, WorkspaceDependency, WorkspaceEntry } from './workspace-schema';
 
-// Graph node representing a workspace
+/**
+ * Represents a node in the workspace dependency graph.
+ * @description Each node corresponds to a single workspace and tracks its
+ * dependencies, dependents, and metadata used by graph algorithms.
+ */
 export interface WorkspaceNode {
+  /** Unique name of the workspace. */
   name: string;
+  /** The workspace entry definition. */
   workspace: WorkspaceEntry;
+  /** Set of workspace names this node depends on. */
   dependencies: Set<string>;
+  /** Set of workspace names that depend on this node. */
   dependents: Set<string>;
+  /** Internal metadata used by graph algorithms during traversal. */
   metadata: {
+    /** Whether the node has been fully visited during DFS. */
     visited?: boolean;
+    /** Whether the node is currently being visited (on the recursion stack). */
     visiting?: boolean;
+    /** Assigned topological order index. */
     topologicalOrder?: number;
+    /** Assigned level for parallel execution grouping. */
     level?: number;
+    /** Whether this node is part of the critical path. */
     criticalPath?: boolean;
   };
 }
 
-// Dependency edge with additional metadata
+/**
+ * Represents a directed dependency edge between two workspace nodes.
+ * @description Carries metadata about the nature and weight of the dependency
+ * relationship for use in path optimization and visualization.
+ */
 export interface DependencyEdge {
+  /** Name of the source workspace. */
   from: string;
+  /** Name of the target workspace. */
   to: string;
+  /** Type of the dependency relationship. */
   type: 'build' | 'dev' | 'test' | 'runtime';
+  /** Whether the dependency is optional. */
   optional: boolean;
+  /** Optional version constraint for the dependency. */
   version?: string;
+  /** Optional conditional expressions under which the dependency applies. */
   conditions?: string[];
-  weight: number; // For path optimization
+  /** Numeric weight used for path optimization algorithms. */
+  weight: number;
 }
 
-// Cycle detection result
+/**
+ * Result of cycle detection on the workspace dependency graph.
+ * @description Contains whether cycles exist, the cycles found, and any
+ * strongly connected components identified.
+ */
 export interface CycleDetectionResult {
+  /** Whether the graph contains at least one cycle. */
   hasCycles: boolean;
+  /** List of detected cycles with details. */
   cycles: WorkspaceCycle[];
+  /** Strongly connected components found via Tarjan's algorithm. */
   stronglyConnectedComponents: string[][];
 }
 
-// Cycle information
+/**
+ * Describes a single detected cycle in the workspace dependency graph.
+ * @description Includes the path of the cycle, its type, severity, and
+ * suggestions for resolving it.
+ */
 export interface WorkspaceCycle {
+  /** Ordered list of workspace names forming the cycle. */
   path: string[];
+  /** Type of dependency edges involved in the cycle. */
   type: 'build' | 'dev' | 'test' | 'runtime' | 'mixed';
+  /** Severity level of the cycle. */
   severity: 'error' | 'warning' | 'info';
+  /** Suggested actions to resolve the cycle. */
   suggestions: string[];
 }
 
-// Graph analysis result
+/**
+ * Comprehensive analysis result for the workspace dependency graph.
+ * @description Aggregates structural metrics, cycle information, ordering,
+ * levels, critical path, and orphaned node detection.
+ */
 export interface GraphAnalysis {
+  /** Total number of nodes (workspaces) in the graph. */
   nodeCount: number;
+  /** Total number of dependency edges in the graph. */
   edgeCount: number;
+  /** Cycle detection results. */
   cycles: CycleDetectionResult;
+  /** Topological ordering of workspace names. */
   topologicalOrder: string[];
+  /** Workspaces grouped by execution level for parallelism. */
   levels: string[][];
+  /** Workspace names along the critical (longest) path. */
   criticalPath: string[];
+  /** Workspaces with no dependencies and no dependents. */
   orphanedNodes: string[];
+  /** Summary statistics about the graph structure. */
   statistics: {
+    /** Maximum depth of the dependency graph. */
     maxDepth: number;
+    /** Average number of dependencies per workspace. */
     avgDependencies: number;
+    /** Average number of dependents per workspace. */
     avgDependents: number;
+    /** Number of isolated strongly connected components. */
     isolatedComponents: number;
   };
 }
 
-// Build order result
+/**
+ * Result of build order generation for the workspace dependency graph.
+ * @description Provides ordering of build stages, parallelism info, and
+ * dependency mappings for external consumers.
+ */
 export interface BuildOrder {
+  /** Ordered build stages; each stage contains workspaces that can run in parallel. */
   order: string[][];
+  /** Whether any build stage has more than one workspace (enabling parallelism). */
   parallelizable: boolean;
+  /** Maximum number of workspaces that can be built in parallel in a single stage. */
   maxParallelism: number;
+  /** Estimated total build time in seconds. */
   estimatedTime: number;
+  /** Map of workspace name to its list of dependency names. */
   dependencies: Map<string, string[]>;
 }
 
-// Workspace dependency graph engine
+/**
+ * Workspace dependency graph engine.
+ * @description Builds and maintains an in-memory graph of workspace
+ * dependencies, providing algorithms for cycle detection, topological
+ * ordering, level calculation, critical path finding, and build order
+ * generation. The graph is rebuilt from the workspace definition whenever
+ * workspaces or dependencies are modified.
+ */
 export class WorkspaceDependencyGraph {
   private nodes: Map<string, WorkspaceNode> = new Map();
   private edges: Map<string, DependencyEdge[]> = new Map();
   private definition: WorkspaceDefinition;
 
+  /**
+   * Creates a new workspace dependency graph from the given definition.
+   * @description Stores the definition and immediately builds the in-memory graph.
+   * @param definition - The workspace definition to build the graph from.
+   */
   constructor(definition: WorkspaceDefinition) {
     this.definition = definition;
     this.buildGraph();
@@ -156,7 +241,12 @@ export class WorkspaceDependencyGraph {
     return weight;
   }
 
-  // Detect cycles using Depth-First Search
+  /**
+   * Detects cycles in the dependency graph using Depth-First Search.
+   * @description Also identifies strongly connected components using
+   * Tarjan's algorithm.
+   * @returns Cycle detection result containing cycles and strongly connected components.
+   */
   detectCycles(): CycleDetectionResult {
     const result: CycleDetectionResult = {
       hasCycles: false,
@@ -335,7 +425,12 @@ export class WorkspaceDependencyGraph {
     return components;
   }
 
-  // Generate topological ordering
+  /**
+   * Generates a topological ordering of all workspace nodes.
+   * @description Uses Kahn's algorithm based on in-degree calculation.
+   * @returns Array of workspace names in topological order.
+   * @throws {ValidationError} If the graph contains cycles, making a topological order impossible.
+   */
   generateTopologicalOrder(): string[] {
     const inDegree = new Map<string, number>();
     const queue: string[] = [];
@@ -385,7 +480,13 @@ export class WorkspaceDependencyGraph {
     return result;
   }
 
-  // Calculate workspace levels for parallel execution
+  /**
+   * Calculates workspace levels for parallel execution.
+   * @description Assigns each workspace to a level based on the longest path
+   * from a root node, so that workspaces in the same level can be processed
+   * in parallel.
+   * @returns Array of levels, each containing the workspace names at that level.
+   */
   calculateLevels(): string[][] {
     const levels: string[][] = [];
     const nodeLevel = new Map<string, number>();
@@ -436,7 +537,13 @@ export class WorkspaceDependencyGraph {
     return levels.filter(level => level.length > 0);
   }
 
-  // Find critical path (longest path through the graph)
+  /**
+   * Finds the critical path (longest weighted path) through the graph.
+   * @description Uses topological ordering and edge weights to determine
+   * the longest path, which represents the minimum-time build sequence.
+   * @returns Array of workspace names forming the critical path, or an empty
+   * array if the graph contains cycles.
+   */
   findCriticalPath(): string[] {
     const distances = new Map<string, number>();
     const predecessors = new Map<string, string | null>();
@@ -510,7 +617,13 @@ export class WorkspaceDependencyGraph {
     }
   }
 
-  // Generate optimal build order
+  /**
+   * Generates an optimal build order based on dependency levels.
+   * @description Groups workspaces into parallelizable stages and computes
+   * estimated build time and maximum parallelism.
+   * @returns Build order result with stages, parallelism info, and dependency map.
+   * @throws {ValidationError} If the graph contains cycles or build order cannot be generated.
+   */
   generateBuildOrder(): BuildOrder {
     try {
       const levels = this.calculateLevels();
@@ -537,7 +650,13 @@ export class WorkspaceDependencyGraph {
     }
   }
 
-  // Perform comprehensive graph analysis
+  /**
+   * Performs a comprehensive analysis of the dependency graph.
+   * @description Combines cycle detection, topological ordering, level
+   * calculation, critical path finding, orphaned node detection, and
+   * summary statistics into a single result.
+   * @returns Full graph analysis including metrics, ordering, and statistics.
+   */
   analyzeGraph(): GraphAnalysis {
     const cycles = this.detectCycles();
     let topologicalOrder: string[] = [];
@@ -581,7 +700,12 @@ export class WorkspaceDependencyGraph {
     };
   }
 
-  // Get graph visualization data
+  /**
+   * Produces graph visualization data for rendering in UI tools.
+   * @description Converts internal nodes and edges into a simplified format
+   * with display labels, groups, levels, and edge colors.
+   * @returns An object containing arrays of node and edge descriptors suitable for visualization.
+   */
   getVisualizationData(): {
     nodes: Array<{ id: string; label: string; group: string; level?: number }>;
     edges: Array<{ from: string; to: string; label: string; color: string }>;
@@ -622,22 +746,39 @@ export class WorkspaceDependencyGraph {
     return colors[type as keyof typeof colors] || '#888888';
   }
 
-  // Get workspace node
+  /**
+   * Retrieves a workspace node by name.
+   * @param name - The name of the workspace to look up.
+   * @returns The matching workspace node, or `undefined` if not found.
+   */
   getNode(name: string): WorkspaceNode | undefined {
     return this.nodes.get(name);
   }
 
-  // Get all nodes
+  /**
+   * Returns a copy of all workspace nodes in the graph.
+   * @returns A new Map of workspace name to workspace node.
+   */
   getAllNodes(): Map<string, WorkspaceNode> {
     return new Map(this.nodes);
   }
 
-  // Get edges from a node
+  /**
+   * Retrieves all dependency edges originating from the given workspace.
+   * @param from - The name of the source workspace.
+   * @returns Array of dependency edges from the workspace, or an empty array if none exist.
+   */
   getEdges(from: string): DependencyEdge[] {
     return this.edges.get(from) || [];
   }
 
-  // Check if there's a path between two nodes
+  /**
+   * Checks whether a directed path exists between two workspaces.
+   * @description Performs a breadth-first search from the source to the target.
+   * @param from - The name of the source workspace.
+   * @param to - The name of the target workspace.
+   * @returns `true` if a path exists from `from` to `to`, otherwise `false`.
+   */
   hasPath(from: string, to: string): boolean {
     if (from === to) return true;
     
@@ -661,13 +802,21 @@ export class WorkspaceDependencyGraph {
     return false;
   }
 
-  // Add a new workspace to the graph
+  /**
+   * Adds a new workspace to the graph and rebuilds it.
+   * @param name - The unique name for the new workspace.
+   * @param workspace - The workspace entry definition to add.
+   */
   addWorkspace(name: string, workspace: WorkspaceEntry): void {
     this.definition.workspaces[name] = workspace;
     this.buildGraph(); // Rebuild graph
   }
 
-  // Remove a workspace from the graph
+  /**
+   * Removes a workspace and all references to it from the graph, then rebuilds.
+   * @description Also removes any dependency entries pointing to the removed workspace.
+   * @param name - The name of the workspace to remove.
+   */
   removeWorkspace(name: string): void {
     delete this.definition.workspaces[name];
     delete this.definition.dependencies[name];
@@ -680,18 +829,34 @@ export class WorkspaceDependencyGraph {
     this.buildGraph(); // Rebuild graph
   }
 
-  // Update workspace dependencies
+  /**
+   * Replaces the dependency list for a workspace and rebuilds the graph.
+   * @param workspaceName - The name of the workspace whose dependencies are being updated.
+   * @param dependencies - The new list of workspace dependencies.
+   */
   updateDependencies(workspaceName: string, dependencies: WorkspaceDependency[]): void {
     this.definition.dependencies[workspaceName] = dependencies;
     this.buildGraph(); // Rebuild graph
   }
 }
 
-// Utility functions
+/**
+ * Creates a new workspace dependency graph from a workspace definition.
+ * @description Convenience factory for instantiating a `WorkspaceDependencyGraph`.
+ * @param definition - The workspace definition to build the graph from.
+ * @returns A new `WorkspaceDependencyGraph` instance.
+ */
 export function createWorkspaceDependencyGraph(definition: WorkspaceDefinition): WorkspaceDependencyGraph {
   return new WorkspaceDependencyGraph(definition);
 }
 
+/**
+ * Validates workspace dependencies by analyzing the dependency graph.
+ * @description Builds a graph from the definition and checks for circular
+ * dependencies (reported as errors) and orphaned workspaces (reported as warnings).
+ * @param definition - The workspace definition to validate.
+ * @returns Array of validation errors for any critical issues found; empty if valid.
+ */
 export function validateWorkspaceDependencies(definition: WorkspaceDefinition): ValidationError[] {
   const errors: ValidationError[] = [];
   
