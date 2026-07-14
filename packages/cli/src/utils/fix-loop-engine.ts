@@ -12,7 +12,12 @@
 //
 // No mutation of any input is ever performed.
 
-/** The result of evaluating the locked gates for one iteration. */
+/**
+ * The result of evaluating the locked gates for one iteration.
+ *
+ * A "gate" is a binary quality check (e.g. unit tests, lint, doctor health)
+ * that the loop treats as a hard precondition for declaring a PR ready.
+ */
 export interface GateResult {
   /** True only when EVERY gate passed. */
   readonly passed: boolean;
@@ -20,7 +25,12 @@ export interface GateResult {
   readonly failingGates: readonly string[];
 }
 
-/** The outcome of applying one remediation step. */
+/**
+ * The outcome of applying one remediation step.
+ *
+ * Produced by the injected {@link FixApplier} each iteration; the engine uses
+ * `changed` to detect the rollback boundary (a no-op fix).
+ */
 export interface FixResult {
   /** Stable id of the fix that was attempted (e.g. "doctor-fix", "lint-fix"). */
   readonly fixId: string;
@@ -30,7 +40,12 @@ export interface FixResult {
   readonly changed: boolean;
 }
 
-/** One iteration in the durable fix-loop log. */
+/**
+ * One iteration in the durable fix-loop log.
+ *
+ * Each entry records the gate state before (and, if a fix was applied, after)
+ * the iteration so the run is fully auditable after the fact.
+ */
 export interface FixLoopIteration {
   /** 1-based iteration number. */
   readonly iteration: number;
@@ -42,48 +57,87 @@ export interface FixLoopIteration {
   readonly gatesAfter?: GateResult;
 }
 
-/** Why the loop terminated. */
+/**
+ * Why the loop terminated.
+ *
+ * - `pr-ready`: all gates passed at some iteration; a PR MAY be opened (merge stays human-controlled).
+ * - `no-progress`: an iteration's fix reported `changed: false` (rollback boundary).
+ * - `bounded-out`: the iteration budget was exhausted with gates still red.
+ * - `already-green`: gates were green at iteration 0, so nothing needed fixing.
+ */
 export type FixLoopOutcome =
   | 'pr-ready' // all gates passed → safe to open a PR (human-controlled merge)
   | 'no-progress' // an iteration applied a fix that changed nothing → rollback boundary
   | 'bounded-out' // the iteration budget was exhausted with gates still red
   | 'already-green'; // gates were green at iteration 0 → nothing to fix
 
-/** The durable output of a fix-loop run. */
+/**
+ * The durable output of a fix-loop run.
+ *
+ * Returned by {@link runFixLoop}; carries the outcome, the per-iteration audit
+ * trail, the final gate state, a human-readable summary, and the ordered list
+ * of fixes that were applied.
+ */
 export interface FixLoopRun {
+  /** Why the loop terminated. */
   readonly outcome: FixLoopOutcome;
+  /** Per-iteration audit trail, in order. */
   readonly iterations: readonly FixLoopIteration[];
   /** True when the final gate evaluation passed. */
   readonly gatesPassed: boolean;
-  /** Human-readable summary. */
+  /** Human-readable summary tailored to the outcome. */
   readonly summary: string;
   /** The fixes applied across the run (in order). */
   readonly appliedFixes: readonly FixResult[];
 }
 
-/** The default iteration budget (a hard backstop so the loop never runs away). */
+/**
+ * The default iteration budget (a hard backstop so the loop never runs away).
+ *
+ * Used as the default for {@link runFixLoop}'s `maxIterations` parameter.
+ */
 export const DEFAULT_MAX_ITERATIONS = 5;
 
 /**
  * The injected gate evaluator: returns the current gate state. Must be pure-ish
  * from the engine's perspective (the engine calls it, never inspects how).
+ *
+ * Implementations run the real checks (tests, lint, doctor, etc.) and fold the
+ * per-gate results into a single {@link GateResult}.
+ *
+ * @returns The current gate state (pass/fail plus the ids of failing gates).
  */
 export type GateEvaluator = () => Promise<GateResult> | GateResult;
 
-/** The injected fix applier: given the failing gates, applies one remediation. */
+/**
+ * The injected fix applier: given the failing gates, applies one remediation.
+ *
+ * Implementations inspect the failing gate ids and choose a single fix to apply
+ * this iteration. Reporting `changed: false` signals the rollback boundary.
+ *
+ * @param failing - The gate state that the fix should address.
+ * @returns A description of the attempted fix and whether it changed anything.
+ */
 export type FixApplier = (failing: GateResult) => Promise<FixResult> | FixResult;
 
 /**
  * Run the bounded, gate-locked fix loop.
  *
- *   - Iteration 0 evaluates the gates; if already green, outcome is `already-green`.
- *   - Each subsequent iteration: eval gates → if pass, `pr-ready`; else apply a
- *     fix → eval again. A fix that reports `changed: false` triggers the
- *     rollback boundary (`no-progress`) — the loop stops rather than spin.
- *   - The iteration budget caps total work (`bounded-out`).
+ * - Iteration 0 evaluates the gates; if already green, outcome is `already-green`.
+ * - Each subsequent iteration: eval gates → if pass, `pr-ready`; else apply a
+ *   fix → eval again. A fix that reports `changed: false` triggers the
+ *   rollback boundary (`no-progress`) — the loop stops rather than spin.
+ * - The iteration budget caps total work (`bounded-out`).
  *
  * The loop NEVER merges or pushes to a protected branch — `pr-ready` is only a
  * signal that a PR MAY be opened (the command layer + a human do that).
+ *
+ * No input is mutated; the returned run is a fresh, durable record.
+ *
+ * @param evaluate - Injected gate evaluator (called before and after each fix).
+ * @param applyFix - Injected fix applier (given the failing gates, applies one fix).
+ * @param maxIterations - Hard cap on fix iterations; defaults to {@link DEFAULT_MAX_ITERATIONS}.
+ * @returns A durable {@link FixLoopRun} describing the outcome, audit trail, and applied fixes.
  */
 export async function runFixLoop(
   evaluate: GateEvaluator,
@@ -152,6 +206,10 @@ function finish(
 /**
  * A pure gate result builder (convenience for tests + the command layer's
  * adapter from real gate runners).
+ *
+ * @param passed - True only when every gate passed.
+ * @param failingGates - Human ids of failing gates; defaults to empty.
+ * @returns A frozen-shape {@link GateResult}.
  */
 export function gateResult(
   passed: boolean,
@@ -162,6 +220,11 @@ export function gateResult(
 
 /**
  * A pure fix-result builder (convenience).
+ *
+ * @param fixId - Stable id of the attempted fix (e.g. "doctor-fix").
+ * @param description - Human-readable description of what the fix did or tried.
+ * @param changed - True when the fix actually changed something; false for a no-op.
+ * @returns A frozen-shape {@link FixResult}.
  */
 export function fixResult(
   fixId: string,

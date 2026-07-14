@@ -10,7 +10,10 @@
 //
 // No mutation of any input is ever performed.
 
-/** The languages re-shell detects (mirrors polyglot-build's LanguageType). */
+/**
+ * The set of programming languages re-shell is able to detect.
+ * Mirrors the `LanguageType` union from `polyglot-build`.
+ */
 export type EnvLanguage =
   | 'typescript'
   | 'javascript'
@@ -23,7 +26,11 @@ export type EnvLanguage =
   | 'ruby'
   | 'unknown';
 
-/** A detected toolchain: a language and its (optional) pinned version. */
+/**
+ * Represents a single toolchain detected on disk.
+ * Contains the detected language and, when available, the pinned version
+ * the project declares for that language.
+ */
 export interface DetectedToolchain {
   readonly language: EnvLanguage;
   /** Pinned version, when known (e.g. "18", "3.11"). */
@@ -31,8 +38,9 @@ export interface DetectedToolchain {
 }
 
 /**
- * The Devbox package + devcontainer feature for a language. Both are derived
- * from the same row so the two generated configs stay in lock-step.
+ * Pairs the Devbox (Nix) package name with the corresponding devcontainer
+ * feature id for a single language. Both values are derived from the same
+ * lookup row so the two generated configs remain in lock-step.
  */
 export interface ToolchainPackages {
   /** The Devbox (Nix) package name, e.g. "nodejs" / "python3". */
@@ -41,7 +49,15 @@ export interface ToolchainPackages {
   readonly devcontainerFeature: string;
 }
 
-/** Per-language Devbox package + devcontainer feature map. */
+/**
+ * Static lookup table mapping each known language (excluding `'unknown'`) to
+ * its Devbox package name and devcontainer feature id.
+ *
+ * @remarks
+ * This is the single source of truth that `packagesForLanguage`,
+ * `generateDevbox`, `generateDevcontainer`, and `verifyEnvConfig` all consult,
+ * keeping every output format consistent.
+ */
 export const TOOLCHAIN_MAP: Readonly<Record<Exclude<EnvLanguage, 'unknown'>, ToolchainPackages>> = {
   typescript: { devboxPackage: 'nodejs', devcontainerFeature: 'ghcr.io/devcontainers/features/node:1' },
   javascript: { devboxPackage: 'nodejs', devcontainerFeature: 'ghcr.io/devcontainers/features/node:1' },
@@ -54,13 +70,25 @@ export const TOOLCHAIN_MAP: Readonly<Record<Exclude<EnvLanguage, 'unknown'>, Too
   ruby: { devboxPackage: 'ruby', devcontainerFeature: 'ghcr.io/devcontainers/features/ruby:1' },
 };
 
-/** Resolve the Devbox/devcontainer packages for a language (unknown → none). */
+/**
+ * Resolve the Devbox package and devcontainer feature for a given language.
+ *
+ * @param language - The detected language to look up.
+ * @returns The matching {@link ToolchainPackages}, or `null` when the language
+ *   is `'unknown'` or otherwise absent from {@link TOOLCHAIN_MAP}.
+ */
 export function packagesForLanguage(language: EnvLanguage): ToolchainPackages | null {
   if (language === 'unknown') return null;
   return TOOLCHAIN_MAP[language] ?? null;
 }
 
-/** The distinct languages detected (deduped, sorted). */
+/**
+ * Compute the distinct set of languages present across the given toolchains,
+ * excluding `'unknown'` entries.
+ *
+ * @param toolchains - The detected toolchains to deduplicate.
+ * @returns A sorted array of unique, non-unknown languages.
+ */
 export function distinctLanguages(toolchains: readonly DetectedToolchain[]): EnvLanguage[] {
   return [...new Set(toolchains.map(t => t.language))].filter(l => l !== 'unknown').sort();
 }
@@ -77,8 +105,15 @@ function pinnedVersion(toolchains: readonly DetectedToolchain[], language: EnvLa
 }
 
 /**
- * Generate a Devbox `devbox.json` object from the detected toolchains: one Nix
- * package per distinct language, version-pinned where a version was detected.
+ * Generate a Devbox `devbox.json` object from the detected toolchains.
+ *
+ * Emits one Nix package per distinct language, version-pinned wherever a
+ * version was detected. The result is a plain object that the command layer
+ * serializes to disk.
+ *
+ * @param toolchains - The detected toolchains to serialize.
+ * @returns A `devbox.json`-shaped object with sorted packages, a shell
+ *   `init_hook`, the `nixpkgs` archive, and (when present) an `env` block.
  */
 export function generateDevbox(toolchains: readonly DetectedToolchain[]): Record<string, unknown> {
   const packages: string[] = [];
@@ -99,8 +134,17 @@ export function generateDevbox(toolchains: readonly DetectedToolchain[]): Record
 
 /**
  * Generate a `.devcontainer/devcontainer.json` object from the detected
- * toolchains: one devcontainer feature per distinct language, version-pinned
- * where a version was detected.
+ * toolchains.
+ *
+ * Emits one devcontainer feature per distinct language, version-pinned via the
+ * feature value wherever a version was detected. Features default to
+ * `'latest'` when no version is known.
+ *
+ * @param toolchains - The detected toolchains to serialize.
+ * @param options - Optional generation parameters.
+ * @param options.workspaceFolder - When provided, embedded as the
+ *   `workspaceFolder` field of the resulting config.
+ * @returns A `devcontainer.json`-shaped object ready to be serialized to disk.
  */
 export function generateDevcontainer(
   toolchains: readonly DetectedToolchain[],
@@ -126,7 +170,11 @@ export function generateDevcontainer(
   };
 }
 
-/** A drift between a generated config and the current detection. */
+/**
+ * Describes the drift between a previously generated config and the current
+ * on-disk detection. An empty `missing` and `extra` array signals the config
+ * is up to date (idempotent re-run is a no-op).
+ */
 export interface EnvDrift {
   /** Languages the generated config is missing (added since generation). */
   readonly missing: readonly EnvLanguage[];
@@ -146,13 +194,21 @@ function packageToLanguages(): Map<string, EnvLanguage[]> {
 }
 
 /**
- * Verify a previously-generated config against the current detection: which
- * languages are missing from the config (added) or extra in it (removed). An
- * empty drift means the config is up to date (idempotent re-run is a no-op).
+ * Verify a previously generated config against the current detection.
  *
- * Compares at the PACKAGE level (a single `nodejs` package covers both
- * typescript and javascript), so two languages sharing a package never register
- * as drift against each other.
+ * Reports which languages are missing from the generated config (added since
+ * generation) and which are extra in it (removed since generation). An empty
+ * drift means the config is up to date.
+ *
+ * Comparison happens at the package level: a single `nodejs` package covers
+ * both `typescript` and `javascript`, so two languages that share one package
+ * never register as drift against each other.
+ *
+ * @param generatedPackages - The package entries from the existing config
+ *   (version suffixes after `@` are stripped before comparison).
+ * @param detected - The currently detected toolchains to compare against.
+ * @returns An {@link EnvDrift} with sorted, deduplicated `missing` and `extra`
+ *   language arrays.
  */
 export function verifyEnvConfig(
   generatedPackages: readonly string[],

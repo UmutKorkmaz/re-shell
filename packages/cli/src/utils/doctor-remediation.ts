@@ -21,17 +21,28 @@ import type { Suggestion, FixPlan, FixPlanStep } from '@re-shell/contracts';
  *    `fixable`/`fixCommand` decision always comes from these rules.
  */
 
-// A check as produced by the doctor / workspace-health surfaces. We accept a
-// loose shape so this util can consume either command's checks without coupling
-// to their internal interfaces.
+/**
+ * A check as produced by the doctor / workspace-health surfaces. We accept a
+ * loose shape so this util can consume either command's checks without coupling
+ * to their internal interfaces.
+ */
 export interface RemediableCheck {
-  // The stable check id. doctor uses `name`; some surfaces may use `id`.
+  /**
+   * The stable check id used by the `doctor` command. Some surfaces may use
+   * `id` instead, so both fields are accepted.
+   */
   name?: string;
+  /** Alternate key for the check id, used by some health surfaces. */
   id?: string;
-  // Status varies across surfaces (doctor: success|warning|error; rich health:
-  // pass|warning|fail|info). We normalize internally.
+  /**
+   * Status string from the producing surface. Varies across surfaces
+   * (doctor: success|warning|error; rich health: pass|warning|fail|info).
+   * Normalized internally before any rule lookup.
+   */
   status?: string;
+  /** Alternate status-like key (`level`) used by some health surfaces. */
   level?: string;
+  /** Human-readable detail message emitted by the original check. */
   message?: string;
 }
 
@@ -257,6 +268,12 @@ export const ALLOWED_FIX_COMMAND_PREFIXES: readonly string[] = [
 
 /**
  * True when `command` is allow-listed for execution under `--fix --yes`.
+ *
+ * @param command - The candidate shell command (may be undefined). The check
+ *   trims whitespace before comparing against the allow-list.
+ * @returns `true` (narrowed to `string`) when the command matches one of the
+ *   {@link ALLOWED_FIX_COMMAND_PREFIXES} entries exactly or as a prefix,
+ *   otherwise `false`.
  */
 export function isAllowedFixCommand(command: string | undefined): command is string {
   if (!command) return false;
@@ -284,6 +301,11 @@ function normalizeStatus(check: RemediableCheck): 'ok' | 'warning' | 'failing' {
 /**
  * A check needs remediation when it is warning or failing. `info`/`pass`/
  * `success` checks are healthy and produce no suggestion.
+ *
+ * @param check - The check to evaluate. Both `status` and `level` are
+ *   considered after lower-casing.
+ * @returns `true` when the normalized status is `warning` or `failing`,
+ *   otherwise `false`.
  */
 export function needsRemediation(check: RemediableCheck): boolean {
   return normalizeStatus(check) !== 'ok';
@@ -311,6 +333,15 @@ function applyText(
  * Build a {@link Suggestion} for a single check using the deterministic rules.
  * Returns null for healthy checks. `packageManager` substitutes the `{pm}`
  * placeholder in package-manager-aware rules (defaults to npm).
+ *
+ * @param check - The check to translate. Its `name`/`id` selects the rule;
+ *   its `message` is fed to any dynamic cause/suggestion functions.
+ * @param packageManager - The package-manager binary name used to resolve the
+ *   `{pm}` and `{update}` placeholders (e.g. `npm`, `pnpm`, `yarn`, `bun`).
+ *   Defaults to `npm`.
+ * @returns A {@link Suggestion} with cause, suggestion text, and (when both
+ *   rule-fixable and allow-listed) a `fixCommand`; or `null` when the check is
+ *   healthy.
  */
 export function buildSuggestion(
   check: RemediableCheck,
@@ -344,6 +375,12 @@ export function buildSuggestion(
 /**
  * Map a list of checks to suggestions, dropping healthy checks. Order is
  * preserved so output is stable.
+ *
+ * @param checks - The checks to translate, in display order.
+ * @param packageManager - The package-manager binary used for placeholder
+ *   substitution in package-manager-aware rules. Defaults to `npm`.
+ * @returns An ordered array of {@link Suggestion} objects, one per
+ *   non-healthy check. Healthy checks are omitted.
  */
 export function buildSuggestions(
   checks: RemediableCheck[],
@@ -364,6 +401,12 @@ export function buildSuggestions(
  * `apply` controls the `applied` flag on each step and the plan. This function
  * NEVER runs anything; the caller is responsible for execution. The default
  * (`apply = false`) yields a pure dry-run plan.
+ *
+ * @param suggestions - The suggestions to compose into a plan.
+ * @param apply - When `true`, marks executable steps and the overall plan as
+ *   applied. When `false` (default), produces a dry-run plan.
+ * @returns A {@link FixPlan} whose steps describe both executable fixes and
+ *   manual remediation guidance.
  */
 export function buildFixPlan(
   suggestions: Suggestion[],
@@ -392,6 +435,10 @@ export function buildFixPlan(
 /**
  * Coverage helper for tests/reporting: the set of check ids with a dedicated
  * (non-fallback) rule.
+ *
+ * @returns A sorted-stable array of check-id strings that have an explicit
+ *   rule in the {@link REMEDIATION_RULES} table. Useful for asserting rule
+ *   coverage in tests and reporting gaps.
  */
 export function remediationCoverage(): string[] {
   return Object.keys(REMEDIATION_RULES);
@@ -408,13 +455,25 @@ export function remediationCoverage(): string[] {
  * is unaffected by any model output.
  */
 export interface RemediationPhraser {
+  /** Human-readable name identifying this phraser (e.g. "identity"). */
   readonly name: string;
+  /**
+   * Rewrite the wording of a suggestion's cause/suggestion text.
+   *
+   * @param suggestion - The deterministic suggestion to rephrase.
+   * @returns A {@link Suggestion} with potentially friendlier wording. The
+   *   safety-relevant fields (`checkId`, `fixable`, `fixCommand`) are
+   *   re-asserted by {@link applyPhraser} regardless of what this returns.
+   */
   phrase(suggestion: Suggestion): Suggestion;
 }
 
 /**
  * Default phraser: identity. With no LLM configured, suggestions pass through
  * unchanged. This is the only phraser used offline / in CI.
+ *
+ * Implements {@link RemediationPhraser}; calling `phrase` on this object
+ * simply returns its argument unmodified.
  */
 export const identityPhraser: RemediationPhraser = {
   name: 'identity',
@@ -425,6 +484,13 @@ export const identityPhraser: RemediationPhraser = {
  * Apply a phraser while hard-guaranteeing the safety-relevant fields are
  * preserved from the original deterministic suggestion. Even a misbehaving
  * phraser cannot change which command would run.
+ *
+ * @param suggestion - The original deterministic suggestion.
+ * @param phraser - The phraser to apply. Defaults to
+ *   {@link identityPhraser} when omitted, yielding an unchanged suggestion.
+ * @returns A {@link Suggestion} whose `cause`/`suggestion` text may have been
+ *   rephrased, but whose `checkId`, `fixable`, and `fixCommand` are always
+ *   taken from the original input.
  */
 export function applyPhraser(
   suggestion: Suggestion,
