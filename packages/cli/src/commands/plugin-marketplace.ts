@@ -6,12 +6,16 @@ import type { ErrorCode } from '@re-shell/contracts';
 import { RegistryUnreachableError } from '../utils/registry-client';
 import {
   createMarketplace,
-  MarketplacePlugin,
   PluginCategory,
   MarketplaceSearchFilters,
   isValidPluginId,
-  formatFileSize,
 } from '../utils/plugin-marketplace';
+import {
+  formatPluginRow,
+  formatPluginDetail,
+  formatSearchResults,
+  formatCategoryList,
+} from '../utils/marketplace-display';
 
 interface MarketplaceCommandOptions {
   verbose?: boolean;
@@ -98,20 +102,7 @@ export async function searchMarketplace(
       return;
     }
 
-    console.log(chalk.cyan(`\n🔍 Marketplace Search Results\n`));
-    if (result.plugins.length === 0) {
-      console.log(chalk.yellow('No plugins found matching your criteria.'));
-      return;
-    }
-    console.log(chalk.gray(`Found ${result.total} plugin(s), showing ${result.plugins.length}`));
-    console.log('');
-    result.plugins.forEach((plugin) => {
-      displayPluginSummary(plugin, verbose);
-      console.log('');
-    });
-    if (result.pages > 1) {
-      console.log(chalk.gray(`Page ${result.page} of ${result.pages}`));
-    }
+    console.log(formatSearchResults(result.plugins, result.page, result.pages, result.total));
   } catch (error) {
     const { code, message, details } = classifyError(error);
     if (json) {
@@ -157,7 +148,7 @@ export async function showPluginDetails(
       ok(plugin);
       return;
     }
-    displayPluginDetails(plugin, verbose);
+    console.log(formatPluginDetail(plugin, verbose));
   } catch (error) {
     const { code, message, details } = classifyError(error);
     if (json) {
@@ -188,9 +179,21 @@ export async function installMarketplacePlugin(
     const marketplace = createMarketplace({ verifySignatures: verify });
     const spinner = json
       ? undefined
-      : createSpinner(`Installing ${pluginId}${version ? `@${version}` : ''}...`);
+      : createSpinner(`Resolving ${pluginId}...`);
     if (spinner) spinner.start();
 
+    // Step 1: Resolve plugin metadata from registry
+    const pluginInfo = await marketplace.getPlugin(pluginId);
+    if (!pluginInfo) {
+      if (spinner) spinner.fail(chalk.red(`Plugin '${pluginId}' not found in marketplace`));
+      if (json) {
+        fail('MARKETPLACE_ERROR', `Plugin '${pluginId}' not found in marketplace`);
+      }
+      return;
+    }
+    if (spinner) spinner.setText(`Installing ${pluginId}${version ? `@${version}` : ''}...`);
+
+    // Step 2: Download + verify + install (single call handles internals)
     const result = await marketplace.installPlugin(pluginId, version, { force, dryRun });
     if (spinner) spinner.stop();
 
@@ -266,9 +269,9 @@ export async function showFeaturedPlugins(options: MarketplaceCommandOptions = {
       console.log(chalk.yellow('No featured plugins available.'));
       return;
     }
-    plugins.forEach((plugin) => {
-      displayPluginSummary(plugin, verbose);
-      console.log('');
+    plugins.forEach((plugin, index) => {
+      console.log(formatPluginRow(plugin, verbose));
+      if (index < plugins.length - 1) console.log('');
     });
   } catch (error) {
     const { code, message, details } = classifyError(error);
@@ -307,12 +310,8 @@ export async function showPopularPlugins(
       return;
     }
     plugins.forEach((plugin, index) => {
-      console.log(`${chalk.yellow((index + 1).toString().padStart(2))}. ${chalk.white(plugin.name)}`);
-      console.log(`    ${plugin.description}`);
-      if (verbose) {
-        console.log(`    ${chalk.blue(plugin.author)} • ${chalk.gray(plugin.category)} • ${plugin.license}`);
-      }
-      console.log('');
+      console.log(`${chalk.yellow(`${index + 1}.`)} ${formatPluginRow(plugin, verbose)}`);
+      if (index < plugins.length - 1) console.log('');
     });
   } catch (error) {
     const { code, message, details } = classifyError(error);
@@ -341,17 +340,11 @@ export async function showCategories(options: MarketplaceCommandOptions = {}): P
       ok({ categories });
       return;
     }
-    console.log(chalk.cyan('\n📂 Plugin Categories\n'));
-    categories.forEach((category) => {
-      console.log(`${chalk.yellow(category.name)} (${category.count})`);
-      if (verbose) console.log(`  ${chalk.gray(category.description)}`);
-      console.log('');
-    });
-    console.log(
-      chalk.gray(
-        `Total: ${categories.reduce((sum, c) => sum + c.count, 0)} plugins across ${categories.length} categories`
-      )
-    );
+    console.log(formatCategoryList(
+      verbose
+        ? categories
+        : categories.map(c => ({ name: c.name, count: c.count }))
+    ));
   } catch (error) {
     const { code, message, details } = classifyError(error);
     if (json) {
@@ -401,61 +394,3 @@ export async function showMarketplaceStats(): Promise<void> {
   }
 }
 
-// Display plugin summary.
-function displayPluginSummary(plugin: MarketplacePlugin, verbose: boolean): void {
-  const badges: string[] = [];
-  if (plugin.verified) badges.push(chalk.green('SIGNED'));
-  if (plugin.pricing.type === 'free') badges.push(chalk.blue('FREE'));
-  const badgeText = badges.length > 0 ? ` ${badges.join(' ')}` : '';
-
-  console.log(`${chalk.white(plugin.name)}${badgeText}`);
-  console.log(`${plugin.description}`);
-  console.log(`${chalk.blue(plugin.author)} • v${plugin.version} • ${chalk.gray(plugin.category)}`);
-  if (verbose) {
-    console.log(`Keywords: ${plugin.keywords.join(', ')}`);
-    if (plugin.size > 0) console.log(`Size: ${formatFileSize(plugin.size)}`);
-    console.log(`License: ${plugin.license}`);
-    if (plugin.updatedAt) console.log(`Updated: ${new Date(plugin.updatedAt).toLocaleDateString()}`);
-  }
-}
-
-// Display detailed plugin information.
-function displayPluginDetails(plugin: MarketplacePlugin, verbose: boolean): void {
-  console.log(chalk.cyan(`\n📦 ${plugin.name}\n`));
-  console.log(`${plugin.description}\n`);
-
-  console.log(chalk.yellow('Details:'));
-  console.log(`  Author: ${chalk.blue(plugin.author)}`);
-  console.log(`  Version: ${plugin.version} (latest: ${plugin.latestVersion})`);
-  console.log(`  Category: ${plugin.category}`);
-  console.log(`  License: ${plugin.license}`);
-  if (plugin.size > 0) console.log(`  Size: ${formatFileSize(plugin.size)}`);
-  console.log(`  Signed: ${plugin.verified ? chalk.green('yes') : chalk.yellow('no')}`);
-
-  if (plugin.keywords.length > 0) {
-    console.log(chalk.yellow('\nKeywords:'));
-    console.log(`  ${plugin.keywords.join(', ')}`);
-  }
-
-  console.log(chalk.yellow('\nCompatibility:'));
-  console.log(`  Node.js: ${plugin.compatibility.nodeVersion}`);
-
-  if (Object.keys(plugin.dependencies).length > 0) {
-    console.log(chalk.yellow('\nDependencies:'));
-    Object.entries(plugin.dependencies).forEach(([name, version]) => {
-      console.log(`  ${name}: ${version}`);
-    });
-  }
-
-  if (plugin.homepage || plugin.repository) {
-    console.log(chalk.yellow('\nLinks:'));
-    if (plugin.homepage) console.log(`  Homepage: ${plugin.homepage}`);
-    if (plugin.repository) console.log(`  Repository: ${plugin.repository}`);
-  }
-
-  if (verbose && plugin.createdAt) {
-    console.log(chalk.yellow('\nTimestamps:'));
-    console.log(`  Created: ${new Date(plugin.createdAt).toLocaleDateString()}`);
-    if (plugin.updatedAt) console.log(`  Updated: ${new Date(plugin.updatedAt).toLocaleDateString()}`);
-  }
-}
