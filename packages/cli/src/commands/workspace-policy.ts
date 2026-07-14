@@ -1,10 +1,17 @@
 import chalk from 'chalk';
+import * as path from 'path';
 import {
   evaluatePolicyPack,
   resolvePolicyPack,
   type PolicyCheckResult,
 } from '../utils/policy-engine';
-import { detectDependencyDrift, type DriftResult } from '../utils/dependency-drift';
+import {
+  detectDependencyDrift,
+  computeDriftScore,
+  generateDriftReport,
+  suggestAlignment,
+  type DriftResult,
+} from '../utils/dependency-drift';
 import { ok, fail, enableJsonMode } from '../utils/json-output';
 import type { ProgressSpinner } from '../utils/spinner';
 
@@ -23,6 +30,12 @@ export interface PolicyCheckCommandOptions {
 /** Options for the `workspace drift` command. */
 export interface DriftCommandOptions {
   json?: boolean;
+  /** Output a full markdown report instead of the summary view. */
+  report?: boolean;
+  /** Print only the 0-100 alignment score. */
+  score?: boolean;
+  /** Workspace name used in report headers (defaults to directory name). */
+  workspaceName?: string;
   cwd?: string;
   spinner?: ProgressSpinner;
 }
@@ -81,7 +94,9 @@ export async function runPolicyCheck(
 
 /**
  * `workspace drift` — report dependencies pinned to different versions across
- * the monorepo. Always exits 0 (drift is informational, not a hard failure).
+ * the monorepo. Supports `--report` for a full markdown report, `--score` for
+ * a bare 0-100 alignment score, and `--json` for machine-readable output.
+ * Always exits 0 (drift is informational, not a hard failure).
  */
 export async function runDriftCheck(
   options: DriftCommandOptions = {}
@@ -92,7 +107,8 @@ export async function runDriftCheck(
     const restore = enableJsonMode();
     try {
       const result = await detectDependencyDrift(rootPath);
-      ok(result);
+      const score = computeDriftScore(result);
+      ok({ ...result, score });
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Unknown drift check error';
@@ -107,6 +123,20 @@ export async function runDriftCheck(
 
   try {
     const result = await detectDependencyDrift(rootPath);
+
+    if (options.score) {
+      const score = computeDriftScore(result);
+      console.log(score);
+      return;
+    }
+
+    if (options.report) {
+      const wsName = options.workspaceName ?? path.basename(rootPath);
+      const report = generateDriftReport(result, wsName);
+      console.log(report);
+      return;
+    }
+
     displayDriftResult(result);
   } catch (error: unknown) {
     const message =
@@ -143,25 +173,37 @@ function displayPolicyResult(result: PolicyCheckResult): void {
 }
 
 /**
- * Render the dependency-drift results in human-readable text format.
+ * Render the dependency-drift results in human-readable text format with
+ * alignment score, severity labels, and fix suggestions.
  *
  * @param result - The drift detection result.
  */
 function displayDriftResult(result: DriftResult): void {
+  const score = computeDriftScore(result);
+  const scoreColor = score >= 90 ? chalk.green : score >= 70 ? chalk.yellow : chalk.red;
+
   console.log(chalk.cyan('\n🔀 Dependency drift'));
   console.log(chalk.gray('═'.repeat(50)));
+  console.log(`Alignment score: ${scoreColor(`${score}/100`)}`);
 
   if (result.drift.length === 0) {
-    console.log(chalk.green('✅ No drift detected — all shared dependencies are aligned.'));
+    console.log(chalk.green('\n✅ No drift detected — all shared dependencies are aligned.'));
     return;
   }
 
-  console.log(chalk.yellow(`Found drift in ${result.drift.length} dependency(ies):\n`));
+  console.log(chalk.yellow(`\nFound drift in ${result.drift.length} dependenc${result.drift.length === 1 ? 'y' : 'ies'}:\n`));
   for (const entry of result.drift) {
-    console.log(chalk.bold(entry.dependency));
+    const suggestion = suggestAlignment(entry);
+    const severityTag =
+      suggestion.confidence > 0.6 ? chalk.green(' minor') :
+      suggestion.confidence > 0.3 ? chalk.yellow('moderate') :
+      chalk.red('  major');
+    console.log(`${chalk.bold(entry.dependency)}  [${severityTag}]`);
     for (const v of entry.versions) {
-      console.log(`  ${chalk.cyan(v.version)} → ${v.packages.join(', ')}`);
+      const marker = v.version === suggestion.version ? chalk.green('✓') : chalk.red('✗');
+      console.log(`  ${marker} ${chalk.cyan(v.version)} → ${v.packages.join(', ')}`);
     }
+    console.log(chalk.gray(`  Suggest: align to ${suggestion.version} (${(suggestion.confidence * 100).toFixed(0)}% confidence)`));
     console.log();
   }
 }

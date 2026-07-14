@@ -2276,9 +2276,11 @@ export function registerWorkspaceGroup(program: Command): void {
     .command('drift')
     .description('Report dependencies pinned to different versions across the monorepo')
     .option('--json', 'Emit machine-readable JSON envelope to stdout')
+    .option('--report', 'Output a full markdown drift report')
+    .option('--score', 'Print only the 0-100 alignment score')
     .action(
       createAsyncCommand(async options => {
-        const spinner = options.json
+        const spinner = options.json || options.score || options.report
           ? undefined
           : createSpinner('Scanning for dependency drift...').start();
         if (spinner) {
@@ -2287,7 +2289,12 @@ export function registerWorkspaceGroup(program: Command): void {
         }
 
         await withTimeout(async () => {
-          await runDriftCheck({ json: options.json, spinner });
+          await runDriftCheck({
+            json: options.json,
+            report: options.report,
+            score: options.score,
+            spinner,
+          });
         }, 60000); // 1 minute timeout
       })
     );
