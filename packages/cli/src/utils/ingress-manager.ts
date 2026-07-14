@@ -129,7 +129,7 @@ export function generateTypeScriptIngress(config: IngressManagerConfig): string 
   code += '  private networkingApi: NetworkingV1Api;\n';
   code += '  private appsApi: AppsV1Api;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.namespace = options.namespace || \'default\';\n';
   code += '    this.ingressClassName = options.ingressClassName || \'nginx\';\n';
@@ -219,7 +219,7 @@ export function generateTypeScriptIngress(config: IngressManagerConfig): string 
   code += '    try {\n';
   code += '      execSync(\'kubectl apply -f \' + issuerPath, { stdio: \'pipe\' });\n';
   code += '      console.log(\'[Ingress] ✓ ClusterIssuer created:\', this.ssl.issuer);\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[Ingress] ✗ Failed to create ClusterIssuer:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -250,7 +250,7 @@ export function generateTypeScriptIngress(config: IngressManagerConfig): string 
   code += '    try {\n';
   code += '      execSync(\'kubectl apply -f \' + certPath, { stdio: \'pipe\' });\n';
   code += '      console.log(\'[Ingress] ✓ Certificate created for:\', this.rules.map(r => r.host).join(\', \'));\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[Ingress] ✗ Failed to create Certificate:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -291,7 +291,7 @@ export function generateTypeScriptIngress(config: IngressManagerConfig): string 
 
   code += '  async deployIngress(): Promise<void> {\n';
   code += '    console.log(\'[Ingress] Deploying Ingress resource...\');\n\n';
-  code += '    const ingress: any = {\n';
+  code += '    const ingress: unknown = {\n';
   code += '      apiVersion: \'networking.k8s.io/v1\',\n';
   code += '      kind: \'Ingress\',\n';
   code += '      metadata: {\n';
@@ -361,7 +361,7 @@ export function generateTypeScriptIngress(config: IngressManagerConfig): string 
   code += '    try {\n';
   code += '      execSync(\'kubectl apply -f \' + ingressPath, { stdio: \'pipe\' });\n';
   code += '      console.log(\'[Ingress] ✓ Ingress deployed successfully\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[Ingress] ✗ Failed to deploy Ingress:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -397,15 +397,15 @@ export function generateTypeScriptIngress(config: IngressManagerConfig): string 
   code += '      console.log(\'\\n[Ingress] Status:\');\n';
   code += '      const lb = ingress.status.loadBalancer?.ingress?.[0];\n';
   code += '      console.log(\'  Address:\', lb?.ip || lb?.hostname || \'Pending\');\n';
-  code += '      console.log(\'  Hosts:\', ingress.spec.rules.map((r: any) => r.host).join(\', \'));\n';
+  code += '      console.log(\'  Hosts:\', ingress.spec.rules.map((r: unknown) => r.host).join(\', \'));\n';
   code += '      return ingress;\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[Ingress] Failed to get status:\', error.message);\n';
   code += '      return null;\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private toYaml(obj: any): string {\n';
+  code += '  private toYaml(obj: unknown): string {\n';
   code += '    const yaml = require(\'js-yaml\');\n';
   code += '    return yaml.dump(obj);\n';
   code += '  }\n';

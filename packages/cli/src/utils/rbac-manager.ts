@@ -91,7 +91,7 @@ export interface PermissionScope {
 export interface ResourceFilter {
   field: string;
   operator: 'equals' | 'not-equals' | 'contains' | 'not-contains' | 'regex' | 'in' | 'not-in';
-  value: any;
+  value: unknown;
 }
 
 /** A condition that must hold for a permission to be granted. */
@@ -99,7 +99,7 @@ export interface PermissionCondition {
   type: 'ip' | 'time' | 'context' | 'custom';
   field: string;
   operator: string;
-  value: any;
+  value: unknown;
   negate?: boolean;
 }
 
@@ -108,7 +108,7 @@ export interface RoleCondition {
   type: 'attribute' | 'context' | 'time' | 'location' | 'custom';
   field: string;
   operator: string;
-  value: any;
+  value: unknown;
   required: boolean;
 }
 
@@ -134,8 +134,8 @@ export interface RoleChange {
   user: string;
   action: 'created' | 'updated' | 'deprecated' | 'permissions-changed' | 'reactivated';
   reason: string;
-  previousValue?: any;
-  newValue?: any;
+  previousValue?: unknown;
+  newValue?: unknown;
 }
 
 /** Represents a permission governing actions on a resource. */
@@ -210,7 +210,7 @@ export interface PrincipalCondition {
   type: 'attribute' | 'auth-method' | 'mfa' | 'session-age' | 'custom';
   field: string;
   operator: string;
-  value: any;
+  value: unknown;
 }
 
 /** A pattern describing a set of resources targeted by a policy statement. */
@@ -224,7 +224,7 @@ export interface PolicyCondition {
   type: 'string' | 'numeric' | 'boolean' | 'ip' | 'time' | 'custom';
   operator: string;
   key: string;
-  value: any;
+  value: unknown;
   negate?: boolean;
 }
 
@@ -270,7 +270,7 @@ export interface AssignmentCondition {
   type: 'time' | 'location' | 'context' | 'custom';
   field: string;
   operator: string;
-  value: any;
+  value: unknown;
 }
 
 /** Context describing how a role assignment originated. */
