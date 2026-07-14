@@ -124,6 +124,13 @@ interface InteractiveTutorialsConfig {
   passingScoreThreshold: number; // percentage
 }
 
+/**
+ * Displays the interactive tutorials configuration to the console in a formatted,
+ * colorized summary including project name, providers, counts, and feature flags.
+ *
+ * @param config - The interactive tutorials configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: InteractiveTutorialsConfig): void {
   console.log(chalk.cyan('📚 Interactive Tutorials and Guided Learning Paths'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -139,6 +146,14 @@ export function displayConfig(config: InteractiveTutorialsConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document summarizing the interactive tutorials feature,
+ * including the list of capabilities, learning path structure, and progress
+ * tracking details.
+ *
+ * @param config - The interactive tutorials configuration used to drive content.
+ * @returns A Markdown string describing the interactive tutorials features.
+ */
 export function generateInteractiveTutorialsMD(config: InteractiveTutorialsConfig): string {
   let md = '# Interactive Tutorials and Guided Learning Paths\n\n';
   md += '## Features\n\n';
@@ -174,12 +189,30 @@ export function generateInteractiveTutorialsMD(config: InteractiveTutorialsConfi
   return md;
 }
 
+/**
+ * Generates a Terraform header comment block for the interactive tutorials
+ * module, embedding the project name and the current generation timestamp.
+ *
+ * @param config - The interactive tutorials configuration providing the project name.
+ * @returns A string containing the Terraform header preamble.
+ */
 export function generateTerraformInteractiveTutorials(config: InteractiveTutorialsConfig): string {
   let code = '# Auto-generated Interactive Tutorials Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file as a string that implements an
+ * `InteractiveTutorialsManager` class (extending EventEmitter) for managing
+ * learning paths, enrolling learners, tracking progress, recording quiz
+ * scores, and issuing completion certificates. The generated code reflects
+ * the provided configuration options.
+ *
+ * @param config - The interactive tutorials configuration used to seed the
+ *   generated manager (e.g. progress tracking toggle, passing score threshold).
+ * @returns A string containing the full TypeScript module source code.
+ */
 export function generateTypeScriptInteractiveTutorials(config: InteractiveTutorialsConfig): string {
   let code = '// Auto-generated Interactive Tutorials Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -317,6 +350,18 @@ export function generateTypeScriptInteractiveTutorials(config: InteractiveTutori
   return code;
 }
 
+/**
+ * Generates a Python source file as a string that implements an
+ * `InteractiveTutorialsManager` class with dataclass-based learner progress
+ * tracking, path enrollment, quiz score recording, progress reporting, and
+ * certificate generation. The generated code reflects the provided
+ * configuration options.
+ *
+ * @param config - The interactive tutorials configuration used to seed the
+ *   generated manager (e.g. project name, progress tracking toggle,
+ *   passing score threshold).
+ * @returns A string containing the full Python module source code.
+ */
 export function generatePythonInteractiveTutorials(config: InteractiveTutorialsConfig): string {
   let code = '# Auto-generated Interactive Tutorials Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -431,6 +476,20 @@ export function generatePythonInteractiveTutorials(config: InteractiveTutorialsC
   return code;
 }
 
+/**
+ * Writes the generated interactive tutorials artifacts to the specified output
+ * directory. Depending on the target language, this includes the Terraform
+ * preamble, the TypeScript or Python manager source, a package.json or
+ * requirements.txt, a Markdown documentation file, and a JSON configuration
+ * snapshot.
+ *
+ * @param config - The interactive tutorials configuration to generate files from.
+ * @param outputDir - The directory where generated files will be written.
+ *   The directory will be created if it does not exist.
+ * @param language - The target implementation language; use `'typescript'` to
+ *   emit TypeScript artifacts, otherwise Python artifacts are emitted.
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeFiles(config: InteractiveTutorialsConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -482,6 +541,14 @@ export async function writeFiles(config: InteractiveTutorialsConfig, outputDir: 
   await fs.writeFile(path.join(outputDir, 'interactive-tutorials-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Identity-style factory that returns the provided interactive tutorials
+ * configuration unchanged. Typically used as a configuration entry point or
+ * pass-through validator.
+ *
+ * @param config - The interactive tutorials configuration to return.
+ * @returns The same `InteractiveTutorialsConfig` instance that was passed in.
+ */
 export function interactiveTutorials(config: InteractiveTutorialsConfig): InteractiveTutorialsConfig {
   return config;
 }

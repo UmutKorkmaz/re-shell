@@ -67,6 +67,13 @@ interface IaCConfig {
   enableDriftDetection: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the Infrastructure as Code configuration
+ * to the console, including provider, state backend, module count, and
+ * enabled features.
+ *
+ * @param config - The full IaC configuration object to display.
+ */
 export function displayConfig(config: IaCConfig): void {
   console.log(chalk.cyan('✨ Infrastructure as Code with Terraform/Pulumi and State Management'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -82,6 +89,13 @@ export function displayConfig(config: IaCConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string describing the Infrastructure as
+ * Code setup, including feature list and example Terraform/Pulumi commands.
+ *
+ * @param config - The IaC configuration used to scope the documentation.
+ * @returns A Markdown string containing feature overview and usage examples.
+ */
 export function generateIaCMD(config: IaCConfig): string {
   let md = '# Infrastructure as Code with Terraform/Pulumi\n\n';
   md += '## Features\n\n';
@@ -112,6 +126,16 @@ export function generateIaCMD(config: IaCConfig): string {
   return md;
 }
 
+/**
+ * Generates the contents of a Terraform `main.tf` file for the given project,
+ * including required version, provider declarations, backend configuration,
+ * input variables, and outputs.
+ *
+ * @param config - The IaC configuration describing the project and its
+ *   Terraform-specific settings.
+ * @returns A string of HCL (HashiCorp Configuration Language) ready to be
+ *   written to a `.tf` file.
+ */
 export function generateTerraformMain(config: IaCConfig): string {
   let code = '# Terraform configuration for ' + config.projectName + '\n';
   code += 'terraform {\n';
@@ -185,6 +209,15 @@ export function generateTerraformMain(config: IaCConfig): string {
   return code;
 }
 
+/**
+ * Generates the Terraform state backend configuration block (e.g. `state.tf`)
+ * for the selected backend, such as S3, AzureRM, or GCS, including encryption
+ * and versioning directives when enabled.
+ *
+ * @param config - The IaC configuration containing state management settings.
+ * @returns A string of HCL representing the state backend configuration, or a
+ *   header comment when an unsupported backend is configured.
+ */
 export function generateTerraformState(config: IaCConfig): string {
   let code = '# State management configuration for ' + config.projectName + '\n\n';
 
@@ -230,6 +263,17 @@ export function generateTerraformState(config: IaCConfig): string {
   return code;
 }
 
+/**
+ * Generates a Pulumi program source file for the project. The output language
+ * is determined by the configured Pulumi runtime (Node.js or Python) and
+ * includes provider imports, stack configuration, an example S3 bucket
+ * resource, and exported outputs.
+ *
+ * @param config - The IaC configuration describing the project and its
+ *   Pulumi-specific runtime settings.
+ * @returns The Pulumi program source code as a string, or an empty string when
+ *   the runtime is neither `nodejs` nor `python`.
+ */
 export function generatePulumiProgram(config: IaCConfig): string {
   const runtime = config.pulumi?.runtime || 'nodejs';
 
@@ -298,6 +342,16 @@ export function generatePulumiProgram(config: IaCConfig): string {
   return '';
 }
 
+/**
+ * Generates a TypeScript `IaCManager` class source file that orchestrates
+ * Terraform/Pulumi lifecycle operations (init, plan, apply, destroy, optional
+ * validation and drift detection, and workspace switching) via `execSync`.
+ *
+ * @param config - The IaC configuration used to populate project name,
+ *   provider, state backend, and feature flags in the generated manager.
+ * @returns A TypeScript source string containing the `IaCManager` class and a
+ *   default-exported singleton instance.
+ */
 export function generateTypeScriptIaCManager(config: IaCConfig): string {
   let code = '// Auto-generated IaC Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -402,6 +456,16 @@ export function generateTypeScriptIaCManager(config: IaCConfig): string {
   return code;
 }
 
+/**
+ * Generates a Python `IaCManager` class source file that orchestrates
+ * Terraform/Pulumi lifecycle operations (init, plan, apply, destroy, optional
+ * validation and drift detection, and workspace switching) via `subprocess.run`.
+ *
+ * @param config - The IaC configuration used to populate project name,
+ *   provider, state backend, and feature flags in the generated manager.
+ * @returns A Python source string containing the `IaCManager` class and a
+ *   module-level singleton instance.
+ */
 export function generatePythonIaCManager(config: IaCConfig): string {
   let code = '# Auto-generated IaC Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -496,6 +560,23 @@ export function generatePythonIaCManager(config: IaCConfig): string {
   return code;
 }
 
+/**
+ * Writes all generated Infrastructure as Code files to the specified output
+ * directory. This includes Terraform `main.tf` and `state.tf`, an optional
+ * Pulumi program, an IaC manager source file (TypeScript or Python), along
+ * with supporting `package.json`/`requirements.txt`, Markdown documentation,
+ * and a JSON configuration file.
+ *
+ * @param config - The IaC configuration describing the project to generate
+ *   files for.
+ * @param outputDir - The target directory where files will be written. It is
+ *   created if it does not already exist.
+ * @param language - The implementation language for the IaC manager, either
+ *   `typescript` or `python`.
+ * @returns A promise that resolves once all files have been written.
+ * @throws {Error} When file system operations fail (e.g. permission denied or
+ *   disk full).
+ */
 export async function writeFiles(config: IaCConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
