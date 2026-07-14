@@ -132,7 +132,7 @@ export function generateTypeScriptCICD(config: CICDPipelineConfig): string {
   code += '  private kc: KubeConfig;\n';
   code += '  private customObjectsApi: CustomObjectsApi;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.namespace = options.namespace || \'default\';\n';
   code += '    this.gitRepo = options.gitRepo || \'https://github.com/example/app.git\';\n';
@@ -196,7 +196,7 @@ export function generateTypeScriptCICD(config: CICDPipelineConfig): string {
   code += '      execSync(`kubectl apply -f ${crdPath}`, {\n';
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[CI/CD] Failed to deploy Tekton CRDs:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -448,7 +448,7 @@ export function generateTypeScriptCICD(config: CICDPipelineConfig): string {
 
   code += '    console.log(`[CI/CD] Deploying ${this.progressiveDelivery.strategy} strategy...`);\n\n';
 
-  code += '    const analysisTemplate: any = {\n';
+  code += '    const analysisTemplate: unknown = {\n';
   code += '      apiVersion: "flagger.app/v1beta1",\n';
   code += '      kind: \'Canary\',\n';
   code += '      metadata: {\n';
@@ -494,7 +494,7 @@ export function generateTypeScriptCICD(config: CICDPipelineConfig): string {
   code += '    console.log(\'[CI/CD] ✓ Progressive delivery deployed successfully\');\n';
   code += '  }\n\n';
 
-  code += '  async createPipelineRun(params: any = {}): Promise<void> {\n';
+  code += '  async createPipelineRun(params: unknown = {}): Promise<void> {\n';
   code += '    console.log(\'[CI/CD] Creating PipelineRun...\');\n\n';
 
   code += '    const pipelineRun = {\n';
@@ -544,7 +544,7 @@ export function generateTypeScriptCICD(config: CICDPipelineConfig): string {
   code += '        stdio: \'pipe\',\n';
   code += '      });\n';
   code += '      console.log(\'[CI/CD] ✓ PipelineRun created successfully\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[CI/CD] Failed to create PipelineRun:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -566,12 +566,12 @@ export function generateTypeScriptCICD(config: CICDPipelineConfig): string {
   code += '      for (const run of runs.items) {\n';
   code += '        console.log(`  - ${run.metadata.name}: ${run.status?.conditions?.[0]?.status || \'Unknown\'} - ${run.status?.conditions?.[0]?.reason || \'No reason\'}`);\n';
   code += '      }\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[CI/CD] Failed to get status:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private toYaml(obj: any): string {\n';
+  code += '  private toYaml(obj: unknown): string {\n';
   code += '    const yaml = require(\'js-yaml\');\n';
   code += '    return yaml.dump(obj);\n';
   code += '  }\n\n';

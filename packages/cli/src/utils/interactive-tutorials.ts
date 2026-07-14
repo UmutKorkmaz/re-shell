@@ -45,8 +45,8 @@ interface Exercise {
   difficulty: DifficultyLevel;
   estimatedTime: number; // in minutes
   testCases?: {
-    input: any;
-    expectedOutput: any;
+    input: unknown;
+    expectedOutput: unknown;
   }[];
 }
 
@@ -205,12 +205,12 @@ export function generateTypeScriptInteractiveTutorials(config: InteractiveTutori
   code += '  private learnerProgress: Map<string, LearnerProgress> = new Map();\n';
   code += '  private enableProgressTracking: boolean;\n';
   code += '  private passingScoreThreshold: number;\n\n';
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    super();\n';
   code += '    this.enableProgressTracking = options.enableProgressTracking !== false;\n';
   code += '    this.passingScoreThreshold = options.passingScoreThreshold || 70;\n';
   code += '  }\n\n';
-  code += '  addLearningPath(path: any): void {\n';
+  code += '  addLearningPath(path: unknown): void {\n';
   code += '    this.learningPaths.set(path.id, path);\n';
   code += '    this.emit(\'path-added\', path);\n';
   code += '  }\n\n';
@@ -277,7 +277,7 @@ export function generateTypeScriptInteractiveTutorials(config: InteractiveTutori
   code += '    progress.quizScores.set(quizId, score);\n';
   code += '    this.emit(\'quiz-completed\', { learnerId, pathId, quizId, score });\n';
   code += '  }\n\n';
-  code += '  getProgress(learnerId: string, pathId: string): any {\n';
+  code += '  getProgress(learnerId: string, pathId: string): unknown {\n';
   code += '    const key = `${learnerId}-${pathId}`;\n';
   code += '    const progress = this.learnerProgress.get(key);\n';
   code += '    if (!progress) return null;\n\n';
@@ -292,7 +292,7 @@ export function generateTypeScriptInteractiveTutorials(config: InteractiveTutori
   code += '      remainingSteps: totalSteps - completedCount,\n';
   code += '    };\n';
   code += '  }\n\n';
-  code += '  generateCertificate(learnerId: string, pathId: string): any {\n';
+  code += '  generateCertificate(learnerId: string, pathId: string): unknown {\n';
   code += '    const progress = this.getProgress(learnerId, pathId);\n';
   code += '    if (!progress || progress.status !== \'completed\') {\n';
   code += '      throw new Error(\'Path not completed\');\n';

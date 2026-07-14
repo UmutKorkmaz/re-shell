@@ -248,10 +248,10 @@ export interface PayloadProcessingResult {
 }
 
 export class ${toPascalCase(config.serviceName)}LargePayloadCompression {
-  private config: any;
+  private config: unknown;
   private compressionCache: Map<string, any>;
 
-  constructor(config: any) {
+  constructor(config: unknown) {
     this.config = config;
     this.compressionCache = new Map();
   }
@@ -527,7 +527,7 @@ export class ${toPascalCase(config.serviceName)}LargePayloadCompression {
   /**
    * Promisify compression functions
    */
-  private promisifyCompress(fn: any, data: Buffer, options?: any): Promise<Buffer> {
+  private promisifyCompress(fn: unknown, data: Buffer, options?: unknown): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       fn(data, options, (err: Error | null, result: Buffer) => {
         if (err) reject(err);
@@ -707,7 +707,7 @@ export class ${toPascalCase(config.serviceName)}LargePayloadCompression {
 }
 
 // Factory function
-export function createLargePayloadCompression(config: any) {
+export function createLargePayloadCompression(config: unknown) {
   return new ${toPascalCase(config.serviceName)}LargePayloadCompression(config);
 }
 
@@ -1333,13 +1333,13 @@ func main() {
  */
 export async function writeCompressionStrategyFiles(
   serviceName: string,
-  integration: any,
+  integration: Record<string, unknown>,
   outputDir: string,
   language: string
 ): Promise<void> {
   await fs.ensureDir(outputDir);
 
-  for (const file of integration.files) {
+  for (const file of (integration.files as Array<{ path: string; content: string }>)) {
     const filePath = path.join(outputDir, file.path);
     const fileDir = path.dirname(filePath);
 
@@ -1398,7 +1398,7 @@ export async function displayCompressionStrategyConfig(config: CompressionStrate
 }
 
 // Generate BUILD.md
-function generateBuildMarkdown(serviceName: string, integration: any, language: string): string {
+function generateBuildMarkdown(serviceName: string, integration: unknown, language: string): string {
   const toPascalCase = (str: string) =>
     str.replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase()).replace(/[-_]/g, '');
 

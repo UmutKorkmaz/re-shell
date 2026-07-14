@@ -34,7 +34,7 @@ export interface ValidationConfig {
  * @returns The validation result, possibly asynchronous.
  */
 export interface ValidatorFunction {
-  (value: any, schema: any): ValidationResult | Promise<ValidationResult>;
+  (value: unknown, schema: unknown): ValidationResult | Promise<ValidationResult>;
 }
 
 /**
@@ -43,7 +43,7 @@ export interface ValidatorFunction {
 export interface ValidationResult {
   valid: boolean;
   errors?: ValidationError[];
-  value?: any;
+  value?: unknown;
 }
 
 /**
@@ -97,7 +97,7 @@ export const VALIDATION_PATTERNS = {
  * required, email, minLength, maxLength, min, max, pattern, and enum.
  */
 export const BUILT_IN_VALIDATORS = {
-  required: (value: any) => ({
+  required: (value: unknown) => ({
     valid: value !== null && value !== undefined && value !== '',
     errors: !value ? [{ field: '', message: 'This field is required', code: 'required' }] : [],
   }),
@@ -125,7 +125,7 @@ export const BUILT_IN_VALIDATORS = {
     valid: !value || regex.test(value),
     errors: value && !regex.test(value) ? [{ field: '', message: 'Format is invalid', code: 'pattern' }] : [],
   }),
-  enum: (...values: any[]) => (value: any) => ({
+  enum: (...values: unknown[]) => (value: unknown) => ({
     valid: value === null || value === undefined || values.includes(value),
     errors: value !== null && value !== undefined && !values.includes(value) ? [{ field: '', message: `Must be one of: ${values.join(', ')}`, code: 'enum' }] : [],
   }),
@@ -265,7 +265,7 @@ app.post('/users',
 export class JoiValidationPipe implements PipeTransform<any> {
   constructor(private readonly schema?: Joi.ObjectSchema<any>) {}
 
-  transform(value: any, metadata: ArgumentMetadata) {
+  transform(value: unknown, metadata: ArgumentMetadata) {
     if (!this.schema) {
       return value;
     }
@@ -292,7 +292,7 @@ export class JoiValidationPipe implements PipeTransform<any> {
 
 // Parameter decorator for DTO validation
 export function JoiSchema(schema: Joi.ObjectSchema<any>) {
-  return function (target: any, propertyKey: string, parameterIndex: number) {
+  return function (target: unknown, propertyKey: string, parameterIndex: number) {
     const existingValidators = Reflect.getMetadata('validation:validators', target) || [];
     Reflect.defineMetadata('validation:validators', [...existingValidators, { schema, parameterIndex }], target);
   };
