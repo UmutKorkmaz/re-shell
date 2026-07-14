@@ -6,7 +6,9 @@
 
 
 
-// Analytics provider type
+/**
+ * Supported analytics provider identifiers.
+ */
 export type AnalyticsProvider =
   | 'prometheus'
   | 'datadog'
@@ -17,7 +19,9 @@ export type AnalyticsProvider =
   | 'open-telemetry'
   | 'custom';
 
-// Backend framework type
+/**
+ * Supported backend framework identifiers for which analytics middleware can be generated.
+ */
 export type BackendFramework =
   | 'express'
   | 'nestjs'
@@ -29,7 +33,9 @@ export type BackendFramework =
   | 'gin'
   | 'axum';
 
-// Analytics configuration interfaces
+/**
+ * Configuration object describing the analytics setup for a backend service.
+ */
 export interface AnalyticsConfig {
   name: string;
   provider: AnalyticsProvider;
@@ -40,6 +46,9 @@ export interface AnalyticsConfig {
   alerts?: AlertConfig[];
 }
 
+/**
+ * Describes a single metric to be tracked (counter, gauge, histogram, or summary).
+ */
 export interface MetricConfig {
   name: string;
   type: 'counter' | 'gauge' | 'histogram' | 'summary';
@@ -47,6 +56,9 @@ export interface MetricConfig {
   labels?: string[];
 }
 
+/**
+ * Represents an endpoint to instrument with analytics tracking, logging, or error logging.
+ */
 export interface AnalyticsEndpoint {
   path: string;
   method: string;
@@ -55,6 +67,9 @@ export interface AnalyticsEndpoint {
   logErrors: boolean;
 }
 
+/**
+ * Defines an alert rule including condition, threshold, time window, and notification targets.
+ */
 export interface AlertConfig {
   name: string;
   condition: string;
@@ -63,7 +78,12 @@ export interface AlertConfig {
   notify: string[];
 }
 
-// Provider templates
+/**
+ * Retrieves the provider template (metadata, format, docs URL) for a given analytics provider.
+ *
+ * @param provider - The analytics provider identifier.
+ * @returns The matching provider template, or `undefined` if not found.
+ */
 export function getAnalyticsProvider(provider: AnalyticsProvider): ProviderTemplate | undefined {
   const providers: Record<AnalyticsProvider, ProviderTemplate> = {
     prometheus: {
@@ -143,6 +163,9 @@ export function getAnalyticsProvider(provider: AnalyticsProvider): ProviderTempl
   return providers[provider];
 }
 
+/**
+ * Static metadata describing an analytics provider (format, description, docs URL).
+ */
 export interface ProviderTemplate {
   provider: AnalyticsProvider;
   format: 'yaml' | 'json' | 'js' | 'ts';
@@ -154,6 +177,12 @@ export interface ProviderTemplate {
 }
 
 // Generate Express analytics middleware
+/**
+ * Generates Express.js analytics middleware code for the given configuration.
+ *
+ * @param config - The analytics configuration.
+ * @returns Generated middleware source code as a string.
+ */
 export function generateExpressAnalytics(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -291,6 +320,12 @@ export function generateExpressAnalytics(config: AnalyticsConfig): string {
 }
 
 // Generate FastAPI analytics middleware
+/**
+ * Generates FastAPI (Python) analytics middleware code for the given configuration.
+ *
+ * @param config - The analytics configuration.
+ * @returns Generated middleware source code as a string.
+ */
 export function generateFastAPIAnalytics(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -431,6 +466,12 @@ export function generateFastAPIAnalytics(config: AnalyticsConfig): string {
 }
 
 // Generate Django analytics middleware
+/**
+ * Generates Django (Python) analytics middleware code for the given configuration.
+ *
+ * @param config - The analytics configuration.
+ * @returns Generated middleware source code as a string.
+ */
 export function generateDjangoAnalytics(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -545,6 +586,12 @@ export function generateDjangoAnalytics(config: AnalyticsConfig): string {
 }
 
 // Generate ASP.NET Core analytics middleware
+/**
+ * Generates ASP.NET Core analytics middleware code for the given configuration.
+ *
+ * @param config - The analytics configuration.
+ * @returns Generated middleware source code as a string.
+ */
 export function generateAspNetCoreAnalytics(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -701,6 +748,12 @@ export function generateAspNetCoreAnalytics(config: AnalyticsConfig): string {
 }
 
 // Generate Spring Boot analytics configuration
+/**
+ * Generates Spring Boot (Java/Kotlin) analytics middleware code for the given configuration.
+ *
+ * @param config - The analytics configuration.
+ * @returns Generated middleware source code as a string.
+ */
 export function generateSpringBootAnalytics(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -870,6 +923,12 @@ export function generateSpringBootAnalytics(config: AnalyticsConfig): string {
 }
 
 // Generate Gin (Go) analytics middleware
+/**
+ * Generates Gin (Go) analytics middleware code for the given configuration.
+ *
+ * @param config - The analytics configuration.
+ * @returns Generated middleware source code as a string.
+ */
 export function generateGinAnalytics(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -1047,6 +1106,12 @@ export function generateGinAnalytics(config: AnalyticsConfig): string {
 }
 
 // Generate Rust Axum analytics middleware
+/**
+ * Generates Axum (Rust) analytics middleware code for the given configuration.
+ *
+ * @param config - The analytics configuration.
+ * @returns Generated middleware source code as a string.
+ */
 export function generateAxumAnalytics(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -1120,6 +1185,12 @@ export function generateAxumAnalytics(config: AnalyticsConfig): string {
 }
 
 // Generate NestJS analytics middleware
+/**
+ * Generates NestJS analytics middleware code for the given configuration.
+ *
+ * @param config - The analytics configuration.
+ * @returns Generated middleware source code as a string.
+ */
 export function generateNestJSAnalytics(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -1247,6 +1318,12 @@ export function generateNestJSAnalytics(config: AnalyticsConfig): string {
 }
 
 // Generate Fastify analytics middleware
+/**
+ * Generates Fastify analytics middleware code for the given configuration.
+ *
+ * @param config - The analytics configuration.
+ * @returns Generated middleware source code as a string.
+ */
 export function generateFastifyAnalytics(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -1354,7 +1431,12 @@ export function generateFastifyAnalytics(config: AnalyticsConfig): string {
   return lines.join('\n');
 }
 
-// Generate Prometheus config file
+/**
+ * Generates a Prometheus YAML configuration file from the analytics configuration.
+ *
+ * @param config - The analytics configuration.
+ * @returns Prometheus configuration file content as a string.
+ */
 export function generatePrometheusConfig(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -1388,7 +1470,12 @@ export function generatePrometheusConfig(config: AnalyticsConfig): string {
   return lines.join('\n');
 }
 
-// Generate Grafana dashboard JSON
+/**
+ * Generates a Grafana dashboard JSON document with panels for request rate, duration, and error rate.
+ *
+ * @param config - The analytics configuration.
+ * @returns Grafana dashboard JSON as a string.
+ */
 export function generateGrafanaDashboard(config: AnalyticsConfig): string {
   const dashboard = {
     dashboard: {
@@ -1416,7 +1503,12 @@ export function generateGrafanaDashboard(config: AnalyticsConfig): string {
   return JSON.stringify(dashboard, null, 2);
 }
 
-// Generate alert rules for Prometheus
+/**
+ * Generates Prometheus alert rule definitions from the configured alerts, or default rules if none are set.
+ *
+ * @param config - The analytics configuration.
+ * @returns Alert rules YAML content as a string.
+ */
 export function generateAlertRules(config: AnalyticsConfig): string {
   const lines: string[] = [];
 
@@ -1461,7 +1553,12 @@ export function generateAlertRules(config: AnalyticsConfig): string {
   return lines.join('\n');
 }
 
-// Generate analytics middleware based on framework and provider
+/**
+ * Dispatches to the appropriate framework-specific analytics middleware generator.
+ *
+ * @param config - The analytics configuration.
+ * @returns Generated middleware source code as a string.
+ */
 export function generateAnalyticsMiddleware(config: AnalyticsConfig): string {
   const { framework, provider } = config;
 
@@ -1515,7 +1612,12 @@ export function generateAnalyticsMiddleware(config: AnalyticsConfig): string {
   }
 }
 
-// Generate docker-compose for analytics stack
+/**
+ * Generates a docker-compose file for the analytics provider's service stack.
+ *
+ * @param provider - The analytics provider identifier.
+ * @returns Docker-compose file content as a string.
+ */
 export function generateAnalyticsDockerCompose(provider: AnalyticsProvider): string {
   const templates: Record<AnalyticsProvider, string> = {
     prometheus: `version: '3.8'
@@ -1611,7 +1713,11 @@ services:
   return templates[provider];
 }
 
-// List all supported analytics providers
+/**
+ * Lists all supported analytics providers with their descriptions and documentation URLs.
+ *
+ * @returns An array of provider metadata objects.
+ */
 export function listAnalyticsProviders(): Array<{ provider: AnalyticsProvider; description: string; docs: string }> {
   const providers: AnalyticsProvider[] = [
     'prometheus',
@@ -1634,12 +1740,21 @@ export function listAnalyticsProviders(): Array<{ provider: AnalyticsProvider; d
   });
 }
 
-// List all supported backend frameworks
+/**
+ * Lists all backend frameworks supported by the analytics generators.
+ *
+ * @returns An array of supported backend framework identifiers.
+ */
 export function listSupportedFrameworks(): BackendFramework[] {
   return ['express', 'nestjs', 'fastify', 'fastapi', 'django', 'aspnet-core', 'spring-boot', 'gin', 'axum'];
 }
 
-// Generate complete analytics setup
+/**
+ * Generates a complete analytics setup including middleware, provider config, dashboard, alert rules, and docker-compose file.
+ *
+ * @param config - The analytics configuration.
+ * @returns An object containing the generated middleware and optional provider-specific artifacts.
+ */
 export function generateAnalyticsSetup(config: AnalyticsConfig): {
   middleware: string;
   prometheusConfig?: string;
