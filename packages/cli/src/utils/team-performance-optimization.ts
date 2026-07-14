@@ -64,6 +64,14 @@ interface TeamPerformanceOptimizationConfig {
   enableFeedbackCollection: boolean;
 }
 
+/**
+ * Displays a summary of the team performance optimization configuration to the console.
+ * Prints project metadata, counts of issues, recommendations, sessions, and goals,
+ * along with flags for auto detection, progress tracking, and feedback collection.
+ *
+ * @param config - The team performance optimization configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: TeamPerformanceOptimizationConfig): void {
   console.log(chalk.cyan('🎯 Team Performance Optimization Recommendations'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -79,6 +87,13 @@ export function displayConfig(config: TeamPerformanceOptimizationConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the team performance optimization
+ * recommendations and supported coaching features.
+ *
+ * @param config - The team performance optimization configuration used to derive the document context.
+ * @returns A Markdown string summarizing the available features and recommendations.
+ */
 export function generateTeamPerformanceOptimizationMD(config: TeamPerformanceOptimizationConfig): string {
   let md = '# Team Performance Optimization Recommendations with Coaching\n\n';
   md += '## Features\n\n';
@@ -98,12 +113,26 @@ export function generateTeamPerformanceOptimizationMD(config: TeamPerformanceOpt
   return md;
 }
 
+/**
+ * Generates a Terraform header stub for the team performance optimization setup,
+ * including the project name and a timestamp of generation.
+ *
+ * @param config - The team performance optimization configuration providing the project name.
+ * @returns A string containing Terraform-style comments for the generated configuration.
+ */
 export function generateTerraformTeamPerformanceOptimization(config: TeamPerformanceOptimizationConfig): string {
   let code = '# Auto-generated Team Performance Optimization Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript module that defines a `TeamPerformanceOptimizationManager`
+ * class extending `EventEmitter`, along with a default exported instance.
+ *
+ * @param config - The team performance optimization configuration providing the project name.
+ * @returns A string containing the generated TypeScript source code.
+ */
 export function generateTypeScriptTeamPerformanceOptimization(config: TeamPerformanceOptimizationConfig): string {
   let code = '// Auto-generated Team Performance Optimization Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -118,6 +147,13 @@ export function generateTypeScriptTeamPerformanceOptimization(config: TeamPerfor
   return code;
 }
 
+/**
+ * Generates a Python module that defines a `TeamPerformanceOptimizationManager`
+ * class along with a default module-level instance.
+ *
+ * @param config - The team performance optimization configuration providing the project name.
+ * @returns A string containing the generated Python source code.
+ */
 export function generatePythonTeamPerformanceOptimization(config: TeamPerformanceOptimizationConfig): string {
   let code = '# Auto-generated Team Performance Optimization Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -130,6 +166,16 @@ export function generatePythonTeamPerformanceOptimization(config: TeamPerformanc
   return code;
 }
 
+/**
+ * Writes the generated team performance optimization files to the specified output directory.
+ * Depending on the chosen language, this includes the Terraform stub, a TypeScript or Python
+ * manager module, language-specific dependency manifests, a Markdown summary, and a JSON config.
+ *
+ * @param config - The team performance optimization configuration to render into the generated files.
+ * @param outputDir - The target directory where files will be written. Created if it does not exist.
+ * @param language - The implementation language to generate; either `'typescript'` or `'python'`.
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeFiles(config: TeamPerformanceOptimizationConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -177,6 +223,13 @@ export async function writeFiles(config: TeamPerformanceOptimizationConfig, outp
   await fs.writeFile(path.join(outputDir, 'team-performance-optimization-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided team performance optimization configuration unchanged.
+ * Acts as a pass-through/normalization entry point for the optimization utilities.
+ *
+ * @param config - The team performance optimization configuration to return.
+ * @returns The same configuration object that was passed in.
+ */
 export function teamPerformanceOptimization(config: TeamPerformanceOptimizationConfig): TeamPerformanceOptimizationConfig {
   return config;
 }

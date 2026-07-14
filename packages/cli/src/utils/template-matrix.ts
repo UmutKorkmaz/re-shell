@@ -10,32 +10,56 @@ import {
  * registry metadata (tags + features).
  */
 export interface MatrixRow {
+  /** Stable, unique identifier of the template (kebab-case). */
   id: string;
+  /** Machine-readable name of the template. */
   name: string;
+  /** Optional human-friendly display name used in user-facing UI. */
   displayName?: string;
+  /** Primary programming language the template is written in (e.g. `typescript`, `python`). */
   language: string;
+  /** Framework or runtime the template is built on (e.g. `express`, `fastapi`). */
   framework: string;
+  /** Normalized set of databases the template supports, derived from its tags/features. */
   databases: string[];
+  /** Normalized set of caches the template supports, derived from its tags/features. */
   caches: string[];
+  /** Normalized set of deployment targets the template supports, derived from its tags/features. */
   deploymentTargets: string[];
+  /** Sorted list of feature tags the template advertises verbatim from the registry. */
   features: string[];
 }
 
 /**
  * Distinct values seen across every row, so consumers can build filter UIs or
  * assert coverage without re-deriving the union themselves.
+ *
+ * Each field is the deduplicated, sorted union of the matching field across
+ * every {@link MatrixRow} produced by the matrix.
  */
 export interface MatrixFacets {
+  /** Distinct languages advertised across all templates. */
   languages: string[];
+  /** Distinct frameworks advertised across all templates. */
   frameworks: string[];
+  /** Distinct databases supported across all templates. */
   databases: string[];
+  /** Distinct caches supported across all templates. */
   caches: string[];
+  /** Distinct deployment targets supported across all templates. */
   deploymentTargets: string[];
+  /** Distinct feature tags advertised across all templates. */
   features: string[];
 }
 
+/**
+ * Result of building the template compatibility matrix: the per-template rows
+ * plus aggregated facets used to drive filters and coverage checks.
+ */
 export interface TemplateMatrix {
+  /** One normalized row per template in the backend registry, sorted by id. */
   matrix: MatrixRow[];
+  /** Aggregated distinct values across all rows, used for filters and coverage assertions. */
   facets: MatrixFacets;
 }
 
@@ -134,6 +158,13 @@ function collect(rows: MatrixRow[], pick: (r: MatrixRow) => string[]): string[] 
 /**
  * Build the full template compatibility matrix + facets from the backend
  * registry. Every registry entry yields exactly one row.
+ *
+ * Each row's databases, caches and deployment targets are derived from the
+ * template's tags and features using canonical marker maps, so the matrix
+ * stays in lockstep with whatever the registry advertises.
+ *
+ * @returns A {@link TemplateMatrix} containing one sorted row per backend
+ * template and the aggregated {@link MatrixFacets} across all rows.
  */
 export function buildTemplateMatrix(): TemplateMatrix {
   const rows = listBackendTemplates()
