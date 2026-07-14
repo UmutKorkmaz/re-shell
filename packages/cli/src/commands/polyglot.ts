@@ -1,6 +1,13 @@
 /**
  * Polyglot Build and Deploy Commands
- * Unified commands for building and deploying multi-language applications
+ *
+ * Unified commands for building and deploying multi-language applications.
+ *
+ * This module exposes high-level orchestration functions used by the Re-Shell
+ * CLI to scan a workspace for polyglot services, build them with their native
+ * toolchains, generate deployment configuration for multiple targets
+ * (Docker, Kubernetes, AWS Lambda, Vercel, Netlify), and deploy them to a
+ * chosen environment.
  */
 
 import * as path from 'path';
@@ -33,7 +40,18 @@ import {
 } from '../utils/polyglot-deploy';
 
 /**
- * Build all services in the workspace
+ * Build all (or a filtered subset of) services discovered in the current workspace.
+ *
+ * The function scans the workspace for polyglot services, optionally filters them
+ * based on the provided options, invokes each service's native build toolchain,
+ * prints a build summary, and exits with a non-zero status code if any build failed.
+ *
+ * @param options - Optional build configuration. Supports a `spinner` for progress
+ *   reporting, a `production` flag to toggle production vs. development builds,
+ *   and filter criteria (language, type, name) to scope which services are built.
+ *   Defaults to `{}` which builds all discovered services in development mode.
+ * @returns A promise that resolves once all builds have completed. The process
+ *   will exit with code `1` if one or more builds fail.
  */
 export async function buildAll(options: PolyglotBuildOptions = {}): Promise<void> {
   const { spinner, production = false } = options;
@@ -102,7 +120,25 @@ export async function buildAll(options: PolyglotBuildOptions = {}): Promise<void
 }
 
 /**
- * Generate deployment configuration
+ * Generate deployment configuration files for the given target and environment.
+ *
+ * Scans the workspace for services, optionally filters them, then writes
+ * target-specific configuration artifacts (for example `docker-compose.yml`,
+ * Kubernetes manifests, AWS Lambda JSON configs, `vercel.json`, or
+ * `netlify.toml`) into a `deploy/<environment>` directory. Also emits shared
+ * deployment shell scripts and an `.env.example` template derived from the
+ * supplied environment file.
+ *
+ * @param target - The deployment target to generate configuration for
+ *   (e.g. `docker`, `kubernetes`, `aws-lambda`, `vercel`, `netlify`).
+ * @param environment - The target deployment environment identifier
+ *   (e.g. `staging`, `production`).
+ * @param options - Additional generation options. May include `spinner` for
+ *   progress reporting, `verbose` for detailed logs, `region`, `domain`,
+ *   `env` (path to an env file), `resources` and `scaling` (JSON strings),
+ *   and filter criteria (`type`, `language`, `name`). Defaults to `{}`.
+ * @returns A promise that resolves once all configuration files have been
+ *   written to disk.
  */
 export async function generateDeploymentConfig(
   target: DeploymentTarget,
@@ -251,7 +287,25 @@ export async function generateDeploymentConfig(
 }
 
 /**
- * Deploy services
+ * Deploy services to the specified target and environment.
+ *
+ * Scans the workspace for services, optionally filters them, and unless
+ * `skipBuild` is set, runs {@link buildAll} first to ensure the latest
+ * artifacts are deployed. It then loads any existing deployment config from
+ * `deploy/<environment>/config.json` (falling back to a minimal config), and
+ * invokes {@link deployService} for each service in parallel. A deployment
+ * summary is printed and the process exits with code `1` on any failure.
+ *
+ * @param target - The deployment target to deploy to (e.g. `docker`,
+ *   `kubernetes`, `aws-lambda`, `vercel`, `netlify`).
+ * @param environment - The target deployment environment identifier
+ *   (e.g. `staging`, `production`).
+ * @param options - Deployment options. Supports `spinner` for progress
+ *   reporting, `skipBuild` to skip the pre-deploy build step, and a `filter`
+ *   object (`type`, `language`, `name`) to scope which services are deployed.
+ *   Defaults to `{}`.
+ * @returns A promise that resolves once all deployments have completed. The
+ *   process exits with code `1` if one or more deployments fail.
  */
 export async function deployServices(
   target: DeploymentTarget,
@@ -347,7 +401,16 @@ export async function deployServices(
 }
 
 /**
- * List all services in the workspace
+ * List all services discovered in the current workspace.
+ *
+ * Scans the workspace for polyglot services and either emits them as JSON
+ * (when `options.json` is set) or prints a human-readable, type-grouped
+ * summary that indicates whether each service exposes a build script.
+ *
+ * @param options - Listing options. When `options.json` is truthy, the
+ *   services are printed as a pretty-printed JSON array instead of the
+ *   formatted table. Defaults to `{}`.
+ * @returns A promise that resolves once the services have been listed.
  */
 export async function listServices(options: any = {}): Promise<void> {
   try {

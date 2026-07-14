@@ -30,18 +30,26 @@ import { discoverWorkspace } from '../utils/task-runner';
 /** Candidate filenames for the workspace config, in discovery order. */
 const CONFIG_CANDIDATES = ['re-shell.workspaces.yaml', 're-shell.workspaces.yml'];
 
-/** Options accepted by the `migrate` command. */
+/**
+ * Options accepted by the `migrate` command.
+ *
+ * Governs the version-scoped migration/codemod flow: which target version to
+ * migrate toward, whether to actually write changes (or just print the plan),
+ * and which packages are in scope. Test-only fields allow injecting a working
+ * directory and a custom ast-grep runner.
+ */
 export interface MigrateCommandOptions {
+  /** When true, emit machine-readable JSON envelopes instead of human-friendly output. */
   json?: boolean;
-  /** Target version (default LATEST_TARGET_VERSION). */
+  /** Target version to migrate toward (defaults to `LATEST_TARGET_VERSION`). */
   toVersion?: string;
-  /** When false (the safe default), only list the plan; when true, apply. */
+  /** When `true`, apply the migrations to disk; when `false`/unset, only list the plan. */
   noDryRun?: boolean;
-  /** Optional package filter (comma-separated names). */
+  /** Optional package filter: a comma-separated list of package names to scope the run. */
   filter?: string;
-  /** Working directory override (tests). */
+  /** Working directory override, primarily used by tests to point at a fixture workspace. */
   cwd?: string;
-  /** Inject ast-grep runner (tests). */
+  /** Inject a custom ast-grep runner, primarily used by tests to stub source transforms. */
   runner?: AstGrepRunner;
 }
 
@@ -101,6 +109,16 @@ function toWireDescriptor(lite: MigrationDescriptorLite) {
  *
  * Source transforms (ast-grep) degrade to `skipped` when ast-grep is not installed.
  * Computing the plan is pure data and never touches disk or the network.
+ *
+ * The function never throws for expected failure modes: workspace config missing,
+ * no applicable recipes, partial applies, or failed recipes are all surfaced via
+ * the chosen output channel (JSON envelope or human-readable text) and, where
+ * appropriate, a non-zero `process.exitCode`. The only callers that should see
+ * a rejection are unexpected internal errors.
+ *
+ * @param options - Command options (target version, dry-run toggle, package filter, etc.).
+ * @returns Resolves once the plan has been printed or all migrations have been
+ *   applied. Inspect `process.exitCode` to detect a partially/fully failed apply.
  */
 export async function runMigrate(options: MigrateCommandOptions): Promise<void> {
   const json = Boolean(options.json);

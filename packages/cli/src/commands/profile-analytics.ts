@@ -4,74 +4,150 @@ import chalk from 'chalk';
 import { EnvironmentProfile, loadProfileConfig } from './profile';
 
 /**
- * Profile analytics and usage tracking
- * Tracks profile usage, provides insights and recommendations
+ * Profile analytics and usage tracking.
+ *
+ * Tracks profile usage, provides insights and recommendations.
+ *
+ * @packageDocumentation
  */
 
 const ANALYTICS_FILE = '.re-shell/profile-analytics.json';
 const ANALYTICS_RETENTION_DAYS = 90;
 
+/**
+ * Root analytics document persisted to disk.
+ *
+ * Contains schema version information, per-profile usage data,
+ * aggregate global statistics, and the timestamp of the most recent update.
+ */
 export interface ProfileAnalytics {
+  /** Schema version of the analytics document. */
   version: string;
+  /** Map of profile name to its usage data. */
   profiles: Record<string, ProfileUsageData>;
+  /** Aggregate analytics computed across all profiles. */
   global: GlobalAnalytics;
+  /** ISO timestamp of the most recent analytics write. */
   lastUpdated: string;
 }
 
+/**
+ * Per-profile usage and health data tracked over time.
+ */
 export interface ProfileUsageData {
+  /** Name of the profile this data describes. */
   profileName: string;
+  /** ISO timestamp of when the profile first appeared in analytics. */
   createdAt: string;
+  /** ISO timestamp of the most recent activity on this profile. */
   lastUsed: string;
+  /** Total number of times the profile has been used. */
   usageCount: number;
-  totalDuration: number; // milliseconds
+  /** Cumulative session duration in milliseconds. */
+  totalDuration: number;
+  /** Average session duration in milliseconds. */
   averageSessionDuration: number;
+  /** Number of times the profile has been activated. */
   activationCount: number;
+  /** Number of times the profile has been deactivated. */
   deactivationCount: number;
+  /** Number of customization changes applied to the profile. */
   customizationCount: number;
+  /** Map of environment name to number of activations in that environment. */
   environments: Record<string, number>;
+  /** Map of framework name to number of activations using that framework. */
   frameworks: Record<string, number>;
+  /** Recorded error events associated with the profile. */
   errors: ErrorEvent[];
+  /** Performance timings collected for activation/deactivation operations. */
   performanceMetrics: PerformanceMetrics;
+  /** Free-form labels assigned to the profile (e.g. `customized`). */
   tags: string[];
 }
 
+/**
+ * Aggregate analytics computed across all tracked profiles.
+ */
 export interface GlobalAnalytics {
+  /** Total number of profile activations recorded. */
   totalActivations: number;
+  /** Total accumulated session time across all profiles, in milliseconds. */
   totalSessionTime: number;
+  /** Name of the profile with the highest usage count. */
   mostUsedProfile: string;
+  /** Profile and duration of the longest single session observed. */
   longestSession: { profile: string; duration: number };
+  /** Average session duration across all activations, in milliseconds. */
   averageSessionDuration: number;
+  /** Total number of profiles that have been created. */
   profilesCreated: number;
+  /** Total number of profiles that have been deleted. */
   profilesDeleted: number;
+  /** Map of framework name to total activations across all profiles. */
   frameworkUsage: Record<string, number>;
+  /** Map of environment name to total activations across all profiles. */
   environmentUsage: Record<string, number>;
 }
 
+/**
+ * A single recorded error event tied to a profile.
+ */
 export interface ErrorEvent {
+  /** ISO timestamp of when the error occurred. */
   timestamp: string;
+  /** Human-readable description of the error. */
   error: string;
+  /** Contextual information about what was happening when the error occurred. */
   context: string;
+  /** Whether the error has been marked as resolved. */
   resolved: boolean;
 }
 
+/**
+ * Performance timing metrics for a profile's activation lifecycle.
+ */
 export interface PerformanceMetrics {
+  /** Average time (ms) taken to activate the profile. */
   averageActivationTime: number;
+  /** Average time (ms) taken to deactivate the profile. */
   averageDeactivationTime: number;
+  /** Slowest single activation observed, with its time and date. */
   slowestActivation: { time: number; date: string };
+  /** Number of activation attempts that failed. */
   failedActivations: number;
 }
 
+/**
+ * A single actionable insight generated from analytics data.
+ */
 export interface ProfileInsight {
+  /** Category of the insight. */
   type: 'usage' | 'performance' | 'optimization' | 'warning';
+  /** How important the insight is. */
   severity: 'info' | 'suggestion' | 'warning' | 'critical';
+  /** Short headline describing the insight. */
   title: string;
+  /** Detailed explanation of what was observed. */
   description: string;
+  /** Optional suggested action the user can take. */
   recommendation?: string;
+  /** Optional description of the potential impact of acting on the insight. */
   impact?: string;
 }
 
 /**
- * Track profile activation
+ * Record a profile activation in the analytics store.
+ *
+ * Increments usage and activation counters, updates last-used timestamp,
+ * records environment/framework metadata when provided, and refreshes the
+ * "most used profile" global statistic. The profile is created on first use.
+ *
+ * @param profileName - Name of the profile being activated.
+ * @param metadata - Optional activation metadata.
+ * @param metadata.activationTime - Optional time (ms) the activation took.
+ * @param metadata.environment - Optional environment the profile was activated in.
+ * @param metadata.framework - Optional framework the profile was activated with.
+ * @returns Resolves when the updated analytics have been persisted.
  */
 export async function trackProfileActivation(
   profileName: string,
@@ -113,7 +189,17 @@ export async function trackProfileActivation(
 }
 
 /**
- * Track profile deactivation
+ * Record a profile deactivation and its session duration in the analytics store.
+ *
+ * Increments deactivation counters, accumulates session time, recomputes
+ * average session durations, and updates the global longest-session statistic
+ * when applicable. No-op if the profile is not present in analytics.
+ *
+ * @param profileName - Name of the profile being deactivated.
+ * @param sessionDuration - Duration of the just-ended session in milliseconds.
+ * @param metadata - Optional deactivation metadata.
+ * @param metadata.deactivationTime - Optional time (ms) the deactivation took.
+ * @returns Resolves when the updated analytics have been persisted.
  */
 export async function trackProfileDeactivation(
   profileName: string,
@@ -143,7 +229,14 @@ export async function trackProfileDeactivation(
 }
 
 /**
- * Track profile customization
+ * Record customization changes applied to a profile.
+ *
+ * Increments the customization counter by the number of changes and tags the
+ * profile as `customized` if it has not already been tagged.
+ *
+ * @param profileName - Name of the profile that was customized.
+ * @param changes - List of change descriptions applied in this customization.
+ * @returns Resolves when the updated analytics have been persisted.
  */
 export async function trackProfileCustomization(
   profileName: string,
@@ -165,7 +258,15 @@ export async function trackProfileCustomization(
 }
 
 /**
- * Track profile errors
+ * Record an error event against a profile.
+ *
+ * Appends a new unresolved error entry to the profile's error history. No-op
+ * if the profile is not present in analytics.
+ *
+ * @param profileName - Name of the profile the error is associated with.
+ * @param error - Human-readable description of the error.
+ * @param context - Contextual information about what was happening when the error occurred.
+ * @returns Resolves when the updated analytics have been persisted.
  */
 export async function trackProfileError(
   profileName: string,
@@ -187,7 +288,16 @@ export async function trackProfileError(
 }
 
 /**
- * Generate profile insights
+ * Generate actionable insights from analytics data.
+ *
+ * When `profileName` is supplied, produces insights scoped to that profile
+ * (usage volume, performance failures, customization volume, recent errors).
+ * Otherwise produces global insights across all profiles (profile count,
+ * framework diversity, most used profile, session patterns). Returns a single
+ * "Profile Not Found" warning insight if the requested profile does not exist.
+ *
+ * @param profileName - Optional profile name to scope insights to.
+ * @returns Array of generated insights, possibly empty.
  */
 export async function generateProfileInsights(profileName?: string): Promise<ProfileInsight[]> {
   const analytics = await loadAnalytics();
@@ -341,7 +451,14 @@ export async function generateProfileInsights(profileName?: string): Promise<Pro
 }
 
 /**
- * Show profile analytics dashboard
+ * Render the analytics dashboard to the console.
+ *
+ * When `profileName` is supplied, displays per-profile analytics; otherwise
+ * displays global analytics. Generated insights are also rendered at the end
+ * of the dashboard with severity-appropriate coloring.
+ *
+ * @param profileName - Optional profile name to display analytics for.
+ * @returns Resolves once the dashboard has been printed.
  */
 export async function showAnalyticsDashboard(profileName?: string): Promise<void> {
   const analytics = await loadAnalytics();
@@ -392,7 +509,16 @@ export async function showAnalyticsDashboard(profileName?: string): Promise<void
 }
 
 /**
- * Show usage statistics
+ * Render profile usage statistics to the console.
+ *
+ * Loads all profiles, optionally sorts them, optionally limits the result set,
+ * and renders them either as a formatted table (default) or as JSON.
+ *
+ * @param options - Rendering options.
+ * @param options.sortBy - Field to sort profiles by: `name`, `usage`, or `duration`.
+ * @param options.limit - Maximum number of profiles to render.
+ * @param options.format - Output format: `table` (default) or `json`.
+ * @returns Resolves once the statistics have been printed.
  */
 export async function showUsageStatistics(options: {
   sortBy?: 'name' | 'usage' | 'duration';
@@ -451,7 +577,14 @@ export async function showUsageStatistics(options: {
 }
 
 /**
- * Clean old analytics data
+ * Remove stale analytics records older than the retention window.
+ *
+ * Deletes profiles that have never been used and whose last-used date precedes
+ * the cutoff, and prunes per-profile error entries that predate the cutoff.
+ * The number of removed records is reported to the console.
+ *
+ * @param daysToKeep - Number of days of history to retain. Defaults to {@link ANALYTICS_RETENTION_DAYS}.
+ * @returns Resolves when the cleaned analytics have been persisted.
  */
 export async function cleanAnalyticsData(daysToKeep: number = ANALYTICS_RETENTION_DAYS): Promise<void> {
   const analytics = await loadAnalytics();
@@ -484,7 +617,7 @@ export async function cleanAnalyticsData(daysToKeep: number = ANALYTICS_RETENTIO
 }
 
 /**
- * Helper functions
+ * Internal helper functions.
  */
 
 async function loadAnalytics(): Promise<ProfileAnalytics> {
