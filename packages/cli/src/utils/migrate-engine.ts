@@ -57,6 +57,9 @@ export const LATEST_TARGET_VERSION = '2.0.0';
  * transform renames `apps` → `services`, sets `version: "2.0.0"`, injects an
  * empty `dependsOn: []` on each service that lacks one, and injects a root
  * `tasks: {}` when absent. Pure: the input document is never mutated.
+ *
+ * @param doc - The parsed workspace document to test.
+ * @returns `true` when the document is a v1 workspace candidate.
  */
 function workspaceMatches(doc: Record<string, unknown>): boolean {
   const raw = doc['version'];
@@ -69,12 +72,22 @@ function workspaceMatches(doc: Record<string, unknown>): boolean {
   return coerced.major === 1;
 }
 
-/** Is the value a plain object (record) and not an array/null? */
+/**
+ * Is the value a plain object (record) and not an array/null?
+ *
+ * @param value - The value to test.
+ * @returns Type guard: `true` when `value` is a non-null, non-array object.
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Inject `dependsOn: []` into each service that lacks it (immutably). */
+/**
+ * Inject `dependsOn: []` into each service that lacks it (immutably).
+ *
+ * @param services - The services map from the workspace document.
+ * @returns A fresh services map with `dependsOn: []` on every service missing it.
+ */
 function withDependsOn(
   services: Record<string, unknown>
 ): Record<string, unknown> {
@@ -89,6 +102,17 @@ function withDependsOn(
   return next;
 }
 
+/**
+ * Transform a v1 workspace document into a v2 document.
+ *
+ * Renames `apps` → `services` (keeping an existing `services` map when present),
+ * sets `version: "2.0.0"`, injects `dependsOn: []` on each service missing it,
+ * and ensures a root `tasks` key exists. Pure: the input document is never
+ * mutated.
+ *
+ * @param doc - The parsed v1 workspace document.
+ * @returns A fresh v2 workspace document.
+ */
 function workspaceTransform(
   doc: Record<string, unknown>
 ): Record<string, unknown> {
@@ -116,6 +140,11 @@ function workspaceTransform(
   return next;
 }
 
+/**
+ * Concrete recipe object for the `workspace-v1-to-v2` migration, assembled from
+ * the `workspaceMatches`/`workspaceTransform` helpers. The single built-in
+ * recipe shipped with the CLI.
+ */
 const WORKSPACE_V1_TO_V2: MigrationRecipe = {
   id: 'workspace-v1-to-v2',
   fromVersionRange: '1.x',
@@ -143,17 +172,28 @@ export const BUILT_IN_RECIPES: readonly MigrationRecipe[] = [WORKSPACE_V1_TO_V2]
 /**
  * Register an additional recipe (documented extension point). Appends to the
  * registry; later calls to {@link getRecipes} reflect the addition.
+ *
+ * @param recipe - The recipe to append to the registry.
  */
 export function registerRecipe(recipe: MigrationRecipe): void {
   RECIPE_REGISTRY.push(recipe);
 }
 
-/** The current recipe registry (built-ins plus any registered recipes). */
+/**
+ * The current recipe registry (built-ins plus any registered recipes).
+ *
+ * @returns A readonly snapshot of every registered recipe.
+ */
 export function getRecipes(): readonly MigrationRecipe[] {
   return RECIPE_REGISTRY;
 }
 
-/** Coerce a loose version string to a strict semver, or null when impossible. */
+/**
+ * Coerce a loose version string to a strict semver, or null when impossible.
+ *
+ * @param version - The loose version string (e.g. "1", "1.x", "v1.2").
+ * @returns The normalised `major.minor.patch` string, or `null` if it cannot be coerced.
+ */
 function coerceVersion(version: string): string | null {
   const coerced = semver.coerce(version);
   return coerced ? coerced.version : null;
@@ -166,6 +206,11 @@ function coerceVersion(version: string): string | null {
  * target. Results are sorted by `toVersion` ascending so earlier upgrades run
  * first. Loose versions are coerced; recipes whose own `toVersion` cannot be
  * coerced are dropped defensively.
+ *
+ * @param recipes - The recipe registry to filter.
+ * @param fromVersion - The workspace's current version (loose form accepted).
+ * @param toVersion - The requested target version (loose form accepted).
+ * @returns Selected recipes sorted by `toVersion` ascending; empty when either version is uncoercible.
  */
 export function selectPendingMigrations(
   recipes: readonly MigrationRecipe[],
@@ -197,6 +242,9 @@ export function selectPendingMigrations(
  * its UPSTREAM dependencies). Returns node names ordered deps-before-dependents.
  * Ties are broken alphabetically for determinism. Cycles are tolerated: any
  * nodes that cannot be ordered are appended at the end (the caller can warn).
+ *
+ * @param graph - Map of node name → its upstream dependencies.
+ * @returns Node names ordered deps-before-dependents; cycle members appended alphabetically.
  */
 export function topoSort(
   graph: ReadonlyMap<string, readonly string[]>
@@ -252,28 +300,43 @@ export function topoSort(
  * the contracts `migrationDescriptorSchema` shape (kept local/contracts-free).
  */
 export interface MigrationDescriptorLite {
+  /** Stable recipe id this descriptor represents. */
   readonly id: string;
+  /** The version range the workspace was on before migration. */
   readonly fromVersion: string;
+  /** The version this migration moves the workspace to. */
   readonly toVersion: string;
+  /** Transform mechanism used by this migration. */
   readonly kind: MigrationKind;
+  /** Short human-readable title. */
   readonly title: string;
+  /** Human-readable description of what the migration does. */
   readonly description: string;
+  /** Resolved, topo-ordered list of target file paths. */
   readonly targets: string[];
+  /** Lifecycle status of this migration within the plan. */
   readonly status: 'pending' | 'applied' | 'skipped' | 'failed';
+  /** Convenience flag mirroring `status === 'applied'`. */
   readonly applied: boolean;
 }
 
 /** Candidate targets for one recipe, already resolved + topo-ordered. */
 export interface RecipeCandidateTargets {
+  /** The recipe id these resolved targets belong to. */
   readonly recipeId: string;
+  /** Resolved and topologically-ordered target file paths for this recipe. */
   readonly targets: string[];
 }
 
 /** The output of {@link planMigrations}: the full reviewable plan. */
 export interface MigrationPlan {
+  /** The target version the plan migrates the workspace toward. */
   readonly toVersion: string;
+  /** Whether the plan is a dry run (no files written). Always `true` from this pure layer. */
   readonly dryRun: boolean;
+  /** Ordered migration descriptors that make up the plan. */
   readonly migrations: MigrationDescriptorLite[];
+  /** Non-fatal warnings surfaced during plan assembly (e.g. cycle leftovers). */
   readonly warnings: string[];
 }
 
@@ -281,6 +344,12 @@ export interface MigrationPlan {
  * Pure plan assembly: pair every selected recipe with its (pre-resolved,
  * topo-ordered) candidate targets and produce a dry-run plan where every
  * descriptor is `pending`/`applied: false`. No I/O, no mutation.
+ *
+ * @param recipes - Selected recipes to include in the plan.
+ * @param fromVersion - The workspace's current version.
+ * @param toVersion - The target version the plan migrates toward.
+ * @param candidateTargetsInOrder - Pre-resolved, topo-ordered targets per recipe id.
+ * @returns A dry-run {@link MigrationPlan} with every descriptor pending.
  */
 export function planMigrations(
   recipes: readonly MigrationRecipe[],
@@ -315,6 +384,7 @@ export function planMigrations(
  * transform. The DEFAULT path never constructs or calls an advisor.
  */
 export interface MigrationAdvisor {
+  /** Human-readable name of this advisor (e.g. a provider id). */
   readonly name: string;
   /** Propose recipes for a workspace state. May be async (network). */
   propose(state: Record<string, unknown>): Promise<MigrationRecipe[]>;
@@ -325,6 +395,8 @@ export interface MigrationAdvisor {
  * the default path so callers stay offline unless a provider is explicitly
  * wired. This is a documented seam only — it reads nothing and never performs a
  * network call.
+ *
+ * @returns `undefined` on the default path; a wired advisor otherwise.
  */
 export function advisorFromEnv(): MigrationAdvisor | undefined {
   return undefined;

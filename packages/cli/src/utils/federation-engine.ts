@@ -1,14 +1,18 @@
-// `re-shell federation check` — PURE module-federation contract engine.
-//
-// Parses Module-Federation manifests (bundler-independent: webpack / Rspack /
-// Vite emit a compatible shape) into a normalized remote model, diffs the
-// current manifest against a baseline for breaking export/type changes, and
-// detects shared-dependency version skew across remotes. This module is
-// intentionally I/O-free and contracts-free: it only transforms in-memory
-// manifest documents into findings. The command layer reads the manifests off
-// disk; this file never touches the filesystem.
-//
-// No mutation of any input is ever performed — every function returns fresh data.
+/**
+ * Pure module-federation contract engine for the `re-shell federation check` command.
+ *
+ * Parses Module-Federation manifests (bundler-independent: webpack / Rspack /
+ * Vite emit a compatible shape) into a normalized remote model, diffs the
+ * current manifest against a baseline for breaking export/type changes, and
+ * detects shared-dependency version skew across remotes. This module is
+ * intentionally I/O-free and contracts-free: it only transforms in-memory
+ * manifest documents into findings. The command layer reads the manifests off
+ * disk; this file never touches the filesystem.
+ *
+ * No mutation of any input is ever performed — every function returns fresh data.
+ *
+ * @module federation-engine
+ */
 
 import semver from 'semver';
 
@@ -17,46 +21,82 @@ import semver from 'semver';
  * emit (array of {id}, map of id→path, or map of id→{import, types}).
  */
 export interface FederationExposeLite {
+  /** Stable identifier of the exposed module (e.g. `./Button`). */
   readonly id: string;
+  /** Internal source path the expose resolves to, if declared. */
   readonly path?: string;
+  /** Path to the TypeScript declaration file backing the expose, if any. */
   readonly types?: string;
 }
 
-/** One shared dependency, normalized from any shared-dep manifest shape. */
+/**
+ * One shared dependency, normalized from any shared-dep manifest shape.
+ */
 export interface FederationSharedLite {
+  /** Name of the shared dependency (e.g. `react`). */
   readonly name: string;
+  /** Resolved version the remote ships, when declared. */
   readonly version?: string;
+  /** Semver range consumers must satisfy to share this dep, when declared. */
   readonly requiredVersion?: string;
+  /** Whether the dep should be collapsed to a single runtime copy. */
   readonly singleton?: boolean;
 }
 
-/** One remote (federation container) parsed from a manifest. */
+/**
+ * One remote (federation container) parsed from a manifest.
+ */
 export interface FederationRemoteLite {
+  /** Container/unique name of the remote. */
   readonly name: string;
+  /** Exposed modules of the remote, sorted by id. */
   readonly exposes: readonly FederationExposeLite[];
+  /** Shared dependencies of the remote, sorted by name. */
   readonly shared: readonly FederationSharedLite[];
 }
 
-/** A finding the engine emits, mirroring the contracts FederationFinding. */
+/**
+ * A finding the engine emits, mirroring the contracts FederationFinding.
+ */
 export interface FederationFindingLite {
+  /** Severity bucket: `breaking` blocks the gate, `skew` warns, `info` logs. */
   readonly severity: 'breaking' | 'skew' | 'info';
+  /** Machine-readable kind tag (e.g. `expose-removed`, `shared-skew`). */
   readonly kind: string;
+  /** Human-readable explanation of the finding. */
   readonly message: string;
+  /** Name of the remote the finding pertains to, when applicable. */
   readonly remote?: string;
+  /** Structured supplementary details, when available. */
   readonly detail?: Readonly<Record<string, unknown>>;
 }
 
-/** Is the value a plain object (record) and not an array/null? */
+/**
+ * Is the value a plain object (record) and not an array/null?
+ *
+ * @param value - Value to test.
+ * @returns True when `value` is a non-null, non-array object.
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Coerce a possibly-undefined string field. */
+/**
+ * Coerce a possibly-undefined string field.
+ *
+ * @param value - Value to coerce.
+ * @returns The string when `value` is a string, otherwise `undefined`.
+ */
 function optString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-/** Coerce a possibly-undefined boolean field. */
+/**
+ * Coerce a possibly-undefined boolean field.
+ *
+ * @param value - Value to coerce.
+ * @returns The boolean when `value` is a boolean, otherwise `undefined`.
+ */
 function optBool(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
 }
@@ -66,7 +106,11 @@ function optBool(value: unknown): boolean | undefined {
  *   - array of { id | name | moduleName, path?, types? }
  *   - map of id → "./path"  (string)
  *   - map of id → { import, types }
+ *
  * Returns a stable, id-sorted list of exposes.
+ *
+ * @param raw - The raw `exposes` value from a manifest document.
+ * @returns A deduplicated, id-sorted array of normalized exposes.
  */
 export function normalizeExposes(raw: unknown): FederationExposeLite[] {
   const out: FederationExposeLite[] = [];
@@ -103,7 +147,11 @@ export function normalizeExposes(raw: unknown): FederationExposeLite[] {
  *   - array of { name | id, version?, requiredVersion?, singleton? }
  *   - map of name → string (a bare requiredVersion)
  *   - map of name → { version, requiredVersion, singleton, eager }
+ *
  * Returns a stable, name-sorted list of shared deps.
+ *
+ * @param raw - The raw `shared` value from a manifest document.
+ * @returns A name-sorted array of normalized shared dependencies.
  */
 export function normalizeShared(raw: unknown): FederationSharedLite[] {
   const out: FederationSharedLite[] = [];
@@ -140,6 +188,10 @@ export function normalizeShared(raw: unknown): FederationSharedLite[] {
  * Parse a raw manifest document into a normalized remote. Reads the container
  * `name` from `name`/`id`/`uniqueName` (falling back to `fallbackName`), then
  * normalizes its `exposes` and `shared`. Returns null when no name is derivable.
+ *
+ * @param raw - The raw manifest document (parsed JSON / JS object).
+ * @param fallbackName - Optional name used when the manifest omits one.
+ * @returns The normalized remote, or `null` when no name can be derived.
  */
 export function parseManifest(
   raw: unknown,
@@ -159,9 +211,11 @@ export function parseManifest(
   };
 }
 
-/** The breaking-change diff of a single remote against its baseline. */
+/**
+ * The breaking-change diff of a single remote against its baseline.
+ */
 export interface FederationDiff {
-  /** Removed expose ids. */
+  /** Removed expose ids (consumers importing them break). */
   readonly removedExposes: readonly string[];
   /** Expose ids whose declared types changed (narrowed/renamed). */
   readonly narrowedExposes: readonly { id: string; from?: string; to?: string }[];
@@ -174,7 +228,12 @@ export interface FederationDiff {
  *   - an exposed module was REMOVED (consumers importing it break),
  *   - an exposed module's declared TYPES changed (type loss / signature drift),
  *   - a shared dep's requiredVersion NARROWED (excludes versions consumers relied on).
+ *
  * New exposes and WIDENED shared ranges are non-breaking (additions).
+ *
+ * @param baseline - The baseline (previous) remote snapshot.
+ * @param current - The current remote snapshot to diff against the baseline.
+ * @returns The diff describing removed exposes, narrowed types, and changed shared ranges.
  */
 export function diffRemote(
   baseline: FederationRemoteLite,
@@ -226,6 +285,10 @@ export function diffRemote(
  * (where the old range is a subset of the new) are non-breaking. Gaining or
  * losing a requiredVersion constraint entirely is treated as a change. Falls
  * back to strict inequality for ranges semver cannot parse.
+ *
+ * @param from - The baseline requiredVersion range, if any.
+ * @param to - The current requiredVersion range, if any.
+ * @returns True when the change narrows (or drops/gains) the range.
  */
 export function narrowsVersionRange(
   from: string | undefined,
@@ -244,9 +307,13 @@ export function narrowsVersionRange(
   }
 }
 
-/** A shared-dependency skew across remotes. */
+/**
+ * A shared-dependency skew across remotes.
+ */
 export interface FederationSkew {
+  /** Name of the divergent shared dependency. */
   readonly dep: string;
+  /** Remotes that declare the dep, each with its resolved version. */
   readonly remotes: readonly { remote: string; version?: string }[];
 }
 
@@ -261,6 +328,9 @@ export interface FederationSkew {
  * of a non-singleton dep are expected (each remote gets its own copy by design),
  * not a "two copies" failure. A degenerate single remote declaring a dep twice
  * is never reported as skew against itself.
+ *
+ * @param remotes - All remotes to scan for singleton version divergence.
+ * @returns A dep-sorted list of skew entries, one per divergent singleton dep.
  */
 export function detectSharedSkew(
   remotes: readonly FederationRemoteLite[]
@@ -314,6 +384,10 @@ export function detectSharedSkew(
 /**
  * Turn a diff into findings (breaking severity). Expose removals and type
  * narrowings are breaking; shared-range changes are breaking for consumers.
+ *
+ * @param remoteName - Name of the remote the diff pertains to.
+ * @param diff - The diff produced by {@link diffRemote}.
+ * @returns An array of `breaking`-severity findings, one per diff entry.
  */
 export function diffToFindings(
   remoteName: string,
@@ -350,7 +424,12 @@ export function diffToFindings(
   return findings;
 }
 
-/** Turn a skew entry into a finding (skew severity). */
+/**
+ * Turn a skew entry into a finding (skew severity).
+ *
+ * @param skew - The skew entry produced by {@link detectSharedSkew}.
+ * @returns A single `skew`-severity finding describing the version divergence.
+ */
 export function skewToFindings(skew: FederationSkew): FederationFindingLite {
   const versions = [...new Set(skew.remotes.map(r => r.version ?? '(unspecified)'))];
   return {

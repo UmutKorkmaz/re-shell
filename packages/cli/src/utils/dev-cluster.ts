@@ -62,8 +62,11 @@ export interface GenerateDevClusterConfigOptions {
  * service's source dir are copied straight into the running container (no
  * rebuild) — the fast inner loop. Source globs are relative to the build
  * context (the service dir), so they stay portable across machines.
+ *
+ * @returns The file-sync rules for a service artifact.
  */
-function buildSyncRules(): DevClusterSyncRule[] {
+function buildSyncRules(
+): DevClusterSyncRule[] {
   return [
     { src: 'src/**/*.{js,jsx,ts,tsx}', dest: '/app/src' },
     { src: 'public/**/*', dest: '/app/public' },
@@ -74,8 +77,14 @@ function buildSyncRules(): DevClusterSyncRule[] {
  * Build one Skaffold artifact for a service. The build context is the service
  * directory (its `path`, defaulting to the service name); the image is a stable
  * local dev tag derived from the service name so manifests can reference it.
+ *
+ * @param service - The service to build an artifact for.
+ * @returns The Skaffold artifact for the service.
  */
-function buildArtifact(service: NamedService): DevClusterArtifact {
+function buildArtifact(
+  /** Service to build an artifact for. */
+  service: NamedService
+): DevClusterArtifact {
   const context = service.config.path ?? service.name;
   return {
     service: service.name,
@@ -92,6 +101,9 @@ function buildArtifact(service: NamedService): DevClusterArtifact {
  * above the maximum declared service port (or PORT_FORWARD_BASE, whichever is
  * higher) and skips any port already declared by another service, so the local
  * port space never overlaps with the in-cluster container ports.
+ *
+ * @param services - Services to allocate forwards for.
+ * @returns The generated port-forward descriptors.
  */
 function buildPortForwards(
   services: readonly NamedService[]
@@ -129,6 +141,9 @@ function buildPortForwards(
  * Pure and deterministic: the same service set + namespace always yields the
  * same config. Producing it touches no cluster, skaffold, or network — it is
  * just data the command layer serialises (`--json`) or hands to a backend.
+ *
+ * @param options - Inputs describing the services, namespace, and manifests.
+ * @returns The generated Skaffold dev config.
  */
 export function generateDevClusterConfig(
   options: GenerateDevClusterConfigOptions
@@ -156,7 +171,11 @@ export function generateDevClusterConfig(
 /** A directed runtime-dependency graph: service -> the services it depends on. */
 export type ServiceDependencyGraph = ReadonlyMap<string, readonly string[]>;
 
-/** Build the `dependsOn` graph from the named services (offline, pure). */
+/** Build the `dependsOn` graph from the named services (offline, pure).
+ *
+ * @param services - Named services to derive edges from.
+ * @returns A map of service name to its in-graph dependencies.
+ */
 export function buildServiceGraph(
   services: readonly NamedService[]
 ): ServiceDependencyGraph {
@@ -181,6 +200,10 @@ export function buildServiceGraph(
  * Pure and offline — `changedFiles` are supplied by the caller (git in the real
  * command, a fixture in tests). Ownership is longest-prefix on each service's
  * directory, so nested services resolve to the deepest match.
+ *
+ * @param services - All named services in the workspace.
+ * @param changedFiles - Changed file paths (relative, forward-slash).
+ * @returns Affected service names in input order.
  */
 export function resolveAffectedServices(
   services: readonly NamedService[],
@@ -236,6 +259,9 @@ export function resolveAffectedServices(
  * Normalise a service dir into a trailing-forward-slash prefix for matching.
  * Always uses '/' (not path.sep) so that comparison against git-emitted paths
  * (which always use '/') works identically on Windows and POSIX.
+ *
+ * @param dir - Raw service directory.
+ * @returns Normalised forward-slash prefix with a trailing slash.
  */
 function normalizeDir(dir: string): string {
   const cleaned = dir.split('\\').join('/').replace(/\/+$/, '');
@@ -248,6 +274,7 @@ function normalizeDir(dir: string): string {
 
 /** A single source of log lines, tagged by its service name. */
 export interface LogSource {
+  /** Service name used as the `[service]` prefix on each emitted line. */
   service: string;
   /** Raw chunk(s) of stdout/stderr for this service, in arrival order. */
   chunks: readonly string[];
@@ -261,6 +288,9 @@ export interface LogSource {
  *
  * Pure: deterministic for a given ordered list of sources. The real runtime
  * feeds this from live process streams; tests feed it fixture chunks.
+ *
+ * @param sources - Ordered per-service log chunks.
+ * @returns The multiplexed, prefixed log lines.
  */
 export function multiplexLogs(sources: readonly LogSource[]): string[] {
   const out: string[] = [];
@@ -318,7 +348,12 @@ export interface DevBackend {
 
 /** Raised when a required external tool is missing. Carries the tool name. */
 export class MissingToolError extends Error {
+  /** The name of the missing external tool (e.g. "skaffold"). */
   readonly tool: string;
+  /**
+   * @param tool - The name of the missing tool.
+   * @param message - Human-readable error message.
+   */
   constructor(tool: string, message: string) {
     super(message);
     this.name = 'MissingToolError';
@@ -328,7 +363,9 @@ export class MissingToolError extends Error {
 
 /** Minimal seam over child_process so the real backend stays testable in unit. */
 export type ProbeRunner = (
+  /** Binary to invoke (e.g. "skaffold"). */
   cmd: string,
+  /** Argv to pass to the binary. */
   args: readonly string[]
 ) => { ok: boolean; detail: string };
 
@@ -337,7 +374,10 @@ export type ProbeRunner = (
  * Receives the argv array (binary is args[0]) and returns a handle that can be
  * terminated. Tests inject a fake that records the argv without spawning.
  */
-export type SpawnRunner = (argv: readonly string[]) => {
+export type SpawnRunner = (
+  /** Full argv array; argv[0] is the binary to spawn. */
+  argv: readonly string[]
+) => {
   /** The running process handle (or null when not actually spawned). */
   process: ReturnType<typeof spawn> | null;
   /** Promise that resolves when the process exits (or the fake resolves). */
@@ -354,11 +394,19 @@ export class SkaffoldDevBackend implements DevBackend {
   private readonly run: ProbeRunner;
   private readonly spawnRun: SpawnRunner;
 
+  /**
+   * @param run - Optional probe runner override (defaults to {@link defaultProbeRunner}).
+   * @param spawnRun - Optional spawn runner override (defaults to {@link defaultSpawnRunner}).
+   */
   constructor(run?: ProbeRunner, spawnRun?: SpawnRunner) {
     this.run = run ?? defaultProbeRunner;
     this.spawnRun = spawnRun ?? defaultSpawnRunner;
   }
 
+  /**
+   * Probe for `skaffold` and `kubectl` availability on PATH.
+   * @returns Resolves to a probe result per required tool.
+   */
   async probe(): Promise<ToolProbe[]> {
     const skaffold = this.run('skaffold', ['version']);
     const kubectl = this.run('kubectl', ['version', '--client', '-o', 'json']);
@@ -368,6 +416,12 @@ export class SkaffoldDevBackend implements DevBackend {
     ];
   }
 
+  /**
+   * Start the inner-loop dev session via `skaffold dev`. Probes tools first and
+   * throws {@link MissingToolError} if any required tool is unavailable.
+   * @param options - Run options describing the config, namespace, and services.
+   * @returns Resolves when the dev session exits.
+   */
   async dev(options: DevBackendRunOptions): Promise<void> {
     const probes = await this.probe();
     const missing = probes.find(p => !p.available);
@@ -393,6 +447,9 @@ export class SkaffoldDevBackend implements DevBackend {
 /**
  * Build the `skaffold dev` argv for the given run options. Kept as a pure
  * function so tests can assert the exact argv without spawning.
+ *
+ * @param options - Run options describing namespace and services.
+ * @returns The argv array (argv[0] = "skaffold").
  */
 export function buildSkaffoldArgv(options: DevBackendRunOptions): string[] {
   const argv: string[] = ['skaffold', 'dev'];
@@ -411,7 +468,10 @@ export function buildSkaffoldArgv(options: DevBackendRunOptions): string[] {
  * no shell, pipes stdout/stderr to the parent process for the multiplexed log
  * view, and resolves when the child exits.
  */
-function defaultSpawnRunner(argv: readonly string[]): {
+function defaultSpawnRunner(
+  /** Full argv array; argv[0] is the binary to spawn. */
+  argv: readonly string[]
+): {
   process: ReturnType<typeof spawn> | null;
   done: Promise<void>;
 } {
@@ -450,7 +510,9 @@ function defaultSpawnRunner(argv: readonly string[]): {
 
 /** Probe a tool by spawning `<cmd> <args>` with no shell. */
 function defaultProbeRunner(
+  /** Binary to invoke (e.g. "skaffold"). */
   cmd: string,
+  /** Argv to pass to the binary. */
   args: readonly string[]
 ): { ok: boolean; detail: string } {
   const result = spawnSync(cmd, [...args], {
