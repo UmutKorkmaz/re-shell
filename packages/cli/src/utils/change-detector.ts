@@ -1,65 +1,132 @@
+/**
+ * @file Change detector utility for tracking file system modifications using content hashing.
+ * @description Provides intelligent change detection by computing and comparing file hashes
+ * across scans, supporting content-based hashing, metadata-only hashing, move detection,
+ * and persistent caching for efficient incremental scans.
+ */
+
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { ValidationError } from './error-handler';
 
-// Change detection interfaces
+/**
+ * @description Represents the hash and metadata of a single file or directory entry.
+ */
 export interface FileHash {
+  /** Relative path of the file or directory from the root path. */
   path: string;
+  /** Computed hash value of the file content or metadata. Empty string for directories. */
   hash: string;
+  /** Size of the file in bytes. Zero for directories. */
   size: number;
+  /** Last modification time of the entry, in milliseconds since epoch. */
   mtime: number;
+  /** Creation time of the entry, in milliseconds since epoch. */
   ctime: number;
+  /** Whether this entry represents a file or a directory. */
   type: 'file' | 'directory';
 }
 
+/**
+ * @description Represents the outcome of a change detection scan, listing all
+ * added, modified, deleted, and moved entries along with timing metrics.
+ */
 export interface ChangeDetectionResult {
+  /** Relative paths of files or directories added since the previous scan. */
   added: string[];
+  /** Relative paths of files or directories modified since the previous scan. */
   modified: string[];
+  /** Relative paths of files or directories deleted since the previous scan. */
   deleted: string[];
+  /** Pairs of paths representing files that moved from `from` to `to`. */
   moved: Array<{ from: string; to: string }>;
+  /** Total number of changes detected (added + modified + deleted + moved). */
   totalChanges: number;
+  /** Total time spent on the scan, in milliseconds. */
   scanTime: number;
+  /** Time spent hashing files during the scan, in milliseconds. */
   hashingTime: number;
 }
 
+/**
+ * @description Configuration options controlling how file hashes are computed.
+ */
 export interface HashingOptions {
+  /** Hash algorithm to use (e.g. 'sha256'). */
   algorithm: string;
+  /** Encoding format for the resulting hash digest. */
   encoding: crypto.BinaryToTextEncoding;
+  /** Size in bytes of each chunk read from the file stream. */
   chunkSize: number;
+  /** Whether to skip hashing of binary files and use metadata-only hashing instead. */
   skipBinary: boolean;
+  /** Whether to include file metadata in the hash computation. */
   includeMetadata: boolean;
+  /** Regular expressions used to exclude paths from hashing and scanning. */
   excludePatterns: RegExp[];
+  /** Maximum file size in bytes for content hashing; larger files fall back to metadata hashing. */
   maxFileSize: number;
 }
 
+/**
+ * @description Optional configuration for the ChangeDetector, controlling hashing
+ * strategy, scan depth, symlink handling, move tracking, and caching behavior.
+ */
 export interface ChangeDetectionOptions {
+  /** Whether to use content-based hashing (true) or metadata-only hashing (false). */
   useContentHashing?: boolean;
+  /** Whether to use only file metadata (size, mtime, ctime) for change detection. */
   useMetadataOnly?: boolean;
+  /** Maximum directory depth to scan recursively. */
   recursiveDepth?: number;
+  /** Whether to follow symbolic links during scanning. */
   followSymlinks?: boolean;
+  /** Whether to detect file moves by matching content hashes. */
   trackMoves?: boolean;
+  /** Partial hashing options to override defaults. */
   hashingOptions?: Partial<HashingOptions>;
+  /** Filesystem path where the change detection cache should be stored. */
   cacheLocation?: string;
+  /** Whether to enable persistent caching of hashes between runs. */
   enableCache?: boolean;
 }
 
+/**
+ * @description Describes a single file change event, including the type of change,
+ * the affected path, optional previous values, and metadata.
+ */
 export interface FileChangeEvent {
+  /** The type of change that occurred. */
   type: 'added' | 'modified' | 'deleted' | 'moved';
+  /** The current path of the affected file. */
   path: string;
+  /** The previous path of the file, only set for 'moved' events. */
   oldPath?: string;
+  /** The current content or metadata hash of the file, when applicable. */
   hash?: string;
+  /** The previous hash of the file, when applicable. */
   oldHash?: string;
+  /** The size of the file in bytes, when available. */
   size?: number;
+  /** Timestamp (in milliseconds since epoch) when the change was detected. */
   timestamp: number;
+  /** Optional file system metadata associated with the change. */
   metadata?: {
+    /** Last modification time in milliseconds since epoch. */
     mtime: number;
+    /** Creation time in milliseconds since epoch. */
     ctime: number;
+    /** File mode/permission bits. */
     mode: number;
   };
 }
 
-// Intelligent change detector with content hashing
+/**
+ * @description Intelligent change detector that tracks file system modifications
+ * using content hashing or metadata-only hashing. Supports caching, move detection,
+ * exclude patterns, and configurable scan depth.
+ */
 export class ChangeDetector {
   private hashCache: Map<string, FileHash> = new Map();
   private previousScan: Map<string, FileHash> = new Map();
@@ -67,6 +134,11 @@ export class ChangeDetector {
   private options: Required<ChangeDetectionOptions>;
   private cacheFile: string;
 
+  /**
+   * @description Creates a new ChangeDetector instance for the given root path.
+   * @param rootPath - The root directory to monitor for changes.
+   * @param options - Optional configuration overriding default detection behavior.
+   */
   constructor(rootPath: string, options: ChangeDetectionOptions = {}) {
     this.rootPath = path.resolve(rootPath);
     const defaultHashingOptions: HashingOptions = {
@@ -110,12 +182,22 @@ export class ChangeDetector {
     this.cacheFile = this.options.cacheLocation;
   }
 
-  // Initialize change detector and load cache
+  /**
+   * @description Initializes the change detector by loading any persisted cache
+   * from disk so that previous scan data is available for comparison.
+   * @returns A promise that resolves once the cache has been loaded.
+   */
   async initialize(): Promise<void> {
     await this.loadCache();
   }
 
-  // Detect changes in the specified path
+  /**
+   * @description Scans the specified path (or the root path) and compares the
+   * results against the previous scan to detect added, modified, deleted, and
+   * moved files. Updates the internal cache and persists it if caching is enabled.
+   * @param scanPath - Optional sub-path relative to the root to scan.
+   * @returns A promise resolving to the change detection result.
+   */
   async detectChanges(scanPath?: string): Promise<ChangeDetectionResult> {
     const startTime = Date.now();
     const targetPath = scanPath ? path.resolve(this.rootPath, scanPath) : this.rootPath;
@@ -149,7 +231,12 @@ export class ChangeDetector {
     };
   }
 
-  // Get current hash for a specific file
+  /**
+   * @description Computes or retrieves the cached hash for a specific file or
+   * directory. Returns null if the path does not exist.
+   * @param filePath - Relative path of the file to hash.
+   * @returns A promise resolving to the FileHash, or null if the path does not exist.
+   */
   async getFileHash(filePath: string): Promise<FileHash | null> {
     const absolutePath = path.resolve(this.rootPath, filePath);
     
@@ -192,7 +279,12 @@ export class ChangeDetector {
     return fileHash;
   }
 
-  // Check if file has changed based on hash
+  /**
+   * @description Checks whether a specific file has changed since the previous
+   * scan by comparing its current hash with the stored hash.
+   * @param filePath - Relative path of the file to check.
+   * @returns A promise resolving to true if the file has changed, false otherwise.
+   */
   async hasFileChanged(filePath: string): Promise<boolean> {
     const current = await this.getFileHash(filePath);
     const previous = this.previousScan.get(filePath);
@@ -203,7 +295,12 @@ export class ChangeDetector {
     return current.hash !== previous.hash;
   }
 
-  // Get file changes between two points in time
+  /**
+   * @description Retrieves a detailed change event for a specific file by comparing
+   * its current state with the previous scan. Returns null if no change is detected.
+   * @param filePath - Relative path of the file to inspect.
+   * @returns A promise resolving to a FileChangeEvent describing the change, or null.
+   */
   async getFileChanges(filePath: string): Promise<FileChangeEvent | null> {
     const current = await this.getFileHash(filePath);
     const previous = this.previousScan.get(filePath);
@@ -253,7 +350,11 @@ export class ChangeDetector {
     return null;
   }
 
-  // Clear cache and reset state
+  /**
+   * @description Clears all in-memory caches and removes the persisted cache file
+   * from disk if it exists, resetting the detector to a fresh state.
+   * @returns A promise that resolves once the cache has been cleared.
+   */
   async clearCache(): Promise<void> {
     this.hashCache.clear();
     this.previousScan.clear();
@@ -263,7 +364,11 @@ export class ChangeDetector {
     }
   }
 
-  // Get cache statistics
+  /**
+   * @description Returns statistics about the current cache, including the number
+   * of cached entries, total tracked files, estimated memory usage, and hit rate.
+   * @returns An object containing cache size, total files, memory usage string, and hit rate.
+   */
   getCacheStats(): {
     cacheSize: number;
     totalFiles: number;
@@ -608,7 +713,13 @@ export class ChangeDetector {
   }
 }
 
-// Utility functions
+/**
+ * @description Creates and initializes a new ChangeDetector instance for the
+ * given root path, loading any persisted cache automatically.
+ * @param rootPath - The root directory to monitor for changes.
+ * @param options - Optional change detection configuration.
+ * @returns A promise resolving to an initialized ChangeDetector instance.
+ */
 export async function createChangeDetector(
   rootPath: string,
   options?: ChangeDetectionOptions
@@ -618,7 +729,13 @@ export async function createChangeDetector(
   return detector;
 }
 
-// Quick change detection
+/**
+ * @description Convenience function that creates a ChangeDetector, runs a single
+ * change detection scan, and returns the result.
+ * @param rootPath - The root directory to scan for changes.
+ * @param options - Optional change detection configuration.
+ * @returns A promise resolving to the change detection result.
+ */
 export async function detectChanges(
   rootPath: string,
   options?: ChangeDetectionOptions
@@ -627,7 +744,14 @@ export async function detectChanges(
   return await detector.detectChanges();
 }
 
-// Check if specific file has changed
+/**
+ * @description Convenience function that creates a ChangeDetector and checks
+ * whether a specific file has changed since the previous scan.
+ * @param rootPath - The root directory to monitor.
+ * @param filePath - Relative path of the file to check.
+ * @param options - Optional change detection configuration.
+ * @returns A promise resolving to true if the file has changed, false otherwise.
+ */
 export async function hasFileChanged(
   rootPath: string,
   filePath: string,

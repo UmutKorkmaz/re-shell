@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Configuration file watcher with hot-reloading support.
+ * @description Provides utilities for watching re-shell configuration files
+ * (global, project, and workspace level) and emitting events when they change,
+ * enabling hot-reloading of configuration during development.
+ */
+
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as chokidar from 'chokidar';
@@ -6,31 +13,61 @@ import { EventEmitter } from 'events';
 import { configManager, CONFIG_PATHS } from './config';
 import { ValidationError } from './error-handler';
 
-// Configuration change event types
+/**
+ * Represents a configuration change event emitted by the watcher.
+ * @description Describes a single configuration file change, including the
+ * type of change, the affected file path, the configuration scope, and
+ * optionally the loaded configuration or any encountered error.
+ */
 export interface ConfigChangeEvent {
+  /** The kind of change that occurred to the configuration file. */
   type: 'changed' | 'added' | 'unlinked';
+  /** The absolute file path of the configuration file that changed. */
   path: string;
+  /** The scope of the configuration that changed. */
   configType: 'global' | 'project' | 'workspace';
+  /** The timestamp when the change was detected. */
   timestamp: Date;
+  /** The loaded configuration object, if available. */
   config?: any;
+  /** An error encountered while processing the change, if any. */
   error?: Error;
 }
 
-// Hot reload options
+/**
+ * Options for configuring hot-reload behavior of the watcher.
+ * @description Allows customizing debounce timing, validation, backups,
+ * verbosity, workspace inclusion, and exclusion patterns.
+ */
 export interface HotReloadOptions {
+  /** Whether hot-reloading is enabled. Defaults to true. */
   enabled?: boolean;
+  /** Debounce delay in milliseconds before processing a change. Defaults to 500. */
   debounceMs?: number;
+  /** Whether to validate configuration after each change. Defaults to true. */
   validateOnChange?: boolean;
+  /** Whether to automatically create a backup before applying changes. Defaults to false. */
   autoBackup?: boolean;
+  /** Whether to attempt restoring from a backup when an error occurs. Defaults to false. */
   restoreOnError?: boolean;
+  /** Whether to enable verbose logging output. Defaults to false. */
   verbose?: boolean;
+  /** Whether to include workspace-level configuration files. Defaults to true. */
   includeWorkspaces?: boolean;
+  /** Glob patterns of paths to exclude from watching. */
   excludePatterns?: string[];
+  /** Optional profile associated with the hot-reload session. */
   profile?: any;
+  /** Optional list of service names to scope the hot-reload to. */
   services?: string[];
 }
 
-// Configuration watcher class
+/**
+ * Watches re-shell configuration files and emits events on changes.
+ * @description Extends `EventEmitter` to provide hot-reloading of global,
+ * project, and workspace configuration files. Supports debouncing,
+ * validation, automatic backups, and error recovery.
+ */
 export class ConfigWatcher extends EventEmitter {
   private watchers: Map<string, chokidar.FSWatcher> = new Map();
   private debounceTimers: Map<string, NodeJS.Timeout> = new Map();
@@ -39,6 +76,12 @@ export class ConfigWatcher extends EventEmitter {
   private lastConfigs: Map<string, any> = new Map();
   private backupIds: Map<string, string> = new Map();
 
+  /**
+   * Creates a new ConfigWatcher instance.
+   * @description Initializes the watcher with the provided options, applying
+   * defaults for any options not explicitly set.
+   * @param options - Partial hot-reload options to override defaults.
+   */
   constructor(options: HotReloadOptions = {}) {
     super();
     this.options = {
@@ -56,7 +99,12 @@ export class ConfigWatcher extends EventEmitter {
     } as Required<HotReloadOptions>;
   }
 
-  // Start watching configuration files
+  /**
+   * Starts watching configuration files for changes.
+   * @description Sets up file watchers for global, project, and optionally
+   * workspace configuration files. Emits a `watching-started` event on success.
+   * @returns A promise that resolves once all watchers are active.
+   */
   async startWatching(): Promise<void> {
     if (this.isWatching) {
       if (this.options.verbose) {
@@ -104,7 +152,12 @@ export class ConfigWatcher extends EventEmitter {
     }
   }
 
-  // Stop watching configuration files
+  /**
+   * Stops watching configuration files and cleans up resources.
+   * @description Clears all debounce timers, closes all active file watchers,
+   * and resets internal state. Emits a `watching-stopped` event.
+   * @returns A promise that resolves once all watchers are closed.
+   */
   async stopWatching(): Promise<void> {
     if (!this.isWatching) return;
 
@@ -134,12 +187,21 @@ export class ConfigWatcher extends EventEmitter {
     this.emit('watching-stopped');
   }
 
-  // Check if watcher is currently active
+  /**
+   * Checks whether the watcher is currently active.
+   * @returns True if the watcher is actively watching files, false otherwise.
+   */
   isActive(): boolean {
     return this.isWatching;
   }
 
-  // Get current watch status
+  /**
+   * Returns the current status of the watcher.
+   * @description Provides information about whether the watcher is active,
+   * which paths are being watched, the active options, and recent changes.
+   * @returns An object containing the watching state, watched paths,
+   * active options, and last detected changes.
+   */
   getStatus(): {
     isWatching: boolean;
     watchedPaths: string[];
@@ -154,7 +216,13 @@ export class ConfigWatcher extends EventEmitter {
     };
   }
 
-  // Update watcher options
+  /**
+   * Updates the watcher options, restarting the watcher if necessary.
+   * @description Merges the new options into the existing options. If the
+   * watcher was active, it will be stopped and restarted with the new options
+   * (provided hot-reloading remains enabled).
+   * @param newOptions - Partial options to merge with the current configuration.
+   */
   updateOptions(newOptions: Partial<HotReloadOptions>): void {
     const wasWatching = this.isWatching;
     
@@ -169,7 +237,13 @@ export class ConfigWatcher extends EventEmitter {
     }
   }
 
-  // Force reload all configurations
+  /**
+   * Force-reloads all configurations and emits change events.
+   * @description Reloads the global and project configurations from disk
+   * and emits `config-changed` events for each, regardless of whether they
+   * actually changed.
+   * @returns A promise that resolves once all configurations have been reloaded.
+   */
   async forceReload(): Promise<void> {
     if (this.options.verbose) {
       console.log(chalk.cyan('🔄 Force reloading all configurations...'));
@@ -494,10 +568,21 @@ export class ConfigWatcher extends EventEmitter {
   }
 }
 
-// Export singleton instance
+/**
+ * Singleton instance of ConfigWatcher with default options.
+ * @description Shared watcher instance that can be used across the application
+ * without needing to instantiate a new ConfigWatcher.
+ */
 export const configWatcher = new ConfigWatcher();
 
-// Utility function to setup hot reloading with default options
+/**
+ * Sets up configuration hot-reloading with default event handlers.
+ * @description Creates a new ConfigWatcher, attaches default `config-changed`
+ * and `config-error` event handlers for optional verbose logging, and starts
+ * watching.
+ * @param options - Partial hot-reload options to customize behavior.
+ * @returns A promise that resolves to the started ConfigWatcher instance.
+ */
 export async function setupConfigHotReload(options: HotReloadOptions = {}): Promise<ConfigWatcher> {
   const watcher = new ConfigWatcher(options);
   
@@ -518,7 +603,14 @@ export async function setupConfigHotReload(options: HotReloadOptions = {}): Prom
   return watcher;
 }
 
-// Utility function for development mode
+/**
+ * Starts configuration hot-reloading in development mode.
+ * @description Sets up hot-reloading with development-friendly defaults
+ * (verbose logging, validation, auto-backup, error restore, shorter debounce).
+ * Registers a SIGINT handler for graceful shutdown.
+ * @param options - Partial hot-reload options to override development defaults.
+ * @returns A promise that resolves once development mode is running.
+ */
 export async function startDevMode(options: HotReloadOptions = {}): Promise<void> {
   const devOptions: HotReloadOptions = {
     enabled: true,
