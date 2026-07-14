@@ -132,7 +132,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '  private coreV1Api: CoreV1Api;\n';
   code += '  private appsV1Api: AppsV1Api;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.kubeconfig = options.kubeconfig || process.env.KUBECONFIG || \'~/.kube/config\';\n';
   code += '    this.context = options.context || \'default\';\n';
@@ -204,7 +204,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '      // Check version compatibility\n';
   code += '      checks.compatibilityCheck = await this.checkVersionCompatibility();\n';
   code += '      console.log(`[ClusterManager] ${checks.compatibilityCheck ? \'✓\' : \'✗\' } Version compatibility`);\n\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[ClusterManager] Pre-flight check error:\', error.message);\n';
   code += '    }\n\n';
   code += '    return checks;\n';
@@ -229,7 +229,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '          }\n\n';
   code += '          allPassed = false;\n';
   code += '        }\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[ClusterManager] ✗ ${check.name}: ERROR - ${error.message}`);\n';
   code += '        if (check.onFailure === \'abort\') {\n';
   code += '          return false;\n';
@@ -256,7 +256,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '          console.log(`[ClusterManager] [DRY RUN] Would drain: ${node.metadata.name}`);\n';
   code += '        }\n';
   code += '      }\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[ClusterManager] Failed to drain nodes:\', error.message);\n';
   code += '      throw error;\n';
   code += '    }\n';
@@ -272,7 +272,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '      // Upgrade worker nodes\n';
   code += '      await this.upgradeWorkerNodes(config);\n\n';
   code += '      console.log(\'[ClusterManager] ✓ Upgrade completed\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[ClusterManager] Upgrade failed:\', error.message);\n';
   code += '      await this.rollback();\n';
   code += '      throw error;\n';
@@ -294,7 +294,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '  async upgradeWorkerNodes(config: ClusterUpgradeConfig): Promise<void> {\n';
   code += '    console.log(\'[ClusterManager] Upgrading worker nodes...\');\n\n';
   code += '    const nodes = await this.getNodes();\n';
-  code += '    const workerNodes = nodes.filter((n: any) => !n.labels[\'node-role.kubernetes.io/control-plane\']);\n\n';
+  code += '    const workerNodes = nodes.filter((n: unknown) => !n.labels[\'node-role.kubernetes.io/control-plane\']);\n\n';
   code += '    for (const node of workerNodes) {\n';
   code += '      console.log(`[ClusterManager] Upgrading node: ${node.metadata.name}`);\n\n';
   code += '      const upgradeCmd = `kubeadm upgrade node ${config.targetVersion}`\n\n';
@@ -316,7 +316,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '        console.log(`[ClusterManager] ✗ Upgrade verification failed`);\n';
   code += '      }\n\n';
   code += '      return isVerified;\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[ClusterManager] Verification error:\', error.message);\n';
   code += '      return false;\n';
   code += '    }\n';
@@ -332,7 +332,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '          console.log(`[ClusterManager] ✓ Uncordoned: ${node.metadata.name}`);\n';
   code += '        }\n';
   code += '      }\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[ClusterManager] Failed to uncordon nodes:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -345,7 +345,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '      // Uncordon all nodes\n';
   code += '      await this.uncordonNodes();\n\n';
   code += '      console.log(\'[ClusterManager] ✓ Rollback completed\');\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[ClusterManager] Rollback failed:\', error.message);\n';
   code += '      throw error;\n';
   code += '    }\n';
@@ -354,13 +354,13 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '  async getClusterHealth(): Promise<any> {\n';
   code += '    try {\n';
   code += '      const nodes = await this.coreV1Api.listNode();\n';
-  code += '      const readyNodes = nodes.items.filter((n: any) =>\n';
-  code += '        n.status.conditions?.find((c: any) => c.type === \'Ready\')?.status === \'True\'\n';
+  code += '      const readyNodes = nodes.items.filter((n: unknown) =>\n';
+  code += '        n.status.conditions?.find((c: unknown) => c.type === \'Ready\')?.status === \'True\'\n';
   code += '      );\n\n';
   code += '      const healthy = readyNodes.length === nodes.items.length;\n';
   code += '      const status = healthy ? \'Healthy\' : \'Degraded\';\n\n';
   code += '      return { healthy, status, total: nodes.items.length, ready: readyNodes.length };\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      return { healthy: false, status: \'Error\', error: error.message };\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -383,7 +383,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '        execSync(cmd, { stdio: \'pipe\' });\n';
   code += '      }\n\n';
   code += '      console.log(`[ClusterManager] ✓ Backup created: ${backupDir}`);\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[ClusterManager] Backup failed:\', error.message);\n';
   code += '    }\n';
   code += '  }\n\n';
@@ -404,7 +404,7 @@ export function generateTypeScriptClusterManager(config: ClusterManagerConfig): 
   code += '      const result = execSync(\'kubectl get nodes -o json\', { encoding: \'utf-8\' });\n';
   code += '      const nodes = JSON.parse(result);\n';
   code += '      return nodes.items;\n';
-  code += '    } catch (error: any) {\n';
+  code += '    } catch (error: unknown) {\n';
   code += '      console.error(\'[ClusterManager] Failed to get nodes:\', error.message);\n';
   code += '      return [];\n';
   code += '    }\n';
