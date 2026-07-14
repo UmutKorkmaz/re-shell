@@ -164,7 +164,7 @@ async function showWorkspaceConfiguration(
     console.log(chalk.gray('═'.repeat(50)));
     
     console.log(chalk.cyan('\n📋 Workspace Settings:'));
-    displayConfigSection(config.workspace);
+    displayConfigSection(config.workspace as unknown as Record<string, unknown>);
     
     console.log(chalk.cyan('\n🔗 Inherited from Project:'));
     if (config.project) {
@@ -213,9 +213,9 @@ async function getWorkspaceConfigValue(
       console.log(chalk.cyan(`${key}:`), value);
       
       // Show inheritance hierarchy
-      const workspaceValue = getNestedValue(config.workspace, key);
-      const projectValue = config.project ? getNestedValue(config.project, key) : undefined;
-      const globalValue = getNestedValue(config.global, key);
+      const workspaceValue = getNestedValue(config.workspace as unknown as Record<string, unknown>, key);
+      const projectValue = config.project ? getNestedValue(config.project as unknown as Record<string, unknown>, key) : undefined;
+      const globalValue = getNestedValue(config.global as unknown as Record<string, unknown>, key);
       
       if (workspaceValue !== undefined) {
         console.log(chalk.gray('(from workspace configuration)'));
@@ -245,14 +245,14 @@ async function setWorkspaceConfigValue(
   }
 
   // Parse value
-  let parsedValue: any;
+  let parsedValue: unknown;
   try {
     parsedValue = JSON.parse(value);
   } catch {
     parsedValue = value;
   }
 
-  setNestedValue(workspaceConfig, key, parsedValue);
+  setNestedValue(workspaceConfig as unknown as Record<string, unknown>, key, parsedValue);
   await configManager.saveWorkspaceConfig(workspaceConfig, workspacePath);
   
   if (spinner) {
@@ -623,15 +623,15 @@ async function showInheritanceChain(workspacePath: string): Promise<void> {
 }
 
 // Utility functions
-function displayConfigSection(config: any, indent = 0): void {
+function displayConfigSection(config: Record<string, unknown>, indent = 0): void {
   const prefix = '  '.repeat(indent);
-  
+
   for (const [key, value] of Object.entries(config)) {
     if (value === null || value === undefined) continue;
-    
+
     if (typeof value === 'object' && !Array.isArray(value)) {
       console.log(`${prefix}${chalk.cyan(key)}:`);
-      displayConfigSection(value, indent + 1);
+      displayConfigSection(value as Record<string, unknown>, indent + 1);
     } else if (Array.isArray(value)) {
       console.log(`${prefix}${chalk.cyan(key)}: ${chalk.dim(`[${value.join(', ')}]`)}`);
     } else {
@@ -640,16 +640,21 @@ function displayConfigSection(config: any, indent = 0): void {
   }
 }
 
-function getNestedValue(obj: any, path: string): any {
-  return path.split('.').reduce((current, key) => current?.[key], obj);
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce<unknown>((current, key) => {
+    if (current && typeof current === 'object' && key in current) {
+      return (current as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }, obj);
 }
 
-function setNestedValue(obj: any, path: string, value: any): void {
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
   const keys = path.split('.');
   const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => {
+  const target = keys.reduce<Record<string, unknown>>((current, key) => {
     if (!(key in current)) current[key] = {};
-    return current[key];
+    return current[key] as Record<string, unknown>;
   }, obj);
   target[lastKey] = value;
 }

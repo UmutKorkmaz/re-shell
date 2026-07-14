@@ -141,19 +141,19 @@ async function listConfiguration(options: ConfigCommandOptions, spinner?: Progre
   } else {
     if (output.global) {
       console.log(chalk.cyan('\n📋 Global Configuration:'));
-      displayConfig(output.global);
+      displayConfig(output.global as Record<string, unknown>);
     }
 
     if (output.project) {
       console.log(chalk.cyan('\n🏗️  Project Configuration:'));
-      displayConfig(output.project);
+      displayConfig(output.project as Record<string, unknown>);
     } else {
       console.log(chalk.yellow('\n⚠️  No project configuration found'));
     }
 
     if (output.merged && output.project) {
       console.log(chalk.cyan('\n🔗 Merged Configuration:'));
-      displayConfig(output.merged);
+      displayConfig(output.merged as Record<string, unknown>);
     }
   }
 }
@@ -162,7 +162,7 @@ async function getConfigValue(key: string, options: ConfigCommandOptions, spinne
   if (spinner) spinner.setText(`Getting configuration value: ${key}`);
   
   const config = await configManager.getMergedConfig();
-  const value = getNestedValue(config.merged, key) ?? getNestedValue(config.global, key);
+  const value = getNestedValue(config.merged as unknown as Record<string, unknown>, key) ?? getNestedValue(config.global as unknown as Record<string, unknown>, key);
   
   if (spinner) spinner.stop();
 
@@ -183,7 +183,7 @@ async function setConfigValue(key: string, value: string, options: ConfigCommand
   const { global: isGlobal } = options;
   
   // Parse value (try JSON, fallback to string)
-  let parsedValue: any;
+  let parsedValue: unknown;
   try {
     parsedValue = JSON.parse(value);
   } catch {
@@ -192,7 +192,7 @@ async function setConfigValue(key: string, value: string, options: ConfigCommand
 
   if (isGlobal) {
     const globalConfig = await configManager.loadGlobalConfig();
-    setNestedValue(globalConfig, key, parsedValue);
+    setNestedValue(globalConfig as unknown as Record<string, unknown>, key, parsedValue);
     await configManager.saveGlobalConfig(globalConfig);
   } else {
     // Set in project config
@@ -200,7 +200,7 @@ async function setConfigValue(key: string, value: string, options: ConfigCommand
     if (!projectConfig) {
       throw new ValidationError('No project configuration found. Initialize a project first.');
     }
-    setNestedValue(projectConfig, key, parsedValue);
+    setNestedValue(projectConfig as unknown as Record<string, unknown>, key, parsedValue);
     await configManager.saveProjectConfig(projectConfig);
   }
   
@@ -478,26 +478,26 @@ async function showConfiguration(options: ConfigCommandOptions, spinner?: Progre
     console.log(chalk.gray('═'.repeat(50)));
     
     console.log(chalk.cyan('\n🌐 Global Settings:'));
-    displayConfig(config.global, 1);
-    
+    displayConfig(config.global as unknown as Record<string, unknown>, 1);
+
     if (config.project) {
       console.log(chalk.cyan('\n🏗️  Project Settings:'));
-      displayConfig(config.project, 1);
+      displayConfig(config.project as unknown as Record<string, unknown>, 1);
     } else {
       console.log(chalk.yellow('\n⚠️  No project configuration found'));
     }
   }
 }
 
-function displayConfig(config: any, indent = 0): void {
+function displayConfig(config: Record<string, unknown>, indent = 0): void {
   const prefix = '  '.repeat(indent);
-  
+
   for (const [key, value] of Object.entries(config)) {
     if (value === null || value === undefined) {
       console.log(`${prefix}${chalk.gray(key)}: ${chalk.dim('null')}`);
     } else if (typeof value === 'object' && !Array.isArray(value)) {
       console.log(`${prefix}${chalk.cyan(key)}:`);
-      displayConfig(value, indent + 1);
+      displayConfig(value as Record<string, unknown>, indent + 1);
     } else if (Array.isArray(value)) {
       console.log(`${prefix}${chalk.cyan(key)}: ${chalk.dim(`[${value.length} items]`)}`);
       if (value.length > 0) {
@@ -516,16 +516,21 @@ function displayConfig(config: any, indent = 0): void {
 }
 
 // Utility functions for nested object access
-function getNestedValue(obj: any, path: string): any {
-  return path.split('.').reduce((current, key) => current?.[key], obj);
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce<unknown>((current, key) => {
+    if (typeof current === 'object' && current !== null && key in current) {
+      return (current as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }, obj);
 }
 
-function setNestedValue(obj: any, path: string, value: any): void {
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
   const keys = path.split('.');
   const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => {
+  const target = keys.reduce<Record<string, unknown>>((current, key) => {
     if (!(key in current)) current[key] = {};
-    return current[key];
+    return current[key] as Record<string, unknown>;
   }, obj);
   target[lastKey] = value;
 }

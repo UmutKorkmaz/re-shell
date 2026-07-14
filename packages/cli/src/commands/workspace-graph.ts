@@ -6,7 +6,8 @@ import {
   createWorkspaceDependencyGraph,
   GraphAnalysis,
   CycleDetectionResult,
-  BuildOrder
+  BuildOrder,
+  WorkspaceCycle
 } from '../utils/workspace-graph';
 import { loadWorkspaceDefinition } from '../utils/workspace-schema';
 import { ProgressSpinner } from '../utils/spinner';
@@ -41,6 +42,14 @@ export interface WorkspaceGraphCommandOptions {
 }
 
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
+
+/**
+ * Visualization data returned by {@link WorkspaceDependencyGraph.getVisualizationData}.
+ */
+interface VisualizationData {
+  nodes: Array<{ id: string; label: string; group: string; level?: number }>;
+  edges: Array<{ from: string; to: string; label: string; color: string }>;
+}
 
 /**
  * Entry point for the workspace graph command. Dispatches to the appropriate
@@ -605,7 +614,7 @@ function displayCycleDetection(cycles: CycleDetectionResult, fileName: string, d
   }
 }
 
-function displayCycles(cycles: any[], detailed: boolean): void {
+function displayCycles(cycles: WorkspaceCycle[], detailed: boolean): void {
   for (let i = 0; i < cycles.length; i++) {
     const cycle = cycles[i];
     console.log(`\\n  ${i + 1}. ${cycle.path.join(' → ')}`);
@@ -693,7 +702,7 @@ function displayCriticalPath(criticalPath: string[], fileName: string): void {
   console.log(`  • The build time is primarily determined by: ${criticalPath.join(' → ')}`);
 }
 
-function displayTextVisualization(vizData: any, fileName: string): void {
+function displayTextVisualization(vizData: VisualizationData, fileName: string): void {
   console.log(chalk.cyan(`\\n👀 Workspace Graph Visualization`));
   console.log(chalk.gray(`File: ${fileName}`));
   console.log(chalk.gray('═'.repeat(50)));
@@ -701,7 +710,7 @@ function displayTextVisualization(vizData: any, fileName: string): void {
   console.log(`\\n📦 Workspaces (${vizData.nodes.length}):`);
   
   // Group nodes by type
-  const nodesByType = vizData.nodes.reduce((acc: any, node: any) => {
+  const nodesByType = vizData.nodes.reduce((acc: Record<string, string[]>, node: { id: string; label: string; group: string; level?: number }) => {
     if (!acc[node.group]) acc[node.group] = [];
     acc[node.group].push(node.label);
     return acc;
@@ -718,7 +727,7 @@ function displayTextVisualization(vizData: any, fileName: string): void {
   console.log(`\\n🔗 Dependencies (${vizData.edges.length}):`);
   
   // Group edges by type
-  const edgesByType = vizData.edges.reduce((acc: any, edge: any) => {
+  const edgesByType = vizData.edges.reduce((acc: Record<string, string[]>, edge: { from: string; to: string; label: string; color: string }) => {
     if (!acc[edge.label]) acc[edge.label] = [];
     acc[edge.label].push(`${edge.from} → ${edge.to}`);
     return acc;

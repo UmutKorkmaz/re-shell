@@ -24,8 +24,8 @@ export interface WorkspaceDiffOptions {
 interface ConfigChange {
   type: 'added' | 'removed' | 'modified';
   path: string;
-  oldValue?: any;
-  newValue?: any;
+  oldValue?: unknown;
+  newValue?: unknown;
 }
 
 /** Groups all property changes for a single service. */
@@ -262,7 +262,7 @@ function compareServices(fromServices: Record<string, unknown>, toServices: Reco
  * @param basePath - Dotted property path for error messages.
  * @returns Array of {@link ConfigChange} entries.
  */
-function compareValues(from: any, to: any, basePath: string): ConfigChange[] {
+function compareValues(from: unknown, to: unknown, basePath: string): ConfigChange[] {
   const changes: ConfigChange[] = [];
 
   // Handle null/undefined
