@@ -1,58 +1,113 @@
+/**
+ * @file Configuration validation system for Re-Shell CLI.
+ * @description Provides schema-based validation for global, project, and environment
+ * configuration files with detailed error messages, warnings, and actionable suggestions.
+ */
+
 import * as fs from 'fs-extra';
 import * as yaml from 'yaml';
 import { ValidationError } from './error-handler';
 
-// Enhanced validation system with detailed error messages
+/**
+ * @description Represents a single validation rule applied to a configuration field.
+ */
 export interface ValidationRule {
+  /** The dotted path of the configuration field to validate (e.g. `'dev.port'`). */
   field: string;
+  /** The kind of validation to perform on the field. */
   type: 'required' | 'type' | 'enum' | 'pattern' | 'range' | 'custom';
+  /** Human-readable message describing what a failed validation means. */
   message: string;
+  /** Optional custom validator function for `'custom'` rule types. */
   validator?: (value: any, context?: any) => boolean;
+  /** Additional constraint details that refine how the rule is evaluated. */
   details?: {
+    /** Permitted values for `'enum'` rule types. */
     allowedValues?: any[];
+    /** Regular expression that the field must match for `'pattern'` rule types. */
     pattern?: RegExp;
+    /** Lower bound (inclusive) for `'range'` rule types. */
     min?: number;
+    /** Upper bound (inclusive) for `'range'` rule types. */
     max?: number;
+    /** Expected JavaScript type name for `'type'` rule types. */
     expectedType?: string;
   };
 }
 
+/**
+ * @description The overall outcome of a configuration validation run.
+ */
 export interface ValidationResult {
+  /** Whether the configuration passed validation with no errors. */
   valid: boolean;
+  /** Detailed error information for each failed rule. */
   errors: ValidationErrorDetail[];
+  /** Non-blocking warnings about potentially problematic values. */
   warnings: ValidationWarning[];
+  /** Actionable suggestions for improving the configuration. */
   suggestions: ValidationSuggestion[];
 }
 
+/**
+ * @description Detailed information about a single validation failure.
+ */
 export interface ValidationErrorDetail {
+  /** The dotted path of the field that failed validation. */
   field: string;
+  /** Human-readable description of the failure. */
   message: string;
+  /** Severity level indicating whether this blocks validation (`'error'`) or not (`'warning'`). */
   severity: 'error' | 'warning';
+  /** Machine-readable error code for programmatic handling. */
   code: string;
+  /** The invalid value that triggered the error, if available. */
   value?: any;
+  /** The value or constraint that was expected. */
   expectedValue?: any;
+  /** Suggested fixes for the error. */
   suggestions?: string[];
+  /** Optional additional context about where the error occurred. */
   context?: string;
+  /** Source line number, when available. */
   line?: number;
+  /** Source column number, when available. */
   column?: number;
 }
 
+/**
+ * @description A non-blocking warning about a potentially problematic configuration value.
+ */
 export interface ValidationWarning {
+  /** The dotted path of the field that produced the warning. */
   field: string;
+  /** Human-readable description of the warning. */
   message: string;
+  /** Recommended action to resolve the warning. */
   suggestion: string;
+  /** Estimated impact level if the warning is left unaddressed. */
   impact: 'low' | 'medium' | 'high';
 }
 
+/**
+ * @description An actionable recommendation for improving a configuration field.
+ */
 export interface ValidationSuggestion {
+  /** The dotted path of the field the suggestion applies to. */
   field: string;
+  /** The recommended change to make. */
   suggestion: string;
+  /** Explanation of why the suggestion is being offered. */
   reason: string;
+  /** Whether the suggestion can be applied automatically without user input. */
   autoFixable: boolean;
+  /** The value to use when applying the fix automatically, if applicable. */
   autoFixValue?: any;
 }
 
-// Configuration schema definitions
+/**
+ * @description Validation schema describing all rules for the global Re-Shell configuration file.
+ */
 export const GLOBAL_CONFIG_SCHEMA: ValidationRule[] = [
   {
     field: 'version',
@@ -129,6 +184,9 @@ export const GLOBAL_CONFIG_SCHEMA: ValidationRule[] = [
   }
 ];
 
+/**
+ * @description Validation schema describing all rules for a Re-Shell project configuration file.
+ */
 export const PROJECT_CONFIG_SCHEMA: ValidationRule[] = [
   {
     field: 'name',
@@ -184,6 +242,9 @@ export const PROJECT_CONFIG_SCHEMA: ValidationRule[] = [
   }
 ];
 
+/**
+ * @description Validation schema describing all rules for an environment configuration block.
+ */
 export const ENVIRONMENT_CONFIG_SCHEMA: ValidationRule[] = [
   {
     field: 'name',
@@ -204,13 +265,23 @@ export const ENVIRONMENT_CONFIG_SCHEMA: ValidationRule[] = [
   }
 ];
 
-// Enhanced validation engine
+/**
+ * @description Enhanced validation engine that evaluates a configuration object
+ * against a set of validation rules, producing detailed errors, warnings, and suggestions.
+ */
 export class ConfigurationValidator {
   private errors: ValidationErrorDetail[] = [];
   private warnings: ValidationWarning[] = [];
   private suggestions: ValidationSuggestion[] = [];
 
-  // Validate configuration against schema
+  /**
+   * @description Validates a configuration object against the provided schema.
+   * @param config - The configuration object to validate.
+   * @param schema - The array of validation rules to apply.
+   * @param context - Optional context label (e.g. `'global'` or `'project'`) used to
+   * trigger additional contextual validations and prefix field paths.
+   * @returns The aggregated validation result containing errors, warnings, and suggestions.
+   */
   validateConfiguration(config: any, schema: ValidationRule[], context = ''): ValidationResult {
     this.reset();
 
@@ -575,18 +646,38 @@ export class ConfigurationValidator {
   }
 }
 
-// Export singleton instance and helper functions
+/**
+ * @description Shared singleton instance of {@link ConfigurationValidator} for convenient reuse.
+ */
 export const configValidator = new ConfigurationValidator();
 
+/**
+ * @description Validates a global Re-Shell configuration object using the global schema.
+ * @param config - The global configuration object to validate.
+ * @returns The validation result containing any errors, warnings, and suggestions.
+ */
 export function validateGlobalConfig(config: any): ValidationResult {
   return configValidator.validateConfiguration(config, GLOBAL_CONFIG_SCHEMA, 'global');
 }
 
+/**
+ * @description Validates a Re-Shell project configuration object using the project schema.
+ * @param config - The project configuration object to validate.
+ * @returns The validation result containing any errors, warnings, and suggestions.
+ */
 export function validateProjectConfig(config: any): ValidationResult {
   return configValidator.validateConfiguration(config, PROJECT_CONFIG_SCHEMA, 'project');
 }
 
 
+/**
+ * @description Reads, parses, and validates a YAML configuration file from disk.
+ * @param filePath - Absolute or relative path to the configuration file.
+ * @param configType - Whether the file contains a `'global'` or `'project'` configuration,
+ * determining which schema to apply.
+ * @returns A promise resolving to the validation result, including file-level or
+ * YAML parse errors when applicable.
+ */
 export async function validateConfigFile(filePath: string, configType: 'global' | 'project'): Promise<ValidationResult> {
   try {
     if (!await fs.pathExists(filePath)) {

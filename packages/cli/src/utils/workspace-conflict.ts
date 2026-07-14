@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Workspace conflict detection and resolution utilities.
+ * @description Provides classes, interfaces, and utility functions for detecting,
+ * analyzing, and resolving conflicts within workspace definitions. Conflicts can
+ * include naming collisions, dependency cycles, port collisions, path collisions,
+ * type mismatches, and configuration issues.
+ */
+
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as yaml from 'yaml';
@@ -8,19 +16,32 @@ import {
   loadWorkspaceDefinition as loadValidatedWorkspaceDefinition,
 } from './workspace-schema';
 
-// Conflict detection interfaces
+/**
+ * @description Represents a detected conflict within a workspace definition.
+ */
 export interface WorkspaceConflict {
+  /** @description Unique identifier for the conflict. */
   id: string;
+  /** @description The category of the conflict. */
   type: ConflictType;
+  /** @description The severity level of the conflict. */
   severity: ConflictSeverity;
+  /** @description Short human-readable description of the conflict. */
   description: string;
+  /** @description Detailed explanation of the conflict. */
   details: string;
+  /** @description List of workspace names affected by the conflict. */
   affectedWorkspaces: string[];
+  /** @description Optional file or resource location where the conflict was found. */
   location?: string;
+  /** @description Suggested resolutions for the conflict. */
   suggestions: ConflictResolution[];
 }
 
-export type ConflictType = 
+/**
+ * @description Union type representing all supported conflict categories.
+ */
+export type ConflictType =
   | 'naming'
   | 'dependency-cycle'
   | 'dependency-missing'
@@ -32,18 +53,33 @@ export type ConflictType =
   | 'build-target'
   | 'type-mismatch';
 
+/**
+ * @description Severity level indicating how critical a conflict is.
+ */
 export type ConflictSeverity = 'error' | 'warning' | 'info';
 
+/**
+ * @description Represents a possible resolution for a workspace conflict.
+ */
 export interface ConflictResolution {
+  /** @description Unique identifier for the resolution. */
   id: string;
+  /** @description Human-readable description of the resolution. */
   description: string;
+  /** @description The action to perform when applying this resolution. */
   action: ResolutionAction;
+  /** @description Whether this resolution can be applied automatically. */
   automatic: boolean;
+  /** @description The risk level associated with applying this resolution. */
   riskLevel: 'low' | 'medium' | 'high';
+  /** @description Optional preview text describing the resolution effect. */
   preview?: string;
 }
 
-export type ResolutionAction = 
+/**
+ * @description Union type representing the actions that can be taken to resolve a conflict.
+ */
+export type ResolutionAction =
   | 'rename-workspace'
   | 'update-dependency'
   | 'remove-dependency'
@@ -54,41 +90,78 @@ export type ResolutionAction =
   | 'split-workspace'
   | 'auto-resolve';
 
+/**
+ * @description Options controlling which conflict categories are checked during detection.
+ */
 export interface ConflictDetectionOptions {
+  /** @description Whether to include warning-level conflicts. */
   includeWarnings?: boolean;
+  /** @description Whether to check for dependency-related conflicts. */
   checkDependencies?: boolean;
+  /** @description Whether to check for port collisions. */
   checkPorts?: boolean;
+  /** @description Whether to check for path collisions. */
   checkPaths?: boolean;
+  /** @description Whether to check for type mismatches. */
   checkTypes?: boolean;
+  /** @description Whether to generate resolution suggestions for detected conflicts. */
   enableResolution?: boolean;
 }
 
+/**
+ * @description The result of attempting to resolve one or more workspace conflicts.
+ */
 export interface ConflictResolutionResult {
+  /** @description Conflicts that were successfully resolved. */
   resolved: WorkspaceConflict[];
+  /** @description Conflicts that could not be resolved. */
   unresolved: WorkspaceConflict[];
+  /** @description List of changes applied during resolution. */
   changes: ConflictChange[];
+  /** @description Warnings produced during the resolution process. */
   warnings: string[];
 }
 
+/**
+ * @description Represents a single change made to the workspace definition during conflict resolution.
+ */
 export interface ConflictChange {
+  /** @description The category of the changed entity. */
   type: 'workspace' | 'dependency' | 'configuration';
+  /** @description The name of the target affected by the change. */
   target: string;
+  /** @description The property that was changed. */
   property: string;
+  /** @description The previous value before the change. */
   oldValue: any;
+  /** @description The new value after the change. */
   newValue: any;
+  /** @description Human-readable reason for the change. */
   reason: string;
 }
 
-// Workspace conflict detector and resolver
+/**
+ * @description Detects and resolves conflicts within a workspace definition.
+ * Supports naming, dependency, port, path, type, and configuration conflict categories.
+ */
 export class WorkspaceConflictManager {
   private rootPath: string;
   private conflicts: Map<string, WorkspaceConflict> = new Map();
 
+  /**
+   * @description Creates a new WorkspaceConflictManager instance.
+   * @param rootPath - The root directory path for the workspace. Defaults to the current working directory.
+   */
   constructor(rootPath: string = process.cwd()) {
     this.rootPath = rootPath;
   }
 
-  // Detect all conflicts in workspace definition
+  /**
+   * @description Detects all conflicts in the given workspace definition based on the provided options.
+   * @param definition - The workspace definition to analyze.
+   * @param options - Optional settings controlling which conflict categories to check.
+   * @returns A promise resolving to an array of detected conflicts.
+   */
   async detectConflicts(
     definition: WorkspaceDefinition,
     options: ConflictDetectionOptions = {}
@@ -139,7 +212,13 @@ export class WorkspaceConflictManager {
     return Array.from(this.conflicts.values());
   }
 
-  // Resolve conflicts automatically or with guidance
+  /**
+   * @description Resolves a list of conflicts, either automatically or with guidance based on available suggestions.
+   * @param definition - The workspace definition to modify.
+   * @param conflicts - The conflicts to resolve.
+   * @param autoResolve - Whether to apply automatic resolutions when available. Defaults to false.
+   * @returns A promise resolving to the resolution result containing resolved/unresolved conflicts and changes.
+   */
   async resolveConflicts(
     definition: WorkspaceDefinition,
     conflicts: WorkspaceConflict[],
@@ -172,7 +251,13 @@ export class WorkspaceConflictManager {
     return result;
   }
 
-  // Validate resolution preview
+  /**
+   * @description Previews the effect of applying a specific resolution without modifying the actual definition.
+   * @param definition - The workspace definition to preview against.
+   * @param conflict - The conflict to resolve.
+   * @param resolutionId - The identifier of the resolution suggestion to preview.
+   * @returns A promise resolving to an object containing success status, changes, warnings, and a preview of the resulting definition.
+   */
   async previewResolution(
     definition: WorkspaceDefinition,
     conflict: WorkspaceConflict,
@@ -818,14 +903,23 @@ export class WorkspaceConflictManager {
   }
 }
 
-// Utility functions
+/**
+ * @description Creates a new WorkspaceConflictManager instance for the given root path.
+ * @param rootPath - Optional root directory path for the workspace.
+ * @returns A promise resolving to a configured WorkspaceConflictManager instance.
+ */
 export async function createWorkspaceConflictManager(
   rootPath?: string
 ): Promise<WorkspaceConflictManager> {
   return new WorkspaceConflictManager(rootPath);
 }
 
-// Quick conflict detection
+/**
+ * @description Loads a workspace definition from file and quickly detects conflicts.
+ * @param workspaceFile - Path to the workspace definition file.
+ * @param options - Optional settings controlling which conflict categories to check.
+ * @returns A promise resolving to an array of detected conflicts.
+ */
 export async function detectWorkspaceConflicts(
   workspaceFile: string,
   options?: ConflictDetectionOptions
@@ -835,7 +929,12 @@ export async function detectWorkspaceConflicts(
   return await manager.detectConflicts(definition, options);
 }
 
-// Auto-resolve conflicts
+/**
+ * @description Automatically resolves conflicts in a workspace definition file, saving changes if any conflicts were resolved.
+ * @param workspaceFile - Path to the workspace definition file.
+ * @param conflicts - Optional pre-detected conflicts. If omitted, conflicts are detected automatically.
+ * @returns A promise resolving to the resolution result.
+ */
 export async function autoResolveConflicts(
   workspaceFile: string,
   conflicts?: WorkspaceConflict[]
