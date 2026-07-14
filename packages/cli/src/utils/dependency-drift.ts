@@ -11,17 +11,29 @@ import { getWorkspaces } from './monorepo';
  * array. CLI-free: returns plain data for the command layer to envelope.
  */
 
+/**
+ * Represents a single version of a dependency along with the workspace packages
+ * that declare it.
+ */
 export interface DriftVersion {
   version: string;
   /** Workspace names declaring this version of the dependency. */
   packages: string[];
 }
 
+/**
+ * Represents a single dependency that has drifted across workspace packages,
+ * listing every distinct version range detected and the packages using each.
+ */
 export interface DriftEntry {
   dependency: string;
   versions: DriftVersion[];
 }
 
+/**
+ * The complete result of a dependency drift scan, containing one entry per
+ * dependency that is pinned to multiple version ranges.
+ */
 export interface DriftResult {
   drift: DriftEntry[];
 }

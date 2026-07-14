@@ -8,6 +8,7 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // OpenAPI 3.0 specification types
+/** The root OpenAPI 3.0 specification document. */
 export interface OpenAPISpec {
   openapi: string;
   info: OpenAPIInfo;
@@ -18,6 +19,7 @@ export interface OpenAPISpec {
   tags?: OpenAPITag[];
 }
 
+/** Metadata about the OpenAPI document such as title, version, and contact. */
 export interface OpenAPIInfo {
   title: string;
   description?: string;
@@ -26,29 +28,34 @@ export interface OpenAPIInfo {
   license?: OpenAPILicense;
 }
 
+/** Contact information for the exposed API. */
 export interface OpenAPIContact {
   name?: string;
   email?: string;
   url?: string;
 }
 
+/** License information for the exposed API. */
 export interface OpenAPILicense {
   name: string;
   url?: string;
 }
 
+/** An array of Server objects providing connectivity information to a target server. */
 export interface OpenAPIServer {
   url: string;
   description?: string;
   variables?: Record<string, OpenAPIServerVariable>;
 }
 
+/** An object representing a Server Variable for server URL template substitution. */
 export interface OpenAPIServerVariable {
   enum?: string[];
   default: string;
   description?: string;
 }
 
+/** Describes the operations available on a single path. */
 export interface OpenAPIPathItem {
   get?: OpenAPIOperation;
   put?: OpenAPIOperation;
@@ -65,6 +72,7 @@ export interface OpenAPIPathItem {
   servers?: OpenAPIServer[];
 }
 
+/** Describes a single API operation on a path. */
 export interface OpenAPIOperation {
   tags?: string[];
   summary?: string;
@@ -79,6 +87,7 @@ export interface OpenAPIOperation {
   servers?: OpenAPIServer[];
 }
 
+/** Describes a single operation parameter. */
 export interface OpenAPIParameter {
   name: string;
   in: 'query' | 'header' | 'path' | 'cookie';
@@ -95,6 +104,7 @@ export interface OpenAPIParameter {
   content?: Record<string, OpenAPIMediaType>;
 }
 
+/** The Schema Object allows the definition of input and output data types. */
 export interface OpenAPISchema {
   $ref?: string;
   type?: string;
@@ -136,11 +146,13 @@ export interface OpenAPISchema {
   example?: unknown;
 }
 
+/** When request bodies or response payloads may be one of a number of different schemas, a discriminator object can be used to aid in serialization. */
 export interface OpenAPIDiscrimriminator {
   propertyName: string;
   mapping?: Record<string, string>;
 }
 
+/** A metadata object that allows for more fine-tuned XML model definitions. */
 export interface OpenAPIXML {
   name?: string;
   namespace?: string;
@@ -149,17 +161,20 @@ export interface OpenAPIXML {
   wrapped?: boolean;
 }
 
+/** Allows referencing an external resource for extended documentation. */
 export interface OpenAPIExternalDocumentation {
   description?: string;
   url: string;
 }
 
+/** Describes a single request body. */
 export interface OpenAPIRequestBody {
   description?: string;
   required?: boolean;
   content: Record<string, OpenAPIMediaType>;
 }
 
+/** Describes a single response from an API Operation. */
 export interface OpenAPIResponse {
   description?: string;
   headers?: Record<string, OpenAPIHeader | OpenAPISchema>;
@@ -167,6 +182,7 @@ export interface OpenAPIResponse {
   links?: Record<string, OpenAPILink>;
 }
 
+/** Describes a single header that can be sent or received in an HTTP request or response. */
 export interface OpenAPIHeader {
   description?: string;
   required?: boolean;
@@ -181,6 +197,7 @@ export interface OpenAPIHeader {
   content?: Record<string, OpenAPIMediaType>;
 }
 
+/** Provides schema and examples for the media type identified by a key in a content map. */
 export interface OpenAPIMediaType {
   schema?: OpenAPISchema;
   example?: unknown;
@@ -188,6 +205,7 @@ export interface OpenAPIMediaType {
   encoding?: Record<string, OpenAPIEncoding>;
 }
 
+/** A single encoding definition applied to a single schema property. */
 export interface OpenAPIEncoding {
   contentType?: string;
   headers?: Record<string, OpenAPIHeader | OpenAPISchema>;
@@ -196,6 +214,7 @@ export interface OpenAPIEncoding {
   allowReserved?: boolean;
 }
 
+/** An object grouping an internal or external example value with basic metadata. */
 export interface OpenAPIExample {
   summary?: string;
   description?: string;
@@ -203,6 +222,7 @@ export interface OpenAPIExample {
   externalValue?: string;
 }
 
+/** Represents a possible design-time link for a response. */
 export interface OpenAPILink {
   operationRef?: string;
   operationId?: string;
@@ -213,21 +233,25 @@ export interface OpenAPILink {
   responses?: Record<string, unknown>;
 }
 
+/** A map of possible out-of band callbacks related to the parent operation. */
 export interface OpenAPICallback {
   expression?: string;
   $ref?: string;
 }
 
+/** Lists the required security schemes to execute this operation. */
 export interface OpenAPISecurityRequirement {
   [name: string]: string[];
 }
 
+/** Adds metadata to a single tag that is used by the Operation Object. */
 export interface OpenAPITag {
   name: string;
   description?: string;
   externalDocs?: OpenAPIExternalDocumentation;
 }
 
+/** Holds a set of reusable objects for different aspects of the OAS. */
 export interface OpenAPIComponents {
   schemas?: Record<string, OpenAPISchema>;
   responses?: Record<string, OpenAPIResponse>;
@@ -240,6 +264,7 @@ export interface OpenAPIComponents {
   callbacks?: Record<string, OpenAPICallback>;
 }
 
+/** Defines a security scheme that can be used by the operations. */
 export interface OpenAPISecurityScheme {
   type: string;
   description?: string;
@@ -251,6 +276,7 @@ export interface OpenAPISecurityScheme {
   openIdConnectUrl?: string;
 }
 
+/** Configuration details for a supported OAuth Flow. */
 export interface OpenAPIOAuthFlow {
   authorizationUrl?: string;
   tokenUrl?: string;
@@ -259,6 +285,7 @@ export interface OpenAPIOAuthFlow {
 }
 
 // Framework-specific annotation patterns
+/** Describes framework-specific route annotation patterns used for route discovery. */
 export interface FrameworkAnnotationPattern {
   framework: string;
   language: string;
@@ -269,6 +296,7 @@ export interface FrameworkAnnotationPattern {
 }
 
 // Route discovery result
+/** Represents a single route discovered by scanning project source files. */
 export interface DiscoveredRoute {
   path: string;
   method: string;
@@ -287,6 +315,7 @@ export interface DiscoveredRoute {
   line: number;
 }
 
+/** Represents a single parameter discovered on a route handler. */
 export interface DiscoveredParameter {
   name: string;
   type: string;
@@ -296,6 +325,10 @@ export interface DiscoveredParameter {
 }
 
 // OpenAPI generator class
+/**
+ * Generates OpenAPI specifications by scanning backend project source files for routes.
+ * Supports multiple frameworks and languages.
+ */
 export class OpenAPIGenerator {
   private projectPath: string;
   private framework?: string;
@@ -307,6 +340,10 @@ export class OpenAPIGenerator {
     this.framework = framework;
   }
 
+  /**
+   * Inspects project files to determine which backend framework is in use.
+   * @returns A promise resolving to the detected framework name, defaulting to 'express'.
+   */
   // Detect framework from project files
   async detectFramework(): Promise<string> {
     const frameworkFiles: Record<string, string[]> = {
@@ -353,6 +390,10 @@ export class OpenAPIGenerator {
     return 'express'; // Default fallback
   }
 
+  /**
+   * Discovers API routes from the project source code based on the detected framework.
+   * @returns A promise resolving to an array of discovered routes.
+   */
   // Discover routes from code
   async discoverRoutes(): Promise<DiscoveredRoute[]> {
     const framework = this.framework || await this.detectFramework();
@@ -871,6 +912,11 @@ export class OpenAPIGenerator {
     return results;
   }
 
+  /**
+   * Generates an OpenAPI specification from the routes discovered in the project.
+   * @param options - Optional overrides for info, tags, and security schemes.
+   * @returns A promise resolving to the generated OpenAPISpec object.
+   */
   // Generate OpenAPI spec from discovered routes
   async generateSpec(options?: {
     info?: Partial<OpenAPIInfo>;
@@ -955,6 +1001,13 @@ export class OpenAPIGenerator {
     return spec;
   }
 
+  /**
+   * Generates an OpenAPI spec and writes it to disk in YAML or JSON format.
+   * @param outputPath - The file path where the spec should be written.
+   * @param format - The output format, either 'yaml' (default) or 'json'.
+   * @param options - Optional overrides forwarded to generateSpec.
+   * @returns A promise that resolves once the file has been written.
+   */
   // Write OpenAPI spec to file
   async writeSpec(outputPath: string, format: 'yaml' | 'json' = 'yaml', options?: {
     info?: Partial<OpenAPIInfo>;
@@ -972,6 +1025,11 @@ export class OpenAPIGenerator {
     }
   }
 
+  /**
+   * Returns the known route annotation patterns for the given framework.
+   * @param framework - The framework identifier (e.g. 'express', 'nestjs').
+   * @returns An array of annotation patterns, or an empty array if unsupported.
+   */
   // Get annotation patterns for a framework
   getAnnotationPatterns(framework: string): FrameworkAnnotationPattern[] {
     const patterns: Record<string, FrameworkAnnotationPattern[]> = {
@@ -1092,6 +1150,12 @@ export class OpenAPIGenerator {
     return patterns[framework] || [];
   }
 
+  /**
+   * Generates framework-specific source code containing OpenAPI annotations for a single route.
+   * @param framework - The target framework identifier.
+   * @param options - Route options including path, method, operation name, and tags.
+   * @returns The generated annotated code string.
+   */
   // Generate code with OpenAPI annotations
   generateAnnotatedCode(framework: string, options: {
     routePath?: string;
@@ -1162,14 +1226,21 @@ public IActionResult ${opts.operation.charAt(0).toUpperCase() + opts.operation.s
 // Factory functions
 
 /**
- * Create OpenAPI generator
+ * Creates an OpenAPIGenerator instance for the given project.
+ * @param projectPath - The absolute path to the backend project root.
+ * @param framework - Optional framework identifier to skip auto-detection.
+ * @returns A promise resolving to a new OpenAPIGenerator instance.
  */
 export async function createOpenAPIGenerator(projectPath: string, framework?: string): Promise<OpenAPIGenerator> {
   return new OpenAPIGenerator(projectPath, framework);
 }
 
 /**
- * Generate and write OpenAPI spec
+ * Convenience function that generates an OpenAPI spec and writes it to disk.
+ * @param projectPath - The absolute path to the backend project root.
+ * @param outputPath - The file path where the spec should be written.
+ * @param options - Optional framework, info, and output format settings.
+ * @returns A promise that resolves once the spec has been written.
  */
 export async function generateOpenAPISpec(
   projectPath: string,
@@ -1185,7 +1256,8 @@ export async function generateOpenAPISpec(
 }
 
 /**
- * Get supported frameworks for OpenAPI
+ * Returns the list of framework identifiers supported by the OpenAPI generator.
+ * @returns An array of supported framework name strings.
  */
 export function getSupportedFrameworks(): string[] {
   return [
@@ -1208,7 +1280,9 @@ export function getSupportedFrameworks(): string[] {
 }
 
 /**
- * Format OpenAPI spec for display
+ * Formats an OpenAPI spec into a human-readable, colorized string for terminal display.
+ * @param spec - The OpenAPISpec to format.
+ * @returns A formatted string suitable for console output.
  */
 export function formatOpenAPISpec(spec: OpenAPISpec): string {
   const lines: string[] = [];

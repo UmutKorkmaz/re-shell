@@ -32,7 +32,9 @@ import {
  * be cryptographically validated (see {@link verifyRegistrySignature}).
  */
 
-// Marketplace plugin information (subset surfaced from the npm registry).
+/**
+ * Marketplace plugin information (subset surfaced from the npm registry).
+ */
 export interface MarketplacePlugin {
   id: string;
   name: string;
@@ -66,7 +68,9 @@ export interface MarketplacePlugin {
   support: PluginSupport;
 }
 
-// Plugin categories.
+/**
+ * Plugin categories used to classify marketplace plugins.
+ */
 export enum PluginCategory {
   DEVELOPMENT = 'development',
   PRODUCTIVITY = 'productivity',
@@ -81,6 +85,7 @@ export enum PluginCategory {
   EXTENSION = 'extension',
 }
 
+/** Pricing model for a marketplace plugin. */
 export interface PluginPricing {
   type: 'free' | 'paid' | 'freemium' | 'subscription';
   price?: number;
@@ -89,6 +94,7 @@ export interface PluginPricing {
   trialDays?: number;
 }
 
+/** Support channels and metadata for a marketplace plugin. */
 export interface PluginSupport {
   documentation?: string;
   issues?: string;
@@ -98,7 +104,7 @@ export interface PluginSupport {
   languages: string[];
 }
 
-// Search filters.
+/** Filters applied when searching the marketplace. */
 export interface MarketplaceSearchFilters {
   query?: string;
   category?: PluginCategory;
@@ -114,7 +120,7 @@ export interface MarketplaceSearchFilters {
   offset?: number;
 }
 
-// Search result.
+/** Result of a marketplace search operation. */
 export interface MarketplaceSearchResult {
   plugins: MarketplacePlugin[];
   total: number;
@@ -123,7 +129,7 @@ export interface MarketplaceSearchResult {
   filters: MarketplaceSearchFilters;
 }
 
-// Installation result.
+/** Result of a plugin installation attempt. */
 export interface InstallationResult {
   success: boolean;
   plugin: MarketplacePlugin | null;
@@ -137,7 +143,7 @@ export interface InstallationResult {
   duration: number;
 }
 
-// Marketplace configuration.
+/** Configuration for the marketplace client. */
 export interface MarketplaceConfig {
   apiUrl: string;
   authToken?: string;
@@ -185,7 +191,12 @@ function repoUrl(repository: RegistryVersion['repository']): string | undefined 
   return typeof repository === 'string' ? repository : repository.url;
 }
 
-// Plugin marketplace client.
+/**
+ * Plugin marketplace client backed by the public npm registry.
+ *
+ * Emits lifecycle events (`search-started`, `installation-completed`, etc.)
+ * via {@link EventEmitter}.
+ */
 export class PluginMarketplace extends EventEmitter {
   private config: MarketplaceConfig;
   private client: RegistryClient;
@@ -386,11 +397,17 @@ export class PluginMarketplace extends EventEmitter {
     }));
   }
 
+  /** Clear all cached search and plugin data. */
   clearCache(): void {
     this.cache.clear();
     this.emit('cache-cleared');
   }
 
+  /**
+   * Get runtime statistics about the marketplace client.
+   *
+   * @returns Registry URL, cache size, and selected configuration values.
+   */
   getStats(): {
     registryUrl: string;
     cacheSize: number;
@@ -548,7 +565,12 @@ export class PluginMarketplace extends EventEmitter {
   }
 }
 
-// Utility functions.
+/**
+ * Create a new {@link PluginMarketplace} instance with optional configuration overrides.
+ *
+ * @param config - Optional partial configuration to override defaults.
+ * @returns A configured PluginMarketplace client.
+ */
 export function createMarketplace(config?: Partial<MarketplaceConfig>): PluginMarketplace {
   return new PluginMarketplace(config);
 }
@@ -561,6 +583,12 @@ export function isValidPluginId(id: string): boolean {
   return /^(@[a-z0-9][a-z0-9-._]*\/)?[a-z0-9][a-z0-9-._]*$/.test(id) && id.length <= 214;
 }
 
+/**
+ * Format a byte count into a human-readable file size string.
+ *
+ * @param bytes - Size in bytes.
+ * @returns Human-readable size (e.g. `"1.5 MB"`).
+ */
 export function formatFileSize(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB'];
   let size = bytes;
@@ -572,10 +600,17 @@ export function formatFileSize(bytes: number): string {
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
+/**
+ * Format a download count into a compact human-readable string.
+ *
+ * @param count - Raw download count.
+ * @returns Abbreviated count (e.g. `"1.2K"`, `"3.4M"`).
+ */
 export function formatDownloadCount(count: number): string {
   if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
   if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
   return count.toString();
 }
 
+/** The npm keyword used to tag re-shell plugins on the registry. */
 export { PLUGIN_KEYWORD };

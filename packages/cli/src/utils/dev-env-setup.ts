@@ -9,7 +9,7 @@ import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import chalk from 'chalk';
 
-// Port allocation and management
+/** Mapping between a local port and a container port for a specific service. */
 export interface PortMapping {
   localPort: number;
   containerPort: number;
@@ -18,13 +18,14 @@ export interface PortMapping {
   description?: string;
 }
 
+/** A range of ports available for allocation. */
 export interface PortRange {
   start: number;
   end: number;
   reserved: boolean;
 }
 
-// Development environment configuration
+/** Configuration for the development environment setup. */
 export interface DevEnvConfig {
   projectPath: string;
   projectName: string;
@@ -37,7 +38,7 @@ export interface DevEnvConfig {
   autoStartContainers: boolean;
 }
 
-// Container information
+/** Information about a running or stopped container. */
 export interface ContainerInfo {
   id: string;
   name: string;
@@ -47,7 +48,7 @@ export interface ContainerInfo {
   labels: Record<string, string>;
 }
 
-// Forwarded port status
+/** Status of a forwarded port. */
 export interface ForwardStatus {
   localPort: number;
   containerPort: number;
@@ -57,7 +58,7 @@ export interface ForwardStatus {
   url?: string;
 }
 
-// IDE-specific configuration
+/** IDE-specific configuration for development environment integration. */
 export interface IDEConfig {
   type: 'vscode' | 'jetbrains' | 'vim' | 'emacs' | 'generic';
   launchConfig?: Record<string, unknown>;
@@ -66,7 +67,10 @@ export interface IDEConfig {
   workspacePath: string;
 }
 
-// Port manager class
+/**
+ * Manages port allocation, reservation, and forwarding for development containers.
+ * @extends EventEmitter
+ */
 export class PortManager extends EventEmitter {
   private allocatedPorts: Set<number> = new Set();
   private portRanges: PortRange[] = [
@@ -158,6 +162,10 @@ export class PortManager extends EventEmitter {
 }
 
 // Development environment manager
+/**
+ * Manages the development environment including containers, port forwarding, and IDE integration.
+ * @extends EventEmitter
+ */
 export class DevEnvManager extends EventEmitter {
   private config: DevEnvConfig;
   private portManager: PortManager;
@@ -596,7 +604,9 @@ export class DevEnvManager extends EventEmitter {
 // Utility functions
 
 /**
- * Create development environment manager
+ * Create and initialize a development environment manager.
+ * @param config - The development environment configuration.
+ * @returns A promise resolving to a `DevEnvManager` instance.
  */
 export async function createDevEnv(config: DevEnvConfig): Promise<DevEnvManager> {
   const manager = new DevEnvManager(config);
@@ -613,7 +623,8 @@ export async function createDevEnv(config: DevEnvConfig): Promise<DevEnvManager>
 }
 
 /**
- * Detect Docker/Podman availability
+ * Detect whether Docker or Podman is available on the system.
+ * @returns A promise resolving to `'docker'`, `'podman'`, or `null` if neither is found.
  */
 export async function detectContainerRuntime(): Promise<'docker' | 'podman' | null> {
   const { execSync } = await import('child_process');
@@ -632,7 +643,9 @@ export async function detectContainerRuntime(): Promise<'docker' | 'podman' | nu
 }
 
 /**
- * Generate port forwarding configuration
+ * Generate a human-readable port forwarding configuration string.
+ * @param ports - The port mappings to include.
+ * @returns A formatted configuration string.
  */
 export function generatePortForwardingConfig(ports: PortMapping[]): string {
   const lines: string[] = [];
@@ -649,7 +662,8 @@ export function generatePortForwardingConfig(ports: PortMapping[]): string {
 }
 
 /**
- * Get recommended ports for common services
+ * Get recommended default ports for common development services.
+ * @returns A record mapping service names to their default port numbers.
  */
 export function getServicePorts(): Record<string, number> {
   return {
