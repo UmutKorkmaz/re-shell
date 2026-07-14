@@ -8,14 +8,29 @@ import {
 import { ok, fail, enableJsonMode } from '../utils/json-output';
 import type { ProgressSpinner } from '../utils/spinner';
 
+/**
+ * Options accepted by the `service bridge generate` command.
+ *
+ * Each option maps 1:1 to a CLI flag and is forwarded to the underlying
+ * bridge-generation utilities. All fields are optional; sensible defaults
+ * (or errors) are applied by the command implementation.
+ */
 export interface BridgeGenerateCommandOptions {
+  /** Bridge protocol to generate code for (`grpc`, `rest`, or `graphql`). */
   protocol?: string;
+  /** Name of the target service as declared in the workspace v2 config. */
   service?: string;
+  /** Output directory for emitted artifacts. If omitted, nothing is written. */
   out?: string;
+  /** When true, emit a machine-readable JSON envelope instead of human text. */
   json?: boolean;
+  /** When true, skip writing files and only report what would be produced. */
   dryRun?: boolean;
+  /** Working directory used when resolving the workspace config. */
   cwd?: string;
+  /** Explicit path to a re-shell config file (overrides auto-discovery). */
   configPath?: string;
+  /** Optional progress spinner to stop before printing results. */
   spinner?: ProgressSpinner;
 }
 
@@ -24,7 +39,9 @@ export interface BridgeGenerateCommandOptions {
  * API. `ran` is false (best-effort) when `typescript` is not resolvable.
  */
 export interface TsCheckResult {
+  /** Whether the TypeScript compiler was actually invoked. */
   ran: boolean;
+  /** `true` when no diagnostics were produced; `false` if issues were found. */
   ok?: boolean;
   /** Why tsc was skipped, or a diagnostic summary when it ran. */
   detail?: string;
@@ -45,6 +62,9 @@ function normalizeProtocol(protocol: string | undefined): BridgeProtocol {
  * stays usable without it. Only the emitted client's own syntax/semantics are
  * checked (lib types are available; external module imports are not required by
  * the generated stubs, which are dependency-free).
+ *
+ * @param result - The bridge-generation result whose `ts-client` artifact will be checked.
+ * @returns A {@link TsCheckResult} describing whether the check ran and its outcome.
  */
 export function typeCheckTsClient(result: GenerateBridgeResult): TsCheckResult {
   const client = result.artifacts.find(a => a.kind === 'ts-client');
@@ -114,6 +134,10 @@ export function typeCheckTsClient(result: GenerateBridgeResult): TsCheckResult {
  * the ok envelope carries `{ protocol, service, artifacts, written, tsCheck }`.
  * With `--out` (and not dry-run) artifacts are written to disk. Errors map to a
  * `BRIDGE_GENERATE_ERROR` envelope (exit 1).
+ *
+ * @param options - Command-line options forwarded from the CLI parser. Defaults to `{}`.
+ * @returns Resolves once generation (and any reporting) is complete. Never rejects;
+ * failures are reported via JSON envelopes or `process.exitCode` in interactive mode.
  */
 export async function runBridgeGenerate(
   options: BridgeGenerateCommandOptions = {}

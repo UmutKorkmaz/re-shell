@@ -26,13 +26,26 @@ const CONFIG_CANDIDATES = [
   'workspace.yml',
 ];
 
-/** Options accepted by the `dev --cluster` command. */
+/**
+ * Options accepted by the `dev --cluster` command.
+ *
+ * Controls both the offline core (config generation + affected scoping) and
+ * the live inner-loop driven by the configured backend.
+ */
 export interface DevClusterCommandOptions {
+  /** Whether the cluster dev loop is enabled (gating flag from the CLI). */
   cluster?: boolean;
+  /** When true, emit the generated config + plan without touching a cluster. */
   dryRun?: boolean;
+  /** When true, emit machine-readable JSON envelopes instead of human text. */
   json?: boolean;
+  /** Kubernetes namespace to deploy into (defaults to {@link DEFAULT_DEV_NAMESPACE}). */
   namespace?: string;
-  /** Restrict to specific service name(s) (repeatable / CSV). */
+  /**
+   * Restrict to specific service name(s) (repeatable / CSV).
+   * Each named service's transitive upstream dependencies are included
+   * automatically so the generated config stays self-consistent.
+   */
   filter?: string[];
   /** Working directory override (tests). */
   cwd?: string;
@@ -137,6 +150,11 @@ function emitError(
  * cluster. `--dry-run --json` emits the generated config + plan and returns.
  * A real run requires skaffold/kubectl + a live cluster, surfaced through the
  * injectable {@link DevBackend} so this function stays testable without one.
+ *
+ * @param options - Command options controlling scoping, output format, and the backend.
+ * @returns Resolves when the dev loop has finished (or the dry-run plan has been emitted).
+ *          Errors are surfaced via {@link emitError} rather than thrown, except for
+ *          unexpected failures which reject the promise.
  */
 export async function runDevCluster(
   options: DevClusterCommandOptions

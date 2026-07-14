@@ -26,18 +26,48 @@ const SPEC_CANDIDATES = ['openapi.json', 'openapi.yaml', 'swagger.json', 'api.js
 /** Conventional roots scanned for specs. */
 const SPEC_DIRS = ['apps', 'packages', 'services', 'apis'];
 
-/** Options accepted by the `api verify` command. */
+/**
+ * Options accepted by the `api verify` command.
+ *
+ * Controls how the producer API's spec is discovered, normalized, diffed
+ * against an optional baseline, and rendered to the caller. All options are
+ * optional; when neither {@link ApiVerifyOptions.spec} nor
+ * {@link ApiVerifyOptions.api} is supplied, the command auto-discovers a spec
+ * under the conventional workspace roots.
+ */
 export interface ApiVerifyOptions {
+  /**
+   * Emit machine-readable JSON output (success/failure envelopes) instead of
+   * the default human-readable report. Defaults to `false`.
+   */
   json?: boolean;
-  /** The producer API/service name to verify. */
+  /**
+   * The producer API/service name to verify. When provided, spec discovery is
+   * restricted to a directory matching this name; otherwise every directory
+   * under the conventional roots is scanned.
+   */
   api?: string;
-  /** Baseline directory (a previous spec set) to diff against. */
+  /**
+   * Baseline directory (a previous spec set) to diff against. Used to detect
+   * backward-incompatible changes by comparing the current spec to the
+   * baseline discovered under this directory.
+   */
   baseline?: string;
-  /** Explicit current spec path (overrides discovery). */
+  /**
+   * Explicit current spec path. Overrides automatic discovery and points the
+   * command directly at the file to verify.
+   */
   spec?: string;
-  /** Explicit baseline spec path. */
+  /**
+   * Explicit baseline spec path. When provided, takes precedence over
+   * {@link ApiVerifyOptions.baseline} directory-based discovery.
+   */
   baselineSpec?: string;
-  /** Working directory override (tests). */
+  /**
+   * Working directory override. Resolution of relative paths and workspace
+   * discovery start from this directory instead of `process.cwd()`. Primarily
+   * used by tests.
+   */
   cwd?: string;
 }
 
@@ -89,12 +119,24 @@ function toWireFinding(f: ApiFindingLite): ApiFinding {
 }
 
 /**
- * `re-shell api verify` — API contract + cross-service spec-drift detection.
+ * Implementation of `re-shell api verify` — API contract + cross-service
+ * spec-drift detection.
+ *
+ * The command resolves the producer API's spec (via the explicit `--spec`
+ * path or auto-discovery), normalizes it, optionally diffs it against a
+ * baseline spec to surface backward-incompatible changes, computes the
+ * cross-service blast radius from the workspace dependency graph (which
+ * consumers break), and emits a CI report.
  *
  * Gate semantics: when there is any breaking change the command STILL emits a
  * success envelope (the findings are advisory data) but exits non-zero so CI can
  * gate on backward-incompatible changes. A genuine error (no spec found) is
  * reported via the API_VERIFY_ERROR envelope.
+ *
+ * @param options - Command options controlling discovery, diffing, and output format.
+ * @returns Resolves once verification has completed and any output emitted. A
+ *   non-zero `process.exitCode` is set when backward-incompatible changes are
+ *   detected (CI gate) or when an error envelope is produced.
  */
 export async function runApiVerify(options: ApiVerifyOptions): Promise<void> {
   const json = Boolean(options.json);
