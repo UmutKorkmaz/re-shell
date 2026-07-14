@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated Cloud Cost Optimization Utility
 // Generated at: 2026-01-13T11:05:00.000Z
 
@@ -58,18 +59,18 @@ interface CostOptimizationConfig {
 }
 
 export function displayConfig(config: CostOptimizationConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Cloud Cost Optimization and Budget Management with Alerts and Recommendations');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Cost Monitoring:', config.enableCostMonitoring ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Budget Alerts:', config.enableBudgetAlerts ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Monthly Budget:', `$${config.budgets.monthly}`);
-  console.log('\x1b[33m%s\x1b[0m', 'Rightsizing:', config.optimizations.enableRightsizing ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Reserved Instances:', config.optimizations.enableReservedInstances ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Spot Instances:', config.optimizations.enableSpotInstances ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Anomaly Detection:', config.anomalyDetection.enabled ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Cloud Cost Optimization and Budget Management with Alerts and Recommendations'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Providers:', config.providers.join(', ')));
+  console.log(chalk.yellow('Cost Monitoring:', config.enableCostMonitoring ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Budget Alerts:', config.enableBudgetAlerts ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Monthly Budget:', `$${config.budgets.monthly}`));
+  console.log(chalk.yellow('Rightsizing:', config.optimizations.enableRightsizing ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Reserved Instances:', config.optimizations.enableReservedInstances ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Spot Instances:', config.optimizations.enableSpotInstances ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Anomaly Detection:', config.anomalyDetection.enabled ? 'Yes' : 'No'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateCostOptimizationMD(config: CostOptimizationConfig): string {

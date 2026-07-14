@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated Velocity Tracking Utility
 // Generated at: 2026-01-13T14:05:00.000Z
 
@@ -64,18 +65,18 @@ interface VelocityTrackingConfig {
 }
 
 export function displayConfig(config: VelocityTrackingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🚀 Velocity Tracking and Capacity Planning');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Sprints:', config.sprints.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Trends:', config.trends.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Capacity Plans:', config.capacity.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Predictions:', config.predictions.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Predictive Analytics:', config.enablePredictiveAnalytics ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Capacity Planning:', config.enableCapacityPlanning ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Resource Optimization:', config.enableResourceOptimization ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🚀 Velocity Tracking and Capacity Planning'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Providers:', config.providers.join(', ')));
+  console.log(chalk.yellow('Sprints:', config.sprints.length));
+  console.log(chalk.yellow('Trends:', config.trends.length));
+  console.log(chalk.yellow('Capacity Plans:', config.capacity.length));
+  console.log(chalk.yellow('Predictions:', config.predictions.length));
+  console.log(chalk.yellow('Predictive Analytics:', config.enablePredictiveAnalytics ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Capacity Planning:', config.enableCapacityPlanning ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Resource Optimization:', config.enableResourceOptimization ? 'Yes' : 'No'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateVelocityTrackingMD(config: VelocityTrackingConfig): string {

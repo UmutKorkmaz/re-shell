@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated Team Coding Sessions Utility
 // Generated at: 2026-01-13T13:25:00.000Z
 
@@ -39,20 +40,20 @@ interface TeamCodingSessionConfig {
 }
 
 export function displayConfig(config: TeamCodingSessionConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '👥 Team Coding Sessions with Role-Based Permissions');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Session Name:', config.session.name);
-  console.log('\x1b[33m%s\x1b[0m', 'Max Duration:', config.session.maxDuration + ' minutes');
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Archive:', config.session.autoArchive ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Recording:', config.session.recordingEnabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Roles:', Object.keys(config.permissions).length);
-  console.log('\x1b[33m%s\x1b[0m', 'Activities Logged:', config.activityLog.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Voice Chat:', config.enableVoiceChat ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Screen Share:', config.enableScreenShare ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Analytics:', config.enableAnalytics ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('👥 Team Coding Sessions with Role-Based Permissions'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Providers:', config.providers.join(', ')));
+  console.log(chalk.yellow('Session Name:', config.session.name));
+  console.log(chalk.yellow('Max Duration:', config.session.maxDuration + ' minutes'));
+  console.log(chalk.yellow('Auto Archive:', config.session.autoArchive ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Recording:', config.session.recordingEnabled ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Roles:', Object.keys(config.permissions).length));
+  console.log(chalk.yellow('Activities Logged:', config.activityLog.length));
+  console.log(chalk.yellow('Voice Chat:', config.enableVoiceChat ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Screen Share:', config.enableScreenShare ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Analytics:', config.enableAnalytics ? 'Yes' : 'No'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateTeamCodingSessionsMD(config: TeamCodingSessionConfig): string {

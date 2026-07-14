@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated Ingress Management Utility
 // Generated at: 2026-01-13T10:16:00.000Z
 
@@ -58,17 +59,17 @@ interface IngressManagerConfig {
 }
 
 export function displayConfig(config: IngressManagerConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Advanced Ingress Management');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Namespace:', config.namespace);
-  console.log('\x1b[33m%s\x1b[0m', 'Ingress Class:', config.ingressClassName);
-  console.log('\x1b[33m%s\x1b[0m', 'Hosts:', config.rules.map(r => r.host).join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'SSL/TLS:', config.ssl.enabled ? `${config.ssl.issuer}` : 'Disabled');
-  console.log('\x1b[33m%s\x1b[0m', 'WAF:', config.waf.enabled ? `${config.waf.mode} mode` : 'Disabled');
-  console.log('\x1b[33m%s\x1b[0m', 'CORS:', config.enableCORS ? 'Enabled' : 'Disabled');
-  console.log('\x1b[33m%s\x1b[0m', 'Compression:', config.enableCompression ? 'Enabled' : 'Disabled');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Advanced Ingress Management'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Namespace:', config.namespace));
+  console.log(chalk.yellow('Ingress Class:', config.ingressClassName));
+  console.log(chalk.yellow('Hosts:', config.rules.map(r => r.host).join(', ')));
+  console.log(chalk.yellow('SSL/TLS:', config.ssl.enabled ? `${config.ssl.issuer}` : 'Disabled'));
+  console.log(chalk.yellow('WAF:', config.waf.enabled ? `${config.waf.mode} mode` : 'Disabled'));
+  console.log(chalk.yellow('CORS:', config.enableCORS ? 'Enabled' : 'Disabled'));
+  console.log(chalk.yellow('Compression:', config.enableCompression ? 'Enabled' : 'Disabled'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateIngressMD(config: IngressManagerConfig): string {

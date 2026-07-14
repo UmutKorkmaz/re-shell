@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated Pod Security Policies Utility
 // Generated at: 2026-01-13T10:24:00.000Z
 
@@ -45,19 +46,19 @@ interface PodSecurityConfig {
 }
 
 export function displayConfig(config: PodSecurityConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Pod Security Policies and Admission Controllers');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Namespace:', config.namespace);
-  console.log('\x1b[33m%s\x1b[0m', 'Security Profile:', config.securityProfile.name);
-  console.log('\x1b[33m%s\x1b[0m', 'Profile Level:', config.securityProfile.level);
-  console.log('\x1b[33m%s\x1b[0m', 'Enforce:', config.securityProfile.enforce ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Audit:', config.securityProfile.audit ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Warn:', config.securityProfile.warn ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Admission Rules:', config.admissionRules.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Compliance Policies:', config.compliancePolicies.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Network Policies:', config.enableNetworkPolicies ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Pod Security Policies and Admission Controllers'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Namespace:', config.namespace));
+  console.log(chalk.yellow('Security Profile:', config.securityProfile.name));
+  console.log(chalk.yellow('Profile Level:', config.securityProfile.level));
+  console.log(chalk.yellow('Enforce:', config.securityProfile.enforce ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Audit:', config.securityProfile.audit ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Warn:', config.securityProfile.warn ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Admission Rules:', config.admissionRules.length));
+  console.log(chalk.yellow('Compliance Policies:', config.compliancePolicies.length));
+  console.log(chalk.yellow('Network Policies:', config.enableNetworkPolicies ? 'Yes' : 'No'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generatePodSecurityMD(config: PodSecurityConfig): string {

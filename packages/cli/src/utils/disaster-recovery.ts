@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated Cross-Cloud Disaster Recovery Utility
 // Generated at: 2026-01-13T11:02:00.000Z
 
@@ -63,19 +64,19 @@ interface DisasterRecoveryConfig {
 }
 
 export function displayConfig(config: DisasterRecoveryConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Cross-Cloud Disaster Recovery and Backup Strategies with Testing');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Primary Region:', config.primaryRegion);
-  console.log('\x1b[33m%s\x1b[0m', 'DR Region:', config.drRegion);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Replication:', config.replication.enabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Backup:', config.backup.enabled ? `Yes (${config.backup.type})` : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Failover Strategy:', config.failover.strategy);
-  console.log('\x1b[33m%s\x1b[0m', 'RTO:', `${config.rto} minutes`);
-  console.log('\x1b[33m%s\x1b[0m', 'RPO:', `${config.rpo} minutes`);
-  console.log('\x1b[33m%s\x1b[0m', 'DR Testing:', config.testing.enabled ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Cross-Cloud Disaster Recovery and Backup Strategies with Testing'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Primary Region:', config.primaryRegion));
+  console.log(chalk.yellow('DR Region:', config.drRegion));
+  console.log(chalk.yellow('Providers:', config.providers.join(', ')));
+  console.log(chalk.yellow('Replication:', config.replication.enabled ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Backup:', config.backup.enabled ? `Yes (${config.backup.type})` : 'No'));
+  console.log(chalk.yellow('Failover Strategy:', config.failover.strategy));
+  console.log(chalk.yellow('RTO:', `${config.rto} minutes`));
+  console.log(chalk.yellow('RPO:', `${config.rpo} minutes`));
+  console.log(chalk.yellow('DR Testing:', config.testing.enabled ? 'Yes' : 'No'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateDisasterRecoveryMD(config: DisasterRecoveryConfig): string {

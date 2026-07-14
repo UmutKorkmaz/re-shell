@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated HPA Generator
 // Generated at: 2026-01-12T23:09:00.000Z
 
@@ -89,15 +90,15 @@ interface HPAConfig {
 }
 
 export function displayConfig(config: HPAConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Horizontal Pod Autoscaling');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Namespace:', config.namespace);
-  console.log('\x1b[33m%s\x1b[0m', 'Min Replicas:', config.minReplicas);
-  console.log('\x1b[33m%s\x1b[0m', 'Max Replicas:', config.maxReplicas);
-  console.log('\x1b[33m%s\x1b[0m', 'Metrics:', config.targetMetrics.map(m => m.name).join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Predictive Scaling:', config.predictiveScaling?.enabled ? 'Enabled' : 'Disabled');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Horizontal Pod Autoscaling'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Namespace:', config.namespace));
+  console.log(chalk.yellow('Min Replicas:', config.minReplicas));
+  console.log(chalk.yellow('Max Replicas:', config.maxReplicas));
+  console.log(chalk.yellow('Metrics:', config.targetMetrics.map(m => m.name).join(', ')));
+  console.log(chalk.yellow('Predictive Scaling:', config.predictiveScaling?.enabled ? 'Enabled' : 'Disabled'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateHPAMD(config: HPAConfig): string {

@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // Auto-generated CI/CD Pipeline Generator
 // Generated at: 2026-01-13T10:06:00.000Z
 
@@ -40,17 +41,17 @@ interface CICDPipelineConfig {
 }
 
 export function displayConfig(config: CICDPipelineConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '✨ Kubernetes-Native CI/CD Pipeline');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Namespace:', config.namespace);
-  console.log('\x1b[33m%s\x1b[0m', 'Git Repository:', config.gitRepo);
-  console.log('\x1b[33m%s\x1b[0m', 'Branch:', config.branch);
-  console.log('\x1b[33m%s\x1b[0m', 'Stages:', config.stages.map(s => s.name).join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Progressive Delivery:', config.progressiveDelivery.enabled ? `${config.progressiveDelivery.strategy}` : 'Disabled');
-  console.log('\x1b[33m%s\x1b[0m', 'Notifications:', config.enableNotifications ? 'Enabled' : 'Disabled');
-  console.log('\x1b[33m%s\x1b[0m', 'Auto Rollback:', config.enableRollback ? 'Enabled' : 'Disabled');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('✨ Kubernetes-Native CI/CD Pipeline'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Namespace:', config.namespace));
+  console.log(chalk.yellow('Git Repository:', config.gitRepo));
+  console.log(chalk.yellow('Branch:', config.branch));
+  console.log(chalk.yellow('Stages:', config.stages.map(s => s.name).join(', ')));
+  console.log(chalk.yellow('Progressive Delivery:', config.progressiveDelivery.enabled ? `${config.progressiveDelivery.strategy}` : 'Disabled'));
+  console.log(chalk.yellow('Notifications:', config.enableNotifications ? 'Enabled' : 'Disabled'));
+  console.log(chalk.yellow('Auto Rollback:', config.enableRollback ? 'Enabled' : 'Disabled'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateCICDMD(config: CICDPipelineConfig): string {
