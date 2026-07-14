@@ -8,13 +8,19 @@ import { detectDependencyDrift, type DriftResult } from '../utils/dependency-dri
 import { ok, fail, enableJsonMode } from '../utils/json-output';
 import type { ProgressSpinner } from '../utils/spinner';
 
+/** Options for the `workspace policy check` command. */
 export interface PolicyCheckCommandOptions {
+  /** Policy pack name or path to evaluate. */
   pack?: string;
+  /** Emit machine-readable JSON output. */
   json?: boolean;
+  /** Working directory to evaluate (defaults to `process.cwd()`). */
   cwd?: string;
+  /** Optional spinner to display progress. */
   spinner?: ProgressSpinner;
 }
 
+/** Options for the `workspace drift` command. */
 export interface DriftCommandOptions {
   json?: boolean;
   cwd?: string;
@@ -110,6 +116,11 @@ export async function runDriftCheck(
   }
 }
 
+/**
+ * Render the policy-check results in human-readable text format.
+ *
+ * @param result - The policy evaluation result.
+ */
 function displayPolicyResult(result: PolicyCheckResult): void {
   const scoreColor =
     result.score >= 90 ? chalk.green : result.score >= 70 ? chalk.yellow : chalk.red;
@@ -131,6 +142,11 @@ function displayPolicyResult(result: PolicyCheckResult): void {
   }
 }
 
+/**
+ * Render the dependency-drift results in human-readable text format.
+ *
+ * @param result - The drift detection result.
+ */
 function displayDriftResult(result: DriftResult): void {
   console.log(chalk.cyan('\n🔀 Dependency drift'));
   console.log(chalk.gray('═'.repeat(50)));

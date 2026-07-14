@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import chalk from 'chalk';
 
+/** Options accepted by the legacy Go TUI launcher. */
 export interface GoTUIOptions {
   project?: string;
   mode?: 'dashboard' | 'init' | 'manage' | 'config';
@@ -39,6 +40,8 @@ function resolveGoTUIDir(): string | null {
  * PATH and the legacy Go TUI source to be present. When either is missing we
  * fail with an actionable message instead of silently falling back, so the
  * default `re-shell tui` (Ink) never triggers a surprise `go run`.
+ *
+ * @param options - Launch options (project path, mode, debug flag).
  */
 export async function launchGoTUI(options: GoTUIOptions): Promise<void> {
   const goTUIDir = resolveGoTUIDir();

@@ -6,13 +6,21 @@ import * as path from 'path';
 import chalk from 'chalk';
 import { WorkspaceConfig} from '../parsers/workspace-parser';
 
+/**
+ * Options for the `workspace diff` command.
+ */
 export interface WorkspaceDiffOptions {
+  /** Path to the "from" (old) workspace config file. */
   from?: string;
+  /** Path to the "to" (new) workspace config file. */
   to?: string;
+  /** Output format: text, json, or markdown (default: `text`). */
   format?: 'text' | 'json' | 'markdown';
+  /** Show detailed change values in text output. */
   verbose?: boolean;
 }
 
+/** Represents a single property-level change between two configs. */
 interface ConfigChange {
   type: 'added' | 'removed' | 'modified';
   path: string;
@@ -20,12 +28,14 @@ interface ConfigChange {
   newValue?: any;
 }
 
+/** Groups all property changes for a single service. */
 interface ServiceChange {
   type: 'added' | 'removed' | 'modified';
   serviceId: string;
   changes: ConfigChange[];
 }
 
+/** Complete diff result between two workspace configurations. */
 interface WorkspaceDiff {
   metadata: {
     from: string;
@@ -45,7 +55,13 @@ interface WorkspaceDiff {
 }
 
 /**
- * Compare two workspace configurations
+ * Compare two workspace configurations and display the differences.
+ *
+ * Loads the "from" and "to" workspace YAML files, computes a structured diff
+ * (metadata, services, dependencies), and renders the result in the requested
+ * format (text, JSON, or markdown).
+ *
+ * @param options - Diff options (file paths, format, verbosity).
  */
 export async function diffWorkspace(options: WorkspaceDiffOptions = {}): Promise<void> {
   const { from, to, format = 'text', verbose = false } = options;
@@ -108,7 +124,10 @@ export async function diffWorkspace(options: WorkspaceDiffOptions = {}): Promise
 }
 
 /**
- * Parse workspace configuration from file
+ * Parse a workspace configuration from a YAML file.
+ *
+ * @param filePath - Path to the workspace config file.
+ * @returns The parsed config, or `null` if the file is missing or invalid.
  */
 async function parseWorkspaceConfig(filePath: string): Promise<WorkspaceConfig | null> {
   try {
@@ -130,7 +149,13 @@ async function parseWorkspaceConfig(filePath: string): Promise<WorkspaceConfig |
 }
 
 /**
- * Compute diff between two workspace configurations
+ * Compute the structural diff between two workspace configurations.
+ *
+ * @param from - The original workspace config.
+ * @param to - The new workspace config.
+ * @param fromPath - File path of the original config (for metadata).
+ * @param toPath - File path of the new config (for metadata).
+ * @returns A {@link WorkspaceDiff} with all changes and a summary.
  */
 function computeDiff(from: WorkspaceConfig, to: WorkspaceConfig, fromPath: string, toPath: string): WorkspaceDiff {
   const diff: WorkspaceDiff = {
@@ -179,7 +204,11 @@ function computeDiff(from: WorkspaceConfig, to: WorkspaceConfig, fromPath: strin
 }
 
 /**
- * Compare services between two configurations
+ * Compare the services sections of two workspace configurations.
+ *
+ * @param fromServices - Services from the original config.
+ * @param toServices - Services from the new config.
+ * @returns Array of added/removed/modified service changes.
  */
 function compareServices(fromServices: Record<string, unknown>, toServices: Record<string, unknown>): ServiceChange[] {
   const changes: ServiceChange[] = [];
@@ -226,7 +255,12 @@ function compareServices(fromServices: Record<string, unknown>, toServices: Reco
 }
 
 /**
- * Recursively compare two values and return changes
+ * Recursively compare two values and collect every leaf-level change.
+ *
+ * @param from - The original value (any type).
+ * @param to - The new value (any type).
+ * @param basePath - Dotted property path for error messages.
+ * @returns Array of {@link ConfigChange} entries.
  */
 function compareValues(from: any, to: any, basePath: string): ConfigChange[] {
   const changes: ConfigChange[] = [];
@@ -290,7 +324,10 @@ function compareValues(from: any, to: any, basePath: string): ConfigChange[] {
 }
 
 /**
- * Display diff in text format
+ * Render the diff in human-readable text format.
+ *
+ * @param diff - The computed workspace diff.
+ * @param verbose - When true, show full old/new values for each change.
  */
 function displayTextDiff(diff: WorkspaceDiff, verbose: boolean): void {
   console.log(chalk.bold('Summary:\n'));
@@ -362,7 +399,9 @@ function displayTextDiff(diff: WorkspaceDiff, verbose: boolean): void {
 }
 
 /**
- * Display diff in markdown format
+ * Render the diff as a markdown document.
+ *
+ * @param diff - The computed workspace diff.
  */
 function displayMarkdownDiff(diff: WorkspaceDiff): void {
   let md = '# Workspace Configuration Diff\n\n';

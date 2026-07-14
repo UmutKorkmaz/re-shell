@@ -6,18 +6,35 @@ import * as path from 'path';
 import chalk from 'chalk';
 import { WorkspaceConfig} from '../parsers/workspace-parser';
 
+/**
+ * Options for workspace documentation generation.
+ */
 export interface DocsGenerationOptions {
+  /** Output file path (default: `WORKSPACE.md`). */
   output?: string;
+  /** Output format: markdown, json, or html (default: `markdown`). */
   format?: 'markdown' | 'json' | 'html';
+  /** Include ASCII/Mermaid architecture diagrams. */
   includeDiagrams?: boolean;
+  /** Include environment variable listings per service. */
   includeEnv?: boolean;
+  /** Include dependency listings (databases, caches, queues). */
   includeDependencies?: boolean;
+  /** Print verbose error details. */
   verbose?: boolean;
+  /** Watch mode: regenerate documentation on config file change. */
   watch?: boolean;
 }
 
 /**
- * Generate workspace documentation
+ * Generate workspace documentation from `re-shell.workspaces.yaml`.
+ *
+ * Parses the workspace configuration and produces documentation in the requested
+ * format (markdown, JSON, or HTML). Optionally includes architecture diagrams,
+ * environment variables, and dependency listings.
+ *
+ * @param options - Generation options (format, output path, inclusions, watch mode).
+ * @returns Resolves when documentation has been written (or watch mode is active).
  */
 export async function generateWorkspaceDocs(options: DocsGenerationOptions = {}): Promise<void> {
   const {
@@ -110,7 +127,11 @@ export async function generateWorkspaceDocs(options: DocsGenerationOptions = {})
 }
 
 /**
- * Generate markdown documentation
+ * Generate markdown documentation from a workspace configuration.
+ *
+ * @param config - Parsed workspace configuration.
+ * @param options - Flags controlling which sections to include.
+ * @returns A complete markdown string.
  */
 function generateMarkdownDocs(
   config: WorkspaceConfig,
@@ -271,14 +292,21 @@ function generateMarkdownDocs(
 }
 
 /**
- * Generate JSON documentation
+ * Generate JSON documentation from a workspace configuration.
+ *
+ * @param config - Parsed workspace configuration.
+ * @returns A JSON string of the configuration.
  */
 function generateJsonDocs(config: WorkspaceConfig): string {
   return JSON.stringify(config, null, 2);
 }
 
 /**
- * Generate HTML documentation
+ * Generate HTML documentation from a workspace configuration.
+ *
+ * @param config - Parsed workspace configuration.
+ * @param options - Flags controlling which sections to include.
+ * @returns A complete HTML document string.
  */
 function generateHtmlDocs(
   config: WorkspaceConfig,
@@ -365,7 +393,10 @@ function generateHtmlDocs(
 }
 
 /**
- * Generate ASCII architecture diagram
+ * Generate an ASCII architecture diagram from the workspace configuration.
+ *
+ * @param config - Parsed workspace configuration.
+ * @returns An ASCII-art diagram inside a code fence.
  */
 function generateArchitectureDiagram(config: WorkspaceConfig): string {
   let diagram = '```\n';
@@ -430,7 +461,10 @@ function generateArchitectureDiagram(config: WorkspaceConfig): string {
 }
 
 /**
- * Generate Mermaid graph
+ * Generate a Mermaid service-graph from the workspace configuration.
+ *
+ * @param config - Parsed workspace configuration.
+ * @returns A Mermaid `graph TD` definition string.
  */
 function generateMermaidGraph(config: WorkspaceConfig): string {
   let graph = 'graph TD\n';
@@ -478,7 +512,10 @@ function generateMermaidGraph(config: WorkspaceConfig): string {
 }
 
 /**
- * Format framework for display
+ * Format a framework identifier for display.
+ *
+ * @param framework - Framework as a string or `{ name, version? }` object.
+ * @returns Human-readable framework label.
  */
 function formatFramework(framework: string | { name: string; version?: string }): string {
   if (typeof framework === 'string') {
@@ -488,7 +525,13 @@ function formatFramework(framework: string | { name: string; version?: string })
 }
 
 /**
- * Watch workspace config and auto-update documentation
+ * Watch the workspace config file and regenerate documentation on change.
+ *
+ * @param configPath - Absolute path to `re-shell.workspaces.yaml`.
+ * @param outputPath - Output file path relative to the cwd.
+ * @param format - One of `markdown`, `json`, `html`.
+ * @param options - Flags controlling inclusion and verbosity.
+ * @returns Resolves when the watcher is closed (SIGINT).
  */
 async function watchAndUpdateDocs(
   configPath: string,
@@ -535,7 +578,12 @@ async function watchAndUpdateDocs(
 }
 
 /**
- * Generate documentation once
+ * Generate documentation a single time (used by watch mode).
+ *
+ * @param configPath - Absolute path to the workspace config.
+ * @param outputPath - Absolute path to write documentation to.
+ * @param format - One of `markdown`, `json`, `html`.
+ * @param options - Flags controlling inclusion and verbosity.
  */
 async function generateOnce(
   configPath: string,

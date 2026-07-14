@@ -20,6 +20,7 @@ import type { UiFailure, UiTestResponse } from '@re-shell/contracts';
 
 /** Options accepted by the `ui test` command. */
 export interface UiTestOptions {
+  /** Emit machine-readable JSON output instead of a human-readable report. */
   json?: boolean;
   /** Comma-separated pillars that gate CI (default: a11y,visual). */
   gate?: string;
@@ -27,7 +28,12 @@ export interface UiTestOptions {
   runStories?: () => Promise<StoryResult[]>;
 }
 
-/** The default runner stub: reports that no Storybook runner is wired. */
+/**
+ * The default runner stub: reports that no Storybook runner is wired.
+ *
+ * @param warnings - Array to push warning messages into.
+ * @returns An empty array (no stories).
+ */
 async function defaultRunner(warnings: string[]): Promise<StoryResult[]> {
   warnings.push(
     'no Storybook runner wired (offline stub); pass results via an injected runner or run `npx storybook test`'
@@ -41,6 +47,8 @@ async function defaultRunner(warnings: string[]): Promise<StoryResult[]> {
  * Gate semantics: by default a failing a11y OR visual pillar on any story fails
  * the CI check (non-zero exit), while still emitting the full payload. The gate
  * pillars are configurable via --gate.
+ *
+ * @param options - Test options (JSON mode, gate pillars, custom runner).
  */
 export async function runUiTest(options: UiTestOptions): Promise<void> {
   const json = Boolean(options.json);
@@ -99,7 +107,12 @@ export async function runUiTest(options: UiTestOptions): Promise<void> {
   }
 }
 
-/** Emit a UI_TEST_ERROR envelope (json) or red message + non-zero exit. */
+/**
+ * Emit a UI_TEST_ERROR envelope (JSON) or a red stderr message + non-zero exit.
+ *
+ * @param json - When true, emit a JSON error envelope; otherwise print to stderr.
+ * @param message - The error message to display.
+ */
 export function emitUiTestError(json: boolean, message: string): void {
   if (json) {
     fail('UI_TEST_ERROR', message);
@@ -109,7 +122,11 @@ export function emitUiTestError(json: boolean, message: string): void {
   }
 }
 
-/** Human-readable render of the UI-test report. */
+/**
+ * Render the UI-test report in human-readable format.
+ *
+ * @param payload - The aggregated UI test response.
+ */
 function renderHuman(payload: UiTestResponse): void {
   process.stdout.write(chalk.cyan.bold('\n▶ ui test\n\n'));
   process.stdout.write(
