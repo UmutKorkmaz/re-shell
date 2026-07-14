@@ -1,5 +1,7 @@
-// Database Configuration Utility
-// Provides unified interface for database configurations across different ORMs
+/**
+ * Database configuration utility.
+ * Provides a unified interface for database configurations across different ORMs.
+ */
 
 import * as path from 'path';
 import { promises as fs } from 'fs';
@@ -9,19 +11,34 @@ import { getMongooseConfig } from '../templates/shared/mongoose-config';
 import { getFrameworkConfig } from './framework';
 import { listBackendTemplates, getBackendTemplate } from '../templates/backend/index';
 
+/**
+ * Supported database ORM/ODM types or none.
+ */
 export type DatabaseType = 'prisma' | 'typeorm' | 'mongoose' | 'none';
 
+/**
+ * Normalized database configuration used across the CLI.
+ */
 export interface DatabaseConfig {
+  /** The database type this configuration represents. */
   type: DatabaseType;
+  /** Production dependencies keyed by package name. */
   dependencies: Record<string, string>;
+  /** Development-only dependencies keyed by package name. */
   devDependencies: Record<string, string>;
+  /** Files to generate, keyed by destination path. */
   files: Record<string, string>;
+  /** npm scripts to add to package.json. */
   scripts: Record<string, string>;
+  /** Shell commands to run after installation. */
   postInstallCommands: string[];
 }
 
 /**
- * Get database configuration by type
+ * Get the normalized database configuration for the given database type.
+ *
+ * @param type - The database type to look up.
+ * @returns The resolved {@link DatabaseConfig}, or `null` for `'none'`/unknown types.
  */
 export function getDatabaseConfig(type: DatabaseType): DatabaseConfig | null {
   switch (type) {
@@ -39,7 +56,9 @@ export function getDatabaseConfig(type: DatabaseType): DatabaseConfig | null {
 }
 
 /**
- * Get database choices for interactive prompts
+ * Get database choices formatted for interactive prompts.
+ *
+ * @returns An array of choice objects with title, value, and description.
  */
 export function getDatabaseChoices() {
   return [
@@ -63,7 +82,9 @@ export function getDatabaseChoices() {
 }
 
 /**
- * Get backend template choices for interactive prompts (all templates)
+ * Get backend template choices formatted for interactive prompts (lists all templates).
+ *
+ * @returns An array of choice objects with title, value, and truncated description.
  */
 export function getBackendTemplateChoices() {
   const templates = listBackendTemplates();
@@ -76,16 +97,24 @@ export function getBackendTemplateChoices() {
 }
 
 /**
- * Frontend-Backend pairing compatibility
+ * Frontend-backend pairing compatibility descriptor.
  */
 interface FrontendPairing {
+  /** The frontend framework identifier. */
   framework: string;
+  /** Qualitative compatibility rating. */
   compatibility: 'excellent' | 'good' | 'fair';
+  /** Human-readable explanation for the rating. */
   reason: string;
 }
 
 /**
- * Recommended frontend frameworks for a given backend
+ * Get recommended frontend frameworks for a given backend.
+ *
+ * Falls back to language-based defaults when an exact backend ID match is not found.
+ *
+ * @param backendId - The backend framework identifier.
+ * @returns An array of {@link FrontendPairing} recommendations.
  */
 export function getRecommendedFrontends(backendId: string): FrontendPairing[] {
   // Language/backend to frontend recommendations
@@ -256,7 +285,12 @@ export function getRecommendedFrontends(backendId: string): FrontendPairing[] {
 }
 
 /**
- * Get recommended backends for a given frontend framework
+ * Get recommended backends for a given frontend framework.
+ *
+ * Performs substring matching so variants of a framework family share recommendations.
+ *
+ * @param frontendId - The frontend framework identifier.
+ * @returns An array of objects containing a backend identifier and a pairing reason.
  */
 export function getRecommendedBackends(frontendId: string): { backend: string; reason: string }[] {
   const recommendations: Record<string, { backend: string; reason: string }[]> = {
@@ -329,7 +363,9 @@ export function getRecommendedBackends(frontendId: string): { backend: string; r
 }
 
 /**
- * Get default frontend recommendations (fallback)
+ * Get default frontend recommendations used as a fallback.
+ *
+ * @returns An array of popular {@link FrontendPairing} entries.
  */
 function getDefaultFrontendRecommendations(): FrontendPairing[] {
   return [
@@ -342,17 +378,25 @@ function getDefaultFrontendRecommendations(): FrontendPairing[] {
 }
 
 /**
- * Framework compatibility validation result
+ * Result of validating framework compatibility between a frontend and backend.
  */
 export interface FrameworkValidationResult {
+  /** Whether the combination is considered usable. */
   valid: boolean;
+  /** Qualitative compatibility rating. */
   compatibility: 'excellent' | 'good' | 'fair' | 'poor' | 'incompatible';
+  /** Warnings about potential integration issues. */
   warnings: string[];
+  /** Suggestions to improve or resolve the pairing. */
   suggestions: string[];
 }
 
 /**
- * Validate framework compatibility between frontend and backend
+ * Validate compatibility between a frontend and backend framework.
+ *
+ * @param frontendId - The frontend framework identifier.
+ * @param backendId - The backend framework identifier.
+ * @returns A {@link FrameworkValidationResult} describing the pairing.
  */
 export function validateFrameworkCompatibility(
   frontendId: string,
@@ -428,7 +472,10 @@ export function validateFrameworkCompatibility(
 }
 
 /**
- * Get frontend framework language
+ * Determine the primary programming language for a frontend framework.
+ *
+ * @param frontendId - The frontend framework identifier.
+ * @returns The language name (e.g. `'TypeScript'`, `'Rust'`), defaulting to `'JavaScript'`.
  */
 function getFrontendLanguage(frontendId: string): string {
   const languageMap: Record<string, string> = {
@@ -460,7 +507,10 @@ function getFrontendLanguage(frontendId: string): string {
 }
 
 /**
- * Get suggested backends for a specific frontend framework
+ * Get suggested backend identifiers for a specific frontend framework.
+ *
+ * @param frontendId - The frontend framework identifier.
+ * @returns An array of backend identifiers that pair well with the frontend.
  */
 function getSuggestedBackendsForFrontend(frontendId: string): string[] {
   const suggestions: Record<string, string[]> = {
@@ -484,7 +534,10 @@ function getSuggestedBackendsForFrontend(frontendId: string): string[] {
 }
 
 /**
- * Validate if a backend framework ID exists
+ * Validate whether a backend framework identifier exists in the registry.
+ *
+ * @param backendId - The backend framework identifier to check.
+ * @returns An object with `valid` flag and optional `error` message.
  */
 export function validateBackendFramework(backendId: string): { valid: boolean; error?: string } {
   const backend = getBackendTemplate(backendId);
@@ -500,7 +553,10 @@ export function validateBackendFramework(backendId: string): { valid: boolean; e
 }
 
 /**
- * Validate if a frontend framework ID exists
+ * Validate whether a frontend framework identifier exists in the registry.
+ *
+ * @param frontendId - The frontend framework identifier to check.
+ * @returns An object with `valid` flag and optional `error` message.
  */
 export function validateFrontendFramework(frontendId: string): { valid: boolean; error?: string } {
   try {
@@ -521,7 +577,10 @@ export function validateFrontendFramework(frontendId: string): { valid: boolean;
 }
 
 /**
- * Validate if a database type exists
+ * Validate whether a database type string is one of the supported options.
+ *
+ * @param dbType - The database type string to check.
+ * @returns An object with `valid` flag and optional `error` message listing valid types.
  */
 export function validateDatabaseType(dbType: string): { valid: boolean; error?: string } {
   const validTypes = ['prisma', 'typeorm', 'mongoose', 'none'];
@@ -537,7 +596,11 @@ export function validateDatabaseType(dbType: string): { valid: boolean; error?: 
 }
 
 /**
- * Get compatibility summary for display
+ * Get a human-readable compatibility summary for display in the CLI.
+ *
+ * @param frontendId - The frontend framework identifier.
+ * @param backendId - The backend framework identifier.
+ * @returns An object with an icon, descriptive text, and color name.
  */
 export function getCompatibilitySummary(
   frontendId: string,
@@ -562,22 +625,32 @@ export function getCompatibilitySummary(
 }
 
 /**
- * Backend language category with frameworks
+ * A grouping of backend templates under a single programming language.
  */
 export interface BackendLanguageCategory {
+  /** Canonical language name (lowercase). */
   name: string;
+  /** Human-readable language name for display. */
   displayName: string;
+  /** Short description of the language category. */
   description: string;
+  /** Backend templates belonging to this language. */
   templates: Array<{
+    /** Template identifier. */
     id: string;
+    /** Template name. */
     name: string;
+    /** Human-readable template name. */
     displayName: string;
+    /** Short description of the template. */
     description: string;
   }>;
 }
 
 /**
- * Get backend templates grouped by programming language
+ * Get backend templates grouped and sorted by programming language.
+ *
+ * @returns An array of {@link BackendLanguageCategory}, ordered by language popularity.
  */
 export function getBackendTemplatesByLanguage(): BackendLanguageCategory[] {
   const templates = listBackendTemplates();
@@ -622,7 +695,9 @@ export function getBackendTemplatesByLanguage(): BackendLanguageCategory[] {
 }
 
 /**
- * Get language choices for the first level of selection
+ * Get language choices for the first level of backend selection prompts.
+ *
+ * @returns An array of choice objects with title, value, and description.
  */
 export function getBackendLanguageChoices() {
   const categories = getBackendTemplatesByLanguage();
@@ -635,7 +710,12 @@ export function getBackendLanguageChoices() {
 }
 
 /**
- * Get framework choices for a specific language
+ * Get framework choices for a specific programming language.
+ *
+ * Falls back to all backend templates when the language has no dedicated category.
+ *
+ * @param language - The programming language name.
+ * @returns An array of choice objects with title, value, and description.
  */
 export function getFrameworkChoicesForLanguage(language: string) {
   const categories = getBackendTemplatesByLanguage();
@@ -653,7 +733,9 @@ export function getFrameworkChoicesForLanguage(language: string) {
 }
 
 /**
- * Get popular/top backend frameworks for quick selection
+ * Get popular/top backend frameworks for quick selection prompts.
+ *
+ * @returns An array of choice objects for well-known backend frameworks.
  */
 export function getPopularBackendFrameworks() {
   const popular = [
@@ -677,7 +759,10 @@ export function getPopularBackendFrameworks() {
 }
 
 /**
- * Get display name for a programming language
+ * Get the display name for a programming language identifier.
+ *
+ * @param lang - The language identifier (case-insensitive).
+ * @returns A human-readable language name.
  */
 function getLanguageDisplayName(lang: string): string {
   const displayNames: Record<string, string> = {
@@ -719,7 +804,10 @@ function getLanguageDisplayName(lang: string): string {
 }
 
 /**
- * Get description for a programming language
+ * Get a short description for a programming language identifier.
+ *
+ * @param lang - The language identifier (case-insensitive).
+ * @returns A human-readable description of the language's strengths.
  */
 function getLanguageDescription(lang: string): string {
   const descriptions: Record<string, string> = {
@@ -756,6 +844,13 @@ function getLanguageDescription(lang: string): string {
 }
 
 // Normalize functions to ensure consistent interface
+
+/**
+ * Normalize a raw Prisma configuration into a {@link DatabaseConfig}.
+ *
+ * @param config - The raw configuration object from the Prisma template.
+ * @returns A normalized {@link DatabaseConfig} with defaulted fields.
+ */
 function normalizePrismaConfig(config: any): DatabaseConfig {
   return {
     type: 'prisma',
@@ -767,6 +862,12 @@ function normalizePrismaConfig(config: any): DatabaseConfig {
   };
 }
 
+/**
+ * Normalize a raw TypeORM configuration into a {@link DatabaseConfig}.
+ *
+ * @param config - The raw configuration object from the TypeORM template.
+ * @returns A normalized {@link DatabaseConfig} with defaulted fields.
+ */
 function normalizeTypeORMConfig(config: any): DatabaseConfig {
   return {
     type: 'typeorm',
@@ -778,6 +879,12 @@ function normalizeTypeORMConfig(config: any): DatabaseConfig {
   };
 }
 
+/**
+ * Normalize a raw Mongoose configuration into a {@link DatabaseConfig}.
+ *
+ * @param config - The raw configuration object from the Mongoose template.
+ * @returns A normalized {@link DatabaseConfig} with defaulted fields.
+ */
 function normalizeMongooseConfig(config: any): DatabaseConfig {
   return {
     type: 'mongoose',
@@ -790,27 +897,41 @@ function normalizeMongooseConfig(config: any): DatabaseConfig {
 }
 
 /**
- * Dependency conflict detection interfaces
+ * Describes a single dependency conflict or warning detected during checks.
  */
 export interface DependencyConflict {
+  /** Name of the conflicting dependency or combination. */
   name: string;
+  /** The kind of conflict. */
   type: 'version' | 'peer' | 'incompatible';
+  /** Severity level determining whether the conflict blocks generation. */
   severity: 'error' | 'warning';
+  /** The currently detected version(s), if applicable. */
   currentVersion?: string;
+  /** The version range required to resolve the conflict, if applicable. */
   requiredVersion?: string;
+  /** Human-readable explanation of the conflict. */
   description: string;
+  /** Suggested action to resolve the conflict. */
   resolution: string;
 }
 
+/**
+ * Aggregate result of checking a project configuration for dependency conflicts.
+ */
 export interface DependencyCheckResult {
+  /** Whether any error-severity conflicts were found. */
   hasConflicts: boolean;
+  /** Error-severity conflicts that must be resolved. */
   conflicts: DependencyConflict[];
+  /** Warning-severity items that are recommended for review. */
   warnings: DependencyConflict[];
+  /** Generated resolution suggestions as human-readable strings. */
   resolutions: string[];
 }
 
 /**
- * Known incompatible dependency combinations
+ * Known incompatible dependency combinations keyed by framework/version.
  */
 const INCOMPATIBLE_COMBINATIONS: Record<string, { deps: string[]; reason: string }> = {
   'react-18': {
@@ -828,7 +949,7 @@ const INCOMPATIBLE_COMBINATIONS: Record<string, { deps: string[]; reason: string
 };
 
 /**
- * Peer dependency requirements
+ * Peer dependency version requirements keyed by package name.
  */
 const PEER_DEPENDENCY_REQUIREMENTS: Record<string, { range: string; reason: string }> = {
   'react-router-dom': {
@@ -846,7 +967,11 @@ const PEER_DEPENDENCY_REQUIREMENTS: Record<string, { range: string; reason: stri
 };
 
 /**
- * Check for dependency conflicts in a project configuration
+ * Check a project configuration for dependency conflicts, peer dependency issues,
+ * and framework-specific incompatibilities.
+ *
+ * @param config - The project configuration including optional frontend, backend, db, and extra dependencies.
+ * @returns A {@link DependencyCheckResult} aggregating all detected conflicts and warnings.
  */
 export function checkDependencyConflicts(config: {
   frontend?: string;
@@ -889,7 +1014,10 @@ export function checkDependencyConflicts(config: {
 }
 
 /**
- * Collect all dependencies from selected frameworks and databases
+ * Collect and merge all dependencies from the selected frontend, backend, and database.
+ *
+ * @param config - The project configuration to collect dependencies from.
+ * @returns A merged record of package name to version string.
  */
 function collectAllDependencies(config: {
   frontend?: string;
@@ -923,7 +1051,10 @@ function collectAllDependencies(config: {
 }
 
 /**
- * Get dependencies for a frontend framework
+ * Get the dependency map for a frontend framework.
+ *
+ * @param framework - The frontend framework identifier.
+ * @returns A record of package name to version, or an empty object if unavailable.
  */
 function getFrameworkDependencies(framework: string): Record<string, string> {
   const frameworkConfig = getFrameworkConfig(framework);
@@ -936,7 +1067,10 @@ function getFrameworkDependencies(framework: string): Record<string, string> {
 }
 
 /**
- * Get dependencies for a backend framework
+ * Get the dependency map for a backend framework template.
+ *
+ * @param backend - The backend framework identifier.
+ * @returns A record of package name to version, or an empty object if unavailable.
  */
 function getBackendDependencies(backend: string): Record<string, string> {
   const template = getBackendTemplate(backend);
@@ -949,7 +1083,10 @@ function getBackendDependencies(backend: string): Record<string, string> {
 }
 
 /**
- * Check for version conflicts between dependencies
+ * Check for version conflicts between related dependencies (e.g. react/react-dom).
+ *
+ * @param dependencies - The full dependency map to inspect.
+ * @returns An object containing arrays of conflicts and warnings.
  */
 function checkVersionConflicts(
   dependencies: Record<string, string>
@@ -1009,7 +1146,10 @@ function checkVersionConflicts(
 }
 
 /**
- * Check peer dependency requirements
+ * Check dependencies against known peer dependency requirements.
+ *
+ * @param dependencies - The full dependency map to inspect.
+ * @returns An array of {@link DependencyConflict} warnings for unmet peer requirements.
  */
 function checkPeerDependencies(dependencies: Record<string, string>): DependencyConflict[] {
   const issues: DependencyConflict[] = [];
@@ -1038,7 +1178,10 @@ function checkPeerDependencies(dependencies: Record<string, string>): Dependency
 }
 
 /**
- * Check for framework-specific conflicts
+ * Check for framework-specific conflicts such as database/backend or frontend/backend mismatches.
+ *
+ * @param config - The project configuration to inspect.
+ * @returns An object containing arrays of conflicts and warnings.
  */
 function checkFrameworkConflicts(config: {
   frontend?: string;
@@ -1092,7 +1235,12 @@ function checkFrameworkConflicts(config: {
 }
 
 /**
- * Generate resolution suggestions
+ * Generate human-readable resolution suggestions from detected conflicts and warnings.
+ *
+ * @param conflicts - Error-severity conflicts.
+ * @param warnings - Warning-severity items.
+ * @param dependencies - The full dependency map (used for context).
+ * @returns An array of resolution suggestion strings.
  */
 function generateResolutions(
   conflicts: DependencyConflict[],
@@ -1130,7 +1278,10 @@ function generateResolutions(
 }
 
 /**
- * Parse major version from semver string
+ * Parse the major version number from a semver-like string.
+ *
+ * @param version - The version string to parse (e.g. `'^18.2.0'`).
+ * @returns The major version as a number, or `0` if no digit is found.
  */
 function parseMajorVersion(version: string): number {
   const match = version.match(/(\d+)/);
@@ -1138,7 +1289,10 @@ function parseMajorVersion(version: string): number {
 }
 
 /**
- * Get formatted conflict report for display
+ * Format a {@link DependencyCheckResult} into a human-readable report string.
+ *
+ * @param result - The dependency check result to format.
+ * @returns A multi-line string suitable for CLI output.
  */
 export function formatDependencyReport(result: DependencyCheckResult): string {
   const lines: string[] = [];
@@ -1172,7 +1326,10 @@ export function formatDependencyReport(result: DependencyCheckResult): string {
 }
 
 /**
- * Auto-fix dependency conflicts by suggesting package.json overrides
+ * Generate package.json override suggestions to auto-fix version conflicts.
+ *
+ * @param result - The dependency check result containing conflicts.
+ * @returns A record of package name to override version.
  */
 export function generatePackageOverrides(result: DependencyCheckResult): Record<string, string> {
   const overrides: Record<string, string> = {};
@@ -1192,22 +1349,34 @@ export function generatePackageOverrides(result: DependencyCheckResult): Record<
 }
 
 /**
- * Language-specific best practices interfaces
+ * Represents a single best-practice configuration file to be generated.
  */
 export interface BestPracticeFile {
+  /** Destination path relative to the project root. */
   path: string;
+  /** Full file content. */
   content: string;
 }
 
+/**
+ * A bundle of best-practice files, folders, and scripts for a language ecosystem.
+ */
 export interface BestPracticesConfig {
+  /** Configuration files to write. */
   files: BestPracticeFile[];
+  /** Directories to create. */
   folders: string[];
+  /** npm/package scripts to add. */
   scripts: Record<string, string>;
+  /** Human-readable description of this best-practices bundle. */
   description: string;
 }
 
 /**
- * Get best practices configuration for a programming language
+ * Get the best-practices configuration bundle for a programming language.
+ *
+ * @param language - The programming language name (case-insensitive).
+ * @returns A {@link BestPracticesConfig}, or an empty config for unsupported languages.
  */
 export function getBestPracticesForLanguage(language: string): BestPracticesConfig {
   const lang = language.toLowerCase();
@@ -1247,7 +1416,9 @@ export function getBestPracticesForLanguage(language: string): BestPracticesConf
 }
 
 /**
- * JavaScript/TypeScript best practices
+ * Get the JavaScript/TypeScript best-practices configuration bundle.
+ *
+ * @returns A {@link BestPracticesConfig} with ESLint, Prettier, EditorConfig, and gitignore files.
  */
 function getJavaScriptBestPractices(): BestPracticesConfig {
   return {
@@ -1394,7 +1565,9 @@ yarn-error.log*
 }
 
 /**
- * Python best practices
+ * Get the Python best-practices configuration bundle.
+ *
+ * @returns A {@link BestPracticesConfig} with Ruff, Black, mypy, pytest, and gitignore files.
  */
 function getPythonBestPractices(): BestPracticesConfig {
   return {
@@ -1580,7 +1753,9 @@ disallow_untyped_defs = true
 }
 
 /**
- * Go best practices
+ * Get the Go best-practices configuration bundle.
+ *
+ * @returns A {@link BestPracticesConfig} with golangci-lint, gofmt, EditorConfig, and gitignore files.
  */
 function getGoBestPractices(): BestPracticesConfig {
   return {
@@ -1744,7 +1919,9 @@ output:
 }
 
 /**
- * Rust best practices
+ * Get the Rust best-practices configuration bundle.
+ *
+ * @returns A {@link BestPracticesConfig} with clippy, rustfmt, EditorConfig, and gitignore files.
  */
 function getRustBestPractices(): BestPracticesConfig {
   return {
@@ -1853,7 +2030,9 @@ use_try_shorthand = true
 }
 
 /**
- * Java best practices
+ * Get the Java best-practices configuration bundle.
+ *
+ * @returns A {@link BestPracticesConfig} with Checkstyle, EditorConfig, and Maven gitignore files.
  */
 function getJavaBestPractices(): BestPracticesConfig {
   return {
@@ -2002,7 +2181,9 @@ Thumbs.db
 }
 
 /**
- * .NET/C# best practices
+ * Get the .NET/C# best-practices configuration bundle.
+ *
+ * @returns A {@link BestPracticesConfig} with StyleCop, EditorConfig, and .NET gitignore files.
  */
 function getDotNetBestPractices(): BestPracticesConfig {
   return {
@@ -2137,7 +2318,9 @@ Thumbs.db
 }
 
 /**
- * Ruby best practices
+ * Get the Ruby best-practices configuration bundle.
+ *
+ * @returns A {@link BestPracticesConfig} with RuboCop, EditorConfig, and Bundler gitignore files.
  */
 function getRubyBestPractices(): BestPracticesConfig {
   return {
@@ -2300,7 +2483,9 @@ RSpec/MultipleExpectations:
 }
 
 /**
- * PHP best practices
+ * Get the PHP best-practices configuration bundle.
+ *
+ * @returns A {@link BestPracticesConfig} with PHP CS Fixer, PHPUnit, EditorConfig, and Composer gitignore files.
  */
 function getPHPBestPractices(): BestPracticesConfig {
   return {
@@ -2461,7 +2646,9 @@ return (new PhpCsFixer\\Config())
 }
 
 /**
- * Elixir best practices
+ * Get the Elixir best-practices configuration bundle.
+ *
+ * @returns A {@link BestPracticesConfig} with Elixir formatter, EditorConfig, and Mix gitignore files.
  */
 function getElixirBestPractices(): BestPracticesConfig {
   return {
@@ -2568,7 +2755,11 @@ Thumbs.db
 }
 
 /**
- * Apply best practices to a project directory
+ * Apply best-practices configuration to a project directory by creating folders and files.
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @param language - The programming language whose best practices should be applied.
+ * @returns A promise that resolves once all folders and files have been written.
  */
 export async function applyBestPractices(
   projectPath: string,
@@ -2588,20 +2779,30 @@ export async function applyBestPractices(
 }
 
 /**
- * CI/CD pipeline generation interfaces
+ * Configuration for generating a CI/CD pipeline.
  */
 export interface CICDConfig {
+  /** Target CI/CD platform. */
   platform: 'github' | 'gitlab' | 'azure' | 'circleci';
+  /** Primary programming language of the project. */
   language: string;
+  /** Framework identifier, if applicable. */
   framework?: string;
+  /** Database type identifier, if applicable. */
   database?: string;
+  /** Whether the project has tests to run. */
   hasTests: boolean;
+  /** Whether the project includes Docker configuration. */
   hasDocker: boolean;
+  /** Optional deployment target. */
   deployTarget?: 'vercel' | 'netlify' | 'aws' | 'azure' | 'gcp' | 'docker';
 }
 
 /**
- * Generate CI/CD pipeline configuration based on project settings
+ * Generate CI/CD pipeline configuration files based on project settings.
+ *
+ * @param config - The CI/CD configuration describing the project and target platform.
+ * @returns An array of file objects with path and content.
  */
 export function generateCICDPipeline(config: CICDConfig): { path: string; content: string }[] {
   const files: { path: string; content: string }[] = [];
@@ -2625,7 +2826,10 @@ export function generateCICDPipeline(config: CICDConfig): { path: string; conten
 }
 
 /**
- * Generate GitHub Actions workflow
+ * Generate a GitHub Actions workflow YAML file based on project settings.
+ *
+ * @param config - The CI/CD configuration.
+ * @returns A file object with path `.github/workflows/ci.yml` and YAML content.
  */
 function generateGitHubActions(config: CICDConfig): { path: string; content: string } {
   const { language, framework, hasTests, hasDocker, deployTarget } = config;
@@ -2666,6 +2870,15 @@ env:
   };
 }
 
+/**
+ * Generate the Node.js-specific portion of a GitHub Actions workflow.
+ *
+ * @param framework - Optional frontend/framework identifier.
+ * @param hasTests - Whether to include test steps.
+ * @param hasDocker - Whether to include a Docker build job.
+ * @param deployTarget - Optional deployment target for a deploy job.
+ * @returns A YAML string fragment for the Node.js workflow jobs.
+ */
 function generateGitHubNodeJS(framework: string | undefined, hasTests: boolean, hasDocker: boolean, deployTarget: string | undefined): string {
   let workflow = `
 jobs:
@@ -2752,6 +2965,13 @@ jobs:
   return workflow;
 }
 
+/**
+ * Generate the Python-specific portion of a GitHub Actions workflow.
+ *
+ * @param hasTests - Whether to include test steps.
+ * @param hasDocker - Whether to include a Docker build job.
+ * @returns A YAML string fragment for the Python workflow jobs.
+ */
 function generateGitHubPython(hasTests: boolean, hasDocker: boolean): string {
   return `
 jobs:
@@ -2808,6 +3028,13 @@ ${hasDocker ? `
 ` : ''}`;
 }
 
+/**
+ * Generate the Go-specific portion of a GitHub Actions workflow.
+ *
+ * @param hasTests - Whether to include test steps.
+ * @param hasDocker - Whether to include a Docker build job.
+ * @returns A YAML string fragment for the Go workflow jobs.
+ */
 function generateGitHubGo(hasTests: boolean, hasDocker: boolean): string {
   return `
 jobs:
@@ -2860,6 +3087,13 @@ ${hasDocker ? `
 ` : ''}`;
 }
 
+/**
+ * Generate the Rust-specific portion of a GitHub Actions workflow.
+ *
+ * @param hasTests - Whether to include test steps.
+ * @param hasDocker - Whether to include a Docker build job.
+ * @returns A YAML string fragment for the Rust workflow jobs.
+ */
 function generateGitHubRust(hasTests: boolean, hasDocker: boolean): string {
   return `
 jobs:
@@ -2892,6 +3126,12 @@ jobs:
 `;
 }
 
+/**
+ * Generate the Java-specific portion of a GitHub Actions workflow.
+ *
+ * @param hasTests - Whether to include test steps.
+ * @returns A YAML string fragment for the Java workflow jobs.
+ */
 function generateGitHubJava(hasTests: boolean): string {
   return `
 jobs:
@@ -2921,6 +3161,12 @@ jobs:
 `;
 }
 
+/**
+ * Generate the .NET-specific portion of a GitHub Actions workflow.
+ *
+ * @param hasTests - Whether to include test steps.
+ * @returns A YAML string fragment for the .NET workflow jobs.
+ */
 function generateGitHubDotNet(hasTests: boolean): string {
   return `
 jobs:
@@ -2947,6 +3193,13 @@ jobs:
 `;
 }
 
+/**
+ * Generate a generic GitHub Actions workflow for unsupported languages.
+ *
+ * @param hasTests - Whether to include test steps.
+ * @param hasDocker - Whether to include a Docker build job.
+ * @returns A YAML string fragment for a generic workflow.
+ */
 function generateGitHubGeneric(hasTests: boolean, hasDocker: boolean): string {
   return `
 jobs:
@@ -2965,7 +3218,10 @@ jobs:
 }
 
 /**
- * Generate GitLab CI configuration
+ * Generate a GitLab CI YAML configuration based on project settings.
+ *
+ * @param config - The CI/CD configuration.
+ * @returns A file object with path `.gitlab-ci.yml` and YAML content.
  */
 function generateGitLabCI(config: CICDConfig): { path: string; content: string } {
   const { language, hasDocker } = config;
@@ -3074,7 +3330,10 @@ build:
 }
 
 /**
- * Generate Azure Pipelines configuration
+ * Generate an Azure Pipelines YAML configuration based on project settings.
+ *
+ * @param config - The CI/CD configuration.
+ * @returns A file object with path `azure-pipelines.yml` and YAML content.
  */
 function generateAzurePipelines(config: CICDConfig): { path: string; content: string } {
   const { language} = config;
@@ -3158,7 +3417,10 @@ variables:
 }
 
 /**
- * Generate CircleCI configuration
+ * Generate a CircleCI YAML configuration based on project settings.
+ *
+ * @param config - The CI/CD configuration.
+ * @returns A file object with path `.circleci/config.yml` and YAML content.
  */
 function generateCircleCI(config: CICDConfig): { path: string; content: string } {
   const { language, hasDocker } = config;
@@ -3251,23 +3513,36 @@ workflows:
 }
 
 /**
- * Documentation generation interfaces
+ * Configuration for generating project documentation.
  */
 export interface ProjectDocsConfig {
+  /** Project name. */
   name: string;
+  /** Short project description. */
   description: string;
+  /** Semantic version string. */
   version: string;
+  /** Project type category. */
   type: 'app' | 'package' | 'lib' | 'tool';
+  /** Frontend framework identifier, if applicable. */
   frontend?: string;
+  /** Backend framework identifier, if applicable. */
   backend?: string;
+  /** Database type identifier, if applicable. */
   database?: string;
+  /** List of feature descriptions to include in docs. */
   features: string[];
+  /** Author name, if applicable. */
   author?: string;
+  /** License identifier (e.g. `'MIT'`). */
   license?: string;
 }
 
 /**
- * Generate comprehensive project documentation
+ * Generate comprehensive project documentation files based on the provided config.
+ *
+ * @param config - The project documentation configuration.
+ * @returns An array of file objects with path and content.
  */
 export function generateProjectDocumentation(config: ProjectDocsConfig): { path: string; content: string }[] {
   const files: { path: string; content: string }[] = [];
@@ -3296,7 +3571,10 @@ export function generateProjectDocumentation(config: ProjectDocsConfig): { path:
 }
 
 /**
- * Generate README.md
+ * Generate the main `README.md` file for a project.
+ *
+ * @param config - The project documentation configuration.
+ * @returns A file object with path `README.md` and Markdown content.
  */
 function generateReadme(config: ProjectDocsConfig): { path: string; content: string } {
   const { name, description, version, type, frontend, backend, database, features, author, license } = config;
@@ -3390,7 +3668,10 @@ Generated with ❤️ by [Re-Shell CLI](https://github.com/umutkorkmaz/re-shell-
 }
 
 /**
- * Generate architecture documentation with diagrams
+ * Generate architecture documentation including Mermaid diagrams and component descriptions.
+ *
+ * @param config - The project documentation configuration.
+ * @returns A file object with path `docs/ARCHITECTURE.md` and Markdown content.
  */
 function generateArchitectureDocs(config: ProjectDocsConfig): { path: string; content: string } {
   const { name, frontend, backend, database } = config;
@@ -3511,7 +3792,12 @@ ${generateTechRationale(frontend, backend, database)}
 }
 
 /**
- * Generate Mermaid architecture diagram
+ * Generate a Mermaid architecture diagram based on the project's stack.
+ *
+ * @param frontend - Optional frontend framework name.
+ * @param backend - Optional backend framework name.
+ * @param database - Optional database type name.
+ * @returns A Mermaid `graph TD` diagram string.
  */
 function generateMermaidDiagram(frontend?: string, backend?: string, database?: string): string {
   if (frontend && backend) {
@@ -3544,7 +3830,10 @@ function generateMermaidDiagram(frontend?: string, backend?: string, database?: 
 }
 
 /**
- * Generate API documentation
+ * Generate API documentation for projects that include a backend.
+ *
+ * @param config - The project documentation configuration.
+ * @returns A file object with path `docs/API.md` and Markdown content.
  */
 function generateApiDocs(config: ProjectDocsConfig): { path: string; content: string } {
   const { backend } = config;
@@ -3666,7 +3955,10 @@ When the rate limit is exceeded, the API returns a \`429 Too Many Requests\` res
 }
 
 /**
- * Generate contributing guide
+ * Generate a `CONTRIBUTING.md` guide for the project.
+ *
+ * @param config - The project documentation configuration.
+ * @returns A file object with path `CONTRIBUTING.md` and Markdown content.
  */
 function generateContributingGuide(config: ProjectDocsConfig): { path: string; content: string } {
   const { frontend, backend } = config;
@@ -3738,7 +4030,10 @@ By contributing, you agree that your contributions will be licensed under the ${
 }
 
 /**
- * Generate changelog
+ * Generate a `CHANGELOG.md` following the Keep a Changelog format.
+ *
+ * @param config - The project documentation configuration.
+ * @returns The changelog Markdown content string.
  */
 function generateChangelog(config: ProjectDocsConfig): string {
   return `# Changelog
@@ -3771,7 +4066,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 }
 
 /**
- * Helper functions for documentation generation
+ * Helper functions for documentation generation.
+ */
+
+/**
+ * Get a list of prerequisite tools based on the selected frontend and backend.
+ *
+ * @param frontend - Optional frontend framework identifier.
+ * @param backend - Optional backend framework identifier.
+ * @returns A newline-separated string of prerequisite bullet points.
  */
 function getPrerequisites(frontend?: string, backend?: string): string {
   const prereqs = [];
@@ -3796,6 +4099,13 @@ function getPrerequisites(frontend?: string, backend?: string): string {
   return prereqs.join('\n') || '- Node.js 18+';
 }
 
+/**
+ * Get the appropriate install command for the selected stack.
+ *
+ * @param frontend - Optional frontend framework identifier.
+ * @param backend - Optional backend framework identifier.
+ * @returns The install command string for the README.
+ */
 function getInstallCommand(frontend?: string, backend?: string): string {
   if (frontend || backend?.toLowerCase().includes('express') || backend?.toLowerCase().includes('nest')) {
     return 'npm install';
@@ -3809,6 +4119,13 @@ function getInstallCommand(frontend?: string, backend?: string): string {
   return 'npm install';
 }
 
+/**
+ * Get the appropriate development server command for the selected stack.
+ *
+ * @param frontend - Optional frontend framework identifier.
+ * @param backend - Optional backend framework identifier.
+ * @returns The dev command string for the README.
+ */
 function getDevCommand(frontend?: string, backend?: string): string {
   if (frontend || backend?.toLowerCase().includes('express') || backend?.toLowerCase().includes('nest')) {
     return 'npm run dev';
@@ -3822,6 +4139,13 @@ function getDevCommand(frontend?: string, backend?: string): string {
   return 'npm run dev';
 }
 
+/**
+ * Get the appropriate build command for the selected stack.
+ *
+ * @param frontend - Optional frontend framework identifier.
+ * @param backend - Optional backend framework identifier.
+ * @returns The build command string for the README.
+ */
 function getBuildCommand(frontend?: string, backend?: string): string {
   if (frontend || backend?.toLowerCase().includes('express') || backend?.toLowerCase().includes('nest')) {
     return 'npm run build';
@@ -3835,10 +4159,25 @@ function getBuildCommand(frontend?: string, backend?: string): string {
   return 'npm run build';
 }
 
+/**
+ * Get the appropriate test command for the selected stack.
+ *
+ * @param frontend - Optional frontend framework identifier.
+ * @param backend - Optional backend framework identifier.
+ * @returns The test command string for the README.
+ */
 function getTestCommand(frontend?: string, backend?: string): string {
   return 'npm test';
 }
 
+/**
+ * Get a project structure tree diagram for the README.
+ *
+ * @param frontend - Optional frontend framework identifier.
+ * @param backend - Optional backend framework identifier.
+ * @param type - Optional project type (`'app'`, `'package'`, etc.).
+ * @returns A code-block string showing the directory structure.
+ */
 function getProjectStructure(frontend?: string, backend?: string, type?: string): string {
   if (type === 'app') {
     return `\`\`\`
@@ -3855,6 +4194,13 @@ ${name}/
   return 'See project folder for structure.';
 }
 
+/**
+ * Get deployment documentation section for the README.
+ *
+ * @param frontend - Optional frontend framework identifier.
+ * @param backend - Optional backend framework identifier.
+ * @returns A Markdown string with deployment instructions.
+ */
 function getDeploymentDocs(frontend?: string, backend?: string): string {
   if (frontend && !backend) {
     return `### Vercel Deployment
@@ -3879,6 +4225,13 @@ docker run -p 3000:3000 app
 \`\`\``;
 }
 
+/**
+ * Get an environment variable template based on the selected stack.
+ *
+ * @param frontend - Optional frontend framework identifier.
+ * @param backend - Optional backend framework identifier.
+ * @returns A newline-separated string of environment variable entries.
+ */
 function getEnvTemplate(frontend?: string, backend?: string): string {
   const lines = [];
   if (frontend) {
@@ -3893,6 +4246,14 @@ function getEnvTemplate(frontend?: string, backend?: string): string {
   return lines.join('\n') || 'NODE_ENV=development';
 }
 
+/**
+ * Generate a technology rationale section explaining the choices of frontend, backend, and database.
+ *
+ * @param frontend - Optional frontend framework name.
+ * @param backend - Optional backend framework name.
+ * @param database - Optional database type name.
+ * @returns A Markdown string with benefits for each selected technology.
+ */
 function generateTechRationale(frontend?: string, backend?: string, database?: string): string {
   let rationale = '';
 
@@ -3940,82 +4301,119 @@ Chosen for data persistence and querying capabilities.
 // ============================================================================
 
 /**
- * Health check result for a specific aspect
+ * Result of a single health check on a specific project aspect.
  */
 export interface HealthCheckResult {
+  /** Name of the checked aspect (e.g. `'Project Structure'`). */
   name: string;
+  /** Outcome status for this check. */
   status: 'pass' | 'warn' | 'fail' | 'skip';
+  /** Short human-readable message describing the outcome. */
   message: string;
+  /** Optional additional details about issues found. */
   details?: string;
+  /** Optional suggestion to improve or resolve issues. */
   suggestion?: string;
 }
 
 /**
- * Complete health check report
+ * Complete health check report combining all individual check results.
  */
 export interface HealthCheckReport {
+  /** Aggregate status across all checks. */
   overallStatus: 'healthy' | 'warning' | 'unhealthy';
+  /** Individual check results. */
   checks: HealthCheckResult[];
+  /** ISO timestamp of when the report was generated. */
   timestamp: string;
+  /** Absolute path to the checked project. */
   projectPath: string;
 }
 
 /**
- * Configuration validation result
+ * Result of validating a project configuration before creation.
  */
 export interface ValidationResult {
+  /** Whether the configuration is valid (no critical errors). */
   isValid: boolean;
+  /** Validation errors that should be fixed. */
   errors: ValidationError[];
+  /** Validation warnings for review. */
   warnings: ValidationWarning[];
+  /** Improvement suggestions. */
   suggestions: ValidationSuggestion[];
 }
 
 /**
- * Validation error
+ * A single validation error entry.
  */
 export interface ValidationError {
+  /** Configuration path where the error occurred. */
   path: string;
+  /** Specific field that has the error. */
   field: string;
+  /** Human-readable error message. */
   message: string;
+  /** Severity of the error. */
   severity: 'critical' | 'error';
 }
 
 /**
- * Validation warning
+ * A single validation warning entry.
  */
 export interface ValidationWarning {
+  /** Configuration path where the warning occurred. */
   path: string;
+  /** Specific field that triggered the warning. */
   field: string;
+  /** Human-readable warning message. */
   message: string;
+  /** Severity of the warning. */
   severity: 'warn' | 'info';
 }
 
 /**
- * Validation suggestion
+ * A single improvement suggestion entry.
  */
 export interface ValidationSuggestion {
+  /** Category the suggestion belongs to (e.g. `'deployment'`). */
   category: string;
+  /** Human-readable suggestion message. */
   message: string;
+  /** Optional actionable step to apply the suggestion. */
   action?: string;
 }
 
 /**
- * Project configuration for validation
+ * Project configuration used for validation and health checks.
  */
 export interface ProjectConfig {
+  /** Project name (lowercase alphanumeric with hyphens). */
   name: string;
+  /** Project type category. */
   type: 'app' | 'package' | 'lib' | 'tool';
+  /** Frontend framework identifier, if applicable. */
   frontend?: string;
+  /** Backend framework identifier, if applicable. */
   backend?: string;
+  /** Database type identifier, if applicable. */
   database?: string;
+  /** Package manager to use (e.g. `'npm'`, `'yarn'`). */
   packageManager: string;
+  /** Port number as a string, if specified. */
   port?: string;
+  /** Whether Docker configuration is included. */
   hasDocker?: boolean;
+  /** Whether CI/CD configuration is included. */
   hasCI?: boolean;
 }
 
 /**
- * Validate project configuration before creation
+ * Validate a project configuration before creation, checking name format,
+ * framework compatibility, database compatibility, and port range.
+ *
+ * @param config - The project configuration to validate.
+ * @returns A {@link ValidationResult} with errors, warnings, and suggestions.
  */
 export function validateProjectConfig(config: ProjectConfig): ValidationResult {
   const errors: ValidationError[] = [];
@@ -4142,7 +4540,12 @@ export function validateProjectConfig(config: ProjectConfig): ValidationResult {
 }
 
 /**
- * Perform health check on a created project
+ * Perform a comprehensive health check on a created project, inspecting structure,
+ * configuration files, Docker, CI/CD, documentation, environment, and linting setup.
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @param config - Optional partial project configuration for context-aware checks.
+ * @returns A promise resolving to a {@link HealthCheckReport}.
  */
 export async function performProjectHealthCheck(projectPath: string, config?: Partial<ProjectConfig>): Promise<HealthCheckReport> {
   const checks: HealthCheckResult[] = [];
@@ -4207,7 +4610,10 @@ export async function performProjectHealthCheck(projectPath: string, config?: Pa
 }
 
 /**
- * Check if a file exists
+ * Check whether a file or directory exists at the given path.
+ *
+ * @param filePath - Absolute path to check.
+ * @returns A promise resolving to `true` if the path exists, `false` otherwise.
  */
 async function fileExists(filePath: string): Promise<boolean> {
   try {
@@ -4219,7 +4625,10 @@ async function fileExists(filePath: string): Promise<boolean> {
 }
 
 /**
- * Check project structure
+ * Check that the project has the required directory structure (e.g. `src/`).
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @returns A promise resolving to a {@link HealthCheckResult}.
  */
 async function checkProjectStructure(projectPath: string): Promise<HealthCheckResult> {
   const requiredDirs = ['src'];
@@ -4250,7 +4659,10 @@ async function checkProjectStructure(projectPath: string): Promise<HealthCheckRe
 }
 
 /**
- * Check package.json
+ * Check the project's `package.json` for required fields, scripts, and dependencies.
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @returns A promise resolving to a {@link HealthCheckResult}.
  */
 async function checkPackageJson(projectPath: string): Promise<HealthCheckResult> {
   const pkgPath = path.join(projectPath, 'package.json');
@@ -4311,7 +4723,10 @@ async function checkPackageJson(projectPath: string): Promise<HealthCheckResult>
 }
 
 /**
- * Check TypeScript configuration
+ * Check the project's `tsconfig.json` for recommended TypeScript compiler options.
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @returns A promise resolving to a {@link HealthCheckResult}.
  */
 async function checkTypeScriptConfig(projectPath: string): Promise<HealthCheckResult> {
   const tsConfigPath = path.join(projectPath, 'tsconfig.json');
@@ -4364,7 +4779,13 @@ async function checkTypeScriptConfig(projectPath: string): Promise<HealthCheckRe
 }
 
 /**
- * Check Docker configuration
+ * Check the project's Docker configuration for best practices such as multi-stage builds,
+ * .dockerignore, non-root user, volumes, and healthchecks.
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @param hasDockerfile - Whether a `Dockerfile` exists.
+ * @param hasDockerCompose - Whether a `docker-compose.yml` exists.
+ * @returns A promise resolving to a {@link HealthCheckResult}.
  */
 async function checkDockerConfig(projectPath: string, hasDockerfile: boolean, hasDockerCompose: boolean): Promise<HealthCheckResult> {
   const issues: string[] = [];
@@ -4430,7 +4851,10 @@ async function checkDockerConfig(projectPath: string, hasDockerfile: boolean, ha
 }
 
 /**
- * Check CI/CD configuration
+ * Check for the presence of CI/CD configuration files across supported platforms.
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @returns A promise resolving to a {@link HealthCheckResult}.
  */
 async function checkCIConfig(projectPath: string): Promise<HealthCheckResult> {
   const ciFiles = [
@@ -4466,7 +4890,10 @@ async function checkCIConfig(projectPath: string): Promise<HealthCheckResult> {
 }
 
 /**
- * Check documentation
+ * Check for the presence of standard documentation files (README, CONTRIBUTING, etc.).
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @returns A promise resolving to a {@link HealthCheckResult}.
  */
 async function checkDocumentation(projectPath: string): Promise<HealthCheckResult> {
   const docFiles = [
@@ -4514,7 +4941,10 @@ async function checkDocumentation(projectPath: string): Promise<HealthCheckResul
 }
 
 /**
- * Check environment configuration
+ * Check environment configuration for proper `.env` and `.gitignore` setup.
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @returns A promise resolving to a {@link HealthCheckResult}.
  */
 async function checkEnvConfig(projectPath: string): Promise<HealthCheckResult> {
   const envFiles = ['.env', '.env.example', '.env.local'];
@@ -4561,7 +4991,11 @@ async function checkEnvConfig(projectPath: string): Promise<HealthCheckResult> {
 }
 
 /**
- * Check source structure
+ * Check the `src/` directory for files and a recognizable entry point.
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @param config - Optional partial project configuration for context.
+ * @returns A promise resolving to a {@link HealthCheckResult}.
  */
 async function checkSourceStructure(projectPath: string, config?: Partial<ProjectConfig>): Promise<HealthCheckResult> {
   const srcPath = path.join(projectPath, 'src');
@@ -4616,7 +5050,10 @@ async function checkSourceStructure(projectPath: string, config?: Partial<Projec
 }
 
 /**
- * Check linting configuration
+ * Check for the presence of linting and formatting configuration files.
+ *
+ * @param projectPath - Absolute path to the project directory.
+ * @returns A promise resolving to a {@link HealthCheckResult}.
  */
 async function checkLintingConfig(projectPath: string): Promise<HealthCheckResult> {
   const lintingFiles = [
@@ -4656,7 +5093,10 @@ async function checkLintingConfig(projectPath: string): Promise<HealthCheckResul
 }
 
 /**
- * Format health check report for display
+ * Format a {@link HealthCheckReport} into a human-readable string for CLI display.
+ *
+ * @param report - The health check report to format.
+ * @returns A multi-line string with status icons, messages, details, and suggestions.
  */
 export function formatHealthCheckReport(report: HealthCheckReport): string {
   const lines: string[] = [];
@@ -4686,6 +5126,12 @@ export function formatHealthCheckReport(report: HealthCheckReport): string {
   return lines.join('\n');
 }
 
+/**
+ * Format an overall health status into a labeled string with an icon.
+ *
+ * @param status - The overall status to format.
+ * @returns A human-readable status string (e.g. `'Healthy'`).
+ */
 function formatStatus(status: 'healthy' | 'warning' | 'unhealthy'): string {
   switch (status) {
     case 'healthy':
@@ -4697,6 +5143,12 @@ function formatStatus(status: 'healthy' | 'warning' | 'unhealthy'): string {
   }
 }
 
+/**
+ * Get an icon character for an individual check status.
+ *
+ * @param status - The check status.
+ * @returns An emoji/symbol representing the status.
+ */
 function getStatusIcon(status: 'pass' | 'warn' | 'fail' | 'skip'): string {
   switch (status) {
     case 'pass':
@@ -4711,7 +5163,10 @@ function getStatusIcon(status: 'pass' | 'warn' | 'fail' | 'skip'): string {
 }
 
 /**
- * Format validation result for display
+ * Format a {@link ValidationResult} into a human-readable string for CLI display.
+ *
+ * @param result - The validation result to format.
+ * @returns A multi-line string listing errors, warnings, and suggestions.
  */
 export function formatValidationResult(result: ValidationResult): string {
   const lines: string[] = [];

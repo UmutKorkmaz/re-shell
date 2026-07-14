@@ -4,263 +4,521 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/** Supported categories of technical documentation. */
 export type DocType = 'api' | 'architecture' | 'user-guide' | 'developer-guide' | 'deployment' | 'troubleshooting' | 'reference';
+/** Output formats in which documentation can be rendered. */
 export type DocFormat = 'markdown' | 'html' | 'pdf' | 'openapi' | 'json-schema';
+/** Lifecycle statuses that a document may transition through. */
 export type DocStatus = 'draft' | 'review' | 'published' | 'deprecated' | 'archived';
+/** Identifiers for supported AI providers used during generation and review. */
 export type AIProvider = 'openai' | 'anthropic' | 'custom';
+/** Kinds of changes recorded in a document's change history. */
 export type ChangeType = 'created' | 'updated' | 'deleted' | 'restructured';
+/** Severity classifications for documented changes. */
 export type SeverityLevel = 'minor' | 'major' | 'critical';
 
+/**
+ * Top-level configuration for the technical documentation system.
+ */
 export interface TechnicalDocConfig {
+  /** Name of the project this configuration belongs to. */
   projectName: string;
+  /** Cloud providers targeted by the generated infrastructure. */
   providers: Array<'aws' | 'azure' | 'gcp'>;
+  /** Documents managed under this configuration. */
   documentation: {
+    /** Unique identifier for the document. */
     docId: string;
+    /** Human-readable document title. */
     title: string;
+    /** Category of the document. */
     type: DocType;
+    /** Output format of the document. */
     format: DocFormat;
+    /** Current lifecycle status of the document. */
     status: DocStatus;
+    /** Raw text content of the document. */
     content: string;
+    /** Ordered structural sections that make up the document. */
     sections: DocSection[];
+    /** Descriptive metadata about the document. */
     metadata: DocMetadata;
+    /** Semantic version string of the document. */
     version: string;
+    /** Date the document was last reviewed. */
     lastReviewed: Date;
+    /** Scheduled date for the next review. */
     nextReviewDate: Date;
+    /** AI-produced suggestions associated with the document. */
     aiSuggestions: AISuggestion[];
+    /** Recorded change history entries for the document. */
     changeHistory: DocChange[];
   }[];
+  /** AI provider and behavior configuration. */
   aiConfig: AIConfiguration;
+  /** reusable document templates. */
   templates: DocTemplate[];
+  /** Documentation lifecycle workflows. */
   workflows: DocumentationWorkflow[];
+  /** Quality checks applied to documentation. */
   qualityChecks: QualityCheck[];
+  /** Rules that drive automatic documentation generation. */
   autoGeneration: AutoGenerationRule[];
+  /** Versioning policy for managed documents. */
   versioning: DocVersioningConfig;
 }
 
+/**
+ * Represents a single structural section within a document.
+ */
 export interface DocSection {
+  /** Unique identifier for the section. */
   id: string;
+  /** Display title of the section. */
   title: string;
+  /** Text content of the section. */
   content: string;
+  /** Sort order relative to sibling sections. */
   order: number;
+  /** Optional nested subsections. */
   subsections?: DocSection[];
+  /** Code blocks embedded in the section. */
   codeBlocks: CodeBlock[];
+  /** Diagrams embedded in the section. */
   diagrams: Diagram[];
+  /** Worked examples included in the section. */
   examples: Example[];
+  /** References cited by the section. */
   references: Reference[];
+  /** Free-form tags for categorizing the section. */
   tags: string[];
+  /** Whether the section content was produced by an AI. */
   aiGenerated: boolean;
+  /** Timestamp of the most recent update to the section. */
   lastUpdated: Date;
 }
 
+/**
+ * A block of source code embedded within a section.
+ */
 export interface CodeBlock {
+  /** Programming language of the code sample. */
   language: string;
+  /** The raw source code text. */
   code: string;
+  /** Optional description explaining the code sample. */
   description?: string;
+  /** Whether the sample is intended to be executable. */
   executable?: boolean;
+  /** Whether syntax highlighting should be applied. */
   syntaxHighlighted: boolean;
+  /** Whether line numbers should be rendered with the code. */
   lineNumbers: boolean;
 }
 
+/**
+ * A diagram rendered inside a documentation section.
+ */
 export interface Diagram {
+  /** Kind of diagram being represented. */
   type: 'sequence' | 'flowchart' | 'architecture' | 'er-diagram' | 'state-machine' | 'gantt';
+  /** Source format used to describe the diagram. */
   format: 'mermaid' | 'plantuml' | 'graphviz' | 'custom';
+  /** The diagram source text. */
   content: string;
+  /** Optional caption displayed with the diagram. */
   caption?: string;
+  /** Optional render width in pixels. */
   width?: number;
+  /** Optional render height in pixels. */
   height?: number;
 }
 
+/**
+ * A worked example illustrating a concept or API usage.
+ */
 export interface Example {
+  /** Short title describing the example. */
   title: string;
+  /** Longer description of what the example demonstrates. */
   description: string;
+  /** Optional source code for the example. */
   code?: string;
+  /** Optional sample input value. */
   input?: any;
+  /** Optional sample output value. */
   output?: any;
+  /** Language of the included code, when present. */
   language?: string;
+  /** Tags used to categorize the example. */
   tags: string[];
 }
 
+/**
+ * A reference from a document to another resource.
+ */
 export interface Reference {
+  /** Category of the referenced resource. */
   type: 'internal' | 'external' | 'api' | 'rfc' | 'standard';
+  /** Display title of the reference. */
   title: string;
+  /** Optional URL of the referenced resource. */
   url?: string;
+  /** Optional document identifier for internal references. */
   docId?: string;
+  /** Optional section anchor within the referenced document. */
   section?: string;
+  /** Optional line number pinpointing the reference target. */
   lineNumber?: number;
 }
 
+/**
+ * Descriptive metadata associated with a document.
+ */
 export interface DocMetadata {
+  /** Primary author of the document. */
   author: string;
+  /** Additional contributors to the document. */
   contributors: string[];
+  /** Creation timestamp of the document. */
   createdAt: Date;
+  /** Last update timestamp of the document. */
   updatedAt: Date;
+  /** Tags describing the document. */
   tags: string[];
+  /** Category grouping for the document. */
   category: string;
+  /** Intended audience experience level. */
   audience: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+  /** Estimated reading time in minutes. */
   readingTime: number; // in minutes
+  /** Difficulty of the material covered. */
   difficulty: 'easy' | 'medium' | 'hard' | 'expert';
+  /** Prerequisites a reader should know beforehand. */
   prerequisites: string[];
+  /** Identifiers of related documents. */
   relatedDocs: string[];
+  /** Keywords used to power search indexing. */
   searchKeywords: string[];
+  /** Locale code (e.g. `en`) the document is written in. */
   locale: string;
 }
 
+/**
+ * An AI-generated suggestion for improving a document.
+ */
 export interface AISuggestion {
+  /** Unique identifier for the suggestion. */
   id: string;
+  /** Category of improvement the suggestion targets. */
   type: 'content' | 'structure' | 'formatting' | 'clarity' | 'completeness' | 'accuracy';
+  /** Human-readable suggestion text. */
   suggestion: string;
+  /** Confidence score of the suggestion in the range 0 to 1. */
   confidence: number; // 0-1
+  /** Rationale provided by the AI for the suggestion. */
   reasoning: string;
+  /** Optional section identifier the suggestion applies to. */
   sectionId?: string;
+  /** Relative importance of the suggestion. */
   priority: 'low' | 'medium' | 'high';
+  /** Current review status of the suggestion. */
   status: 'pending' | 'accepted' | 'rejected';
+  /** Timestamp the suggestion was created. */
   createdAt: Date;
+  /** Optional reviewer who dispositioned the suggestion. */
   reviewedBy?: string;
+  /** Optional timestamp of when the suggestion was reviewed. */
   reviewedAt?: Date;
 }
 
+/**
+ * A single change recorded in a document's history.
+ */
 export interface DocChange {
+  /** Unique identifier for the change entry. */
   id: string;
+  /** Kind of change that was made. */
   type: ChangeType;
+  /** Human-readable description of the change. */
   description: string;
+  /** Author who made the change. */
   author: string;
+  /** Timestamp the change was recorded. */
   timestamp: Date;
+  /** Document version the change belongs to. */
   version: string;
+  /** Identifiers of the sections affected by the change. */
   affectedSections: string[];
+  /** Severity classification of the change. */
   severity: SeverityLevel;
+  /** Whether the change requires a follow-up review. */
   reviewRequired: boolean;
+  /** Optional approver who approved the change. */
   approvedBy?: string;
+  /** Optional timestamp of when the change was approved. */
   approvedAt?: Date;
 }
 
+/**
+ * Configuration controlling AI-driven documentation features.
+ */
 export interface AIConfiguration {
+  /** AI provider used for content generation and review. */
   provider: AIProvider;
+  /** API key used to authenticate with the AI provider. */
   apiKey: string;
+  /** Model identifier to use when calling the provider. */
   model: string;
+  /** Sampling temperature passed to the model. */
   temperature: number;
+  /** Maximum tokens allowed in a single model response. */
   maxTokens: number;
+  /** Whether AI content generation is enabled. */
   enableContentGeneration: boolean;
+  /** Whether automated AI review is enabled. */
   enableReview: boolean;
+  /** Whether AI suggestions are surfaced to reviewers. */
   enableSuggestions: boolean;
+  /** Whether documents may be automatically updated by the AI. */
   enableAutoUpdate: boolean;
+  /** Optional custom prompt prepended to AI requests. */
   customPrompt?: string;
+  /** Optional knowledge base entries supplied to the model. */
   knowledgeBase?: string[];
 }
 
+/**
+ * A reusable template that defines the structure of a document.
+ */
 export interface DocTemplate {
+  /** Unique identifier for the template. */
   id: string;
+  /** Display name of the template. */
   name: string;
+  /** Document category the template applies to. */
   type: DocType;
+  /** Output format produced by the template. */
   format: DocFormat;
+  /** Structural sections that make up the template. */
   structure: TemplateSection[];
+  /** Placeholders that consumers of the template must fill in. */
   placeholders: TemplatePlaceholder[];
+  /** Style guidelines enforced by the template. */
   styleGuidelines: StyleGuideline[];
+  /** Section identifiers that are required when using the template. */
   requiredSections: string[];
+  /** Section identifiers that are optional when using the template. */
   optionalSections: string[];
 }
 
+/**
+ * A section definition within a document template.
+ */
 export interface TemplateSection {
+  /** Unique identifier for the template section. */
   id: string;
+  /** Display title of the section. */
   title: string;
+  /** Description of the section's purpose. */
   description: string;
+  /** Whether the section must appear in generated documents. */
   required: boolean;
+  /** Sort order relative to sibling sections. */
   order: number;
+  /** Optional template string used to seed section content. */
   contentTemplate?: string;
+  /** Optional nested subsection definitions. */
   subsections?: TemplateSection[];
 }
 
+/**
+ * A placeholder value that must be supplied when using a template.
+ */
 export interface TemplatePlaceholder {
+  /** Key used to reference the placeholder in template content. */
   key: string;
+  /** Description of the expected value. */
   description: string;
+  /** Type of value the placeholder accepts. */
   type: 'text' | 'code' | 'list' | 'table' | 'image';
+  /** Whether the placeholder must be populated. */
   required: boolean;
+  /** Optional default value used when none is supplied. */
   defaultValue?: string;
 }
 
+/**
+ * A guideline describing how documentation should be styled.
+ */
 export interface StyleGuideline {
+  /** Category the guideline falls under. */
   category: 'tone' | 'formatting' | 'structure' | 'terminology' | 'code';
+  /** The rule text that authors must follow. */
   rule: string;
+  /** Optional example illustrating the rule. */
   example?: string;
+  /** How strictly the guideline is enforced. */
   enforcement: 'suggestion' | 'required';
 }
 
+/**
+ * A workflow governing the documentation lifecycle.
+ */
 export interface DocumentationWorkflow {
+  /** Unique identifier for the workflow. */
   id: string;
+  /** Display name of the workflow. */
   name: string;
+  /** Description of what the workflow does. */
   description: string;
+  /** Ordered stages that make up the workflow. */
   stages: WorkflowStage[];
+  /** Users authorized to approve workflow transitions. */
   approvers: string[];
+  /** Whether the workflow may start automatically. */
   autoTrigger: boolean;
+  /** Conditions under which the workflow is triggered. */
   triggerConditions: TriggerCondition[];
 }
 
+/**
+ * A single stage within a documentation workflow.
+ */
 export interface WorkflowStage {
+  /** Unique identifier for the stage. */
   id: string;
+  /** Display name of the stage. */
   name: string;
+  /** Description of the stage's purpose. */
   description: string;
+  /** Kind of work performed in this stage. */
   type: 'creation' | 'review' | 'approval' | 'publishing' | 'archival';
+  /** Sort order of the stage within the workflow. */
   order: number;
+  /** Optional user explicitly assigned to the stage. */
   assignee?: string;
+  /** Optional role authorized to perform the stage. */
   role?: string;
+  /** Whether the stage should be auto-assigned based on role. */
   autoAssign: boolean;
+  /** Optional expected duration in days. */
   duration?: number; // in days
+  /** Checklist items that must be satisfied to complete the stage. */
   checklists: ChecklistItem[];
 }
 
+/**
+ * A condition that can trigger a documentation workflow.
+ */
 export interface TriggerCondition {
+  /** Kind of event that satisfies the trigger. */
   type: 'code-change' | 'api-change' | 'schedule' | 'manual' | 'version-release';
+  /** Description of when the trigger fires. */
   description: string;
+  /** Provider-specific configuration for the trigger. */
   config: any;
 }
 
+/**
+ * A single task within a workflow stage checklist.
+ */
 export interface ChecklistItem {
+  /** Unique identifier for the checklist item. */
   id: string;
+  /** Description of the task to be completed. */
   task: string;
+  /** Whether the item must be completed to advance the stage. */
   required: boolean;
+  /** Whether the item has been completed. */
   completed: boolean;
+  /** Optional user who completed the item. */
   completedBy?: string;
+  /** Optional timestamp of when the item was completed. */
   completedAt?: Date;
 }
 
+/**
+ * A quality check applied to documentation content.
+ */
 export interface QualityCheck {
+  /** Unique identifier for the check. */
   id: string;
+  /** Display name of the check. */
   name: string;
+  /** Description of what the check validates. */
   description: string;
+  /** Category of issue the check detects. */
   type: 'spelling' | 'grammar' | 'links' | 'consistency' | 'completeness' | 'accuracy' | 'formatting';
+  /** Whether the check is currently enabled. */
   enabled: boolean;
+  /** Severity reported when the check fails. */
   severity: 'error' | 'warning' | 'info';
+  /** Provider-specific configuration for the check. */
   config: any;
+  /** Whether detected issues should be auto-fixed when possible. */
   autoFix: boolean;
 }
 
+/**
+ * A rule describing when and how documentation is generated automatically.
+ */
 export interface AutoGenerationRule {
+  /** Unique identifier for the rule. */
   id: string;
+  /** Display name of the rule. */
   name: string;
+  /** Expression or description of the rule's trigger. */
   trigger: string;
+  /** Source (e.g. code path or API spec) the rule reads from. */
   source: string;
+  /** Identifier of the template used to render output. */
   templateId: string;
+  /** Format of the generated output. */
   outputFormat: DocFormat;
+  /** Optional cron expression scheduling the rule. */
   schedule?: string; // cron expression
+  /** Whether the rule is currently enabled. */
   enabled: boolean;
+  /** Provider-specific configuration for the rule. */
   config: any;
 }
 
+/**
+ * Configuration controlling how managed documents are versioned.
+ */
 export interface DocVersioningConfig {
+  /** Whether document versioning is enabled. */
   enabled: boolean;
+  /** Strategy used to compute document versions. */
   strategy: 'semantic' | 'date-based' | 'git-hash';
+  /** Current major version number. */
   majorVersion: number;
+  /** Current minor version number. */
   minorVersion: number;
+  /** Current patch version number. */
   patchVersion: number;
+  /** Retention rules governing how historical versions are kept. */
   retentionPolicy: {
+    /** Number of major versions to retain. */
     keepMajor: number;
+    /** Number of minor versions per major to retain. */
     keepMinor: number;
+    /** Whether to retain every version regardless of policy. */
     keepAll: boolean;
   };
+  /** Whether document branching is enabled. */
   branching: boolean;
+  /** Strategy used when merging branched documents. */
   mergeStrategy: 'auto' | 'manual';
 }
 
-// Main configuration function
+/**
+ * Builds the runtime configuration object for the technical documentation system.
+ *
+ * @param config - Full configuration describing documents, AI, templates, and workflows.
+ * @returns A normalized configuration object used by the other generator functions.
+ */
 export function technicalDocumentation(config: TechnicalDocConfig) {
   return {
     name: config.projectName,
@@ -275,7 +533,11 @@ export function technicalDocumentation(config: TechnicalDocConfig) {
   };
 }
 
-// Display configuration
+/**
+ * Prints a human-readable summary of the documentation configuration to the console.
+ *
+ * @param config - Normalized configuration returned by {@link technicalDocumentation}.
+ */
 export function displayConfig(config: ReturnType<typeof technicalDocumentation>) {
   console.log(chalk.cyan('📚 Technical Documentation Generation and Maintenance'));
   console.log(chalk.gray('─'.repeat(60)));
@@ -292,7 +554,12 @@ export function displayConfig(config: ReturnType<typeof technicalDocumentation>)
   console.log(chalk.gray('─'.repeat(60)));
 }
 
-// Generate markdown documentation
+/**
+ * Renders the documentation configuration as a Markdown report.
+ *
+ * @param config - Normalized configuration returned by {@link technicalDocumentation}.
+ * @returns A Markdown string summarizing features, AI capabilities, workflows, and document statistics.
+ */
 export function generateMD(config: ReturnType<typeof technicalDocumentation>): string {
   let md = '';
 
@@ -375,7 +642,13 @@ export function generateMD(config: ReturnType<typeof technicalDocumentation>): s
   return md;
 }
 
-// Generate Terraform configuration
+/**
+ * Generates the Terraform configuration for the requested cloud provider.
+ *
+ * @param config - Normalized configuration returned by {@link technicalDocumentation}.
+ * @param provider - Cloud provider whose infrastructure should be generated.
+ * @returns Terraform source code as a string.
+ */
 export function generateTerraform(config: ReturnType<typeof technicalDocumentation>, provider: 'aws' | 'azure' | 'gcp'): string {
   let tf = '';
 
@@ -390,6 +663,12 @@ export function generateTerraform(config: ReturnType<typeof technicalDocumentati
   return tf;
 }
 
+/**
+ * Generates AWS-specific Terraform for the documentation infrastructure.
+ *
+ * @param config - Normalized configuration returned by {@link technicalDocumentation}.
+ * @returns Terraform source code targeting AWS.
+ */
 function generateAWS(config: ReturnType<typeof technicalDocumentation>): string {
   let tf = '';
 
@@ -606,6 +885,12 @@ function generateAWS(config: ReturnType<typeof technicalDocumentation>): string 
   return tf;
 }
 
+/**
+ * Generates Azure-specific Terraform for the documentation infrastructure.
+ *
+ * @param config - Normalized configuration returned by {@link technicalDocumentation}.
+ * @returns Terraform source code targeting Azure.
+ */
 function generateAzure(config: ReturnType<typeof technicalDocumentation>): string {
   let tf = '';
 
@@ -775,6 +1060,12 @@ function generateAzure(config: ReturnType<typeof technicalDocumentation>): strin
   return tf;
 }
 
+/**
+ * Generates GCP-specific Terraform for the documentation infrastructure.
+ *
+ * @param config - Normalized configuration returned by {@link technicalDocumentation}.
+ * @returns Terraform source code targeting GCP.
+ */
 function generateGCP(config: ReturnType<typeof technicalDocumentation>): string {
   let tf = '';
 
@@ -936,7 +1227,12 @@ function generateGCP(config: ReturnType<typeof technicalDocumentation>): string 
   return tf;
 }
 
-// Generate TypeScript manager class
+/**
+ * Generates a TypeScript manager class that mirrors the documentation configuration.
+ *
+ * @param config - Normalized configuration returned by {@link technicalDocumentation}.
+ * @returns TypeScript source code implementing a documentation manager.
+ */
 export function generateTypeScript(config: ReturnType<typeof technicalDocumentation>): string {
   let ts = '';
 
@@ -1288,7 +1584,12 @@ export function generateTypeScript(config: ReturnType<typeof technicalDocumentat
   return ts;
 }
 
-// Generate Python manager class
+/**
+ * Generates a Python manager class that mirrors the documentation configuration.
+ *
+ * @param config - Normalized configuration returned by {@link technicalDocumentation}.
+ * @returns Python source code implementing a documentation manager.
+ */
 export function generatePython(config: ReturnType<typeof technicalDocumentation>): string {
   let py = '';
 
@@ -1597,7 +1898,15 @@ export function generatePython(config: ReturnType<typeof technicalDocumentation>
   return py;
 }
 
-// Write files to disk
+/**
+ * Writes generated Terraform, manager class, Markdown documentation, and project metadata
+ * to the specified output directory.
+ *
+ * @param config - Normalized configuration returned by {@link technicalDocumentation}.
+ * @param outputDir - Directory the generated files are written into.
+ * @param language - Language of the generated manager class.
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(
   config: ReturnType<typeof technicalDocumentation>,
   outputDir: string,
