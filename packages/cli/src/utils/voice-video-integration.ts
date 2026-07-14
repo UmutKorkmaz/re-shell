@@ -1,4 +1,5 @@
 // Auto-generated Voice/Video Integration Utility
+import chalk from 'chalk';
 // Generated at: 2026-01-13T13:05:00.000Z
 
 type AudioCodec = 'opus' | 'aac' | 'pcmu' | 'pcma';
@@ -44,23 +45,23 @@ interface VoiceVideoIntegrationConfig {
 }
 
 export function displayConfig(config: VoiceVideoIntegrationConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🎤 Voice/Video Integration for Remote Collaboration');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Audio Codec:', config.audio.codec);
-  console.log('\x1b[33m%s\x1b[0m', 'Noise Cancellation:', config.audio.noiseCancellation);
-  console.log('\x1b[33m%s\x1b[0m', 'Echo Cancellation:', config.audio.echoCancellation);
-  console.log('\x1b[33m%s\x1b[0m', 'Sample Rate:', config.audio.sampleRate + ' Hz');
-  console.log('\x1b[33m%s\x1b[0m', 'Video Codec:', config.video.codec);
-  console.log('\x1b[33m%s\x1b[0m', 'Resolution:', config.video.resolution);
-  console.log('\x1b[33m%s\x1b[0m', 'Frame Rate:', config.video.framerate + ' fps');
-  console.log('\x1b[33m%s\x1b[0m', 'Max Participants:', config.collaboration.maxParticipants);
-  console.log('\x1b[33m%s\x1b[0m', 'Screen Sharing:', config.collaboration.screenSharing ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Recording:', config.collaboration.recordingEnabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Transcription:', config.enableTranscription ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Translation:', config.enableTranslation ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🎤 Voice/Video Integration for Remote Collaboration'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Providers:', config.providers.join(', ')));
+  console.log(chalk.yellow('Audio Codec:', config.audio.codec));
+  console.log(chalk.yellow('Noise Cancellation:', config.audio.noiseCancellation));
+  console.log(chalk.yellow('Echo Cancellation:', config.audio.echoCancellation));
+  console.log(chalk.yellow('Sample Rate:', config.audio.sampleRate + ' Hz'));
+  console.log(chalk.yellow('Video Codec:', config.video.codec));
+  console.log(chalk.yellow('Resolution:', config.video.resolution));
+  console.log(chalk.yellow('Frame Rate:', config.video.framerate + ' fps'));
+  console.log(chalk.yellow('Max Participants:', config.collaboration.maxParticipants));
+  console.log(chalk.yellow('Screen Sharing:', config.collaboration.screenSharing ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Recording:', config.collaboration.recordingEnabled ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Transcription:', config.enableTranscription ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Translation:', config.enableTranslation ? 'Yes' : 'No'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateVoiceVideoIntegrationMD(config: VoiceVideoIntegrationConfig): string {

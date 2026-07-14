@@ -1,4 +1,5 @@
 // Auto-generated Workload Balancing and Resource Allocation Utility
+import chalk from 'chalk';
 // Generated at: 2026-01-13T14:30:00.000Z
 
 type ResourceType = 'developer' | 'designer' | 'qa' | 'devops' | 'manager' | 'architect';
@@ -91,24 +92,24 @@ interface WorkloadBalancingConfig {
 }
 
 export function displayConfig(config: WorkloadBalancingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '⚖️  Workload Balancing and Resource Allocation with AI Optimization');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Resources:', config.resources.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Tasks:', config.tasks.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Allocations:', config.allocations.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Strategy:', config.strategy);
-  console.log('\x1b[33m%s\x1b[0m', 'Optimization Goal:', config.optimizationGoal);
-  console.log('\x1b[33m%s\x1b[0m', 'AI Enabled:', config.enableAI ? 'Yes' : 'No');
+  console.log(chalk.cyan('⚖️  Workload Balancing and Resource Allocation with AI Optimization'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Providers:', config.providers.join(', ')));
+  console.log(chalk.yellow('Resources:', config.resources.length));
+  console.log(chalk.yellow('Tasks:', config.tasks.length));
+  console.log(chalk.yellow('Allocations:', config.allocations.length));
+  console.log(chalk.yellow('Strategy:', config.strategy));
+  console.log(chalk.yellow('Optimization Goal:', config.optimizationGoal));
+  console.log(chalk.yellow('AI Enabled:', config.enableAI ? 'Yes' : 'No'));
   if (config.aiModel) {
-    console.log('\x1b[33m%s\x1b[0m', 'AI Provider:', config.aiModel.provider);
-    console.log('\x1b[33m%s\x1b[0m', 'AI Model:', config.aiModel.model);
+    console.log(chalk.yellow('AI Provider:', config.aiModel.provider));
+    console.log(chalk.yellow('AI Model:', config.aiModel.model));
   }
-  console.log('\x1b[33m%s\x1b[0m', 'Max Workload Threshold:', config.maxWorkloadThreshold + '%');
-  console.log('\x1b[33m%s\x1b[0m', 'Min Utilization Threshold:', config.minUtilizationThreshold + '%');
-  console.log('\x1b[33m%s\x1b[0m', 'Rebalance Interval:', config.rebalanceInterval + ' hours');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.yellow('Max Workload Threshold:', config.maxWorkloadThreshold + '%'));
+  console.log(chalk.yellow('Min Utilization Threshold:', config.minUtilizationThreshold + '%'));
+  console.log(chalk.yellow('Rebalance Interval:', config.rebalanceInterval + ' hours'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateWorkloadBalancingMD(config: WorkloadBalancingConfig): string {

@@ -80,12 +80,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: k8s-manifest-generator.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: K8S_MANIFESTS.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: k8s-config.json');
+          console.log(chalk.green('✅ Generated: k8s-manifest-generator.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: K8S_MANIFESTS.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: k8s-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ K8s manifest generator generated successfully!');
+          console.log(chalk.green('✓ K8s manifest generator generated successfully!'));
         }, 30000);
       })
     );
@@ -131,12 +131,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: helm-chart-generator.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: HELM_CHARTS.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: helm-config.json');
+          console.log(chalk.green('✅ Generated: helm-chart-generator.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: HELM_CHARTS.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: helm-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ Helm chart generator generated successfully!');
+          console.log(chalk.green('✓ Helm chart generator generated successfully!'));
         }, 30000);
       })
     );
@@ -201,12 +201,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: gitops-integration.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: GITOPS.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: gitops-config.json');
+          console.log(chalk.green('✅ Generated: gitops-integration.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: GITOPS.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: gitops-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ GitOps integration tool generated successfully!');
+          console.log(chalk.green('✓ GitOps integration tool generated successfully!'));
         }, 30000);
       })
     );
@@ -289,12 +289,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: service-mesh-integration.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: SERVICE_MESH.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: service-mesh-config.json');
+          console.log(chalk.green('✅ Generated: service-mesh-integration.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: SERVICE_MESH.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: service-mesh-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ Service mesh integration tool generated successfully!');
+          console.log(chalk.green('✓ Service mesh integration tool generated successfully!'));
         }, 30000);
       })
     );
@@ -401,12 +401,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: hpa-generator.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: HPA.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: hpa-config.json');
+          console.log(chalk.green('✅ Generated: hpa-generator.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: HPA.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: hpa-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ HPA controller generated successfully!');
+          console.log(chalk.green('✓ HPA controller generated successfully!'));
         }, 30000);
       })
     );
@@ -479,12 +479,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: network-policy-generator.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: NETWORK_POLICY.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: network-policy-config.json');
+          console.log(chalk.green('✅ Generated: network-policy-generator.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: NETWORK_POLICY.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: network-policy-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ Network policy controller generated successfully!');
+          console.log(chalk.green('✓ Network policy controller generated successfully!'));
         }, 30000);
       })
     );
@@ -582,12 +582,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: crd-generator.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: CRD.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: crd-config.json');
+          console.log(chalk.green('✅ Generated: crd-generator.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: CRD.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: crd-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ CRD operator generated successfully!');
+          console.log(chalk.green('✓ CRD operator generated successfully!'));
         }, 30000);
       })
     );
@@ -681,12 +681,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: polyglot-operator.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: POLYGLOT_OPERATOR.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: polyglot-operator-config.json');
+          console.log(chalk.green('✅ Generated: polyglot-operator.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: POLYGLOT_OPERATOR.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: polyglot-operator-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ Polyglot operator generated successfully!');
+          console.log(chalk.green('✓ Polyglot operator generated successfully!'));
         }, 30000);
       })
     );
@@ -782,12 +782,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: multi-tenant-isolation.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: MULTI_TENANT.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: multi-tenant-config.json');
+          console.log(chalk.green('✅ Generated: multi-tenant-isolation.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: MULTI_TENANT.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: multi-tenant-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ Multi-tenant isolation generated successfully!');
+          console.log(chalk.green('✓ Multi-tenant isolation generated successfully!'));
         }, 30000);
       })
     );
@@ -870,12 +870,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: cicd-pipeline.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: CICD.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: cicd-config.json');
+          console.log(chalk.green('✅ Generated: cicd-pipeline.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: CICD.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: cicd-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ CI/CD pipeline generated successfully!');
+          console.log(chalk.green('✓ CI/CD pipeline generated successfully!'));
         }, 30000);
       })
     );
@@ -920,12 +920,12 @@ export function registerK8sGroup(program: Command): void {
 
           await writeFiles(config, options.output);
 
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: multi-cluster-deployment.' + (options.language === 'python' ? 'py' : 'ts'));
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: MULTI_CLUSTER.md');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: package.json (TypeScript) or requirements.txt (Python)');
-          console.log('\x1b[32m%s\x1b[0m', '✅ Generated: multi-cluster-config.json');
+          console.log(chalk.green('✅ Generated: multi-cluster-deployment.' + (options.language === 'python' ? 'py' : 'ts')));
+          console.log(chalk.green('✅ Generated: MULTI_CLUSTER.md'));
+          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+          console.log(chalk.green('✅ Generated: multi-cluster-config.json'));
           console.log('');
-          console.log('\x1b[32m%s\x1b[0m', '✓ Multi-cluster deployment tool generated successfully!');
+          console.log(chalk.green('✓ Multi-cluster deployment tool generated successfully!'));
         }, 30000);
       })
     );

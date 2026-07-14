@@ -1,4 +1,5 @@
 // Auto-generated WebRTC Sharing Utility
+import chalk from 'chalk';
 // Generated at: 2026-01-13T12:45:00.000Z
 
 type SignalingServer = 'websocket' | 'socket.io' | 'signalr' | 'grpc';
@@ -45,22 +46,22 @@ interface CodeSharingConfig {
 }
 
 export function displayConfig(config: CodeSharingConfig): void {
-  console.log('\x1b[36m%s\x1b[0m', '🎥 WebRTC-Based Code Sharing and Pair Programming');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────');
-  console.log('\x1b[33m%s\x1b[0m', 'Project Name:', config.projectName);
-  console.log('\x1b[33m%s\x1b[0m', 'Providers:', config.providers.join(', '));
-  console.log('\x1b[33m%s\x1b[0m', 'Signaling URL:', config.webrtc.signalingUrl);
-  console.log('\x1b[33m%s\x1b[0m', 'STUN Servers:', config.webrtc.stunServers.length);
-  console.log('\x1b[33m%s\x1b[0m', 'TURN Servers:', config.webrtc.turnServers.length);
-  console.log('\x1b[33m%s\x1b[0m', 'Codec:', config.webrtc.codec);
-  console.log('\x1b[33m%s\x1b[0m', 'Max Bitrate:', config.webrtc.maxBitrate + ' kbps');
-  console.log('\x1b[33m%s\x1b[0m', 'Max Participants:', config.session.maxParticipants);
-  console.log('\x1b[33m%s\x1b[0m', 'Recording:', config.session.recordingEnabled ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Screen Sharing:', config.enableScreenSharing ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'File Transfer:', config.enableFileTransfer ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Cursor Tracking:', config.enableCursorTracking ? 'Yes' : 'No');
-  console.log('\x1b[33m%s\x1b[0m', 'Encryption:', config.accessControl.encryption ? 'Yes' : 'No');
-  console.log('\x1b[90m%s\x1b[0m', '────────────────────────────────────────────────────────────\n');
+  console.log(chalk.cyan('🎥 WebRTC-Based Code Sharing and Pair Programming'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────'));
+  console.log(chalk.yellow('Project Name:', config.projectName));
+  console.log(chalk.yellow('Providers:', config.providers.join(', ')));
+  console.log(chalk.yellow('Signaling URL:', config.webrtc.signalingUrl));
+  console.log(chalk.yellow('STUN Servers:', config.webrtc.stunServers.length));
+  console.log(chalk.yellow('TURN Servers:', config.webrtc.turnServers.length));
+  console.log(chalk.yellow('Codec:', config.webrtc.codec));
+  console.log(chalk.yellow('Max Bitrate:', config.webrtc.maxBitrate + ' kbps'));
+  console.log(chalk.yellow('Max Participants:', config.session.maxParticipants));
+  console.log(chalk.yellow('Recording:', config.session.recordingEnabled ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Screen Sharing:', config.enableScreenSharing ? 'Yes' : 'No'));
+  console.log(chalk.yellow('File Transfer:', config.enableFileTransfer ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Cursor Tracking:', config.enableCursorTracking ? 'Yes' : 'No'));
+  console.log(chalk.yellow('Encryption:', config.accessControl.encryption ? 'Yes' : 'No'));
+  console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
 export function generateWebRTCSharingMD(config: CodeSharingConfig): string {
