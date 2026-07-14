@@ -9,19 +9,40 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 
-/** Supported manifest types in detection precedence order. */
+/**
+ * Supported manifest types in detection precedence order.
+ *
+ * The order mirrors the precedence used by polyglot-build's `detectLanguage`
+ * (Node first, then python/rust/java/php/ruby). `'unknown'` is used as a
+ * fallback when no recognised manifest file is present in the unit directory.
+ */
 export type ManifestType =
+  /** Node.js manifest (`package.json`). */
   | 'package.json'
+  /** Python manifest (`pyproject.toml`). */
   | 'pyproject.toml'
+  /** Rust manifest (`Cargo.toml`). */
   | 'Cargo.toml'
+  /** Java/Maven manifest (`pom.xml`). */
   | 'pom.xml'
+  /** PHP/Composer manifest (`composer.json`). */
   | 'composer.json'
+  /** Ruby manifest (`Gemfile`). */
   | 'Gemfile'
+  /** No recognised manifest file was found in the unit directory. */
   | 'unknown';
 
 /**
  * Detect a unit's manifest type by file existence, in the same precedence order
- * polyglot-build's detectLanguage uses (Node first, then python/rust/java/php/ruby).
+ * polyglot-build's `detectLanguage` uses (Node first, then
+ * python/rust/java/php/ruby).
+ *
+ * Each candidate file is probed via `fs.existsSync` in priority order and the
+ * first match wins. When none of the recognised manifests are found, returns
+ * `'unknown'`.
+ *
+ * @param unitDir - Absolute path to the unit's directory whose manifest should be detected.
+ * @returns The detected {@link ManifestType}, or `'unknown'` when no known manifest exists.
  */
 export function detectManifestType(unitDir: string): ManifestType {
   if (fs.existsSync(path.join(unitDir, 'package.json'))) return 'package.json';
@@ -64,8 +85,19 @@ function tomlSectionSlice(raw: string, header: string): string | null {
 }
 
 /**
- * Read the current version for a unit from its manifest, or null when the
- * manifest type carries no version (Gemfile) or the version cannot be parsed.
+ * Read the current version for a unit from its manifest, or `null` when the
+ * manifest type carries no version (e.g. `Gemfile`) or the version cannot be
+ * parsed.
+ *
+ * Dispatches by manifest type: JSON manifests (`package.json`,
+ * `composer.json`) read the `.version` field; TOML manifests (`pyproject.toml`,
+ * `Cargo.toml`) extract `version = "..."` from the appropriate section; POM
+ * manifests read the project `<version>` element, skipping any `<parent>`
+ * block.
+ *
+ * @param unitDir - Absolute path to the unit's directory containing the manifest.
+ * @param manifestType - The manifest type to read, typically from {@link detectManifestType}.
+ * @returns The parsed version string, or `null` when the manifest type carries no version or the version cannot be extracted.
  */
 export function readCurrentVersion(
   unitDir: string,
@@ -136,10 +168,18 @@ function readPomVersion(file: string): string | null {
 }
 
 /**
- * Write `nextVersion` into a unit's manifest. JSON manifests are read-modified-
- * written with 2-space formatting; TOML manifests have only the version line
- * replaced (preserving formatting). Other manifest types are best-effort: an
- * unsupported manifest throws so the caller can warn rather than silently no-op.
+ * Write `nextVersion` into a unit's manifest.
+ *
+ * JSON manifests are read-modified-written with 2-space formatting; TOML
+ * manifests have only the version line replaced (preserving all other
+ * formatting); POM manifests replace the first project `<version>` element
+ * outside of any `<parent>` block. Unsupported manifest types (`Gemfile`,
+ * `unknown`) throw so the caller can warn rather than silently no-op.
+ *
+ * @param unitDir - Absolute path to the unit's directory containing the manifest.
+ * @param manifestType - The manifest type to write, typically from {@link detectManifestType}.
+ * @param nextVersion - The new version string to write into the manifest.
+ * @throws {Error} when `manifestType` is `Gemfile` or `unknown`, or when the target version line/element cannot be located.
  */
 export function writeManifestVersion(
   unitDir: string,
@@ -246,10 +286,15 @@ function writePomVersion(file: string, nextVersion: string): void {
 }
 
 /**
- * Update internal dependency ranges in a package.json (only). For each dep or
- * devDep key that names a released internal package, leave a `workspace:` range
- * untouched (pnpm resolves those at publish) and otherwise pin it to
- * `^<newVersion>`. Non-package.json manifests are left untouched.
+ * Update internal dependency ranges in a `package.json` (only).
+ *
+ * For each `dependencies` or `devDependencies` key that names a released
+ * internal package, leave a `workspace:` range untouched (pnpm resolves those
+ * at publish time) and otherwise pin it to `^<newVersion>`. Non-`package.json`
+ * manifests are left untouched and the function returns without writing.
+ *
+ * @param unitDir - Absolute path to the unit's directory expected to contain a `package.json`.
+ * @param depNameToVersion - Map from dependency package name to its newly released version. Entries whose key does not appear in the manifest are ignored.
  */
 export function updateDependentRanges(
   unitDir: string,
@@ -300,9 +345,15 @@ export function updateDependentRanges(
 const CHANGELOG_HEADER = '# Changelog';
 
 /**
- * Prepend a rendered changelog fragment to CHANGELOG.md (creating it with a
- * top-level header when absent). New entries are inserted directly after the
- * `# Changelog` header so the file stays newest-first.
+ * Prepend a rendered changelog fragment to `CHANGELOG.md`.
+ *
+ * Creates the file with a top-level `# Changelog` header when absent. New
+ * entries are inserted directly after the header so the file stays
+ * newest-first. When the existing file has no recognised header, a fresh
+ * header and fragment are prepended above the old body.
+ *
+ * @param unitDir - Absolute path to the unit's directory where `CHANGELOG.md` lives (or will be created).
+ * @param entry - Rendered changelog fragment to prepend. A trailing newline is added if not already present.
  */
 export function writeChangelog(unitDir: string, entry: string): void {
   const file = path.join(unitDir, 'CHANGELOG.md');
