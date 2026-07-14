@@ -2,42 +2,80 @@ import chalk from 'chalk';
 // Auto-generated Polyglot Operator Generator
 // Generated at: 2026-01-12T23:19:00.000Z
 
-
-
-
-
+/**
+ * Describes a single application language runtime that the polyglot operator can manage.
+ */
 interface ApplicationLanguage {
+  /** Identifier name of the language (e.g. `nodejs`, `python`, `go`). */
   name: string;
+  /** Runtime executable or runtime name used to execute the application. */
   runtime: string;
+  /** Version string of the runtime/language (e.g. `18`, `3.11`). */
   version: string;
+  /** Build tool used to produce the application artifacts (e.g. `npm`, `pip`, `go`). */
   buildTool: string;
+  /** Optional Dockerfile path used to containerize the application. */
   dockerfile?: string;
+  /** Optional entrypoint command that overrides the default container entrypoint. */
   entrypoint?: string;
+  /** Optional port the application listens on. */
   port?: number;
+  /** Optional Kubernetes health check configuration for liveness/readiness probes. */
   healthCheck?: {
+    /** HTTP path queried by the health check probe (e.g. `/health`). */
     path: string;
+    /** Interval, in seconds, between successive probe attempts. */
     interval: number;
   };
 }
 
+/**
+ * Represents a lifecycle hook executed by the operator at well-defined points
+ * during the application deployment lifecycle.
+ */
 interface LifecycleHook {
+  /** Human-readable name identifying the hook. */
   name: string;
+  /** Lifecycle phase in which the hook should be invoked. */
   type: 'pre-install' | 'post-install' | 'pre-upgrade' | 'post-upgrade' | 'pre-delete' | 'post-delete';
+  /** Shell command executed when the hook runs. */
   command: string;
+  /** Optional list of arguments passed to the command. */
   args?: string[];
 }
 
+/**
+ * Top-level configuration object used to drive generation of polyglot operator
+ * artifacts (TypeScript, Python, Markdown, manifest files).
+ */
 interface OperatorConfig {
+  /** Name of the project that the generated operator will manage. */
   projectName: string;
+  /** Kubernetes namespace into which the operator and managed resources are deployed. */
   namespace: string;
+  /** List of languages/runtimes the polyglot operator can reconcile. */
   languages: ApplicationLanguage[];
+  /** Whether to execute lifecycle hooks during reconciliation events. */
   enableLifecycleHooks: boolean;
+  /** Optional list of lifecycle hooks to invoke during reconciliation. */
   lifecycleHooks?: LifecycleHook[];
+  /** Whether automatic rollback is triggered when a hook or deployment fails. */
   enableRollback: boolean;
+  /** Whether dynamic scaling based on metrics is enabled. */
   enableScaling: boolean;
+  /** Whether observability and monitoring integrations are enabled. */
   enableMonitoring: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the polyglot operator configuration to the console.
+ *
+ * The output uses ANSI color codes to highlight project name, namespace, configured
+ * languages, and the enabled/disabled state of each optional operator feature.
+ *
+ * @param config - The operator configuration to display.
+ * @returns This function returns `void`; output is written to stdout.
+ */
 export function displayConfig(config: OperatorConfig): void {
   console.log(chalk.cyan('✨ Polyglot Kubernetes Operator'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -51,6 +89,16 @@ export function displayConfig(config: OperatorConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates Markdown documentation describing the polyglot Kubernetes operator.
+ *
+ * The resulting Markdown includes a feature list and a TypeScript usage example
+ * that demonstrates deploying the operator, creating an application instance,
+ * and scaling it.
+ *
+ * @param config - The operator configuration used to derive the documentation.
+ * @returns A Markdown string containing feature and usage documentation for the operator.
+ */
 export function generatePolyglotOperatorMD(config: OperatorConfig): string {
   let md = '# Polyglot Kubernetes Operator\n\n';
   md += '## Features\n\n';
@@ -82,6 +130,17 @@ export function generatePolyglotOperatorMD(config: OperatorConfig): string {
   return md;
 }
 
+/**
+ * Generates a complete TypeScript implementation of the polyglot Kubernetes operator.
+ *
+ * The generated source includes the `PolyglotOperator` class with CRD, RBAC and
+ * controller deployment logic, application reconciliation, lifecycle hook execution,
+ * rollback handling, status updates, and a default exported instance pre-configured
+ * from the supplied `config`.
+ *
+ * @param config - The operator configuration driving code generation.
+ * @returns The TypeScript source code for the operator as a single string.
+ */
 export function generateTypeScriptPolyglotOperator(config: OperatorConfig): string {
   let code = '// Auto-generated Polyglot Operator for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -763,6 +822,17 @@ export function generateTypeScriptPolyglotOperator(config: OperatorConfig): stri
   return code;
 }
 
+/**
+ * Generates a Python implementation of the polyglot Kubernetes operator.
+ *
+ * The generated Python module declares `ApplicationLanguage` and `LifecycleHook`
+ * dataclasses plus a `PolyglotOperator` class capable of deploying CRD, RBAC and
+ * controller resources and watching for `PolyglotApplication` events. A default
+ * `polyglot_operator` instance is exported for immediate use.
+ *
+ * @param config - The operator configuration driving code generation.
+ * @returns The Python source code for the operator as a single string.
+ */
 export function generatePythonPolyglotOperator(config: OperatorConfig): string {
   let code = '# Auto-generated Polyglot Operator for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -840,6 +910,18 @@ export function generatePythonPolyglotOperator(config: OperatorConfig): string {
   return code;
 }
 
+/**
+ * Writes all polyglot operator artifacts to disk under the specified output directory.
+ *
+ * The generated files include the TypeScript operator source, the Python operator
+ * source, Markdown documentation, a `package.json`, a `requirements.txt`, and a
+ * JSON snapshot of the supplied configuration. The output directory (and any
+ * missing parent directories) is created if it does not already exist.
+ *
+ * @param config - The operator configuration used to generate the artifacts.
+ * @param outputDir - Absolute or relative path of the directory to write files into.
+ * @returns A Promise that resolves once all files have been written.
+ */
 export async function writeFiles(
   config: OperatorConfig,
   outputDir: string

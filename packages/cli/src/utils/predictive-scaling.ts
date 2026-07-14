@@ -3,57 +3,121 @@
 
 import chalk from 'chalk';
 
+/**
+ * Supported machine learning models for capacity forecasting.
+ */
 type PredictionModel = 'arima' | 'prophet' | 'lstm' | 'xgboost' | 'linear-regression';
+
+/**
+ * Available scaling strategies that determine how aggressively resources are adjusted.
+ */
 type ScalingStrategy = 'aggressive' | 'conservative' | 'balanced';
+
+/**
+ * Categories of cloud resources that can be scaled.
+ */
 type ResourceType = 'compute' | 'database' | 'storage' | 'network';
 
+/**
+ * Configuration for the prediction engine used to forecast capacity needs.
+ */
 interface PredictionConfig {
+  /** Whether predictive forecasting is enabled. */
   enabled: boolean;
+  /** The ML model to use for generating forecasts. */
   model: PredictionModel;
+  /** Duration of historical data to consider (e.g. "30d"). */
   lookbackWindow: string;
+  /** How far into the future to forecast (e.g. "7d"). */
   forecastHorizon: string;
+  /** Desired prediction accuracy as a fraction between 0 and 1. */
   accuracyTarget: number;
 }
 
+/**
+ * Describes the capacity bounds and current/target state of a single resource.
+ */
 interface ResourceCapacity {
+  /** The type of resource being scaled. */
   resource: ResourceType;
+  /** Minimum allowed capacity value. */
   min: number;
+  /** Maximum allowed capacity value. */
   max: number;
+  /** Current allocated capacity. */
   current: number;
+  /** Desired target capacity. */
   target: number;
+  /** Unit of measurement for capacity (e.g. "vCPU", "GB"). */
   unit: string;
 }
 
+/**
+ * Defines a scaling policy for a specific resource.
+ */
 interface ScalingPolicy {
+  /** Human-readable name of the policy. */
   name: string;
+  /** The resource this policy applies to. */
   resource: ResourceType;
+  /** Strategy governing how aggressively to scale. */
   strategy: ScalingStrategy;
+  /** Utilization fraction that triggers a scale-up. */
   scaleUpThreshold: number;
+  /** Utilization fraction that triggers a scale-down. */
   scaleDownThreshold: number;
+  /** Cooldown period in seconds between scaling actions. */
   cooldownPeriod: number;
+  /** Weight (0-1) given to predicted vs. current utilization. */
   predictionWeight: number;
 }
 
+/**
+ * Cost optimization settings applied to provisioned resources.
+ */
 interface CostOptimization {
+  /** Whether cost optimization is enabled. */
   enabled: boolean;
+  /** Target cost savings as a fraction between 0 and 1. */
   targetSavings: number;
+  /** Preferred instance type names to select when scaling. */
   preferredInstanceTypes: string[];
+  /** Whether to use reserved instances for discounts. */
   reservedInstances: boolean;
+  /** Whether to use spot/preemptible instances. */
   spotInstances: boolean;
+  /** Whether to right-size resources to actual utilization. */
   rightSizing: boolean;
 }
 
+/**
+ * Top-level configuration for predictive scaling and capacity planning.
+ */
 interface PredictiveScalingConfig {
+  /** Name of the project this configuration applies to. */
   projectName: string;
+  /** Cloud providers targeted by this configuration. */
   providers: ('aws' | 'azure' | 'gcp')[];
+  /** Prediction engine settings. */
   prediction: PredictionConfig;
+  /** Capacity definitions for each managed resource. */
   capacity: ResourceCapacity[];
+  /** Scaling policies to apply. */
   policies: ScalingPolicy[];
+  /** Cost optimization settings. */
   costOptimization: CostOptimization;
+  /** Whether budget alerts are enabled. */
   enableBudgetAlerts: boolean;
+  /** Whether resource optimization recommendations are enabled. */
   enableResourceOptimization: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the predictive scaling configuration to the console.
+ *
+ * @param config - The predictive scaling configuration to display.
+ * @returns Nothing.
+ */
 export function displayConfig(config: PredictiveScalingConfig): void {
   console.log(chalk.cyan('📈 Predictive Scaling and Capacity Planning with Cost Optimization'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -72,6 +136,12 @@ export function displayConfig(config: PredictiveScalingConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates Markdown documentation describing the predictive scaling feature set.
+ *
+ * @param config - The predictive scaling configuration to document.
+ * @returns A Markdown string summarizing the feature's capabilities.
+ */
 export function generatePredictiveScalingMD(config: PredictiveScalingConfig): string {
   let md = '# Predictive Scaling and Capacity Planning\n\n';
   md += '## Features\n\n';
@@ -88,12 +158,24 @@ export function generatePredictiveScalingMD(config: PredictiveScalingConfig): st
   return md;
 }
 
+/**
+ * Generates a Terraform header for predictive scaling resources for the given project.
+ *
+ * @param config - The predictive scaling configuration to generate Terraform from.
+ * @returns A Terraform code string (header) for predictive scaling.
+ */
 export function generateTerraformPredictiveScaling(config: PredictiveScalingConfig): string {
   let code = '# Auto-generated Predictive Scaling Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript `PredictiveScalingManager` stub for the given project.
+ *
+ * @param config - The predictive scaling configuration to generate code from.
+ * @returns A TypeScript source string defining a manager class and default export.
+ */
 export function generateTypeScriptPredictiveScaling(config: PredictiveScalingConfig): string {
   let code = '// Auto-generated Predictive Scaling Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -108,6 +190,12 @@ export function generateTypeScriptPredictiveScaling(config: PredictiveScalingCon
   return code;
 }
 
+/**
+ * Generates a Python `PredictiveScalingManager` stub for the given project.
+ *
+ * @param config - The predictive scaling configuration to generate code from.
+ * @returns A Python source string defining a manager class and instance.
+ */
 export function generatePythonPredictiveScaling(config: PredictiveScalingConfig): string {
   let code = '# Auto-generated Predictive Scaling Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -120,6 +208,15 @@ export function generatePythonPredictiveScaling(config: PredictiveScalingConfig)
   return code;
 }
 
+/**
+ * Writes generated predictive scaling files (Terraform, runtime code, docs, and config)
+ * to the specified output directory.
+ *
+ * @param config - The predictive scaling configuration to materialize.
+ * @param outputDir - Directory path where generated files will be written.
+ * @param language - Target runtime language; "typescript" produces TS files, otherwise Python.
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeFiles(config: PredictiveScalingConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -166,6 +263,12 @@ export async function writeFiles(config: PredictiveScalingConfig, outputDir: str
   await fs.writeFile(path.join(outputDir, 'predictive-scaling-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Identity passthrough that returns the supplied predictive scaling configuration.
+ *
+ * @param config - The predictive scaling configuration to return.
+ * @returns The same configuration object that was passed in.
+ */
 export function predictiveScaling(config: PredictiveScalingConfig): PredictiveScalingConfig {
   return config;
 }
