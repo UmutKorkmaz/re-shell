@@ -4,16 +4,23 @@ import prompts from 'prompts';
 import chalk from 'chalk';
 import { ProgressSpinner, flushOutput } from '../utils/spinner';
 
+/** Options for the `remove` command. */
 interface RemoveMicrofrontendOptions {
+  /** Skip the confirmation prompt. */
   force?: boolean;
+  /** Optional progress spinner. */
   spinner?: ProgressSpinner;
 }
 
 /**
- * Removes a microfrontend from a Re-Shell project
+ * Removes a microfrontend from a Re-Shell project.
  *
- * @param name - Name of the microfrontend to remove
- * @param options - Additional options for removal
+ * Validates that the caller is inside a Re-Shell project, checks for references
+ * in the shell application, prompts for confirmation (unless `--force`), and
+ * deletes the microfrontend directory.
+ *
+ * @param name - Name of the microfrontend to remove.
+ * @param options - Removal options (force, spinner).
  * @version 0.1.0
  */
 export async function removeMicrofrontend(

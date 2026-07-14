@@ -12,25 +12,39 @@ import {
 import { findMonorepoRoot } from '../utils/monorepo';
 import { ProgressSpinner } from '../utils/spinner';
 
+/** Options for the `submodule add` command. */
 interface SubmoduleAddOptions {
+  /** Branch to track (defaults to the submodule's default branch). */
   branch?: string;
+  /** Target path within the monorepo. */
   path?: string;
+  /** Optional progress spinner. */
   spinner?: ProgressSpinner;
 }
 
+/** Options for the `submodule update` command. */
 interface SubmoduleUpdateOptions {
+  /** Restrict the update to a single submodule path. */
   path?: string;
+  /** Recursively update nested submodules. */
   recursive?: boolean;
+  /** Optional progress spinner. */
   spinner?: ProgressSpinner;
 }
 
+/** Options for the `submodule remove` command. */
 interface SubmoduleRemoveOptions {
+  /** Skip the confirmation prompt. */
   force?: boolean;
+  /** Optional progress spinner. */
   spinner?: ProgressSpinner;
 }
 
 /**
- * Add a new Git submodule
+ * Add a new Git submodule to the monorepo.
+ *
+ * @param repositoryUrl - Remote URL of the submodule repository.
+ * @param options - Add options (branch, path, spinner).
  */
 export async function addGitSubmodule(
   repositoryUrl: string,
@@ -111,7 +125,10 @@ export async function addGitSubmodule(
 }
 
 /**
- * Remove a Git submodule
+ * Remove a Git submodule from the monorepo.
+ *
+ * @param submodulePath - Path or name of the submodule to remove.
+ * @param options - Remove options (force, spinner).
  */
 export async function removeGitSubmodule(
   submodulePath: string,
@@ -197,7 +214,9 @@ export async function removeGitSubmodule(
 }
 
 /**
- * Update Git submodules
+ * Update one or all Git submodules in the monorepo.
+ *
+ * @param options - Update options (path, recursive, spinner).
  */
 export async function updateGitSubmodules(options: SubmoduleUpdateOptions = {}): Promise<void> {
   const { spinner } = options;
@@ -258,7 +277,7 @@ export async function updateGitSubmodules(options: SubmoduleUpdateOptions = {}):
 }
 
 /**
- * Show Git submodule status
+ * Display the current status of all Git submodules.
  */
 export async function showSubmoduleStatus(): Promise<void> {
   try {
@@ -328,7 +347,7 @@ export async function showSubmoduleStatus(): Promise<void> {
 }
 
 /**
- * Initialize submodules (for new clones)
+ * Initialize and update submodules (for fresh clones).
  */
 export async function initSubmodules(): Promise<void> {
   try {
@@ -347,7 +366,7 @@ export async function initSubmodules(): Promise<void> {
 }
 
 /**
- * Interactive submodule management
+ * Interactive submodule management menu (status, add, update, remove, init).
  */
 export async function manageSubmodules(): Promise<void> {
   try {
@@ -442,6 +461,12 @@ export async function manageSubmodules(): Promise<void> {
   }
 }
 
+/**
+ * Return a chalk colour function for the given submodule status.
+ *
+ * @param status - Submodule status string.
+ * @returns A chalk colour function.
+ */
 function getStatusColor(status: SubmoduleInfo['status']): (text: string) => string {
   switch (status) {
     case 'clean':
@@ -459,6 +484,12 @@ function getStatusColor(status: SubmoduleInfo['status']): (text: string) => stri
   }
 }
 
+/**
+ * Return a coloured icon for the given submodule status.
+ *
+ * @param status - Submodule status string.
+ * @returns A coloured icon string.
+ */
 function getStatusIcon(status: SubmoduleInfo['status']): string {
   switch (status) {
     case 'clean':
