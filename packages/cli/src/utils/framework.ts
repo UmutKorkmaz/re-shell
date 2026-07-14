@@ -1,6 +1,11 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
+/**
+ * Describes the configuration for a supported framework template, including
+ * identifying metadata, build tooling, dependency manifests, npm scripts,
+ * config files, entry point, file extensions, and TypeScript support flag.
+ */
 export interface FrameworkConfig {
   name: string;
   displayName: string;
@@ -17,6 +22,12 @@ export interface FrameworkConfig {
   hasTypeScript?: boolean;
 }
 
+/**
+ * Registry of every framework template supported by the CLI, keyed by the
+ * framework identifier used by consumers (e.g. `react`, `vue-ts`, `angular-cli`).
+ * Each value is a complete {@link FrameworkConfig} describing how a project for
+ * that framework should be scaffolded.
+ */
 export const SUPPORTED_FRAMEWORKS: Record<string, FrameworkConfig> = {
   'react': {
     name: 'react',
@@ -1553,6 +1564,14 @@ export const SUPPORTED_FRAMEWORKS: Record<string, FrameworkConfig> = {
   }
 };
 
+/**
+ * Builds the list of selectable framework options for prompts/UI prompts,
+ * mapping each registered framework to an object with a human readable
+ * `title` and the framework identifier `value`.
+ *
+ * @returns An array of `{ title, value }` choice objects, one per entry in
+ *   {@link SUPPORTED_FRAMEWORKS}.
+ */
 export function getFrameworkChoices() {
   return Object.values(SUPPORTED_FRAMEWORKS).map(framework => ({
     title: framework.displayName,
@@ -1560,6 +1579,14 @@ export function getFrameworkChoices() {
   }));
 }
 
+/**
+ * Retrieves the {@link FrameworkConfig} for the given framework identifier.
+ *
+ * @param framework - Identifier of the framework (a key of
+ *   {@link SUPPORTED_FRAMEWORKS}).
+ * @returns The matching {@link FrameworkConfig}.
+ * @throws {Error} If `framework` is not a registered framework identifier.
+ */
 export function getFrameworkConfig(framework: string): FrameworkConfig {
   const config = SUPPORTED_FRAMEWORKS[framework];
   if (!config) {
@@ -1568,6 +1595,16 @@ export function getFrameworkConfig(framework: string): FrameworkConfig {
   return config;
 }
 
+/**
+ * Inspects the `package.json` at the given project path and attempts to
+ * identify the framework in use based on well-known dependency markers
+ * (e.g. `@angular/core`, `vue`, `svelte`, `react`). When TypeScript is also
+ * present, the TypeScript-enabled variant of the framework is returned.
+ *
+ * @param projectPath - Absolute path to the project root to inspect.
+ * @returns The detected framework identifier, or `null` when no `package.json`
+ *   exists, the file cannot be parsed, or no known framework is recognized.
+ */
 export function detectFramework(projectPath: string): string | null {
   const packageJsonPath = path.join(projectPath, 'package.json');
   
@@ -1591,6 +1628,13 @@ export function detectFramework(projectPath: string): string | null {
   }
 }
 
+/**
+ * Checks whether the provided framework identifier is registered in
+ * {@link SUPPORTED_FRAMEWORKS}.
+ *
+ * @param framework - Candidate framework identifier to validate.
+ * @returns `true` if the framework is supported, otherwise `false`.
+ */
 export function validateFramework(framework: string): boolean {
   return framework in SUPPORTED_FRAMEWORKS;
 }

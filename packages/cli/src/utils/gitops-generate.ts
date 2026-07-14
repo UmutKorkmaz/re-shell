@@ -17,24 +17,50 @@ import * as yaml from 'js-yaml';
 import { WorkspaceParser } from '../parsers/workspace-parser';
 import { resolveWorkspaceConfigPath } from './k8s-generate';
 
-/** Supported GitOps tools. */
+/**
+ * Supported GitOps tools that can be targeted by manifest generation.
+ *
+ * - `argocd`: emits an ArgoCD Application resource.
+ * - `flux`:   emits a Flux GitRepository + Kustomization pair.
+ */
 export type GitOpsTool = 'argocd' | 'flux';
 
-/** A single rendered GitOps manifest entry. */
+/**
+ * A single rendered GitOps manifest entry.
+ *
+ * Produced by rendering a manifest object to YAML; each entry corresponds to
+ * one Kubernetes resource (e.g. an ArgoCD Application or a Flux Kustomization).
+ */
 export interface RenderedGitOpsManifest {
+  /** Kubernetes resource kind (e.g. `Application`, `GitRepository`, `Ingress`). */
   kind: string;
+  /** Metadata name of the rendered resource. */
   name: string;
+  /** The resource serialized as a YAML string. */
   yaml: string;
 }
 
-/** Result of a GitOps-generation run. */
+/**
+ * Result returned by a GitOps-generation run.
+ *
+ * Contains the targeted tool, the rendered manifests, and the list of files
+ * actually written to disk (if any).
+ */
 export interface GenerateGitOpsResult {
+  /** The GitOps tool the manifests were generated for. */
   tool: GitOpsTool;
+  /** Rendered manifest entries (always populated, even on dry-run). */
   manifests: RenderedGitOpsManifest[];
   /** Files written to disk (absolute paths); empty for dry-run / no out. */
   written: string[];
 }
 
+/**
+ * Options accepted by {@link generateGitOps}.
+ *
+ * Controls which GitOps tool to target, where to find the workspace config,
+ * how to address the chart in git, and whether to write files to disk.
+ */
 export interface GenerateGitOpsOptions {
   /** Which GitOps tool to target. */
   tool: GitOpsTool;
@@ -195,8 +221,12 @@ function buildIngressWithTls(appName: string, namespace: string): ManifestObject
  *
  * The workspace config is read + validated for its name; the emitted manifests
  * point a GitOps controller at the chart path in the repo and include an
- * Ingress with cert-manager TLS.
+ * Ingress with cert-manager TLS. When `options.out` is set and the run is not
+ * a dry-run, each manifest is written to a file named
+ * `<tool>-<kind>-<name>.yaml` inside the output directory.
  *
+ * @param options - Generation inputs; see {@link GenerateGitOpsOptions}.
+ * @returns The targeted tool, rendered manifests, and any written file paths.
  * @throws Error when the config cannot be found/parsed or the tool is unknown.
  *   The command layer maps these to a `GITOPS_GENERATE_ERROR` envelope.
  */

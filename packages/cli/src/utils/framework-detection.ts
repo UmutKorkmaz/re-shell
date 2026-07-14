@@ -7,38 +7,86 @@ import chalk from 'chalk';
  * Analyze existing project structure and recommend optimal configurations
  */
 
+/**
+ * Represents a framework that was detected in the analyzed project.
+ *
+ * Contains metadata about the framework such as its name, the primary
+ * language it expects, an optional version, a confidence score between
+ * 0 and 1, and the supporting evidence (files and dependencies) that
+ * contributed to the detection.
+ */
 export interface DetectedFramework {
+  /** The human-readable name of the detected framework (e.g. "react", "vue"). */
   name: string;
+  /** The primary language associated with the framework (e.g. "javascript", "typescript"). */
   language: string;
+  /** Optional detected version of the framework, when available. */
   version?: string;
+  /** Confidence score of the detection, expressed as a value between 0 and 1. */
   confidence: number; // 0-1
+  /** List of file paths that matched the framework's detection pattern. */
   files: string[];
+  /** Runtime dependencies that indicate the presence of this framework. */
   dependencies: string[];
+  /** Development dependencies that indicate the presence of this framework. */
   devDependencies: string[];
 }
 
+/**
+ * The full result of analyzing a project directory.
+ *
+ * Aggregates every piece of information gathered during the analysis,
+ * including detected frameworks, primary language/framework, package
+ * manager, build tool, testing framework, TypeScript presence, and the
+ * generated configuration recommendations.
+ */
 export interface ProjectAnalysis {
+  /** Frameworks detected in the project, ordered by descending confidence. */
   frameworks: DetectedFramework[];
+  /** The most frequently detected language across the detected frameworks. */
   primaryLanguage: string;
+  /** The name of the framework with the highest confidence, if any was detected. */
   primaryFramework?: string;
+  /** The package manager inferred from lock files found in the project. */
   packageManager: 'npm' | 'yarn' | 'pnpm' | 'unknown';
+  /** The build tool inferred from the project's dependencies. */
   buildTool: 'webpack' | 'vite' | 'rollup' | 'esbuild' | 'tsc' | 'unknown';
+  /** The testing framework inferred from the project's dependencies. */
   testingFramework: 'jest' | 'vitest' | 'mocha' | 'jasmine' | 'unknown';
+  /** Whether the project appears to use TypeScript. */
   hasTypeScript: boolean;
+  /** Generated configuration recommendations tailored to the project. */
   recommendedConfig: ProjectRecommendations;
 }
 
+/**
+ * Configuration recommendations produced for an analyzed project.
+ *
+ * Includes the suggested dev server port, build target, dev server
+ * options, environment variables, npm scripts, and any additional
+ * runtime or development dependencies that should be installed.
+ */
 export interface ProjectRecommendations {
+  /** The recommended port the dev server should listen on. */
   port: number;
+  /** The recommended JavaScript/TypeScript build target (e.g. "es2020"). */
   buildTarget: string;
+  /** Options for the recommended development server configuration. */
   devServer: {
+    /** Whether Hot Module Replacement (HMR) should be enabled. */
     hmr: boolean;
+    /** Whether CORS should be enabled on the dev server. */
     cors: boolean;
+    /** The host the dev server should bind to. */
     host: string;
   };
+  /** Suggested environment variables for the project. */
   envVars: string[];
+  /** Suggested npm scripts to add to the project. */
   scripts: string[];
+  /** Additional runtime dependencies recommended for the project. */
   dependencies: string[];
+  /** Additional development dependencies recommended for the project. */
   devDependencies: string[];
 }
 
@@ -219,7 +267,18 @@ const BACKEND_FRAMEWORKS: Record<string, {
 };
 
 /**
- * Detect frameworks in current directory
+ * Detect frameworks present in the given project directory.
+ *
+ * Reads the project's package.json (when present) and checks each known
+ * framework pattern against the filesystem and declared dependencies.
+ * Frameworks are returned sorted by descending confidence, and only
+ * frameworks with a confidence greater than zero are included.
+ *
+ * If package.json exists but cannot be parsed, a warning is emitted and
+ * detection continues with dependency-based checks effectively skipped.
+ *
+ * @param cwd - The directory to analyze. Defaults to the current working directory.
+ * @returns A promise that resolves to an array of detected frameworks, sorted by confidence.
  */
 export async function detectFrameworks(cwd: string = process.cwd()): Promise<DetectedFramework[]> {
   const detected: DetectedFramework[] = [];
@@ -261,7 +320,18 @@ export async function detectFrameworks(cwd: string = process.cwd()): Promise<Det
 }
 
 /**
- * Analyze project structure and recommend configuration
+ * Analyze a project directory and produce a full report with recommendations.
+ *
+ * Runs framework detection, determines the primary language and framework,
+ * infers the package manager, build tool, and testing framework, checks for
+ * TypeScript usage, and finally generates tailored configuration
+ * recommendations.
+ *
+ * If package.json exists but cannot be parsed, a warning is emitted and the
+ * analysis continues with best-effort results.
+ *
+ * @param cwd - The directory to analyze. Defaults to the current working directory.
+ * @returns A promise that resolves to a complete {@link ProjectAnalysis} object.
  */
 export async function analyzeProject(cwd: string = process.cwd()): Promise<ProjectAnalysis> {
   const frameworks = await detectFrameworks(cwd);
@@ -325,7 +395,17 @@ export async function analyzeProject(cwd: string = process.cwd()): Promise<Proje
 }
 
 /**
- * Show project analysis and recommendations
+ * Print a human-readable project analysis and its recommendations to stdout.
+ *
+ * Runs {@link analyzeProject} for the given directory and renders the
+ * results using colored console output, including detected frameworks
+ * with confidence bars, project characteristics (language, package
+ * manager, build tool, testing framework, TypeScript status), and the
+ * recommended configuration (port, build target, dev server options,
+ * suggested environment variables and scripts).
+ *
+ * @param cwd - The directory to analyze. Defaults to the current working directory.
+ * @returns A promise that resolves once the analysis has been printed.
  */
 export async function showProjectAnalysis(cwd: string = process.cwd()): Promise<void> {
   console.log(chalk.cyan.bold('\n🔍 Analyzing Project Structure\n'));
