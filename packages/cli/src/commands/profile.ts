@@ -6,56 +6,104 @@ import prompts from 'prompts';
 import { ProgressSpinner } from '../utils/spinner';
 
 // Profile interfaces
+/**
+ * Represents an environment profile that encapsulates build, development,
+ * test, environment, scripts, and dependency configuration for a workspace.
+ */
 export interface EnvironmentProfile {
+  /** Unique name identifying the profile. */
   name: string;
+  /** Optional human-readable description of the profile. */
   description?: string;
+  /** Optional target framework (e.g. "react", "vue", "express"). */
   framework?: string;
+  /** Target environment type for this profile. */
   environment: 'development' | 'staging' | 'production' | 'custom';
+  /** Configuration sections applied when this profile is active. */
   config: {
+    /** Build-time configuration options. */
     build?: {
+      /** JavaScript/TypeScript compilation target. */
       target?: string;
+      /** Whether build optimizations are enabled. */
       optimize?: boolean;
+      /** Whether sourcemaps are generated. */
       sourcemap?: boolean;
+      /** Whether output is minified. */
       minify?: boolean;
     };
+    /** Development server configuration options. */
     dev?: {
+      /** Port the development server listens on. */
       port?: number;
+      /** Host the development server binds to. */
       host?: string;
+      /** Proxy rules mapped from path prefix to target URL. */
       proxy?: Record<string, string>;
+      /** Whether CORS is enabled. */
       cors?: boolean;
+      /** Whether Hot Module Replacement is enabled. */
       hmr?: boolean;
     };
+    /** Test runner configuration options. */
     test?: {
+      /** Target code coverage percentage. */
       coverage?: number;
+      /** Whether tests run in parallel. */
       parallel?: boolean;
+      /** Per-test timeout in milliseconds. */
       timeout?: number;
     };
+    /** Environment variables injected by the profile. */
     env?: Record<string, string>;
+    /** Custom npm-style scripts added by the profile. */
     scripts?: Record<string, string>;
-    services?: string[]; // Services to include/exclude
-    dependencies?: Record<string, string>; // Override dependencies
+    /** Services to include/exclude when the profile is active. */
+    services?: string[];
+    /** Dependency version overrides applied by the profile. */
+    dependencies?: Record<string, string>;
   };
-  priority?: number; // For inheritance order
-  extends?: string[]; // Profile inheritance
+  /** Numeric priority controlling inheritance and override order. */
+  priority?: number;
+  /** Names of parent profiles this profile inherits from. */
+  extends?: string[];
 }
 
+/**
+ * Root configuration object storing all profiles and the currently active one.
+ */
 export interface ProfileConfig {
+  /** Name of the currently active profile, if any. */
   activeProfile?: string;
+  /** Map of profile name to {@link EnvironmentProfile} definition. */
   profiles: Record<string, EnvironmentProfile>;
+  /** Per-framework default config overrides. */
   frameworkDefaults?: {
     [framework: string]: Partial<EnvironmentProfile['config']>;
   };
 }
 
+/**
+ * Options accepted by the `profile` CLI command and {@link manageProfiles}.
+ */
 export interface ProfileCommandOptions {
+  /** Whether to list all profiles. */
   list?: boolean;
+  /** Whether to launch the interactive profile creation wizard. */
   create?: boolean;
+  /** Name of the profile to delete. */
   delete?: string;
+  /** Name of the profile to activate. */
   activate?: string;
+  /** Name of the profile to display details for. */
   show?: string;
+  /** Framework to pre-select during profile creation. */
   framework?: string;
+  /** Whether to use interactive prompts. */
   interactive?: boolean;
+  /** Whether to emit machine-readable JSON output. */
   json?: boolean;
+  /** Optional spinner instance for progress feedback. */
   spinner?: ProgressSpinner;
 }
 
@@ -63,7 +111,13 @@ export interface ProfileCommandOptions {
 const PROFILE_CONFIG_PATH = 're-shell.profiles.yaml';
 
 /**
- * Main profile management function
+ * Entry point for the `profile` CLI command.
+ *
+ * Dispatches to the appropriate sub-operation (create, delete, activate,
+ * show) based on the provided options, defaulting to listing all profiles.
+ *
+ * @param options - Command options controlling which operation to perform.
+ * @returns A promise that resolves when the selected operation completes.
  */
 export async function manageProfiles(options: ProfileCommandOptions = {}): Promise<void> {
   const { spinner} = options;
@@ -99,7 +153,11 @@ export async function manageProfiles(options: ProfileCommandOptions = {}): Promi
 }
 
 /**
- * Load profile configuration
+ * Load profile configuration from the workspace YAML file.
+ *
+ * Returns an empty config (no profiles) when the file does not exist.
+ *
+ * @returns A promise resolving to the parsed {@link ProfileConfig}.
  */
 export async function loadProfileConfig(): Promise<ProfileConfig> {
   const configPath = path.join(process.cwd(), PROFILE_CONFIG_PATH);
@@ -113,7 +171,10 @@ export async function loadProfileConfig(): Promise<ProfileConfig> {
 }
 
 /**
- * Save profile configuration
+ * Persist the given profile configuration to the workspace YAML file.
+ *
+ * @param config - The profile configuration to serialize and write.
+ * @returns A promise that resolves when the file has been written.
  */
 export async function saveProfileConfig(config: ProfileConfig): Promise<void> {
   const configPath = path.join(process.cwd(), PROFILE_CONFIG_PATH);
@@ -803,7 +864,10 @@ async function deleteProfile(profileName: string, spinner?: ProgressSpinner): Pr
 }
 
 /**
- * Get active profile
+ * Retrieve the currently active profile, if one is set.
+ *
+ * @returns A promise resolving to the active {@link EnvironmentProfile},
+ *          or `null` when no active profile is configured.
  */
 export async function getActiveProfile(): Promise<EnvironmentProfile | null> {
   const config = await loadProfileConfig();
@@ -814,7 +878,13 @@ export async function getActiveProfile(): Promise<EnvironmentProfile | null> {
 }
 
 /**
- * Apply framework-specific defaults
+ * Resolve framework-specific default configuration values.
+ *
+ * Returns user-configured defaults from the profile config file when
+ * available, otherwise falls back to built-in per-framework defaults.
+ *
+ * @param framework - Framework identifier (e.g. "react", "vue").
+ * @returns A promise resolving to the partial config defaults for the framework.
  */
 export async function applyFrameworkDefaults(framework: string): Promise<Partial<EnvironmentProfile['config']>> {
   const config = await loadProfileConfig();
@@ -860,8 +930,14 @@ export async function applyFrameworkDefaults(framework: string): Promise<Partial
 }
 
 /**
- * Resolve profile inheritance and compose final configuration
- * Handles multiple inheritance, priority ordering, and override rules
+ * Resolve a profile, applying any inheritance chain and override rules.
+ *
+ * Handles multiple inheritance, priority ordering, and deep-merge of
+ * parent configurations. Profiles without inheritance are returned as-is.
+ *
+ * @param profileName - Name of the profile to resolve.
+ * @returns A promise resolving to the fully composed
+ *          {@link EnvironmentProfile}, or `null` if the profile does not exist.
  */
 export async function resolveProfile(profileName: string): Promise<EnvironmentProfile | null> {
   const config = await loadProfileConfig();
@@ -963,7 +1039,12 @@ function isObject(item: unknown): boolean {
 }
 
 /**
- * Validate profile inheritance for conflicts and circular dependencies
+ * Validate a profile's inheritance chain for circular dependencies and
+ * potential override conflicts.
+ *
+ * @param profileName - Name of the profile to validate.
+ * @returns A promise resolving to an object containing a `valid` flag,
+ *          a list of blocking `errors`, and a list of non-blocking `warnings`.
  */
 export async function validateProfileInheritance(profileName: string): Promise<{
   valid: boolean;
@@ -1082,8 +1163,13 @@ function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string
 }
 
 /**
- * Compose multiple profiles with priority ordering
- * Lower priority profiles are applied first, higher priority override
+ * Compose multiple profiles into a single merged configuration.
+ *
+ * Profiles are applied in array order: earlier profiles have lower
+ * priority and later profiles override conflicting values.
+ *
+ * @param profileNames - Ordered list of profile names to compose.
+ * @returns A promise resolving to the deeply merged configuration object.
  */
 export async function composeProfiles(profileNames: string[]): Promise<EnvironmentProfile['config']> {
   if (profileNames.length === 0) {
@@ -1104,7 +1190,12 @@ export async function composeProfiles(profileNames: string[]): Promise<Environme
 }
 
 /**
- * Get profile inheritance tree for visualization
+ * Build a recursive tree representation of a profile's inheritance chain.
+ *
+ * @param profileName - Name of the root profile.
+ * @param config - Optional pre-loaded profile config; loaded from disk when omitted.
+ * @returns A promise resolving to a tree node containing the profile name,
+ *          child nodes, and maximum inheritance depth.
  */
 export async function getProfileTree(profileName: string, config?: ProfileConfig): Promise<{
   name: string;
@@ -1135,7 +1226,12 @@ export async function getProfileTree(profileName: string, config?: ProfileConfig
 }
 
 /**
- * Export profile with all inherited properties resolved
+ * Export a profile together with its resolved configuration and full
+ * inheritance chain.
+ *
+ * @param profileName - Name of the profile to export.
+ * @returns A promise resolving to the base profile, the list of profiles it
+ *          inherits from, and the fully composed final configuration.
  */
 export async function exportProfile(profileName: string): Promise<{
   profile: EnvironmentProfile;
@@ -1240,7 +1336,14 @@ async function persistActiveProfile(
 }
 
 /**
- * Load active profile context for current workspace
+ * Load the persisted profile context for a workspace.
+ *
+ * Reads the `.re-shell/profile-context.json` file that captures which
+ * profile is active, when it was activated, and a workspace snapshot.
+ *
+ * @param workspacePath - Absolute path to the workspace root. Defaults to `process.cwd()`.
+ * @returns A promise resolving to the {@link ProfileContext}, or `null` when
+ *          no context file exists or it cannot be parsed.
  */
 export async function loadProfileContext(
   workspacePath: string = process.cwd()
@@ -1261,7 +1364,18 @@ export async function loadProfileContext(
 }
 
 /**
- * Switch profile context with validation
+ * Switch the active profile context with optional validation and snapshotting.
+ *
+ * Deactivates the currently active profile (if any), applies the target
+ * profile to the workspace, and persists the new context.
+ *
+ * @param targetProfile - Name of the profile to activate.
+ * @param options - Optional switches: `validate` to run inheritance checks,
+ *                  `force` to switch despite validation errors,
+ *                  `createSnapshot` to persist a workspace snapshot, and
+ *                  `spinner` for progress feedback.
+ * @returns A promise resolving to the switch result containing a `success`
+ *          flag plus `warnings` and `errors` arrays.
  */
 export async function switchProfile(
   targetProfile: string,
@@ -1334,7 +1448,15 @@ export async function switchProfile(
 }
 
 /**
- * Deactivate current profile and restore workspace state
+ * Deactivate a profile and restore the workspace to its pre-activation state.
+ *
+ * Removes the profile context and indicator files, clears the active
+ * profile in config, restores the workspace snapshot (if any), and deletes
+ * any `.env.local` generated by the profile.
+ *
+ * @param profileName - Name of the profile to deactivate.
+ * @param workspacePath - Absolute path to the workspace root. Defaults to `process.cwd()`.
+ * @returns A promise that resolves once deactivation and cleanup are complete.
  */
 export async function deactivateProfile(
   profileName: string,
@@ -1377,7 +1499,14 @@ export async function deactivateProfile(
 }
 
 /**
- * Get current active profile with context
+ * Retrieve the active profile together with its persisted context.
+ *
+ * Prefers the workspace context file; falls back to the config-based
+ * active profile when no context is stored.
+ *
+ * @returns A promise resolving to an object containing the active
+ *          {@link EnvironmentProfile} (or `null`) and the {@link ProfileContext}
+ *          (or `null`).
  */
 export async function getActiveProfileWithContext(): Promise<{
   profile: EnvironmentProfile | null;
@@ -1397,7 +1526,13 @@ export async function getActiveProfileWithContext(): Promise<{
 }
 
 /**
- * Validate current profile context
+ * Validate that the current workspace context still matches its profile.
+ *
+ * Checks whether the active profile still exists and whether the workspace
+ * state matches the stored snapshot hash.
+ *
+ * @returns A promise resolving to a result object with `valid`,
+ *          `profileMatches`, `snapshotMatches` flags and a `warnings` array.
  */
 export async function validateCurrentContext(): Promise<{
   valid: boolean;
@@ -1441,7 +1576,12 @@ export async function validateCurrentContext(): Promise<{
 }
 
 /**
- * List all workspaces with active profiles
+ * List workspaces in the current directory that have an active profile.
+ *
+ * Scans for `.re-shell-profile` indicator files and returns context
+ * metadata for each matching workspace.
+ *
+ * @returns A promise resolving to an array of workspace/profile summaries.
  */
 export async function listProfileContexts(): Promise<Array<{
   workspacePath: string;
@@ -1588,12 +1728,22 @@ function generateValidationHash(snapshot: Record<string, any>): string {
  * Cross-language profile validation
  * Validates profiles for different programming languages and frameworks
  */
+/**
+ * Validation rule describing the requirements and conventions for a
+ * specific programming language ecosystem.
+ */
 export interface LanguageValidationRule {
+  /** Language identifier (e.g. "typescript", "python"). */
   language: string;
+  /** Frameworks associated with this language. */
   frameworks: string[];
+  /** Files expected to exist in a workspace using this language. */
   requiredFiles: string[];
+  /** Packages that should be installed as dependencies. */
   requiredDependencies?: string[];
+  /** Configuration files expected to be present. */
   requiredConfigs?: string[];
+  /** Regular expressions validating known environment variables. */
   envPatterns?: Record<string, RegExp>;
 }
 
@@ -1664,7 +1814,17 @@ const LANGUAGE_VALIDATION_RULES: LanguageValidationRule[] = [
 ];
 
 /**
- * Validate profile for cross-language compatibility
+ * Validate a profile for cross-language compatibility.
+ *
+ * Detects the profile's language from its framework, runs inheritance
+ * validation, performs language-specific checks, detects cross-language
+ * conflicts with parent profiles, and validates environment variables and
+ * dependencies.
+ *
+ * @param profileName - Name of the profile to validate.
+ * @returns A promise resolving to a result object with a `valid` flag, the
+ *          detected `language`, and arrays of `errors`, `warnings`, and
+ *          `suggestions`.
  */
 export async function validateProfileCrossLanguage(
   profileName: string
@@ -2066,7 +2226,13 @@ function validateDependencies(
 }
 
 /**
- * Validate all profiles for cross-language compatibility
+ * Validate every profile in the configuration for cross-language compatibility.
+ *
+ * Iterates over all stored profiles, running {@link validateProfileCrossLanguage}
+ * on each, and aggregates the results into a summary broken down by language.
+ *
+ * @returns A promise resolving to per-profile validation results and an
+ *          aggregate `summary` with totals and counts by language.
  */
 export async function validateAllProfiles(): Promise<{
   profiles: Record<string, {
@@ -2111,7 +2277,17 @@ export async function validateAllProfiles(): Promise<{
 }
 
 /**
- * Clone an existing profile with a new name
+ * Clone an existing profile under a new name, optionally applying modifications.
+ *
+ * Performs a deep copy of the source profile, overrides the name and
+ * description, then applies any provided config, inheritance, or priority
+ * overrides before persisting.
+ *
+ * @param sourceProfileName - Name of the profile to clone from.
+ * @param newProfileName - Name for the newly created clone.
+ * @param options - Optional overrides: `description`, `modifyConfig`,
+ *                  `extends`, and `priority`.
+ * @returns A promise that resolves once the cloned profile has been saved.
  */
 export async function cloneProfile(
   sourceProfileName: string,
@@ -2176,7 +2352,15 @@ export async function cloneProfile(
 }
 
 /**
- * Customize an existing profile
+ * Customize an existing profile by applying a set of targeted modifications.
+ *
+ * Supports updating description, framework, environment, build/dev settings,
+ * environment variables, scripts, dependencies, inheritance, and priority.
+ * Only the supplied options are applied; all other values are left unchanged.
+ *
+ * @param profileName - Name of the profile to customize.
+ * @param options - Partial updates covering any combination of supported fields.
+ * @returns A promise that resolves once the updated profile has been saved.
  */
 export async function customizeProfile(
   profileName: string,
@@ -2354,7 +2538,14 @@ export async function customizeProfile(
 }
 
 /**
- * Interactive profile customization wizard
+ * Launch an interactive wizard to customize an existing profile.
+ *
+ * Prompts the user for description, environment, port, HMR, optimization,
+ * sourcemap, and minify settings, then delegates to {@link customizeProfile}
+ * to persist the changes.
+ *
+ * @param profileName - Name of the profile to customize interactively.
+ * @returns A promise that resolves once the wizard completes or is cancelled.
  */
 export async function customizeProfileInteractive(profileName: string): Promise<void> {
   const config = await loadProfileConfig();

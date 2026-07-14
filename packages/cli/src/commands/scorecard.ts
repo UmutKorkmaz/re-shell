@@ -27,7 +27,9 @@ const DRIFT_PENALTY_PER_ENTRY = 10;
 
 /** Options accepted by the `scorecard` command. */
 export interface ScorecardCommandOptions {
+  /** When true, emit the scorecard as a JSON envelope to stdout. */
   json?: boolean;
+  /** Minimum rollup score required to pass (CI gate). */
   threshold: number;
   /** Filter the report to a single named service. */
   service?: string;
