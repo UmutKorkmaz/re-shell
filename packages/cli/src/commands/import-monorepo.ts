@@ -7,34 +7,85 @@ import chalk from 'chalk';
 import glob from 'glob';
 import prompts from 'prompts';
 
+/**
+ * Options for importing an existing monorepo into a Re-Shell workspace configuration.
+ *
+ * These options control which monorepo tool is read from, where the generated
+ * workspace file is written, and whether additional heuristics (e.g. framework
+ * detection) should be applied during the import.
+ */
 export interface MonorepoImportOptions {
+  /** The monorepo tool to import from. When omitted or set to `'auto'`, the type is auto-detected. */
   source?: 'nx' | 'turbo' | 'lerna' | 'yarn' | 'pnpm' | 'auto';
+  /** Optional path to the source monorepo configuration file. Defaults to the conventional file in the current directory. */
   configPath?: string;
+  /** Optional path where the generated Re-Shell workspace YAML will be written. */
   output?: string;
+  /** Whether to include dev dependencies in the generated workspace configuration. Defaults to `true`. */
   includeDev?: boolean;
+  /** Whether to run framework detection heuristics on imported projects. Defaults to `true`. */
   detectFrameworks?: boolean;
 }
 
+/**
+ * Descriptive metadata for a single project discovered inside a monorepo.
+ *
+ * A `ProjectInfo` object is produced for every package/workspace found during
+ * the import scan and is later translated into a service entry in the
+ * generated Re-Shell workspace configuration.
+ */
 export interface ProjectInfo {
+  /** The package name (from `package.json`) or a fallback derived from the directory name. */
   name: string;
+  /** The project path, relative to the monorepo root. */
   path: string;
+  /** The inferred category of the project. Used to pick sensible defaults such as ports and routes. */
   type?: 'frontend' | 'backend' | 'library' | 'tool';
+  /** The detected framework (e.g. `react`, `vue`, `express`) if one could be inferred from dependencies. */
   framework?: string;
+  /** The primary language of the project (`typescript` or `javascript`). */
   language?: string;
+  /** Optional port the project listens on, used for frontend/backend service definitions. */
   port?: number;
+  /** Optional route prefix under which the project is served in the Re-Shell workspace. */
   route?: string;
+  /** A map of production dependency names to version specifiers. */
   dependencies?: Record<string, string>;
+  /** A map of npm script names to their command strings. */
   scripts?: Record<string, string>;
 }
 
+/**
+ * Aggregated representation of a parsed monorepo, ready to be converted into a
+ * Re-Shell workspace configuration.
+ *
+ * This is the canonical in-memory shape produced by every `import*` helper
+ * (Nx, Turbo, Lerna, Yarn, PNPM) before the workspace YAML is generated.
+ */
 export interface MonorepoConfig {
+  /** The detected monorepo tool name (e.g. `nx`, `turbo`, `lerna`, `yarn`, `pnpm`). */
   type: string;
+  /** The list of projects discovered inside the monorepo. */
   projects: ProjectInfo[];
+  /** The raw root `package.json` contents, if a root package.json was present. */
   rootPackage?: Record<string, unknown>;
 }
 
 /**
- * Import from monorepo configuration
+ * Import an existing monorepo configuration into a Re-Shell workspace file.
+ *
+ * The function detects (or accepts) the source monorepo tool, parses its
+ * configuration to enumerate projects, optionally infers frameworks, shows the
+ * user a preview, asks for confirmation, and finally writes a
+ * `re-shell.workspaces.yaml` file (or another path via `options.output`).
+ *
+ * Supported sources: Nx, Turbo, Lerna, Yarn workspaces, and PNPM workspaces.
+ *
+ * @param options - Optional import configuration. When omitted, the source type
+ *   is auto-detected from the current working directory.
+ * @returns A promise that resolves once the import flow has completed. The
+ *   promise resolves without writing a file if the user declines confirmation
+ *   or no supported monorepo configuration is found.
  */
 export async function importFromMonorepo(options: MonorepoImportOptions = {}): Promise<void> {
   const { source = 'auto', configPath, output, includeDev = true, detectFrameworks = true } = options;

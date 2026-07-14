@@ -9,13 +9,26 @@ import {
 import { ok, fail, enableJsonMode } from '../utils/json-output';
 import type { ProgressSpinner } from '../utils/spinner';
 
+/**
+ * Options accepted by the `k8s generate` command.
+ *
+ * The options control where manifests are read from, where (or whether) they
+ * are written, and how the command surfaces its result to the caller.
+ */
 export interface K8sGenerateCommandOptions {
+  /** Directory path where generated manifest files should be written. When omitted, nothing is written to disk. */
   out?: string;
+  /** Kubernetes namespace to inject into every generated manifest. Overrides the namespace declared in the workspace config. */
   namespace?: string;
+  /** When true, emit a single machine-readable JSON envelope (via {@link enableJsonMode}) instead of human-friendly output. */
   json?: boolean;
+  /** When true, render and validate manifests but do not write any files to disk. */
   dryRun?: boolean;
+  /** Working directory used when locating the workspace and its v2 config file. Defaults to the current process directory. */
   cwd?: string;
+  /** Explicit path to the workspace v2 config file. When omitted, the default config discovery is used. */
   configPath?: string;
+  /** Optional {@link ProgressSpinner} instance; if supplied it is stopped before any output is produced. */
   spinner?: ProgressSpinner;
 }
 
@@ -28,7 +41,9 @@ export interface K8sGenerateCommandOptions {
  * back to the structural js-yaml checks the tests assert on.
  */
 export interface KubectlValidation {
+  /** True only when kubectl actually validated the manifests against a reachable API server. */
   ran: boolean;
+  /** When `ran` is true, indicates whether kubectl's client dry-run passed. */
   ok?: boolean;
   /** Why kubectl was skipped, or kubectl's stdout/stderr when it ran. */
   detail?: string;
@@ -50,6 +65,9 @@ function isClusterUnreachable(stderr: string): boolean {
  * dry-run still maps kinds against the API server, so without a reachable
  * cluster it cannot run — that case is reported as not-run (best-effort), never
  * thrown, so generation stays usable offline.
+ *
+ * @param manifests - Rendered manifests to validate; their `yaml` payloads are concatenated and piped to kubectl.
+ * @returns A {@link KubectlValidation} describing whether validation ran and, if so, its outcome.
  */
 export function validateWithKubectl(manifests: RenderedManifest[]): KubectlValidation {
   const probe = spawnSync('kubectl', ['version', '--client', '-o', 'json'], {
@@ -94,6 +112,9 @@ export function validateWithKubectl(manifests: RenderedManifest[]): KubectlValid
  * `{ namespace, manifests: [{kind, name, yaml}], kubectl }`. With `--out` (and
  * not dry-run) the manifests are written to disk and the written paths are
  * reported. Errors map to a `K8S_GENERATE_ERROR` envelope (exit 1).
+ *
+ * @param options - Command options controlling output location, namespace, JSON mode, dry-run, and discovery paths.
+ * @returns Resolves once generation (and any requested output) is complete. JSON mode never rejects; errors become failure envelopes.
  */
 export async function runK8sGenerate(
   options: K8sGenerateCommandOptions = {}

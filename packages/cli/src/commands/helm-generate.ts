@@ -11,12 +11,25 @@ import {
 import { ok, fail, enableJsonMode } from '../utils/json-output';
 import type { ProgressSpinner } from '../utils/spinner';
 
+/**
+ * Options accepted by the `k8s helm generate` command.
+ *
+ * The command reads the workspace v2 config and emits a Helm chart; these
+ * options control where output is written, whether to emit a machine-readable
+ * envelope, and how the workspace is discovered.
+ */
 export interface HelmGenerateCommandOptions {
+  /** Target directory the chart files are written to. Omit to skip writing. */
   out?: string;
+  /** When true, emit a JSON envelope instead of human-readable output. */
   json?: boolean;
+  /** When true, skip writing files and only report what would be generated. */
   dryRun?: boolean;
+  /** Working directory used when discovering the workspace. Defaults to CWD. */
   cwd?: string;
+  /** Explicit path to the v2 config file. When omitted, the workspace is searched. */
   configPath?: string;
+  /** Optional progress spinner to stop before printing output. */
   spinner?: ProgressSpinner;
 }
 
@@ -28,7 +41,9 @@ export interface HelmGenerateCommandOptions {
  * structural checks the tests assert on.
  */
 export interface HelmLintResult {
+  /** True only when helm actually linted the chart; false if helm was absent or failed to execute. */
   ran: boolean;
+  /** Lint outcome when `ran` is true: true for passing, false for issues. Undefined when helm did not run. */
   ok?: boolean;
   /** Why helm was skipped, or helm's stdout/stderr when it ran. */
   detail?: string;
@@ -38,6 +53,9 @@ export interface HelmLintResult {
  * Detect helm and, if present, write the chart to a temp dir and run
  * `helm lint`. Never throws; absence is reported as not-run (best-effort) so
  * generation stays usable without helm installed.
+ *
+ * @param result - The generated chart (with file list) to lint.
+ * @returns A `HelmLintResult` describing whether helm ran and what it reported.
  */
 export function lintWithHelm(result: GenerateChartResult): HelmLintResult {
   const probe = spawnSync('helm', ['version', '--short'], { encoding: 'utf8' });
@@ -82,6 +100,9 @@ export function lintWithHelm(result: GenerateChartResult): HelmLintResult {
  * is written; the ok envelope carries `{ chart: { name, files }, written, helm }`.
  * With `--out` (and not dry-run) the chart is written to disk. Errors map to a
  * `HELM_GENERATE_ERROR` envelope (exit 1).
+ *
+ * @param options - Optional command configuration (output path, JSON/dry-run flags, workspace hints).
+ * @returns Resolves when generation, optional lint, and output are complete.
  */
 export async function runHelmGenerate(
   options: HelmGenerateCommandOptions = {}
