@@ -5,49 +5,104 @@ import * as chokidar from 'chokidar';
 import { EventEmitter } from 'events';
 import { ValidationError } from './error-handler';
 
-// Platform detection and file watching capabilities
+/**
+ * Describes the file watching capabilities, limits, and recommended methods
+ * for the current operating system/platform.
+ */
 export interface PlatformCapabilities {
+  /** The Node.js platform identifier (e.g. 'darwin', 'linux', 'win32'). */
   platform: NodeJS.Platform;
+  /** The CPU architecture string (e.g. 'x64', 'arm64'). */
   architecture: string;
+  /** Whether the platform supports native (non-polling) file watching. */
   supportsNativeWatching: boolean;
+  /** Whether the platform supports polling-based file watching. */
   supportsPolling: boolean;
+  /** Whether the platform supports macOS FSEvents. */
   supportsFSEvents: boolean;
+  /** Whether the platform supports Linux inotify. */
   supportsInotify: boolean;
+  /** The maximum number of files the platform can reliably watch. */
   maxWatchedFiles: number;
+  /** The recommended file watching method for this platform. */
   recommendedWatchMethod: WatchMethod;
+  /** Ordered list of fallback watching methods if the primary method fails. */
   fallbackMethods: WatchMethod[];
+  /** Human-readable list of known platform limitations. */
   limitations: string[];
 }
 
+/**
+ * Identifies a file watching strategy.
+ * - `native`: OS native (non-polling) watcher.
+ * - `polling`: Polling-based watcher.
+ * - `fsevents`: macOS FSEvents watcher.
+ * - `inotify`: Linux inotify watcher.
+ * - `hybrid`: Combination of multiple watching strategies.
+ */
 export type WatchMethod = 'native' | 'polling' | 'fsevents' | 'inotify' | 'hybrid';
 
+/**
+ * Configuration options that control watcher fallback behavior, retry policy,
+ * health checking, and platform-specific optimizations.
+ */
 export interface WatcherFallbackOptions {
+  /** The primary watching method to attempt first. */
   primaryMethod: WatchMethod;
+  /** Ordered list of fallback methods to try if the primary method fails. */
   fallbackMethods: WatchMethod[];
+  /** Delay (in milliseconds) before activating a fallback watcher. */
   fallbackDelay: number;
+  /** Maximum number of retries before triggering a fallback. */
   maxRetries: number;
+  /** Interval (in milliseconds) between periodic health checks. */
   healthCheckInterval: number;
+  /** Whether to emit log output during fallback operations. */
   enableFallbackLogging: boolean;
+  /** Whether to enable platform-specific optimizations. */
   platformOptimizations: boolean;
+  /** Whether polling intervals should adapt based on directory complexity. */
   adaptivePolling: boolean;
 }
 
+/**
+ * Options accepted when creating a platform-aware file watcher.
+ */
 export interface PlatformWatchOptions {
+  /** Force the use of polling instead of native watching. */
   usePolling?: boolean;
+  /** Polling interval (in milliseconds) for regular files. */
   interval?: number;
+  /** Polling interval (in milliseconds) for binary files. */
   binaryInterval?: number;
+  /** Whether to use the OS native watcher when available. */
   useNativeWatcher?: boolean;
+  /** Whether to enable fallback watchers when the primary fails. */
   enableFallbacks?: boolean;
+  /** Partial override of the default fallback options. */
   fallbackOptions?: Partial<WatcherFallbackOptions>;
+  /** Platform-specific overrides keyed by platform name. */
   platformSpecific?: {
+    /** Overrides applied only on macOS (darwin). */
     darwin?: any;
+    /** Overrides applied only on Linux. */
     linux?: any;
+    /** Overrides applied only on Windows (win32). */
     win32?: any;
+    /** Index signature allowing additional platform overrides. */
     [key: string]: any;
   };
 }
 
-// Cross-platform file watcher with intelligent fallbacks
+/**
+ * Cross-platform file watcher with intelligent fallbacks.
+ *
+ * Detects platform-specific capabilities, creates optimized watchers, monitors
+ * their health, and transparently falls back to alternative watching methods
+ * when the primary method fails. Extends `EventEmitter` to emit lifecycle and
+ * health events such as `watcher-created`, `watcher-error`, `fallback-activated`,
+ * `watcher-unhealthy`, and `health-check-completed`.
+ */
 export class PlatformWatcher extends EventEmitter {
   private capabilities: PlatformCapabilities;
   private activeWatchers: Map<string, chokidar.FSWatcher> = new Map();
@@ -57,6 +112,12 @@ export class PlatformWatcher extends EventEmitter {
   private healthCheckTimer: NodeJS.Timeout | null = null;
   private isActive = false;
 
+  /**
+   * Creates a new PlatformWatcher instance.
+   *
+   * @param fallbackOptions Optional partial override of the default fallback options.
+   *   Missing values are filled in from platform-detected defaults.
+   */
   constructor(fallbackOptions: Partial<WatcherFallbackOptions> = {}) {
     super();
     this.capabilities = this.detectPlatformCapabilities();
@@ -171,7 +232,19 @@ export class PlatformWatcher extends EventEmitter {
     }
   }
 
-  // Create platform-optimized watcher
+  /**
+   * Creates a platform-optimized file watcher for the given path.
+   *
+   * Applies platform-specific optimizations, sets up health monitoring, and
+   * optionally prepares a fallback watcher. If the primary watcher cannot be
+   * created and fallbacks are enabled, a fallback method is attempted.
+   *
+   * @param watchPath Absolute or relative path to watch.
+   * @param options Optional platform watch options controlling polling, fallbacks,
+   *   and platform-specific overrides.
+   * @returns A promise resolving to the created chokidar `FSWatcher`.
+   * @throws {ValidationError} If the watcher cannot be created and no fallback succeeds.
+   */
   async createWatcher(
     watchPath: string,
     options: PlatformWatchOptions = {}
@@ -578,12 +651,23 @@ export class PlatformWatcher extends EventEmitter {
     });
   }
 
-  // Get platform capabilities
+  /**
+   * Returns a copy of the detected platform capabilities.
+   *
+   * @returns A shallow copy of the current `PlatformCapabilities`.
+   */
   getPlatformCapabilities(): PlatformCapabilities {
     return { ...this.capabilities };
   }
 
-  // Get watcher health status
+  /**
+   * Returns the health status of one or all watchers.
+   *
+   * @param watcherId Optional watcher identifier. If omitted, all watcher
+   *   health statuses are returned.
+   * @returns The health status for the given watcher (or `null` if not found),
+   *   or a `Map` of all watcher health statuses when no identifier is supplied.
+   */
   getWatcherHealth(watcherId?: string): Map<string, WatcherHealthStatus> | WatcherHealthStatus | null {
     if (watcherId) {
       return this.watcherHealth.get(watcherId) || null;
@@ -591,12 +675,23 @@ export class PlatformWatcher extends EventEmitter {
     return new Map(this.watcherHealth);
   }
 
-  // Get active watchers count
+  /**
+   * Returns the number of currently active watchers.
+   *
+   * @returns The count of active watchers.
+   */
   getActiveWatchersCount(): number {
     return this.activeWatchers.size;
   }
 
-  // Close all watchers
+  /**
+   * Closes all active and fallback watchers and clears internal state.
+   *
+   * Stops periodic health checks, closes every watcher (suppressing individual
+   * close errors), clears internal maps, and emits the `all-watchers-closed` event.
+   *
+   * @returns A promise that resolves once all watchers have been closed.
+   */
   async closeAll(): Promise<void> {
     this.isActive = false;
 
@@ -644,7 +739,16 @@ export class PlatformWatcher extends EventEmitter {
     return `watcher_${hash}_${Date.now()}`;
   }
 
-  // Test platform capabilities
+  /**
+   * Tests the file watching capabilities of the current platform.
+   *
+   * Creates a temporary directory and attempts to instantiate native and
+   * polling-based watchers against it, recording which methods succeed and
+   * generating recommendations. The temporary directory is always cleaned up.
+   *
+   * @returns A promise resolving to a `PlatformTestResult` describing
+   *   the available watching mechanisms and any recommendations.
+   */
   async testPlatformCapabilities(): Promise<PlatformTestResult> {
     const testDir = path.join(os.tmpdir(), `re-shell-watcher-test-${Date.now()}`);
     
@@ -707,40 +811,74 @@ export class PlatformWatcher extends EventEmitter {
   }
 }
 
-// Watcher health status interface
+/**
+ * Represents the runtime health status of a single file watcher.
+ */
 export interface WatcherHealthStatus {
+  /** Whether the watcher is currently considered healthy. */
   isHealthy: boolean;
+  /** Timestamp (milliseconds since epoch) of the most recent health check. */
   lastCheck: number;
+  /** Number of consecutive failures observed. */
   failureCount: number;
+  /** Whether a fallback watcher has been prepared and is ready to activate. */
   fallbackReady: boolean;
+  /** The most recent error encountered, if any. */
   lastError?: any;
+  /** Configuration for the prepared fallback watcher, if available. */
   fallbackOptions?: {
+    /** Path the fallback watcher should observe. */
     watchPath: string;
+    /** Options to pass when constructing the fallback watcher. */
     options: any;
   };
 }
 
-// Platform test result interface
+/**
+ * Result of probing the current platform's file watching capabilities.
+ */
 export interface PlatformTestResult {
+  /** The Node.js platform identifier that was tested. */
   platform: NodeJS.Platform;
+  /** Whether native (non-polling) file watching is available. */
   nativeWatching: boolean;
+  /** Whether polling-based file watching is available. */
   polling: boolean;
+  /** Whether macOS FSEvents is available. */
   fsevents: boolean;
+  /** Whether Linux inotify is available. */
   inotify: boolean;
+  /** The maximum number of files the platform can reliably watch. */
   maxWatchedFiles: number;
+  /** Human-readable recommendations derived from the test results. */
   recommendations: string[];
 }
 
-// Utility functions
+/**
+ * Factory that creates a new `PlatformWatcher` instance.
+ *
+ * @param options Optional partial override of the default fallback options.
+ * @returns A new `PlatformWatcher`.
+ */
 export function createPlatformWatcher(options?: Partial<WatcherFallbackOptions>): PlatformWatcher {
   return new PlatformWatcher(options);
 }
 
+/**
+ * Convenience helper that tests the current platform's file watching capabilities.
+ *
+ * @returns A promise resolving to a `PlatformTestResult`.
+ */
 export async function testPlatformWatching(): Promise<PlatformTestResult> {
   const watcher = new PlatformWatcher();
   return await watcher.testPlatformCapabilities();
 }
 
+/**
+ * Convenience helper that returns the detected platform capabilities.
+ *
+ * @returns The `PlatformCapabilities` for the current platform.
+ */
 export function getPlatformCapabilities(): PlatformCapabilities {
   const watcher = new PlatformWatcher();
   return watcher.getPlatformCapabilities();

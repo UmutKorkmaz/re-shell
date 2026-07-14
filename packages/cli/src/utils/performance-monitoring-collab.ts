@@ -3,60 +3,131 @@
 
 import chalk from 'chalk';
 
+/**
+ * Supported metric types for performance monitoring.
+ */
 type MetricType = 'counter' | 'gauge' | 'histogram' | 'summary';
+
+/**
+ * Supported visualization types for dashboard widgets.
+ */
 type VisualizationType = 'line' | 'bar' | 'pie' | 'heatmap' | 'gauge' | 'table';
+
+/**
+ * Supported data sources from which metrics can be queried.
+ */
 type DataSource = 'prometheus' | 'grafana' | 'datadog' | 'cloudwatch' | 'stackdriver' | 'influxdb';
+
+/**
+ * Supported refresh intervals for dashboard widgets.
+ */
 type RefreshInterval = '5s' | '10s' | '30s' | '1m' | '5m' | '15m';
 
+/**
+ * Definition of a single performance metric.
+ */
 interface MetricDefinition {
+  /** Unique identifier for the metric. */
   id: string;
+  /** Human-readable name of the metric. */
   name: string;
+  /** The type of the metric (counter, gauge, histogram, or summary). */
   type: MetricType;
+  /** Query string used to fetch the metric from its data source. */
   query: string;
+  /** The data source from which this metric is queried. */
   dataSource: DataSource;
+  /** Key/value labels associated with the metric. */
   labels: { [key: string]: string };
 }
 
+/**
+ * Definition of a dashboard widget that visualizes one or more metrics.
+ */
 interface DashboardWidget {
+  /** Unique identifier for the widget. */
   id: string;
+  /** Title displayed at the top of the widget. */
   title: string;
+  /** Visualization type used to render the widget. */
   type: VisualizationType;
+  /** Metrics rendered by this widget. */
   metrics: MetricDefinition[];
+  /** Grid position and dimensions (x, y, width, height) of the widget. */
   position: { x: number; y: number; w: number; h: number };
+  /** Interval at which the widget refreshes its data. */
   refreshInterval: RefreshInterval;
+  /** Whether drill-down navigation is enabled for the widget. */
   drillingEnabled: boolean;
 }
 
+/**
+ * Definition of an alert rule that fires when a metric crosses a threshold.
+ */
 interface AlertRule {
+  /** Unique identifier for the alert rule. */
   id: string;
+  /** Human-readable name of the alert rule. */
   name: string;
+  /** Condition expression evaluated against the metric. */
   condition: string;
+  /** Numeric threshold that triggers the alert when crossed. */
   threshold: number;
+  /** Duration the condition must hold before the alert fires. */
   duration: string;
+  /** Severity level of the alert. */
   severity: 'info' | 'warning' | 'critical';
+  /** List of notification channels to notify when the alert fires. */
   notificationChannels: string[];
 }
 
+/**
+ * Configuration options controlling collaboration behavior.
+ */
 interface CollaborationConfig {
+  /** Whether shared dashboards are enabled. */
   enableSharedDashboards: boolean;
+  /** Whether real-time updates are enabled for collaborators. */
   enableRealTimeUpdates: boolean;
+  /** Whether annotations (events, incidents) are enabled. */
   enableAnnotations: boolean;
+  /** Whether multiple users can edit dashboards concurrently. */
   enableCollaborativeEditing: boolean;
+  /** Maximum number of concurrent viewers allowed. */
   maxViewers: number;
+  /** Maximum number of concurrent editors allowed. */
   maxEditors: number;
 }
 
+/**
+ * Top-level configuration for the performance monitoring collaboration feature.
+ */
 interface PerformanceMonitoringCollabConfig {
+  /** Name of the project this configuration applies to. */
   projectName: string;
+  /** Cloud providers targeted by this configuration. */
   providers: ('aws' | 'azure' | 'gcp')[];
+  /** Dashboards and the widgets they contain. */
   dashboards: { id: string; name: string; widgets: DashboardWidget[] }[];
+  /** Top-level widgets not bound to a specific dashboard. */
   widgets: DashboardWidget[];
+  /** Alert rules associated with this configuration. */
   alerts: AlertRule[];
+  /** Collaboration settings for shared dashboards. */
   collaboration: CollaborationConfig;
+  /** Whether dashboard export is enabled. */
   enableExport: boolean;
+  /** Whether dashboard scheduling is enabled. */
   enableScheduling: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the performance monitoring collaboration
+ * configuration to the console.
+ *
+ * @param config - The performance monitoring collaboration configuration to display.
+ * @returns Nothing; output is written to the console.
+ */
 export function displayConfig(config: PerformanceMonitoringCollabConfig): void {
   console.log(chalk.cyan('📊 Real-Time Performance Monitoring Collaboration'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -76,6 +147,13 @@ export function displayConfig(config: PerformanceMonitoringCollabConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown overview document describing the performance monitoring
+ * collaboration feature and its capabilities.
+ *
+ * @param config - The performance monitoring collaboration configuration to document.
+ * @returns A Markdown string summarizing the feature set.
+ */
 export function generatePerformanceMonitoringCollabMD(config: PerformanceMonitoringCollabConfig): string {
   let md = '# Real-Time Performance Monitoring Collaboration\n\n';
   md += '## Features\n\n';
@@ -94,12 +172,26 @@ export function generatePerformanceMonitoringCollabMD(config: PerformanceMonitor
   return md;
 }
 
+/**
+ * Generates a Terraform header snippet for the performance monitoring
+ * collaboration resources associated with the given project.
+ *
+ * @param config - The performance monitoring collaboration configuration.
+ * @returns A Terraform code string (header/comment block) for the project.
+ */
 export function generateTerraformPerformanceMonitoringCollab(config: PerformanceMonitoringCollabConfig): string {
   let code = '# Auto-generated Performance Monitoring Collaboration Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript stub module that exports a
+ * `PerformanceMonitoringCollabManager` instance for the given project.
+ *
+ * @param config - The performance monitoring collaboration configuration.
+ * @returns TypeScript source code implementing the manager stub.
+ */
 export function generateTypeScriptPerformanceMonitoringCollab(config: PerformanceMonitoringCollabConfig): string {
   let code = '// Auto-generated Performance Monitoring Collaboration Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -114,6 +206,13 @@ export function generateTypeScriptPerformanceMonitoringCollab(config: Performanc
   return code;
 }
 
+/**
+ * Generates a Python stub module that instantiates a
+ * `PerformanceMonitoringCollabManager` for the given project.
+ *
+ * @param config - The performance monitoring collaboration configuration.
+ * @returns Python source code implementing the manager stub.
+ */
 export function generatePythonPerformanceMonitoringCollab(config: PerformanceMonitoringCollabConfig): string {
   let code = '# Auto-generated Performance Monitoring Collaboration Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -126,6 +225,18 @@ export function generatePythonPerformanceMonitoringCollab(config: PerformanceMon
   return code;
 }
 
+/**
+ * Writes the generated performance monitoring collaboration artifacts to disk.
+ *
+ * Produces Terraform, language-specific manager stub (TypeScript or Python),
+ * a Markdown overview, and a JSON config file under the specified output
+ * directory.
+ *
+ * @param config - The performance monitoring collaboration configuration.
+ * @param outputDir - Directory where generated files will be written. Created if missing.
+ * @param language - Target implementation language; `'typescript'` produces TS + package.json, anything else produces Python + requirements.txt.
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeFiles(config: PerformanceMonitoringCollabConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -172,6 +283,14 @@ export async function writeFiles(config: PerformanceMonitoringCollabConfig, outp
   await fs.writeFile(path.join(outputDir, 'performance-monitoring-collab-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Identity passthrough that returns the provided performance monitoring
+ * collaboration configuration unchanged. Useful as a normalization/validator
+ * hook for callers that want a single entry point.
+ *
+ * @param config - The performance monitoring collaboration configuration to return.
+ * @returns The same configuration object that was passed in.
+ */
 export function performanceMonitoringCollab(config: PerformanceMonitoringCollabConfig): PerformanceMonitoringCollabConfig {
   return config;
 }
