@@ -14,6 +14,12 @@ import {
   PluginInstallError,
 } from '../utils/plugin-installer';
 import { ok, fail } from '../utils/json-output';
+import {
+  AuditLogger,
+  filterAuditLog,
+  DEFAULT_AUDIT_LOG_PATH,
+  type AuditFilterOptions,
+} from '../utils/plugin-audit';
 
 /**
  * Options for the `re-shell plugin` command.
@@ -1026,5 +1032,59 @@ export async function listHookTypes(options: PluginCommandOptions = {}): Promise
     throw new ValidationError(
       `Failed to list hook types: ${error instanceof Error ? error.message : String(error)}`
     );
+  }
+}
+
+/** Options for the audit log command. */
+interface AuditCommandOptions {
+  plugin?: string;
+  allowed?: string;
+  action?: string;
+  limit?: string;
+  json?: boolean;
+  clear?: boolean;
+}
+
+/** Show or clear the plugin audit log. */
+export async function showAuditLog(options: AuditCommandOptions = {}): Promise<void> {
+  const logPath = DEFAULT_AUDIT_LOG_PATH;
+
+  if (options.clear) {
+    new AuditLogger(logPath).clear();
+    console.log(chalk.green('Audit log cleared.'));
+    return;
+  }
+
+  const filterOpts: AuditFilterOptions = {};
+  if (options.plugin) filterOpts.plugin = options.plugin;
+  if (options.allowed === 'true') filterOpts.allowed = true;
+  if (options.allowed === 'false') filterOpts.allowed = false;
+  if (options.action) filterOpts.actionPrefix = options.action;
+  if (options.limit) filterOpts.limit = parseInt(options.limit, 10);
+
+  const entries = filterAuditLog(logPath, filterOpts);
+
+  if (options.json) {
+    console.log(JSON.stringify(entries, null, 2));
+    return;
+  }
+
+  if (entries.length === 0) {
+    console.log(chalk.gray('No audit log entries found.'));
+    return;
+  }
+
+  console.log(chalk.cyan(`\nAudit Log (${entries.length} entries)\n`));
+  console.log(chalk.gray(`  Log file: ${logPath}\n`));
+
+  for (const entry of entries) {
+    const status = entry.allowed
+      ? chalk.green('ALLOWED')
+      : chalk.red('DENIED');
+    const ts = chalk.gray(entry.ts);
+    console.log(`  ${ts}  [${entry.plugin}]  ${status}  ${entry.action}  ${entry.resource}`);
+    if (entry.reason) {
+      console.log(chalk.gray(`    -> ${entry.reason}`));
+    }
   }
 }
