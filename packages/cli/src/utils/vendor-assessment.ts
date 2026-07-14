@@ -5,19 +5,32 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Type Definitions
+/** Categorizes vendors into one of four tiers based on criticality and spend. */
 export type VendorTier = 'tier-1' | 'tier-2' | 'tier-3' | 'tier-4';
+/** Represents the current lifecycle status of a vendor relationship. */
 export type VendorStatus = 'active' | 'inactive' | 'on-hold' | 'under-review' | 'terminated';
+/** Classifies the type of product or service a vendor provides. */
 export type VendorCategory = 'software' | 'infrastructure' | 'professional-services' | 'data-processing' | 'cloud-provider' | 'custom';
+/** Tracks the workflow state of a vendor security assessment. */
 export type AssessmentStatus = 'pending' | 'in-progress' | 'completed' | 'approved' | 'rejected' | 'expired';
+/** Qualitative rating describing the level of risk associated with a vendor. */
 export type RiskRating = 'critical' | 'high' | 'medium' | 'low' | 'acceptable';
+/** Indicates how compliant a vendor is against a given framework. */
 export type ComplianceRating = 'compliant' | 'partial' | 'non-compliant' | 'not-assessed';
+/** Workflow state for a vendor performance scorecard. */
 export type ScorecardStatus = 'draft' | 'submitted' | 'under-review' | 'approved' | 'rejected';
+/** Tracks progress of a security questionnaire through its lifecycle. */
 export type QuestionnaireStatus = 'not-started' | 'in-progress' | 'submitted' | 'reviewed';
+/** Severity scale applied to assessment findings and vulnerabilities. */
 export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+/** Workflow state for tracking remediation of a finding. */
 export type FindingStatus = 'open' | 'in-progress' | 'remediated' | 'accepted' | 'false-positive';
+/** Categorizes a security control as preventive, detective, or corrective. */
 export type ControlType = 'preventive' | 'detective' | 'corrective';
+/** Supported cadences for recurring vendor assessments. */
 export type AssessmentFrequency = 'monthly' | 'quarterly' | 'semi-annual' | 'annual' | 'on-demand';
 
+/** Top-level configuration object for vendor security assessment and management. */
 export interface VendorAssessmentConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -33,6 +46,7 @@ export interface VendorAssessmentConfig {
   incidents: VendorIncident[];
 }
 
+/** Configurable options governing how assessments, monitoring, and approvals behave. */
 export interface AssessmentSettings {
   autoAssessment: boolean;
   assessmentFrequency: AssessmentFrequency;
@@ -64,6 +78,7 @@ export interface AssessmentSettings {
   customRequirements: string[];
 }
 
+/** Percentage weights applied to each category when computing an overall scorecard score. */
 export interface ScorecardWeighting {
   securityPosture: number; // percentage
   complianceCertifications: number;
@@ -75,6 +90,7 @@ export interface ScorecardWeighting {
   serviceLevelAgreement: number;
 }
 
+/** Represents a third-party vendor and its relationships, contacts, and risk metadata. */
 export interface Vendor {
   id: string;
   name: string;
@@ -114,6 +130,7 @@ export interface Vendor {
   metadata: VendorMetadata;
 }
 
+/** Describes a category of data a vendor may access and the handling requirements. */
 export interface DataAccess {
   id: string;
   dataType: string;
@@ -128,6 +145,7 @@ export interface DataAccess {
   subProcessors: string[];
 }
 
+/** Represents a compliance certification held (or pending) by a vendor. */
 export interface Certification {
   id: string;
   name: string;
@@ -143,6 +161,7 @@ export interface Certification {
   evidenceUrl?: string;
 }
 
+/** Contractual availability, response, and resolution commitments for a vendor. */
 export interface ServiceLevelAgreement {
   availability: number; // percentage
   responseTime: number; // milliseconds
@@ -159,6 +178,7 @@ export interface ServiceLevelAgreement {
   reportingFrequency: string;
 }
 
+/** A documented risk associated with a vendor along with its mitigation. */
 export interface RiskFactor {
   category: 'geopolitical' | 'financial' | 'operational' | 'security' | 'compliance' | 'reputational';
   description: string;
@@ -167,6 +187,7 @@ export interface RiskFactor {
   lastReviewed: Date;
 }
 
+/** Audit and provenance metadata for a vendor record. */
 export interface VendorMetadata {
   created: Date;
   createdBy: string;
@@ -178,6 +199,7 @@ export interface VendorMetadata {
   customFields: Record<string, unknown>;
 }
 
+/** Captures the results and lifecycle of a single vendor security assessment. */
 export interface VendorAssessment {
   id: string;
   vendorId: string;
@@ -202,6 +224,7 @@ export interface VendorAssessment {
   nextAssessment: Date;
 }
 
+/** Defines which services, regions, data types, and processes an assessment covers. */
 export interface AssessmentScope {
   services: string[];
   regions: string[];
@@ -210,6 +233,7 @@ export interface AssessmentScope {
   excludeScope: string[];
 }
 
+/** Aggregated security posture of a vendor including domains, controls, and vulnerabilities. */
 export interface SecurityPosture {
   overallScore: number;
   domains: SecurityDomain[];
@@ -218,6 +242,7 @@ export interface SecurityPosture {
   testingPerformed: TestingSummary;
 }
 
+/** A scored security domain (e.g. access-control, encryption) within a vendor's posture. */
 export interface SecurityDomain {
   name: string;
   category: 'access-control' | 'encryption' | 'network-security' | 'application-security' | 'data-protection' | 'incident-response' | 'monitoring' | 'governance';
@@ -227,6 +252,7 @@ export interface SecurityDomain {
   maturityLevel: 'initial' | 'developing' | 'defined' | 'managed' | 'optimized';
 }
 
+/** An individual security control evaluated during an assessment. */
 export interface SecurityControl {
   id: string;
   name: string;
@@ -240,6 +266,7 @@ export interface SecurityControl {
   evidence: string[];
 }
 
+/** A vulnerability discovered in a vendor's systems or services. */
 export interface Vulnerability {
   id: string;
   severity: FindingSeverity;
@@ -251,6 +278,7 @@ export interface Vulnerability {
   targetDate?: Date;
 }
 
+/** Summary of security testing performed against a vendor. */
 export interface TestingSummary {
   penetrationTest: boolean;
   testDate?: Date;
@@ -263,6 +291,7 @@ export interface TestingSummary {
   auditDate?: Date;
 }
 
+/** Aggregated compliance results across frameworks, gaps, and evidence requests. */
 export interface ComplianceAssessment {
   overallScore: number;
   frameworks: FrameworkAssessment[];
@@ -270,6 +299,7 @@ export interface ComplianceAssessment {
   evidenceRequests: EvidenceRequest[];
 }
 
+/** Assessment of a vendor against a specific compliance framework. */
 export interface FrameworkAssessment {
   framework: string;
   status: ComplianceRating;
@@ -279,6 +309,7 @@ export interface FrameworkAssessment {
   nextReview: Date;
 }
 
+/** Status of a single requirement within a framework assessment. */
 export interface RequirementAssessment {
   requirementId: string;
   description: string;
@@ -287,6 +318,7 @@ export interface RequirementAssessment {
   evidence: string[];
 }
 
+/** A documented compliance gap along with its remediation plan. */
 export interface ComplianceGap {
   id: string;
   framework: string;
@@ -298,6 +330,7 @@ export interface ComplianceGap {
   owner: string;
 }
 
+/** A request for evidence supporting an assessment or compliance claim. */
 export interface EvidenceRequest {
   id: string;
   type: string;
@@ -308,6 +341,7 @@ export interface EvidenceRequest {
   url?: string;
 }
 
+/** Scores and metrics describing the vendor's operational maturity. */
 export interface OperationalMaturity {
   overallScore: number;
   peopleScore: number;
@@ -316,6 +350,7 @@ export interface OperationalMaturity {
   metrics: OperationalMetric[];
 }
 
+/** A single operational metric tracked against a target with status and trend. */
 export interface OperationalMetric {
   name: string;
   value: number;
@@ -324,6 +359,7 @@ export interface OperationalMetric {
   trend: 'improving' | 'stable' | 'declining';
 }
 
+/** Snapshot of a vendor's financial stability and risk indicators. */
 export interface FinancialHealth {
   overallScore: number;
   revenue: string;
@@ -336,6 +372,7 @@ export interface FinancialHealth {
   dependencies: string[]; // key customer/technology dependencies
 }
 
+/** Periodic performance scorecard summarizing a vendor's risk and performance. */
 export interface VendorScorecard {
   id: string;
   vendorId: string;
@@ -360,6 +397,7 @@ export interface VendorScorecard {
   actionItems: ActionItem[];
 }
 
+/** A weighted category within a vendor scorecard. */
 export interface ScorecardCategory {
   name: string;
   weight: number;
@@ -370,6 +408,7 @@ export interface ScorecardCategory {
   comments: string;
 }
 
+/** An individual metric within a scorecard category. */
 export interface ScorecardMetric {
   name: string;
   value: number | string | boolean;
@@ -380,6 +419,7 @@ export interface ScorecardMetric {
   evidence?: string;
 }
 
+/** Comparison of a vendor's score against industry benchmarks. */
 export interface BenchmarkComparison {
   industryAverage: number;
   percentile: number; // 0-100
@@ -387,6 +427,7 @@ export interface BenchmarkComparison {
   peers: number;
 }
 
+/** A tracked action item arising from a scorecard or assessment. */
 export interface ActionItem {
   id: string;
   description: string;
@@ -397,6 +438,7 @@ export interface ActionItem {
   completedDate?: Date;
 }
 
+/** A security questionnaire issued to a vendor for response and review. */
 export interface SecurityQuestionnaire {
   id: string;
   vendorId: string;
@@ -417,6 +459,7 @@ export interface SecurityQuestionnaire {
   comments: string;
 }
 
+/** A grouped section of questions within a security questionnaire. */
 export interface QuestionnaireSection {
   id: string;
   name: string;
@@ -427,6 +470,7 @@ export interface QuestionnaireSection {
   completed: boolean;
 }
 
+/** An individual question in a security questionnaire. */
 export interface Question {
   id: string;
   text: string;
@@ -437,6 +481,7 @@ export interface Question {
   response?: QuestionResponse;
 }
 
+/** A vendor's response to a single questionnaire question. */
 export interface QuestionResponse {
   questionId: string;
   answer: string | string[] | boolean;
@@ -448,6 +493,7 @@ export interface QuestionResponse {
   comments?: string;
 }
 
+/** A file attached to a questionnaire or assessment record. */
 export interface Attachment {
   id: string;
   name: string;
@@ -458,6 +504,7 @@ export interface Attachment {
   uploadedDate: Date;
 }
 
+/** A tracked finding (security, compliance, operational) against a vendor. */
 export interface VendorFinding {
   id: string;
   vendorId: string;
@@ -481,6 +528,7 @@ export interface VendorFinding {
   references: string[];
 }
 
+/** A logged remediation action taken toward resolving a finding. */
 export interface Resolution {
   date: Date;
   action: string;
@@ -489,6 +537,7 @@ export interface Resolution {
   evidence: string[];
 }
 
+/** Record of a periodic, event-driven, or exit review of a vendor. */
 export interface VendorReview {
   id: string;
   vendorId: string;
@@ -505,6 +554,7 @@ export interface VendorReview {
   nextReview: Date;
 }
 
+/** A single decision reached during a vendor review. */
 export interface ReviewDecision {
   area: string;
   decision: 'approve' | 'conditional' | 'reject';
@@ -512,6 +562,7 @@ export interface ReviewDecision {
   conditions?: string[];
 }
 
+/** A multi-level approval workflow record for vendor-related entities. */
 export interface Approval {
   id: string;
   entityType: 'vendor' | 'assessment' | 'scorecard' | 'contract';
@@ -527,6 +578,7 @@ export interface Approval {
   completedDate?: Date;
 }
 
+/** An individual approver and their decision within an approval workflow. */
 export interface Approver {
   userId: string;
   name: string;
@@ -536,6 +588,7 @@ export interface Approver {
   comments?: string;
 }
 
+/** Represents a contractual agreement between the organization and a vendor. */
 export interface VendorContract {
   id: string;
   vendorId: string;
@@ -566,6 +619,7 @@ export interface VendorContract {
   attachments: string[];
 }
 
+/** Standard contractual terms negotiated with a vendor. */
 export interface ContractTerms {
   confidentiality: string;
   dataProtection: string;
@@ -581,6 +635,7 @@ export interface ContractTerms {
   subcontractConsentRequired: boolean;
 }
 
+/** Liability cap and insurance requirements defined in a contract. */
 export interface LiabilityTerms {
   capType: 'unlimited' | 'per-incident' | 'aggregate' | 'custom';
   capAmount?: number;
@@ -589,6 +644,7 @@ export interface LiabilityTerms {
   minimumInsurance: number;
 }
 
+/** A tracked incident involving a vendor (breach, outage, violation, etc.). */
 export interface VendorIncident {
   id: string;
   vendorId: string;
@@ -614,6 +670,7 @@ export interface VendorIncident {
   references: string[];
 }
 
+/** Quantifies the impact of a vendor incident on data, systems, and customers. */
 export interface IncidentImpact {
   dataAffected: boolean;
   recordsAffected?: number;
@@ -625,6 +682,7 @@ export interface IncidentImpact {
   reputationImpact: 'low' | 'medium' | 'high';
 }
 
+/** A notification sent to stakeholders regarding a vendor incident. */
 export interface NotificationEvent {
   date: Date;
   recipient: string;
@@ -634,6 +692,11 @@ export interface NotificationEvent {
 }
 
 // Generate comprehensive markdown documentation
+/**
+ * Generates comprehensive markdown documentation for vendor security assessment and management.
+ * @param config - The vendor assessment configuration to document.
+ * @returns The generated markdown as a string.
+ */
 export function generateVendorMarkdown(config: VendorAssessmentConfig): string {
   const lines: string[] = [];
 
@@ -797,6 +860,12 @@ export function generateVendorMarkdown(config: VendorAssessmentConfig): string {
 }
 
 // Generate Terraform infrastructure
+/**
+ * Generates Terraform infrastructure code for vendor security assessment resources.
+ * @param config - The vendor assessment configuration.
+ * @param provider - The cloud provider to target (aws, azure, or gcp).
+ * @returns The generated Terraform code as a string.
+ */
 export function generateVendorTerraform(config: VendorAssessmentConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   const lines: string[] = [];
 
@@ -2166,6 +2235,13 @@ class VendorAssessmentManager:
 }
 
 // Write all files
+/**
+ * Writes all vendor assessment artifacts (documentation, Terraform, manager code, config) to disk.
+ * @param config - The vendor assessment configuration to render.
+ * @param outputDir - Directory where generated files will be written.
+ * @param language - Target language for the manager code (TypeScript or Python).
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeVendorFiles(config: VendorAssessmentConfig, outputDir: string, language: 'typescript' | 'python'): Promise<void> {
   await fs.ensureDir(outputDir);
 
@@ -2198,6 +2274,13 @@ export async function writeVendorFiles(config: VendorAssessmentConfig, outputDir
 }
 
 // Display configuration summary
+/**
+ * Prints a human-readable summary of the vendor assessment configuration to the console.
+ * @param config - The vendor assessment configuration to display.
+ * @param language - Target language shown in the summary (defaults to TypeScript).
+ * @param outputDir - Output directory shown in the summary (defaults to ./output).
+ * @returns void
+ */
 export function displayVendorConfig(config: VendorAssessmentConfig, language: 'typescript' | 'python' = 'typescript', outputDir = './output'): void {
   console.log(chalk.cyan.bold('\n🏢 Vendor Security Assessment Configuration\n'));
   console.log(chalk.gray('─'.repeat(50)));

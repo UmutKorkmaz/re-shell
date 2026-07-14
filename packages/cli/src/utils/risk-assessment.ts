@@ -5,16 +5,26 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Type Definitions
+/** Categories used to classify a risk. */
 export type RiskCategory = 'security' | 'compliance' | 'operational' | 'financial' | 'reputational' | 'strategic' | 'technology' | 'custom';
+/** Lifecycle status of a risk. */
 export type RiskStatus = 'identified' | 'analyzing' | 'mitigating' | 'mitigated' | 'accepted' | 'transferred' | 'closed' | 'escalated';
+/** Severity level of a risk. */
 export type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
+/** Qualitative likelihood ratings used in the risk matrix. */
 export type Likelihood = 'very-high' | 'high' | 'medium' | 'low' | 'very-low';
+/** Qualitative impact ratings used in the risk matrix. */
 export type Impact = 'catastrophic' | 'major' | 'moderate' | 'minor' | 'negligible';
+/** Progress status of a mitigation plan or task. */
 export type MitigationStatus = 'not-started' | 'in-progress' | 'completed' | 'blocked' | 'overdue' | 'cancelled';
+/** Operational status of a risk monitor. */
 export type MonitorStatus = 'active' | 'inactive' | 'paused' | 'error';
+/** Priority assigned to alerts raised by monitors. */
 export type AlertPriority = 'critical' | 'high' | 'medium' | 'low' | 'info';
+/** Trigger categories describing why an assessment was performed. */
 export type AssessmentType = 'initial' | 'periodic' | 'event-driven' | 'exception-request' | 'post-incident' | 'custom';
 
+/** Top-level configuration aggregating all risks, assessments, and related entities for a project. */
 export interface RiskAssessmentConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -32,6 +42,7 @@ export interface RiskAssessmentConfig {
   scenarios: RiskScenario[];
 }
 
+/** Configurable toggles and parameters driving the risk management workflow. */
 export interface RiskSettings {
   autoAssessment: boolean;
   assessmentFrequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'on-demand';
@@ -60,6 +71,7 @@ export interface RiskSettings {
   stakeholders: string[];
 }
 
+/** A single tracked risk within the assessment system. */
 export interface IdentifiedRisk {
   id: string;
   title: string;
@@ -84,6 +96,7 @@ export interface IdentifiedRisk {
   metadata: RiskMetadata;
 }
 
+/** A specific finding discovered during risk analysis. */
 export interface RiskFinding {
   id: string;
   title: string;
@@ -97,6 +110,7 @@ export interface RiskFinding {
   recommendations: string[];
 }
 
+/** Audit trail entry capturing a state change for a risk. */
 export interface RiskHistoryEntry {
   timestamp: Date;
   user: string;
@@ -114,6 +128,7 @@ export interface RiskHistoryEntry {
   };
 }
 
+/** Metadata describing creation, modification, and review history of a risk. */
 export interface RiskMetadata {
   created: Date;
   createdBy: string;
@@ -127,6 +142,7 @@ export interface RiskMetadata {
   customFields: Record<string, unknown>;
 }
 
+/** Maps a risk to a compliance framework requirement and control. */
 export interface ComplianceMapping {
   framework: string;
   requirement: string;
@@ -134,6 +150,7 @@ export interface ComplianceMapping {
   mapped: boolean;
 }
 
+/** Represents a single risk assessment exercise and its findings. */
 export interface RiskAssessment {
   id: string;
   name: string;
@@ -155,6 +172,7 @@ export interface RiskAssessment {
   nextAssessment: Date;
 }
 
+/** Defines the in-scope and excluded assets for an assessment. */
 export interface AssessmentScope {
   assets: string[];
   departments: string[];
@@ -164,6 +182,7 @@ export interface AssessmentScope {
   excludeAssets: string[];
 }
 
+/** A finding produced by a risk assessment. */
 export interface AssessmentFinding {
   id: string;
   riskId: string;
@@ -177,6 +196,7 @@ export interface AssessmentFinding {
   priority: number;
 }
 
+/** A plan to mitigate one or more identified risks. */
 export interface MitigationPlan {
   id: string;
   riskId: string;
@@ -198,6 +218,7 @@ export interface MitigationPlan {
   effectiveness?: 'highly-effective' | 'effective' | 'partially-effective' | 'ineffective' | 'unknown';
 }
 
+/** A single task belonging to a mitigation plan. */
 export interface MitigationTask {
   id: string;
   title: string;
@@ -212,6 +233,7 @@ export interface MitigationTask {
   checklist: ChecklistItem[];
 }
 
+/** An individual checklist entry within a mitigation task. */
 export interface ChecklistItem {
   item: string;
   completed: boolean;
@@ -219,6 +241,7 @@ export interface ChecklistItem {
   completedDate?: Date;
 }
 
+/** Continuously watches metrics and triggers alerts for associated risks. */
 export interface RiskMonitor {
   id: string;
   name: string;
@@ -235,6 +258,7 @@ export interface RiskMonitor {
   owner: string;
 }
 
+/** A metric definition queried and evaluated by a risk monitor. */
 export interface MonitoredMetric {
   id: string;
   name: string;
@@ -246,6 +270,7 @@ export interface MonitoredMetric {
   window: number; // minutes
 }
 
+/** A condition evaluated against monitored metrics to determine the action to take. */
 export interface MonitorCondition {
   id: string;
   metricId: string;
@@ -254,6 +279,7 @@ export interface MonitorCondition {
   action: 'alert' | 'escalate' | 'auto-mitigate' | 'create-ticket';
 }
 
+/** Rule describing how alerts for a monitor are routed and throttled. */
 export interface AlertRule {
   id: string;
   name: string;
@@ -265,6 +291,7 @@ export interface AlertRule {
   escalationRules?: EscalationRule[];
 }
 
+/** Defines escalation behavior when an alert is not acknowledged in time. */
 export interface EscalationRule {
   delay: number; // minutes
   level: number;
@@ -272,6 +299,7 @@ export interface EscalationRule {
   channels: Array<'email' | 'slack' | 'teams' | 'pagerduty' | 'sms'>;
 }
 
+/** An alert raised by a risk monitor. */
 export interface RiskAlert {
   id: string;
   monitorId: string;
@@ -289,6 +317,7 @@ export interface RiskAlert {
   actions: AlertAction[];
 }
 
+/** Records an action taken in response to an alert. */
 export interface AlertAction {
   action: string;
   performedBy?: string;
@@ -296,6 +325,7 @@ export interface AlertAction {
   result?: string;
 }
 
+/** A control implemented to prevent, detect, or correct risks. */
 export interface RiskControl {
   id: string;
   name: string;
@@ -314,6 +344,7 @@ export interface RiskControl {
   relatedRisks: string[]; // risk IDs
 }
 
+/** Result of testing a risk control's effectiveness. */
 export interface ControlTestResult {
   id: string;
   testDate: Date;
@@ -323,6 +354,7 @@ export interface ControlTestResult {
   evidence: string[];
 }
 
+/** A configurable likelihood/impact matrix that maps to risk scores and levels. */
 export interface RiskMatrix {
   id: string;
   name: string;
@@ -335,6 +367,7 @@ export interface RiskMatrix {
   enabled: boolean;
 }
 
+/** A generated risk report covering a defined period. */
 export interface RiskReport {
   id: string;
   name: string;
@@ -353,6 +386,7 @@ export interface RiskReport {
   filters: ReportFilter[];
 }
 
+/** Aggregate counts and statistics summarizing a reporting period. */
 export interface ReportSummary {
   totalRisks: number;
   byLevel: Record<RiskLevel, number>;
@@ -364,6 +398,7 @@ export interface ReportSummary {
   overdue: number;
 }
 
+/** Describes how a risk's score has changed over a period. */
 export interface RiskTrend {
   riskId: string;
   direction: 'increasing' | 'decreasing' | 'stable';
@@ -371,6 +406,7 @@ export interface RiskTrend {
   period: number; // days
 }
 
+/** Chart definition included in a risk report. */
 export interface ReportChart {
   type: 'bar' | 'line' | 'pie' | 'heatmap' | 'scatter';
   title: string;
@@ -378,12 +414,14 @@ export interface ReportChart {
   config?: Record<string, unknown>;
 }
 
+/** Filter applied when generating or viewing a risk report. */
 export interface ReportFilter {
   field: string;
   operator: 'eq' | 'neq' | 'in' | 'not-in' | 'gt' | 'lt' | 'contains';
   value: any;
 }
 
+/** A threshold that triggers an action when crossed by a risk metric. */
 export interface RiskThreshold {
   id: string;
   name: string;
@@ -395,6 +433,7 @@ export interface RiskThreshold {
   enabled: boolean;
 }
 
+/** Captures a dependency relationship between two risks. */
 export interface RiskDependency {
   id: string;
   sourceRisk: string; // risk ID
@@ -404,6 +443,7 @@ export interface RiskDependency {
   description: string;
 }
 
+/** A scenario describing how multiple risks may combine or materialize together. */
 export interface RiskScenario {
   id: string;
   name: string;
@@ -417,6 +457,7 @@ export interface RiskScenario {
   nextReview: Date;
 }
 
+/** A factor contributing to the impact of a scenario. */
 export interface ImpactFactor {
   factor: string;
   impact: Impact;
@@ -424,6 +465,11 @@ export interface ImpactFactor {
 }
 
 // Generate markdown documentation
+/**
+ * Generates markdown documentation describing the risk assessment configuration.
+ * @param config - The risk assessment configuration to render.
+ * @returns A markdown string representation of the configuration.
+ */
 export function generateRiskMarkdown(config: RiskAssessmentConfig): string {
   const lines: string[] = [];
 
@@ -638,6 +684,12 @@ export function generateRiskMarkdown(config: RiskAssessmentConfig): string {
 }
 
 // Generate Terraform configuration
+/**
+ * Generates Terraform configuration for risk management resources on the given cloud provider.
+ * @param config - The risk assessment configuration to render.
+ * @param provider - The target cloud provider.
+ * @returns A Terraform configuration string.
+ */
 export function generateRiskTerraform(config: RiskAssessmentConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   const lines: string[] = [];
 
@@ -828,6 +880,10 @@ export function generateRiskTerraform(config: RiskAssessmentConfig, provider: 'a
 }
 
 // Generate TypeScript manager class
+/**
+ * Generates the source code for a TypeScript `RiskAssessmentManager` class.
+ * @returns A string containing the TypeScript manager class source.
+ */
 export function generateTypeScriptManager(): string {
   return `// Risk Assessment Manager - TypeScript
 
@@ -914,6 +970,9 @@ export interface MonitorCondition {
   action: 'alert' | 'escalate' | 'auto-mitigate';
 }
 
+/**
+ * Event-emitting manager that orchestrates risks, assessments, mitigations, and monitors at runtime.
+ */
 export class RiskAssessmentManager extends EventEmitter {
   private risks: Map<string, IdentifiedRisk> = new Map();
   private assessments: Map<string, RiskAssessment> = new Map();
@@ -1269,6 +1328,10 @@ interface RiskMatrix {
 }
 
 // Generate Python manager class
+/**
+ * Generates the source code for a Python `RiskAssessmentManager` class.
+ * @returns A string containing the Python manager class source.
+ */
 export function generatePythonManager(): string {
   return `# Risk Assessment Manager - Python
 
@@ -1666,6 +1729,13 @@ class RiskAssessmentManager:
 }
 
 // Write files to output directory
+/**
+ * Writes all risk assessment artifacts (markdown, Terraform, and manager source) to disk.
+ * @param config - The risk assessment configuration to materialize.
+ * @param outputDir - Directory where artifacts will be written.
+ * @param language - Target language for the generated manager source.
+ * @returns Resolves when all files have been written.
+ */
 export async function writeRiskFiles(
   config: RiskAssessmentConfig,
   outputDir: string,
@@ -1716,6 +1786,11 @@ export async function writeRiskFiles(
 }
 
 // Display configuration summary
+/**
+ * Prints a human-readable summary of the risk assessment configuration to the console.
+ * @param config - The risk assessment configuration to display.
+ * @param language - Target language label shown in the summary header.
+ */
 export function displayRiskConfig(config: RiskAssessmentConfig, language: 'typescript' | 'python' = 'typescript'): void {
   console.log(chalk.bold('\n⚠️  Risk Assessment Configuration\n'));
 

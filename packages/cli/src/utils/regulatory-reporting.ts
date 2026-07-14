@@ -5,17 +5,28 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Type Definitions
+/** Supported regulatory report framework types. */
 export type ReportType = 'sox' | 'gdpr' | 'hipaa' | 'pci-dss' | 'nist-800-53' | 'iso-27001' | 'soc-2' | 'custom';
+/** Lifecycle status of a regulatory report. */
 export type ReportStatus = 'draft' | 'in-review' | 'approved' | 'rejected' | 'archived';
+/** Output formats supported for generated reports. */
 export type ReportFormat = 'pdf' | 'html' | 'json' | 'xml' | 'csv' | 'excel';
+/** Overall compliance state for a tracked entity. */
 export type ComplianceStatus = 'compliant' | 'non-compliant' | 'partial' | 'pending-review';
+/** Categorization of risk severity levels. */
 export type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
+/** Status indicating the evaluation state of a compliance control. */
 export type ControlStatus = 'compliant' | 'non-compliant' | 'partial' | 'not-applicable' | 'pending-review';
+/** Aggregation period for a compliance dashboard. */
 export type DashboardPeriod = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual';
+/** Severity levels for compliance alerts. */
 export type AlertSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+/** Lifecycle status of a report workflow. */
 export type WorkflowStatus = 'pending' | 'in-progress' | 'completed' | 'on-hold' | 'cancelled';
+/** Approval state for a workflow approver or signoff request. */
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'requires-changes';
 
+/** Top-level configuration for regulatory reporting and compliance dashboards. */
 export interface RegulatoryConfig {
   projectName: string;
   providers: Array<'aws' | 'azure' | 'gcp'>;
@@ -30,6 +41,7 @@ export interface RegulatoryConfig {
   evidence: EvidenceRecord[];
 }
 
+/** Settings controlling report generation, approvals, and dashboard behavior. */
 export interface ReportingSettings {
   autoGenerate: boolean;
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual' | 'on-demand';
@@ -56,6 +68,7 @@ export interface ReportingSettings {
   benchmarkIndustry: string;
 }
 
+/** Notification channel configuration for compliance alerts and report notifications. */
 export interface NotificationChannel {
   type: 'email' | 'slack' | 'teams' | 'webhook' | 'sms' | 'custom';
   enabled: boolean;
@@ -63,6 +76,7 @@ export interface NotificationChannel {
   config?: Record<string, unknown>;
 }
 
+/** Definition of a compliance dashboard with widgets, metrics, and layout. */
 export interface ComplianceDashboard {
   id: string;
   name: string;
@@ -82,6 +96,7 @@ export interface ComplianceDashboard {
   drilling: DrillDownConfig;
 }
 
+/** Widget displayed on a compliance dashboard. */
 export interface DashboardWidget {
   id: string;
   type: 'chart' | 'table' | 'metric' | 'gauge' | 'heatmap' | 'timeline' | 'scorecard' | 'custom';
@@ -95,16 +110,19 @@ export interface DashboardWidget {
   thresholds?: MetricThreshold[];
 }
 
+/** X/Y coordinates of a widget on the dashboard grid. */
 export interface WidgetPosition {
   x: number;
   y: number;
 }
 
+/** Dimensions of a dashboard widget. */
 export interface WidgetSize {
   width: number;
   height: number;
 }
 
+/** Source of data feeding a dashboard widget. */
 export interface DataSource {
   type: 'query' | 'api' | 'static' | 'aggregated' | 'custom';
   query?: string;
@@ -112,6 +130,7 @@ export interface DataSource {
   aggregation?: AggregationConfig;
 }
 
+/** Configuration for aggregating widget data sources. */
 export interface AggregationConfig {
   function: 'sum' | 'avg' | 'count' | 'min' | 'max' | 'percentile' | 'custom';
   field: string;
@@ -119,6 +138,7 @@ export interface AggregationConfig {
   filter?: string;
 }
 
+/** Display configuration options for a chart-based widget. */
 export interface WidgetConfig {
   chartType?: 'line' | 'bar' | 'pie' | 'area' | 'scatter' | 'bubble' | 'radar' | 'custom';
   axisLabels?: { x?: string; y?: string };
@@ -131,6 +151,7 @@ export interface WidgetConfig {
   customOptions?: Record<string, unknown>;
 }
 
+/** Threshold rule used to color or evaluate a metric value. */
 export interface MetricThreshold {
   label: string;
   value: number;
@@ -138,6 +159,7 @@ export interface MetricThreshold {
   operator: 'gt' | 'lt' | 'eq' | 'gte' | 'lte';
 }
 
+/** Metric value displayed on a compliance dashboard. */
 export interface DashboardMetric {
   id: string;
   name: string;
@@ -152,6 +174,7 @@ export interface DashboardMetric {
   thresholds?: MetricThreshold[];
 }
 
+/** Filter control available on a compliance dashboard. */
 export interface DashboardFilter {
   id: string;
   name: string;
@@ -162,11 +185,13 @@ export interface DashboardFilter {
   required: boolean;
 }
 
+/** Selectable option for a dashboard filter. */
 export interface FilterOption {
   label: string;
   value: any;
 }
 
+/** Grid layout settings for a compliance dashboard. */
 export interface DashboardLayout {
   columns: number;
   rowHeight: number;
@@ -174,6 +199,7 @@ export interface DashboardLayout {
   margin: number;
 }
 
+/** Color theme for a compliance dashboard. */
 export interface DashboardTheme {
   primary: string;
   secondary: string;
@@ -183,17 +209,20 @@ export interface DashboardTheme {
   mode: 'light' | 'dark' | 'auto';
 }
 
+/** Drill-down navigation configuration for a dashboard. */
 export interface DrillDownConfig {
   enabled: boolean;
   levels: DrillDownLevel[];
 }
 
+/** A single level in a dashboard drill-down hierarchy. */
 export interface DrillDownLevel {
   name: string;
   targetDashboard?: string;
   filters: Record<string, unknown>;
 }
 
+/** A generated regulatory report with controls, findings, and signoffs. */
 export interface RegulatoryReport {
   id: string;
   name: string;
@@ -217,6 +246,7 @@ export interface RegulatoryReport {
   metadata: ReportMetadata;
 }
 
+/** Aggregate metrics summarizing a regulatory report. */
 export interface ReportSummary {
   totalControls: number;
   compliantControls: number;
@@ -229,6 +259,7 @@ export interface ReportSummary {
   riskScore: number; // 0-100
 }
 
+/** Snapshot of a compliance control within a regulatory report. */
 export interface ReportControl {
   controlId: string;
   title: string;
@@ -243,6 +274,7 @@ export interface ReportControl {
   framework?: ReportType;
 }
 
+/** A compliance finding discovered during report generation or testing. */
 export interface ReportFinding {
   id: string;
   control: string;
@@ -261,6 +293,7 @@ export interface ReportFinding {
   verifiedDate?: Date;
 }
 
+/** Sign-off entry recording approval of a regulatory report. */
 export interface ReportSignoff {
   role: string;
   name: string;
@@ -270,6 +303,7 @@ export interface ReportSignoff {
   comments?: string;
 }
 
+/** Attachment file linked to a regulatory report. */
 export interface ReportAttachment {
   name: string;
   type: string;
@@ -279,6 +313,7 @@ export interface ReportAttachment {
   uploadedBy: string;
 }
 
+/** Metadata and audit trail for a regulatory report. */
 export interface ReportMetadata {
   version: string;
   lastModifiedDate: Date;
@@ -288,6 +323,7 @@ export interface ReportMetadata {
   tags: string[];
 }
 
+/** Single entry in a report's audit trail. */
 export interface AuditEntry {
   timestamp: Date;
   user: string;
@@ -295,6 +331,7 @@ export interface AuditEntry {
   details: string;
 }
 
+/** Definition of a compliance control, including testing and evidence requirements. */
 export interface ComplianceControl {
   id: string;
   framework: ReportType;
@@ -317,6 +354,7 @@ export interface ComplianceControl {
   complianceMappings: ComplianceMapping[];
 }
 
+/** Procedure for testing a compliance control. */
 export interface TestProcedure {
   id: string;
   name: string;
@@ -327,6 +365,7 @@ export interface TestProcedure {
   estimatedTime: number; // minutes
 }
 
+/** Individual step within a test procedure. */
 export interface TestStep {
   order: number;
   action: string;
@@ -335,6 +374,7 @@ export interface TestStep {
   evidenceRequired: boolean;
 }
 
+/** Automated check used to validate a compliance control. */
 export interface AutomatedCheck {
   id: string;
   name: string;
@@ -347,6 +387,7 @@ export interface AutomatedCheck {
   threshold?: number | string;
 }
 
+/** Manual check used to validate a compliance control. */
 export interface ManualCheck {
   id: string;
   name: string;
@@ -358,6 +399,7 @@ export interface ManualCheck {
   evidenceRequired: boolean;
 }
 
+/** Item in a manual check's checklist. */
 export interface ChecklistItem {
   item: string;
   completed: boolean;
@@ -366,6 +408,7 @@ export interface ChecklistItem {
   notes?: string;
 }
 
+/** Requirement describing evidence needed to satisfy a control. */
 export interface EvidenceRequirement {
   id: string;
   type: 'screenshot' | 'log-file' | 'configuration' | 'document' | 'certificate' | 'audit-trail' | 'custom';
@@ -378,6 +421,7 @@ export interface EvidenceRequirement {
   relatedControls: string[];
 }
 
+/** Mapping of a control to an equivalent control in another framework. */
 export interface ComplianceMapping {
   framework: ReportType;
   controlId: string;
@@ -385,6 +429,7 @@ export interface ComplianceMapping {
   notes?: string;
 }
 
+/** A compliance framework with its requirements and control mappings. */
 export interface ComplianceFramework {
   id: string;
   name: string;
@@ -399,6 +444,7 @@ export interface ComplianceFramework {
   nextAssessmentDate: Date;
 }
 
+/** Requirement belonging to a compliance framework. */
 export interface FrameworkRequirement {
   id: string;
   requirementId: string;
@@ -416,6 +462,7 @@ export interface FrameworkRequirement {
   nextAssessmentDate: Date;
 }
 
+/** Workflow that orchestrates report generation, review, and approval. */
 export interface ReportWorkflow {
   id: string;
   name: string;
@@ -432,6 +479,7 @@ export interface ReportWorkflow {
   metadata: WorkflowMetadata;
 }
 
+/** A single stage within a report workflow. */
 export interface WorkflowStage {
   order: number;
   name: string;
@@ -445,6 +493,7 @@ export interface WorkflowStage {
   dependencies: string[]; // stage IDs
 }
 
+/** Action performed within a workflow stage. */
 export interface WorkflowAction {
   id: string;
   name: string;
@@ -461,6 +510,7 @@ export interface WorkflowAction {
   result?: any;
 }
 
+/** Approver assigned to a workflow stage. */
 export interface WorkflowApprover {
   userId: string;
   name: string;
@@ -472,6 +522,7 @@ export interface WorkflowApprover {
   comments?: string;
 }
 
+/** Notification dispatched during a workflow lifecycle event. */
 export interface WorkflowNotification {
   type: 'email' | 'slack' | 'teams' | 'webhook' | 'custom';
   recipient: string;
@@ -481,6 +532,7 @@ export interface WorkflowNotification {
   sentAt?: Date;
 }
 
+/** Metadata describing a workflow's priority and timing. */
 export interface WorkflowMetadata {
   estimatedDuration: number; // minutes
   actualDuration?: number;
@@ -489,6 +541,7 @@ export interface WorkflowMetadata {
   version: number;
 }
 
+/** Alert definition that monitors compliance conditions and triggers actions. */
 export interface ComplianceAlert {
   id: string;
   name: string;
@@ -503,6 +556,7 @@ export interface ComplianceAlert {
   metadata: AlertMetadata;
 }
 
+/** Condition evaluated to trigger a compliance alert. */
 export interface AlertCondition {
   type: 'threshold' | 'trend' | 'pattern' | 'compliance' | 'deadline' | 'custom';
   field: string;
@@ -511,6 +565,7 @@ export interface AlertCondition {
   timeWindow?: number; // minutes
 }
 
+/** Action performed when a compliance alert triggers. */
 export interface AlertAction {
   type: 'email' | 'sms' | 'webhook' | 'slack' | 'teams' | 'pagerduty' | 'custom';
   target: string;
@@ -518,6 +573,7 @@ export interface AlertAction {
   template?: string;
 }
 
+/** Metadata describing the origin and categorization of an alert. */
 export interface AlertMetadata {
   category: string;
   source: string;
@@ -528,6 +584,7 @@ export interface AlertMetadata {
   tags: string[];
 }
 
+/** Schedule for recurring regulatory report generation. */
 export interface ReportSchedule {
   id: string;
   name: string;
@@ -544,6 +601,7 @@ export interface ReportSchedule {
   parameters: ScheduleParameters;
 }
 
+/** Parameters defining the scope and filters for a scheduled report. */
 export interface ScheduleParameters {
   frameworks: ReportType[];
   scope: ScheduleScope;
@@ -551,6 +609,7 @@ export interface ScheduleParameters {
   customFields?: Record<string, unknown>;
 }
 
+/** Asset and organizational scope for a scheduled report. */
 export interface ScheduleScope {
   includedAssets: string[];
   excludedAssets: string[];
@@ -558,6 +617,7 @@ export interface ScheduleScope {
   regions: string[];
 }
 
+/** Record of evidence collected to support compliance controls. */
 export interface EvidenceRecord {
   id: string;
   type: 'screenshot' | 'log-file' | 'configuration' | 'document' | 'certificate' | 'audit-trail' | 'interview-notes' | 'custom';
@@ -580,6 +640,7 @@ export interface EvidenceRecord {
   metadata: EvidenceMetadata;
 }
 
+/** Metadata for an evidence record, including verification details. */
 export interface EvidenceMetadata {
   framework?: ReportType;
   source: string;
@@ -594,6 +655,11 @@ export interface EvidenceMetadata {
 }
 
 // Generate markdown documentation
+/**
+ * Generates a markdown documentation string summarizing the regulatory configuration.
+ * @param config - The regulatory reporting configuration to document.
+ * @returns Markdown string describing settings, dashboards, reports, and related entities.
+ */
 export function generateRegulatoryMarkdown(config: RegulatoryConfig): string {
   const lines: string[] = [];
 
@@ -847,6 +913,12 @@ export function generateRegulatoryMarkdown(config: RegulatoryConfig): string {
 }
 
 // Generate Terraform configuration
+/**
+ * Generates Terraform configuration for regulatory reporting infrastructure.
+ * @param config - The regulatory reporting configuration.
+ * @param provider - Cloud provider for which to generate Terraform resources.
+ * @returns Terraform configuration string for the specified provider.
+ */
 export function generateRegulatoryTerraform(config: RegulatoryConfig, provider: 'aws' | 'azure' | 'gcp'): string {
   const lines: string[] = [];
 
@@ -1320,6 +1392,10 @@ function getCloudWatchDashboardJSON(config: RegulatoryConfig): string {
 }
 
 // Generate TypeScript manager class
+/**
+ * Generates a TypeScript `RegulatoryReportingManager` class as a source string.
+ * @returns TypeScript source code string for the regulatory reporting manager.
+ */
 export function generateTypeScriptManager(): string {
   return `// Regulatory Reporting Manager - TypeScript
 
@@ -1708,6 +1784,10 @@ export interface ReportingSettings {
 }
 
 // Generate Python manager class
+/**
+ * Generates a Python `RegulatoryReportingManager` class as a source string.
+ * @returns Python source code string for the regulatory reporting manager.
+ */
 export function generatePythonManager(): string {
   return `# Regulatory Reporting Manager - Python
 
@@ -2151,6 +2231,13 @@ class RegulatoryReportingManager:
 }
 
 // Write files to output directory
+/**
+ * Writes regulatory reporting files (markdown, Terraform, manager source, and example config) to disk.
+ * @param config - The regulatory reporting configuration.
+ * @param outputDir - Directory where generated files will be written.
+ * @param language - Target language for the manager class source file.
+ * @returns Promise that resolves when all files have been written.
+ */
 export async function writeRegulatoryFiles(
   config: RegulatoryConfig,
   outputDir: string,
@@ -2201,6 +2288,12 @@ export async function writeRegulatoryFiles(
 }
 
 // Display configuration summary
+/**
+ * Prints a human-readable summary of the regulatory reporting configuration to the console.
+ * @param config - The regulatory reporting configuration to display.
+ * @param language - Target language label shown in the generated files list. Defaults to 'typescript'.
+ * @returns void
+ */
 export function displayRegulatoryConfig(config: RegulatoryConfig, language: 'typescript' | 'python' = 'typescript'): void {
   console.log(chalk.bold('\n📊 Regulatory Reporting Configuration\n'));
 
