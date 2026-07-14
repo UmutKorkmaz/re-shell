@@ -7,7 +7,9 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
-// Supported data formats
+/**
+ * Union of all data formats supported by the format negotiator.
+ */
 export type DataFormat =
   | 'json'
   | 'xml'
@@ -20,7 +22,9 @@ export type DataFormat =
   | 'html'
   | 'text';
 
-// Content type with parameters
+/**
+ * Represents a parsed content-type with its type, subtype, parameters, and quality value.
+ */
 export interface ContentType {
   type: string;
   subtype: string;
@@ -28,7 +32,9 @@ export interface ContentType {
   quality: number;
 }
 
-// Negotiation result
+/**
+ * The result of a format negotiation, including the selected format and its content-type.
+ */
 export interface NegotiationResult {
   format: DataFormat;
   contentType: string;
@@ -36,7 +42,9 @@ export interface NegotiationResult {
   encoding?: string;
 }
 
-// Negotiation options
+/**
+ * Options used when negotiating the best format for a request.
+ */
 export interface NegotiationOptions {
   acceptHeader?: string;
   supportedFormats: DataFormat[];
@@ -44,13 +52,17 @@ export interface NegotiationOptions {
   prioritizeByQuality?: boolean;
 }
 
-// Format converter
+/**
+ * Interface for a converter that transforms data between two formats.
+ */
 export interface FormatConverter {
   canConvert(from: DataFormat, to: DataFormat): boolean;
   convert(data: any, from: DataFormat, to: DataFormat): any;
 }
 
-// Negotiator configuration
+/**
+ * Configuration for generating and running a format negotiator for a service.
+ */
 export interface FormatNegotiatorConfig {
   serviceName: string;
   supportedFormats: DataFormat[];
@@ -59,7 +71,13 @@ export interface FormatNegotiatorConfig {
   strictMode: boolean;
 }
 
-// Generate format negotiator config
+/**
+ * Creates a default `FormatNegotiatorConfig` for the given service.
+ *
+ * @param serviceName - The name of the service the negotiator is for.
+ * @param defaultFormat - The fallback format when negotiation fails. Defaults to `'json'`.
+ * @returns A populated `FormatNegotiatorConfig` object.
+ */
 export async function generateFormatNegotiatorConfig(
   serviceName: string,
   defaultFormat: DataFormat = 'json'
@@ -93,7 +111,12 @@ function parseContentType(contentType: string): ContentType {
   return { type, subtype, parameters, quality };
 }
 
-// Generate TypeScript implementation
+/**
+ * Generates a TypeScript implementation of a format negotiator for the configured service.
+ *
+ * @param config - The negotiator configuration describing supported formats and defaults.
+ * @returns An object containing the generated source files and a list of npm dependencies.
+ */
 export async function generateTypeScriptFormatNegotiator(
   config: FormatNegotiatorConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -614,7 +637,12 @@ if (require.main === module) {
   return { files, dependencies };
 }
 
-// Generate Python implementation
+/**
+ * Generates a Python implementation of a format negotiator for the configured service.
+ *
+ * @param config - The negotiator configuration describing supported formats and defaults.
+ * @returns An object containing the generated Python source files and a list of pip dependencies.
+ */
 export async function generatePythonFormatNegotiator(
   config: FormatNegotiatorConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -857,7 +885,12 @@ if __name__ == '__main__':
   return { files, dependencies };
 }
 
-// Generate Go implementation
+/**
+ * Generates a Go implementation of a format negotiator for the configured service.
+ *
+ * @param config - The negotiator configuration describing supported formats and defaults.
+ * @returns An object containing the generated Go source files and a list of Go module dependencies.
+ */
 export async function generateGoFormatNegotiator(
   config: FormatNegotiatorConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -1110,7 +1143,15 @@ func main() {
   return { files, dependencies };
 }
 
-// Write generated files
+/**
+ * Writes generated format negotiator source files and a BUILD.md guide to the specified output directory.
+ *
+ * @param serviceName - The name of the service.
+ * @param integration - The result object from a generator function, containing `files` and `dependencies`.
+ * @param outputDir - The directory where files will be written.
+ * @param language - The target language, used in the generated build documentation.
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeFormatNegotiatorFiles(
   serviceName: string,
   integration: any,
@@ -1131,7 +1172,12 @@ export async function writeFormatNegotiatorFiles(
   await fs.writeFile(path.join(outputDir, 'BUILD.md'), buildContent);
 }
 
-// Display configuration
+/**
+ * Prints a human-readable summary of the format negotiator configuration to the console.
+ *
+ * @param config - The negotiator configuration to display.
+ * @returns A promise that resolves when the output is complete.
+ */
 export async function displayFormatNegotiatorConfig(config: FormatNegotiatorConfig): Promise<void> {
   console.log(chalk.bold.magenta('\n🔄 Data Format Negotiator: ' + config.serviceName));
   console.log(chalk.gray('─'.repeat(50)));

@@ -8,6 +8,10 @@ import * as path from 'path';
 import chalk from 'chalk';
 
 // Documentation configuration interfaces
+
+/**
+ * Configuration object for interactive API documentation generation.
+ */
 export interface InteractiveDocsConfig {
   title: string;
   description?: string;
@@ -24,6 +28,10 @@ export interface InteractiveDocsConfig {
   responseViewerEnabled?: boolean;
 }
 
+/**
+ * Authentication configuration for the interactive docs.
+ * Supports bearer, basic, API key, and OAuth2 auth schemes.
+ */
 export interface AuthConfig {
   type: 'none' | 'bearer' | 'basic' | 'apiKey' | 'oauth2';
   bearer?: {
@@ -47,6 +55,9 @@ export interface AuthConfig {
   };
 }
 
+/**
+ * Represents a single API endpoint to be displayed in the interactive documentation.
+ */
 export interface APIDocumentationEndpoint {
   id: string;
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
@@ -63,6 +74,9 @@ export interface APIDocumentationEndpoint {
   tryIt?: TryItConfig;
 }
 
+/**
+ * Describes a single parameter for an API endpoint (path, query, header, or cookie).
+ */
 export interface APIParameter {
   name: string;
   in: 'path' | 'query' | 'header' | 'cookie';
@@ -76,6 +90,9 @@ export interface APIParameter {
   schema?: any;
 }
 
+/**
+ * Describes the request body of an API endpoint.
+ */
 export interface APIRequestBody {
   description?: string;
   required: boolean;
@@ -84,6 +101,9 @@ export interface APIRequestBody {
   examples?: Record<string, unknown>;
 }
 
+/**
+ * Represents a possible response for an API endpoint, including status code and schema.
+ */
 export interface APIResponse {
   statusCode: number;
   description: string;
@@ -93,6 +113,9 @@ export interface APIResponse {
   headers?: Record<string, { description: string; schema: any }>;
 }
 
+/**
+ * Represents a request/response example for an API endpoint.
+ */
 export interface APIExample {
   name: string;
   description?: string;
@@ -108,6 +131,9 @@ export interface APIExample {
   };
 }
 
+/**
+ * Configuration for the interactive "Try It" panel of an endpoint.
+ */
 export interface TryItConfig {
   enabled: boolean;
   mockResponse?: boolean;
@@ -115,6 +141,9 @@ export interface TryItConfig {
   defaultHeaders?: Record<string, string>;
 }
 
+/**
+ * Represents a logical group of API endpoints in the documentation sidebar.
+ */
 export interface APIGroup {
   id: string;
   name: string;
@@ -123,6 +152,11 @@ export interface APIGroup {
   order?: number;
 }
 
+/**
+ * Generates a complete interactive HTML documentation page from the given config.
+ * @param config - The interactive docs configuration including endpoints, groups, and auth.
+ * @returns A full HTML document string with embedded CSS and JavaScript.
+ */
 // Generate interactive HTML documentation
 export function generateInteractiveDocsHTML(config: InteractiveDocsConfig): string {
   const themeColor = config.themeColor || '#3b82f6';
@@ -1053,6 +1087,12 @@ export function generateInteractiveDocsHTML(config: InteractiveDocsConfig): stri
 </html>`;
 }
 
+/**
+ * Converts an OpenAPI specification object into an InteractiveDocsConfig.
+ * @param spec - The parsed OpenAPI specification object.
+ * @param baseUrl - The base URL for API requests in the generated docs.
+ * @returns An InteractiveDocsConfig derived from the OpenAPI spec.
+ */
 // Convert OpenAPI spec to InteractiveDocsConfig
 export function openAPIToInteractiveDocs(spec: any, baseUrl: string): InteractiveDocsConfig {
   const paths = spec.paths || {};
@@ -1141,6 +1181,13 @@ export function openAPIToInteractiveDocs(spec: any, baseUrl: string): Interactiv
   };
 }
 
+/**
+ * Reads an OpenAPI spec file, converts it to interactive docs, and writes the HTML output.
+ * @param specPath - Path to the OpenAPI specification file (JSON).
+ * @param outputPath - Path where the generated HTML file will be written.
+ * @param baseUrl - The base URL for API requests in the generated docs.
+ * @throws {Error} If the spec file cannot be read or parsed as JSON.
+ */
 // Generate docs from OpenAPI spec file
 export async function generateDocsFromSpec(specPath: string, outputPath: string, baseUrl: string): Promise<void> {
   const specContent = await fs.readFile(specPath, 'utf-8');
@@ -1153,6 +1200,11 @@ export async function generateDocsFromSpec(specPath: string, outputPath: string,
   await fs.writeFile(outputPath, html, 'utf-8');
 }
 
+/**
+ * Formats an InteractiveDocsConfig into a human-readable CLI summary string.
+ * @param config - The interactive docs configuration to format.
+ * @returns A formatted string with endpoint counts, methods, and feature flags.
+ */
 // Format for display
 export function formatInteractiveDocsConfig(config: InteractiveDocsConfig): string {
   const lines: string[] = [];
@@ -1183,6 +1235,10 @@ export function formatInteractiveDocsConfig(config: InteractiveDocsConfig): stri
   return lines.join('\n');
 }
 
+/**
+ * Returns a list of API frameworks supported for auto-detection.
+ * @returns An array of supported framework name strings.
+ */
 // List supported frameworks for auto-detection
 export function listSupportedFrameworks(): string[] {
   return [
