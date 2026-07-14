@@ -16,7 +16,10 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/dist/**'],
     // Interactive tests use process.chdir() into os.tmpdir() workspaces, which is
     // not supported inside worker_threads. Run them in the child_process pool.
-    poolMatchGlobs: [['**/tests/interactive/**', 'child_process']],
+    poolMatchGlobs: [
+      ['**/tests/interactive/**', 'child_process'],
+      ['**/tests/integration/plugin-create-cli.test.ts', 'child_process'],
+    ],
     // Coverage decision: SCOPED + FAST.
     // - Scoped: the CLI still carries ~144k lines slated for deletion next wave,
     //   so `include` is restricted to the live/contract surface that the web hub
