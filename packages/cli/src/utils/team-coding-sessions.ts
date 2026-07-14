@@ -2,43 +2,102 @@ import chalk from 'chalk';
 // Auto-generated Team Coding Sessions Utility
 // Generated at: 2026-01-13T13:25:00.000Z
 
+/**
+ * Represents the role assigned to a participant in a team coding session.
+ * - `host`: Full control over the session.
+ * - `moderator`: Manages participants and activity.
+ * - `editor`: Can edit code within the session.
+ * - `viewer`: Read-only access to the session.
+ * - `guest`: Temporary limited access.
+ */
 type SessionRole = 'host' | 'moderator' | 'editor' | 'viewer' | 'guest';
+
+/**
+ * Describes the kind of activity recorded in a session's activity log.
+ * - `edit`: A code edit was made.
+ * - `comment`: A comment was added.
+ * - `review`: A review action was performed.
+ * - `suggestion`: A suggestion was submitted.
+ * - `breakpoint`: A debugging breakpoint was toggled.
+ */
 type ActivityType = 'edit' | 'comment' | 'review' | 'suggestion' | 'breakpoint';
 
+/**
+ * Defines the permission set granted to a particular session role.
+ */
 interface PermissionConfig {
+  /** Whether the role is permitted to edit code. */
   canEdit: boolean;
+  /** Whether the role is permitted to add comments. */
   canComment: boolean;
+  /** Whether the role is permitted to perform reviews. */
   canReview: boolean;
+  /** Whether the role is permitted to approve changes. */
   canApprove: boolean;
+  /** Whether the role is permitted to execute code or commands. */
   canExecute: boolean;
 }
 
+/**
+ * A single entry in the session activity log, capturing a participant action.
+ */
 interface ActivityLog {
+  /** Unique identifier of the user who performed the action. */
   userId: string;
+  /** Display name of the user who performed the action. */
   userName: string;
+  /** The type of activity that was performed. */
   action: ActivityType;
+  /** Unix timestamp (milliseconds) when the activity occurred. */
   timestamp: number;
+  /** Additional arbitrary details associated with the activity. */
   details: { [key: string]: any };
 }
 
+/**
+ * Configuration for an individual team coding session.
+ */
 interface SessionConfig {
+  /** Human-friendly name of the session. */
   name: string;
+  /** Maximum allowed duration of the session, in minutes. */
   maxDuration: number;
+  /** Whether the session should be archived automatically upon completion. */
   autoArchive: boolean;
+  /** Whether session recording is enabled. */
   recordingEnabled: boolean;
 }
 
+/**
+ * Top-level configuration object for the Team Coding Sessions feature.
+ */
 interface TeamCodingSessionConfig {
+  /** Name of the project the sessions belong to. */
   projectName: string;
+  /** Cloud providers targeted by the generated infrastructure code. */
   providers: ('aws' | 'azure' | 'gcp')[];
+  /** Session-level configuration options. */
   session: SessionConfig;
+  /** Mapping of role name to its permission configuration. */
   permissions: { [role: string]: PermissionConfig };
+  /** Ordered list of activity log entries for the session. */
   activityLog: ActivityLog[];
+  /** Whether voice chat integration is enabled. */
   enableVoiceChat: boolean;
+  /** Whether screen sharing is enabled. */
   enableScreenShare: boolean;
+  /** Whether analytics and reporting are enabled. */
   enableAnalytics: boolean;
 }
 
+/**
+ * Prints a human-readable summary of a team coding session configuration to the
+ * console, including project name, providers, session options, role count, and
+ * enabled features.
+ *
+ * @param config - The team coding session configuration to display.
+ * @returns No return value; output is written to stdout.
+ */
 export function displayConfig(config: TeamCodingSessionConfig): void {
   console.log(chalk.cyan('👥 Team Coding Sessions with Role-Based Permissions'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -56,6 +115,13 @@ export function displayConfig(config: TeamCodingSessionConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Builds a Markdown document describing the features of the Team Coding
+ * Sessions capability.
+ *
+ * @param config - The team coding session configuration used as context for the document.
+ * @returns A Markdown string summarizing the available team coding session features.
+ */
 export function generateTeamCodingSessionsMD(config: TeamCodingSessionConfig): string {
   let md = '# Team Coding Sessions\n\n';
   md += '## Features\n\n';
@@ -73,12 +139,26 @@ export function generateTeamCodingSessionsMD(config: TeamCodingSessionConfig): s
   return md;
 }
 
+/**
+ * Generates the Terraform header/content for provisioning team coding session
+ * infrastructure for the configured project.
+ *
+ * @param config - The team coding session configuration to generate Terraform from.
+ * @returns A string containing Terraform code with project-specific headers.
+ */
 export function generateTerraformTeamCodingSessions(config: TeamCodingSessionConfig): string {
   let code = '# Auto-generated Team Coding Sessions Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file that defines a `TeamCodingSessionsManager`
+ * class extending `EventEmitter` for the configured project.
+ *
+ * @param config - The team coding session configuration to generate TypeScript code from.
+ * @returns A string containing TypeScript source code for the sessions manager.
+ */
 export function generateTypeScriptTeamCodingSessions(config: TeamCodingSessionConfig): string {
   let code = '// Auto-generated Team Coding Sessions Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -93,6 +173,13 @@ export function generateTypeScriptTeamCodingSessions(config: TeamCodingSessionCo
   return code;
 }
 
+/**
+ * Generates a Python source file that defines a `TeamCodingSessionsManager`
+ * class for the configured project.
+ *
+ * @param config - The team coding session configuration to generate Python code from.
+ * @returns A string containing Python source code for the sessions manager.
+ */
 export function generatePythonTeamCodingSessions(config: TeamCodingSessionConfig): string {
   let code = '# Auto-generated Team Coding Sessions Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -105,6 +192,18 @@ export function generatePythonTeamCodingSessions(config: TeamCodingSessionConfig
   return code;
 }
 
+/**
+ * Writes the generated team coding session files for the given configuration to
+ * the specified output directory. Depending on the chosen language, this writes
+ * Terraform code, either TypeScript or Python manager source, accompanying
+ * dependency manifests, a Markdown feature document, and a JSON configuration
+ * file.
+ *
+ * @param config - The team coding session configuration to materialize as files.
+ * @param outputDir - Absolute or relative path of the directory to write files into. It will be created if it does not exist.
+ * @param language - Target implementation language; `'typescript'` produces TypeScript sources and `package.json`, any other value produces Python sources and `requirements.txt`.
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeFiles(config: TeamCodingSessionConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -151,6 +250,14 @@ export async function writeFiles(config: TeamCodingSessionConfig, outputDir: str
   await fs.writeFile(path.join(outputDir, 'team-coding-sessions-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided team coding session configuration unchanged. Acts as an
+ * identity/normalization entry point for callers that want a stable handle to
+ * the configuration object.
+ *
+ * @param config - The team coding session configuration to return.
+ * @returns The same `TeamCodingSessionConfig` instance that was passed in.
+ */
 export function teamCodingSessions(config: TeamCodingSessionConfig): TeamCodingSessionConfig {
   return config;
 }

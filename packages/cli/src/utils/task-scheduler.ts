@@ -27,7 +27,9 @@ export type WorkspaceDepGraph = ReadonlyMap<string, readonly string[]>;
 export interface TaskNode {
   /** Stable id, `"<package>#<task>"`, used as the edge/adjacency key. */
   id: string;
+  /** The workspace package this node belongs to. */
   package: string;
+  /** The task name (e.g. `build`, `test`) to run on that package. */
   task: string;
 }
 
@@ -44,13 +46,20 @@ export interface ExecutionPlan {
 
 /** A detected cycle, reported as the node-id path that closes back on itself. */
 export interface SchedulerCycleError {
+  /** Discriminant literal `'cycle'` tagging this error variant. */
   kind: 'cycle';
   /** e.g. `["a#build", "b#build", "a#build"]`. */
   cycle: string[];
+  /** Human-readable description of the cycle, suitable for logging. */
   message: string;
 }
 
-/** Discriminated result of {@link buildExecutionPlan}. */
+/**
+ * Discriminated result of {@link buildExecutionPlan}.
+ *
+ * - On success (`ok: true`), `plan` holds the verified acyclic execution plan.
+ * - On failure (`ok: false`), `error` describes the detected cycle.
+ */
 export type BuildPlanResult =
   | { ok: true; plan: ExecutionPlan }
   | { ok: false; error: SchedulerCycleError };
@@ -61,7 +70,13 @@ export const DEFAULT_TASKS_CONFIG: TasksConfig = {
   test: { dependsOn: ['build'] },
 };
 
-/** Build a stable node id from a package + task pair. */
+/**
+ * Build a stable node id from a package + task pair.
+ *
+ * @param pkg  The workspace package name.
+ * @param task The task name.
+ * @returns The canonical node id `"<package>#<task>"`.
+ */
 export function nodeId(pkg: string, task: string): string {
   return `${pkg}#${task}`;
 }
@@ -93,6 +108,9 @@ function dependsOnFor(tasks: TasksConfig, task: string): readonly string[] {
  * @param graph   workspace dependency graph (package -> upstream deps)
  * @param tasks   merged task config (caller merges defaults + workspace config)
  * @param targets root (package, task) pairs to run
+ * @returns `BuildPlanResult` — either `{ ok: true, plan }` on success or
+ *   `{ ok: false, error }` with a {@link SchedulerCycleError} when a cycle is
+ *   detected.
  */
 export function buildExecutionPlan(
   graph: WorkspaceDepGraph,
@@ -242,17 +260,31 @@ export class ReadySetScheduler {
     this.continueOnError = continueOnError;
   }
 
-  /** All node ids in the plan. */
+  /**
+   * All node ids in the plan.
+   *
+   * @returns An array of every node id known to the plan.
+   */
   get allNodeIds(): string[] {
     return [...this.plan.nodes.keys()];
   }
 
-  /** Look up a node by id (for the executor to read package/task). */
+  /**
+   * Look up a node by id (for the executor to read package/task).
+   *
+   * @param id The node id to resolve.
+   * @returns The {@link TaskNode}, or `undefined` if the id is unknown.
+   */
   node(id: string): TaskNode | undefined {
     return this.plan.nodes.get(id);
   }
 
-  /** True once every node has reached a terminal state. */
+  /**
+   * Check whether every node has reached a terminal state
+   * (succeeded / failed / skipped).
+   *
+   * @returns `true` when the plan is fully drained, `false` otherwise.
+   */
   isDone(): boolean {
     return (
       this.succeeded.size + this.failed.size + this.skipped.size ===
@@ -271,6 +303,9 @@ export class ReadySetScheduler {
    * When `continueOnError` is true: only nodes that TRANSITIVELY depend on a
    * failed/skipped node are cascaded; independent branches whose deps are all
    * succeeded (or have no deps) become ready and run normally.
+   *
+   * @returns The list of {@link TaskNode}s ready to start in this round. May be
+   *   empty when nothing is currently schedulable (or when the plan is drained).
    */
   ready(): TaskNode[] {
     // In strict mode (continueOnError=false), stop scheduling any new work once
@@ -313,7 +348,11 @@ export class ReadySetScheduler {
     return result;
   }
 
-  /** Mark a node in-flight so it is not handed out again. */
+  /**
+   * Mark a node in-flight so it is not handed out again.
+   *
+   * @param id The node id to mark as running.
+   */
   start(id: string): void {
     this.running.add(id);
   }
@@ -321,6 +360,9 @@ export class ReadySetScheduler {
   /**
    * Report a node's terminal outcome. `'skipped'` is used by the executor when
    * a package does not actually define the task script.
+   *
+   * @param id     The node id whose execution finished.
+   * @param status The terminal status: `'success'`, `'failed'`, or `'skipped'`.
    */
   complete(id: string, status: 'success' | 'failed' | 'skipped'): void {
     this.running.delete(id);
@@ -329,7 +371,11 @@ export class ReadySetScheduler {
     else this.skipped.add(id);
   }
 
-  /** Count of nodes currently in flight (for concurrency accounting). */
+  /**
+   * Count of nodes currently in flight (for concurrency accounting).
+   *
+   * @returns The number of nodes that have been started but not yet completed.
+   */
   get inFlight(): number {
     return this.running.size;
   }
@@ -348,6 +394,11 @@ export class ReadySetScheduler {
  * Merge an optional workspace `tasks` config over the built-in defaults. A task
  * present in the workspace config fully replaces the default for that task name
  * (no deep-merge of `dependsOn`), which keeps overrides predictable.
+ *
+ * @param workspaceTasks The workspace-declared task overrides, or `undefined`
+ *   when the workspace declares no `tasks` section.
+ * @returns The merged {@link TasksConfig}, with workspace entries overriding
+ *   {@link DEFAULT_TASKS_CONFIG} per task name.
  */
 export function mergeTasksConfig(workspaceTasks?: TasksConfig): TasksConfig {
   return { ...DEFAULT_TASKS_CONFIG, ...(workspaceTasks ?? {}) };
