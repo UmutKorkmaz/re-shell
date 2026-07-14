@@ -682,7 +682,7 @@ async function applyTemplate(templateName: string, options: TemplateCommandOptio
           message: `${varDef.description}:`,
           initial: varDef.default,
           validate: varDef.required ? 
-            (value: any) => value !== undefined && value !== '' ? true : `${varDef.name} is required` :
+            (value: string) => value !== undefined && value !== '' ? true : `${varDef.name} is required` :
             undefined,
           active: varDef.type === 'boolean' ? 'yes' : undefined,
           inactive: varDef.type === 'boolean' ? 'no' : undefined

@@ -367,7 +367,7 @@ async function getWorkspaceFiles(workspacePath: string): Promise<string[]> {
 }
 
 // Generate Mermaid graph representation
-function generateMermaidGraph(graph: any): string {
+function generateMermaidGraph(graph: { nodes: Map<string, { type: string }>; edges: Map<string, string[]> }): string {
   let mermaid = 'graph TD\n';
   
   // Add nodes
@@ -387,7 +387,7 @@ function generateMermaidGraph(graph: any): string {
 }
 
 // Display text-based dependency graph
-function displayTextGraph(graph: any, verbose: boolean): void {
+function displayTextGraph(graph: { nodes: Map<string, { type: string; framework?: string; path: string }>; edges: Map<string, string[]> }, verbose: boolean): void {
   console.log(chalk.cyan('\n📊 Workspace Dependency Graph'));
   console.log(chalk.gray('='.repeat(35)));
   
