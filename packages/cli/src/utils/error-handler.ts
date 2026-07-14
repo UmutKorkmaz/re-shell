@@ -63,8 +63,8 @@ export function setupStreamErrorHandlers(): void {
 }
 
 // Create async command wrapper
-export function createAsyncCommand(fn: (...args: any[]) => Promise<void>) {
-  return async (...args: any[]) => {
+export function createAsyncCommand<T extends unknown[]>(fn: (...args: T) => Promise<void>) {
+  return async (...args: T) => {
     try {
       await fn(...args);
     } catch (error: unknown) {
