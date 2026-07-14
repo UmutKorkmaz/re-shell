@@ -40,6 +40,9 @@ const ALWAYS_IGNORED_DIRS = ['node_modules', '.git', '.re-shell'] as const;
  * deliberately tiny: build tools commonly branch on NODE_ENV / CI, and a couple
  * of well-known per-language flags. An unlisted variable can never change a key,
  * so a noisy local shell does not blow the cache.
+ *
+ * @remark Extend this list cautiously: every added variable becomes a source of
+ *  cross-machine cache misses when its value differs.
  */
 export const CACHE_ENV_ALLOWLIST = [
   'NODE_ENV',
@@ -91,6 +94,16 @@ export interface CacheKeyInput {
  * default is "everything under the package dir" minus the declared `outputs`,
  * minus node_modules/.git/.re-shell, and minus the conventional build dirs
  * (dist) — so a task's own output never feeds back into its own key.
+ *
+ * @param packageDir - Absolute path to the package directory the task belongs to.
+ * @param inputs - Optional `inputs` globs from the tasks config, relative to `packageDir`.
+ *  When omitted/empty, all files are used subject to the default exclusions.
+ * @param outputs - Optional `outputs` globs to exclude from the default input set.
+ *  Has no effect when `inputs` is explicitly provided.
+ * @returns A promise resolving to an array of absolute file paths, sorted by their
+ *  package-relative POSIX path for cross-platform determinism.
+ * @throws {Error} If the underlying `fast-glob` read or filesystem access fails
+ *  (e.g. `packageDir` does not exist or is unreadable).
  */
 export async function resolveInputFiles(
   packageDir: string,
@@ -125,6 +138,14 @@ function normalizeGlob(glob: string): string {
  * Hash the resolved input file set into a single digest. Each file contributes
  * `"<relPosixPath>\0<sha256>\n"` so a rename changes the key even if content is
  * identical, and a content change changes it even if the path is identical.
+ *
+ * @param packageDir - Absolute path to the package directory; used to compute the
+ *  package-relative POSIX path that is mixed into the digest.
+ * @param files - Absolute paths of the resolved input files. Order is irrelevant
+ *  because each entry is keyed by its path before being folded into the hash.
+ * @returns A promise resolving to a 64-char lowercase hex sha256 digest that
+ *  uniquely represents the combined contents and paths of `files`.
+ * @throws {Error} If any file in `files` cannot be read.
  */
 export async function hashInputs(
   packageDir: string,
@@ -149,6 +170,16 @@ export async function hashInputs(
  * workspace root: `.nvmrc`, `.node-version`, `.tool-versions`, the `go`
  * directive of `go.mod`, `.python-version`, and `rust-toolchain`/`.toml`. Each
  * found value is keyed by its source so the fingerprint is self-describing.
+ *
+ * @param packageDir - Absolute path to the package directory scanned for
+ *  per-language version files.
+ * @param workspaceRoot - Absolute path to the workspace root, also scanned for
+ *  per-language version files (in addition to `packageDir`).
+ * @param packageManager - The detected package manager name
+ *  (e.g. `"pnpm"`, `"yarn"`, `"npm"`).
+ * @returns A promise resolving to a {@link ToolchainFingerprint} whose
+ *  `languages` record is sorted by key for deterministic serialisation.
+ *  Missing files are silently ignored and contribute no entry.
  */
 export async function buildToolchainFingerprint(
   packageDir: string,
@@ -214,6 +245,12 @@ function sortRecord(rec: Record<string, string>): Record<string, string> {
 /**
  * Snapshot the allow-listed env subset. Only the {@link CACHE_ENV_ALLOWLIST}
  * keys are read; everything else is invisible to the cache key.
+ *
+ * @param source - The environment record to read from. Defaults to `process.env`
+ *  when omitted, which is the typical caller.
+ * @returns A new object keyed by the entries of {@link CACHE_ENV_ALLOWLIST}, in
+ *  that canonical order, with values copied verbatim from `source` (possibly
+ *  `undefined` when a key is absent).
  */
 export function snapshotEnv(
   source: Readonly<Record<string, string | undefined>> = process.env
@@ -229,7 +266,13 @@ export function snapshotEnv(
  * payload is JSON with sorted keys, so the same logical inputs always serialise
  * identically regardless of insertion order.
  *
- * @returns a 64-char lowercase hex sha256 digest.
+ * @param input - A fully-populated {@link CacheKeyInput} describing the package,
+ *  task, command, input/output globs, dependency keys, toolchain fingerprint,
+ *  and allow-listed environment snapshot.
+ * @returns A promise resolving to a 64-char lowercase hex sha256 digest that
+ *  uniquely identifies the (package, task) result for caching purposes.
+ * @throws {Error} If input-file resolution or hashing fails (see
+ *  {@link resolveInputFiles} and {@link hashInputs}).
  */
 export async function computeCacheKey(input: CacheKeyInput): Promise<string> {
   const files = await resolveInputFiles(input.packageDir, input.inputs, input.outputs);
@@ -270,6 +313,11 @@ function pickAllowlistedEnv(
  * Deterministic JSON: object keys are emitted in sorted order at every level so
  * two structurally-equal payloads always serialise to identical bytes. Arrays
  * keep their order (callers sort where order is not significant).
+ *
+ * @param value - Any JSON-serialisable value (primitives, arrays, plain objects,
+ *  or nested combinations thereof).
+ * @returns A canonical JSON string whose bytes are identical for any two
+ *  structurally-equal inputs, regardless of object key insertion order.
  */
 export function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') {
