@@ -5,6 +5,17 @@ import chalk from 'chalk';
 import { buildAll, generateDeploymentConfig, deployServices, listServices } from '../commands/polyglot';
 import { runBridgeGenerate } from '../commands/bridge-generate';
 
+/**
+ * Registers the `service` command group on the given CLI program.
+ *
+ * The service group exposes polyglot service orchestration commands, including
+ * cross-language service bridges (`service bridge`), polyglot build/list/deploy
+ * workflows (`service polyglot`), and development service lifecycle management
+ * such as up/down/health/logs/restart/scale/exec/inspect/migrate/optimize
+ * (`service run`).
+ *
+ * @param program - The Commander program (or parent command) to attach the service group to.
+ */
 export function registerServiceGroup(program: Command): void {
   const serviceCommand = new Command('service')
     .description('Manage polyglot services and development service orchestration');

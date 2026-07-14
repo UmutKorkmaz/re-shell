@@ -18,6 +18,17 @@ import { manageChangeImpact, analyzeWorkspaceImpact } from '../commands/change-i
 import { manageIncrementalBuild } from '../commands/incremental-build';
 import { runPolicyCheck, runDriftCheck } from '../commands/workspace-policy';
 
+/**
+ * Registers the `workspace` command group on the given CLI program.
+ *
+ * The workspace group exposes workspace health, dependency, and sync management
+ * commands, including workspace summary, graph generation, health checks, import
+ * from monorepo, validation, migration, optimization, template management,
+ * policy/drift checks, file watching, change detection/impact analysis, and
+ * incremental builds.
+ *
+ * @param program - The Commander program (or parent command) to attach the workspace group to.
+ */
 export function registerWorkspaceGroup(program: Command): void {
   const workspace = new Command('workspace')
     .description('Workspace health, dependencies, and sync management');

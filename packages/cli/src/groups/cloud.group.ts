@@ -2,6 +2,12 @@ import { Command } from 'commander';
 import { createAsyncCommand, withTimeout } from '../utils/error-handler';
 import chalk from 'chalk';
 
+/**
+ * Registers the `cloud` command group, which provides cloud provider
+ * deployment commands (AWS, GCP, Azure) and CDN management utilities.
+ *
+ * @param program - The root Commander program to attach the `cloud` command group to.
+ */
 export function registerCloudGroup(program: Command): void {
   const cloud = new Command('cloud')
     .description('Cloud provider deployment and CDN management');

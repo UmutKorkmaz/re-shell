@@ -4,6 +4,13 @@ import { flushOutput } from '../utils/spinner';
 import chalk from 'chalk';
 import * as path from 'path';
 
+/**
+ * Registers the `quality` command group on the given program, exposing code
+ * quality tooling including universal testing across frameworks/languages and
+ * IntelliSense/LSP setup for code completion in editors.
+ *
+ * @param program - The Commander program to register the quality command group onto.
+ */
 export function registerQualityGroup(program: Command): void {
   const quality = new Command('quality')
     .description('Code quality, testing, and IDE integration tools');

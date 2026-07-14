@@ -6,6 +6,13 @@ import chalk from 'chalk';
 import { generateCode, generateTests, generateDocumentation } from '../commands/generate';
 import { createFeature } from '../commands/create-feature';
 
+/**
+ * Registers the `generate` command group, which provides code generation
+ * commands for components, hooks, services, tests, documentation, backend
+ * services, and full-stack features.
+ *
+ * @param program - The root Commander program to attach the `generate` command group to.
+ */
 export function registerGenerateGroup(program: Command): void {
   const generate = new Command('generate')
     .description('Generate code, tests, and documentation');

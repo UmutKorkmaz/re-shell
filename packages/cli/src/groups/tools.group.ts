@@ -11,6 +11,16 @@ import { importProject, exportProject, backupProject, restoreProject } from '../
 import { generateCICDConfig, generateDeployConfig } from '../commands/cicd';
 import { manageDevMode } from '../commands/dev-mode';
 
+/**
+ * Registers the `tools` command group on the given CLI program.
+ *
+ * The tools group exposes development utilities and environment management
+ * commands such as framework detection, dry-run previews, git submodule
+ * management, project import/export/backup, CI/CD and deployment config
+ * generation, and dev-mode orchestration.
+ *
+ * @param program - The Commander program (or parent command) to attach the tools group to.
+ */
 export function registerToolsGroup(program: Command): void {
   const toolsCommand = new Command('tools')
     .description('Development tools, utilities, and environment management');

@@ -6,6 +6,12 @@ import { runHelmGenerate } from '../commands/helm-generate';
 import { runGitOpsGenerate } from '../commands/gitops-generate';
 import { createSpinner } from '../utils/spinner';
 
+/**
+ * Registers the `k8s` command group on the given program, exposing Kubernetes
+ * manifest generation, Helm chart scaffolding, and GitOps-related operations.
+ *
+ * @param program - The Commander program to register the k8s command group onto.
+ */
 export function registerK8sGroup(program: Command): void {
   const k8s = new Command('k8s')
     .description('Kubernetes manifests, Helm charts, and cluster operations');
