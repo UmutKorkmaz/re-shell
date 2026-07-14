@@ -8,113 +8,208 @@ import {
   PluginCommandContext
 } from './plugin-command-registry';
 
-// Cache storage strategies
+/**
+ * Strategies for where and how cached entries are stored.
+ */
 export enum CacheStorageStrategy {
+  /** Cache entries are held only in memory. */
   MEMORY = 'memory',
+  /** Cache entries are persisted to the file system. */
   FILE_SYSTEM = 'file-system',
+  /** Cache entries are stored in both memory and on disk. */
   HYBRID = 'hybrid',
+  /** Cache entries are stored in an external database. */
   DATABASE = 'database'
 }
 
-// Cache invalidation strategies
+/**
+ * Strategies that determine when cached entries are invalidated or evicted.
+ */
 export enum CacheInvalidationStrategy {
+  /** Entries expire after a configured time-to-live. */
   TTL = 'ttl',
+  /** Least recently used entries are evicted first. */
   LRU = 'lru',
+  /** Least frequently used entries are evicted first. */
   LFU = 'lfu',
+  /** First-in, first-out eviction order. */
   FIFO = 'fifo',
+  /** Entries are invalidated only via explicit manual calls. */
   MANUAL = 'manual',
+  /** Entries are invalidated in response to emitted events. */
   EVENT_BASED = 'event-based'
 }
 
-// Performance monitoring levels
+/**
+ * Levels of detail for performance metrics collection.
+ */
 export enum PerformanceMonitoringLevel {
+  /** No performance monitoring is performed. */
   NONE = 'none',
+  /** Essential performance metrics are collected. */
   BASIC = 'basic',
+  /** Detailed performance metrics including per-command breakdowns. */
   DETAILED = 'detailed',
+  /** Maximum verbosity, recording every operation. */
   VERBOSE = 'verbose'
 }
 
-// Cache entry
+/**
+ * Represents a single cached value along with its tracking metadata.
+ *
+ * @typeParam T - The type of the cached value.
+ */
 export interface CacheEntry<T = any> {
+  /** Unique identifier for the cache entry. */
   key: string;
+  /** The cached value itself. */
   value: T;
+  /** Metadata describing the command execution that produced the value. */
   metadata: CacheEntryMetadata;
+  /** Timestamp (ms since epoch) when the entry was created. */
   createdAt: number;
+  /** Timestamp (ms since epoch) of the most recent access. */
   lastAccessedAt: number;
+  /** Number of times the entry has been read from cache. */
   accessCount: number;
+  /** Optional timestamp (ms since epoch) when the entry expires. */
   expiresAt?: number;
+  /** Approximate serialized size of the cached value in bytes. */
   size: number;
+  /** Tags associated with the entry for bulk invalidation. */
   tags: string[];
 }
 
-// Cache entry metadata
+/**
+ * Metadata describing the command execution that produced a cache entry.
+ */
 export interface CacheEntryMetadata {
+  /** Identifier of the command that generated this entry. */
   commandId: string;
+  /** Hash of the arguments used during execution. */
   argumentsHash: string;
+  /** Hash of the options used during execution. */
   optionsHash: string;
+  /** Hash of the command context at execution time. */
   contextHash: string;
+  /** Time in milliseconds the command took to execute. */
   executionTime: number;
+  /** Whether the command completed successfully. */
   success: boolean;
+  /** Information about an error that occurred during execution, if any. */
   errorInfo?: {
+    /** The error type or constructor name. */
     type: string;
+    /** Human-readable error message. */
     message: string;
+    /** Optional stack trace captured at the point of failure. */
     stack?: string;
   };
+  /** List of file or resource dependencies detected for the entry. */
   dependencies: string[];
+  /** Tags identifying events or conditions that should invalidate the entry. */
   invalidators: string[];
 }
 
-// Cache configuration
+/**
+ * Configuration options for the plugin command cache manager.
+ */
 export interface CacheConfiguration {
+  /** Whether caching is enabled. */
   enabled: boolean;
+  /** Where cached entries are stored. */
   strategy: CacheStorageStrategy;
+  /** How cached entries are invalidated or evicted. */
   invalidationStrategy: CacheInvalidationStrategy;
+  /** Maximum number of entries to retain. */
   maxSize: number;
+  /** Maximum total memory usage in bytes. */
   maxMemoryUsage: number; // in bytes
+  /** Default time-to-live for entries in milliseconds. */
   defaultTTL: number; // in milliseconds
+  /** Interval in milliseconds between automatic cleanup passes. */
   cleanupInterval: number; // in milliseconds
+  /** Whether disk-stored entries are compressed. */
   compressionEnabled: boolean;
+  /** Whether disk-stored entries are encrypted. */
   encryptionEnabled: boolean;
+  /** Whether the cache is persisted to disk. */
   persistToDisk: boolean;
+  /** Optional path to the directory used for the on-disk cache. */
   diskCachePath?: string;
+  /** Verbosity of collected performance metrics. */
   performanceMonitoring: PerformanceMonitoringLevel;
 }
 
-// Performance metrics
+/**
+ * Aggregated performance and usage statistics for the cache.
+ */
 export interface PerformanceMetrics {
+  /** Total number of command executions attempted. */
   totalExecutions: number;
+  /** Number of executions served from the cache. */
   cacheHits: number;
+  /** Number of executions that bypassed the cache. */
   cacheMisses: number;
+  /** Ratio of hits to total lookups (0-1). */
   hitRate: number;
+  /** Average wall-clock execution time in milliseconds. */
   averageExecutionTime: number;
+  /** Average execution time in milliseconds for cache hits. */
   averageCachedExecutionTime: number;
+  /** Approximate total memory used by entries in bytes. */
   totalMemoryUsage: number;
+  /** Approximate total disk space used by entries in bytes. */
   totalDiskUsage: number;
+  /** List of the slowest commands by average execution time. */
   slowestCommands: Array<{
+    /** Identifier of the command. */
     commandId: string;
+    /** Average execution time in milliseconds. */
     averageTime: number;
+    /** Number of times the command was executed. */
     executionCount: number;
   }>;
+  /** List of commands with the highest cache utilization. */
   mostCachedCommands: Array<{
+    /** Identifier of the command. */
     commandId: string;
+    /** Number of cache hits for the command. */
     cacheHits: number;
+    /** Hit rate for the command (0-1). */
     hitRate: number;
   }>;
+  /** Ratio of failed executions to total executions (0-1). */
   errorRate: number;
+  /** Timestamp (ms since epoch) of the last cleanup pass. */
   lastCleanupAt: number;
 }
 
-// Cache operation result
+/**
+ * Result of executing a command through the cache layer.
+ *
+ * @typeParam T - The type of the value produced by the command.
+ */
 export interface CacheOperationResult<T = any> {
+  /** Whether the result was served from the cache. */
   hit: boolean;
+  /** The returned value, if the command succeeded. */
   value?: T;
+  /** Metadata for the cache entry backing the result, when available. */
   metadata?: CacheEntryMetadata;
+  /** Total execution time in milliseconds. */
   executionTime: number;
+  /** Whether the value originated from the cache or a live execution. */
   source: 'cache' | 'execution';
+  /** Error encountered during execution, if any. */
   error?: Error;
 }
 
-// Plugin command cache manager
+/**
+ * Manages caching of plugin command results, supporting multiple storage and
+ * invalidation strategies, optional compression/encryption, and performance
+ * metrics collection.
+ */
 export class PluginCommandCacheManager extends EventEmitter {
   private memoryCache: Map<string, CacheEntry> = new Map();
   private accessOrder: string[] = []; // For LRU tracking
@@ -124,6 +219,11 @@ export class PluginCommandCacheManager extends EventEmitter {
   private cleanupTimer?: NodeJS.Timeout;
   private encryptionKey?: Buffer;
 
+  /**
+   * Create a new cache manager.
+   *
+   * @param config - Optional partial configuration overrides merged with defaults.
+   */
   constructor(config?: Partial<CacheConfiguration>) {
     super();
     
@@ -160,7 +260,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     this.initialize();
   }
 
-  // Initialize cache system
+  /**
+   * Initialize the cache manager by setting up encryption keys, disk storage,
+   * loading existing entries, and starting the cleanup timer.
+   *
+   * @returns Resolves once initialization completes.
+   */
   private async initialize(): Promise<void> {
     try {
       // Setup encryption if enabled
@@ -194,7 +299,18 @@ export class PluginCommandCacheManager extends EventEmitter {
     }
   }
 
-  // Execute command with caching
+  /**
+   * Execute a command, returning a cached result when available and caching
+   * the result on miss.
+   *
+   * @typeParam T - The type of the value returned by the executor.
+   * @param commandId - Identifier of the command being executed.
+   * @param args - The arguments passed to the command.
+   * @param options - The options passed to the command.
+   * @param context - The plugin command context for the execution.
+   * @param executor - Function that performs the actual command execution.
+   * @returns The result of the cache lookup or fresh execution.
+   */
   async executeWithCache<T = any>(
     commandId: string,
     args: Record<string, unknown>,
@@ -307,7 +423,16 @@ export class PluginCommandCacheManager extends EventEmitter {
     }
   }
 
-  // Generate cache key
+  /**
+   * Generate a deterministic cache key from the command id, arguments,
+   * options, and stable parts of the execution context.
+   *
+   * @param commandId - Identifier of the command.
+   * @param args - Command arguments.
+   * @param options - Command options.
+   * @param context - Plugin command context.
+   * @returns A SHA-256 hex hash uniquely identifying the invocation.
+   */
   private generateCacheKey(
     commandId: string,
     args: Record<string, unknown>,
@@ -331,7 +456,12 @@ export class PluginCommandCacheManager extends EventEmitter {
       .digest('hex');
   }
 
-  // Get cache entry
+  /**
+   * Retrieve a cache entry by key, checking memory first and then disk.
+   *
+   * @param key - The cache key to look up.
+   * @returns The matching entry, or `undefined` when not found.
+   */
   private async getCacheEntry(key: string): Promise<CacheEntry | undefined> {
     // Check memory first
     const memoryEntry = this.memoryCache.get(key);
@@ -348,7 +478,15 @@ export class PluginCommandCacheManager extends EventEmitter {
     return undefined;
   }
 
-  // Set cache entry
+  /**
+   * Store a cache entry using the configured storage strategy, evicting older
+   * entries as needed to respect capacity limits.
+   *
+   * @param key - The cache key under which to store the entry.
+   * @param value - The value to cache.
+   * @param metadata - Execution metadata describing the value.
+   * @returns Resolves once the entry has been persisted.
+   */
   private async setCacheEntry(
     key: string,
     value: any,
@@ -388,13 +526,23 @@ export class PluginCommandCacheManager extends EventEmitter {
     this.emit('cache-entry-set', { key, size: entry.size });
   }
 
-  // Check if cache entry is expired
+  /**
+   * Determine whether a cache entry has passed its expiry time.
+   *
+   * @param entry - The cache entry to check.
+   * @returns `true` if the entry has expired; otherwise `false`.
+   */
   private isExpired(entry: CacheEntry): boolean {
     if (!entry.expiresAt) return false;
     return Date.now() > entry.expiresAt;
   }
 
-  // Update access tracking for LRU/LFU
+  /**
+   * Update access timestamps and frequency counters for a key, supporting
+   * LRU and LFU eviction strategies.
+   *
+   * @param key - The cache key that was accessed.
+   */
   private updateAccessTracking(key: string): void {
     const entry = this.memoryCache.get(key);
     if (entry) {
@@ -406,7 +554,11 @@ export class PluginCommandCacheManager extends EventEmitter {
     }
   }
 
-  // Update access order for LRU
+  /**
+   * Move the given key to the end of the access-order list used by LRU.
+   *
+   * @param key - The cache key to mark as most recently used.
+   */
   private updateAccessOrder(key: string): void {
     const index = this.accessOrder.indexOf(key);
     if (index !== -1) {
@@ -415,7 +567,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     this.accessOrder.push(key);
   }
 
-  // Ensure cache capacity
+  /**
+   * Enforce configured size and memory limits by evicting entries when the
+   * cache exceeds capacity.
+   *
+   * @returns Resolves once capacity constraints are satisfied.
+   */
   private async ensureCapacity(): Promise<void> {
     // Check size limit
     if (this.memoryCache.size >= this.config.maxSize) {
@@ -430,7 +587,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     }
   }
 
-  // Evict cache entries
+  /**
+   * Evict a given number of entries using the configured invalidation strategy.
+   *
+   * @param count - The number of entries to evict.
+   * @returns Resolves once the requested entries have been removed.
+   */
   private async evictEntries(count: number): Promise<void> {
     const keysToEvict: string[] = [];
 
@@ -472,7 +634,13 @@ export class PluginCommandCacheManager extends EventEmitter {
     this.emit('cache-entries-evicted', { count: keysToEvict.length, keys: keysToEvict });
   }
 
-  // Evict entries by size
+  /**
+   * Evict the largest entries until the total cache size is reduced by at
+   * least the requested amount.
+   *
+   * @param targetReduction - Number of bytes to reclaim.
+   * @returns Resolves once enough entries have been evicted.
+   */
   private async evictEntriesBySize(targetReduction: number): Promise<void> {
     const entriesBySize = Array.from(this.memoryCache.entries())
       .sort((a, b) => b[1].size - a[1].size); // Largest first
@@ -498,7 +666,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     });
   }
 
-  // Invalidate specific cache entry
+  /**
+   * Invalidate a single cache entry by key, removing it from memory and disk.
+   *
+   * @param key - The cache key to invalidate.
+   * @returns `true` if an entry was removed from memory; otherwise `false`.
+   */
   async invalidateEntry(key: string): Promise<boolean> {
     const memoryDeleted = this.memoryCache.delete(key);
     
@@ -522,7 +695,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     return memoryDeleted;
   }
 
-  // Invalidate by tags
+  /**
+   * Invalidate all cache entries whose tags include any of the provided values.
+   *
+   * @param tags - Tags whose entries should be invalidated.
+   * @returns The number of entries invalidated.
+   */
   async invalidateByTags(tags: string[]): Promise<number> {
     const keysToInvalidate: string[] = [];
 
@@ -540,7 +718,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     return keysToInvalidate.length;
   }
 
-  // Invalidate by command
+  /**
+   * Invalidate all cache entries that belong to the specified command.
+   *
+   * @param commandId - Identifier of the command whose entries are invalidated.
+   * @returns The number of entries invalidated.
+   */
   async invalidateByCommand(commandId: string): Promise<number> {
     const keysToInvalidate: string[] = [];
 
@@ -558,7 +741,11 @@ export class PluginCommandCacheManager extends EventEmitter {
     return keysToInvalidate.length;
   }
 
-  // Clear all cache
+  /**
+   * Remove every cache entry from memory and disk and reset collected metrics.
+   *
+   * @returns Resolves once the cache is fully cleared.
+   */
   async clearAll(): Promise<void> {
     this.memoryCache.clear();
     this.accessOrder.length = 0;
@@ -573,7 +760,11 @@ export class PluginCommandCacheManager extends EventEmitter {
     this.emit('cache-cleared');
   }
 
-  // Perform cleanup
+  /**
+   * Periodic cleanup pass that removes expired entries and enforces capacity.
+   *
+   * @returns Resolves once the cleanup pass completes.
+   */
   private async performCleanup(): Promise<void> {
     const startTime = Date.now();
     let cleanedCount = 0;
@@ -601,7 +792,11 @@ export class PluginCommandCacheManager extends EventEmitter {
     });
   }
 
-  // Load cache from disk
+  /**
+   * Load all non-expired entries from the on-disk cache index into memory.
+   *
+   * @returns Resolves once loading completes (or fails gracefully).
+   */
   private async loadCacheFromDisk(): Promise<void> {
     if (!this.config.diskCachePath) return;
 
@@ -623,7 +818,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     }
   }
 
-  // Load cache entry from disk
+  /**
+   * Read and decompress/decrypt a single cache entry from disk.
+   *
+   * @param key - The cache key whose entry should be loaded.
+   * @returns The deserialized entry, or `undefined` if not found or invalid.
+   */
   private async loadCacheEntryFromDisk(key: string): Promise<CacheEntry | undefined> {
     if (!this.config.diskCachePath) return undefined;
 
@@ -653,7 +853,13 @@ export class PluginCommandCacheManager extends EventEmitter {
     return undefined;
   }
 
-  // Save cache entry to disk
+  /**
+   * Serialize, optionally compress/encrypt, and persist a cache entry to disk.
+   *
+   * @param key - The cache key for the entry.
+   * @param entry - The cache entry to persist.
+   * @returns Resolves once the entry has been written and the index updated.
+   */
   private async saveCacheEntryToDisk(key: string, entry: CacheEntry): Promise<void> {
     if (!this.config.diskCachePath) return;
 
@@ -683,7 +889,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     }
   }
 
-  // Delete cache entry from disk
+  /**
+   * Remove a single cache entry file from disk and refresh the cache index.
+   *
+   * @param key - The cache key whose on-disk entry should be deleted.
+   * @returns Resolves once deletion (if any) is complete.
+   */
   private async deleteCacheEntryFromDisk(key: string): Promise<void> {
     if (!this.config.diskCachePath) return;
 
@@ -698,7 +909,11 @@ export class PluginCommandCacheManager extends EventEmitter {
     }
   }
 
-  // Update disk cache index
+  /**
+   * Rewrite the on-disk index file so it lists every current `.cache` file.
+   *
+   * @returns Resolves once the index file has been rewritten.
+   */
   private async updateDiskCacheIndex(): Promise<void> {
     if (!this.config.diskCachePath) return;
 
@@ -716,7 +931,11 @@ export class PluginCommandCacheManager extends EventEmitter {
     }
   }
 
-  // Clear disk cache
+  /**
+   * Empty the on-disk cache directory, removing all persisted entries.
+   *
+   * @returns Resolves once the directory has been emptied.
+   */
   private async clearDiskCache(): Promise<void> {
     if (!this.config.diskCachePath) return;
 
@@ -729,7 +948,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     }
   }
 
-  // Encrypt data
+  /**
+   * Encrypt a buffer using AES-256-GCM with the configured encryption key.
+   *
+   * @param data - The plaintext buffer to encrypt.
+   * @returns The encrypted buffer prefixed with the initialization vector.
+   */
   private encrypt(data: Buffer): Buffer {
     if (!this.encryptionKey) return data;
 
@@ -741,7 +965,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     return Buffer.concat([iv, encrypted]);
   }
 
-  // Decrypt data
+  /**
+   * Decrypt a buffer previously encrypted by {@link PluginCommandCacheManager.encrypt}.
+   *
+   * @param data - The encrypted buffer (including the IV prefix).
+   * @returns The decrypted plaintext buffer.
+   */
   private decrypt(data: Uint8Array): Buffer {
     if (!this.encryptionKey) return Buffer.from(data);
 
@@ -752,12 +981,21 @@ export class PluginCommandCacheManager extends EventEmitter {
     return Buffer.concat([decipher.update(Buffer.from(encrypted)), decipher.final()]);
   }
 
-  // Calculate object size
+  /**
+   * Estimate the serialized size of a value in bytes.
+   *
+   * @param obj - The value to measure.
+   * @returns Approximate byte length of the JSON-serialized value.
+   */
   private calculateSize(obj: any): number {
     return Buffer.byteLength(JSON.stringify(obj), 'utf8');
   }
 
-  // Calculate total memory usage
+  /**
+   * Sum the sizes of all entries currently held in memory.
+   *
+   * @returns Total in-memory cache size in bytes.
+   */
   private calculateTotalMemoryUsage(): number {
     let total = 0;
     for (const entry of this.memoryCache.values()) {
@@ -766,7 +1004,13 @@ export class PluginCommandCacheManager extends EventEmitter {
     return total;
   }
 
-  // Generate cache tags
+  /**
+   * Build the list of tags to associate with a cache entry for bulk
+   * invalidation.
+   *
+   * @param metadata - Metadata for the entry being tagged.
+   * @returns Array of tags including command, success state, and performance.
+   */
   private generateTags(metadata: CacheEntryMetadata): string[] {
     const tags = [
       `command:${metadata.commandId}`,
@@ -783,7 +1027,14 @@ export class PluginCommandCacheManager extends EventEmitter {
     return tags;
   }
 
-  // Extract dependencies from arguments/options
+  /**
+   * Detect file or resource dependencies referenced by the given arguments
+   * and options.
+   *
+   * @param args - Command arguments to scan.
+   * @param options - Command options to scan.
+   * @returns Array of dependency identifiers (e.g. `file:/path`).
+   */
   private extractDependencies(args: Record<string, unknown>, options: Record<string, unknown>): string[] {
     const dependencies: string[] = [];
     
@@ -798,7 +1049,14 @@ export class PluginCommandCacheManager extends EventEmitter {
     return dependencies;
   }
 
-  // Extract invalidators
+  /**
+   * Derive invalidator tags for an entry based on the command identifier.
+   *
+   * @param commandId - Identifier of the command.
+   * @param args - Command arguments (reserved for future heuristics).
+   * @param options - Command options (reserved for future heuristics).
+   * @returns Array of invalidator tags such as `file-change`.
+   */
   private extractInvalidators(
     commandId: string, 
     args: Record<string, unknown>, 
@@ -818,12 +1076,22 @@ export class PluginCommandCacheManager extends EventEmitter {
     return invalidators;
   }
 
-  // Hash object for comparison
+  /**
+   * Compute a stable MD5 hash of an object for change detection.
+   *
+   * @param obj - The value to hash.
+   * @returns An MD5 hex digest of the normalized value.
+   */
   private hashObject(obj: any): string {
     return crypto.createHash('md5').update(JSON.stringify(this.normalizeForHashing(obj))).digest('hex');
   }
 
-  // Hash context
+  /**
+   * Compute an MD5 hash of the stable portions of a plugin command context.
+   *
+   * @param context - The plugin command context to hash.
+   * @returns An MD5 hex digest of the context.
+   */
   private hashContext(context: PluginCommandContext): string {
     const contextData = {
       rootPath: context.cli.rootPath,
@@ -833,7 +1101,13 @@ export class PluginCommandCacheManager extends EventEmitter {
     return crypto.createHash('md5').update(JSON.stringify(contextData)).digest('hex');
   }
 
-  // Normalize object for hashing
+  /**
+   * Recursively normalize an object so that structurally equivalent values
+   * produce identical hashes regardless of key insertion order.
+   *
+   * @param obj - The value to normalize.
+   * @returns A new value with sorted keys and arrays suitable for hashing.
+   */
   private normalizeForHashing(obj: any): any {
     if (obj === null || obj === undefined) return obj;
     
@@ -853,7 +1127,13 @@ export class PluginCommandCacheManager extends EventEmitter {
     return obj;
   }
 
-  // Update metrics
+  /**
+   * Update aggregated performance metrics after a cache operation.
+   *
+   * @param executionTime - Wall-clock time of the operation in milliseconds.
+   * @param hit - Whether the operation was a cache hit.
+   * @param success - Whether the operation completed without error.
+   */
   private updateMetrics(executionTime?: number, hit?: boolean, success?: boolean): void {
     if (hit !== undefined) {
       if (hit) {
@@ -881,7 +1161,9 @@ export class PluginCommandCacheManager extends EventEmitter {
     this.metrics.totalMemoryUsage = this.calculateTotalMemoryUsage();
   }
 
-  // Reset metrics
+  /**
+   * Reset all collected performance metrics back to their initial values.
+   */
   private resetMetrics(): void {
     this.metrics = {
       totalExecutions: 0,
@@ -899,23 +1181,40 @@ export class PluginCommandCacheManager extends EventEmitter {
     };
   }
 
-  // Get performance metrics
+  /**
+   * Return a copy of the current performance metrics snapshot.
+   *
+   * @returns A shallow copy of the accumulated metrics.
+   */
   getMetrics(): PerformanceMetrics {
     return { ...this.metrics };
   }
 
-  // Get cache configuration
+  /**
+   * Return a copy of the current cache configuration.
+   *
+   * @returns A shallow copy of the active configuration.
+   */
   getConfiguration(): CacheConfiguration {
     return { ...this.config };
   }
 
-  // Update configuration
+  /**
+   * Apply partial configuration updates, merging them into the active config.
+   *
+   * @param updates - Partial configuration values to override.
+   */
   updateConfiguration(updates: Partial<CacheConfiguration>): void {
     this.config = { ...this.config, ...updates };
     this.emit('configuration-updated', this.config);
   }
 
-  // Get cache statistics
+  /**
+   * Return a summary of the current cache state including size, memory usage,
+   * and notable entries.
+   *
+   * @returns An object describing cache contents and statistics.
+   */
   getCacheStats(): any {
     return {
       size: this.memoryCache.size,
@@ -930,7 +1229,11 @@ export class PluginCommandCacheManager extends EventEmitter {
     };
   }
 
-  // Find oldest entry
+  /**
+   * Find the cache entry with the earliest creation timestamp.
+   *
+   * @returns The oldest entry, or `undefined` when the cache is empty.
+   */
   private findOldestEntry(): CacheEntry | undefined {
     let oldest: CacheEntry | undefined;
     for (const entry of this.memoryCache.values()) {
@@ -941,7 +1244,11 @@ export class PluginCommandCacheManager extends EventEmitter {
     return oldest;
   }
 
-  // Find newest entry
+  /**
+   * Find the cache entry with the most recent creation timestamp.
+   *
+   * @returns The newest entry, or `undefined` when the cache is empty.
+   */
   private findNewestEntry(): CacheEntry | undefined {
     let newest: CacheEntry | undefined;
     for (const entry of this.memoryCache.values()) {
@@ -952,7 +1259,11 @@ export class PluginCommandCacheManager extends EventEmitter {
     return newest;
   }
 
-  // Find most accessed entry
+  /**
+   * Find the cache entry that has been accessed the most times.
+   *
+   * @returns The most accessed entry, or `undefined` when the cache is empty.
+   */
   private findMostAccessedEntry(): CacheEntry | undefined {
     let mostAccessed: CacheEntry | undefined;
     for (const entry of this.memoryCache.values()) {
@@ -963,7 +1274,11 @@ export class PluginCommandCacheManager extends EventEmitter {
     return mostAccessed;
   }
 
-  // Find largest entry
+  /**
+   * Find the cache entry with the largest serialized size.
+   *
+   * @returns The largest entry, or `undefined` when the cache is empty.
+   */
   private findLargestEntry(): CacheEntry | undefined {
     let largest: CacheEntry | undefined;
     for (const entry of this.memoryCache.values()) {
@@ -974,7 +1289,12 @@ export class PluginCommandCacheManager extends EventEmitter {
     return largest;
   }
 
-  // Destroy cache manager
+  /**
+   * Tear down the cache manager by stopping the cleanup timer, persisting the
+   * index when needed, and clearing all in-memory state.
+   *
+   * @returns Resolves once the manager has been fully shut down.
+   */
   async destroy(): Promise<void> {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
@@ -993,12 +1313,25 @@ export class PluginCommandCacheManager extends EventEmitter {
 }
 
 // Utility functions
+/**
+ * Factory that instantiates a new {@link PluginCommandCacheManager} with the
+ * supplied configuration overrides.
+ *
+ * @param config - Optional partial configuration overrides.
+ * @returns A freshly constructed cache manager instance.
+ */
 export function createCommandCacheManager(
   config?: Partial<CacheConfiguration>
 ): PluginCommandCacheManager {
   return new PluginCommandCacheManager(config);
 }
 
+/**
+ * Format a byte count as a human-readable string with the appropriate unit.
+ *
+ * @param bytes - The size in bytes to format.
+ * @returns The size expressed in B, KB, MB, or GB with one decimal place.
+ */
 export function formatCacheSize(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB'];
   let size = bytes;
@@ -1012,10 +1345,23 @@ export function formatCacheSize(bytes: number): string {
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
+/**
+ * Format a fractional hit rate (0-1) as a percentage string.
+ *
+ * @param hitRate - The hit rate expressed as a value between 0 and 1.
+ * @returns The hit rate formatted as a percentage with one decimal place.
+ */
 export function formatCacheHitRate(hitRate: number): string {
   return `${(hitRate * 100).toFixed(1)}%`;
 }
 
+/**
+ * Format an execution time in milliseconds as either a milliseconds or seconds
+ * string.
+ *
+ * @param time - The duration in milliseconds to format.
+ * @returns The duration formatted in `ms` for sub-second values or `s` otherwise.
+ */
 export function formatExecutionTime(time: number): string {
   if (time < 1000) {
     return `${time.toFixed(1)}ms`;

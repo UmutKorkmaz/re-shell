@@ -6,7 +6,15 @@ import { EventEmitter } from 'events';
 
 import { PluginPermission, PluginRegistration } from './plugin-system';
 
-// Security levels
+/**
+ * Security classification levels assigned to plugins after scanning.
+ *
+ * - `TRUSTED` - Fully trusted (signed and reputable), no sandbox required.
+ * - `VERIFIED` - Passed all checks, no critical or high violations.
+ * - `SANDBOXED` - Minor violations detected; must run inside a sandbox.
+ * - `RESTRICTED` - High-severity violations detected; sandbox mandatory.
+ * - `BLOCKED` - Critical violations detected; execution disallowed.
+ */
 export enum SecurityLevel {
   TRUSTED = 'trusted',
   VERIFIED = 'verified',
@@ -15,84 +23,152 @@ export enum SecurityLevel {
   BLOCKED = 'blocked'
 }
 
-// Security policies
+/**
+ * Policy object that governs what a plugin is allowed to do during scanning and execution.
+ */
 export interface SecurityPolicy {
+  /** Whether plugins may access the network. */
   allowNetworkAccess: boolean;
+  /** Whether plugins may access the file system. */
   allowFileSystemAccess: boolean;
+  /** Whether plugins may spawn or execute child processes. */
   allowProcessExecution: boolean;
+  /** Whether plugins may read environment variables. */
   allowEnvironmentAccess: boolean;
+  /** Whether plugins may access the re-shell workspace. */
   allowWorkspaceAccess: boolean;
+  /** Maximum heap memory (in bytes) a plugin may consume. */
   maxMemoryUsage: number;
+  /** Maximum wall-clock time (in milliseconds) a plugin may run. */
   maxExecutionTime: number;
+  /** List of source identifiers considered trusted (e.g. "npm", "builtin"). */
   trustedSources: string[];
+  /** List of source identifiers explicitly disallowed. */
   blockedSources: string[];
+  /** Whether a valid signature is required before a plugin may run. */
   requiredSignatures: boolean;
 }
 
-// Security violation types
+/**
+ * Describes a single security rule violation detected during a scan.
+ */
 export interface SecurityViolation {
+  /** Category of the violation. */
   type: 'permission' | 'resource' | 'signature' | 'sandbox' | 'malware';
+  /** Severity level, influencing whether the plugin is blocked. */
   severity: 'low' | 'medium' | 'high' | 'critical';
+  /** Human-readable description of what was detected. */
   description: string;
+  /** Name of the scanner or check that produced the violation. */
   source: string;
+  /** Suggested remediation for the violation. */
   recommendation: string;
+  /** Whether this violation blocks the plugin from running. */
   blocked: boolean;
 }
 
-// Security scan result
+/**
+ * Aggregate result of a full security scan for a single plugin.
+ */
 export interface SecurityScanResult {
+  /** Name of the scanned plugin. */
   plugin: string;
+  /** Overall security level assigned after scanning. */
   securityLevel: SecurityLevel;
+  /** List of violations discovered during the scan. */
   violations: SecurityViolation[];
+  /** Permissions declared by the plugin. */
   permissions: PluginPermission[];
+  /** Signature information, if a signature was found. */
   signature?: SecuritySignature;
+  /** Reputation data, if available for the plugin. */
   reputation?: PluginReputation;
+  /** Whether the plugin must run inside a sandbox. */
   sandboxRequired: boolean;
+  /** Whether the plugin is approved for execution. */
   approved: boolean;
+  /** Non-blocking warnings and recommendations. */
   warnings: string[];
 }
 
-// Plugin signature information
+/**
+ * Cryptographic signature metadata for a plugin.
+ */
 export interface SecuritySignature {
+  /** Signing algorithm used (e.g. "rsa-sha256"). */
   algorithm: string;
+  /** Raw signature value. */
   signature: string;
+  /** Public key used to verify the signature. */
   publicKey: string;
+  /** Unix timestamp (ms) when the signature was created. */
   timestamp: number;
+  /** Whether the signature was verified against a trusted key. */
   verified: boolean;
+  /** Optional name of the signing issuer. */
   issuer?: string;
 }
 
-// Plugin reputation data
+/**
+ * Community reputation metrics for a plugin.
+ */
 export interface PluginReputation {
+  /** Total number of downloads. */
   downloads: number;
+  /** Average community rating (0-5). */
   rating: number;
+  /** Total number of reviews submitted. */
   reviews: number;
+  /** Unix timestamp (ms) of the most recent update. */
   lastUpdated: number;
+  /** Name of the plugin maintainer. */
   maintainer: string;
+  /** Whether the maintainer account is verified. */
   verified: boolean;
+  /** Community trust score (0-100). */
   communityTrust: number;
 }
 
-// Sandbox configuration
+/**
+ * Configuration controlling how a plugin is isolated inside the sandbox.
+ */
 export interface SandboxConfig {
+  /** Whether to intercept and restrict filesystem operations. */
   isolateFileSystem: boolean;
+  /** Whether to disable network access entirely. */
   isolateNetwork: boolean;
+  /** Whether to block spawning child processes. */
   isolateProcesses: boolean;
+  /** Maximum heap memory (in bytes) the plugin may use. */
   memoryLimit: number;
+  /** Maximum execution time (in milliseconds) before the plugin is killed. */
   timeoutLimit: number;
+  /** Filesystem paths the plugin is permitted to access. */
   allowedPaths: string[];
+  /** Filesystem paths the plugin is explicitly denied. */
   blockedPaths: string[];
+  /** Network hosts/origins the plugin may contact. */
   allowedNetworks: string[];
+  /** Network hosts/origins the plugin may not contact. */
   blockedNetworks: string[];
 }
 
-// Plugin security validator
+/**
+ * Performs comprehensive security validation of plugins, including permission
+ * checks, malware scanning, signature verification, reputation lookup and
+ * source-trust analysis. Emits events for scan lifecycle milestones.
+ */
 export class PluginSecurityValidator extends EventEmitter {
   private securityPolicy: SecurityPolicy;
   private trustedPublicKeys: Set<string> = new Set();
   private pluginReputations: Map<string, PluginReputation> = new Map();
   private securityCache: Map<string, SecurityScanResult> = new Map();
 
+  /**
+   * Creates a new validator instance.
+   *
+   * @param policy Partial overrides merged on top of the default security policy.
+   */
   constructor(policy: Partial<SecurityPolicy> = {}) {
     super();
     this.securityPolicy = {
@@ -110,7 +186,12 @@ export class PluginSecurityValidator extends EventEmitter {
     };
   }
 
-  // Perform comprehensive security scan
+  /**
+   * Runs a full security scan against the given plugin, caching the result.
+   *
+   * @param registration The plugin registration to scan.
+   * @returns The complete security scan result.
+   */
   async scanPlugin(registration: PluginRegistration): Promise<SecurityScanResult> {
     const cacheKey = this.getCacheKey(registration);
     
@@ -180,7 +261,13 @@ export class PluginSecurityValidator extends EventEmitter {
     }
   }
 
-  // Validate plugin permissions
+  /**
+   * Validates declared permissions against the security policy and detects
+   * dangerous permission combinations.
+   *
+   * @param registration The plugin registration being scanned.
+   * @param result The scan result object to populate with violations.
+   */
   private async validatePermissions(
     registration: PluginRegistration,
     result: SecurityScanResult
@@ -223,7 +310,12 @@ export class PluginSecurityValidator extends EventEmitter {
     }
   }
 
-  // Check individual permission violation
+  /**
+   * Evaluates a single permission against the configured security policy.
+   *
+   * @param permission The permission to evaluate.
+   * @returns A `SecurityViolation` if the permission is disallowed, otherwise `null`.
+   */
   private checkPermissionViolation(permission: PluginPermission): SecurityViolation | null {
     // Check against security policy
     switch (permission.type) {
@@ -283,7 +375,13 @@ export class PluginSecurityValidator extends EventEmitter {
     return null;
   }
 
-  // Scan for malicious code patterns
+  /**
+   * Reads the plugin's main source file and checks it against known
+   * malicious code patterns, obfuscation indicators and size heuristics.
+   *
+   * @param registration The plugin registration being scanned.
+   * @param result The scan result object to populate with violations.
+   */
   private async scanForMaliciousCode(
     registration: PluginRegistration,
     result: SecurityScanResult
@@ -367,7 +465,13 @@ export class PluginSecurityValidator extends EventEmitter {
     }
   }
 
-  // Verify plugin signature
+  /**
+   * Locates and validates the plugin's `SIGNATURE` file, checking the
+   * public key against the set of trusted keys.
+   *
+   * @param registration The plugin registration being scanned.
+   * @param result The scan result object to populate with signature info or violations.
+   */
   private async verifySignature(
     registration: PluginRegistration,
     result: SecurityScanResult
@@ -427,7 +531,13 @@ export class PluginSecurityValidator extends EventEmitter {
     }
   }
 
-  // Check plugin reputation
+  /**
+   * Looks up stored reputation data for the plugin and flags low ratings,
+   * low download counts and stale maintenance.
+   *
+   * @param registration The plugin registration being scanned.
+   * @param result The scan result object to populate with reputation info or violations.
+   */
   private async checkReputation(
     registration: PluginRegistration,
     result: SecurityScanResult
@@ -477,7 +587,12 @@ export class PluginSecurityValidator extends EventEmitter {
     }
   }
 
-  // Analyze source trust
+  /**
+   * Determines the plugin's origin source and flags it if blocked or untrusted.
+   *
+   * @param registration The plugin registration being scanned.
+   * @param result The scan result object to populate with source-trust violations.
+   */
   private async analyzeSourceTrust(
     registration: PluginRegistration,
     result: SecurityScanResult
@@ -508,7 +623,12 @@ export class PluginSecurityValidator extends EventEmitter {
     }
   }
 
-  // Determine plugin source type
+  /**
+   * Infers the plugin source type from its install path.
+   *
+   * @param registration The plugin registration whose source should be determined.
+   * @returns One of "npm", "local", "builtin", or "unknown".
+   */
   private determinePluginSource(registration: PluginRegistration): string {
     const pluginPath = registration.pluginPath;
     
@@ -523,7 +643,12 @@ export class PluginSecurityValidator extends EventEmitter {
     }
   }
 
-  // Determine overall security level
+  /**
+   * Sets the overall security level, approval status and sandbox requirement
+   * on the scan result based on the severity and count of violations.
+   *
+   * @param result The scan result to update in place.
+   */
   private determineSecurityLevel(result: SecurityScanResult): void {
     const criticalViolations = result.violations.filter(v => v.severity === 'critical');
     const highViolations = result.violations.filter(v => v.severity === 'high');
@@ -551,7 +676,12 @@ export class PluginSecurityValidator extends EventEmitter {
     }
   }
 
-  // Generate security recommendations
+  /**
+   * Aggregates violation recommendations and adds sandbox/blocking advice
+   * to the result warnings.
+   *
+   * @param result The scan result to append recommendations to.
+   */
   private generateSecurityRecommendations(result: SecurityScanResult): void {
     if (result.violations.length === 0) {
       result.warnings.push('Plugin passed all security checks');
@@ -575,7 +705,14 @@ export class PluginSecurityValidator extends EventEmitter {
     result.warnings.push(...Array.from(recommendations));
   }
 
-  // Create sandbox configuration
+  /**
+   * Builds a sandbox configuration tailored to the plugin's permissions and
+   * assigned security level.
+   *
+   * @param registration The plugin registration the sandbox is for.
+   * @param securityResult The completed security scan result.
+   * @returns A `SandboxConfig` restricting the plugin appropriately.
+   */
   createSandboxConfig(
     registration: PluginRegistration,
     securityResult: SecurityScanResult
@@ -650,25 +787,41 @@ export class PluginSecurityValidator extends EventEmitter {
     return baseConfig;
   }
 
-  // Add trusted public key
+  /**
+   * Registers a public key as trusted for signature verification and clears the cache.
+   *
+   * @param publicKey The public key to trust.
+   */
   addTrustedPublicKey(publicKey: string): void {
     this.trustedPublicKeys.add(publicKey);
     this.clearCache();
   }
 
-  // Update plugin reputation
+  /**
+   * Stores or updates reputation data for a plugin and clears the cache.
+   *
+   * @param pluginName Name of the plugin the reputation applies to.
+   * @param reputation The reputation metrics to store.
+   */
   updatePluginReputation(pluginName: string, reputation: PluginReputation): void {
     this.pluginReputations.set(pluginName, reputation);
     this.clearCache();
   }
 
-  // Clear security cache
+  /**
+   * Clears all cached scan results and emits a `cache-cleared` event.
+   */
   clearCache(): void {
     this.securityCache.clear();
     this.emit('cache-cleared');
   }
 
-  // Get cache key
+  /**
+   * Computes a stable cache key for a plugin based on its manifest and path.
+   *
+   * @param registration The plugin registration to key.
+   * @returns A unique cache key string.
+   */
   private getCacheKey(registration: PluginRegistration): string {
     const contentHash = crypto
       .createHash('sha256')
@@ -679,7 +832,12 @@ export class PluginSecurityValidator extends EventEmitter {
     return `${registration.manifest.name}_${registration.manifest.version}_${contentHash}`;
   }
 
-  // Get security statistics
+  /**
+   * Returns aggregate statistics about cached scans, trusted keys,
+   * reputation entries, security-level distribution and violation counts.
+   *
+   * @returns An object describing current validator statistics.
+   */
   getSecurityStats(): any {
     const stats = {
       totalScans: this.securityCache.size,
@@ -703,17 +861,33 @@ export class PluginSecurityValidator extends EventEmitter {
   }
 }
 
-// Plugin sandbox executor
+/**
+ * Executes plugin functions in an isolated, resource-limited environment
+ * defined by a `SandboxConfig`. Emits events for execution lifecycle
+ * and resource-limit breaches.
+ */
 export class PluginSandbox extends EventEmitter {
   private config: SandboxConfig;
   private activeProcesses: Map<string, any> = new Map();
 
+  /**
+   * Creates a new sandbox instance.
+   *
+   * @param config The sandbox configuration controlling isolation and limits.
+   */
   constructor(config: SandboxConfig) {
     super();
     this.config = config;
   }
 
-  // Execute plugin in sandbox
+  /**
+   * Runs a plugin function inside the sandbox with an enforced timeout.
+   *
+   * @param pluginFunction The function to execute.
+   * @param context The context object passed to the function (will be sandboxed).
+   * @param timeout Optional override for the execution timeout (ms).
+   * @returns The value returned by the plugin function.
+   */
   async executeInSandbox(
     pluginFunction: (...args: any[]) => any,
     context: any,
@@ -757,7 +931,13 @@ export class PluginSandbox extends EventEmitter {
     }
   }
 
-  // Create sandboxed context
+  /**
+   * Produces a copy of the given context with dangerous modules replaced
+   * by sandboxed or null equivalents based on the config.
+   *
+   * @param originalContext The original execution context.
+   * @returns The hardened context object.
+   */
   private createSandboxedContext(originalContext: any): any {
     const sandboxedContext = { ...originalContext };
 
@@ -780,7 +960,12 @@ export class PluginSandbox extends EventEmitter {
     return sandboxedContext;
   }
 
-  // Create sandboxed filesystem interface
+  /**
+   * Creates a wrapped `fs` module that blocks write operations outside
+   * the configured allowed paths.
+   *
+   * @returns A sandboxed filesystem module proxy.
+   */
   private createSandboxedFS(): any {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const originalFS = require('fs-extra');
@@ -801,7 +986,12 @@ export class PluginSandbox extends EventEmitter {
     return sandboxedFS;
   }
 
-  // Create sandboxed process interface
+  /**
+   * Creates a minimal, safe `process` object for sandboxed plugins that
+   * exposes no environment data and blocks exit/kill.
+   *
+   * @returns The sandboxed process interface.
+   */
   private createSandboxedProcess(): any {
     return {
       env: {},
@@ -811,7 +1001,13 @@ export class PluginSandbox extends EventEmitter {
     };
   }
 
-  // Check if path is allowed
+  /**
+   * Checks whether a given filesystem path falls within an allowed path
+   * and not within a blocked path.
+   *
+   * @param filePath The path to check.
+   * @returns `true` if access is permitted, `false` otherwise.
+   */
   private isPathAllowed(filePath: string): boolean {
     const normalizedPath = path.resolve(filePath);
     
@@ -832,7 +1028,11 @@ export class PluginSandbox extends EventEmitter {
     return false;
   }
 
-  // Monitor resource usage
+  /**
+   * Starts polling memory usage every second, emitting a
+   * `memory-limit-exceeded` event when the sandbox memory limit is breached.
+   * The monitor stops automatically after the configured timeout.
+   */
   monitorResourceUsage(): void {
     const interval = setInterval(() => {
       const memoryUsage = process.memoryUsage();
@@ -850,15 +1050,31 @@ export class PluginSandbox extends EventEmitter {
   }
 }
 
-// Utility functions
+/**
+ * Factory that creates a new `PluginSecurityValidator` with optional policy overrides.
+ *
+ * @param policy Partial security policy to override defaults.
+ * @returns A configured `PluginSecurityValidator` instance.
+ */
 export function createSecurityValidator(policy?: Partial<SecurityPolicy>): PluginSecurityValidator {
   return new PluginSecurityValidator(policy);
 }
 
+/**
+ * Factory that creates a new `PluginSandbox` with the given configuration.
+ *
+ * @param config The sandbox configuration to apply.
+ * @returns A `PluginSandbox` instance.
+ */
 export function createPluginSandbox(config: SandboxConfig): PluginSandbox {
   return new PluginSandbox(config);
 }
 
+/**
+ * Returns a fresh copy of the default security policy.
+ *
+ * @returns A `SecurityPolicy` populated with default values.
+ */
 export function getDefaultSecurityPolicy(): SecurityPolicy {
   return {
     allowNetworkAccess: false,

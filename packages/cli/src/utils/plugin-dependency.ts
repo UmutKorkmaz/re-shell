@@ -6,99 +6,189 @@ import semver from 'semver';
 
 import { PluginManifest, PluginRegistration } from './plugin-system';
 
-// Plugin dependency types
+/**
+ * Specification of a single plugin dependency.
+ * @description Describes a dependency requirement declared by a plugin manifest.
+ */
 export interface PluginDependencySpec {
+  /** Name of the dependency package or plugin. */
   name: string;
+  /** SemVer-compatible version or range string for the dependency. */
   version: string;
+  /** Whether the dependency is mandatory (true) or optional (false). */
   required: boolean;
+  /** The kind of dependency: a re-shell plugin, an npm package, or a peer dependency. */
   type: 'plugin' | 'npm' | 'peer';
+  /** Optional source URL or registry where the dependency can be fetched. */
   source?: string;
+  /** Optional scope name (e.g. an organization) that owns the dependency. */
   scope?: string;
 }
 
+/**
+ * A dependency that has been processed by the resolver.
+ * @description Extends {@link PluginDependencySpec} with the outcome of a resolution attempt.
+ */
 export interface ResolvedDependency extends PluginDependencySpec {
+  /** Whether the dependency was successfully resolved. */
   resolved: boolean;
+  /** The concrete version selected during resolution, if any. */
   resolvedVersion?: string;
+  /** The registered plugin installation that satisfies this dependency, if any. */
   installation?: PluginRegistration;
+  /** List of conflicts detected while resolving this dependency. */
   conflicts?: DependencyConflict[];
+  /** Error encountered during resolution, if resolution failed. */
   error?: Error;
 }
 
-// Dependency conflict information
+/**
+ * Information about a dependency conflict encountered during resolution.
+ * @description Describes a mismatch between requested and available dependency state.
+ */
 export interface DependencyConflict {
+  /** The category of conflict: a version mismatch, a missing dependency, a circular reference, or general incompatibility. */
   type: 'version' | 'missing' | 'circular' | 'incompatible';
+  /** Name of the plugin or package that declares the conflicting requirement. */
   source: string;
+  /** Name of the dependency that is the subject of the conflict. */
   target: string;
+  /** The version or constraint originally requested by the source. */
   requested: string;
+  /** The version actually available, when applicable. */
   available?: string;
+  /** Suggested resolution for the conflict, if one is available. */
   resolution?: ConflictResolution;
 }
 
+/**
+ * Proposed resolution for a dependency conflict.
+ * @description Describes the action needed to resolve a {@link DependencyConflict}.
+ */
 export interface ConflictResolution {
+  /** The kind of action to take: upgrade, downgrade, install, remove, or ignore. */
   action: 'upgrade' | 'downgrade' | 'install' | 'remove' | 'ignore';
+  /** Name of the plugin or package that the action targets. */
   target: string;
+  /** Version to install or change to, when applicable. */
   version?: string;
+  /** Human-readable explanation of why this resolution was chosen. */
   reason: string;
 }
 
-// Dependency graph node
+/**
+ * A node in the dependency graph.
+ * @description Represents a single plugin or package within the resolver's dependency graph.
+ */
 export interface DependencyNode {
+  /** Name of the plugin or package represented by this node. */
   name: string;
+  /** Version of the plugin or package. */
   version: string;
+  /** Set of names this node depends on. */
   dependencies: Set<string>;
+  /** Set of names that depend on this node. */
   dependents: Set<string>;
+  /** Whether this node has been successfully resolved. */
   resolved: boolean;
+  /** Depth of this node in the dependency tree (0 for roots). */
   depth: number;
+  /** The registered plugin installation associated with this node, if any. */
   installation?: PluginRegistration;
 }
 
-// Version constraint types
+/**
+ * A version constraint placed on a dependency.
+ * @description Describes how a particular consumer requires a dependency's version.
+ */
 export interface VersionConstraint {
+  /** The SemVer constraint expression (e.g. `^1.2.0`, `~2.0.0`, `latest`). */
   constraint: string;
+  /** Name of the plugin or package that declared this constraint. */
   source: string;
+  /** The kind of constraint: an exact version, a range, the latest available, or a compatibility range. */
   type: 'exact' | 'range' | 'latest' | 'compatible';
 }
 
-// Dependency resolution options
+/**
+ * Options controlling how dependency resolution is performed.
+ * @description Configures the behavior of {@link PluginDependencyResolver.resolveDependencies}.
+ */
 export interface ResolutionOptions {
+  /** Whether prerelease versions are allowed during resolution. Defaults to false. */
   allowPrerelease?: boolean;
+  /** Whether stable versions are preferred over prereleases. Defaults to true. */
   preferStable?: boolean;
+  /** Whether optional dependencies should be skipped. Defaults to false. */
   ignoreOptional?: boolean;
+  /** Maximum depth to traverse when building the dependency tree. Defaults to 10. */
   maxDepth?: number;
+  /** Timeout in milliseconds for resolution operations. Defaults to 30000. */
   timeout?: number;
+  /** Resolution strategy: strict (fail on conflicts), loose (best-effort), or latest (always pick newest). */
   strategy?: 'strict' | 'loose' | 'latest';
+  /** Whether to allow resolutions that contain conflicts. Defaults to false. */
   allowConflicts?: boolean;
+  /** Whether to generate an installation plan automatically on success. Defaults to false. */
   autoInstall?: boolean;
 }
 
-// Dependency resolution result
+/**
+ * The outcome of a dependency resolution run.
+ * @description Returned by {@link PluginDependencyResolver.resolveDependencies} summarizing results.
+ */
 export interface ResolutionResult {
+  /** List of dependencies that were successfully resolved. */
   resolved: ResolvedDependency[];
+  /** List of conflicts detected during resolution. */
   conflicts: DependencyConflict[];
+  /** Names of required dependencies that could not be found. */
   missing: string[];
+  /** List of circular dependency chains, each represented as an array of plugin names. */
   circular: string[][];
+  /** Ordered steps to install or update the resolved dependencies, when requested. */
   installationPlan: InstallationStep[];
+  /** Whether the overall resolution succeeded (no conflicts and no missing dependencies). */
   success: boolean;
+  /** Human-readable warning messages produced during resolution. */
   warnings: string[];
 }
 
-// Installation step
+/**
+ * A single step within a dependency installation plan.
+ * @description Describes one action to perform when installing or updating resolved plugins.
+ */
 export interface InstallationStep {
+  /** The action to perform: install a new plugin, upgrade, downgrade, or remove. */
   action: 'install' | 'upgrade' | 'downgrade' | 'remove';
+  /** Name of the plugin targeted by this step. */
   plugin: string;
+  /** Version involved in the action. */
   version: string;
+  /** Names of dependencies that must be handled alongside this step. */
   dependencies: string[];
+  /** Position of this step in the overall installation sequence (0-based). */
   order: number;
+  /** Whether this step is optional (e.g. an optional dependency). */
   optional: boolean;
 }
 
-// Plugin dependency resolver
+/**
+ * Resolves plugin dependencies, detects conflicts, and builds installation plans.
+ * @description Maintains a dependency graph and caches resolution results, emitting
+ * events for key lifecycle moments (registration, resolution start/complete/fail, cache hits).
+ */
 export class PluginDependencyResolver extends EventEmitter {
   private dependencyGraph: Map<string, DependencyNode> = new Map();
   private versionCache: Map<string, string[]> = new Map();
   private resolutionCache: Map<string, ResolutionResult> = new Map();
   private plugins: Map<string, PluginRegistration> = new Map();
   
+  /**
+   * Creates a new PluginDependencyResolver.
+   * @description Initializes internal caches and merges the provided options with defaults.
+   * @param options - Partial resolution options overriding the defaults.
+   */
   constructor(private options: Partial<ResolutionOptions> = {}) {
     super();
     this.options = {
@@ -114,14 +204,26 @@ export class PluginDependencyResolver extends EventEmitter {
     };
   }
 
-  // Register available plugins
+  /**
+   * Registers a plugin so it can participate in dependency resolution.
+   * @description Adds the plugin to the internal registry and updates the dependency graph.
+   * @param registration - The plugin registration to add.
+   * @returns void
+   * @emits plugin-registered
+   */
   registerPlugin(registration: PluginRegistration): void {
     this.plugins.set(registration.manifest.name, registration);
     this.updateDependencyGraph(registration);
     this.emit('plugin-registered', registration.manifest.name);
   }
 
-  // Unregister a plugin
+  /**
+   * Removes a previously registered plugin from the resolver.
+   * @description Deletes the plugin from the registry and dependency graph, then clears caches.
+   * @param name - Name of the plugin to unregister.
+   * @returns void
+   * @emits plugin-unregistered
+   */
   unregisterPlugin(name: string): void {
     this.plugins.delete(name);
     this.dependencyGraph.delete(name);
@@ -129,7 +231,18 @@ export class PluginDependencyResolver extends EventEmitter {
     this.emit('plugin-unregistered', name);
   }
 
-  // Resolve dependencies for a plugin
+  /**
+   * Resolves all dependencies for the given plugin manifest.
+   * @description Uses cached results when available; otherwise performs a full resolution.
+   * @param manifest - The plugin manifest whose dependencies should be resolved.
+   * @param options - Optional overrides merged with the resolver's default options.
+   * @returns A {@link ResolutionResult} describing the resolved dependencies, conflicts, and plan.
+   * @throws When the underlying resolution encounters an unrecoverable error.
+   * @emits resolution-cache-hit when a cached result is used.
+   * @emits resolution-started when resolution begins.
+   * @emits resolution-completed when resolution finishes successfully.
+   * @emits resolution-failed when resolution throws.
+   */
   async resolveDependencies(
     manifest: PluginManifest,
     options: Partial<ResolutionOptions> = {}
@@ -175,7 +288,14 @@ export class PluginDependencyResolver extends EventEmitter {
     }
   }
 
-  // Perform actual dependency resolution
+  /**
+   * Performs the full dependency resolution for a manifest.
+   * @description Extracts specs, builds the dependency tree, detects cycles, resolves
+   * version constraints, optionally creates an installation plan, and generates warnings.
+   * @param manifest - The plugin manifest to resolve.
+   * @param options - The fully merged resolution options.
+   * @returns The complete resolution result.
+   */
   private async performResolution(
     manifest: PluginManifest,
     options: ResolutionOptions
@@ -242,7 +362,13 @@ export class PluginDependencyResolver extends EventEmitter {
     return result;
   }
 
-  // Extract dependency specifications from manifest
+  /**
+   * Extracts dependency specifications from a plugin manifest.
+   * @description Reads re-shell plugin dependencies, npm dependencies, and peer dependencies
+   * into a unified list of {@link PluginDependencySpec} objects.
+   * @param manifest - The manifest to extract specifications from.
+   * @returns An array of dependency specifications.
+   */
   private extractDependencySpecs(manifest: PluginManifest): PluginDependencySpec[] {
     const specs: PluginDependencySpec[] = [];
 
@@ -285,7 +411,18 @@ export class PluginDependencyResolver extends EventEmitter {
     return specs;
   }
 
-  // Build dependency tree recursively
+  /**
+   * Recursively builds a dependency tree starting from the given plugin.
+   * @description Traverses the dependency specs, creating nodes and merging sub-trees
+   * for plugin-type dependencies. Respects max depth and visited sets to avoid infinite recursion.
+   * @param pluginName - Name of the plugin currently being processed.
+   * @param specs - Dependency specifications declared by the plugin.
+   * @param options - Resolution options controlling traversal behavior.
+   * @param visited - Set of plugin names already visited on the current path.
+   * @param depth - Current depth in the dependency tree.
+   * @returns A map of dependency name to {@link DependencyNode}.
+   * @emits resolution-warning when the maximum depth is exceeded.
+   */
   private async buildDependencyTree(
     pluginName: string,
     specs: PluginDependencySpec[],
@@ -359,7 +496,12 @@ export class PluginDependencyResolver extends EventEmitter {
     return tree;
   }
 
-  // Detect circular dependencies
+  /**
+   * Detects circular dependencies within the dependency tree.
+   * @description Uses a depth-first search with a recursion stack to identify cycles.
+   * @param tree - The dependency tree to analyze.
+   * @returns An array of cycles, each represented as a list of plugin names forming the cycle.
+   */
   private detectCircularDependencies(
     tree: Map<string, DependencyNode>
   ): string[][] {
@@ -403,7 +545,14 @@ export class PluginDependencyResolver extends EventEmitter {
     return cycles;
   }
 
-  // Resolve version constraints
+  /**
+   * Resolves version constraints for all nodes in the dependency tree.
+   * @description Collects constraints per dependency and delegates to
+   * {@link PluginDependencyResolver.resolveVersionConstraint} for each.
+   * @param tree - The dependency tree to resolve constraints for.
+   * @param options - Resolution options.
+   * @returns An object containing resolved dependencies, conflicts, and missing names.
+   */
   private async resolveVersionConstraints(
     tree: Map<string, DependencyNode>,
     options: ResolutionOptions
@@ -457,7 +606,15 @@ export class PluginDependencyResolver extends EventEmitter {
     return { resolved, conflicts, missing };
   }
 
-  // Resolve single version constraint
+  /**
+   * Resolves a single dependency against a set of version constraints.
+   * @description Checks plugin availability, retrieves available versions, and attempts
+   * to find a satisfying version. Returns conflict information when resolution fails.
+   * @param depName - Name of the dependency to resolve.
+   * @param constraints - Version constraints placed on the dependency.
+   * @param options - Resolution options.
+   * @returns An object indicating success, the resolved dependency, and optional conflicts/missing flag.
+   */
   private async resolveVersionConstraint(
     depName: string,
     constraints: VersionConstraint[],
@@ -534,7 +691,15 @@ export class PluginDependencyResolver extends EventEmitter {
     };
   }
 
-  // Find version that satisfies all constraints
+  /**
+   * Finds the best available version that satisfies the given constraints.
+   * @description Sorts available versions descending, optionally filters to stable releases,
+   * and delegates final selection to {@link PluginDependencyResolver.findBestMatch}.
+   * @param constraints - Version constraints to satisfy.
+   * @param availableVersions - Versions available for selection.
+   * @param options - Resolution options.
+   * @returns The best matching version, or null if none found.
+   */
   private findSatisfyingVersion(
     constraints: VersionConstraint[],
     availableVersions: string[],
@@ -559,7 +724,15 @@ export class PluginDependencyResolver extends EventEmitter {
     return this.findBestMatch(constraints, sortedVersions, options);
   }
 
-  // Find best matching version
+  /**
+   * Finds the first version that satisfies all constraints.
+   * @description Iterates versions in order; in strict strategy returns null when no match
+   * exists, while in loose/latest strategies falls back to the first (newest) version.
+   * @param constraints - Version constraints to satisfy.
+   * @param versions - Candidate versions, ordered by preference.
+   * @param options - Resolution options controlling fallback behavior.
+   * @returns The matching version, or null.
+   */
   private findBestMatch(
     constraints: VersionConstraint[],
     versions: string[],
@@ -580,7 +753,13 @@ export class PluginDependencyResolver extends EventEmitter {
     return versions[0] || null;
   }
 
-  // Check if version satisfies all constraints
+  /**
+   * Checks whether a version satisfies every provided constraint.
+   * @description Uses semver to evaluate each constraint; invalid constraints are treated as unsatisfied.
+   * @param version - The version to test.
+   * @param constraints - The constraints to check against.
+   * @returns True when the version satisfies all constraints, false otherwise.
+   */
   private satisfiesAllConstraints(
     version: string,
     constraints: VersionConstraint[]
@@ -594,7 +773,13 @@ export class PluginDependencyResolver extends EventEmitter {
     });
   }
 
-  // Get available versions for a plugin
+  /**
+   * Retrieves the available versions for a plugin.
+   * @description Returns cached versions when present; otherwise derives versions from the
+   * registered plugin manifest and caches the result.
+   * @param pluginName - Name of the plugin to query.
+   * @returns An array of available version strings (may be empty).
+   */
   private async getAvailableVersions(pluginName: string): Promise<string[]> {
     // Check cache
     if (this.versionCache.has(pluginName)) {
@@ -610,7 +795,12 @@ export class PluginDependencyResolver extends EventEmitter {
     return versions;
   }
 
-  // Create installation plan
+  /**
+   * Creates an ordered installation plan from resolved dependencies.
+   * @description Performs a topological sort and emits one {@link InstallationStep} per dependency.
+   * @param dependencies - Resolved dependencies to include in the plan.
+   * @returns An array of installation steps in execution order.
+   */
   private createInstallationPlan(dependencies: ResolvedDependency[]): InstallationStep[] {
     const plan: InstallationStep[] = [];
     const processed = new Set<string>();
@@ -635,7 +825,12 @@ export class PluginDependencyResolver extends EventEmitter {
     return plan;
   }
 
-  // Topological sort for dependencies
+  /**
+   * Sorts dependencies into an installation-friendly order.
+   * @description Places required dependencies before optional ones and sorts alphabetically within each group.
+   * @param dependencies - Dependencies to sort.
+   * @returns A new array of dependencies in sorted order.
+   */
   private topologicalSort(dependencies: ResolvedDependency[]): ResolvedDependency[] {
     // Simple implementation - in practice would use dependency graph
     return [...dependencies].sort((a, b) => {
@@ -647,7 +842,12 @@ export class PluginDependencyResolver extends EventEmitter {
     });
   }
 
-  // Generate warnings
+  /**
+   * Generates human-readable warning messages from a resolution result.
+   * @description Summarizes counts of conflicts, missing dependencies, and circular references.
+   * @param result - The resolution result to inspect.
+   * @returns An array of warning strings.
+   */
   private generateWarnings(result: ResolutionResult): string[] {
     const warnings: string[] = [];
 
@@ -666,7 +866,12 @@ export class PluginDependencyResolver extends EventEmitter {
     return warnings;
   }
 
-  // Update dependency graph
+  /**
+   * Updates the dependency graph with a newly registered plugin.
+   * @description Extracts specs from the registration and inserts a node into the graph.
+   * @param registration - The plugin registration to incorporate.
+   * @returns void
+   */
   private updateDependencyGraph(registration: PluginRegistration): void {
     const specs = this.extractDependencySpecs(registration.manifest);
     
@@ -683,14 +888,25 @@ export class PluginDependencyResolver extends EventEmitter {
     this.dependencyGraph.set(registration.manifest.name, node);
   }
 
-  // Clear caches
+  /**
+   * Clears all cached resolution and version data.
+   * @description Removes cached resolution results and version lookups.
+   * @returns void
+   * @emits cache-cleared
+   */
   clearCache(): void {
     this.resolutionCache.clear();
     this.versionCache.clear();
     this.emit('cache-cleared');
   }
 
-  // Get cache key for resolution result
+  /**
+   * Builds a cache key for a resolution request.
+   * @description Combines the manifest identity, dependency declarations, and options into a unique key.
+   * @param manifest - The plugin manifest being resolved.
+   * @param options - The resolution options in effect.
+   * @returns A string cache key.
+   */
   private getCacheKey(manifest: PluginManifest, options: ResolutionOptions): string {
     const dependencyHash = JSON.stringify({
       dependencies: manifest.dependencies,
@@ -702,7 +918,11 @@ export class PluginDependencyResolver extends EventEmitter {
     return `${manifest.name}_${manifest.version}_${dependencyHash}_${optionsHash}`;
   }
 
-  // Get dependency statistics
+  /**
+   * Returns summary statistics about the resolver's internal state.
+   * @description Counts registered plugins, dependency nodes, and cache entries.
+   * @returns An object containing totalPlugins, dependencyNodes, cacheSize, and versionCacheSize.
+   */
   getStats(): any {
     return {
       totalPlugins: this.plugins.size,
@@ -712,27 +932,56 @@ export class PluginDependencyResolver extends EventEmitter {
     };
   }
 
-  // Get dependency graph
+  /**
+   * Returns a copy of the current dependency graph.
+   * @description Provides a snapshot mapping plugin names to their {@link DependencyNode}.
+   * @returns A new Map containing the graph entries.
+   */
   getDependencyGraph(): Map<string, DependencyNode> {
     return new Map(this.dependencyGraph);
   }
 }
 
-// Utility functions
+/**
+ * Factory that creates a new PluginDependencyResolver instance.
+ * @description Convenience wrapper around the {@link PluginDependencyResolver} constructor.
+ * @param options - Optional partial resolution options to apply.
+ * @returns A configured PluginDependencyResolver.
+ */
 export function createDependencyResolver(
   options?: Partial<ResolutionOptions>
 ): PluginDependencyResolver {
   return new PluginDependencyResolver(options);
 }
 
+/**
+ * Validates whether a version string is a well-formed semantic version.
+ * @description Uses semver to parse the input.
+ * @param version - The version string to validate.
+ * @returns True when the version is valid, false otherwise.
+ */
 export function validateVersion(version: string): boolean {
   return semver.valid(version) !== null;
 }
 
+/**
+ * Compares two semantic version strings.
+ * @description Delegates to semver.compare for ordering.
+ * @param a - The first version to compare.
+ * @param b - The second version to compare.
+ * @returns -1 if a < b, 0 if a == b, or 1 if a > b.
+ */
 export function compareVersions(a: string, b: string): number {
   return semver.compare(a, b);
 }
 
+/**
+ * Checks whether a version satisfies a semver constraint.
+ * @description Wraps semver.satisfies and returns false on invalid input instead of throwing.
+ * @param version - The version to test.
+ * @param constraint - The semver constraint expression (e.g. `^1.0.0`).
+ * @returns True when the version satisfies the constraint, false otherwise.
+ */
 export function satisfiesConstraint(version: string, constraint: string): boolean {
   try {
     return semver.satisfies(version, constraint);
