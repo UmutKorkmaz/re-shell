@@ -16,61 +16,116 @@ import {
   testPlatformWatching as testPlatformWatchingInternal
 } from './platform-watcher';
 
-// File watching interfaces
+/**
+ * Represents a single file system change event emitted by the watcher.
+ */
 export interface FileWatchEvent {
+  /** The kind of change that occurred (add, change, unlink, addDir, unlinkDir). */
   type: FileChangeType;
+  /** Absolute path of the affected file or directory. */
   path: string;
+  /** Name of the workspace that owns the changed path, if known. */
   workspace?: string;
+  /** Epoch timestamp (ms) at which the event was captured. */
   timestamp: number;
+  /** Size of the file in bytes, when available. */
   size?: number;
+  /** Raw `fs.Stats` object for the affected entry, when stat information was collected. */
   stats?: fs.Stats;
 }
 
+/**
+ * Describes the possible types of file system changes that can be observed.
+ */
 export type FileChangeType = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
 
+/**
+ * Configuration options for the file watcher, including standard chokidar
+ * options alongside cross-platform extensions provided by re-shell.
+ */
 export interface WatchOptions {
+  /** Paths, globs, or regular expressions to ignore. */
   ignored?: string | RegExp | (string | RegExp)[];
+  /** Whether the process should keep running as long as files are watched. */
   persistent?: boolean;
+  /** Whether to ignore the initial `add` events emitted when watching starts. */
   ignoreInitial?: boolean;
+  /** Whether to follow symbolic links. */
   followSymlinks?: boolean;
+  /** Base directory used to resolve relative watch paths. */
   cwd?: string;
+  /** Whether to disable glob pattern expansion. */
   disableGlobbing?: boolean;
+  /** Whether to use polling instead of native file system events. */
   usePolling?: boolean;
+  /** Polling interval in milliseconds (used when `usePolling` is true). */
   interval?: number;
+  /** Polling interval in milliseconds for binary files. */
   binaryInterval?: number;
+  /** Whether to always populate `stats` for emitted events. */
   alwaysStat?: boolean;
+  /** Maximum depth of subdirectories to traverse. */
   depth?: number;
+  /** Configuration for awaiting write completion before emitting events. */
   awaitWriteFinish?: boolean | {
+    /** Time in ms the file size must remain stable before emitting. */
     stabilityThreshold?: number;
+    /** Interval in ms at which file stability is polled. */
     pollInterval?: number;
   };
+  /** Whether to ignore errors caused by insufficient permissions. */
   ignorePermissionErrors?: boolean;
+  /** Whether to treat file renames atomically (renamed-to events). */
   atomic?: boolean;
-  // Cross-platform extensions
+  /** Whether to enable cross-platform fallback watchers. */
   enableFallbacks?: boolean;
+  /** Whether to apply platform-specific optimizations. */
   platformOptimizations?: boolean;
+  /** Optional fallback watcher configuration. */
   fallbackOptions?: Partial<WatcherFallbackOptions>;
+  /** Platform-specific watcher overrides keyed by Node `process.platform`. */
   platformSpecific?: {
+    /** Overrides applied when running on macOS. */
     darwin?: any;
+    /** Overrides applied when running on Linux. */
     linux?: any;
+    /** Overrides applied when running on Windows. */
     win32?: any;
+    /** Index signature allowing additional platform keys. */
     [key: string]: any;
   };
 }
 
+/**
+ * Defines a rule for propagating file changes to other workspaces, including
+ * which source paths trigger the rule, which targets are affected, and what
+ * action should be taken.
+ */
 export interface ChangePropagationRule {
+  /** Unique identifier for the rule. */
   id: string;
+  /** Human-readable name of the rule. */
   name: string;
+  /** Longer description of what the rule does. */
   description: string;
+  /** Pattern (string substring or RegExp) matched against source file paths. */
   sourcePattern: RegExp | string;
+  /** Resolves the list of target workspaces affected by the rule. */
   targetWorkspaces: string[] | 'all' | ((workspace: string) => boolean);
+  /** The kind of action to take when the rule fires. */
   actionType: PropagationActionType;
+  /** Optional predicate that must return true for the rule to apply. */
   condition?: (event: FileWatchEvent, workspaces: Record<string, WorkspaceEntry>) => boolean;
+  /** Optional transformer applied to the source event before propagation. */
   transform?: (event: FileWatchEvent) => FileWatchEvent;
+  /** Optional debounce window in milliseconds before the rule fires. */
   debounceMs?: number;
 }
 
-export type PropagationActionType = 
+/**
+ * The set of actions that can be triggered by a propagation rule.
+ */
+export type PropagationActionType =
   | 'rebuild'
   | 'restart-dev'
   | 'run-tests'
@@ -78,32 +133,60 @@ export type PropagationActionType =
   | 'notify'
   | 'custom';
 
+/**
+ * Represents an emitted propagation event produced when a
+ * {@link ChangePropagationRule} matches a source file event.
+ */
 export interface PropagationEvent {
+  /** The rule that produced this event. */
   rule: ChangePropagationRule;
+  /** The originating file event (possibly transformed). */
   sourceEvent: FileWatchEvent;
+  /** List of workspace names targeted by the propagation. */
   targetWorkspaces: string[];
+  /** Epoch timestamp (ms) when the propagation event was created. */
   timestamp: number;
+  /** The action type that should be performed by listeners. */
   actionType: PropagationActionType;
 }
 
+/**
+ * Snapshot of statistics describing the watcher's activity and health.
+ */
 export interface WatcherStats {
+  /** Total number of raw file events observed. */
   totalEvents: number;
+  /** Event counts broken down by {@link FileChangeType}. */
   eventsByType: Record<FileChangeType, number>;
+  /** Event counts broken down by workspace name. */
   eventsByWorkspace: Record<string, number>;
+  /** Total number of propagation events emitted. */
   propagatedEvents: number;
+  /** Epoch timestamp (ms) when watching started. */
   startTime: number;
+  /** Total uptime in milliseconds. */
   uptime: number;
+  /** List of paths currently being watched. */
   watchedPaths: string[];
+  /** Number of currently registered propagation rules. */
   activeRules: number;
-  // Cross-platform stats
+  /** Cross-platform capabilities detected for the host platform. */
   platformCapabilities: PlatformCapabilities;
+  /** Total number of active underlying watchers. */
   activeWatchers: number;
+  /** Number of watchers currently using a fallback mechanism. */
   fallbackWatchers: number;
+  /** Number of watchers considered healthy by the platform watcher. */
   healthyWatchers: number;
+  /** Total number of watcher failures recorded. */
   watcherFailures: number;
 }
 
-// File watcher with change propagation
+/**
+ * Cross-platform file watcher with workspace awareness, event debouncing, and
+ * configurable change propagation rules. Extends `EventEmitter` to notify
+ * consumers about file events, propagation events, and platform health.
+ */
 export class FileWatcher extends EventEmitter {
   private watchers: Map<string, chokidar.FSWatcher> = new Map();
   private watchedPaths: Set<string> = new Set();
@@ -117,6 +200,12 @@ export class FileWatcher extends EventEmitter {
   private isActive = false;
   private watcherFailures = 0;
 
+  /**
+   * Creates a new `FileWatcher` rooted at the given path.
+   *
+   * @param rootPath - Root directory the watcher operates relative to. Defaults to `process.cwd()`.
+   * @param fallbackOptions - Optional cross-platform fallback configuration.
+   */
   constructor(rootPath: string = process.cwd(), fallbackOptions?: Partial<WatcherFallbackOptions>) {
     super();
     this.rootPath = rootPath;
@@ -200,7 +289,15 @@ export class FileWatcher extends EventEmitter {
     });
   }
 
-  // Start watching workspace paths
+  /**
+   * Begins watching the provided workspace directories (and root configuration
+   * files) using platform-optimized watchers.
+   *
+   * @param workspaces - Map of workspace name to workspace entry to watch.
+   * @param options - Optional watcher configuration; merged with sensible defaults.
+   * @returns Resolves once all watchers have been initialized.
+   * @throws {ValidationError} If watching is already active.
+   */
   async startWatching(
     workspaces: Record<string, WorkspaceEntry>,
     options: WatchOptions = {}
@@ -309,7 +406,12 @@ export class FileWatcher extends EventEmitter {
     });
   }
 
-  // Stop watching all paths
+  /**
+   * Stops all active watchers, clears pending debounce timers, and finalizes
+   * statistics. Emits a `stopped` event once complete.
+   *
+   * @returns Resolves once all watchers have been closed.
+   */
   async stopWatching(): Promise<void> {
     if (!this.isActive) return;
 
@@ -343,14 +445,23 @@ export class FileWatcher extends EventEmitter {
     });
   }
 
-  // Add change propagation rule
+  /**
+   * Registers a new change propagation rule.
+   *
+   * @param rule - The propagation rule to register.
+   */
   addPropagationRule(rule: ChangePropagationRule): void {
     this.propagationRules.set(rule.id, rule);
     this.stats.activeRules = this.propagationRules.size;
     this.emit('rule-added', rule);
   }
 
-  // Remove change propagation rule
+  /**
+   * Removes a previously registered propagation rule by id.
+   *
+   * @param ruleId - Identifier of the rule to remove.
+   * @returns `true` if a rule was removed; `false` otherwise.
+   */
   removePropagationRule(ruleId: string): boolean {
     const removed = this.propagationRules.delete(ruleId);
     this.stats.activeRules = this.propagationRules.size;
@@ -360,7 +471,11 @@ export class FileWatcher extends EventEmitter {
     return removed;
   }
 
-  // Get current watcher statistics
+  /**
+   * Returns a snapshot of the watcher's current statistics and health.
+   *
+   * @returns A {@link WatcherStats} object with up-to-date metrics.
+   */
   getStats(): WatcherStats {
     return {
       ...this.stats,
@@ -371,22 +486,39 @@ export class FileWatcher extends EventEmitter {
     };
   }
 
-  // Check if currently watching
+  /**
+   * Indicates whether the watcher is currently active.
+   *
+   * @returns `true` if watching has started and not yet stopped; `false` otherwise.
+   */
   isWatching(): boolean {
     return this.isActive;
   }
 
-  // Get platform capabilities
+  /**
+   * Returns the cross-platform capabilities detected for the host platform.
+   *
+   * @returns A {@link PlatformCapabilities} object.
+   */
   getPlatformCapabilities(): PlatformCapabilities {
     return this.platformWatcher.getPlatformCapabilities();
   }
 
-  // Get platform watcher health
+  /**
+   * Retrieves health information for one or all platform watchers.
+   *
+   * @param watcherId - Optional identifier of a specific watcher to inspect.
+   * @returns Health information from the underlying platform watcher.
+   */
   getPlatformWatcherHealth(watcherId?: string) {
     return this.platformWatcher.getWatcherHealth(watcherId);
   }
 
-  // Test platform capabilities
+  /**
+   * Runs a runtime test of the host platform's file watching capabilities.
+   *
+   * @returns Resolves to the platform capability test results.
+   */
   async testPlatformCapabilities() {
     return await this.platformWatcher.testPlatformCapabilities();
   }
@@ -616,7 +748,11 @@ export class FileWatcher extends EventEmitter {
     this.emit('watcher-ready', { workspace, path });
   }
 
-  // Configure event debouncer
+  /**
+   * Updates the configuration of the underlying event debouncer.
+   *
+   * @param options - Partial debouncer options to apply.
+   */
   configureDebouncer(options: Partial<{
     delay: number;
     maxDelay: number;
@@ -629,7 +765,11 @@ export class FileWatcher extends EventEmitter {
     this.eventDebouncer.updateOptions(options);
   }
 
-  // Add debouncer filter
+  /**
+   * Adds a filter to the event debouncer so that only matching events are processed.
+   *
+   * @param filter - Filter configuration describing which events to keep.
+   */
   addDebouncerFilter(filter: {
     patterns: RegExp[];
     types: string[];
@@ -641,7 +781,11 @@ export class FileWatcher extends EventEmitter {
     this.eventDebouncer.addFilter(filter);
   }
 
-  // Get debouncer statistics
+  /**
+   * Returns statistics about the event debouncer's current state.
+   *
+   * @returns An object with pending event counts, timer/batch counts, and options.
+   */
   getDebouncerStats(): {
     pendingEvents: number;
     activeTimers: number;
@@ -652,7 +796,9 @@ export class FileWatcher extends EventEmitter {
     return this.eventDebouncer.getStatistics();
   }
 
-  // Flush pending debounced events
+  /**
+   * Immediately flushes all pending debounced events through the pipeline.
+   */
   flushDebouncedEvents(): void {
     this.eventDebouncer.flush();
   }
@@ -736,7 +882,13 @@ export class FileWatcher extends EventEmitter {
   }
 }
 
-// Utility functions
+/**
+ * Factory that constructs a new {@link FileWatcher} instance.
+ *
+ * @param rootPath - Root directory the watcher should operate within.
+ * @param fallbackOptions - Optional cross-platform fallback configuration.
+ * @returns Resolves to a ready-to-use `FileWatcher` instance.
+ */
 export async function createFileWatcher(
   rootPath?: string,
   fallbackOptions?: Partial<WatcherFallbackOptions>
@@ -744,7 +896,15 @@ export async function createFileWatcher(
   return new FileWatcher(rootPath, fallbackOptions);
 }
 
-// Start watching with workspace definition
+/**
+ * Convenience helper that constructs a {@link FileWatcher}, loads a workspace
+ * definition from the given file, and immediately starts watching.
+ *
+ * @param workspaceFile - Path to the workspace definition YAML file.
+ * @param options - Optional watcher configuration merged with defaults.
+ * @param fallbackOptions - Optional cross-platform fallback configuration.
+ * @returns Resolves to the started `FileWatcher` instance.
+ */
 export async function startWorkspaceWatcher(
   workspaceFile: string,
   options?: WatchOptions,
@@ -761,7 +921,14 @@ export async function startWorkspaceWatcher(
   return watcher;
 }
 
-// Create cross-platform file watcher with optimized settings
+/**
+ * Creates a {@link FileWatcher} preconfigured with cross-platform optimizations
+ * and fallback support, logging any platform recommendations detected.
+ *
+ * @param rootPath - Root directory the watcher should operate within.
+ * @param enableFallbacks - Whether to enable cross-platform fallbacks. Defaults to `true`.
+ * @returns Resolves to a cross-platform optimized `FileWatcher` instance.
+ */
 export async function createCrossPlatformWatcher(
   rootPath?: string,
   enableFallbacks = true
@@ -797,11 +964,20 @@ async function loadWorkspaceDefinition(filePath: string): Promise<WorkspaceDefin
   return yaml.parse(content) as WorkspaceDefinition;
 }
 
-// Export platform capabilities functions
+/**
+ * Returns the file watching capabilities of the current platform.
+ *
+ * @returns A {@link PlatformCapabilities} object describing native and fallback support.
+ */
 export function getPlatformCapabilities(): PlatformCapabilities {
   return getPlatformCaps();
 }
 
+/**
+ * Runs a runtime test of the current platform's file watching behavior.
+ *
+ * @returns Resolves to the platform watching test results.
+ */
 export async function testPlatformWatching() {
   return await testPlatformWatchingInternal();
 }

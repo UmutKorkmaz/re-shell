@@ -12,22 +12,36 @@
 // (dev-mode) discovers the workspace and feeds events; the Ink TUI renders the
 // plan. No mutation of any input is ever performed.
 
-/** The workspace dependency graph (each key → its UPSTREAM deps). */
+/**
+ * The workspace dependency graph: a read-only map where each key is a package
+ * name and the value is the list of that package's UPSTREAM dependencies
+ * (packages it depends on). Keys are present for every package in the workspace;
+ * unknown package names never appear as keys.
+ */
 export type DevFusionGraph = ReadonlyMap<string, readonly string[]>;
 
-/** A single change event: the package names whose files changed. */
+/**
+ * A single change event emitted by the file watcher: the names of the packages
+ * whose files changed, plus ordering metadata used by the debounce coalescer.
+ */
 export interface DevChangeEvent {
-  /** Monotonic event sequence id (used for debounce ordering). */
+  /** Monotonic event sequence id (used for debounce ordering when tsMs ties). */
   readonly seq: number;
-  /** Wall-clock-ish timestamp in ms (used for the debounce window). */
+  /** Wall-clock-ish timestamp in ms (used to compute the debounce window). */
   readonly tsMs: number;
   /** Names of the packages whose files changed in this event. */
   readonly packages: readonly string[];
 }
 
 /**
- * Build the reverse (dependents) graph from an upstream graph: each name maps to
- * the packages that directly depend on it. Pure.
+ * Build the reverse (dependents) graph from an upstream dependency graph: each
+ * package name maps to the list of packages that directly depend on it. The
+ * returned map has an entry for every key in the input graph (with an empty
+ * array for packages nothing depends on). Pure and non-mutating.
+ *
+ * @param graph - The workspace dependency graph (each key → its UPSTREAM deps).
+ * @returns A new map where each key maps to the packages that directly depend
+ *   on it (the reverse of `graph`).
  */
 export function buildDependentsGraph(
   graph: DevFusionGraph
@@ -49,6 +63,12 @@ export function buildDependentsGraph(
  * seeds themselves PLUS every transitive dependent (a change to an upstream
  * package forces a restart of everything downstream of it). Pure BFS over the
  * reverse graph; cycle-tolerant (visited-set). Returns the set including seeds.
+ *
+ * @param dependentsGraph - The reverse (dependents) graph, e.g. from
+ *   {@link buildDependentsGraph}.
+ * @param seeds - The package names whose files changed (the propagation roots).
+ * @returns A set containing every seed plus all of their transitive dependents.
+ *   Seeds absent from the graph are returned as-is (still included).
  */
 export function transitiveDependents(
   dependentsGraph: ReadonlyMap<string, readonly string[]>,
@@ -71,7 +91,14 @@ export function transitiveDependents(
  * Kahn's topological sort scoped to a SUBSET of the graph (only the affected
  * nodes), so the restart order is deps-before-dependents within the propagation.
  * Ties broken alphabetically for determinism. Cycle-tolerant: leftover nodes
- * are appended.
+ * (those still in a cycle after the BFS exhausts acyclic nodes) are appended in
+ * sorted order so the function never deadlocks on a cyclic graph.
+ *
+ * @param graph - The workspace dependency graph (each key → its UPSTREAM deps).
+ * @param subset - The set of affected package names to order. Names not present
+ *   in `graph` are ignored.
+ * @returns An ordered array of package names (deps before dependents) covering
+ *   exactly the intersection of `subset` and `graph` keys.
  */
 export function orderSubgraph(
   graph: DevFusionGraph,
@@ -118,22 +145,34 @@ export function orderSubgraph(
   return [...ordered, ...leftover];
 }
 
-/** Why a package is in the restart plan: it changed, or it depends on one that did. */
+/**
+ * Why a package is in the restart plan:
+ * - `'changed'` — the package itself was a changed seed.
+ * - `'dependent'` — the package depends (transitively) on a changed seed.
+ */
 export type RestartReason = 'changed' | 'dependent';
 
-/** One entry in a restart plan: the package, its reason, and its restart depth. */
+/**
+ * One entry in a restart plan: the package name, why it is restarting, and its
+ * propagation depth from the nearest changed seed.
+ */
 export interface RestartTarget {
+  /** The package name that must restart. */
   readonly name: string;
+  /** Why this package is restarting (changed vs. dependent). */
   readonly reason: RestartReason;
   /** Distance from the nearest changed seed (0 for seeds themselves). */
   readonly depth: number;
 }
 
-/** The output of {@link resolveRestartTargets}: the ordered restart plan. */
+/**
+ * The output of {@link resolveRestartTargets}: the ordered restart plan plus
+ * supporting metadata for the caller (membership checks, unknown-seed warnings).
+ */
 export interface RestartPlan {
-  /** Ordered deps-before-dependents (the order to restart in). */
+  /** Ordered deps-before-dependents — the order packages should restart in. */
   readonly ordered: readonly RestartTarget[];
-  /** The raw set of affected packages (unordered, for membership checks). */
+  /** The raw set of affected packages (sorted, for membership checks). */
   readonly affected: readonly string[];
   /** Packages in `seeds` that were unknown to the graph (warned by the caller). */
   readonly unknownSeeds: readonly string[];
@@ -143,7 +182,14 @@ export interface RestartPlan {
  * Resolve the restart plan for a set of changed packages against the workspace
  * graph: seeds + transitive dependents, in dependency order, each tagged with
  * its reason and depth. Seeds absent from the graph are returned in
- * `unknownSeeds` (the caller warns) and excluded from the plan.
+ * `unknownSeeds` (the caller warns) and excluded from the plan. Pure and
+ * non-mutating.
+ *
+ * @param graph - The workspace dependency graph (each key → its UPSTREAM deps).
+ * @param seeds - The package names whose files changed (the propagation roots).
+ *   Unknown seeds are ignored for ordering purposes.
+ * @returns A {@link RestartPlan} with the ordered targets, the affected set,
+ *   and any unknown seeds.
  */
 export function resolveRestartTargets(
   graph: DevFusionGraph,
@@ -184,11 +230,14 @@ export function resolveRestartTargets(
   return { ordered, affected: [...affected].sort(), unknownSeeds };
 }
 
-/** A coalesced restart plan plus the event window metadata. */
+/**
+ * A coalesced restart plan plus the event window metadata: the events that were
+ * merged into a single batch and the resulting merged restart plan.
+ */
 export interface CoalescedPlan {
-  /** The events that were coalesced (in seq order). */
+  /** The events that were coalesced into this batch (in seq/timestamp order). */
   readonly events: readonly DevChangeEvent[];
-  /** The merged restart plan across all coalesced events. */
+  /** The merged restart plan across all coalesced events in this batch. */
   readonly plan: RestartPlan;
 }
 
@@ -197,11 +246,21 @@ export interface CoalescedPlan {
  * restart plan. Events with `tsMs` within `windowMs` of the first event in a
  * batch are merged; the batch flushes when an event arrives past the window.
  *
- * Returns the flushed batches (each a CoalescedPlan) plus any trailing events
- * that did not yet exceed the window (the caller holds them for the next flush).
- * Pure: given the same events + window, always produces the same batches.
+ * Returns the flushed batches (each a {@link CoalescedPlan}) plus any trailing
+ * events that did not yet exceed the window (the caller holds them for the next
+ * flush). Pure: given the same events + window, always produces the same
+ * batches and the same trailing tail.
  *
- * `graph` is the workspace graph used to resolve each batch's restart targets.
+ * @param graph - The workspace graph used to resolve each batch's restart
+ *   targets via {@link resolveRestartTargets}.
+ * @param events - The change events to coalesce. Need not be pre-sorted; they
+ *   are sorted internally by `tsMs` (then `seq` for ties).
+ * @param windowMs - The debounce window in milliseconds. An event more than
+ *   `windowMs` after the first event of the current batch triggers a flush.
+ * @returns An object with:
+ *   - `batches` — the flushed {@link CoalescedPlan}s, one per completed window.
+ *   - `trailing` — events in the still-open final window (caller holds these
+ *     until the next flush).
  */
 export function coalesceChangeEvents(
   graph: DevFusionGraph,

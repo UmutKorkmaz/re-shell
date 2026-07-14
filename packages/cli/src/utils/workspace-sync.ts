@@ -2,45 +2,113 @@ import chalk from 'chalk';
 // Auto-generated Workspace Sync Utility
 // Generated at: 2026-01-13T13:15:00.000Z
 
+/**
+ * Strategy used to synchronize changes across workspace members.
+ * - `real-time`: propagates changes immediately as they occur.
+ * - `batch`: collects changes and propagates them in batches.
+ * - `hybrid`: combines real-time and batch strategies depending on context.
+ */
 type SyncStrategy = 'real-time' | 'batch' | 'hybrid';
+
+/**
+ * Strategy used to resolve conflicting concurrent edits.
+ * - `last-write-wins`: the most recent change wins.
+ * - `operational-transform`: applies operational transformation to merge edits.
+ * - `crdt`: uses Conflict-free Replicated Data Types for automatic merging.
+ * - `manual`: requires explicit user resolution of conflicts.
+ */
 type ConflictResolution = 'last-write-wins' | 'operational-transform' | 'crdt' | 'manual';
+
+/**
+ * Network protocol used to transport synchronization messages.
+ * - `websocket`: persistent bidirectional connection over WebSocket.
+ * - `webrtc`: peer-to-peer connection via WebRTC.
+ * - `http-polling`: periodic HTTP requests to fetch changes.
+ */
 type SyncProtocol = 'websocket' | 'webrtc' | 'http-polling';
 
+/**
+ * Configuration controlling how workspace synchronization behaves.
+ */
 interface SyncConfig {
+  /** Whether synchronization is currently enabled. */
   enabled: boolean;
+  /** The synchronization strategy to apply. */
   strategy: SyncStrategy;
+  /** The network protocol used for synchronization. */
   protocol: SyncProtocol;
+  /** Interval (in milliseconds) between synchronization cycles. */
   interval: number;
+  /** Debounce window (in milliseconds) used to coalesce rapid changes. */
   debounceMs: number;
 }
 
+/**
+ * Configuration describing the local workspace to synchronize.
+ */
 interface WorkspaceConfig {
+  /** Human-readable workspace name. */
   name: string;
+  /** Absolute path to the workspace root directory. */
   path: string;
+  /** Glob patterns of files and directories to exclude from synchronization. */
   ignorePatterns: string[];
+  /** Glob patterns of files and directories to explicitly include. */
   includePatterns: string[];
 }
 
+/**
+ * Represents a single team member collaborating in the workspace.
+ */
 interface TeamMember {
+  /** Unique identifier for the team member. */
   id: string;
+  /** Display name of the team member. */
   name: string;
+  /** Permission role assigned to the member. */
   role: 'owner' | 'editor' | 'viewer';
+  /** Current cursor location of the member. */
   cursor: { file: string; line: number; column: number };
-  selection: { file: string; start: { line: number; column: number }; end: { line: number; column: number } };
+  /** Current text selection made by the member. */
+  selection: {
+    file: string;
+    start: { line: number; column: number };
+    end: { line: number; column: number };
+  };
 }
 
+/**
+ * Top-level configuration object describing a real-time workspace
+ * synchronization setup.
+ */
 interface WorkspaceSyncConfig {
+  /** Name of the project being synchronized. */
   projectName: string;
+  /** Cloud providers used to host the synchronization backend. */
   providers: ('aws' | 'azure' | 'gcp')[];
+  /** Synchronization behavior configuration. */
   sync: SyncConfig;
+  /** Local workspace configuration. */
   workspace: WorkspaceConfig;
+  /** Members participating in the synchronized workspace. */
   members: TeamMember[];
+  /** Strategy used to resolve conflicting edits. */
   conflictResolution: ConflictResolution;
+  /** Whether team member presence awareness is enabled. */
   enablePresence: boolean;
+  /** Whether live cursor sharing between members is enabled. */
   enableCursorSharing: boolean;
+  /** Whether automatic background synchronization is enabled. */
   enableAutoSync: boolean;
 }
 
+/**
+ * Prints a human-readable summary of the workspace synchronization
+ * configuration to the console using ANSI-colored output.
+ *
+ * @param config - The workspace synchronization configuration to display.
+ * @returns This function returns nothing (`void`).
+ */
 export function displayConfig(config: WorkspaceSyncConfig): void {
   console.log(chalk.cyan('🔄 Real-Time Workspace Synchronization'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -56,6 +124,13 @@ export function displayConfig(config: WorkspaceSyncConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the workspace synchronization
+ * feature set based on the provided configuration.
+ *
+ * @param config - The workspace synchronization configuration to document.
+ * @returns A Markdown string summarizing the feature set.
+ */
 export function generateWorkspaceSyncMD(config: WorkspaceSyncConfig): string {
   let md = '# Real-Time Workspace Synchronization\n\n';
   md += '## Features\n\n';
@@ -73,12 +148,26 @@ export function generateWorkspaceSyncMD(config: WorkspaceSyncConfig): string {
   return md;
 }
 
+/**
+ * Generates Terraform infrastructure-as-code scaffolding for provisioning
+ * the resources required by the workspace synchronization backend.
+ *
+ * @param config - The workspace synchronization configuration to provision for.
+ * @returns A string containing the generated Terraform code.
+ */
 export function generateTerraformWorkspaceSync(config: WorkspaceSyncConfig): string {
   let code = '# Auto-generated Workspace Sync Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates TypeScript source code implementing a `WorkspaceSyncManager`
+ * class based on the provided configuration.
+ *
+ * @param config - The workspace synchronization configuration to generate code for.
+ * @returns A string containing the generated TypeScript code.
+ */
 export function generateTypeScriptWorkspaceSync(config: WorkspaceSyncConfig): string {
   let code = '// Auto-generated Workspace Sync Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -93,6 +182,13 @@ export function generateTypeScriptWorkspaceSync(config: WorkspaceSyncConfig): st
   return code;
 }
 
+/**
+ * Generates Python source code implementing a `WorkspaceSyncManager`
+ * class based on the provided configuration.
+ *
+ * @param config - The workspace synchronization configuration to generate code for.
+ * @returns A string containing the generated Python code.
+ */
 export function generatePythonWorkspaceSync(config: WorkspaceSyncConfig): string {
   let code = '# Auto-generated Workspace Sync Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -105,6 +201,16 @@ export function generatePythonWorkspaceSync(config: WorkspaceSyncConfig): string
   return code;
 }
 
+/**
+ * Writes the generated workspace synchronization files to the specified
+ * output directory, including Terraform, source code, package metadata,
+ * documentation and a JSON configuration based on the chosen language.
+ *
+ * @param config - The workspace synchronization configuration to materialize.
+ * @param outputDir - Absolute path of the directory where files will be written.
+ * @param language - Target language for generated code (`typescript` or `python`).
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(config: WorkspaceSyncConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -152,6 +258,13 @@ export async function writeFiles(config: WorkspaceSyncConfig, outputDir: string,
   await fs.writeFile(path.join(outputDir, 'workspace-sync-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Identity helper that returns the provided workspace synchronization
+ * configuration unchanged. Useful as a normalization or validation hook.
+ *
+ * @param config - The workspace synchronization configuration to return.
+ * @returns The same `WorkspaceSyncConfig` instance that was provided.
+ */
 export function workspaceSync(config: WorkspaceSyncConfig): WorkspaceSyncConfig {
   return config;
 }
