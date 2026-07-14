@@ -89,6 +89,13 @@ interface HPAConfig {
   predictiveScaling?: PredictiveScalingConfig;
 }
 
+/**
+ * Displays the HPA (Horizontal Pod Autoscaler) configuration to the console
+ * using ANSI-colored output, including the project name, namespace, replica
+ * bounds, target metric names, and whether predictive scaling is enabled.
+ *
+ * @param config - The HPA configuration to display.
+ */
 export function displayConfig(config: HPAConfig): void {
   console.log(chalk.cyan('✨ Horizontal Pod Autoscaling'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -101,6 +108,18 @@ export function displayConfig(config: HPAConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string describing the features and usage
+ * of the Horizontal Pod Autoscaler generator.
+ *
+ * The output includes a feature list (custom metrics, resource metrics, pod
+ * metrics, object metrics, external metrics, predictive scaling, scale
+ * policies, stabilization windows, traffic prediction, and automatic metric
+ * discovery) along with a TypeScript usage example.
+ *
+ * @param config - The HPA configuration used to derive the documentation.
+ * @returns A Markdown string documenting the HPA features and usage.
+ */
 export function generateHPAMD(config: HPAConfig): string {
   let md = '# Horizontal Pod Autoscaling\n\n';
   md += '## Features\n\n';
@@ -127,6 +146,23 @@ export function generateHPAMD(config: HPAConfig): string {
   return md;
 }
 
+/**
+ * Generates a complete TypeScript source file (as a string) that implements an
+ * `HPAController` class for deploying and managing a Kubernetes Horizontal Pod
+ * Autoscaler.
+ *
+ * The generated code includes:
+ * - An `HPAController` class with deploy, predictive scaling, status, and
+ *   YAML serialization methods.
+ * - A default controller instance configured with sample metrics, behavior
+ *   policies, and predictive scaling settings derived from the provided config.
+ * - Exports for the controller, `Metric`, and `PredictiveScalingConfig` types.
+ *
+ * @param config - The HPA configuration used to populate the generated
+ *   TypeScript code header and structure.
+ * @returns A string containing the full TypeScript source code for the HPA
+ *   generator.
+ */
 export function generateTypeScriptHPA(config: HPAConfig): string {
   let code = '// Auto-generated HPA Generator for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -451,6 +487,23 @@ export function generateTypeScriptHPA(config: HPAConfig): string {
   return code;
 }
 
+/**
+ * Generates a complete Python source file (as a string) that implements an
+ * `HPAController` class for deploying and managing a Kubernetes Horizontal Pod
+ * Autoscaler.
+ *
+ * The generated code includes:
+ * - `Metric` and `PredictiveScalingConfig` dataclasses.
+ * - An `HPAController` class with deploy, HPA generation, metric spec
+ *   generation, and status retrieval methods.
+ * - A default controller instance configured with sample settings derived from
+ *   the provided config.
+ *
+ * @param config - The HPA configuration used to populate the generated Python
+ *   code header and structure.
+ * @returns A string containing the full Python source code for the HPA
+ *   generator.
+ */
 export function generatePythonHPA(config: HPAConfig): string {
   let code = '# Auto-generated HPA Generator for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -586,6 +639,25 @@ export function generatePythonHPA(config: HPAConfig): string {
   return code;
 }
 
+/**
+ * Writes the complete set of HPA generator files to the specified output
+ * directory.
+ *
+ * The following files are created:
+ * - `hpa-generator.ts` - The generated TypeScript HPA controller.
+ * - `hpa-generator.py` - The generated Python HPA controller.
+ * - `HPA.md` - Markdown documentation for the HPA features and usage.
+ * - `package.json` - A Node package manifest with js-yaml and axios deps.
+ * - `requirements.txt` - Python dependencies (pyyaml, requests).
+ * - `hpa-config.json` - The serialized HPA configuration.
+ *
+ * The output directory is created recursively if it does not already exist.
+ *
+ * @param config - The HPA configuration used to generate the file contents.
+ * @param outputDir - The absolute or relative path to the directory where the
+ *   files will be written.
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(
   config: HPAConfig,
   outputDir: string

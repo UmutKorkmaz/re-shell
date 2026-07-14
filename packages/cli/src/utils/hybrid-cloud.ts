@@ -45,6 +45,14 @@ interface HybridCloudConfig {
   regions: string[];
 }
 
+/**
+ * Prints the hybrid cloud configuration to the console in a formatted,
+ * colorized summary using chalk. Includes project name, primary and
+ * secondary clouds, deployment strategy, edge compute and data sync
+ * status, and the list of regions.
+ *
+ * @param config - The full hybrid cloud configuration to display.
+ */
 export function displayConfig(config: HybridCloudConfig): void {
   console.log(chalk.cyan('✨ Hybrid Cloud Deployment Strategies with Edge Computing Support'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -59,6 +67,14 @@ export function displayConfig(config: HybridCloudConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Builds a Markdown documentation string describing the hybrid cloud
+ * deployment, including feature highlights, usage examples, and the
+ * architecture derived from the provided configuration.
+ *
+ * @param config - The hybrid cloud configuration used to populate the document.
+ * @returns A Markdown-formatted string documenting the hybrid cloud setup.
+ */
 export function generateHybridCloudMD(config: HybridCloudConfig): string {
   let md = '# Hybrid Cloud Deployment with Edge Computing\n\n';
   md += '## Features\n\n';
@@ -90,6 +106,16 @@ export function generateHybridCloudMD(config: HybridCloudConfig): string {
   return md;
 }
 
+/**
+ * Generates Terraform infrastructure-as-code for the hybrid cloud setup,
+ * conditionally emitting resources for AWS (VPC, VPN, IoT), Azure
+ * (resource groups, ExpressRoute), GCP (networks, interconnects, CDN),
+ * and edge compute configuration based on the provided config.
+ *
+ * @param config - The hybrid cloud configuration describing providers,
+ *   connectivity, edge compute, and regions to provision.
+ * @returns A string containing the full Terraform HCL configuration.
+ */
 export function generateTerraformHybridCloud(config: HybridCloudConfig): string {
   let code = '# Auto-generated Hybrid Cloud Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -199,6 +225,16 @@ export function generateTerraformHybridCloud(config: HybridCloudConfig): string 
   return code;
 }
 
+/**
+ * Generates a TypeScript source file string defining a
+ * `HybridCloudManager` class that extends `EventEmitter`, including
+ * deploy, sync, and status-reporting methods tailored to the provided
+ * configuration.
+ *
+ * @param config - The hybrid cloud configuration used to seed default
+ *   values in the generated manager class.
+ * @returns A TypeScript source string implementing the hybrid cloud manager.
+ */
 export function generateTypeScriptHybridCloud(config: HybridCloudConfig): string {
   let code = '// Auto-generated Hybrid Cloud Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -272,6 +308,16 @@ export function generateTypeScriptHybridCloud(config: HybridCloudConfig): string
   return code;
 }
 
+/**
+ * Generates a Python source file string defining enums for cloud
+ * providers and deployment strategies, along with an asynchronous
+ * `HybridCloudManager` class providing deploy, sync, and status
+ * methods based on the provided configuration.
+ *
+ * @param config - The hybrid cloud configuration used to populate
+ *   defaults in the generated Python manager.
+ * @returns A Python source string implementing the hybrid cloud manager.
+ */
 export function generatePythonHybridCloud(config: HybridCloudConfig): string {
   let code = '# Auto-generated Hybrid Cloud Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -349,6 +395,20 @@ export function generatePythonHybridCloud(config: HybridCloudConfig): string {
   return code;
 }
 
+/**
+ * Writes the generated hybrid cloud files to disk. Always emits a
+ * Terraform file and Markdown documentation; additionally writes a
+ * TypeScript manager with `package.json` or a Python manager with
+ * `requirements.txt` depending on the requested language. A JSON
+ * configuration file capturing the full setup is also produced.
+ *
+ * @param config - The hybrid cloud configuration to generate files from.
+ * @param outputDir - The directory where files will be written; created if missing.
+ * @param language - Either `'typescript'` or `'python'`, selecting the
+ *   runtime template to generate.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Rejects if any file system operation fails.
+ */
 export async function writeFiles(config: HybridCloudConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -411,6 +471,14 @@ export async function writeFiles(config: HybridCloudConfig, outputDir: string, l
   await fs.writeFile(path.join(outputDir, 'hybrid-cloud-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided hybrid cloud configuration unchanged. Acts as
+ * a pass-through helper that can be used for validation or future
+ * normalization of the config object.
+ *
+ * @param config - The hybrid cloud configuration to return.
+ * @returns The same `HybridCloudConfig` instance that was passed in.
+ */
 export function hybridCloud(config: HybridCloudConfig): HybridCloudConfig {
   return config;
 }

@@ -36,6 +36,14 @@ interface Application {
   };
 }
 
+/**
+ * Prints the GitOps integration configuration to the console in a formatted,
+ * colorized block. Outputs the project name, platform, Git repository, target
+ * revision, namespaces, and sync policy.
+ *
+ * @param config - The GitOps configuration to display.
+ * @returns void
+ */
 export function displayConfig(config: GitOpsConfig): void {
   console.log(chalk.cyan('✨ GitOps Integration'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -48,6 +56,14 @@ export function displayConfig(config: GitOpsConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string describing the GitOps integration,
+ * including supported features (ArgoCD manifests, Flux HelmReleases, rollback
+ * strategies, etc.) and example TypeScript usage.
+ *
+ * @param config - The GitOps configuration used to contextualize the docs.
+ * @returns A Markdown string containing feature list and usage examples.
+ */
 export function generateGitOpsMD(config: GitOpsConfig): string {
   let md = '# GitOps Integration\n\n';
   md += '## Features\n\n';
@@ -72,6 +88,16 @@ export function generateGitOpsMD(config: GitOpsConfig): string {
   return md;
 }
 
+/**
+ * Generates the TypeScript source code for a self-contained GitOps integration
+ * module. The produced code defines a `GitOpsIntegration` class that can
+ * generate ArgoCD or Flux manifests, apply them via kubectl, and perform
+ * rollbacks. The generated code includes interfaces, manifest generation,
+ * YAML serialization, and a default instance export.
+ *
+ * @param config - The GitOps configuration driving the generated module.
+ * @returns The full TypeScript source code as a string.
+ */
 export function generateTypeScriptGitOps(config: GitOpsConfig): string {
   let code = '// Auto-generated GitOps Integration for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -288,6 +314,15 @@ export function generateTypeScriptGitOps(config: GitOpsConfig): string {
   return code;
 }
 
+/**
+ * Generates the Python source code for a GitOps integration module. The
+ * produced code defines an `Application` dataclass and a
+ * `GitOpsIntegration` class capable of generating ArgoCD or Flux manifests,
+ * writing them to disk, and instantiating a default `gitops` instance.
+ *
+ * @param config - The GitOps configuration driving the generated module.
+ * @returns The full Python source code as a string.
+ */
 export function generatePythonGitOps(config: GitOpsConfig): string {
   let code = '# Auto-generated GitOps Integration for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -367,6 +402,18 @@ export function generatePythonGitOps(config: GitOpsConfig): string {
   return code;
 }
 
+/**
+ * Writes the GitOps integration artifacts to the specified output directory.
+ * Creates the directory (if missing) and writes the generated TypeScript
+ * module, Python module, Markdown documentation, package.json,
+ * requirements.txt, and a JSON copy of the provided configuration.
+ *
+ * @param config - The GitOps configuration used to generate the artifacts.
+ * @param outputDir - The absolute or relative directory path to write into.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Re-throws any underlying fs error encountered while creating the
+ *   directory or writing files.
+ */
 export async function writeFiles(
   config: GitOpsConfig,
   outputDir: string

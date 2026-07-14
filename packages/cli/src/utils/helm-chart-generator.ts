@@ -27,6 +27,13 @@ interface ServiceConfig {
   replicas: number;
 }
 
+/**
+ * Prints a colored summary of the Helm chart configuration to the console.
+ * Includes the project name, chart name, target environments, and the list
+ * of configured services.
+ *
+ * @param config - The Helm chart configuration to display.
+ */
 export function displayConfig(config: HelmConfig): void {
   console.log(chalk.cyan('✨ Helm Chart Generator'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -37,6 +44,14 @@ export function displayConfig(config: HelmConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Builds a Markdown document describing the features and usage of the
+ * generated Helm chart generator. The resulting string is suitable for
+ * writing to a `HELM_CHARTS.md` file.
+ *
+ * @param config - The Helm chart configuration used to contextualize the docs.
+ * @returns A Markdown string documenting the Helm chart generator.
+ */
 export function generateHelmMD(config: HelmConfig): string {
   let md = '# Helm Chart Generator\n\n';
   md += '## Features\n\n';
@@ -60,6 +75,18 @@ export function generateHelmMD(config: HelmConfig): string {
   return md;
 }
 
+/**
+ * Generates the complete source code of a standalone TypeScript Helm chart
+ * generator module based on the provided configuration. The returned string
+ * contains a `HelmChartGenerator` class capable of creating Chart.yaml,
+ * values.yaml, Kubernetes templates, environment-specific values, and chart
+ * packaging via the `helm` CLI.
+ *
+ * @param config - The Helm chart configuration describing the project,
+ *   chart name, environments, and services to scaffold.
+ * @returns A string containing the full TypeScript source code of the
+ *   generated Helm chart generator.
+ */
 export function generateTypeScriptHelm(config: HelmConfig): string {
   let code = '// Auto-generated Helm Chart Generator for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -317,6 +344,18 @@ export function generateTypeScriptHelm(config: HelmConfig): string {
   return code;
 }
 
+/**
+ * Generates the complete source code of a standalone Python Helm chart
+ * generator module based on the provided configuration. The returned string
+ * defines a `ServiceConfig` dataclass and a `HelmChartGenerator` class that
+ * mirrors the TypeScript version, producing Chart.yaml content and
+ * scaffolding a Helm chart directory.
+ *
+ * @param config - The Helm chart configuration describing the project,
+ *   chart name, environments, and services to scaffold.
+ * @returns A string containing the full Python source code of the
+ *   generated Helm chart generator.
+ */
 export function generatePythonHelm(config: HelmConfig): string {
   let code = '# Auto-generated Helm Chart Generator for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -390,6 +429,19 @@ export function generatePythonHelm(config: HelmConfig): string {
   return code;
 }
 
+/**
+ * Writes the complete generated Helm chart generator project to disk.
+ * Creates the output directory (if missing) and writes the TypeScript
+ * generator, Python generator, Markdown documentation, package.json,
+ * requirements.txt, and a JSON representation of the configuration.
+ *
+ * @param config - The Helm chart configuration to generate files from.
+ * @param outputDir - The absolute or relative path of the directory where
+ *   the generated files should be written.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Re-throws any error raised by the underlying `fs` operations,
+ *   such as permission or disk-space errors.
+ */
 export async function writeFiles(
   config: HelmConfig,
   outputDir: string
