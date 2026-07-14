@@ -91,6 +91,14 @@ interface WorkloadBalancingConfig {
   rebalanceInterval: number; // hours
 }
 
+/**
+ * Displays the workload balancing configuration summary to the console.
+ * Prints project name, providers, resource/task/allocation counts, strategy,
+ * optimization goal, AI configuration, and threshold/interval settings.
+ *
+ * @param config - The workload balancing configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: WorkloadBalancingConfig): void {
   console.log(chalk.cyan('⚖️  Workload Balancing and Resource Allocation with AI Optimization'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -112,6 +120,13 @@ export function displayConfig(config: WorkloadBalancingConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown documentation string describing the workload balancing
+ * features, allocation strategies, and optimization goals for the project.
+ *
+ * @param config - The workload balancing configuration used to scope the docs.
+ * @returns A Markdown string summarizing features, strategies, and goals.
+ */
 export function generateWorkloadBalancingMD(config: WorkloadBalancingConfig): string {
   let md = '# Workload Balancing and Resource Allocation with AI Optimization\n\n';
   md += '## Features\n\n';
@@ -143,12 +158,29 @@ export function generateWorkloadBalancingMD(config: WorkloadBalancingConfig): st
   return md;
 }
 
+/**
+ * Generates a Terraform header stub for the workload balancing configuration.
+ * Produces a comment block identifying the project and the generation timestamp.
+ *
+ * @param config - The workload balancing configuration identifying the project.
+ * @returns A Terraform code string containing the generated header.
+ */
 export function generateTerraformWorkloadBalancing(config: WorkloadBalancingConfig): string {
   let code = '# Auto-generated Workload Balancing Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript implementation of a WorkloadBalancingManager class
+ * based on the provided configuration. The generated code defines Resource and
+ * Task interfaces, a manager class supporting multiple allocation strategies
+ * (round-robin, load-based, skill-based, AI-optimized), workload balancing
+ * reporting, and optimization recommendations.
+ *
+ * @param config - The workload balancing configuration driving code generation.
+ * @returns A TypeScript source string implementing the workload balancing manager.
+ */
 export function generateTypeScriptWorkloadBalancing(config: WorkloadBalancingConfig): string {
   let code = '// Auto-generated Workload Balancing Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -316,6 +348,16 @@ export function generateTypeScriptWorkloadBalancing(config: WorkloadBalancingCon
   return code;
 }
 
+/**
+ * Generates a Python implementation of a WorkloadBalancingManager class based
+ * on the provided configuration. The generated code defines Resource and Task
+ * dataclasses plus a manager class supporting skill-based, round-robin, and
+ * load-based allocation strategies, workload balancing reporting, and
+ * optimization recommendations.
+ *
+ * @param config - The workload balancing configuration driving code generation.
+ * @returns A Python source string implementing the workload balancing manager.
+ */
 export function generatePythonWorkloadBalancing(config: WorkloadBalancingConfig): string {
   let code = '# Auto-generated Workload Balancing Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -429,6 +471,17 @@ export function generatePythonWorkloadBalancing(config: WorkloadBalancingConfig)
   return code;
 }
 
+/**
+ * Writes the generated workload balancing files to the specified output directory.
+ * Depending on the chosen language, this includes Terraform, manager source
+ * (TypeScript or Python), language-specific metadata files, Markdown docs, and
+ * a JSON representation of the configuration.
+ *
+ * @param config - The workload balancing configuration to materialize to disk.
+ * @param outputDir - The target directory where files will be written. Created if missing.
+ * @param language - The implementation language to generate ("typescript" or "python").
+ * @returns A promise that resolves once all files have been written.
+ */
 export async function writeFiles(config: WorkloadBalancingConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -478,6 +531,13 @@ export async function writeFiles(config: WorkloadBalancingConfig, outputDir: str
   await fs.writeFile(path.join(outputDir, 'workload-balancing-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided workload balancing configuration unchanged.
+ * Acts as an identity/passthrough entry point for the workload balancing module.
+ *
+ * @param config - The workload balancing configuration to return.
+ * @returns The same workload balancing configuration that was passed in.
+ */
 export function workloadBalancing(config: WorkloadBalancingConfig): WorkloadBalancingConfig {
   return config;
 }

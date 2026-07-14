@@ -6,70 +6,154 @@ import { WorkspaceDefinition, loadWorkspaceDefinition } from './workspace-schema
 import { createWorkspaceStateManager } from './workspace-state';
 
 // Backup interfaces
+/**
+ * Metadata describing a single workspace backup entry.
+ *
+ * Each backup produced by `WorkspaceBackupManager` records this object so the
+ * backup can be listed, searched, verified and restored without loading the
+ * full backup content.
+ */
 export interface BackupMetadata {
+  /** Unique identifier (hex string) generated for the backup. */
   id: string;
+  /** Human-readable name of the backup. */
   name: string;
+  /** Optional longer description of the backup's purpose or contents. */
   description?: string;
+  /** ISO-8601 timestamp marking when the backup was created. */
   timestamp: string;
+  /** Base name of the workspace file that was backed up. */
   workspaceFile: string;
+  /** Schema version of the backup metadata format. */
   version: string;
+  /** Size of the serialized backup content in bytes. */
   size: number;
+  /** SHA-256 hash of the serialized backup content. */
   hash: string;
+  /** Optional list of user-supplied tags used for grouping/filtering. */
   tags?: string[];
+  /** Whether workspace state was included in the backup. */
   includeState?: boolean;
+  /** Whether cached data was included in the backup. */
   includeCache?: boolean;
+  /** Whether custom templates were included in the backup. */
   includeTemplates?: boolean;
 }
 
+/**
+ * Full payload of a serialized backup stored on disk.
+ *
+ * Combines the {@link BackupMetadata} with the actual workspace definition and
+ * any optional extras (state, cache, templates, files) that were requested at
+ * backup time.
+ */
 export interface BackupContent {
+  /** Metadata describing the backup. */
   metadata: BackupMetadata;
+  /** The workspace definition captured by the backup. */
   workspace: WorkspaceDefinition;
+  /** Optional serialized workspace state statistics. */
   state?: any;
+  /** Optional serialized cache directory contents. */
   cache?: any;
+  /** Optional serialized custom templates directory contents. */
   templates?: any;
+  /** Map of relative file path to file content for additional backed-up files. */
   files?: Record<string, string>; // path -> content
 }
 
+/**
+ * On-disk index tracking every backup known to a {@link WorkspaceBackupManager}.
+ *
+ * The index is persisted as `index.json` inside the backup directory and keeps
+ * aggregate statistics in addition to the per-backup metadata entries.
+ */
 export interface BackupIndex {
+  /** Schema version of the index file. */
   version: string;
+  /** Map of backup id to its metadata. */
   backups: Record<string, BackupMetadata>;
+  /** Aggregate information about the index. */
   metadata: {
+    /** ISO-8601 timestamp marking when the index was first created. */
     created: string;
+    /** ISO-8601 timestamp of the most recent modification. */
     lastModified: string;
+    /** Total number of backups tracked by the index. */
     totalBackups: number;
+    /** Combined size in bytes of all tracked backups. */
     totalSize: number;
   };
 }
 
+/**
+ * Options accepted by {@link WorkspaceBackupManager.createBackup} controlling
+ * what is captured and how the backup is labeled.
+ */
 export interface BackupOptions {
+  /** Optional friendly name for the backup. */
   name?: string;
+  /** Optional free-form description of the backup. */
   description?: string;
+  /** Whether to include serialized workspace state in the backup. */
   includeState?: boolean;
+  /** Whether to include the cache directory contents in the backup. */
   includeCache?: boolean;
+  /** Whether to include custom templates in the backup. */
   includeTemplates?: boolean;
+  /** Whether to include additional project files in the backup. */
   includeFiles?: boolean;
+  /** Glob patterns used when `includeFiles` is enabled. */
   filePatterns?: string[];
+  /** Optional tags to associate with the backup for filtering. */
   tags?: string[];
+  /** Reserved for future use; indicates the backup should be compressed. */
   compress?: boolean;
 }
 
+/**
+ * Options accepted by {@link WorkspaceBackupManager.restoreBackup} controlling
+ * how and where the backup contents are restored.
+ */
 export interface RestoreOptions {
+  /** When true, overwrite existing files without prompting. */
   force?: boolean;
+  /** Reserved for future selective restore behavior. */
   selective?: boolean;
+  /** Whether to restore the previously captured workspace state. */
   restoreState?: boolean;
+  /** Whether to restore the previously captured cache directory. */
   restoreCache?: boolean;
+  /** Whether to restore previously captured custom templates. */
   restoreTemplates?: boolean;
+  /** Whether to restore previously captured additional files. */
   restoreFiles?: boolean;
+  /** Optional target directory to restore into instead of the workspace root. */
   targetPath?: string;
 }
 
-// Workspace backup manager
+/**
+ * Manager responsible for creating, listing, restoring and pruning workspace
+ * backups for a re-shell project.
+ *
+ * Backups are stored as JSON files under `<root>/.re-shell/backups` and tracked
+ * through an `index.json` file in the same directory. The manager is cheap to
+ * construct; callers should invoke {@link init} (or use the
+ * {@link createWorkspaceBackupManager} helper) before performing any other
+ * operation so the backup directory and index are ready.
+ */
 export class WorkspaceBackupManager {
   private backupDir: string;
   private indexPath: string;
   private index: BackupIndex;
   private rootPath: string;
 
+  /**
+   * Create a new backup manager bound to the given workspace root.
+   *
+   * @param rootPath - Absolute path to the workspace root. Defaults to the
+   *   current working directory.
+   */
   constructor(rootPath: string = process.cwd()) {
     this.rootPath = rootPath;
     this.backupDir = path.join(rootPath, '.re-shell', 'backups');
@@ -77,12 +161,32 @@ export class WorkspaceBackupManager {
     this.index = this.createDefaultIndex();
   }
 
+  /**
+   * Initialize the backup system.
+   *
+   * Ensures the backup directory exists and loads (or creates) the backup
+   * index. Must be awaited before any other manager method is used.
+   *
+   * @returns A promise that resolves once initialization is complete.
+   */
   // Initialize backup system
   async init(): Promise<void> {
     await fs.ensureDir(this.backupDir);
     await this.loadIndex();
   }
 
+  /**
+   * Create a new backup from a workspace definition file.
+   *
+   * Loads the given workspace file and serializes it together with any optional
+   * extras requested through `options`. The resulting payload is written to the
+   * backup directory and registered in the index.
+   *
+   * @param workspaceFile - Path to the workspace definition file to back up.
+   * @param options - Optional {@link BackupOptions} controlling what is captured
+   *   and how the backup is labeled.
+   * @returns The id of the newly created backup.
+   */
   // Create backup
   async createBackup(
     workspaceFile: string,
@@ -174,6 +278,12 @@ export class WorkspaceBackupManager {
     return backupId;
   }
 
+  /**
+   * List all known backups ordered from newest to oldest.
+   *
+   * @returns A promise resolving to an array of {@link BackupMetadata} entries
+   *   sorted by descending timestamp.
+   */
   // List backups
   async listBackups(): Promise<BackupMetadata[]> {
     return Object.values(this.index.backups).sort(
@@ -181,6 +291,13 @@ export class WorkspaceBackupManager {
     );
   }
 
+  /**
+   * Load the full content of a backup by its id.
+   *
+   * @param id - Identifier of the backup to retrieve.
+   * @returns A promise resolving to the {@link BackupContent}, or `null` if no
+   *   backup with that id exists (or it could not be read).
+   */
   // Get backup by ID
   async getBackup(id: string): Promise<BackupContent | null> {
     if (!this.index.backups[id]) {
@@ -200,6 +317,20 @@ export class WorkspaceBackupManager {
     return null;
   }
 
+  /**
+   * Restore a previously created backup.
+   *
+   * Writes the captured workspace definition back to disk and, depending on
+   * `options`, restores additional components such as state, cache, templates
+   * and arbitrary files. Existing files are preserved unless `force` is set.
+   *
+   * @param id - Identifier of the backup to restore.
+   * @param options - Optional {@link RestoreOptions} controlling the restore
+   *   behavior.
+   * @throws {ValidationError} If the backup does not exist, or if a target file
+   *   already exists and `force` was not requested.
+   * @returns A promise that resolves once the restore completes.
+   */
   // Restore backup
   async restoreBackup(
     id: string,
@@ -267,6 +398,15 @@ export class WorkspaceBackupManager {
     }
   }
 
+  /**
+   * Permanently delete a backup.
+   *
+   * Removes the backup file from disk and unregisters it from the index.
+   *
+   * @param id - Identifier of the backup to delete.
+   * @throws {ValidationError} If the backup does not exist.
+   * @returns A promise that resolves once the backup has been removed.
+   */
   // Delete backup
   async deleteBackup(id: string): Promise<void> {
     if (!this.index.backups[id]) {
@@ -280,6 +420,17 @@ export class WorkspaceBackupManager {
     await this.saveIndex();
   }
 
+  /**
+   * Export a backup to an arbitrary location on disk.
+   *
+   * Useful for transferring backups between machines or archiving them outside
+   * of the workspace.
+   *
+   * @param id - Identifier of the backup to export.
+   * @param outputPath - Destination file path. Parent directories are created.
+   * @throws {ValidationError} If the backup does not exist.
+   * @returns A promise that resolves once the export file has been written.
+   */
   // Export backup to file
   async exportBackup(id: string, outputPath: string): Promise<void> {
     const backup = await this.getBackup(id);
@@ -291,6 +442,16 @@ export class WorkspaceBackupManager {
     await fs.writeJson(outputPath, backup, { spaces: 2 });
   }
 
+  /**
+   * Import a backup from an external file.
+   *
+   * Reads the supplied backup file, validates its structure, and registers it
+   * with this manager. A new id is generated if the file does not provide one.
+   *
+   * @param filePath - Path to the backup file to import.
+   * @throws {ValidationError} If the file does not exist or is malformed.
+   * @returns The id under which the backup was registered.
+   */
   // Import backup from file
   async importBackup(filePath: string): Promise<string> {
     if (!(await fs.pathExists(filePath))) {
@@ -319,6 +480,21 @@ export class WorkspaceBackupManager {
     return backupId;
   }
 
+  /**
+   * Remove old backups according to retention rules.
+   *
+   * Backups exceeding `keepCount` (newest kept) and older than `keepDays` are
+   * selected for deletion. When `dryRun` is true the affected backups are
+   * reported but not actually removed.
+   *
+   * @param options - Retention options:
+   *   - `keepCount` - Maximum number of backups to keep (newest first).
+   *   - `keepDays` - Delete backups older than this many days.
+   *   - `dryRun` - When true, calculate what would be deleted without removing
+   *     anything.
+   * @returns An object reporting the number of deleted backups and the total
+   *   disk space freed in bytes.
+   */
   // Cleanup old backups
   async cleanupBackups(options: {
     keepCount?: number;
@@ -367,6 +543,12 @@ export class WorkspaceBackupManager {
     };
   }
 
+  /**
+   * Compute summary statistics for the backups tracked by this manager.
+   *
+   * @returns An object describing the total number of backups, combined size,
+   *   oldest/newest backup names and the average backup size in bytes.
+   */
   // Get backup statistics
   getBackupStatistics(): {
     totalBackups: number;
@@ -543,6 +725,15 @@ export class WorkspaceBackupManager {
 }
 
 // Utility functions
+/**
+ * Create and initialize a {@link WorkspaceBackupManager}.
+ *
+ * Convenience helper that constructs the manager, runs {@link WorkspaceBackupManager.init}
+ * and returns the ready-to-use instance.
+ *
+ * @param rootPath - Optional workspace root. Defaults to the current working directory.
+ * @returns A promise resolving to the initialized backup manager.
+ */
 export async function createWorkspaceBackupManager(
   rootPath?: string
 ): Promise<WorkspaceBackupManager> {
@@ -552,6 +743,17 @@ export async function createWorkspaceBackupManager(
 }
 
 // Quick backup function
+/**
+ * Create a quick backup with sensible defaults.
+ *
+ * Wraps {@link WorkspaceBackupManager.createBackup} with state and templates
+ * enabled so callers can snapshot a workspace with a single call.
+ *
+ * @param workspaceFile - Path to the workspace definition file to back up.
+ * @param name - Optional friendly name for the backup. A default
+ *   `quick-backup-<date>` name is used when omitted.
+ * @returns A promise resolving to the id of the newly created backup.
+ */
 export async function createQuickBackup(
   workspaceFile: string,
   name?: string
@@ -565,13 +767,33 @@ export async function createQuickBackup(
 }
 
 // Backup comparison
+/**
+ * Result of comparing two backups via {@link compareBackups}.
+ *
+ * Each list contains the workspace keys classified by how they changed between
+ * the two snapshots.
+ */
 export interface BackupComparison {
+  /** Workspace keys present only in the second backup. */
   added: string[];
+  /** Workspace keys present only in the first backup. */
   removed: string[];
+  /** Workspace keys whose serialized content differs between backups. */
   modified: string[];
+  /** Workspace keys whose content is identical between backups. */
   unchanged: string[];
 }
 
+/**
+ * Compare the workspace definitions captured by two backups.
+ *
+ * @param manager - Backup manager owning the backups to compare.
+ * @param id1 - Identifier of the first (older) backup.
+ * @param id2 - Identifier of the second (newer) backup.
+ * @throws {ValidationError} If either backup cannot be found.
+ * @returns A promise resolving to a {@link BackupComparison} classifying each
+ *   workspace key as added, removed, modified or unchanged.
+ */
 export async function compareBackups(
   manager: WorkspaceBackupManager,
   id1: string,
