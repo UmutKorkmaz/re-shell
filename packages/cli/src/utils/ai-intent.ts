@@ -85,7 +85,15 @@ export type IntentResult =
  * implementation; an LLM adapter can implement the same shape later.
  */
 export interface IntentBackend {
+  /** Short identifier for this backend (e.g. `offline`, `llm-stub`). */
   readonly name: string;
+  /**
+   * Parse a free-text prompt into a ranked, vetted command candidate.
+   *
+   * @param prompt - The raw user prompt text, treated strictly as data.
+   * @returns A discriminated `IntentResult`: either a confident resolution or a
+   *   request for clarification with ranked alternatives.
+   */
   parse(prompt: string): IntentResult;
 }
 
@@ -218,6 +226,9 @@ const SAFE_VALUE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
  * shell metacharacters (`;`, `|`, `&`, `` ` ``, `$`, `(`, `)`, `/`, `~`, ...)
  * act purely as delimiters — they are never emitted as tokens and so can never
  * be scored, matched, or assembled into a command.
+ *
+ * @param prompt - The raw prompt text to tokenise.
+ * @returns An array of lower-case tokens containing only `[a-z0-9-]`.
  */
 export function tokenize(prompt: string): string[] {
   return prompt
@@ -401,6 +412,10 @@ function toCandidate(
 /**
  * Build a human-readable explanation of what a resolved command does, sourced
  * entirely from the catalogue (description + the flags actually set in argv).
+ *
+ * @param candidate - The resolved candidate to describe.
+ * @param entry - The backing catalogue entry providing descriptions/flag docs.
+ * @returns A single human-readable explanation string, joined by spaces.
  */
 export function explainCandidate(
   candidate: IntentCandidate,
@@ -440,16 +455,38 @@ export class OfflineIntentBackend implements IntentBackend {
   private readonly catalog: CommandCatalogEntry[];
   private readonly byPath: Map<string, CommandCatalogEntry>;
 
+  /**
+   * Snapshot the catalogue used for all subsequent scoring.
+   *
+   * @param catalog - The full command catalogue to score against. Stored by
+   *   reference; callers should not mutate entries after construction.
+   */
   constructor(catalog: CommandCatalogEntry[]) {
     this.catalog = catalog;
     this.byPath = new Map(catalog.map(e => [e.path, e]));
   }
 
-  /** Look up the catalogue entry for a resolved path (used for explanations). */
+  /**
+   * Look up the catalogue entry for a resolved path (used for explanations).
+   *
+   * @param path - The catalogue command path, e.g. `templates list`.
+   * @returns The matching entry, or `undefined` if no such path exists.
+   */
   public entryFor(path: string): CommandCatalogEntry | undefined {
     return this.byPath.get(path);
   }
 
+  /**
+   * Parse a free-text prompt into a ranked, vetted command candidate.
+   *
+   * The prompt is tokenised, scored against every catalogue entry, and the
+   * results are either resolved to a single confident candidate or surfaced
+   * as a clarification request when the signal is too weak or ambiguous.
+   *
+   * @param prompt - The raw user prompt text, treated strictly as data.
+   * @returns A discriminated `IntentResult`: confident resolution or
+   *   clarification request with ranked candidates.
+   */
   public parse(prompt: string): IntentResult {
     const tokens = tokenize(prompt);
     const tokenSet = new Set(tokens);
@@ -544,6 +581,16 @@ export class OfflineIntentBackend implements IntentBackend {
 export class LlmIntentBackendStub implements IntentBackend {
   public readonly name = 'llm-stub';
 
+  /**
+   * Always throws — this backend is inert by design.
+   *
+   * A real adapter MUST still resolve through the catalogue + argv sandbox so
+   * no free-form shell string can ever escape.
+   *
+   * @param _prompt - Unused prompt (accepted to satisfy the interface).
+   * @returns Never — this implementation always throws.
+   * @throws {Error} Always, because no LLM backend is configured.
+   */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public parse(_prompt: string): IntentResult {
     throw new Error(
@@ -561,6 +608,9 @@ export class LlmIntentBackendStub implements IntentBackend {
 /**
  * Build the default offline backend from a live commander program. Snapshots
  * the catalogue at call time.
+ *
+ * @param program - The commander `Command` instance for the running CLI.
+ * @returns A new `OfflineIntentBackend` bound to the snapshot catalogue.
  */
 export function createOfflineBackend(program: Command): OfflineIntentBackend {
   return new OfflineIntentBackend(buildCommandCatalog(program));
@@ -569,6 +619,10 @@ export function createOfflineBackend(program: Command): OfflineIntentBackend {
 /**
  * One-shot convenience: parse a prompt against a program using the offline
  * backend. Equivalent to `createOfflineBackend(program).parse(prompt)`.
+ *
+ * @param program - The commander `Command` instance for the running CLI.
+ * @param prompt - The raw user prompt text to resolve.
+ * @returns A discriminated `IntentResult` from the offline backend.
  */
 export function parseIntent(program: Command, prompt: string): IntentResult {
   return createOfflineBackend(program).parse(prompt);

@@ -54,6 +54,15 @@ interface AlertManagementConfig {
   enablePostmortem: boolean;
 }
 
+/**
+ * Prints a formatted summary of the alert management configuration to the console.
+ *
+ * Displays the project name, providers, and counts of alerts, notification
+ * channels, escalation rules, and incident workflows, along with flags for
+ * auto-remediation, incident tracking, and postmortem generation.
+ *
+ * @param config - The full alert management configuration to display.
+ */
 export function displayConfig(config: AlertManagementConfig): void {
   console.log(chalk.cyan('🚨 Custom Alerting and Incident Management with Escalation and Automation'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -69,6 +78,17 @@ export function displayConfig(config: AlertManagementConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown overview document describing the alert management features.
+ *
+ * The output includes a feature list covering alert rules, multi-channel
+ * notifications, escalation policies, incident workflows, auto-remediation,
+ * tracking, postmortems, deduplication, on-call scheduling, cloud provider
+ * integration, and custom actions.
+ *
+ * @param config - The alert management configuration used for context (currently unused in body).
+ * @returns A Markdown string summarizing the alert management capabilities.
+ */
 export function generateAlertManagementMD(config: AlertManagementConfig): string {
   let md = '# Custom Alerting and Incident Management\n\n';
   md += '## Features\n\n';
@@ -86,12 +106,26 @@ export function generateAlertManagementMD(config: AlertManagementConfig): string
   return md;
 }
 
+/**
+ * Generates the header comment for an auto-generated Terraform file for the
+ * given alert management configuration.
+ *
+ * @param config - The alert management configuration, whose project name is included in the header.
+ * @returns A Terraform comment header string including the project name and current timestamp.
+ */
 export function generateTerraformAlertManagement(config: AlertManagementConfig): string {
   let code = '# Auto-generated Alert Management Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source string defining a stub `AlertManagementManager`
+ * class that extends `EventEmitter`, along with a default exported instance.
+ *
+ * @param config - The alert management configuration, whose project name is included in the generated header.
+ * @returns TypeScript source code for the alert management manager module.
+ */
 export function generateTypeScriptAlertManagement(config: AlertManagementConfig): string {
   let code = '// Auto-generated Alert Management Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -106,6 +140,13 @@ export function generateTypeScriptAlertManagement(config: AlertManagementConfig)
   return code;
 }
 
+/**
+ * Generates a Python source string defining a stub `AlertManagementManager`
+ * class, along with a module-level instance.
+ *
+ * @param config - The alert management configuration, whose project name is used as the default project name.
+ * @returns Python source code for the alert management manager module.
+ */
 export function generatePythonAlertManagement(config: AlertManagementConfig): string {
   let code = '# Auto-generated Alert Management Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -118,6 +159,22 @@ export function generatePythonAlertManagement(config: AlertManagementConfig): st
   return code;
 }
 
+/**
+ * Writes generated alert management files to the specified output directory.
+ *
+ * Always writes the Terraform file (`alert-management.tf`) and a Markdown
+ * documentation file (`ALERT_MANAGEMENT.md`), plus a JSON configuration file
+ * (`alert-management-config.json`). Depending on the target `language`, also
+ * writes either a TypeScript manager (`alert-management-manager.ts` with a
+ * `package.json`) or a Python manager (`alert_management_manager.py` with a
+ * `requirements.txt`). The output directory is created if it does not exist.
+ *
+ * @param config - The alert management configuration to serialize and generate code from.
+ * @param outputDir - The filesystem path where generated files are written.
+ * @param language - The target language; `"typescript"` produces TS artifacts, anything else produces Python artifacts.
+ * @returns A promise that resolves when all files have been written.
+ * @throws {Error} If `fs-extra` or `path` cannot be imported, or if any write operation fails.
+ */
 export async function writeFiles(config: AlertManagementConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -165,6 +222,15 @@ export async function writeFiles(config: AlertManagementConfig, outputDir: strin
   await fs.writeFile(path.join(outputDir, 'alert-management-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided alert management configuration unchanged.
+ *
+ * Acts as a pass-through/validation entry point for the alert management
+ * configuration.
+ *
+ * @param config - The alert management configuration to return.
+ * @returns The same `AlertManagementConfig` instance that was passed in.
+ */
 export function alertManagement(config: AlertManagementConfig): AlertManagementConfig {
   return config;
 }

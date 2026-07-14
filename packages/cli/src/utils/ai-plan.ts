@@ -216,12 +216,29 @@ function frontendToDoc(name: string, displayName: string): IndexDoc {
   };
 }
 
-/** Build the backend/datastore corpus from the live registry (offline). */
+/**
+ * Build the backend/datastore corpus from the live registry (offline).
+ *
+ * Enumerates every registered backend template, converts each into a
+ * `TemplateSummary`, and adapts it to a weighted `IndexDoc` suitable for the
+ * shared ranker. The resulting corpus is used to resolve backend service and
+ * datastore phrases to real template ids.
+ *
+ * @returns An array of `IndexDoc` entries, one per backend template.
+ */
 export function buildBackendCorpus(): IndexDoc[] {
   return listBackendTemplates().map(toTemplateSummary).map(backendToDoc);
 }
 
-/** Build the frontend corpus from the supported framework registry (offline). */
+/**
+ * Build the frontend corpus from the supported framework registry (offline).
+ *
+ * Enumerates every entry in `SUPPORTED_FRAMEWORKS` and adapts each into a
+ * weighted `IndexDoc` suitable for the shared ranker. The resulting corpus is
+ * used to resolve frontend framework phrases to a real framework id.
+ *
+ * @returns An array of `IndexDoc` entries, one per supported frontend framework.
+ */
 export function buildFrontendCorpus(): IndexDoc[] {
   return Object.values(SUPPORTED_FRAMEWORKS).map(f =>
     frontendToDoc(f.name, f.displayName)
@@ -253,9 +270,17 @@ function resolveSlot(
 // ---------------------------------------------------------------------------
 
 /**
- * Derive a safe project-name slug from the description. We take the first few
- * meaningful tokens, join with dashes, and constrain to {@link SAFE_VALUE}. This
- * is the ONLY place a description-derived value enters argv, and it is sanitised.
+ * Derive a safe project-name slug from the description.
+ *
+ * Takes the first few meaningful tokens (after filtering out common stop words
+ * like "a", "the", "app", "create"), joins them with dashes, and constrains the
+ * result to {@link SAFE_VALUE}. Any stray non-slug characters are stripped
+ * defensively; if nothing safe remains the {@link DEFAULT_PROJECT_NAME} is
+ * returned. This is the ONLY place a description-derived value enters argv, and
+ * it is always sanitised.
+ *
+ * @param description - The free-text project description provided by the user.
+ * @returns A lowercase slug matching `SAFE_VALUE`, or `'app'` as a fallback.
  */
 export function deriveProjectName(description: string): string {
   const skip = new Set([
@@ -283,9 +308,20 @@ function presentKeys(
 }
 
 /**
- * Extract the structured {@link ScaffoldIntent} from a description. Pure +
- * offline. Each detected vocabulary phrase is resolved to a REAL id via the
- * ranker; unresolved phrases are silently dropped (never invented).
+ * Extract the structured {@link ScaffoldIntent} from a description.
+ *
+ * Pure and offline: the description is tokenised and matched against the
+ * curated frontend/backend/datastore/infra vocabularies. Each detected phrase is
+ * resolved to a REAL id via the shared ranker; unresolved phrases are silently
+ * dropped and never invented. Datastores are resolved before backends so a
+ * phrase like "postgres" cannot double-count as a generic backend service, and
+ * backend hits are de-duped by resolved id. Frontend resolution stops at the
+ * first matched phrase (in description order) so the shell framework choice is
+ * deterministic.
+ *
+ * @param description - The free-text project description provided by the user.
+ * @returns A `ScaffoldIntent` describing the detected slots and derived project
+ *   name. Slots may be empty arrays when nothing in the description resolves.
  */
 export function extractIntent(description: string): ScaffoldIntent {
   const tokens = tokenize(description);
@@ -360,10 +396,20 @@ export function extractIntent(description: string): ScaffoldIntent {
 // ---------------------------------------------------------------------------
 
 /**
- * Compose a dry-run {@link ScaffoldPlan} from an extracted intent. The argv of
- * every step is built only from real command paths/flags + the resolved id +
- * the sanitised project name. `applied` is always false here; execution is a
- * separate, explicit step (`--yes`).
+ * Compose a dry-run {@link ScaffoldPlan} from an extracted intent.
+ *
+ * The argv of every step is built only from real command paths/flags, the
+ * resolved template/framework id, and the sanitised project name. Steps are
+ * produced in a fixed, reviewable order: the shell app via
+ * `create <name> --template <frontend>`, each backend service via
+ * `generate backend <name> --framework <id>`, each datastore integration via
+ * `generate backend <name> --framework <id>`, and finally each infra slot via
+ * `k8s generate` / `k8s helm <name>` / `k8s gitops <name>`. `applied` is always
+ * `false` on the produced steps; execution is a separate, explicit step (`--yes`).
+ *
+ * @param intent - The extracted `ScaffoldIntent` to translate into commands.
+ * @returns A `ScaffoldPlan` whose `resolved` list contains every real id used
+ *   and whose `steps` are the reviewable, unapplied command descriptions.
  */
 export function composePlan(intent: ScaffoldIntent): ScaffoldPlan {
   const steps: ScaffoldPlanStep[] = [];
@@ -432,8 +478,15 @@ export function composePlan(intent: ScaffoldIntent): ScaffoldPlan {
 }
 
 /**
- * One-shot offline entry point: description -> { intent, plan }. Pure relative
- * to the live registries; no network, no I/O beyond reading them.
+ * One-shot offline entry point: description -> `{ intent, plan }`.
+ *
+ * Convenience wrapper that runs {@link extractIntent} followed by
+ * {@link composePlan}. Pure relative to the live in-memory registries: no
+ * network and no I/O beyond reading them.
+ *
+ * @param description - The free-text project description provided by the user.
+ * @returns An object containing the extracted `intent` and the composed dry-run
+ *   `plan` (with `applied` set to `false`).
  */
 export function planScaffold(description: string): {
   intent: ScaffoldIntent;
@@ -461,8 +514,18 @@ export function planScaffold(description: string): {
  *    offline guarantee holds regardless of this interface's existence.
  */
 export interface PlannerProvider {
+  /** Stable identifier for the provider (used for logging/selection). */
   readonly name: string;
-  /** Propose a structured intent for a description. May be async (network). */
+  /**
+   * Propose a structured {@link ScaffoldIntent} for a description.
+   *
+   * Implementations are typically backed by an LLM and may perform network I/O,
+   * hence the `Promise` return type. The proposal MUST be passed through
+   * {@link sanitizeProposedIntent} before use so any non-real id is dropped.
+   *
+   * @param description - The free-text project description provided by the user.
+   * @returns A promise resolving to a proposed `ScaffoldIntent`.
+   */
   propose(description: string): Promise<ScaffoldIntent>;
 }
 
@@ -478,10 +541,16 @@ function realIdSets(): {
 }
 
 /**
- * Defensively sanitise a provider-proposed intent: drop any slot whose id is not
- * a REAL registry id, and re-derive a safe project name. Infra slots are kept
- * only when their id is a known infra spec. The returned intent is guaranteed to
- * reference only real ids, exactly like the offline path.
+ * Defensively sanitise a provider-proposed intent.
+ *
+ * Drops any slot whose id is not a REAL registry id (frontend, backend, or
+ * datastore) and re-derives a safe project name from either the proposed name
+ * or the description. Infra slots are kept only when their id matches a known
+ * infra spec. The returned intent is guaranteed to reference only real ids,
+ * exactly like the offline path produced by {@link extractIntent}.
+ *
+ * @param proposed - The `ScaffoldIntent` proposed by a {@link PlannerProvider}.
+ * @returns A new `ScaffoldIntent` with all unsafe/unknown ids removed.
  */
 export function sanitizeProposedIntent(proposed: ScaffoldIntent): ScaffoldIntent {
   const { frontend: frontendIds, backend: backendIds } = realIdSets();
@@ -504,13 +573,18 @@ export function sanitizeProposedIntent(proposed: ScaffoldIntent): ScaffoldIntent
 }
 
 /**
- * Resolve which planner provider to use from the environment, if any. Returns
- * undefined on the default path so callers stay offline unless a provider is
- * explicitly configured. This reads env ONLY; it never performs a network call.
+ * Resolve which planner provider to use from the environment, if any.
  *
- * Wiring a concrete provider is intentionally left to the integrator: this hook
- * exists so an LLM adapter can be slotted in without touching the offline core,
- * and its output still funnels through {@link sanitizeProposedIntent}.
+ * Returns `undefined` on the default path so callers stay offline unless a
+ * provider is explicitly configured. This reads env ONLY; it never performs a
+ * network call. Wiring a concrete provider is intentionally left to the
+ * integrator: this hook exists so an LLM adapter can be slotted in without
+ * touching the offline core, and its output still funnels through
+ * {@link sanitizeProposedIntent}.
+ *
+ * @returns A {@link PlannerProvider} when one is configured, otherwise
+ *   `undefined`. The current implementation always returns `undefined` because
+ *   no provider ships by default.
  */
 export function plannerFromEnv(): PlannerProvider | undefined {
   // No provider is bundled. The presence of an env flag is recognised so an
