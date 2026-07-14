@@ -78,6 +78,78 @@ const licenseRuleSchema = z.object({
   allowed: z.array(z.string()).min(1),
 });
 
+// ---------------------------------------------------------------------------
+// Service-level rule schemas (Chunk 1 expansion)
+// ---------------------------------------------------------------------------
+
+/** Rule: service must declare a healthCheck configuration. */
+const healthcheckRequiredRuleSchema = z.object({
+  id: z.string(),
+  type: z.literal('healthcheck-required'),
+  severity: z.enum(['error', 'warning']).default('error'),
+  serviceTypes: z.array(z.string()).optional(),
+});
+
+/** Rule: service must declare cpu and/or memory resource limits. */
+const resourceLimitsRuleSchema = z.object({
+  id: z.string(),
+  type: z.literal('resource-limits'),
+  severity: z.enum(['error', 'warning']).default('warning'),
+  requireCpu: z.boolean().optional(),
+  requireMemory: z.boolean().optional(),
+});
+
+/** Rule: service port must be within the declared range. */
+const portRangeRuleSchema = z.object({
+  id: z.string(),
+  type: z.literal('port-range'),
+  severity: z.enum(['error', 'warning']).default('error'),
+  min: z.number(),
+  max: z.number(),
+});
+
+/** Rule: service dependency count (dependsOn) must be within range. */
+const serviceDependencyRuleSchema = z.object({
+  id: z.string(),
+  type: z.literal('service-dependency'),
+  severity: z.enum(['error', 'warning']).default('warning'),
+  min: z.number().optional(),
+  max: z.number().optional(),
+});
+
+/** Rule: service must define the listed environment variables. */
+const requiredEnvRuleSchema = z.object({
+  id: z.string(),
+  type: z.literal('required-env'),
+  severity: z.enum(['error', 'warning']).default('error'),
+  variables: z.array(z.string()).min(1),
+});
+
+/** Rule: service framework must be in the allowed list. */
+const frameworkAllowlistRuleSchema = z.object({
+  id: z.string(),
+  type: z.literal('framework-allowlist'),
+  severity: z.enum(['error', 'warning']).default('warning'),
+  allowed: z.array(z.string()).min(1),
+});
+
+/** Rule: service language must be in the allowed list. */
+const languageAllowlistRuleSchema = z.object({
+  id: z.string(),
+  type: z.literal('language-allowlist'),
+  severity: z.enum(['error', 'warning']).default('error'),
+  allowed: z.array(z.string()).min(1),
+});
+
+/** Rule: service must declare scaling configuration. */
+const scalingRequiredRuleSchema = z.object({
+  id: z.string(),
+  type: z.literal('scaling-required'),
+  severity: z.enum(['error', 'warning']).default('warning'),
+  serviceTypes: z.array(z.string()).optional(),
+  requireMinReplicas: z.number().optional(),
+});
+
 const ruleSchema = z.discriminatedUnion('type', [
   requiredFilesRuleSchema,
   requiredScriptsRuleSchema,
@@ -85,6 +157,14 @@ const ruleSchema = z.discriminatedUnion('type', [
   namingRuleSchema,
   minNodeRuleSchema,
   licenseRuleSchema,
+  healthcheckRequiredRuleSchema,
+  resourceLimitsRuleSchema,
+  portRangeRuleSchema,
+  serviceDependencyRuleSchema,
+  requiredEnvRuleSchema,
+  frameworkAllowlistRuleSchema,
+  languageAllowlistRuleSchema,
+  scalingRequiredRuleSchema,
 ]);
 
 export const policyPackSchema = z.object({
@@ -104,13 +184,74 @@ export interface FailedRule {
   target: string;
 }
 
+/** Letter grade corresponding to the numeric readiness score. */
+export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
+
+/** A failed rule that has been waived by a policy exception. */
+export interface WaivedRule extends FailedRule {
+  waiveReason?: string;
+  waiveExpires?: string;
+}
+
+/**
+ * A single rule evaluation result, used for the `results` array in
+ * `PolicyCheckResult`. Covers both passing and failing evaluations across
+ * all rule types (package.json-level and service-level).
+ */
+export interface PolicyResultItem {
+  service?: string;
+  workspace?: string;
+  ruleId: string;
+  ruleType: string;
+  passed: boolean;
+  severity: RuleSeverity;
+  message: string;
+  waived?: boolean;
+  waiveReason?: string;
+  waiveExpires?: string;
+}
+
+/** Details of a policy exception whose expiry date has passed. */
+export interface ExpiredException {
+  service: string;
+  rule: string;
+  expires: string;
+}
+
 export interface PolicyCheckResult {
   pack: string;
   score: number;
+  /** Letter grade derived from `score`. */
+  grade: Grade;
   passed: string[];
   failed: FailedRule[];
+  /** Failed rules that were waived by a non-expired exception. */
+  waived: WaivedRule[];
+  /** Per-rule per-target evaluation results (pass + fail + waived). */
+  results: PolicyResultItem[];
   /** True when at least one error-severity rule failed (drives exit code). */
   hasErrors: boolean;
+  /** Exceptions that matched failures but have passed their expiry date. */
+  expiredExceptions: ExpiredException[];
+}
+
+/**
+ * Convert a numeric 0-100 score to a letter grade.
+ *
+ * | Score  | Grade |
+ * |--------|-------|
+ * | 90-100 | A     |
+ * | 80-89  | B     |
+ * | 70-79  | C     |
+ * | 60-69  | D     |
+ * | 0-59   | F     |
+ */
+export function scoreToGrade(score: number): Grade {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  if (score >= 60) return 'D';
+  return 'F';
 }
 
 interface RootPackageJson {
@@ -398,8 +539,12 @@ export async function evaluatePolicyPack(
   return {
     pack: pack.name,
     score,
+    grade: scoreToGrade(score),
     passed,
     failed,
+    waived: [],
+    results: [],
     hasErrors,
+    expiredExceptions: [],
   };
 }

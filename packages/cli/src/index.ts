@@ -114,6 +114,7 @@ import { registerRunGroup } from './groups/run.group';
 import { registerCacheGroup } from './groups/cache.group';
 import { registerDevGroup } from './groups/dev.group';
 import { registerScorecardGroup } from './groups/scorecard.group';
+import { registerPolicyGroup } from './groups/policy.group';
 import { registerReleaseGroup } from './groups/release.group';
 import { registerMigrateGroup } from './groups/migrate.group';
 import { registerCatalogGroup } from './groups/catalog.group';
@@ -631,6 +632,7 @@ registerFixCiGroup(program);
 registerBoundariesGroup(program);
 registerEnvGroup(program);
 registerUiTestGroup(program);
+registerPolicyGroup(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 
