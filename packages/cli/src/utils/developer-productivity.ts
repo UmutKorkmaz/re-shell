@@ -68,6 +68,16 @@ interface DeveloperProductivityConfig {
   enableGoalTracking: boolean;
 }
 
+/**
+ * Prints a summary of the developer productivity configuration to the console.
+ *
+ * The output includes the project name, configured providers, counts of
+ * metrics, developers, widgets and insights, and the status of the
+ * personalization, benchmarking and goal tracking toggles.
+ *
+ * @param config - The developer productivity configuration to display.
+ * @returns No return value; output is written to the console.
+ */
 export function displayConfig(config: DeveloperProductivityConfig): void {
   console.log(chalk.cyan('📈 Developer Productivity Metrics'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -83,6 +93,17 @@ export function displayConfig(config: DeveloperProductivityConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the developer productivity
+ * features tracked by the provided configuration.
+ *
+ * The resulting Markdown lists the supported metric categories, time ranges,
+ * chart types, and tracking capabilities (velocity, code churn, review time,
+ * benchmarking, goal tracking, trend analysis and more).
+ *
+ * @param config - The developer productivity configuration used as context.
+ * @returns A Markdown string summarizing the productivity features.
+ */
 export function generateDeveloperProductivityMD(config: DeveloperProductivityConfig): string {
   let md = '# Developer Productivity Metrics and Personalized Dashboards\n\n';
   md += '## Features\n\n';
@@ -102,12 +123,32 @@ export function generateDeveloperProductivityMD(config: DeveloperProductivityCon
   return md;
 }
 
+/**
+ * Generates a Terraform header snippet for provisioning developer
+ * productivity resources for the given project.
+ *
+ * The generated code includes a comment header with the project name and the
+ * generation timestamp.
+ *
+ * @param config - The developer productivity configuration to derive the project name from.
+ * @returns A Terraform code string with a generated header.
+ */
 export function generateTerraformDeveloperProductivity(config: DeveloperProductivityConfig): string {
   let code = '# Auto-generated Developer Productivity Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
   return code;
 }
 
+/**
+ * Generates a TypeScript source file that defines a
+ * `DeveloperProductivityManager` class extending `EventEmitter` for the
+ * given project.
+ *
+ * The generated module exports a default singleton instance of the manager.
+ *
+ * @param config - The developer productivity configuration used to label the generated manager.
+ * @returns A TypeScript source string containing the manager class and default export.
+ */
 export function generateTypeScriptDeveloperProductivity(config: DeveloperProductivityConfig): string {
   let code = '// Auto-generated Developer Productivity Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -122,6 +163,16 @@ export function generateTypeScriptDeveloperProductivity(config: DeveloperProduct
   return code;
 }
 
+/**
+ * Generates a Python source file that defines a
+ * `DeveloperProductivityManager` class for the given project.
+ *
+ * The generated module instantiates a `developer_productivity_manager`
+ * singleton using the project name from the configuration.
+ *
+ * @param config - The developer productivity configuration used to label the generated manager.
+ * @returns A Python source string containing the manager class and instance.
+ */
 export function generatePythonDeveloperProductivity(config: DeveloperProductivityConfig): string {
   let code = '# Auto-generated Developer Productivity Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -134,6 +185,19 @@ export function generatePythonDeveloperProductivity(config: DeveloperProductivit
   return code;
 }
 
+/**
+ * Writes the developer productivity artifacts to the specified output directory.
+ *
+ * Depending on the chosen language, this function generates a Terraform file,
+ * either a TypeScript or Python manager module (plus its dependency manifest),
+ * a Markdown documentation file, and a JSON serialization of the configuration.
+ *
+ * @param config - The developer productivity configuration to materialize.
+ * @param outputDir - The directory where the generated files will be written. It is created if it does not exist.
+ * @param language - The target implementation language; either `'typescript'` or `'python'`.
+ * @returns A promise that resolves once all files have been written.
+ * @throws {Error} If the file system operations fail (for example, when the output directory cannot be created or written to).
+ */
 export async function writeFiles(config: DeveloperProductivityConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
@@ -181,6 +245,15 @@ export async function writeFiles(config: DeveloperProductivityConfig, outputDir:
   await fs.writeFile(path.join(outputDir, 'developer-productivity-config.json'), JSON.stringify(configJson, null, 2));
 }
 
+/**
+ * Returns the provided developer productivity configuration unchanged.
+ *
+ * This acts as a pass-through accessor, allowing callers to obtain or
+ * normalize a configuration value through a consistent function interface.
+ *
+ * @param config - The developer productivity configuration to return.
+ * @returns The same `DeveloperProductivityConfig` instance that was passed in.
+ */
 export function developerProductivity(config: DeveloperProductivityConfig): DeveloperProductivityConfig {
   return config;
 }

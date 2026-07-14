@@ -63,6 +63,14 @@ interface DisasterRecoveryConfig {
   rpo: number; // Recovery Point Objective in minutes
 }
 
+/**
+ * Prints a summary of the disaster recovery configuration to the console.
+ * The output includes the project name, primary and DR regions, providers,
+ * replication status, backup type, failover strategy, RTO/RPO values, and
+ * whether DR testing is enabled.
+ *
+ * @param config - The disaster recovery configuration to display.
+ */
 export function displayConfig(config: DisasterRecoveryConfig): void {
   console.log(chalk.cyan('✨ Cross-Cloud Disaster Recovery and Backup Strategies with Testing'));
   console.log(chalk.gray('────────────────────────────────────────────────────────────'));
@@ -79,6 +87,15 @@ export function displayConfig(config: DisasterRecoveryConfig): void {
   console.log(chalk.gray('────────────────────────────────────────────────────────────\n'));
 }
 
+/**
+ * Generates a Markdown document describing the cross-cloud disaster recovery
+ * and backup strategies. The document lists the supported features and
+ * includes example shell commands for initializing the DR setup, testing
+ * failover, running backups, and restoring from a backup.
+ *
+ * @param config - The disaster recovery configuration used to scope the document.
+ * @returns A Markdown string containing the DR feature list and usage examples.
+ */
 export function generateDisasterRecoveryMD(config: DisasterRecoveryConfig): string {
   let md = '# Cross-Cloud Disaster Recovery and Backup Strategies\n\n';
   md += '## Features\n\n';
@@ -107,6 +124,18 @@ export function generateDisasterRecoveryMD(config: DisasterRecoveryConfig): stri
   return md;
 }
 
+/**
+ * Generates Terraform infrastructure-as-code for the disaster recovery setup.
+ * Depending on the configured providers, the output includes AWS (S3 buckets,
+ * cross-region replication, Route53 DNS failover, health checks), Azure
+ * (storage accounts with GRS replication, Traffic Manager), and GCP (storage
+ * buckets with versioning and cross-region replication) resources. Backup
+ * vaults and plans are also emitted when backup is enabled.
+ *
+ * @param config - The disaster recovery configuration describing providers,
+ *   regions, replication, failover, and backup settings.
+ * @returns A string containing the generated Terraform configuration.
+ */
 export function generateTerraformDR(config: DisasterRecoveryConfig): string {
   let code = '# Auto-generated Disaster Recovery Terraform for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -300,6 +329,19 @@ export function generateTerraformDR(config: DisasterRecoveryConfig): string {
   return code;
 }
 
+/**
+ * Generates the source code for a TypeScript `DRManager` class that orchestrates
+ * disaster recovery operations at runtime. The emitted class extends
+ * `EventEmitter` and exposes methods for initiating failover, creating and
+ * restoring backups, running DR test scenarios, and reporting status. When DR
+ * testing is enabled in the config, the generated class also includes
+ * simulation and validation helper methods.
+ *
+ * @param config - The disaster recovery configuration used to parameterize the
+ *   generated manager (project name, regions, failover strategy, RTO/RPO,
+ *   testing options).
+ * @returns A string containing the generated TypeScript source code.
+ */
 export function generateTypeScriptDRManager(config: DisasterRecoveryConfig): string {
   let code = '// Auto-generated Disaster Recovery Manager for ' + config.projectName + '\n';
   code += '// Generated at: ' + new Date().toISOString() + '\n\n';
@@ -448,6 +490,18 @@ export function generateTypeScriptDRManager(config: DisasterRecoveryConfig): str
   return code;
 }
 
+/**
+ * Generates the source code for a Python `DRManager` class that orchestrates
+ * disaster recovery operations at runtime. The emitted class provides async
+ * methods for initiating failover, creating and restoring backups, running DR
+ * test scenarios (when testing is enabled), updating DNS and load balancer
+ * configuration, and reporting status.
+ *
+ * @param config - The disaster recovery configuration used to parameterize the
+ *   generated manager (project name, regions, failover strategy, RTO/RPO,
+ *   testing options).
+ * @returns A string containing the generated Python source code.
+ */
 export function generatePythonDRManager(config: DisasterRecoveryConfig): string {
   let code = '# Auto-generated Disaster Recovery Manager for ' + config.projectName + '\n';
   code += '# Generated at: ' + new Date().toISOString() + '\n\n';
@@ -553,6 +607,22 @@ export function generatePythonDRManager(config: DisasterRecoveryConfig): string 
   return code;
 }
 
+/**
+ * Writes the disaster recovery configuration files to the specified output
+ * directory. This always emits the Terraform configuration (`dr.tf`), a
+ * Markdown documentation file (`DISASTER_RECOVERY.md`), and a JSON
+ * configuration file (`dr-config.json`). Depending on the chosen language,
+ * it also writes either a TypeScript DR manager with a `package.json`, or a
+ * Python DR manager with a `requirements.txt`.
+ *
+ * @param config - The disaster recovery configuration to generate files from.
+ * @param outputDir - The target directory where files will be written. It is
+ *   created if it does not already exist.
+ * @param language - The runtime language for the DR manager code; `'typescript'`
+ *   emits TypeScript sources, any other value emits Python sources.
+ * @returns A promise that resolves once all files have been written.
+ * @throws Rejects if directory creation or any file write operation fails.
+ */
 export async function writeFiles(config: DisasterRecoveryConfig, outputDir: string, language: string): Promise<void> {
   const fs = await import('fs-extra');
   const path = await import('path');
