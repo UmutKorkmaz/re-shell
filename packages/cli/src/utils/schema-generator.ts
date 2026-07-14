@@ -28,20 +28,36 @@ export const SCHEMA_ID =
  * the two pieces of information callers need: where it happened and what failed.
  */
 export interface SchemaValidationError {
+  /** JSON Pointer instance path locating where in the document the error occurred (empty string for whole-document errors). */
   instancePath: string;
+  /** Human-readable description of the validation failure. */
   message: string;
 }
 
+/**
+ * Options controlling how {@link publishSchemas} emits IDE configuration files.
+ */
 export interface SchemaPublishOptions {
+  /** Directory where the schema and IDE-specific config files are written. Defaults to `<cwd>/schemas`. */
   outputDir?: string;
+  /** VSCode user settings directory whose `settings.json` is updated with schema associations. Defaults to `~/.vscode`. */
   vscodeDir?: string;
+  /** When `true`, additionally generates a VSCode extension scaffold under `outputDir/vscode-extension`. Defaults to `false`. */
   createVscodeExtension?: boolean;
+  /** Reserved for future use; controls whether emitted files are pretty-printed. */
   format?: boolean;
+  /** Reserved for future use; controls whether the published schema is validated before emission. */
   validate?: boolean;
 }
 
 /**
- * Generate VSCode settings for schema association
+ * Generate VSCode settings for schema association.
+ *
+ * The returned JSON string maps the workspace JSON schema to the common
+ * re-shell workspace YAML file names and enables YAML validation/completion.
+ *
+ * @param schemaPath - Absolute or relative path/URL to the workspace JSON schema that VSCode should associate with the workspace files.
+ * @returns A pretty-printed JSON string suitable for writing to VSCode's `settings.json`.
  */
 export function generateVSCodeConfig(schemaPath: string): string {
   return JSON.stringify(
@@ -67,7 +83,12 @@ export function generateVSCodeConfig(schemaPath: string): string {
 }
 
 /**
- * Generate IntelliJ/IDEA schema mapping
+ * Generate IntelliJ/IDEA schema mapping.
+ *
+ * The returned XML snippet registers the re-shell workspace schema against the
+ * `re-shell.workspaces.yaml` file name inside IntelliJ's `SchemaColorSettings`.
+ *
+ * @returns An XML string intended to be merged into `.idea/workspace.xml`.
  */
 export function generateIntelliJConfig(): string {
   return `# IntelliJ/IDEA YAML Schema Configuration
@@ -96,7 +117,12 @@ export function generateIntelliJConfig(): string {
 }
 
 /**
- * Generate Vim/Neovim schema configuration
+ * Generate Vim/Neovim schema configuration.
+ *
+ * The returned Vimscript configures schema namespace matching, file
+ * associations, and omnifunc-based completion for `yaml` filetypes.
+ *
+ * @returns A Vimscript snippet to append to `.vimrc` or `init.vim`.
  */
 export function generateVimConfig(): string {
   return `# Vim/Neovim YAML Schema Configuration
@@ -117,7 +143,13 @@ autocmd FileType yaml setlocal omnifunc=yamlcomplete#Complete
 }
 
 /**
- * Generate Emacs schema configuration
+ * Generate Emacs schema configuration.
+ *
+ * The returned Emacs Lisp registers the re-shell workspace schema against the
+ * relevant YAML file names and wires up `company`-based completion within
+ * `yaml-mode`.
+ *
+ * @returns An Emacs Lisp snippet to append to `init.el` or `.emacs`.
  */
 export function generateEmacsConfig(): string {
   return `;; Emacs YAML Schema Configuration
@@ -143,7 +175,10 @@ export function generateEmacsConfig(): string {
 }
 
 /**
- * Generate package.json for VSCode extension
+ * Generate `package.json` content for a minimal VSCode extension that provides
+ * IntelliSense, validation, and autocomplete for re-shell workspace files.
+ *
+ * @returns A pretty-printed JSON string representing the extension's `package.json`.
  */
 export function generateVSCodeExtension(): string {
   return JSON.stringify(
@@ -224,7 +259,11 @@ export function generateVSCodeExtension(): string {
 }
 
 /**
- * Generate language configuration for VSCode
+ * Generate the VSCode `language-configuration.json` content for the re-shell
+ * workspace language, defining comments, brackets, auto-closing pairs, folding
+ * markers, and the word pattern.
+ *
+ * @returns A pretty-printed JSON string suitable for `language-configuration.json`.
  */
 export function generateLanguageConfig(): string {
   return JSON.stringify(
@@ -265,7 +304,14 @@ export function generateLanguageConfig(): string {
 }
 
 /**
- * Publish schemas to IDE configuration directories
+ * Publish the workspace schema and IDE-specific configuration files.
+ *
+ * Writes the canonical v2 schema, VSCode `settings.json` (merged with any
+ * existing settings), and IntelliJ/Vim/Emacs config snippets. Optionally
+ * scaffolds a VSCode extension under the output directory.
+ *
+ * @param options - Controls output location, VSCode target directory, and whether to emit a VSCode extension scaffold. Defaults to sensible locations with no extension scaffold.
+ * @returns Resolves once all files have been written; rejects on filesystem errors.
  */
 export async function publishSchemas(options: SchemaPublishOptions = {}): Promise<void> {
   const {
@@ -349,14 +395,19 @@ export async function publishSchemas(options: SchemaPublishOptions = {}): Promis
  * can surface exactly where validation failed.
  */
 export interface WorkspaceValidationResult {
+  /** `true` when the document fully conformed to the v2 JSON Schema. */
   valid: boolean;
+  /** Field-level validation errors (instancePath + message); empty when valid. */
   errors: SchemaValidationError[];
+  /** Non-blocking warnings (e.g., unexpected file extension) surfaced to the caller. */
   warnings: string[];
 }
 
 /**
  * Returns the canonical v2 JSON Schema object used for both validation and IDE
  * publishing. This is the single source of truth (src/schemas/workspace-v2).
+ *
+ * @returns The v2 workspace JSON Schema as a plain object.
  */
 export function getWorkspaceSchema(): Record<string, unknown> {
   return workspaceV2Schema as unknown as Record<string, unknown>;
@@ -369,6 +420,9 @@ export function getWorkspaceSchema(): Record<string, unknown> {
  * Boundary validation: file existence, extension, YAML parseability, and then
  * full schema conformance. Never throws for expected failure modes — those are
  * reported as structured errors so the caller can emit a clean envelope.
+ *
+ * @param filePath - Path to the YAML/JSON workspace file to validate.
+ * @returns A {@link WorkspaceValidationResult} containing the validation outcome, field-level errors, and any non-blocking warnings.
  */
 export async function validateWorkspaceFile(
   filePath: string
@@ -425,6 +479,8 @@ export async function validateWorkspaceFile(
 /**
  * Build the IDE-autocomplete JSON Schema: the canonical v2 schema with an
  * owned/served $id (and a draft-07 $schema) so VSCode/IntelliJ can resolve it.
+ *
+ * @returns A JSON Schema object augmented with `$schema` and owned `$id` fields ready for IDE consumption.
  */
 export function getIdeSchema(): Record<string, unknown> {
   const base = getWorkspaceSchema();
@@ -438,6 +494,8 @@ export function getIdeSchema(): Record<string, unknown> {
 /**
  * Get schema file path (the build copies the canonical v2 schema here for the
  * dist runtime). At source-time the canonical schema is imported directly.
+ *
+ * @returns Absolute path under `__dirname/schemas` where the published workspace schema is expected to live at runtime.
  */
 export function getSchemaPath(): string {
   return path.join(__dirname, 'schemas', 're-shell-workspace.schema.json');
@@ -445,6 +503,8 @@ export function getSchemaPath(): string {
 
 /**
  * Load the IDE-autocomplete schema as a JSON object.
+ *
+ * @returns The IDE-ready schema (canonical v2 schema with `$schema` and owned `$id`).
  */
 export async function loadSchema(): Promise<Record<string, unknown>> {
   return getIdeSchema();

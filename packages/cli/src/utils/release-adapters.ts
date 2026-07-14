@@ -9,14 +9,38 @@
 
 import type { ReleasePlanEntry } from './release-engine';
 
-/** Runs a publish command and resolves with its exit code. Injectable. */
+/**
+ * Runs a publish command and resolves with its exit code. Injectable.
+ *
+ * The executor is intentionally injectable so tests and the dry-run path never
+ * touch the network. The real executor (built by the command layer) uses
+ * `execFile` with an argv array (no shell interpolation) so package names can
+ * never be interpreted by a shell.
+ *
+ * @param cmd - The executable to invoke (e.g. "npm", "cargo", "python").
+ * @param args - The argv array passed to the executable (no shell interpolation).
+ * @param cwd - The working directory in which to run the command.
+ * @returns A promise that resolves to the process exit code (0 on success).
+ */
 export type PublishExecutor = (
   cmd: string,
   args: string[],
   cwd: string
 ) => Promise<number>;
 
-/** Build the publish argv for an entry's target registry. */
+/**
+ * Build the publish argv for an entry's target registry.
+ *
+ * Selects the appropriate executable and arguments for the registry declared on
+ * the release plan entry. Throws when no adapter exists for the entry's
+ * registry.
+ *
+ * @param entry - The release plan entry whose `registry` drives the choice of
+ *   publish command.
+ * @returns An object containing the `cmd` executable name and the `args` argv
+ *   array to publish to the registry.
+ * @throws {Error} When `entry.registry` has no registered publish adapter.
+ */
 export function buildPublishCommand(entry: ReleasePlanEntry): {
   cmd: string;
   args: string[];
@@ -48,11 +72,20 @@ export interface PublishOutcome {
 }
 
 /**
- * Publish one entry through the injectable executor. In dry-run nothing runs and
- * `published` is false. Otherwise the executor is invoked once: exit 0 →
- * published, any other code (or a thrown executor error) → not published, with a
- * warning. Errors are surfaced as warnings rather than thrown so one failed
- * publish never aborts the whole release plan.
+ * Publish one entry through the injectable executor.
+ *
+ * In dry-run nothing runs and `published` is false. Otherwise the executor is
+ * invoked once: exit 0 → published, any other code (or a thrown executor error)
+ * → not published, with a warning. Errors are surfaced as warnings rather than
+ * thrown so one failed publish never aborts the whole release plan.
+ *
+ * @param entry - The release plan entry to publish (registry, name, and path
+ *   are read from it).
+ * @param executor - The injectable executor used to spawn the publish command.
+ * @param dryRun - When true, no command is executed and the outcome reports
+ *   `published: false` with no warning.
+ * @returns A {@link PublishOutcome} describing whether the unit was published
+ *   and, when it was not, a `warning` explaining why.
  */
 export async function execPublish(
   entry: ReleasePlanEntry,
