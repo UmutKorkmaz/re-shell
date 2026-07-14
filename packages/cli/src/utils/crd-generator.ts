@@ -6,40 +6,6 @@ import chalk from 'chalk';
 
 
 
-interface CustomResourceDefinition {
-  metadata: {
-    name: string;
-  };
-  spec: {
-    group: string;
-    versions: Array<{
-      name: string;
-      served: boolean;
-      storage: boolean;
-      schema?: {
-        openAPIV3Schema: any;
-      };
-      subresources?: {
-        status?: any;
-        scale?: any;
-      };
-      additionalPrinterColumns?: Array<{
-        name: string;
-        type: string;
-        description: string;
-        jsonPath: string;
-      }>;
-    }>;
-    scope: 'Namespaced' | 'Cluster';
-    names: {
-      plural: string;
-      singular: string;
-      kind: string;
-      shortNames?: string[];
-      categories?: string[];
-    };
-  };
-}
 
 interface OperatorConfig {
   projectName: string;

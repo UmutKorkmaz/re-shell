@@ -28,13 +28,6 @@ interface UserProfile {
   yearsExperience: number;
 }
 
-interface MatchScore {
-  mentorId: string;
-  menteeId: string;
-  overallScore: number; // 0-100
-  criteriaScores: Map<MatchCriteria, number>;
-  reasons: string[];
-}
 
 interface MentorshipPair {
   id: string;

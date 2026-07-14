@@ -102,7 +102,7 @@ export class DependencyGraphEngine {
 
         // Add dependencies from package dependencies
         const deps = serviceConfig.dependencies?.production || {};
-        for (const [dep, version] of Object.entries(deps)) {
+        for (const [dep, _version] of Object.entries(deps)) {
           // Check if any service provides this dependency
           for (const [otherServiceId, otherService] of Object.entries(config.services)) {
             const otherConfig = otherService as Record<string, any>;

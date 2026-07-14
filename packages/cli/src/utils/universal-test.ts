@@ -557,13 +557,13 @@ export class UniversalTestRunner extends EventEmitter {
 
     // Match: "PASS src/example.test.ts"
     const passMatches = output.matchAll(/PASS\s+(.+?\.(?:test|spec)\.[jt]sx?)/g);
-    for (const match of passMatches) {
+    for (const _match of passMatches) {
       result.passed++;
     }
 
     // Match: "FAIL src/example.test.ts"
     const failMatches = output.matchAll(/FAIL\s+(.+?\.(?:test|spec)\.[jt]sx?)/g);
-    for (const match of failMatches) {
+    for (const _match of failMatches) {
       result.failed++;
     }
 

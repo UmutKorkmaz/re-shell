@@ -77,20 +77,6 @@ async function initializeProjectConfig(options: ProjectConfigCommandOptions, spi
   // Get global config for defaults
   const globalConfig = await configManager.loadGlobalConfig();
   
-  const config = await configManager.createProjectConfig(
-    projectName,
-    {
-      type: 'monorepo',
-      packageManager: (options.packageManager || globalConfig.packageManager) as 'npm' | 'yarn' | 'pnpm' | 'bun',
-      framework: options.framework || globalConfig.defaultFramework,
-      template: globalConfig.defaultTemplate,
-      workspaces: {
-        root: '.',
-        patterns: ['apps/*', 'packages/*', 'libs/*'],
-        types: ['app', 'package', 'lib']
-      }
-    }
-  );
   
   if (spinner) {
     spinner.succeed(chalk.green('Project configuration initialized!'));

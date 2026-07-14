@@ -641,19 +641,6 @@ ${config.complianceReports.map(report => `
  * @returns A Terraform-formatted string provisioning the provider's secrets manager.
  */
 export function generateVaultTerraform(config: SecretDetectionConfig, provider: 'aws' | 'azure' | 'gcp'): string {
-  const providerConfig = provider === 'aws' ? {
-    resource: 'aws_secretsmanager_secret',
-    resourceVersion: 'aws_secretsmanager_secret_version',
-    backend: 'aws_secretsmanager_secret'
-  } : provider === 'azure' ? {
-    resource: 'azurerm_key_vault',
-    resourceSecret: 'azurerm_key_vault_secret',
-    backend: 'azurerm_key_vault'
-  } : {
-    resource: 'google_secret_manager_secret',
-    resourceVersion: 'google_secret_manager_secret_version',
-    backend: 'google_secret_manager_secret'
-  };
 
   return `# Secret Detection and Management - ${provider.toUpperCase()}
 # Generated at: ${new Date().toISOString()}

@@ -1406,7 +1406,6 @@ async function validateWatchMode(configPath: string, options: WorkspaceValidateO
   console.log(chalk.cyan('👀 Watching for changes...\n'));
   console.log(chalk.gray('Press Ctrl+C to stop\n'));
 
-  const lastValidation = { valid: false, timestamp: 0 };
   let debounceTimer: NodeJS.Timeout | null = null;
 
   // Initial validation

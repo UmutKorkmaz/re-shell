@@ -6,7 +6,6 @@ import chalk from 'chalk';
 type DocType = 'readme' | 'api-doc' | 'tutorial' | 'guide' | 'architecture' | 'changelog';
 type AutomationTrigger = 'code-change' | 'commit' | 'schedule' | 'manual' | 'api-update';
 type AIAssistance = 'summarization' | 'generation' | 'translation' | 'enhancement' | 'formatting';
-type ExportFormat = 'markdown' | 'html' | 'pdf' | 'json' | 'openapi';
 
 interface DocumentationTemplate {
   id: string;

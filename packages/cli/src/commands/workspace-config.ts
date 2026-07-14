@@ -87,34 +87,6 @@ async function initializeWorkspaceConfig(
   // Get project and global config for defaults
   const mergedConfig = await configManager.getMergedConfig();
   
-  const config = await configManager.createWorkspaceConfig(
-    workspaceName,
-    workspaceType,
-    {
-      framework: options.framework || mergedConfig.merged.framework,
-      packageManager: (options.packageManager || mergedConfig.merged.packageManager) as 'npm' | 'yarn' | 'pnpm' | 'bun',
-      build: {
-        target: 'es2020',
-        optimize: true,
-        analyze: false
-      },
-      dev: {
-        port: 3000,
-        host: 'localhost',
-        open: false,
-        hmr: true
-      },
-      quality: {
-        linting: true,
-        testing: true,
-        coverage: {
-          enabled: true,
-          threshold: 80
-        }
-      }
-    },
-    workspacePath
-  );
   
   if (spinner) {
     spinner.succeed(chalk.green('Workspace configuration initialized!'));

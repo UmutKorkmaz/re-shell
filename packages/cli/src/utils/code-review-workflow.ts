@@ -3,8 +3,6 @@
 
 import chalk from 'chalk';
 
-type ReviewState = 'pending' | 'in-review' | 'approved' | 'rejected' | 'changes-requested';
-type ReviewType = 'pull-request' | 'inline' | 'batch' | 'automated';
 type IntegrationProvider = 'github' | 'gitlab' | 'bitbucket' | 'azure-devops';
 
 interface ReviewConfig {
