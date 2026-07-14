@@ -7,6 +7,9 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
+/**
+ * Supported cache backend storage providers.
+ */
 // Cache backends
 export type CacheBackend =
   | 'memory'
@@ -17,6 +20,9 @@ export type CacheBackend =
   | 'mongodb'
   | 'sql';
 
+/**
+ * Caching strategies controlling how the cache interacts with the underlying data store.
+ */
 // Cache strategies
 export type CacheStrategy =
   | 'cache-aside'
@@ -25,6 +31,9 @@ export type CacheStrategy =
   | 'write-back'
   | 'refresh-ahead';
 
+/**
+ * Policies determining which cache entry to remove when the cache reaches capacity.
+ */
 // Eviction policies
 export type EvictionPolicy =
   | 'lru'
@@ -34,6 +43,10 @@ export type EvictionPolicy =
   | 'random'
   | 'ttl';
 
+/**
+ * Represents a single entry stored in the cache.
+ * @template T - The type of the cached value.
+ */
 // Cache entry
 export interface CacheEntry<T = any> {
   key: string;
@@ -46,6 +59,9 @@ export interface CacheEntry<T = any> {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Optional settings applied when storing a value in the cache.
+ */
 // Cache options
 export interface CacheOptions {
   ttl?: number;
@@ -55,6 +71,9 @@ export interface CacheOptions {
   serialize?: boolean;
 }
 
+/**
+ * Runtime statistics describing cache performance and usage.
+ */
 // Cache statistics
 export interface CacheStats {
   hits: number;
@@ -65,6 +84,9 @@ export interface CacheStats {
   missRate: number;
 }
 
+/**
+ * Top-level configuration for a data caching integration.
+ */
 // Caching configuration
 export interface CachingConfig {
   serviceName: string;
@@ -76,6 +98,12 @@ export interface CachingConfig {
   enableStats: boolean;
 }
 
+/**
+ * Generates a default caching configuration for the given service.
+ * @param serviceName - The name of the service the cache belongs to.
+ * @param defaultBackend - The default storage backend to use; defaults to 'memory'.
+ * @returns A populated {@link CachingConfig} with sensible defaults.
+ */
 // Generate caching config
 export async function generateCachingConfig(
   serviceName: string,
@@ -92,6 +120,11 @@ export async function generateCachingConfig(
   };
 }
 
+/**
+ * Generates TypeScript source files implementing a data cache for the given config.
+ * @param config - The caching configuration to generate code from.
+ * @returns An object containing the generated files and their dependency list.
+ */
 // Generate TypeScript implementation
 export async function generateTypeScriptCaching(
   config: CachingConfig
@@ -578,6 +611,11 @@ if (require.main === module) {
   return { files, dependencies };
 }
 
+/**
+ * Generates Python source files implementing a data cache for the given config.
+ * @param config - The caching configuration to generate code from.
+ * @returns An object containing the generated files and their dependency list.
+ */
 // Generate Python implementation
 export async function generatePythonCaching(
   config: CachingConfig
@@ -826,6 +864,11 @@ if __name__ == '__main__':
   return { files, dependencies };
 }
 
+/**
+ * Generates Go source files implementing a data cache for the given config.
+ * @param config - The caching configuration to generate code from.
+ * @returns An object containing the generated files and their dependency list.
+ */
 // Generate Go implementation
 export async function generateGoCaching(
   config: CachingConfig
@@ -1101,6 +1144,14 @@ func main() {
   return { files, dependencies };
 }
 
+/**
+ * Writes generated caching files to disk, including a BUILD.md instructions file.
+ * @param serviceName - The name of the service for build documentation.
+ * @param integration - The generated integration containing files to write.
+ * @param outputDir - The directory where files will be written.
+ * @param language - The target language used in build documentation.
+ * @throws When file system operations fail.
+ */
 // Write generated files
 export async function writeCachingFiles(
   serviceName: string,
@@ -1122,6 +1173,10 @@ export async function writeCachingFiles(
   await fs.writeFile(path.join(outputDir, 'BUILD.md'), buildContent);
 }
 
+/**
+ * Prints a human-readable summary of the caching configuration to the console.
+ * @param config - The caching configuration to display.
+ */
 // Display configuration
 export async function displayCachingConfig(config: CachingConfig): Promise<void> {
   console.log(chalk.bold.magenta('\n💾 Data Caching: ' + config.serviceName));

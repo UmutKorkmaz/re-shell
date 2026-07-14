@@ -7,16 +7,24 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 
-// Schema types
+/**
+ * Supported schema serialization formats.
+ */
 export type SchemaType = 'avro' | 'protobuf' | 'json-schema' | 'openapi' | 'graphql' | 'sql';
 
-// Evolution types
+/**
+ * Categories of schema changes that can occur between versions.
+ */
 export type EvolutionType = 'add_field' | 'remove_field' | 'rename_field' | 'change_type' | 'add_default' | 'breaking';
 
-// Compatibility level
+/**
+ * Compatibility level between two schema versions.
+ */
 export type CompatibilityLevel = 'full' | 'forward' | 'backward' | 'none' | 'unknown';
 
-// Schema version
+/**
+ * Represents a single versioned snapshot of a schema with compatibility metadata.
+ */
 export interface SchemaVersion {
   version: string;
   schema: any;
@@ -28,7 +36,9 @@ export interface SchemaVersion {
   migrations: Migration[];
 }
 
-// Migration definition
+/**
+ * Describes a single migration step between two schema versions.
+ */
 export interface Migration {
   fromVersion: string;
   toVersion: string;
@@ -41,13 +51,17 @@ export interface Migration {
   description: string;
 }
 
-// Schema registry
+/**
+ * In-memory registry storing all schema versions and their current versions.
+ */
 export interface SchemaRegistry {
   schemas: Map<string, SchemaVersion[]>;
   currentVersion: Map<string, string>;
 }
 
-// Evolution configuration
+/**
+ * Configuration options for schema evolution behavior.
+ */
 export interface EvolutionConfig {
   serviceName: string;
   schemaType: SchemaType;
@@ -56,7 +70,12 @@ export interface EvolutionConfig {
   breakingChangePolicy: 'allow' | 'warn' | 'block';
 }
 
-// Generate evolution config
+/**
+ * Generates a default evolution configuration for the given service.
+ * @param serviceName - Name of the service the schema belongs to.
+ * @param schemaType - Schema serialization format (defaults to 'avro').
+ * @returns A promise resolving to an EvolutionConfig with default settings.
+ */
 export async function generateEvolutionConfig(
   serviceName: string,
   schemaType: SchemaType = 'avro'
@@ -70,7 +89,12 @@ export async function generateEvolutionConfig(
   };
 }
 
-// Check compatibility between schema versions
+/**
+ * Checks compatibility between two schema versions based on breaking changes and compatibility flags.
+ * @param oldSchema - The earlier schema version to compare from.
+ * @param newSchema - The newer schema version to compare against.
+ * @returns The compatibility level ('full', 'forward', 'backward', 'none', or 'unknown').
+ */
 export function checkCompatibility(
   oldSchema: SchemaVersion,
   newSchema: SchemaVersion
@@ -98,7 +122,11 @@ export function checkCompatibility(
   return 'unknown';
 }
 
-// Generate TypeScript implementation
+/**
+ * Generates TypeScript implementation files for schema evolution management.
+ * @param config - Evolution configuration describing the service and schema type.
+ * @returns A promise resolving to generated file contents and their dependencies.
+ */
 export async function generateTypeScriptEvolution(
   config: EvolutionConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -465,7 +493,11 @@ if (require.main === module) {
   return { files, dependencies };
 }
 
-// Generate Python implementation (simplified)
+/**
+ * Generates a simplified Python implementation for schema evolution management.
+ * @param config - Evolution configuration describing the service and schema type.
+ * @returns A promise resolving to generated file contents and their dependencies.
+ */
 export async function generatePythonEvolution(
   config: EvolutionConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -557,7 +589,11 @@ if __name__ == '__main__':
   return { files, dependencies };
 }
 
-// Generate Go implementation (simplified)
+/**
+ * Generates a simplified Go implementation for schema evolution management.
+ * @param config - Evolution configuration describing the service and schema type.
+ * @returns A promise resolving to generated file contents and their dependencies.
+ */
 export async function generateGoEvolution(
   config: EvolutionConfig
 ): Promise<{ files: Array<{ path: string; content: string }>; dependencies: string[] }> {
@@ -656,7 +692,14 @@ func main() {
   return { files, dependencies };
 }
 
-// Write generated files
+/**
+ * Writes generated schema evolution files to disk and produces a BUILD.md guide.
+ * @param serviceName - Name of the service for build documentation.
+ * @param integration - Object containing generated files to write.
+ * @param outputDir - Directory path where files will be written.
+ * @param language - Target language identifier for build documentation.
+ * @returns A promise that resolves when all files have been written.
+ */
 export async function writeEvolutionFiles(
   serviceName: string,
   integration: any,
@@ -677,7 +720,11 @@ export async function writeEvolutionFiles(
   await fs.writeFile(path.join(outputDir, 'BUILD.md'), buildContent);
 }
 
-// Display configuration
+/**
+ * Pretty-prints the evolution configuration and reference information to the console.
+ * @param config - Evolution configuration to display.
+ * @returns A promise that resolves when output is complete.
+ */
 export async function displayEvolutionConfig(config: EvolutionConfig): Promise<void> {
   console.log(chalk.bold.magenta('\n📊 Schema Evolution: ' + config.serviceName));
   console.log(chalk.gray('─'.repeat(50)));
