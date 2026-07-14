@@ -578,4 +578,46 @@ export function formatDownloadCount(count: number): string {
   return count.toString();
 }
 
+// --- Install-time permission display helpers ---
+
+/** Permission display entry for install-time output. */
+export interface PermissionDisplayEntry {
+  type: string;
+  access: string;
+  resource?: string;
+  description: string;
+  severity: 'info' | 'warn' | 'danger';
+}
+
+/** Categorize a permission's severity for display. */
+function permissionSeverity(type: string, access: string): 'info' | 'warn' | 'danger' {
+  if (type === 'process' && (access === 'execute' || access === 'full')) return 'danger';
+  if (type === 'filesystem' && access === 'full') return 'danger';
+  if (type === 'filesystem' && (access === 'write' || access === 'full')) return 'warn';
+  return 'info';
+}
+
+/**
+ * Extract and format permissions from a plugin manifest for install-time display.
+ * Returns an empty array if the plugin declares no permissions.
+ */
+export function extractPermissionsForDisplay(
+  manifest: { reshell?: { permissions?: Array<{ type: string; access: string; resource?: string; description: string }> } } | undefined
+): PermissionDisplayEntry[] {
+  const perms = manifest?.reshell?.permissions || [];
+  return perms.map((p) => ({
+    type: p.type,
+    access: p.access,
+    resource: p.resource,
+    description: p.description,
+    severity: permissionSeverity(p.type, p.access),
+  }));
+}
+
+/** Check if the permission set has dangerous combinations. */
+export function hasDangerousCombos(perms: PermissionDisplayEntry[]): boolean {
+  const types = new Set(perms.map((p) => p.type));
+  return types.has('filesystem') && types.has('process') && types.has('network');
+}
+
 export { PLUGIN_KEYWORD };

@@ -6,7 +6,7 @@ import {
   managePlugins, discoverPlugins, installPlugin, uninstallPlugin,
   showPluginInfo, enablePlugin, disablePlugin, updatePlugins,
   validatePlugin, clearPluginCache, showPluginStats, reloadPlugin,
-  showPluginHooks, executeHook, listHookTypes,
+  showPluginHooks, executeHook, listHookTypes, showAuditLog,
 } from '../commands/plugin';
 import {
   showCacheStats, configureCacheSettings, clearCache,
@@ -889,6 +889,21 @@ export function registerPluginGroup(program: Command): void {
     .action(
       createAsyncCommand(async (options) => {
         await listCachedCommands(options);
+      })
+    );
+
+  pluginCommand
+    .command('audit')
+    .description('View or clear the plugin audit log')
+    .option('--plugin <name>', 'Filter by plugin name')
+    .option('--allowed <bool>', 'Filter by allowed status (true/false)')
+    .option('--action <prefix>', 'Filter by action prefix (e.g. "fs." or "exec")')
+    .option('--limit <number>', 'Show only the last N entries')
+    .option('--clear', 'Clear the audit log')
+    .option('--json', 'Output as JSON')
+    .action(
+      createAsyncCommand(async (options) => {
+        await showAuditLog(options);
       })
     );
 
