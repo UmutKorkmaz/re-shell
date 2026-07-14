@@ -9,7 +9,10 @@ import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import chalk from 'chalk';
 
-// Test framework configuration
+/**
+ * Configuration describing a supported test framework, including its language,
+ * commands, file patterns, and result parser.
+ */
 export interface TestFrameworkConfig {
   name: string;
   language: string;
@@ -24,7 +27,9 @@ export interface TestFrameworkConfig {
   resultParser: 'tap' | 'jest' | 'pytest' | 'go' | 'rust' | 'generic';
 }
 
-// Test result
+/**
+ * Aggregated result of a test run, including counts and failure details.
+ */
 export interface TestResult {
   framework: string;
   language: string;
@@ -36,7 +41,9 @@ export interface TestResult {
   failures: TestFailure[];
 }
 
-// Test failure details
+/**
+ * Details of an individual failed test case.
+ */
 export interface TestFailure {
   file: string;
   line: number;
@@ -45,7 +52,10 @@ export interface TestFailure {
   message: string;
 }
 
-// Test execution options
+/**
+ * Options controlling how tests are executed, such as filtering, coverage,
+ * and parallelism.
+ */
 export interface TestOptions {
   pattern?: string;
   coverage?: boolean;
@@ -56,7 +66,11 @@ export interface TestOptions {
   maxWorkers?: number;
 }
 
-// Universal test runner class
+/**
+ * Universal test runner that detects test frameworks in a project, builds the
+ * appropriate test command, executes it, and parses the results. Extends
+ * `EventEmitter` to emit `test-start`, `test-output`, and `test-error` events.
+ */
 export class UniversalTestRunner extends EventEmitter {
   private projectPath: string;
   private frameworks: TestFrameworkConfig[];
@@ -68,7 +82,12 @@ export class UniversalTestRunner extends EventEmitter {
     this.frameworks = this.getSupportedFrameworks();
   }
 
-  // Get all supported test frameworks
+  /**
+   * Returns the list of all supported test framework configurations.
+   *
+   * @returns An array of {@link TestFrameworkConfig} objects covering all
+   * supported languages and frameworks.
+   */
   getSupportedFrameworks(): TestFrameworkConfig[] {
     return [
       // JavaScript/TypeScript
@@ -255,7 +274,13 @@ export class UniversalTestRunner extends EventEmitter {
     ];
   }
 
-  // Detect test framework from project files
+  /**
+   * Detects which test frameworks are present in the project by checking for
+   * known config files and test file patterns.
+   *
+   * @returns A promise resolving to an array of detected
+   * {@link TestFrameworkConfig} objects.
+   */
   async detectTestFrameworks(): Promise<TestFrameworkConfig[]> {
     const detected: TestFrameworkConfig[] = [];
 
@@ -296,7 +321,13 @@ export class UniversalTestRunner extends EventEmitter {
     return detected;
   }
 
-  // Simple glob implementation using minimatch-like pattern matching
+  /**
+   * Recursively matches files in the project against a glob-style pattern.
+   *
+   * @param pattern - A glob pattern (supports `*`, `**`, and `?`). Prefix with
+   * `!` to negate the match.
+   * @returns A promise resolving to relative paths of matching files.
+   */
   async glob(pattern: string): Promise<string[]> {
     const results: string[] = [];
     const isNegated = pattern.startsWith('!');
@@ -336,7 +367,14 @@ export class UniversalTestRunner extends EventEmitter {
     return results;
   }
 
-  // Get test command for framework
+  /**
+   * Builds the test command string for the primary supported framework based on
+   * the provided options.
+   *
+   * @param options - Optional execution flags (watch, coverage, pattern, etc.).
+   * @returns The assembled command string, or `null` if no framework is
+   * available.
+   */
   getTestCommand(options: TestOptions = {}): string | null {
     const primaryFramework = this.frameworks[0];
     if (!primaryFramework) {
@@ -368,7 +406,14 @@ export class UniversalTestRunner extends EventEmitter {
     return command;
   }
 
-  // Run tests
+  /**
+   * Detects the test framework, builds the command, and executes the test suite,
+   * returning parsed results.
+   *
+   * @param options - Optional execution flags (watch, coverage, pattern, etc.).
+   * @returns A promise resolving to the {@link TestResult} of the run.
+   * @throws {Error} When no test framework can be detected in the project.
+   */
   async runTests(options: TestOptions = {}): Promise<TestResult> {
     const detectedFrameworks = await this.detectTestFrameworks();
 
@@ -625,7 +670,12 @@ export class UniversalTestRunner extends EventEmitter {
     return result;
   }
 
-  // List test files
+  /**
+   * Lists all test files matched by the detected frameworks' file patterns.
+   *
+   * @returns A promise resolving to a de-duplicated, sorted array of relative
+   * test file paths.
+   */
   async listTestFiles(): Promise<string[]> {
     const detectedFrameworks = await this.detectTestFrameworks();
     const allFiles: string[] = [];
@@ -640,7 +690,13 @@ export class UniversalTestRunner extends EventEmitter {
     return [...new Set(allFiles)].sort();
   }
 
-  // Get test info
+  /**
+   * Returns a summary of detected frameworks, test file count, and the resolved
+   * test command for the project.
+   *
+   * @returns A promise resolving to an object containing framework names, test
+   * file count, and the test command string.
+   */
   async getTestInfo(): Promise<{
     frameworks: string[];
     testFileCount: number;
@@ -661,7 +717,10 @@ export class UniversalTestRunner extends EventEmitter {
 // Factory functions
 
 /**
- * Create universal test runner
+ * Creates a new {@link UniversalTestRunner} for the given project path.
+ *
+ * @param projectPath - Absolute path to the project root.
+ * @returns A promise resolving to an initialized test runner instance.
  */
 export async function createTestRunner(projectPath: string): Promise<UniversalTestRunner> {
   const runner = new UniversalTestRunner(projectPath);
@@ -669,7 +728,12 @@ export async function createTestRunner(projectPath: string): Promise<UniversalTe
 }
 
 /**
- * Run tests in a project
+ * Runs tests in a project using a newly created test runner.
+ *
+ * @param projectPath - Absolute path to the project root.
+ * @param options - Optional execution flags (watch, coverage, pattern, etc.).
+ * @returns A promise resolving to the {@link TestResult} of the run.
+ * @throws {Error} When no test framework can be detected in the project.
  */
 export async function runTests(projectPath: string, options?: TestOptions): Promise<TestResult> {
   const runner = await createTestRunner(projectPath);
@@ -677,7 +741,10 @@ export async function runTests(projectPath: string, options?: TestOptions): Prom
 }
 
 /**
- * Get supported test frameworks
+ * Returns the list of supported test framework configurations.
+ *
+ * @returns An array of {@link TestFrameworkConfig} objects covering all
+ * supported languages and frameworks.
  */
 export function getSupportedTestFrameworks(): TestFrameworkConfig[] {
   const runner = new UniversalTestRunner(process.cwd());
@@ -685,7 +752,12 @@ export function getSupportedTestFrameworks(): TestFrameworkConfig[] {
 }
 
 /**
- * Format test result for display
+ * Formats a {@link TestResult} into a human-readable, colorized string for
+ * terminal display.
+ *
+ * @param result - The test result to format.
+ * @returns A formatted string including status, counts, duration, and up to
+ * five failure details.
  */
 export function formatTestResult(result: TestResult): string {
   const lines: string[] = [];

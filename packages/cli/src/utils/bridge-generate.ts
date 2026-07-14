@@ -49,6 +49,13 @@ export interface GenerateBridgeResult {
   written: string[];
 }
 
+/**
+ * Options for {@link generateBridge}.
+ *
+ * Controls which protocol to scaffold, which service to target, where to read
+ * the workspace config from, and where (or whether) to write the generated
+ * artifacts.
+ */
 export interface GenerateBridgeOptions {
   /** Which protocol to generate a bridge for. */
   protocol: BridgeProtocol;

@@ -14,7 +14,9 @@ import {
   ProjectConfig,
 } from './config';
 
-// Configuration sync status
+/**
+ * Represents the result of a configuration synchronization operation.
+ */
 export interface SyncStatus {
   lastSync: number;
   syncedEnvironments: string[];
@@ -24,7 +26,9 @@ export interface SyncStatus {
   message?: string;
 }
 
-// Configuration conflict
+/**
+ * Describes a conflict detected between two configuration sources during sync.
+ */
 export interface ConfigConflict {
   key: string;
   source: string;
@@ -34,7 +38,9 @@ export interface ConfigConflict {
   resolution?: 'merge' | 'overwrite' | 'skip' | 'manual';
 }
 
-// Configuration layer
+/**
+ * Represents a single layer of configuration with a name, priority, source file, and config values.
+ */
 export interface ConfigLayer {
   name: string;
   priority: number;
@@ -43,7 +49,9 @@ export interface ConfigLayer {
   readOnly?: boolean;
 }
 
-// Sync options
+/**
+ * Options for synchronizing configuration from a source environment to target environments.
+ */
 export interface SyncOptions {
   sourceEnv: string;
   targetEnvs: string[];
@@ -54,7 +62,9 @@ export interface SyncOptions {
   includePatterns?: string[];
 }
 
-// Configuration snapshot
+/**
+ * A point-in-time snapshot of an environment's configuration with a checksum and version.
+ */
 export interface ConfigSnapshot {
   timestamp: number;
   environment: string;
@@ -63,7 +73,10 @@ export interface ConfigSnapshot {
   version: string;
 }
 
-// Unified configuration manager
+/**
+ * Unified configuration manager that layers, merges, syncs, and snapshots configuration
+ * across multiple environments. Extends `EventEmitter` to emit lifecycle events.
+ */
 export class UnifiedConfigManager extends EventEmitter {
   private projectPath: string;
   private configPath: string;
@@ -121,24 +134,37 @@ export class UnifiedConfigManager extends EventEmitter {
     });
   }
 
-  // Add a configuration layer
+  /**
+   * Add a configuration layer to the manager.
+   * @param layer - The configuration layer to add.
+   */
   addLayer(layer: ConfigLayer): void {
     this.layers.set(layer.name, layer);
     this.emit('layer-added', layer);
   }
 
-  // Remove a configuration layer
+  /**
+   * Remove a configuration layer by name.
+   * @param name - The name of the layer to remove.
+   */
   removeLayer(name: string): void {
     this.layers.delete(name);
     this.emit('layer-removed', name);
   }
 
-  // Get a configuration layer
+  /**
+   * Get a configuration layer by name.
+   * @param name - The name of the layer to retrieve.
+   * @returns The matching layer, or `undefined` if not found.
+   */
   getLayer(name: string): ConfigLayer | undefined {
     return this.layers.get(name);
   }
 
-  // Load all configuration layers
+  /**
+   * Load all configuration layers from their source files.
+   * @returns Resolves when all layers have been loaded.
+   */
   async loadLayers(): Promise<void> {
     for (const [name, layer] of this.layers) {
       try {
@@ -153,7 +179,11 @@ export class UnifiedConfigManager extends EventEmitter {
     }
   }
 
-  // Get merged configuration from all layers
+  /**
+   * Get the merged configuration from all layers, optionally filtered by environment.
+   * @param environment - Optional environment name to filter environment-specific layers.
+   * @returns The merged configuration object.
+   */
   getMergedConfig(environment?: string): Record<string, unknown> {
     const merged: Record<string, unknown> = {};
 
@@ -198,7 +228,12 @@ export class UnifiedConfigManager extends EventEmitter {
     }
   }
 
-  // Get value by key path (supports dot notation)
+  /**
+   * Get a configuration value by dot-notation key path.
+   * @param keyPath - Dot-separated path to the value (e.g. `"database.host"`).
+   * @param environment - Optional environment name to scope the lookup.
+   * @returns The value at the path, or `undefined` if not found.
+   */
   getValue(keyPath: string, environment?: string): unknown {
     const config = this.getMergedConfig(environment);
     const keys = keyPath.split('.');
@@ -215,7 +250,13 @@ export class UnifiedConfigManager extends EventEmitter {
     return value;
   }
 
-  // Set value by key path
+  /**
+   * Set a configuration value by dot-notation key path within a specific layer.
+   * @param keyPath - Dot-separated path to the value.
+   * @param value - The value to set.
+   * @param layer - The name of the layer to update (defaults to `"project"`).
+   * @throws When the specified layer does not exist.
+   */
   setValue(keyPath: string, value: unknown, layer = 'project'): void {
     const layerObj = this.layers.get(layer);
     if (!layerObj) {
@@ -237,7 +278,11 @@ export class UnifiedConfigManager extends EventEmitter {
     this.emit('value-changed', { layer, keyPath, value });
   }
 
-  // Save a specific layer
+  /**
+   * Persist a specific layer's configuration to its source file.
+   * @param layerName - The name of the layer to save.
+   * @throws When the layer is not found or is read-only.
+   */
   async saveLayer(layerName: string): Promise<void> {
     const layer = this.layers.get(layerName);
     if (!layer) {
@@ -255,7 +300,10 @@ export class UnifiedConfigManager extends EventEmitter {
     this.emit('layer-saved', { name: layerName, source: layer.source });
   }
 
-  // Save all writable layers
+  /**
+   * Save all writable (non-read-only) layers to their source files.
+   * @returns Resolves when all layers have been saved.
+   */
   async saveAll(): Promise<void> {
     for (const [name, layer] of this.layers) {
       if (!layer.readOnly) {
@@ -264,7 +312,11 @@ export class UnifiedConfigManager extends EventEmitter {
     }
   }
 
-  // Synchronize configuration across environments
+  /**
+   * Synchronize configuration from a source environment to one or more target environments.
+   * @param options - Sync options including source, targets, merge strategy, and filters.
+   * @returns The status of the synchronization operation.
+   */
   async syncConfigurations(options: SyncOptions): Promise<SyncStatus> {
     const { sourceEnv, targetEnvs, includeSecrets = false, dryRun = false, mergeStrategy = 'merge', excludePatterns = [], includePatterns = [] } = options;
 
@@ -398,7 +450,13 @@ export class UnifiedConfigManager extends EventEmitter {
     return conflicts;
   }
 
-  // Resolve a conflict
+  /**
+   * Resolve a configuration conflict by applying the given resolution strategy.
+   * @param conflict - The conflict to resolve.
+   * @param resolution - The resolution strategy (`merge`, `overwrite`, `skip`, or `manual`).
+   * @param targetEnv - The target environment whose layer will be updated.
+   * @throws When the target environment layer is not found.
+   */
   resolveConflict(conflict: ConfigConflict, resolution: ConfigConflict['resolution'], targetEnv: string): void {
     const targetLayer = this.layers.get(`env:${targetEnv}`);
     if (!targetLayer) {
@@ -465,7 +523,13 @@ export class UnifiedConfigManager extends EventEmitter {
     return target !== undefined ? target : source;
   }
 
-  // Create a configuration snapshot
+  /**
+   * Create and store a configuration snapshot for the given environment.
+   * @param environment - The environment to snapshot.
+   * @param version - Optional version label; auto-generated if omitted.
+   * @returns The created snapshot.
+   * @throws When the environment layer is not found.
+   */
   async createSnapshot(environment: string, version?: string): Promise<ConfigSnapshot> {
     const layer = this.layers.get(`env:${environment}`);
     if (!layer) {
@@ -504,12 +568,21 @@ export class UnifiedConfigManager extends EventEmitter {
     return `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}-${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
   }
 
-  // List snapshots for an environment
+  /**
+   * List all stored snapshots for the given environment.
+   * @param environment - The environment to list snapshots for.
+   * @returns An array of snapshots, or an empty array if none exist.
+   */
   listSnapshots(environment: string): ConfigSnapshot[] {
     return this.snapshots.get(environment) || [];
   }
 
-  // Restore from snapshot
+  /**
+   * Restore an environment's configuration from a previously created snapshot.
+   * @param environment - The environment to restore.
+   * @param version - The version label of the snapshot to restore.
+   * @throws When the snapshot or environment layer is not found.
+   */
   async restoreSnapshot(environment: string, version: string): Promise<void> {
     const snapshots = this.listSnapshots(environment);
     const snapshot = snapshots.find(s => s.version === version);
@@ -529,7 +602,11 @@ export class UnifiedConfigManager extends EventEmitter {
     this.emit('snapshot-restored', { environment, version });
   }
 
-  // Export configuration to file
+  /**
+   * Export the merged configuration to a JSON or YAML file.
+   * @param outputPath - Destination file path.
+   * @param environment - Optional environment to export.
+   */
   async exportConfig(outputPath: string, environment?: string): Promise<void> {
     const config = this.getMergedConfig(environment);
     const ext = path.extname(outputPath);
@@ -549,7 +626,13 @@ export class UnifiedConfigManager extends EventEmitter {
     this.emit('config-exported', { path: outputPath, environment });
   }
 
-  // Import configuration from file
+  /**
+   * Import configuration from a JSON or YAML file into a specific layer.
+   * @param inputPath - Source file path to import.
+   * @param layer - Target layer name (defaults to `"project"`).
+   * @param merge - Whether to merge with existing config (`true`) or replace it (`false`).
+   * @throws When the target layer is not found.
+   */
   async importConfig(inputPath: string, layer = 'project', merge = true): Promise<void> {
     const content = await fs.readFile(inputPath, 'utf-8');
     let config: Record<string, unknown>;
@@ -576,7 +659,11 @@ export class UnifiedConfigManager extends EventEmitter {
     this.emit('config-imported', { path: inputPath, layer, merge });
   }
 
-  // Validate configuration
+  /**
+   * Validate the merged configuration for required fields and valid values.
+   * @param environment - Optional environment to validate against.
+   * @returns An object with a `valid` flag and an array of error messages.
+   */
   validateConfig(environment?: string): { valid: boolean; errors: string[] } {
     const config = this.getMergedConfig(environment);
     const errors: string[] = [];
@@ -601,12 +688,19 @@ export class UnifiedConfigManager extends EventEmitter {
     };
   }
 
-  // Get all layers
+  /**
+   * Get all configuration layers sorted by priority (lowest first).
+   * @returns An array of all layers.
+   */
   getAllLayers(): ConfigLayer[] {
     return Array.from(this.layers.values()).sort((a, b) => a.priority - b.priority);
   }
 
-  // Get environment variables for an environment
+  /**
+   * Get the environment variables for a given environment from the merged config.
+   * @param environment - The environment name.
+   * @returns A record of environment variable key-value pairs.
+   */
   getEnvironmentVariables(environment: string): Record<string, string> {
     if (this.envCache.has(environment)) {
       return this.envCache.get(environment)!;
@@ -632,7 +726,11 @@ export class UnifiedConfigManager extends EventEmitter {
     return envVars;
   }
 
-  // Write environment file (.env)
+  /**
+   * Write environment variables to a `.env` file for the given environment.
+   * @param environment - The environment name.
+   * @param outputPath - Optional custom output path; defaults to `.env.<environment>`.
+   */
   async writeEnvFile(environment: string, outputPath?: string): Promise<void> {
     const envVars = this.getEnvironmentVariables(environment);
     const lines: string[] = [];
@@ -647,7 +745,9 @@ export class UnifiedConfigManager extends EventEmitter {
     this.emit('env-file-written', { environment, path: targetPath });
   }
 
-  // Clear cache
+  /**
+   * Clear the cached environment variables.
+   */
   clearCache(): void {
     this.envCache.clear();
   }
@@ -656,7 +756,9 @@ export class UnifiedConfigManager extends EventEmitter {
 // Factory functions
 
 /**
- * Create a unified config manager
+ * Create a unified config manager and load all its layers.
+ * @param projectPath - Path to the project root (defaults to `process.cwd()`).
+ * @returns A loaded `UnifiedConfigManager` instance.
  */
 export async function createUnifiedConfig(projectPath?: string): Promise<UnifiedConfigManager> {
   const manager = new UnifiedConfigManager(projectPath);
@@ -665,7 +767,11 @@ export async function createUnifiedConfig(projectPath?: string): Promise<Unified
 }
 
 /**
- * Get configuration value helper
+ * Get a configuration value using a temporary manager instance.
+ * @param keyPath - Dot-separated path to the value.
+ * @param projectPath - Path to the project root (defaults to `process.cwd()`).
+ * @param environment - Optional environment name to scope the lookup.
+ * @returns The value at the given path, or `undefined`.
  */
 export async function getConfigValue(keyPath: string, projectPath = process.cwd(), environment?: string): Promise<unknown> {
   const manager = new UnifiedConfigManager(projectPath);
@@ -674,7 +780,11 @@ export async function getConfigValue(keyPath: string, projectPath = process.cwd(
 }
 
 /**
- * Set configuration value helper
+ * Set a configuration value and persist all writable layers using a temporary manager.
+ * @param keyPath - Dot-separated path to the value.
+ * @param value - The value to set.
+ * @param projectPath - Path to the project root (defaults to `process.cwd()`).
+ * @param layer - Target layer name (defaults to `"project"`).
  */
 export async function setConfigValue(keyPath: string, value: unknown, projectPath = process.cwd(), layer = 'project'): Promise<void> {
   const manager = new UnifiedConfigManager(projectPath);
@@ -684,14 +794,18 @@ export async function setConfigValue(keyPath: string, value: unknown, projectPat
 }
 
 /**
- * List all environments
+ * List all supported environment names.
+ * @returns An array of environment name strings.
  */
 export function listEnvironments(): string[] {
   return ['development', 'staging', 'production', 'test'];
 }
 
 /**
- * Compare two configurations
+ * Compare two configuration objects and report added, removed, changed, and unchanged keys.
+ * @param config1 - The first (source) configuration.
+ * @param config2 - The second (target) configuration.
+ * @returns An object with `added`, `removed`, `changed`, and `unchanged` keys describing the differences.
  */
 export function compareConfigs(config1: Record<string, unknown>, config2: Record<string, unknown>): {
   added: string[];

@@ -6,7 +6,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
-// OpenAPI types
+/** Root structure of an OpenAPI (3.x) or Swagger (2.0) specification document. */
 export interface OpenAPISpec {
   openapi?: string;
   swagger?: string;
@@ -29,6 +29,7 @@ export interface OpenAPISpec {
   definitions?: Record<string, Schema>; // Swagger 2.0
 }
 
+/** Describes the operations available on a single API path, keyed by HTTP method. */
 export interface PathItem {
   get?: Operation;
   put?: Operation;
@@ -40,6 +41,7 @@ export interface PathItem {
   trace?: Operation;
 }
 
+/** Describes a single API operation including its parameters, body, and responses. */
 export interface Operation {
   operationId?: string;
   summary?: string;
@@ -51,6 +53,7 @@ export interface Operation {
   security?: unknown[];
 }
 
+/** Represents an OpenAPI operation parameter (query, header, path, or cookie). */
 export interface Parameter {
   name: string;
   in: 'query' | 'header' | 'path' | 'cookie';
@@ -61,6 +64,7 @@ export interface Parameter {
   enum?: (string | number)[];
 }
 
+/** Describes the request body of an operation, including content media types. */
 export interface RequestBody {
   description?: string;
   required?: boolean;
@@ -68,16 +72,19 @@ export interface RequestBody {
   schema?: Schema;
 }
 
+/** Maps a media type (e.g. application/json) to its schema definition. */
 export interface MediaType {
   schema?: Schema;
 }
 
+/** Describes a single HTTP response status, including its content and description. */
 export interface Response {
   description?: string;
   content?: Record<string, MediaType>;
   schema?: Schema; // Swagger 2.0
 }
 
+/** The Schema Object defines the type and structure of data used by parameters, requests, and responses. */
 export interface Schema {
   $ref?: string;
   type?: string;
@@ -100,7 +107,7 @@ export interface Schema {
   maximum?: number;
 }
 
-// Client generation options
+/** Configuration options that control client code generation behavior. */
 export interface ClientOptions {
   spec?: OpenAPISpec;
   clientName?: string;
@@ -115,7 +122,13 @@ export interface ClientOptions {
   port?: number;
 }
 
-// Generate TypeScript type from OpenAPI schema
+/**
+ * Generates a TypeScript type string from an OpenAPI schema definition.
+ * @param schema - The OpenAPI schema to convert.
+ * @param name - Base name used for nested type naming. Defaults to 'Anonymous'.
+ * @param refs - Set of already-referenced type names, used to avoid infinite recursion.
+ * @returns A TypeScript type string representing the schema.
+ */
 export function generateType(schema: Schema, name = 'Anonymous', refs = new Set<string>()): string {
   if (schema.$ref) {
     const refName = getRefName(schema.$ref);
@@ -222,12 +235,20 @@ function getRefName(ref: string): string {
   return parts[parts.length - 1] || 'Unknown';
 }
 
-// Capitalize first letter
+/**
+ * Capitalizes the first character of a string.
+ * @param str - The input string.
+ * @returns The string with the first character uppercased.
+ */
 export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// Convert operation ID to method name
+/**
+ * Converts an operation ID (or arbitrary string) into a valid camelCase method name.
+ * @param operationId - The operation identifier to transform.
+ * @returns A sanitized camelCase method name.
+ */
 export function toMethodName(operationId: string): string {
   return operationId
     .replace(/[^a-zA-Z0-9]/g, '_')
@@ -236,7 +257,11 @@ export function toMethodName(operationId: string): string {
     .join('');
 }
 
-// Generate TypeScript interfaces from OpenAPI spec
+/**
+ * Generates TypeScript interface and type definitions from an OpenAPI specification's schemas.
+ * @param spec - The OpenAPI specification to generate interfaces from.
+ * @returns A string of TypeScript interface and type declarations.
+ */
 export function generateInterfaces(spec: OpenAPISpec): string {
   const lines: string[] = [];
   lines.push('// Auto-generated TypeScript types from OpenAPI specification');
@@ -295,7 +320,12 @@ export function generateInterfaces(spec: OpenAPISpec): string {
   return lines.join('\n');
 }
 
-// Generate API client methods
+/**
+ * Generates the body of API client methods (one per operation) from an OpenAPI specification.
+ * @param spec - The OpenAPI specification describing available paths and operations.
+ * @param options - Client generation options controlling behavior such as axios usage.
+ * @returns TypeScript source code containing client method definitions.
+ */
 export function generateClientMethods(spec: OpenAPISpec, options: ClientOptions): string {
   const lines: string[] = [];
 
@@ -470,7 +500,12 @@ export function generateClientMethods(spec: OpenAPISpec, options: ClientOptions)
   return lines.join('\n');
 }
 
-// Generate the complete client class
+/**
+ * Generates a complete TypeScript API client class from an OpenAPI specification.
+ * @param spec - The OpenAPI specification to generate the client from.
+ * @param options - Client generation options such as client name and base URL.
+ * @returns Complete TypeScript source code for the API client class.
+ */
 export function generateClient(spec: OpenAPISpec, options: ClientOptions): string {
   const clientName = options.clientName || `${toCamelCase(spec.info.title)}Client`;
   const baseUrl = options.baseUrl || spec.servers?.[0]?.url || '';
@@ -1095,7 +1130,11 @@ function generateFetchRequest(method: string, hasBody: boolean, responseType: st
   return lines.join('\n        ');
 }
 
-// Convert to camelCase
+/**
+ * Converts a string to camelCase, normalizing separators such as spaces, dashes, and underscores.
+ * @param str - The input string to convert.
+ * @returns The camelCased string.
+ */
 export function toCamelCase(str: string): string {
   return str
     .replace(/[-_]/g, ' ')
@@ -1103,7 +1142,11 @@ export function toCamelCase(str: string): string {
     .replace(/\s/g, '');
 }
 
-// Generate enum types for schemas with enums
+/**
+ * Generates TypeScript enum declarations for every schema in the spec that defines an `enum`.
+ * @param spec - The OpenAPI specification containing component schemas or Swagger definitions.
+ * @returns TypeScript source code declaring the discovered enums.
+ */
 export function generateEnums(spec: OpenAPISpec): string {
   const lines: string[] = [];
   const schemas = spec.components?.schemas || spec.definitions || {};
@@ -1123,7 +1166,13 @@ export function generateEnums(spec: OpenAPISpec): string {
   return lines.join('\n');
 }
 
-// Generate API client from OpenAPI spec file
+/**
+ * Reads an OpenAPI/Swagger spec file from disk and writes a generated TypeScript client to the output path.
+ * @param specPath - Path to the JSON OpenAPI specification file.
+ * @param outputPath - Destination file path for the generated client code.
+ * @param options - Partial client generation options; defaults are merged in.
+ * @throws When the spec file cannot be read or parsed.
+ */
 export async function generateClientFromSpecFile(
   specPath: string,
   outputPath: string,
@@ -1151,7 +1200,12 @@ export async function generateClientFromSpecFile(
   await fs.writeFile(outputPath, clientCode, 'utf-8');
 }
 
-// Generate React Query hooks for the API client
+/**
+ * Generates React Query hooks (`useQuery` for GET/HEAD and `useMutation` for other methods) for each operation.
+ * @param spec - The OpenAPI specification to derive hooks from.
+ * @param clientName - The name of the generated API client class to import.
+ * @returns TypeScript source code containing the React Query hook functions.
+ */
 export function generateReactQueryHooks(spec: OpenAPISpec, clientName: string): string {
   const lines: string[] = [];
 
@@ -1199,7 +1253,11 @@ export function generateReactQueryHooks(spec: OpenAPISpec, clientName: string): 
   return lines.join('\n');
 }
 
-// List available operations from spec
+/**
+ * Lists all operations declared in an OpenAPI specification with their metadata.
+ * @param spec - The OpenAPI specification to inspect.
+ * @returns An array of operation descriptors including id, method, path, and description.
+ */
 export function listOperations(spec: OpenAPISpec): Array<{
   operationId: string;
   method: string;
@@ -1224,7 +1282,11 @@ export function listOperations(spec: OpenAPISpec): Array<{
   return operations;
 }
 
-// Validate OpenAPI spec
+/**
+ * Validates that a value is a well-formed OpenAPI or Swagger specification.
+ * @param spec - The candidate specification object to validate.
+ * @returns An object containing a `valid` flag and a list of validation error messages.
+ */
 export function validateSpec(spec: unknown): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
