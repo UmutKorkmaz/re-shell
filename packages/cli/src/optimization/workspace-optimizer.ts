@@ -299,7 +299,7 @@ export class WorkspaceOptimizer {
       // Check if dependencies are actually used
       const unusedDeps: string[] = [];
 
-      for (const [dep, version] of Object.entries(dependencies)) {
+      for (const [dep, _version] of Object.entries(dependencies)) {
         let used = false;
 
         // Check if dependency is referenced in routes

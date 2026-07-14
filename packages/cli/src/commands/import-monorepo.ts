@@ -198,7 +198,6 @@ async function importNx(cwd: string, configPath?: string): Promise<MonorepoConfi
  * Import from Turbo configuration
  */
 async function importTurbo(cwd: string, configPath?: string): Promise<MonorepoConfig> {
-  const turboJsonPath = configPath || path.join(cwd, 'turbo.json');
   const packageJson = await fs.readJson(path.join(cwd, 'package.json'));
 
   const projects: ProjectInfo[] = [];

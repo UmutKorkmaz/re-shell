@@ -15,26 +15,6 @@ interface GitOpsConfig {
   syncPolicy: string;
 }
 
-interface Application {
-  name: string;
-  namespace: string;
-  project: string;
-  source: {
-    repoURL: string;
-    targetRevision: string;
-    path: string;
-  };
-  destination: {
-    server: string;
-    namespace: string;
-  };
-  syncPolicy: {
-    automated: {
-      prune: boolean;
-      selfHeal: boolean;
-    };
-  };
-}
 
 export function displayConfig(config: GitOpsConfig): void {
   console.log(chalk.cyan('✨ GitOps Integration'));

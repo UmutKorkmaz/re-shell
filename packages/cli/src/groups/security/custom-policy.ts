@@ -33,7 +33,6 @@ export function registerCustomPolicy(security: Command): void {
     if (options.enableAzure) providers.push('azure');
     if (options.enableGcp) providers.push('gcp');
 
-    const categories = options.categories.split(',').map((c: string) => c.trim()) as ('identity' | 'access-control' | 'data-protection' | 'network-security' | 'encryption' | 'monitoring' | 'compliance' | 'custom')[];
 
     const finalConfig = {
       projectName: name,

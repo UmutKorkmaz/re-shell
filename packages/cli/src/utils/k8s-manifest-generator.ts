@@ -6,17 +6,6 @@ import chalk from 'chalk';
 
 
 
-interface K8sResource {
-  apiVersion: string;
-  kind: string;
-  metadata: {
-    name: string;
-    namespace?: string;
-    labels?: Record<string, string>;
-    annotations?: Record<string, string>;
-  };
-  spec?: any;
-}
 
 interface WorkspaceConfig {
   projectName: string;

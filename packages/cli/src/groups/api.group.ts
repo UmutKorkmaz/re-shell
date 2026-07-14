@@ -1779,7 +1779,6 @@ export function registerApiGroup(program: Command): void {
         // Determine output path and framework
         const outputFile = outputPath || './api-client.ts';
         const framework = options.framework || 'typescript';
-        const clientName = options.name || `${toCamelCase(spec.info.title)}Client`;
         const serviceName = options.name || `${spec.info.title.replace(/[^a-zA-Z0-9]/g, '')}Service`;
 
         // Generate base client

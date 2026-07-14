@@ -23,13 +23,6 @@ interface DocumentState {
   locks: { [key: string]: string };
 }
 
-interface Operation {
-  type: 'insert' | 'delete' | 'retain';
-  position: number;
-  content?: string;
-  length?: number;
-  attributes?: { [key: string]: any };
-}
 
 interface CollaborativeFeatures {
   presence: boolean;

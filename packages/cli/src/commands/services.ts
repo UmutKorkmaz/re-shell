@@ -1253,7 +1253,6 @@ function displayInspection(inspection: ServiceInspection): void {
 
   // Health
   console.log(chalk.gray('\n💊 Health:'));
-  const healthIcon = inspection.health.status === 'healthy' ? '✅' : inspection.health.status === 'unhealthy' ? '❌' : '❓';
   const healthColor = inspection.health.status === 'healthy' ? chalk.green : inspection.health.status === 'unhealthy' ? chalk.red : chalk.gray;
   console.log(chalk.gray('   Status:'), healthColor(inspection.health.status));
 
