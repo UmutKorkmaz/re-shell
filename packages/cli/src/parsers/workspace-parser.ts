@@ -7,6 +7,10 @@ import Ajv from 'ajv';
 
 import workspaceSchemaJson from '../schemas/workspace-v2.schema.json';
 
+/**
+ * Represents the top-level configuration for a re-shell workspace.
+ * Contains metadata, variables, service definitions, and optional deployment/monitoring config.
+ */
 export interface WorkspaceConfig {
   name: string;
   version: string;
@@ -25,6 +29,10 @@ export interface WorkspaceConfig {
   monitoring?: Record<string, unknown>;
 }
 
+/**
+ * Configuration for a single service within a workspace.
+ * Includes language, framework, environment, dependencies, build, scaling, and runtime settings.
+ */
 export interface ServiceConfig {
   name: string;
   displayName?: string;
@@ -56,12 +64,18 @@ export interface ServiceConfig {
   metadata?: Record<string, string>;
 }
 
+/**
+ * Describes the framework used by a service, including its name, version, and optional config.
+ */
 export interface FrameworkConfig {
   name: string;
   version: string;
   config?: Record<string, unknown>;
 }
 
+/**
+ * The result of parsing and validating a workspace configuration file.
+ */
 export interface ValidationResult {
   valid: boolean;
   errors: ValidationError[];
@@ -69,18 +83,28 @@ export interface ValidationResult {
   config?: WorkspaceConfig;
 }
 
+/**
+ * Represents a validation error encountered while parsing or validating the workspace config.
+ */
 export interface ValidationError {
   path: string;
   message: string;
   value?: unknown;
 }
 
+/**
+ * Represents a non-blocking validation warning for the workspace config.
+ */
 export interface ValidationWarning {
   path: string;
   message: string;
   value?: unknown;
 }
 
+/**
+ * Parses and validates `re-shell.workspaces.yaml` files against the workspace JSON schema
+ * and a set of custom business rules.
+ */
 export class WorkspaceParser {
   private ajv: Ajv;
 
@@ -93,7 +117,10 @@ export class WorkspaceParser {
   }
 
   /**
-   * Parse workspace YAML file
+   * Parse a workspace YAML file and validate it against the schema and custom rules.
+   *
+   * @param filePath - Absolute or relative path to the `re-shell.workspaces.yaml` file.
+   * @returns A {@link ValidationResult} containing the parsed config (if valid) plus any errors/warnings.
    */
   parse(filePath: string): ValidationResult {
     const result: ValidationResult = {
@@ -486,7 +513,10 @@ export class WorkspaceParser {
   }
 
   /**
-   * Format validation errors for display
+   * Format the errors and warnings from a {@link ValidationResult} into a human-readable string.
+   *
+   * @param result - The validation result to format.
+   * @returns A formatted string listing all errors and warnings, or a success message if valid.
    */
   formatErrors(result: ValidationResult): string {
     if (result.valid) {
@@ -535,5 +565,7 @@ function extractErrorSnippet(content: string, errorLine: number, errorColumn: nu
   return snippet.trim();
 }
 
-// Export singleton instance
+/**
+ * Shared singleton instance of {@link WorkspaceParser} for convenient reuse across the CLI.
+ */
 export const workspaceParser = new WorkspaceParser();
