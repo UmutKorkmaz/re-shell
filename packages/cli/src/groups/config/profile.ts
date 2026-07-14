@@ -8,13 +8,18 @@ import { registerProfileSubgroups } from './profile-subgroups';
  * Renders a profile inheritance tree to stdout. Module-level helper used by the
  * `config profile tree` command (carried over verbatim from config.group.ts).
  */
-function printTree(node: any, depth: number): void {
+interface TreeNode {
+  name: string;
+  children?: TreeNode[];
+}
+
+function printTree(node: TreeNode, depth: number): void {
   const indent = '  '.repeat(depth);
   const connector = depth > 0 ? '└─ ' : '';
   console.log(`${indent}${connector}${node.name}`);
 
   if (node.children && node.children.length > 0) {
-    node.children.forEach((child: any) => printTree(child, depth + 1));
+    node.children.forEach((child) => printTree(child, depth + 1));
   }
 }
 
@@ -232,7 +237,7 @@ export function registerProfileGroup(config: Command): void {
           spinner.stop();
 
           console.log(chalk.cyan.bold(`\n🌳 Profile Inheritance Tree: ${name}\n`));
-          printTree(tree, 0);
+          printTree(tree as TreeNode, 0);
           console.log('');
         }, 10000);
       })

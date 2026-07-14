@@ -4,6 +4,7 @@
  * 800-line limit. These are example/seed records embedded in the generated
  * scaffold output.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const roleList: any[] = [
         {
           id: 'role-super-admin',
@@ -216,6 +217,7 @@ export const roleList: any[] = [
         },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const permissionList: any[] = [
         {
           id: 'perm-admin-all',

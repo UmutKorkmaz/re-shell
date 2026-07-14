@@ -20,11 +20,11 @@ export interface TopologyStats {
 
 type DependencyMap = Record<string, string[]>;
 
-function getServices(config: any): Record<string, any> {
+function getServices(config: Record<string, unknown>): Record<string, unknown> {
   return config?.services && typeof config.services === 'object' ? config.services : {};
 }
 
-function normalizeDependencies(config: any): DependencyMap {
+function normalizeDependencies(config: Record<string, unknown>): DependencyMap {
   const services = getServices(config);
   const dependencies: DependencyMap = {};
 
@@ -76,7 +76,7 @@ function findCycles(dependencies: DependencyMap): string[][] {
   return cycles;
 }
 
-function getLayerCount(config: any): number {
+function getLayerCount(config: Record<string, unknown>): number {
   const services = getServices(config);
   const layers = new Set<string>();
 
@@ -91,7 +91,7 @@ function getLayerCount(config: any): number {
 }
 
 export const topologyValidator = {
-  validate(config: any): TopologyValidationResult {
+  validate(config: Record<string, unknown>): TopologyValidationResult {
     const services = getServices(config);
     const dependencies = normalizeDependencies(config);
     const conflicts: TopologyConflict[] = [];
@@ -121,7 +121,7 @@ export const topologyValidator = {
     };
   },
 
-  getTopologyStats(config: any): TopologyStats {
+  getTopologyStats(config: Record<string, unknown>): TopologyStats {
     const services = getServices(config);
     const dependencies = normalizeDependencies(config);
     const circularDependencies = findCycles(dependencies);
