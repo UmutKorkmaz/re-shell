@@ -15,26 +15,44 @@ import { RECOGNIZED_PKG_SCOPES } from './scope';
  * unit-tested directly and reused by the command layer and the JSON envelope.
  */
 
-/** Where a plugin identifier resolves from. */
+/**
+ * Where a plugin identifier resolves from.
+ *
+ * - `'local'` - the identifier is a path that already exists on disk.
+ * - `'git'`  - the identifier is a git URL (git+, ssh, or known host).
+ * - `'npm'`  - the identifier is an npm package spec resolved via `npm pack`.
+ */
 export type PluginInstallSource = 'local' | 'git' | 'npm';
 
 /** Subset of a plugin's package.json the installer cares about. */
 export interface PluginManifestData {
+  /** Package name; must be a non-empty string for a valid plugin. */
   name: string;
+  /** Semver-style version string; must be a non-empty string for a valid plugin. */
   version: string;
+  /** Optional human-readable description of the package. */
   description?: string;
+  /** Optional entry-point module relative path (e.g. `"dist/index.js"`). */
   main?: string;
+  /** Optional npm keywords; presence of `"reshell-plugin"` marks a valid plugin. */
   keywords?: string[];
+  /** Optional Re-Shell manifest block; presence marks a valid plugin. */
   reshell?: unknown;
+  /** Optional legacy Re-Shell plugin manifest key; presence marks a valid plugin. */
   'reshell-plugin'?: unknown;
+  /** Optional Re-Shell CLI manifest key; presence marks a valid plugin. */
   'reshell-cli'?: unknown;
+  /** Index signature allowing any other package.json fields to pass through. */
   [key: string]: unknown;
 }
 
 /** Outcome of a successful install (or a dry-run resolve+validate). */
 export interface PluginInstallResult {
+  /** Resolved plugin package name from its manifest. */
   name: string;
+  /** Resolved plugin version from its manifest. */
   version: string;
+  /** Source the plugin was resolved from. */
   source: PluginInstallSource;
   /** Final on-disk location, or the would-be location for a dry run. */
   path: string;
@@ -42,6 +60,7 @@ export interface PluginInstallResult {
   dryRun: boolean;
 }
 
+/** Options accepted by {@link installPluginFromIdentifier}. */
 export interface PluginInstallOptions {
   /** Workspace root that owns `.re-shell/plugins`. Defaults to process.cwd(). */
   workspaceRoot?: string;
@@ -51,9 +70,21 @@ export interface PluginInstallOptions {
   force?: boolean;
 }
 
-/** Raised for every install failure so the command layer can map to PLUGIN_INSTALL_ERROR. */
+/**
+ * Raised for every install failure so the command layer can map to
+ * PLUGIN_INSTALL_ERROR. Carries an optional `details` bag for structured
+ * error reporting (e.g. the offending plugin name or path).
+ */
 export class PluginInstallError extends Error {
+  /** Optional structured details describing the failure context. */
   readonly details?: Record<string, unknown>;
+  /**
+   * Create a new PluginInstallError.
+   *
+   * @param message - Human-readable error message.
+   * @param details - Optional structured details forwarded to the caller
+   *   (e.g. `{ name, path }`) for richer reporting.
+   */
   constructor(message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = 'PluginInstallError';
@@ -66,6 +97,9 @@ export class PluginInstallError extends Error {
  *  1. An existing path on disk -> local.
  *  2. A git URL (git+, .git suffix, ssh form, or known host) -> git.
  *  3. Anything else -> npm package spec.
+ *
+ * @param identifier - Raw user-supplied plugin identifier (path, git URL, or npm spec).
+ * @returns The resolved {@link PluginInstallSource}.
  */
 export function classifySource(identifier: string): PluginInstallSource {
   if (fs.existsSync(identifier)) {
@@ -95,6 +129,11 @@ function isGitUrl(id: string): boolean {
  *  - a `reshell-plugin-` name prefix.
  *
  * Returns a normalized {name, version}. Throws PluginInstallError otherwise.
+ *
+ * @param data - Parsed package.json contents (typed as `unknown` until validated).
+ * @returns Normalized `{ name, version }` extracted from the manifest.
+ * @throws {PluginInstallError} If the manifest is missing, not an object, lacks
+ *   a valid name/version, or is not a recognized Re-Shell plugin.
  */
 export function validatePluginManifest(data: unknown): { name: string; version: string } {
   if (!data || typeof data !== 'object') {
@@ -125,6 +164,10 @@ export function validatePluginManifest(data: unknown): { name: string; version: 
  * `@re-shell/*` scope, plus the
  * `reshell`/`reshell-plugin`/`reshell-cli` manifest keys and the
  * `reshell-plugin` keyword / name prefix.
+ *
+ * @param manifest - Parsed package.json contents to inspect.
+ * @returns `true` if any recognized Re-Shell plugin signal is present,
+ *   otherwise `false`.
  */
 export function isRecognizedPlugin(manifest: PluginManifestData): boolean {
   // Manifest-key signal: any of the reshell-family keys present.
@@ -157,7 +200,13 @@ export function isRecognizedPlugin(manifest: PluginManifestData): boolean {
   return false;
 }
 
-/** Strip a scope so `@re-shell/foo` -> `foo` for the on-disk dir name. */
+/**
+ * Strip a scope (and any parent path segments) so `@re-shell/foo` -> `foo`
+ * for the on-disk dir name.
+ *
+ * @param pluginName - Full plugin package name, possibly scope-prefixed.
+ * @returns The unscoped plugin name suitable for use as a directory name.
+ */
 export function pluginDirName(pluginName: string): string {
   const slash = pluginName.lastIndexOf('/');
   return slash >= 0 ? pluginName.slice(slash + 1) : pluginName;
@@ -286,6 +335,13 @@ async function readAndValidateManifest(dir: string): Promise<{ name: string; ver
  * Install a plugin end-to-end: resolve -> validate -> copy into the workspace
  * plugins dir -> register. With `dryRun`, stops after validate and reports the
  * would-be path without touching disk or registry.
+ *
+ * @param identifier - Raw plugin identifier (local path, git URL, or npm spec).
+ * @param options - Optional install behavior (workspace root, dry-run, force).
+ * @returns A {@link PluginInstallResult} describing the installed (or would-be)
+ *   plugin location and metadata.
+ * @throws {PluginInstallError} If resolution, validation, copy, or registration
+ *   fails, or when the target path already exists without `force`.
  */
 export async function installPluginFromIdentifier(
   identifier: string,
@@ -401,7 +457,13 @@ async function registerPlugin(workspaceRoot: string, entry: RegistryEntry): Prom
   await fs.writeJSON(configPath, { ...config, plugins: nextPlugins }, { spaces: 2 });
 }
 
-/** Read the registry plugin map (used by tests / listing). */
+/**
+ * Read the registry plugin map (used by tests / listing).
+ *
+ * @param workspaceRoot - Workspace root that owns `.re-shell/plugins.json`.
+ * @returns A map of plugin name to its stored `{ version, source, path }`
+ *   entry. Returns an empty object when the registry file does not exist.
+ */
 export async function readPluginRegistry(
   workspaceRoot: string
 ): Promise<Record<string, { version: string; source: string; path: string }>> {

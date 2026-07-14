@@ -17,6 +17,12 @@ import { getWorkspaces, type WorkspaceInfo } from './monorepo';
  * the result in the JSON envelope and decide on exit codes.
  */
 
+/**
+ * Severity level for a policy rule.
+ *
+ * - `'error'` — a failed rule contributes to a non-zero exit code.
+ * - `'warning'` — a failed rule surfaces in the report but does not fail the run.
+ */
 export type RuleSeverity = 'error' | 'warning';
 
 /** Rule: every workspace must contain these files (relative to its dir). */
@@ -87,27 +93,63 @@ const ruleSchema = z.discriminatedUnion('type', [
   licenseRuleSchema,
 ]);
 
+/**
+ * Zod schema for validating a policy pack document loaded from YAML or JSON.
+ *
+ * A policy pack must declare a unique `name`, an optional human-readable
+ * `description`, and at least one rule under `rules`.
+ */
 export const policyPackSchema = z.object({
+  /** Unique identifier for the pack (e.g. "recommended"). */
   name: z.string(),
+  /** Optional short description shown in CLI output. */
   description: z.string().optional(),
+  /** Non-empty list of policy rules to evaluate. */
   rules: z.array(ruleSchema).min(1),
 });
 
+/**
+ * A single policy rule. Discriminated by the `type` field — one of
+ * `'required-files'`, `'required-scripts'`, `'dependency-constraints'`,
+ * `'naming'`, `'min-node'`, or `'license'`.
+ */
 export type PolicyRule = z.infer<typeof ruleSchema>;
+
+/**
+ * A validated policy pack: a named bundle of rules with an optional
+ * description, ready to be evaluated against a monorepo.
+ */
 export type PolicyPack = z.infer<typeof policyPackSchema>;
 
+/**
+ * A single rule failure produced during policy evaluation. Captures which
+ * rule failed, how severely, the human-readable explanation, and which
+ * workspace the failure applies to.
+ */
 export interface FailedRule {
+  /** The `id` of the policy rule that failed. */
   ruleId: string;
+  /** Severity of the rule (drives exit code). */
   severity: RuleSeverity;
+  /** Human-readable description of why the rule failed. */
   message: string;
   /** Workspace name (or "<root>") the failure applies to. */
   target: string;
 }
 
+/**
+ * Aggregate result of evaluating a policy pack against every workspace in a
+ * monorepo. Contains the readiness score, the list of passing rules, the
+ * list of failures, and a flag indicating whether the run should fail.
+ */
 export interface PolicyCheckResult {
+  /** Name of the policy pack that was evaluated. */
   pack: string;
+  /** Integer 0-100 readiness score (percentage of passed checks). */
   score: number;
+  /** IDs of rules that passed for every applicable target. */
   passed: string[];
+  /** Details of every rule-target evaluation that failed. */
   failed: FailedRule[];
   /** True when at least one error-severity rule failed (drives exit code). */
   hasErrors: boolean;
@@ -127,8 +169,13 @@ interface WorkspacePackageJson {
 }
 
 /**
- * Two built-in packs: a strict "recommended" pack and a minimal "baseline".
- * Returned by name so the command can resolve `--pack recommended`.
+ * Registry of built-in policy packs keyed by name. Two packs are provided:
+ * a strict "recommended" pack and a minimal "baseline" pack. CLI consumers
+ * resolve these by name (e.g. `--pack recommended`).
+ *
+ * - `recommended` — Re-Shell's full workspace readiness policy.
+ * - `baseline` — a minimal policy requiring only a build script and a
+ *   valid lowercase package name.
  */
 export const BUILTIN_PACKS: Record<string, PolicyPack> = {
   recommended: {
@@ -184,6 +231,11 @@ export const BUILTIN_PACKS: Record<string, PolicyPack> = {
 /**
  * Load and validate a policy pack from a YAML or JSON file.
  *
+ * The file is parsed (YAML is a superset of JSON, so both formats are
+ * accepted), then validated against {@link policyPackSchema}.
+ *
+ * @param filePath - Path to a `.yml`, `.yaml`, or `.json` policy pack file.
+ * @returns The validated policy pack.
  * @throws Error when the file is missing or fails schema validation.
  */
 export async function loadPolicyPack(filePath: string): Promise<PolicyPack> {
@@ -204,8 +256,18 @@ export async function loadPolicyPack(filePath: string): Promise<PolicyPack> {
 }
 
 /**
- * Resolve a pack from either a built-in name or a file path. When no value is
- * supplied, the "recommended" built-in pack is used.
+ * Resolve a pack from either a built-in name or a file path.
+ *
+ * Resolution order:
+ * 1. If `packRef` is omitted, returns the built-in `recommended` pack.
+ * 2. If `packRef` matches a key in {@link BUILTIN_PACKS}, returns that pack.
+ * 3. Otherwise treats `packRef` as a file path and loads it via
+ *    {@link loadPolicyPack}.
+ *
+ * @param packRef - Built-in pack name (`"recommended"` or `"baseline"`) or a
+ *   file path. If omitted, defaults to `"recommended"`.
+ * @returns The resolved and validated policy pack.
+ * @throws Error when `packRef` is a file path that is missing or invalid.
  */
 export async function resolvePolicyPack(packRef?: string): Promise<PolicyPack> {
   if (!packRef) return BUILTIN_PACKS.recommended;
@@ -325,8 +387,17 @@ async function evaluateRuleForWorkspace(
 /**
  * Evaluate a policy pack against the monorepo rooted at `rootPath`.
  *
- * Score is the percentage of (rule × applicable-target) evaluations that pass,
- * rounded to an integer 0-100. A pack with zero evaluable targets scores 100.
+ * Every rule is evaluated against each applicable workspace (or against the
+ * root `package.json` for `min-node` rules). The resulting {@link
+ * PolicyCheckResult.score} is the percentage of (rule x applicable-target)
+ * evaluations that pass, rounded to an integer 0-100. A pack with zero
+ * evaluable targets scores 100.
+ *
+ * @param pack - The validated policy pack to evaluate.
+ * @param rootPath - Absolute path to the monorepo root. Defaults to the
+ *   current working directory.
+ * @returns Aggregate result containing the score, passed rule IDs, failures,
+ *   and an `hasErrors` flag for exit-code decisions.
  */
 export async function evaluatePolicyPack(
   pack: PolicyPack,
