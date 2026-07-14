@@ -5,7 +5,6 @@ import chalk from 'chalk';
 
 type ResourceType = 'ec2' | 's3' | 'rds' | 'lambda' | 'vm' | 'storage' | 'sql' | 'functions' | 'all';
 type LifecycleState = 'active' | 'deprecated' | 'retired' | 'archived';
-type TagCompliance = 'compliant' | 'non-compliant' | 'pending';
 
 interface ResourceTag {
   key: string;

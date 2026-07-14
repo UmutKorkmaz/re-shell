@@ -317,7 +317,7 @@ export async function fixSecurityIssues(
   pluginName?: string,
   options: SecurityCommandOptions = {}
 ): Promise<void> {
-  const { verbose = false, fix = false } = options;
+  const { fix = false } = options;
 
   try {
     const registry = createPluginRegistry();

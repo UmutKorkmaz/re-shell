@@ -4,8 +4,6 @@
 import chalk from 'chalk';
 
 type ReportType = 'executive' | 'operational' | 'financial' | 'resource' | 'performance';
-type ChartFormat = 'table' | 'chart' | 'kpi' | 'heatmap' | 'funnel';
-type ExportFormat = 'pdf' | 'excel' | 'csv' | 'json' | 'html';
 type DrillDownLevel = 'summary' | 'detailed' | 'granular';
 
 interface MetricDefinition {

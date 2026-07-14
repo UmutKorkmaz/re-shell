@@ -2,10 +2,7 @@ import chalk from 'chalk';
 // Auto-generated Velocity Tracking Utility
 // Generated at: 2026-01-13T14:05:00.000Z
 
-type VelocityMetric = 'story-points' | 'tasks-completed' | 'bugs-resolved' | 'features-delivered';
-type TimePeriod = 'sprint' | 'week' | 'month' | 'quarter';
 type PredictionModel = 'linear' | 'exponential' | 'moving-average' | 'ml-based';
-type CapacityFactor = 'available' | 'vacation' | 'meetings' | 'overhead';
 
 interface SprintData {
   id: string;
