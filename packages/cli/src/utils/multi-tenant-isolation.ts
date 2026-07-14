@@ -135,13 +135,13 @@ export function generateTypeScriptMultiTenant(config: TenantConfig): string {
 
   code += 'class MultiTenantIsolation {\n';
   code += '  private projectName: string;\n';
-  code += '  private namespaces: any[];\n';
+  code += '  private namespaces: unknown[];\n';
   code += '  private enableNetworkIsolation: boolean;\n';
   code += '  private enableResourceQuotas: boolean;\n';
   code += '  private enableLimitRanges: boolean;\n';
   code += '  private enablePodSecurityPolicies: boolean;\n\n';
 
-  code += '  constructor(options: any = {}) {\n';
+  code += '  constructor(options: unknown = {}) {\n';
   code += '    this.projectName = options.projectName || \'app\';\n';
   code += '    this.namespaces = options.namespaces || [];\n';
   code += '    this.enableNetworkIsolation = options.enableNetworkIsolation !== false;\n';
@@ -213,7 +213,7 @@ export function generateTypeScriptMultiTenant(config: TenantConfig): string {
   code += '          stdio: \'pipe\',\n';
   code += '        });\n';
   code += '        console.log(`[Multi-Tenant] ✓ Created namespace: ${ns.name}`);\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[Multi-Tenant] ✗ Failed to create namespace ${ns.name}:`, error.message);\n';
   code += '      }\n';
   code += '    }\n';
@@ -248,7 +248,7 @@ export function generateTypeScriptMultiTenant(config: TenantConfig): string {
   code += '          stdio: \'pipe\',\n';
   code += '        });\n';
   code += '        console.log(`[Multi-Tenant] ✓ Applied quota for: ${ns.name}`);\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[Multi-Tenant] ✗ Failed to apply quota for ${ns.name}:`, error.message);\n';
   code += '      }\n';
   code += '    }\n';
@@ -282,7 +282,7 @@ export function generateTypeScriptMultiTenant(config: TenantConfig): string {
   code += '          stdio: \'pipe\',\n';
   code += '        });\n';
   code += '        console.log(`[Multi-Tenant] ✓ Applied limits for: ${ns.name}`);\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[Multi-Tenant] ✗ Failed to apply limits for ${ns.name}:`, error.message);\n';
   code += '      }\n';
   code += '    }\n';
@@ -354,7 +354,7 @@ export function generateTypeScriptMultiTenant(config: TenantConfig): string {
   code += '          stdio: \'pipe\',\n';
   code += '        });\n';
   code += '        console.log(`[Multi-Tenant] ✓ Enforced isolation for: ${ns.name}`);\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[Multi-Tenant] ✗ Failed to enforce isolation for ${ns.name}:`, error.message);\n';
   code += '      }\n';
   code += '    }\n';
@@ -419,7 +419,7 @@ export function generateTypeScriptMultiTenant(config: TenantConfig): string {
   code += '          stdio: \'pipe\',\n';
   code += '        });\n';
   code += '        console.log(`[Multi-Tenant] ✓ Applied security policies for: ${ns.name}`);\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[Multi-Tenant] ✗ Failed to apply security policies for ${ns.name}:`, error.message);\n';
   code += '      }\n';
   code += '    }\n';
@@ -490,7 +490,7 @@ export function generateTypeScriptMultiTenant(config: TenantConfig): string {
   code += '          stdio: \'pipe\',\n';
   code += '        });\n';
   code += '        console.log(`[Multi-Tenant] ✓ Deployed RBAC for: ${ns.name}`);\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[Multi-Tenant] ✗ Failed to deploy RBAC for ${ns.name}:`, error.message);\n';
   code += '      }\n';
   code += '    }\n';
@@ -509,13 +509,13 @@ export function generateTypeScriptMultiTenant(config: TenantConfig): string {
   code += '        console.log(`\\n[Multi-Tenant] Resource usage for ${ns.name}:`);\n';
   code += '        console.log(`  Hard: ${JSON.stringify(quota.status.hard)}`);\n';
   code += '        console.log(`  Used: ${JSON.stringify(quota.status.used)}`);\n';
-  code += '      } catch (error: any) {\n';
+  code += '      } catch (error: unknown) {\n';
   code += '        console.error(`[Multi-Tenant] Failed to monitor ${ns.name}:`, error.message);\n';
   code += '      }\n';
   code += '    }\n';
   code += '  }\n\n';
 
-  code += '  private toYaml(obj: any): string {\n';
+  code += '  private toYaml(obj: unknown): string {\n';
   code += '    const yaml = require(\'js-yaml\');\n';
   code += '    return yaml.dump(obj);\n';
   code += '  }\n';
