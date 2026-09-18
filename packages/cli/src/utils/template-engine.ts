@@ -275,6 +275,7 @@ export class ConfigTemplateEngine {
       version?: string;
     } = {}
   ): Promise<ConfigTemplate> {
+    const now = new Date().toISOString();
     const template: ConfigTemplate = {
       name,
       version: options.version || '1.0.0',
@@ -283,11 +284,14 @@ export class ConfigTemplateEngine {
       tags: options.tags || [],
       variables,
       template: config,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: now,
+      updatedAt: now
     };
 
     await this.saveTemplate(template);
+    // saveTemplate refreshes updatedAt with a fresh clock reading; realign the
+    // creation stamp so a newly created template keeps identical timestamps.
+    template.createdAt = template.updatedAt;
     return template;
   }
 
