@@ -289,6 +289,9 @@ export class ConfigTemplateEngine {
     };
 
     await this.saveTemplate(template);
+    // saveTemplate refreshes updatedAt with a fresh clock reading; realign the
+    // creation stamp so a newly created template keeps identical timestamps.
+    template.createdAt = template.updatedAt;
     return template;
   }
 
