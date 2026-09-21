@@ -34,6 +34,13 @@ for TPL in "${TEMPLATES[@]}"; do
   echo "━━━ Testing template: $TPL ━━━"
   PROJ_DIR="$TMP_DIR/test-$TPL"
 
+  # Scaffold from the temp dir, NOT the repo root: run inside the repo, the
+  # CLI detects the monorepo and switches to the interactive in-monorepo
+  # workspace flow (prompts despite --yes), which hangs without a TTY and
+  # never prints "Scaffolded". Each iteration re-cds because the typecheck
+  # path below returns to $REPO_ROOT.
+  cd "$TMP_DIR"
+
   if node "$CLI_BIN" create "test-$TPL" --backend "$TPL" --yes 2>/dev/null | grep -q "Scaffolded"; then
     echo "  ✓ Scaffold produced"
   else
