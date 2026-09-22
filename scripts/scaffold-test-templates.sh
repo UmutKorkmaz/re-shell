@@ -74,8 +74,17 @@ for TPL in "${TEMPLATES[@]}"; do
     npx --yes -p prisma@5 prisma generate 2>/dev/null || true
   fi
 
-  # Run typecheck
-  TSC_BIN=$(find "$PROJ_DIR" -name tsc -path "*/.bin/*" 2>/dev/null | head -1)
+  # Run typecheck — only for TypeScript-capable templates. tsc prints
+  # diagnostics to STDOUT, so capture both streams (counting only stderr
+  # made tsconfig-less runs report "FAILED (0 errors)").
+  if [ ! -f "tsconfig.json" ]; then
+    echo "  ⚠ No tsconfig.json — not a TypeScript template, skipping typecheck"
+    PASS=$((PASS + 1))
+    cd "$REPO_ROOT"
+    continue
+  fi
+
+  TSC_BIN=$(find "$APP_DIR" -name tsc -path "*/.bin/*" 2>/dev/null | head -1)
   if [ -z "$TSC_BIN" ]; then
     echo "  ⚠ No tsc found — skipping typecheck"
     PASS=$((PASS + 1))
@@ -83,7 +92,7 @@ for TPL in "${TEMPLATES[@]}"; do
     continue
   fi
 
-  if "$TSC_BIN" --noEmit 2>"$TMP_DIR/tsc-err-$TPL.txt"; then
+  if "$TSC_BIN" --noEmit >"$TMP_DIR/tsc-err-$TPL.txt" 2>&1; then
     echo "  ✓ Typecheck passed"
     PASS=$((PASS + 1))
   else
