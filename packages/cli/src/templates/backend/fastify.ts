@@ -31,6 +31,7 @@ export const fastifyTemplate: BackendTemplate = {
     "test:coverage": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
     "format": "prettier --write .",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
@@ -49,14 +50,15 @@ export const fastifyTemplate: BackendTemplate = {
     "@fastify/jwt": "^8.0.1",
     "@fastify/multipart": "^8.2.0",
     "@fastify/rate-limit": "^9.1.0",
-    "@fastify/redis": "^6.1.1",
+    "ioredis": "^5.4.1",
     "@fastify/sensible": "^5.6.0",
     "@fastify/static": "^7.0.3",
     "@fastify/swagger": "^8.14.0",
     "@fastify/swagger-ui": "^3.0.0",
     "@fastify/type-provider-typebox": "^4.0.0",
     "@fastify/websocket": "^9.0.0",
-    "mercurius": "^15.1.0",
+    "mercurius": "^14.1.0",
+    "graphql": "^16.8.1",
     "@fastify/compress": "^7.0.1",
     "@fastify/etag": "^5.2.0",
     "@fastify/formbody": "^7.4.0",
@@ -64,6 +66,7 @@ export const fastifyTemplate: BackendTemplate = {
     "@sinclair/typebox": "^0.32.22",
     "fastify-plugin": "^4.5.1",
     "fastify-bcrypt": "^1.0.1",
+    "bcryptjs": "^3.0.2",
     "fastify-graceful-shutdown": "^3.5.3",
     "fastify-print-routes": "^3.1.0",
     "@prisma/client": "^5.13.0",
@@ -154,9 +157,9 @@ import { config } from './config/config';
 
 const start = async () => {
   try {
-    // Register plugins
+    // Register plugins (jwt, prisma, cookie, rate-limit, ...) from src/plugins
     await app.register(AutoLoad, {
-      dir: join(__dirname, 'microservices'),
+      dir: join(__dirname, 'plugins'),
       options: { ...config }
     });
 
@@ -368,6 +371,21 @@ export const config = {
 } as const;`,
 
     // Plugins
+    'src/plugins/cookie.ts': `import fp from 'fastify-plugin';
+import cookie from '@fastify/cookie';
+import { FastifyPluginAsync } from 'fastify';
+import { config } from '../config/config';
+
+const cookiePlugin: FastifyPluginAsync = async (fastify) => {
+  await fastify.register(cookie, {
+    secret: config.jwt.secret
+  });
+};
+
+export default fp(cookiePlugin, {
+  name: 'cookie'
+});`,
+
     'src/plugins/cors.ts': `import fp from 'fastify-plugin';
 import cors from '@fastify/cors';
 import { FastifyPluginAsync } from 'fastify';
@@ -533,6 +551,7 @@ export default fp(jwtPlugin, {
     'src/plugins/prisma.ts': `import fp from 'fastify-plugin';
 import { FastifyPluginAsync } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { config } from '../config/config';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -542,10 +561,18 @@ declare module 'fastify' {
 
 const prismaPlugin: FastifyPluginAsync = async (fastify) => {
   const prisma = new PrismaClient({
-    log: fastify.config.env === 'development' ? ['query', 'error', 'warn'] : ['error']
+    log: config.env === 'development' ? ['query', 'error', 'warn'] : ['error']
   });
 
-  await prisma.$connect();
+  // Don't crash the whole app when the database isn't reachable (e.g. a
+  // fresh scaffold with no DB running yet). The API still boots and serves
+  // non-DB routes; DB-backed routes will error per-request instead.
+  try {
+    await prisma.$connect();
+  } catch (error) {
+    fastify.log.warn('Database connection failed — starting anyway without a DB. Set DATABASE_URL and ensure the DB server is reachable.');
+    fastify.log.warn(error instanceof Error ? error.message : String(error));
+  }
 
   fastify.decorate('prisma', prisma);
 
@@ -559,16 +586,38 @@ export default fp(prismaPlugin, {
 });`,
 
     'src/plugins/redis.ts': `import fp from 'fastify-plugin';
-import redis from '@fastify/redis';
 import { FastifyPluginAsync } from 'fastify';
+import Redis from 'ioredis';
 import { config } from '../config/config';
 
+declare module 'fastify' {
+  interface FastifyInstance {
+    redis: Redis;
+  }
+}
+
 const redisPlugin: FastifyPluginAsync = async (fastify) => {
-  await fastify.register(redis, {
+  // Connect in the background: @fastify/redis awaits the initial connection,
+  // which blocks boot (until AVV_ERR_PLUGIN_EXEC_TIMEOUT) when Redis is
+  // unreachable — e.g. a fresh scaffold with no Redis running yet. A raw
+  // client lets the app boot; Redis-backed routes error per-request instead.
+  const redis = new Redis({
     host: config.redis.host,
     port: config.redis.port,
     password: config.redis.password,
-    family: 4
+    family: 4,
+    lazyConnect: true,
+    maxRetriesPerRequest: 1
+  });
+  redis.on('error', (err) => {
+    fastify.log.warn(\`Redis connection error: \${err.message}\`);
+  });
+  redis.connect().catch(() => undefined);
+
+  fastify.decorate('redis', redis);
+
+  fastify.addHook('onClose', async () => {
+    redis.disconnect();
   });
 };
 
@@ -760,6 +809,7 @@ export type TodoQuery = typeof TodoQuerySchema;`,
     // Routes
     'src/routes/health/index.ts': `import { FastifyPluginAsync } from 'fastify';
 import { Type } from '@sinclair/typebox';
+import { config } from '../../config/config';
 
 const healthRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', {
@@ -780,7 +830,7 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      environment: fastify.config.env
+      environment: config.env
     };
   });
 
@@ -829,6 +879,11 @@ export default healthRoutes;`,
 
     'src/routes/auth/index.ts': `import { FastifyPluginAsync } from 'fastify';
 import bcrypt from 'bcryptjs';
+import { Type } from '@sinclair/typebox';
+// Side-effect import: loads @fastify/cookie's FastifyReply augmentation
+// (setCookie/clearCookie). Plugins are wired at runtime via autoload.
+import '@fastify/cookie';
+import { config } from '../../config/config';
 import {
   RegisterSchema,
   LoginSchema,
@@ -952,7 +1007,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     // Set refresh token as HTTP-only cookie
     reply.setCookie('refreshToken', tokens.refreshToken, {
       httpOnly: true,
-      secure: fastify.config.env === 'production',
+      secure: config.env === 'production',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });

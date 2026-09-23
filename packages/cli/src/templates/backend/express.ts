@@ -29,6 +29,7 @@ export const expressTemplate: BackendTemplate = {
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
     "format": "prettier --write .",
     "docker:build": "docker build -t {{projectName}} .",
     "docker:run": "docker run -p 3000:3000 {{projectName}}"
@@ -231,8 +232,12 @@ process.on('SIGTERM', async () => {
     logger.info('HTTP server closed');
   });
   
-  // Close database connections
-  await redisClient.quit();
+  // Close database connections. A client that never finished connecting (or is
+  // still reconnecting) throws ClientClosedError on quit() — don't let that
+  // turn a clean shutdown into a crash trace.
+  if (redisClient.isOpen) {
+    await redisClient.quit().catch(() => undefined);
+  }
   process.exit(0);
 });
 
