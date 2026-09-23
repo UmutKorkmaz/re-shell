@@ -1485,9 +1485,7 @@ export async function validateWorkspaceConfig(options: WorkspaceValidateOptions 
 
     // Additional topology validation
     const config = result.config;
-    const topologyResult = topologyValidator.validate(config);
-
-    // Show results
+    const topologyResult = topologyValidator.validate(config as unknown as Record<string, unknown>);
     console.log(chalk.green('✓ Workspace configuration is valid\n'));
 
     // Show warnings if any
@@ -1512,7 +1510,7 @@ export async function validateWorkspaceConfig(options: WorkspaceValidateOptions 
     }
 
     // Show summary
-    const stats = topologyValidator.getTopologyStats(config);
+    const stats = topologyValidator.getTopologyStats(config as unknown as Record<string, unknown>);
     console.log(chalk.bold('Summary:\n'));
     console.log(chalk.gray('  Services: ' + stats.totalServices));
     console.log(chalk.gray('  Dependencies: ' + stats.totalDependencies));
@@ -1639,9 +1637,7 @@ async function runValidation(configPath: string, options: WorkspaceValidateOptio
 
     // Valid configuration
     const config = result.config;
-    const topologyResult = topologyValidator.validate(config);
-
-    console.log(chalk.green('✓ Workspace configuration is valid\n'));
+    const topologyResult = topologyValidator.validate(config as unknown as Record<string, unknown>);
 
     // Show service count
     if (config.services) {
@@ -2632,7 +2628,7 @@ export async function optimizeWorkspace(options: WorkspaceOptimizeOptions = {}):
 
     // Run optimization analysis
     const { workspaceOptimizer } = await import('../optimization/workspace-optimizer');
-    const report = workspaceOptimizer.analyze(result.config);
+    const report = workspaceOptimizer.analyze(result.config as unknown as Record<string, unknown>);
 
     if (spinner) spinner.stop();
 

@@ -4,6 +4,7 @@
  * 800-line limit. These are example/seed records embedded in the generated
  * scaffold output.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const vendorList: any[] = [
         {
           id: 'vendor-001',
@@ -290,6 +291,7 @@ export const vendorList: any[] = [
         },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const assessmentList: any[] = [
         {
           id: 'assessment-001',
