@@ -143,17 +143,17 @@ export class WorkspaceParser {
       const content = fs.readFileSync(filePath, 'utf8');
 
       // Parse YAML with detailed error messages
-      let config: any;
+      let config: Record<string, unknown>;
       try {
         config = yaml.load(content, {
           filename: filePath,
-          onWarning: (warning: any) => {
+          onWarning: (warning: { message: string }) => {
             result.warnings.push({
               path: 'yaml',
               message: `YAML warning: ${warning.message}`,
             });
           },
-        });
+        }) as Record<string, unknown>;
       } catch (error: unknown) {
         // Enhanced YAML error reporting with line numbers
         const yamlError = error as yaml.YAMLException;
@@ -201,7 +201,7 @@ export class WorkspaceParser {
       this.validateCustomRules(config, result);
 
       if (result.valid || result.errors.length === 0) {
-        result.config = config as WorkspaceConfig;
+        result.config = config as unknown as WorkspaceConfig;
       }
 
       return result;
@@ -218,7 +218,7 @@ export class WorkspaceParser {
   /**
    * Validate custom business rules beyond JSON schema
    */
-  private validateCustomRules(config: any, result: ValidationResult): void {
+  private validateCustomRules(config: Record<string, unknown>, result: ValidationResult): void {
     // Validate service names
     if (config.services) {
       for (const [serviceName, service] of Object.entries(config.services)) {
@@ -314,7 +314,7 @@ export class WorkspaceParser {
     }
   }
 
-  private validateBuildConfig(serviceName: string, build: any, result: ValidationResult): void {
+  private validateBuildConfig(serviceName: string, build: Record<string, unknown>, result: ValidationResult): void {
     if (build.dockerfile && !build.context) {
       result.warnings.push({
         path: `services.${serviceName}.build`,
@@ -330,58 +330,63 @@ export class WorkspaceParser {
     }
   }
 
-  private validateResourceConfig(serviceName: string, resources: any, result: ValidationResult): void {
-    if (resources.cpu) {
-      if (resources.cpu.request) {
-        const match = resources.cpu.request.match(/^([0-9]+)m$/);
+  private validateResourceConfig(serviceName: string, resources: Record<string, unknown>, result: ValidationResult): void {
+    const cpu = resources.cpu as Record<string, string> | undefined;
+    if (cpu) {
+      if (cpu.request) {
+        const match = cpu.request.match(/^([0-9]+)m$/);
         if (!match) {
           result.errors.push({
             path: `services.${serviceName}.resources.cpu.request`,
             message: 'CPU request must be in format "<number>m" (e.g., "100m")',
-            value: resources.cpu.request,
+            value: cpu.request,
           });
         }
       }
 
-      if (resources.cpu.limit) {
-        const match = resources.cpu.limit.match(/^([0-9]+)m$/);
+      if (cpu.limit) {
+        const match = cpu.limit.match(/^([0-9]+)m$/);
         if (!match) {
           result.errors.push({
             path: `services.${serviceName}.resources.cpu.limit`,
             message: 'CPU limit must be in format "<number>m" (e.g., "500m")',
-            value: resources.cpu.limit,
+            value: cpu.limit,
           });
         }
       }
     }
 
-    if (resources.memory) {
-      if (resources.memory.request) {
-        const match = resources.memory.request.match(/^([0-9]+)(Mi|Gi)$/);
+    const memory = resources.memory as Record<string, string> | undefined;
+    if (memory) {
+      if (memory.request) {
+        const match = memory.request.match(/^([0-9]+)(Mi|Gi)$/);
         if (!match) {
           result.errors.push({
             path: `services.${serviceName}.resources.memory.request`,
             message: 'Memory request must be in format "<number>Mi" or "<number>Gi" (e.g., "256Mi")',
-            value: resources.memory.request,
+            value: memory.request,
           });
         }
       }
 
-      if (resources.memory.limit) {
-        const match = resources.memory.limit.match(/^([0-9]+)(Mi|Gi)$/);
+      if (memory.limit) {
+        const match = memory.limit.match(/^([0-9]+)(Mi|Gi)$/);
         if (!match) {
           result.errors.push({
             path: `services.${serviceName}.resources.memory.limit`,
             message: 'Memory limit must be in format "<number>Mi" or "<number>Gi" (e.g., "512Mi")',
-            value: resources.memory.limit,
+            value: memory.limit,
           });
         }
       }
     }
   }
 
-  private validateDependencies(serviceName: string, dependencies: any, result: ValidationResult): void {
-    const allDeps = { ...dependencies.production, ...dependencies.development };
+  private validateDependencies(serviceName: string, dependencies: Record<string, unknown>, result: ValidationResult): void {
+    const allDeps = {
+      ...(dependencies.production as Record<string, string>),
+      ...(dependencies.development as Record<string, string>),
+    };
 
     // Check for conflicting versions
     const versionMap: Record<string, string[]> = {};
@@ -402,7 +407,7 @@ export class WorkspaceParser {
     }
   }
 
-  private validatePortConflicts(config: any, result: ValidationResult): void {
+  private validatePortConflicts(config: Record<string, unknown>, result: ValidationResult): void {
     const portMap: Record<number, string[]> = {};
 
     for (const [serviceName, service] of Object.entries(config.services || {})) {
@@ -426,7 +431,7 @@ export class WorkspaceParser {
     }
   }
 
-  private validateCircularDependencies(config: any, result: ValidationResult): void {
+  private validateCircularDependencies(config: Record<string, unknown>, result: ValidationResult): void {
     const graph = this.buildDependencyGraph(config);
     const cycles = this.detectCycles(graph);
 
@@ -440,7 +445,7 @@ export class WorkspaceParser {
     }
   }
 
-  private buildDependencyGraph(config: any): Record<string, string[]> {
+  private buildDependencyGraph(config: Record<string, unknown>): Record<string, string[]> {
     const graph: Record<string, string[]> = {};
 
     for (const [serviceName, service] of Object.entries(config.services || {})) {
