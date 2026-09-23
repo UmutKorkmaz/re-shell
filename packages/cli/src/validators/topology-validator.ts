@@ -73,8 +73,10 @@ type DependencyMap = Record<string, string[]>;
  * @param config - The configuration object to read services from.
  * @returns A record mapping service identifiers to their definitions.
  */
-function getServices(config: any): Record<string, any> {
-  return config?.services && typeof config.services === 'object' ? config.services : {};
+function getServices(config: Record<string, unknown>): Record<string, unknown> {
+  return config?.services && typeof config.services === 'object'
+    ? (config.services as Record<string, unknown>)
+    : {};
 }
 
 /**
@@ -84,12 +86,12 @@ function getServices(config: any): Record<string, any> {
  * @param config - The configuration object to extract dependencies from.
  * @returns A map of service identifiers to their list of dependency identifiers.
  */
-function normalizeDependencies(config: any): DependencyMap {
+function normalizeDependencies(config: Record<string, unknown>): DependencyMap {
   const services = getServices(config);
   const dependencies: DependencyMap = {};
 
   for (const serviceId of Object.keys(services)) {
-    const service = services[serviceId] || {};
+    const service = (services[serviceId] || {}) as Record<string, unknown>;
     const serviceDeps = Array.isArray(service.dependencies) ? service.dependencies : [];
     dependencies[serviceId] = serviceDeps.filter((dependency: unknown): dependency is string => typeof dependency === 'string');
   }
@@ -150,7 +152,7 @@ function findCycles(dependencies: DependencyMap): string[][] {
  * @param config - The configuration object to inspect.
  * @returns The number of unique non-empty layer/type values among services.
  */
-function getLayerCount(config: any): number {
+function getLayerCount(config: Record<string, unknown>): number {
   const services = getServices(config);
   const layers = new Set<string>();
 
@@ -176,7 +178,7 @@ export const topologyValidator = {
    * @param config - The configuration object to validate.
    * @returns A result indicating whether the configuration is valid and listing any conflicts.
    */
-  validate(config: any): TopologyValidationResult {
+  validate(config: Record<string, unknown>): TopologyValidationResult {
     const services = getServices(config);
     const dependencies = normalizeDependencies(config);
     const conflicts: TopologyConflict[] = [];
@@ -214,7 +216,7 @@ export const topologyValidator = {
    * @param config - The configuration object to analyze.
    * @returns Statistics describing the structure of the topology.
    */
-  getTopologyStats(config: any): TopologyStats {
+  getTopologyStats(config: Record<string, unknown>): TopologyStats {
     const services = getServices(config);
     const dependencies = normalizeDependencies(config);
     const circularDependencies = findCycles(dependencies);
