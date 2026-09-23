@@ -57,7 +57,7 @@ export class WorkspaceOptimizer {
    * @param config - The workspace configuration to analyze.
    * @returns An optimization report containing sorted recommendations, a summary, and estimated impact.
    */
-  analyze(config: any): OptimizationReport {
+  analyze(config: Record<string, unknown>): OptimizationReport {
     const recommendations: OptimizationRecommendation[] = [];
 
     // Check for circular dependencies
@@ -104,7 +104,7 @@ export class WorkspaceOptimizer {
    * @param recommendationIds - The IDs of the recommendations whose automated fixes should be applied.
    * @returns A promise resolving to the updated configuration.
    */
-  async applyAutomatedFixes(config: any, recommendationIds: string[]): Promise<unknown> {
+  async applyAutomatedFixes(config: Record<string, unknown>, recommendationIds: string[]): Promise<unknown> {
     const result = { ...config };
 
     for (const id of recommendationIds) {
@@ -122,7 +122,7 @@ export class WorkspaceOptimizer {
    * @param config - The workspace configuration to analyze.
    * @returns An array of recommendations for detected circular dependencies.
    */
-  private checkCircularDependencies(config: any): OptimizationRecommendation[] {
+  private checkCircularDependencies(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     try {
@@ -159,7 +159,7 @@ export class WorkspaceOptimizer {
    * @param config - The workspace configuration to analyze.
    * @returns An array of recommendations for service isolation issues.
    */
-  private checkServiceIsolation(config: any): OptimizationRecommendation[] {
+  private checkServiceIsolation(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
@@ -204,7 +204,7 @@ export class WorkspaceOptimizer {
    * @param config - The workspace configuration to analyze.
    * @returns An array of recommendations for resource optimization issues.
    */
-  private checkResourceOptimization(config: any): OptimizationRecommendation[] {
+  private checkResourceOptimization(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
@@ -280,7 +280,7 @@ export class WorkspaceOptimizer {
    * @param config - The workspace configuration to analyze.
    * @returns An array of recommendations for naming convention violations.
    */
-  private checkNamingConventions(config: any): OptimizationRecommendation[] {
+  private checkNamingConventions(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
@@ -321,7 +321,7 @@ export class WorkspaceOptimizer {
    * @param config - The workspace configuration to analyze.
    * @returns An array of recommendations for services with unused dependencies.
    */
-  private checkUnusedDependencies(config: any): OptimizationRecommendation[] {
+  private checkUnusedDependencies(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
@@ -375,7 +375,7 @@ export class WorkspaceOptimizer {
    * @param config - The workspace configuration to analyze.
    * @returns An array of recommendations for security practice violations.
    */
-  private checkSecurityPractices(config: any): OptimizationRecommendation[] {
+  private checkSecurityPractices(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
@@ -437,7 +437,7 @@ export class WorkspaceOptimizer {
    * @param config - The workspace configuration to analyze.
    * @returns An array of recommendations for scalability issues.
    */
-  private checkScalability(config: any): OptimizationRecommendation[] {
+  private checkScalability(config: Record<string, unknown>): OptimizationRecommendation[] {
     const recommendations: OptimizationRecommendation[] = [];
 
     const services = config.services || {};
