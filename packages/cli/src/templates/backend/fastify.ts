@@ -31,6 +31,7 @@ export const fastifyTemplate: BackendTemplate = {
     "test:coverage": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
     "format": "prettier --write .",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
@@ -49,14 +50,15 @@ export const fastifyTemplate: BackendTemplate = {
     "@fastify/jwt": "^8.0.1",
     "@fastify/multipart": "^8.2.0",
     "@fastify/rate-limit": "^9.1.0",
-    "@fastify/redis": "^6.1.1",
+    "ioredis": "^5.4.1",
     "@fastify/sensible": "^5.6.0",
     "@fastify/static": "^7.0.3",
     "@fastify/swagger": "^8.14.0",
     "@fastify/swagger-ui": "^3.0.0",
     "@fastify/type-provider-typebox": "^4.0.0",
     "@fastify/websocket": "^9.0.0",
-    "mercurius": "^15.1.0",
+    "mercurius": "^14.1.0",
+    "graphql": "^16.8.1",
     "@fastify/compress": "^7.0.1",
     "@fastify/etag": "^5.2.0",
     "@fastify/formbody": "^7.4.0",
@@ -153,9 +155,9 @@ import { config } from './config/config';
 
 const start = async () => {
   try {
-    // Register plugins
+    // Register plugins (jwt, prisma, cookie, rate-limit, ...) from src/plugins
     await app.register(AutoLoad, {
-      dir: join(__dirname, 'microservices'),
+      dir: join(__dirname, 'plugins'),
       options: { ...config }
     });
 
@@ -367,6 +369,21 @@ export const config = {
 } as const;`,
 
     // Plugins
+    'src/plugins/cookie.ts': `import fp from 'fastify-plugin';
+import cookie from '@fastify/cookie';
+import { FastifyPluginAsync } from 'fastify';
+import { config } from '../config/config';
+
+const cookiePlugin: FastifyPluginAsync = async (fastify) => {
+  await fastify.register(cookie, {
+    secret: config.jwt.secret
+  });
+};
+
+export default fp(cookiePlugin, {
+  name: 'cookie'
+});`,
+
     'src/plugins/cors.ts': `import fp from 'fastify-plugin';
 import cors from '@fastify/cors';
 import { FastifyPluginAsync } from 'fastify';
@@ -555,7 +572,15 @@ const prismaPlugin: FastifyPluginAsync = async (fastify) => {
     log: config.env === 'development' ? ['query', 'error', 'warn'] : ['error']
   });
 
-  await prisma.$connect();
+  // Don't crash the whole app when the database isn't reachable (e.g. a
+  // fresh scaffold with no DB running yet). The API still boots and serves
+  // non-DB routes; DB-backed routes will error per-request instead.
+  try {
+    await prisma.$connect();
+  } catch (error) {
+    fastify.log.warn('Database connection failed — starting anyway without a DB. Set DATABASE_URL and ensure the DB server is reachable.');
+    fastify.log.warn(error instanceof Error ? error.message : String(error));
+  }
 
   fastify.decorate('prisma', prisma);
 
@@ -569,16 +594,38 @@ export default fp(prismaPlugin, {
 });`,
 
     'src/plugins/redis.ts': `import fp from 'fastify-plugin';
-import redis from '@fastify/redis';
 import { FastifyPluginAsync } from 'fastify';
+import Redis from 'ioredis';
 import { config } from '../config/config';
 
+declare module 'fastify' {
+  interface FastifyInstance {
+    redis: Redis;
+  }
+}
+
 const redisPlugin: FastifyPluginAsync = async (fastify) => {
-  await fastify.register(redis, {
+  // Connect in the background: @fastify/redis awaits the initial connection,
+  // which blocks boot (until AVV_ERR_PLUGIN_EXEC_TIMEOUT) when Redis is
+  // unreachable — e.g. a fresh scaffold with no Redis running yet. A raw
+  // client lets the app boot; Redis-backed routes error per-request instead.
+  const redis = new Redis({
     host: config.redis.host,
     port: config.redis.port,
     password: config.redis.password,
-    family: 4
+    family: 4,
+    lazyConnect: true,
+    maxRetriesPerRequest: 1
+  });
+  redis.on('error', (err) => {
+    fastify.log.warn(\`Redis connection error: \${err.message}\`);
+  });
+  redis.connect().catch(() => undefined);
+
+  fastify.decorate('redis', redis);
+
+  fastify.addHook('onClose', async () => {
+    redis.disconnect();
   });
 };
 
