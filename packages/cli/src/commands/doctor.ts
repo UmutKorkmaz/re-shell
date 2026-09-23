@@ -12,6 +12,7 @@ import {
   type RemediableCheck,
 } from '../utils/doctor-remediation';
 import type { Suggestion, FixPlan } from '@re-shell/contracts';
+import type ora from 'ora';
 
 /**
  * Represents the outcome of a single doctor diagnostic check.
@@ -36,7 +37,7 @@ interface DoctorOptions {
   /** When true, print verbose output including per-check suggestions. */
   verbose?: boolean;
   /** Optional spinner instance whose lifecycle the command will manage. */
-  spinner?: any;
+  spinner?: ora.Ora;
   /** When true, emit machine-readable JSON output instead of a formatted report. */
   json?: boolean;
   /** When true, include causes and suggested fixes for each failing/warning check. */

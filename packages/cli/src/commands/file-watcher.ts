@@ -494,7 +494,7 @@ async function addPropagationRule(options: FileWatcherCommandOptions, spinner?: 
     }
 
     // Resolve target workspaces
-    let targetWorkspaces: any = 'all';
+    let targetWorkspaces: string[] | 'all' | ((workspace: string) => boolean) = 'all';
     if (response.targetType === 'specific' && response.targetWorkspaces) {
       targetWorkspaces = response.targetWorkspaces.split(',').map((s: string) => s.trim());
     } else if (response.targetType === 'condition') {
@@ -713,7 +713,7 @@ function formatDuration(seconds: number): string {
   }
 }
 
-function formatTargetWorkspaces(target: any): string {
+function formatTargetWorkspaces(target: string[] | 'all' | ((workspace: string) => boolean)): string {
   if (target === 'all') {
     return chalk.blue('all');
   } else if (Array.isArray(target)) {
