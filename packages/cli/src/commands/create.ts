@@ -928,7 +928,7 @@ ${config.remotes.map((r) => `  { path: '${r.route}', label: '${toPascalCase(r.na
 ];
 `;
 
-  await fs.writeFile(path.join(sharedPath, 'src/index.ts'), utilsContent);
+  await fs.outputFile(path.join(sharedPath, 'src/index.ts'), utilsContent);
 
   // Generate tsconfig
   const tsconfig = {
@@ -1044,10 +1044,10 @@ async function generateShellRouting(shellPath: string, config: MicrofrontendConf
 
   if (shellFramework.includes('react')) {
     const routingContent = generateReactRouting(config);
-    await fs.writeFile(path.join(shellPath, 'src/src/Routing.tsx'), routingContent);
+    await fs.outputFile(path.join(shellPath, 'src/src/Routing.tsx'), routingContent);
   } else if (shellFramework.includes('vue')) {
     const routingContent = generateVueRouting(config);
-    await fs.writeFile(path.join(shellPath, 'src/src/router/index.ts'), routingContent);
+    await fs.outputFile(path.join(shellPath, 'src/src/router/index.ts'), routingContent);
   }
 }
 
@@ -1627,7 +1627,7 @@ export interface ${toPascalCase(s.name)}Response {
 `).join('\n')}
 `;
 
-  await fs.writeFile(path.join(sharedPath, 'src/index.ts'), typesContent);
+  await fs.outputFile(path.join(sharedPath, 'src/index.ts'), typesContent);
 
   // Generate tsconfig
   const tsconfig = {
@@ -1713,7 +1713,7 @@ async function generateNodeGateway(gatewayPath: string, config: PolyglotConfig):
     gatewayFramework === 'fastify' ? generateFastifyGateway(config) :
     generateNestJSGateway(config);
 
-  await fs.writeFile(path.join(gatewayPath, 'src/index.ts'), gatewaySource);
+  await fs.outputFile(path.join(gatewayPath, 'src/index.ts'), gatewaySource);
 
   // Generate tsconfig
   const tsconfig = {
