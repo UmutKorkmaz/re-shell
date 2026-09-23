@@ -112,8 +112,6 @@ export const expressTemplate: BackendTemplate = {
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
     "sourceMap": true,
     "removeComments": true,
     "noEmitOnError": true,
@@ -1460,10 +1458,18 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export class TodoService {
-  async getAllTodos(opts?: { page?: number; limit?: number }) {
+  async getAllTodos(opts?: { userId?: string; page?: number; limit?: number; status?: string; priority?: string }) {
     const take = opts?.limit ?? 100;
     const skip = opts?.page ? (opts.page - 1) * take : 0;
-    return prisma.todo.findMany({ take, skip });
+    return prisma.todo.findMany({
+      where: {
+        ...(opts?.userId ? { userId: opts.userId } : {}),
+        ...(opts?.status ? { status: opts.status as never } : {}),
+        ...(opts?.priority ? { priority: opts.priority as never } : {})
+      },
+      take,
+      skip
+    });
   }
   async getTodoById(id: string, _userId?: string) {
     return prisma.todo.findUnique({ where: { id } });
@@ -1522,8 +1528,12 @@ export class UserService {
     await prisma.user.update({ where: { id }, data: { password: hashed } as never });
     return true;
   }
-  async updateAvatar(id: string, avatarUrl: string): Promise<void> {
-    await prisma.user.update({ where: { id }, data: { avatar: avatarUrl } as never });
+  async updateAvatar(id: string, file: Express.Multer.File): Promise<string> {
+    // multer uses memoryStorage (see src/utils/upload.ts), so persist the
+    // avatar inline as a data URL and hand it back to the controller.
+    const dataUrl = \`data:\${file.mimetype};base64,\${file.buffer.toString('base64')}\`;
+    await prisma.user.update({ where: { id }, data: { avatar: dataUrl } as never });
+    return dataUrl;
   }
 }
 `,
