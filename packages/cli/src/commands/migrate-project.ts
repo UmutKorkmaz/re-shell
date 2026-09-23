@@ -1,12 +1,12 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
-
+import type ora from 'ora';
 
 import { findMonorepoRoot } from '../utils/monorepo';
 
 interface MigrateOptions {
-  spinner?: any;
+  spinner?: ora.Ora;
   verbose?: boolean;
   dryRun?: boolean;
   force?: boolean;
@@ -280,7 +280,7 @@ async function analyzeProject(projectPath: string, options: MigrateOptions): Pro
   };
 }
 
-function detectFramework(packageJson: any): string {
+function detectFramework(packageJson: Record<string, any>): string {
   const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
   
   if (deps.react) {
@@ -312,7 +312,7 @@ function detectPackageManager(projectPath: string): 'npm' | 'yarn' | 'pnpm' | 'b
   return 'npm';
 }
 
-async function getWorkspaces(projectPath: string, packageJson: any): Promise<string[]> {
+async function getWorkspaces(projectPath: string, packageJson: Record<string, any>): Promise<string[]> {
   if (packageJson.workspaces) {
     if (Array.isArray(packageJson.workspaces)) {
       return packageJson.workspaces;
