@@ -64,6 +64,7 @@ export const fastifyTemplate: BackendTemplate = {
     "@sinclair/typebox": "^0.32.22",
     "fastify-plugin": "^4.5.1",
     "fastify-bcrypt": "^1.0.1",
+    "bcryptjs": "^3.0.2",
     "fastify-graceful-shutdown": "^3.5.3",
     "fastify-print-routes": "^3.1.0",
     "@prisma/client": "^5.13.0",
@@ -118,8 +119,6 @@ export const fastifyTemplate: BackendTemplate = {
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
     "sourceMap": true,
     "removeComments": true,
     "noEmitOnError": true,
@@ -407,8 +406,7 @@ const rateLimitPlugin: FastifyPluginAsync = async (fastify) => {
         error: 'Too Many Requests',
         rateLimit: {
           limit: context.max,
-          remaining: context.remaining,
-          reset: new Date(context.reset).toISOString()
+          reset: new Date(Date.now() + context.ttl).toISOString()
         }
       };
     }
@@ -483,7 +481,18 @@ declare module 'fastify' {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
     authorize: (...roles: string[]) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
-  interface FastifyRequest {
+}
+
+// Type the JWT payload/user through @fastify/jwt's own extension point.
+// Re-declaring FastifyRequest.user here conflicts with @fastify/jwt's built-in
+// \`user: FastifyJWT['user']\` declaration (TS2717).
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
+    payload: {
+      id: string;
+      email: string;
+      role: string;
+    };
     user: {
       id: string;
       email: string;
@@ -533,6 +542,7 @@ export default fp(jwtPlugin, {
     'src/plugins/prisma.ts': `import fp from 'fastify-plugin';
 import { FastifyPluginAsync } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { config } from '../config/config';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -542,7 +552,7 @@ declare module 'fastify' {
 
 const prismaPlugin: FastifyPluginAsync = async (fastify) => {
   const prisma = new PrismaClient({
-    log: fastify.config.env === 'development' ? ['query', 'error', 'warn'] : ['error']
+    log: config.env === 'development' ? ['query', 'error', 'warn'] : ['error']
   });
 
   await prisma.$connect();
@@ -760,6 +770,7 @@ export type TodoQuery = typeof TodoQuerySchema;`,
     // Routes
     'src/routes/health/index.ts': `import { FastifyPluginAsync } from 'fastify';
 import { Type } from '@sinclair/typebox';
+import { config } from '../../config/config';
 
 const healthRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', {
@@ -780,7 +791,7 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      environment: fastify.config.env
+      environment: config.env
     };
   });
 
@@ -829,6 +840,11 @@ export default healthRoutes;`,
 
     'src/routes/auth/index.ts': `import { FastifyPluginAsync } from 'fastify';
 import bcrypt from 'bcryptjs';
+import { Type } from '@sinclair/typebox';
+// Side-effect import: loads @fastify/cookie's FastifyReply augmentation
+// (setCookie/clearCookie). Plugins are wired at runtime via autoload.
+import '@fastify/cookie';
+import { config } from '../../config/config';
 import {
   RegisterSchema,
   LoginSchema,
@@ -839,6 +855,30 @@ import {
 } from '../../schemas/auth.schema';
 import { generateTokens } from '../../utils/jwt';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../../services/email.service';
+
+interface RegisterBody {
+  email: string;
+  password: string;
+  name: string;
+}
+
+interface LoginBody {
+  email: string;
+  password: string;
+}
+
+interface RefreshTokenBody {
+  refreshToken: string;
+}
+
+interface ForgotPasswordBody {
+  email: string;
+}
+
+interface ResetPasswordBody {
+  token: string;
+  password: string;
+}
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   // Register
@@ -852,7 +892,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   }, async (request, reply) => {
-    const { email, password, name } = request.body;
+    const { email, password, name } = request.body as RegisterBody;
 
     // Check if user exists
     const existingUser = await fastify.prisma.user.findUnique({
@@ -915,7 +955,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   }, async (request, reply) => {
-    const { email, password } = request.body;
+    const { email, password } = request.body as LoginBody;
 
     // Find user
     const user = await fastify.prisma.user.findUnique({
@@ -952,7 +992,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     // Set refresh token as HTTP-only cookie
     reply.setCookie('refreshToken', tokens.refreshToken, {
       httpOnly: true,
-      secure: fastify.config.env === 'production',
+      secure: config.env === 'production',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
@@ -989,10 +1029,10 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   }, async (request, reply) => {
-    const { refreshToken } = request.body;
+    const { refreshToken } = request.body as RefreshTokenBody;
 
     try {
-      const decoded = fastify.jwt.verify(refreshToken) as jwt.JwtPayload;
+      const decoded = fastify.jwt.verify(refreshToken) as { id: string; email: string; role: string };
       
       // Generate new access token
       const accessToken = fastify.jwt.sign({
@@ -1051,7 +1091,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   }, async (request, reply) => {
-    const { email } = request.body;
+    const { email } = request.body as ForgotPasswordBody;
 
     const user = await fastify.prisma.user.findUnique({
       where: { email }
@@ -1102,8 +1142,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   }, async (request, reply) => {
-    const { token } = request.params;
-    const { password } = request.body;
+    const { token } = request.params as { token: string };
+    const { password } = request.body as ResetPasswordBody;
 
     const user = await fastify.prisma.user.findFirst({
       where: {
@@ -1443,9 +1483,10 @@ Dockerfile
 .dockerignore`,
 
     // README
-    'src/utils/jwt.ts': `import fastify from 'fastify';
+    'src/utils/jwt.ts': `import { FastifyInstance } from 'fastify';
 
-export function generateTokens(app: fastify.FastifyInstance, payload: Record<string, unknown>): { accessToken: string; refreshToken: string } {
+// Payload shape must match the FastifyJWT augmentation in src/plugins/jwt.ts.
+export function generateTokens(app: FastifyInstance, payload: { id: string; email: string; role: string }): { accessToken: string; refreshToken: string } {
   return {
     accessToken: app.jwt.sign(payload, { expiresIn: '15m' }),
     refreshToken: app.jwt.sign(payload, { expiresIn: '7d' }),

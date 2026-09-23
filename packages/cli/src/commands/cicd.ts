@@ -2,12 +2,13 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 import { findMonorepoRoot } from '../utils/monorepo';
+import type ora from 'ora';
 
 /**
  * Options for configuring CI/CD pipeline generation
  */
 interface CICDOptions {
-  spinner?: any;
+  spinner?: ora.Ora;
   verbose?: boolean;
   provider?: 'github' | 'gitlab' | 'jenkins' | 'circleci' | 'azure';
   template?: 'basic' | 'advanced' | 'custom';
