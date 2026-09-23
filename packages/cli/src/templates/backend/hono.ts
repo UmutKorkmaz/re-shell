@@ -50,8 +50,6 @@ export const honoTemplate: BackendTemplate = {
     "lib": ["ESNext"],
     "strict": true,
     "skipLibCheck": true,
-    "declaration": true,
-    "declarationMap": true,
     "sourceMap": true,
     "noEmit": true,
     "esModuleInterop": true,
@@ -139,8 +137,9 @@ app.route('/api/v1/auth', authRoutes);
 app.route('/api/v1/users', userRoutes);
 app.route('/api/v1/products', productRoutes);
 
-// GraphQL endpoint (GraphQL Yoga mounted at /graphql)
-app.route('/graphql', yoga);
+// GraphQL endpoint (GraphQL Yoga mounted at /graphql).
+// Yoga is not a Hono sub-app, so mount it by forwarding raw requests.
+app.all('/graphql', (c) => yoga.handle(c.req.raw));
 
 // Root endpoint
 app.get('/', (c) => {
@@ -209,17 +208,17 @@ export { config };
 `,
 
     // GraphQL Yoga instance wired into Hono
-    'src/graphql/yoga.ts': `import { createYoga } from 'graphql-yoga';
+    'src/graphql/yoga.ts': `import { createYoga, createSchema } from 'graphql-yoga';
 import { typeDefs } from './schema';
 import { resolvers } from './resolver';
 
 // Create a GraphQL Yoga instance mounted under /graphql by the Hono app.
 export const yoga = createYoga({
   graphqlEndpoint: '/graphql',
-  schema: {
+  schema: createSchema({
     typeDefs,
     resolvers,
-  },
+  }),
   graphiql: true,
 });
 `,
@@ -399,7 +398,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
   const token = authHeader.substring(7);
 
   try {
-    const payload = await verify(token, config.jwtSecret);
+    const payload = await verify(token, config.jwtSecret, 'HS256');
     c.set('userId', payload.sub as string);
     await next();
   } catch {
@@ -595,7 +594,8 @@ import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import { updateProfileSchema } from '../middleware/validation';
 import { db } from '../db';
 
-const userRoutes = new Hono();
+// Typed Variables so c.get('userId') (set by authMiddleware) resolves to string.
+const userRoutes = new Hono<{ Variables: { userId: string } }>();
 
 // Get current user
 userRoutes.get('/me', authMiddleware, (c) => {

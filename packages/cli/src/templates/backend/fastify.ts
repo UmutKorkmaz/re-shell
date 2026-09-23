@@ -121,8 +121,6 @@ export const fastifyTemplate: BackendTemplate = {
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
     "sourceMap": true,
     "removeComments": true,
     "noEmitOnError": true,
@@ -425,8 +423,7 @@ const rateLimitPlugin: FastifyPluginAsync = async (fastify) => {
         error: 'Too Many Requests',
         rateLimit: {
           limit: context.max,
-          remaining: context.remaining,
-          reset: new Date(context.reset).toISOString()
+          reset: new Date(Date.now() + context.ttl).toISOString()
         }
       };
     }
@@ -501,7 +498,18 @@ declare module 'fastify' {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
     authorize: (...roles: string[]) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
-  interface FastifyRequest {
+}
+
+// Type the JWT payload/user through @fastify/jwt's own extension point.
+// Re-declaring FastifyRequest.user here conflicts with @fastify/jwt's built-in
+// \`user: FastifyJWT['user']\` declaration (TS2717).
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
+    payload: {
+      id: string;
+      email: string;
+      role: string;
+    };
     user: {
       id: string;
       email: string;
@@ -895,6 +903,30 @@ import {
 import { generateTokens } from '../../utils/jwt';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../../services/email.service';
 
+interface RegisterBody {
+  email: string;
+  password: string;
+  name: string;
+}
+
+interface LoginBody {
+  email: string;
+  password: string;
+}
+
+interface RefreshTokenBody {
+  refreshToken: string;
+}
+
+interface ForgotPasswordBody {
+  email: string;
+}
+
+interface ResetPasswordBody {
+  token: string;
+  password: string;
+}
+
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   // Register
   fastify.post('/register', {
@@ -907,7 +939,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   }, async (request, reply) => {
-    const { email, password, name } = request.body;
+    const { email, password, name } = request.body as RegisterBody;
 
     // Check if user exists
     const existingUser = await fastify.prisma.user.findUnique({
@@ -970,7 +1002,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   }, async (request, reply) => {
-    const { email, password } = request.body;
+    const { email, password } = request.body as LoginBody;
 
     // Find user
     const user = await fastify.prisma.user.findUnique({
@@ -1044,10 +1076,10 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   }, async (request, reply) => {
-    const { refreshToken } = request.body;
+    const { refreshToken } = request.body as RefreshTokenBody;
 
     try {
-      const decoded = fastify.jwt.verify(refreshToken) as jwt.JwtPayload;
+      const decoded = fastify.jwt.verify(refreshToken) as { id: string; email: string; role: string };
       
       // Generate new access token
       const accessToken = fastify.jwt.sign({
@@ -1106,7 +1138,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   }, async (request, reply) => {
-    const { email } = request.body;
+    const { email } = request.body as ForgotPasswordBody;
 
     const user = await fastify.prisma.user.findUnique({
       where: { email }
@@ -1157,8 +1189,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   }, async (request, reply) => {
-    const { token } = request.params;
-    const { password } = request.body;
+    const { token } = request.params as { token: string };
+    const { password } = request.body as ResetPasswordBody;
 
     const user = await fastify.prisma.user.findFirst({
       where: {
@@ -1498,9 +1530,10 @@ Dockerfile
 .dockerignore`,
 
     // README
-    'src/utils/jwt.ts': `import fastify from 'fastify';
+    'src/utils/jwt.ts': `import { FastifyInstance } from 'fastify';
 
-export function generateTokens(app: fastify.FastifyInstance, payload: Record<string, unknown>): { accessToken: string; refreshToken: string } {
+// Payload shape must match the FastifyJWT augmentation in src/plugins/jwt.ts.
+export function generateTokens(app: FastifyInstance, payload: { id: string; email: string; role: string }): { accessToken: string; refreshToken: string } {
   return {
     accessToken: app.jwt.sign(payload, { expiresIn: '15m' }),
     refreshToken: app.jwt.sign(payload, { expiresIn: '7d' }),
