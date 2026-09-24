@@ -88,6 +88,7 @@ export const fastifyTemplate: BackendTemplate = {
     "@types/node": "^20.12.7",
     "@types/lodash": "^4.17.0",
     "@types/nodemailer": "^6.4.14",
+    "prisma": "^5.13.0",
     "@types/bull": "^4.10.0",
     "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^7.7.1",

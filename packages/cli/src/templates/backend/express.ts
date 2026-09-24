@@ -71,6 +71,7 @@ export const expressTemplate: BackendTemplate = {
     "@types/express": "^4.17.21",
     "@types/node": "^20.12.7",
     "@types/cors": "^2.8.17",
+    "prisma": "^5.13.0",
     "@types/compression": "^1.7.5",
     "@types/morgan": "^1.9.9",
     "@types/bcryptjs": "^2.4.6",
