@@ -61,10 +61,21 @@ for TPL in "${TEMPLATES[@]}"; do
 
   cd "$APP_DIR"
 
-  # Try to install deps (may fail for non-Node languages — that's OK)
-  if ! pnpm install --silent 2>/dev/null; then
-    echo "  ⚠ Install skipped (likely non-Node template)"
+  # Non-Node templates have no package.json in the app dir — nothing to
+  # install or typecheck. For Node templates an install failure is a real
+  # defect (malformed package.json, nonexistent dependency version, ...) and
+  # must fail the template instead of being masked as a skip.
+  if [ ! -f "package.json" ]; then
+    echo "  ⚠ No package.json — not a Node template, skipping install/typecheck"
     PASS=$((PASS + 1))
+    cd "$REPO_ROOT"
+    continue
+  fi
+
+  if ! pnpm install --silent 2>/dev/null; then
+    echo "  ✗ Install FAILED — Node template dependencies do not resolve"
+    FAIL=$((FAIL + 1))
+    FAILED_TEMPLATES+=("$TPL (install)")
     cd "$REPO_ROOT"
     continue
   fi
