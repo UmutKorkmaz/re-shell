@@ -72,6 +72,7 @@ export const nestjsTemplate: BackendTemplate = {
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "compression": "^1.7.4",
+    "sqlite3": "^5.1.7",
     "cookie-parser": "^1.4.6",
     "dotenv": "^16.4.5",
     "helmet": "^7.1.0",
@@ -92,7 +93,7 @@ export const nestjsTemplate: BackendTemplate = {
     "nodemailer": "^6.9.13",
     "handlebars": "^4.7.8",
     "amqplib": "^0.10.4",
-    "kafkajs": "^2.2.4",
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.3.2",
@@ -108,6 +109,8 @@ export const nestjsTemplate: BackendTemplate = {
     "@types/bull": "^4.10.0",
     "@types/cache-manager": "^4.0.6",
     "@types/cookie-parser": "^1.4.7",
+    "@types/compression": "^1.7.4",
+    "@types/uuid": "^9.0.8",
     "@types/nodemailer": "^6.4.14",
     "@typescript-eslint/eslint-plugin": "^7.7.1",
     "@typescript-eslint/parser": "^7.7.1",
@@ -206,21 +209,22 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import * as compression from 'compression';
-import * as cookieParser from 'cookie-parser';
+import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import { Request, Response } from 'express';
 
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
-import { winstonConfig } from './config/winston.config';
+import { nestLogger } from './config/winston.config';
 
 async function bootstrap() {
   // Create app with custom logger
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    logger: WinstonModule.createLogger(winstonConfig),
+    logger: nestLogger,
     cors: true});
 
   const configService = app.get(ConfigService);
@@ -288,7 +292,7 @@ async function bootstrap() {
   }
 
   // Health check
-  app.get('health', (req, res) => {
+  app.use('/health', (_req: Request, res: Response) => {
     res.status(200).json({
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -341,15 +345,13 @@ import { validationSchema } from './config/validation';
       ttl: 60000,
       limit: 100}]),
 
-    // Caching
+    // Caching (in-memory store by default — swap in a Redis-backed store
+    // when the app actually needs a shared cache)
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        store: redisStore as unknown as CacheStore,
-        host: configService.get('REDIS_HOST'),
-        port: configService.get('REDIS_PORT'),
         ttl: configService.get('CACHE_TTL', 300)})}),
 
     // Queue
@@ -375,8 +377,7 @@ import { validationSchema } from './config/validation';
 
     // Feature modules
     CommonModule,
-    AuthModule,
-    FileModule]})
+    AuthModule]})
 export class AppModule {}`,
 
     // Auth module
@@ -391,6 +392,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
 import { User } from '../modules/users/entities/user.entity';
+import { Todo } from '../modules/todos/entities/todo.entity';
+import { UsersService } from '../modules/users/users.service';
+import { EmailService } from '../modules/email/email.service';
 
 @Module({
   imports: [
@@ -402,9 +406,9 @@ import { User } from '../modules/users/entities/user.entity';
         secret: configService.get('JWT_SECRET'),
         signOptions: {
           expiresIn: configService.get('JWT_EXPIRES_IN', '1h')}})}),
-    TypeOrmModule.forFeature([User])],
+    TypeOrmModule.forFeature([User, Todo])],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy, RefreshTokenStrategy],
+  providers: [AuthService, LocalStrategy, JwtStrategy, RefreshTokenStrategy, UsersService, EmailService],
   exports: [AuthService]})
 export class AuthModule {}`,
 
@@ -455,7 +459,7 @@ export class AuthController {
   @ApiOperation({ summary: 'User login' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async login(@Request() req, @Body() loginDto: LoginDto) {
+  async login(@Request() req: { user: { id: string; email: string; name: string; role: string } }, @Body() loginDto: LoginDto) {
     return this.authService.login(req.user);
   }
 
@@ -466,7 +470,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiResponse({ status: 200, description: 'Token refreshed' })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
-  async refreshToken(@Request() req, @Body() refreshTokenDto: RefreshTokenDto) {
+  async refreshToken(@Request() req: { user: { sub: string; refreshToken: string } }, @Body() refreshTokenDto: RefreshTokenDto) {
     const userId = req.user.sub;
     const refreshToken = req.user.refreshToken;
     return this.authService.refreshTokens(userId, refreshToken);
@@ -696,6 +700,10 @@ export class AuthService {
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
 
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
     if (!isPasswordValid) {
       throw new BadRequestException('Current password is incorrect');
@@ -753,6 +761,252 @@ export class AuthService {
   }
 }`,
 
+    // Auth DTOs (class-validator) — used by the ValidationPipe in main.ts
+    'src/auth/dto/register.dto.ts': `import { IsEmail, IsString, MinLength, MaxLength, IsNotEmpty } from 'class-validator';
+
+export class RegisterDto {
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  email: string;
+
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters' })
+  @MaxLength(72)
+  password: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Name is required' })
+  @MinLength(2)
+  @MaxLength(100)
+  name: string;
+}`,
+
+    'src/auth/dto/login.dto.ts': `import { IsEmail, IsString, IsNotEmpty } from 'class-validator';
+
+export class LoginDto {
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  email: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Password is required' })
+  password: string;
+}`,
+
+    'src/auth/dto/refresh-token.dto.ts': `import { IsString, IsNotEmpty } from 'class-validator';
+
+export class RefreshTokenDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Refresh token is required' })
+  refreshToken: string;
+}`,
+
+    'src/auth/dto/forgot-password.dto.ts': `import { IsEmail } from 'class-validator';
+
+export class ForgotPasswordDto {
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  email: string;
+}`,
+
+    'src/auth/dto/reset-password.dto.ts': `import { IsString, MinLength, MaxLength } from 'class-validator';
+
+export class ResetPasswordDto {
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters' })
+  @MaxLength(72)
+  password: string;
+}`,
+
+    'src/auth/dto/change-password.dto.ts': `import { IsString, MinLength, MaxLength, IsNotEmpty } from 'class-validator';
+
+export class ChangePasswordDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Current password is required' })
+  currentPassword: string;
+
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters' })
+  @MaxLength(72)
+  newPassword: string;
+}`,
+
+    // Passport guards — thin AuthGuard subclasses bound to strategy names.
+    // JwtAuthGuard honors the @Public() decorator so public routes skip auth.
+    'src/auth/guards/jwt-auth.guard.ts': `import { Injectable, ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { AuthGuard } from '@nestjs/passport';
+import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
+
+@Injectable()
+export class JwtAuthGuard extends AuthGuard('jwt') {
+  constructor(private reflector: Reflector) {
+    super();
+  }
+
+  canActivate(context: ExecutionContext) {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass()]);
+    if (isPublic) {
+      return true;
+    }
+    return super.canActivate(context);
+  }
+}`,
+
+    'src/auth/guards/local-auth.guard.ts': `import { Injectable } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class LocalAuthGuard extends AuthGuard('local') {}`,
+
+    'src/auth/guards/refresh-token.guard.ts': `import { Injectable } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class RefreshTokenGuard extends AuthGuard('jwt-refresh') {}`,
+
+    // Passport strategies
+    'src/auth/strategies/jwt.strategy.ts': `import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
+
+export interface JwtPayload {
+  sub: string;
+  email: string;
+}
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) {
+  constructor(configService: ConfigService) {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: configService.get<string>('JWT_SECRET') || 'supersecret'});
+  }
+
+  async validate(payload: JwtPayload) {
+    return { userId: payload.sub, email: payload.email };
+  }
+}`,
+
+    'src/auth/strategies/local.strategy.ts': `import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy } from 'passport-local';
+import { AuthService } from '../auth.service';
+
+@Injectable()
+export class LocalStrategy extends PassportStrategy(Strategy) {
+  constructor(private authService: AuthService) {
+    super({ usernameField: 'email' });
+  }
+
+  async validate(email: string, password: string) {
+    const user = await this.authService.validateUser(email, password);
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    return user;
+  }
+}`,
+
+    'src/auth/strategies/refresh-token.strategy.ts': `import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
+
+@Injectable()
+export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
+  constructor(configService: ConfigService) {
+    super({
+      passReqToCallback: true,
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      secretOrKey: configService.get<string>('JWT_REFRESH_SECRET') || 'refreshsecret'});
+  }
+
+  async validate(req: Request, payload: { sub: string; email: string }) {
+    const refreshToken = (req.get('Authorization') || '').replace('Bearer', '').trim();
+    return { ...payload, refreshToken };
+  }
+}`,
+
+    // Users service — data access shared by AuthService (and future modules)
+    'src/modules/users/users.service.ts': `import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, QueryDeepPartialEntity } from 'typeorm';
+import { User } from './entities/user.entity';
+
+@Injectable()
+export class UsersService {
+  constructor(
+    @InjectRepository(User)
+    private userRepository: Repository<User>) {}
+
+  async findByEmail(email: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { email } });
+  }
+
+  async findById(id: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { id } });
+  }
+
+  async update(id: string, partial: QueryDeepPartialEntity<User>): Promise<User | null> {
+    await this.userRepository.update(id, partial);
+    return this.findById(id);
+  }
+}`,
+
+    // Email service — logs instead of sending when SMTP is not configured,
+    // so a fresh scaffold never blocks on an external mail server.
+    'src/modules/email/email.service.ts': `import { Injectable, Logger } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
+import { ConfigService } from '@nestjs/config';
+
+@Injectable()
+export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
+  private transporter: nodemailer.Transporter | null = null;
+
+  constructor(private configService: ConfigService) {
+    const host = this.configService.get<string>('SMTP_HOST');
+    if (host) {
+      this.transporter = nodemailer.createTransport({
+        host,
+        port: this.configService.get<number>('SMTP_PORT', 587),
+        secure: this.configService.get('SMTP_SECURE') === 'true',
+        auth: {
+          user: this.configService.get<string>('SMTP_USER'),
+          pass: this.configService.get<string>('SMTP_PASS')}});
+    } else {
+      this.logger.warn('SMTP_HOST not set — emails will be logged instead of sent');
+    }
+  }
+
+  async sendVerificationEmail(email: string, token: string): Promise<void> {
+    await this.send(
+      this.configService.get<string>('EMAIL_FROM', 'noreply@example.com'),
+      email,
+      'Verify your email address',
+      'Welcome! Verify your email with this token: ' + token);
+  }
+
+  async sendPasswordResetEmail(email: string, token: string): Promise<void> {
+    await this.send(
+      this.configService.get<string>('EMAIL_FROM', 'noreply@example.com'),
+      email,
+      'Reset your password',
+      'Reset your password with this token: ' + token);
+  }
+
+  private async send(from: string, to: string, subject: string, text: string): Promise<void> {
+    if (!this.transporter) {
+      this.logger.log('[email skipped — SMTP not configured] to=' + to + ' subject=' + subject);
+      return;
+    }
+    await this.transporter.sendMail({ from, to, subject, text });
+  }
+}`,
+
     // User entity
     'src/modules/users/entities/user.entity.ts': `import {
   Entity,
@@ -788,7 +1042,7 @@ export class User {
   password: string;
 
   @Column({
-    type: 'enum',
+    type: 'simple-enum',
     enum: UserRole,
     default: UserRole.USER})
   role: UserRole;
@@ -799,25 +1053,25 @@ export class User {
   @Column({ default: false })
   isEmailVerified: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @Exclude()
   @ApiHideProperty()
-  refreshToken?: string;
+  refreshToken?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @Exclude()
   @ApiHideProperty()
-  verificationToken?: string;
+  verificationToken?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @Exclude()
   @ApiHideProperty()
-  resetToken?: string;
+  resetToken?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   @Exclude()
   @ApiHideProperty()
-  resetTokenExpiry?: Date;
+  resetTokenExpiry?: Date | null;
 
   @Column({ nullable: true })
   avatar?: string;
@@ -877,13 +1131,13 @@ export class Todo {
   description?: string;
 
   @Column({
-    type: 'enum',
+    type: 'simple-enum',
     enum: TodoStatus,
     default: TodoStatus.PENDING})
   status: TodoStatus;
 
   @Column({
-    type: 'enum',
+    type: 'simple-enum',
     enum: TodoPriority,
     default: TodoPriority.MEDIUM})
   priority: TodoPriority;
@@ -928,43 +1182,168 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
       useClass: ThrottlerGuard}]})
 export class CommonModule {}`,
 
+    // Route decorators
+    'src/common/decorators/public.decorator.ts': `import { SetMetadata } from '@nestjs/common';
+
+export const IS_PUBLIC_KEY = 'isPublic';
+
+/**
+ * Marks a route as publicly accessible (skips the global JwtAuthGuard).
+ */
+export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);`,
+
+    'src/common/decorators/current-user.decorator.ts': `import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { Request } from 'express';
+
+/**
+ * Injects the authenticated user (or one of its fields) into a handler argument.
+ */
+export const CurrentUser = createParamDecorator(
+  (data: string | undefined, ctx: ExecutionContext) => {
+    const request = ctx.switchToHttp().getRequest<Request>();
+    const user = request.user as Record<string, unknown> | undefined;
+    return data ? user?.[data] : user;
+  });`,
+
+    // HTTP exception filter — uniform JSON error envelope
+    'src/common/filters/http-exception.filter.ts': `import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger} from '@nestjs/common';
+import { Request, Response } from 'express';
+
+@Catch(HttpException)
+export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
+  catch(exception: HttpException, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+    const status = exception.getStatus
+      ? exception.getStatus()
+      : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    this.logger.error(
+      request.method + ' ' + request.url + ' -> ' + status,
+      exception.stack);
+
+    response.status(status).json({
+      success: false,
+      statusCode: status,
+      message: exception.getResponse(),
+      timestamp: new Date().toISOString(),
+      path: request.url});
+  }
+}`,
+
+    // Response envelope + request logging interceptors
+    'src/common/interceptors/transform.interceptor.ts': `import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler} from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+}
+
+@Injectable()
+export class TransformInterceptor<T> implements NestInterceptor<T, ApiResponse<T>> {
+  intercept(_context: ExecutionContext, next: CallHandler): Observable<ApiResponse<T>> {
+    return next.handle().pipe(map((data) => ({ success: true, data })));
+  }
+}`,
+
+    'src/common/interceptors/logging.interceptor.ts': `import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+  Logger} from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
+
+@Injectable()
+export class LoggingInterceptor implements NestInterceptor {
+  private readonly logger = new Logger('HTTP');
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const http = context.switchToHttp();
+    const method = http.getRequest<{ method: string }>().method;
+    const url = http.getRequest<{ url: string }>().url;
+    const now = Date.now();
+    return next.handle().pipe(
+      tap(() => this.logger.log(method + ' ' + url + ' +' + (Date.now() - now) + 'ms')));
+  }
+}`,
+
     // Database module
     'src/database/database.module.ts': `import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { mkdirSync } from 'fs';
+import { dirname } from 'path';
 
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('DB_HOST'),
-        port: configService.get('DB_PORT'),
-        username: configService.get('DB_USERNAME'),
-        password: configService.get('DB_PASSWORD'),
-        database: configService.get('DB_DATABASE'),
-        entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-        synchronize: configService.get('NODE_ENV') === 'development',
-        logging: configService.get('NODE_ENV') === 'development',
-        migrations: [__dirname + '/migrations/*{.ts,.js}'],
-        migrationsTableName: 'migrations',
-        ssl: configService.get('DB_SSL') === 'true' ? {
-          rejectUnauthorized: false} : false})})]})
+      useFactory: (configService: ConfigService) => {
+        const isDev = configService.get('NODE_ENV') === 'development';
+
+        // sqlite by default so a fresh scaffold boots with no external
+        // database server; set DB_CLIENT=postgres for the full server fields.
+        // Entities are discovered from TypeOrmModule.forFeature() calls
+        // (autoLoadEntities) instead of a runtime __dirname glob, which does
+        // not survive bundlers such as the Nest CLI's webpack mode.
+        if (configService.get('DB_CLIENT', 'sqlite') !== 'postgres') {
+          const database = configService.get<string>('DB_DATABASE', './data/app.db');
+          mkdirSync(dirname(database), { recursive: true });
+          return {
+            type: 'sqlite' as const,
+            database,
+            autoLoadEntities: true,
+            synchronize: isDev,
+            logging: isDev};
+        }
+
+        return {
+          type: 'postgres' as const,
+          host: configService.get<string>('DB_HOST'),
+          port: configService.get<number>('DB_PORT'),
+          username: configService.get<string>('DB_USERNAME'),
+          password: configService.get<string>('DB_PASSWORD'),
+          database: configService.get<string>('DB_DATABASE'),
+          autoLoadEntities: true,
+          synchronize: isDev,
+          logging: isDev,
+          ssl: configService.get('DB_SSL') === 'true' ? {
+            rejectUnauthorized: false} : false};
+      }})]})
 export class DatabaseModule {}`,
 
     // Configuration
     'src/config/configuration.ts': `export default () => ({
-  port: parseInt(process.env.PORT, 10) || 3000,
+  port: parseInt(process.env.PORT || '3000', 10) || 3000,
   environment: process.env.NODE_ENV || 'development',
-  
+
+  // sqlite by default so a fresh scaffold boots with no external database —
+  // set DB_CLIENT=postgres to use the Postgres fields below.
   database: {
+    client: process.env.DB_CLIENT || 'sqlite',
     host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT, 10) || 5432,
+    port: parseInt(process.env.DB_PORT || '5432', 10) || 5432,
     username: process.env.DB_USERNAME || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_DATABASE || '{{projectName}}',
+    database: process.env.DB_DATABASE || './data/app.db',
     ssl: process.env.DB_SSL === 'true'},
   
   jwt: {
@@ -975,12 +1354,12 @@ export class DatabaseModule {}`,
   
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT, 10) || 6379,
+    port: parseInt(process.env.REDIS_PORT || '6379', 10) || 6379,
     password: process.env.REDIS_PASSWORD},
   
   email: {
     host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    port: parseInt(process.env.SMTP_PORT || '587', 10) || 587,
     secure: process.env.SMTP_SECURE === 'true',
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -990,27 +1369,91 @@ export class DatabaseModule {}`,
     origins: process.env.CORS_ORIGINS || 'http://localhost:3000'},
   
   throttle: {
-    ttl: parseInt(process.env.THROTTLE_TTL, 10) || 60,
-    limit: parseInt(process.env.THROTTLE_LIMIT, 10) || 100},
+    ttl: parseInt(process.env.THROTTLE_TTL || '60', 10) || 60,
+    limit: parseInt(process.env.THROTTLE_LIMIT || '100', 10) || 100},
   
   cache: {
-    ttl: parseInt(process.env.CACHE_TTL, 10) || 300},
+    ttl: parseInt(process.env.CACHE_TTL || '300', 10) || 300},
   
   upload: {
-    maxFileSize: parseInt(process.env.MAX_FILE_SIZE, 10) || 10 * 1024 * 1024,
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || String(10 * 1024 * 1024), 10) || 10 * 1024 * 1024,
     uploadDir: process.env.UPLOAD_DIR || './uploads'}});`,
+
+    // Winston logger + Nest LoggerService adapter (used as the app logger
+    // in main.ts — no extra winston/Nest bridge package required).
+    'src/config/winston.config.ts': `import * as winston from 'winston';
+import { LoggerService } from '@nestjs/common';
+
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.printf((info) => {
+      const { timestamp, level, message, stack } = info as {
+        timestamp: string;
+        level: string;
+        message: string;
+        stack?: string;
+      };
+      return timestamp + ' [' + level + '] ' + (stack || message);
+    })),
+  transports: [new winston.transports.Console()]});
+
+export class WinstonNestLogger implements LoggerService {
+  log(message: unknown, context?: string) {
+    logger.info(String(message), { context });
+  }
+
+  error(message: unknown, trace?: string, context?: string) {
+    logger.error(String(message), { trace, context });
+  }
+
+  warn(message: unknown, context?: string) {
+    logger.warn(String(message), { context });
+  }
+
+  debug(message: unknown, context?: string) {
+    logger.debug(String(message), { context });
+  }
+
+  verbose(message: unknown, context?: string) {
+    logger.info(String(message), { context });
+  }
+}
+
+export const nestLogger = new WinstonNestLogger();`,
+
+    // Joi schema used by ConfigModule.forRoot({ validationSchema })
+    'src/config/validation.ts': `import * as Joi from 'joi';
+
+export const validationSchema = Joi.object({
+  NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
+  PORT: Joi.number().default(3000),
+  DB_CLIENT: Joi.string().valid('sqlite', 'postgres').default('sqlite'),
+  DB_HOST: Joi.string().default('localhost'),
+  DB_PORT: Joi.number().default(5432),
+  DB_USERNAME: Joi.string().default('postgres'),
+  DB_PASSWORD: Joi.string().default('postgres'),
+  DB_DATABASE: Joi.string().default('./data/app.db'),
+  JWT_SECRET: Joi.string().default('supersecret'),
+  JWT_EXPIRES_IN: Joi.string().default('1h'),
+  JWT_REFRESH_SECRET: Joi.string().default('refreshsecret'),
+  JWT_REFRESH_EXPIRES_IN: Joi.string().default('7d')});`,
 
     // Environment variables
     '.env.example': `# Application
 NODE_ENV=development
 PORT=3000
 
-# Database
+# Database — sqlite by default (no external server needed to boot);
+# set DB_CLIENT=postgres and fill the fields below to use Postgres.
+DB_CLIENT=sqlite
 DB_HOST=localhost
 DB_PORT=5432
 DB_USERNAME=postgres
 DB_PASSWORD=postgres
-DB_DATABASE={{projectName}}
+DB_DATABASE=./data/app.db
 DB_SSL=false
 
 # JWT
