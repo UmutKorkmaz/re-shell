@@ -221,12 +221,25 @@ describe('addMicrofrontend', () => {
     expect(vite).toContain('8080');
   });
 
-  it('references the generated scope peer dependency inside a project', async () => {
+  it('does not declare the unpublished core package as a peer dependency', async () => {
     stageProject();
     await addMicrofrontend('peer', { template: 'react', route: '/peer' });
 
     const pkg = readJson(path.join(TMP, 'apps', 'peer', 'package.json'));
-    expect(pkg.peerDependencies).toEqual({ '@re-shell/core': '^0.1.0' });
+    // `@re-shell/core` is not published to npm; npm >= 7 and pnpm >= 8
+    // auto-install peerDependencies, so declaring it made the scaffold
+    // uninstallable (registry 404). The entry imports the local
+    // `./eventBus` module instead.
+    expect(pkg.peerDependencies).toBeUndefined();
+    expect(JSON.stringify(pkg)).not.toContain('@re-shell/core');
+    expect(pkg.main).toBe('dist/mf.umd.js');
+
+    const entry = fsReal.readFileSync(
+      path.join(TMP, 'apps', 'peer', 'src', 'index.jsx'),
+      'utf8'
+    );
+    expect(entry).toContain("from './eventBus'");
+    expect(fsReal.existsSync(path.join(TMP, 'apps', 'peer', 'src', 'eventBus.js'))).toBe(true);
   });
 
   it('writes the README, .gitignore, public/index.html and src entry files', async () => {
