@@ -73,8 +73,14 @@ function stageMonorepoRoot(): void {
 }
 
 describe('create — command', () => {
+  /** Marker the source reads to detect prompt injection (as `prompts.inject` would set). */
+  function injectPrompts(): void {
+    (promptsMock as unknown as { _injected?: unknown[] })._injected = [{}];
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
+    (promptsMock as unknown as { _injected?: unknown[] })._injected = undefined;
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'reshell-create-'));
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(process, 'cwd').mockReturnValue(tempRoot);
@@ -422,6 +428,7 @@ describe('create — command', () => {
 
   describe('microfrontend interactive flow', () => {
     it('runs the wizard with one remote and scaffolds shell + remote', async () => {
+      injectPrompts();
       // shellFramework, useSharedDeps, then remote loop:
       // framework, remoteName, route, hasExposed, exposePath, addMore, confirm
       promptsMock
@@ -448,6 +455,7 @@ describe('create — command', () => {
     });
 
     it('creates a remote with no exposed modules when hasExposed is declined', async () => {
+      injectPrompts();
       promptsMock
         .mockResolvedValueOnce({ shellFramework: 'react-ts' })
         .mockResolvedValueOnce({ useSharedDeps: ['react'] })
@@ -469,6 +477,23 @@ describe('create — command', () => {
       expect(
         fs.existsSync(path.join(tempRoot, 'ghost-app', 'shell', 'package.json'))
       ).toBe(true);
+    });
+
+    it('scaffolds a shell-only project without prompting when non-interactive', async () => {
+      // No injection + no TTY (vitest worker) → non-interactive defaults.
+      // Previously every prompt was awaited unconditionally, and a select
+      // prompt on EOF stdin blocks forever — `create --microfrontend --yes`
+      // hung headless instead of scaffolding.
+      await createProject('mf-auto', { microfrontend: true, yes: true });
+
+      expect(promptsMock).not.toHaveBeenCalled();
+      const projectPath = path.join(tempRoot, 'mf-auto');
+      expect(
+        fs.existsSync(path.join(projectPath, 'shell', 'package.json'))
+      ).toBe(true);
+      expect(fs.existsSync(path.join(projectPath, 'remotes'))).toBe(false);
+      expect(output()).toContain('Non-interactive mode: creating shell only');
+      expect(output()).toContain('re-shell add');
     });
   });
 });

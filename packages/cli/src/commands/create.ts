@@ -579,8 +579,24 @@ async function createMicrofrontendProject(
   // Stop spinner for interactive prompts
   if (spinner) spinner.stop();
 
+  // Non-interactive mode (--yes, or stdin is not a TTY such as CI/piped and
+  // prompts are not injected by a test harness): use documented defaults so
+  // `create --microfrontend` never hangs headless (a select prompt on EOF
+  // stdin blocks forever). Defaults: react-ts shell (the CLI default
+  // template), React/ReactDOM shared, no remotes — add them later with
+  // `re-shell add <name>`.
+  const injected = Boolean((prompts as unknown as { _injected?: unknown[] })._injected?.length);
+  const nonInteractive = options.yes === true || (!process.stdin.isTTY && !injected);
+
+  let shellFramework: string | undefined;
+  let useSharedDeps: string[] = [];
+
+  if (nonInteractive) {
+    shellFramework = options.framework || 'react-ts';
+    useSharedDeps = ['react', 'react-dom'];
+  } else {
   // Step 1: Select shell framework
-  const { shellFramework } = await prompts({
+  const shellResponse = await prompts({
     type: 'select',
     name: 'shellFramework',
     message: 'Select shell application framework:',
@@ -594,9 +610,10 @@ async function createMicrofrontendProject(
     ],
     initial: 1, // Default to react-ts
   });
+  shellFramework = shellResponse.shellFramework;
 
   // Step 2: Select shared dependencies
-  const { useSharedDeps } = await prompts({
+  const sharedResponse = await prompts({
     type: 'multiselect',
     name: 'useSharedDeps',
     message: 'Select shared dependencies (will be single instance):',
@@ -616,13 +633,18 @@ async function createMicrofrontendProject(
     ],
     min: 1,
   });
+  useSharedDeps = sharedResponse.useSharedDeps ?? [];
+  }
 
-  // Step 3: Add remote microfrontends
+  // Step 3: Add remote microfrontends (interactive only — the non-interactive
+  // default is a shell-only project)
   const remotes: MicrofrontendRemote[] = [];
-  let addingRemotes = true;
+  let addingRemotes = !nonInteractive;
   const portBase = 3001;
 
-  console.log(chalk.blue('\n📦 Add remote microfrontends:\n'));
+  if (!nonInteractive) {
+    console.log(chalk.blue('\n📦 Add remote microfrontends:\n'));
+  }
 
   while (addingRemotes) {
     // Select framework for remote
@@ -709,7 +731,13 @@ async function createMicrofrontendProject(
   }
 
   if (remotes.length === 0) {
-    console.log(chalk.yellow('\nNo remotes added. Creating shell only...\n'));
+    console.log(
+      chalk.yellow(
+        nonInteractive
+          ? '\nNon-interactive mode: creating shell only. Add remotes later with `re-shell add <name>`.\n'
+          : '\nNo remotes added. Creating shell only...\n'
+      )
+    );
   }
 
   // Show summary
@@ -726,14 +754,16 @@ async function createMicrofrontendProject(
   }
   console.log(chalk.gray('─'.repeat(50)));
 
-  const { confirm } = await prompts({
-    type: 'confirm',
-    name: 'confirm',
-    message: '\nCreate this microfrontend project?',
-    initial: true,
-  });
+  const confirmed = nonInteractive
+    ? true
+    : (await prompts({
+        type: 'confirm',
+        name: 'confirm',
+        message: '\nCreate this microfrontend project?',
+        initial: true,
+      })).confirm;
 
-  if (!confirm) {
+  if (!confirmed) {
     console.log(chalk.yellow('\nProject creation cancelled.\n'));
     return;
   }
