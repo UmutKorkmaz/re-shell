@@ -3320,6 +3320,76 @@ For more information, see the [Re-Shell documentation](https://github.com/your-o
   // (createBackendTemplate, the same one `createWorkspace` and the dry-run use)
   // is reused here so a top-level `create` produces a runnable app, not an
   // empty shell.
+  //
+  // Minimal frontend shell writer, shared by the fullstack path (below) and
+  // the frontend-only path (after it): a runnable react-ts vite app under
+  // apps/<name>. `withApiProxy` adds the /api → :3000 dev proxy, which only
+  // makes sense when a backend was actually scaffolded.
+  const scaffoldFrontendShell = (withApiProxy: boolean): void => {
+    const frontendAppPath = path.join(projectPath, 'apps', normalizedName);
+    fs.mkdirSync(path.join(frontendAppPath, 'src'), { recursive: true });
+    fs.writeFileSync(
+      path.join(frontendAppPath, 'package.json'),
+      JSON.stringify(
+        {
+          name: normalizedName,
+          version: '0.1.0',
+          private: true,
+          type: 'module',
+          scripts: {
+            dev: 'vite',
+            build: 'tsc && vite build',
+            preview: 'vite preview',
+          },
+          dependencies: { react: '^18.2.0', 'react-dom': '^18.2.0' },
+          devDependencies: {
+            '@types/react': '^18.2.0',
+            '@types/react-dom': '^18.2.0',
+            '@vitejs/plugin-react': '^4.2.0',
+            typescript: '^5.3.0',
+            vite: '^5.0.0',
+          },
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(frontendAppPath, 'index.html'),
+      `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>${name}</title>\n  </head>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`
+    );
+    fs.writeFileSync(
+      path.join(frontendAppPath, 'vite.config.ts'),
+      `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()], server: {${withApiProxy ? " proxy: { '/api': 'http://localhost:3000' } " : ''}} });\n`
+    );
+    fs.writeFileSync(
+      path.join(frontendAppPath, 'tsconfig.json'),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            target: 'ES2020',
+            module: 'ESNext',
+            moduleResolution: 'bundler',
+            jsx: 'react-jsx',
+            strict: true,
+            esModuleInterop: true,
+            skipLibCheck: true,
+          },
+          include: ['src'],
+        },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(
+      path.join(frontendAppPath, 'src', 'main.tsx'),
+      `import React from 'react';\nimport { createRoot } from 'react-dom/client';\n\nfunction App() {\n  return (\n    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>\n      <h1>${name}</h1>\n      <p>${withApiProxy ? 'Re-Shell fullstack app. The API runs at <code>/api</code>.' : 'Re-Shell frontend app.'}</p>\n    </main>\n  );\n}\n\ncreateRoot(document.getElementById('root')!).render(<App />);\n`
+    );
+    console.log(
+      chalk.green(`  ✓ Scaffolded frontend shell (react-ts) → apps/${normalizedName}`)
+    );
+  };
+
   const requestedBackend = options.backend;
   if (requestedBackend) {
     const backendTemplate = getBackendTemplate(requestedBackend);
@@ -3383,72 +3453,17 @@ For more information, see the [Re-Shell documentation](https://github.com/your-o
       // For a fullstack project, also scaffold a minimal frontend shell so
       // `pnpm dev` runs both the API and the web app.
       if (isFullStackApp && options.framework) {
-        const frontendAppPath = path.join(projectPath, 'apps', normalizedName);
-        fs.mkdirSync(path.join(frontendAppPath, 'src'), { recursive: true });
-        fs.writeFileSync(
-          path.join(frontendAppPath, 'package.json'),
-          JSON.stringify(
-            {
-              name: normalizedName,
-              version: '0.1.0',
-              private: true,
-              type: 'module',
-              scripts: {
-                dev: 'vite',
-                build: 'tsc && vite build',
-                preview: 'vite preview',
-              },
-              dependencies: { react: '^18.2.0', 'react-dom': '^18.2.0' },
-              devDependencies: {
-                '@types/react': '^18.2.0',
-                '@types/react-dom': '^18.2.0',
-                '@vitejs/plugin-react': '^4.2.0',
-                typescript: '^5.3.0',
-                vite: '^5.0.0',
-              },
-            },
-            null,
-            2
-          )
-        );
-        fs.writeFileSync(
-          path.join(frontendAppPath, 'index.html'),
-          `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>${name}</title>\n  </head>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`
-        );
-        fs.writeFileSync(
-          path.join(frontendAppPath, 'vite.config.ts'),
-          `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()], server: { proxy: { '/api': 'http://localhost:3000' } } });\n`
-        );
-        fs.writeFileSync(
-          path.join(frontendAppPath, 'tsconfig.json'),
-          JSON.stringify(
-            {
-              compilerOptions: {
-                target: 'ES2020',
-                module: 'ESNext',
-                moduleResolution: 'bundler',
-                jsx: 'react-jsx',
-                strict: true,
-                esModuleInterop: true,
-                skipLibCheck: true,
-              },
-              include: ['src'],
-            },
-            null,
-            2
-          )
-        );
-        fs.writeFileSync(
-          path.join(frontendAppPath, 'src', 'main.tsx'),
-          `import React from 'react';\nimport { createRoot } from 'react-dom/client';\n\nfunction App() {\n  return (\n    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>\n      <h1>${name}</h1>\n      <p>Re-Shell fullstack app. The API runs at <code>/api</code>.</p>\n    </main>\n  );\n}\n\ncreateRoot(document.getElementById('root')!).render(<App />);\n`
-        );
-        console.log(
-          chalk.green(
-            `  ✓ Scaffolded ${options.framework} frontend shell → apps/${normalizedName}`
-          )
-        );
+        scaffoldFrontendShell(true);
       }
     }
+  }
+
+  // Frontend-only project (no --backend): resolve the framework the same way
+  // the dry-run does and scaffold the frontend shell. Previously this path
+  // resolved a framework but never wrote an app, leaving apps/ empty while
+  // still printing success and `pnpm run dev` next steps.
+  if (!requestedBackend && (options.framework || options.frontend || finalOptions.template)) {
+    scaffoldFrontendShell(false);
   }
 
   console.log(

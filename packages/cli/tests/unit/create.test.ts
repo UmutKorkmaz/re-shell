@@ -172,6 +172,26 @@ describe('create — command', () => {
       expect(output()).toContain('created successfully');
     });
 
+    it('scaffolds a frontend shell app for a frontend-only project', async () => {
+      await createProject('fe-only', { yes: true, framework: 'react-ts' });
+
+      // Previously the frontend-only path resolved the framework but never
+      // wrote an app: apps/ stayed empty while success + `pnpm run dev`
+      // next steps were printed.
+      const appPath = path.join(tempRoot, 'fe-only', 'apps', 'fe-only');
+      const pkg = fs.readJsonSync(path.join(appPath, 'package.json'));
+      expect(pkg.name).toBe('fe-only');
+      expect(pkg.dependencies).toHaveProperty('react');
+      expect(pkg.scripts.dev).toBe('vite');
+      expect(fs.existsSync(path.join(appPath, 'src', 'main.tsx'))).toBe(true);
+      expect(fs.existsSync(path.join(appPath, 'index.html'))).toBe(true);
+      expect(fs.existsSync(path.join(appPath, 'tsconfig.json'))).toBe(true);
+      // No backend was requested → the vite config has no /api dev proxy.
+      const vite = fs.readFileSync(path.join(appPath, 'vite.config.ts'), 'utf8');
+      expect(vite).not.toContain('proxy');
+      expect(output()).toContain('Scaffolded frontend shell');
+    });
+
     it('writes pnpm-workspace.yaml only for pnpm', async () => {
       await createProject('pnpm-mono', {
         yes: true,
