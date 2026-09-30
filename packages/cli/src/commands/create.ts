@@ -1040,14 +1040,41 @@ function createMfShellTemplate(
  * @param config - Microfrontend project configuration.
  */
 async function generateShellRouting(shellPath: string, config: MicrofrontendConfig): Promise<void> {
-  const { shellFramework} = config;
+  const { shellFramework } = config;
 
   if (shellFramework.includes('react')) {
+    // Previously written to src/src/Routing.tsx (a doubled path segment) and
+    // never imported by anything — the shell could not route to remotes.
+    // Write it at src/Routing.tsx and wire it into the App component.
+    const appExt = shellFramework.includes('ts') ? 'tsx' : 'jsx';
     const routingContent = generateReactRouting(config);
-    await fs.outputFile(path.join(shellPath, 'src/src/Routing.tsx'), routingContent);
+    await fs.outputFile(path.join(shellPath, `src/Routing.${appExt}`), routingContent);
+    const routingImport = `./Routing`;
+    const { name } = config;
+    await fs.outputFile(
+      path.join(shellPath, `src/App.${appExt}`),
+      `import React from 'react';
+import AppRouting from '${routingImport}';
+import './App.css';
+
+/**
+ * ${name} shell application. Routes between the home view and the remote
+ * microfrontends configured in Routing.${appExt}.
+ */
+function App() {
+  return (
+    <div className="app">
+      <AppRouting />
+    </div>
+  );
+}
+
+export default App;
+`
+    );
   } else if (shellFramework.includes('vue')) {
     const routingContent = generateVueRouting(config);
-    await fs.outputFile(path.join(shellPath, 'src/src/router/index.ts'), routingContent);
+    await fs.outputFile(path.join(shellPath, 'src/router/index.ts'), routingContent);
   }
 }
 
@@ -1058,7 +1085,10 @@ async function generateShellRouting(shellPath: string, config: MicrofrontendConf
  * @returns JSX/TSX routing source code as a string.
  */
 function generateReactRouting(config: MicrofrontendConfig): string {
-  const { remotes } = config;
+  const { remotes, shellFramework } = config;
+  // Remote modules are resolved at runtime by Module Federation; no type
+  // declarations exist for them, so the strict TS build needs a suppression.
+  const tsIgnore = shellFramework.includes('ts') ? '// @ts-ignore -- remote module resolved at runtime by Module Federation\n' : '';
 
   return `import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -1068,7 +1098,7 @@ const LoadingFallback = () => <div>Loading...</div>;
 // Dynamic imports for remote microfrontends
 ${remotes.map((r) => {
   const componentPascal = toPascalCase(r.name);
-  return `const ${componentPascal} = lazy(() =>
+  return `${tsIgnore}const ${componentPascal} = lazy(() =>
   import('${r.name}/${Object.keys(r.exposes)[0] || 'App'}')
 );`;
 }).join('\n')}
@@ -3702,40 +3732,60 @@ class ReactModuleFederationShellTemplate extends ReactModuleFederationTemplate {
 
   private generateShellWebpackConfig(): string {
     const remotesConfig = this.remotes
-      .map((r) => `      ${r.name}: '${r.name}@http://localhost:${r.port}/remoteEntry.js',`)
+      .map((r) => `        ${r.name}: '${r.name}@http://localhost:${r.port}/remoteEntry.js',`)
       .join('\n');
 
     const sharedConfig = this.sharedDeps
       .map((d) => `        '${d}': { singleton: true, requiredVersion: deps['${d}'] },`)
       .join('\n');
 
-    return `const deps = require('./package.json').dependencies;
+    // Mirrors the base template's loader/plugin setup (babel-loader with the
+    // TypeScript preset — ts-loader is NOT a declared dependency — plus
+    // HtmlWebpackPlugin, which the dev server needs to serve an index.html)
+    // and swaps in the shell's Module Federation wiring.
+    return `const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { ModuleFederationPlugin } = require('webpack').container;
+const deps = require('./package.json').dependencies;
 
 module.exports = {
   entry: './src/index',
-  mode: 'development',
-  devServer: {
-    port: 3000,
-    hot: true,
+
+  output: {
+    publicPath: 'http://localhost:3000/',
+    clean: true
   },
+
   resolve: {
-    extensions: ['.tsx', '.ts', '.jsx', '.js'],
+    extensions: ['.tsx', '.ts', '.jsx', '.js', '.json']
   },
+
   module: {
     rules: [
       {
-        test: /\\.tsx?$/,
-        use: 'ts-loader',
+        test: /\\.m?[jt]sx?$/,
         exclude: /node_modules/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: [
+              '@babel/preset-react',
+              '@babel/preset-typescript'
+            ],
+            plugins: ['@docusaurus/react-loadable/babel']
+          }
+        }
       },
       {
-        test: /\\.jsx?$/,
-        use: 'babel-loader',
-        exclude: /node_modules/,
+        test: /\\.css$/,
+        use: ['style-loader', 'css-loader']
       },
-    ],
+      {
+        test: /\\.(png|jpg|jpeg|gif|svg)$/i,
+        type: 'asset/resource'
+      }
+    ]
   },
+
   plugins: [
     new ModuleFederationPlugin({
       name: 'shell',
@@ -3744,9 +3794,23 @@ ${remotesConfig}
       },
       shared: {
 ${sharedConfig}
-      },
+      }
     }),
+
+    new HtmlWebpackPlugin({
+      template: './public/index.html',
+      filename: 'index.html'
+    })
   ],
+
+  devServer: {
+    port: 3000,
+    historyApiFallback: true,
+    hot: true,
+    headers: {
+      'Access-Control-Allow-Origin': '*'
+    }
+  }
 };
 `;
   }

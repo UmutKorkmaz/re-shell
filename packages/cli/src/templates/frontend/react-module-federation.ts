@@ -162,6 +162,9 @@ export class ReactModuleFederationTemplate extends BaseTemplate {
         'typescript': '^5.3.0',
         'webpack': '^5.89.0',
         'webpack-cli': '^5.1.0',
+        // `webpack serve` (the start script) requires webpack-dev-server,
+        // which is not bundled with webpack-cli.
+        'webpack-dev-server': '^4.15.2',
         '@docusaurus/react-loadable': '^5.5.2'
       }
     };
@@ -347,6 +350,13 @@ module.exports = {
   }
 
   private generateAppComponent() {
+    const { hasTypeScript } = this.context;
+    const handlerTypes = hasTypeScript
+      ? `(event: CustomEvent<{ type: string; value: number }>)`
+      : '(event)';
+    // The cast keeps the strict TS build happy; plain JS omits it.
+    const listenerCast = hasTypeScript ? ' as EventListener' : '';
+
     return `import React, { useState, useEffect, Suspense, lazy } from 'react';
 import Counter from './components/Counter';
 import './App.css';
@@ -358,16 +368,16 @@ function App() {
 
   useEffect(() => {
     // Listen for events from other microfrontends
-    const handleCounterUpdate = (event) => {
+    const handleCounterUpdate = ${handlerTypes} => {
       if (event.detail.type === 'COUNTER_UPDATE') {
         setMessage(\`Received from microfrontend: \${event.detail.value}\`);
         setCount(event.detail.value);
       }
     };
 
-    window.addEventListener('counter-update', handleCounterUpdate);
+    window.addEventListener('counter-update', handleCounterUpdate${listenerCast});
     return () => {
-      window.removeEventListener('counter-update', handleCounterUpdate);
+      window.removeEventListener('counter-update', handleCounterUpdate${listenerCast});
     };
   }, []);
 
@@ -459,13 +469,33 @@ export default App;
   }
 
   private generateBootstrap() {
+    const { hasTypeScript } = this.context;
+    // `module.hot` only exists on the webpack runtime; type it narrowly for
+    // TS (strict tsconfig) and keep plain JS for the non-TS variant.
+    const hotReload = hasTypeScript
+      ? `// Enable hot module replacement
+const hot = (module as { hot?: { accept: () => void } }).hot;
+if (hot) {
+  hot.accept();
+}
+`
+      : `// Enable hot module replacement
+if (module.hot) {
+  module.hot.accept();
+}
+`;
+
     return `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
 // Bootstrap the application
 // This file handles the async boundary required by Module Federation
-const root = ReactDOM.createRoot(document.getElementById('root'));
+const container = document.getElementById('root');
+if (!container) {
+  throw new Error('Root element #root not found');
+}
+const root = ReactDOM.createRoot(container);
 
 root.render(
   <React.StrictMode>
@@ -473,28 +503,28 @@ root.render(
   </React.StrictMode>
 );
 
-// Enable hot module replacement
-if (module.hot) {
-  module.hot.accept();
-}
-`;
+${hotReload}`;
   }
 
   private generateRemoteComponent() {
+    const { hasTypeScript } = this.context;
+    const propsType = hasTypeScript ? ': RemoteComponentProps' : '';
+    const typeImport = hasTypeScript ? `import type { RemoteComponentProps } from '../types';\n` : '';
+
     return `import React from 'react';
 import { lazy, Suspense } from 'react';
 import Counter from './Counter';
-
+${typeImport}
 // Example component that can be loaded as a remote
-function RemoteComponent({ onIncrement, onDecrement }) {
+function RemoteComponent({ onIncrement, onDecrement }${propsType}) {
   return (
     <div className="remote-container">
       <h3>📦 Remote Component</h3>
       <p>This component can be consumed by other microfrontends</p>
       <Counter
         count={0}
-        onIncrement={onIncrement}
-        onDecrement={onDecrement}
+        onIncrement={onIncrement ?? (() => {})}
+        onDecrement={onDecrement ?? (() => {})}
       />
     </div>
   );
@@ -505,9 +535,12 @@ export default RemoteComponent;
   }
 
   private generateCounterComponent() {
-    return `import React from 'react';
+    const { hasTypeScript } = this.context;
+    const propsType = hasTypeScript ? ': CounterProps' : '';
+    const typeImport = hasTypeScript ? `import type { CounterProps } from '../types';\n\n` : '';
 
-function Counter({ count = 0, onIncrement, onDecrement }) {
+    return `import React from 'react';
+${typeImport}function Counter({ count = 0, onIncrement, onDecrement }${propsType}) {
   return (
     <div className="counter-wrapper">
       <div className="counter-display">
@@ -530,37 +563,58 @@ export default Counter;
   }
 
   private generateApiUtils() {
-    return `// API utilities for microfrontend communication
+    const { hasTypeScript } = this.context;
+    const tsPrelude = hasTypeScript
+      ? `// API utilities for microfrontend communication
 
-export const emitCounterUpdate = (value) => {
+// Module Federation webpack runtime globals (injected at bundle build time)
+interface RemoteContainer {
+  init: (shareScope: unknown) => Promise<void>;
+  get: (module: string) => Promise<() => unknown>;
+}
+
+declare const __webpack_init_sharing__: (scope: string) => Promise<void>;
+declare const __webpack_share_scopes__: { default: unknown };
+`
+      : `// API utilities for microfrontend communication
+`;
+    const typedParams = hasTypeScript;
+
+    return `${tsPrelude}
+export const emitCounterUpdate = (value${typedParams ? ': number' : ''}) => {
   window.dispatchEvent(new CustomEvent('counter-update', {
     detail: { type: 'COUNTER_UPDATE', value }
   }));
 };
 
-export const subscribeToCounterUpdates = (callback) => {
-  const handler = (event) => {
+export const subscribeToCounterUpdates = (callback${typedParams ? ': (value: number) => void' : ''}) => {
+  const handler = (event${typedParams ? ': CustomEvent<{ type: string; value: number }>' : ''}) => {
     if (event.detail.type === 'COUNTER_UPDATE') {
       callback(event.detail.value);
     }
   };
 
-  window.addEventListener('counter-update', handler);
+  window.addEventListener('counter-update', handler${typedParams ? ' as EventListener' : ''});
 
   // Return unsubscribe function
   return () => {
-    window.removeEventListener('counter-update', handler);
+    window.removeEventListener('counter-update', handler${typedParams ? ' as EventListener' : ''});
   };
 };
 
-export const fetchRemoteComponent = async (url, scope, module) => {
+export const fetchRemoteComponent = async (url${typedParams ? ': string' : ''}, scope${typedParams ? ': string' : ''}, module${typedParams ? ': string' : ''})${typedParams ? ': Promise<unknown>' : ''} => {
   // Dynamically load a remote component
   await __webpack_init_sharing__('default');
-  const container = window[url];
+  const containers${typedParams ? ' = window as unknown as Record<string, RemoteContainer | undefined>' : ''};
+  let container${typedParams ? ': RemoteContainer | undefined' : ''} = ${typedParams ? 'containers[url]' : 'window[url]'};
 
-  // Initialize container if not already initialized
+  // Load the remote entry if the container is not on the window yet
   if (!container) {
     await loadScript(\`http://\${url}/remoteEntry.js\`);
+    container = ${typedParams ? 'containers[url]' : 'window[url]'};
+    if (!container) {
+      throw new Error(\`Remote container "\${url}" did not register after loading remoteEntry.js\`);
+    }
   }
 
   // Load module from container
@@ -571,7 +625,7 @@ export const fetchRemoteComponent = async (url, scope, module) => {
   return Module;
 };
 
-function loadScript(url) {
+function loadScript(url${typedParams ? ': string' : ''}) {
   return new Promise((resolve, reject) => {
     const element = document.createElement('script');
     element.src = url;

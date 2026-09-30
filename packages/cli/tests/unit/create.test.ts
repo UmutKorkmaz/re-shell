@@ -445,6 +445,27 @@ describe('create — command', () => {
       expect(
         fs.existsSync(path.join(projectPath, 'remotes', 'catalog', 'package.json'))
       ).toBe(true);
+
+      // Shell routing: written at src/Routing.tsx (previously a doubled
+      // src/src/ path) and wired into the App component so remotes actually
+      // render at their routes.
+      const shellSrc = path.join(projectPath, 'shell', 'src');
+      const routing = fs.readFileSync(path.join(shellSrc, 'Routing.tsx'), 'utf8');
+      expect(routing).toContain("import('catalog/");
+      expect(fs.existsSync(path.join(shellSrc, 'src'))).toBe(false);
+      const app = fs.readFileSync(path.join(shellSrc, 'App.tsx'), 'utf8');
+      expect(app).toContain("from './Routing'");
+      // Remote modules are runtime-resolved by Module Federation; the strict
+      // TS build needs the suppression comment on the lazy import.
+      expect(routing).toContain('@ts-ignore');
+      // The shell webpack config must not reference ts-loader (not a declared
+      // dependency — it broke the production build).
+      const webpack = fs.readFileSync(
+        path.join(projectPath, 'shell', 'webpack.config.js'),
+        'utf8'
+      );
+      expect(webpack).not.toContain('ts-loader');
+      expect(webpack).toContain('html-webpack-plugin');
     });
 
     it('creates a remote with no exposed modules when hasExposed is declined', async () => {
