@@ -606,6 +606,82 @@ describe('groups — run + service registration groups', () => {
       });
     });
 
+    it('run up forwards --alive-ms and rejects non-numeric millisecond options', async () => {
+      const program = programWith(registerServiceGroup);
+      vi.mocked(svcs.servicesUp).mockResolvedValue(undefined);
+      await program.parseAsync([
+        'node', 're-shell', 'service', 'run', 'up', '--alive-ms', '250',
+      ]);
+      expect(svcs.servicesUp).toHaveBeenCalledWith(
+        tempRoot,
+        expect.objectContaining({ aliveMs: 250, timeout: 120000 })
+      );
+
+      vi.mocked(svcs.servicesUp).mockClear();
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      await programWith(registerServiceGroup).parseAsync([
+        'node', 're-shell', 'service', 'run', 'up', '--timeout', 'soon',
+      ]);
+      expect(svcs.servicesUp).not.toHaveBeenCalled();
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(errSpy.mock.calls.join(' ')).toContain('Invalid --timeout');
+    });
+
+    it('run health --json wraps the report in an ok envelope', async () => {
+      const report = {
+        runtime: 'process',
+        healthy: true,
+        services: [{ name: 'dev', status: 'running', ok: true, pid: 4242 }],
+      };
+      vi.mocked(svcs.servicesHealth).mockResolvedValue(report as never);
+      const writes: string[] = [];
+      vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: unknown) => {
+        writes.push(String(chunk));
+        return true;
+      }) as never);
+
+      await programWith(registerServiceGroup).parseAsync([
+        'node', 're-shell', 'service', 'run', 'health', '--json',
+      ]);
+
+      const envelopes = writes.filter(line => line.startsWith('{'));
+      expect(envelopes).toHaveLength(1);
+      expect(JSON.parse(envelopes[0])).toEqual({ ok: true, data: report, warnings: [] });
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it('run health --json turns a service failure into an error envelope and a non-zero exit', async () => {
+      const { ServiceRuntimeError } = await import('../../src/utils/service-process');
+      vi.mocked(svcs.servicesHealth).mockRejectedValue(
+        new ServiceRuntimeError('SERVICES_UNHEALTHY', '1 of 2 service(s) are not healthy', {
+          services: ['api'],
+        })
+      );
+      const writes: string[] = [];
+      vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: unknown) => {
+        writes.push(String(chunk));
+        return true;
+      }) as never);
+
+      await programWith(registerServiceGroup).parseAsync([
+        'node', 're-shell', 'service', 'run', 'health', '--json',
+      ]);
+
+      const envelopes = writes.filter(line => line.startsWith('{'));
+      expect(envelopes).toHaveLength(1);
+      expect(JSON.parse(envelopes[0])).toEqual({
+        ok: false,
+        error: {
+          code: 'SERVICES_UNHEALTHY',
+          message: '1 of 2 service(s) are not healthy',
+          details: { services: ['api'] },
+        },
+        warnings: [],
+      });
+      expect(process.exitCode).toBe(1);
+    });
+
     it('routes the svc alias to the run subgroup', async () => {
       const program = programWith(registerServiceGroup);
       vi.mocked(svcs.servicesHealth).mockResolvedValue(undefined);
