@@ -5,6 +5,8 @@ import chalk from 'chalk';
 import * as yaml from 'js-yaml';
 import { getFrameworkChoices, getFrameworkConfig, validateFramework, type FrameworkConfig } from '../utils/framework';
 import { findMonorepoRoot } from '../utils/monorepo';
+import { REPO_URL, DOCS_URL } from '../constants/brand';
+import { preserveSchemaModeline } from '../utils/workspace-yaml';
 import { getBackendTemplate, listBackendTemplates, type BackendTemplate } from '../templates/backend/index';
 import {
   getDatabaseConfig,
@@ -1247,7 +1249,7 @@ async function generateMicrofrontendReadme(projectPath: string, config: Microfro
 
   const readmeContent = `# ${config.name}
 
-A microfrontend project created with [Re-Shell CLI](https://github.com/umutkorkmaz/re-shell-cli) using Module Federation.
+A microfrontend project created with [Re-Shell CLI](${REPO_URL}) using Module Federation.
 
 ## Architecture
 
@@ -1409,7 +1411,7 @@ MIT
 
 ---
 
-Generated with ❤️ by [Re-Shell CLI](https://github.com/umutkorkmaz/re-shell-cli)
+Generated with ❤️ by [Re-Shell CLI](${REPO_URL})
 `;
 
   await fs.writeFile(path.join(projectPath, 'README.md'), readmeContent);
@@ -2300,7 +2302,7 @@ async function generatePolyglotReadme(projectPath: string, config: PolyglotConfi
 
   const readmeContent = `# ${config.name}
 
-A polyglot microservices project created with [Re-Shell CLI](https://github.com/umutkorkmaz/re-shell-cli).
+A polyglot microservices project created with [Re-Shell CLI](${REPO_URL}).
 
 ## Overview
 
@@ -2420,7 +2422,7 @@ MIT
 
 ---
 
-Generated with ❤️ by [Re-Shell CLI](https://github.com/umutkorkmaz/re-shell-cli)
+Generated with ❤️ by [Re-Shell CLI](${REPO_URL})
 `;
 
   await fs.writeFile(path.join(projectPath, 'README.md'), readmeContent);
@@ -2487,7 +2489,7 @@ function getPrimaryLanguage(backend?: string, frontend?: string): string | null 
  * @param serviceName - Normalized name of the service to register.
  * @param config - Service metadata including type, frameworks, port, and path.
  */
-async function autoRegisterInWorkspace(
+export async function autoRegisterInWorkspace(
   monorepoRoot: string,
   serviceName: string,
   config: {
@@ -2534,7 +2536,8 @@ async function autoRegisterInWorkspace(
       displayName: toDisplayName(serviceName),
       type: serviceType,
       language: detectLanguage(framework),
-      framework: framework,
+      // `framework` is required by the v2 workspace schema.
+      framework: framework || 'vanilla',
       port: parseInt(config.finalPort) || undefined,
       path: path.relative(monorepoRoot, config.workspacePath),
     };
@@ -2550,7 +2553,8 @@ async function autoRegisterInWorkspace(
       noRefs: true,
     });
 
-    await fs.writeFile(workspaceYamlPath, newYaml, 'utf8');
+    // js-yaml drops comments; keep the schema modeline so IDE autocomplete survives.
+    await fs.writeFile(workspaceYamlPath, preserveSchemaModeline(workspaceContent, newYaml), 'utf8');
 
     console.log(chalk.gray(`\n✓ Auto-registered in workspace configuration`));
     console.log(chalk.gray(`  Service: ${serviceName}`));
@@ -3339,7 +3343,7 @@ re-shell add my-feature
 \`\`\`
 
 ## Documentation
-For more information, see the [Re-Shell documentation](https://github.com/your-org/re-shell)
+For more information, see the [Re-Shell documentation](${DOCS_URL})
 `;
 
   fs.writeFileSync(path.join(projectPath, 'README.md'), readmeContent);

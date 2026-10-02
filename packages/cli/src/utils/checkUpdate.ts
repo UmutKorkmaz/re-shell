@@ -5,6 +5,7 @@ import boxen from 'boxen';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { spawn } from 'child_process';
+import { RELEASES_URL } from '../constants/brand';
 
 interface NpmPackageInfo {
   'dist-tags': {
@@ -139,7 +140,7 @@ function showUpdateNotification(currentVersion: string, latestVersion: string): 
     '',
     `Run ${chalk.cyan.bold('npm install -g @re-shell/cli@latest')} to update`,
     '',
-    chalk.gray('Changelog: https://github.com/umutkorkmaz/re-shell-cli/releases'),
+    chalk.gray(`Changelog: ${RELEASES_URL}`),
   ].join('\n');
 
   const terminalWidth = process.stdout.columns || 80;
