@@ -42,6 +42,8 @@ export interface IRField {
   gqlType?: string;
   /** GraphQL: the field needs arguments, so it is left out of generated selection sets. */
   noSelect?: boolean;
+  /** proto: name of the `oneof` group this field belongs to (members are mutually exclusive). */
+  oneof?: string;
 }
 
 /** A message / object / input type. */
