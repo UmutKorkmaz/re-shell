@@ -4,6 +4,7 @@ import { createSpinner, flushOutput } from '../utils/spinner';
 import chalk from 'chalk';
 import { buildAll, generateDeploymentConfig, deployServices, listServices } from '../commands/polyglot';
 import { runBridgeGenerate } from '../commands/bridge-generate';
+import { registerBridgeCommands } from '../bridge';
 
 /**
  * Registers the `service` command group on the given CLI program.
@@ -23,17 +24,23 @@ export function registerServiceGroup(program: Command): void {
   // Cross-language service bridge subgroup (W9c-3)
   const bridgeCommand = serviceCommand
     .command('bridge')
-    .description('Generate cross-language service bridges (contract + typed clients) from the workspace v2 config');
+    .description('Generate cross-language service bridges (contract + typed clients) from services\' own specs, plus async transport, transforms, contract diff, mock server and GraphQL gateway');
 
   bridgeCommand
     .command('generate')
     .description(
-      'Generate a service bridge: a protocol contract (.proto/OpenAPI/GraphQL SDL) plus a typed TS client and a documented Python scaffold'
+      "Generate a service bridge from the provider's own spec (OpenAPI/.proto/GraphQL SDL): typed TS, Python and Go clients; falls back to a default health/echo/config contract when the service has no spec"
     )
     .option('--grpc', 'Generate a gRPC bridge (.proto + typed TS gRPC client)')
     .option('--rest', 'Generate a REST bridge (OpenAPI 3 + typed TS fetch client)')
     .option('--graphql', 'Generate a GraphQL bridge (SDL + typed TS GraphQL client)')
     .option('--service <name>', 'Service to bridge (defaults to the first service)')
+    .option('--spec <file>', "Provider spec (OpenAPI yaml/json, .proto or GraphQL SDL); default: discovered in the service directory")
+    .option('--lang <langs>', 'Client languages, comma separated: ts,python,go (spec mode; default: all)')
+    .option('--verify', 'Run tsc / py_compile / mypy / go build over the generated clients and report each result')
+    .option('--no-compile-stubs', 'gRPC: do not compile protobuf stubs even when protoc is available')
+    .option('--go-module <path>', 'Go module path of the generated Go client')
+    .option('--config <file>', 'Workspace config path (default: discovered in the current directory)')
     .option('--out <dir>', 'Output directory to write artifacts into')
     .option('--json', 'Emit machine-readable JSON envelope to stdout')
     .option('--dry-run', 'Render artifacts without writing any files')
@@ -58,11 +65,20 @@ export function registerServiceGroup(program: Command): void {
             out: options.out,
             json: options.json,
             dryRun: options.dryRun,
+            spec: options.spec,
+            lang: options.lang,
+            verify: options.verify,
+            compileStubs: options.compileStubs,
+            goModule: options.goModule,
+            configPath: options.config,
             spinner,
           });
-        }, 60000);
+        }, 600000);
       })
     );
+
+  // link / unlink / validate / diff (and the async/transform/mock/gateway subcommands)
+  registerBridgeCommands(serviceCommand, bridgeCommand);
 
   // Polyglot subgroup
   const polyglotCommand = serviceCommand.command('polyglot').description('Build and deploy polyglot full-stack applications');

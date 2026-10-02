@@ -1,0 +1,39 @@
+name: bridge-demo
+version: 2.0.0
+description: Fixture workspace for cross-language service bridges
+services:
+  web:
+    name: web
+    type: backend
+    language: typescript
+    framework: express
+    path: services/web
+    port: 3000
+  reports:
+    name: reports
+    type: backend
+    language: python
+    framework: fastapi
+    path: services/reports
+    port: 8090
+  catalog:
+    name: catalog
+    type: backend
+    language: python
+    framework: fastapi
+    path: services/catalog
+    port: 8081
+  orders:
+    name: orders
+    type: backend
+    language: go
+    framework: gin
+    path: services/orders
+    port: 9090
+  inventory:
+    name: inventory
+    type: backend
+    language: typescript
+    framework: nestjs
+    path: services/inventory
+    port: 4000
