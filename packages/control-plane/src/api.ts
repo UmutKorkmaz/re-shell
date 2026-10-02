@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { Principal } from './auth.js';
 import { authorizeCommand, authorizeTenant, authorizeWorkspace } from './authz.js';
 import { ControlPlaneResult, fail, ok } from './errors.js';
 import {
@@ -117,19 +118,13 @@ export function listWorkspaces(
 }
 
 /**
- * POST /tenants/:tenantId/workspaces/:workspaceId/commands — authorize proxying
- * an allow-listed command for a tenant's workspace. Requires `operator`
- * (running commands is a side-effecting action, above read-only viewing).
- *
- * Pipeline: validate → authenticate → authorizeTenant(operator) →
- * authorizeWorkspace (isolation) → authorizeCommand (allow-list). Only when ALL
- * pass is an authorized decision returned, and every outcome — allow or deny —
- * is recorded in the audit trail. No execution happens here.
+ * Authorize proxying an allow-listed command and ALSO return the authenticated
+ * principal (the job service records who asked). See {@link proxyCommand}.
  */
-export function proxyCommand(
+export function authorizeProxyCommand(
   deps: ControlPlaneDeps,
   body: unknown
-): ControlPlaneResult<ProxyCommandDecision> {
+): ControlPlaneResult<{ principal: Principal; decision: ProxyCommandDecision }> {
   const req = authedRequest(deps, proxyCommandRequestSchema, body, 'command.authorize');
   if (!req.ok) {
     return req;
@@ -184,5 +179,27 @@ export function proxyCommand(
     });
   })();
 
-  return recordDecision(deps, principal, ctx, chain);
+  const decided = recordDecision(deps, principal, ctx, chain);
+  if (!decided.ok) {
+    return decided;
+  }
+  return ok({ principal, decision: decided.data });
+}
+
+/**
+ * POST /tenants/:tenantId/workspaces/:workspaceId/commands — authorize proxying
+ * an allow-listed command for a tenant's workspace. Requires `operator`
+ * (running commands is a side-effecting action, above read-only viewing).
+ *
+ * Pipeline: validate → authenticate → authorizeTenant(operator) →
+ * authorizeWorkspace (isolation) → authorizeCommand (allow-list). Only when ALL
+ * pass is an authorized decision returned, and every outcome — allow or deny —
+ * is recorded in the audit trail. No execution happens here.
+ */
+export function proxyCommand(
+  deps: ControlPlaneDeps,
+  body: unknown
+): ControlPlaneResult<ProxyCommandDecision> {
+  const result = authorizeProxyCommand(deps, body);
+  return result.ok ? ok(result.data.decision) : result;
 }

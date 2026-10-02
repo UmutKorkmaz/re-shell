@@ -58,12 +58,20 @@ export interface JobQueuedEvent {
   jobId: string;
 }
 
+/** INTERNAL: new output was appended to a job (wakes SSE job streams). */
+export interface JobOutputEvent {
+  type: 'job.output';
+  tenantId: string;
+  jobId: string;
+}
+
 export type TenantEvent =
   | PolicyUpdatedEvent
   | WorkspaceCreatedEvent
   | JobUpdatedEvent
   | MemberChangedEvent
-  | JobQueuedEvent;
+  | JobQueuedEvent
+  | JobOutputEvent;
 
 export type ForwardedTenantEvent = PolicyUpdatedEvent | WorkspaceCreatedEvent | JobUpdatedEvent;
 
