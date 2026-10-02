@@ -28,6 +28,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./command-registry": {
+      "types": "./dist/command-registry.d.ts",
+      "import": "./dist/command-registry.js"
     }
   },
   "scripts": {
