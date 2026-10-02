@@ -363,6 +363,19 @@ describe('workspace migrate (1.0.0 -> 2.0.0)', () => {
     expect(doc.deployment).toEqual({ platform: 'kubernetes' });
   });
 
+  it('does not stamp the v2 modeline on a document that is not migrated to 2.0.0', async () => {
+    const dir = stageDir('migrate-other');
+    const file = path.join(dir, 're-shell.workspaces.yaml');
+    await fs.writeFile(file, 'name: old\nversion: "1.0.0"\n');
+    vi.spyOn(process, 'cwd').mockReturnValue(dir);
+
+    await migrateWorkspace({ backup: false, to: '3.0.0' });
+
+    const text = await fs.readFile(file, 'utf8');
+    expect(text).not.toContain('yaml-language-server');
+    expect(text).toMatch(/version: ["']?1\.0\.0["']?/);
+  });
+
   it('warns (instead of claiming success) when the migrated result still violates the v2 schema', async () => {
     const dir = stageDir('migrate-bad');
     const file = path.join(dir, 're-shell.workspaces.yaml');
