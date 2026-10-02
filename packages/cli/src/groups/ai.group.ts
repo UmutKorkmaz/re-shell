@@ -4,13 +4,8 @@ import chalk from 'chalk';
 import { createAsyncCommand, processManager } from '../utils/error-handler';
 import { createSpinner, flushOutput } from '../utils/spinner';
 import { enableJsonMode, ok, fail } from '../utils/json-output';
-import {
-  createOfflineBackend,
-  explainCandidate,
-  IntentCandidate,
-  IntentResult,
-  OfflineIntentBackend,
-} from '../utils/ai-intent';
+import { buildCommandCatalog } from '../utils/command-catalog';
+import type { IntentCandidate } from '../utils/ai-intent';
 import {
   planScaffold,
   sanitizeProposedIntent,
@@ -22,32 +17,53 @@ import type {
   ScaffoldPlan,
   ScaffoldPlanStep,
 } from '@re-shell/contracts';
+import { AI_PROVIDER_NAMES, LOW_CONFIDENCE_THRESHOLD } from '../ai/types';
+import { registerAiSubcommands } from '../ai/cli';
+import type { ResolveOutput } from '../ai/resolver';
 
 /**
- * `ai <prompt...>` group: an OFFLINE, deterministic natural-language command
- * interface.
+ * `ai <prompt...>` group: a natural-language command interface with a
+ * pluggable model backend.
+ *
+ * Providers (see `re-shell ai config show`):
+ *  - `anthropic`         : the Anthropic Messages API (cloud LLM),
+ *  - `openai-compatible` : any `/v1/chat/completions` server, e.g. Ollama,
+ *                          llama.cpp or LM Studio (local LLM),
+ *  - `offline`           : the deterministic catalogue parser. Always
+ *                          available, and the fallback when a provider fails.
  *
  * Safety model (the whole point of this command):
  *  - It NEVER auto-executes. The default behaviour is to RESOLVE a prompt to a
  *    concrete `re-shell ...` command and print/return it.
- *  - With `--run` it requires explicit interactive confirmation AND the resolved
- *    command is the catalogue-vetted argv produced by the offline parser — there
- *    is no free-form shell string anywhere in the path.
+ *  - EVERY command, from any provider, the cache or a session, is validated
+ *    against the live command catalogue and a shell-inert argv allow-list
+ *    before it is shown. Model output that fails validation is discarded and
+ *    the offline parser answers instead (with a warning).
+ *  - With `--run` it re-validates, shows the exact command and its source,
+ *    requires explicit interactive confirmation, and spawns WITHOUT a shell.
  *  - Ambiguous / low-confidence prompts ask a clarifying question (or, in
- *    `--json`, return `{ needsClarification: true, candidates }`).
- *  - Injection text in the prompt is treated as DATA: the parser tokenises it
- *    and discards shell metacharacters, so it can never become a command.
+ *    `--json`, return `{ needsClarification: true, candidates }`); the answer
+ *    on the next turn (`--session <id>` / `--continue`) resolves it.
+ *  - Injection text in the prompt is treated as DATA: it can never become a
+ *    command because only catalogue-declared paths/flags and shell-inert values
+ *    are ever emitted.
  */
 export function registerAiGroup(program: Command): void {
   const ai = program
     .command('ai')
     .description(
-      'Resolve a natural-language prompt to a re-shell command (offline, never auto-runs)'
+      'Resolve a natural-language prompt to a re-shell command (pluggable LLM or offline; never auto-runs)'
     )
     .argument('<prompt...>', 'Natural-language description of what you want to do')
     .option('--json', 'Output the resolved spec as JSON')
     .option('--explain', 'Include a human explanation of the resolved command')
     .option('--run', 'Execute the resolved command after explicit confirmation')
+    .option('--session <id>', 'Use (or create) a multi-turn session so follow-ups can answer questions')
+    .option('--continue', 'Continue the most recent session')
+    .option('--provider <name>', `Provider for this call: auto, ${AI_PROVIDER_NAMES.join(', ')}`)
+    .option('--offline', 'Use only the offline parser (no network)')
+    .option('--no-cache', 'Bypass the semantic response cache')
+    .option('--no-fallback', 'Fail instead of falling back to the offline parser when the provider errors')
     .action(
       createAsyncCommand(async (promptParts: string[], options) => {
         const restoreJson = options.json ? enableJsonMode() : () => {};
@@ -65,17 +81,63 @@ export function registerAiGroup(program: Command): void {
             ? promptParts.join(' ')
             : String(promptParts ?? '');
 
-          const backend = createOfflineBackend(program);
-          const result = backend.parse(prompt);
+          const provider = options.offline ? 'offline' : options.provider;
+          if (
+            provider !== undefined &&
+            String(provider).toLowerCase() !== 'auto' &&
+            !(AI_PROVIDER_NAMES as readonly string[]).includes(String(provider).toLowerCase())
+          ) {
+            if (spinner) spinner.stop();
+            fail(
+              'AI_CONFIG_ERROR',
+              `Unknown provider "${provider}". Valid: auto, ${AI_PROVIDER_NAMES.join(', ')}`
+            );
+            return;
+          }
+          if (options.session !== undefined && options.continue) {
+            if (spinner) spinner.stop();
+            fail('AI_SESSION_ERROR', 'Use either --session <id> or --continue, not both.');
+            return;
+          }
+
+          // Heavy modules (provider SDK, workspace discovery) load only when needed.
+          const { resolveIntent, AiResolveError } = await import('../ai/resolver');
+
+          let output: ResolveOutput;
+          try {
+            output = await resolveIntent(prompt, {
+              program,
+              session: { id: options.session, continue: options.continue === true },
+              overrides: {
+                provider:
+                  provider === undefined || String(provider).toLowerCase() === 'auto'
+                    ? undefined
+                    : String(provider),
+              },
+              useCache: options.cache === false ? false : undefined,
+              fallback: options.fallback !== false,
+            });
+          } catch (error) {
+            if (spinner) spinner.stop();
+            if (error instanceof AiResolveError) {
+              fail(error.code, error.message, error.details);
+              return;
+            }
+            throw error;
+          }
 
           if (spinner) spinner.stop();
 
           if (options.json) {
-            emitJsonResult(result, backend, options.explain === true);
+            const warnings = [...output.meta.warnings];
+            if (options.run) {
+              warnings.push('--run is ignored with --json: nothing was executed.');
+            }
+            emitJsonResult(output, options.explain === true, warnings);
             return;
           }
 
-          await renderHuman(result, backend, {
+          await renderHuman(output, program, {
             explain: options.explain === true,
             run: options.run === true,
           });
@@ -92,6 +154,7 @@ export function registerAiGroup(program: Command): void {
     );
 
   registerAiCreate(ai);
+  registerAiSubcommands(ai, program);
 }
 
 /**
@@ -268,42 +331,55 @@ async function executePlan(plan: ScaffoldPlan): Promise<ScaffoldPlan> {
 }
 
 /**
- * Emit the JSON envelope for an intent result. On the clarify branch we return
- * `{ needsClarification: true, candidates }`; on resolution we return the spec
- * plus confidence (and, with --explain, the explanation). No execution.
+ * Emit the JSON envelope for a resolution. On the clarify branch we return
+ * `{ needsClarification: true, candidates, ... }`; on resolution we return the
+ * spec plus confidence (and, with --explain, the explanation), alongside the
+ * provenance fields (provider, source, cached, session, ...). No execution:
+ * `executed` is always false in machine output.
  */
-function emitJsonResult(
-  result: IntentResult,
-  backend: OfflineIntentBackend,
-  explain: boolean
-): void {
+function emitJsonResult(output: ResolveOutput, explain: boolean, warnings: string[]): void {
+  const { result, meta } = output;
+  const common = {
+    provider: meta.provider,
+    requestedProvider: meta.requestedProvider,
+    ...(meta.model ? { model: meta.model } : {}),
+    source: meta.source,
+    cached: meta.cached,
+    ...(meta.cache ? { cache: meta.cache } : {}),
+    lowConfidence: meta.lowConfidence,
+    ...(meta.fallback ? { fallback: meta.fallback } : {}),
+    ...(meta.session ? { session: meta.session } : {}),
+    workspace: meta.workspace,
+    ...(meta.usage ? { usage: meta.usage } : {}),
+    // Always make the safety posture explicit in machine output.
+    executed: false as const,
+  };
+
   if (result.needsClarification === true) {
-    ok({
-      needsClarification: true,
-      reason: result.reason,
-      question: result.question,
-      candidates: result.candidates,
-    });
+    ok(
+      {
+        needsClarification: true as const,
+        reason: result.reason,
+        question: result.question,
+        candidates: result.candidates,
+        ...common,
+      },
+      warnings
+    );
     return;
   }
 
-  const resolved = result;
-  const entry = backend.entryFor(resolved.candidate.path);
-  const explanation = explain
-    ? entry
-      ? explainCandidate(resolved.candidate, entry)
-      : resolved.explanation
-    : undefined;
-
-  ok({
-    needsClarification: false,
-    resolved: resolved.candidate,
-    confidence: resolved.candidate.confidence,
-    alternatives: resolved.alternatives,
-    ...(explain ? { explanation } : {}),
-    // Always make the safety posture explicit in machine output.
-    executed: false,
-  });
+  ok(
+    {
+      needsClarification: false as const,
+      resolved: result.candidate,
+      confidence: result.candidate.confidence,
+      alternatives: result.alternatives,
+      ...(explain ? { explanation: result.explanation } : {}),
+      ...common,
+    },
+    warnings
+  );
 }
 
 interface RenderOptions {
@@ -311,47 +387,80 @@ interface RenderOptions {
   run: boolean;
 }
 
+/** One-line provenance for human output. */
+function describeSource(output: ResolveOutput): string {
+  const { meta } = output;
+  switch (meta.source) {
+    case 'cache':
+      return `cached answer (${Math.round((meta.cache?.similarity ?? 1) * 100)}% similar to an earlier prompt)`;
+    case 'llm':
+      return `${meta.provider}${meta.model ? ` (${meta.model})` : ''}`;
+    case 'clarification':
+      return 'your answer to the previous question';
+    default:
+      return 'offline parser';
+  }
+}
+
 /** Human-facing rendering for the resolve / clarify branches. */
 async function renderHuman(
-  result: IntentResult,
-  backend: OfflineIntentBackend,
+  output: ResolveOutput,
+  program: Command,
   opts: RenderOptions
 ): Promise<void> {
+  const { result, meta } = output;
+
+  for (const warning of meta.warnings) {
+    console.log(chalk.yellow(`⚠ ${warning}`));
+  }
+
   if (result.needsClarification === true) {
     console.log(chalk.yellow.bold('\n🤔 Need clarification\n'));
     console.log(chalk.gray(result.question) + '\n');
     if (result.candidates.length > 0) {
-      printCandidateList(result.candidates);
+      printCandidateList(result.candidates, true);
+    }
+    if (meta.session && meta.session.pending) {
+      console.log(
+        `\n${chalk.gray('Answer with')} ${chalk.bold(`re-shell ai --session ${meta.session.id} "<your answer>"`)} ${chalk.gray('(e.g. "the second one"), or pass --continue.')}`
+      );
     }
     console.log();
     // Clarification never executes, even with --run.
     return;
   }
 
-  const resolved = result;
-  const { candidate } = resolved;
+  const { candidate } = result;
   console.log(chalk.cyan.bold('\n🧠 Resolved command\n'));
   console.log(
     `  ${chalk.green('●')} ${chalk.bold('re-shell ' + candidate.argv.join(' '))}`
   );
   console.log(
-    `    ${chalk.gray('confidence:')} ${formatConfidence(candidate.confidence)}`
+    `    ${chalk.gray('confidence:')} ${formatConfidence(candidate.confidence)}` +
+      (meta.lowConfidence ? chalk.yellow('  (low confidence: double-check before running)') : '')
   );
+  console.log(`    ${chalk.gray('via:')} ${describeSource(output)}`);
   if (candidate.description) {
     console.log(`    ${chalk.gray(candidate.description)}`);
   }
-
-  if (opts.explain) {
-    const entry = backend.entryFor(candidate.path);
-    const explanation = entry
-      ? explainCandidate(candidate, entry)
-      : resolved.explanation;
-    console.log(`\n${chalk.bold('Explanation:')}\n  ${chalk.gray(explanation)}`);
+  if (candidate.nodes && candidate.nodes.length > 0) {
+    console.log(
+      `    ${chalk.gray('targets:')} ${candidate.nodes.map(n => `${n.name} (${n.path})`).join(', ')}`
+    );
+  }
+  if (candidate.missingArgs && candidate.missingArgs.length > 0) {
+    console.log(
+      `    ${chalk.yellow('missing required argument(s):')} ${candidate.missingArgs.join(', ')}`
+    );
   }
 
-  if (resolved.alternatives.length > 0) {
+  if (opts.explain) {
+    console.log(`\n${chalk.bold('Explanation:')}\n  ${chalk.gray(result.explanation)}`);
+  }
+
+  if (result.alternatives.length > 0) {
     console.log(`\n${chalk.bold('Alternatives:')}`);
-    printCandidateList(resolved.alternatives);
+    printCandidateList(result.alternatives, false);
   }
 
   if (!opts.run) {
@@ -361,16 +470,18 @@ async function renderHuman(
     return;
   }
 
-  await confirmAndRun(candidate);
+  await confirmAndRunResolved(candidate, output, program);
 }
 
-function printCandidateList(candidates: IntentCandidate[]): void {
-  for (const c of candidates) {
+function printCandidateList(candidates: IntentCandidate[], numbered: boolean): void {
+  candidates.forEach((c, i) => {
     const badge = c.destructive ? chalk.red(' [destructive]') : '';
+    const low = c.confidence < LOW_CONFIDENCE_THRESHOLD ? chalk.yellow(' low') : '';
+    const lead = numbered ? chalk.bold(`${i + 1}.`) : chalk.blue('-');
     console.log(
-      `  ${chalk.blue('-')} ${chalk.bold('re-shell ' + c.argv.join(' '))}${badge} ${chalk.gray('(' + formatConfidence(c.confidence) + ')')}`
+      `  ${lead} ${chalk.bold('re-shell ' + c.argv.join(' '))}${badge} ${chalk.gray('(' + formatConfidence(c.confidence) + ')')}${low}`
     );
-  }
+  });
 }
 
 function formatConfidence(value: number): string {
@@ -378,45 +489,48 @@ function formatConfidence(value: number): string {
 }
 
 /**
- * Confirm-then-run for `--run`. Requires an explicit interactive "yes". The
- * command is the parser's vetted argv; it is spawned WITHOUT a shell so even a
- * (hypothetically) odd token can never be re-interpreted as shell syntax.
+ * Confirm-then-run for `--run`. The shared gate re-vets the argv against the
+ * live catalogue, shows the exact command plus its provenance, requires an
+ * explicit interactive "yes" (default no), then spawns WITHOUT a shell so no
+ * token can ever be re-interpreted as shell syntax.
  */
-async function confirmAndRun(candidate: IntentCandidate): Promise<void> {
-  if (candidate.destructive) {
-    console.log(
-      chalk.red.bold(
-        '\n⚠ This command is marked destructive and may cause data loss.'
-      )
-    );
+async function confirmAndRunResolved(
+  candidate: IntentCandidate,
+  output: ResolveOutput,
+  program: Command
+): Promise<void> {
+  const { confirmAndRun } = await import('../ai/run');
+  const { indexCatalog, vetArgv } = await import('../ai/argv-guard');
+  const { EXCLUDED_PATH_PREFIXES } = await import('../ai/prompt');
+  const index = indexCatalog(buildCommandCatalog(program));
+
+  console.log();
+  const outcome = await confirmAndRun(
+    candidate,
+    { source: output.meta.source, provider: output.meta.provider, model: output.meta.model },
+    {
+      vet: argv => vetArgv(argv, index, { excludePathPrefixes: EXCLUDED_PATH_PREFIXES }),
+      confirm: async message => {
+        const { confirmed } = await prompts({
+          type: 'confirm',
+          name: 'confirmed',
+          message,
+          initial: false,
+        });
+        return confirmed === true;
+      },
+      print: line =>
+        console.log(line.startsWith('WARNING') ? chalk.red.bold(line) : chalk.gray(line)),
+    }
+  );
+
+  if (outcome.executed === true) {
+    if (outcome.exitCode !== 0) process.exitCode = outcome.exitCode;
+  } else if (outcome.reason === 'spawn-failed') {
+    console.error(chalk.red(`Failed to execute: ${outcome.message}`));
+    process.exitCode = 1;
+  } else if (outcome.reason === 'rejected') {
+    process.exitCode = 1;
   }
-
-  const { confirmed } = await prompts({
-    type: 'confirm',
-    name: 'confirmed',
-    message: `Run \`re-shell ${candidate.argv.join(' ')}\`?`,
-    initial: false,
-  });
-
-  if (!confirmed) {
-    console.log(chalk.gray('\nAborted. Nothing was executed.\n'));
-    return;
-  }
-
-  // Spawn WITHOUT a shell: argv is passed element-by-element so no token is ever
-  // shell-interpreted. The binary is fixed (`re-shell`); only catalogue-derived
-  // + sanitised tokens follow.
-  const { spawn } = await import('child_process');
-  await new Promise<void>(resolve => {
-    const child = spawn('re-shell', candidate.argv, {
-      stdio: 'inherit',
-      shell: false,
-    });
-    child.on('close', () => resolve());
-    child.on('error', err => {
-      console.error(chalk.red(`Failed to execute: ${err.message}`));
-      process.exitCode = 1;
-      resolve();
-    });
-  });
+  console.log();
 }
