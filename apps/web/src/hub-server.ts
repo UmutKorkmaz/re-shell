@@ -143,13 +143,51 @@ function containCwd(requested: string | undefined, workspaceRoot: string): strin
  * Build the set of exact origins the dashboard is allowed to use. Derived from
  * the configured dashboard port/host so we never fall back to a wildcard.
  */
-function buildAllowedOrigins(dashboardHost: string, dashboardPort: number): Set<string> {
+function buildAllowedOrigins(
+  dashboardHost: string,
+  dashboardPort: number,
+  extraOrigins: readonly string[] = []
+): Set<string> {
   const origins = new Set<string>();
   for (const h of [dashboardHost, '127.0.0.1', 'localhost']) {
     origins.add(`http://${h}:${dashboardPort}`);
     origins.add(`https://${h}:${dashboardPort}`);
   }
+  for (const extra of extraOrigins) {
+    origins.add(extra);
+  }
   return origins;
+}
+
+// An exact web origin: scheme (http, https, or the desktop shell's `tauri`
+// scheme) + host + optional port. No path, no wildcard, no userinfo. `tauri://`
+// is a non-special URL scheme, so `new URL(x).origin` reports the opaque
+// "null" for it; the allowlist therefore validates the literal string.
+const EXACT_ORIGIN_RE = /^(?:https?|tauri):\/\/[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?(?::\d{1,5})?$/i;
+
+/**
+ * Parse `RE_SHELL_UI_HUB_ALLOWED_ORIGINS`: a comma-separated list of EXACT extra
+ * origins the hub should accept in addition to the dashboard's own http origin.
+ * The desktop shell uses it for its webview origin (`tauri://localhost`, or
+ * `http://tauri.localhost` on Windows), which is not an http dashboard port.
+ *
+ * Anything that is not an exact origin (wildcards, paths, other schemes, empty
+ * entries) is dropped, so a malformed value can only ever narrow the allowlist,
+ * never widen it to a pattern. Unset/empty yields no extras (browser flow is
+ * unchanged).
+ */
+export function parseAllowedOriginsEnv(raw: string | undefined): string[] {
+  if (!raw) {
+    return [];
+  }
+  const accepted: string[] = [];
+  for (const entry of raw.split(',')) {
+    const candidate = entry.trim();
+    if (candidate && EXACT_ORIGIN_RE.test(candidate)) {
+      accepted.push(candidate.toLowerCase());
+    }
+  }
+  return accepted;
 }
 
 /**
@@ -287,7 +325,8 @@ export async function startHubServer(
   const dashboardHost = process.env.VITE_RE_SHELL_UI_HOST || '127.0.0.1';
   const dashboardPort =
     parseInt(process.env.VITE_RE_SHELL_UI_PORT ?? '', 10) || port - 1;
-  const allowedOrigins = buildAllowedOrigins(dashboardHost, dashboardPort);
+  const extraOrigins = parseAllowedOriginsEnv(process.env.RE_SHELL_UI_HUB_ALLOWED_ORIGINS);
+  const allowedOrigins = buildAllowedOrigins(dashboardHost, dashboardPort, extraOrigins);
   const primaryOrigin = `http://${dashboardHost}:${dashboardPort}`;
 
   // Get workspace context from environment. The workspace root is realpath'd
@@ -311,8 +350,23 @@ export async function startHubServer(
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Re-Shell-UI-Hub-Token');
   }
 
+  // Opt-in access log (RE_SHELL_UI_HUB_ACCESS_LOG=1): one line per HTTP request
+  // and WS upgrade with method, PATH ONLY (the query can carry the session
+  // token, so it is never logged), response status and Origin. It makes a
+  // launcher's "the dashboard connected with the token" claim auditable. Off by
+  // default, so the CLI/browser flow's output is unchanged.
+  const accessLog = process.env.RE_SHELL_UI_HUB_ACCESS_LOG === '1';
+  const requestPath = (rawUrl: string | undefined): string => (rawUrl ?? '/').split('?')[0] || '/';
+
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
+      if (accessLog) {
+        const origin = req.headers['origin'] ?? '-';
+        const logged = `${req.method} ${requestPath(req.url)}`;
+        res.once('close', () => {
+          console.log(`[hub-server] access ${logged} -> ${res.statusCode} origin=${origin}`);
+        });
+      }
       applyCors(req, res);
 
       if (req.method === 'OPTIONS') {
@@ -493,6 +547,11 @@ export async function startHubServer(
       const upgradeUrl = new URL(req.url ?? '/', `http://${BIND_HOST}:${port}`);
 
       const rejectUpgrade = (status: string): void => {
+        if (accessLog) {
+          console.log(
+            `[hub-server] access WS ${requestPath(req.url)} -> ${status} origin=${req.headers['origin'] ?? '-'}`
+          );
+        }
         socket.write(`HTTP/1.1 ${status}\r\nConnection: close\r\n\r\n`);
         socket.destroy();
       };
@@ -511,6 +570,12 @@ export async function startHubServer(
       // Token may be supplied on the handshake via Sec-WebSocket-Protocol.
       const handshakeToken = extractWsHandshakeToken(req);
       const tokenOnHandshake = tokensMatch(token, handshakeToken);
+
+      if (accessLog) {
+        console.log(
+          `[hub-server] access WS ${requestPath(req.url)} -> 101 origin=${req.headers['origin'] ?? '-'} token=${tokenOnHandshake ? 'valid' : 'deferred-to-first-message'}`
+        );
+      }
 
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit('connection', ws, req, tokenOnHandshake);
@@ -684,6 +749,9 @@ export async function startHubServer(
       const url = `http://${host}:${boundPort}`;
       console.log(`[hub-server] Running at ${url} (loopback-only, token-protected)`);
       console.log(`[hub-server] Allowed dashboard origin: ${primaryOrigin}`);
+      if (extraOrigins.length > 0) {
+        console.log(`[hub-server] Additional allowed origins: ${extraOrigins.join(', ')}`);
+      }
       console.log(`[hub-server] SSE endpoint: GET ${url}/events?commandId=<id>&params=<json>&cwd=<cwd>&token=<token>`);
       console.log(`[hub-server] WebSocket endpoint: WS ${url}/jobs (token via Sec-WebSocket-Protocol or first message)`);
       resolve({ port: boundPort, url, server });
@@ -719,5 +787,10 @@ export function stopHubServer(server: http.Server): Promise<void> {
       console.log('[hub-server] Stopped');
       resolve();
     });
+    // `close()` alone waits for every open connection to end, and a connected
+    // dashboard holds long-lived SSE streams, so a graceful stop would stall
+    // until the caller's hard-exit timer. Drop the remaining connections now
+    // (Node >= 18.2) so the port is released promptly.
+    server.closeAllConnections?.();
   });
 }
