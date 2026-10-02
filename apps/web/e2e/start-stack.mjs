@@ -5,6 +5,9 @@
  *
  *   1. Builds the dashboard with the hub URL + session token baked in
  *      (Vite inlines `VITE_*` at build time, so the token must be present here).
+ *      The test build goes to a throwaway temp directory, NEVER to apps/web/dist:
+ *      that directory is what `packages/cli/scripts/bundle-dashboard.mjs` ships
+ *      inside the published CLI, and it must never contain a test token.
  *   2. Builds + starts the hub (apps/web/dist/hub-server.js) against a fixture
  *      monorepo, with the SAME token and the dashboard origin allow-listed.
  *      The hub spawns the REAL built re-shell CLI for every job.
@@ -21,6 +24,7 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appWebRoot = path.resolve(here, '..');
@@ -37,7 +41,15 @@ const TOKEN = process.env.E2E_HUB_TOKEN ?? randomBytes(24).toString('hex');
 
 const FIXTURE_WORKSPACE = path.join(here, 'fixtures', 'workspace');
 const CLI_BIN = path.join(repoRoot, 'packages', 'cli', 'dist', 'index.js');
+// The hub bundle carries no token (it reads RE_SHELL_UI_HUB_TOKEN at runtime), so
+// it is safe to build in place. The SPA, which DOES inline the token, is not.
 const HUB_BUNDLE = path.join(appWebRoot, 'dist', 'hub-server.js');
+// Throwaway output directory for the token-baked SPA build. Removed on exit.
+const SPA_OUT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 're-shell-e2e-spa-'));
+// Remove the token-baked SPA build however we exit (signal, crash, child exit).
+process.on('exit', () => {
+  fs.rmSync(SPA_OUT_DIR, { recursive: true, force: true });
+});
 const VITE_BIN = path.join(appWebRoot, 'node_modules', '.bin', 'vite');
 
 function log(msg) {
@@ -60,7 +72,7 @@ function assertExists(p, hint) {
 
 // 1. Build the dashboard + hub bundle with the token/URL baked in.
 log('Building dashboard + hub bundle with baked hub URL/token...');
-runSync(VITE_BIN, ['build'], {
+runSync(VITE_BIN, ['build', '--outDir', SPA_OUT_DIR, '--emptyOutDir'], {
   VITE_RE_SHELL_UI_HUB_URL: HUB_URL,
   VITE_RE_SHELL_UI_HUB_TOKEN: TOKEN,
 });
@@ -94,7 +106,16 @@ const hub = spawn(process.execPath, [HUB_BUNDLE], {
 log(`Starting vite preview on ${PREVIEW_PORT}`);
 const preview = spawn(
   VITE_BIN,
-  ['preview', '--host', '127.0.0.1', '--port', String(PREVIEW_PORT), '--strictPort'],
+  [
+    'preview',
+    '--outDir',
+    SPA_OUT_DIR,
+    '--host',
+    '127.0.0.1',
+    '--port',
+    String(PREVIEW_PORT),
+    '--strictPort',
+  ],
   { cwd: appWebRoot, stdio: 'inherit', env: { ...process.env } }
 );
 
@@ -109,6 +130,7 @@ function shutdown(code) {
   }
   process.exit(code ?? 0);
 }
+
 
 hub.on('exit', (code) => {
   log(`hub exited with code ${code}`);

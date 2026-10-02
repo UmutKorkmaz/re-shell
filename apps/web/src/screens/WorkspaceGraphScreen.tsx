@@ -224,7 +224,10 @@ function GraphStat({
   tone: string;
 }): React.ReactElement {
   return (
-    <span className="inline-flex items-center gap-2 rounded-md border border-border bg-bg-1 px-2.5 py-1.5 shadow-elev-1">
+    <span
+      data-testid={`graph-stat-${label}`}
+      className="inline-flex items-center gap-2 rounded-md border border-border bg-bg-1 px-2.5 py-1.5 shadow-elev-1"
+    >
       <span className={cn('inline-flex items-center', tone)}>{icon}</span>
       <span className="font-mono text-sm font-semibold tabular-nums">{value}</span>
       <span className="label-eyebrow normal-case text-muted-foreground">{label}</span>
