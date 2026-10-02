@@ -19,6 +19,7 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.test.*",
     "README.md"
   ],
   "main": "./dist/index.js",
@@ -34,7 +35,8 @@
     "re-shell-mcp": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -42,7 +44,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@re-shell/contracts": "workspace:*",
+    "@re-shell/cli": "workspace:^",
+    "@re-shell/contracts": "workspace:^",
     "zod": "^4.4.3"
   },
   "devDependencies": {
