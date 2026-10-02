@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
@@ -148,6 +148,36 @@ describe('ConfigTemplateEngine — lifecycle (fs)', () => {
     expect(created.version).toBe('1.0.0');
     expect(created.tags).toEqual([]);
     expect(created.description).toBe('Configuration template for plain');
+  });
+
+  it('preserves the initial timestamp across delayed persistence and refreshes it on later saves', async () => {
+    const initialTime = Date.parse('2026-10-02T12:00:00.000Z');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(initialTime);
+    try {
+      const creation = engine.createTemplate('timed', { a: 1 }, []);
+      vi.setSystemTime(initialTime + 250);
+      const created = await creation;
+      const filePath = path.join(dir, 'timed.template.yaml');
+      const firstSaved = yaml.parse(await fs.readFile(filePath, 'utf8')) as ConfigTemplate;
+      const initialTimestamp = new Date(initialTime).toISOString();
+      expect(created.createdAt).toBe(initialTimestamp);
+      expect(created.updatedAt).toBe(initialTimestamp);
+      expect(firstSaved.createdAt).toBe(initialTimestamp);
+      expect(firstSaved.updatedAt).toBe(initialTimestamp);
+
+      vi.setSystemTime(initialTime + 1000);
+      const saving = engine.saveTemplate(created);
+      vi.setSystemTime(initialTime + 1250);
+      await saving;
+      const savedAgain = yaml.parse(await fs.readFile(filePath, 'utf8')) as ConfigTemplate;
+      expect(created.createdAt).toBe(initialTimestamp);
+      expect(created.updatedAt).toBe(new Date(initialTime + 1250).toISOString());
+      expect(savedAgain.createdAt).toBe(created.createdAt);
+      expect(savedAgain.updatedAt).toBe(created.updatedAt);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

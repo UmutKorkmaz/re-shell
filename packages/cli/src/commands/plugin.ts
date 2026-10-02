@@ -13,7 +13,7 @@ import {
   installPluginFromIdentifier,
   PluginInstallError,
 } from '../utils/plugin-installer';
-import { ok, fail } from '../utils/json-output';
+import { ok, fail, enableJsonMode } from '../utils/json-output';
 
 /**
  * Options for the `re-shell plugin` command.
@@ -452,38 +452,23 @@ export async function disablePlugin(
 
 // Update plugins
 /**
- * Checks all installed plugins for available updates.
+ * Reports that plugin update checking and installation are not implemented.
  *
- * @param options - Options controlling verbosity
- * @returns Promise that resolves when the update check is complete
+ * @param options - Options controlling JSON output
+ * @returns Promise that resolves after a JSON failure, or rejects in human mode
  */
 export async function updatePlugins(options: PluginCommandOptions = {}): Promise<void> {
-  const { verbose = false } = options;
-
-  try {
-    const registry = createPluginRegistry();
-    await registry.initialize();
-
-    const plugins = registry.getPlugins();
-    
-    if (plugins.length === 0) {
-      console.log(chalk.yellow('No plugins to update.'));
-      return;
+  const message = 'Plugin update is not implemented. No update checks or changes were performed.';
+  if (options.json) {
+    const restoreJson = enableJsonMode();
+    try {
+      fail('PLUGIN_UPDATE_ERROR', message, { status: 'not-implemented', operation: 'update' });
+    } finally {
+      restoreJson();
     }
-
-    const spinner = createSpinner(`Checking for plugin updates...`);
-    spinner.start();
-
-    // TODO: Implement update checking and installation
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate update check
-    
-    spinner.succeed(chalk.green('All plugins are up to date!'));
-
-  } catch (error) {
-    throw new ValidationError(
-      `Plugin update failed: ${error instanceof Error ? error.message : String(error)}`
-    );
+    return;
   }
+  throw new ValidationError(message);
 }
 
 // Display discovered plugin list (without lifecycle info)
@@ -635,43 +620,29 @@ function displayPluginDetails(plugin: ManagedPluginRegistration, verbose: boolea
 
 // Validate plugin compatibility
 /**
- * Validates plugin compatibility by checking manifest, structure, dependencies, and security.
+ * Reports that comprehensive plugin compatibility validation is not implemented.
  *
  * @param pluginPath - Filesystem path to the plugin to validate
  * @param options - Options controlling JSON output and verbosity
- * @returns Promise that resolves when validation has completed
+ * @returns Promise that resolves after a JSON failure, or rejects in human mode
  */
 export async function validatePlugin(
   pluginPath: string, 
   options: PluginCommandOptions = {}
 ): Promise<void> {
-  const { verbose = false, json = false } = options;
-
-  try {
-    const spinner = createSpinner('Validating plugin...');
-    spinner.start();
-
-    // TODO: Implement comprehensive plugin validation
-    // This would check:
-    // 1. Manifest validity
-    // 2. Code structure
-    // 3. Dependencies compatibility
-    // 4. Security scanning
-    // 5. Performance analysis
-
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate validation
-    
-    spinner.succeed(chalk.green('Plugin validation passed!'));
-
-    if (verbose) {
-      console.log(chalk.gray('All checks completed successfully.'));
+  const message = 'Plugin compatibility validation is not implemented. No validation checks were performed.';
+  if (options.json) {
+    const restoreJson = enableJsonMode();
+    try {
+      fail('PLUGIN_VALIDATE_ERROR', message, {
+        status: 'not-implemented', operation: 'validate', path: pluginPath,
+      });
+    } finally {
+      restoreJson();
     }
-
-  } catch (error) {
-    throw new ValidationError(
-      `Plugin validation failed: ${error instanceof Error ? error.message : String(error)}`
-    );
+    return;
   }
+  throw new ValidationError(message);
 }
 
 // Clear plugin cache

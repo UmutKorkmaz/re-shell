@@ -72,11 +72,42 @@ describe('runUiTest', () => {
     expect(uiTestResponseSchema.safeParse(lastJson().data).success).toBe(true);
   });
 
-  it('reports a warning + score 0 when no runner is wired', async () => {
+  it('fails explicitly when no runner is wired', async () => {
     await runUiTest({ json: true });
-    const data = lastJson().data as { storyCount: number; uiMaturityScore: number; warnings: string[] };
+    const env = lastJson();
+    expect(env.ok).toBe(false);
+    expect(env.error).toMatchObject({ code: 'UI_TEST_ERROR', message: expect.stringMatching(/not run/i) });
+    expect(env.data).toBeUndefined();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('reports missing runner on stderr in human mode', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      await runUiTest({});
+      expect(stderr).toHaveBeenCalledWith(expect.stringMatching(/not run/i));
+      expect(written).toEqual([]);
+      expect(process.exitCode).toBe(1);
+    } finally {
+      stderr.mockRestore();
+    }
+  });
+
+  it('fails the gate when an injected runner returns no stories', async () => {
+    await runUiTest({ json: true, runStories: async () => [] });
+    const data = lastJson().data as { storyCount: number; uiMaturityScore: number; pass: boolean; warnings: string[] };
     expect(data.storyCount).toBe(0);
     expect(data.uiMaturityScore).toBe(0);
-    expect(data.warnings.join(' ')).toMatch(/no Storybook runner wired/);
+    expect(data.pass).toBe(false);
+    expect(data.warnings.join(' ')).toMatch(/no stories were run/);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it.each(['visaul', 'a11y,unknown', '', ', ,'])('rejects invalid gate %j before running stories', async gate => {
+    const runStories = vi.fn(async () => [{ id: 'a', interaction: true, a11y: true, visual: true }]);
+    await runUiTest({ json: true, gate, runStories });
+    expect(lastJson()).toMatchObject({ ok: false, error: { code: 'UI_TEST_ERROR', message: expect.stringMatching(/gate/i) } });
+    expect(runStories).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 });

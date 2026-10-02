@@ -4,8 +4,8 @@
 // pillars Storybook 9 collapsed into one runner) into a UI-maturity score
 // (0-100) + a per-dimension breakdown that feeds the production-readiness
 // scorecard as a UI-maturity dimension. The actual headless runner is
-// INJECTABLE — the command layer shells out to `storybook test` (or accepts
-// pre-collected results), this file only aggregates. Pure: no I/O, no mutation.
+// INJECTABLE; no default command-layer runner is wired yet. This file only
+// aggregates pre-collected results. Pure: no I/O, no mutation.
 
 /**
  * The three Storybook-9 test pillars.
@@ -148,17 +148,17 @@ export function aggregateUiTests(results: readonly StoryResult[]): UiTestAggrega
  *
  * @param aggregate - The aggregate UI-test rollup to evaluate.
  * @param gateKinds - Pillars that gate CI (defaults to {@link DEFAULT_UI_GATE}).
- * @returns `true` when no configured gate pillar has any failing story (or when
- * there are no stories to gate); `false` otherwise.
+ * @returns `true` when stories were run and every configured gate pillar passed;
+ * `false` for empty runs, empty gates, unknown pillars, or failing pillars.
  */
 export function passesGate(
   aggregate: UiTestAggregate,
   gateKinds: readonly UiGateKind[] = DEFAULT_UI_GATE
 ): boolean {
-  if (aggregate.storyCount === 0) return true; // no stories → nothing to gate
+  if (aggregate.storyCount === 0 || gateKinds.length === 0) return false;
   return gateKinds.every(kind => {
     const dim = aggregate.dimensions.find(d => d.kind === kind);
-    return dim ? dim.passed === dim.total : true;
+    return dim ? dim.total > 0 && dim.passed === dim.total : false;
   });
 }
 

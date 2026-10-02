@@ -127,6 +127,7 @@ function fakePlugin(overrides: Record<string, unknown> = {}) {
 let logs: string[];
 let logSpy: ReturnType<typeof vi.spyOn>;
 let writeSpy: ReturnType<typeof vi.spyOn>;
+const originalExitCode = process.exitCode;
 
 function output(): string {
   const consoleOut = logs.join('\n');
@@ -135,6 +136,7 @@ function output(): string {
 }
 
 beforeEach(() => {
+  process.exitCode = undefined;
   vi.mocked(createPluginRegistry).mockReturnValue(registryMock as unknown as PluginRegistry);
   registryMock.initialize.mockResolvedValue(undefined);
   registryMock.getManagedPlugins.mockReturnValue([]);
@@ -154,6 +156,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  process.exitCode = originalExitCode;
   logSpy.mockRestore();
   writeSpy.mockRestore();
 });
@@ -567,30 +570,27 @@ describe('plugin — command group', () => {
   });
 
   describe('updatePlugins / validatePlugin / clearPluginCache', () => {
-    it('update reports nothing-to-update for an empty registry', async () => {
+    it('update reports not implemented even for an empty registry', async () => {
       registryMock.getPlugins.mockReturnValue([]);
 
-      await updatePlugins();
-
-      expect(output()).toContain('No plugins to update');
+      await expect(updatePlugins()).rejects.toThrow('Plugin update is not implemented');
+      expect(registryMock.initialize).not.toHaveBeenCalled();
     });
 
-    it('update reports all up to date for present plugins', async () => {
+    it('update never claims present plugins are up to date', async () => {
       registryMock.getPlugins.mockReturnValue([fakePlugin()]);
 
-      await updatePlugins();
-
-      expect(output()).toContain('All plugins are up to date');
+      await expect(updatePlugins()).rejects.toThrow('No update checks or changes were performed');
+      expect(output()).not.toContain('All plugins are up to date');
     });
 
-    it('validate prints the pass banner and verbose note', async () => {
-      await validatePlugin('/plugins/my-plugin');
-
-      expect(output()).toContain('Plugin validation passed');
-
-      logs = [];
-      await validatePlugin('/plugins/my-plugin', { verbose: true });
-      expect(output()).toContain('All checks completed successfully');
+    it('validate reports not implemented without a pass banner', async () => {
+      await expect(validatePlugin('/plugins/my-plugin')).rejects.toThrow('not implemented');
+      await expect(validatePlugin('/plugins/my-plugin', { verbose: true })).rejects.toThrow(
+        'No validation checks were performed'
+      );
+      expect(output()).not.toContain('Plugin validation passed');
+      expect(output()).not.toContain('All checks completed successfully');
     });
 
     it('clearCache delegates to the registry and confirms', async () => {

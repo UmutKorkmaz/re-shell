@@ -150,6 +150,14 @@ export class ConfigTemplateEngine {
    * @throws {ValidationError} If validation or file writing fails.
    */
   async saveTemplate(template: ConfigTemplate, templatePath?: string): Promise<string> {
+    return this.persistTemplate(template, templatePath);
+  }
+
+  private async persistTemplate(
+    template: ConfigTemplate,
+    templatePath?: string,
+    initialTimestamp?: string
+  ): Promise<string> {
     try {
       this.validateTemplate(template);
       
@@ -158,7 +166,7 @@ export class ConfigTemplateEngine {
       
       await fs.ensureDir(path.dirname(fullPath));
       
-      template.updatedAt = new Date().toISOString();
+      template.updatedAt = initialTimestamp ?? new Date().toISOString();
       const content = yaml.stringify(template);
       await fs.writeFile(fullPath, content, 'utf8');
       
@@ -256,7 +264,7 @@ export class ConfigTemplateEngine {
 
   /**
    * Construct a new template from an existing configuration object and
-   * persist it via {@link saveTemplate}.
+   * persist it with a shared creation/update timestamp.
    *
    * @param name - Unique name for the new template.
    * @param config - Configuration object containing template substitution placeholders.
@@ -275,6 +283,7 @@ export class ConfigTemplateEngine {
       version?: string;
     } = {}
   ): Promise<ConfigTemplate> {
+    const initialTimestamp = new Date().toISOString();
     const template: ConfigTemplate = {
       name,
       version: options.version || '1.0.0',
@@ -283,11 +292,11 @@ export class ConfigTemplateEngine {
       tags: options.tags || [],
       variables,
       template: config,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: initialTimestamp,
+      updatedAt: initialTimestamp
     };
 
-    await this.saveTemplate(template);
+    await this.persistTemplate(template, undefined, initialTimestamp);
     return template;
   }
 

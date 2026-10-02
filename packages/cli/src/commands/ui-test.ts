@@ -24,21 +24,8 @@ export interface UiTestOptions {
   json?: boolean;
   /** Comma-separated pillars that gate CI (default: a11y,visual). */
   gate?: string;
-  /** Injectable story runner (tests). When absent, a stub reports no stories. */
+  /** Injectable story runner. Required until a real CLI runner is available. */
   runStories?: () => Promise<StoryResult[]>;
-}
-
-/**
- * The default runner stub: reports that no Storybook runner is wired.
- *
- * @param warnings - Array to push warning messages into.
- * @returns An empty array (no stories).
- */
-async function defaultRunner(warnings: string[]): Promise<StoryResult[]> {
-  warnings.push(
-    'no Storybook runner wired (offline stub); pass results via an injected runner or run `npx storybook test`'
-  );
-  return [];
 }
 
 /**
@@ -52,19 +39,33 @@ async function defaultRunner(warnings: string[]): Promise<StoryResult[]> {
  */
 export async function runUiTest(options: UiTestOptions): Promise<void> {
   const json = Boolean(options.json);
+  const configuredKinds = options.gate === undefined
+    ? DEFAULT_UI_GATE
+    : options.gate.split(',').map(s => s.trim()).filter(Boolean);
+  const isGateKind = (kind: string): kind is UiGateKind =>
+    kind === 'a11y' || kind === 'visual' || kind === 'interaction';
+  if (configuredKinds.length === 0 || !configuredKinds.every(isGateKind)) {
+    emitUiTestError(json, 'Invalid UI gate: select one or more of a11y, visual, interaction.');
+    return;
+  }
+  const gateKinds: readonly UiGateKind[] = configuredKinds;
+  if (!options.runStories) {
+    emitUiTestError(
+      json,
+      'UI tests not run: no Storybook runner is wired. This command is currently unsupported without a runner.'
+    );
+    return;
+  }
 
   const spinner = json ? null : createSpinner('Running UI tests…', undefined, { json });
   spinner?.start();
 
   const warnings: string[] = [];
   try {
-    const runStories = options.runStories ?? (() => defaultRunner(warnings));
+    const runStories = options.runStories;
     const results = await runStories();
 
     const aggregate = aggregateUiTests(results);
-    const gateKinds: readonly UiGateKind[] = options.gate
-      ? (options.gate.split(',').map(s => s.trim()).filter(Boolean) as UiGateKind[])
-      : DEFAULT_UI_GATE;
     const pass = passesGate(aggregate, gateKinds);
 
     const failures: UiFailure[] = flattenFailures(aggregate).map(f => ({
@@ -98,7 +99,7 @@ export async function runUiTest(options: UiTestOptions): Promise<void> {
       renderHuman(payload);
     }
 
-    // Gate: a failing gated pillar (default a11y/visual) fails the CI check.
+    // A failing gated pillar or an empty run fails the CI check.
     if (!pass) {
       process.exitCode = 1;
     }

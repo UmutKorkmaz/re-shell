@@ -5,20 +5,19 @@ import { createSpinner } from '../utils/spinner';
 import { runUiTest } from '../commands/ui-test';
 
 /**
- * `re-shell ui test` — Storybook-9 UI test aggregation + a11y/visual gating
- * (issue #22). Runs all stories headless (interaction + a11y + visual), rolls
- * the results into a UI-maturity score (a scorecard-feedable dimension), and
- * gates CI on a11y/visual failures.
+ * `re-shell ui test` — UI test aggregation scaffold (issue #22).
+ * The pure aggregator accepts injected results, but this CLI entry point has
+ * no Storybook runner and reports a not-run error instead of passing CI.
  */
 export function registerUiTestGroup(program: Command): void {
-  const ui = program
+  const ui = program.commands.find(command => command.name() === 'ui') ?? program
     .command('ui')
-    .description('UI test aggregation + a11y/visual gating (Storybook 9)');
+    .description('UI test aggregation scaffold (unavailable: no Storybook runner wired)');
 
   ui
     .command('test')
     .description(
-      'Run all stories headless; report interaction + a11y + visual results and a UI-maturity score'
+      'UI-test scaffold (unavailable: no Storybook runner wired)'
     )
     .option('--json', 'Output the result as a JSON envelope')
     .option(

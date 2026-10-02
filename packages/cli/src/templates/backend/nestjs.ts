@@ -92,7 +92,7 @@ export const nestjsTemplate: BackendTemplate = {
     "nodemailer": "^6.9.13",
     "handlebars": "^4.7.8",
     "amqplib": "^0.10.4",
-    "kafkajs": "^2.2.4",
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.3.2",

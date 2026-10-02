@@ -1,6 +1,7 @@
 // `re-shell fix --ci` — autonomous CI fixer command (issue #18).
 //
-// Wires the pure fix-loop engine to real evaluators + an injectable fix applier.
+// Wires the pure fix-loop engine to injected evaluators + a fix applier.
+// Without an evaluator, the command fails explicitly instead of claiming green gates.
 // The loop drives remediation to green behind LOCKED gates (tests must pass),
 // enforces a bounded budget + a rollback boundary, and opens a PR only after
 // gates pass AND --no-dry-run is set. Merge/push to a protected branch stays
@@ -12,7 +13,6 @@ import { ok, fail } from '../utils/json-output';
 import { createSpinner } from '../utils/spinner';
 import {
   runFixLoop,
-  gateResult,
   fixResult,
   DEFAULT_MAX_ITERATIONS,
   type GateEvaluator,
@@ -42,25 +42,12 @@ export interface FixCiOptions {
   maxIterations?: number;
   /** Working directory override (tests). */
   cwd?: string;
-  /** Injectable gate evaluator (tests). When absent, a no-op stub is used. */
+  /** Injectable gate evaluator. Required until a real CLI adapter is available. */
   evaluate?: GateEvaluator;
   /** Injectable fix applier (tests). When absent, a no-op stub is used. */
   applyFix?: FixApplier;
   /** Injectable PR opener (tests). Returns the PR URL. */
   openPullRequest?: () => Promise<string>;
-}
-
-/**
- * The default gate evaluator adapter: in this offline-first slice it reports the
- * gates as "unknown" (passing with a warning) unless real evaluators are wired.
- * The command layer's real adapter (running tests / doctor / lint) is injected by
- * the caller; the engine never assumes a specific gate source.
- */
-function defaultEvaluator(warnings: string[]): GateEvaluator {
-  return () => {
-    warnings.push('no real gate evaluator wired; treating gates as passing (offline stub)');
-    return Promise.resolve(gateResult(true, []));
-  };
 }
 
 /** The default fix applier: a documented no-op that triggers the rollback boundary. */
@@ -72,7 +59,7 @@ function defaultApplier(): FixApplier {
 /**
  * `re-shell fix --ci` — autonomous CI fixer.
  *
- * Wires the pure fix-loop engine to (optionally injected) evaluators and a fix
+ * Wires the pure fix-loop engine to injected evaluators and a fix
  * applier, drives remediation toward green gates under a bounded budget, and —
  * only when gates pass AND `noDryRun` is set — opens a pull request.
  *
@@ -90,6 +77,13 @@ function defaultApplier(): FixApplier {
  */
 export async function runFixCi(options: FixCiOptions): Promise<void> {
   const json = Boolean(options.json);
+  if (!options.evaluate) {
+    emitFixCiError(
+      json,
+      'CI verification not run: no real gate evaluator is wired. The CI fixer is currently unsupported without an evaluator.'
+    );
+    return;
+  }
   const dryRun = !options.noDryRun;
   const maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
 
@@ -98,7 +92,7 @@ export async function runFixCi(options: FixCiOptions): Promise<void> {
 
   const warnings: string[] = [];
   try {
-    const evaluate = options.evaluate ?? defaultEvaluator(warnings);
+    const evaluate = options.evaluate;
     const applyFix = options.applyFix ?? defaultApplier();
 
     const run: FixLoopRun = await runFixLoop(evaluate, applyFix, maxIterations);
@@ -146,6 +140,9 @@ export async function runFixCi(options: FixCiOptions): Promise<void> {
       ok(payload);
     } else {
       renderHuman(payload, dryRun);
+    }
+    if (!run.gatesPassed) {
+      process.exitCode = 1;
     }
   } finally {
     spinner?.stop();
