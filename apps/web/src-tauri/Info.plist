@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Merged into the macOS app's Info.plist by the Tauri bundler.
+
+    The dashboard talks to its own hub over plain HTTP/WS on 127.0.0.1.
+    NSAllowsLocalNetworking lets App Transport Security permit those loopback
+    loads while leaving ATS fully enforced for every other host.
+  -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+  </dict>
+</dict>
+</plist>
