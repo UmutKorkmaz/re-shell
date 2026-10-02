@@ -3,6 +3,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { isJsEntry, toCliInvocation } from './core/cli-invocation.js';
+
 /**
  * Thin (NOT pure) helper that invokes the Re-Shell CLI. Kept out of src/core so
  * the pure parsing/assembly modules stay host- and process-free and unit-test
@@ -27,10 +29,13 @@ export interface RunCliResult {
  */
 export function runCli(cliBin: string, argv: readonly string[], cwd: string): Promise<RunCliResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cliBin, [...argv], {
+    // A JS entry (e.g. packages/cli/dist/index.js) has no executable bit, so it
+    // is run under this runtime; see core/cli-invocation.ts.
+    const invocation = toCliInvocation(cliBin, process.execPath);
+    const child = spawn(invocation.command, [...invocation.prefixArgs, ...argv], {
       cwd,
       shell: false,
-      env: process.env,
+      env: { ...process.env, ...invocation.env },
     });
 
     let stdout = '';
@@ -104,6 +109,16 @@ function isExecutable(file: string): boolean {
     const stat = fs.statSync(file);
     if (!stat.isFile()) return false;
     fs.accessSync(file, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isReadableFile(file: string): boolean {
+  try {
+    if (!fs.statSync(file).isFile()) return false;
+    fs.accessSync(file, fs.constants.R_OK);
     return true;
   } catch {
     return false;
@@ -190,10 +205,13 @@ function resolveViaLoginShell(binName: string): string | undefined {
  * the caller's spawn produces the usual ENOENT error surface + diagnostics).
  */
 export function resolveCliBin(cliBin: string, log?: (message: string) => void): string {
-  // 1. Absolute path that exists and is executable.
+  // 1. Absolute path that exists and is executable. A JS entry only has to be a
+  //    readable file: it is run through Node, not executed directly.
   if (path.isAbsolute(cliBin)) {
-    if (isExecutable(cliBin)) return cliBin;
-    log?.(`[re-shell] configured cliBin "${cliBin}" is not executable; searching PATH`);
+    if (isJsEntry(cliBin) ? isReadableFile(cliBin) : isExecutable(cliBin)) return cliBin;
+    log?.(
+      `[re-shell] configured cliBin "${cliBin}" is not ${isJsEntry(cliBin) ? 'a readable file' : 'executable'}; searching PATH`
+    );
   }
 
   const binName = path.basename(cliBin);

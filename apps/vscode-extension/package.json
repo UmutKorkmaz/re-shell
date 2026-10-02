@@ -2,7 +2,7 @@
   "name": "re-shell",
   "displayName": "Re-Shell",
   "description": "Manage re-shell projects from inside VS Code: browse apps/packages, run commands, scaffold from templates, and monitor workspace health.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "license": "MIT",
   "publisher": "umutkorkmaz",
   "private": true,
@@ -96,6 +96,18 @@
         "icon": "$(play)"
       },
       {
+        "command": "reShell.buildCommand",
+        "title": "Re-Shell: Build Command",
+        "category": "Re-Shell",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "reShell.runViaHub",
+        "title": "Re-Shell: Run via Hub",
+        "category": "Re-Shell",
+        "icon": "$(cloud)"
+      },
+      {
         "command": "reShell.openTerminal",
         "title": "Re-Shell: Open Terminal",
         "category": "Re-Shell",
@@ -187,6 +199,11 @@
           "command": "reShell.refresh",
           "when": "view == reShell.templates",
           "group": "navigation"
+        },
+        {
+          "command": "reShell.runViaHub",
+          "when": "view == reShell.commands",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -222,17 +239,27 @@
         },
         {
           "command": "reShell.runCommandFromTree",
-          "when": "view == reShell.commands && viewItem == reShellCommand",
+          "when": "view == reShell.commands && viewItem =~ /^reShellCommand/",
           "group": "reShell.command@1"
         },
         {
           "command": "reShell.copyCommand",
-          "when": "view == reShell.commands && viewItem == reShellCommand",
+          "when": "view == reShell.commands && viewItem =~ /^reShellCommand/",
           "group": "reShell.command@2"
         },
         {
+          "command": "reShell.runViaHub",
+          "when": "view == reShell.commands && viewItem == reShellCommandHub",
+          "group": "reShell.command@3"
+        },
+        {
+          "command": "reShell.runViaHub",
+          "when": "view == reShell.commands && viewItem == reShellCommandHub",
+          "group": "inline"
+        },
+        {
           "command": "reShell.runCommandFromTree",
-          "when": "view == reShell.commands && viewItem == reShellCommand",
+          "when": "view == reShell.commands && viewItem =~ /^reShellCommand/",
           "group": "inline"
         },
         {
@@ -287,36 +314,67 @@
         "reShell.cliBin": {
           "type": "string",
           "default": "re-shell",
-          "description": "Path or name of the Re-Shell CLI binary used to fetch workspace data and run commands."
+          "scope": "machine",
+          "markdownDescription": "Path or name of the Re-Shell CLI used to fetch workspace data and run commands. An absolute path to the CLI's JavaScript entry (for example `packages/cli/dist/index.js` in a checkout) is run with Node. When left at the default, the `RE_SHELL_CLI_BIN` environment variable is used if set."
         },
         "reShell.hub.url": {
           "type": "string",
-          "default": "http://127.0.0.1:5179",
-          "description": "Base URL of the local Re-Shell UI hub server."
+          "default": "http://127.0.0.1:3334",
+          "scope": "machine",
+          "markdownDescription": "Base URL of the local Re-Shell hub server (printed as `Hub:` by `re-shell ui`). When left at the default, the `RE_SHELL_UI_HUB_URL` environment variable is used if set."
         },
         "reShell.hub.token": {
           "type": "string",
           "default": "",
-          "description": "Session token for the local hub (sent as the x-re-shell-ui-hub-token header)."
+          "scope": "machine",
+          "markdownDescription": "Session token for the local hub, sent as the `x-re-shell-ui-hub-token` header (printed as `Hub token:` by `re-shell ui`). Falls back to the `RE_SHELL_UI_HUB_TOKEN` environment variable when empty. Stored in user settings only; never put a token in workspace settings."
+        },
+        "reShell.hub.timeoutMs": {
+          "type": "number",
+          "default": 120000,
+          "minimum": 1000,
+          "scope": "machine",
+          "description": "Maximum time in milliseconds a command run through the hub may take before the request is aborted."
         }
       }
     }
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build:host-tests": "node scripts/build-host-tests.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tests.json --noEmit",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:host": "pnpm run build && pnpm run build:host-tests && node dist-test/host/run.js",
     "test:watch": "vitest",
-    "clean": "rm -rf dist"
-  },
-  "dependencies": {
-    "@re-shell/contracts": "workspace:*",
-    "zod": "^4.4.3"
+    "package": "node scripts/build.mjs --minify && vsce package --no-dependencies && node scripts/verify-vsix.mjs",
+    "clean": "rm -rf dist dist-test .vscode-test *.vsix"
   },
   "devDependencies": {
+    "@re-shell/contracts": "workspace:*",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
+    "@types/vscode": "~1.85.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.21.5",
+    "mocha": "^10.8.2",
     "typescript": "^5.0.0",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "zod": "^4.4.3"
+  },
+  "icon": "media/icon.png",
+  "keywords": [
+    "re-shell",
+    "microfrontend",
+    "monorepo",
+    "cli",
+    "hub"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Re-Shell runs the re-shell CLI against the open folder, so it is only available in trusted workspaces."
+    }
   }
 }
