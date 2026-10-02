@@ -12,6 +12,15 @@ import { normalizeHealth, CanonicalHealth } from '../utils/health-normalizer';
 import { buildSuggestions } from '../utils/doctor-remediation';
 import type { Suggestion } from '@re-shell/contracts';
 import type { ValidationResult, ValidationError } from '../parsers/workspace-parser';
+import { docsUrl } from '../constants/brand';
+import {
+  SCHEMA_NAME_HINT,
+  SCHEMA_NAME_PATTERN,
+  WORKSPACE_CONFIG_VERSION,
+  dumpWorkspaceYaml,
+  toSchemaName,
+  uniqueKey,
+} from '../utils/workspace-yaml';
 
 const execAsync = promisify(exec);
 
@@ -144,7 +153,7 @@ interface WorkspaceTemplateOptions {
 }
 
 /** Represents a detected service during project structure scanning. */
-interface ServiceDetection {
+export interface ServiceDetection {
   /** Service name (typically the directory name). */
   name: string;
   /** Relative path from the monorepo root. */
@@ -168,7 +177,7 @@ interface ServiceTypeInfo {
 }
 
 /** Result of scanning the project root for languages, frameworks, and services. */
-interface ProjectDetection {
+export interface ProjectDetection {
   /** Whether a package.json file was found. */
   hasPackageJson: boolean;
   /** Whether Python project files were found. */
@@ -188,7 +197,7 @@ interface ProjectDetection {
 }
 
 /** User responses collected during the interactive setup wizard. */
-interface SetupResponses {
+export interface SetupResponses {
   /** Workspace name entered by the user. */
   name: string;
   /** Optional workspace description. */
@@ -1233,7 +1242,7 @@ async function runSetupWizard(detection: ProjectDetection, skipPrompts: boolean)
   if (skipPrompts) {
     return {
       name: 'my-workspace',
-      version: '2.0.0',
+      version: WORKSPACE_CONFIG_VERSION,
       description: 'Auto-generated workspace',
       includeServices: detection.services.length > 0,
     };
@@ -1243,9 +1252,9 @@ async function runSetupWizard(detection: ProjectDetection, skipPrompts: boolean)
   const nameResponse = await prompts({
     type: 'text',
     name: 'name',
-    message: 'Workspace name',
-    initial: path.basename(process.cwd()),
-    validate: (value: string) => value.length > 0 || 'Name is required',
+    message: 'Workspace name (lowercase letters, digits and hyphens)',
+    initial: toSchemaName(path.basename(process.cwd()), 'my-workspace'),
+    validate: (value: string) => SCHEMA_NAME_PATTERN.test(value) || SCHEMA_NAME_HINT,
   });
 
   if (!nameResponse.name) {
@@ -1258,21 +1267,12 @@ async function runSetupWizard(detection: ProjectDetection, skipPrompts: boolean)
     message: 'Description (optional)',
   });
 
-  const versionResponse = await prompts({
-    type: 'select',
-    name: 'version',
-    message: 'Configuration version',
-    choices: [
-      { title: '2.0.0 (Latest)', value: '2.0.0' },
-      { title: '1.0.0 (Legacy)', value: '1.0.0' },
-    ],
-    initial: 0,
-  });
-
+  // The generated file is validated against the v2 schema, which only accepts
+  // 2.0.x, so the version is not a choice.
   const responses: SetupResponses = {
     name: nameResponse.name,
     description: descResponse.description,
-    version: versionResponse.version,
+    version: WORKSPACE_CONFIG_VERSION,
   };
 
   // Ask about detected services
@@ -1302,15 +1302,27 @@ async function runSetupWizard(detection: ProjectDetection, skipPrompts: boolean)
 }
 
 /**
- * Generate workspace configuration YAML
+ * Generate workspace configuration YAML.
+ *
+ * The document is built as an object and serialised with js-yaml so it always
+ * conforms to the v2 JSON Schema: scalars are quoted when needed, an empty
+ * `services` map is written as `services: {}` (never null), and every service
+ * key/name is a schema-valid kebab-case name.
+ *
+ * @param responses - Wizard (or `--yes` default) answers.
+ * @param detection - Result of scanning the project root.
+ * @returns The workspace YAML, starting with the `$schema` modeline.
+ * @internal Exported for tests.
  */
-function generateWorkspaceConfig(responses: SetupResponses, detection: ProjectDetection): string {
-  const services: Record<string, ServiceDetection> = {};
+export function generateWorkspaceConfig(responses: SetupResponses, detection: ProjectDetection): string {
+  const services: Record<string, Record<string, string>> = {};
+  const usedKeys = new Set<string>();
 
   if (responses.includeServices && detection.services.length > 0) {
     for (const service of detection.services) {
-      services[service.name] = {
-        name: service.name,
+      const key = uniqueKey(toSchemaName(service.name), usedKeys);
+      services[key] = {
+        name: key,
         type: service.type,
         language: service.language,
         framework: service.framework,
@@ -1319,34 +1331,16 @@ function generateWorkspaceConfig(responses: SetupResponses, detection: ProjectDe
     }
   }
 
-  const config = {
+  const doc: Record<string, unknown> = {
     name: responses.name,
     version: responses.version,
-    description: responses.description,
-    services,
   };
-
-  // Convert to YAML (simple implementation)
-  let yaml = 'name: ' + config.name + '\n';
-  yaml += 'version: ' + config.version + '\n';
-  if (config.description) {
-    yaml += 'description: ' + config.description + '\n';
+  if (responses.description) {
+    doc.description = responses.description;
   }
-  yaml += '\nservices:\n';
+  doc.services = services;
 
-  for (const [id, s] of Object.entries(services)) {
-    yaml += '  ' + id + ':\n';
-    yaml += '    name: ' + s.name + '\n';
-    yaml += '    type: ' + s.type + '\n';
-    yaml += '    language: ' + s.language + '\n';
-    yaml += '    framework: ' + s.framework + '\n';
-    if (s.path) {
-      yaml += '    path: ' + s.path + '\n';
-    }
-    yaml += '\n';
-  }
-
-  return yaml;
+  return dumpWorkspaceYaml(doc);
 }
 
 /**
@@ -1458,7 +1452,7 @@ export async function validateWorkspaceConfig(options: WorkspaceValidateOptions 
       if (fix) {
         console.log(chalk.gray('  3. Or run: re-shell workspace validate --fix'));
       }
-      console.log(chalk.gray('  4. Check documentation: https://re-shell.dev/docs/workspace-config\n'));
+      console.log(chalk.gray(`  4. Check documentation: ${docsUrl('cli/workspace')}\n`));
 
       // Show warnings
       if (result.warnings.length > 0) {
@@ -2384,11 +2378,13 @@ async function performMigration(
     if (migratedConfig.workspaces && Array.isArray(migratedConfig.workspaces)) {
       const oldWorkspaces = migratedConfig.workspaces;
       migratedConfig.services = {};
+      const usedServiceIds = new Set<string>();
 
-      for (const ws of oldWorkspaces) {
-        const serviceId = ws.name || 'service-' + Math.random().toString(36).substring(7);
+      for (const [index, ws] of oldWorkspaces.entries()) {
+        // v2 service keys/names must be kebab-case (schema pattern).
+        const serviceId = uniqueKey(toSchemaName(String(ws.name ?? ''), 'service-' + (index + 1)), usedServiceIds);
         migratedConfig.services[serviceId] = {
-          name: ws.name || serviceId,
+          name: serviceId,
           displayName: ws.displayName,
           description: ws.description,
           port: ws.port,
@@ -2402,7 +2398,8 @@ async function performMigration(
         } else if (ws.framework) {
           migratedConfig.services[serviceId].type = 'backend';
         } else {
-          migratedConfig.services[serviceId].type = 'service';
+          // 'service' is not a valid v2 type; plain workspaces map to 'worker'.
+          migratedConfig.services[serviceId].type = 'worker';
         }
 
         // Add default language
@@ -2440,7 +2437,7 @@ async function performMigration(
           } else if (s.framework) {
             s.type = 'backend';
           } else {
-            s.type = 'service';
+            s.type = 'worker';
           }
           changes.push('Set type for service: ' + serviceId);
         }
@@ -2450,6 +2447,13 @@ async function performMigration(
           s.language = 'typescript';
           changes.push('Added language to service: ' + serviceId);
           warnings.push('Verify language for service: ' + serviceId);
+        }
+
+        // `framework` is required by the v2 schema.
+        if (!s.framework) {
+          s.framework = 'vanilla';
+          changes.push('Added framework to service: ' + serviceId);
+          warnings.push('Verify framework for service: ' + serviceId);
         }
       }
     }
@@ -2464,123 +2468,27 @@ async function performMigration(
     }
   }
 
-  // Convert to YAML
-  let yaml = 'name: ' + migratedConfig.name + '\n';
-  yaml += 'version: ' + migratedConfig.version + '\n';
-
-  if (migratedConfig.description) {
-    yaml += 'description: ' + migratedConfig.description + '\n';
+  // v2 requires `services` (an empty map is valid; null is not).
+  if (migratedConfig.version === '2.0.0' && !migratedConfig.services) {
+    migratedConfig.services = {};
   }
 
-  if (migratedConfig.metadata) {
-    yaml += 'metadata:\n';
-    for (const [key, value] of Object.entries(migratedConfig.metadata)) {
-      yaml += '  ' + key + ': ' + JSON.stringify(value) + '\n';
+  // Serialise through the shared writer so the output is real, schema-conformant
+  // YAML. (The former hand-rolled emitter wrote `services:` as null, dropped
+  // fields it did not know about and emitted an invalid `type: service`.)
+  const { name, version, description, ...rest } = migratedConfig;
+  const migratedDoc: Record<string, unknown> = { name, version };
+  if (description) migratedDoc.description = description;
+  Object.assign(migratedDoc, rest);
+
+  if (migratedConfig.version === '2.0.0') {
+    const { validateWorkspaceDocument } = await import('../utils/schema-generator');
+    for (const err of validateWorkspaceDocument(migratedDoc)) {
+      warnings.push('Result does not satisfy the v2 schema at ' + (err.instancePath || '(root)') + ': ' + err.message);
     }
   }
 
-  if (migratedConfig.variables) {
-    yaml += 'variables:\n';
-    for (const [key, value] of Object.entries(migratedConfig.variables)) {
-      yaml += '  ' + key + ': ' + JSON.stringify(value) + '\n';
-    }
-  }
-
-  yaml += '\nservices:\n';
-
-  if (migratedConfig.services) {
-    for (const [id, service] of Object.entries(migratedConfig.services)) {
-      const s = service as Record<string, any>;
-      yaml += '  ' + id + ':\n';
-      yaml += '    name: ' + s.name + '\n';
-
-      if (s.displayName) {
-        yaml += '    displayName: ' + s.displayName + '\n';
-      }
-
-      if (s.description) {
-        yaml += '    description: ' + s.description + '\n';
-      }
-
-      if (s.type) {
-        yaml += '    type: ' + s.type + '\n';
-      }
-
-      yaml += '    language: ' + s.language + '\n';
-
-      if (typeof s.framework === 'string') {
-        yaml += '    framework: ' + s.framework + '\n';
-      } else if (typeof s.framework === 'object') {
-        yaml += '    framework:\n';
-        yaml += '      name: ' + s.framework.name + '\n';
-        if (s.framework.version) {
-          yaml += '      version: ' + s.framework.version + '\n';
-        }
-        if (s.framework.config) {
-          yaml += '      config: ' + JSON.stringify(s.framework.config) + '\n';
-        }
-      }
-
-      if (s.path) {
-        yaml += '    path: ' + s.path + '\n';
-      }
-
-      if (s.port) {
-        yaml += '    port: ' + s.port + '\n';
-      }
-
-      if (s.env && Object.keys(s.env).length > 0) {
-        yaml += '    env:\n';
-        for (const [key, value] of Object.entries(s.env)) {
-          yaml += '      ' + key + ': ' + JSON.stringify(value) + '\n';
-        }
-      }
-
-      if (s.dependencies) {
-        if (s.dependencies.production && Object.keys(s.dependencies.production).length > 0) {
-          yaml += '    dependencies:\n';
-          yaml += '      production:\n';
-          for (const [dep, version] of Object.entries(s.dependencies.production)) {
-            yaml += '        ' + dep + ': ' + JSON.stringify(version) + '\n';
-          }
-        }
-      }
-
-      if (s.routes && s.routes.length > 0) {
-        yaml += '    routes:\n';
-        for (const route of s.routes) {
-          yaml += '      - path: ' + route.path + '\n';
-          if (route.method) yaml += '        method: ' + route.method + '\n';
-          if (route.target) yaml += '        target: ' + route.target + '\n';
-        }
-      }
-
-      yaml += '\n';
-    }
-  }
-
-  if (migratedConfig.dependencies) {
-    yaml += 'dependencies:\n';
-    
-    if (migratedConfig.dependencies.databases && migratedConfig.dependencies.databases.length > 0) {
-      yaml += '  databases:\n';
-      for (const db of migratedConfig.dependencies.databases) {
-        yaml += '    - name: ' + db.name + '\n';
-        if (db.type) yaml += '      type: ' + db.type + '\n';
-        if (db.version) yaml += '      version: ' + db.version + '\n';
-      }
-    }
-
-    if (migratedConfig.dependencies.caches && migratedConfig.dependencies.caches.length > 0) {
-      yaml += '  caches:\n';
-      for (const cache of migratedConfig.dependencies.caches) {
-        yaml += '    - name: ' + cache.name + '\n';
-        if (cache.type) yaml += '      type: ' + cache.type + '\n';
-      }
-    }
-  }
-
-  return { config: yaml, changes, warnings };
+  return { config: dumpWorkspaceYaml(migratedDoc), changes, warnings };
 }
 
 /**
