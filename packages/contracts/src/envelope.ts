@@ -86,6 +86,15 @@ export const errorCodeSchema = z.enum([
   'ENV_ERROR',
   // Code introduced by the Storybook UI-test aggregation slice (issue #22)
   'UI_TEST_ERROR',
+  // Codes introduced by the S-C service-process-hardening / dev --profile workstream
+  'SERVICES_NOT_FOUND',
+  'SERVICES_COMPOSE_UNAVAILABLE',
+  'SERVICES_COMPOSE_FAILED',
+  'SERVICES_START_FAILED',
+  'SERVICES_STOP_FAILED',
+  'SERVICES_UNHEALTHY',
+  'SERVICES_ERROR',
+  'DEV_PROFILE_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

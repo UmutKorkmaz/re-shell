@@ -1,9 +1,48 @@
 import { Command } from 'commander';
-import { createAsyncCommand, withTimeout, processManager } from '../utils/error-handler';
+import { createAsyncCommand, withTimeout, processManager, ValidationError } from '../utils/error-handler';
 import { createSpinner, flushOutput } from '../utils/spinner';
+import { enableJsonMode, ok as jsonOk, fail as jsonFail } from '../utils/json-output';
+import { ServiceRuntimeError } from '../utils/service-process';
 import chalk from 'chalk';
 import { buildAll, generateDeploymentConfig, deployServices, listServices } from '../commands/polyglot';
 import { runBridgeGenerate } from '../commands/bridge-generate';
+
+/**
+ * Parse a millisecond option, rejecting NaN/negative input instead of letting it
+ * turn into an instantly-firing timer.
+ */
+function parseMs(raw: string | undefined, flag: string): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new ValidationError(`Invalid ${flag} "${raw}": expected a non-negative number of milliseconds.`, flag);
+  }
+  return value;
+}
+
+/**
+ * Run `fn`; with `--json` emit exactly one envelope (`ok:true` + the returned
+ * data, or `ok:false` + a stable error code) and set a non-zero exit code on
+ * failure. Without `--json` errors propagate so createAsyncCommand exits non-zero.
+ */
+async function withServiceEnvelope<T>(json: boolean, fn: () => Promise<T>): Promise<void> {
+  if (!json) {
+    await fn();
+    return;
+  }
+  const restore = enableJsonMode();
+  try {
+    const data = await fn();
+    jsonOk(data);
+  } catch (error) {
+    if (error instanceof ServiceRuntimeError) {
+      jsonFail(error.code, error.message, error.details);
+    } else {
+      jsonFail('SERVICES_ERROR', error instanceof Error ? error.message : String(error));
+    }
+  } finally {
+    restore();
+  }
+}
 
 /**
  * Registers the `service` command group on the given CLI program.
@@ -166,37 +205,47 @@ export function registerServiceGroup(program: Command): void {
     .option('--no-deps', 'Do not start dependent services')
     .option('--scale <service=count...>', 'Scale services (e.g., web=3,worker=2)')
     .option('--timeout <ms>', 'Startup timeout in milliseconds', '120000')
+    .option(
+      '--alive-ms <ms>',
+      'Process-mode services without a port/health URL must stay alive this long to count as started',
+      '1500'
+    )
     .option('--verbose', 'Show detailed output')
     .action(
       createAsyncCommand(async (options) => {
+        const timeout = parseMs(options.timeout, '--timeout');
+        const aliveMs = parseMs(options.aliveMs, '--alive-ms');
         const spinner = createSpinner('Starting services...').start();
         processManager.addCleanup(() => spinner.stop());
         flushOutput();
 
         const { servicesUp } = await import('../commands/services');
 
-        await withTimeout(async () => {
-          const scale: Record<string, number> = {};
-          if (options.scale) {
-            for (const s of options.scale) {
-              const [service, count] = s.split('=');
-              scale[service] = parseInt(count);
+        try {
+          await withTimeout(async () => {
+            const scale: Record<string, number> = {};
+            if (options.scale) {
+              for (const s of options.scale) {
+                const [service, count] = s.split('=');
+                scale[service] = parseInt(count);
+              }
             }
-          }
 
-          await servicesUp(process.cwd(), {
-            detached: options.detached,
-            build: options.build,
-            forceRecreate: options.forceRecreate,
-            noDeps: options.deps === false,
-            scale,
-            timeout: parseInt(options.timeout),
-            verbose: options.verbose,
-            spinner,
-          });
-        }, parseInt(options.timeout) + 10000);
-
-        spinner.stop();
+            await servicesUp(process.cwd(), {
+              detached: options.detached,
+              build: options.build,
+              forceRecreate: options.forceRecreate,
+              noDeps: options.deps === false,
+              scale,
+              timeout,
+              aliveMs,
+              verbose: options.verbose,
+              spinner,
+            });
+          }, timeout + 10000);
+        } finally {
+          spinner.stop();
+        }
       })
     );
 
@@ -205,47 +254,55 @@ export function registerServiceGroup(program: Command): void {
     .description('Stop and remove services with graceful shutdown')
     .option('-v, --volumes', 'Remove volumes as well')
     .option('--remove-orphans', 'Remove containers for services not in compose file')
-    .option('--timeout <ms>', 'Shutdown timeout in milliseconds', '60000')
+    .option('--timeout <ms>', 'Shutdown timeout in milliseconds (SIGTERM, then SIGKILL after this long)', '60000')
     .option('--verbose', 'Show detailed output')
     .action(
       createAsyncCommand(async (options) => {
+        const timeout = parseMs(options.timeout, '--timeout');
         const spinner = createSpinner('Stopping services...').start();
         processManager.addCleanup(() => spinner.stop());
         flushOutput();
 
         const { servicesDown } = await import('../commands/services');
 
-        await withTimeout(async () => {
-          await servicesDown(process.cwd(), {
-            volumes: options.volumes,
-            removeOrphans: options.removeOrphans,
-            timeout: parseInt(options.timeout),
-            verbose: options.verbose,
-            spinner,
-          });
-        }, parseInt(options.timeout) + 10000);
-
-        spinner.stop();
+        try {
+          await withTimeout(async () => {
+            await servicesDown(process.cwd(), {
+              volumes: options.volumes,
+              removeOrphans: options.removeOrphans,
+              timeout,
+              verbose: options.verbose,
+              spinner,
+            });
+          }, timeout + 10000);
+        } finally {
+          spinner.stop();
+        }
       })
     );
 
   runCommand
     .command('health')
-    .description('Check service health with comprehensive monitoring')
+    .description('Check service health (exits non-zero when no service is running or any is down)')
     .option('-w, --watch', 'Watch health status continuously')
     .option('--interval <ms>', 'Watch interval in milliseconds', '5000')
-    .option('--json', 'Output as JSON')
+    .option('--json', 'Output as a JSON envelope')
     .option('--verbose', 'Show detailed information')
     .action(
       createAsyncCommand(async (options) => {
         const { servicesHealth } = await import('../commands/services');
 
-        await servicesHealth(process.cwd(), {
-          watch: options.watch,
-          interval: parseInt(options.interval),
-          json: options.json,
-          verbose: options.verbose,
-        });
+        await withServiceEnvelope(Boolean(options.json), () =>
+          servicesHealth(process.cwd(), {
+            watch: options.watch,
+            interval: parseMs(options.interval, '--interval'),
+            json: options.json,
+            verbose: options.verbose,
+            // Watch + JSON streams one envelope per interval.
+            onReport:
+              options.watch && options.json ? (report) => jsonOk(report) : undefined,
+          })
+        );
       })
     );
 
@@ -269,57 +326,63 @@ export function registerServiceGroup(program: Command): void {
 
   runCommand
     .command('restart <service>')
-    .description('Restart service with zero-downtime if possible')
+    .description('Restart a service')
     .option('--timeout <ms>', 'Restart timeout in milliseconds', '60000')
     .option('--verbose', 'Show detailed information')
     .action(
       createAsyncCommand(async (service, options) => {
+        const timeout = parseMs(options.timeout, '--timeout');
         const spinner = createSpinner(`Restarting ${service}...`).start();
         processManager.addCleanup(() => spinner.stop());
         flushOutput();
 
         const { servicesRestart } = await import('../commands/services');
 
-        await withTimeout(async () => {
-          await servicesRestart(process.cwd(), service, {
-            timeout: parseInt(options.timeout),
-            verbose: options.verbose,
-            spinner,
-          });
-        }, parseInt(options.timeout) + 10000);
-
-        spinner.stop();
+        try {
+          await withTimeout(async () => {
+            await servicesRestart(process.cwd(), service, {
+              timeout,
+              verbose: options.verbose,
+              spinner,
+            });
+          }, timeout + 10000);
+        } finally {
+          spinner.stop();
+        }
       })
     );
 
   runCommand
     .command('scale <service> <replicas>')
-    .description('Scale service to specified number of instances')
+    .description('Scale service to specified number of instances (Docker Compose only)')
     .option('--timeout <ms>', 'Scale timeout in milliseconds', '60000')
     .option('--verbose', 'Show detailed information')
     .action(
       createAsyncCommand(async (service, replicas, options) => {
+        const timeout = parseMs(options.timeout, '--timeout');
         const spinner = createSpinner(`Scaling ${service}...`).start();
         processManager.addCleanup(() => spinner.stop());
         flushOutput();
 
         const { servicesScale } = await import('../commands/services');
 
-        await withTimeout(async () => {
-          await servicesScale(process.cwd(), service, parseInt(replicas), {
-            timeout: parseInt(options.timeout),
-            verbose: options.verbose,
-            spinner,
-          });
-        }, parseInt(options.timeout) + 10000);
-
-        spinner.stop();
+        try {
+          await withTimeout(async () => {
+            await servicesScale(process.cwd(), service, parseInt(replicas), {
+              timeout,
+              verbose: options.verbose,
+              spinner,
+            });
+          }, timeout + 10000);
+        } finally {
+          spinner.stop();
+        }
       })
     );
 
   runCommand
     .command('exec <service> <command...>')
-    .description('Execute command in service container')
+    .description('Execute command in service container (Docker Compose only)')
     .option('-T, --no-tty', 'Disable pseudo-TTY allocation')
     .option('--verbose', 'Show detailed information')
     .action(
@@ -336,16 +399,18 @@ export function registerServiceGroup(program: Command): void {
   runCommand
     .command('inspect <service>')
     .description('Inspect service with detailed metrics and dependency information')
-    .option('--json', 'Output as JSON')
+    .option('--json', 'Output as a JSON envelope')
     .option('--verbose', 'Show detailed information')
     .action(
       createAsyncCommand(async (service, options) => {
         const { servicesInspect } = await import('../commands/services');
 
-        await servicesInspect(process.cwd(), service, {
-          json: options.json,
-          verbose: options.verbose,
-        });
+        await withServiceEnvelope(Boolean(options.json), () =>
+          servicesInspect(process.cwd(), service, {
+            json: options.json,
+            verbose: options.verbose,
+          })
+        );
       })
     );
 
