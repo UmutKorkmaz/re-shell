@@ -24,7 +24,7 @@ function tpl(over: Partial<TemplateSummary> = {}): TemplateSummary {
     framework: 'express',
     tags: ['api'],
     ...over,
-  };
+  } as TemplateSummary;
 }
 
 describe('parseTemplatesList', () => {
