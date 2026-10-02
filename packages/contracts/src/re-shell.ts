@@ -116,6 +116,8 @@ export {
   uiTestResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
+  wsJobMessageSchema,
+  wsAuthMessageSchema,
   wsClientMessageSchema,
   wsServerMessageSchema,
   hubServerConfigSchema,
@@ -226,6 +228,8 @@ export type {
   UiTestResponse,
   // sse / ws wire messages
   SseEvent,
+  WsJobMessage,
+  WsAuthMessage,
   WsClientMessage,
   WsServerMessage,
   HubServerConfig,
