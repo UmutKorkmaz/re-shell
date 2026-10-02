@@ -2533,7 +2533,7 @@ re-shell doctor --fix
 Re-Shell CLI with its plugin ecosystem provides unlimited extensibility for building modern microfrontend applications. The combination of core features and plugin capabilities enables teams to create sophisticated, scalable, and maintainable applications with ease.
 
 For more information:
-- Documentation: https://re-shell.dev/docs
-- Plugin Registry: https://re-shell.dev/plugins
-- GitHub: https://github.com/umutkorkmaz/re-shell-cli
-- Support: support@re-shell.dev
+- Documentation: https://umutkorkmaz.github.io/re-shell/
+- Plugins: https://umutkorkmaz.github.io/re-shell/cli/plugin/
+- GitHub: https://github.com/UmutKorkmaz/re-shell
+- Support: https://github.com/UmutKorkmaz/re-shell/issues

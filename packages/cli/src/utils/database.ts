@@ -10,6 +10,7 @@ import { getTypeORMConfig } from '../templates/shared/typeorm-config';
 import { getMongooseConfig } from '../templates/shared/mongoose-config';
 import { getFrameworkConfig } from './framework';
 import { listBackendTemplates, getBackendTemplate } from '../templates/backend/index';
+import { REPO_URL } from '../constants/brand';
 
 /**
  * Supported database ORM/ODM types or none.
@@ -3581,7 +3582,7 @@ function generateReadme(config: ProjectDocsConfig): { path: string; content: str
 
   const content = `# ${name}
 
-${description ? description : `A ${type} built with [Re-Shell CLI](https://github.com/umutkorkmaz/re-shell-cli).`}
+${description ? description : `A ${type} built with [Re-Shell CLI](${REPO_URL}).`}
 
 ## Version
 
@@ -3658,7 +3659,7 @@ ${author}` : ''}
 
 ---
 
-Generated with ❤️ by [Re-Shell CLI](https://github.com/umutkorkmaz/re-shell-cli)
+Generated with ❤️ by [Re-Shell CLI](${REPO_URL})
 `;
 
   return {
