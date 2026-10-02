@@ -2488,7 +2488,13 @@ async function performMigration(
     }
   }
 
-  return { config: dumpWorkspaceYaml(migratedDoc), changes, warnings };
+  // Only v2 documents get the v2 `$schema` modeline.
+  const migratedYaml =
+    migratedConfig.version === '2.0.0'
+      ? dumpWorkspaceYaml(migratedDoc)
+      : yaml.dump(migratedDoc, { lineWidth: 120, noRefs: true, skipInvalid: true });
+
+  return { config: migratedYaml, changes, warnings };
 }
 
 /**
