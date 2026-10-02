@@ -1,15 +1,19 @@
-# App icons (placeholder)
+# App icons
 
-ENV-LIMITED: real binary icon assets are NOT committed in this scaffold.
+Generated, committed assets. `tauri.conf.json` references `32x32.png`,
+`128x128.png`, `128x128@2x.png`, `icon.png`, `icon.icns` and `icon.ico`;
+`64x64.png` is a spare desktop size produced by the same run.
 
-`tauri.conf.json` references `icons/32x32.png`, `icons/128x128.png`,
-`icons/128x128@2x.png`, `icons/icon.icns`, and `icons/icon.ico`. Generate them
-from a single source image once the Tauri toolchain is available:
+They are derived from one 1024x1024 source, `../icon-source/icon.png`: the
+signal-lime shell-prompt mark on the dashboard's dark canvas, drawn by
+`../icon-source/generate_icon.py` (Pillow) from the dashboard's published color
+tokens.
+
+To regenerate (from `apps/web`):
 
 ```bash
-pnpm --filter @re-shell/dashboard tauri icon path/to/source-1024.png
+python3 src-tauri/icon-source/generate_icon.py src-tauri/icon-source/icon.png
+pnpm tauri icon src-tauri/icon-source/icon.png
+# the desktop shell has no mobile targets:
+rm -rf src-tauri/icons/ios src-tauri/icons/android src-tauri/icons/Square*Logo.png src-tauri/icons/StoreLogo.png
 ```
-
-`tauri icon` writes all required sizes/formats into this directory. Until then,
-`tauri build` will fail at the icon step — by design, since building is out of
-scope for this env-limited scaffold (see docs/desktop.md).
