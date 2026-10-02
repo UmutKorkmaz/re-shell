@@ -11,19 +11,33 @@ import {
   fetchWorkspaceSummaryRaw,
   resolveCliBin,
 } from './cli.js';
+import { runHubJob } from './hub-run.js';
 import {
+  buildCommandSpec,
+  buildHubRunSpec,
+  catalogEntrySchema,
   groupTemplatesByLanguage,
   healthToOverallStatus,
+  isBareInvocation,
+  isHubRunnable,
   parseCommandCatalog,
   parseDoctor,
+  parseJobEnvelope,
   parseTemplatesList,
   parseWorkspaceGraph,
   parseWorkspaceHealth,
   parseWorkspaceSummary,
+  resolveCliBinSetting,
+  resolveHubConfig,
   toProjectNodes,
+  toTerminalPrefix,
   type CatalogEntry,
+  type CommandParams,
+  type CommandSpec,
   type DoctorCheck,
+  type ParsedJobEnvelope,
   type ProjectNode,
+  type RawHubSettings,
   type TemplateSummary,
   type TemplatesByLanguage,
 } from './core/index.js';
@@ -38,6 +52,10 @@ import {
  * commands via fixed-argv `spawn(..., { shell: false })`. We never parse
  * package.json or scan the filesystem ourselves — the CLI is the source of
  * truth.
+ *
+ * The one other I/O path is the local hub (`reShell.runViaHub`): the editor
+ * builds a CommandSpec, then asks the hub to run the matching allow-listed
+ * command (src/hub-run.ts). It never sends the hub a raw command line.
  */
 
 const VIEW_PROJECTS = 'reShell.projects';
@@ -90,8 +108,25 @@ function isReShellWorkspace(dir: string): boolean {
   }
 }
 
+/**
+ * The configured CLI: the `reShell.cliBin` setting, else `RE_SHELL_CLI_BIN`,
+ * else `re-shell` (see core/settings.ts).
+ */
 function getCliBin(): string {
-  return vscode.workspace.getConfiguration('reShell').get<string>('cliBin', 're-shell');
+  return resolveCliBinSetting(
+    vscode.workspace.getConfiguration('reShell').get<string>('cliBin'),
+    process.env
+  );
+}
+
+/** Raw hub connection settings (`reShell.hub.*`); resolved + validated in core. */
+function getHubSettings(): RawHubSettings {
+  const config = vscode.workspace.getConfiguration('reShell.hub');
+  return {
+    url: config.get<string>('url'),
+    token: config.get<string>('token'),
+    timeoutMs: config.get<number>('timeoutMs'),
+  };
 }
 
 /** Sanitizer matching the CLI's safe-identifier charset (no shell metachars). */
@@ -385,7 +420,8 @@ class CommandsTreeProvider implements vscode.TreeDataProvider<CommandsElement> {
     const item = new vscode.TreeItem(entry.path, vscode.TreeItemCollapsibleState.None);
     item.description = entry.destructive ? 'destructive' : entry.description;
     item.tooltip = entry.description;
-    item.contextValue = 'reShellCommand';
+    // Entries on the hub run allow-list additionally offer "Run via Hub".
+    item.contextValue = isHubRunnable(entry) ? 'reShellCommandHub' : 'reShellCommand';
     item.iconPath = new vscode.ThemeIcon('terminal');
     item.command = {
       command: 'reShell.runCommandFromTree',
@@ -582,11 +618,10 @@ function runInTerminal(
 ): void {
   const terminal = vscode.window.createTerminal({ name, cwd });
   terminal.show(true);
-  // cliBin may be an absolute path resolved by resolveCliBin; quote it for the
-  // terminal if it could otherwise split on whitespace. argv tokens are fixed
-  // literals or sanitized values (SAFE_VALUE upstream).
-  const quotedBin = cliBin.includes(' ') ? `"${cliBin}"` : cliBin;
-  terminal.sendText([quotedBin, ...argv].join(' '), true);
+  // cliBin may be an absolute path resolved by resolveCliBin (a JS entry is run
+  // with `node`, a path with whitespace is quoted). argv tokens are catalog path
+  // segments or values sanitized by the pure builder (core/command-builder.ts).
+  terminal.sendText([toTerminalPrefix(cliBin), ...argv].join(' '), true);
 }
 
 async function refreshHandler(ctx: ReShellContext, resolveBin: () => string): Promise<void> {
@@ -652,78 +687,104 @@ function renderDoctorResults(checks: readonly DoctorCheck[], output: vscode.Outp
   output.show(true);
 }
 
-async function runCommandHandler(
-  ctx: ReShellContext,
-  cliBin: string,
-  cwd: string
-): Promise<void> {
-  const grouped = groupCommandsByCategory(ctx.listCommands());
+/**
+ * Two-step quick pick (category, then command) over `entries`. A short list is
+ * shown flat in a single step. Returns the picked entry, or undefined when the
+ * user cancels.
+ */
+async function pickCatalogEntry(
+  entries: readonly CatalogEntry[],
+  title: string
+): Promise<CatalogEntry | undefined> {
+  const grouped = groupCommandsByCategory(entries);
   if (grouped.length === 0) {
-    void vscode.window.showWarningMessage('Re-Shell: no commands available. Is the CLI installed?');
-    return;
+    return undefined;
   }
+
+  if (entries.length <= 12) {
+    const pick = await vscode.window.showQuickPick(
+      grouped.flatMap((g) =>
+        g.entries.map((e) => ({
+          label: e.path,
+          description: e.destructive ? 'destructive' : g.category,
+          detail: e.description,
+          entry: e,
+        }))
+      ),
+      { title, placeHolder: 'Command' }
+    );
+    return pick?.entry;
+  }
+
   const categoryPick = await vscode.window.showQuickPick(
     grouped.map((g) => ({
       label: g.category,
       description: `${g.entries.length} command${g.entries.length > 1 ? 's' : ''}`,
       detail: g.entries.map((e) => e.path).join(', '),
     })),
-    { title: 'Re-Shell: select a category', placeHolder: 'Command category' }
+    { title: `${title}: select a category`, placeHolder: 'Command category' }
   );
-  if (!categoryPick) return;
+  if (!categoryPick) return undefined;
   const category = grouped.find((g) => g.category === categoryPick.label);
-  if (!category) return;
+  if (!category) return undefined;
 
   const commandPick = await vscode.window.showQuickPick(
     category.entries.map((e) => ({
       label: e.path,
       description: e.destructive ? 'destructive' : '',
       detail: e.description,
+      entry: e,
     })),
-    { title: 'Re-Shell: select a command', placeHolder: 'Command' }
+    { title: `${title}: select a command`, placeHolder: 'Command' }
   );
-  if (!commandPick) return;
-  const entry = ctx.findCommand(commandPick.label);
+  return commandPick?.entry;
+}
+
+async function runCommandHandler(ctx: ReShellContext, cliBin: string, cwd: string): Promise<void> {
+  if (ctx.listCommands().length === 0) {
+    void vscode.window.showWarningMessage('Re-Shell: no commands available. Is the CLI installed?');
+    return;
+  }
+  const entry = await pickCatalogEntry(ctx.listCommands(), 'Re-Shell: Run Command');
   if (!entry) return;
   await runCommandFromTreeHandler(cliBin, cwd, entry);
 }
 
 /**
- * Prompt the user for required arguments and optional flags. Returns the
- * assembled argv tokens (args in order, then --flag value pairs), or undefined
- * if the user cancelled any required prompt.
+ * Prompt for a catalog entry's arguments and flags and return them as
+ * {@link CommandParams}, or undefined if the user cancelled a prompt. Nothing
+ * is validated here beyond a live hint in the input box: the pure builder
+ * (`buildCommandSpec` -> `buildCommand`) is the single place values are vetted,
+ * so a value that is not a safe identifier fails the build and never reaches a
+ * terminal or the hub.
  */
-async function collectCommandArgs(
-  entry: CatalogEntry
-): Promise<string[] | undefined> {
-  const argv: string[] = [];
-  const requiredArgs = entry.args.filter((a) => a.required);
-  const optionalArgs = entry.args.filter((a) => !a.required);
+async function collectCommandParams(entry: CatalogEntry): Promise<CommandParams | undefined> {
+  const args: Record<string, string> = {};
+  const flags: Record<string, string> = {};
+  const switches: string[] = [];
 
-  // Prompt for each required arg sequentially.
-  for (const arg of requiredArgs) {
-    const value = await vscode.window.showInputBox({
-      prompt: `${entry.path}: ${arg.name} (required)`,
-      placeHolder: arg.name,
-      validateInput: (v) => (v.trim().length === 0 ? `${arg.name} is required` : undefined),
-    });
-    if (value === undefined) return undefined;
-    argv.push(value.trim());
-  }
+  const safeHint = (v: string): string | undefined =>
+    v.trim().length === 0 || SAFE_VALUE.test(v.trim())
+      ? undefined
+      : 'Use letters, digits, ".", "_" or "-" (must start alphanumeric).';
 
-  // Prompt for optional args (one combined step).
-  for (const arg of optionalArgs) {
+  // Required arguments first, then optional ones, both in catalog order.
+  for (const arg of [...entry.args.filter((a) => a.required), ...entry.args.filter((a) => !a.required)]) {
     const value = await vscode.window.showInputBox({
-      prompt: `${entry.path}: ${arg.name} (optional, press Enter to skip)`,
-      placeHolder: `${arg.name} (optional)`,
+      prompt: arg.required
+        ? `${entry.path}: ${arg.name} (required)`
+        : `${entry.path}: ${arg.name} (optional, press Enter to skip)`,
+      placeHolder: arg.required ? arg.name : `${arg.name} (optional)`,
+      validateInput: (v) =>
+        arg.required && v.trim().length === 0 ? `${arg.name} is required` : safeHint(v),
     });
     if (value === undefined) return undefined;
     if (value.trim().length > 0) {
-      argv.push(value.trim());
+      args[arg.name] = value.trim();
     }
   }
 
-  // Prompt for value-taking flags (show a multi-select of available flags).
+  // Value-taking flags: multi-select which to set, then prompt for each value.
   const valueFlags = entry.flags.filter((f) => f.takesValue && f.name !== '--json');
   if (valueFlags.length > 0) {
     const picked = await vscode.window.showQuickPick(
@@ -739,23 +800,49 @@ async function collectCommandArgs(
         canPickMany: true,
       }
     );
-    if (picked && picked.length > 0) {
-      for (const flag of picked) {
-        const flagDef = valueFlags.find((f) => f.name === flag.label);
-        const value = await vscode.window.showInputBox({
-          prompt: `Value for ${flag.label}`,
-          placeHolder: flagDef?.description ?? flag.label,
-          value: flagDef?.default !== undefined ? String(flagDef.default) : undefined,
-        });
-        if (value === undefined) return undefined;
-        if (value.trim().length > 0) {
-          argv.push(flag.label, value.trim());
-        }
+    for (const flag of picked ?? []) {
+      const flagDef = valueFlags.find((f) => f.name === flag.label);
+      const value = await vscode.window.showInputBox({
+        prompt: `Value for ${flag.label}`,
+        placeHolder: flagDef?.description ?? flag.label,
+        value: flagDef?.default !== undefined ? String(flagDef.default) : undefined,
+        validateInput: safeHint,
+      });
+      if (value === undefined) return undefined;
+      if (value.trim().length > 0) {
+        flags[flag.label] = value.trim();
       }
     }
   }
 
-  return argv;
+  // Boolean switches.
+  const switchFlags = entry.flags.filter((f) => !f.takesValue);
+  if (switchFlags.length > 0) {
+    const picked = await vscode.window.showQuickPick(
+      switchFlags.map((f) => ({ label: f.name, description: f.description, picked: false })),
+      {
+        title: `${entry.path}: switches`,
+        placeHolder: 'Select switches to enable (or press Enter to skip)',
+        canPickMany: true,
+      }
+    );
+    for (const flag of picked ?? []) {
+      switches.push(flag.label);
+    }
+  }
+
+  return { args, flags, switches };
+}
+
+/** Modal confirmation for a spec flagged `requiresConfirmation`. */
+async function confirmSpec(spec: CommandSpec): Promise<boolean> {
+  if (!spec.requiresConfirmation) return true;
+  const choice = await vscode.window.showWarningMessage(
+    `Re-Shell: "${spec.title}" is destructive. Run \`${spec.command.join(' ')}\`?`,
+    { modal: true },
+    'Run'
+  );
+  return choice === 'Run';
 }
 
 async function runCommandFromTreeHandler(
@@ -763,16 +850,288 @@ async function runCommandFromTreeHandler(
   cwd: string,
   entry: CatalogEntry
 ): Promise<void> {
-  const hasRequiredArgs = entry.args.some((a) => a.required);
-  const baseArgv = entry.path.split(' ').filter((s) => s.length > 0);
-
-  if (hasRequiredArgs) {
-    const extraArgv = await collectCommandArgs(entry);
-    if (!extraArgv) return;
-    runInTerminal(cliBin, cwd, [...baseArgv, ...extraArgv], `Re-Shell: ${entry.path}`);
-  } else {
-    runInTerminal(cliBin, cwd, baseArgv, `Re-Shell: ${entry.path}`);
+  // Prompt only when the command needs arguments; otherwise run it bare.
+  let params: CommandParams = {};
+  if (entry.args.some((a) => a.required)) {
+    const collected = await collectCommandParams(entry);
+    if (!collected) return;
+    params = collected;
   }
+  const built = buildCommandSpec(entry, params, cwd);
+  if (!built.ok) {
+    void vscode.window.showErrorMessage(`Re-Shell: ${built.error}`);
+    return;
+  }
+  if (!(await confirmSpec(built.spec))) return;
+  runInTerminal(cliBin, cwd, built.spec.command.slice(1), `Re-Shell: ${entry.path}`);
+}
+
+// ---------------------------------------------------------------------------
+// Build Command + Run via Hub
+// ---------------------------------------------------------------------------
+
+/**
+ * Programmatic argument accepted by `reShell.buildCommand` and
+ * `reShell.runViaHub`: a catalog entry (what a tree click passes) or just its
+ * `path`, optionally with ready-made `params` so no prompt is shown (used by
+ * tests and other extensions).
+ */
+interface EntryArg {
+  readonly path: string;
+  readonly params?: CommandParams;
+}
+
+function isEntryArg(arg: unknown): arg is EntryArg {
+  return typeof arg === 'object' && arg !== null && typeof (arg as { path?: unknown }).path === 'string';
+}
+
+/** Resolve a command argument to a full catalog entry, or explain why not. */
+function resolveEntryArg(
+  ctx: ReShellContext,
+  arg: EntryArg
+): { ok: true; entry: CatalogEntry } | { ok: false; error: string } {
+  const known = ctx.findCommand(arg.path);
+  if (known) return { ok: true, entry: known };
+  const full = catalogEntrySchema.safeParse(arg);
+  if (full.success) return { ok: true, entry: full.data };
+  return {
+    ok: false,
+    error:
+      `"${arg.path}" is not in the command catalog loaded from the CLI. ` +
+      'Run "Re-Shell: Refresh" and check "reShell.cliBin".',
+  };
+}
+
+/** What `reShell.buildCommand` returns to a programmatic caller. */
+export type BuildCommandOutcome =
+  | { ok: true; spec: CommandSpec; commandText: string }
+  | { ok: false; error: string };
+
+/**
+ * "Re-Shell: Build Command": choose a catalog entry, fill in its arguments, and
+ * build a vetted {@link CommandSpec}. The spec is written to the Re-Shell output
+ * channel and returned; nothing is executed. A follow-up notification offers to
+ * run it in a terminal, copy it, or (when it is a bare allow-listed command)
+ * run it via the hub.
+ */
+async function buildCommandHandler(
+  ctx: ReShellContext,
+  output: vscode.OutputChannel,
+  cwd: string,
+  arg: unknown
+): Promise<BuildCommandOutcome | undefined> {
+  let entry: CatalogEntry | undefined;
+  let params: CommandParams | undefined;
+  if (isEntryArg(arg)) {
+    const resolved = resolveEntryArg(ctx, arg);
+    if (!resolved.ok) {
+      void vscode.window.showErrorMessage(`Re-Shell: ${resolved.error}`);
+      return resolved;
+    }
+    entry = resolved.entry;
+    params = arg.params;
+  } else {
+    if (ctx.listCommands().length === 0) {
+      void vscode.window.showWarningMessage('Re-Shell: no commands available. Is the CLI installed?');
+      return undefined;
+    }
+    entry = await pickCatalogEntry(ctx.listCommands(), 'Re-Shell: Build Command');
+  }
+  if (!entry) return undefined;
+
+  params ??= await collectCommandParams(entry);
+  if (!params) return undefined;
+
+  const built = buildCommandSpec(entry, params, cwd);
+  if (!built.ok) {
+    output.appendLine(`[re-shell] build failed for "${entry.path}": ${built.error}`);
+    void vscode.window.showErrorMessage(`Re-Shell: ${built.error}`);
+    return built;
+  }
+
+  output.appendLine(`[re-shell] built spec for "${entry.path}":`);
+  output.appendLine(JSON.stringify(built.spec, null, 2));
+
+  const hubEligible = isHubRunnable(entry) && isBareInvocation(entry, built.spec.command.slice(1));
+  const actions = ['Run in Terminal', 'Copy', ...(hubEligible ? ['Run via Hub'] : [])];
+  const chosen = entry;
+  // Do not await the notification: the build result is returned immediately and
+  // the choice is handled whenever (and if ever) the user makes it.
+  void Promise.resolve(
+    vscode.window.showInformationMessage(`Re-Shell: built \`${built.commandText}\``, ...actions)
+  ).then(async (choice) => {
+    if (choice === 'Run in Terminal') {
+      if (await confirmSpec(built.spec)) {
+        runInTerminal(getCliBin(), cwd, built.spec.command.slice(1), `Re-Shell: ${chosen.path}`);
+      }
+    } else if (choice === 'Copy') {
+      await vscode.env.clipboard.writeText(built.commandText);
+    } else if (choice === 'Run via Hub') {
+      await vscode.commands.executeCommand('reShell.runViaHub', chosen);
+    }
+  });
+
+  return built;
+}
+
+/**
+ * What `reShell.runViaHub` returns. `ok: true` is only ever reported when the
+ * hub job exited 0 AND its stdout is a valid `ok:true` envelope; every other
+ * outcome says which stage failed and why.
+ */
+export type RunViaHubOutcome =
+  | {
+      ok: true;
+      spec: CommandSpec;
+      exitCode: number;
+      stdout: string;
+      stderr: string;
+      envelope: Extract<ParsedJobEnvelope, { ok: true }>;
+    }
+  | {
+      ok: false;
+      /**
+       * `catalog`/`spec`: nothing was sent. `config`: hub settings unusable.
+       * `hub`: the hub could not be reached / refused / dropped the stream.
+       * `command`: the job ran but failed (non-zero exit or an error envelope).
+       */
+      stage: 'catalog' | 'spec' | 'config' | 'hub' | 'command';
+      error: string;
+      spec?: CommandSpec;
+      exitCode?: number;
+      stdout?: string;
+      stderr?: string;
+    };
+
+/** Cap on how much of a result's JSON is echoed into the output channel. */
+const OUTPUT_PREVIEW_CHARS = 4000;
+
+/**
+ * "Re-Shell: Run via Hub": build a spec for an allow-listed catalog command and
+ * run it through the local hub. The editor sends only `{ commandId: 'run',
+ * params: { subcommand, cwd } }`; the hub resolves it against its own registry
+ * and spawns the CLI itself.
+ */
+async function runViaHubHandler(
+  ctx: ReShellContext,
+  output: vscode.OutputChannel,
+  cwd: string,
+  arg: unknown
+): Promise<RunViaHubOutcome | undefined> {
+  let entry: CatalogEntry | undefined;
+  if (isEntryArg(arg)) {
+    const resolved = resolveEntryArg(ctx, arg);
+    if (!resolved.ok) {
+      void vscode.window.showErrorMessage(`Re-Shell: ${resolved.error}`);
+      return { ok: false, stage: 'catalog', error: resolved.error };
+    }
+    entry = resolved.entry;
+  } else {
+    const runnable = ctx.listCommands().filter(isHubRunnable);
+    if (runnable.length === 0) {
+      void vscode.window.showWarningMessage(
+        'Re-Shell: no hub-runnable commands available. Is the CLI installed?'
+      );
+      return undefined;
+    }
+    entry = await pickCatalogEntry(runnable, 'Re-Shell: Run via Hub');
+  }
+  if (!entry) return undefined;
+
+  const target = buildHubRunSpec(entry, cwd);
+  if (!target.ok) {
+    void vscode.window.showErrorMessage(`Re-Shell: ${target.error}`);
+    return { ok: false, stage: 'spec', error: target.error };
+  }
+  const { spec, request } = target;
+
+  const hub = resolveHubConfig(getHubSettings(), process.env);
+  if (!hub.ok) {
+    output.appendLine(`[re-shell] hub not configured: ${hub.error}`);
+    void Promise.resolve(
+      vscode.window.showErrorMessage(`Re-Shell: ${hub.error}`, 'Open Settings')
+    ).then((choice) => {
+      if (choice === 'Open Settings') {
+        void vscode.commands.executeCommand('workbench.action.openSettings', 'reShell.hub');
+      }
+    });
+    return { ok: false, stage: 'config', error: hub.error, spec };
+  }
+
+  output.appendLine(`[re-shell] running via hub ${hub.config.baseUrl}: ${target.commandText}`);
+  output.appendLine(JSON.stringify(spec, null, 2));
+
+  const run = await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: `Re-Shell: ${entry.path} (via hub)`,
+      cancellable: true,
+    },
+    (_progress, token) => {
+      const abort = new AbortController();
+      const subscription = token.onCancellationRequested(() => abort.abort());
+      return runHubJob(hub.config, request.commandId, request.params, {
+        timeoutMs: hub.timeoutMs,
+        signal: abort.signal,
+      }).finally(() => subscription.dispose());
+    }
+  );
+
+  if (!run.ok) {
+    output.appendLine(`[re-shell] hub run failed (${run.kind}): ${run.message}`);
+    void vscode.window.showErrorMessage(`Re-Shell: ${run.message}`);
+    return { ok: false, stage: 'hub', error: run.message, spec };
+  }
+
+  if (run.stderr.trim()) {
+    output.appendLine(`[re-shell] stderr: ${run.stderr.trim()}`);
+  }
+  for (const problem of run.protocolProblems) {
+    output.appendLine(`[re-shell] hub protocol warning: ${problem}`);
+  }
+
+  const envelope = parseJobEnvelope(run.stdout);
+  if (run.exitCode !== 0 || !envelope.ok) {
+    const error = envelope.ok
+      ? `"${entry.path}" exited with code ${run.exitCode}.`
+      : `"${entry.path}" failed (exit ${run.exitCode}): ${envelope.error}`;
+    output.appendLine(`[re-shell] ${error}`);
+    void vscode.window.showErrorMessage(`Re-Shell: ${error}`);
+    return {
+      ok: false,
+      stage: 'command',
+      error,
+      spec,
+      exitCode: run.exitCode,
+      stdout: run.stdout,
+      stderr: run.stderr,
+    };
+  }
+
+  const pretty = JSON.stringify(envelope.data, null, 2) ?? '';
+  output.appendLine(
+    `[re-shell] "${entry.path}" finished (exit ${run.exitCode}). Result:\n` +
+      (pretty.length > OUTPUT_PREVIEW_CHARS
+        ? `${pretty.slice(0, OUTPUT_PREVIEW_CHARS)}\n... (${pretty.length - OUTPUT_PREVIEW_CHARS} more characters)`
+        : pretty)
+  );
+  void Promise.resolve(
+    vscode.window.showInformationMessage(
+      `Re-Shell: "${entry.path}" finished via hub (exit ${run.exitCode}).`,
+      'Show Output'
+    )
+  ).then((choice) => {
+    if (choice === 'Show Output') output.show(true);
+  });
+
+  return {
+    ok: true,
+    spec,
+    exitCode: run.exitCode,
+    stdout: run.stdout,
+    stderr: run.stderr,
+    envelope,
+  };
 }
 
 function copyCommandHandler(entry: CatalogEntry): void {
@@ -901,7 +1260,34 @@ function openTerminalPaletteHandler(cwd: string): void {
 // Activation
 // ---------------------------------------------------------------------------
 
-export function activate(context: vscode.ExtensionContext): void {
+/**
+ * The extension's programmatic surface, returned from `activate()` (available as
+ * `extension.exports`). It exists so the VS Code host tests can observe what the
+ * views render and wait for the CLI-backed refresh, without reaching into
+ * private state or scraping the UI.
+ */
+export interface ReShellExtensionApi {
+  /** Resolves when the activation-time refresh (all CLI calls) has settled. */
+  readonly ready: Promise<void>;
+  /** Re-fetch everything from the CLI, exactly like "Re-Shell: Refresh". */
+  refresh(): Promise<void>;
+  /**
+   * The Commands view as rendered: each category label with its command labels,
+   * read back through the tree data provider that backs the view.
+   */
+  commandsTree(): { category: string; commands: string[] }[];
+  /** The catalog entries currently loaded from `re-shell commands list --json`. */
+  catalog(): readonly CatalogEntry[];
+  /** The CLI path the last refresh actually spawned. */
+  resolvedCli(): string;
+}
+
+function treeLabel(item: vscode.TreeItem): string {
+  const label = item.label;
+  return typeof label === 'string' ? label : (label?.label ?? '');
+}
+
+export function activate(context: vscode.ExtensionContext): ReShellExtensionApi {
   const output = vscode.window.createOutputChannel('Re-Shell');
   const snapshotEmitter = new vscode.EventEmitter<WorkspaceSnapshot>();
   const ctx = new ReShellContext(output, snapshotEmitter);
@@ -952,7 +1338,8 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
-  const cwd = getWorkspaceCwd();
+  // Evaluated per call so a changed workspace folder is picked up.
+  const cwd = (): string => getWorkspaceCwd();
   // Resolve the CLI to an absolute path each call. GUI-launched VS Code inherits
   // a minimal PATH; resolveCliBin probes common global bin dirs + the login
   // shell so the extension works even when `re-shell` isn't on the host PATH.
@@ -997,26 +1384,34 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand('reShell.refresh', () => refreshHandler(ctx, resolveBin)),
     vscode.commands.registerCommand('reShell.runDoctor', () =>
-      runDoctorHandler(resolveBin(), cwd, output)
+      runDoctorHandler(resolveBin(), cwd(), output)
     ),
     vscode.commands.registerCommand('reShell.runCommand', () =>
-      runCommandHandler(ctx, resolveBin(), cwd)
+      runCommandHandler(ctx, resolveBin(), cwd())
+    ),
+    // Both accept an optional catalog entry / `{ path, params? }` and RETURN their
+    // outcome, so they can be driven programmatically (and by the host tests).
+    vscode.commands.registerCommand('reShell.buildCommand', (arg?: unknown) =>
+      buildCommandHandler(ctx, output, cwd(), arg)
+    ),
+    vscode.commands.registerCommand('reShell.runViaHub', (arg?: unknown) =>
+      runViaHubHandler(ctx, output, cwd(), arg)
     ),
     vscode.commands.registerCommand('reShell.openTerminal', () =>
-      openTerminalPaletteHandler(cwd)
+      openTerminalPaletteHandler(cwd())
     ),
     vscode.commands.registerCommand('reShell.createProject', () =>
-      createProjectHandler(resolveBin(), cwd, ctx)
+      createProjectHandler(resolveBin(), cwd(), ctx)
     ),
     vscode.commands.registerCommand('reShell.createProjectFromTemplate', (arg: unknown) => {
       const t = resolveTemplate(arg);
-      if (t) void createProjectHandler(resolveBin(), cwd, ctx, t);
+      if (t) void createProjectHandler(resolveBin(), cwd(), ctx, t);
     }),
 
     // Commands-view actions
     vscode.commands.registerCommand('reShell.runCommandFromTree', (arg: unknown) => {
       const entry = resolveCommand(arg);
-      if (entry) runCommandFromTreeHandler(resolveBin(), cwd, entry);
+      if (entry) void runCommandFromTreeHandler(resolveBin(), cwd(), entry);
     }),
     vscode.commands.registerCommand('reShell.copyCommand', (arg: unknown) => {
       const entry = resolveCommand(arg);
@@ -1026,19 +1421,19 @@ export function activate(context: vscode.ExtensionContext): void {
     // Project right-click actions
     vscode.commands.registerCommand('reShell.buildProject', (arg: unknown) => {
       const node = resolveProject(arg);
-      if (node) buildProjectHandler(resolveBin(), cwd, node);
+      if (node) buildProjectHandler(resolveBin(), cwd(), node);
     }),
     vscode.commands.registerCommand('reShell.serveProject', (arg: unknown) => {
       const node = resolveProject(arg);
-      if (node) serveProjectHandler(resolveBin(), cwd, node);
+      if (node) serveProjectHandler(resolveBin(), cwd(), node);
     }),
     vscode.commands.registerCommand('reShell.testProject', (arg: unknown) => {
       const node = resolveProject(arg);
-      if (node) testProjectHandler(resolveBin(), cwd, node);
+      if (node) testProjectHandler(resolveBin(), cwd(), node);
     }),
     vscode.commands.registerCommand('reShell.openProjectTerminal', (arg: unknown) => {
       const node = resolveProject(arg);
-      if (node) openTerminalHandler(cwd, node);
+      if (node) openTerminalHandler(cwd(), node);
     }),
     vscode.commands.registerCommand('reShell.revealProject', (arg: unknown) => {
       const node = resolveProject(arg);
@@ -1069,9 +1464,9 @@ export function activate(context: vscode.ExtensionContext): void {
   // Initial load + startup diagnostic. If the CLI can't be resolved or run,
   // surface a visible error (with a Show Output action) so the cause isn't
   // buried in the output channel — a stripped PATH is the usual suspect.
-  void refreshHandler(ctx, resolveBin).then(() => {
+  const ready = refreshHandler(ctx, resolveBin).then(() => {
     const resolved = ctx.resolvedBin();
-    output.appendLine(`[re-shell] activation: cwd=${cwd} resolved CLI=${resolved}`);
+    output.appendLine(`[re-shell] activation: cwd=${cwd()} resolved CLI=${resolved}`);
     if (ctx.listTemplates().length === 0) {
       const err = ctx.templatesError() ?? 'unknown error';
       void vscode.window
@@ -1090,6 +1485,20 @@ export function activate(context: vscode.ExtensionContext): void {
       );
     }
   });
+
+  return {
+    ready,
+    refresh: () => refreshHandler(ctx, resolveBin),
+    commandsTree: () =>
+      commandsProvider.getChildren().map((element) => ({
+        category: treeLabel(commandsProvider.getTreeItem(element)),
+        commands: commandsProvider
+          .getChildren(element)
+          .map((child) => treeLabel(commandsProvider.getTreeItem(child))),
+      })),
+    catalog: () => ctx.listCommands(),
+    resolvedCli: () => ctx.resolvedBin(),
+  };
 }
 
 export function deactivate(): void {

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { HealthSummary } from '@re-shell/contracts';
 
 import {
   parseWorkspaceSummary,
@@ -97,6 +98,7 @@ describe('parseWorkspaceSummary', () => {
   it('rejects an empty string', () => {
     const result = parseWorkspaceSummary('   ');
     expect(result.ok).toBe(false);
+    if (result.ok) return;
     expect(result.error).toMatch(/empty/i);
   });
 
@@ -111,6 +113,7 @@ describe('parseWorkspaceSummary', () => {
   it('rejects a payload that does not match the contract', () => {
     const result = parseWorkspaceSummary(okEnvelope({ path: 123 }));
     expect(result.ok).toBe(false);
+    if (result.ok) return;
     expect(result.error).toContain('does not match the contract');
   });
 });
@@ -145,7 +148,7 @@ describe('parseWorkspaceGraph', () => {
 
 describe('parseWorkspaceHealth', () => {
   it('parses a health summary with checks', () => {
-    const health = {
+    const health: HealthSummary = {
       score: 80,
       status: 'warn',
       checks: [
@@ -212,7 +215,7 @@ describe('toProjectNodes', () => {
       apps: [{ name: 'web', path: '/apps/web', framework: null, dependencies: [] }],
       services: [],
     };
-    const health = {
+    const health: HealthSummary = {
       score: 50,
       status: 'warn',
       checks: [
@@ -230,7 +233,7 @@ describe('toProjectNodes', () => {
       apps: [{ name: 'web', path: '/apps/web', framework: null, dependencies: [] }],
       services: [],
     };
-    const health = {
+    const health: HealthSummary = {
       score: 0,
       status: 'fail',
       checks: [{ id: 'x', title: 'unrelated', level: 'fail', message: 'm' }],
@@ -260,7 +263,7 @@ describe('healthToOverallStatus', () => {
   });
 
   it('returns pass when only pass/info checks exist', () => {
-    const health = {
+    const health: HealthSummary = {
       score: 100,
       status: 'pass',
       checks: [
@@ -272,7 +275,7 @@ describe('healthToOverallStatus', () => {
   });
 
   it('returns warn when a warn check exists', () => {
-    const health = {
+    const health: HealthSummary = {
       score: 80,
       status: 'warn',
       checks: [{ id: 'a', title: 'a', level: 'warn', message: 'm' }],
@@ -281,7 +284,7 @@ describe('healthToOverallStatus', () => {
   });
 
   it('returns fail (and counts warns too) when a fail check exists', () => {
-    const health = {
+    const health: HealthSummary = {
       score: 20,
       status: 'fail',
       checks: [
