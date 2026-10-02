@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  commandCatalogArgWireSchema,
+  commandCatalogEntryWireSchema,
+  commandCatalogFlagWireSchema,
+} from '@re-shell/contracts';
 import { formatCommand } from '@re-shell/ui';
 
 /**
@@ -7,26 +12,24 @@ import { formatCommand } from '@re-shell/ui';
  * the Command Builder generates its entire form from this — there is no
  * hardcoded command list in the UI.
  *
- * Defaults keep a slightly-sparse entry from failing the whole feed while still
- * failing fast on a genuinely malformed catalog.
+ * The schemas are derived from the exact wire schemas in `@re-shell/contracts`
+ * (`commandCatalogEntryWireSchema` and friends); this file only adds defaults so
+ * a slightly-sparse entry does not fail the whole feed, while a genuinely
+ * malformed catalog still fails fast.
  */
 
-export const catalogArgSchema = z.object({
-  name: z.string(),
+export const catalogArgSchema = commandCatalogArgWireSchema.extend({
   required: z.boolean().default(false),
 });
 export type CatalogArg = z.infer<typeof catalogArgSchema>;
 
-export const catalogFlagSchema = z.object({
-  name: z.string(),
+export const catalogFlagSchema = commandCatalogFlagWireSchema.extend({
   description: z.string().default(''),
-  default: z.unknown().optional(),
   takesValue: z.boolean().default(false),
 });
 export type CatalogFlag = z.infer<typeof catalogFlagSchema>;
 
-export const commandCatalogEntrySchema = z.object({
-  path: z.string(),
+export const commandCatalogEntrySchema = commandCatalogEntryWireSchema.extend({
   aliases: z.array(z.string()).default([]),
   description: z.string().default(''),
   args: z.array(catalogArgSchema).default([]),
