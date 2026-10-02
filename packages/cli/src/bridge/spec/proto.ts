@@ -179,6 +179,7 @@ export function protoToContract(source: ContractSource, includeDirs: string[] = 
         nullable: required ? undefined : true,
         description: f.comment ?? undefined,
         tag: f.id,
+        oneof: inRealOneof && f.partOf ? f.partOf.name : undefined,
       });
     }
     models.push({

@@ -176,13 +176,16 @@ export function schemaToContract(schema: GraphQLSchema, source: ContractSource):
         .filter(f => !isFederationNoise(f.name))
         .map(f => {
           const r = toTypeRef(f.type);
+          const needsArgs = fieldNeedsArgs(f);
           return {
             name: f.name,
             type: r.ref,
-            required: !r.nullable,
+            // Fields that need arguments are never selected by the generated
+            // documents, so clients must treat them as absent.
+            required: !r.nullable && !needsArgs,
             nullable: r.nullable || undefined,
             description: f.description ?? undefined,
-            noSelect: fieldNeedsArgs(f) || undefined,
+            noSelect: needsArgs || undefined,
           };
         });
       models.push({

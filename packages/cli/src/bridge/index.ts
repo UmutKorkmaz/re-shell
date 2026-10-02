@@ -5,11 +5,13 @@
 //   re-shell service unlink <consumer> <provider>
 //   re-shell service validate
 //   re-shell service bridge diff --base <spec> --head <spec>
+//   re-shell service bridge mock --spec <file...>
 
 import { Command } from 'commander';
 
 import { createAsyncCommand, withTimeout } from '../utils/error-handler';
 import { runDiff, runLink, runUnlink, runValidate } from './commands';
+import { runMock } from './mock-command';
 
 /**
  * Attach the bridge subcommands.
@@ -101,6 +103,29 @@ export function registerBridgeCommands(serviceCommand: Command, bridgeCommand: C
     .action(
       createAsyncCommand(async options => {
         await runDiff({ base: options.base, head: options.head, strict: options.strict, json: options.json });
+      })
+    );
+  bridgeCommand
+    .command('mock')
+    .description(
+      'Run a universal mock server: REST (OpenAPI examples/schemas), GraphQL (mocked resolvers from SDL) and gRPC (from .proto) from the services\' own specs'
+    )
+    .requiredOption('--spec <file...>', 'Spec file(s): any mix of OpenAPI (yaml/json), .proto and GraphQL SDL')
+    .option('--port <port>', 'HTTP port for REST + GraphQL (0 = ephemeral)', '4010')
+    .option('--grpc-port <port>', 'gRPC port (default: HTTP port + 1)')
+    .option('--host <host>', 'Interface to bind', '127.0.0.1')
+    .option('--timeout <seconds>', 'Stop automatically after N seconds')
+    .option('--json', 'Emit one JSON envelope once the server is listening')
+    .action(
+      createAsyncCommand(async options => {
+        await runMock({
+          specs: options.spec,
+          port: Number(options.port),
+          grpcPort: options.grpcPort === undefined ? undefined : Number(options.grpcPort),
+          host: options.host,
+          timeout: options.timeout === undefined ? undefined : Number(options.timeout),
+          json: options.json,
+        });
       })
     );
 }
