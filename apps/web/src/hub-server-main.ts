@@ -63,6 +63,20 @@ async function main(): Promise<void> {
   // A parent that dies without signalling still detaches our stdio; treat a
   // disconnect/EPIPE on stdout as a teardown trigger so we never linger.
   process.on('disconnect', () => shutdown('SIGTERM'));
+
+  // Opt-in parent-lifetime tie for launchers that own the hub through a stdin
+  // pipe (the desktop shell). When the parent exits for ANY reason — a clean
+  // quit, a crash, SIGKILL — the OS closes its end of the pipe, stdin hits EOF
+  // and the hub shuts down instead of lingering as an orphan on its port. The
+  // parent can also close the pipe deliberately for a graceful stop, which works
+  // identically on every platform (no signals needed). Off by default so the
+  // CLI-managed flow, whose stdin is a terminal or /dev/null, is unchanged.
+  if (process.env.RE_SHELL_UI_HUB_EXIT_ON_STDIN_CLOSE === '1') {
+    process.stdin.on('end', () => shutdown('SIGTERM'));
+    process.stdin.on('close', () => shutdown('SIGTERM'));
+    process.stdin.on('error', () => shutdown('SIGTERM'));
+    process.stdin.resume();
+  }
 }
 
 void main();
