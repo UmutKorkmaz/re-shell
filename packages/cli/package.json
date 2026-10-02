@@ -66,6 +66,8 @@
   },
   "dependencies": {
     "@apollo/composition": "^2.14.4",
+    "@graphql-tools/executor-http": "^3.4.1",
+    "@graphql-tools/stitch": "^10.3.1",
     "@grpc/grpc-js": "^1.14.4",
     "@grpc/proto-loader": "^0.7.15",
     "@msgpack/msgpack": "^3.1.3",

@@ -23,6 +23,12 @@ export interface BridgeCommandSpec<T> {
   warnings?: (data: T) => string[];
 }
 
+function detailsOf(error: unknown): Record<string, unknown> | undefined {
+  if (error instanceof BridgeSpecError) return error.details;
+  const errors = (error as { errors?: unknown } | undefined)?.errors;
+  return Array.isArray(errors) ? { errors } : undefined;
+}
+
 function errorCodeFor(error: unknown, fallback: ErrorCode): ErrorCode {
   return error instanceof BridgeSpecError ? 'BRIDGE_SPEC_ERROR' : fallback;
 }
@@ -45,7 +51,7 @@ export async function runBridgeCommand<T>(spec: BridgeCommandSpec<T>): Promise<v
       fail(
         errorCodeFor(error, spec.code),
         error instanceof Error ? error.message : String(error),
-        error instanceof BridgeSpecError ? error.details : undefined
+        detailsOf(error)
       );
     } finally {
       restore();

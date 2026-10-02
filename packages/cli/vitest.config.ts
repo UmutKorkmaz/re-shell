@@ -58,8 +58,12 @@ export default defineConfig({
     hookTimeout: 120000, // 120 seconds timeout for hooks (beforeEach/afterEach)
   },
   resolve: {
-    alias: {
-      '@': resolve(__dirname, './src')
-    }
+    alias: [
+      { find: '@', replacement: resolve(__dirname, './src') },
+      // graphql-js ships a CJS and an ESM build; vite would load the ESM copy while
+      // @graphql-tools/* and @apollo/* (CJS) load the other, tripping graphql's
+      // "another module or realm" instanceof guard. Pin everything to the CJS build.
+      { find: /^graphql$/, replacement: resolve(__dirname, 'node_modules/graphql/index.js') },
+    ],
   }
 });
