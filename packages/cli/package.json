@@ -65,6 +65,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@re-shell/contracts": "workspace:^",
     "ajv": "^8.17.1",
     "boxen": "^8.0.1",
