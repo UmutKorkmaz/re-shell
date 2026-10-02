@@ -44,10 +44,19 @@ function base64urlDecode(input: string): Buffer | undefined {
  * wait out the longest token lifetime, remove the old key).
  */
 export class JwtKeyRing {
-  private readonly keys: ReadonlyMap<string, Buffer>;
-  readonly activeKid: string;
+  private keys: ReadonlyMap<string, Buffer>;
+  private active: string;
 
   constructor(keys: Readonly<Record<string, Buffer | string>>, activeKid?: string) {
+    const parsed = JwtKeyRing.parse(keys, activeKid);
+    this.keys = parsed.keys;
+    this.active = parsed.active;
+  }
+
+  private static parse(
+    keys: Readonly<Record<string, Buffer | string>>,
+    activeKid: string | undefined
+  ): { keys: ReadonlyMap<string, Buffer>; active: string } {
     const map = new Map<string, Buffer>();
     for (const [kid, secret] of Object.entries(keys)) {
       if (!KID_PATTERN.test(kid)) {
@@ -69,13 +78,28 @@ export class JwtKeyRing {
     if (!map.has(active)) {
       throw new Error(`Active key id "${active}" is not in the key ring.`);
     }
-    this.keys = map;
-    this.activeKid = active;
+    return { keys: map, active };
+  }
+
+  /** The key id new tokens are signed with. */
+  get activeKid(): string {
+    return this.active;
   }
 
   /** The key ids in the ring (never the secrets). */
   get kids(): string[] {
     return Array.from(this.keys.keys());
+  }
+
+  /**
+   * Atomically replace the ring's contents (key rotation without a restart).
+   * The replacement is fully validated first; on any error the current keys stay
+   * in force.
+   */
+  reload(keys: Readonly<Record<string, Buffer | string>>, activeKid?: string): void {
+    const parsed = JwtKeyRing.parse(keys, activeKid);
+    this.keys = parsed.keys;
+    this.active = parsed.active;
   }
 
   /** @internal key material lookup for sign/verify in this module. */
