@@ -83,18 +83,16 @@ describe('PluginHookSystem — register / unregister', () => {
     expect(system.unregister(HookType.CLI_EXIT, 'missing')).toBe(false);
   });
 
-  it('NOTE: unregisterAll removes every handler for a plugin but always reports 0 removed (count bug)', () => {
-    // The handlers ARE removed (the map is replaced with a filtered array), but
-    // the returned count is always 0 because the local `handlers` reference still
-    // points at the original (unfiltered) array, so `initialLength - handlers.length`
-    // is 0. Assert the real behaviour: handlers gone, returned count 0.
+  it('unregisterAll removes every handler for a plugin and reports how many were removed', () => {
     system.register(HookType.CLI_INIT, () => 1, 'p-a');
     system.register(HookType.CLI_EXIT, () => 2, 'p-a');
     system.register(HookType.CLI_INIT, () => 3, 'p-b');
     const removed = system.unregisterAll('p-a');
-    expect(removed).toBe(0);
+    expect(removed).toBe(2);
     expect(system.getPluginHooks('p-a')).toHaveLength(0);
     expect(system.getPluginHooks('p-b')).toHaveLength(1);
+    // A second call has nothing left to remove.
+    expect(system.unregisterAll('p-a')).toBe(0);
   });
 });
 
