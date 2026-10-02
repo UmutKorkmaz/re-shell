@@ -54,7 +54,6 @@ export const koaTemplate: BackendTemplate = {
     "koa-json": "^2.0.2",
     "koa-multer": "^1.0.2",
     "koa-passport": "^6.0.0",
-    "koa-swagger-decorator": "^2.2.1",
     "koa-websocket": "^7.0.0",
     "@koa/cors": "^5.0.0",
     "@koa/router": "^12.0.1",
@@ -83,11 +82,14 @@ export const koaTemplate: BackendTemplate = {
     "node-cron": "^3.0.3",
     "reflect-metadata": "^0.2.2",
     "@apollo/server": "^4.10.4",
-    "@as-integrations/koa": "^7.0.0",
+    "@as-integrations/koa": "^1.1.1",
     "graphql": "^16.8.2"
   },
   "devDependencies": {
     "@types/koa": "^2.15.0",
+    "@types/koa__cors": "^5.0.1",
+    "@types/koa__multer": "^2.0.8",
+    "@types/koa__router": "^12.0.5",
     "@types/koa-router": "^7.4.8",
     "@types/koa-bodyparser": "^4.3.12",
     "@types/koa-cors": "^0.0.6",
@@ -118,6 +120,7 @@ export const koaTemplate: BackendTemplate = {
     "typescript": "^5.4.5",
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "cross-env": "^7.0.3",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
@@ -176,6 +179,14 @@ export const koaTemplate: BackendTemplate = {
   "exclude": ["node_modules", "dist", "coverage"]
 }`,
 
+    // Nodemon config — tsconfig-paths resolves the @config/* style aliases
+    // from tsconfig.json at runtime (ts-node does not resolve them itself).
+    'nodemon.json': `{
+  "watch": ["src"],
+  "ext": "ts",
+  "exec": "ts-node -r tsconfig-paths/register src/index.ts"
+}`,
+
     // Main application entry
     'src/index.ts': `import 'reflect-metadata';
 import Koa from 'koa';
@@ -195,7 +206,7 @@ import { createServer } from 'http';
 import path from 'path';
 
 import { config } from '@config/config';
-import { connectDatabase } from '@config/database';
+import { connectDatabase, closeDatabase } from '@config/database';
 import { redis } from '@config/redis';
 import { errorHandler } from '@middlewares/error.middleware';
 import { requestLogger } from '@middlewares/logger.middleware';
@@ -231,9 +242,13 @@ const sessionConfig = {
   renew: false,
   secure: config.isProduction,
   sameSite: 'lax' as const,
-  store: redisStore({
-    client: redis,
-    prefix: 'sess:'
+  // Redis-backed sessions when REDIS_URL is set; otherwise koa-session's
+  // built-in memory store (fine for development, resets on restart).
+  ...(config.redis.url && {
+    store: redisStore({
+      client: redis,
+      prefix: 'sess:'
+    })
   })
 };
 
@@ -246,7 +261,12 @@ app.use(json({ pretty: !config.isProduction }));
 app.use(compress());
 app.use(helmet());
 app.use(cors({
-  origin: config.corsOrigins,
+  // @koa/cors's origin option does not accept an allowlist array at the type
+  // level — reflect the request origin when it is allowlisted instead.
+  origin: (ctx: Koa.Context) => {
+    const requestOrigin = ctx.get('origin');
+    return config.corsOrigins.includes(requestOrigin) ? requestOrigin : config.corsOrigins[0];
+  },
   credentials: true
 }));
 app.use(bodyParser({
@@ -258,10 +278,12 @@ app.use(bodyParser({
   }
 }));
 
-// Rate limiting
+// Rate limiting — Redis-backed when REDIS_URL is set, in-memory otherwise.
 app.use(ratelimit({
-  driver: 'redis',
-  db: redis,
+  driver: config.redis.url ? 'redis' : 'memory',
+  // koa-ratelimit's bundled typings target an ioredis v4 client; the ioredis v5
+  // client used here is API-compatible at runtime (v4 legacy helpers removed).
+  db: config.redis.url ? (redis as any) : new Map(),
   duration: 60000, // 1 minute
   errorMessage: 'Too many requests, please try again later.',
   id: (ctx) => ctx.ip,
@@ -310,6 +332,17 @@ app.use(async (ctx, next) => {
   await next();
 });
 
+// GraphQL — @as-integrations/koa performs no path matching of its own, so
+// gate it on /graphql here. The handler is assigned in startServer() once
+// Apollo has started; this middleware must stay above the 404 handler.
+let apolloHandler: Koa.Middleware | null = null;
+app.use(async (ctx, next) => {
+  if (apolloHandler && ctx.path === '/graphql') {
+    return apolloHandler(ctx, next);
+  }
+  await next();
+});
+
 // 404 handler
 app.use(async (ctx) => {
   ctx.status = 404;
@@ -329,9 +362,16 @@ const gracefulShutdown = async () => {
   server.close(() => {
     Logger.info('HTTP server closed');
   });
-  
+
   // Close database connections
-  await redis.quit();
+  await closeDatabase();
+
+  // Guard the redis quit: on a fresh scaffold with no Redis reachable,
+  // quitting a never-connected client throws (ClientClosedError) and
+  // would crash the shutdown path.
+  if (redis.status === 'ready') {
+    await redis.quit().catch(() => undefined);
+  }
   process.exit(0);
 };
 
@@ -344,11 +384,10 @@ const startServer = async () => {
     // Connect to database
     await connectDatabase();
 
-    // Start Apollo Server and mount the GraphQL endpoint at /graphql
+    // Start Apollo Server — the /graphql gate registered in the middleware
+    // stack above picks the handler up from here.
     await apolloServer.start();
-    app.use('/graphql', koaMiddleware(apolloServer, {
-      path: '/'
-    }));
+    apolloHandler = koaMiddleware(apolloServer);
 
     // Start server
     server.listen(config.port, () => {
@@ -408,8 +447,10 @@ export const config = {
     }
   },
   
-  // Redis
+  // Redis — when REDIS_URL is not set, sessions and rate limiting fall back
+  // to in-memory stores so a fresh scaffold boots without a Redis server.
   redis: {
+    url: process.env.REDIS_URL,
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
     password: process.env.REDIS_PASSWORD,
@@ -468,7 +509,8 @@ export const config = {
 
     // Database configuration
     'src/config/database.ts': `import { Model } from 'objection';
-import Knex from 'knex';
+import knexFactory from 'knex';
+import type { Knex } from 'knex';
 import { config } from './config';
 import { Logger } from '@utils/logger';
 
@@ -476,7 +518,7 @@ let knex: Knex;
 
 export const connectDatabase = async () => {
   try {
-    knex = Knex({
+    knex = knexFactory({
       client: config.database.client,
       connection: config.database.connection,
       pool: config.database.pool,
@@ -493,8 +535,10 @@ export const connectDatabase = async () => {
     
     Logger.info('Database connected successfully');
   } catch (error) {
-    Logger.error('Database connection failed:', error);
-    throw error;
+    // Don't crash the whole server when the database isn't reachable (e.g. a
+    // fresh scaffold with no DB running yet). The API still boots and serves
+    // non-DB routes; DB-backed routes will error per-request instead.
+    Logger.warn('Database connection failed — starting anyway without a DB. Set DATABASE_URL and ensure the DB server is reachable.');
   }
 };
 
@@ -680,7 +724,7 @@ export class AuthController {
   }
 
   register = async (ctx: Context) => {
-    const { email, password, name } = ctx.request.body;
+    const { email, password, name } = ctx.request.body as { email: string; password: string; name?: string };
 
     const user = await this.authService.register({ email, password, name });
 
@@ -701,7 +745,7 @@ export class AuthController {
   };
 
   login = async (ctx: Context) => {
-    const { email, password } = ctx.request.body;
+    const { email, password } = ctx.request.body as { email: string; password: string };
 
     const user = await this.authService.login(email, password);
     const tokens = generateTokens(user.id);
@@ -725,7 +769,7 @@ export class AuthController {
   };
 
   refreshToken = async (ctx: Context) => {
-    const refreshToken = ctx.cookies.get('refreshToken') || ctx.request.body.refreshToken;
+    const refreshToken = ctx.cookies.get('refreshToken') || (ctx.request.body as { refreshToken?: string }).refreshToken;
 
     if (!refreshToken) {
       ctx.throw(401, 'Refresh token not provided');
@@ -767,7 +811,7 @@ export class AuthController {
   };
 
   forgotPassword = async (ctx: Context) => {
-    const { email } = ctx.request.body;
+    const { email } = ctx.request.body as { email: string };
 
     const resetToken = await this.authService.forgotPassword(email);
 
@@ -782,7 +826,7 @@ export class AuthController {
 
   resetPassword = async (ctx: Context) => {
     const { token } = ctx.params;
-    const { password } = ctx.request.body;
+    const { password } = ctx.request.body as { password: string };
 
     await this.authService.resetPassword(token, password);
 
@@ -843,7 +887,7 @@ export class UserController {
 
   updateUser = async (ctx: Context) => {
     const { id } = ctx.params;
-    const updates = ctx.request.body;
+    const updates = ctx.request.body as Record<string, unknown>;
     const currentUserId = ctx.state.user.id;
 
     // Ensure users can only update their own profile unless admin
@@ -873,7 +917,7 @@ export class UserController {
 
   changePassword = async (ctx: Context) => {
     const userId = ctx.state.user.id;
-    const { currentPassword, newPassword } = ctx.request.body;
+    const { currentPassword, newPassword } = ctx.request.body as { currentPassword: string; newPassword: string };
 
     await this.userService.changePassword(userId, currentPassword, newPassword);
 
@@ -946,7 +990,7 @@ export class TodoController {
 
   createTodo = async (ctx: Context) => {
     const userId = ctx.state.user.id;
-    const todoData = { ...ctx.request.body, userId };
+    const todoData = { ...(ctx.request.body as Record<string, unknown>), userId };
 
     const todo = await this.todoService.createTodo(todoData);
 
@@ -961,7 +1005,7 @@ export class TodoController {
   updateTodo = async (ctx: Context) => {
     const { id } = ctx.params;
     const userId = ctx.state.user.id;
-    const updates = ctx.request.body;
+    const updates = ctx.request.body as Record<string, unknown>;
 
     const todo = await this.todoService.updateTodo(id, userId, updates);
 
@@ -986,7 +1030,7 @@ export class TodoController {
 
   bulkDelete = async (ctx: Context) => {
     const userId = ctx.state.user.id;
-    const { ids } = ctx.request.body;
+    const { ids } = ctx.request.body as { ids: string[] };
 
     if (!Array.isArray(ids) || ids.length === 0) {
       ctx.throw(400, 'Invalid todo IDs');
@@ -1002,7 +1046,7 @@ export class TodoController {
 
   bulkUpdate = async (ctx: Context) => {
     const userId = ctx.state.user.id;
-    const { ids, updates } = ctx.request.body;
+    const { ids, updates } = ctx.request.body as { ids: string[]; updates: Record<string, unknown> };
 
     if (!Array.isArray(ids) || ids.length === 0) {
       ctx.throw(400, 'Invalid todo IDs');
@@ -1102,10 +1146,11 @@ export class User extends Model {
 
   toJSON() {
     const json = super.toJSON();
-    delete json.password;
-    delete json.verificationToken;
-    delete json.resetToken;
-    delete json.resetTokenExpiry;
+    const redacted = json as Record<string, unknown>;
+    delete redacted.password;
+    delete redacted.verificationToken;
+    delete redacted.resetToken;
+    delete redacted.resetTokenExpiry;
     return json;
   }
 }`,
@@ -1531,21 +1576,27 @@ export const errorHandler = async (ctx: Context, next: Next) => {
   try {
     await next();
   } catch (err: unknown) {
-    ctx.status = err.status || 500;
-    
+    const message = err instanceof Error ? err.message : 'Internal Server Error';
+    const stack = err instanceof Error ? err.stack : undefined;
+    const status =
+      typeof (err as { status?: unknown })?.status === 'number'
+        ? (err as { status: number }).status
+        : 500;
+
+    ctx.status = status;
+
     const error = {
       success: false,
-      message: err.message || 'Internal Server Error',
+      message,
       ...(ctx.app.env === 'development' && {
-        stack: err.stack,
+        stack,
         details: err
       })
     };
 
     // Log error
-    Logger.error({
-      message: err.message,
-      stack: err.stack,
+    Logger.error(ctx.method + ' ' + ctx.url + ' failed (' + status + '): ' + message, {
+      stack,
       url: ctx.url,
       method: ctx.method,
       ip: ctx.ip,
@@ -1605,8 +1656,8 @@ import { plainToClass } from 'class-transformer';
 
 export const validate = (dtoClass: any, source: 'body' | 'query' = 'body') => {
   return async (ctx: Context, next: Next) => {
-    const data = source === 'body' ? ctx.request.body : ctx.query;
-    const dto = plainToClass(dtoClass, data);
+    const data = (source === 'body' ? ctx.request.body : ctx.query) as object;
+    const dto = plainToClass(dtoClass, data) as object;
     
     const errors = await classValidate(dto);
     
@@ -1686,7 +1737,9 @@ DB_USER=postgres
 DB_PASSWORD=postgres
 DB_NAME={{projectName}}
 
-# Redis
+# Redis — set REDIS_URL to enable Redis-backed sessions and rate limiting;
+# when unset the app uses in-memory stores (no Redis server needed to boot).
+REDIS_URL=
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
@@ -2048,17 +2101,24 @@ MIT
 import { config } from './config';
 import { Logger } from '@utils/logger';
 
-export const redis = new Redis({
-  host: config.redis.host,
-  port: config.redis.port,
-  password: config.redis.password,
-  db: config.redis.db,
-  retryStrategy: (times) => {
-    const delay = Math.min(times * 50, 2000);
-    return delay;
-  },
-  maxRetriesPerRequest: 3
-});
+export const redis = config.redis.url
+  ? new Redis(config.redis.url, {
+      retryStrategy: (times) => {
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+      },
+      maxRetriesPerRequest: 3
+    })
+  : new Redis({
+      host: config.redis.host,
+      port: config.redis.port,
+      password: config.redis.password,
+      db: config.redis.db,
+      // Without REDIS_URL nothing talks to this client — stay disconnected
+      // instead of retrying a connection nobody asked for.
+      lazyConnect: true,
+      maxRetriesPerRequest: 1
+    });
 
 redis.on('connect', () => {
   Logger.info('Redis connected');
@@ -2095,18 +2155,72 @@ export const initializeWebSocket = (io: Server) => {
   });
 };`,
 
-    // Swagger docs (koa-swagger-decorator) — matches setupSwagger(app) in index.ts.
-    'src/config/swagger.ts': `import { SwaggerUI, KoaSwaggerMiddleware } from 'koa-swagger-decorator';
+    // Swagger docs (self-contained Swagger UI page + OpenAPI spec) — matches
+    // setupSwagger(app) in index.ts. Served from unpkg CDN, no server-side dep.
+    'src/config/swagger.ts': `import Router from '@koa/router';
+import Koa from 'koa';
 import type { Context } from 'koa';
 
-const swaggerMiddleware: KoaSwaggerMiddleware = new SwaggerUI({
+const info = {
   title: '{{projectName}} API',
   description: 'Koa.js API with TypeScript',
   version: '1.0.0'
-});
+};
 
-export const setupSwagger = (app: { use: (path: string, middleware: (ctx: Context) => void) => void }) => {
-  app.use('/swagger', swaggerMiddleware.koaUI);
+// Minimal OpenAPI scaffold — extend as you add endpoints.
+const spec = {
+  openapi: '3.0.3',
+  info,
+  servers: [{ url: '/' }],
+  tags: [
+    { name: 'auth', description: 'Authentication endpoints' },
+    { name: 'users', description: 'User management' },
+    { name: 'todos', description: 'Todo operations' },
+    { name: 'health', description: 'Health checks' }
+  ],
+  paths: {
+    '/health': {
+      get: {
+        tags: ['health'],
+        summary: 'Liveness probe',
+        responses: { 200: { description: 'Service is healthy' } }
+      }
+    }
+  }
+};
+
+const swaggerHtml = (specUrl: string): string => \`<!DOCTYPE html>
+<html>
+  <head>
+    <title>\${info.title} — Swagger UI</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+      window.onload = () => {
+        window.ui = SwaggerUIBundle({ url: '\${specUrl}', dom_id: '#swagger-ui' });
+      };
+    </script>
+  </body>
+</html>\`;
+
+export const setupSwagger = (app: Koa): void => {
+  const swaggerRouter = new Router();
+
+  swaggerRouter.get('/swagger', (ctx: Context) => {
+    ctx.type = 'html';
+    ctx.body = swaggerHtml('/swagger.json');
+  });
+
+  swaggerRouter.get('/swagger.json', (ctx: Context) => {
+    ctx.type = 'json';
+    ctx.body = spec;
+  });
+
+  app.use(swaggerRouter.routes());
+  app.use(swaggerRouter.allowedMethods());
 };`,
 
     // Request logger middleware — exports requestLogger(ctx, next).
