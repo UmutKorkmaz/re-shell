@@ -530,6 +530,53 @@ export class PluginLifecycleManager extends EventEmitter {
   }
 
   /**
+   * Removes a plugin from lifecycle management entirely: closes any hot-reload
+   * watcher, forgets its dependency-graph edges and dependent links, evicts its
+   * modules from the require cache and deletes its registration. The plugin
+   * should be unloaded first (see {@link unloadPlugin}); this does not call
+   * `deactivate()`.
+   *
+   * @param pluginName - Name of the plugin to remove.
+   * @returns `true` if the plugin was registered and has been removed.
+   */
+  async removePlugin(pluginName: string): Promise<boolean> {
+    const registration = this.plugins.get(pluginName);
+    if (!registration) {
+      return false;
+    }
+
+    const watcher = this.hotReloadWatchers.get(pluginName);
+    if (watcher) {
+      try {
+        await watcher.close();
+      } catch {
+        // A watcher that fails to close must not block removal.
+      }
+      this.hotReloadWatchers.delete(pluginName);
+    }
+
+    // Evict the plugin's modules so a reinstall in this process loads fresh code.
+    const prefix = path.resolve(registration.pluginPath) + path.sep;
+    for (const cached of Object.keys(require.cache)) {
+      if (cached.startsWith(prefix)) {
+        delete require.cache[cached];
+      }
+    }
+
+    this.plugins.delete(pluginName);
+    this.dependencyGraph.delete(pluginName);
+    for (const deps of this.dependencyGraph.values()) {
+      deps.delete(pluginName);
+    }
+    for (const other of this.plugins.values()) {
+      other.dependents = other.dependents.filter(d => d !== pluginName);
+    }
+
+    this.emit('plugin-removed', { pluginName });
+    return true;
+  }
+
+  /**
    * Reloads a plugin by performing a full unload -> load -> initialize cycle,
    * and activating it again if it was previously active.
    *
