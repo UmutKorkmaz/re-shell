@@ -1,25 +1,60 @@
 /**
  * @re-shell/control-plane
  *
- * ENV-LIMITED SCAFFOLD. Pure, single-process, in-memory multi-tenant
- * control-plane logic that extends the local Re-Shell hub model to an
- * authenticated, multi-tenant surface.
+ * The hosted, multi-tenant control plane for Re-Shell: an authenticated HTTP/SSE
+ * API in front of a SQLite-backed tenant store, signed-token identity, an
+ * append-only audit trail, team policy sync, and remote execution workers that
+ * run the allow-listed Re-Shell CLI. See docs/control-plane.md.
  *
- * What this IS:
- *  - Typed tenant/workspace model with structural isolation (tenant.ts)
- *  - Token/session auth layer + role hierarchy (auth.ts)
- *  - Tenant-isolation + authz checks (authz.ts)
- *  - Pure request handlers: list workspaces, proxy an allow-listed command (api.ts)
- *  - A stable error vocabulary + result envelope (errors.ts)
- *
- * What this is NOT (see docs/control-plane.md):
- *  - NOT a running server (no HTTP/router/middleware)
- *  - NOT backed by a database (in-memory snapshot only)
- *  - NOT executing commands (it authorizes; a worker would execute)
- *  - NOT deployed and NOT a crypto/identity provider
+ * Layers (each independently testable):
+ *  - model + authorization  errors, tenant, auth, authz, policy, audit, events
+ *  - request pipeline       api, admin, jobs (pure handlers)
+ *  - identity               jwt, identity
+ *  - persistence            db/* (node:sqlite)
+ *  - HTTP edge              http/server
+ *  - workers                worker/*
+ *  - operations             config, runtime, cli
  */
 export * from './errors.js';
 export * from './tenant.js';
 export * from './auth.js';
 export * from './authz.js';
 export * from './api.js';
+export * from './audit.js';
+export * from './events.js';
+export * from './policy.js';
+export * from './admin.js';
+export * from './jobs.js';
+export * from './jwt.js';
+export * from './identity.js';
+export * from './config.js';
+export * from './runtime.js';
+export { migrate, MIGRATIONS, LATEST_SCHEMA_VERSION } from './db/migrations.js';
+export type { Migration, MigrationReport } from './db/migrations.js';
+export { openDatabase, transaction } from './db/sqlite.js';
+export { SqliteTenantStore } from './db/sqlite-store.js';
+export { SqliteAuditLog } from './db/sqlite-audit.js';
+export { SqliteJobStore, MAX_JOB_OUTPUT_BYTES } from './db/sqlite-jobs.js';
+export type { Job, JobStatus, JobOutputChunk } from './db/sqlite-jobs.js';
+export {
+  createControlPlaneServer,
+  DEFAULT_LIMITS,
+} from './http/server.js';
+export type {
+  ControlPlaneServer,
+  ControlPlaneServerOptions,
+  ListenInfo,
+  ServerLimits,
+} from './http/server.js';
+export { Worker } from './worker/worker.js';
+export type { WorkerEvent, WorkerOptions } from './worker/worker.js';
+export { WorkerClient } from './worker/client.js';
+export { runJob } from './worker/runner.js';
+export {
+  containCwd,
+  resolveWorkspaceDir,
+  resolveCliInvocation,
+  childEnvironment,
+} from './worker/containment.js';
+export { parseSse, openSseStream, SseHttpError } from './sse-client.js';
+export type { SseMessage } from './sse-client.js';
