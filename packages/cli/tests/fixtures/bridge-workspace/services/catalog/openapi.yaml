@@ -1,0 +1,178 @@
+openapi: 3.0.3
+info:
+  title: Catalog API
+  version: 1.2.0
+  description: Product catalog service.
+servers:
+  - url: http://localhost:8081
+paths:
+  /products:
+    get:
+      operationId: listProducts
+      summary: List products
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int32, default: 20 }
+        - name: tag
+          in: query
+          schema:
+            type: array
+            items: { type: string }
+        - name: X-Request-Id
+          in: header
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of products
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductList'
+              example:
+                items:
+                  - id: p-1
+                    name: Widget
+                    price: 9.99
+                    currency: USD
+                    tags: [tools]
+                nextCursor: null
+    post:
+      operationId: createProduct
+      summary: Create a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProduct'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /products/{productId}:
+    parameters:
+      - name: productId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getProduct
+      summary: Fetch one product
+      responses:
+        '200':
+          description: The product
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetail'
+        '404':
+          description: Not found
+    delete:
+      operationId: deleteProduct
+      summary: Delete a product
+      responses:
+        '204':
+          description: Deleted
+  /products/{productId}/price:
+    put:
+      operationId: setPrice
+      summary: Update the price
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [price]
+              properties:
+                price: { type: number }
+                currency:
+                  type: string
+                  enum: [USD, EUR]
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+components:
+  schemas:
+    Currency:
+      type: string
+      enum: [USD, EUR, GBP]
+    Dimensions:
+      type: object
+      required: [width, height]
+      properties:
+        width: { type: number }
+        height: { type: number }
+        depth: { type: number, nullable: true }
+    Product:
+      type: object
+      required: [id, name, price]
+      properties:
+        id: { type: string }
+        name: { type: string, description: Display name }
+        price: { type: number }
+        currency:
+          $ref: '#/components/schemas/Currency'
+        tags:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+        attributes:
+          type: object
+          additionalProperties: { type: string }
+        dimensions:
+          $ref: '#/components/schemas/Dimensions'
+        parent:
+          $ref: '#/components/schemas/Product'
+    ProductDetail:
+      allOf:
+        - $ref: '#/components/schemas/Product'
+        - type: object
+          properties:
+            description: { type: string }
+            stock: { type: integer, format: int64 }
+    CreateProduct:
+      type: object
+      required: [name, price]
+      properties:
+        name: { type: string }
+        price: { type: number }
+        currency:
+          $ref: '#/components/schemas/Currency'
+        tags:
+          type: array
+          items: { type: string }
+    ProductList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        nextCursor: { type: string, nullable: true }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }

@@ -1,0 +1,106 @@
+// Registers the cross-language service bridge commands (P9-B) on the `service`
+// command group. Called once from groups/service.group.ts.
+//
+//   re-shell service link <consumer> <provider>
+//   re-shell service unlink <consumer> <provider>
+//   re-shell service validate
+//   re-shell service bridge diff --base <spec> --head <spec>
+
+import { Command } from 'commander';
+
+import { createAsyncCommand, withTimeout } from '../utils/error-handler';
+import { runDiff, runLink, runUnlink, runValidate } from './commands';
+
+/**
+ * Attach the bridge subcommands.
+ *
+ * @param serviceCommand - The `service` command (receives link/unlink/validate).
+ * @param bridgeCommand - The `service bridge` command (receives diff, async, ...).
+ */
+export function registerBridgeCommands(serviceCommand: Command, bridgeCommand: Command): void {
+  serviceCommand
+    .command('link <consumer> <provider>')
+    .description(
+      "Link a consumer service to a provider: derive the provider's contract from its own spec, generate a typed client inside the consumer, and record the dependency in re-shell.workspaces.yaml"
+    )
+    .option('--spec <file>', "Provider spec (OpenAPI yaml/json, .proto or GraphQL SDL); default: discovered in the provider's directory")
+    .option('--protocol <protocol>', 'rest | grpc | graphql (needed only when the provider has several specs)')
+    .option('--lang <langs>', "Client languages, comma separated: ts,python,go (default: the consumer's language)")
+    .option('--out <dir>', 'Where to write the client (default: <consumer>/clients/<provider>-<protocol>)')
+    .option('--go-module <path>', 'Go module path of the generated Go client')
+    .option('--no-compile-stubs', 'gRPC: do not compile protobuf stubs even when protoc is available')
+    .option('--config <file>', 'Workspace config path (default: discovered in the current directory)')
+    .option('--dry-run', 'Plan the link and generate in memory, but write nothing')
+    .option('--json', 'Emit a machine-readable JSON envelope')
+    .action(
+      createAsyncCommand(async (consumer: string, provider: string, options) => {
+        await withTimeout(
+          () =>
+            runLink({
+              consumer,
+              provider,
+              spec: options.spec,
+              protocol: options.protocol,
+              lang: options.lang,
+              out: options.out,
+              goModule: options.goModule,
+              compileStubs: options.compileStubs,
+              configPath: options.config,
+              dryRun: options.dryRun,
+              json: options.json,
+            }),
+          600000
+        );
+      })
+    );
+
+  serviceCommand
+    .command('unlink <consumer> <provider>')
+    .description('Remove the recorded link (and dependsOn edge) from a consumer to a provider')
+    .option('--protocol <protocol>', 'Only remove the link for this protocol')
+    .option('--keep-dependency', 'Keep the dependsOn entry')
+    .option('--remove-client', 'Also delete the generated client directory (only if it carries the bridge marker)')
+    .option('--config <file>', 'Workspace config path')
+    .option('--json', 'Emit a machine-readable JSON envelope')
+    .action(
+      createAsyncCommand(async (consumer: string, provider: string, options) => {
+        await runUnlink({
+          consumer,
+          provider,
+          protocol: options.protocol,
+          keepDependency: options.keepDependency,
+          removeClient: options.removeClient,
+          configPath: options.config,
+          json: options.json,
+        });
+      })
+    );
+
+  serviceCommand
+    .command('validate')
+    .description(
+      'Validate service links: every link resolves, linked contracts are still compatible with the provider, and the dependency graph has no cycles (exit 1 when invalid)'
+    )
+    .option('--config <file>', 'Workspace config path')
+    .option('--json', 'Emit a machine-readable JSON envelope')
+    .action(
+      createAsyncCommand(async options => {
+        await runValidate({ configPath: options.config, json: options.json });
+      })
+    );
+
+  bridgeCommand
+    .command('diff')
+    .description(
+      'Classify the changes between two versions of a contract (OpenAPI, .proto or GraphQL SDL) as breaking, dangerous or non-breaking; exits 1 on breaking changes'
+    )
+    .requiredOption('--base <spec>', 'The previous contract')
+    .requiredOption('--head <spec>', 'The new contract')
+    .option('--strict', 'Also fail on dangerous (potentially breaking) changes')
+    .option('--json', 'Emit a machine-readable JSON envelope')
+    .action(
+      createAsyncCommand(async options => {
+        await runDiff({ base: options.base, head: options.head, strict: options.strict, json: options.json });
+      })
+    );
+}

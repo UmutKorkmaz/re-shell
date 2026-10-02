@@ -86,6 +86,15 @@ export const errorCodeSchema = z.enum([
   'ENV_ERROR',
   // Code introduced by the Storybook UI-test aggregation slice (issue #22)
   'UI_TEST_ERROR',
+  // Codes introduced by the P9-B cross-language service bridge workstream
+  'BRIDGE_LINK_ERROR',
+  'BRIDGE_VALIDATE_ERROR',
+  'BRIDGE_SPEC_ERROR',
+  'BRIDGE_DIFF_ERROR',
+  'BRIDGE_ASYNC_ERROR',
+  'BRIDGE_TRANSFORM_ERROR',
+  'BRIDGE_MOCK_ERROR',
+  'BRIDGE_GATEWAY_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
