@@ -6,11 +6,13 @@
 //   re-shell service validate
 //   re-shell service bridge diff --base <spec> --head <spec>
 //   re-shell service bridge mock --spec <file...>
+//   re-shell service bridge gateway --services a,b | --subgraph name=sdl[@url]
 
 import { Command } from 'commander';
 
 import { createAsyncCommand, withTimeout } from '../utils/error-handler';
 import { runDiff, runLink, runUnlink, runValidate } from './commands';
+import { runGateway } from './gateway-command';
 import { runMock } from './mock-command';
 
 /**
@@ -124,6 +126,31 @@ export function registerBridgeCommands(serviceCommand: Command, bridgeCommand: C
           grpcPort: options.grpcPort === undefined ? undefined : Number(options.grpcPort),
           host: options.host,
           timeout: options.timeout === undefined ? undefined : Number(options.timeout),
+          json: options.json,
+        });
+      })
+    );
+  bridgeCommand
+    .command('gateway')
+    .description(
+      "Compose several services' GraphQL SDLs into one gateway: Apollo Federation 2 supergraph (composition is run for real) or a schema-stitching gateway"
+    )
+    .option('--services <names>', "Workspace services whose GraphQL SDL (found in the service directory) joins the gateway, comma separated")
+    .option('--subgraph <spec...>', 'Explicit subgraph: name=path/to/schema.graphql[@http://host:port/graphql]')
+    .option('--mode <mode>', 'federation (Apollo Federation 2 composition) | stitch (@graphql-tools/stitch)', 'federation')
+    .option('--out <dir>', 'Directory to write the gateway into')
+    .option('--dry-run', 'Compose and validate, but write nothing')
+    .option('--config <file>', 'Workspace config path')
+    .option('--json', 'Emit a machine-readable JSON envelope')
+    .action(
+      createAsyncCommand(async options => {
+        await runGateway({
+          services: options.services ? String(options.services).split(',').map((x: string) => x.trim()).filter(Boolean) : undefined,
+          subgraphs: options.subgraph,
+          mode: options.mode,
+          out: options.out,
+          dryRun: options.dryRun,
+          configPath: options.config,
           json: options.json,
         });
       })
