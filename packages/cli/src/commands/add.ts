@@ -167,7 +167,9 @@ export async function addMicrofrontend(
     name: isInReshellProject ? `@${org.toLowerCase()}/${normalizedName}` : normalizedName,
     version: '0.1.0',
     description,
-    main: 'dist/index.js',
+    // The vite library build below emits `dist/mf.umd.js` (fileName 'mf',
+    // umd format) — the README integration snippet references the same file.
+    main: 'dist/mf.umd.js',
     scripts: {
       dev: `vite --port ${port}`,
       build: 'vite build',
@@ -179,9 +181,11 @@ export async function addMicrofrontend(
       react: '^18.2.0',
       'react-dom': '^18.2.0',
     },
-    peerDependencies: {
-      [CORE_PKG]: '^0.1.0',
-    },
+    // NOTE: no `@re-shell/core` peerDependency here. That package is not
+    // published to npm, and modern package managers (npm >= 7, pnpm >= 8)
+    // auto-install peerDependencies, so declaring it made every generated
+    // microfrontend uninstallable (registry 404). The template ships a local
+    // `src/eventBus` module instead.
     devDependencies: {
       vite: '^4.4.0',
       '@vitejs/plugin-react': '^4.0.0',
@@ -208,8 +212,7 @@ export async function addMicrofrontend(
 
   // Create vite.config.ts or vite.config.js
   const fileExtension = finalOptions.template === 'react-ts' ? 'ts' : 'js';
-  const viteConfig = `
-import { defineConfig } from 'vite';
+  const viteConfig = `import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import react from '@vitejs/plugin-react';
 
@@ -228,12 +231,11 @@ export default defineConfig({
       fileName: 'mf'
     },
     rollupOptions: {
-      external: ['react', 'react-dom', '${CORE_PKG}'],
+      external: ['react', 'react-dom'],
       output: {
         globals: {
           react: 'React',
-          'react-dom': 'ReactDOM',
-          '${CORE_PKG}': 'ReShell'
+          'react-dom': 'ReactDOM'
         }
       }
     }
@@ -294,17 +296,34 @@ export default defineConfig({
 
   // Create main index file
   const indexFileExtension = finalOptions.template === 'react-ts' ? 'tsx' : 'jsx';
+  const mountGlobalName = normalizedName.replace(/-./g, x => x[1].toUpperCase());
   const indexContent = `${
     finalOptions.template === 'react-ts'
       ? "import React from 'react';\nimport { createRoot } from 'react-dom/client';\n"
       : "import { createRoot } from 'react-dom/client';\n"
   }import App from './App';
-import { eventBus } from ${isInReshellProject ? `'${CORE_PKG}'` : './eventBus'};
+import { eventBus } from './eventBus';
+${
+  finalOptions.template === 'react-ts'
+    ? `
+type MountPoint = {
+  mount: (containerId: string) => void;
+  unmount: () => void;
+  root?: { unmount: () => void };
+};
 
+declare global {
+  interface Window {
+    ${mountGlobalName}?: MountPoint;
+  }
+}
+`
+    : ''
+}
 // Entry point for the microfrontend
 // This gets exposed when the script is loaded
-window.${normalizedName.replace(/-./g, x => x[1].toUpperCase())} = {
-  mount: (containerId) => {
+const mountPoint${finalOptions.template === 'react-ts' ? ': MountPoint' : ''} = {
+  mount: (${finalOptions.template === 'react-ts' ? 'containerId: string' : 'containerId'}) => {
     const container = document.getElementById(containerId);
     if (!container) {
       console.error(\`Container element with ID "\${containerId}" not found\`);
@@ -319,14 +338,16 @@ window.${normalizedName.replace(/-./g, x => x[1].toUpperCase())} = {
     eventBus.emit('microfrontend:loaded', { id: '${normalizedName}' });
 
     // Store root for unmounting
-    window.${normalizedName.replace(/-./g, x => x[1].toUpperCase())}.root = root;
+    mountPoint.root = root;
   },
   unmount: () => {
-    if (window.${normalizedName.replace(/-./g, x => x[1].toUpperCase())}.root) {
-      window.${normalizedName.replace(/-./g, x => x[1].toUpperCase())}.root.unmount();
+    if (mountPoint.root) {
+      mountPoint.root.unmount();
     }
   }
 };
+
+window.${mountGlobalName} = mountPoint;
 
 // For development mode - mount the app immediately
 if (process.env.NODE_ENV === 'development') {
@@ -363,8 +384,11 @@ export default App;
 
   fs.writeFileSync(path.join(mfPath, 'src', `App.${appFileExtension}`), appContent);
 
-  // If not in a Re-Shell project, create eventBus file
-  if (!isInReshellProject) {
+  // Always create the local eventBus file. Previously this was only written
+  // for standalone scaffolds; inside a Re-Shell project the entry imported
+  // `@re-shell/core` instead — an unpublished package, so the import never
+  // resolved (typecheck failure) and its peerDependency broke installs.
+  {
     const eventBusFileExtension = finalOptions.template === 'react-ts' ? 'ts' : 'js';
     const eventBusContent = `${
       finalOptions.template === 'react-ts'
