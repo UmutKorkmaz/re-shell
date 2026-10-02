@@ -928,13 +928,32 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
       return;
     }
 
+    // The per-address limit covers ANONYMOUS traffic only (unknown routes and
+    // unauthenticated routes). Authenticated callers are limited per principal
+    // below, so many users — or busy workers — behind one NAT/proxy address do not
+    // starve each other; failed authentications are throttled per address in
+    // authenticateCtx().
+    const anonymousGate = (): boolean => {
+      const verdict = ipLimiter.take(ip, clock());
+      if (verdict.allowed) {
+        return true;
+      }
+      req.resume();
+      sendError(pre, 'RATE_LIMITED', 'Rate limit exceeded.', undefined, {
+        'Retry-After': String(Math.max(1, Math.ceil(verdict.retryAfterMs / 1000))),
+      });
+      return false;
+    };
+
     const lookup = router.lookup(method, url.pathname);
     if (lookup.kind === 'not-found') {
+      if (!anonymousGate()) return;
       req.resume();
       sendError(pre, 'NOT_FOUND', 'No such route.');
       return;
     }
     if (lookup.kind === 'method-not-allowed') {
+      if (!anonymousGate()) return;
       req.resume();
       sendError(pre, 'METHOD_NOT_ALLOWED', 'Method not allowed for this route.', undefined, {
         Allow: lookup.allowed.join(', '),
@@ -953,12 +972,7 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
       cors,
     };
 
-    const addressVerdict = ipLimiter.take(ip, clock());
-    if (!addressVerdict.allowed) {
-      req.resume();
-      sendError(ctx, 'RATE_LIMITED', 'Rate limit exceeded.', undefined, {
-        'Retry-After': String(Math.max(1, Math.ceil(addressVerdict.retryAfterMs / 1000))),
-      });
+    if (def.auth === 'none' && !anonymousGate()) {
       return;
     }
 
