@@ -19,11 +19,13 @@ workspace holds five packages on the `@re-shell/*` scope:
 
 | Doc | What it is |
 |-----|------------|
-| [`RE_SHELL_ULTIMATE_PLAN.md`](./RE_SHELL_ULTIMATE_PLAN.md) | **The canonical implementation plan.** Authoritative; supersedes the master-plan draft and the scattered legacy plans. |
+| [`STABILITY.md`](./STABILITY.md) | **Current stability work and release gates.** Distinguishes implemented fixes from remaining validation and optional scope. |
+| [`ROADMAP.md`](./ROADMAP.md) | Long-term capability roadmap; historical delivery snapshots require current verification. |
+| [`RE_SHELL_ULTIMATE_PLAN.md`](./RE_SHELL_ULTIMATE_PLAN.md) | Historical consolidation plan and audit. Do not replay completed phases or treat old findings as current without source verification. |
 | [`RE_SHELL_MASTER_PLAN.md`](./RE_SHELL_MASTER_PLAN.md) | **Historical audit record** (the earlier DRAFT). Documents the original three-repo reality and the document-disposition decisions. Implemented through Phase 8; kept for provenance. |
 | [`CLI-CONTRACTS.md`](./CLI-CONTRACTS.md) | The CLI↔UI JSON contract: response envelope, error-code vocabulary, per-command `--json` shapes, and the SSE `/events` + WS `/jobs` hub transport. Regenerated from real CLI output in Wave 2 and conformance-tested. Source of truth: `@re-shell/contracts`. |
 | hub-server / security | The token-authed transport that fronts the CLI for the dashboard (`apps/web/src/hub-server.ts`): SSE `/events`, WS `/jobs`, 127.0.0.1 bind, session token, no arbitrary shell. Documented in [`CLI-CONTRACTS.md`](./CLI-CONTRACTS.md) (transport + error vocabulary). |
-| [`superpowers/specs/2026-05-29-re-shell-ui-web-components-design.md`](./superpowers/specs/2026-05-29-re-shell-ui-web-components-design.md) | The UI design spec (component system, tokens, layout primitives). |
+| [`superpowers/specs/2026-05-29-re-shell-ui-web-components-design.md`](./superpowers/specs/2026-05-29-re-shell-ui-web-components-design.md) | Historical, superseded Web Components spec. The active UI is React/shadcn. |
 
 ### Per-package docs
 
@@ -65,6 +67,6 @@ pre-rewrite contract:
 
 ## Conventions
 
-- The **canonical plan** is `RE_SHELL_ULTIMATE_PLAN.md`. When plans conflict, it wins.
+- Current stability work is tracked in `STABILITY.md`; `ROADMAP.md` records optional longer-term direction. Historical plans do not override current source or verified acceptance results.
 - `@re-shell/contracts` is the **single source of truth** for CLI↔UI shapes; `CLI-CONTRACTS.md` documents it and is conformance-tested.
 - `AGENTS.md` and `.agents/` are agent-context auto-dumps and are **gitignored** — never tracked.

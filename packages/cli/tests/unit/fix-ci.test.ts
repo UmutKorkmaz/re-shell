@@ -36,6 +36,32 @@ describe('runFixCi', () => {
     return JSON.parse(raw as string);
   }
 
+  it('fails without an evaluator instead of claiming gates passed', async () => {
+    const applyFix = vi.fn();
+    const openPullRequest = vi.fn();
+    await runFixCi({ json: true, noDryRun: true, applyFix, openPullRequest });
+
+    const env = lastJson();
+    expect(env.ok).toBe(false);
+    expect(env.error).toMatchObject({ code: 'FIX_CI_ERROR', message: expect.stringMatching(/not run/i) });
+    expect(env.data).toBeUndefined();
+    expect(applyFix).not.toHaveBeenCalled();
+    expect(openPullRequest).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('reports missing evaluator on stderr in human mode', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      await runFixCi({});
+      expect(stderr).toHaveBeenCalledWith(expect.stringMatching(/not run/i));
+      expect(written).toEqual([]);
+      expect(process.exitCode).toBe(1);
+    } finally {
+      stderr.mockRestore();
+    }
+  });
+
   it('opens NO PR in dry-run even when gates go green', async () => {
     let evals = 0;
     const evaluate = () => {
@@ -52,6 +78,7 @@ describe('runFixCi', () => {
     expect(data.outcome).toBe('pr-ready');
     expect(data.gatesPassed).toBe(true);
     expect(data.prOpened).toBe(false);
+    expect(process.exitCode).toBeUndefined();
   });
 
   it('opens a PR under --no-dry-run when gates reach pr-ready', async () => {
@@ -91,6 +118,7 @@ describe('runFixCi', () => {
     expect(data.outcome).toBe('no-progress');
     expect(opened).toBe(false);
     expect(data.prOpened).toBe(false);
+    expect(process.exitCode).toBe(1);
   });
 
   it('emits output that validates against fixCiResponseSchema', async () => {

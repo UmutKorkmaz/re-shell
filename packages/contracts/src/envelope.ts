@@ -34,6 +34,8 @@ export const errorCodeSchema = z.enum([
   'TEMPLATE_DRY_RUN_ERROR',
   // Codes introduced by the real plugin-install slice (W9b-1)
   'PLUGIN_INSTALL_ERROR',
+  'PLUGIN_UPDATE_ERROR',
+  'PLUGIN_VALIDATE_ERROR',
   // Codes introduced by the registry-backed marketplace slice (W9b-2)
   'MARKETPLACE_UNREACHABLE',
   'MARKETPLACE_ERROR',

@@ -5,6 +5,7 @@ import {
   flattenFailures,
   UI_MATURITY_WEIGHTS,
   DEFAULT_UI_GATE,
+  type UiGateKind,
   type StoryResult,
 } from '../../src/utils/ui-test-engine';
 import { uiTestResponseSchema } from '@re-shell/contracts';
@@ -85,8 +86,16 @@ describe('passesGate', () => {
     expect(passesGate(agg, ['interaction'])).toBe(false);
   });
 
-  it('passes when there are no stories', () => {
-    expect(passesGate(aggregateUiTests([]))).toBe(true);
+  it('fails when there are no stories', () => {
+    expect(passesGate(aggregateUiTests([]))).toBe(false);
+  });
+
+  it('fails when no gate pillars are configured', () => {
+    expect(passesGate(aggregateUiTests([story('a')]), [])).toBe(false);
+  });
+
+  it('fails on an unknown gate pillar at runtime', () => {
+    expect(passesGate(aggregateUiTests([story('a')]), ['unknown'] as unknown as UiGateKind[])).toBe(false);
   });
 });
 

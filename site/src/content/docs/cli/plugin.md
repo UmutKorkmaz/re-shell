@@ -22,8 +22,8 @@ re-shell plugin --help
 | `uninstall <plugin>` | Uninstall a plugin. |
 | `enable` / `disable <plugin>` | Toggle a plugin. |
 | `info <plugin>` | Show plugin information. |
-| `update` | Update all plugins. |
-| `validate <path>` | Validate a plugin. |
+| `update` | Not implemented; returns a nonzero error instead of simulating an update check. |
+| `validate <path>` | Not implemented; returns a nonzero error instead of simulating compatibility validation. |
 | `reload <plugin>` | Reload a plugin. |
 
 ```bash
@@ -36,6 +36,11 @@ re-shell plugin info reshell-plugin-example
 The installer classifies the source (npm / git / local), resolves and validates
 the manifest, and registers it in `.re-shell/plugins/registry.json`. Errors
 surface as `code: "PLUGIN_INSTALL_ERROR"`.
+
+Unavailable update and compatibility-validation actions return
+`PLUGIN_UPDATE_ERROR` and `PLUGIN_VALIDATE_ERROR` in `--json` mode. They do not
+perform checks or make changes. Manifest validation during installation is a
+separate, implemented path.
 
 ## Marketplace
 

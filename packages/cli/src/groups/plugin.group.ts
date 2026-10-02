@@ -146,8 +146,9 @@ export function registerPluginGroup(program: Command): void {
 
   pluginCommand
     .command('update')
-    .description('Update all plugins')
+    .description('Update plugins (not implemented; returns an error)')
     .option('--verbose', 'Show detailed information')
+    .option('--json', 'Output as JSON')
     .action(
       createAsyncCommand(async (options) => {
         await updatePlugins(options);
@@ -156,7 +157,7 @@ export function registerPluginGroup(program: Command): void {
 
   pluginCommand
     .command('validate <path>')
-    .description('Validate a plugin')
+    .description('Validate plugin compatibility (not implemented; returns an error)')
     .option('--verbose', 'Show detailed information')
     .option('--json', 'Output as JSON')
     .action(

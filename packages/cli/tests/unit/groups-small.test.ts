@@ -155,6 +155,8 @@ describe('groups — small registration groups', () => {
       const program = programWith(registerUiTestGroup);
       const ui = subcommand(program, 'ui');
       const test = subcommand(ui, 'test');
+      expect(ui.description()).toContain('unavailable: no Storybook runner wired');
+      expect(test.description()).toContain('unavailable: no Storybook runner wired');
       expect(optionFlags(test)).toEqual(['--json', '--gate <pillars>']);
       const gateOption = test.options.find(option => option.long === '--gate');
       expect(gateOption?.defaultValue).toBe('a11y,visual');
@@ -172,6 +174,38 @@ describe('groups — small registration groups', () => {
       vi.mocked(runUiTest).mockResolvedValue(undefined);
       await program.parseAsync(['node', 're-shell', 'ui', 'test', '--json', '--gate', 'a11y']);
       expect(runUiTest).toHaveBeenCalledWith({ json: true, gate: 'a11y' });
+    });
+
+    it('attaches test to an existing ui command without launching the dashboard', async () => {
+      const program = new Command().exitOverride();
+      const launchDashboard = vi.fn();
+      const ui = program.command('ui')
+        .description('Existing dashboard launcher')
+        .option('--port <port>', 'Dashboard port', '3333')
+        .action(launchDashboard);
+      registerUiTestGroup(program);
+      vi.mocked(runUiTest).mockResolvedValue(undefined);
+
+      expect(program.commands.filter(command => command.name() === 'ui')).toEqual([ui]);
+      expect(ui.description()).toBe('Existing dashboard launcher');
+      expect(optionFlags(ui)).toEqual(['--port <port>']);
+      await program.parseAsync(['node', 're-shell', 'ui', 'test', '--json']);
+      expect(runUiTest).toHaveBeenCalledWith({ json: true, gate: 'a11y,visual' });
+      expect(launchDashboard).not.toHaveBeenCalled();
+    });
+
+    it('preserves the existing dashboard action for bare ui', async () => {
+      const program = new Command().exitOverride();
+      const launchDashboard = vi.fn();
+      program.command('ui')
+        .option('--port <port>', 'Dashboard port', '3333')
+        .action(launchDashboard);
+      registerUiTestGroup(program);
+
+      await program.parseAsync(['node', 're-shell', 'ui', '--port', '4444']);
+      expect(launchDashboard).toHaveBeenCalledOnce();
+      expect(launchDashboard.mock.calls[0][0]).toMatchObject({ port: '4444' });
+      expect(runUiTest).not.toHaveBeenCalled();
     });
   });
 
@@ -223,6 +257,7 @@ describe('groups — small registration groups', () => {
     it('registers fix with ci/json/dry-run/max-iterations options', () => {
       const program = programWith(registerFixCiGroup);
       const cmd = subcommand(program, 'fix');
+      expect(cmd.description()).toContain('unavailable: no gate evaluator wired');
       expect(optionFlags(cmd)).toContain('--ci');
       expect(optionFlags(cmd)).toContain('--no-dry-run');
       expect(optionFlags(cmd)).toContain('--max-iterations <n>');

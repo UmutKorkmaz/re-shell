@@ -5,20 +5,19 @@ import { createSpinner } from '../utils/spinner';
 import { runFixCi } from '../commands/fix-ci';
 
 /**
- * `re-shell fix --ci` — autonomous CI fixer with locked gates (issue #18).
+ * `re-shell fix --ci` — CI fixer scaffold with locked gates (issue #18).
  *
- * Runs a bounded, gate-locked loop that drives remediation to green and opens a
- * PR after gates pass. Dry-run is the default (nothing committed/pushed); a PR
- * is opened ONLY under --no-dry-run + a green gate outcome. The loop NEVER
- * merges or pushes to a protected branch — merge stays human-controlled.
+ * The pure loop supports injected evaluators, but this CLI entry point has no
+ * evaluator adapter and reports a not-run error. Dry-run remains the default;
+ * the loop never merges or pushes to a protected branch.
  */
 export function registerFixCiGroup(program: Command): void {
   program
     .command('fix')
-    .description('Autonomous CI fixer: bounded gate-locked remediation loop (use --ci)')
-    .option('--ci', 'Run the autonomous gated fix loop (required to start the loop)')
+    .description('CI fixer scaffold (unavailable: no gate evaluator wired; use --ci)')
+    .option('--ci', 'Attempt CI verification (currently unavailable: no gate evaluator wired)')
     .option('--json', 'Output the loop run log as a JSON envelope')
-    .option('--no-dry-run', 'Open a PR after gates pass (default: dry-run, report only)')
+    .option('--no-dry-run', 'Allow PR opening when adapters are available (default: dry-run)')
     .option('--max-iterations <n>', 'Max loop iterations (backstop)', v => Number(v))
     .action(
       createAsyncCommand(async options => {
