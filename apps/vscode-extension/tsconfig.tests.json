@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": ["node", "mocha"]
+  },
+  "include": ["src", "tests"],
+  "exclude": ["dist", "dist-test", "node_modules", ".vscode-test"]
+}
