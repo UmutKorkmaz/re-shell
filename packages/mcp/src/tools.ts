@@ -1,8 +1,14 @@
 import { z } from 'zod';
 import {
-  workspaceSummarySchema,
-  healthSummarySchema,
-  templateSummarySchema,
+  workspaceSummaryWireSchema,
+  workspaceGraphWireSchema,
+  workspaceHealthWireSchema,
+  templatesListWireSchema,
+  templateWireSchema,
+  templatesMatrixWireSchema,
+  doctorWireSchema,
+  analyzeWireSchema,
+  commandCatalogWireSchema,
 } from '@re-shell/contracts';
 import { runJsonCommand, type CliInvocation, type ValidatedEnvelope } from './cli.js';
 
@@ -46,10 +52,10 @@ const templateIdSchema = z
 
 /**
  * The read-only tool set. Each entry mirrors an allow-listed command from the
- * dashboard hub registry (apps/web/src/hub/command-registry.ts). Data schemas
- * from @re-shell/contracts are used where a precise shape is published; the
- * remainder validate against the canonical envelope around `z.unknown()` (the
- * `ok`/`warnings`/`error` envelope is still fully type-checked).
+ * dashboard hub registry (apps/web/src/hub/command-registry.ts). Every payload is
+ * validated against the EXACT wire schema @re-shell/contracts publishes for that
+ * command (the `*WireSchema` exports), i.e. against what the real CLI prints, not
+ * against the domain/UI models.
  */
 export const READ_ONLY_TOOLS: readonly ToolDefinition[] = [
   {
@@ -59,7 +65,7 @@ export const READ_ONLY_TOOLS: readonly ToolDefinition[] = [
     inputShape: {},
     mutating: false,
     run: (invocation) =>
-      runJsonCommand(invocation, ['workspace', 'summary', '--json'], workspaceSummarySchema),
+      runJsonCommand(invocation, ['workspace', 'summary', '--json'], workspaceSummaryWireSchema),
   },
   {
     name: 'workspace_graph',
@@ -68,7 +74,7 @@ export const READ_ONLY_TOOLS: readonly ToolDefinition[] = [
     inputShape: {},
     mutating: false,
     run: (invocation) =>
-      runJsonCommand(invocation, ['workspace', 'graph', '--json'], z.unknown()),
+      runJsonCommand(invocation, ['workspace', 'graph', '--json'], workspaceGraphWireSchema),
   },
   {
     name: 'workspace_health',
@@ -77,7 +83,7 @@ export const READ_ONLY_TOOLS: readonly ToolDefinition[] = [
     inputShape: {},
     mutating: false,
     run: (invocation) =>
-      runJsonCommand(invocation, ['workspace', 'health', '--json'], healthSummarySchema),
+      runJsonCommand(invocation, ['workspace', 'health', '--json'], workspaceHealthWireSchema),
   },
   {
     name: 'templates_list',
@@ -96,7 +102,7 @@ export const READ_ONLY_TOOLS: readonly ToolDefinition[] = [
       if (typeof args.framework === 'string') {
         argv.push('--framework', args.framework);
       }
-      return runJsonCommand(invocation, argv, z.array(templateSummarySchema));
+      return runJsonCommand(invocation, argv, templatesListWireSchema);
     },
   },
   {
@@ -109,7 +115,7 @@ export const READ_ONLY_TOOLS: readonly ToolDefinition[] = [
     mutating: false,
     run: async (invocation, args) => {
       const id = templateIdSchema.parse(args.id);
-      return runJsonCommand(invocation, ['templates', 'show', id, '--json'], templateSummarySchema);
+      return runJsonCommand(invocation, ['templates', 'show', id, '--json'], templateWireSchema);
     },
   },
   {
@@ -119,7 +125,7 @@ export const READ_ONLY_TOOLS: readonly ToolDefinition[] = [
     inputShape: {},
     mutating: false,
     run: (invocation) =>
-      runJsonCommand(invocation, ['templates', 'matrix', '--json'], z.unknown()),
+      runJsonCommand(invocation, ['templates', 'matrix', '--json'], templatesMatrixWireSchema),
   },
   {
     name: 'doctor',
@@ -127,7 +133,7 @@ export const READ_ONLY_TOOLS: readonly ToolDefinition[] = [
     description: 'Run health checks on the current Re-Shell monorepo.',
     inputShape: {},
     mutating: false,
-    run: (invocation) => runJsonCommand(invocation, ['doctor', '--json'], z.unknown()),
+    run: (invocation) => runJsonCommand(invocation, ['doctor', '--json'], doctorWireSchema),
   },
   {
     name: 'analyze',
@@ -143,7 +149,7 @@ export const READ_ONLY_TOOLS: readonly ToolDefinition[] = [
       if (parsedType) {
         argv.push('--type', parsedType);
       }
-      return runJsonCommand(invocation, argv, z.unknown());
+      return runJsonCommand(invocation, argv, analyzeWireSchema);
     },
   },
   {
@@ -152,7 +158,8 @@ export const READ_ONLY_TOOLS: readonly ToolDefinition[] = [
     description: 'Machine-readable catalog of available Re-Shell commands.',
     inputShape: {},
     mutating: false,
-    run: (invocation) => runJsonCommand(invocation, ['commands', 'list', '--json'], z.unknown()),
+    run: (invocation) =>
+      runJsonCommand(invocation, ['commands', 'list', '--json'], commandCatalogWireSchema),
   },
 ];
 

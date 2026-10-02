@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
+import type { TemplateWire, WorkspaceSummaryWire } from '@re-shell/contracts';
 
 /**
  * In-process test of the MCP server's tool handlers against a stubbed CLI.
@@ -55,8 +56,45 @@ vi.mock('node:child_process', () => {
 const { READ_ONLY_TOOLS, WRITE_TOOLS, getActiveTools } = await import('../src/tools.js');
 const { resolveCli } = await import('../src/cli.js');
 
-/** A valid `workspaceSummarySchema` payload wrapped in the success envelope. */
+/**
+ * A `workspaceSummaryWireSchema` payload (exactly what `workspace summary --json`
+ * prints: root / packageManager / workspaces / graph / canonical health) wrapped
+ * in the success envelope.
+ */
 const VALID_WORKSPACE_SUMMARY = {
+  ok: true,
+  data: {
+    root: '/tmp/demo-workspace',
+    packageManager: 'pnpm',
+    workspaces: [
+      {
+        name: '@demo/web',
+        path: 'apps/web',
+        type: 'app',
+        framework: 'react-ts',
+        version: '1.0.0',
+        dependencies: ['react'],
+      },
+    ],
+    graph: {
+      apps: [{ name: '@demo/web', path: 'apps/web', framework: 'react-ts', dependencies: [] }],
+      services: [],
+    },
+    health: {
+      score: 100,
+      status: 'healthy',
+      checks: [{ name: 'Workspaces', status: 'healthy', message: '1 workspace(s) detected' }],
+    },
+  },
+  warnings: [],
+};
+
+/**
+ * The OLD, domain-shaped summary (`workspaceSummarySchema`). The real CLI has
+ * never printed this, and the server used to demand it, which made the tool throw
+ * against every real workspace. It must now be rejected.
+ */
+const DOMAIN_SHAPED_WORKSPACE_SUMMARY = {
   ok: true,
   data: {
     path: '/tmp/demo-workspace',
@@ -65,11 +103,7 @@ const VALID_WORKSPACE_SUMMARY = {
     apps: [],
     services: [],
     templates: [],
-    health: {
-      score: 100,
-      status: 'pass',
-      checks: [],
-    },
+    health: { score: 100, status: 'pass', checks: [] },
   },
   warnings: [],
 };
@@ -117,15 +151,38 @@ describe('workspace_summary against a valid workspace fixture', () => {
     expect(exitCode).toBe(0);
     expect(envelope.ok).toBe(true);
     if (envelope.ok) {
-      expect(envelope.data.name).toBe('demo-workspace');
-      expect(envelope.data.packageManager).toBe('pnpm');
-      expect(envelope.data.health.status).toBe('pass');
+      const data = envelope.data as WorkspaceSummaryWire;
+      expect(data.root).toBe('/tmp/demo-workspace');
+      expect(data.packageManager).toBe('pnpm');
+      expect(data.health.status).toBe('healthy');
+      expect(data.workspaces.map((w) => w.name)).toEqual(['@demo/web']);
     }
 
     // The CLI was driven with the fixed, machine-readable argv (no shell).
     expect(spawnCalls).toHaveLength(1);
     const [, , ...args] = spawnCalls[0];
     expect(args).toEqual(['workspace', 'summary', '--json']);
+  });
+
+  it('preserves fields the contract does not declare (a newer CLI never loses data)', async () => {
+    const withExtra = structuredClone(VALID_WORKSPACE_SUMMARY) as typeof VALID_WORKSPACE_SUMMARY & {
+      data: Record<string, unknown>;
+    };
+    withExtra.data.futureField = { added: 'later' };
+    queue({ stdout: JSON.stringify(withExtra), code: 0 });
+
+    const tool = READ_ONLY_TOOLS.find((t) => t.name === 'workspace_summary');
+    const { envelope } = await tool!.run(fakeInvocation(), {});
+    expect(envelope.ok).toBe(true);
+    if (envelope.ok) {
+      expect((envelope.data as Record<string, unknown>).futureField).toEqual({ added: 'later' });
+    }
+  });
+
+  it('rejects the domain-shaped summary the real CLI never printed', async () => {
+    queue({ stdout: JSON.stringify(DOMAIN_SHAPED_WORKSPACE_SUMMARY), code: 0 });
+    const tool = READ_ONLY_TOOLS.find((t) => t.name === 'workspace_summary');
+    await expect(tool!.run(fakeInvocation(), {})).rejects.toThrow(/did not match the expected envelope/);
   });
 });
 
@@ -210,15 +267,20 @@ describe('mutating tools are gated behind RE_SHELL_MCP_ALLOW_WRITE=1', () => {
 
 describe('templates_show forwards a validated id as a single argv token', () => {
   it('passes a well-formed id through and validates the template envelope', async () => {
+    // Exactly what `templates show <id> --json` prints (the registry projection:
+    // no `domain` / `command`, which only the UI adapter derives).
     const template = {
       id: 'react-vite',
-      name: 'React + Vite',
+      name: 'react-vite',
+      displayName: 'React + Vite',
       description: 'A React app scaffolded with Vite.',
-      domain: 'frontend',
       language: 'typescript',
       framework: 'react',
+      version: '18.3.1',
       tags: ['spa'],
-      command: ['re-shell', 'create', '--template', 'react-vite'],
+      features: ['hmr'],
+      port: 5173,
+      fileCount: 12,
     };
     queue({ stdout: JSON.stringify({ ok: true, data: template, warnings: [] }), code: 0 });
 
@@ -226,7 +288,7 @@ describe('templates_show forwards a validated id as a single argv token', () => 
     const { envelope } = await tool!.run(fakeInvocation(), { id: 'react-vite' });
     expect(envelope.ok).toBe(true);
     if (envelope.ok) {
-      expect(envelope.data.id).toBe('react-vite');
+      expect((envelope.data as TemplateWire).id).toBe('react-vite');
     }
 
     const [, , ...args] = spawnCalls[0];
