@@ -1,0 +1,166 @@
+name: K8s live
+
+# Validates the Kubernetes / Helm / GitOps / CRD / operator generators against a
+# REAL cluster (kind) instead of only parsing their YAML:
+#   * kubeconform schema validation of every generated manifest
+#   * helm lint --strict + helm template
+#   * kubectl apply under Pod Security "restricted", rollout, broken upgrade,
+#     failure detection, `re-shell k8s rollback` (kubectl AND helm), recovery
+#   * ReShellWorkspace CRD install + server-side validation + sample CR
+#   * the generated Go operator is built and reconciles a CR in the cluster
+#   * Flux is installed and syncs the generated HelmRelease from a git repo; a
+#     broken release is remediated by Flux's Helm rollback
+# The steps live in scripts/k8s-live-check.sh (usable against any KUBECONFIG).
+#
+# Argo CD is not installed here: its images are served from quay.io and the
+# Application manifest is validated with kubeconform against the Argo CD CRD
+# schema instead. The Flux job exercises the same GitOps flow end to end.
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'packages/cli/src/utils/k8s-*.ts'
+      - 'packages/cli/src/utils/helm-generate.ts'
+      - 'packages/cli/src/utils/gitops-generate.ts'
+      - 'packages/cli/src/commands/k8s-*.ts'
+      - 'packages/cli/src/commands/helm-generate.ts'
+      - 'packages/cli/src/commands/gitops-generate.ts'
+      - 'packages/cli/src/groups/k8s.group.ts'
+      - 'packages/cli/src/schemas/workspace-v2.schema.json'
+      - 'packages/cli/tests/unit/k8s-*.test.ts'
+      - 'packages/cli/tests/unit/helm-generate.test.ts'
+      - 'packages/cli/tests/unit/gitops-generate.test.ts'
+      - 'packages/cli/tests/helpers/k8s-test-utils.ts'
+      - 'scripts/k8s-live-check.sh'
+      - 'scripts/k8s-live/**'
+      - '.github/workflows/k8s-live.yml'
+  pull_request:
+    branches: [main, master, develop]
+    paths:
+      - 'packages/cli/src/utils/k8s-*.ts'
+      - 'packages/cli/src/utils/helm-generate.ts'
+      - 'packages/cli/src/utils/gitops-generate.ts'
+      - 'packages/cli/src/commands/k8s-*.ts'
+      - 'packages/cli/src/commands/helm-generate.ts'
+      - 'packages/cli/src/commands/gitops-generate.ts'
+      - 'packages/cli/src/groups/k8s.group.ts'
+      - 'packages/cli/src/schemas/workspace-v2.schema.json'
+      - 'packages/cli/tests/unit/k8s-*.test.ts'
+      - 'packages/cli/tests/unit/helm-generate.test.ts'
+      - 'packages/cli/tests/unit/gitops-generate.test.ts'
+      - 'packages/cli/tests/helpers/k8s-test-utils.ts'
+      - 'scripts/k8s-live-check.sh'
+      - 'scripts/k8s-live/**'
+      - '.github/workflows/k8s-live.yml'
+  workflow_dispatch:
+
+env:
+  PNPM_VERSION: 9.15.9
+  HELM_VERSION: v3.16.4
+  KUBECONFORM_VERSION: v0.6.7
+  KIND_NODE_IMAGE: kindest/node:v1.31.4
+  FLUX_VERSION: v2.4.0
+
+concurrency:
+  group: k8s-live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  k8s-live:
+    name: Generators vs a live kind cluster
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          cache: false
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Install kubeconform
+        run: |
+          go install "github.com/yannh/kubeconform/cmd/kubeconform@${KUBECONFORM_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build contracts and CLI
+        run: |
+          pnpm --filter @re-shell/contracts build
+          pnpm --filter @re-shell/cli build
+
+      # The generator unit tests shell out to helm, kubeconform and go when they
+      # are on PATH (they skip themselves otherwise), so installing them above
+      # makes this the run where nothing is skipped.
+      - name: Generator unit tests (helm lint/template, kubeconform, go build)
+        working-directory: packages/cli
+        run: >
+          npx vitest run
+          tests/unit/k8s-config.test.ts
+          tests/unit/k8s-generate.test.ts
+          tests/unit/helm-generate.test.ts
+          tests/unit/gitops-generate.test.ts
+          tests/unit/k8s-rollback.test.ts
+          tests/unit/k8s-crd.test.ts
+          tests/unit/k8s-mesh.test.ts
+          tests/unit/k8s-operator.test.ts
+          tests/integration/k8s-cli.test.ts
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: reshell-live
+          node_image: ${{ env.KIND_NODE_IMAGE }}
+          wait: 180s
+
+      - name: Live check (generate, lint, kubeconform, apply, rollback, CRD, operator, Flux)
+        env:
+          K8S_LIVE_OPERATOR: '1'
+          K8S_LIVE_GITOPS: flux
+          K8S_LIVE_FLUX_VERSION: ${{ env.FLUX_VERSION }}
+          K8S_LIVE_KEEP: '1'
+          K8S_LIVE_WORKDIR: ${{ runner.temp }}/k8s-live
+        run: |
+          export KUBECONFIG="$HOME/.kube/config"
+          kubectl cluster-info --context kind-reshell-live
+          ./scripts/k8s-live-check.sh
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          export KUBECONFIG="$HOME/.kube/config"
+          kubectl get nodes -o wide || true
+          kubectl get pods -A -o wide || true
+          kubectl get events -A --sort-by=.lastTimestamp | tail -80 || true
+          kubectl -n flux-system get gitrepository,helmrelease -o yaml | tail -120 || true
+          helm list -A || true
+
+      - name: Upload work directory
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s-live-work
+          path: ${{ runner.temp }}/k8s-live
+          retention-days: 7
+          if-no-files-found: ignore

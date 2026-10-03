@@ -86,6 +86,11 @@ export const errorCodeSchema = z.enum([
   'ENV_ERROR',
   // Code introduced by the Storybook UI-test aggregation slice (issue #22)
   'UI_TEST_ERROR',
+  // Codes introduced by the P9-D Kubernetes/Helm/GitOps completion slice
+  'K8S_ROLLBACK_ERROR',
+  'K8S_CRD_ERROR',
+  'K8S_MESH_ERROR',
+  'K8S_OPERATOR_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

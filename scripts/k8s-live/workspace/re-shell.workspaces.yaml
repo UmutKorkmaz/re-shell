@@ -1,0 +1,70 @@
+# Workspace used by scripts/k8s-live-check.sh to exercise the k8s/helm/gitops
+# generators against a real cluster. Both services run the tiny fixture app
+# (scripts/k8s-live/app), which is loaded into the cluster as
+# reshell-live-app:<tag>.
+name: reshell-live
+version: 2.0.0
+description: Live-cluster validation fixture for the Kubernetes generators
+
+kubernetes:
+  image:
+    repository: reshell-live-app
+    tag: v1
+    pullPolicy: IfNotPresent
+  # Fail a stuck rollout quickly so the broken-image step finishes fast.
+  progressDeadlineSeconds: 45
+  ingress:
+    className: nginx
+    clusterIssuer: letsencrypt-staging
+
+services:
+  web:
+    name: web
+    type: backend
+    language: go
+    framework: gin
+    port: 8080
+    env:
+      PORT: "8080"
+      SERVICE_NAME: web
+    healthCheck:
+      path: /healthz
+      interval: 3
+      timeout: 2
+      retries: 3
+    scaling:
+      min: 2
+      max: 4
+    kubernetes:
+      ingress:
+        host: web.live.test
+      probes:
+        readiness:
+          initialDelaySeconds: 1
+          periodSeconds: 2
+        liveness:
+          initialDelaySeconds: 3
+
+  worker:
+    name: worker
+    type: worker
+    language: go
+    framework: gin
+    port: 8081
+    env:
+      PORT: "8081"
+      SERVICE_NAME: worker
+    healthCheck:
+      path: /healthz
+    scaling:
+      min: 1
+      max: 2
+    kubernetes:
+      ingress:
+        enabled: false
+      probes:
+        readiness:
+          initialDelaySeconds: 1
+          periodSeconds: 2
+        liveness:
+          initialDelaySeconds: 3

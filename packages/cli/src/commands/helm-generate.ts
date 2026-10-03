@@ -120,7 +120,7 @@ export async function runHelmGenerate(
     try {
       const result = generate();
       const helm = lintWithHelm(result);
-      const warnings: string[] = [];
+      const warnings: string[] = [...result.warnings];
       if (!helm.ran) {
         warnings.push(`helm lint not run: ${helm.detail ?? 'unavailable'}`);
       } else if (helm.ok === false) {
@@ -150,6 +150,7 @@ export async function runHelmGenerate(
     const result = generate();
     const helm = lintWithHelm(result);
     displayResult(result, helm, Boolean(options.dryRun));
+    for (const warning of result.warnings) console.log(chalk.yellow(`warning: ${warning}`));
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'Unknown helm generate error';
