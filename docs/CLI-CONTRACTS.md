@@ -126,7 +126,7 @@ status of each code is read from the CLI sources every time it is regenerated, s
 it cannot claim a code is emitted when nothing emits it.
 
 <!-- BEGIN GENERATED: error-codes -->
-The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (139 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
+The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (145 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
 
 | Code | Status | Emitted from |
 | --- | --- | --- |
@@ -175,7 +175,7 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (139 codes). A code
 | `GENERATE_ERROR` | emitted | `packages/cli/src/groups/generate.group.ts` |
 | `DEV_FUSION_ERROR` | emitted | `packages/cli/src/commands/dev-restart-plan.ts` |
 | `API_VERIFY_ERROR` | emitted | `packages/cli/src/commands/api-verify.ts` |
-| `FIX_CI_ERROR` | emitted | `packages/cli/src/commands/fix-ci.ts` |
+| `FIX_CI_ERROR` | emitted | `packages/cli/src/commands/fix-ci.ts`, `packages/cli/src/fix-ci/loop.ts`, `packages/cli/src/fix-ci/types.ts` |
 | `BOUNDARIES_ERROR` | emitted | `packages/cli/src/commands/boundaries.ts` |
 | `ENV_ERROR` | emitted | `packages/cli/src/commands/env.ts` |
 | `UI_TEST_ERROR` | emitted | `packages/cli/src/commands/ui-test.ts` |
@@ -269,6 +269,12 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (139 codes). A code
 | `GRAPH_DIFF_GIT_ERROR` | emitted | `packages/cli/src/utils/graph-source.ts` |
 | `GRAPH_DIFF_INVALID_INPUT` | emitted | `packages/cli/src/commands/workspace-graph-diff.ts`, `packages/cli/src/utils/graph-source.ts` |
 | `WORKSPACE_STATUS_ERROR` | emitted | `packages/cli/src/commands/workspace-status.ts` |
+| `FIX_CI_NOT_A_REPO` | emitted | `packages/cli/src/fix-ci/loop.ts`, `packages/cli/src/fix-ci/types.ts` |
+| `FIX_CI_DIRTY_TREE` | emitted | `packages/cli/src/fix-ci/loop.ts`, `packages/cli/src/fix-ci/types.ts` |
+| `FIX_CI_CONFIG_INVALID` | emitted | `packages/cli/src/fix-ci/config.ts`, `packages/cli/src/fix-ci/loop.ts`, `packages/cli/src/fix-ci/types.ts` |
+| `FIX_CI_NO_GATES` | emitted | `packages/cli/src/fix-ci/config.ts`, `packages/cli/src/fix-ci/types.ts` |
+| `FIX_CI_NO_PROVIDER` | emitted | `packages/cli/src/commands/fix-ci.ts`, `packages/cli/src/fix-ci/types.ts` |
+| `FIX_CI_GATES_RED` | emitted | `packages/cli/src/commands/fix-ci.ts`, `packages/cli/src/fix-ci/types.ts` |
 <!-- END GENERATED: error-codes -->
 
 ---

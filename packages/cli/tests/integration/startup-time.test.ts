@@ -67,7 +67,9 @@ process.on('exit', () => {
   });
 
   const groupModules = (loaded: string[]) =>
-    loaded.filter(f => f.includes(`${path.sep}dist${path.sep}groups${path.sep}`)).map(f => path.basename(f));
+    loaded
+      .filter(f => f.includes(`${path.sep}dist${path.sep}groups${path.sep}`) && f.endsWith('.group.js'))
+      .map(f => path.basename(f));
 
   it('--version and --help import no command group', () => {
     for (const args of [['--version'], ['--help']]) {

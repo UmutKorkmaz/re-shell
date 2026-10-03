@@ -125,6 +125,11 @@ export {
   fixLoopOutcomeSchema,
   fixLoopIterationSchema,
   fixCiResponseSchema,
+  fixCiGateKindSchema,
+  fixCiFailingEntrySchema,
+  fixCiGateResultSchema,
+  fixCiPatchSchema,
+  fixCiPrSchema,
   // module boundaries
   boundaryViolationKindSchema,
   boundaryViolationSchema,
@@ -313,6 +318,11 @@ export type {
   FixLoopOutcome,
   FixLoopIteration,
   FixCiResponse,
+  FixCiGateKind,
+  FixCiFailingEntry,
+  FixCiGateResult,
+  FixCiPatch,
+  FixCiPr,
   // module boundaries
   BoundaryViolationKind,
   BoundaryViolation,

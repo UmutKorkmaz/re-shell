@@ -191,6 +191,13 @@ export const errorCodeSchema = z.enum([
   'GRAPH_DIFF_GIT_ERROR',
   'GRAPH_DIFF_INVALID_INPUT',
   'WORKSPACE_STATUS_ERROR',
+  // Codes introduced by the real `fix --ci` workstream (R-3)
+  'FIX_CI_NOT_A_REPO',
+  'FIX_CI_DIRTY_TREE',
+  'FIX_CI_CONFIG_INVALID',
+  'FIX_CI_NO_GATES',
+  'FIX_CI_NO_PROVIDER',
+  'FIX_CI_GATES_RED',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
