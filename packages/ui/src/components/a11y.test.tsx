@@ -37,6 +37,7 @@ import { Alert } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
@@ -502,5 +503,57 @@ describe('re-shell components are accessible', () => {
     rerender(<JobLogPanel job={runningJob} logs={['history 1', 'history 2', 'fresh line']} />);
     expect(screen.getByText('history 1').className).not.toContain('animate-log-flash');
     expect(screen.getByText('fresh line').className).toContain('animate-log-flash');
+  });
+});
+
+describe('Dialog and configurable headings', () => {
+  it('Dialog: focus moves in, is trapped, Escape closes, focus returns to the trigger', async () => {
+    const user = userEvent.setup();
+    render(
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="destructive">Remove</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove it?</DialogTitle>
+            <DialogDescription>This cannot be undone.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button size="sm">Cancel</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+    const trigger = screen.getByRole('button', { name: 'Remove' });
+    await user.click(trigger);
+    const dialog = await screen.findByRole('dialog', { name: 'Remove it?' });
+    expect(dialog).toHaveAccessibleDescription('This cannot be undone.');
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    await expectNoA11yViolations(dialog);
+    for (let i = 0; i < 6; i += 1) {
+      await user.tab();
+      expect(dialog.contains(document.activeElement)).toBe(true);
+    }
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+  });
+
+  it('domain components render their title at the requested heading level', () => {
+    render(
+      <main>
+        <h1>Screen</h1>
+        <h2>Section</h2>
+        <CommandPreview spec={commandSpec} headingAs="h3" />
+        <JobLogPanel job={runningJob} logs={[]} headingAs="h3" />
+        <HealthStatus health={health} headingAs="h3" />
+        <WorkspaceSummaryPanel workspace={workspace} headingAs="h3" />
+      </main>
+    );
+    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(4);
+    expect(screen.queryAllByRole('heading', { level: 4 })).toHaveLength(0);
   });
 });

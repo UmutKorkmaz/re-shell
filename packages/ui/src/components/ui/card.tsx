@@ -3,6 +3,9 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { forwardPolymorphic, type PolymorphicProps } from "@/lib/polymorphic";
 
+/** Elements a card title may render as, so the document outline never skips a level. */
+export type HeadingElement = 'h2' | 'h3' | 'h4' | 'div';
+
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
