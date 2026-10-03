@@ -90,7 +90,8 @@
     "react": "^19.2.3",
     "semver": "^7.7.2",
     "simple-git": "^3.32.3",
-    "yaml": "^2.3.2"
+    "yaml": "^2.3.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.0",
@@ -112,7 +113,6 @@
     "typescript": "^5.0.0",
     "uuid": "^11.0.0",
     "vite": "^4.5.14",
-    "vitest": "^0.34.3",
-    "zod": "^4.4.3"
+    "vitest": "^0.34.3"
   }
 }
