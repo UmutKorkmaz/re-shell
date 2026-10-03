@@ -76,7 +76,7 @@ re-shell ui --json
     "url": "http://127.0.0.1:3333",
     "hubUrl": "http://127.0.0.1:3334",
     "hubPort": "3334",
-    "hubToken": "<64 hex characters>",
+    "hubToken": "<redacted>",
     "open": true
   },
   "warnings": []
@@ -86,8 +86,9 @@ re-shell ui --json
 (Abbreviated.) The dashboard origin (`url`) and the hub (`hubUrl`) are distinct ports,
 both on `127.0.0.1`; the hub URL is pinned to loopback. The hub receives the dashboard
 origin so it can build its exact-origin allow-list, and it reads its port and
-per-launch token from the environment. The plan includes the launch's token, so treat
-the output as sensitive.
+per-launch token from the environment. A printed plan shows the token (and the
+environment variables that carry it) as `<redacted>`: the plan is not launched, and a
+real launch mints a fresh token, so the output is safe to share.
 
 `re-shell ui` waits for the hub to answer a health check and **exits non-zero if it
 does not**, instead of opening a dashboard that has no hub behind it.

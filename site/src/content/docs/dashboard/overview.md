@@ -59,7 +59,7 @@ re-shell ui --json
     "url": "http://127.0.0.1:3333",
     "hubUrl": "http://127.0.0.1:3334",
     "hubPort": "3334",
-    "hubToken": "<64 hex characters>",
+    "hubToken": "<redacted>",
     "open": true
   },
   "warnings": []
@@ -67,8 +67,9 @@ re-shell ui --json
 ```
 
 (Abbreviated: the real plan also lists the command, its arguments and the environment
-it would use.) **The plan includes that launch's hub token**, so treat `--json` and
-`--dry-run` output as sensitive, as you would the running dashboard's URL.
+it would use.) The hub token is shown as `<redacted>`, here and in the environment:
+a printed plan is never launched, and a real launch mints its own fresh token, so
+`--json` and `--dry-run` output is safe to paste into CI logs and issues.
 
 ## Two launch modes
 

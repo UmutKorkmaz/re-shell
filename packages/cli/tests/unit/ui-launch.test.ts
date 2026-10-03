@@ -17,7 +17,7 @@ vi.mock('child_process', async importOriginal => {
 });
 
 const { spawn } = await import('child_process');
-const { launchUi, createUiLaunchPlan } = await import('../../src/commands/ui');
+const { launchUi, createUiLaunchPlan, redactLaunchPlan, REDACTED_TOKEN } = await import('../../src/commands/ui');
 
 let pidCounter = 40000;
 
@@ -178,6 +178,34 @@ describe('launch plan hub URL', () => {
   it('keeps the loopback hub URL for a named host too', () => {
     const plan = createUiLaunchPlan({ uiPath: makeUiRoot(), host: 'localhost', port: '4100', open: false });
     expect(plan.hubUrl).toBe('http://127.0.0.1:4101');
+  });
+});
+
+describe('printed launch plans never carry the hub token', () => {
+  it('redactLaunchPlan replaces the token and every env var holding it', () => {
+    const plan = createUiLaunchPlan({ uiPath: makeUiRoot(), port: '4200', open: false });
+    const redacted = redactLaunchPlan(plan);
+
+    expect(JSON.stringify(redacted)).not.toContain(plan.hubToken);
+    expect(redacted.hubToken).toBe(REDACTED_TOKEN);
+    expect(redacted.env.RE_SHELL_UI_HUB_TOKEN).toBe(REDACTED_TOKEN);
+    expect(redacted.env.VITE_RE_SHELL_UI_HUB_TOKEN).toBe(REDACTED_TOKEN);
+    expect(redacted.env.VITE_RE_SHELL_UI_HUB_URL).toBe(plan.env.VITE_RE_SHELL_UI_HUB_URL);
+    // The original plan (used for a real launch) keeps the live token.
+    expect(plan.hubToken).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('--dry-run prints a redacted token and spawns nothing', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      await launchUi({ uiPath: makeUiRoot(), port: '4300', open: false, dryRun: true });
+      const out = log.mock.calls.map(c => c.join(' ')).join('\n');
+      expect(out).toContain(`Hub token: ${REDACTED_TOKEN}`);
+      expect(out).not.toMatch(/[0-9a-f]{64}/);
+      expect(calls).toHaveLength(0);
+    } finally {
+      log.mockRestore();
+    }
   });
 });
 
