@@ -250,8 +250,23 @@ export const doctorCheckWireSchema = z.looseObject({
 export type DoctorCheckWire = z.infer<typeof doctorCheckWireSchema>;
 
 /** `data` of `doctor --json` (and `doctor --explain --json`, which adds `suggestions`). */
+/** Check tallies carried by `doctor --json` (`errors > 0` means the gate failed). */
+export const doctorSummaryWireSchema = z.looseObject({
+  passed: z.number(),
+  warnings: z.number(),
+  errors: z.number(),
+});
+
+/**
+ * `data` of `doctor --json`. Doctor is a gate: a completed run is always
+ * `ok:true`, and `healthy:false` (any error-level check) makes the CLI exit 1
+ * while still printing the full report. `ok:false` (`DOCTOR_ERROR`) is reserved
+ * for the run itself failing.
+ */
 export const doctorWireSchema = z.looseObject({
   checks: z.array(doctorCheckWireSchema),
+  summary: doctorSummaryWireSchema.optional(),
+  healthy: z.boolean().optional(),
   suggestions: z.array(suggestionSchema).optional(),
 });
 export type DoctorWire = z.infer<typeof doctorWireSchema>;
