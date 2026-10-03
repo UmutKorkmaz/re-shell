@@ -743,23 +743,36 @@ export class SqliteCollabStore {
       if (run.status === 'queued' && (job.status === 'running' || job.startedAt !== null)) {
         const startedAt = job.startedAt ?? now;
         this.s.markRunStarted.run(startedAt, tenantId, sessionId, jobId);
-        events.push(this.append(tenantId, sessionId, 'command.started', startedAt, startedBy, { jobId }, { ref: jobId }));
+        events.push(this.append(tenantId, sessionId, 'command.started', startedAt, startedBy, { jobId }, { ref: jobId }, true));
       }
       let forwarded = run.forwardedSeq;
+      let logFull = false;
       for (;;) {
         const chunks = jobs.readOutput(tenantId, jobId, forwarded, 200);
         for (const chunk of chunks) {
-          events.push(
-            this.append(
-              tenantId,
-              sessionId,
-              'command.output',
-              chunk.ts,
-              null,
-              { jobId, chunkSeq: chunk.seq, stream: chunk.stream, data: chunk.data },
-              { ref: jobId, refSeq: chunk.seq }
-            )
-          );
+          if (!logFull) {
+            try {
+              events.push(
+                this.append(
+                  tenantId,
+                  sessionId,
+                  'command.output',
+                  chunk.ts,
+                  null,
+                  { jobId, chunkSeq: chunk.seq, stream: chunk.stream, data: chunk.data },
+                  { ref: jobId, refSeq: chunk.seq }
+                )
+              );
+            } catch (error) {
+              // A full log stops recording OUTPUT (it is still in the job's own log), but the run's
+              // lifecycle events must still land or the console would show it running forever.
+              if (error instanceof Abort && error.result.failure === 'LOG_FULL') {
+                logFull = true;
+              } else {
+                throw error;
+              }
+            }
+          }
           forwarded = chunk.seq;
         }
         if (chunks.length < 200) break;

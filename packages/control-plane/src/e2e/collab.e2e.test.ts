@@ -175,7 +175,7 @@ describe('two users share one terminal session (real worker, real CLI)', () => {
     // The REST snapshot agrees with what both streams built, and with the fold of the persisted log.
     const rest = await alice.getSession('acme', id);
     expect({ ...rest, online: [] }).toEqual({ ...a.conn.state, online: [] });
-    const log = await alice.events('acme', id, 0, 1000);
+    const log = await alice.events('acme', id, 0, 500);
     expect({ ...foldCollabEvents(log.events), online: [], rtc: rest.rtc }).toEqual({ ...rest, online: [] });
 
     // It really went through the job path: a job exists, and the audit trail has the decision.
@@ -299,7 +299,7 @@ describe('two users share one terminal session (real worker, real CLI)', () => {
     const run = a.conn.state!.runs[0];
     expect(run).toMatchObject({ status: 'succeeded', exitCode: 0 });
     expect(JSON.parse(runOutputText(run)).ok).toBe(true);
-    const log = await a.client.events('acme', id, 0, 1000);
+    const log = await a.client.events('acme', id, 0, 500);
     expect(log.events.map((e) => e.seq)).toEqual(log.events.map((_, i) => i + 1));
     const types = log.events.map((e) => e.type);
     expect(types.indexOf('command.queued')).toBeLessThan(types.indexOf('command.started'));
