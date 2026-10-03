@@ -149,18 +149,49 @@ const suggestion = {
   fixable: false,
 };
 
+// A trimmed copy of real `analyze --type all --json` output for one workspace.
+const analyzeBlocks = {
+  bundle: {
+    workspace: 'apps/web',
+    size: {
+      total: '14 Bytes',
+      gzipped: '4 Bytes',
+      assets: [{ name: 'index.js', size: '14 Bytes', rawBytes: 14, type: 'JavaScript' }],
+    },
+    chunks: [{ name: 'main', size: '1 KB', modules: 3 }],
+    treeshaking: { unusedExports: [], deadCode: 0 },
+  },
+  dependencies: {
+    workspace: 'apps/web',
+    total: 3,
+    production: 2,
+    development: 1,
+    outdated: [{ name: 'react', current: '', wanted: '18.3.1', latest: '19.3.0' }],
+    duplicates: [{ name: 'lodash', versions: ['4.17.20', '4.17.21'], locations: ['a', 'b'] }],
+    vulnerabilities: [{ severity: 'high', count: 1 }],
+    licenses: [{ license: 'MIT', packages: [] }],
+  },
+  performance: {
+    workspace: 'apps/web',
+    buildTime: 937,
+    bundleSize: '14 Bytes',
+    loadTime: { ttfb: 0, fcp: 0, lcp: 0 },
+    suggestions: ['Consider using ES modules for better tree shaking'],
+  },
+  security: {
+    workspace: 'apps/web',
+    audit: { error: { code: 'ENOLOCK', summary: 'This command requires an existing lockfile.' } },
+    sensitiveFiles: ['.env'],
+    secretPatterns: [],
+    recommendations: ['Add sensitive files to .gitignore'],
+  },
+};
+
 const analyze = {
   timestamp: '2026-06-07T17:56:05.062Z',
   monorepo: 'acme',
   workspaces: 1,
-  analysis: {
-    'apps/web': {
-      bundle: { workspace: 'apps/web', size: {}, chunks: [] },
-      dependencies: { workspace: 'apps/web', total: 6 },
-      performance: { workspace: 'apps/web', buildTime: -1 },
-      security: { workspace: 'apps/web', audit: {} },
-    },
-  },
+  analysis: { 'apps/web': analyzeBlocks },
 };
 
 const microfrontend = {
@@ -356,17 +387,45 @@ const CASES: Record<string, Case> = {
   analyzeWireSchema: {
     schema: analyzeWireSchema,
     valid: {
-      full: analyze,
-      'single block': {
+      'all four blocks': analyze,
+      'single block (--type bundle)': {
         ...analyze,
-        analysis: { 'apps/web': { dependencies: { workspace: 'apps/web' } } },
+        analysis: { 'apps/web': { bundle: analyzeBlocks.bundle } },
       },
-      empty: { ...analyze, workspaces: 0, analysis: {} },
+      'failed build': {
+        ...analyze,
+        analysis: {
+          'apps/web': {
+            bundle: { ...analyzeBlocks.bundle, size: { total: 'Build failed', gzipped: 'N/A', assets: [] } },
+            performance: { ...analyzeBlocks.performance, buildTime: -1 },
+          },
+        },
+      },
+      'no workspaces': { ...analyze, workspaces: 0, analysis: {} },
     },
     malformed: {
       'timestamp missing': without(analyze, 'timestamp'),
       'workspaces not a number': { ...analyze, workspaces: 'one' },
-      'block without workspace': { ...analyze, analysis: { 'apps/web': { bundle: { size: {} } } } },
+      'bundle without size': {
+        ...analyze,
+        analysis: { 'apps/web': { bundle: without(analyzeBlocks.bundle, 'size') } },
+      },
+      'dependencies count as string': {
+        ...analyze,
+        analysis: { 'apps/web': { dependencies: { ...analyzeBlocks.dependencies, total: '3' } } },
+      },
+      'performance without loadTime': {
+        ...analyze,
+        analysis: { 'apps/web': { performance: without(analyzeBlocks.performance, 'loadTime') } },
+      },
+      'security audit not an object': {
+        ...analyze,
+        analysis: { 'apps/web': { security: { ...analyzeBlocks.security, audit: 'ok' } } },
+      },
+      'block without workspace': {
+        ...analyze,
+        analysis: { 'apps/web': { security: without(analyzeBlocks.security, 'workspace') } },
+      },
       'analysis is an array': { ...analyze, analysis: [] },
     },
   },
