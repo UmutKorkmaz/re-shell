@@ -4,36 +4,51 @@
   "version": "1.0.0",
   "identifier": "com.umutkorkmaz.reshell",
   "build": {
-    "beforeDevCommand": "pnpm --filter @re-shell/dashboard run dev",
-    "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm --filter @re-shell/dashboard run build",
+    "beforeDevCommand": "pnpm --filter @re-shell/dashboard run build:hub && pnpm --filter @re-shell/dashboard run dev",
+    "devUrl": "http://localhost:3333",
+    "beforeBuildCommand": "pnpm --filter @re-shell/dashboard... run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Re-Shell",
         "width": 1280,
         "height": 800,
         "minWidth": 960,
         "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "create": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'"
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "Local Re-Shell dashboard",
+    "longDescription": "Desktop app for the Re-Shell dashboard. It starts and owns a local, token-protected hub on 127.0.0.1 and drives the re-shell CLI through it. Requires Node.js 18 or newer.",
+    "copyright": "Copyright (c) Umut Korkmaz. MIT License.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
+      "icons/icon.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "../dist/hub-server.js": "hub/hub-server.js"
+    },
+    "linux": {
+      "deb": {
+        "recommends": ["nodejs (>= 18)"]
+      }
+    }
   }
 }
