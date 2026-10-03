@@ -15,7 +15,7 @@ jobs:
   # Scaffolds every verified template with the built CLI and builds it with that
   # language's own toolchain (pip/compileall, go build, cargo check, php -l +
   # composer, ruby -c + bundle, mvn package, gradle build, sbt Test/compile,
-  # dotnet build, perl -c, luac -p, pnpm + tsc, rescript build, dart analyze, cabal build, zig build, ...). The templates
+  # dotnet build, perl -c, luac -p, pnpm + tsc, rescript build, dart analyze, cabal build, zig build, deno check, ...). The templates
   # are split into groups (see scripts/scaffold-test-templates.sh) so each job
   # installs only the toolchains it needs and the groups run in parallel.
   # A template whose toolchain is not installed is reported as SKIP with the
@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [core, jvm, dotnet, native, node, config, haskell]
+        group: [core, jvm, dotnet, native, node, config, haskell, deno]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -82,6 +82,11 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      # Oak and Fresh resolve their dependencies from JSR and npm (not deno.land/x).
+      - if: matrix.group == 'deno'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
       - if: matrix.group == 'core'
         uses: oven-sh/setup-bun@v2
       - if: matrix.group == 'core'
