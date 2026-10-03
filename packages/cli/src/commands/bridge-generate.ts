@@ -71,6 +71,13 @@ function normalizeProtocol(protocol: string | undefined): BridgeProtocol {
   if (protocol === 'grpc' || protocol === 'rest' || protocol === 'graphql') {
     return protocol;
   }
+  if (protocol === undefined || protocol === '') {
+    throw new Error(
+      'No provider spec was found for the service and no protocol was chosen: pass --spec <file> ' +
+        '(OpenAPI/.proto/GraphQL SDL), add a spec to the service directory, or pick --rest, --grpc or --graphql ' +
+        'to generate from the default health/echo/config contract'
+    );
+  }
   throw new Error(
     `Unknown bridge protocol "${protocol ?? ''}" (expected grpc|rest|graphql)`
   );

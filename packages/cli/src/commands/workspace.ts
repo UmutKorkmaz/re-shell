@@ -1736,18 +1736,16 @@ export async function checkWorkspaceHealth(options: WorkspaceHealthOptions = {})
     // Display results
     displayHealthResults(healthChecks, json, verbose, explain, suggestions);
 
-    // Overall health status
+    // Overall health status: the same normalized score/status the --json
+    // envelope reports, so the human summary can never disagree with it.
     if (!json) {
-      const allHealthy = healthChecks.every(check => check.status === 'healthy' || check.status === 'warning');
-      if (allHealthy) {
-        console.log(chalk.green('\n✓ Overall workspace health: GOOD\n'));
+      const health = normalizeHealth({ checks: healthChecks, overall: legacyOverall(healthChecks) });
+      if (health.status === 'healthy') {
+        console.log(chalk.green(`\n✓ Overall workspace health: GOOD (score ${health.score})\n`));
+      } else if (health.status === 'degraded') {
+        console.log(chalk.yellow(`\n⚠ Overall workspace health: NEEDS ATTENTION (score ${health.score})\n`));
       } else {
-        const hasCritical = healthChecks.some(check => check.status === 'critical');
-        if (hasCritical) {
-          console.log(chalk.red('\n✗ Overall workspace health: CRITICAL ISSUES\n'));
-        } else {
-          console.log(chalk.yellow('\n⚠ Overall workspace health: NEEDS ATTENTION\n'));
-        }
+        console.log(chalk.red(`\n✗ Overall workspace health: CRITICAL (score ${health.score})\n`));
       }
     }
 
@@ -2145,6 +2143,15 @@ async function checkPackageManagerHealth(configPath: string): Promise<HealthChec
   };
 }
 
+/** The per-check verdict passed to {@link normalizeHealth} alongside the checks. */
+function legacyOverall(checks: HealthCheck[]): 'healthy' | 'degraded' | 'critical' {
+  return checks.every(c => c.status === 'healthy' || c.status === 'warning')
+    ? 'healthy'
+    : checks.some(c => c.status === 'critical')
+      ? 'critical'
+      : 'degraded';
+}
+
 /**
  * Display health results
  */
@@ -2157,12 +2164,7 @@ function displayHealthResults(
 ): void {
   if (json) {
     const warnings = checks.filter(c => c.status === 'warning').map(c => c.message);
-    const overall = checks.every(c => c.status === 'healthy' || c.status === 'warning')
-      ? 'healthy'
-      : checks.some(c => c.status === 'critical')
-        ? 'critical'
-        : 'degraded';
-    const health = normalizeHealth({ checks, overall });
+    const health = normalizeHealth({ checks, overall: legacyOverall(checks) });
     // Explain adds a structured suggestions array alongside the normalized health
     // shape so consumers opting into --explain get remediation without changing
     // the default health envelope.
