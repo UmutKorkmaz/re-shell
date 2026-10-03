@@ -50,6 +50,12 @@ const fse = fs as typeof fs & {
 
 let tempRoot: string;
 let logSpy: ReturnType<typeof vi.spyOn>;
+const originalIsTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+
+/** Simulate (or remove) an interactive terminal; prompts are only used on a TTY (or with injected answers). */
+function setStdinTTY(value: boolean | undefined): void {
+  Object.defineProperty(process.stdin, 'isTTY', { value, configurable: true, writable: true });
+}
 const promptsMock = vi.mocked(prompts);
 const healthMock = vi.mocked(performProjectHealthCheck);
 const monorepoMock = vi.mocked(findMonorepoRoot);
@@ -78,6 +84,9 @@ describe('create — command', () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'reshell-create-'));
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(process, 'cwd').mockReturnValue(tempRoot);
+    // The suites below exercise the interactive wizards (prompts are mocked), which
+    // `create` only runs on a TTY. The non-interactive suite switches this off.
+    setStdinTTY(true);
     // Default: standalone invocation (no enclosing monorepo).
     monorepoMock.mockResolvedValue(null);
     // Default: prompts resolve to an empty answer bag. createWorkspace always
@@ -88,6 +97,8 @@ describe('create — command', () => {
 
   afterEach(async () => {
     vi.restoreAllMocks();
+    if (originalIsTTY) Object.defineProperty(process.stdin, 'isTTY', originalIsTTY);
+    else delete (process.stdin as { isTTY?: boolean }).isTTY;
     await fs.remove(tempRoot);
   });
 
@@ -158,12 +169,16 @@ describe('create — command', () => {
   });
 
   describe('standalone monorepo creation (createMonorepoProject)', () => {
-    it('scaffolds the workspace skeleton with react-ts defaults non-interactively', async () => {
+    it('scaffolds the workspace root and a runnable react-ts app non-interactively', async () => {
       await createProject('solo-app', { yes: true, framework: 'react-ts' });
 
       const pkg = fs.readJsonSync(path.join(tempRoot, 'solo-app', 'package.json'));
       expect(pkg.name).toBe('solo-app');
-      expect(pkg.workspaces).toEqual(['apps/*', 'packages/*']);
+      // services/* is listed so `generate backend` output is part of the workspace
+      expect(pkg.workspaces).toEqual(['apps/*', 'packages/*', 'libs/*', 'tools/*', 'services/*']);
+      expect(
+        fs.existsSync(path.join(tempRoot, 'solo-app', 'apps', 'solo-app', 'package.json'))
+      ).toBe(true);
       expect(pkg.scripts.dev).toContain('dev');
       for (const dir of ['apps', 'packages', 'docs']) {
         expect(fs.existsSync(path.join(tempRoot, 'solo-app', dir))).toBe(true);
@@ -213,15 +228,11 @@ describe('create — command', () => {
       expect(output()).toContain('Scaffolded');
     });
 
-    it('warns and skips an unknown backend id', async () => {
-      await createProject('bad-api', { yes: true, backend: 'nope-js' });
-
-      expect(output()).toContain('Unknown backend');
-      // The monorepo skeleton is still created; only the backend app is skipped.
-      expect(fs.existsSync(path.join(tempRoot, 'bad-api', 'apps'))).toBe(true);
-      expect(
-        fs.existsSync(path.join(tempRoot, 'bad-api', 'apps', 'bad-api'))
-      ).toBe(false);
+    it('rejects an unknown backend id before writing anything (no silent skeleton)', async () => {
+      await expect(createProject('bad-api', { yes: true, backend: 'nope-js' })).rejects.toThrow(
+        'Unknown backend template "nope-js"'
+      );
+      expect(fs.existsSync(path.join(tempRoot, 'bad-api'))).toBe(false);
     });
 
     it('scaffolds both api and frontend for --fullstack', async () => {
@@ -237,7 +248,8 @@ describe('create — command', () => {
       const fePkg = fs.readJsonSync(
         path.join(tempRoot, 'full-app', 'apps', 'full-app', 'package.json')
       );
-      expect(fePkg.name).toBe('full-app');
+      // The frontend comes from the frontend template system: @<org>/<name>.
+      expect(fePkg.name).toBe('@re-shell/full-app');
       expect(fePkg.dependencies.react).toBeDefined();
       expect(
         fs.existsSync(path.join(tempRoot, 'full-app', 'apps', 'full-app', 'src', 'main.tsx'))

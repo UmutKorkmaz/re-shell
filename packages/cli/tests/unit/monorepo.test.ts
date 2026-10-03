@@ -9,6 +9,9 @@ import {
   getWorkspaces,
   isMonorepoRoot,
   findMonorepoRoot,
+  SERVICES_WORKSPACE_GLOB,
+  WORKSPACE_GLOBS,
+  workspaceGlobs,
 } from '../../src/utils/monorepo';
 
 const TMP_BASE = path.join(os.tmpdir(), 'reshell-monorepo-test');
@@ -82,6 +85,7 @@ describe('initializeMonorepo', () => {
         'packages/*',
         'libs/*',
         'tools/*',
+        'services/*',
       ]);
     });
   });
@@ -102,7 +106,7 @@ describe('initializeMonorepo', () => {
       const yamlPath = path.join(tmpRoot, 'pnpm-mono', 'pnpm-workspace.yaml');
       expect(fs.existsSync(yamlPath)).toBe(true);
       const parsed = YAML.parse(fs.readFileSync(yamlPath, 'utf8'));
-      expect(parsed.packages).toEqual(['apps/*', 'packages/*', 'libs/*', 'tools/*']);
+      expect(parsed.packages).toEqual(['apps/*', 'packages/*', 'libs/*', 'tools/*', 'services/*']);
     });
   });
 
@@ -118,7 +122,7 @@ describe('initializeMonorepo', () => {
       await initializeMonorepo('npm-mono2', 'npm');
       const pkgJson = fs.readJsonSync(path.join(tmpRoot, 'npm-mono2', 'package.json'));
       expect(pkgJson.workspaces).toEqual({
-        packages: ['apps/*', 'packages/*', 'libs/*', 'tools/*'],
+        packages: ['apps/*', 'packages/*', 'libs/*', 'tools/*', 'services/*'],
       });
     });
   });
@@ -128,7 +132,7 @@ describe('initializeMonorepo', () => {
       await initializeMonorepo('yarn-mono', 'yarn');
       const pkgJson = fs.readJsonSync(path.join(tmpRoot, 'yarn-mono', 'package.json'));
       expect(Array.isArray(pkgJson.workspaces)).toBe(true);
-      expect(pkgJson.workspaces).toEqual(['apps/*', 'packages/*', 'libs/*', 'tools/*']);
+      expect(pkgJson.workspaces).toEqual(['apps/*', 'packages/*', 'libs/*', 'tools/*', 'services/*']);
     });
   });
 
@@ -477,5 +481,45 @@ describe('findMonorepoRoot', () => {
       expect(path.isAbsolute(result ?? '')).toBe(true);
       expect(result).toBe(path.resolve(tmpRoot));
     });
+  });
+});
+
+describe('services workspace (generated backends are visible to the workspace)', () => {
+  it('exposes services/* in the workspace globs helpers', () => {
+    expect(SERVICES_WORKSPACE_GLOB).toBe('services/*');
+    expect(workspaceGlobs()).toEqual(['apps/*', 'packages/*', 'libs/*', 'tools/*', 'services/*']);
+    expect(WORKSPACE_GLOBS).toEqual(workspaceGlobs());
+    expect(
+      workspaceGlobs({ apps: 'applications', packages: 'pkgs', libs: 'libraries', tools: 'tooling' })
+    ).toEqual(['applications/*', 'pkgs/*', 'libraries/*', 'tooling/*', 'services/*']);
+  });
+
+  it('infers the service type for services/* workspaces', async () => {
+    await fs.writeJson(path.join(tmpRoot, 'package.json'), {
+      name: 'root',
+      private: true,
+      workspaces: ['apps/*', 'services/*'],
+    });
+    await fs.outputJson(path.join(tmpRoot, 'apps', 'web', 'package.json'), { name: 'web', version: '1.0.0' });
+    await fs.outputJson(path.join(tmpRoot, 'services', 'api', 'package.json'), { name: 'api', version: '1.0.0' });
+    const ws = await getWorkspaces(tmpRoot);
+    const byName = Object.fromEntries(ws.map(w => [w.name, w.type]));
+    expect(byName).toEqual({ web: 'app', api: 'service' });
+  });
+
+  it('a freshly initialized monorepo discovers a service written to services/<name>', async () => {
+    await withCwd(tmpRoot, async () => {
+      await initializeMonorepo('svc-mono');
+    });
+    const root = path.join(tmpRoot, 'svc-mono');
+    // This is where `re-shell generate backend <name>` writes.
+    await fs.outputJson(path.join(root, 'services', 'orders', 'package.json'), {
+      name: 'orders',
+      version: '1.0.0',
+    });
+
+    const ws = await getWorkspaces(root);
+    expect(ws.map(w => `${w.name}:${w.type}`)).toEqual(['orders:service']);
+    expect(await isMonorepoRoot(root)).toBe(true);
   });
 });

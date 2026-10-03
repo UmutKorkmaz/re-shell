@@ -75,9 +75,8 @@ import { createSpinner, flushOutput } from './utils/spinner';
 
 // Standalone command handlers
 import { initMonorepo } from './commands/init';
-import { createProject } from './commands/create';
+import { createProject, CreateError } from './commands/create';
 import { enableJsonMode, ok, fail } from './utils/json-output';
-import { computeBackendDryRun, isBackendTemplate } from './utils/template-dry-run';
 import { addMicrofrontend } from './commands/add';
 import { removeMicrofrontend } from './commands/remove';
 import { listMicrofrontends } from './commands/list';
@@ -255,10 +254,13 @@ program
   .option('-t, --team <team>', 'Team name')
   .option('-o, --org <organization>', 'Organization name', 're-shell')
   .option('-d, --description <description>', 'Project description')
-  .option('--template <template>', 'Template to use (react, react-ts)', 'react-ts')
+  .option(
+    '--template <template>',
+    'Backend template id (express, fastapi, ...), frontend framework (react-ts, vue, ...), architecture template (mern, ...) or "blank" for an empty workspace [default: react-ts frontend]'
+  )
   .option(
     '--framework <framework>',
-    'Frontend framework to use (react|react-ts|vue|vue-ts|svelte|svelte-ts)'
+    'Frontend framework to use (react|react-ts|vue|vue-ts|svelte|svelte-ts|next|angular|...); see `templates list`'
   )
   .option('--frontend <framework>', 'Frontend framework (alias for --framework)')
   .option(
@@ -267,107 +269,111 @@ program
   )
   .option(
     '--db <database>',
-    'Database ORM (prisma, typeorm, mongoose, none)',
-    'none'
+    'Database ORM (prisma, typeorm, mongoose, none) [default: none]'
   )
-  .option('--fullstack', 'Create full-stack project with both frontend and backend')
+  .option('--fullstack', 'Create full-stack project with both frontend and backend (default backend: express)')
   .option(
     '--polyglot',
     'Create polyglot microservices project with services in multiple languages'
+  )
+  .option('--gateway <framework>', 'Polyglot API gateway (express|fastify|nestjs|traefik|kong) [default: express]')
+  .option(
+    '--services <list>',
+    'Polyglot services as name:framework,name:framework [default: typescript-service-1:express,python-service-2:fastapi]'
   )
   .option(
     '--microfrontend',
     'Create microfrontend project with Module Federation setup'
   )
+  .option(
+    '--remotes <list>',
+    'Microfrontend remotes as name[:framework],... [default: remote-1 (react)]; --framework sets the shell [default: react-ts]'
+  )
   .option('--type <type>', 'Workspace type (app|package|lib|tool) - monorepo only')
   .option('--port <port>', 'Development server port [default: 5173]')
-  .option('--route <route>', 'Route path (for apps)')
+  .option('--route <route>', 'Route path (for apps) [default: /<name>]')
   .option('--package-manager <pm>', 'Package manager to use (npm, yarn, pnpm)', 'pnpm')
   .option('--dry-run', 'Preview changes without applying them')
   .option('--verbose', 'Show detailed dry-run output')
-  .option('--json', 'Output as JSON (with --dry-run, emits the exact file set)')
+  .option(
+    '--json',
+    'Output as JSON (with --dry-run, emits the exact file set with per-file previews; never prompts)'
+  )
   .option('-y, --yes', 'Use defaults and skip prompts (non-interactive; auto-enabled when stdin is not a TTY)')
+  .option('--force', 'Overwrite files in an existing target directory and continue past compatibility warnings')
+  .addHelpText(
+    'after',
+    `
+Non-interactive use:
+  Every prompt has a default that is used with --yes, --json, --dry-run, or when
+  stdin is not a TTY, so \`create\` never waits on input. Defaults: frontend
+  react-ts, backend express (with --fullstack), route /<name>, port 5173.
+  A condition that needs a human decision (an incompatible stack, an existing
+  target) fails with a non-zero exit instead; pass --force to proceed.
+
+Examples:
+  re-shell create web --frontend react-ts            # frontend app at apps/web
+  re-shell create api --backend express              # just the API
+  re-shell create shop --fullstack --db prisma       # API + frontend
+  re-shell create hub --microfrontend --remotes cart,search:vue
+  re-shell create platform --polyglot --services users:fastapi,orders:express
+  re-shell create ws --template blank                # empty workspace skeleton
+  re-shell create web --frontend react-ts --dry-run --json
+`
+  )
   .action(
     createAsyncCommand(async (name, options) => {
-      // Dry-run visual diff: when --dry-run targets a known backend template,
-      // compute the EXACT set of files the scaffold WOULD produce without
-      // writing anything. --json emits the machine-readable envelope.
-      const candidateTemplateId = options.backend || options.template || options.framework;
-      if (options.dryRun && candidateTemplateId && isBackendTemplate(candidateTemplateId)) {
-        const restoreJson = options.json ? enableJsonMode() : () => {};
-        try {
-          const result = await computeBackendDryRun(candidateTemplateId, {
-            projectName: name,
-            db: options.db && options.db !== 'none' ? options.db : undefined,
-            org: options.org,
-            team: options.team,
-            description: options.description,
-            port: options.port,
-          });
+      const jsonMode = Boolean(options.json);
+      // --json reserves stdout for the envelope, so it must never prompt.
+      const restoreJson = jsonMode ? enableJsonMode() : () => {};
+      const spinner = jsonMode ? undefined : createSpinner('Creating Re-Shell project...').start();
 
-          if (options.json) {
-            ok({
-              project: name,
-              templateId: result.templateId,
-              dryRun: true,
-              files: result.files,
-              totalBytes: result.totalBytes,
-              previews: result.previews,
-            });
-            return;
-          }
-
-          console.log(
-            chalk.cyan.bold(`\n🔍 Dry run: ${result.templateId} → "${name}"\n`)
-          );
-          console.log(
-            chalk.gray(
-              `Would create ${result.files.length} files (${result.totalBytes} bytes). Nothing written.\n`
-            )
-          );
-          for (const file of result.files) {
-            console.log(
-              `  ${chalk.green('+')} ${chalk.bold(file.path)} ${chalk.gray(`(${file.bytes}b)`)}`
-            );
-          }
-          console.log();
-          return;
-        } catch (error) {
-          if (options.json) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            fail('TEMPLATE_DRY_RUN_ERROR', message, { template: candidateTemplateId });
-            return;
-          }
-          throw error;
-        } finally {
-          restoreJson();
+      try {
+        if (spinner) {
+          processManager.addCleanup(() => spinner.stop());
+          flushOutput();
         }
-      }
 
-      // Handle backward compatibility: if template is provided but not framework, map it
-      if (options.template && !options.framework && !options.frontend) {
-        options.framework = options.template;
-      }
-      // Handle frontend alias
-      if (options.frontend && !options.framework) {
-        options.framework = options.frontend;
-      }
-      // Auto-detect fullstack if both backend and frontend are specified
-      if (options.backend && options.framework && !options.fullstack) {
-        options.fullstack = true;
-      }
-      const spinner = createSpinner('Creating Re-Shell project...').start();
-      processManager.addCleanup(() => spinner.stop());
-      flushOutput();
+        const result = await withTimeout(async () => {
+          return createProject(name, {
+            ...options,
+            yes: options.yes || jsonMode,
+            isProject: true,
+            spinner,
+          });
+        }, 180000); // 3 minute timeout
 
-      await withTimeout(async () => {
-        await createProject(name, { ...options, isProject: true, spinner });
-      }, 180000); // 3 minute timeout
+        if (jsonMode) {
+          if (result.status === 'cancelled') {
+            fail('CREATE_ERROR', 'Cancelled before anything was written.');
+          } else {
+            ok(result.response);
+          }
+          return;
+        }
 
-      if (options.dryRun) {
-        spinner.succeed(chalk.green(`Dry run completed for "${name}"`));
-      } else {
-        spinner.succeed(chalk.green(`Re-Shell project "${name}" created successfully!`));
+        if (!spinner) return;
+        if (result.status === 'dry-run') {
+          spinner.succeed(chalk.green(`Dry run completed for "${name}"`));
+        } else if (result.status === 'created') {
+          spinner.succeed(chalk.green(`Re-Shell project "${name}" created successfully!`));
+        } else {
+          spinner.stop();
+        }
+      } catch (error) {
+        if (spinner) spinner.stop();
+        if (jsonMode) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          if (error instanceof CreateError) {
+            fail(error.code, message, error.details);
+          } else {
+            fail(options.dryRun ? 'TEMPLATE_DRY_RUN_ERROR' : 'CREATE_ERROR', message);
+          }
+          return;
+        }
+        throw error; // createAsyncCommand prints it and exits non-zero
+      } finally {
+        restoreJson();
       }
     })
   );

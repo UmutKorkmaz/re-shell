@@ -38,7 +38,7 @@ export interface WorkspaceInfo {
   /** Relative path of the workspace from the monorepo root. */
   path: string;
   /** Logical category of the workspace inferred from its location. */
-  type: 'app' | 'package' | 'lib' | 'tool';
+  type: 'app' | 'package' | 'lib' | 'tool' | 'service';
   /** Detected framework (e.g. `react-ts`, `angular`), if any. */
   framework?: string;
   /** Semver version declared by the workspace package. */
@@ -58,6 +58,35 @@ export const DEFAULT_MONOREPO_STRUCTURE = {
   tools: 'tools',
   docs: 'docs',
 };
+
+/**
+ * Glob covering generated backend services. `re-shell generate backend` writes to
+ * `services/<name>`, so every workspace configuration Re-Shell generates must list
+ * it or those services are invisible to the package manager and `workspace` commands.
+ */
+export const SERVICES_WORKSPACE_GLOB = 'services/*';
+
+/**
+ * Workspace globs for a monorepo with the given structure: apps, packages, libs
+ * and tools plus the generated-services directory.
+ *
+ * @param structure - Directory layout (defaults to {@link DEFAULT_MONOREPO_STRUCTURE}).
+ * @returns The globs, in the order they are written to `package.json` / `pnpm-workspace.yaml`.
+ */
+export function workspaceGlobs(
+  structure: Pick<typeof DEFAULT_MONOREPO_STRUCTURE, 'apps' | 'packages' | 'libs' | 'tools'> = DEFAULT_MONOREPO_STRUCTURE
+): string[] {
+  return [
+    `${structure.apps}/*`,
+    `${structure.packages}/*`,
+    `${structure.libs}/*`,
+    `${structure.tools}/*`,
+    SERVICES_WORKSPACE_GLOB,
+  ];
+}
+
+/** Workspace globs for the default monorepo layout. */
+export const WORKSPACE_GLOBS: readonly string[] = workspaceGlobs();
 
 function getRecommendedCliVersion(): string {
   try {
@@ -98,12 +127,7 @@ export async function initializeMonorepo(
   // Create apps directory (main directory for microfrontend apps)
   await fs.ensureDir(path.join(projectPath, structure.apps));
 
-  const workspaces = [
-    `${structure.apps}/*`,
-    `${structure.packages}/*`,
-    `${structure.libs}/*`,
-    `${structure.tools}/*`,
-  ];
+  const workspaces = workspaceGlobs(structure);
 
   // Create root package.json
   const packageJson = {
@@ -278,10 +302,11 @@ export async function getWorkspaces(rootPath: string = process.cwd()): Promise<W
           const workspacePackage = JSON.parse(await fs.readFile(workspacePackageJson, 'utf8'));
 
           // Determine workspace type based on path
-          let type: 'app' | 'package' | 'lib' | 'tool' = 'package';
+          let type: WorkspaceInfo['type'] = 'package';
           if (match.startsWith('apps/')) type = 'app';
           else if (match.startsWith('libs/')) type = 'lib';
           else if (match.startsWith('tools/')) type = 'tool';
+          else if (match.startsWith('services/')) type = 'service';
 
           // Detect framework
           const framework = detectFrameworkFromPackage(workspacePackage);

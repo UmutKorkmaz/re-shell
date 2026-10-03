@@ -114,6 +114,14 @@ export {
   uiDimensionRollupSchema,
   uiFailureSchema,
   uiTestResponseSchema,
+  // create (scaffold + dry-run)
+  createModeSchema,
+  scaffoldFileStatusSchema,
+  scaffoldFileActionSchema,
+  scaffoldFileSchema,
+  scaffoldDryRunSummarySchema,
+  createDryRunResponseSchema,
+  createResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -224,6 +232,14 @@ export type {
   UiDimensionRollup,
   UiFailure,
   UiTestResponse,
+  // create (scaffold + dry-run)
+  CreateMode,
+  ScaffoldFileStatus,
+  ScaffoldFileAction,
+  ScaffoldFile,
+  ScaffoldDryRunSummary,
+  CreateDryRunResponse,
+  CreateResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,
