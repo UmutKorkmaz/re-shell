@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { registerPkgGroup } from './pkg.group';
+import { registerDebugGroup } from './debug.group';
 import { registerRefactorGroup } from './refactor.group';
 
 /**
@@ -10,5 +11,6 @@ import { registerRefactorGroup } from './refactor.group';
  */
 export function registerPlatformGroups(program: Command): void {
   registerPkgGroup(program);
+  registerDebugGroup(program);
   registerRefactorGroup(program);
 }
