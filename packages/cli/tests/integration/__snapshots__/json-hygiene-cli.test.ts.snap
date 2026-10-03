@@ -99,6 +99,13 @@ collab knowledge-sharing-automation
 collab operational-transform
 collab performance-monitoring-collab
 collab project-mgmt
+collab session cancel
+collab session end
+collab session handover
+collab session join
+collab session list
+collab session run
+collab session start
 collab session-recording
 collab skills-assessment
 collab team-coding-sessions
