@@ -43,10 +43,9 @@ jobs:
         run: pnpm -r run typecheck
 
       # ── Unit + Integration + Conformance tests ─────────────────────────────
-      - name: Test packages/contracts
-        run: |
-          # contracts has no test script; typecheck covers it
-          echo "contracts: typecheck only (no test suite)"
+      - name: Test packages/contracts (envelope + shared command registry)
+        working-directory: packages/contracts
+        run: npx vitest run
 
       - name: Test packages/cli (unit + integration + conformance)
         working-directory: packages/cli
@@ -63,6 +62,13 @@ jobs:
       - name: Test apps/web (hub security + ui render)
         working-directory: apps/web
         run: pnpm run test
+
+      # The control-plane suite includes end-to-end runs that start the server,
+      # a worker and the BUILT re-shell CLI (packages/cli/dist), so it must run
+      # after the build step above. Coverage is gated at 80% by its vitest config.
+      - name: Test + coverage packages/control-plane (isolation, HTTP/SSE, workers, e2e)
+        working-directory: packages/control-plane
+        run: npx vitest run --coverage
 
       # ── Coverage (per-package 80% gate, scoped) ───────────────────────────
       - name: Coverage packages/cli
