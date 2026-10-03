@@ -1,4 +1,5 @@
 import { Command, Option, Argument } from 'commander';
+import { ensureFullCommandTree } from '../lazy-commands';
 
 /**
  * A single declared argument for a catalog entry.
@@ -299,6 +300,8 @@ export function buildCommandCatalog(
   program: Command,
   options: BuildCommandCatalogOptions = {}
 ): CommandCatalogEntry[] {
+  // Command groups are loaded lazily; the catalog must describe the whole tree.
+  ensureFullCommandTree(program);
   const out: CommandCatalogEntry[] = [];
   walkCommandTree(
     program,

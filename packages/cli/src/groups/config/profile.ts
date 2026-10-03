@@ -3,6 +3,7 @@ import { createAsyncCommand, withTimeout, processManager } from '../../utils/err
 import { createSpinner, flushOutput } from '../../utils/spinner';
 import chalk from 'chalk';
 import { registerProfileSubgroups } from './profile-subgroups';
+import { enableJsonMode, ok, fail } from '../../utils/json-output';
 
 /**
  * Renders a profile inheritance tree to stdout. Module-level helper used by the
@@ -559,10 +560,36 @@ export function registerProfileGroup(config: Command): void {
 
   profileGroup
     .command('insights [profile]')
-    .description('Generate insights and recommendations for profiles')
-    .action(async (profile) => {
-      const { generateProfileInsights } = await import('../../commands/profile-analytics');
-      const insights = await generateProfileInsights(profile);
+    .description('Generate insights and recommendations from recorded profile activation history')
+    .option('--json', 'Output as JSON (insights plus the data source they were computed from)')
+    .action(async (profile, options) => {
+      if (options.json) {
+        const restore = enableJsonMode();
+        try {
+          const { buildProfileInsightsReport } = await import('../../commands/profile-analytics');
+          ok(await buildProfileInsightsReport(profile));
+        } catch (error) {
+          fail('PROFILE_ERROR', error instanceof Error ? error.message : String(error));
+        } finally {
+          restore();
+        }
+        return;
+      }
+
+      const analyticsModule = await import('../../commands/profile-analytics');
+      const insights = await analyticsModule.generateProfileInsights(profile);
+
+      // The data-source note is advisory: never let it prevent the insights from showing.
+      let source: { empty: boolean } | undefined;
+      try {
+        source = await analyticsModule.getProfileDataSource();
+      } catch {
+        source = undefined;
+      }
+      if (source?.empty) {
+        console.log(chalk.yellow('\n⚠ No profile activation history has been recorded yet.'));
+        console.log(chalk.gray('  Insights are computed from real activations: run "re-shell config profile activate <name>" to start recording.\n'));
+      }
 
       if (insights.length === 0) {
         console.log(chalk.cyan('\n✨ No insights to share\n'));
@@ -662,10 +689,28 @@ export function registerProfileGroup(config: Command): void {
   // --- config profile optimize ---
   profileGroup
     .command('optimize <profile>')
-    .description('Generate optimization recommendations for a profile')
+    .description('Generate optimization recommendations for a profile (from its configuration and recorded usage)')
     .option('--apply <ids...>', 'Apply specific recommendations by ID')
     .option('--auto', 'Auto-apply safe optimizations')
+    .option('--json', 'Output the recommendations as JSON (report mode only)')
     .action(async (profile, options) => {
+      if (options.json) {
+        const restore = enableJsonMode();
+        try {
+          if (options.auto || options.apply) {
+            fail('PROFILE_ERROR', '--json only supports the report mode; it cannot be combined with --apply or --auto');
+            return;
+          }
+          const { buildOptimizationResponse } = await import('../../commands/profile-optimize');
+          ok(await buildOptimizationResponse(profile));
+        } catch (error) {
+          fail('PROFILE_ERROR', error instanceof Error ? error.message : String(error));
+        } finally {
+          restore();
+        }
+        return;
+      }
+
       const { showOptimizationReport, applyOptimizations, autoOptimizeProfile } = await import('../../commands/profile-optimize');
 
       if (options.auto) {

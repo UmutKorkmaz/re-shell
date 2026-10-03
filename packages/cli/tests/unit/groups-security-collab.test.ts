@@ -2562,7 +2562,7 @@ describe('groups — security + collab registration groups', () => {
   }
 
   describe('security group', () => {
-    it('registers all 22 security subcommands in declaration order', () => {
+    it('registers all 23 security subcommands in declaration order', () => {
       const program = programWith();
       const security = program.commands.find(command => command.name() === 'security');
       expect(security?.commands.map(command => command.name())).toEqual([
@@ -2572,6 +2572,8 @@ describe('groups — security + collab registration groups', () => {
         'supply-chain-security', 'security-training', 'security-policy',
         'compliance-reporting', 'custom-policy', 'rbac', 'audit', 'privacy',
         'regulatory', 'risk', 'vendor', 'bcp', 'governance',
+        // R-1b: real audit trail (`security compliance report`; `audit verify` is nested under `audit`)
+        'compliance',
       ]);
     });
 

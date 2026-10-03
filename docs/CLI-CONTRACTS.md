@@ -126,11 +126,11 @@ status of each code is read from the CLI sources every time it is regenerated, s
 it cannot claim a code is emitted when nothing emits it.
 
 <!-- BEGIN GENERATED: error-codes -->
-The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (112 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
+The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (115 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
 
 | Code | Status | Emitted from |
 | --- | --- | --- |
-| `NOT_IN_MONOREPO` | emitted | `packages/cli/src/commands/analyze.ts`, `packages/cli/src/commands/ink-tui.tsx`, `packages/cli/src/commands/workspace.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
+| `NOT_IN_MONOREPO` | emitted | `packages/cli/src/commands/analyze.ts`, `packages/cli/src/commands/ink-tui.tsx`, `packages/cli/src/commands/workspace.ts`, `packages/cli/src/groups/security/audit-trail.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
 | `LIST_WORKSPACES_ERROR` | emitted | `packages/cli/src/commands/workspace.ts` |
 | `GRAPH_GENERATION_ERROR` | emitted | `packages/cli/src/commands/workspace.ts` |
 | `WORKSPACE_NOT_FOUND` | emitted | `packages/cli/src/commands/workspace.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
@@ -242,6 +242,9 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (112 codes). A code
 | `PARTICIPANT_NOT_FOUND` | reserved | |
 | `DOCUMENT_NOT_FOUND` | reserved | |
 | `COLLAB_ERROR` | emitted | `packages/cli/src/commands/collab-session.ts` |
+| `AUDIT_ERROR` | emitted | `packages/cli/src/groups/security/audit-trail.ts` |
+| `COMPLIANCE_ERROR` | emitted | `packages/cli/src/groups/security/audit-trail.ts` |
+| `PROFILE_ERROR` | emitted | `packages/cli/src/groups/config/profile.ts` |
 <!-- END GENERATED: error-codes -->
 
 ---
@@ -936,6 +939,33 @@ unit tests, against real captured output. `security.audit` is the raw
       recommendations: string[];
     };
   }>;
+  types?: Array<'security' | 'performance' | 'scalability' | 'architecture'>;
+  graph?: {
+    packages: number;
+    edges: number;
+    services: number;
+  };
+  findings?: Array<{
+    id: string;
+    ruleId: string;
+    type: 'security' | 'performance' | 'scalability' | 'architecture';
+    severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+    title: string;
+    message: string;
+    evidence: Array<{
+      kind: 'file' | 'graph' | 'config';
+      file?: string;
+      line?: number;
+      path?: string[];
+      detail: string;
+    }>;
+    recommendation: string;
+  }>;
+  summary?: {
+    total: number;
+    bySeverity: Record<string, number>;
+    byType: Record<string, number>;
+  };
 }
 ```
 <!-- END GENERATED: command:analyze -->

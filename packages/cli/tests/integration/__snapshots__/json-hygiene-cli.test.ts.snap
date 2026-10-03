@@ -375,8 +375,10 @@ remove
 run
 scorecard
 security audit
+security audit verify
 security bcp
 security code-security
+security compliance report
 security compliance-reporting
 security container-security
 security custom-policy

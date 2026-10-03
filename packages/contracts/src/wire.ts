@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fixPlanSchema, suggestionSchema } from './schemas.js';
+import { analysisReportSchema } from './platform.js';
 
 // ---------------------------------------------------------------------------
 // Wire schemas: the EXACT `data` payloads the CLI prints for `--json`.
@@ -374,6 +375,11 @@ export const analyzeWireSchema = z.looseObject({
       security: securityAnalysisWireSchema.optional(),
     })
   ),
+  // Workspace-wide graph/file heuristics (see analysisReportSchema in platform.ts).
+  types: analysisReportSchema.shape.types.optional(),
+  graph: analysisReportSchema.shape.graph.optional(),
+  findings: analysisReportSchema.shape.findings.optional(),
+  summary: analysisReportSchema.shape.summary.optional(),
 });
 export type AnalyzeWire = z.infer<typeof analyzeWireSchema>;
 
