@@ -5,6 +5,12 @@ import { timingSafeEqual } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Socket } from 'node:net';
+import {
+  wsAuthMessageSchema,
+  wsJobMessageSchema,
+  type SseEvent,
+  type WsServerMessage,
+} from '@re-shell/contracts';
 import { resolveCommand } from './hub/command-registry.js';
 
 export interface HubServerInfo {
@@ -27,21 +33,42 @@ const WS_POLICY_VIOLATION = 1008;
 // browser WebSocket handshake (the browser WS API cannot set custom headers).
 const WS_TOKEN_PROTOCOL_PREFIX = 're-shell-token.';
 
-interface JobMessage {
-  type: 'start' | 'cancel' | 'auth';
-  id?: string;
-  // Browsers supply only a stable commandId + params; never a raw command/argv.
-  commandId?: string;
-  params?: unknown;
-  token?: string;
+// The wire messages (WsClientMessage / WsServerMessage / SseEvent) are NOT
+// re-declared here: they are the zod schemas in @re-shell/contracts, the same
+// ones the browser clients validate against. Every frame the hub writes is typed
+// against them, and every frame it reads is validated with them.
+
+/** Write one server->client WebSocket frame (typed against the contract). */
+function sendWs(ws: WebSocket, message: WsServerMessage): void {
+  ws.send(JSON.stringify(message));
 }
 
-interface JobResponse {
-  type: 'stdout' | 'stderr' | 'exit' | 'heartbeat';
-  content?: string;
-  code?: number;
-  id?: string;
-  ts?: string;
+/** Write one Server-Sent Event (typed against the contract). */
+function writeSseEvent(res: http.ServerResponse, event: SseEvent): void {
+  res.write(`data: ${JSON.stringify(event)}\n\n`);
+}
+
+/**
+ * Report a client frame that failed contract validation. A frame whose `type` is
+ * not a job-control type is ignored, as it always was. A start/cancel frame is
+ * answered with a stderr frame (and, when it carries a usable id, a failing exit
+ * frame for that job) so the client sees why nothing ran.
+ */
+function rejectInvalidJobFrame(ws: WebSocket, frame: unknown, reason: string): void {
+  if (typeof frame !== 'object' || frame === null || Array.isArray(frame)) {
+    sendWs(ws, { type: 'stderr', content: 'Failed to parse message: expected a JSON object' });
+    return;
+  }
+  const { type, id } = frame as { type?: unknown; id?: unknown };
+  if (type !== 'start' && type !== 'cancel') {
+    return;
+  }
+  if (typeof id !== 'string' || id.length === 0) {
+    sendWs(ws, { type: 'stderr', content: `Invalid ${type} message: missing id` });
+    return;
+  }
+  sendWs(ws, { type: 'stderr', content: `Invalid ${type} message: ${reason}`, id });
+  sendWs(ws, { type: 'exit', code: 1, id });
 }
 
 const DEFAULT_PORT = 3334;
@@ -245,7 +272,7 @@ function extractWsHandshakeToken(req: http.IncomingMessage): string | null {
  * are delivered only to the socket that started the job, so one client cannot
  * observe another client's output.
  */
-function broadcastToWs(message: JobResponse) {
+function broadcastToWs(message: WsServerMessage) {
   const payload = JSON.stringify(message);
   for (const ws of wsConnections) {
     if (ws.readyState === WebSocket.OPEN) {
@@ -432,16 +459,14 @@ export async function startHubServer(
         child.stdout?.on('data', (data: Buffer) => {
           const lines = data.toString().split('\n').filter((line) => line.trim());
           for (const line of lines) {
-            const event: JobResponse = { type: 'stdout', content: line };
-            res.write(`data: ${JSON.stringify(event)}\n\n`);
+            writeSseEvent(res, { type: 'stdout', content: line });
           }
         });
 
         child.stderr?.on('data', (data: Buffer) => {
           const lines = data.toString().split('\n').filter((line) => line.trim());
           for (const line of lines) {
-            const event: JobResponse = { type: 'stderr', content: line };
-            res.write(`data: ${JSON.stringify(event)}\n\n`);
+            writeSseEvent(res, { type: 'stderr', content: line });
           }
         });
 
@@ -449,18 +474,15 @@ export async function startHubServer(
           clearInterval(ssePing);
           requestChildren.delete(child);
           const exitCode = coerceExitCode(code, signal);
-          const event: JobResponse = { type: 'exit', code: exitCode };
-          res.write(`data: ${JSON.stringify(event)}\n\n`);
+          writeSseEvent(res, { type: 'exit', code: exitCode });
           res.end();
         });
 
         child.on('error', (err) => {
           clearInterval(ssePing);
           requestChildren.delete(child);
-          const stderr: JobResponse = { type: 'stderr', content: err.message };
-          res.write(`data: ${JSON.stringify(stderr)}\n\n`);
-          const exit: JobResponse = { type: 'exit', code: 1 };
-          res.write(`data: ${JSON.stringify(exit)}\n\n`);
+          writeSseEvent(res, { type: 'stderr', content: err.message });
+          writeSseEvent(res, { type: 'exit', code: 1 });
           res.end();
         });
 
@@ -532,42 +554,51 @@ export async function startHubServer(
 
       ws.on('message', (data: Buffer) => {
         try {
-          const message: JobMessage = JSON.parse(data.toString());
+          // Frames are untrusted until validated against the shared contract.
+          const frame: unknown = JSON.parse(data.toString());
 
           // Pre-auth gate: the only accepted message before auth is the auth
           // handshake. Everything else closes the socket with a policy code.
           if (!authenticated) {
-            if (message.type === 'auth' && tokensMatch(token, message.token)) {
+            const auth = wsAuthMessageSchema.safeParse(frame);
+            if (auth.success && tokensMatch(token, auth.data.token)) {
               authenticated = true;
               wsConnections.add(ws);
-              ws.send(JSON.stringify({ type: 'heartbeat', ts: new Date().toISOString() }));
+              sendWs(ws, { type: 'heartbeat', ts: new Date().toISOString() });
               return;
             }
             ws.close(WS_POLICY_VIOLATION, 'Unauthorized');
             return;
           }
 
+          const job = wsJobMessageSchema.safeParse(frame);
+          if (!job.success) {
+            rejectInvalidJobFrame(ws, frame, job.error.issues[0]?.message ?? 'invalid message');
+            return;
+          }
+          const message = job.data;
+          if (message.id.length === 0) {
+            rejectInvalidJobFrame(ws, frame, 'missing id');
+            return;
+          }
+
           if (message.type === 'start') {
             const { id, commandId, params } = message;
-            if (!id) {
-              ws.send(JSON.stringify({ type: 'stderr', content: 'Invalid start message: missing id' }));
-              return;
-            }
 
             // Resolve commandId + params to a vetted argv via the registry. An
             // unregistered id or invalid params is rejected WITHOUT spawning.
             const resolved = resolveCommand(commandId, params ?? {});
             if (!resolved.ok) {
-              ws.send(JSON.stringify({ type: 'stderr', content: resolved.error, id }));
-              ws.send(JSON.stringify({ type: 'exit', code: 1, id }));
+              sendWs(ws, { type: 'stderr', content: resolved.error, id });
+              sendWs(ws, { type: 'exit', code: 1, id });
               return;
             }
 
             // Contain the cwd to the workspace root before spawning.
             const resolvedCwd = containCwd(resolved.cwd, workspaceRoot);
             if (resolvedCwd === null) {
-              ws.send(JSON.stringify({ type: 'stderr', content: 'cwd is outside the workspace root', id }));
-              ws.send(JSON.stringify({ type: 'exit', code: 1, id }));
+              sendWs(ws, { type: 'stderr', content: 'cwd is outside the workspace root', id });
+              sendWs(ws, { type: 'exit', code: 1, id });
               return;
             }
 
@@ -588,51 +619,40 @@ export async function startHubServer(
 
             // Stream stdout to the originating socket only
             child.stdout?.on('data', (data: Buffer) => {
-              const content = data.toString();
-              const response: JobResponse = { type: 'stdout', content, id };
-              ws.send(JSON.stringify(response));
+              sendWs(ws, { type: 'stdout', content: data.toString(), id });
             });
 
             // Stream stderr to the originating socket only
             child.stderr?.on('data', (data: Buffer) => {
-              const content = data.toString();
-              const response: JobResponse = { type: 'stderr', content, id };
-              ws.send(JSON.stringify(response));
+              sendWs(ws, { type: 'stderr', content: data.toString(), id });
             });
 
             // Handle exit (originating socket only). Exit code is always numeric.
             child.on('close', (code, signal) => {
-              const response: JobResponse = { type: 'exit', code: coerceExitCode(code, signal), id };
-              ws.send(JSON.stringify(response));
+              sendWs(ws, { type: 'exit', code: coerceExitCode(code, signal), id });
               activeJobs.delete(id);
               socketJobs.delete(id);
             });
 
             child.on('error', (err) => {
-              const response: JobResponse = { type: 'stderr', content: err.message, id };
-              ws.send(JSON.stringify(response));
-              const exitResponse: JobResponse = { type: 'exit', code: 1, id };
-              ws.send(JSON.stringify(exitResponse));
+              sendWs(ws, { type: 'stderr', content: err.message, id });
+              sendWs(ws, { type: 'exit', code: 1, id });
               activeJobs.delete(id);
               socketJobs.delete(id);
             });
           } else if (message.type === 'cancel') {
             const { id } = message;
-            if (!id) {
-              ws.send(JSON.stringify({ type: 'stderr', content: 'Invalid cancel message: missing id', id }));
-              return;
-            }
 
             const child = socketJobs.get(id);
             if (child) {
               child.kill('SIGTERM');
               activeJobs.delete(id);
               socketJobs.delete(id);
-              ws.send(JSON.stringify({ type: 'exit', code: 130, id })); // 130 = SIGTERM
+              sendWs(ws, { type: 'exit', code: 130, id }); // 130 = SIGTERM
             }
           }
         } catch (err) {
-          ws.send(JSON.stringify({ type: 'stderr', content: `Failed to parse message: ${err}` }));
+          sendWs(ws, { type: 'stderr', content: `Failed to parse message: ${err}` });
         }
       });
 
@@ -663,7 +683,7 @@ export async function startHubServer(
 
     // Start heartbeat to keep connections alive
     heartbeatInterval = setInterval(() => {
-      const heartbeat: JobResponse = { type: 'heartbeat', ts: new Date().toISOString() };
+      const heartbeat: WsServerMessage = { type: 'heartbeat', ts: new Date().toISOString() };
       broadcastToWs(heartbeat);
     }, 30000);
 

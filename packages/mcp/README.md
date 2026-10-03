@@ -24,12 +24,12 @@ Write tools (e.g. `workspace_create`) are **only registered when `RE_SHELL_MCP_A
 
 ## How it works
 
-Each tool spawns the built Re-Shell CLI (`spawn`, no shell) with `--json`, parses stdout, and validates it against the matching `@re-shell/contracts` zod schema before returning it. A non-zero exit that still emits a valid **error** envelope is returned (so the agent sees the CLI's own `code`/`message`); non-JSON or schema-invalid output is surfaced as an MCP error.
+Each tool spawns the built Re-Shell CLI (`spawn`, no shell) with `--json`, parses stdout, and validates it against the matching **wire schema** from `@re-shell/contracts` (the `*WireSchema` exports, e.g. `workspaceSummaryWireSchema`, `templatesListWireSchema`) before returning it. Wire schemas describe exactly what the CLI prints, so validation passes against a real workspace; the UI/domain models in the same package are *not* used for raw CLI output. A non-zero exit that still emits a valid **error** envelope is returned (so the agent sees the CLI's own `code`/`message`); non-JSON or schema-invalid output is surfaced as an MCP error. Fields a newer CLI adds are passed through untouched.
 
 ## Usage
 
 ```bash
-# requires @re-shell/cli to be resolvable (installed, or RE_SHELL_BIN set)
+# @re-shell/cli is a dependency of this package, so a standalone install is enough
 npx @re-shell/mcp
 ```
 
@@ -40,8 +40,7 @@ Wire it into an MCP client (config excerpt):
   "mcpServers": {
     "re-shell": {
       "command": "npx",
-      "args": ["-y", "@re-shell/mcp"],
-      "env": { "RE_SHELL_BIN": "/abs/path/to/re-shell" }
+      "args": ["-y", "@re-shell/mcp"]
     }
   }
 }
@@ -49,7 +48,7 @@ Wire it into an MCP client (config excerpt):
 
 | Env var | Purpose |
 |---------|---------|
-| `RE_SHELL_BIN` | Path to the `re-shell` binary (falls back to resolving `@re-shell/cli`) |
+| `RE_SHELL_BIN` | Optional path to a specific CLI entry (`dist/index.js`) to use instead of the installed `@re-shell/cli` dependency |
 | `RE_SHELL_MCP_ALLOW_WRITE` | Set to `1` to register mutating tools (off by default) |
 
 ## Safety
@@ -57,4 +56,8 @@ Wire it into an MCP client (config excerpt):
 - **Read-only by default** — mutating tools require explicit opt-in.
 - **No shell** — commands run via `spawn` with an argv array, never `shell: true`.
 - **Allow-listed** — only the commands above are exposed (mirrors the dashboard hub's registry).
-- **Contract-validated** — every payload is checked against `@re-shell/contracts` before reaching the agent.
+- **Contract-validated** — every payload is checked against the `@re-shell/contracts` wire schemas before reaching the agent.
+
+## Development
+
+`pnpm --filter @re-shell/mcp test` builds `dist/` first and then runs the built `bin` (through a symlink, as `npx` does) against the real CLI: an MCP `initialize` + `tools/list` handshake over stdio, every read-only tool and resource, and a check that the published tarball contains no test files. Build the CLI first (`pnpm -r build`).

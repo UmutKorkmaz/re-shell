@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { jsonResponseSchema } from '@re-shell/contracts';
+import { jsonResponseSchema, templateWireSchema } from '@re-shell/contracts';
 
 /**
  * PURE module. No VS Code, no Node side effects.
@@ -10,27 +10,22 @@ import { jsonResponseSchema } from '@re-shell/contracts';
  * templates.
  *
  * SCHEMA NOTE: we validate against the EXACT wire shape the CLI emits
- * (`toTemplateSummary` in packages/cli/src/templates/backend), NOT the richer
- * `@re-shell/contracts` `templateSummarySchema`. The contract's domain model
- * carries fields the CLI projection does not (e.g. `domain`/`tier`/`command`),
- * so validating the raw feed against it rejects every template. This mirrors
- * the dashboard's `templateFeedSchema` (apps/web/src/screens/shared/feedSchemas.ts).
- * Missing collections default to empty so a sparse template never fails the
- * whole list.
+ * (`templateWireSchema` in `@re-shell/contracts`, the registry projection
+ * `toTemplateSummary`), NOT the richer domain `templateSummarySchema`. The domain
+ * model carries fields the CLI projection does not (e.g. `domain`/`tier`/
+ * `command`), so validating the raw feed against it would reject every template.
+ * The feed schema below is derived from the wire schema, so it can never drift
+ * from the contract; it only adds tolerance: missing collections default to empty
+ * so a sparse template never fails the whole list. This mirrors the dashboard's
+ * `templateFeedSchema` (apps/web/src/screens/shared/feedSchemas.ts).
  */
 
-const templateFeedSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  displayName: z.string().optional(),
+const templateFeedSchema = templateWireSchema.extend({
   description: z.string().default(''),
   language: z.string().default('unknown'),
   framework: z.string().default('unknown'),
-  version: z.string().optional(),
   tags: z.array(z.string()).default([]),
   features: z.array(z.string()).default([]),
-  port: z.number().optional(),
-  fileCount: z.number().optional(),
   // Forward-compat: a template MAY declare a DB the create flow offers.
   database: z.string().optional(),
 });

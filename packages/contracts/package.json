@@ -36,7 +36,8 @@
     }
   },
   "scripts": {
-    "build": "tsc && tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "echo 'contracts: no linter configured'"

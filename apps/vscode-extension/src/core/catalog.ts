@@ -1,5 +1,14 @@
-import { z } from 'zod';
-import { jsonResponseSchema } from '@re-shell/contracts';
+import {
+  jsonResponseSchema,
+  commandCatalogArgWireSchema,
+  commandCatalogEntryWireSchema,
+  commandCatalogFlagWireSchema,
+  commandCatalogWireSchema,
+  type CommandCatalogArgWire,
+  type CommandCatalogEntryWire,
+  type CommandCatalogFlagWire,
+  type CommandCatalogWire,
+} from '@re-shell/contracts';
 
 /**
  * PURE module. No VS Code, no Node side effects.
@@ -11,50 +20,28 @@ import { jsonResponseSchema } from '@re-shell/contracts';
  * trust the raw stdout blob.
  */
 
-/**
- * A single declared argument of a catalog command. Mirrors the CLI's
- * `CatalogArg` (src/utils/command-catalog.ts) but is authored here as a zod
- * schema so the extension validates the wire payload at runtime.
- */
-export const catalogArgSchema = z.object({
-  name: z.string(),
-  required: z.boolean(),
-});
-export type CatalogArg = z.infer<typeof catalogArgSchema>;
+// The catalog entry shapes are the exact wire schemas published by
+// @re-shell/contracts (`commands list --json`); the names below are kept as the
+// extension's public vocabulary.
+
+/** A single declared argument of a catalog command. */
+export const catalogArgSchema = commandCatalogArgWireSchema;
+export type CatalogArg = CommandCatalogArgWire;
 
 /**
  * A single declared flag/option of a catalog command. `takesValue` decides
  * whether a flag contributes a value token to the assembled argv.
  */
-export const catalogFlagSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  takesValue: z.boolean(),
-  default: z.unknown().optional(),
-});
-export type CatalogFlag = z.infer<typeof catalogFlagSchema>;
+export const catalogFlagSchema = commandCatalogFlagWireSchema;
+export type CatalogFlag = CommandCatalogFlagWire;
 
-/**
- * One runnable command in the catalog. Matches the CLI's
- * `CommandCatalogEntry`.
- */
-export const catalogEntrySchema = z.object({
-  path: z.string(),
-  aliases: z.array(z.string()),
-  description: z.string(),
-  args: z.array(catalogArgSchema),
-  flags: z.array(catalogFlagSchema),
-  supportsJson: z.boolean(),
-  supportsDryRun: z.boolean(),
-  destructive: z.boolean(),
-});
-export type CatalogEntry = z.infer<typeof catalogEntrySchema>;
+/** One runnable command in the catalog. */
+export const catalogEntrySchema = commandCatalogEntryWireSchema;
+export type CatalogEntry = CommandCatalogEntryWire;
 
-/**
- * The `data` payload of `commands list --json` is the array of catalog entries.
- */
-export const catalogDataSchema = z.array(catalogEntrySchema);
-export type CatalogData = z.infer<typeof catalogDataSchema>;
+/** The `data` payload of `commands list --json` is the array of catalog entries. */
+export const catalogDataSchema = commandCatalogWireSchema;
+export type CatalogData = CommandCatalogWire;
 
 /**
  * Full envelope schema for the catalog response, built from the shared

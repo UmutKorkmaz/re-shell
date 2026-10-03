@@ -1,5 +1,11 @@
-import { z } from 'zod';
-import { workspaceSummarySchema, healthSummarySchema } from '@re-shell/contracts';
+import type { z } from 'zod';
+import {
+  workspaceSummaryWireSchema,
+  workspaceGraphWireSchema,
+  workspaceHealthWireSchema,
+  scorecardResponseSchema,
+  commandCatalogWireSchema,
+} from '@re-shell/contracts';
 import { runJsonCommand, type CliInvocation } from './cli.js';
 
 /**
@@ -43,9 +49,8 @@ async function readAsJsonText(
 
 /**
  * The read-only resource set. Each entry mirrors an allow-listed command (the
- * same registry the dashboard hub uses). Data schemas use `z.unknown()` where no
- * precise shape is published; the envelope (`ok`/`warnings`/`error`) is still
- * fully type-checked.
+ * same registry the dashboard hub uses) and validates against the exact wire
+ * schema @re-shell/contracts publishes for it.
  */
 export const RESOURCES: readonly ResourceDefinition[] = [
   {
@@ -54,7 +59,7 @@ export const RESOURCES: readonly ResourceDefinition[] = [
     description: 'Workspace summary: root, package manager, workspaces, graph, health.',
     mimeType: 'application/json',
     read: invocation =>
-      readAsJsonText(invocation, ['workspace', 'summary', '--json'], workspaceSummarySchema),
+      readAsJsonText(invocation, ['workspace', 'summary', '--json'], workspaceSummaryWireSchema),
   },
   {
     uri: 'reshell://workspace/graph',
@@ -62,7 +67,7 @@ export const RESOURCES: readonly ResourceDefinition[] = [
     description: 'Dependency graph across apps and services (live, read-only).',
     mimeType: 'application/json',
     read: invocation =>
-      readAsJsonText(invocation, ['workspace', 'graph', '--json'], z.unknown()),
+      readAsJsonText(invocation, ['workspace', 'graph', '--json'], workspaceGraphWireSchema),
   },
   {
     uri: 'reshell://workspace/health',
@@ -70,7 +75,7 @@ export const RESOURCES: readonly ResourceDefinition[] = [
     description: 'Workspace health checks and diagnostics.',
     mimeType: 'application/json',
     read: invocation =>
-      readAsJsonText(invocation, ['workspace', 'health', '--json'], healthSummarySchema),
+      readAsJsonText(invocation, ['workspace', 'health', '--json'], workspaceHealthWireSchema),
   },
   {
     uri: 'reshell://scorecard',
@@ -79,7 +84,7 @@ export const RESOURCES: readonly ResourceDefinition[] = [
       'Weighted production-readiness scorecard: per-service grades, dependency-drift entry count, and policy-pack score.',
     mimeType: 'application/json',
     read: invocation =>
-      readAsJsonText(invocation, ['scorecard', '--json'], z.unknown()),
+      readAsJsonText(invocation, ['scorecard', '--json'], scorecardResponseSchema),
   },
   {
     uri: 'reshell://contracts/commands',
@@ -87,6 +92,6 @@ export const RESOURCES: readonly ResourceDefinition[] = [
     description: 'Machine-readable catalog of re-shell commands (the CLI contract surface).',
     mimeType: 'application/json',
     read: invocation =>
-      readAsJsonText(invocation, ['commands', 'list', '--json'], z.unknown()),
+      readAsJsonText(invocation, ['commands', 'list', '--json'], commandCatalogWireSchema),
   },
 ];

@@ -324,8 +324,11 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
+      '@re-shell/cli':
+        specifier: workspace:^
+        version: link:../cli
       '@re-shell/contracts':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../contracts
       zod:
         specifier: ^4.4.3
