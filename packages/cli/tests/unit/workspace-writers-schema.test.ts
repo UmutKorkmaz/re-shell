@@ -415,14 +415,9 @@ describe('create: autoRegisterInWorkspace', () => {
   it('registers a service into a freshly initialised workspace and the result stays valid, modeline intact', async () => {
     const { root, file } = await stageWorkspace();
 
-    await autoRegisterInWorkspace(root, 'my-app', {
-      type: 'app',
-      projectType: 'frontend',
-      finalFrontend: 'react',
-      finalPort: '5173',
-      workspacePath: path.join(root, 'apps', 'my-app'),
-      packageManager: 'pnpm',
-    });
+    await autoRegisterInWorkspace(root, [
+      { name: 'my-app', type: 'frontend', framework: 'react', port: '5173', relPath: path.join('apps', 'my-app') },
+    ]);
 
     expect((await fs.readFile(file, 'utf8')).split('\n')[0]).toBe(SCHEMA_MODELINE);
     const doc = await expectValidV2(file);
@@ -439,13 +434,9 @@ describe('create: autoRegisterInWorkspace', () => {
   it('registers a service with no detected framework without producing an invalid file', async () => {
     const { root, file } = await stageWorkspace();
 
-    await autoRegisterInWorkspace(root, 'worker-svc', {
-      type: 'package',
-      projectType: 'backend',
-      finalPort: '4000',
-      workspacePath: path.join(root, 'packages', 'worker-svc'),
-      packageManager: 'pnpm',
-    });
+    await autoRegisterInWorkspace(root, [
+      { name: 'worker-svc', type: 'backend', port: '4000', relPath: path.join('packages', 'worker-svc') },
+    ]);
 
     const doc = await expectValidV2(file);
     expect(doc.services['worker-svc'].framework).toBe('vanilla');
@@ -454,14 +445,9 @@ describe('create: autoRegisterInWorkspace', () => {
   it('is a no-op (no file created) when the workspace has no config', async () => {
     const root = stageDir('create-none');
 
-    await autoRegisterInWorkspace(root, 'x', {
-      type: 'app',
-      projectType: 'frontend',
-      finalFrontend: 'react',
-      finalPort: '5173',
-      workspacePath: path.join(root, 'apps', 'x'),
-      packageManager: 'pnpm',
-    });
+    await autoRegisterInWorkspace(root, [
+      { name: 'x', type: 'frontend', framework: 'react', port: '5173', relPath: path.join('apps', 'x') },
+    ]);
 
     expect(await fs.pathExists(path.join(root, 're-shell.workspaces.yaml'))).toBe(false);
   });
