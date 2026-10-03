@@ -42,8 +42,8 @@ export const djangoEnhancedTemplate: BackendTemplate = {
   ],
   files: {
     // Django ORM Enhancement Manager
-    '{{projectName}}/management/__init__.py': '',
-    '{{projectName}}/management/commands/__init__.py': '',
+    '{{projectNameSnake}}/management/__init__.py': '',
+    '{{projectNameSnake}}/management/commands/__init__.py': '',
 
     // Requirements file
     'requirements.txt': `Django>=4.2.0,<5.0
@@ -71,7 +71,7 @@ django-debug-toolbar>=4.1.0
 django-silk>=5.0.3`,
 
     // Create Data Migration Command
-    '{{projectName}}/management/commands/create_data_migration.py': `"""
+    '{{projectNameSnake}}/management/commands/create_data_migration.py': `"""
 Custom management command to create data migration with template.
 """
 from django.core.management.base import BaseCommand, CommandError
@@ -123,9 +123,9 @@ class Command(BaseCommand):
 `,
 
     // GraphQL (Strawberry) package
-    '{{projectName}}/graphql/__init__.py': '',
+    '{{projectNameSnake}}/graphql/__init__.py': '',
 
-    '{{projectName}}/graphql/schema.py': `"""
+    '{{projectNameSnake}}/graphql/schema.py': `"""
 GraphQL schema and resolvers for {{projectName}} (Strawberry GraphQL).
 """
 import strawberry
@@ -150,7 +150,7 @@ schema = strawberry.Schema(
 `,
 
     // URL routing (wires /graphql and /graphql/<schema>)
-    '{{projectName}}/urls.py': `"""
+    '{{projectNameSnake}}/urls.py': `"""
 URL configuration for {{projectName}} project.
 """
 from django.contrib import admin
@@ -174,9 +174,9 @@ urlpatterns = [
 `,
 
     // Enhanced Settings
-    '{{projectName}}/settings/__init__.py': '',
+    '{{projectNameSnake}}/settings/__init__.py': '',
     
-    '{{projectName}}/settings/base.py': `"""
+    '{{projectNameSnake}}/settings/base.py': `"""
 Base Django settings for {{projectName}} project.
 """
 import os
@@ -207,10 +207,11 @@ THIRD_PARTY_APPS = [
     'rest_framework',
     'django_filters',
     'django_extensions',
+    'rest_framework.authtoken',
     'strawberry.django']
 
 LOCAL_APPS = [
-    '{{projectName}}']
+    '{{projectNameSnake}}']
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
@@ -224,7 +225,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware']
 
-ROOT_URLCONF = '{{projectName}}.urls'
+ROOT_URLCONF = '{{projectNameSnake}}.urls'
 
 TEMPLATES = [
     {
@@ -238,7 +239,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages']}}]
 
-WSGI_APPLICATION = '{{projectName}}.wsgi.application'
+WSGI_APPLICATION = '{{projectNameSnake}}.wsgi.application'
 
 # Database
 DATABASES = {
@@ -304,7 +305,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 `,
 
-    '{{projectName}}/settings/development.py': `"""
+    '{{projectNameSnake}}/settings/development.py': `"""
 Development settings for {{projectName}} project.
 """
 from .base import *
@@ -316,7 +317,7 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 # Development apps
 INSTALLED_APPS += [
     'debug_toolbar',
-    'django_silk']
+    'silk']
 
 # Development middleware
 MIDDLEWARE = [
@@ -332,7 +333,7 @@ INTERNAL_IPS = [
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 `,
 
-    '{{projectName}}/settings/production.py': `"""
+    '{{projectNameSnake}}/settings/production.py': `"""
 Production settings for {{projectName}} project.
 """
 from .base import *
@@ -360,6 +361,67 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 `,
 
     // Docker configuration
+    'static/.gitkeep': '',
+
+    'manage.py': `#!/usr/bin/env python
+"""Django's command-line utility for administrative tasks."""
+import os
+import sys
+
+
+def main():
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{{projectNameSnake}}.settings.development')
+    try:
+        from django.core.management import execute_from_command_line
+    except ImportError as exc:
+        raise ImportError(
+            "Couldn't import Django. Are you sure it's installed and available on your "
+            "PYTHONPATH environment variable? Did you forget to activate a virtual environment?"
+        ) from exc
+    execute_from_command_line(sys.argv)
+
+
+if __name__ == '__main__':
+    main()
+`,
+
+    '{{projectNameSnake}}/__init__.py': `from .celery import app as celery_app
+
+__all__ = ('celery_app',)
+`,
+
+    '{{projectNameSnake}}/celery.py': `"""Celery application for {{projectName}}."""
+import os
+
+from celery import Celery
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{{projectNameSnake}}.settings.development')
+
+app = Celery('{{projectNameSnake}}')
+app.config_from_object('django.conf:settings', namespace='CELERY')
+app.autodiscover_tasks()
+`,
+
+    '{{projectNameSnake}}/wsgi.py': `"""WSGI config for {{projectName}}."""
+import os
+
+from django.core.wsgi import get_wsgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{{projectNameSnake}}.settings.production')
+
+application = get_wsgi_application()
+`,
+
+    '{{projectNameSnake}}/asgi.py': `"""ASGI config for {{projectName}}."""
+import os
+
+from django.core.asgi import get_asgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{{projectNameSnake}}.settings.production')
+
+application = get_asgi_application()
+`,
+
     'Dockerfile': `FROM python:3.11-slim
 
 WORKDIR /app
@@ -373,7 +435,7 @@ RUN python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "{{projectName}}.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "{{projectNameSnake}}.wsgi:application"]
 `,
 
     'docker-compose.yml': `version: '3.8'
@@ -413,7 +475,7 @@ services:
 
   celery:
     build: .
-    command: celery -A {{projectName}} worker -l info
+    command: celery -A {{projectNameSnake}} worker -l info
     environment:
       - DEBUG=True
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/{{projectName}}
@@ -517,8 +579,8 @@ python manage.py create_data_migration app_name migration_name --model ModelName
 ## Project Structure
 
 \`\`\`
-{{projectName}}/
-├── {{projectName}}/
+{{projectNameSnake}}/
+├── {{projectNameSnake}}/
 │   ├── management/
 │   │   └── commands/
 │   │       └── create_data_migration.py
@@ -535,8 +597,8 @@ python manage.py create_data_migration app_name migration_name --model ModelName
 
 ## Environment Settings
 
-- **Development**: Use \`{{projectName}}.settings.development\`
-- **Production**: Use \`{{projectName}}.settings.production\`
+- **Development**: Use \`{{projectNameSnake}}.settings.development\`
+- **Production**: Use \`{{projectNameSnake}}.settings.production\`
 
 ## Testing
 
@@ -549,7 +611,7 @@ pytest
 1. Set production environment variables
 2. Run migrations: \`python manage.py migrate\`
 3. Collect static files: \`python manage.py collectstatic\`
-4. Start with Gunicorn: \`gunicorn {{projectName}}.wsgi:application\`
+4. Start with Gunicorn: \`gunicorn {{projectNameSnake}}.wsgi:application\`
 
 Generated with [Re-Shell CLI](https://github.com/your-repo/re-shell)
 `

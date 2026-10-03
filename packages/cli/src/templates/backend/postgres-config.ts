@@ -26,6 +26,7 @@ export const postgresConfigTemplate: BackendTemplate = {
   },
   "dependencies": {
     "pg": "^8.11.3",
+    "pg-connection-string": "^2.6.2",
     "pg-pool": "^3.6.1",
     "express": "^4.18.2"
   }

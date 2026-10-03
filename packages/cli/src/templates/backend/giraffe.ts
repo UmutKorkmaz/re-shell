@@ -41,13 +41,14 @@ export const giraffeTemplate: BackendTemplate = {
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="Thoth.Json.Giraffe" Version="6.0.0" />
     <PackageReference Include="FSharp.Data.GraphQL.Server" Version="1.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="FSharp.Data.GraphQL.Server.Middleware" Version="1.0.0" />
   </ItemGroup>
 
 </Project>
 `,
 
-    'Program.fs': `module {{projectName}}.Program
+    'Program.fs': `module {{projectNamePascal}}.Program
 
 open System
 open Microsoft.AspNetCore.Builder
@@ -58,7 +59,7 @@ open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
 open Giraffe
 
-open {{projectName}}.Handlers
+open {{projectNamePascal}}.Handlers
 
 // ---------------------------------
 // Web app
@@ -151,7 +152,7 @@ let main args =
     0
 `,
 
-    'Models.fs': `module {{projectName}}.Models
+    'Models.fs': `module {{projectNamePascal}}.Models
 
 open System
 
@@ -219,11 +220,11 @@ type ErrorResponse = {
 }
 `,
 
-    'Database.fs': `module {{projectName}}.Database
+    'Database.fs': `module {{projectNamePascal}}.Database
 
 open System
 open System.Collections.Generic
-open {{projectName}}.Models
+open {{projectNamePascal}}.Models
 
 // In-memory storage (use proper database in production)
 let mutable private users: User list = []
@@ -283,10 +284,10 @@ let deleteItem (itemId: int) (userId: int) : bool =
     List.length original <> List.length items
 `,
 
-    'Auth.fs': `module {{projectName}}.Auth
+    'Auth.fs': `module {{projectNamePascal}}.Auth
 
 open System
-open {{projectName}}.Models
+open {{projectNamePascal}}.Models
 
 let private jwtSecret =
     Environment.GetEnvironmentVariable("JWT_SECRET")
@@ -312,42 +313,39 @@ let verifyToken (token: string) : int option =
         None
 `,
 
-    'GraphQL.fs': `module {{projectName}}.GraphQL
+    'GraphQL.fs': `module {{projectNamePascal}}.GraphQL
 
 open FSharp.Data.GraphQL
 open FSharp.Data.GraphQL.Types
-open FSharp.Data.GraphQL.Execution
+open Newtonsoft.Json
 
 // Schema definition
-let HelloQuery = Define.Field("hello", String, fun _ _ -> "Hello, GraphQL!")
-let HealthQuery = Define.Field("health", String, fun _ _ -> "healthy")
-
-let RootQuery = Define.Object("Query", [ HelloQuery; HealthQuery ])
+let RootQuery =
+    Define.Object<unit>(
+        "Query",
+        [ Define.Field("hello", String, fun _ _ -> "Hello, GraphQL!")
+          Define.Field("health", String, fun _ _ -> "healthy") ]
+    )
 
 // Build the executable schema
-let schemaConfig : SchemaConfig =
-    { SchemaConfig.Default with
-        Types = [ RootQuery ] }
-
-let executor = SchemaConfig.Default.CreateExecutor(RootQuery)
+let schema = Schema(RootQuery)
+let executor = Executor(schema)
 
 /// Executes a GraphQL query and returns the JSON result.
-let executeQuery (query: string) (variables: Map<string, obj> option) : string =
-    let variables = defaultArg variables Map.empty
-    let result = executor.AsyncExecute(query, variables) |> Async.RunSynchronously
-    let json = Serializer.Serialize result
-    json
+let executeQuery (query: string) : string =
+    let result = executor.AsyncExecute(query) |> Async.RunSynchronously
+    JsonConvert.SerializeObject(result.Content)
 `,
 
-    'Handlers.fs': `module {{projectName}}.Handlers
+    'Handlers.fs': `module {{projectNamePascal}}.Handlers
 
 open System
 open Microsoft.AspNetCore.Http
 open Giraffe
 
-open {{projectName}}.Models
-open {{projectName}}.Database
-open {{projectName}}.Auth
+open {{projectNamePascal}}.Models
+open {{projectNamePascal}}.Database
+open {{projectNamePascal}}.Auth
 
 // ---------------------------------
 // JSON helpers
@@ -492,11 +490,12 @@ let deleteItemHandler (id: int) : HttpHandler =
 let graphQLHandler : HttpHandler =
     fun (next: HttpFunc) (ctx: HttpContext) ->
         task {
-            let! body = ctx.ReadBodyTextAsync()
-            let query = body
-            let result = {{projectName}}.GraphQL.executeQuery query None
+            let! body = ctx.ReadBodyFromRequestAsync()
+            use doc = System.Text.Json.JsonDocument.Parse(body)
+            let query = doc.RootElement.GetProperty("query").GetString()
+            let result = {{projectNamePascal}}.GraphQL.executeQuery query
             ctx.SetContentType "application/json"
-            return! ctx.WriteStringAsync result next ctx
+            return! ctx.WriteStringAsync result
         }
 `,
 

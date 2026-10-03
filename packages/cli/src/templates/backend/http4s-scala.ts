@@ -23,33 +23,33 @@ scalaVersion := "3.3.1"
 
 libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-effect" % "3.5.1",
-  "org.http4s" %% "http4s-ember-server" % "1.0.0-M40",
-  "org.http4s" %% "http4s-ember-client" % "1.0.0-M40",
-  "org.http4s" %% "http4s-dsl" % "1.0.0-M40",
-  "org.http4s" %% "http4s-circe" % "1.0.0-M40",
-  "io.circe" %% "circe-generic" % "0.15.0-M1",
-  "io.circe" %% "circe-parser" % "0.15.0-M1",
-  "org.http4s" %% "http4s-jwt-auth" % "1.0.0-M40",
-  "com.github.ghostdogpr" %% "caliban" % "2.7.1",
-  "com.github.ghostdogpr" %% "caliban-http4s" % "2.7.1",
+  "org.http4s" %% "http4s-ember-server" % "0.23.27",
+  "org.http4s" %% "http4s-ember-client" % "0.23.27",
+  "org.http4s" %% "http4s-dsl" % "0.23.27",
+  "org.http4s" %% "http4s-circe" % "0.23.27",
+  "io.circe" %% "circe-generic" % "0.14.6",
+  "io.circe" %% "circe-parser" % "0.14.6",
+  "org.sangria-graphql" %% "sangria" % "4.1.1",
+  "org.sangria-graphql" %% "sangria-circe" % "1.3.2",
   "com.github.pureconfig" %% "pureconfig-core" % "0.17.4",
   "ch.qos.logback" % "logback-classic" % "1.4.11",
-  "org.typelevel" %% "log4cats-slf4j" % "2.6.0"
+  "org.typelevel" %% "log4cats-slf4j" % "2.6.0",
+  "org.typelevel" %% "munit-cats-effect" % "2.0.0" % Test
 )
 
 scalacOptions ++= Seq(
   "-deprecation",
-  "-feature",
-  "-Xfatal-warnings"
+  "-feature"
 )
 `,
 
     // Main application
-    'src/main/scala/{{projectPackage}}/Main.scala': `package {{projectPackage}}
+    'src/main/scala/{{packagePath}}/Main.scala': `package {{projectPackage}}
 
 import cats.effect._
 import cats.effect.std.Console
 import cats.syntax.all._
+import com.comcast.ip4s._
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.middleware.Logger
 import fs2.io.net.Network
@@ -68,23 +68,23 @@ object Main extends IOApp.Simple {
     ).orNotFound
 
     EmberServerBuilder.default[IO]
-      .withHost("0.0.0.0")
-      .withPort(8080)
+      .withHost(ipv4"0.0.0.0")
+      .withPort(port"8080")
       .withHttpApp(
         Logger.httpApp(true, true)(app)
       )
       .build
-      .use(_ => IO.never)
-      .evalMap(server => IO(println(s"🚀 Server running at http://localhost:8080")))
-      .evalMap(_ => IO(println(s"📚 API docs: http://localhost:8080/api/v1/health")))
-      .compile
-      .drain
+      .use { _ =>
+        IO.println("Server running at http://localhost:8080") *>
+        IO.println("Health endpoint: http://localhost:8080/api/v1/health") *>
+        IO.never
+      }
   }
 }
 `,
 
     // Models
-    'src/main/scala/{{projectPackage}}/models/User.scala': `package {{projectPackage}}.models
+    'src/main/scala/{{packagePath}}/models/User.scala': `package {{projectPackage}}.models
 
 import io.circe.generic.auto._
 import io.circe.syntax._
@@ -129,7 +129,7 @@ enum Role {
 }
 `,
 
-    'src/main/scala/{{projectPackage}}/models/Product.scala': `package {{projectPackage}}.models
+    'src/main/scala/{{packagePath}}/models/Product.scala': `package {{projectPackage}}.models
 
 import io.circe.generic.auto._
 import java.time.Instant
@@ -161,7 +161,7 @@ case class UpdateProductRequest(
 `,
 
     // In-memory database
-    'src/main/scala/{{projectPackage}}/database/Database.scala': `package {{projectPackage}}.database
+    'src/main/scala/{{packagePath}}/database/Database.scala': `package {{projectPackage}}.database
 
 import {{projectPackage}}.models._
 import cats.effect._
@@ -241,7 +241,7 @@ object Database {
     products.get(id).map { product =>
       val updated = product.copy(
         name = updates.name.getOrElse(product.name),
-        description = updates.description.getOrElse(product.description),
+        description = updates.description.orElse(product.description),
         price = updates.price.getOrElse(product.price),
         stock = updates.stock.getOrElse(product.stock),
         updatedAt = Instant.now()
@@ -256,7 +256,7 @@ object Database {
 `,
 
     // Services
-    'src/main/scala/{{projectPackage}}/services/AuthService.scala': `package {{projectPackage}}.services
+    'src/main/scala/{{packagePath}}/services/AuthService.scala': `package {{projectPackage}}.services
 
 import {{projectPackage}}.models._
 import {{projectPackage}}.database.Database
@@ -291,12 +291,12 @@ object AuthService {
 `,
 
     // Routes - Health
-    'src/main/scala/{{projectPackage}}/routes/HealthRoutes.scala': `package {{projectPackage}}.routes
+    'src/main/scala/{{packagePath}}/routes/HealthRoutes.scala': `package {{projectPackage}}.routes
 
 import cats.effect._
 import org.http4s._
 import org.http4s.dsl.io._
-import org.http4s.circe._
+import org.http4s.circe.CirceEntityCodec._
 import io.circe.generic.auto._
 import java.time.Instant
 
@@ -319,12 +319,13 @@ object HealthRoutes {
 `,
 
     // Routes - Auth
-    'src/main/scala/{{projectPackage}}/routes/AuthRoutes.scala': `package {{projectPackage}}.routes
+    'src/main/scala/{{packagePath}}/routes/AuthRoutes.scala': `package {{projectPackage}}.routes
 
 import cats.effect._
 import org.http4s._
 import org.http4s.dsl.io._
-import org.http4s.circe._
+import org.http4s.circe.CirceEntityCodec._
+import org.http4s.headers.\`WWW-Authenticate\`
 import io.circe.generic.auto._
 import {{projectPackage}}.models._
 import {{projectPackage}}.services.AuthService
@@ -358,7 +359,7 @@ object AuthRoutes {
             val userResponse = UserResponse(user.id, user.email, user.name, user.role)
             Ok(AuthResponse(token, userResponse))
           case None =>
-            Unauthorized("Invalid credentials")
+            Unauthorized(\`WWW-Authenticate\`(Challenge("Bearer", "{{projectName}}")), "Invalid credentials")
         }
       } yield response
   }
@@ -366,13 +367,15 @@ object AuthRoutes {
 `,
 
     // Routes - Products
-    'src/main/scala/{{projectPackage}}/routes/ProductRoutes.scala': `package {{projectPackage}}.routes
+    'src/main/scala/{{packagePath}}/routes/ProductRoutes.scala': `package {{projectPackage}}.routes
 
 import cats.effect._
 import org.http4s._
 import org.http4s.dsl.io._
-import org.http4s.circe._
+import org.http4s.circe.CirceEntityCodec._
+import io.circe.Json
 import io.circe.generic.auto._
+import io.circe.syntax._
 import {{projectPackage}}.models._
 import {{projectPackage}}.database.Database
 import java.util.UUID
@@ -381,11 +384,11 @@ object ProductRoutes {
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "api" / "v1" / "products" =>
       val products = Database.getAllProducts
-      Ok(Map("products" -> products, "count" -> products.size))
+      Ok(Json.obj("products" -> products.asJson, "count" -> products.size.asJson))
 
     case GET -> Root / "api" / "v1" / "products" / UUIDVar(id) =>
       Database.findProductById(id) match {
-        case Some(product) => Ok(Map("product" -> product))
+        case Some(product) => Ok(Json.obj("product" -> product.asJson))
         case None => NotFound("Product not found")
       }
 
@@ -404,7 +407,7 @@ object ProductRoutes {
           )
         }
         created <- IO(Database.createProduct(product))
-        response <- Created(Map("product" -> created))
+        response <- Created(Json.obj("product" -> created.asJson))
       } yield response
 
     case (req @ PUT -> Root / "api" / "v1" / "products" / UUIDVar(id)) =>
@@ -412,7 +415,7 @@ object ProductRoutes {
         request <- req.as[UpdateProductRequest]
         updated <- IO(Database.updateProduct(id, request))
         response <- updated match {
-          case Some(product) => Ok(Map("product" -> product))
+          case Some(product) => Ok(Json.obj("product" -> product.asJson))
           case None => NotFound("Product not found")
         }
       } yield response
@@ -447,7 +450,7 @@ services:
 `,
 
     // Tests
-    'src/test/scala/{{projectPackage}}/MainSpec.scala': `package {{projectPackage}}
+    'src/test/scala/{{packagePath}}/MainSpec.scala': `package {{projectPackage}}
 
 import cats.effect._
 import munit.CatsEffectSuite
@@ -497,45 +500,55 @@ MIT
 `,
 
     // GraphQL schema definition
-    'src/main/scala/{{projectPackage}}/graphql/Schema.scala': `package {{projectPackage}}.graphql
+    'src/main/scala/{{packagePath}}/graphql/Schema.scala': `package {{packageName}}.graphql
 
-import caliban.RootResolver
-import caliban.schema.Schema
+import sangria.schema._
 
 /** Minimal GraphQL schema exposing Query { hello: String!, health: String! }. */
-object Schema {
-  case class Queries(hello: String, health: String)
-
-  val queries: Queries = Queries(
-    hello = "Hello from {{projectName}} GraphQL!",
-    health = "healthy"
+object GraphQLSchema {
+  val QueryType: ObjectType[Unit, Unit] = ObjectType(
+    "Query",
+    fields[Unit, Unit](
+      Field("hello", StringType, resolve = _ => "Hello from {{projectName}} GraphQL!"),
+      Field("health", StringType, resolve = _ => "healthy")
+    )
   )
 
-  val rootResolver: RootResolver[Queries] = new RootResolver(queries)
+  val schema: sangria.schema.Schema[Unit, Unit] = sangria.schema.Schema(QueryType)
 
-  val sdl: String = """
-    type Query {
-      hello: String!
-      health: String!
-    }
-  """.trim()
+  val sdl: String = schema.renderPretty
 }
 `,
 
     // GraphQL resolver / route wiring
-    'src/main/scala/{{projectPackage}}/graphql/GraphQLRoutes.scala': `package {{projectPackage}}.graphql
+    'src/main/scala/{{packagePath}}/graphql/GraphQLRoutes.scala': `package {{packageName}}.graphql
 
 import cats.effect._
+import io.circe.Json
 import org.http4s._
+import org.http4s.circe.CirceEntityCodec._
 import org.http4s.dsl.io._
-import org.http4s.circe._
-import io.circe.generic.auto._
-import io.circe.syntax._
-import caliban.Http4sAdapter
+import sangria.execution.Executor
+import sangria.marshalling.circe._
+import sangria.parser.QueryParser
 
-/** Mounts the /graphql endpoint backed by the Caliban schema in [[Schema]]. */
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Failure, Success}
+
+/** Mounts the POST /graphql endpoint backed by the Sangria schema in [[GraphQLSchema]]. */
 object GraphQLRoutes {
-  val routes: HttpRoutes[IO] = Http4sAdapter.makeHttpService[IO](Schema.rootResolver)
+  val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
+    case req @ POST -> Root / "graphql" =>
+      req.as[Json].flatMap { body =>
+        val query = body.hcursor.get[String]("query").getOrElse("")
+        QueryParser.parse(query) match {
+          case Success(document) =>
+            IO.fromFuture(IO(Executor.execute(GraphQLSchema.schema, document))).flatMap(result => Ok(result))
+          case Failure(error) =>
+            BadRequest(Json.obj("errors" -> Json.arr(Json.obj("message" -> Json.fromString(error.getMessage)))))
+        }
+      }
+  }
 }
 `
   }

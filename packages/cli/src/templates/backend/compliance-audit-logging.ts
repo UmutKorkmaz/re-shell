@@ -187,7 +187,7 @@ export class AuditLogger {
       eventType: 'authentication',
       category: 'authentication',
       userId,
-      sessionId: req.sessionID,
+      sessionId: (req as unknown as { sessionID?: string }).sessionID,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
       action,
@@ -201,7 +201,7 @@ export class AuditLogger {
       eventType: 'data_access',
       category: 'data_access',
       userId,
-      sessionId: req.sessionID,
+      sessionId: (req as unknown as { sessionID?: string }).sessionID,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
       resource,
@@ -216,7 +216,7 @@ export class AuditLogger {
       eventType: 'data_modification',
       category: 'data_modification',
       userId,
-      sessionId: req.sessionID,
+      sessionId: (req as unknown as { sessionID?: string }).sessionID,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
       resource,
@@ -388,10 +388,11 @@ export function apiRoutes(
         ...req.body,
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
-        sessionId: req.sessionID,
+        sessionId: (req as unknown as { sessionID?: string }).sessionID,
       });
       res.json({ message: 'Event logged' });
-    } catch (error: unknown) {
+    } catch (caught: unknown) {
+      const error = caught as Error;
       res.status(500).json({ error: error.message });
     }
   });
@@ -401,7 +402,8 @@ export function apiRoutes(
     try {
       const events = await auditLogger.queryEvents(req.query);
       res.json({ events, count: events.length });
-    } catch (error: unknown) {
+    } catch (caught: unknown) {
+      const error = caught as Error;
       res.status(500).json({ error: error.message });
     }
   });
@@ -411,7 +413,8 @@ export function apiRoutes(
     try {
       const status = await complianceManager.getComplianceStatus();
       res.json(status);
-    } catch (error: unknown) {
+    } catch (caught: unknown) {
+      const error = caught as Error;
       res.status(500).json({ error: error.message });
     }
   });
@@ -422,7 +425,8 @@ export function apiRoutes(
       const report = await reportGenerator.generateAuditReport(req.query);
       res.setHeader('Content-Type', 'text/markdown');
       res.send(report);
-    } catch (error: unknown) {
+    } catch (caught: unknown) {
+      const error = caught as Error;
       res.status(500).json({ error: error.message });
     }
   });
@@ -432,7 +436,8 @@ export function apiRoutes(
     try {
       const report = await complianceManager.generateComplianceReport(req.params.standard);
       res.json(report);
-    } catch (error: unknown) {
+    } catch (caught: unknown) {
+      const error = caught as Error;
       res.status(500).json({ error: error.message });
     }
   });

@@ -27,12 +27,11 @@ export const meteorjsTemplate: BackendTemplate = {
   },
   "dependencies": {
     "@babel/runtime": "^7.23.5",
-    "@reactioncommerce/caching": "^1.1.0",
     "@reactioncommerce/logger": "^1.1.0",
     "bcrypt": "^5.1.1",
-    "check": "^0.9.0",
+    "check": "^1.0.0",
     "classnames": "^2.3.2",
-    "dot-env": "^0.1.0",
+    "dot-env": "^0.0.1",
     "graphql": "^16.8.1",
     "meteor-node-stubs": "^1.2.5",
     "simpl-schema": "^3.4.3",
@@ -40,6 +39,8 @@ export const meteorjsTemplate: BackendTemplate = {
   },
   "devDependencies": {
     "@types/meteor": "^2.9.7",
+    "@types/mocha": "^10.0.6",
+    "typescript": "^5.4.5",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
     "eslint": "^8.55.0",
@@ -69,7 +70,7 @@ export const meteorjsTemplate: BackendTemplate = {
     "noEmit": true,
     "strict": false,
     "moduleResolution": "node",
-    "types": ["meteor-typescript-compiler", "mocha"],
+    "types": ["meteor", "mocha"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true

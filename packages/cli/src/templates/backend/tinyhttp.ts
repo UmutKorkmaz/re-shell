@@ -41,14 +41,14 @@ export const tinyhttpTemplate: BackendTemplate = {
     "@tinyhttp/app": "^2.2.2",
     "@tinyhttp/cors": "^2.0.0",
     "@tinyhttp/logger": "^2.0.0",
-    "@tinyhttp/cookie-parser": "^2.1.0",
-    "@tinyhttp/session": "^2.1.0",
-    "@tinyhttp/jwt": "^2.1.0",
+    "@tinyhttp/cookie-parser": "^2.0.6",
+    "@tinyhttp/session": "^1.3.0",
+    "@tinyhttp/jwt": "^2.0.0",
     "@tinyhttp/etag": "^2.1.0",
-    "@tinyhttp/compression": "^2.0.0",
+    "compression": "^1.7.4",
     "@tinyhttp/rate-limit": "^2.0.2",
-    "@tinyhttp/helmet": "^2.0.0",
-    "@tinyhttp/unless": "^2.1.1",
+    "helmet": "^7.1.0",
+    "@tinyhttp/unless": "^2.0.1",
     "milliparsec": "^2.3.0",
     "sirv": "^2.0.4",
     "eta": "^3.4.0",
@@ -61,7 +61,6 @@ export const tinyhttpTemplate: BackendTemplate = {
     "pino-pretty": "^11.0.0",
     "ioredis": "^5.3.2",
     "ws": "^8.16.0",
-    "@tinyhttp/ws": "^0.2.30",
     "nanoid": "^5.0.7",
     "dayjs": "^1.11.10",
     "node-cron": "^3.0.3",
@@ -73,12 +72,14 @@ export const tinyhttpTemplate: BackendTemplate = {
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/ws": "^8.5.10",
+    "typescript": "^5.4.5",
+    "@types/compression": "^1.7.5",
     "@typescript-eslint/eslint-plugin": "^7.7.1",
     "@typescript-eslint/parser": "^7.7.1",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.2.5",
-    "rest-api": "^5.4.5",
+    "rest-api": "^0.0.3",
     "tsx": "^4.7.2",
     "vitest": "^1.5.0",
     "@vitest/coverage-v8": "^1.5.0",
@@ -131,8 +132,8 @@ export const tinyhttpTemplate: BackendTemplate = {
 import { cors } from '@tinyhttp/cors';
 import { logger } from '@tinyhttp/logger';
 import { cookieParser } from '@tinyhttp/cookie-parser';
-import { compression } from '@tinyhttp/compression';
-import { helmet } from '@tinyhttp/helmet';
+import compression from 'compression';
+import helmet from 'helmet';
 import { rateLimit } from '@tinyhttp/rate-limit';
 import { json } from 'milliparsec';
 import { createServer } from 'http';

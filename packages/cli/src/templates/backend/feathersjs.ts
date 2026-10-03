@@ -59,6 +59,7 @@ export const feathersJsTemplate: BackendTemplate = {
 
     'src/app.ts': `import { feathers } from '@feathersjs/feathers';
 import express, { rest, json, urlencoded, cors, notFound, errorHandler } from '@feathersjs/express';
+import helmet from 'helmet';
 import socketio from '@feathersjs/socketio';
 
 const app = express(feathers());

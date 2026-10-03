@@ -18,7 +18,7 @@ export const graphqlCodegenTemplate: BackendTemplate = {
   port: 4000,
   dependencies: {
     'graphql': '^16.9.0',
-    '@apollo-server/express': '^3.12.1',
+    'apollo-server-express': '^3.13.0',
     '@graphql-tools/schema': '^10.0.6',
     'graphql-tag': '^2.12.6',
     'express': '^4.19.2',
@@ -179,6 +179,11 @@ import { PubSub } from 'graphql-subscriptions';
 
 export const pubsub = new PubSub();
 
+// Request context (referenced from codegen.yml as ../resolvers#Context)
+export interface Context {
+  user?: any;
+}
+
 export const dateScalar = new GraphQLScalarType({
   name: 'Date',
   description: 'Date custom scalar type',
@@ -233,14 +238,14 @@ function generateId() {
   return Math.random().toString(36).substring(2, 15);
 }
 
-function createSampleUser(data) {
+function createSampleUser(data: Record<string, unknown>) {
   const id = generateId();
   const user = { id, ...data, createdAt: new Date(), updatedAt: new Date() };
   users.set(id, user);
   return user;
 }
 
-function createSamplePost(data) {
+function createSamplePost(data: Record<string, unknown>) {
   const id = generateId();
   const post = { id, ...data, createdAt: new Date(), updatedAt: new Date() };
   posts.set(id, post);
@@ -266,14 +271,14 @@ export const resolvers = {
   JSON: jsonScalar,
 
   Query: {
-    me: (_parent, _args, context) => context.user || sampleUser,
-    user: (_parent, args) => users.get(args.id),
-    users: (_parent, args) => Array.from(users.values()).slice(args.offset, args.offset + args.limit),
-    post: (_parent, args) => posts.get(args.id),
-    posts: (_parent, args) => Array.from(posts.values())
+    me: (_parent: unknown, _args: unknown, context: Context) => context.user || sampleUser,
+    user: (_parent: unknown, args: any) => users.get(args.id),
+    users: (_parent: unknown, args: any) => Array.from(users.values()).slice(args.offset, args.offset + args.limit),
+    post: (_parent: unknown, args: any) => posts.get(args.id),
+    posts: (_parent: unknown, args: any) => Array.from(posts.values())
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(args.offset, args.offset + args.limit),
-    postsPaginated: (_parent, args) => {
+    postsPaginated: (_parent: unknown, args: any) => {
       const allPosts = Array.from(posts.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       const afterIndex = args.after ? allPosts.findIndex(p => p.id === args.after) : -1;
       const slicedPosts = allPosts.slice(afterIndex + 1, afterIndex + 1 + args.first);
@@ -288,7 +293,7 @@ export const resolvers = {
         },
       };
     },
-    search: (_parent, args) => {
+    search: (_parent: unknown, args: any) => {
       const query = args.query.toLowerCase();
       const results = [];
       for (const user of users.values()) {
@@ -312,7 +317,7 @@ export const resolvers = {
   },
 
   Mutation: {
-    register: async (_parent, args) => {
+    register: async (_parent: unknown, args: any) => {
       const existingUser = Array.from(users.values()).find(
         u => u.email === args.input.email || u.username === args.input.username
       );
@@ -321,27 +326,27 @@ export const resolvers = {
       const token = Buffer.from(JSON.stringify({ userId: user.id })).toString('base64');
       return { token, user };
     },
-    login: async (_parent, args) => {
+    login: async (_parent: unknown, args: any) => {
       const user = Array.from(users.values()).find(u => u.email === args.input.email);
       if (!user) throw new Error('Invalid credentials');
       const token = Buffer.from(JSON.stringify({ userId: user.id })).toString('base64');
       return { token, user };
     },
     logout: () => true,
-    updateProfile: (_parent, args, context) => {
+    updateProfile: (_parent: unknown, args: any, context: Context) => {
       if (!context.user) throw new Error('Not authenticated');
       const user = users.get(context.user.id);
       if (!user) throw new Error('User not found');
       Object.assign(user, args.input, { updatedAt: new Date() });
       return user;
     },
-    createPost: (_parent, args, context) => {
+    createPost: (_parent: unknown, args: any, context: Context) => {
       if (!context.user) throw new Error('Not authenticated');
       const post = createSamplePost({ ...args.input, authorId: context.user.id });
       pubsub.publish('POST_CREATED', { postCreated: post });
       return post;
     },
-    updatePost: (_parent, args, context) => {
+    updatePost: (_parent: unknown, args: any, context: Context) => {
       if (!context.user) throw new Error('Not authenticated');
       const post = posts.get(args.id);
       if (!post) throw new Error('Post not found');
@@ -349,14 +354,14 @@ export const resolvers = {
       Object.assign(post, args.input, { updatedAt: new Date() });
       return post;
     },
-    deletePost: (_parent, args, context) => {
+    deletePost: (_parent: unknown, args: any, context: Context) => {
       if (!context.user) throw new Error('Not authenticated');
       const post = posts.get(args.id);
       if (!post) throw new Error('Post not found');
       if (post.authorId !== context.user.id) throw new Error('Not authorized');
       return posts.delete(args.id);
     },
-    likePost: (_parent, args, context) => {
+    likePost: (_parent: unknown, args: any, context: Context) => {
       if (!context.user) throw new Error('Not authenticated');
       const post = posts.get(args.postId);
       if (!post) throw new Error('Post not found');
@@ -365,7 +370,7 @@ export const resolvers = {
       likes.set(id, like);
       return like;
     },
-    unlikePost: (_parent, args, context) => {
+    unlikePost: (_parent: unknown, args: any, context: Context) => {
       if (!context.user) throw new Error('Not authenticated');
       for (const [id, like] of likes.entries()) {
         if (like.userId === context.user.id && like.postId === args.postId) {
@@ -387,25 +392,25 @@ export const resolvers = {
   },
 
   User: {
-    posts: (parent) => Array.from(posts.values()).filter(p => p.authorId === parent.id),
-    postCount: (parent) => Array.from(posts.values()).filter(p => p.authorId === parent.id).length,
+    posts: (parent: any) => Array.from(posts.values()).filter(p => p.authorId === parent.id),
+    postCount: (parent: any) => Array.from(posts.values()).filter(p => p.authorId === parent.id).length,
   },
 
   Post: {
-    author: (parent) => users.get(parent.authorId),
-    likes: (parent) => Array.from(likes.values()).filter(l => l.postId === parent.id),
-    likeCount: (parent) => Array.from(likes.values()).filter(l => l.postId === parent.id).length,
+    author: (parent: any) => users.get(parent.authorId),
+    likes: (parent: any) => Array.from(likes.values()).filter(l => l.postId === parent.id),
+    likeCount: (parent: any) => Array.from(likes.values()).filter(l => l.postId === parent.id).length,
     comments: () => [],
     commentCount: () => 0,
   },
 
   Like: {
-    user: (parent) => users.get(parent.userId),
-    post: (parent) => posts.get(parent.postId),
+    user: (parent: any) => users.get(parent.userId),
+    post: (parent: any) => posts.get(parent.postId),
   },
 
   SearchResult: {
-    __resolveType: (obj) => obj.email ? 'User' : 'Post',
+    __resolveType: (obj: any) => obj.email ? 'User' : 'Post',
   },
 };
 `,
@@ -453,7 +458,8 @@ app.get('/health', (req, res) => {
 
 async function startServer() {
   await apolloServer.start();
-  apolloServer.applyMiddleware({ app, path: '/graphql' });
+  // apollo-server-express 3 bundles its own express typings
+  apolloServer.applyMiddleware({ app: app as any, path: '/graphql' });
   app.listen(PORT, () => {
     console.log('🚀 GraphQL server ready at http://localhost:' + PORT + '/graphql');
     console.log('📊 GraphQL Playground at http://localhost:' + PORT + '/graphql');
@@ -470,9 +476,6 @@ startServer().catch((error) => {
 schema:
   - ./src/schema.graphql
 
-documents:
-  - "./src/**/*.graphql"
-
 generates:
   src/generated/types.ts:
     plugins:
@@ -487,14 +490,6 @@ generates:
     config:
       useIndexSignature: true
       contextType: "../resolvers#Context"
-
-  src/generated/hooks.tsx:
-    plugins:
-      - "typescript"
-      - "typescript-operations"
-      - "typescript-react-apollo"
-    config:
-      withHooks: true
 
 config:
   scalars:
@@ -540,7 +535,7 @@ class GraphQLClientSDK {
     );
   }
 
-  async register(input) {
+  async register(input: Record<string, unknown>) {
     return this.client.request(
       \`mutation Register($input: RegisterInput!) { register(input: $input) { token user { id } } }\`,
       { input }
@@ -577,7 +572,7 @@ export { GraphQLClientSDK };
   },
   "dependencies": {
     "graphql": "^16.9.0",
-    "@apollo-server/express": "^3.12.1",
+    "apollo-server-express": "^3.13.0",
     "@graphql-tools/schema": "^10.0.6",
     "express": "^4.19.2",
     "dotenv": "^16.4.5",
@@ -589,6 +584,10 @@ export { GraphQLClientSDK };
     "@types/graphql": "^14.5.0",
     "@types/express": "^4.17.21",
     "typescript": "^5.5.4",
+    "@graphql-codegen/cli": "^5.0.2",
+    "@graphql-codegen/typescript": "^4.0.9",
+    "@graphql-codegen/typescript-resolvers": "^4.2.1",
+    "@types/node": "^20.14.0",
     "tsx": "^4.16.2",
     "nodemon": "^3.1.4"
   }

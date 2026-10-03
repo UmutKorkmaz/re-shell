@@ -15,7 +15,7 @@ export const shelfTemplate: BackendTemplate = {
   
   files: {
     // Dart project configuration
-    'pubspec.yaml': `name: {{projectName}}
+    'pubspec.yaml': `name: {{projectNameSnake}}
 description: A server app using the shelf package and Docker.
 version: 1.0.0
 publish_to: none
@@ -61,10 +61,10 @@ import 'package:args/args.dart';
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_hotreload/shelf_hotreload.dart';
-import 'package:{{projectName}}/app.dart';
-import 'package:{{projectName}}/config/config.dart';
-import 'package:{{projectName}}/database/database.dart';
-import 'package:{{projectName}}/utils/logger.dart';
+import 'package:{{projectNameSnake}}/app.dart';
+import 'package:{{projectNameSnake}}/config/config.dart';
+import 'package:{{projectNameSnake}}/database/database.dart';
+import 'package:{{projectNameSnake}}/utils/logger.dart';
 
 void main(List<String> args) async {
   var parser = ArgParser()
@@ -269,7 +269,7 @@ class Config {
   static String get dbType => _env['DB_TYPE'] ?? 'sqlite';
   static String get dbHost => _env['DB_HOST'] ?? 'localhost';
   static int get dbPort => int.tryParse(_env['DB_PORT'] ?? '') ?? 5432;
-  static String get dbName => _env['DB_NAME'] ?? '{{projectName}}';
+  static String get dbName => _env['DB_NAME'] ?? '{{projectNameSnake}}';
   static String get dbUser => _env['DB_USER'] ?? 'postgres';
   static String get dbPassword => _env['DB_PASSWORD'] ?? '';
   static String get dbPath => _env['DB_PATH'] ?? 'database.db';
@@ -294,10 +294,10 @@ class Config {
     'lib/database/database.dart': `import 'package:postgres/postgres.dart';
 import 'package:mysql_client/mysql_client.dart';
 import 'package:sqlite3/sqlite3.dart';
-import 'package:{{projectName}}/config/config.dart';
-import 'package:{{projectName}}/utils/logger.dart';
+import 'package:{{projectNameSnake}}/config/config.dart';
+import 'package:{{projectNameSnake}}/utils/logger.dart';
 
-export 'package:{{projectName}}/database/database.dart';
+export 'package:{{projectNameSnake}}/database/database.dart';
 
 abstract class Database {
   static Database? _instance;
@@ -875,8 +875,8 @@ class RefreshToken {
 }`,
 
     // Repositories
-    'lib/repositories/user_repository.dart': `import 'package:{{projectName}}/database/database.dart';
-import 'package:{{projectName}}/models/user.dart';
+    'lib/repositories/user_repository.dart': `import 'package:{{projectNameSnake}}/database/database.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
 
 class UserRepository {
   final Database _db = Database.instance;
@@ -946,8 +946,8 @@ class UserRepository {
   }
 }`,
 
-    'lib/repositories/todo_repository.dart': `import 'package:{{projectName}}/database/database.dart';
-import 'package:{{projectName}}/models/todo.dart';
+    'lib/repositories/todo_repository.dart': `import 'package:{{projectNameSnake}}/database/database.dart';
+import 'package:{{projectNameSnake}}/models/todo.dart';
 
 class TodoRepository {
   final Database _db = Database.instance;
@@ -1023,8 +1023,8 @@ class TodoRepository {
   }
 }`,
 
-    'lib/repositories/token_repository.dart': `import 'package:{{projectName}}/database/database.dart';
-import 'package:{{projectName}}/models/token.dart';
+    'lib/repositories/token_repository.dart': `import 'package:{{projectNameSnake}}/database/database.dart';
+import 'package:{{projectNameSnake}}/models/token.dart';
 
 class TokenRepository {
   final Database _db = Database.instance;
@@ -1100,8 +1100,8 @@ class GraphqlResolvers {
 
     'lib/controllers/graphql_controller.dart': `import 'dart:convert';
 import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/graphql/schema.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/graphql/schema.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 class GraphqlController {
   static Future<Response> handle(Request request) async {
@@ -1124,12 +1124,12 @@ class GraphqlController {
 
     'lib/controllers/auth_controller.dart': `import 'dart:convert';
 import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/models/user.dart';
-import 'package:{{projectName}}/models/token.dart';
-import 'package:{{projectName}}/repositories/user_repository.dart';
-import 'package:{{projectName}}/repositories/token_repository.dart';
-import 'package:{{projectName}}/services/auth_service.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
+import 'package:{{projectNameSnake}}/models/token.dart';
+import 'package:{{projectNameSnake}}/repositories/user_repository.dart';
+import 'package:{{projectNameSnake}}/repositories/token_repository.dart';
+import 'package:{{projectNameSnake}}/services/auth_service.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 class AuthController {
   static final _userRepo = UserRepository();
@@ -1258,9 +1258,9 @@ class AuthController {
 
     'lib/controllers/user_controller.dart': `import 'dart:convert';
 import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/models/user.dart';
-import 'package:{{projectName}}/repositories/user_repository.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
+import 'package:{{projectNameSnake}}/repositories/user_repository.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 class UserController {
   static final _userRepo = UserRepository();
@@ -1367,10 +1367,10 @@ class UserController {
 
     'lib/controllers/todo_controller.dart': `import 'dart:convert';
 import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/models/user.dart';
-import 'package:{{projectName}}/models/todo.dart';
-import 'package:{{projectName}}/repositories/todo_repository.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
+import 'package:{{projectNameSnake}}/models/todo.dart';
+import 'package:{{projectNameSnake}}/repositories/todo_repository.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 class TodoController {
   static final _todoRepo = TodoRepository();
@@ -1515,8 +1515,8 @@ class TodoController {
 
     // Services
     'lib/services/auth_service.dart': `import 'package:jaguar_jwt/jaguar_jwt.dart';
-import 'package:{{projectName}}/config/config.dart';
-import 'package:{{projectName}}/models/user.dart';
+import 'package:{{projectNameSnake}}/config/config.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
 
 class AuthService {
   static const _issuer = '{{projectName}}';
@@ -1555,9 +1555,9 @@ class AuthService {
 
     // Middleware
     'lib/middleware/auth_middleware.dart': `import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/services/auth_service.dart';
-import 'package:{{projectName}}/repositories/user_repository.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/services/auth_service.dart';
+import 'package:{{projectNameSnake}}/repositories/user_repository.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 Middleware authMiddleware() {
   final authService = AuthService();
@@ -1602,8 +1602,8 @@ Middleware authMiddleware() {
 }`,
 
     'lib/middleware/error_middleware.dart': `import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/utils/logger.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/utils/logger.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 Middleware errorMiddleware() {
   final logger = AppLogger();
@@ -1626,7 +1626,7 @@ Middleware errorMiddleware() {
 }`,
 
     'lib/middleware/logging_middleware.dart': `import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/utils/logger.dart';
+import 'package:{{projectNameSnake}}/utils/logger.dart';
 
 Middleware loggingMiddleware() {
   final logger = AppLogger();
@@ -1657,7 +1657,7 @@ Middleware loggingMiddleware() {
 }`,
 
     'lib/middleware/validation_middleware.dart': `import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 Middleware validationMiddleware() {
   return (Handler innerHandler) {
@@ -1775,8 +1775,8 @@ void main() {
 
     'test/auth_test.dart': `import 'dart:convert';
 import 'package:test/test.dart';
-import 'package:{{projectName}}/models/user.dart';
-import 'package:{{projectName}}/services/auth_service.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
+import 'package:{{projectNameSnake}}/services/auth_service.dart';
 
 void main() {
   group('Auth Tests', () {
@@ -1831,7 +1831,7 @@ PORT=8080
 DB_TYPE=sqlite
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME={{projectName}}
+DB_NAME={{projectNameSnake}}
 DB_USER=postgres
 DB_PASSWORD=
 DB_PATH=database.db
@@ -1910,7 +1910,7 @@ services:
       - DB_TYPE=postgres
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_NAME={{projectName}}
+      - DB_NAME={{projectNameSnake}}
       - DB_USER=shelf
       - DB_PASSWORD=shelf_password
       - JWT_SECRET=your-production-secret-key
@@ -1925,7 +1925,7 @@ services:
     environment:
       - POSTGRES_USER=shelf
       - POSTGRES_PASSWORD=shelf_password
-      - POSTGRES_DB={{projectName}}
+      - POSTGRES_DB={{projectNameSnake}}
     ports:
       - "5432:5432"
     volumes:

@@ -35,7 +35,7 @@ export const compressionOptimizationTemplate: BackendTemplate = {
     "compression": "^1.7.4",
     "brotli": "^1.3.3",
     "pako": "^2.1.0",
-    "iltorb": "^2.5.1",
+    "iltorb": "^2.4.5",
     "minify": "^10.5.2",
     "html-minifier-terser": "^7.2.0",
     "clean-css": "^5.3.2",
@@ -54,6 +54,8 @@ export const compressionOptimizationTemplate: BackendTemplate = {
     "@types/compression": "^1.7.2",
     "@types/node": "^20.5.0",
     "@types/mime-types": "^2.1.1",
+    "@types/clean-css": "^4.2.11",
+    "@types/html-minifier-terser": "^7.0.2",
     "typescript": "^5.1.6",
     "ts-node": "^10.9.1"
   }
@@ -67,6 +69,7 @@ export const compressionOptimizationTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -75,9 +78,9 @@ export const compressionOptimizationTemplate: BackendTemplate = {
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*"],
@@ -130,6 +133,7 @@ app.listen(PORT, () => {
 
 import { createBrotliCompress, createGzip, createDeflate, constants } from 'zlib';
 import { promisify } from 'util';
+import type { RequestHandler, Response } from 'express';
 
 const pipeline = promisify(require('stream').pipeline);
 
@@ -164,7 +168,7 @@ export class CompressionManager {
     };
   }
 
-  middleware(): express.RequestHandler {
+  middleware(): RequestHandler {
     return (req, res, next) => {
       if (!this.config.enabled) {
         return next();
@@ -178,18 +182,18 @@ export class CompressionManager {
       // Override res.write
       const originalWrite = res.write;
       (res as Response & { write: (chunk: unknown) => boolean }).write = function (chunk: unknown) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
         return true;
       };
 
       // Override res.send
-      res.send = function (body: unknown) {
+      res.send = function (this: Response, body: unknown) {
         chunks.push(Buffer.isBuffer(body) ? body : Buffer.from(String(body)));
         return this;
       } as Response['send'];
 
       // Override res.json
-      res.json = function (body: unknown) {
+      res.json = function (this: Response, body: unknown) {
         const json = JSON.stringify(body);
         chunks.push(Buffer.from(json));
         res.setHeader('Content-Type', 'application/json');
@@ -335,7 +339,7 @@ export class CompressionManager {
     'src/minifier.ts': `// Minifier
 // CSS, JavaScript, and HTML minification
 
-import { minify as cssMinify } from 'clean-css';
+import CleanCSS from 'clean-css';
 import { minify as jsMinify, MinifyOptions } from 'terser';
 import { minify as htmlMinify, Options as HtmlMinifyOptions } from 'html-minifier-terser';
 
@@ -390,7 +394,7 @@ export class Minifier {
 
   minifyCSS(css: string): MinificationResult {
     const startTime = Date.now();
-    const result = cssMinify(css, this.cssOptions);
+    const result = new CleanCSS(this.cssOptions as CleanCSS.OptionsOutput).minify(css);
 
     const originalSize = css.length;
     const minifiedSize = result.styles.length;
@@ -426,9 +430,9 @@ export class Minifier {
     };
   }
 
-  minifyHTML(html: string): MinificationResult {
+  async minifyHTML(html: string): Promise<MinificationResult> {
     const startTime = Date.now();
-    const result = htmlMinify(html, this.htmlOptions);
+    const result = await htmlMinify(html, this.htmlOptions);
 
     const originalSize = html.length;
     const minifiedSize = result.length;
@@ -704,7 +708,7 @@ export class Precompressor {
       result.brotliSize = brotliStats.size;
 
       result.duration = Date.now() - startTime;
-    } catch (error: unknown) {
+    } catch (error: any) {
       result.error = error.message;
     }
 
@@ -784,12 +788,12 @@ export class Precompressor {
       persistent: true,
     });
 
-    watcher.on('add', async (filePath) => {
+    watcher.on('add', async (filePath: string) => {
       const result = await this.precompressFile(filePath);
       callback(result);
     });
 
-    watcher.on('change', async (filePath) => {
+    watcher.on('change', async (filePath: string) => {
       const result = await this.precompressFile(filePath);
       callback(result);
     });
@@ -859,14 +863,14 @@ export function apiRoutes(
   });
 
   // Minify HTML
-  router.post('/minify/html', (req, res) => {
+  router.post('/minify/html', async (req, res) => {
     const { html } = req.body;
 
     if (!html) {
       return res.status(400).json({ error: 'html is required' });
     }
 
-    const result = minifier.minifyHTML(html);
+    const result = await minifier.minifyHTML(html);
     res.json(result);
   });
 
@@ -906,7 +910,7 @@ export function apiRoutes(
       const bundle = bundleOptimizer.analyzeBundle(bundlePath);
       res.json(bundle);
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 

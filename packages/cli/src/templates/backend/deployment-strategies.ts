@@ -668,7 +668,6 @@ spec:
         args:
           - name: service-name
             value: myapp-canary
-        args:
           - name: stable-service-name
             value: myapp-stable
       # Blue-Green promotion

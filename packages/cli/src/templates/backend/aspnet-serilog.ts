@@ -58,19 +58,19 @@ export const aspnetSerilogTemplate: BackendTemplate = {
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
   </ItemGroup>
 
 </Project>`,
 
     // Program.cs with comprehensive Serilog configuration
-    'Program.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Services;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Profiles;
-using {{serviceName}}.Validators;
-using {{serviceName}}.Infrastructure.Logging;
+    'Program.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Profiles;
+using {{projectNamePascal}}.Validators;
+using {{projectNamePascal}}.Infrastructure.Logging;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 using FluentValidation;
@@ -144,7 +144,7 @@ try
 
         // Error-only file sink
         configuration.WriteTo.Logger(lc => lc
-            .Filter.ByIncludingOnly(Matching.FromSource<{{serviceName}}.Controllers>())
+            .Filter.ByIncludingOnly(Matching.FromSource<{{projectNamePascal}}.Controllers>())
             .WriteTo.File(
                 path: "logs/errors-.log",
                 rollingInterval: RollingInterval.Day,
@@ -596,7 +596,7 @@ finally
     // Logging service interface
     'Services/ILoggingService.cs': `using Serilog;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface ILoggingService
 {
@@ -619,7 +619,7 @@ public interface ILoggingService
     'Services/LoggingService.cs': `using Serilog;
 using Serilog.Context;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class LoggingService : ILoggingService
 {
@@ -738,7 +738,7 @@ public class LoggingService : ILoggingService
 }`,
 
     // Performance monitoring service interface
-    'Services/IPerformanceMonitoringService.cs': `namespace {{serviceName}}.Services;
+    'Services/IPerformanceMonitoringService.cs': `namespace {{projectNamePascal}}.Services;
 
 public interface IPerformanceMonitoringService
 {
@@ -753,7 +753,7 @@ public interface IPerformanceMonitoringService
 using Serilog;
 using Serilog.Context;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class PerformanceMonitoringService : IPerformanceMonitoringService
 {
@@ -836,7 +836,7 @@ public class PerformanceMonitoringService : IPerformanceMonitoringService
 using Serilog;
 using Serilog.Context;
 
-namespace {{serviceName}}.Infrastructure.Logging;
+namespace {{projectNamePascal}}.Infrastructure.Logging;
 
 public class PerformanceLoggingMiddleware
 {
@@ -893,7 +893,7 @@ using System.Text.Json;
 using Serilog;
 using Serilog.Context;
 
-namespace {{serviceName}}.Infrastructure.Logging;
+namespace {{projectNamePascal}}.Infrastructure.Logging;
 
 public class ErrorLoggingMiddleware
 {
@@ -983,7 +983,7 @@ public class ErrorLoggingMiddleware
     // Correlation ID middleware
     'Infrastructure/Middleware/CorrelationIdMiddleware.cs': `using Serilog.Context;
 
-namespace {{serviceName}}.Infrastructure.Logging;
+namespace {{projectNamePascal}}.Infrastructure.Logging;
 
 public class CorrelationIdMiddleware
 {

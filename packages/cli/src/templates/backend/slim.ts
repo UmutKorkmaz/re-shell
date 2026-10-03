@@ -35,7 +35,6 @@ export const slimTemplate: BackendTemplate = {
     "ramsey/uuid": "^4.7",
     "guzzlehttp/guzzle": "^7.8",
     "tuupola/cors-middleware": "^1.4",
-    "tuupola/slim-jwt-auth": "^3.7",
     "selective/basepath": "^2.2",
     "selective/array-reader": "^2.2",
     "cakephp/database": "^5.0",

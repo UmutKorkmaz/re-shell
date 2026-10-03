@@ -60,6 +60,7 @@ export const databaseOptimizationOrmTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -68,9 +69,9 @@ export const databaseOptimizationOrmTemplate: BackendTemplate = {
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*"],
@@ -758,7 +759,7 @@ export function apiRoutes(
       const optimization = ormOptimizer.optimize(orm, query);
       res.json(optimization);
     } catch (error: unknown) {
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 

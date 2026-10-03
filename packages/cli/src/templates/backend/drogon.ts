@@ -45,27 +45,33 @@ file(GLOB_RECURSE HDR_FILES
     \${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
 )
 
-# Main executable
-add_executable(\${PROJECT_NAME} \${SRC_FILES} \${HDR_FILES})
+# Application code shared by the server executable and the tests
+set(APP_SOURCES \${SRC_FILES})
+list(FILTER APP_SOURCES EXCLUDE REGEX ".*/main\\\\.cpp$")
+add_library(\${PROJECT_NAME}_lib STATIC \${APP_SOURCES} \${HDR_FILES})
 
 # Include directories
-target_include_directories(\${PROJECT_NAME} PRIVATE
+target_include_directories(\${PROJECT_NAME}_lib PUBLIC
     \${CMAKE_CURRENT_SOURCE_DIR}/include
     \${PostgreSQL_INCLUDE_DIRS}
 )
 
 # Link libraries
-target_link_libraries(\${PROJECT_NAME} PRIVATE
+target_link_libraries(\${PROJECT_NAME}_lib PUBLIC
     Drogon::Drogon
     \${PostgreSQL_LIBRARIES}
 )
 
+# Main executable
+add_executable(\${PROJECT_NAME} src/main.cpp)
+target_link_libraries(\${PROJECT_NAME} PRIVATE \${PROJECT_NAME}_lib)
+
 # Copy config files to build directory
 configure_file(config.json \${CMAKE_CURRENT_BINARY_DIR}/config.json COPYONLY)
-configure_file(views/index.csp \${CMAKE_CURRENT_BINARY_DIR}/views/index.csp COPYONLY)
+configure_file(views/HomePage.csp \${CMAKE_CURRENT_BINARY_DIR}/views/HomePage.csp COPYONLY)
 
 # Drogon view compilation
-drogon_create_views(\${PROJECT_NAME} \${CMAKE_CURRENT_SOURCE_DIR}/views
+drogon_create_views(\${PROJECT_NAME}_lib \${CMAKE_CURRENT_SOURCE_DIR}/views
     \${CMAKE_CURRENT_BINARY_DIR}/views)
 
 # Test executable
@@ -78,6 +84,7 @@ target_include_directories(test_\${PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(test_\${PROJECT_NAME} PRIVATE
+    \${PROJECT_NAME}_lib
     Drogon::Drogon
     GTest::gtest
     GTest::gtest_main
@@ -245,8 +252,8 @@ namespace api {
     class HealthController : public drogon::HttpController<HealthController> {
     public:
         METHOD_LIST_BEGIN
-        ADD_METHOD_TO(HealthController::health, "/health", Get);
-        ADD_METHOD_TO(HealthController::metrics, "/metrics", Get);
+        ADD_METHOD_TO(HealthController::health, "/health", drogon::Get);
+        ADD_METHOD_TO(HealthController::metrics, "/metrics", drogon::Get);
         METHOD_LIST_END
 
         void health(const drogon::HttpRequestPtr &req,
@@ -297,9 +304,7 @@ void HealthController::metrics(const drogon::HttpRequestPtr &req,
     
     Json::Value json;
     json["uptime_seconds"] = static_cast<Json::Int64>(uptime);
-    json["active_connections"] = drogon::app().getActiveConnectionNumber();
-    json["good_connection_num"] = drogon::app().getGoodConnectionNumber();
-    json["idle_connection_num"] = drogon::app().getIdleConnectionNumber();
+    json["threads"] = static_cast<Json::UInt64>(drogon::app().getThreadNum());
     
     auto resp = drogon::HttpResponse::newHttpJsonResponse(json);
     callback(resp);
@@ -315,12 +320,12 @@ namespace api::v1 {
     class UserController : public drogon::HttpController<UserController> {
     public:
         METHOD_LIST_BEGIN
-        ADD_METHOD_TO(UserController::createUser, "/api/v1/users", Post);
-        ADD_METHOD_TO(UserController::getUser, "/api/v1/users/{id}", Get);
-        ADD_METHOD_TO(UserController::updateUser, "/api/v1/users/{id}", Put);
-        ADD_METHOD_TO(UserController::deleteUser, "/api/v1/users/{id}", Delete);
-        ADD_METHOD_TO(UserController::listUsers, "/api/v1/users", Get);
-        ADD_METHOD_TO(UserController::login, "/api/v1/auth/login", Post);
+        ADD_METHOD_TO(UserController::createUser, "/api/v1/users", drogon::Post);
+        ADD_METHOD_TO(UserController::getUser, "/api/v1/users/{id}", drogon::Get);
+        ADD_METHOD_TO(UserController::updateUser, "/api/v1/users/{id}", drogon::Put);
+        ADD_METHOD_TO(UserController::deleteUser, "/api/v1/users/{id}", drogon::Delete);
+        ADD_METHOD_TO(UserController::listUsers, "/api/v1/users", drogon::Get);
+        ADD_METHOD_TO(UserController::login, "/api/v1/auth/login", drogon::Post);
         METHOD_LIST_END
 
         void createUser(const drogon::HttpRequestPtr &req,
@@ -545,8 +550,8 @@ namespace api {
         void handleConnectionClosed(const drogon::WebSocketConnectionPtr& wsConnPtr) override;
         
         WS_PATH_LIST_BEGIN
-        WS_PATH_ADD("/ws", Get);
-        WS_PATH_ADD("/ws/chat", Get);
+        WS_PATH_ADD("/ws", drogon::Get);
+        WS_PATH_ADD("/ws/chat", drogon::Get);
         WS_PATH_LIST_END
         
     private:
@@ -577,7 +582,8 @@ void WebSocketController::handleNewMessage(const drogon::WebSocketConnectionPtr&
             wsConnPtr->send(response.toStyledString());
             
             // Broadcast to all connections for chat
-            if (wsConnPtr->getPath() == "/ws/chat") {
+            auto path = wsConnPtr->getContext<std::string>();
+            if (path && *path == "/ws/chat") {
                 std::lock_guard<std::mutex> lock(connectionMutex_);
                 for (auto &conn : connections_) {
                     if (conn != wsConnPtr) {
@@ -601,6 +607,7 @@ void WebSocketController::handleNewMessage(const drogon::WebSocketConnectionPtr&
 void WebSocketController::handleNewConnection(const drogon::HttpRequestPtr &req,
                                             const drogon::WebSocketConnectionPtr& wsConnPtr) {
     LOG_INFO << "New WebSocket connection from " << wsConnPtr->peerAddr().toIpPort();
+    wsConnPtr->setContext(std::make_shared<std::string>(req->path()));
     
     {
         std::lock_guard<std::mutex> lock(connectionMutex_);
@@ -632,7 +639,7 @@ namespace api {
     class GraphqlController : public drogon::HttpController<GraphqlController> {
     public:
         METHOD_LIST_BEGIN
-        ADD_METHOD_TO(GraphqlController::handle, "/graphql", Post);
+        ADD_METHOD_TO(GraphqlController::handle, "/graphql", drogon::Post);
         METHOD_LIST_END
 
         void handle(const drogon::HttpRequestPtr &req,
@@ -652,7 +659,7 @@ void GraphqlController::handle(const drogon::HttpRequestPtr &req,
     Json::CharReaderBuilder reader;
     std::string errors;
 
-    std::string payload = req->getBody();
+    std::string payload{req->getBody()};
     std::istringstream stream(payload);
     if (!Json::parseFromStream(reader, stream, &body, &errors)) {
         Json::Value errorResp;
@@ -744,8 +751,10 @@ namespace graphql {
     // User Model
     'include/models/User.h': `#pragma once
 #include <string>
+#include <json/json.h>
 #include <drogon/orm/Result.h>
 #include <drogon/orm/Row.h>
+#include <drogon/orm/Field.h>
 
 namespace models {
     struct User {
@@ -890,13 +899,14 @@ namespace services {
     void UserService::updateUser(const models::User& user, UserCallback callback) {
         auto now = trantor::Date::now().toDbString();
         
+        // An empty value means "leave the column unchanged" (NULLIF turns '' into NULL)
         auto dbClient = drogon::app().getDbClient("default");
-        *dbClient << "UPDATE users SET email = COALESCE($2, email), "
-                     "name = COALESCE($3, name), updated_at = $4 "
+        *dbClient << "UPDATE users SET email = COALESCE(NULLIF($2, ''), email), "
+                     "name = COALESCE(NULLIF($3, ''), name), updated_at = $4 "
                      "WHERE id = $1 RETURNING *"
-                  << user.id 
-                  << (user.email.empty() ? nullptr : &user.email)
-                  << (user.name.empty() ? nullptr : &user.name)
+                  << user.id
+                  << user.email
+                  << user.name
                   << now
                   >> [callback](const drogon::orm::Result &r) {
                       if (!r.empty()) {
@@ -1033,8 +1043,8 @@ void AuthFilter::doFilter(const drogon::HttpRequestPtr &req,
     }
     
     // Add user info to request attributes for downstream use
-    req->setAttributes("userId", claims->user_id);
-    req->setAttributes("userEmail", claims->email);
+    req->attributes()->insert("userId", claims->user_id);
+    req->attributes()->insert("userEmail", claims->email);
     
     // Continue to the next filter or handler
     fccb();
@@ -1074,7 +1084,7 @@ void CorsFilter::doFilter(const drogon::HttpRequestPtr &req,
     }
     
     // For non-OPTIONS requests, add CORS headers in response callback
-    req->setAttributes("add_cors_headers", true);
+    req->attributes()->insert("add_cors_headers", true);
     fccb();
 }
 `,
@@ -1247,7 +1257,7 @@ CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 `,
 
     // Views
-    'views/index.csp': `<!DOCTYPE html>
+    'views/HomePage.csp': `<!DOCTYPE html>
 <html>
 <head>
     <title>{{serviceName}} - Drogon Framework</title>

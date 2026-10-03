@@ -71,7 +71,7 @@ export const middyTemplate: BackendTemplate = {
     "@aws-sdk/client-secrets-manager": "^3.540.0",
     "@aws-sdk/client-ssm": "^3.540.0",
     "@aws-sdk/client-cloudwatch": "^3.540.0",
-    "docker": "^1.0.7",
+    "docker": "^1.0.0",
     "ajv": "^8.12.0",
     "ajv-formats": "^2.1.1",
     "winston": "^3.13.0",
@@ -1659,8 +1659,8 @@ function sanitizeValue(value: any): any {
   
   // Remove potential XSS patterns
   let sanitized = value
-    .replace(/<script[^>]*>.*?</script>/gi, '')
-    .replace(/<iframe[^>]*>.*?</iframe>/gi, '')
+    .replace(/<script[^>]*>.*?<\\/script>/gi, "")
+    .replace(/<iframe[^>]*>.*?<\\/iframe>/gi, "")
     .replace(/javascript:/gi, '')
     .replace(/onw+s*=/gi, '');
   
@@ -1668,7 +1668,7 @@ function sanitizeValue(value: any): any {
   sanitized = sanitized
     .replace(/(\b(union|select|insert|update|delete|drop|create|alter|exec|execute)\b)/gi, '')
     .replace(/[';]--/g, '')
-    .replace(//*.*?*//g, '');
+    .replace(/\\/\\*.*?\\*\\//g, "");
   
   // Trim whitespace
   return sanitized.trim();

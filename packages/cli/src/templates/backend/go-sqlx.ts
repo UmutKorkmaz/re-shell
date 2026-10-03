@@ -107,7 +107,6 @@ import (
 	"{{projectName}}/config"
 	"{{projectName}}/database"
 	"{{projectName}}/handlers"
-	"{{projectName}}/middleware"
 	"{{projectName}}/routes"
 
 	_ "{{projectName}}/docs" // swagger docs
@@ -213,6 +212,51 @@ func initLogger(level string) *zerolog.Logger {
 `,
 
     // Configuration
+    // Swagger description served at /swagger. A minimal stand-in for the file
+    // "swag init" generates, so that a fresh checkout builds; "make swagger"
+    // regenerates it from the handler annotations.
+    'docs/docs.go': `// Package docs holds the OpenAPI description served at /swagger.
+//
+// This is a minimal, hand-written stand-in for the file that "swag init"
+// generates, so that a fresh checkout compiles. Run "make swagger" to
+// regenerate it from the annotations in main.go and the route handlers; the
+// generated docs/docs.go replaces this file.
+package docs
+
+import "github.com/swaggo/swag"
+
+const docTemplate = \`{
+    "schemes": {{ marshal .Schemes }},
+    "swagger": "2.0",
+    "info": {
+        "description": "{{escape .Description}}",
+        "title": "{{.Title}}",
+        "version": "{{.Version}}"
+    },
+    "host": "{{.Host}}",
+    "basePath": "{{.BasePath}}",
+    "paths": {}
+}\`
+
+// SwaggerInfo holds exported Swagger Info so clients can modify it.
+var SwaggerInfo = &swag.Spec{
+	Version:          "1.0",
+	Host:             "localhost:8080",
+	BasePath:         "/api/v1",
+	Schemes:          []string{},
+	Title:            "{{projectName}} API",
+	Description:      "API server for {{projectName}}",
+	InfoInstanceName: "swagger",
+	SwaggerTemplate:  docTemplate,
+	LeftDelim:        "{{",
+	RightDelim:       "}}",
+}
+
+func init() {
+	swag.Register(SwaggerInfo.InstanceName(), SwaggerInfo)
+}
+`,
+
     'config/config.go': `package config
 
 import (
@@ -332,11 +376,6 @@ var migrations embed.FS
 
 // Migrate runs database migrations
 func Migrate(databaseURL string) error {
-	driver, err := getDriver(databaseURL)
-	if err != nil {
-		return err
-	}
-
 	// Create source from embedded files
 	source, err := iofs.New(migrations, "migrations")
 	if err != nil {
@@ -3838,7 +3877,6 @@ func NewPlaygroundHandler(endpoint string) http.HandlerFunc {
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"{{projectName}}/utils"
 
@@ -3848,9 +3886,12 @@ import (
 
 func JWTAuth(secret string) func(http.Handler) http.Handler {
 	tokenAuth := jwtauth.New("HS256", []byte(secret), nil)
+	// Verifier reads the token from the Authorization header (or cookie) and
+	// validates its signature and expiry before the handler below runs.
+	verify := jwtauth.Verifier(tokenAuth)
 
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return verify(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, claims, err := jwtauth.FromContext(r.Context())
 
 			if err != nil {
@@ -3858,7 +3899,7 @@ func JWTAuth(secret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			if token == nil || !token.Valid {
+			if token == nil {
 				render.Render(w, r, utils.ErrUnauthorized("invalid token"))
 				return
 			}
@@ -3879,7 +3920,7 @@ func JWTAuth(secret string) func(http.Handler) http.Handler {
 
 			ctx := context.WithValue(r.Context(), "user_id", userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
-		})
+		}))
 	}
 }
 
