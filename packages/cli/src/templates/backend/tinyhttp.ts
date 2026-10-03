@@ -65,7 +65,8 @@ export const tinyhttpTemplate: BackendTemplate = {
     "dayjs": "^1.11.10",
     "node-cron": "^3.0.3",
     "graphql-yoga": "^5.3.1",
-    "graphql": "^16.8.1"
+    "graphql": "^16.8.1",
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
@@ -79,13 +80,14 @@ export const tinyhttpTemplate: BackendTemplate = {
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.2.5",
-    "rest-api": "^0.0.3",
     "tsx": "^4.7.2",
     "vitest": "^1.5.0",
     "@vitest/coverage-v8": "^1.5.0",
     "@vitest/ui": "^1.5.0",
     "supertest": "^7.0.0",
-    "@types/supertest": "^6.0.2"
+    "@types/supertest": "^6.0.2",
+    "@types/multer": "^1.4.11",
+    "mongodb-memory-server": "^9.2.0"
   }
 }`,
 
@@ -93,12 +95,13 @@ export const tinyhttpTemplate: BackendTemplate = {
     'tsconfig.json': `{
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ES2022",
+    "module": "NodeNext",
     "lib": ["ES2022"],
-    "moduleResolution": "bundler",
+    "moduleResolution": "NodeNext",
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "strictFunctionTypes": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -128,7 +131,7 @@ export const tinyhttpTemplate: BackendTemplate = {
 }`,
 
     // Main application entry point
-    'src/index.ts': `import { App } from '@tinyhttp/app';
+    'src/index.ts': `import { App, type Handler } from '@tinyhttp/app';
 import { cors } from '@tinyhttp/cors';
 import { logger } from '@tinyhttp/logger';
 import { cookieParser } from '@tinyhttp/cookie-parser';
@@ -154,7 +157,13 @@ import { yoga } from './graphql/yoga.js';
 // Load environment variables
 config();
 
-const app = new App();
+// Connect/Express-style middleware (helmet, compression, ...) is typed against Express
+const connect = (middleware: unknown) => middleware as Handler;
+
+const app = new App({
+  onError: errorHandler,
+  noMatchHandler: notFoundHandler
+});
 const PORT = process.env.PORT || 3000;
 
 // Create HTTP server
@@ -167,7 +176,7 @@ const wss = new WebSocketServer({ server });
 setupWebSocket(wss);
 
 // Security middleware
-app.use(helmet());
+app.use(connect(helmet()));
 app.use(cors({
   origin: process.env.CORS_ORIGIN?.split(',') || '*',
   credentials: true
@@ -178,22 +187,22 @@ app.use(json());
 app.use(cookieParser());
 
 // Compression middleware
-app.use(compression());
+app.use(connect(compression()));
 
 // Request logging
 app.use(logger({
   timestamp: { format: 'HH:mm:ss' },
-  colorize: true,
+  output: { color: true, callback: (line: string) => log.info(line) },
   emoji: true
 }));
 app.use(requestLogger);
 
 // Rate limiting
-app.use('/api', rateLimit({
+app.use('/api', connect(rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100,
   message: 'Too many requests from this IP'
-}));
+})));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -238,12 +247,6 @@ app.use('/graphql', async (req, res) => {
     });
   }
 });
-
-// 404 handler
-app.use(notFoundHandler);
-
-// Global error handler
-app.use(errorHandler);
 
 // Attach app to server
 server.on('request', app.handler.bind(app));
@@ -375,7 +378,7 @@ router.get('/:id', authenticate, userController.getUserById);
 router.put('/:id', authenticate, validate(updateUserSchema), userController.updateUser);
 router.delete('/:id', authenticate, authorize('admin'), userController.deleteUser);
 router.post('/change-password', authenticate, validate(changePasswordSchema), userController.changePassword);
-router.post('/avatar', authenticate, userController.uploadAvatar);
+router.post('/avatar', authenticate, ...userController.uploadAvatar);
 
 export default router;`,
 
@@ -455,7 +458,7 @@ export default router;`,
 };`,
 
     // GraphQL Yoga instance wired for tinyhttp
-    'src/graphql/yoga.ts': `import { createYoga } from 'graphql-yoga';
+    'src/graphql/yoga.ts': `import { createSchema, createYoga } from 'graphql-yoga';
 import { typeDefs } from './schema.js';
 import { resolvers } from './resolver.js';
 import { logger } from '../utils/logger.js';
@@ -463,10 +466,10 @@ import { logger } from '../utils/logger.js';
 // Create a GraphQL Yoga instance. Yoga exposes a Node-compatible
 // handler (handleNodeRequestAndResponse) that works as tinyhttp middleware.
 export const yoga = createYoga({
-  schema: {
+  schema: createSchema({
     typeDefs,
     resolvers
-  },
+  }),
   logging: {
     debug: (...args: unknown[]) => logger.debug(args),
     info: (...args: unknown[]) => logger.info(args),
@@ -606,7 +609,7 @@ export class AuthController {
 }`,
 
     // User controller
-    'src/controllers/user.controller.ts': `import { Request, Response } from '@tinyhttp/app';
+    'src/controllers/user.controller.ts': `import { Handler, Request, Response } from '@tinyhttp/app';
 import { UserService } from '../services/user.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { uploadSingle } from '../utils/upload.js';
@@ -698,7 +701,7 @@ export class UserController {
   });
 
   uploadAvatar = [
-    uploadSingle('avatar'),
+    uploadSingle('avatar') as unknown as Handler,
     asyncHandler(async (req: Request, res: Response) => {
       const userId = req.user!.id;
 
@@ -851,7 +854,7 @@ export class TodoController {
 }`,
 
     // Authentication middleware
-    'src/middlewares/auth.middleware.ts': `import { Request, Response, NextHandler } from '@tinyhttp/app';
+    'src/middlewares/auth.middleware.ts': `import { Request, Response, NextFunction } from '@tinyhttp/app';
 import jwt from 'jsonwebtoken';
 import { UserService } from '../services/user.service.js';
 
@@ -864,12 +867,14 @@ interface JwtPayload {
 declare module '@tinyhttp/app' {
   interface Request {
     user?: JwtPayload;
+    id?: string;
+    file?: Express.Multer.File;
   }
 }
 
 const userService = new UserService();
 
-export const authenticate = async (req: Request, res: Response, next: NextHandler) => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
     let token: string | undefined;
 
@@ -913,7 +918,7 @@ export const authenticate = async (req: Request, res: Response, next: NextHandle
 };
 
 export const authorize = (...roles: string[]) => {
-  return (req: Request, res: Response, next: NextHandler) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -939,7 +944,7 @@ export const authorize = (...roles: string[]) => {
 };`,
 
     // Error handling middleware
-    'src/middlewares/error.middleware.ts': `import { Request, Response, NextHandler } from '@tinyhttp/app';
+    'src/middlewares/error.middleware.ts': `import { Request, Response, NextFunction } from '@tinyhttp/app';
 import { logger } from '../utils/logger.js';
 
 interface ErrorWithStatus extends Error {
@@ -951,7 +956,7 @@ export const errorHandler = (
   err: ErrorWithStatus,
   req: Request,
   res: Response,
-  next: NextHandler
+  next: NextFunction
 ) => {
   let status = err.status || res.statusCode || 500;
   let message = err.message || 'Internal Server Error';
@@ -1014,11 +1019,11 @@ export const notFoundHandler = (req: Request, res: Response) => {
 };`,
 
     // Validation middleware
-    'src/middlewares/validate.middleware.ts': `import { Request, Response, NextHandler } from '@tinyhttp/app';
+    'src/middlewares/validate.middleware.ts': `import { Request, Response, NextFunction } from '@tinyhttp/app';
 import { z, ZodError, ZodSchema } from 'zod';
 
 export const validate = (schema: ZodSchema) => {
-  return async (req: Request, res: Response, next: NextHandler) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     try {
       await schema.parseAsync({
         body: req.body,
@@ -1044,11 +1049,11 @@ export const validate = (schema: ZodSchema) => {
 };`,
 
     // Logger middleware
-    'src/middlewares/logger.middleware.ts': `import { Request, Response, NextHandler } from '@tinyhttp/app';
+    'src/middlewares/logger.middleware.ts': `import { Request, Response, NextFunction } from '@tinyhttp/app';
 import { logger } from '../utils/logger.js';
 import { nanoid } from 'nanoid';
 
-export const requestLogger = (req: Request, res: Response, next: NextHandler) => {
+export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
   const requestId = nanoid(10);
   const start = Date.now();
 
@@ -1262,7 +1267,7 @@ todoSchema.index({ userId: 1, dueDate: 1 });
 export const Todo = mongoose.model<ITodo>('Todo', todoSchema);`,
 
     // Redis configuration
-    'src/config/redis.ts': `import Redis from 'ioredis';
+    'src/config/redis.ts': `import { Redis } from 'ioredis';
 import { logger } from '../utils/logger.js';
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -1370,13 +1375,14 @@ export const setupWebSocket = (wss: WebSocketServer) => {
 
       // Verify JWT token
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
-      ws.userId = decoded.id;
+      const userId = String(decoded.id);
+      ws.userId = userId;
 
       // Add to clients map
-      if (!clients.has(ws.userId)) {
-        clients.set(ws.userId, new Set());
+      if (!clients.has(userId)) {
+        clients.set(userId, new Set());
       }
-      clients.get(ws.userId)!.add(ws);
+      clients.get(userId)!.add(ws);
 
       // Setup heartbeat
       ws.isAlive = true;
@@ -1903,7 +1909,7 @@ export class EmailService {
 }`,
 
     // Logger utility
-    'src/utils/logger.ts': `import pino from 'pino';
+    'src/utils/logger.ts': `import { pino } from 'pino';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
@@ -1923,22 +1929,23 @@ export const logger = pino({
 });`,
 
     // Async handler utility
-    'src/utils/asyncHandler.ts': `import { Request, Response, NextHandler } from '@tinyhttp/app';
+    'src/utils/asyncHandler.ts': `import { Request, Response, NextFunction } from '@tinyhttp/app';
 
 type AsyncRequestHandler = (
   req: Request,
   res: Response,
-  next: NextHandler
+  next: NextFunction
 ) => Promise<unknown>;
 
 export const asyncHandler = (fn: AsyncRequestHandler) => {
-  return (req: Request, res: Response, next: NextHandler) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 };`,
 
     // Upload utility
     'src/utils/upload.ts': `import multer from 'multer';
+import type { Handler } from '@tinyhttp/app';
 import { nanoid } from 'nanoid';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -1972,9 +1979,12 @@ export const upload = multer({
   }
 });
 
-export const uploadSingle = (fieldName: string) => upload.single(fieldName);
-export const uploadMultiple = (fieldName: string, maxCount: number) => 
-  upload.array(fieldName, maxCount);`,
+// multer middleware is typed against Express; tinyhttp runs it unchanged
+export const uploadSingle = (fieldName: string): Handler =>
+  upload.single(fieldName) as unknown as Handler;
+export const uploadMultiple = (fieldName: string, maxCount: number): Handler =>
+  upload.array(fieldName, maxCount) as unknown as Handler;
+`,
 
     // Environment variables
     '.env.example': `# Application
@@ -2251,6 +2261,7 @@ beforeEach(async () => {
     // Example test
     'src/__tests__/auth.test.ts': `import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
+import { createServer, type RequestListener } from 'http';
 import { app } from '../index.js';
 import { User } from '../models/user.model.js';
 
@@ -2261,7 +2272,7 @@ describe('Auth API', () => {
 
   describe('POST /api/v1/auth/register', () => {
     it('should register a new user', async () => {
-      const res = await request(app.handler)
+      const res = await request(createServer(app.handler.bind(app) as unknown as RequestListener))
         .post('/api/v1/auth/register')
         .send({
           email: 'test@example.com',
@@ -2283,7 +2294,7 @@ describe('Auth API', () => {
         name: 'Test User'
       });
 
-      const res = await request(app.handler)
+      const res = await request(createServer(app.handler.bind(app) as unknown as RequestListener))
         .post('/api/v1/auth/register')
         .send({
           email: 'test@example.com',
@@ -2308,7 +2319,7 @@ describe('Auth API', () => {
     });
 
     it('should login with valid credentials', async () => {
-      const res = await request(app.handler)
+      const res = await request(createServer(app.handler.bind(app) as unknown as RequestListener))
         .post('/api/v1/auth/login')
         .send({
           email: 'test@example.com',
@@ -2321,7 +2332,7 @@ describe('Auth API', () => {
     });
 
     it('should not login with invalid password', async () => {
-      const res = await request(app.handler)
+      const res = await request(createServer(app.handler.bind(app) as unknown as RequestListener))
         .post('/api/v1/auth/login')
         .send({
           email: 'test@example.com',

@@ -36,6 +36,7 @@ export const aspnetJwtTemplate: BackendTemplate = {
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.5.0" />
     <!-- Comprehensive JWT and Security Packages -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
@@ -46,11 +47,10 @@ export const aspnetJwtTemplate: BackendTemplate = {
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Facebook" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="8.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="8.0.0" />
     <!-- Rate limiting and security -->
     <PackageReference Include="AspNetCoreRateLimit" Version="5.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.2.0" />
     <!-- Email and SMS services -->
     <PackageReference Include="SendGrid" Version="9.28.1" />
     <PackageReference Include="Twilio" Version="6.14.1" />
@@ -59,7 +59,8 @@ export const aspnetJwtTemplate: BackendTemplate = {
 </Project>`,
 
     // Program.cs with comprehensive JWT configuration
-    'Program.cs': `using {{projectNamePascal}}.Data;
+    'Program.cs': `using Microsoft.AspNetCore.DataProtection;
+using {{projectNamePascal}}.Data;
 using {{projectNamePascal}}.Services;
 using {{projectNamePascal}}.Models;
 using {{projectNamePascal}}.DTOs;
@@ -201,22 +202,38 @@ builder.Services.AddAuthentication(options =>
             return Task.CompletedTask;
         }
     };
-})
-.AddGoogle(options =>
-{
-    options.ClientId = builder.Configuration["Authentication:Google:ClientId"] ?? "";
-    options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? "";
-})
-.AddFacebook(options =>
-{
-    options.AppId = builder.Configuration["Authentication:Facebook:AppId"] ?? "";
-    options.AppSecret = builder.Configuration["Authentication:Facebook:AppSecret"] ?? "";
-})
-.AddMicrosoftAccount(options =>
-{
-    options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"] ?? "";
-    options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"] ?? "";
 });
+
+// External providers are only registered when their credentials are configured; an empty
+// ClientId makes the OAuth handlers throw on every request.
+var authBuilder = builder.Services.AddAuthentication();
+
+if (!string.IsNullOrEmpty(builder.Configuration["Authentication:Google:ClientId"]))
+{
+    authBuilder.AddGoogle(options =>
+    {
+        options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
+        options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? "";
+    });
+}
+
+if (!string.IsNullOrEmpty(builder.Configuration["Authentication:Facebook:AppId"]))
+{
+    authBuilder.AddFacebook(options =>
+    {
+        options.AppId = builder.Configuration["Authentication:Facebook:AppId"]!;
+        options.AppSecret = builder.Configuration["Authentication:Facebook:AppSecret"] ?? "";
+    });
+}
+
+if (!string.IsNullOrEmpty(builder.Configuration["Authentication:Microsoft:ClientId"]))
+{
+    authBuilder.AddMicrosoftAccount(options =>
+    {
+        options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"]!;
+        options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"] ?? "";
+    });
+}
 
 // Authorization policies
 builder.Services.AddAuthorization(options =>
@@ -264,13 +281,14 @@ builder.Services.AddAutoMapper(typeof(UserProfile));
 builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
 
 // Authorization handlers
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MinimumAgeHandler>();
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, SameUserOrAdminHandler>();
 
 // Data protection
 builder.Services.AddDataProtection()
     .PersistKeysToDbContext<ApplicationDbContext>()
-    .SetApplicationName("{{serviceName}}")
+    .SetApplicationName("{{projectName}}")
     .SetDefaultKeyLifetime(TimeSpan.FromDays(90));
 
 // CORS
@@ -290,7 +308,7 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo 
     { 
-        Title = "{{serviceName}} API", 
+        Title = "{{projectName}} API", 
         Version = "v1",
         Description = "Enterprise .NET API with comprehensive JWT authentication"
     });
@@ -328,9 +346,17 @@ builder.Services.AddSwaggerGen(c =>
 
 // Health checks
 builder.Services.AddHealthChecks()
-    .AddDbContext<ApplicationDbContext>();
+    .AddDbContextCheck<ApplicationDbContext>();
 
 var app = builder.Build();
+
+// No EF migrations are shipped: create the schema (and seed the roles) outside production.
+// Use \`dotnet ef migrations add Initial\` and \`dotnet ef database update\` for production databases.
+if (!app.Environment.IsProduction())
+{
+    using var scope = app.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.EnsureCreated();
+}
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
@@ -338,10 +364,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "{{serviceName}} API V1");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "{{projectName}} API V1");
         c.RoutePrefix = string.Empty;
         c.OAuthClientId("swagger");
-        c.OAuthAppName("{{serviceName}} API");
+        c.OAuthAppName("{{projectName}} API");
         c.OAuthUsePkce();
     });
 }
@@ -678,7 +704,8 @@ public interface IAuthService
     Task<ExternalLoginResponse> HandleExternalLoginAsync(string provider, string returnUrl);
 }`,
 
-    'Services/AuthService.cs': `using {{projectNamePascal}}.Data;
+    'Services/AuthService.cs': `using System.Security.Claims;
+using {{projectNamePascal}}.Data;
 using {{projectNamePascal}}.DTOs;
 using {{projectNamePascal}}.Models;
 using Microsoft.AspNetCore.Identity;
@@ -1257,7 +1284,8 @@ public class UserToken
 }`,
 
     // Authentication Controller
-    'Controllers/AuthController.cs': `using Microsoft.AspNetCore.Mvc;
+    'Controllers/AuthController.cs': `using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using {{projectNamePascal}}.Services;
 using {{projectNamePascal}}.DTOs;
@@ -1564,12 +1592,12 @@ public class AuthController : ControllerBase
     // JWT configuration in appsettings
     'appsettings.json': `{
   "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\\\mssqllocaldb;Database={{serviceName}}Db;Trusted_Connection=true;MultipleActiveResultSets=true"
+    "DefaultConnection": "Server=(localdb)\\\\mssqllocaldb;Database={{projectName}}Db;Trusted_Connection=true;MultipleActiveResultSets=true"
   },
   "JwtSettings": {
     "SecretKey": "YourSecretKeyHereChangeInProduction123456789",
-    "Issuer": "{{serviceName}}",
-    "Audience": "{{serviceName}}Users",
+    "Issuer": "{{projectName}}",
+    "Audience": "{{projectName}}Users",
     "AccessTokenExpirationMinutes": 60,
     "RefreshTokenExpirationDays": 7,
     "RequireHttpsMetadata": false,
@@ -1643,7 +1671,7 @@ public class AuthController : ControllerBase
       {
         "Name": "File",
         "Args": {
-          "path": "logs/{{serviceName}}.log",
+          "path": "logs/{{projectName}}.log",
           "rollingInterval": "Day",
           "retainedFileCountLimit": 7
         }
@@ -1662,7 +1690,7 @@ public class AuthController : ControllerBase
     // Production configuration
     'appsettings.Production.json': `{
   "ConnectionStrings": {
-    "DefaultConnection": "Server=productionserver;Database={{serviceName}}ProdDb;User Id=appuser;Password=securepassword;TrustServerCertificate=true"
+    "DefaultConnection": "Server=productionserver;Database={{projectName}}ProdDb;User Id=appuser;Password=securepassword;TrustServerCertificate=true"
   },
   "JwtSettings": {
     "SecretKey": "ProductionSecretKeyAtLeast32CharactersLong!",
@@ -1698,7 +1726,7 @@ public class AuthController : ControllerBase
     "MinimumLevel": {
       "Default": "Warning",
       "Override": {
-        "{{serviceName}}": "Information",
+        "{{projectName}}": "Information",
         "Microsoft": "Error",
         "System": "Error"
       }
@@ -1711,7 +1739,7 @@ public class AuthController : ControllerBase
 
 ## Overview
 
-This {{serviceName}} API implements comprehensive JWT (JSON Web Token) authentication with support for:
+This {{projectName}} API implements comprehensive JWT (JSON Web Token) authentication with support for:
 
 - User registration and email verification
 - Login with JWT token generation
@@ -2103,6 +2131,839 @@ Password requirements, lockout settings, and user options are configured in Prog
 - Rate limiting validation
 - Account lockout testing
 - CORS policy verification
+`,
+
+    'DTOs/AuthDtos.cs': `using System.ComponentModel.DataAnnotations;
+
+namespace {{projectNamePascal}}.DTOs;
+
+public class LoginRequest
+{
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    [Required]
+    public string Password { get; set; } = string.Empty;
+}
+
+public class RegisterRequest
+{
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    [Required]
+    public string Password { get; set; } = string.Empty;
+
+    [Required]
+    public string ConfirmPassword { get; set; } = string.Empty;
+
+    [Required, MaxLength(100)]
+    public string FirstName { get; set; } = string.Empty;
+
+    [Required, MaxLength(100)]
+    public string LastName { get; set; } = string.Empty;
+
+    [Phone]
+    public string? PhoneNumber { get; set; }
+}
+
+public class RefreshTokenRequest
+{
+    [Required]
+    public string AccessToken { get; set; } = string.Empty;
+
+    [Required]
+    public string RefreshToken { get; set; } = string.Empty;
+}
+
+public class ForgotPasswordRequest
+{
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ResetPasswordRequest
+{
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    [Required]
+    public string Token { get; set; } = string.Empty;
+
+    [Required]
+    public string NewPassword { get; set; } = string.Empty;
+}
+
+public class ConfirmEmailRequest
+{
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    [Required]
+    public string Token { get; set; } = string.Empty;
+}
+
+public class VerifyTwoFactorRequest
+{
+    [Required]
+    public string UserId { get; set; } = string.Empty;
+
+    [Required]
+    public string Code { get; set; } = string.Empty;
+}
+
+public class ChangePasswordRequest
+{
+    [Required]
+    public string CurrentPassword { get; set; } = string.Empty;
+
+    [Required]
+    public string NewPassword { get; set; } = string.Empty;
+}
+
+public class UserResponse
+{
+    public int Id { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string? PhoneNumber { get; set; }
+    public bool EmailConfirmed { get; set; }
+    public bool TwoFactorEnabled { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? LastLoginAt { get; set; }
+}
+
+public class AuthResponse
+{
+    public bool Success { get; set; }
+    public string? Message { get; set; }
+    public string? AccessToken { get; set; }
+    public string? RefreshToken { get; set; }
+    public DateTime? ExpiresAt { get; set; }
+    public bool RequiresTwoFactor { get; set; }
+    public UserResponse? User { get; set; }
+}
+
+public class TwoFactorResponse
+{
+    public bool Success { get; set; }
+    public string? Message { get; set; }
+    public string? AuthenticatorKey { get; set; }
+    public string? QrCodeUri { get; set; }
+}
+
+public class ExternalLoginResponse
+{
+    public bool Success { get; set; }
+    public string? Message { get; set; }
+    public string? AccessToken { get; set; }
+    public UserResponse? User { get; set; }
+    public bool RequiresRegistration { get; set; }
+    public string? Email { get; set; }
+    public string? Provider { get; set; }
+}
+
+public class ErrorResponse
+{
+    public string? Message { get; set; }
+}
+
+public class ValidationErrorResponse
+{
+    public Dictionary<string, string> Errors { get; set; } = new();
+}
+`,
+
+    'Data/ApplicationDbContext.cs': `using {{projectNamePascal}}.Models;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+
+namespace {{projectNamePascal}}.Data;
+
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<int>, int>, IDataProtectionKeyContext
+{
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+    {
+    }
+
+    public DbSet<UserToken> UserTokens => Set<UserToken>();
+    public DbSet<UserLogin> UserLogins => Set<UserLogin>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    // Keys used by ASP.NET Core data protection (see Program.cs)
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+
+        builder.Entity<ApplicationUser>(entity =>
+        {
+            entity.HasIndex(u => u.Email);
+            entity.HasQueryFilter(u => !u.IsDeleted);
+        });
+
+        builder.Entity<UserToken>(entity =>
+        {
+            entity.HasIndex(t => new { t.UserId, t.Type });
+            entity.HasOne(t => t.User).WithMany(u => u.UserTokens).HasForeignKey(t => t.UserId);
+        });
+
+        builder.Entity<UserLogin>(entity =>
+        {
+            entity.HasOne(l => l.User).WithMany(u => u.UserLogins).HasForeignKey(l => l.UserId);
+        });
+
+        builder.Entity<AuditLog>(entity =>
+        {
+            entity.HasIndex(a => a.Timestamp);
+            entity.HasOne(a => a.User).WithMany(u => u.AuditLogs).HasForeignKey(a => a.UserId);
+        });
+
+        // Roles used by the authorization policies in Program.cs
+        builder.Entity<IdentityRole<int>>().HasData(
+            new IdentityRole<int> { Id = 1, Name = "User", NormalizedName = "USER", ConcurrencyStamp = "role-user" },
+            new IdentityRole<int> { Id = 2, Name = "Moderator", NormalizedName = "MODERATOR", ConcurrencyStamp = "role-moderator" },
+            new IdentityRole<int> { Id = 3, Name = "Admin", NormalizedName = "ADMIN", ConcurrencyStamp = "role-admin" });
+    }
+}
+`,
+
+    'Infrastructure/Middleware/AuditMiddleware.cs': `using System.Security.Claims;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Infrastructure.Middleware;
+
+/// <summary>Records every state-changing request (POST, PUT, PATCH, DELETE) in the audit log.</summary>
+public class AuditMiddleware
+{
+    private static readonly HashSet<string> AuditedMethods = new(StringComparer.OrdinalIgnoreCase)
+    {
+        HttpMethods.Post, HttpMethods.Put, HttpMethods.Patch, HttpMethods.Delete
+    };
+
+    private readonly RequestDelegate _next;
+    private readonly ILogger<AuditMiddleware> _logger;
+
+    public AuditMiddleware(RequestDelegate next, ILogger<AuditMiddleware> logger)
+    {
+        _next = next;
+        _logger = logger;
+    }
+
+    public async Task InvokeAsync(HttpContext context, ApplicationDbContext dbContext)
+    {
+        await _next(context);
+
+        if (!AuditedMethods.Contains(context.Request.Method))
+        {
+            return;
+        }
+
+        try
+        {
+            var userId = int.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : (int?)null;
+
+            dbContext.AuditLogs.Add(new AuditLog
+            {
+                UserId = userId,
+                Action = $"{context.Request.Method} {context.Request.Path}",
+                Path = context.Request.Path,
+                StatusCode = context.Response.StatusCode,
+                IpAddress = context.Connection.RemoteIpAddress?.ToString(),
+                Timestamp = DateTime.UtcNow
+            });
+            await dbContext.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            // Auditing must never break the request
+            _logger.LogError(ex, "Could not write the audit log entry");
+        }
+    }
+}
+`,
+
+    'Infrastructure/Middleware/JwtMiddleware.cs': `using System.Security.Claims;
+using {{projectNamePascal}}.Services;
+
+namespace {{projectNamePascal}}.Infrastructure.Middleware;
+
+/// <summary>
+/// Rejects access tokens that were revoked (logout, password change): a signed token is only
+/// honored while its record in the token store is still valid.
+/// </summary>
+public class JwtMiddleware
+{
+    private readonly RequestDelegate _next;
+
+    public JwtMiddleware(RequestDelegate next)
+    {
+        _next = next;
+    }
+
+    public async Task InvokeAsync(HttpContext context, IJwtTokenService tokenService)
+    {
+        if (context.User.Identity?.IsAuthenticated == true)
+        {
+            var token = context.Request.Headers.Authorization.ToString().Replace("Bearer ", string.Empty);
+            var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(userId) && !await tokenService.IsTokenValidAsync(token, userId))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new { message = "Token has been revoked or has expired" });
+                return;
+            }
+        }
+
+        await _next(context);
+    }
+}
+`,
+
+    'Infrastructure/Middleware/SecurityHeadersMiddleware.cs': `namespace {{projectNamePascal}}.Infrastructure.Middleware;
+
+/// <summary>Adds the standard hardening headers to every response.</summary>
+public class SecurityHeadersMiddleware
+{
+    private readonly RequestDelegate _next;
+
+    public SecurityHeadersMiddleware(RequestDelegate next)
+    {
+        _next = next;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        var headers = context.Response.Headers;
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["X-Frame-Options"] = "DENY";
+        headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+        headers["X-XSS-Protection"] = "0";
+        headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()";
+
+        await _next(context);
+    }
+}
+`,
+
+    'Infrastructure/Security/AuthorizationRequirements.cs': `using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+
+namespace {{projectNamePascal}}.Infrastructure.Security;
+
+/// <summary>Requires a "date_of_birth" claim (yyyy-MM-dd) that makes the user at least N years old.</summary>
+public class MinimumAgeRequirement : IAuthorizationRequirement
+{
+    public MinimumAgeRequirement(int minimumAge) => MinimumAge = minimumAge;
+
+    public int MinimumAge { get; }
+}
+
+public class MinimumAgeHandler : AuthorizationHandler<MinimumAgeRequirement>
+{
+    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, MinimumAgeRequirement requirement)
+    {
+        var claim = context.User.FindFirst("date_of_birth");
+        if (claim != null && DateTime.TryParse(claim.Value, out var dateOfBirth))
+        {
+            var today = DateTime.UtcNow.Date;
+            var age = today.Year - dateOfBirth.Year;
+            if (dateOfBirth.Date > today.AddYears(-age))
+            {
+                age--;
+            }
+
+            if (age >= requirement.MinimumAge)
+            {
+                context.Succeed(requirement);
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>The caller may act on the user in the route ("id") or must be an Admin.</summary>
+public class SameUserOrAdminRequirement : IAuthorizationRequirement
+{
+}
+
+public class SameUserOrAdminHandler : AuthorizationHandler<SameUserOrAdminRequirement>
+{
+    private readonly IHttpContextAccessor _httpContextAccessor;
+
+    public SameUserOrAdminHandler(IHttpContextAccessor httpContextAccessor)
+    {
+        _httpContextAccessor = httpContextAccessor;
+    }
+
+    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, SameUserOrAdminRequirement requirement)
+    {
+        if (context.User.IsInRole("Admin"))
+        {
+            context.Succeed(requirement);
+            return Task.CompletedTask;
+        }
+
+        var routeId = _httpContextAccessor.HttpContext?.Request.RouteValues["id"]?.ToString();
+        var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (routeId != null && routeId == userId)
+        {
+            context.Succeed(requirement);
+        }
+
+        return Task.CompletedTask;
+    }
+}
+`,
+
+    'Infrastructure/Security/EmailConfirmationTokenProvider.cs': `using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
+
+namespace {{projectNamePascal}}.Infrastructure.Security;
+
+public class EmailConfirmationTokenProviderOptions : DataProtectionTokenProviderOptions
+{
+    public EmailConfirmationTokenProviderOptions()
+    {
+        Name = "EmailConfirmationTokenProvider";
+        TokenLifespan = TimeSpan.FromDays(3);
+    }
+}
+
+/// <summary>Data-protection token provider with its own (longer) lifespan for email confirmation.</summary>
+public class EmailConfirmationTokenProvider<TUser> : DataProtectorTokenProvider<TUser> where TUser : class
+{
+    public EmailConfirmationTokenProvider(
+        IDataProtectionProvider dataProtectionProvider,
+        IOptions<EmailConfirmationTokenProviderOptions> options,
+        ILogger<DataProtectorTokenProvider<TUser>> logger)
+        : base(dataProtectionProvider, options, logger)
+    {
+    }
+}
+`,
+
+    'Models/AuditLog.cs': `using System.ComponentModel.DataAnnotations;
+
+namespace {{projectNamePascal}}.Models;
+
+public class AuditLog
+{
+    public int Id { get; set; }
+
+    public int? UserId { get; set; }
+    public virtual ApplicationUser? User { get; set; }
+
+    [Required, MaxLength(200)]
+    public string Action { get; set; } = string.Empty;
+
+    [MaxLength(500)]
+    public string? Path { get; set; }
+
+    public int StatusCode { get; set; }
+    public string? IpAddress { get; set; }
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+}
+`,
+
+    'Models/UserLogin.cs': `namespace {{projectNamePascal}}.Models;
+
+/// <summary>A successful or failed sign-in attempt, kept for security auditing.</summary>
+public class UserLogin
+{
+    public int Id { get; set; }
+
+    public int UserId { get; set; }
+    public virtual ApplicationUser User { get; set; } = null!;
+
+    public DateTime LoggedInAt { get; set; } = DateTime.UtcNow;
+    public string? IpAddress { get; set; }
+    public string? UserAgent { get; set; }
+    public bool Succeeded { get; set; }
+}
+`,
+
+    'Profiles/UserProfile.cs': `using AutoMapper;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Profiles;
+
+public class UserProfile : Profile
+{
+    public UserProfile()
+    {
+        CreateMap<ApplicationUser, UserResponse>()
+            .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.UserName ?? string.Empty))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.Email ?? string.Empty));
+    }
+}
+`,
+
+    'Services/EmailService.cs': `using SendGrid;
+using SendGrid.Helpers.Mail;
+
+namespace {{projectNamePascal}}.Services;
+
+/// <summary>
+/// Sends mail through SendGrid when SendGrid:ApiKey is configured; otherwise the message is only
+/// logged, which is what you want in development.
+/// </summary>
+public class EmailService : IEmailService
+{
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<EmailService> _logger;
+
+    public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
+    {
+        _configuration = configuration;
+        _logger = logger;
+    }
+
+    public Task SendEmailConfirmationAsync(string email, string token) =>
+        SendAsync(email, "Confirm your email address",
+            $"Use this token to confirm your email address: {token}");
+
+    public Task SendPasswordResetAsync(string email, string token) =>
+        SendAsync(email, "Reset your password",
+            $"Use this token to reset your password: {token}");
+
+    private async Task SendAsync(string to, string subject, string body)
+    {
+        var apiKey = _configuration["SendGrid:ApiKey"];
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            _logger.LogInformation("SendGrid is not configured; email to {To} not sent: {Subject} / {Body}", to, subject, body);
+            return;
+        }
+
+        var from = new EmailAddress(_configuration["SendGrid:FromEmail"] ?? "noreply@example.com", _configuration["SendGrid:FromName"] ?? "{{projectNamePascal}}");
+        var message = MailHelper.CreateSingleEmail(from, new EmailAddress(to), subject, body, body);
+        var response = await new SendGridClient(apiKey).SendEmailAsync(message);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("SendGrid rejected the email to {To}: {Status}", to, response.StatusCode);
+        }
+    }
+}
+`,
+
+    'Services/IEmailService.cs': `namespace {{projectNamePascal}}.Services;
+
+public interface IEmailService
+{
+    Task SendEmailConfirmationAsync(string email, string token);
+    Task SendPasswordResetAsync(string email, string token);
+}
+`,
+
+    'Services/IPasswordService.cs': `namespace {{projectNamePascal}}.Services;
+
+public interface IPasswordService
+{
+    string GenerateTemporaryPassword(int length = 16);
+    bool MeetsPolicy(string password);
+}
+`,
+
+    'Services/ISmsService.cs': `namespace {{projectNamePascal}}.Services;
+
+public interface ISmsService
+{
+    Task SendTwoFactorCodeAsync(string phoneNumber, string code);
+}
+`,
+
+    'Services/ITwoFactorService.cs': `using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public interface ITwoFactorService
+{
+    /// <summary>Generates a short-lived code that is delivered by SMS.</summary>
+    Task<string> GenerateTwoFactorTokenAsync(ApplicationUser user);
+
+    /// <summary>Builds the otpauth:// URI authenticator apps scan as a QR code.</summary>
+    string GenerateQrCodeUri(string email, string authenticatorKey);
+}
+`,
+
+    'Services/IUserClaimsService.cs': `using System.Security.Claims;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public interface IUserClaimsService
+{
+    Task<IList<Claim>> GetClaimsAsync(ApplicationUser user);
+}
+`,
+
+    'Services/IUserService.cs': `using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Services;
+
+public interface IUserService
+{
+    Task<UserResponse?> GetByIdAsync(int id);
+    Task<IReadOnlyList<UserResponse>> ListAsync(int page = 1, int pageSize = 20);
+    Task<bool> DeactivateAsync(int id);
+}
+`,
+
+    'Services/PasswordService.cs': `using System.Security.Cryptography;
+
+namespace {{projectNamePascal}}.Services;
+
+public class PasswordService : IPasswordService
+{
+    private const string Lower = "abcdefghijkmnopqrstuvwxyz";
+    private const string Upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private const string Digits = "23456789";
+    private const string Symbols = "!@#$%^&*-_=+?";
+
+    public string GenerateTemporaryPassword(int length = 16)
+    {
+        if (length < 8)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length), "A password needs at least 8 characters.");
+        }
+
+        // One character of each class first, then fill from the full alphabet
+        var all = Lower + Upper + Digits + Symbols;
+        var characters = new List<char>
+        {
+            Pick(Lower), Pick(Upper), Pick(Digits), Pick(Symbols)
+        };
+
+        while (characters.Count < length)
+        {
+            characters.Add(Pick(all));
+        }
+
+        // Fisher-Yates shuffle with a cryptographic source
+        for (var i = characters.Count - 1; i > 0; i--)
+        {
+            var j = RandomNumberGenerator.GetInt32(i + 1);
+            (characters[i], characters[j]) = (characters[j], characters[i]);
+        }
+
+        return new string(characters.ToArray());
+    }
+
+    /// <summary>Mirrors the Identity password options configured in Program.cs.</summary>
+    public bool MeetsPolicy(string password) =>
+        password.Length >= 8
+        && password.Any(char.IsDigit)
+        && password.Any(char.IsLower)
+        && password.Any(char.IsUpper)
+        && password.Any(c => !char.IsLetterOrDigit(c));
+
+    private static char Pick(string alphabet) => alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)];
+}
+`,
+
+    'Services/SmsService.cs': `using Twilio;
+using Twilio.Rest.Api.V2010.Account;
+using Twilio.Types;
+
+namespace {{projectNamePascal}}.Services;
+
+/// <summary>
+/// Sends SMS through Twilio when Twilio:AccountSid, Twilio:AuthToken and Twilio:FromNumber are
+/// configured; otherwise the code is only logged (development).
+/// </summary>
+public class SmsService : ISmsService
+{
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<SmsService> _logger;
+
+    public SmsService(IConfiguration configuration, ILogger<SmsService> logger)
+    {
+        _configuration = configuration;
+        _logger = logger;
+    }
+
+    public async Task SendTwoFactorCodeAsync(string phoneNumber, string code)
+    {
+        var accountSid = _configuration["Twilio:AccountSid"];
+        var authToken = _configuration["Twilio:AuthToken"];
+        var fromNumber = _configuration["Twilio:FromNumber"];
+
+        if (string.IsNullOrWhiteSpace(accountSid) || string.IsNullOrWhiteSpace(authToken) || string.IsNullOrWhiteSpace(fromNumber))
+        {
+            _logger.LogInformation("Twilio is not configured; two-factor code for {Phone} not sent", phoneNumber);
+            return;
+        }
+
+        TwilioClient.Init(accountSid, authToken);
+        await MessageResource.CreateAsync(
+            to: new PhoneNumber(phoneNumber),
+            from: new PhoneNumber(fromNumber),
+            body: $"Your verification code is {code}");
+    }
+}
+`,
+
+    'Services/TwoFactorService.cs': `using {{projectNamePascal}}.Models;
+using Microsoft.AspNetCore.Identity;
+using System.Text.Encodings.Web;
+
+namespace {{projectNamePascal}}.Services;
+
+public class TwoFactorService : ITwoFactorService
+{
+    private const string Issuer = "{{projectNamePascal}}";
+
+    private readonly UserManager<ApplicationUser> _userManager;
+
+    public TwoFactorService(UserManager<ApplicationUser> userManager)
+    {
+        _userManager = userManager;
+    }
+
+    public Task<string> GenerateTwoFactorTokenAsync(ApplicationUser user) =>
+        _userManager.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultPhoneProvider);
+
+    public string GenerateQrCodeUri(string email, string authenticatorKey)
+    {
+        var encoder = UrlEncoder.Default;
+        return $"otpauth://totp/{encoder.Encode(Issuer)}:{encoder.Encode(email)}?secret={authenticatorKey}&issuer={encoder.Encode(Issuer)}&digits=6";
+    }
+}
+`,
+
+    'Services/UserClaimsService.cs': `using System.Security.Claims;
+using {{projectNamePascal}}.Models;
+using Microsoft.AspNetCore.Identity;
+
+namespace {{projectNamePascal}}.Services;
+
+public class UserClaimsService : IUserClaimsService
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+
+    public UserClaimsService(UserManager<ApplicationUser> userManager)
+    {
+        _userManager = userManager;
+    }
+
+    public async Task<IList<Claim>> GetClaimsAsync(ApplicationUser user)
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Name, user.UserName ?? string.Empty),
+            new(ClaimTypes.Email, user.Email ?? string.Empty),
+            new("full_name", user.FullName)
+        };
+
+        foreach (var role in await _userManager.GetRolesAsync(user))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
+        }
+
+        claims.AddRange(await _userManager.GetClaimsAsync(user));
+        return claims;
+    }
+}
+`,
+
+    'Services/UserService.cs': `using AutoMapper;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+
+namespace {{projectNamePascal}}.Services;
+
+public class UserService : IUserService
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IMapper _mapper;
+
+    public UserService(UserManager<ApplicationUser> userManager, IMapper mapper)
+    {
+        _userManager = userManager;
+        _mapper = mapper;
+    }
+
+    public async Task<UserResponse?> GetByIdAsync(int id)
+    {
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        return user == null ? null : _mapper.Map<UserResponse>(user);
+    }
+
+    public async Task<IReadOnlyList<UserResponse>> ListAsync(int page = 1, int pageSize = 20)
+    {
+        var users = await _userManager.Users
+            .OrderBy(u => u.Id)
+            .Skip((Math.Max(page, 1) - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return _mapper.Map<List<UserResponse>>(users);
+    }
+
+    public async Task<bool> DeactivateAsync(int id)
+    {
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        if (user == null)
+        {
+            return false;
+        }
+
+        user.IsActive = false;
+        user.UpdatedAt = DateTime.UtcNow;
+        var result = await _userManager.UpdateAsync(user);
+        return result.Succeeded;
+    }
+}
+`,
+
+    'Validators/AuthValidators.cs': `using FluentValidation;
+using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Validators;
+
+public class LoginRequestValidator : AbstractValidator<LoginRequest>
+{
+    public LoginRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress();
+        RuleFor(x => x.Password).NotEmpty();
+    }
+}
+
+public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
+{
+    public RegisterRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress();
+        RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Password)
+            .NotEmpty()
+            .MinimumLength(8)
+            .Matches("[A-Z]").WithMessage("Password must contain an uppercase letter")
+            .Matches("[a-z]").WithMessage("Password must contain a lowercase letter")
+            .Matches("[0-9]").WithMessage("Password must contain a digit")
+            .Matches("[^a-zA-Z0-9]").WithMessage("Password must contain a special character");
+        RuleFor(x => x.ConfirmPassword).Equal(x => x.Password).WithMessage("Passwords do not match");
+        RuleFor(x => x.PhoneNumber).Matches(@"^\\+?[0-9 ()-]{7,20}$").When(x => !string.IsNullOrEmpty(x.PhoneNumber));
+    }
+}
 `
   }
 };

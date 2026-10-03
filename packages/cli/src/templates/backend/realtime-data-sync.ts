@@ -25,8 +25,8 @@ export const realtimeDataSyncTemplate: BackendTemplate = {
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface ISyncDocument {
-  id: string;
-  collection: string;
+  documentId: string;
+  collectionName: string;
   version: number;
   data: Record<string, unknown>;
   crdt: any; // CRDT state (G-Counter, LWW-Register, OR-Set, etc.)
@@ -58,12 +58,12 @@ export interface ISyncDocumentDocument extends ISyncDocument, Document {
 }
 
 const SyncDocumentSchema = new Schema({
-  id: {
+  documentId: {
     type: String,
     required: true,
     unique: true,
   },
-  collection: {
+  collectionName: {
     type: String,
     required: true,
     index: true,
@@ -102,11 +102,11 @@ const SyncDocumentSchema = new Schema({
   timestamps: true,
 });
 
-SyncDocumentSchema.index({ collection: 1, updatedAt: -1 });
+SyncDocumentSchema.index({ collectionName: 1, updatedAt: -1 });
 SyncDocumentSchema.index({ collaborators: 1 });
 SyncDocumentSchema.index({ version: 1 });
 
-export const SyncDocument: Model<ISyncDocumentDocument> = mongoose.model('SyncDocument', SyncDocumentSchema);
+export const SyncDocument: Model<ISyncDocumentDocument> = mongoose.model<ISyncDocumentDocument>('SyncDocument', SyncDocumentSchema);
 `,
 
     'sync-server/services/crdt.service.ts': `// CRDT (Conflict-free Replicated Data Types) Service
@@ -195,18 +195,18 @@ export class GCounter implements CRDT<number> {
  * For sets with add and remove operations
  */
 export class ORSet<T> implements CRDT<T[]> {
-  value: Map<T, Set<string>>; // element -> set of node IDs that added it
-  tombstones: Map<T, Set<string>>; // element -> set of node IDs that removed it
+  private elements: Map<T, Set<string>>; // element -> set of node IDs that added it
+  private tombstones: Map<T, Set<string>>; // element -> set of node IDs that removed it
 
   constructor() {
-    this.value = new Map();
+    this.elements = new Map();
     this.tombstones = new Map();
   }
 
   add(element: T, nodeId: string): void {
-    const addedBy = this.value.get(element) || new Set();
+    const addedBy = this.elements.get(element) || new Set();
     addedBy.add(nodeId);
-    this.value.set(element, addedBy);
+    this.elements.set(element, addedBy);
 
     // Remove from tombstones if present
     const removedBy = this.tombstones.get(element);
@@ -225,7 +225,7 @@ export class ORSet<T> implements CRDT<T[]> {
   }
 
   has(element: T): boolean {
-    const addedBy = this.value.get(element);
+    const addedBy = this.elements.get(element);
     const removedBy = this.tombstones.get(element);
 
     if (!addedBy || addedBy.size === 0) {
@@ -249,7 +249,7 @@ export class ORSet<T> implements CRDT<T[]> {
   get value(): T[] {
     const result: T[] = [];
 
-    for (const element of this.value.keys()) {
+    for (const element of this.elements.keys()) {
       if (this.has(element)) {
         result.push(element);
       }
@@ -260,12 +260,12 @@ export class ORSet<T> implements CRDT<T[]> {
 
   merge(other: ORSet<T>): ORSet<T> {
     // Merge added sets
-    for (const [element, addedBy] of other.value.entries()) {
-      const currentAdded = this.value.get(element) || new Set();
+    for (const [element, addedBy] of other.elements.entries()) {
+      const currentAdded = this.elements.get(element) || new Set();
       for (const nodeId of addedBy) {
         currentAdded.add(nodeId);
       }
-      this.value.set(element, currentAdded);
+      this.elements.set(element, currentAdded);
     }
 
     // Merge tombstone sets
@@ -709,10 +709,11 @@ export class EventSourcingService {
   private async createSnapshot(documentId: string): Promise<void> {
     const stream = this.getStream(documentId);
     stream.snapshot = await this.replayEvents(documentId);
-    stream.snapshotVersion = stream.version;
+    const snapshotVersion = stream.version;
+    stream.snapshotVersion = snapshotVersion;
 
     // Remove old events
-    stream.events = stream.events.filter(e => e.version > stream.snapshotVersion);
+    stream.events = stream.events.filter(e => e.version > snapshotVersion);
   }
 
   /**
@@ -776,7 +777,7 @@ export class EventSourcingService {
 
 import { Request, Response } from 'express';
 import { SyncDocument } from '../models/sync-document.model';
-import { CRDTService } from '../services/crdt.service';
+import { CRDTService } from '../services/crdt-operations.service';
 import { OptimisticUpdatesService } from '../services/optimistic-updates.service';
 import { EventSourcingService } from '../services/event-sourcing.service';
 import { PresenceService } from '../services/presence.service';
@@ -787,11 +788,11 @@ export class SyncController {
   private eventSourcing: EventSourcingService;
   private presence: PresenceService;
 
-  constructor() {
+  constructor(presence: PresenceService = new PresenceService()) {
     this.crdtService = new CRDTService();
     this.optimisticUpdates = new OptimisticUpdatesService();
     this.eventSourcing = new EventSourcingService();
-    this.presence = new PresenceService();
+    this.presence = presence;
   }
 
   /**
@@ -802,7 +803,7 @@ export class SyncController {
       const { documentId } = req.params;
       const { version } = req.query;
 
-      const document = await SyncDocument.findById(documentId);
+      const document = await SyncDocument.findOne({ documentId });
 
       if (!document) {
         res.status(404).json({ error: 'Document not found' });
@@ -832,15 +833,15 @@ export class SyncController {
     try {
       const { documentId } = req.params;
       const { collection, data, operation } = req.body;
-      const userId = (req as Request & { user?: { id?: string } }).user?.id;
+      const userId = (req as Request & { user?: { id?: string } }).user?.id ?? 'anonymous';
 
-      let document = await SyncDocument.findById(documentId);
+      let document = await SyncDocument.findOne({ documentId });
 
       if (!document) {
         // Create new document
         document = new SyncDocument({
-          id: documentId,
-          collection,
+          documentId,
+          collectionName: collection,
           version: 0,
           data,
           crdt: {},
@@ -852,7 +853,9 @@ export class SyncController {
         });
       } else {
         // Apply operation using CRDT
-        const result = this.crdtService.applyOperation(document, operation);
+        const result = this.crdtService.applyOperation({ data: document.data }, operation);
+        document.data = result.data;
+        document.markModified('data');
 
         // Append event to event stream
         await this.eventSourcing.appendEvent(
@@ -905,12 +908,12 @@ export class SyncController {
   joinDocument = async (req: Request, res: Response): Promise<void> => {
     try {
       const { documentId } = req.params;
-      const userId = (req as Request & { user?: { id?: string } }).user?.id;
+      const userId = (req as Request & { user?: { id?: string } }).user?.id ?? 'anonymous';
 
       await this.presence.join(documentId, userId);
 
       // Get current document state
-      const document = await SyncDocument.findById(documentId);
+      const document = await SyncDocument.findOne({ documentId });
 
       // Subscribe to updates
       // (This would set up WebSocket connection in real implementation)
@@ -931,7 +934,7 @@ export class SyncController {
   leaveDocument = async (req: Request, res: Response): Promise<void> => {
     try {
       const { documentId } = req.params;
-      const userId = (req as Request & { user?: { id?: string } }).user?.id;
+      const userId = (req as Request & { user?: { id?: string } }).user?.id ?? 'anonymous';
 
       await this.presence.leave(documentId, userId);
 
@@ -1186,8 +1189,6 @@ export class CRDTService {
     'client-sdk/sync-client.ts': `// Real-Time Sync Client SDK
 // Framework-agnostic JavaScript/TypeScript SDK for real-time data synchronization
 
-import { WebSocket } from 'whatwg-url'; // Native WebSocket in browser
-
 export interface SyncClientConfig {
   serverURL: string;
   documentId: string;
@@ -1207,7 +1208,7 @@ export interface SyncEventData {
 }
 
 export class SyncClient {
-  private config: SyncClientConfig;
+  private config: SyncClientConfig & { reconnectInterval: number; maxReconnectAttempts: number };
   private ws?: WebSocket;
   private eventSource?: EventSource;
   private reconnectAttempts = 0;
@@ -1259,7 +1260,7 @@ export class SyncClient {
       this.emit('connected', {});
     };
 
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = (event: MessageEvent) => {
       const data = JSON.parse(event.data);
       this.handleMessage(data);
     };
@@ -1270,7 +1271,7 @@ export class SyncClient {
       this.attemptReconnect();
     };
 
-    this.ws.onerror = (error) => {
+    this.ws.onerror = (error: Event) => {
       this.emit('error', { error });
     };
   }
@@ -1298,7 +1299,7 @@ export class SyncClient {
       this.handleMessage(data);
     };
 
-    this.eventSource.onerror = (error) => {
+    this.eventSource.onerror = () => {
       this.isConnected = false;
       this.emit('disconnected', {});
       this.eventSource?.close();
@@ -1471,7 +1472,7 @@ export function createSyncClient(config: SyncClientConfig): SyncClient {
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { createSyncClient, SyncClient, SyncClientConfig } from '../sync-client';
 
-export function useRealtimeSync(documentId: string, token?: string) {
+export function useRealtimeSync(documentId: string, token?: string, serverURL = 'ws://localhost:3002') {
   const [isConnected, setIsConnected] = useState(false);
   const [data, setData] = useState<any>(null);
   const [presence, setPresence] = useState<Map<string, any>>(new Map());
@@ -1479,7 +1480,7 @@ export function useRealtimeSync(documentId: string, token?: string) {
 
   useEffect(() => {
     const config: SyncClientConfig = {
-      serverURL: process.env.REACT_APP_SYNC_SERVER_URL || 'ws://localhost:3002',
+      serverURL,
       documentId,
       token,
       transport: 'websocket',
@@ -1559,7 +1560,7 @@ export function useRealtimeSync(documentId: string, token?: string) {
 import { ref, onMounted, onUnmounted, Ref } from 'vue';
 import { createSyncClient, SyncClient, SyncClientConfig } from '../sync-client';
 
-export function useRealtimeSync(documentId: string, token?: string) {
+export function useRealtimeSync(documentId: string, token?: string, serverURL = 'ws://localhost:3002') {
   const isConnected = ref(false);
   const data = ref<any>(null);
   const presence = ref<Map<string, any>>(new Map());
@@ -1569,7 +1570,7 @@ export function useRealtimeSync(documentId: string, token?: string) {
 
   onMounted(() => {
     const config: SyncClientConfig = {
-      serverURL: import.meta.env.VITE_SYNC_SERVER_URL || 'ws://localhost:3002',
+      serverURL,
       documentId,
       token,
       transport: 'websocket',
@@ -1647,9 +1648,9 @@ export class RealtimeSyncService implements OnDestroy {
   /**
    * Connect to sync server
    */
-  connect(documentId: string, token?: string): void {
+  connect(documentId: string, token?: string, serverURL = 'ws://localhost:3002'): void {
     const config: SyncClientConfig = {
-      serverURL: environment.syncServerURL || 'ws://localhost:3002',
+      serverURL,
       documentId,
       token,
       transport: 'websocket',
@@ -1745,9 +1746,9 @@ function createRealtimeSyncStore() {
 
   let syncClient: SyncClient | null = null;
 
-  function connect(documentId: string, token?: string) {
+  function connect(documentId: string, token?: string, serverURL = 'ws://localhost:3002') {
     const config: SyncClientConfig = {
-      serverURL: import.meta.env.VITE_SYNC_SERVER_URL || 'ws://localhost:3002',
+      serverURL,
       documentId,
       token,
       transport: 'websocket',
@@ -1902,27 +1903,239 @@ MIT
   "name": "realtime-data-sync",
   "version": "1.0.0",
   "description": "Real-time data synchronization with CRDT and event sourcing",
-  "main": "dist/index.js",
+  "main": "dist/sync-server/server.js",
   "scripts": {
-    "dev": "ts-node-dev src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only sync-server/server.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/sync-server/server.js",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "mongoose": "^7.6.0",
-    "ws": "^8.16.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "ws": "^8.16.0"
   },
   "devDependencies": {
+    "@angular/core": "^17.3.0",
     "@types/express": "^4.17.17",
     "@types/node": "^20.0.0",
-    "@types/ws": "^8.5.0",
+    "@types/react": "^18.2.79",
     "@types/uuid": "^9.0.0",
+    "@types/ws": "^8.5.0",
+    "react": "^18.2.0",
+    "rxjs": "^7.8.1",
+    "svelte": "^4.2.15",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.0.0",
-    "ts-node-dev": "^2.0.0"
+    "vue": "^3.4.21"
+  }
+}`,
+
+    'sync-server/hub.ts': `// Connection hub
+// Fans document events out to every connected WebSocket / SSE client of a document
+
+export type HubListener = (event: unknown) => void;
+
+export class SyncHub {
+  private listeners = new Map<string, Set<HubListener>>();
+
+  /** Subscribe to a document's events; returns the unsubscribe function. */
+  subscribe(documentId: string, listener: HubListener): () => void {
+    if (!this.listeners.has(documentId)) {
+      this.listeners.set(documentId, new Set());
+    }
+    this.listeners.get(documentId)!.add(listener);
+
+    return () => {
+      const listeners = this.listeners.get(documentId);
+      listeners?.delete(listener);
+      if (listeners && listeners.size === 0) {
+        this.listeners.delete(documentId);
+      }
+    };
+  }
+
+  /** Deliver an event to every subscriber of the document except \`except\`. */
+  publish(documentId: string, event: unknown, except?: HubListener): void {
+    for (const listener of this.listeners.get(documentId) ?? []) {
+      if (listener !== except) {
+        listener(event);
+      }
+    }
   }
 }
 `,
+
+    'sync-server/server.ts': `// Real-time sync server entry point (REST + WebSocket + Server-Sent Events)
+
+import 'dotenv/config';
+import { createServer } from 'http';
+import express from 'express';
+import mongoose from 'mongoose';
+import { SyncController } from './controllers/sync.controller';
+import { SyncHub } from './hub';
+import { PresenceService } from './services/presence.service';
+import { attachWebSocketServer } from './websocket';
+
+export const app = express();
+export const server = createServer(app);
+
+const hub = new SyncHub();
+const presence = new PresenceService();
+const controller = new SyncController(presence);
+
+// Everything the controller broadcasts reaches the connected clients
+presence.on('broadcast', ({ documentId, message }) => hub.publish(documentId, message));
+
+app.use(express.json());
+
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'healthy',
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// REST
+app.get('/documents/:documentId', controller.getDocument);
+app.post('/documents/:documentId', controller.saveDocument);
+app.get('/documents/:documentId/presence', controller.getPresence);
+app.post('/documents/:documentId/join', controller.joinDocument);
+app.post('/documents/:documentId/leave', controller.leaveDocument);
+
+// Server-Sent Events transport (client option transport: 'sse')
+app.get('/events', (req, res) => {
+  const documentId = String(req.query.documentId ?? '');
+  if (!documentId) {
+    res.status(400).json({ error: 'documentId is required' });
+    return;
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  res.write(': connected\\n\\n');
+
+  const unsubscribe = hub.subscribe(documentId, (event) => {
+    res.write(\`data: \${JSON.stringify(event)}\\n\\n\`);
+  });
+  req.on('close', unsubscribe);
+});
+
+attachWebSocketServer(server, hub, presence);
+
+async function start(): Promise<void> {
+  const port = Number(process.env.PORT) || 3002;
+
+  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/realtime-sync');
+  server.listen(port, () => {
+    console.log(\`Real-time sync server listening on port \${port}\`);
+  });
+}
+
+if (require.main === module) {
+  start().catch((error) => {
+    console.error('Failed to start the sync server:', error);
+    process.exit(1);
+  });
+}
+`,
+
+    'sync-server/websocket.ts': `// WebSocket transport
+// Clients connect to ws://host:port/?documentId=...&token=... and exchange JSON messages
+
+import { Server as HttpServer } from 'http';
+import { WebSocket, WebSocketServer } from 'ws';
+import { SyncHub } from './hub';
+import { PresenceService } from './services/presence.service';
+
+export function attachWebSocketServer(server: HttpServer, hub: SyncHub, presence: PresenceService): WebSocketServer {
+  const wss = new WebSocketServer({ server });
+
+  wss.on('connection', async (socket: WebSocket, request) => {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    const documentId = url.searchParams.get('documentId');
+    const userId = url.searchParams.get('userId') ?? url.searchParams.get('token') ?? \`guest-\${Date.now()}\`;
+
+    if (!documentId) {
+      socket.close(1008, 'documentId is required');
+      return;
+    }
+
+    const send = (event: unknown) => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(event));
+      }
+    };
+
+    const unsubscribe = hub.subscribe(documentId, send);
+    await presence.join(documentId, userId);
+    hub.publish(documentId, { type: 'user-joined', documentId, userId, presence: presence.getPresence(documentId).get(userId) }, send);
+
+    socket.on('message', (raw) => {
+      try {
+        const message = JSON.parse(raw.toString()) as { type: string; operation?: unknown; cursor?: unknown };
+
+        if (message.type === 'operation') {
+          hub.publish(documentId, {
+            type: 'document-updated',
+            documentId,
+            operation: message.operation,
+            userId,
+            timestamp: new Date(),
+          }, send);
+        } else if (message.type === 'cursor') {
+          presence.updateCursor(documentId, userId, message.cursor);
+          hub.publish(documentId, { type: 'cursor-updated', documentId, userId, cursor: message.cursor }, send);
+        }
+      } catch {
+        send({ type: 'error', message: 'Invalid message' });
+      }
+    });
+
+    socket.on('close', async () => {
+      unsubscribe();
+      await presence.leave(documentId, userId);
+      hub.publish(documentId, { type: 'user-left', documentId, userId });
+    });
+  });
+
+  return wss;
+}
+`,
+
+    'tsconfig.json': `{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "outDir": "./dist",
+    "rootDir": "./",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "experimentalDecorators": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "sourceMap": true
+  },
+  "include": [
+    "sync-server/**/*.ts",
+    "client-sdk/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}`,
   },
 };

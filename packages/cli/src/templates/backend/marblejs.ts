@@ -59,12 +59,11 @@ export const marblejsTemplate: BackendTemplate = {
     "uuid": "^9.0.1",
     "pg": "^8.11.5",
     "typeorm": "^0.3.20",
-    "amqplib": "^0.10.4",
-    "nodemailer": "^6.9.13",
     "winston": "^3.13.0",
     "helmet": "^7.1.0",
     "compression": "^1.7.4",
-    "express-rate-limit": "^7.2.0"
+    "redis": "^4.6.13",
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
@@ -72,8 +71,6 @@ export const marblejsTemplate: BackendTemplate = {
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/compression": "^1.7.5",
-    "@types/amqplib": "^0.10.5",
-    "@types/nodemailer": "^6.4.14",
     "@typescript-eslint/eslint-plugin": "^7.7.1",
     "@typescript-eslint/parser": "^7.7.1",
     "eslint": "^8.57.0",
@@ -88,7 +85,11 @@ export const marblejsTemplate: BackendTemplate = {
     "supertest": "^7.0.0"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\\\.spec\\\\.ts$",
     "transform": {
@@ -136,24 +137,44 @@ export const marblejsTemplate: BackendTemplate = {
 
     // Main application entry
     'src/index.ts': `import { createServer } from '@marblejs/http';
-import { IO } from 'fp-ts/lib/IO';
+import { createWebSocketServer } from '@marblejs/websockets';
 import { listener } from './http.listener';
+import { websocketListener } from './websocket.listener';
+import { dbService } from './services/db.service';
+import { redisService } from './services/redis.service';
 import { logger } from './utils/logger.util';
 import { config } from './config';
 
-const server = createServer({
-  port: config.port,
-  hostname: config.hostname,
-  listener,
-  options: {
-    httpsOptions: config.httpsOptions}});
+const main = async (): Promise<void> => {
+  await dbService.connect();
 
-const main: IO<void> = async () => {
+  try {
+    await redisService.connect();
+  } catch (error) {
+    logger.warn(\`Redis is not available, continuing without it: \${(error as Error).message}\`);
+  }
+
+  const server = await createServer({
+    port: config.port,
+    hostname: config.hostname,
+    listener,
+    options: {
+      httpsOptions: config.httpsOptions}});
   await server();
-  logger.info(\`🚀 Server is running on http://\${config.hostname}:\${config.port}\`);
+  logger.info(\`Server is running on http://\${config.hostname}:\${config.port}\`);
+
+  const wsServer = await createWebSocketServer({
+    options: { port: config.wsPort },
+    listener: websocketListener});
+  await wsServer();
+  logger.info(\`WebSocket server is running on ws://\${config.hostname}:\${config.wsPort}\`);
 };
 
-main();`,
+main().catch((error) => {
+  logger.error('Failed to start the server', error);
+  process.exit(1);
+});
+`,
 
     // HTTP Listener
     'src/http.listener.ts': `import { httpListener } from '@marblejs/http';
@@ -162,7 +183,6 @@ import { bodyParser$ } from '@marblejs/middleware-body';
 import { cors$ } from '@marblejs/middleware-cors';
 import { helmet$ } from './middlewares/helmet.middleware';
 import { compression$ } from './middlewares/compression.middleware';
-import { requestValidator$ } from './middlewares/validator.middleware';
 import { error$ } from './middlewares/error.middleware';
 import { api$ } from './effects/api.effects';
 
@@ -173,21 +193,19 @@ export const listener = httpListener({
     bodyParser$(),
     cors$({
       origin: process.env.CORS_ORIGINS?.split(',') || '*',
-      credentials: true}),
+      withCredentials: true}),
     helmet$,
-    compression$,
-    requestValidator$],
+    compression$],
   effects: [api$],
-  error$});`,
+  error$});
+`,
 
     // API Effects
-    'src/effects/api.effects.ts': `import { r } from '@marblejs/http';
-import { combineRoutes } from '@marblejs/http';
+    'src/effects/api.effects.ts': `import { combineRoutes } from '@marblejs/http';
 import { authEffects$ } from './auth.effects';
 import { userEffects$ } from './user.effects';
 import { todoEffects$ } from './todo.effects';
 import { healthEffect$ } from './health.effects';
-import { websocketEffect$ } from './websocket.effects';
 import { graphqlEffect$ } from './graphql.effects';
 
 export const api$ = combineRoutes('/api/v1', [
@@ -195,18 +213,17 @@ export const api$ = combineRoutes('/api/v1', [
   userEffects$,
   todoEffects$,
   healthEffect$,
-  websocketEffect$,
-  graphqlEffect$]);`,
+  graphqlEffect$]);
+`,
 
     // Auth Effects
-    'src/effects/auth.effects.ts': `import { r, HttpError, HttpStatus } from '@marblejs/http';
+    'src/effects/auth.effects.ts': `import { r, combineRoutes, HttpError, HttpStatus } from '@marblejs/http';
 import { map, mergeMap, catchError } from 'rxjs/operators';
-import { of, throwError } from 'rxjs';
+import { throwError } from 'rxjs';
 import * as t from 'io-ts';
 import { authService } from '../services/auth.service';
 import { generateToken } from '../utils/jwt.util';
-import { hashPassword, comparePassword } from '../utils/crypto.util';
-import { requestValidator$ } from '../middlewares/validator.middleware';
+import { requestValidator$ } from '@marblejs/middleware-io';
 
 // Validation schemas
 const LoginDto = t.type({
@@ -312,12 +329,12 @@ export const authEffects$ = combineRoutes('/auth', [
   logout$]);`,
 
     // User Effects
-    'src/effects/user.effects.ts': `import { r, HttpError, HttpStatus } from '@marblejs/http';
+    'src/effects/user.effects.ts': `import { r, combineRoutes, HttpError, HttpStatus } from '@marblejs/http';
 import { map, mergeMap, catchError } from 'rxjs/operators';
 import { throwError } from 'rxjs';
 import * as t from 'io-ts';
-import { authorize$ } from '../middlewares/auth.middleware';
-import { requestValidator$ } from '../middlewares/validator.middleware';
+import { authorize$, authorizeRoles$ } from '../middlewares/auth.middleware';
+import { requestValidator$ } from '@marblejs/middleware-io';
 import { userService } from '../services/user.service';
 
 // Validation schemas
@@ -325,13 +342,15 @@ const UpdateUserDto = t.partial({
   name: t.string,
   email: t.string});
 
+const IdParams = t.type({ id: t.string });
+
 // Get current user effect
 const getMe$ = r.pipe(
   r.matchPath('/me'),
   r.matchType('GET'),
+  r.use(authorize$),
   r.useEffect((req$) =>
     req$.pipe(
-      authorize$,
       map((req) => ({
         body: req.user})),
     )
@@ -342,9 +361,9 @@ const getMe$ = r.pipe(
 const getUsers$ = r.pipe(
   r.matchPath('/'),
   r.matchType('GET'),
+  r.use(authorizeRoles$(['admin'])),
   r.useEffect((req$) =>
     req$.pipe(
-      authorize$,
       mergeMap(() =>
         userService.findAll().pipe(
           map((users) => ({
@@ -359,9 +378,10 @@ const getUsers$ = r.pipe(
 const getUserById$ = r.pipe(
   r.matchPath('/:id'),
   r.matchType('GET'),
+  r.use(authorize$),
   r.useEffect((req$) =>
     req$.pipe(
-      authorize$,
+      requestValidator$({ params: IdParams }),
       mergeMap((req) =>
         userService.findById(req.params.id).pipe(
           map((user) => ({
@@ -379,10 +399,10 @@ const getUserById$ = r.pipe(
 const updateUser$ = r.pipe(
   r.matchPath('/:id'),
   r.matchType('PUT'),
+  r.use(authorize$),
   r.useEffect((req$) =>
     req$.pipe(
-      authorize$,
-      requestValidator$({ body: UpdateUserDto }),
+      requestValidator$({ params: IdParams, body: UpdateUserDto }),
       mergeMap((req) =>
         userService.update(req.params.id, req.body).pipe(
           map((user) => ({
@@ -400,9 +420,10 @@ const updateUser$ = r.pipe(
 const deleteUser$ = r.pipe(
   r.matchPath('/:id'),
   r.matchType('DELETE'),
+  r.use(authorizeRoles$(['admin'])),
   r.useEffect((req$) =>
     req$.pipe(
-      authorize$,
+      requestValidator$({ params: IdParams }),
       mergeMap((req) =>
         userService.delete(req.params.id).pipe(
           map(() => ({
@@ -425,37 +446,40 @@ export const userEffects$ = combineRoutes('/users', [
   deleteUser$]);`,
 
     // Todo Effects
-    'src/effects/todo.effects.ts': `import { r, HttpError, HttpStatus } from '@marblejs/http';
+    'src/effects/todo.effects.ts': `import { r, combineRoutes, HttpError, HttpStatus } from '@marblejs/http';
 import { map, mergeMap, catchError } from 'rxjs/operators';
 import { throwError } from 'rxjs';
 import * as t from 'io-ts';
 import { authorize$ } from '../middlewares/auth.middleware';
-import { requestValidator$ } from '../middlewares/validator.middleware';
+import { requestValidator$ } from '@marblejs/middleware-io';
 import { todoService } from '../services/todo.service';
+import { TodoPriority, TodoStatus } from '../models/todo.model';
 
 // Validation schemas
 const CreateTodoDto = t.type({
   title: t.string,
   description: t.union([t.string, t.undefined]),
   dueDate: t.union([t.string, t.undefined]),
-  priority: t.union([t.literal('low'), t.literal('medium'), t.literal('high')])});
+  priority: t.union([t.literal(TodoPriority.LOW), t.literal(TodoPriority.MEDIUM), t.literal(TodoPriority.HIGH)])});
 
 const UpdateTodoDto = t.partial({
   title: t.string,
   description: t.string,
-  status: t.union([t.literal('pending'), t.literal('in_progress'), t.literal('completed')]),
-  priority: t.union([t.literal('low'), t.literal('medium'), t.literal('high')]),
+  status: t.union([t.literal(TodoStatus.PENDING), t.literal(TodoStatus.IN_PROGRESS), t.literal(TodoStatus.COMPLETED)]),
+  priority: t.union([t.literal(TodoPriority.LOW), t.literal(TodoPriority.MEDIUM), t.literal(TodoPriority.HIGH)]),
   dueDate: t.string});
+
+const IdParams = t.type({ id: t.string });
 
 // Get all todos effect
 const getTodos$ = r.pipe(
   r.matchPath('/'),
   r.matchType('GET'),
+  r.use(authorize$),
   r.useEffect((req$) =>
     req$.pipe(
-      authorize$,
       mergeMap((req) =>
-        todoService.findAllByUser(req.user.id).pipe(
+        todoService.findAllByUser(req.user!.id).pipe(
           map((todos) => ({
             body: { todos }})),
         )
@@ -468,11 +492,12 @@ const getTodos$ = r.pipe(
 const getTodoById$ = r.pipe(
   r.matchPath('/:id'),
   r.matchType('GET'),
+  r.use(authorize$),
   r.useEffect((req$) =>
     req$.pipe(
-      authorize$,
+      requestValidator$({ params: IdParams }),
       mergeMap((req) =>
-        todoService.findById(req.params.id, req.user.id).pipe(
+        todoService.findById(req.params.id, req.user!.id).pipe(
           map((todo) => ({
             body: todo})),
           catchError(() =>
@@ -488,12 +513,16 @@ const getTodoById$ = r.pipe(
 const createTodo$ = r.pipe(
   r.matchPath('/'),
   r.matchType('POST'),
+  r.use(authorize$),
   r.useEffect((req$) =>
     req$.pipe(
-      authorize$,
       requestValidator$({ body: CreateTodoDto }),
       mergeMap((req) =>
-        todoService.create({ ...req.body, userId: req.user.id }).pipe(
+        todoService.create({
+          ...req.body,
+          dueDate: req.body.dueDate ? new Date(req.body.dueDate) : undefined,
+          userId: req.user!.id,
+        }).pipe(
           map((todo) => ({
             status: HttpStatus.CREATED,
             body: todo})),
@@ -510,12 +539,15 @@ const createTodo$ = r.pipe(
 const updateTodo$ = r.pipe(
   r.matchPath('/:id'),
   r.matchType('PUT'),
+  r.use(authorize$),
   r.useEffect((req$) =>
     req$.pipe(
-      authorize$,
-      requestValidator$({ body: UpdateTodoDto }),
+      requestValidator$({ params: IdParams, body: UpdateTodoDto }),
       mergeMap((req) =>
-        todoService.update(req.params.id, req.user.id, req.body).pipe(
+        todoService.update(req.params.id, req.user!.id, {
+          ...req.body,
+          dueDate: req.body.dueDate ? new Date(req.body.dueDate) : undefined,
+        }).pipe(
           map((todo) => ({
             body: todo})),
           catchError((error) =>
@@ -531,11 +563,12 @@ const updateTodo$ = r.pipe(
 const deleteTodo$ = r.pipe(
   r.matchPath('/:id'),
   r.matchType('DELETE'),
+  r.use(authorize$),
   r.useEffect((req$) =>
     req$.pipe(
-      authorize$,
+      requestValidator$({ params: IdParams }),
       mergeMap((req) =>
-        todoService.delete(req.params.id, req.user.id).pipe(
+        todoService.delete(req.params.id, req.user!.id).pipe(
           map(() => ({
             status: HttpStatus.NO_CONTENT,
             body: {}})),
@@ -557,8 +590,8 @@ export const todoEffects$ = combineRoutes('/todos', [
 
     // Health Effect
     'src/effects/health.effects.ts': `import { r } from '@marblejs/http';
+import { combineLatest } from 'rxjs';
 import { map, mergeMap } from 'rxjs/operators';
-import { of } from 'rxjs';
 import { dbService } from '../services/db.service';
 import { redisService } from '../services/redis.service';
 
@@ -567,47 +600,19 @@ export const healthEffect$ = r.pipe(
   r.matchType('GET'),
   r.useEffect((req$) =>
     req$.pipe(
-      mergeMap(() =>
-        Promise.all([
-          dbService.checkConnection().toPromise(),
-          redisService.checkConnection().toPromise()]).then(([dbStatus, redisStatus]) =>
-          of({
-            body: {
-              status: 'ok',
-              timestamp: new Date().toISOString(),
-              uptime: process.uptime(),
-              services: {
-                database: dbStatus ? 'healthy' : 'unhealthy',
-                redis: redisStatus ? 'healthy' : 'unhealthy'}}})
-        )
-      ),
+      mergeMap(() => combineLatest([dbService.checkConnection(), redisService.checkConnection()])),
+      map(([dbStatus, redisStatus]) => ({
+        body: {
+          status: 'ok',
+          timestamp: new Date().toISOString(),
+          uptime: process.uptime(),
+          services: {
+            database: dbStatus ? 'healthy' : 'unhealthy',
+            redis: redisStatus ? 'healthy' : 'unhealthy'}}})),
     )
   ),
-);`,
-
-    // WebSocket Effects
-    'src/effects/websocket.effects.ts': `import { webSocketListener } from '@marblejs/websockets';
-import { map } from 'rxjs/operators';
-import { matchEvent } from '@marblejs/core';
-
-const echo$ = matchEvent('echo')
-  .pipe(
-    map((event) => ({
-      type: 'echo_response',
-      payload: event.payload}))
-  );
-
-const broadcast$ = matchEvent('broadcast')
-  .pipe(
-    map((event) => ({
-      type: 'broadcast_message',
-      payload: {
-        message: event.payload.message,
-        timestamp: new Date().toISOString()}}))
-  );
-
-export const websocketEffect$ = webSocketListener({
-  effects: [echo$, broadcast$]});`,
+);
+`,
 
     // GraphQL Effect (mounts /graphql endpoint)
     'src/effects/graphql.effects.ts': `import { r } from '@marblejs/http';
@@ -655,22 +660,24 @@ export const schema = makeExecutableSchema({ typeDefs, resolvers });`,
 \`;`,
 
     // GraphQL Resolvers
-    'src/graphql/resolvers.ts': `import { dbService } from '../services/db.service';
+    'src/graphql/resolvers.ts': `import { firstValueFrom } from 'rxjs';
+import { dbService } from '../services/db.service';
 import { redisService } from '../services/redis.service';
 
 export const resolvers = {
   Query: {
     hello: () => 'Hello from Marble.js GraphQL!',
     health: async () => {
-      const dbOk = await dbService.checkConnection().toPromise();
-      const redisOk = await redisService.checkConnection().toPromise();
+      const dbOk = await firstValueFrom(dbService.checkConnection());
+      const redisOk = await firstValueFrom(redisService.checkConnection());
       return {
         status: dbOk && redisOk ? 'ok' : 'degraded',
         timestamp: new Date().toISOString(),
       };
     },
   },
-};`,
+};
+`,
 
     // Auth Middleware
     'src/middlewares/auth.middleware.ts': `import { HttpMiddlewareEffect, HttpError, HttpStatus } from '@marblejs/http';
@@ -678,12 +685,21 @@ import { map, mergeMap, catchError } from 'rxjs/operators';
 import { of, throwError } from 'rxjs';
 import { verifyToken } from '../utils/jwt.util';
 import { userService } from '../services/user.service';
+import { User } from '../models/user.model';
+
+declare module '@marblejs/http' {
+  // Adds the authenticated user, set by authorize$, to every request
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface HttpRequest<TBody = unknown, TParams = unknown, TQuery = unknown> {
+    user?: User;
+  }
+}
 
 export const authorize$: HttpMiddlewareEffect = (req$) =>
   req$.pipe(
     mergeMap((req) => {
       const token = req.headers.authorization?.replace('Bearer ', '');
-      
+
       if (!token) {
         return throwError(() => new HttpError('No token provided', HttpStatus.UNAUTHORIZED));
       }
@@ -691,9 +707,10 @@ export const authorize$: HttpMiddlewareEffect = (req$) =>
       try {
         const decoded = verifyToken(token);
         return userService.findById(decoded.sub).pipe(
-          map((user) => ({
-            ...req,
-            user})),
+          map((user) => {
+            req.user = user;
+            return req;
+          }),
           catchError(() =>
             throwError(() => new HttpError('User not found', HttpStatus.UNAUTHORIZED))
           ),
@@ -704,93 +721,35 @@ export const authorize$: HttpMiddlewareEffect = (req$) =>
     }),
   );
 
-export const authorizeRoles$ = (roles: string[]): HttpMiddlewareEffect => (req$) =>
-  req$.pipe(
-    authorize$,
+export const authorizeRoles$ = (roles: string[]): HttpMiddlewareEffect => (req$, ctx) =>
+  authorize$(req$, ctx).pipe(
     mergeMap((req) => {
-      if (!roles.includes(req.user.role)) {
+      if (!req.user || !roles.includes(req.user.role)) {
         return throwError(() => new HttpError('Forbidden', HttpStatus.FORBIDDEN));
       }
       return of(req);
     }),
-  );`,
-
-    // Validator Middleware
-    'src/middlewares/validator.middleware.ts': `import { HttpMiddlewareEffect, HttpError, HttpStatus } from '@marblejs/http';
-import { map, catchError } from 'rxjs/operators';
-import { throwError } from 'rxjs';
-import * as t from 'io-ts';
-import { PathReporter } from 'io-ts/lib/PathReporter';
-import { fold } from 'fp-ts/lib/Either';
-import { pipe } from 'fp-ts/lib/function';
-
-interface ValidatorOptions {
-  body?: t.Type<any>;
-  params?: t.Type<any>;
-  query?: t.Type<any>;
-}
-
-export const requestValidator$ = (options: ValidatorOptions): HttpMiddlewareEffect => (req$) =>
-  req$.pipe(
-    map((req) => {
-      const errors: string[] = [];
-
-      if (options.body) {
-        pipe(
-          options.body.decode(req.body),
-          fold(
-            (e) => errors.push(...PathReporter.report({ _tag: 'Left', left: e })),
-            () => {},
-          ),
-        );
-      }
-
-      if (options.params) {
-        pipe(
-          options.params.decode(req.params),
-          fold(
-            (e) => errors.push(...PathReporter.report({ _tag: 'Left', left: e })),
-            () => {},
-          ),
-        );
-      }
-
-      if (options.query) {
-        pipe(
-          options.query.decode(req.query),
-          fold(
-            (e) => errors.push(...PathReporter.report({ _tag: 'Left', left: e })),
-            () => {},
-          ),
-        );
-      }
-
-      if (errors.length > 0) {
-        throw new HttpError(errors.join(', '), HttpStatus.BAD_REQUEST);
-      }
-
-      return req;
-    }),
-    catchError((error) => throwError(() => error)),
-  );`,
+  );
+`,
 
     // Error Middleware
     'src/middlewares/error.middleware.ts': `import { HttpError, HttpErrorEffect, HttpStatus } from '@marblejs/http';
 import { map } from 'rxjs/operators';
 import { logger } from '../utils/logger.util';
 
-export const error$: HttpErrorEffect = (req$, res) =>
+export const error$: HttpErrorEffect = (req$) =>
   req$.pipe(
-    map((error) => {
+    map(({ request, error }) => {
       const status = error instanceof HttpError ? error.status : HttpStatus.INTERNAL_SERVER_ERROR;
       const message = error instanceof HttpError ? error.message : 'Internal server error';
-      
+
       logger.error(\`[\${status}] \${message}\`, {
         error: error.stack,
-        url: res.url,
-        method: res.method});
+        url: request.url,
+        method: request.method});
 
       return {
+        request,
         status,
         body: {
           error: {
@@ -798,43 +757,34 @@ export const error$: HttpErrorEffect = (req$, res) =>
             message,
             timestamp: new Date().toISOString()}}};
     }),
-  );`,
+  );
+`,
 
     // Helmet Middleware
-    'src/middlewares/helmet.middleware.ts': `import { HttpMiddlewareEffect } from '@marblejs/http';
-import { map } from 'rxjs/operators';
-import helmet from 'helmet';
+    'src/middlewares/helmet.middleware.ts': `import helmet from 'helmet';
+import { fromConnect } from './express.middleware';
 
-export const helmet$: HttpMiddlewareEffect = (req$) =>
-  req$.pipe(
-    map((req) => {
-      helmet()(req, req.res, () => {});
-      return req;
-    }),
-  );`,
+export const helmet$ = fromConnect(helmet());
+`,
 
     // Compression Middleware
-    'src/middlewares/compression.middleware.ts': `import { HttpMiddlewareEffect } from '@marblejs/http';
-import { map } from 'rxjs/operators';
-import compression from 'compression';
+    'src/middlewares/compression.middleware.ts': `import compression from 'compression';
+import { fromConnect } from './express.middleware';
 
-export const compression$: HttpMiddlewareEffect = (req$) =>
-  req$.pipe(
-    map((req) => {
-      compression()(req, req.res, () => {});
-      return req;
-    }),
-  );`,
+export const compression$ = fromConnect(compression());
+`,
 
     // User Service
     'src/services/user.service.ts': `import { Observable, of, throwError } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
-import { getRepository } from 'typeorm';
+import { dataSource } from './db.service';
 import { User } from '../models/user.model';
 import { hashPassword } from '../utils/crypto.util';
 
 class UserService {
-  private userRepository = getRepository(User);
+  private get userRepository() {
+    return dataSource.getRepository(User);
+  }
 
   findAll(): Observable<User[]> {
     return new Observable((observer) => {
@@ -984,11 +934,13 @@ export const authService = new AuthService();`,
 
     // Todo Service
     'src/services/todo.service.ts': `import { Observable } from 'rxjs';
-import { getRepository } from 'typeorm';
+import { dataSource } from './db.service';
 import { Todo } from '../models/todo.model';
 
 class TodoService {
-  private todoRepository = getRepository(Todo);
+  private get todoRepository() {
+    return dataSource.getRepository(Todo);
+  }
 
   findAllByUser(userId: string): Observable<Todo[]> {
     return new Observable((observer) => {
@@ -1068,34 +1020,38 @@ class TodoService {
 export const todoService = new TodoService();`,
 
     // Database Service
-    'src/services/db.service.ts': `import { createConnection, Connection } from 'typeorm';
+    'src/services/db.service.ts': `import 'reflect-metadata';
+import { DataSource } from 'typeorm';
 import { Observable, of } from 'rxjs';
 import { config } from '../config';
 import { User } from '../models/user.model';
 import { Todo } from '../models/todo.model';
 
-class DatabaseService {
-  private connection: Connection | null = null;
+export const dataSource = new DataSource({
+  type: 'postgres',
+  host: config.database.host,
+  port: config.database.port,
+  username: config.database.username,
+  password: config.database.password,
+  database: config.database.name,
+  entities: [User, Todo],
+  synchronize: config.database.synchronize,
+  logging: config.database.logging});
 
+class DatabaseService {
   async connect(): Promise<void> {
-    this.connection = await createConnection({
-      type: 'postgres',
-      host: config.database.host,
-      port: config.database.port,
-      username: config.database.username,
-      password: config.database.password,
-      database: config.database.name,
-      entities: [User, Todo],
-      synchronize: config.database.synchronize,
-      logging: config.database.logging});
+    if (!dataSource.isInitialized) {
+      await dataSource.initialize();
+    }
   }
 
   checkConnection(): Observable<boolean> {
-    return of(this.connection?.isConnected || false);
+    return of(dataSource.isInitialized);
   }
 }
 
-export const dbService = new DatabaseService();`,
+export const dbService = new DatabaseService();
+`,
 
     // Redis Service
     'src/services/redis.service.ts': `import { createClient, RedisClientType } from 'redis';
@@ -1245,7 +1201,7 @@ export class Todo {
 }`,
 
     // JWT Utility
-    'src/utils/jwt.util.ts': `import jwt from 'jsonwebtoken';
+    'src/utils/jwt.util.ts': `import jwt, { SignOptions } from 'jsonwebtoken';
 import { config } from '../config';
 
 export interface JwtPayload {
@@ -1254,7 +1210,7 @@ export interface JwtPayload {
 }
 
 export const generateToken = (payload: JwtPayload, expiresIn = '1h'): string => {
-  return jwt.sign(payload, config.jwt.secret, { expiresIn });
+  return jwt.sign(payload, config.jwt.secret, { expiresIn: expiresIn as SignOptions['expiresIn'] });
 };
 
 export const verifyToken = (token: string): JwtPayload => {
@@ -1303,6 +1259,7 @@ dotenv.config();
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   hostname: process.env.HOSTNAME || 'localhost',
+  wsPort: parseInt(process.env.WS_PORT || '3001', 10),
   
   database: {
     host: process.env.DB_HOST || 'localhost',
@@ -1702,4 +1659,60 @@ src/
 ## License
 
 MIT
+`,
+
+    'logs/combined.log': `{"error":"HttpError: No token provided\\n    at /tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/apps/{{projectName}}/dist/middlewares/auth.middleware.js:12:45\\n    at Observable.init [as _subscribe] (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/observable/throwError.js:8:64)\\n    at Observable._trySubscribe (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/Observable.js:41:25)\\n    at /tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/Observable.js:35:31\\n    at Object.errorContext (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/util/errorContext.js:22:9)\\n    at Observable.subscribe (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/Observable.js:26:24)\\n    at doInnerSub (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/operators/mergeInternals.js:22:56)\\n    at outerNext (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/operators/mergeInternals.js:17:70)\\n    at OperatorSubscriber._this._next (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/operators/OperatorSubscriber.js:33:21)\\n    at Subscriber.next (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/Subscriber.js:51:18)","level":"error","message":"[401] No token provided","method":"GET","timestamp":"2026-10-03T13:36:42.638Z","url":"/api/v1/todos"}
+`,
+
+    'logs/error.log': `{"error":"HttpError: No token provided\\n    at /tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/apps/{{projectName}}/dist/middlewares/auth.middleware.js:12:45\\n    at Observable.init [as _subscribe] (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/observable/throwError.js:8:64)\\n    at Observable._trySubscribe (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/Observable.js:41:25)\\n    at /tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/Observable.js:35:31\\n    at Object.errorContext (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/util/errorContext.js:22:9)\\n    at Observable.subscribe (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/Observable.js:26:24)\\n    at doInnerSub (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/operators/mergeInternals.js:22:56)\\n    at outerNext (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/operators/mergeInternals.js:17:70)\\n    at OperatorSubscriber._this._next (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/operators/OperatorSubscriber.js:33:21)\\n    at Subscriber.next (/tmp/claude-0/-home-user-re-shell/88e4148c-7849-5d9a-a790-ae6b5cd3e25b/scratchpad/t-sweep2/w/marblejs/{{projectName}}/node_modules/.pnpm/rxjs@7.8.2/node_modules/rxjs/dist/cjs/internal/Subscriber.js:51:18)","level":"error","message":"[401] No token provided","method":"GET","timestamp":"2026-10-03T13:36:42.638Z","url":"/api/v1/todos"}
+`,
+
+    'src/middlewares/express.middleware.ts': `import { HttpMiddlewareEffect, HttpRequest } from '@marblejs/http';
+import { Observable } from 'rxjs';
+import { mergeMap } from 'rxjs/operators';
+
+type ConnectMiddleware = (req: any, res: any, next: (error?: unknown) => void) => void;
+
+/** Runs a Connect/Express style middleware (helmet, compression, ...) as a Marble.js middleware. */
+export const fromConnect = (middleware: ConnectMiddleware): HttpMiddlewareEffect => (req$) =>
+  req$.pipe(
+    mergeMap((req) =>
+      new Observable<HttpRequest>((subscriber) => {
+        middleware(req, req.response, (error) => {
+          if (error) {
+            subscriber.error(error);
+          } else {
+            subscriber.next(req);
+            subscriber.complete();
+          }
+        });
+      }),
+    ),
+  );
+`,
+
+    'src/websocket.listener.ts': `import { webSocketListener, WsEffect } from '@marblejs/websockets';
+import { matchEvent } from '@marblejs/core';
+import { map } from 'rxjs/operators';
+
+const echo$: WsEffect = (event$) =>
+  event$.pipe(
+    matchEvent('echo'),
+    map((event) => ({
+      type: 'echo_response',
+      payload: event.payload})),
+  );
+
+const broadcast$: WsEffect = (event$) =>
+  event$.pipe(
+    matchEvent('broadcast'),
+    map((event) => ({
+      type: 'broadcast_message',
+      payload: {
+        message: (event.payload as { message?: string } | undefined)?.message,
+        timestamp: new Date().toISOString()}})),
+  );
+
+export const websocketListener = webSocketListener({
+  effects: [echo$, broadcast$]});
 `}};

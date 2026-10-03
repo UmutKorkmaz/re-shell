@@ -22,6 +22,11 @@
 #   Zig                       zig build
 #   Plain JavaScript          pnpm install, node --check, and every import/require
 #                             must resolve (scripts/check-js-imports.mjs)
+#   ReScript                  pnpm install, rescript build, the generated and hand-written
+#                             JavaScript must parse and resolve its imports, then the
+#                             app's own tests (npm test)
+#   Dart                      dart pub get, dart analyze (errors and warnings fail)
+#   Haskell (Cabal)           cabal build all (tests included), cabal test
 #   Configuration-only        every YAML file must parse (scripts/check-yaml.mjs)
 #
 # A template is only SKIPped when its language toolchain is genuinely missing
@@ -31,7 +36,7 @@
 # configuration templates: syntax only) prints a NOTE saying so.
 #
 # Usage: bash scripts/scaffold-test-templates.sh [template ...]
-#        bash scripts/scaffold-test-templates.sh --group core|jvm|dotnet|native|node|config ...
+#        bash scripts/scaffold-test-templates.sh --group core|jvm|dotnet|native|node|config|haskell ...
 # Runs from the repo root after `pnpm -r build`.
 
 set -euo pipefail
@@ -68,11 +73,12 @@ GROUP_JVM=(
 GROUP_DOTNET=(
   aspnet-core-webapi aspnet-core-minimal blazor-server grpc-service
   aspnet-dapper aspnet-automapper aspnet-xunit aspnet-efcore aspnet-hotreload
-  giraffe
+  giraffe aspnet-jwt aspnet-swagger aspnet-serilog saturn-fs suave-fs
 )
-# Go, Rust, Python, Ruby, PHP, Perl, Lua, C++ (CMake; Drogon from the distribution packages)
+# Go, Rust, Python, Ruby, PHP, Perl, Lua, C++ (CMake; Drogon from the distribution packages), Dart
 GROUP_NATIVE=(
   chi go-sqlx grpc-go
+  shelf angel3 conduit
   warp
   starlette sanic-py tornado-py django-enhanced
   sinatra grape
@@ -81,7 +87,7 @@ GROUP_NATIVE=(
   openresty lapis lua-http kong-plugin
   drogon
 )
-# Node / TypeScript / plain JavaScript (pnpm install + tsc, or node --check)
+# Node / TypeScript / plain JavaScript / ReScript (pnpm install + tsc, node --check, or rescript build)
 GROUP_NODE=(
   hapi-ts apollo-server meteorjs graphql-codegen enterprise-sso
   compression-optimization universal-state-management unified-dev-environment
@@ -97,6 +103,16 @@ GROUP_NODE=(
   rate-limit-config redis-integration resource-loading-optimization
   security-scanning service-communication-optimization shared-config-server
   websocket-api-docs websocket-realtime
+  loopback adonisjs restify polka middy hyper-express foalts tinyhttp marblejs eggjs
+  graphql-yoga opentelemetry-tracing distributed-caching frontend-service-mesh-client
+  moleculer tsed comprehensive-auth-service realtime-data-sync strapi
+  rescript-express rescript-fastify rescript-react-server rescript-graphql
+)
+
+# Haskell: needs GHC and cabal-install (the dependency trees are large, so these
+# build in their own CI job).
+GROUP_HASKELL=(
+  servant scotty-hs spock-hs yesod-hs
 )
 
 # Configuration-only templates: no toolchain, YAML syntax is checked (see
@@ -112,7 +128,7 @@ GROUP_CONFIG=(
 
 TEMPLATES=()
 if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
-  # --group core|jvm|dotnet|native|node|config [...]: run whole groups
+  # --group core|jvm|dotnet|native|node|config|haskell [...]: run whole groups
   shift
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -122,6 +138,7 @@ if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
       native) TEMPLATES+=("${GROUP_NATIVE[@]}") ;;
       node) TEMPLATES+=("${GROUP_NODE[@]}") ;;
       config) TEMPLATES+=("${GROUP_CONFIG[@]}") ;;
+      haskell) TEMPLATES+=("${GROUP_HASKELL[@]}") ;;
       *) echo "unknown group: $1 (core|jvm|dotnet|native|node|config)" >&2; exit 2 ;;
     esac
     shift
@@ -129,7 +146,7 @@ if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
 elif [ "$#" -gt 0 ]; then
   TEMPLATES=("$@")
 else
-  TEMPLATES=("${GROUP_CORE[@]}" "${GROUP_JVM[@]}" "${GROUP_DOTNET[@]}" "${GROUP_NATIVE[@]}" "${GROUP_NODE[@]}" "${GROUP_CONFIG[@]}")
+  TEMPLATES=("${GROUP_CORE[@]}" "${GROUP_JVM[@]}" "${GROUP_DOTNET[@]}" "${GROUP_NATIVE[@]}" "${GROUP_NODE[@]}" "${GROUP_CONFIG[@]}" "${GROUP_HASKELL[@]}")
 fi
 
 PASS=0
@@ -375,6 +392,23 @@ verify_zig() {
   step build zig build || return 1
 }
 
+# Haskell (Servant, Scotty, Spock, Yesod): build the library, executable and test suite, then run the tests.
+verify_haskell() {
+  have ghc || { NATIVE_REASON="ghc is not installed"; return 2; }
+  have cabal || { NATIVE_REASON="cabal (cabal-install) is not installed"; return 2; }
+  step build cabal build all --enable-tests || return 1
+  step test cabal test all || return 1
+}
+
+# Dart (shelf, Angel3, Conduit): resolve the packages and type-check every library, bin and test.
+verify_dart() {
+  have dart || { NATIVE_REASON="dart is not installed"; return 2; }
+  export DART_SUPPRESS_ANALYTICS=true
+  step pub-get dart pub get || return 1
+  step analyze dart analyze || return 1
+  NATIVE_NOTE="static analysis only (dart analyze): the app's tests were not run"
+}
+
 verify_native() {
   local tpl="$1" dir="$2"
   NATIVE_REASON=""
@@ -396,12 +430,16 @@ verify_native() {
     verify_gradle
   elif [ -f build.sbt ]; then
     verify_sbt
+  elif compgen -G "*.cabal" >/dev/null; then
+    verify_haskell
   elif compgen -G "*.csproj" >/dev/null || compgen -G "*.fsproj" >/dev/null; then
     verify_dotnet
   elif [ -f cpanfile ] || [ -f Makefile.PL ]; then
     verify_perl
   elif [ -f build.zig ]; then
     verify_zig
+  elif [ -f pubspec.yaml ]; then
+    verify_dart
   elif [ -f mix.exs ]; then
     have mix || { NATIVE_REASON="elixir (mix) is not installed"; return 2; }
     step deps mix deps.get && step compile mix compile
@@ -416,7 +454,7 @@ verify_native() {
     verify_config
   else
     echo "  ✗ no recognised build manifest in the generated app"
-    NATIVE_REASON="no recognised build manifest (package.json, go.mod, Cargo.toml, pom.xml, build.gradle(.kts), build.sbt, *.csproj, *.fsproj, composer.json, Gemfile, requirements.txt, cpanfile, CMakeLists.txt, build.zig, mix.exs, Package.swift, *.lua, *.yaml)"
+    NATIVE_REASON="no recognised build manifest (package.json, go.mod, Cargo.toml, pubspec.yaml, pom.xml, build.gradle(.kts), build.sbt, *.cabal, *.csproj, *.fsproj, composer.json, Gemfile, requirements.txt, cpanfile, CMakeLists.txt, build.zig, mix.exs, Package.swift, *.lua, *.yaml)"
     return 1
   fi
 }
@@ -496,6 +534,45 @@ for TPL in "${TEMPLATES[@]}"; do
     continue
   fi
   cd "$APP_DIR"
+
+  # ReScript apps compile to JavaScript next to the sources: build them, check the
+  # generated and hand-written JavaScript, then run the app's own tests.
+  if [ -f "rescript.json" ] || [ -f "bsconfig.json" ]; then
+    if ! pnpm exec rescript build >"$TMP_DIR/rescript-$TPL.txt" 2>&1; then
+      grep -v '^rescript: \[' "$TMP_DIR/rescript-$TPL.txt" | head -20
+      fail_template "ReScript build failed"
+      continue
+    fi
+    echo "  ✓ ReScript build passed"
+    RS_BAD=""
+    while IFS= read -r RS_FILE; do
+      if ! node --check "$RS_FILE" >"$TMP_DIR/js-check-$TPL.txt" 2>&1; then
+        RS_BAD="$RS_FILE"
+        break
+      fi
+    done < <(find . -path ./node_modules -prune -o -type f -name '*.js' -print)
+    if [ -n "$RS_BAD" ]; then
+      head -5 "$TMP_DIR/js-check-$TPL.txt"
+      fail_template "JavaScript syntax error in $RS_BAD"
+      continue
+    fi
+    if ! node "$REPO_ROOT/scripts/check-js-imports.mjs" "$APP_DIR" >"$TMP_DIR/js-imports-$TPL.txt" 2>&1; then
+      head -8 "$TMP_DIR/js-imports-$TPL.txt"
+      fail_template "unresolved imports"
+      continue
+    fi
+    echo "  ✓ JavaScript syntax and imports verified"
+    if ! pnpm run test >"$TMP_DIR/rescript-test-$TPL.txt" 2>&1; then
+      grep -v '^rescript: \[' "$TMP_DIR/rescript-test-$TPL.txt" | tail -25
+      fail_template "tests failed"
+      continue
+    fi
+    echo "  ✓ Tests passed"
+    PASS=$((PASS + 1))
+    cd "$REPO_ROOT"
+    rm -rf "$PROJ_DIR"
+    continue
+  fi
 
   # Generate Prisma client if present
   if [ -f "prisma/schema.prisma" ]; then

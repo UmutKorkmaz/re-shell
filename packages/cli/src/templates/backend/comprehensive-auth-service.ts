@@ -22,6 +22,7 @@ export const comprehensiveAuthServiceTemplate: BackendTemplate = {
     'auth-service/models/user.model.ts': `// User Model
 // MongoDB user schema with authentication fields
 
+import bcrypt from 'bcryptjs';
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IUser {
@@ -49,6 +50,7 @@ export interface IUser {
 }
 
 export interface IUserDocument extends IUser, Document {
+  isLocked: boolean;
   comparePassword(candidatePassword: string): Promise<boolean>;
   incrementLoginAttempts(): Promise<number>;
   resetLoginAttempts(): Promise<void>;
@@ -119,11 +121,19 @@ UserSchema.index({ emailVerificationToken: 1 });
 UserSchema.index({ passwordResetToken: 1 });
 UserSchema.index({ lockUntil: 1 });
 
+// Hash the password whenever it changes (registration and password reset)
+UserSchema.pre('save', async function(next) {
+  if (this.isModified('password') && this.password) {
+    this.password = await bcrypt.hash(this.password, 12);
+  }
+  next();
+});
+
 // Compare password
 UserSchema.methods.comparePassword = async function(
   candidatePassword: string
 ): Promise<boolean> {
-  const bcrypt = require('bcrypt');
+  if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 
@@ -132,7 +142,7 @@ UserSchema.methods.incrementLoginAttempts = async function(): Promise<number> {
   const maxAttempts = 5;
   const lockTime = 2 * 60 * 60 * 1000; // 2 hours
 
-  if (this.lockUntil && this.lockUntil < Date.now()) {
+  if (this.lockUntil && this.lockUntil.getTime() < Date.now()) {
     // Lock has expired, reset attempts
     this.loginAttempts = 1;
   } else {
@@ -156,7 +166,7 @@ UserSchema.methods.resetLoginAttempts = async function(): Promise<void> {
 
 // Virtual for locked status
 UserSchema.virtual('isLocked').get(function() {
-  return !!(this.lockUntil && this.lockUntil > Date.now());
+  return !!(this.lockUntil && this.lockUntil.getTime() > Date.now());
 });
 
 export const User: Model<IUserDocument> = mongoose.model<IUserDocument>('User', UserSchema);
@@ -165,8 +175,8 @@ export const User: Model<IUserDocument> = mongoose.model<IUserDocument>('User', 
     'auth-service/services/token.service.ts': `// Token Service
 // JWT token generation and validation
 
-import jwt from 'jsonwebtoken';
-import { UserDocument } from '../models/user.model';
+import jwt, { SignOptions } from 'jsonwebtoken';
+import { IUserDocument } from '../models/user.model';
 
 export interface TokenPayload {
   userId: string;
@@ -198,7 +208,7 @@ export class TokenService {
   /**
    * Generate access token
    */
-  generateAccessToken(user: UserDocument): string {
+  generateAccessToken(user: IUserDocument): string {
     const payload: TokenPayload = {
       userId: user._id.toString(),
       email: user.email,
@@ -208,7 +218,7 @@ export class TokenService {
     };
 
     return jwt.sign(payload, this.accessTokenSecret, {
-      expiresIn: this.accessTokenExpiresIn,
+      expiresIn: this.accessTokenExpiresIn as SignOptions['expiresIn'],
       issuer: process.env.JWT_ISSUER || 're-shell-auth',
       audience: process.env.JWT_AUDIENCE || 're-shell-api',
     });
@@ -217,14 +227,14 @@ export class TokenService {
   /**
    * Generate refresh token
    */
-  generateRefreshToken(user: UserDocument): string {
+  generateRefreshToken(user: IUserDocument): string {
     const payload = {
       userId: user._id.toString(),
       tokenType: 'refresh',
     };
 
     return jwt.sign(payload, this.refreshTokenSecret, {
-      expiresIn: this.refreshTokenExpiresIn,
+      expiresIn: this.refreshTokenExpiresIn as SignOptions['expiresIn'],
       issuer: process.env.JWT_ISSUER || 're-shell-auth',
       audience: process.env.JWT_AUDIENCE || 're-shell-api',
     });
@@ -233,13 +243,13 @@ export class TokenService {
   /**
    * Generate token pair
    */
-  generateTokenPair(user: UserDocument): TokenPair {
+  generateTokenPair(user: IUserDocument): TokenPair {
     const accessToken = this.generateAccessToken(user);
     const refreshToken = this.generateRefreshToken(user);
 
     // Calculate expiration time
     const decoded = jwt.decode(accessToken) as jwt.JwtPayload;
-    const expiresIn = decoded.exp * 1000 - Date.now();
+    const expiresIn = (decoded.exp ?? 0) * 1000 - Date.now();
 
     return {
       accessToken,
@@ -466,7 +476,7 @@ export class OAuthService {
           id: data.id,
           email: data.mail || data.userPrincipalName,
           name: data.displayName,
-          avatar: null,
+          avatar: undefined,
           provider: 'azure',
         };
 
@@ -518,7 +528,7 @@ export class MFAService {
 
     return {
       secret: secret.base32,
-      qrCode: secret.otpauth_url,
+      qrCode: secret.otpauth_url ?? '',
     };
   }
 
@@ -764,7 +774,8 @@ export class AuthController {
   oauthCallback = async (req: Request, res: Response): Promise<void> => {
     try {
       const { provider } = req.params;
-      const { code, state } = req.query;
+      // Browser redirect (GET ?code=&state=) or SDK call (POST { code, state })
+      const { code, state } = req.method === 'POST' ? req.body : req.query;
 
       // Exchange code for tokens
       const tokens = await this.oauthService.exchangeCodeForTokens(
@@ -803,6 +814,11 @@ export class AuthController {
       // Generate tokens
       const authTokens = this.tokenService.generateTokenPair(user);
 
+      if (req.method === 'POST') {
+        res.json({ user: this.userService.sanitize(user), ...authTokens });
+        return;
+      }
+
       // Redirect to frontend with tokens
       const redirectURL = \`\${process.env.FRONTEND_URL}/auth/callback?\${new URLSearchParams({
         access_token: authTokens.accessToken,
@@ -821,7 +837,11 @@ export class AuthController {
    */
   enableMFA = async (req: Request, res: Response): Promise<void> => {
     try {
-      const user = (req as Request & { user?: { id: string; email: string } }).user;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
 
       // Generate MFA secret
       const { secret, qrCode } = this.mfaService.generateSecret(user.email);
@@ -851,8 +871,17 @@ export class AuthController {
    */
   verifyMFASetup = async (req: Request, res: Response): Promise<void> => {
     try {
-      const user = (req as Request & { user?: { id: string; email: string } }).user;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
       const { token } = req.body;
+
+      if (!user.mfaSecret) {
+        res.status(400).json({ error: 'MFA setup has not been started' });
+        return;
+      }
 
       // Verify token
       const isValid = this.mfaService.verifyToken(user.mfaSecret, token);
@@ -877,7 +906,11 @@ export class AuthController {
    */
   disableMFA = async (req: Request, res: Response): Promise<void> => {
     try {
-      const user = (req as Request & { user?: { id: string; email: string } }).user;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
       const { password } = req.body;
 
       // Verify password
@@ -942,7 +975,7 @@ export class AuthController {
       const { token, newPassword } = req.body;
 
       const user = await this.userService.findByResetToken(token);
-      if (!user || user.passwordResetExpires! < new Date()) {
+      if (!user || !user.passwordResetExpires || user.passwordResetExpires < new Date()) {
         res.status(400).json({ error: 'Invalid or expired reset token' });
         return;
       }
@@ -1151,7 +1184,7 @@ export interface AuthResponse {
     'auth-service/client-sdk/auth-client.ts': `// Authentication Client Implementation
 // Framework-agnostic auth client with automatic token refresh
 
-import { AuthConfig, LoginCredentials, RegisterData, OAuthOptions, AuthState, User, TokenPair } from './types';
+import { AuthConfig, AuthResponse, LoginCredentials, RegisterData, OAuthOptions, AuthState, User, TokenPair } from './types';
 
 export class AuthClient {
   private config: Required<AuthConfig>;
@@ -1410,7 +1443,7 @@ export class AuthClient {
    * Reset password
    */
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    await this.request('/auth/password-reset', {
+    await this.request('/auth/password-reset/confirm', {
       method: 'POST',
       body: JSON.stringify({ token, newPassword }),
     });
@@ -1522,9 +1555,9 @@ export class AuthClient {
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = \`\${this.config.baseURL}\${path}\`;
 
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(options.headers as Record<string, string> | undefined),
     };
 
     // Add authorization header
@@ -1602,7 +1635,7 @@ export class AuthClient {
     const store = new Map<string, string>();
 
     return {
-      get length: 0,
+      get length(): number { return store.size; },
       clear(): void { store.clear(); },
       getItem(key: string): string | null { return store.get(key) || null; },
       setItem(key: string, value: string): void { store.set(key, value); },
@@ -1795,33 +1828,230 @@ MIT
   "name": "comprehensive-auth-service",
   "version": "1.0.0",
   "description": "Comprehensive OAuth 2.0 / OpenID Connect authentication service",
-  "main": "dist/index.js",
+  "main": "dist/auth-service/server.js",
   "scripts": {
-    "dev": "ts-node-dev src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only auth-service/server.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "jest"
+    "start": "node dist/auth-service/server.js",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "express": "^4.18.2",
     "mongoose": "^7.6.0",
-    "bcrypt": "^5.1.0",
     "jsonwebtoken": "^9.0.0",
     "speakeasy": "^2.0.0",
     "nodemailer": "^6.9.0",
     "axios": "^1.5.0",
-    "dotenv": "^16.0.0"
+    "dotenv": "^16.0.0",
+    "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
     "@types/express": "^4.17.17",
     "@types/node": "^20.0.0",
-    "@types/bcrypt": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.0",
     "@types/speakeasy": "^2.0.0",
     "@types/nodemailer": "^6.4.0",
     "typescript": "^5.0.0",
-    "ts-node-dev": "^2.0.0"
+    "ts-node-dev": "^2.0.0",
+    "@types/bcryptjs": "^2.4.6"
   }
+}`,
+
+    'auth-service/middleware/authenticate.ts': `// Authentication middleware
+// Verifies the bearer access token and loads the user for downstream handlers
+
+import { NextFunction, Request, Response } from 'express';
+import { IUserDocument } from '../models/user.model';
+import { TokenService } from '../services/token.service';
+import { UserService } from '../services/user.service';
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      user?: IUserDocument;
+    }
+  }
+}
+
+const tokenService = new TokenService();
+const userService = new UserService();
+
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Missing bearer token' });
+    return;
+  }
+
+  try {
+    const payload = tokenService.verifyAccessToken(header.slice('Bearer '.length));
+    const user = await userService.findById(payload.userId);
+    if (!user) {
+      res.status(401).json({ error: 'User no longer exists' });
+      return;
+    }
+
+    req.user = user;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+`,
+
+    'auth-service/routes.ts': `// Route table for the authentication API (mounted at /auth)
+
+import { Router } from 'express';
+import { AuthController } from './controllers/auth.controller';
+import { authenticate } from './middleware/authenticate';
+
+export function createAuthRouter(): Router {
+  const router = Router();
+  const controller = new AuthController();
+
+  // Credentials
+  router.post('/register', controller.register);
+  router.post('/login', controller.login);
+  router.post('/refresh', controller.refreshToken);
+  router.post('/logout', controller.logout);
+
+  // OAuth 2.0 / OpenID Connect providers
+  router.get('/oauth/:provider', controller.getOAuthURL);
+  router.get('/:provider/callback', controller.oauthCallback);
+  router.post('/:provider/callback', controller.oauthCallback);
+
+  // Multi-factor authentication
+  router.post('/mfa/enable', authenticate, controller.enableMFA);
+  router.post('/mfa/verify', authenticate, controller.verifyMFASetup);
+  router.post('/mfa/disable', authenticate, controller.disableMFA);
+
+  // Password reset and email verification
+  router.post('/password-reset', controller.requestPasswordReset);
+  router.post('/password-reset/confirm', controller.resetPassword);
+  router.get('/verify-email/:token', controller.verifyEmail);
+  router.post('/verify-email/:token', controller.verifyEmail);
+
+  return router;
+}
+`,
+
+    'auth-service/server.ts': `// Authentication service entry point
+
+import 'dotenv/config';
+import express from 'express';
+import mongoose from 'mongoose';
+import { createAuthRouter } from './routes';
+
+export const app = express();
+
+app.use(express.json());
+
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'healthy',
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.use('/auth', createAuthRouter());
+
+async function start(): Promise<void> {
+  const port = Number(process.env.PORT) || 3000;
+
+  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/auth-service');
+  app.listen(port, () => {
+    console.log(\`Authentication service listening on port \${port}\`);
+  });
+}
+
+if (require.main === module) {
+  start().catch((error) => {
+    console.error('Failed to start the authentication service:', error);
+    process.exit(1);
+  });
+}
+`,
+
+    'auth-service/services/user.service.ts': `// User Service
+// Persistence helpers around the User model
+
+import crypto from 'crypto';
+import { IUser, IUserDocument, User } from '../models/user.model';
+
+type NewUser = Partial<IUser> & Pick<IUser, 'email' | 'name'>;
+
+export class UserService {
+  async findById(id: string): Promise<IUserDocument | null> {
+    return User.findById(id);
+  }
+
+  async findByEmail(email: string): Promise<IUserDocument | null> {
+    return User.findOne({ email: email.toLowerCase() });
+  }
+
+  async findByProviderId(provider: string, providerId: string): Promise<IUserDocument | null> {
+    return User.findOne({ provider, providerId });
+  }
+
+  async findByResetToken(token: string): Promise<IUserDocument | null> {
+    return User.findOne({ passwordResetToken: token });
+  }
+
+  async findByVerificationToken(token: string): Promise<IUserDocument | null> {
+    return User.findOne({ emailVerificationToken: token });
+  }
+
+  /** The password (when given) is hashed by the model's pre-save hook. */
+  async create(data: NewUser): Promise<IUserDocument> {
+    return User.create({ provider: 'local', ...data });
+  }
+
+  generateVerificationToken(): string {
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  generateResetToken(): string {
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  /** The user fields that are safe to return to a client. */
+  sanitize(user: IUserDocument) {
+    return {
+      id: user.id as string,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      provider: user.provider,
+      emailVerified: user.emailVerified,
+      roles: user.roles,
+      permissions: user.permissions,
+      mfaEnabled: user.mfaEnabled,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+    };
+  }
+}
+`,
+
+    'tsconfig.json': `{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020", "DOM"],
+    "outDir": "./dist",
+    "rootDir": "./",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "sourceMap": true
+  },
+  "include": ["auth-service/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
 `,
   },
