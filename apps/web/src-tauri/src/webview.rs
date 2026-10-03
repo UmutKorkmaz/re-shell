@@ -1,5 +1,5 @@
 //! Webview-facing helpers: the runtime hub config handed to the dashboard, the
-//! per-launch CSP, the navigation allowlist, and the in-window error notices.
+//! per-launch CSP, the navigation allowlist, and the error page and banner.
 //!
 //! Everything here is a pure function so it can be unit tested without a window.
 
@@ -77,49 +77,90 @@ pub fn is_allowed_navigation(url: &Url, dev_url: Option<&Url>) -> bool {
                 None => false,
             }
         }
-        "about" => url.as_str() == "about:blank",
         _ => false,
     }
 }
 
-/// Where a notice is rendered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NoticeKind {
-    /// Replaces the whole (blank) page: the app could not start its hub.
-    Page,
-    /// A banner over the running dashboard: the hub stopped under it.
-    Banner,
+/// Navigation guard for the failure window: only a `data:text/html` page (the
+/// error page, plus the engine-internal about:blank; the URL is re-serialized so it cannot be compared
+/// byte for byte). That window holds no credentials.
+pub fn is_error_page(url: &Url) -> bool {
+    // wry loads a data URL by decoding it and handing the HTML to the engine,
+    // which reports an internal `about:blank` navigation for it.
+    (url.scheme() == "data" && url.path().starts_with("text/html")) || url.as_str() == "about:blank"
 }
 
-/// Script that renders a titled notice using only `textContent` (the message can
-/// carry hub output, so it is never interpreted as HTML).
-pub fn notice_script(kind: NoticeKind, title: &str, message: &str) -> String {
+/// Banner over the running dashboard, rendered with `textContent` only (the
+/// message can carry hub output, so it is never interpreted as HTML). Used when
+/// the hub dies under a live window.
+pub fn banner_script(title: &str, message: &str) -> String {
     let payload = js_json(&serde_json::json!({ "title": title, "message": message }));
-    let banner = kind == NoticeKind::Banner;
     format!(
         r#"(function(){{
 var data={payload};
-var banner={banner};
-function el(tag,css,text){{var n=document.createElement(tag);n.style.cssText=css;if(text!==undefined)n.textContent=text;return n;}}
 function render(){{
-  var host;
-  if(banner){{
-    host=el('div','position:fixed;left:0;right:0;top:0;z-index:2147483647;padding:12px 16px;background:#3a1114;color:#ffd9d9;border-bottom:1px solid #ff6b6b;font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;');
-    document.body.appendChild(host);
-  }} else {{
-    document.title=data.title;
-    document.documentElement.style.background='#0c0e12';
-    document.body.style.cssText='margin:0;background:#0c0e12;color:#f0f1f4;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
-    document.body.textContent='';
-    host=el('main','max-width:760px;margin:0 auto;padding:48px 24px;');
-    document.body.appendChild(host);
-  }}
-  host.appendChild(el(banner?'strong':'h1',banner?'display:block;margin-bottom:4px;':'margin:0 0 16px;font-size:22px;color:#c4f042;',data.title));
-  host.appendChild(el('div',banner?'':'padding:16px;border:1px solid #2a2f3a;border-radius:8px;background:#14171d;font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word;',data.message));
+  var host=document.createElement('div');
+  host.style.cssText='position:fixed;left:0;right:0;top:0;z-index:2147483647;padding:12px 16px;background:#3a1114;color:#ffd9d9;border-bottom:1px solid #ff6b6b;font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;';
+  var strong=document.createElement('strong');
+  strong.style.cssText='display:block;margin-bottom:4px;';
+  strong.textContent=data.title;
+  var body=document.createElement('div');
+  body.textContent=data.message;
+  host.appendChild(strong);
+  host.appendChild(body);
+  document.body.appendChild(host);
 }}
 if(document.readyState==='loading'){{document.addEventListener('DOMContentLoaded',render);}}else{{render();}}
 }})();"#
     )
+}
+
+/// Escape text for an HTML text node.
+pub fn html_escape(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Percent-encode everything but RFC 3986 unreserved characters.
+fn percent_encode(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() * 3);
+    for b in text.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// The self-contained error page shown when the hub cannot be started, as a
+/// `data:` URL: static HTML, no scripts, no hub token, opaque origin. It is the
+/// only thing the window shows in that case.
+pub fn error_page_url(title: &str, message: &str) -> Url {
+    let html = format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>{t}</title>\
+         <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\">\
+         <style>html,body{{margin:0;background:rgb(12,14,18);color:rgb(240,241,244);font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}}\
+         main{{max-width:760px;margin:0 auto;padding:48px 24px}}h1{{margin:0 0 16px;font-size:22px;color:rgb(196,240,66)}}\
+         pre{{margin:0;padding:16px;border:1px solid rgb(42,47,58);border-radius:8px;background:rgb(20,23,29);\
+         font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word}}</style></head>\
+         <body><main><h1>{t}</h1><pre>{m}</pre></main></body></html>",
+        t = html_escape(title),
+        m = html_escape(message),
+    );
+    Url::parse(&format!("data:text/html;charset=utf-8,{}", percent_encode(&html)))
+        .expect("a percent-encoded data URL is always valid")
 }
 
 #[cfg(test)]
@@ -182,7 +223,7 @@ mod tests {
         assert!(is_allowed_navigation(&url("tauri://localhost/index.html"), None));
         assert!(is_allowed_navigation(&url("http://tauri.localhost/"), None));
         assert!(is_allowed_navigation(&url("https://tauri.localhost/x"), None));
-        assert!(is_allowed_navigation(&url("about:blank"), None));
+        assert!(!is_allowed_navigation(&url("about:blank"), None));
 
         assert!(!is_allowed_navigation(&url("https://example.com/"), None));
         assert!(!is_allowed_navigation(&url("http://127.0.0.1:43211/health"), None));
@@ -204,16 +245,56 @@ mod tests {
     }
 
     #[test]
-    fn notice_scripts_render_text_not_html() {
-        let page = notice_script(NoticeKind::Page, "Hub failed", "<img src=x onerror=alert(1)>");
-        assert!(page.contains("textContent"));
-        assert!(!page.contains("innerHTML"));
-        assert!(page.contains("var banner=false;"));
-        assert!(page.contains(r#""title":"Hub failed""#));
+    fn banner_script_renders_text_not_html() {
+        let banner = banner_script("Hub stopped", "<img src=x onerror=alert(1)>");
+        assert!(banner.contains("textContent"));
+        assert!(!banner.contains("innerHTML"));
+        assert!(banner.contains(r#""title":"Hub stopped""#));
         // The hostile message is data inside a JSON string, never markup.
-        assert!(page.contains(r#""message":"<img src=x onerror=alert(1)>""#));
+        assert!(banner.contains(r#""message":"<img src=x onerror=alert(1)>""#));
+    }
 
-        let banner = notice_script(NoticeKind::Banner, "Hub stopped", "exit code 1");
-        assert!(banner.contains("var banner=true;"));
+    #[test]
+    fn error_page_is_a_scriptless_data_url_with_escaped_text() {
+        let url = error_page_url("Could not start <hub>", "node: \"missing\" & <script>alert(1)</script>");
+        assert_eq!(url.scheme(), "data");
+        let encoded = url.path().strip_prefix("text/html;charset=utf-8,").unwrap().to_string();
+        let raw = encoded.as_bytes();
+        let mut bytes = Vec::new();
+        let mut i = 0;
+        while i < raw.len() {
+            if raw[i] == b'%' {
+                bytes.push(u8::from_str_radix(&encoded[i + 1..i + 3], 16).unwrap());
+                i += 3;
+            } else {
+                bytes.push(raw[i]);
+                i += 1;
+            }
+        }
+        let html = String::from_utf8(bytes).unwrap();
+        assert!(html.contains("&lt;hub&gt;"));
+        assert!(html.contains("&amp; &lt;script&gt;alert(1)&lt;/script&gt;"));
+        assert!(!html.contains("<script"));
+        assert!(html.contains("default-src 'none'"));
+        // The engine decodes the data URL before loading it, so a literal `#`
+        // would start a URL fragment and truncate the page.
+        assert!(!html.contains('#'), "page must not contain '#': {html}");
+    }
+
+    #[test]
+    fn failure_window_only_allows_the_html_data_page() {
+        assert!(is_error_page(&error_page_url("t", "m")));
+        assert!(is_error_page(&url("data:text/html,<p>re-serialized</p>")));
+        assert!(!is_error_page(&url("data:application/javascript,alert(1)")));
+        assert!(!is_error_page(&url("https://example.com/")));
+        assert!(!is_error_page(&url("tauri://localhost/")));
+    }
+
+    #[test]
+    fn html_escape_handles_all_special_characters() {
+        assert_eq!(
+            html_escape("<a href=\"x\">'&'</a>"),
+            "&lt;a href=&quot;x&quot;&gt;&apos;&amp;&apos;&lt;/a&gt;"
+        );
     }
 }
