@@ -6,5 +6,10 @@
     "outDir": "./dist/cjs",
     "declaration": false
   },
-  "include": ["src/command-registry.ts"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ]
 }

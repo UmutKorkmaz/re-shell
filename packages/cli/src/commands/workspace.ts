@@ -10,7 +10,8 @@ import { ProgressSpinner } from '../utils/spinner';
 import { jsonSuccess, jsonError, enableJsonMode, ok, fail } from '../utils/json-output';
 import { normalizeHealth, CanonicalHealth } from '../utils/health-normalizer';
 import { buildSuggestions } from '../utils/doctor-remediation';
-import type { Suggestion } from '@re-shell/contracts';
+import type { Suggestion, GraphModel } from '@re-shell/contracts';
+import { toMermaid, toD3Json } from '@re-shell/contracts';
 import type { ValidationResult, ValidationError } from '../parsers/workspace-parser';
 import { docsUrl } from '../constants/brand';
 import {
@@ -602,6 +603,10 @@ interface ContractGraphNode {
   framework: string | null;
   /** Internal workspace-to-workspace dependency names. */
   dependencies: string[];
+  /** Workspace category (app, package, lib, tool). Additive, optional for consumers. */
+  type?: string;
+  /** Primary language (typescript, javascript, go, rust, python, java). Additive, optional for consumers. */
+  language?: string | null;
 }
 
 /** Consumer-facing graph shape split into apps and services. */
@@ -635,6 +640,8 @@ function buildContractGraph(
     path: ws.path,
     framework: ws.framework ?? null,
     dependencies: Array.from(internalDepsByName.get(ws.name) ?? []),
+    type: ws.type,
+    language: ws.language ?? null,
   });
 
   const apps: ContractGraphNode[] = [];
@@ -704,37 +711,22 @@ function displayTextGraph(graph: DependencyGraph): void {
   }
 }
 
-function generateMermaidGraph(graph: DependencyGraph): string {
-  let mermaid = 'graph TD\n';
-
-  // Add nodes
-  for (const node of graph.nodes) {
-    const shape = getNodeShape(node.type);
-    mermaid += `  ${node.id}${shape}\n`;
-  }
-
-  // Add edges
-  for (const edge of graph.edges) {
-    const style = edge.type === 'dependency' ? '-->' : '-..->';
-    mermaid += `  ${edge.from} ${style} ${edge.to}\n`;
-  }
-
-  return mermaid;
+/** Adapt the CLI's internal graph to the shared model used by the converters. */
+function toGraphModel(graph: DependencyGraph): GraphModel {
+  return {
+    nodes: graph.nodes.map((node) => ({
+      id: node.id,
+      type: node.type,
+      framework: node.framework ?? null,
+      path: node.path,
+    })),
+    edges: graph.edges.map((edge) => ({ from: edge.from, to: edge.to, type: edge.type })),
+  };
 }
 
-function getNodeShape(type: string): string {
-  switch (type) {
-    case 'app':
-      return '[App]';
-    case 'package':
-      return '(Package)';
-    case 'lib':
-      return '{Library}';
-    case 'tool':
-      return '[[Tool]]';
-    default:
-      return '[Unknown]';
-  }
+/** Mermaid text via the converter shared with the dashboard export. */
+function generateMermaidGraph(graph: DependencyGraph): string {
+  return toMermaid(toGraphModel(graph));
 }
 
 /**
@@ -876,25 +868,10 @@ function calculateNodePositions(nodes: GraphNode[], edges: GraphEdge[]): Record<
 }
 
 /**
- * Generate D3.js compatible JSON
+ * Generate D3.js compatible JSON (converter shared with the dashboard export).
  */
 function generateD3Graph(graph: DependencyGraph): string {
-  // Convert to D3 force graph format
-  const d3Graph = {
-    nodes: graph.nodes.map((node) => ({
-      id: node.id,
-      group: node.type,
-      type: node.type,
-      framework: node.framework,
-    })),
-    links: graph.edges.map((edge) => ({
-      source: edge.from,
-      target: edge.to,
-      type: edge.type,
-    })),
-  };
-
-  return JSON.stringify(d3Graph, null, 2);
+  return toD3Json(toGraphModel(graph));
 }
 
 async function detectPackageManager(rootPath: string): Promise<'npm' | 'yarn' | 'pnpm'> {

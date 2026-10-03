@@ -50,6 +50,28 @@ export const graphModelSchema = z.object({
 });
 export type GraphModel = z.infer<typeof graphModelSchema>;
 
+/**
+ * A git ref or a workspace-relative `.json` graph file, as accepted by
+ * `workspace graph diff --base/--head` and the hub command `workspace.graph.diff`.
+ * The charset is deliberately narrow so the value can only ever be ONE safe argv
+ * token: it starts with an alphanumeric/underscore (never `-`, so it can't be
+ * parsed as an option, and never `/`, so no absolute paths) and contains no
+ * whitespace, shell/glob metacharacters or `@{` reflog syntax.
+ */
+export const GRAPH_REF_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._/@^~+-]*$/;
+
+/** True when `value` is a safe git ref / relative file token (also rejects `..`, `//`, trailing `/`, > 200 chars). */
+export function isSafeGraphRef(value: string): boolean {
+  return (
+    value.length > 0 &&
+    value.length <= 200 &&
+    GRAPH_REF_PATTERN.test(value) &&
+    !value.includes('..') &&
+    !value.includes('//') &&
+    !value.endsWith('/')
+  );
+}
+
 /** Stable key for an edge. */
 export function edgeKey(from: string, to: string): string {
   return `${from}\u0000${to}`;
@@ -552,6 +574,8 @@ export type GraphDiffCore = z.infer<typeof graphDiffCoreSchema>;
 export const workspaceGraphDiffSchema = graphDiffCoreSchema.extend({
   base: graphSideSchema,
   head: graphSideSchema,
+  /** Present when the caller asked for `--format mermaid` together with `--json`. */
+  mermaid: z.string().optional(),
 });
 export type WorkspaceGraphDiff = z.infer<typeof workspaceGraphDiffSchema>;
 

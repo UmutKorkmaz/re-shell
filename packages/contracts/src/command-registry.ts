@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { CommandSpec } from './schemas.js';
+import { isSafeGraphRef } from './graph.js';
 
 /**
  * Typed, allow-listed command registry.
@@ -63,22 +64,9 @@ const analyzeParamsSchema = baseParamsSchema.extend({
   type: analyzeTypeSchema.optional(),
 });
 
-/**
- * A git ref or a workspace-relative `.json` graph file for `workspace.graph.diff`.
- * The charset is deliberately narrow so the value can only ever be ONE safe argv
- * token: it must start with an alphanumeric/underscore (never `-`, so it can't be
- * parsed as an option, and never `/` so no absolute paths), contains no `..`
- * (no parent traversal, no ranges), no whitespace, no shell/glob metacharacters
- * and no `@{` reflog syntax.
- */
-export const GRAPH_REF_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._/@^~+-]*$/;
 const graphRefSchema = z
   .string()
-  .min(1)
-  .max(200)
-  .regex(GRAPH_REF_PATTERN, 'ref must be a git ref or relative .json path (letters, digits, . _ / @ ^ ~ + -)')
-  .refine((value) => !value.includes('..'), 'ref must not contain ".."')
-  .refine((value) => !value.includes('//') && !value.endsWith('/'), 'ref must not contain empty path segments');
+  .refine(isSafeGraphRef, 'ref must be a git ref or relative .json path (letters, digits, . _ / @ ^ ~ + -; no "..", no leading "-" or "/")');
 
 const graphDiffParamsSchema = baseParamsSchema.extend({
   base: graphRefSchema,
