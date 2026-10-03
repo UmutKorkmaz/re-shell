@@ -511,7 +511,9 @@ workspace diagnostics watch
 workspace diff
 workspace docs
 workspace drift
+workspace explore
 workspace graph
+workspace graph diff
 workspace graph-analysis analyze
 workspace graph-analysis critical
 workspace graph-analysis cycles
@@ -551,6 +553,7 @@ workspace state interactive
 workspace state optimize
 workspace state restore
 workspace state status
+workspace status
 workspace summary
 workspace template chain
 workspace template create

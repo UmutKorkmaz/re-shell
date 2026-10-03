@@ -1022,8 +1022,10 @@ describe('groups — api / plugin / workspace registration', () => {
         'optimize', 'template', 'graph', 'import', 'migrate-monorepo', 'docs',
         'diff', 'def', 'graph-analysis', 'diagnostics', 'state', 'tpl',
         'backup', 'migration', 'conflict', 'watch', 'changes', 'impact',
-        'ibuild', 'policy', 'drift',
+        'ibuild', 'policy', 'drift', 'status', 'explore',
       ]);
+      // P9-L: `workspace graph` carries a `diff` subcommand.
+      expect(sub(program, 'workspace', 'graph').commands.map(c => c.name())).toEqual(['diff']);
       // Nested group shapes.
       expect(sub(program, 'workspace', 'def').commands.map(c => c.name())).toEqual([
         'init', 'validate', 'structure', 'auto-detect', 'fix', 'interactive',

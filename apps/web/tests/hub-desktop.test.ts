@@ -356,6 +356,10 @@ beforeAll(async () => {
     sourcemap: false,
     logLevel: 'silent',
     alias: {
+      '@re-shell/contracts/command-registry': path.resolve(
+        APP_ROOT,
+        '../../packages/contracts/src/command-registry.ts'
+      ),
       '@re-shell/contracts': path.resolve(APP_ROOT, '../../packages/contracts/src/index.ts'),
     },
   });

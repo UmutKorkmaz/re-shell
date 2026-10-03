@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { CommandSpec } from './schemas.js';
+import { isSafeGraphRef } from './graph.js';
 
 /**
  * Typed, allow-listed command registry.
@@ -61,6 +62,15 @@ const templatesShowParamsSchema = baseParamsSchema.extend({
 const analyzeTypeSchema = z.enum(['bundle', 'dependencies', 'performance', 'security', 'all']);
 const analyzeParamsSchema = baseParamsSchema.extend({
   type: analyzeTypeSchema.optional(),
+});
+
+const graphRefSchema = z
+  .string()
+  .refine(isSafeGraphRef, 'ref must be a git ref or relative .json path (letters, digits, . _ / @ ^ ~ + -; no "..", no leading "-" or "/")');
+
+const graphDiffParamsSchema = baseParamsSchema.extend({
+  base: graphRefSchema,
+  head: graphRefSchema.optional(),
 });
 
 /**
@@ -181,6 +191,31 @@ const REGISTRY = {
     description: 'Health checks for the current workspace.',
     schema: noParamsSchema,
     buildArgs: () => ['workspace', 'health', '--json'],
+  }),
+
+  'workspace.status': defineCommand({
+    id: 'workspace.status',
+    title: 'Workspace live status',
+    description:
+      'Live running/stopped/unhealthy/unknown status per workspace, from supervised service records and configured ports or health URLs.',
+    schema: noParamsSchema,
+    buildArgs: () => ['workspace', 'status', '--json'],
+  }),
+
+  'workspace.graph.diff': defineCommand({
+    id: 'workspace.graph.diff',
+    title: 'Workspace graph diff',
+    description:
+      'Added, removed and changed workspaces and dependency edges between a base git ref (or graph JSON file) and a head ref (default: the working tree).',
+    schema: graphDiffParamsSchema,
+    buildArgs: (params) => {
+      const args = ['workspace', 'graph', 'diff', '--base', params.base];
+      if (params.head) {
+        args.push('--head', params.head);
+      }
+      args.push('--json');
+      return args;
+    },
   }),
 
   'templates.list': defineCommand({

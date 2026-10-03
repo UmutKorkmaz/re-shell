@@ -14,6 +14,8 @@ describe('command-registry', () => {
       'workspace.summary',
       'workspace.graph',
       'workspace.health',
+      'workspace.status',
+      'workspace.graph.diff',
       'templates.list',
       'templates.show',
       'scorecard',

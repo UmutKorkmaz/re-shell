@@ -36,6 +36,10 @@ export const graphNodeSchema = graphNodeWireSchema.extend({
   path: z.string().default(''),
   framework: z.string().nullable().default(null),
   dependencies: z.array(z.string()).default([]),
+  // Additive fields the CLI now emits (P9-L). Optional with no default, so an
+  // older CLI's payload parses to exactly the same shape as before.
+  type: z.string().optional(),
+  language: z.string().nullable().optional(),
 });
 export type GraphNode = z.infer<typeof graphNodeSchema>;
 

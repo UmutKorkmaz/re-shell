@@ -185,6 +185,12 @@ export const errorCodeSchema = z.enum([
   'CLOUD_CREDENTIALS_MISSING',
   'CLOUD_DEPLOY_CONFIRMATION_REQUIRED',
   'CLOUD_DEPLOY_ERROR',
+  // Codes introduced by the P9-L interactive workspace graph explorer workstream
+  'GRAPH_DIFF_ERROR',
+  'GRAPH_DIFF_INVALID_REF',
+  'GRAPH_DIFF_GIT_ERROR',
+  'GRAPH_DIFF_INVALID_INPUT',
+  'WORKSPACE_STATUS_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

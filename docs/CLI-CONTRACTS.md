@@ -126,11 +126,11 @@ status of each code is read from the CLI sources every time it is regenerated, s
 it cannot claim a code is emitted when nothing emits it.
 
 <!-- BEGIN GENERATED: error-codes -->
-The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (134 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
+The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (139 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
 
 | Code | Status | Emitted from |
 | --- | --- | --- |
-| `NOT_IN_MONOREPO` | emitted | `packages/cli/src/commands/analyze.ts`, `packages/cli/src/commands/ink-tui.tsx`, `packages/cli/src/commands/workspace.ts`, `packages/cli/src/groups/security/audit-trail.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
+| `NOT_IN_MONOREPO` | emitted | `packages/cli/src/commands/analyze.ts`, `packages/cli/src/commands/ink-tui.tsx`, `packages/cli/src/commands/workspace-status.ts`, `packages/cli/src/commands/workspace.ts`, `packages/cli/src/groups/security/audit-trail.ts`, `packages/cli/src/utils/graph-source.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
 | `LIST_WORKSPACES_ERROR` | emitted | `packages/cli/src/commands/workspace.ts` |
 | `GRAPH_GENERATION_ERROR` | emitted | `packages/cli/src/commands/workspace.ts` |
 | `WORKSPACE_NOT_FOUND` | emitted | `packages/cli/src/commands/pkg.ts`, `packages/cli/src/commands/workspace.ts`, `packages/cli/src/debug/engine.ts`, `packages/cli/src/iac/generate.ts`, `packages/cli/src/refactor/engine.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
@@ -264,6 +264,11 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (134 codes). A code
 | `CLOUD_CREDENTIALS_MISSING` | emitted | `packages/cli/src/iac/deploy.ts`, `packages/cli/src/iac/generate.ts` |
 | `CLOUD_DEPLOY_CONFIRMATION_REQUIRED` | emitted | `packages/cli/src/iac/deploy.ts`, `packages/cli/src/iac/generate.ts` |
 | `CLOUD_DEPLOY_ERROR` | emitted | `packages/cli/src/iac/deploy.ts`, `packages/cli/src/iac/generate.ts` |
+| `GRAPH_DIFF_ERROR` | emitted | `packages/cli/src/commands/workspace-graph-diff.ts` |
+| `GRAPH_DIFF_INVALID_REF` | emitted | `packages/cli/src/utils/graph-source.ts` |
+| `GRAPH_DIFF_GIT_ERROR` | emitted | `packages/cli/src/utils/graph-source.ts` |
+| `GRAPH_DIFF_INVALID_INPUT` | emitted | `packages/cli/src/commands/workspace-graph-diff.ts`, `packages/cli/src/utils/graph-source.ts` |
+| `WORKSPACE_STATUS_ERROR` | emitted | `packages/cli/src/commands/workspace-status.ts` |
 <!-- END GENERATED: error-codes -->
 
 ---
@@ -298,8 +303,9 @@ relative to `root`; `dependencies` merges `dependencies` and `devDependencies`;
   workspaces: Array<{
     name: string;
     path: string;
-    type: 'app' | 'package' | 'lib' | 'tool';
+    type: 'app' | 'package' | 'lib' | 'tool' | 'service';
     framework?: string;
+    language?: string;
     version: string;
     dependencies: string[];
   }>;
@@ -309,12 +315,16 @@ relative to `root`; `dependencies` merges `dependencies` and `devDependencies`;
       path: string;
       framework: string | null;
       dependencies: string[];
+      type?: 'app' | 'package' | 'lib' | 'tool' | 'service';
+      language?: string;
     }>;
     services: Array<{
       name: string;
       path: string;
       framework: string | null;
       dependencies: string[];
+      type?: 'app' | 'package' | 'lib' | 'tool' | 'service';
+      language?: string;
     }>;
   };
   health: {
@@ -351,6 +361,7 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
         "path": "apps/web",
         "type": "app",
         "framework": "react-ts",
+        "language": "typescript",
         "version": "1.2.0",
         "dependencies": ["@demo/ui", "react", "typescript"]
       },
@@ -358,6 +369,7 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
         "name": "@demo/admin",
         "path": "apps/admin",
         "type": "app",
+        "language": "javascript",
         "version": "0.4.0",
         "dependencies": ["@demo/ui", "@demo/utils"]
       },
@@ -365,6 +377,7 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
         "name": "@demo/utils",
         "path": "packages/utils",
         "type": "package",
+        "language": "javascript",
         "version": "1.0.0",
         "dependencies": []
       },
@@ -372,6 +385,7 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
         "name": "@demo/ui",
         "path": "packages/ui",
         "type": "package",
+        "language": "javascript",
         "version": "1.0.0",
         "dependencies": ["@demo/utils"]
       },
@@ -379,6 +393,7 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
         "name": "@demo/lint",
         "path": "tools/lint",
         "type": "tool",
+        "language": "javascript",
         "version": "1.0.0",
         "dependencies": []
       }
@@ -389,24 +404,44 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
           "name": "@demo/web",
           "path": "apps/web",
           "framework": "react-ts",
-          "dependencies": ["@demo/ui"]
+          "dependencies": ["@demo/ui"],
+          "type": "app",
+          "language": "typescript"
         },
         {
           "name": "@demo/admin",
           "path": "apps/admin",
           "framework": null,
-          "dependencies": ["@demo/ui", "@demo/utils"]
+          "dependencies": ["@demo/ui", "@demo/utils"],
+          "type": "app",
+          "language": "javascript"
         }
       ],
       "services": [
-        {"name": "@demo/utils", "path": "packages/utils", "framework": null, "dependencies": []},
+        {
+          "name": "@demo/utils",
+          "path": "packages/utils",
+          "framework": null,
+          "dependencies": [],
+          "type": "package",
+          "language": "javascript"
+        },
         {
           "name": "@demo/ui",
           "path": "packages/ui",
           "framework": null,
-          "dependencies": ["@demo/utils"]
+          "dependencies": ["@demo/utils"],
+          "type": "package",
+          "language": "javascript"
         },
-        {"name": "@demo/lint", "path": "tools/lint", "framework": null, "dependencies": []}
+        {
+          "name": "@demo/lint",
+          "path": "tools/lint",
+          "framework": null,
+          "dependencies": [],
+          "type": "tool",
+          "language": "javascript"
+        }
       ]
     },
     "health": {
@@ -477,12 +512,16 @@ Each node's `dependencies` lists only internal workspace-to-workspace edges;
     path: string;
     framework: string | null;
     dependencies: string[];
+    type?: 'app' | 'package' | 'lib' | 'tool' | 'service';
+    language?: string;
   }>;
   services: Array<{
     name: string;
     path: string;
     framework: string | null;
     dependencies: string[];
+    type?: 'app' | 'package' | 'lib' | 'tool' | 'service';
+    language?: string;
   }>;
 }
 ```
@@ -498,24 +537,44 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
         "name": "@demo/web",
         "path": "apps/web",
         "framework": "react-ts",
-        "dependencies": ["@demo/ui"]
+        "dependencies": ["@demo/ui"],
+        "type": "app",
+        "language": "typescript"
       },
       {
         "name": "@demo/admin",
         "path": "apps/admin",
         "framework": null,
-        "dependencies": ["@demo/ui", "@demo/utils"]
+        "dependencies": ["@demo/ui", "@demo/utils"],
+        "type": "app",
+        "language": "javascript"
       }
     ],
     "services": [
-      {"name": "@demo/utils", "path": "packages/utils", "framework": null, "dependencies": []},
+      {
+        "name": "@demo/utils",
+        "path": "packages/utils",
+        "framework": null,
+        "dependencies": [],
+        "type": "package",
+        "language": "javascript"
+      },
       {
         "name": "@demo/ui",
         "path": "packages/ui",
         "framework": null,
-        "dependencies": ["@demo/utils"]
+        "dependencies": ["@demo/utils"],
+        "type": "package",
+        "language": "javascript"
       },
-      {"name": "@demo/lint", "path": "tools/lint", "framework": null, "dependencies": []}
+      {
+        "name": "@demo/lint",
+        "path": "tools/lint",
+        "framework": null,
+        "dependencies": [],
+        "type": "tool",
+        "language": "javascript"
+      }
     ]
   },
   "warnings": []
@@ -626,8 +685,9 @@ interactive terminal.
 Array<{
   name: string;
   path: string;
-  type: 'app' | 'package' | 'lib' | 'tool';
+  type: 'app' | 'package' | 'lib' | 'tool' | 'service';
   framework?: string;
+  language?: string;
   version: string;
   dependencies: string[];
 }>
@@ -644,6 +704,7 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
       "path": "apps/web",
       "type": "app",
       "framework": "react-ts",
+      "language": "typescript",
       "version": "1.2.0",
       "dependencies": ["@demo/ui", "react", "typescript"]
     },
@@ -651,6 +712,7 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
       "name": "@demo/admin",
       "path": "apps/admin",
       "type": "app",
+      "language": "javascript",
       "version": "0.4.0",
       "dependencies": ["@demo/ui", "@demo/utils"]
     },
@@ -658,6 +720,7 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
       "name": "@demo/utils",
       "path": "packages/utils",
       "type": "package",
+      "language": "javascript",
       "version": "1.0.0",
       "dependencies": []
     },
@@ -665,6 +728,7 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
       "name": "@demo/ui",
       "path": "packages/ui",
       "type": "package",
+      "language": "javascript",
       "version": "1.0.0",
       "dependencies": ["@demo/utils"]
     },
@@ -672,6 +736,7 @@ Real output for the generator's fixture workspace (`demo-monorepo`; one line on 
       "name": "@demo/lint",
       "path": "tools/lint",
       "type": "tool",
+      "language": "javascript",
       "version": "1.0.0",
       "dependencies": []
     }

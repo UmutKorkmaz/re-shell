@@ -11,6 +11,8 @@ import {
   workspaceTypeWireSchema,
   type HealthSummary,
   type WorkspaceSummary,
+  type WorkspaceLiveStatus,
+  type WorkspaceNodeStatus,
 } from '@re-shell/contracts';
 
 export type { HealthSummary };
@@ -71,15 +73,37 @@ export type SummaryFeed = z.infer<typeof summaryFeedSchema>;
 // Adapters: CLI wire shape -> contracts WorkspaceSummary
 // ---------------------------------------------------------------------------
 
+/** Live status per workspace name, as reported by `workspace status --json`. */
+export type LiveStatusMap = ReadonlyMap<string, WorkspaceLiveStatus>;
+
+/**
+ * Map a live status onto the contract's node status. `unhealthy` (running but
+ * failing its probes) is the contract's `error`; workspaces with no reported
+ * status stay `unknown` rather than being guessed.
+ */
+export function toNodeStatus(live: WorkspaceLiveStatus | undefined): WorkspaceNodeStatus {
+  if (live === 'unhealthy') return 'error';
+  if (live === 'running' || live === 'stopped') return live;
+  return 'unknown';
+}
+
 /**
  * Adapt the validated CLI summary feed into the rich contracts
  * {@link WorkspaceSummary}. Apps are the `type: 'app'` workspaces; everything
  * else (package/lib/tool) is treated as a service, matching the CLI's own
  * `buildContractGraph` app/service split. (Shared adapter: see
  * `workspaceSummaryWireToModel` in `@re-shell/contracts`.)
+ *
+ * Node `status` comes from `live` (the `workspace.status` poll) when supplied;
+ * without it every node is honestly `unknown`.
  */
-export function feedToWorkspaceSummary(feed: SummaryFeed): WorkspaceSummary {
-  return workspaceSummaryWireToModel(feed);
+export function feedToWorkspaceSummary(feed: SummaryFeed, live?: LiveStatusMap): WorkspaceSummary {
+  const model = workspaceSummaryWireToModel(feed);
+  return {
+    ...model,
+    apps: model.apps.map((app) => ({ ...app, status: toNodeStatus(live?.get(app.name)) })),
+    services: model.services.map((svc) => ({ ...svc, status: toNodeStatus(live?.get(svc.name)) })),
+  };
 }
 
 // ---------------------------------------------------------------------------

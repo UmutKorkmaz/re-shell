@@ -9,3 +9,4 @@ export * from './ot.js';
 export * from './collab.js';
 export * from './collab-client.js';
 export * from './platform.js';
+export * from './graph.js';
