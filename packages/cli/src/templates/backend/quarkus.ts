@@ -41,8 +41,8 @@ export const quarkusTemplate: BackendTemplate = {
 <project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>{{packageName}}</groupId>
-  <artifactId>{{serviceName}}</artifactId>
+  <groupId>com.example.app</groupId>
+  <artifactId>{{projectName}}</artifactId>
   <version>1.0.0-SNAPSHOT</version>
   <properties>
     <compiler-plugin.version>3.11.0</compiler-plugin.version>
@@ -261,13 +261,9 @@ export const quarkusTemplate: BackendTemplate = {
   </profiles>
 </project>
 `,
-    'src/main/java/{{packagePath}}/entity/User.java': `package {{packageName}}.entity;
+    'src/main/java/com/example/app/entity/User.java': `package com.example.app.entity;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.security.jpa.Password;
-import io.quarkus.security.jpa.Roles;
-import io.quarkus.security.jpa.UserDefinition;
-import io.quarkus.security.jpa.Username;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -277,14 +273,12 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
-@UserDefinition
 public class User extends PanacheEntityBase {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     public Long id;
     
-    @Username
     @Column(unique = true, nullable = false)
     @NotBlank(message = "Username is required")
     @Size(min = 3, max = 50)
@@ -295,7 +289,6 @@ public class User extends PanacheEntityBase {
     @Email(message = "Email must be valid")
     public String email;
     
-    @Password
     @Column(nullable = false)
     @NotBlank(message = "Password is required")
     public String password;
@@ -306,7 +299,6 @@ public class User extends PanacheEntityBase {
     @Column(name = "last_name")
     public String lastName;
     
-    @Roles
     @Column(nullable = false)
     public String roles = "user";
     
@@ -341,11 +333,11 @@ public class User extends PanacheEntityBase {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/resource/UserResource.java': `package {{packageName}}.resource;
+    'src/main/java/com/example/app/resource/UserResource.java': `package com.example.app.resource;
 
-import {{packageName}}.dto.UserDto;
-import {{packageName}}.entity.User;
-import {{packageName}}.service.UserService;
+import com.example.app.dto.UserDto;
+import com.example.app.entity.User;
+import com.example.app.service.UserService;
 import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
 import jakarta.annotation.security.RolesAllowed;
@@ -357,6 +349,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
@@ -379,7 +372,7 @@ public class UserResource {
     @Operation(summary = "Get all users", description = "Retrieve a paginated list of users")
     @APIResponse(responseCode = "200", description = "List of users",
         content = @Content(mediaType = "application/json", 
-            schema = @Schema(implementation = UserDto.class, type = "array")))
+            schema = @Schema(implementation = UserDto.class, type = SchemaType.ARRAY)))
     public Response getUsers(
             @QueryParam("page") @DefaultValue("0") int page,
             @QueryParam("size") @DefaultValue("20") int size,
@@ -460,10 +453,10 @@ public class UserResource {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/resource/AuthResource.java': `package {{packageName}}.resource;
+    'src/main/java/com/example/app/resource/AuthResource.java': `package com.example.app.resource;
 
-import {{packageName}}.dto.*;
-import {{packageName}}.service.AuthService;
+import com.example.app.dto.*;
+import com.example.app.service.AuthService;
 import io.quarkus.cache.CacheInvalidate;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -534,10 +527,10 @@ public class AuthResource {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/service/UserService.java': `package {{packageName}}.service;
+    'src/main/java/com/example/app/service/UserService.java': `package com.example.app.service;
 
-import {{packageName}}.dto.UserDto;
-import {{packageName}}.entity.User;
+import com.example.app.dto.UserDto;
+import com.example.app.entity.User;
 import io.quarkus.cache.CacheInvalidate;
 import io.quarkus.cache.CacheResult;
 import io.quarkus.elytron.security.common.BcryptUtil;
@@ -599,15 +592,18 @@ public class UserService {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/service/AuthService.java': `package {{packageName}}.service;
+    'src/main/java/com/example/app/service/AuthService.java': `package com.example.app.service;
 
-import {{packageName}}.dto.*;
-import {{packageName}}.entity.User;
+import com.example.app.dto.*;
+import com.example.app.entity.User;
 import io.quarkus.elytron.security.common.BcryptUtil;
+import io.smallrye.jwt.auth.principal.JWTParser;
 import io.smallrye.jwt.build.Jwt;
+import org.eclipse.microprofile.jwt.JsonWebToken;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.WebApplicationException;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Duration;
@@ -628,6 +624,9 @@ public class AuthService {
     
     @Inject
     UserService userService;
+
+    @Inject
+    JWTParser jwtParser;
     
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -683,8 +682,8 @@ public class AuthService {
         // For this example, we'll parse it and generate a new access token
         
         try {
-            var parser = Jwt.parser().verify(refreshToken);
-            String username = parser.getClaim("sub");
+            JsonWebToken parsed = jwtParser.parse(refreshToken);
+            String username = parsed.getSubject();
             
             User user = User.findByUsername(username);
             if (user == null || !user.active) {
@@ -726,9 +725,9 @@ public class AuthService {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/dto/UserDto.java': `package {{packageName}}.dto;
+    'src/main/java/com/example/app/dto/UserDto.java': `package com.example.app.dto;
 
-import {{packageName}}.entity.User;
+import com.example.app.entity.User;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -779,7 +778,7 @@ public class UserDto {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/dto/LoginRequest.java': `package {{packageName}}.dto;
+    'src/main/java/com/example/app/dto/LoginRequest.java': `package com.example.app.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
@@ -792,7 +791,7 @@ public class LoginRequest {
     public String password;
 }
 `,
-    'src/main/java/{{packagePath}}/dto/RegisterRequest.java': `package {{packageName}}.dto;
+    'src/main/java/com/example/app/dto/RegisterRequest.java': `package com.example.app.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -817,7 +816,7 @@ public class RegisterRequest {
     public String lastName;
 }
 `,
-    'src/main/java/{{packagePath}}/dto/AuthResponse.java': `package {{packageName}}.dto;
+    'src/main/java/com/example/app/dto/AuthResponse.java': `package com.example.app.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -875,13 +874,14 @@ public class AuthResponse {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/health/DatabaseHealthCheck.java': `package {{packageName}}.health;
+    'src/main/java/com/example/app/health/DatabaseHealthCheck.java': `package com.example.app.health;
 
 import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.health.HealthCheck;
 import org.eclipse.microprofile.health.HealthCheckResponse;
+import org.eclipse.microprofile.health.HealthCheckResponseBuilder;
 import org.eclipse.microprofile.health.Readiness;
 
 import java.sql.Connection;
@@ -896,7 +896,7 @@ public class DatabaseHealthCheck implements HealthCheck {
     
     @Override
     public HealthCheckResponse call() {
-        HealthCheckResponse.HealthCheckResponseBuilder responseBuilder = HealthCheckResponse
+        HealthCheckResponseBuilder responseBuilder = HealthCheckResponse
             .named("Database connection health check");
         
         try (Connection connection = dataSource.getConnection()) {
@@ -915,17 +915,18 @@ public class DatabaseHealthCheck implements HealthCheck {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/health/RedisHealthCheck.java': `package {{packageName}}.health;
+    'src/main/java/com/example/app/health/RedisHealthCheck.java': `package com.example.app.health;
 
 import io.quarkus.redis.client.RedisClient;
-import io.vertx.mutiny.redis.client.Response;
+import io.vertx.redis.client.Response;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.health.HealthCheck;
 import org.eclipse.microprofile.health.HealthCheckResponse;
+import org.eclipse.microprofile.health.HealthCheckResponseBuilder;
 import org.eclipse.microprofile.health.Liveness;
 
-import java.time.Duration;
+import java.util.List;
 
 @Liveness
 @ApplicationScoped
@@ -936,16 +937,11 @@ public class RedisHealthCheck implements HealthCheck {
     
     @Override
     public HealthCheckResponse call() {
-        HealthCheckResponse.HealthCheckResponseBuilder responseBuilder = HealthCheckResponse
+        HealthCheckResponseBuilder responseBuilder = HealthCheckResponse
             .named("Redis connection health check");
         
         try {
-            Response response = redisClient.ping()
-                .onFailure()
-                .retry()
-                .atMost(3)
-                .await()
-                .atMost(Duration.ofSeconds(3));
+            Response response = redisClient.ping(List.of());
             
             if (response != null && response.toString().equals("PONG")) {
                 responseBuilder.up();
@@ -961,7 +957,7 @@ public class RedisHealthCheck implements HealthCheck {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/exception/ErrorMapper.java': `package {{packageName}}.exception;
+    'src/main/java/com/example/app/exception/ErrorMapper.java': `package com.example.app.exception;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
@@ -999,7 +995,7 @@ public class ErrorMapper implements ExceptionMapper<ConstraintViolationException
     }
 }
 `,
-    'src/main/java/{{packagePath}}/exception/WebApplicationExceptionMapper.java': `package {{packageName}}.exception;
+    'src/main/java/com/example/app/exception/WebApplicationExceptionMapper.java': `package com.example.app.exception;
 
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
@@ -1027,7 +1023,7 @@ public class WebApplicationExceptionMapper implements ExceptionMapper<WebApplica
 `,
     'src/main/resources/application.yml': `quarkus:
   application:
-    name: {{serviceName}}
+    name: {{projectName}}
     version: 1.0.0
 
   http:
@@ -1044,7 +1040,7 @@ public class WebApplicationExceptionMapper implements ExceptionMapper<WebApplica
     username: \${DB_USERNAME:postgres}
     password: \${DB_PASSWORD:postgres}
     jdbc:
-      url: jdbc:postgresql://\${DB_HOST:localhost}:\${DB_PORT:5432}/\${DB_NAME:{{serviceName}}_db}
+      url: jdbc:postgresql://\${DB_HOST:localhost}:\${DB_PORT:5432}/\${DB_NAME:{{projectName}}_db}
       max-size: 16
 
   hibernate-orm:
@@ -1073,7 +1069,7 @@ public class WebApplicationExceptionMapper implements ExceptionMapper<WebApplica
   log:
     level: INFO
     category:
-      "{{packageName}}":
+      "com.example.app":
         level: DEBUG
 
   native:
@@ -1085,7 +1081,7 @@ mp:
     verify:
       publickey:
         location: publicKey.pem
-      issuer: {{serviceName}}
+      issuer: {{projectName}}
 
 jwt:
   duration: 3600
@@ -1175,9 +1171,10 @@ YXDkRM8FrdhTOpcTqjG4nJ7VA8KgJd3rZiZV84fgvQb2sAguDBQkeFABQp+VLX0a
 sQIDAQAB
 -----END PUBLIC KEY-----
 `,
-    'src/test/java/{{packagePath}}/UserResourceTest.java': `package {{packageName}};
+    'src/test/java/com/example/app/UserResourceTest.java': `package com.example.app;
 
-import {{packageName}}.dto.UserDto;
+import com.example.app.dto.UserDto;
+import com.example.app.resource.UserResource;
 import io.quarkus.test.common.http.TestHTTPEndpoint;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
@@ -1250,10 +1247,10 @@ public class UserResourceTest {
     }
 }
 `,
-    'src/test/java/{{packagePath}}/AuthResourceTest.java': `package {{packageName}};
+    'src/test/java/com/example/app/AuthResourceTest.java': `package com.example.app;
 
-import {{packageName}}.dto.LoginRequest;
-import {{packageName}}.dto.RegisterRequest;
+import com.example.app.dto.LoginRequest;
+import com.example.app.dto.RegisterRequest;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
@@ -1317,7 +1314,7 @@ public class AuthResourceTest {
     }
 }
 `,
-    'src/native-test/java/{{packagePath}}/NativeUserResourceIT.java': `package {{packageName}};
+    'src/native-test/java/com/example/app/NativeUserResourceIT.java': `package com.example.app;
 
 import io.quarkus.test.junit.QuarkusIntegrationTest;
 
@@ -1419,11 +1416,11 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 #
 # Then, build the image with:
 #
-# docker build -f src/main/docker/Dockerfile.native -t quarkus/{{serviceName}} .
+# docker build -f src/main/docker/Dockerfile.native -t quarkus/{{projectName}} .
 #
 # Then run the container using:
 #
-# docker run -i --rm -p {{port}}:{{port}} quarkus/{{serviceName}}
+# docker run -i --rm -p {{port}}:{{port}} quarkus/{{projectName}}
 #
 ###
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.8
@@ -1449,7 +1446,7 @@ services:
       - QUARKUS_PROFILE=prod
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME={{serviceName}}_db
+      - DB_NAME={{projectName}}_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=postgres
       - REDIS_HOST=redis
@@ -1465,7 +1462,7 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB={{serviceName}}_db
+      - POSTGRES_DB={{projectName}}_db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
@@ -1499,7 +1496,7 @@ networks:
   app-network:
     driver: bridge
 `,
-    'README.md': `# {{serviceName}}
+    'README.md': `# {{projectName}}
 
 {{description}}
 
@@ -1545,10 +1542,10 @@ Run integration tests:
 ./mvnw package -Pnative
 
 # Build Docker image with native executable
-docker build -f Dockerfile.native -t {{serviceName}}:native .
+docker build -f Dockerfile.native -t {{projectName}}:native .
 
 # Run native Docker container
-docker run -i --rm -p {{port}}:{{port}} {{serviceName}}:native
+docker run -i --rm -p {{port}}:{{port}} {{projectName}}:native
 \`\`\`
 
 ## 📚 API Documentation

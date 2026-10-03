@@ -17,6 +17,7 @@ export const flaskTemplate: BackendTemplate = {
     // Python project configuration
     'requirements.txt': `Flask==3.0.3
 Flask-SQLAlchemy==3.1.1
+SQLAlchemy>=2.0.16,<2.1
 Flask-Migrate==4.0.7
 Flask-Login==0.6.3
 Flask-JWT-Extended==4.6.0
@@ -33,6 +34,7 @@ Flask-WTF==1.2.1
 Flask-Bcrypt==1.0.1
 Flask-Compress==1.14
 Flask-Talisman==1.1.0
+marshmallow>=3.18,<4
 marshmallow-sqlalchemy==1.0.0
 python-dotenv==1.0.1
 psycopg2-binary==2.9.9
@@ -48,10 +50,6 @@ boto3==1.34.84
 stripe==8.9.0
 requests==2.31.0
 beautifulsoup4==4.12.3
-pandas==2.2.2
-numpy==1.26.4
-matplotlib==3.8.4
-seaborn==0.13.2
 python-dateutil==2.9.0
 pytz==2024.1
 cryptography==42.0.5
@@ -141,7 +139,7 @@ def create_app(config_name='development'):
     compress.init_app(app)
     
     # Security headers (disable in development for easier debugging)
-    if app.config['ENV'] == 'production':
+    if config_name == 'production':
         Talisman(app, force_https=True)
     
     # Initialize scheduler
@@ -1395,13 +1393,27 @@ def verify_token(token: str) -> dict | None:
     'app/utils/decorators.py': `from functools import wraps
 from flask import request, jsonify
 
-def validate_json(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not request.is_json:
-            return jsonify({'error': 'Content-Type must be application/json'}), 400
-        return f(*args, **kwargs)
-    return decorated
+
+def validate_json(schema):
+    """Require a JSON body that validates against a marshmallow schema.
+
+    Usage: @validate_json(RegisterSchema())
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not request.is_json:
+                return jsonify({'error': 'Content-Type must be application/json'}), 400
+            payload = request.get_json(silent=True)
+            if not isinstance(payload, dict):
+                return jsonify({'error': 'Request body must be a JSON object'}), 400
+            errors = schema.validate(payload)
+            if errors:
+                return jsonify({'message': 'Validation failed', 'errors': errors}), 400
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
 
 def admin_required(f):
     @wraps(f)

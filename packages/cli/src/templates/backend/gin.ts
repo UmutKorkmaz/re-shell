@@ -20,73 +20,73 @@ export const ginTemplate: BackendTemplate = {
 go 1.21
 
 require (
+	github.com/gin-contrib/cors v1.5.0
+	github.com/gin-contrib/gzip v0.0.6
+	github.com/gin-contrib/requestid v0.0.6
 	github.com/gin-gonic/gin v1.9.1
-	github.com/joho/godotenv v1.5.1
-	github.com/go-playground/validator/v10 v10.16.0
 	github.com/golang-jwt/jwt/v5 v5.2.0
+	github.com/graphql-go/graphql v0.8.1
+	github.com/graphql-go/handler v0.2.4
+	github.com/joho/godotenv v1.5.1
+	github.com/redis/go-redis/v9 v9.3.1
+	github.com/sirupsen/logrus v1.9.3
+	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.2
-	github.com/swaggo/files v1.0.1
-	github.com/sirupsen/logrus v1.9.3
-	github.com/gin-contrib/cors v1.5.0
-	github.com/gin-contrib/requestid v0.0.6
-	github.com/gin-contrib/gzip v0.0.6
 	github.com/ulule/limiter/v3 v3.11.2
-	github.com/redis/go-redis/v9 v9.3.1
-	gorm.io/gorm v1.25.5
-	gorm.io/driver/postgres v1.5.4
-	gorm.io/driver/mysql v1.5.2
-	gorm.io/driver/sqlite v1.5.4
 	golang.org/x/crypto v0.17.0
-	github.com/99designs/gqlgen v0.17.45
-	github.com/vektah/gqlparser/v2 v2.5.11
+	gorm.io/driver/mysql v1.5.2
+	gorm.io/driver/postgres v1.5.4
+	gorm.io/driver/sqlite v1.5.4
+	gorm.io/gorm v1.25.5
 )
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/PuerkitoBio/purell v1.2.1 // indirect
+	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
-	github.com/bytedance/sonic v1.10.2 // indirect
+	github.com/bytedance/sonic v1.10.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20230717121745-296ad89f973d // indirect
-	github.com/chenzhuoyu/iasm v0.9.1 // indirect
+	github.com/chenzhuoyu/iasm v0.9.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/go-openapi/jsonpointer v0.20.2 // indirect
-	github.com/go-openapi/jsonreference v0.20.4 // indirect
-	github.com/go-openapi/spec v0.20.13 // indirect
-	github.com/go-openapi/swag v0.22.7 // indirect
+	github.com/go-openapi/jsonpointer v0.19.5 // indirect
+	github.com/go-openapi/jsonreference v0.19.6 // indirect
+	github.com/go-openapi/spec v0.20.4 // indirect
+	github.com/go-openapi/swag v0.19.15 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
+	github.com/go-playground/validator/v10 v10.15.5 // indirect
+	github.com/go-sql-driver/mysql v1.7.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
-	github.com/google/uuid v1.5.0 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect
-	github.com/jackc/pgx/v5 v5.5.1 // indirect
-	github.com/jackc/puddle/v2 v2.2.1 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgx/v5 v5.4.3 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
-	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-sqlite3 v1.14.19 // indirect
+	github.com/mailru/easyjson v0.7.6 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/pelletier/go-toml/v2 v2.1.1 // indirect
+	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
-	github.com/ugorji/go/codec v1.2.12 // indirect
-	golang.org/x/arch v0.6.0 // indirect
-	golang.org/x/net v0.19.0 // indirect
-	golang.org/x/sync v0.5.0 // indirect
+	github.com/ugorji/go/codec v1.2.11 // indirect
+	golang.org/x/arch v0.5.0 // indirect
+	golang.org/x/net v0.16.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/tools v0.16.1 // indirect
+	golang.org/x/tools v0.7.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 `,
@@ -184,9 +184,12 @@ func main() {
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// GraphQL endpoint
-	graphqlHandler := graphql.NewHandler()
+	graphqlHandler, err := graphql.NewHandler()
+	if err != nil {
+		log.Fatal("Failed to build GraphQL schema:", err)
+	}
 	router.POST("/graphql", gin.WrapH(graphqlHandler))
-	router.GET("/graphql", gin.WrapF(graphqlHandler.Playground))
+	router.GET("/graphql", gin.WrapH(graphqlHandler))
 
 	// API routes
 	api := router.Group("/api/v1")
@@ -287,7 +290,8 @@ func New() *Config {
 		JWTExpirationHours: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
 		
 		// Redis
-		RedisAddr:     getEnv("REDIS_ADDR", "localhost:6379"),
+		// Redis is optional: rate limiting uses an in-memory store unless REDIS_ADDR is set.
+		RedisAddr:     getEnv("REDIS_ADDR", ""),
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
 		RedisDB:       getEnvAsInt("REDIS_DB", 0),
 		
@@ -617,40 +621,63 @@ func Recovery() gin.HandlerFunc {
     'middleware/rate_limiter.go': `package middleware
 
 import (
+	"context"
+	"log"
 	"net/http"
+	"strconv"
+	"time"
 
 	"{{projectName}}/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/ulule/limiter/v3"
-	"github.com/ulule/limiter/v3/drivers/store/redis"
+	memorystore "github.com/ulule/limiter/v3/drivers/store/memory"
+	redisstore "github.com/ulule/limiter/v3/drivers/store/redis"
 )
 
-func RateLimiter(cfg *config.Config) gin.HandlerFunc {
-	// Create Redis client
-	client := redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisAddr,
-		Password: cfg.RedisPassword,
-		DB:       cfg.RedisDB})
-
-	// Create store
-	store, err := redis.NewStoreWithOptions(client, limiter.StoreOptions{
-		Prefix: "rate_limit"})
-	if err != nil {
-		// Fallback to memory store if Redis fails
-		store = limiter.NewMemoryStore()
+// newRateLimitStore returns a Redis-backed store when REDIS_ADDR is set and the
+// server answers a ping, and an in-memory store otherwise. Redis is optional: a
+// missing or unreachable Redis is logged and never blocks startup for more than
+// the two second ping timeout.
+func newRateLimitStore(cfg *config.Config) limiter.Store {
+	if cfg.RedisAddr == "" {
+		return memorystore.NewStore()
 	}
 
-	// Create rate limiter
+	client := redis.NewClient(&redis.Options{
+		Addr:        cfg.RedisAddr,
+		Password:    cfg.RedisPassword,
+		DB:          cfg.RedisDB,
+		DialTimeout: 2 * time.Second})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx).Err(); err != nil {
+		log.Printf("Redis unavailable at %s (%v); rate limiting with the in-memory store", cfg.RedisAddr, err)
+		_ = client.Close()
+		return memorystore.NewStore()
+	}
+
+	store, err := redisstore.NewStoreWithOptions(client, limiter.StoreOptions{
+		Prefix: "rate_limit"})
+	if err != nil {
+		log.Printf("Redis rate limit store failed (%v); using the in-memory store", err)
+		_ = client.Close()
+		return memorystore.NewStore()
+	}
+	return store
+}
+
+func RateLimiter(cfg *config.Config) gin.HandlerFunc {
 	rate := limiter.Rate{
 		Period: cfg.RateLimitDuration,
 		Limit:  int64(cfg.RateLimitRequests)}
-	
-	instance := limiter.New(store, rate)
+
+	instance := limiter.New(newRateLimitStore(cfg), rate)
 
 	return func(c *gin.Context) {
-		context, err := instance.Get(c.Request.Context(), c.ClientIP())
+		limitCtx, err := instance.Get(c.Request.Context(), c.ClientIP())
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Rate limiter error"})
 			c.Abort()
@@ -658,11 +685,11 @@ func RateLimiter(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		// Set rate limit headers
-		c.Header("X-RateLimit-Limit", string(context.Limit))
-		c.Header("X-RateLimit-Remaining", string(context.Remaining))
-		c.Header("X-RateLimit-Reset", string(context.Reset))
+		c.Header("X-RateLimit-Limit", strconv.FormatInt(limitCtx.Limit, 10))
+		c.Header("X-RateLimit-Remaining", strconv.FormatInt(limitCtx.Remaining, 10))
+		c.Header("X-RateLimit-Reset", strconv.FormatInt(limitCtx.Reset, 10))
 
-		if context.Reached {
+		if limitCtx.Reached {
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Rate limit exceeded"})
 			c.Abort()
 			return
@@ -1262,118 +1289,115 @@ func ValidateJWT(tokenString, secret string) (*JWTClaims, error) {
 }
 `,
 
-    // GraphQL schema
-    'graphql/schema.graphql': `# GraphQL schema for {{projectName}}
-# Re-generate Go bindings with: go run github.com/99designs/gqlgen generate
-
-type Query {
-  hello: String!
-  health: String!
-}
-`,
-    // GraphQL generated models manifest (gqlgen.yml)
-    'gqlgen.yml': `# gqlgen configuration
-schema:
-  - graphql/schema.graphql
-
-exec:
-  filename: graphql/generated.go
-  package: graphql
-
-model:
-  filename: graphql/models_gen.go
-  package: graphql
-
-resolver:
-  layout: follow-schema
-  dir: graphql
-  package: graphql
-  filename_template: "{name}.resolvers.go"
-
-autobind: []
-
-models:
-  ID:
-    model:
-      - github.com/99designs/gqlgen/graphql.ID
-      - github.com/99designs/gqlgen/graphql.Int
-      - github.com/99designs/gqlgen/graphql.Int64
-      - github.com/99designs/gqlgen/graphql.Int32
-`,
-
-    // GraphQL resolver root struct (gqlgen entrypoint)
-    'graphql/resolver.go': `package graphql
-
-// Resolver is the root resolver, used by gqlgen's generated code as the
-// entry point into the application's resolver layer.
-type Resolver struct{}
-
-// NewResolver returns a new root resolver instance.
-func NewResolver() *Resolver {
-	return &Resolver{}
-}
-`,
-
-    // GraphQL HTTP handler wrapper around gqlgen
+// GraphQL HTTP handler wrapper around gqlgen
     'graphql/handler.go': `package graphql
 
 import (
 	"net/http"
 
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/playground"
+	gql "github.com/graphql-go/graphql"
+	gqlhandler "github.com/graphql-go/handler"
 )
 
-// Handler bundles the gqlgen HTTP handler and a playground handler together.
-//
-// gqlgen generates NewExecutableSchema(...) in graphql/generated.go from
-// graphql/schema.graphql. Before the first build, run:
-//
-//	go run github.com/99designs/gqlgen generate
-//
-// to produce graphql/generated.go and graphql/models_gen.go.
+// NewSchema builds the GraphQL schema in code, so there is no code generation
+// step between a fresh checkout and a working build. Add fields to the Query
+// (and a Mutation object) here, or split them into their own files.
+func NewSchema() (gql.Schema, error) {
+	query := gql.NewObject(gql.ObjectConfig{
+		Name: "Query",
+		Fields: gql.Fields{
+			"hello": &gql.Field{
+				Type:        gql.NewNonNull(gql.String),
+				Description: "Simple hello world query",
+				Resolve: func(p gql.ResolveParams) (interface{}, error) {
+					return "Hello, {{projectName}} GraphQL!", nil
+				},
+			},
+			"health": &gql.Field{
+				Type:        gql.NewNonNull(gql.String),
+				Description: "Service health check",
+				Resolve: func(p gql.ResolveParams) (interface{}, error) {
+					return "healthy", nil
+				},
+			},
+		},
+	})
+
+	return gql.NewSchema(gql.SchemaConfig{Query: query})
+}
+
+// Handler serves the GraphQL endpoint (POST) and the GraphiQL playground (GET
+// from a browser).
 type Handler struct {
-	executable http.Handler
+	api *gqlhandler.Handler
 }
 
-// NewHandler builds the GraphQL HTTP handler wired to the root resolver.
-func NewHandler() *Handler {
-	srv := handler.NewDefaultServer(NewExecutableSchema(NewResolver()))
-	return &Handler{executable: srv}
+// NewHandler builds the GraphQL HTTP handler.
+func NewHandler() (*Handler, error) {
+	schema, err := NewSchema()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Handler{api: gqlhandler.New(&gqlhandler.Config{
+		Schema:     &schema,
+		Pretty:     false,
+		Playground: true,
+	})}, nil
 }
 
-// ServeHTTP delegates to the underlying gqlgen handler.
+// ServeHTTP delegates to the underlying GraphQL handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.executable.ServeHTTP(w, r)
-}
-
-// Playground returns an http.HandlerFunc serving GraphiQL.
-func (h *Handler) Playground() http.HandlerFunc {
-	return playground.Handler("GraphQL playground", "/graphql")
+	h.api.ServeHTTP(w, r)
 }
 `,
 
-    // GraphQL resolvers file (regenerated by gqlgen; stubs match schema.graphql)
-    'graphql/schema.resolvers.go': `package graphql
+// Environment file
+    // Swagger description served at /swagger. A minimal stand-in for the file
+    // "swag init" generates, so that a fresh checkout builds; "make swagger"
+    // regenerates it from the handler annotations.
+    'docs/docs.go': `// Package docs holds the OpenAPI description served at /swagger.
+//
+// This is a minimal, hand-written stand-in for the file that "swag init"
+// generates, so that a fresh checkout compiles. Run "make swagger" to
+// regenerate it from the annotations in main.go and the route handlers; the
+// generated docs/docs.go replaces this file.
+package docs
 
-// This file will be regenerated by gqlgen.
+import "github.com/swaggo/swag"
 
-import (
-	"context"
-)
+const docTemplate = \`{
+    "schemes": {{ marshal .Schemes }},
+    "swagger": "2.0",
+    "info": {
+        "description": "{{escape .Description}}",
+        "title": "{{.Title}}",
+        "version": "{{.Version}}"
+    },
+    "host": "{{.Host}}",
+    "basePath": "{{.BasePath}}",
+    "paths": {}
+}\`
 
-// Hello is the resolver for the hello field on the Query type.
-func (r *queryResolver) Hello(ctx context.Context) (string, error) {
-	return "Hello, {{projectName}} GraphQL!", nil
+// SwaggerInfo holds exported Swagger Info so clients can modify it.
+var SwaggerInfo = &swag.Spec{
+	Version:          "1.0",
+	Host:             "localhost:8080",
+	BasePath:         "/api/v1",
+	Schemes:          []string{},
+	Title:            "{{projectName}} API",
+	Description:      "API server for {{projectName}}",
+	InfoInstanceName: "swagger",
+	SwaggerTemplate:  docTemplate,
+	LeftDelim:        "{{",
+	RightDelim:       "}}",
 }
 
-// Health is the resolver for the health field on the Query type.
-func (r *queryResolver) Health(ctx context.Context) (string, error) {
-	return "healthy", nil
+func init() {
+	swag.Register(SwaggerInfo.InstanceName(), SwaggerInfo)
 }
 `,
 
-    // Environment file
     '.env.example': `# Environment
 ENVIRONMENT=development
 
@@ -1623,10 +1647,6 @@ deps-update:
 swagger:
 	swag init
 
-# Generate GraphQL code
-graphql:
-	go run github.com/99designs/gqlgen generate
-
 # Format code
 fmt:
 	$(GOCMD) fmt ./...
@@ -1661,7 +1681,7 @@ install-tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
-.PHONY: build run dev test test-coverage clean deps deps-update swagger graphql fmt lint docker-build docker-run docker-stop migrate-up migrate-down install-tools
+.PHONY: build run dev test test-coverage clean deps deps-update swagger fmt lint docker-build docker-run docker-stop migrate-up migrate-down install-tools
 `,
 
     // README
@@ -1680,7 +1700,7 @@ A high-performance REST API built with Gin framework in Go.
 - **CORS Support**: Configurable cross-origin requests
 - **Hot Reload**: Development with Air
 - **Docker Support**: Containerized deployment
-- **GraphQL**: GraphQL endpoint via gqlgen with GraphiQL playground
+- **GraphQL**: GraphQL endpoint (graphql-go, schema built in code) with a GraphiQL playground
 - **Testing**: Unit and integration tests
 
 ## Requirements
@@ -1717,17 +1737,16 @@ Once the server is running, visit:
 
 ## GraphQL
 
-GraphQL is provided by [gqlgen](https://gqlgen.com/). The schema lives in
-\`graphql/schema.graphql\` with starter \`Query { hello, health }\` fields.
-
-Before the first build, generate the Go bindings:
+GraphQL is served by [graphql-go](https://github.com/graphql-go/graphql). The
+schema is built in code in \`graphql/handler.go\` with starter \`Query { hello, health }\`
+fields, so there is no code generation step: add fields there and restart.
 
 \`\`\`bash
-make graphql
+curl -s localhost:8080/graphql -H 'content-type: application/json' \\
+  -d '{"query":"{ hello health }"}'
 \`\`\`
 
-This produces \`graphql/generated.go\` and \`graphql/models_gen.go\` from the
-schema. Then run the server and open the playground at \`/graphql\`.
+Open \`/graphql\` in a browser for the GraphiQL playground.
 
 ## Development
 
@@ -1763,7 +1782,7 @@ make lint
 ├── config/         # Configuration
 ├── database/       # Database connection and migrations
 ├── docs/          # Swagger documentation
-├── graphql/       # GraphQL schema, resolvers, and generated code
+├── graphql/       # GraphQL schema and handler
 ├── middleware/    # HTTP middleware
 ├── models/        # Data models
 ├── routes/        # API routes

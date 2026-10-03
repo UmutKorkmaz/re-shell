@@ -15,12 +15,12 @@ export const phoenixTemplate: BackendTemplate = {
 
   files: {
     // Mix project file
-    'mix.exs': `defmodule {{ProjectName}}.MixProject do
+    'mix.exs': `defmodule App.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :{{projectName}},
+      app: :app,
       version: "0.1.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -32,7 +32,7 @@ export const phoenixTemplate: BackendTemplate = {
 
   def application do
     [
-      mod: {{{ProjectName}}.Application, []},
+      mod: {App.Application, []},
       extra_applications: [:logger, :runtime_tools]
     ]
   end
@@ -79,7 +79,7 @@ end
 `,
 
     // Application
-    'lib/{{projectName}}/application.ex': `defmodule {{ProjectName}}.Application do
+    'lib/app/application.ex': `defmodule App.Application do
   @moduledoc false
 
   use Application
@@ -87,35 +87,35 @@ end
   @impl true
   def start(_type, _args) do
     children = [
-      {{ProjectName}}Web.Telemetry,
-      {{ProjectName}}.Repo,
-      {Phoenix.PubSub, name: {{ProjectName}}.PubSub},
-      {Finch, name: {{ProjectName}}.Finch},
-      {{ProjectName}}Web.Endpoint
+      AppWeb.Telemetry,
+      App.Repo,
+      {Phoenix.PubSub, name: App.PubSub},
+      {Finch, name: App.Finch},
+      AppWeb.Endpoint
     ]
 
-    opts = [strategy: :one_for_one, name: {{ProjectName}}.Supervisor]
+    opts = [strategy: :one_for_one, name: App.Supervisor]
     Supervisor.start_link(children, opts)
   end
 
   @impl true
   def config_change(changed, _new, removed) do
-    {{ProjectName}}Web.Endpoint.config_change(changed, removed)
+    AppWeb.Endpoint.config_change(changed, removed)
     :ok
   end
 end
 `,
 
     // Repo
-    'lib/{{projectName}}/repo.ex': `defmodule {{ProjectName}}.Repo do
+    'lib/app/repo.ex': `defmodule App.Repo do
   use Ecto.Repo,
-    otp_app: :{{projectName}},
+    otp_app: :app,
     adapter: Ecto.Adapters.Postgres
 end
 `,
 
     // User schema
-    'lib/{{projectName}}/accounts/user.ex': `defmodule {{ProjectName}}.Accounts.User do
+    'lib/app/accounts/user.ex': `defmodule App.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -173,14 +173,14 @@ end
 `,
 
     // Accounts context
-    'lib/{{projectName}}/accounts.ex': `defmodule {{ProjectName}}.Accounts do
+    'lib/app/accounts.ex': `defmodule App.Accounts do
   @moduledoc """
   The Accounts context.
   """
 
   import Ecto.Query, warn: false
-  alias {{ProjectName}}.Repo
-  alias {{ProjectName}}.Accounts.User
+  alias App.Repo
+  alias App.Accounts.User
 
   def list_users do
     Repo.all(User)
@@ -227,7 +227,7 @@ end
 `,
 
     // Product schema
-    'lib/{{projectName}}/catalog/product.ex': `defmodule {{ProjectName}}.Catalog.Product do
+    'lib/app/catalog/product.ex': `defmodule App.Catalog.Product do
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -257,14 +257,14 @@ end
 `,
 
     // Catalog context
-    'lib/{{projectName}}/catalog.ex': `defmodule {{ProjectName}}.Catalog do
+    'lib/app/catalog.ex': `defmodule App.Catalog do
   @moduledoc """
   The Catalog context.
   """
 
   import Ecto.Query, warn: false
-  alias {{ProjectName}}.Repo
-  alias {{ProjectName}}.Catalog.Product
+  alias App.Repo
+  alias App.Catalog.Product
 
   def list_products(params \\\\ %{}) do
     page = Map.get(params, "page", 1) |> to_integer(1)
@@ -311,10 +311,10 @@ end
 `,
 
     // Guardian config
-    'lib/{{projectName}}_web/auth/guardian.ex': `defmodule {{ProjectName}}Web.Auth.Guardian do
-  use Guardian, otp_app: :{{projectName}}
+    'lib/app_web/auth/guardian.ex': `defmodule AppWeb.Auth.Guardian do
+  use Guardian, otp_app: :app
 
-  alias {{ProjectName}}.Accounts
+  alias App.Accounts
 
   def subject_for_token(%{id: id}, _claims) do
     {:ok, to_string(id)}
@@ -330,11 +330,11 @@ end
 `,
 
     // Auth pipeline
-    'lib/{{projectName}}_web/auth/pipeline.ex': `defmodule {{ProjectName}}Web.Auth.Pipeline do
+    'lib/app_web/auth/pipeline.ex': `defmodule AppWeb.Auth.Pipeline do
   use Guardian.Plug.Pipeline,
-    otp_app: :{{projectName}},
-    module: {{ProjectName}}Web.Auth.Guardian,
-    error_handler: {{ProjectName}}Web.Auth.ErrorHandler
+    otp_app: :app,
+    module: AppWeb.Auth.Guardian,
+    error_handler: AppWeb.Auth.ErrorHandler
 
   plug Guardian.Plug.VerifyHeader, scheme: "Bearer"
   plug Guardian.Plug.EnsureAuthenticated
@@ -343,7 +343,7 @@ end
 `,
 
     // Auth error handler
-    'lib/{{projectName}}_web/auth/error_handler.ex': `defmodule {{ProjectName}}Web.Auth.ErrorHandler do
+    'lib/app_web/auth/error_handler.ex': `defmodule AppWeb.Auth.ErrorHandler do
   import Plug.Conn
   import Phoenix.Controller
 
@@ -366,12 +366,12 @@ end
 `,
 
     // Endpoint
-    'lib/{{projectName}}_web/endpoint.ex': `defmodule {{ProjectName}}Web.Endpoint do
-  use Phoenix.Endpoint, otp_app: :{{projectName}}
+    'lib/app_web/endpoint.ex': `defmodule AppWeb.Endpoint do
+  use Phoenix.Endpoint, otp_app: :app
 
   @session_options [
     store: :cookie,
-    key: "_{{projectName}}_key",
+    key: "_app_key",
     signing_salt: "changeme",
     same_site: "Lax"
   ]
@@ -380,13 +380,13 @@ end
 
   plug Plug.Static,
     at: "/",
-    from: :{{projectName}},
+    from: :app,
     gzip: false,
-    only: {{ProjectName}}Web.static_paths()
+    only: AppWeb.static_paths()
 
   if code_reloading? do
     plug Phoenix.CodeReloader
-    plug Phoenix.Ecto.CheckRepoStatus, otp_app: :{{projectName}}
+    plug Phoenix.Ecto.CheckRepoStatus, otp_app: :app
   end
 
   plug Phoenix.LiveDashboard.RequestLogger,
@@ -405,25 +405,25 @@ end
   plug Plug.Head
   plug Plug.Session, @session_options
   plug CORSPlug
-  plug {{ProjectName}}Web.Router
+  plug AppWeb.Router
 end
 `,
 
     // Router
-    'lib/{{projectName}}_web/router.ex': `defmodule {{ProjectName}}Web.Router do
-  use {{ProjectName}}Web, :router
+    'lib/app_web/router.ex': `defmodule AppWeb.Router do
+  use AppWeb, :router
 
   pipeline :api do
     plug :accepts, ["json"]
-    plug {{ProjectName}}Web.Plugs.RateLimit
+    plug AppWeb.Plugs.RateLimit
   end
 
   pipeline :authenticated do
-    plug {{ProjectName}}Web.Auth.Pipeline
+    plug AppWeb.Auth.Pipeline
   end
 
   # Health check
-  scope "/", {{ProjectName}}Web do
+  scope "/", AppWeb do
     pipe_through :api
 
     get "/health", HealthController, :index
@@ -433,20 +433,20 @@ end
   scope "/" do
     pipe_through :api
 
-    forward "/graphql", Absinthe.Plug, schema: {{ProjectName}}Web.Schema
+    forward "/graphql", Absinthe.Plug, schema: AppWeb.Schema
   end
 
   # GraphiQL (dev only)
   if Mix.env() in [:dev, :test] do
     scope "/" do
       forward "/graphiql", Absinthe.Plug.GraphiQL,
-        schema: {{ProjectName}}Web.Schema,
+        schema: AppWeb.Schema,
         interface: :simple
     end
   end
 
   # API routes
-  scope "/api/v1", {{ProjectName}}Web do
+  scope "/api/v1", AppWeb do
     pipe_through :api
 
     # Auth routes (public)
@@ -461,7 +461,7 @@ end
   end
 
   # Authenticated API routes
-  scope "/api/v1", {{ProjectName}}Web do
+  scope "/api/v1", AppWeb do
     pipe_through [:api, :authenticated]
 
     # User routes
@@ -483,14 +483,14 @@ end
 
     scope "/" do
       pipe_through [:fetch_session, :protect_from_forgery]
-      live_dashboard "/dashboard", metrics: {{ProjectName}}Web.Telemetry
+      live_dashboard "/dashboard", metrics: AppWeb.Telemetry
     end
   end
 end
 `,
 
     // Rate limit plug
-    'lib/{{projectName}}_web/plugs/rate_limit.ex': `defmodule {{ProjectName}}Web.Plugs.RateLimit do
+    'lib/app_web/plugs/rate_limit.ex': `defmodule AppWeb.Plugs.RateLimit do
   import Plug.Conn
   import Phoenix.Controller
 
@@ -531,7 +531,7 @@ end
 `,
 
     // Admin role plug
-    'lib/{{projectName}}_web/plugs/require_admin.ex': `defmodule {{ProjectName}}Web.Plugs.RequireAdmin do
+    'lib/app_web/plugs/require_admin.ex': `defmodule AppWeb.Plugs.RequireAdmin do
   import Plug.Conn
   import Phoenix.Controller
 
@@ -553,8 +553,8 @@ end
 `,
 
     // Health controller
-    'lib/{{projectName}}_web/controllers/health_controller.ex': `defmodule {{ProjectName}}Web.HealthController do
-  use {{ProjectName}}Web, :controller
+    'lib/app_web/controllers/health_controller.ex': `defmodule AppWeb.HealthController do
+  use AppWeb, :controller
 
   def index(conn, _params) do
     json(conn, %{
@@ -566,11 +566,11 @@ end
 `,
 
     // Auth controller
-    'lib/{{projectName}}_web/controllers/auth_controller.ex': `defmodule {{ProjectName}}Web.AuthController do
-  use {{ProjectName}}Web, :controller
+    'lib/app_web/controllers/auth_controller.ex': `defmodule AppWeb.AuthController do
+  use AppWeb, :controller
 
-  alias {{ProjectName}}.Accounts
-  alias {{ProjectName}}Web.Auth.Guardian
+  alias App.Accounts
+  alias AppWeb.Auth.Guardian
 
   def register(conn, %{"email" => _, "password" => _, "name" => _} = params) do
     case Accounts.create_user(params) do
@@ -612,12 +612,12 @@ end
 `,
 
     // User controller
-    'lib/{{projectName}}_web/controllers/user_controller.ex': `defmodule {{ProjectName}}Web.UserController do
-  use {{ProjectName}}Web, :controller
+    'lib/app_web/controllers/user_controller.ex': `defmodule AppWeb.UserController do
+  use AppWeb, :controller
 
-  alias {{ProjectName}}.Accounts
+  alias App.Accounts
 
-  plug {{ProjectName}}Web.Plugs.RequireAdmin when action in [:index, :delete]
+  plug AppWeb.Plugs.RequireAdmin when action in [:index, :delete]
 
   def me(conn, _params) do
     user = Guardian.Plug.current_resource(conn)
@@ -676,12 +676,12 @@ end
 `,
 
     // Product controller
-    'lib/{{projectName}}_web/controllers/product_controller.ex': `defmodule {{ProjectName}}Web.ProductController do
-  use {{ProjectName}}Web, :controller
+    'lib/app_web/controllers/product_controller.ex': `defmodule AppWeb.ProductController do
+  use AppWeb, :controller
 
-  alias {{ProjectName}}.Catalog
+  alias App.Catalog
 
-  plug {{ProjectName}}Web.Plugs.RequireAdmin when action in [:create, :update, :delete]
+  plug AppWeb.Plugs.RequireAdmin when action in [:create, :update, :delete]
 
   def index(conn, params) do
     result = Catalog.list_products(params)
@@ -754,8 +754,8 @@ end
 `,
 
     // Auth JSON view
-    'lib/{{projectName}}_web/controllers/auth_json.ex': `defmodule {{ProjectName}}Web.AuthJSON do
-  alias {{ProjectName}}.Accounts.User
+    'lib/app_web/controllers/auth_json.ex': `defmodule AppWeb.AuthJSON do
+  alias App.Accounts.User
 
   def user(%{user: user}) do
     %{
@@ -778,8 +778,8 @@ end
 `,
 
     // User JSON view
-    'lib/{{projectName}}_web/controllers/user_json.ex': `defmodule {{ProjectName}}Web.UserJSON do
-  alias {{ProjectName}}.Accounts.User
+    'lib/app_web/controllers/user_json.ex': `defmodule AppWeb.UserJSON do
+  alias App.Accounts.User
 
   def user(%{user: user}) do
     %{
@@ -799,8 +799,8 @@ end
 `,
 
     // Product JSON view
-    'lib/{{projectName}}_web/controllers/product_json.ex': `defmodule {{ProjectName}}Web.ProductJSON do
-  alias {{ProjectName}}.Catalog.Product
+    'lib/app_web/controllers/product_json.ex': `defmodule AppWeb.ProductJSON do
+  alias App.Catalog.Product
 
   def product(%{product: product}) do
     %{
@@ -827,7 +827,7 @@ end
 `,
 
     // Web module
-    'lib/{{projectName}}_web.ex': `defmodule {{ProjectName}}Web do
+    'lib/app_web.ex': `defmodule AppWeb do
   def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
 
   def router do
@@ -845,16 +845,16 @@ end
         formats: [:json]
 
       import Plug.Conn
-      import {{ProjectName}}Web.Gettext
+      import AppWeb.Gettext
     end
   end
 
   def verified_routes do
     quote do
       use Phoenix.VerifiedRoutes,
-        endpoint: {{ProjectName}}Web.Endpoint,
-        router: {{ProjectName}}Web.Router,
-        statics: {{ProjectName}}Web.static_paths()
+        endpoint: AppWeb.Endpoint,
+        router: AppWeb.Router,
+        statics: AppWeb.static_paths()
     end
   end
 
@@ -865,10 +865,10 @@ end
 `,
 
     // GraphQL schema
-    'lib/{{projectName}}_web/schema.ex': `defmodule {{ProjectName}}Web.Schema do
+    'lib/app_web/schema.ex': `defmodule AppWeb.Schema do
   use Absinthe.Schema
 
-  alias {{ProjectName}}Web.Resolvers
+  alias AppWeb.Resolvers
 
   object :health do
     field :status, :string
@@ -890,7 +890,7 @@ end
 `,
 
     // GraphQL resolvers
-    'lib/{{projectName}}_web/resolvers.ex': `defmodule {{ProjectName}}Web.Resolvers do
+    'lib/app_web/resolvers.ex': `defmodule AppWeb.Resolvers do
   @moduledoc """
   GraphQL resolvers.
   """
@@ -906,7 +906,7 @@ end
 `,
 
     // Telemetry
-    'lib/{{projectName}}_web/telemetry.ex': `defmodule {{ProjectName}}Web.Telemetry do
+    'lib/app_web/telemetry.ex': `defmodule AppWeb.Telemetry do
   use Supervisor
   import Telemetry.Metrics
 
@@ -928,8 +928,8 @@ end
       summary("phoenix.endpoint.start.system_time", unit: {:native, :millisecond}),
       summary("phoenix.endpoint.stop.duration", unit: {:native, :millisecond}),
       summary("phoenix.router_dispatch.stop.duration", unit: {:native, :millisecond}),
-      summary("{{projectName}}.repo.query.total_time", unit: {:native, :millisecond}),
-      summary("{{projectName}}.repo.query.queue_time", unit: {:native, :millisecond})
+      summary("app.repo.query.total_time", unit: {:native, :millisecond}),
+      summary("app.repo.query.queue_time", unit: {:native, :millisecond})
     ]
   end
 
@@ -940,29 +940,29 @@ end
 `,
 
     // Gettext
-    'lib/{{projectName}}_web/gettext.ex': `defmodule {{ProjectName}}Web.Gettext do
-  use Gettext, otp_app: :{{projectName}}
+    'lib/app_web/gettext.ex': `defmodule AppWeb.Gettext do
+  use Gettext, otp_app: :app
 end
 `,
 
     // Config
     'config/config.exs': `import Config
 
-config :{{projectName}},
-  ecto_repos: [{{ProjectName}}.Repo],
+config :app,
+  ecto_repos: [App.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
-config :{{projectName}}, {{ProjectName}}Web.Endpoint,
+config :app, AppWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Phoenix.Endpoint.Cowboy2Adapter,
   render_errors: [
-    formats: [json: {{ProjectName}}Web.ErrorJSON],
+    formats: [json: AppWeb.ErrorJSON],
     layout: false
   ],
-  pubsub_server: {{ProjectName}}.PubSub,
+  pubsub_server: App.PubSub,
   live_view: [signing_salt: "changeme"]
 
-config :{{projectName}}, {{ProjectName}}Web.Auth.Guardian,
+config :app, AppWeb.Auth.Guardian,
   issuer: "{{projectName}}",
   secret_key: "your-secret-key-change-in-production"
 
@@ -981,7 +981,7 @@ import_config "#{config_env()}.exs"
     // Dev config
     'config/dev.exs': `import Config
 
-config :{{projectName}}, {{ProjectName}}.Repo,
+config :app, App.Repo,
   username: "postgres",
   password: "password",
   hostname: "localhost",
@@ -990,7 +990,7 @@ config :{{projectName}}, {{ProjectName}}.Repo,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
-config :{{projectName}}, {{ProjectName}}Web.Endpoint,
+config :app, AppWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4000],
   check_origin: false,
   code_reloader: true,
@@ -998,7 +998,7 @@ config :{{projectName}}, {{ProjectName}}Web.Endpoint,
   secret_key_base: "dev-secret-key-change-in-production-dev-secret-key-change-in-production",
   watchers: []
 
-config :{{projectName}}, dev_routes: true
+config :app, dev_routes: true
 
 config :logger, :console, format: "[$level] $message\\n"
 
@@ -1010,7 +1010,7 @@ config :phoenix, :plug_init_mode, :runtime
     // Prod config
     'config/prod.exs': `import Config
 
-config :{{projectName}}, {{ProjectName}}Web.Endpoint,
+config :app, AppWeb.Endpoint,
   cache_static_manifest: "priv/static/cache_manifest.json"
 
 config :logger, level: :info
@@ -1026,7 +1026,7 @@ if config_env() == :prod do
       environment variable DATABASE_URL is missing.
       """
 
-  config :{{projectName}}, {{ProjectName}}.Repo,
+  config :app, App.Repo,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: [:inet6]
@@ -1040,7 +1040,7 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
-  config :{{projectName}}, {{ProjectName}}Web.Endpoint,
+  config :app, AppWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [ip: {0, 0, 0, 0, 0, 0, 0, 0}, port: port],
     secret_key_base: secret_key_base
@@ -1051,7 +1051,7 @@ if config_env() == :prod do
       environment variable JWT_SECRET is missing.
       """
 
-  config :{{projectName}}, {{ProjectName}}Web.Auth.Guardian,
+  config :app, AppWeb.Auth.Guardian,
     secret_key: jwt_secret
 end
 `,
@@ -1059,7 +1059,7 @@ end
     // Test config
     'config/test.exs': `import Config
 
-config :{{projectName}}, {{ProjectName}}.Repo,
+config :app, App.Repo,
   username: "postgres",
   password: "password",
   hostname: "localhost",
@@ -1067,7 +1067,7 @@ config :{{projectName}}, {{ProjectName}}.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 10
 
-config :{{projectName}}, {{ProjectName}}Web.Endpoint,
+config :app, AppWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "test-secret-key-test-secret-key-test-secret-key-test-secret-key",
   server: false
@@ -1078,7 +1078,7 @@ config :phoenix, :plug_init_mode, :runtime
 `,
 
     // Migration
-    'priv/repo/migrations/20240101000000_create_users.exs': `defmodule {{ProjectName}}.Repo.Migrations.CreateUsers do
+    'priv/repo/migrations/20240101000000_create_users.exs': `defmodule App.Repo.Migrations.CreateUsers do
   use Ecto.Migration
 
   def change do
@@ -1099,7 +1099,7 @@ end
 `,
 
     // Products migration
-    'priv/repo/migrations/20240101000001_create_products.exs': `defmodule {{ProjectName}}.Repo.Migrations.CreateProducts do
+    'priv/repo/migrations/20240101000001_create_products.exs': `defmodule App.Repo.Migrations.CreateProducts do
   use Ecto.Migration
 
   def change do
@@ -1121,8 +1121,8 @@ end
     'priv/repo/seeds.exs': `# Script for populating the database. You can run it as:
 #     mix run priv/repo/seeds.exs
 
-alias {{ProjectName}}.Accounts
-alias {{ProjectName}}.Catalog
+alias App.Accounts
+alias App.Catalog
 
 # Create admin user
 {:ok, _admin} = Accounts.create_user(%{
@@ -1175,7 +1175,7 @@ RUN apk add --no-cache libstdc++ openssl ncurses-libs
 
 WORKDIR /app
 
-COPY --from=builder /app/_build/prod/rel/{{projectName}} ./
+COPY --from=builder /app/_build/prod/rel/app ./
 
 ENV HOME=/app
 
@@ -1196,7 +1196,7 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \\
     CMD wget -q -O /dev/null http://localhost:4000/health || exit 1
 
-CMD ["bin/{{projectName}}", "start"]
+CMD ["bin/app", "start"]
 `,
 
     // Docker Compose
@@ -1232,7 +1232,7 @@ volumes:
 `,
 
     // README
-    'README.md': `# {{ProjectName}}
+    'README.md': `# App
 
 A fault-tolerant REST API built with Phoenix Framework in Elixir.
 
@@ -1303,11 +1303,11 @@ mix ecto.rollback   # Rollback migration
 
 \`\`\`
 lib/
-├── {{projectName}}/           # Business logic
+├── app/           # Business logic
 │   ├── accounts/              # User management
 │   ├── catalog/               # Product management
 │   └── repo.ex                # Database repo
-└── {{projectName}}_web/       # Web layer
+└── app_web/       # Web layer
     ├── auth/                  # Authentication
     ├── controllers/           # Controllers
     ├── plugs/                 # Middleware

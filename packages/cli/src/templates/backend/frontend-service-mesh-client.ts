@@ -1042,14 +1042,17 @@ Frontend SDK for seamless communication with backend services through a service 
 
 ## Installation
 
+The SDK is generated into this project: its source is in \`service-mesh-client/\` and the root \`package.json\` is the local, unscoped package \`service-mesh-client\` (it is not published to npm). Build it here, and consume it from a frontend in the same workspace:
+
 \`\`\`bash
-npm install @re-shell/service-mesh-client
+npm run build
+pnpm add service-mesh-client@workspace:*   # in the consuming app
 \`\`\`
 
 ## Quick Start
 
 \`\`\`typescript
-import { createServiceMeshClient } from '@re-shell/service-mesh-client';
+import { createServiceMeshClient } from 'service-mesh-client';
 
 const client = createServiceMeshClient({
   baseURL: 'https://api.example.com',
@@ -1160,7 +1163,7 @@ const response = await client.request({
 ### React
 
 \`\`\`typescript
-import { createServiceMeshClient } from '@re-shell/service-mesh-client';
+import { createServiceMeshClient } from 'service-mesh-client';
 import { useEffect, useState } from 'react';
 
 const client = createServiceMeshClient({
@@ -1204,7 +1207,7 @@ function UsersList() {
 ### Vue
 
 \`\`\`typescript
-import { createServiceMeshClient } from '@re-shell/service-mesh-client';
+import { createServiceMeshClient } from 'service-mesh-client';
 import { ref, onMounted } from 'vue';
 
 const client = createServiceMeshClient({

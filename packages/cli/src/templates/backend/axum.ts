@@ -64,23 +64,23 @@ export const axumTemplate: BackendTemplate = {
   },
   files: {
     'Cargo.toml': `[package]
-name = "{{serviceName}}"
+name = "{{projectName}}"
 version = "0.1.0"
 edition = "2021"
 description = "Axum web framework with tower middleware and async support"
 license = "MIT"
-authors = ["{{author}}"]
+authors = ["re-shell"]
 
 [dependencies]
 axum = { version = "0.7", features = ["macros"] }
 axum-extra = { version = "0.9", features = ["typed-header"] }
 tower = { version = "0.4", features = ["util", "timeout", "load-shed", "limit"] }
-tower-http = { version = "0.5", features = ["cors", "compression-gzip", "trace", "request-id", "util"] }
+tower-http = { version = "0.5", features = ["cors", "compression-gzip", "trace", "request-id", "util", "fs", "timeout"] }
 tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-uuid = { version = "1.6", features = ["v4"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 bcrypt = "0.15"
 jsonwebtoken = "9.1"
@@ -98,14 +98,12 @@ mime = "0.3"
 bytes = "1.5"
 headers = "0.4"
 async-graphql = "7.0"
-async-graphql-axum = "7.0"
 
 [dev-dependencies]
 tokio-test = "0.4"
-tower = { version = "0.4", features = ["test-util"] }
 
 [[bin]]
-name = "{{serviceName}}"
+name = "{{projectName}}"
 path = "src/main.rs"
 
 [profile.release]
@@ -121,7 +119,7 @@ RUST_LOG=info
 RUST_BACKTRACE=1
 
 # Database Configuration
-DATABASE_URL=postgresql://username:password@localhost/{{serviceName}}
+DATABASE_URL=postgresql://username:password@localhost/{{projectName}}
 DATABASE_MAX_CONNECTIONS=10
 
 # Redis Configuration
@@ -169,11 +167,12 @@ use std::time::Duration;
 use axum::{
     routing::{get, post, put, delete},
     Router,
-    middleware::from_fn};
-use tower::{ServiceBuilder, limit::ConcurrencyLimitLayer, timeout::TimeoutLayer};
+    middleware::{from_fn, from_fn_with_state}};
+use tower::{ServiceBuilder, limit::ConcurrencyLimitLayer};
 use tower_http::{
     cors::CorsLayer,
     compression::CompressionLayer,
+    timeout::TimeoutLayer,
     trace::TraceLayer,
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
     services::ServeDir};
@@ -191,7 +190,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "{{serviceName}}=debug,tower_http=debug,axum::rejection=trace".into()),
+                .unwrap_or_else(|_| format!("{}=debug,tower_http=debug,axum::rejection=trace", env!("CARGO_PKG_NAME").replace('-', "_")).into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -218,10 +217,9 @@ async fn main() -> anyhow::Result<()> {
         // API routes
         .route("/api/health", get(health::health_check))
         .nest("/api/auth", auth_routes())
-        .nest("/api/users", user_routes())
+        .nest("/api/users", user_routes(state.clone()))
         // GraphQL endpoint
-        .route("/graphql", get(async_graphql_axum::GraphQL::default(schema.clone()))
-            .post(async_graphql_axum::GraphQL::default(schema)))
+        .route("/graphql", get(graphql::graphql_get).post(graphql::graphql_handler))
         // Static file serving (optional)
         .nest_service("/static", ServeDir::new("static"))
         // Global middleware stack
@@ -243,6 +241,7 @@ async fn main() -> anyhow::Result<()> {
                 // Limit concurrency
                 .layer(ConcurrencyLimitLayer::new(config.tower_concurrency_limit))
         )
+        .layer(axum::Extension(schema))
         .with_state(state);
 
     // Parse socket address
@@ -266,12 +265,12 @@ fn auth_routes() -> Router<AppState> {
         .route("/logout", post(auth_handlers::logout))
 }
 
-fn user_routes() -> Router<AppState> {
+fn user_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/profile", get(users::get_profile))
         .route("/profile", put(users::update_profile))
         .route("/profile", delete(users::delete_account))
-        .layer(from_fn(auth_middleware))
+        .layer(from_fn_with_state(state, auth_middleware))
 }
 
 fn cors_layer(config: &Config) -> CorsLayer {
@@ -518,12 +517,34 @@ use async_graphql::{EmptyMutation, EmptySubscription, Schema};
 
 use crate::graphql::query::QueryRoot;
 
+use std::collections::HashMap;
+
+use axum::{extract::Query, Extension, Json};
+
 pub type AppSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
 
 pub fn build_schema() -> AppSchema {
     Schema::build(QueryRoot, EmptyMutation, EmptySubscription)
         .finish()
-}`,
+}
+
+/// POST /graphql: standard GraphQL-over-HTTP request body.
+pub async fn graphql_handler(
+    Extension(schema): Extension<AppSchema>,
+    Json(request): Json<async_graphql::Request>,
+) -> Json<async_graphql::Response> {
+    Json(schema.execute(request).await)
+}
+
+/// GET /graphql?query=...: convenience endpoint for simple queries.
+pub async fn graphql_get(
+    Extension(schema): Extension<AppSchema>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<async_graphql::Response> {
+    let query = params.get("query").map(String::as_str).unwrap_or("{ __typename }");
+    Json(schema.execute(query).await)
+}
+`,
 
     'src/graphql/query.rs': `use async_graphql::Object;
 
@@ -551,7 +572,7 @@ pub async fn health_check(State(_state): State<AppState>) -> Json<Value> {
     Json(json!({
         "status": "healthy",
         "timestamp": chrono::Utc::now(),
-        "service": "{{serviceName}}",
+        "service": "{{projectName}}",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }`,
@@ -572,7 +593,9 @@ pub async fn register(
     request.validate()?;
 
     // Check if user already exists
-    let existing_user = sqlx::query!("SELECT id FROM users WHERE email = $1 OR username = $2", request.email, request.username)
+    let existing_user = sqlx::query("SELECT id FROM users WHERE email = $1 OR username = $2")
+        .bind(&request.email)
+        .bind(&request.username)
         .fetch_optional(&state.db)
         .await?;
 
@@ -587,25 +610,26 @@ pub async fn register(
     let user_id = Uuid::new_v4();
     let now = chrono::Utc::now();
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO users (id, email, username, password_hash, first_name, last_name, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         "#,
-        user_id,
-        request.email,
-        request.username,
-        password_hash,
-        request.first_name,
-        request.last_name,
-        now,
-        now
     )
+    .bind(user_id)
+    .bind(&request.email)
+    .bind(&request.username)
+    .bind(&password_hash)
+    .bind(&request.first_name)
+    .bind(&request.last_name)
+    .bind(now)
+    .bind(now)
     .execute(&state.db)
     .await?;
 
     // Fetch created user
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", user_id)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(user_id)
         .fetch_one(&state.db)
         .await?;
 
@@ -619,7 +643,8 @@ pub async fn login(
     request.validate()?;
 
     // Find user by email
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE email = $1", request.email)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
+        .bind(&request.email)
         .fetch_optional(&state.db)
         .await?;
 
@@ -707,7 +732,8 @@ pub async fn get_profile(
     State(state): State<AppState>,
     auth_user: AuthUser,
 ) -> AppResult<Json<UserProfile>> {
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", auth_user.user_id)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(auth_user.user_id)
         .fetch_optional(&state.db)
         .await?;
 
@@ -725,7 +751,9 @@ pub async fn update_profile(
 
     // Check if username is already taken
     if let Some(username) = &request.username {
-        let existing_user = sqlx::query!("SELECT id FROM users WHERE username = $1 AND id != $2", username, auth_user.user_id)
+        let existing_user = sqlx::query("SELECT id FROM users WHERE username = $1 AND id != $2")
+            .bind(username)
+            .bind(auth_user.user_id)
             .fetch_optional(&state.db)
             .await?;
 
@@ -736,8 +764,7 @@ pub async fn update_profile(
 
     // Update user
     let now = chrono::Utc::now();
-    let user = sqlx::query_as!(
-        User,
+    let user = sqlx::query_as::<_, User>(
         r#"
         UPDATE users 
         SET 
@@ -748,12 +775,12 @@ pub async fn update_profile(
         WHERE id = $1
         RETURNING *
         "#,
-        auth_user.user_id,
-        request.username,
-        request.first_name,
-        request.last_name,
-        now
     )
+    .bind(auth_user.user_id)
+    .bind(&request.username)
+    .bind(&request.first_name)
+    .bind(&request.last_name)
+    .bind(now)
     .fetch_one(&state.db)
     .await?;
 
@@ -764,7 +791,8 @@ pub async fn delete_account(
     State(state): State<AppState>,
     auth_user: AuthUser,
 ) -> AppResult<Json<serde_json::Value>> {
-    sqlx::query!("DELETE FROM users WHERE id = $1", auth_user.user_id)
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(auth_user.user_id)
         .execute(&state.db)
         .await?;
 
@@ -1143,7 +1171,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/{{serviceName}}
+      - DATABASE_URL=postgresql://postgres:password@db:5432/{{projectName}}
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
       - RUST_LOG=info
@@ -1157,7 +1185,7 @@ services:
   db:
     image: postgres:15
     environment:
-      - POSTGRES_DB={{serviceName}}
+      - POSTGRES_DB={{projectName}}
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
     ports:
@@ -1208,7 +1236,7 @@ RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/{{serviceName}} /app/{{serviceName}}
+COPY --from=builder /app/target/release/{{projectName}} /app/{{projectName}}
 COPY --from=builder /app/migrations /app/migrations
 
 # Set ownership
@@ -1223,7 +1251,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \\
     CMD curl -f http://localhost:8080/health || exit 1
 
-CMD ["./{{serviceName}}"]`,
+CMD ["./{{projectName}}"]`,
 
     '.dockerignore': `target/
 .env
@@ -1234,7 +1262,7 @@ README.md
 docker-compose.yml
 Dockerfile`,
 
-    'README.md': `# {{serviceName}}
+    'README.md': `# {{projectName}}
 
 A modern Axum web framework with tower middleware, async support, and extractors.
 
@@ -1264,19 +1292,19 @@ A modern Axum web framework with tower middleware, async support, and extractors
 
 1. **Clone and setup**:
    \`\`\`bash
-   cd {{serviceName}}
+   cd {{projectName}}
    cp .env.example .env
    \`\`\`
 
 2. **Update environment variables** in \`.env\`:
    \`\`\`env
-   DATABASE_URL=postgresql://username:password@localhost/{{serviceName}}
+   DATABASE_URL=postgresql://username:password@localhost/{{projectName}}
    JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
    \`\`\`
 
 3. **Setup database**:
    \`\`\`bash
-   createdb {{serviceName}}
+   createdb {{projectName}}
    sqlx migrate run
    \`\`\`
 
@@ -1427,14 +1455,14 @@ Tower middleware can be configured via environment variables:
 
 ### Docker
 \`\`\`bash
-docker build -t {{serviceName}} .
-docker run -p 8080:8080 --env-file .env {{serviceName}}
+docker build -t {{projectName}} .
+docker run -p 8080:8080 --env-file .env {{projectName}}
 \`\`\`
 
 ### Binary
 \`\`\`bash
 cargo build --release
-./target/release/{{serviceName}}
+./target/release/{{projectName}}
 \`\`\`
 
 ## Advanced Features
@@ -1547,7 +1575,7 @@ docker-down:
 	docker-compose down
 
 docker-build:
-	docker build -t {{serviceName}} .
+	docker build -t {{projectName}} .
 
 # Cleanup
 clean:
@@ -1558,7 +1586,7 @@ clean:
 # Production
 release:
 	cargo build --release
-	strip target/release/{{serviceName}}
+	strip target/release/{{projectName}}
 
 # Install tools
 install-tools:
