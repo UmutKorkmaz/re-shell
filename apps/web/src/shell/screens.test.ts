@@ -26,6 +26,11 @@ describe('toScreenId', () => {
     expect(SCREENS.some((s) => s.id === DEFAULT_SCREEN)).toBe(true);
   });
 
+  it('collab is a registered screen and routable', () => {
+    expect(SCREENS.some((s) => s.id === 'collab')).toBe(true);
+    expect(toScreenId('collab')).toBe('collab');
+  });
+
   it('catalog is a registered screen (regression for #82)', () => {
     expect(SCREENS.some((s) => s.id === 'catalog')).toBe(true);
     expect(toScreenId('catalog')).toBe('catalog');
