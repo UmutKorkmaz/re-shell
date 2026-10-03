@@ -1751,10 +1751,12 @@ npm run dev
 
 ### Client SDK
 
+The SDK is generated into this project's \`client-sdk/\` folder (it is not published to npm). The imports below are relative to the project root; adjust them to wherever you copy the folder, or expose it as a workspace package.
+
 #### React
 
 \`\`\`typescript
-import { useStateManager } from '@re-shell/state-client/react';
+import { useStateManager } from './client-sdk/react/useState';
 
 function MyComponent() {
   const { isConnected, state, get, set, update, subscribe } = useStateManager({
@@ -1778,7 +1780,7 @@ function MyComponent() {
 #### Vue
 
 \`\`\`typescript
-import { useStateManager } from '@re-shell/state-client/vue';
+import { useStateManager } from './client-sdk/vue/useState';
 
 const { isConnected, state, get, set, update, subscribe } = useStateManager({
   serverURL: 'http://localhost:3000',
@@ -1788,7 +1790,7 @@ const { isConnected, state, get, set, update, subscribe } = useStateManager({
 #### Angular
 
 \`\`\`typescript
-import { StateManagerService } from '@re-shell/state-client/angular';
+import { StateManagerService } from './client-sdk/angular/StateManager.service';
 
 constructor(private stateManager: StateManagerService) {
   const user = await this.stateManager.get('user');
@@ -1800,7 +1802,7 @@ constructor(private stateManager: StateManagerService) {
 
 \`\`\`svelte
 <script>
-  import { createStateStore } from '@re-shell/state-client/svelte';
+  import { createStateStore } from './client-sdk/svelte/useState';
 
   const { isConnected, state, get, set, update, subscribe } = createStateStore({
     serverURL: 'http://localhost:3000',

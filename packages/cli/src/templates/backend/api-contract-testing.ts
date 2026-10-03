@@ -1651,8 +1651,10 @@ Publishes Pact contracts to Pact Broker.
 
 ## Frontend Integration
 
+The validator is generated into this project's \`client-sdk/\` folder (it is not published to npm). The import below is relative to the project root; adjust it to wherever you copy the file, or expose the folder as a workspace package.
+
 \`\`\`typescript
-import { FrontendContractValidator, userSchemas } from '@re-shell/contract-validator';
+import { FrontendContractValidator, userSchemas } from './client-sdk/contract-validator';
 
 const validator = new FrontendContractValidator('http://localhost:3000');
 
