@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics
+  namespace: demo
+  labels:
+    app: analytics
+    app.kubernetes.io/name: analytics
+    app.kubernetes.io/managed-by: re-shell
+spec:
+  type: ClusterIP
+  selector:
+    app: analytics
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      targetPort: 8000

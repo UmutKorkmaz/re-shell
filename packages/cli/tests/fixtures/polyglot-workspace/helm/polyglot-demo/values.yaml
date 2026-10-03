@@ -1,0 +1,291 @@
+ingress:
+  className: nginx
+  tls:
+    enabled: true
+    clusterIssuer: letsencrypt-prod
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+services:
+  web:
+    image:
+      repository: web
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 3000
+    env:
+      API_URL: http://api:4000
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: web.example.com
+      path: /
+      pathType: Prefix
+  api:
+    image:
+      repository: api
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 4000
+    env:
+      NODE_ENV: production
+      BILLING_URL: http://billing:8081
+      ANALYTICS_URL: http://analytics:8000
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: api.example.com
+      path: /
+      pathType: Prefix
+  billing:
+    image:
+      repository: billing
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 8081
+    env:
+      SPRING_PROFILES_ACTIVE: prod
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: billing.example.com
+      path: /
+      pathType: Prefix
+  analytics:
+    image:
+      repository: analytics
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 8000
+    env:
+      BILLING_URL: http://billing:8081
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: analytics.example.com
+      path: /
+      pathType: Prefix
+  gateway:
+    image:
+      repository: gateway
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 8080
+    env:
+      API_URL: http://api:4000
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: gateway.example.com
+      path: /
+      pathType: Prefix
+  edge:
+    image:
+      repository: edge
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 8082
+    env: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: edge.example.com
+      path: /
+      pathType: Prefix
+  mailer:
+    image:
+      repository: mailer
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 3001
+    env: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: mailer.example.com
+      path: /
+      pathType: Prefix
+  search:
+    image:
+      repository: search
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 7700
+    env: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: search.example.com
+      path: /
+      pathType: Prefix
+  indexer:
+    image:
+      repository: indexer
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 7701
+    env: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: indexer.example.com
+      path: /
+      pathType: Prefix
+  reports:
+    image:
+      repository: reports
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 8090
+    env: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: reports.example.com
+      path: /
+      pathType: Prefix
+  ledger:
+    image:
+      repository: ledger
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 5100
+    env: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    ingress:
+      enabled: true
+      host: ledger.example.com
+      path: /
+      pathType: Prefix

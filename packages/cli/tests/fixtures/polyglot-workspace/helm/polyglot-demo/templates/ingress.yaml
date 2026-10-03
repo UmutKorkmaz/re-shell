@@ -1,0 +1,32 @@
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  annotations:
+    # cert-manager issues + renews the TLS certificate for the secret below.
+    cert-manager.io/cluster-issuer: {{ $.Values.ingress.tls.clusterIssuer | quote }}
+    {{- toYaml $.Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ $.Values.ingress.className }}
+  {{- if $.Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ $svc.ingress.host | quote }}
+      secretName: {{ $name }}-tls
+  {{- end }}
+  rules:
+    - host: {{ $svc.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ $svc.ingress.path }}
+            pathType: {{ $svc.ingress.pathType }}
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  number: {{ $svc.port }}
+{{- end }}
+{{- end }}

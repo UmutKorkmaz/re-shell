@@ -102,3 +102,73 @@ export const pkgResponseSchema = z.object({
   outdated: z.array(pkgOutdatedSchema),
 });
 export type PkgResponse = z.infer<typeof pkgResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// refactor rename-service  (`re-shell refactor rename-service <old> <new>`)
+//
+// Renames a service across the workspace config, compose files, generated
+// k8s/helm manifests, package manifests, references in other services and the
+// service directory (VCS-aware move). Dry runs return the full unified diff.
+// ---------------------------------------------------------------------------
+
+export const refactorChangeKindSchema = z.enum([
+  'workspace',
+  'compose',
+  'k8s',
+  'helm',
+  'manifest',
+  'dependency',
+  'env',
+  'source',
+  'docs',
+  'config',
+]);
+export type RefactorChangeKind = z.infer<typeof refactorChangeKindSchema>;
+
+/** One file whose content changes (paths are workspace-relative, POSIX). */
+export const refactorFileSchema = z.object({
+  /** Path before the rename. */
+  from: z.string(),
+  /** Path after the rename (differs when the file lives in a moved directory). */
+  to: z.string(),
+  kind: refactorChangeKindSchema,
+  changedLines: z.number(),
+});
+export type RefactorFile = z.infer<typeof refactorFileSchema>;
+
+export const refactorMoveSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  kind: z.enum(['directory', 'file']),
+});
+export type RefactorMove = z.infer<typeof refactorMoveSchema>;
+
+/** A whole-word mention of the old name that was NOT rewritten automatically. */
+export const refactorResidualSchema = z.object({
+  path: z.string(),
+  line: z.number(),
+  text: z.string(),
+});
+export type RefactorResidual = z.infer<typeof refactorResidualSchema>;
+
+/** Envelope payload for `re-shell refactor rename-service --json`. */
+export const refactorRenameServiceResponseSchema = z.object({
+  old: z.string(),
+  new: z.string(),
+  dryRun: z.boolean(),
+  /** True only when the rename was actually written to disk. */
+  applied: z.boolean(),
+  root: z.string(),
+  git: z.object({
+    inRepo: z.boolean(),
+    dirty: z.boolean(),
+    moved: z.enum(['git-mv', 'fs-rename', 'none']),
+  }),
+  files: z.array(refactorFileSchema),
+  moves: z.array(refactorMoveSchema),
+  /** Unified diff (git style) of every content change and rename. */
+  diff: z.string(),
+  residualReferences: z.array(refactorResidualSchema),
+  warnings: z.array(z.string()),
+});
+export type RefactorRenameServiceResponse = z.infer<typeof refactorRenameServiceResponseSchema>;
