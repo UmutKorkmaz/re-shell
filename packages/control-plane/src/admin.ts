@@ -136,6 +136,22 @@ const AUDIT_ACTIONS = [
   'member.set',
   'member.remove',
   'audit.query',
+  'session.create',
+  'session.list',
+  'session.read',
+  'session.join',
+  'session.leave',
+  'session.end',
+  'session.run',
+  'session.cancel',
+  'session.handover',
+  'session.stream',
+  'doc.create',
+  'doc.read',
+  'doc.edit',
+  'signal.send',
+  'relay.send',
+  'analytics.read',
 ] as const satisfies readonly AuditAction[];
 
 export const queryAuditRequestSchema = z

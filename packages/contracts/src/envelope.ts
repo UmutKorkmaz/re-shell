@@ -152,6 +152,15 @@ export const errorCodeSchema = z.enum([
   'BRIDGE_TRANSFORM_ERROR',
   'BRIDGE_MOCK_ERROR',
   'BRIDGE_GATEWAY_ERROR',
+  // Codes introduced by the P9-N real-time collaboration workstream (shared
+  // sessions on the control plane; shared with the control-plane error table).
+  'SESSION_NOT_FOUND',
+  'SESSION_ENDED',
+  'SESSION_BUSY',
+  'NOT_SESSION_DRIVER',
+  'PARTICIPANT_NOT_FOUND',
+  'DOCUMENT_NOT_FOUND',
+  'COLLAB_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

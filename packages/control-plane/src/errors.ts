@@ -50,6 +50,20 @@ export const controlPlaneErrorCodeSchema = z.enum([
   'INTERNAL_ERROR',
   // A dependency (the database) is unavailable.
   'SERVICE_UNAVAILABLE',
+  // --- Real-time collaboration additions (P9-N) ---
+  // The session does not exist in the resolved tenant (same answer for "belongs
+  // to another tenant").
+  'SESSION_NOT_FOUND',
+  // The session has ended; it is read-only history.
+  'SESSION_ENDED',
+  // A command is already queued or running in this session.
+  'SESSION_BUSY',
+  // Only the session's current driver may do this.
+  'NOT_SESSION_DRIVER',
+  // The named user is not a participant of the session.
+  'PARTICIPANT_NOT_FOUND',
+  // The shared document does not exist in the session.
+  'DOCUMENT_NOT_FOUND',
 ]);
 
 export type ControlPlaneErrorCode = z.infer<typeof controlPlaneErrorCodeSchema>;
@@ -76,6 +90,12 @@ export const HTTP_STATUS_BY_CODE: Readonly<Record<ControlPlaneErrorCode, number>
   CONFIG_ERROR: 500,
   INTERNAL_ERROR: 500,
   SERVICE_UNAVAILABLE: 503,
+  SESSION_NOT_FOUND: 404,
+  SESSION_ENDED: 409,
+  SESSION_BUSY: 409,
+  NOT_SESSION_DRIVER: 403,
+  PARTICIPANT_NOT_FOUND: 404,
+  DOCUMENT_NOT_FOUND: 404,
 };
 
 /**
