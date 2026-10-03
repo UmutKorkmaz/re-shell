@@ -20,7 +20,7 @@
 #   * containerd `restrict_oom_score_adj = true`  containers that lack
 #                           CAP_SYS_RESOURCE cannot lower oom_score_adj, which makes runc
 #                           fail with "can't get final child's PID from pipe: EOF"
-#   * relaxed kubelet eviction thresholds: a thin-provisioned disk that reports a
+#   * relaxed kubelet eviction thresholds (500Mi absolute): a thin-provisioned disk reporting a
 #                           small free percentage makes the node DiskPressure-tainted and
 #                           unschedulable
 #
@@ -66,7 +66,7 @@ up() {
     -p "$PORT:6443" -e K3S_KUBECONFIG_MODE=644 "${ca_args[@]}" \
     "$IMAGE" server --disable traefik --disable metrics-server \
     --kubelet-arg=cgroups-per-qos=false --kubelet-arg=enforce-node-allocatable= \
-    '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%,nodefs.inodesFree<1%' \
+    '--kubelet-arg=eviction-hard=imagefs.available<500Mi,nodefs.available<500Mi,nodefs.inodesFree<1%' \
     >/dev/null || die "could not start $IMAGE"
 
   # k3s renders containerd's config on first start; extend it and restart once.
