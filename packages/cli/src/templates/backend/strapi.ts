@@ -30,7 +30,7 @@ export const strapiTemplate: BackendTemplate = {
     "@strapi/plugin-i18n": "4.25.23",
     "@strapi/plugin-users-permissions": "4.25.23",
     "@strapi/strapi": "4.25.23",
-    "better-sqlite3": "9.4.3",
+    "better-sqlite3": "11.10.0",
     "pg": "^8.11.5",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",

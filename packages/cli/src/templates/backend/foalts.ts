@@ -70,7 +70,6 @@ export const foaltsTemplate: BackendTemplate = {
     "sqlite3": "^5.1.6",
     "pg": "^8.11.3",
     "mysql2": "^3.6.5",
-    "caching": "^0.1.4",
     "class-validator": "^0.14.0",
     "class-transformer": "^0.5.1",
     "graphql": "^16.8.1",
