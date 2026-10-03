@@ -43,14 +43,22 @@ jobs:
         run: pnpm -r run typecheck
 
       # ── Unit + Integration + Conformance tests ─────────────────────────────
-      - name: Test packages/contracts
-        run: |
-          # contracts has no test script; typecheck covers it
-          echo "contracts: typecheck only (no test suite)"
+      - name: Test packages/contracts (wire schemas, adapters, envelope)
+        working-directory: packages/contracts
+        run: npx vitest run
 
       - name: Test packages/cli (unit + integration + conformance)
         working-directory: packages/cli
         run: npx vitest run
+
+      - name: Docs - docs/CLI-CONTRACTS.md matches the CLI and @re-shell/contracts
+        run: |
+          # The doc is generated: the generator runs the built CLI against a
+          # fixture workspace, validates every real envelope against the wire
+          # schemas, and rewrites the generated regions (command shapes + the
+          # error-code table). On drift the failure message prints the command that
+          # regenerates the file; commit the result.
+          node packages/cli/scripts/gen-cli-contracts.mjs --check
 
       - name: Test packages/ui
         working-directory: packages/ui
