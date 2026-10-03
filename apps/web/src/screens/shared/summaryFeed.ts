@@ -4,6 +4,8 @@ import type {
   HealthSummary,
   PackageManager,
   WorkspaceApp,
+  WorkspaceLiveStatus,
+  WorkspaceNodeStatus,
   WorkspaceService,
   WorkspaceSummary,
 } from '@re-shell/contracts';
@@ -96,7 +98,21 @@ function toHealthCheck(check: SummaryFeed['health']['checks'][number], index: nu
   };
 }
 
-function toApp(ws: SummaryFeed['workspaces'][number]): WorkspaceApp {
+/** Live status per workspace name, as reported by `workspace status --json`. */
+export type LiveStatusMap = ReadonlyMap<string, WorkspaceLiveStatus>;
+
+/**
+ * Map a live status onto the contract's node status. `unhealthy` (running but
+ * failing its probes) is the contract's `error`; workspaces with no reported
+ * status stay `unknown` rather than being guessed.
+ */
+export function toNodeStatus(live: WorkspaceLiveStatus | undefined): WorkspaceNodeStatus {
+  if (live === 'unhealthy') return 'error';
+  if (live === 'running' || live === 'stopped') return live;
+  return 'unknown';
+}
+
+function toApp(ws: SummaryFeed['workspaces'][number], live?: LiveStatusMap): WorkspaceApp {
   return {
     id: ws.path || ws.name,
     name: ws.name,
@@ -104,18 +120,18 @@ function toApp(ws: SummaryFeed['workspaces'][number]): WorkspaceApp {
     path: ws.path,
     ...(ws.framework ? { framework: ws.framework } : {}),
     scripts: {},
-    status: 'unknown',
+    status: toNodeStatus(live?.get(ws.name)),
   };
 }
 
-function toService(ws: SummaryFeed['workspaces'][number]): WorkspaceService {
+function toService(ws: SummaryFeed['workspaces'][number], live?: LiveStatusMap): WorkspaceService {
   return {
     id: ws.path || ws.name,
     name: ws.name,
     type: 'unknown',
     path: ws.path,
     ...(ws.framework ? { framework: ws.framework } : {}),
-    status: 'unknown',
+    status: toNodeStatus(live?.get(ws.name)),
   };
 }
 
@@ -124,10 +140,13 @@ function toService(ws: SummaryFeed['workspaces'][number]): WorkspaceService {
  * {@link WorkspaceSummary}. Apps are the `type: 'app'` workspaces; everything
  * else (package/lib/tool) is treated as a service, matching the CLI's own
  * `buildContractGraph` app/service split.
+ *
+ * Node `status` comes from `live` (the `workspace.status` poll) when supplied;
+ * without it every node is honestly `unknown`.
  */
-export function feedToWorkspaceSummary(feed: SummaryFeed): WorkspaceSummary {
-  const apps = feed.workspaces.filter((ws) => ws.type === 'app').map(toApp);
-  const services = feed.workspaces.filter((ws) => ws.type !== 'app').map(toService);
+export function feedToWorkspaceSummary(feed: SummaryFeed, live?: LiveStatusMap): WorkspaceSummary {
+  const apps = feed.workspaces.filter((ws) => ws.type === 'app').map((ws) => toApp(ws, live));
+  const services = feed.workspaces.filter((ws) => ws.type !== 'app').map((ws) => toService(ws, live));
 
   return {
     path: feed.root,

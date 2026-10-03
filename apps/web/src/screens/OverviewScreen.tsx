@@ -22,6 +22,7 @@ import type { ScreenId } from '../shell/screens';
 import { useEnvelopeQuery } from './shared/useEnvelopeQuery';
 import { EmptyPanel, EnvelopeErrorPanel, ErrorPanel, LoadingPanel } from './shared/StatePanels';
 import { feedToWorkspaceSummary, summaryFeedSchema } from './shared/summaryFeed';
+import { useLiveStatus } from './graph/useLiveStatus';
 
 interface OverviewScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -56,6 +57,8 @@ export function OverviewScreen({ onNavigate }: OverviewScreenProps): React.React
     'workspace.summary',
     summaryFeedSchema
   );
+  // Real node status (one-shot probe; the graph screen is where it polls).
+  const live = useLiveStatus(0);
 
   if (isLoading) {
     return <LoadingPanel title="Loading workspace…" description="Fetching workspace.summary from the hub." />;
@@ -96,7 +99,7 @@ export function OverviewScreen({ onNavigate }: OverviewScreenProps): React.React
 
   return (
     <div className="screen-enter">
-      <OverviewContent summary={feedToWorkspaceSummary(data)} onNavigate={onNavigate} />
+      <OverviewContent summary={feedToWorkspaceSummary(data, live.statusMap)} onNavigate={onNavigate} />
     </div>
   );
 }
