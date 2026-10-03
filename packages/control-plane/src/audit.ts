@@ -30,7 +30,24 @@ export type AuditAction =
   | 'members.list'
   | 'member.set'
   | 'member.remove'
-  | 'audit.query';
+  | 'audit.query'
+  // Real-time collaboration (P9-N)
+  | 'session.create'
+  | 'session.list'
+  | 'session.read'
+  | 'session.join'
+  | 'session.leave'
+  | 'session.end'
+  | 'session.run'
+  | 'session.cancel'
+  | 'session.handover'
+  | 'session.stream'
+  | 'doc.create'
+  | 'doc.read'
+  | 'doc.edit'
+  | 'signal.send'
+  | 'relay.send'
+  | 'analytics.read';
 
 export interface AuditEntryInput {
   /** Unix ms. Defaults to the sink's clock. */

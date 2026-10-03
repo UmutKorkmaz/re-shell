@@ -1,5 +1,6 @@
 import { migrate } from '../db/migrations.js';
 import { SqliteAuditLog } from '../db/sqlite-audit.js';
+import { SqliteCollabStore } from '../db/sqlite-collab.js';
 import { SqliteJobStore } from '../db/sqlite-jobs.js';
 import { SqliteTenantStore } from '../db/sqlite-store.js';
 import { DatabaseSync, openDatabase } from '../db/sqlite.js';
@@ -49,6 +50,7 @@ export interface Harness {
   store: SqliteTenantStore;
   audit: SqliteAuditLog;
   jobs: SqliteJobStore;
+  collab: SqliteCollabStore;
   events: EventBus;
   keyRing: JwtKeyRing;
   server: ControlPlaneServer;
@@ -69,6 +71,7 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
   const store = SqliteTenantStore.fromSnapshot(db, options.seed ?? {});
   const audit = new SqliteAuditLog(db);
   const jobs = new SqliteJobStore(db);
+  const collab = new SqliteCollabStore(db);
   const events = new EventBus();
   const keyRing = options.keyRing ?? new JwtKeyRing({ k1: generateSecret() }, 'k1');
 
@@ -76,6 +79,7 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     store,
     audit,
     jobs,
+    collab,
     events,
     identity: { keyRing, now: options.now },
     platformAdmins: options.platformAdmins,
@@ -120,6 +124,7 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     store,
     audit,
     jobs,
+    collab,
     events,
     keyRing,
     server,
