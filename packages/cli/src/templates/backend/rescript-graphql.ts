@@ -20,46 +20,36 @@ export const rescriptGraphqlTemplate: BackendTemplate = {
   "version": "1.0.0",
   "description": "Type-safe GraphQL API with ReScript and Apollo Server",
   "scripts": {
-    "dev": "rescript clean && rescript dev -w & nodemon -x 'node dist/js/src/Server.bs.js'",
-    "build": "rescript build && graphql-codegen",
-    "start": "node dist/js/src/Server.bs.js",
-    "server": "nodemon -x 'rescript build && graphql-codegen && node dist/js/src/Server.bs.js'",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "codegen": "graphql-codegen",
+    "dev": "rescript build -w",
+    "build": "rescript build",
+    "start": "node src/Main.bs.js",
+    "server": "nodemon --watch src -e js,graphql --exec \\"node src/Main.bs.js\\"",
+    "test": "rescript build && node --test src/__tests__/ApiTest.bs.js",
     "clean": "rescript clean",
     "format": "rescript format"
   },
   "dependencies": {
-    "@rescript/core": "^1.3.0",
-    "@rescript/react": "^0.12.0",
-    "@graphql-tools/resolvers-composition": "^0.1.0",
     "@apollo/server": "^4.9.0",
-    "graphql": "^16.8.0",
-    "graphql-scalars": "^1.22.0",
-    "jsonwebtoken": "^9.0.2",
+    "@rescript/core": "^1.3.0",
     "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "graphql": "^16.8.0",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
-    "rescript": "^11.1.0",
-    "rescript-nodejs": "^16.1.0",
-    "@graphql-codegen/cli": "^5.0.0",
-    "@graphql-codegen/typescript": "^4.0.0",
-    "@graphql-codegen/typescript-resolvers": "^4.0.0",
-    "@graphql-codegen/typescript-operations": "^4.0.0",
-    "@graphql-typed-document-node/core": "^3.2.0",
-    "jest": "^29.7.0",
     "nodemon": "^3.1.0",
-    "@types/jest": "^29.5.0"
+    "rescript": "^11.1.0"
   },
-  "keywords": ["rescript", "graphql", "apollo", "api"],
-  "author": "{{author}}",
+  "keywords": [
+    "rescript",
+    "graphql",
+    "apollo",
+    "api"
+  ],
+  "author": "re-shell",
   "license": "MIT"
-}`,
+}
+`,
 
     // ReScript configuration
     'rescript.json': `{
@@ -77,23 +67,18 @@ export const rescriptGraphqlTemplate: BackendTemplate = {
   },
   "suffix": ".bs.js",
   "bs-dependencies": [
-    "@rescript/core",
-    "rescript-nodejs"
+    "@rescript/core"
   ],
-  "warnings": {
-    "error": true
-  },
   "bsc-flags": [
-    "-bs-gentype",
     "-open RescriptCore"
   ]
-}`,
+}
+`,
 
     // GraphQL schema
     'src/schema.graphql': `# GraphQL Schema for {{projectName}}
 
 # Scalar types
-scalar Date
 scalar DateTime
 
 # Enums
@@ -193,454 +178,319 @@ type Mutation {
   updateProduct(id: ID!, name: String, description: String, price: Float, status: ProductStatus): Product!
   deleteProduct(id: ID!): Boolean!
 }
-
-# Subscriptions
-type Subscription {
-  productCreated: Product!
-  productUpdated: Product!
-}
-`,
-
-    // GraphQL codegen configuration
-    'codegen.yml': `overwrite: true
-schema: ./src/schema.graphql
-documents: []
-generates:
-  src/graphql/types.res.ts:
-    plugins:
-      - typescript
-      - typescript-operations
-      - typescript-resolvers
-    config:
-      scalars:
-        Date: string
-        DateTime: string
-        UserRole: ./src/graphql/scalars#UserRole
-        ProductStatus: ./src/graphql/scalars#ProductStatus
-      withResolverTypes: true
-      contextType: ./src/context#Context
-      mappers:
-        User: ./src/graphql/mappers#UserMapper
-        Product: ./src/graphql/mappers#ProductMapper
-  src/graphql/schema.res:
-    plugins:
-      - typescript
-      - typescript-operations
-    config:
-      scalars:
-        Date: string
-        DateTime: string
 `,
 
     // Main server file
-    'src/Server.res': `open RescriptCore
-open Node
-open GraphQL
-open Context
-open Resolvers
+    'src/Server.res': `@module("node:fs") external readFileSync: (string, string) => string = "readFileSync"
+@module("node:path") external join: (string, string) => string = "join"
+@val external dirname: string = "__dirname"
 
-// Initialize Apollo Server
-let makeServer = () => {
-  let typeDefs = Node.Fs.readFileSyncSync("./src/schema.graphql", "utf8")
+/** The Apollo Server: schema from src/schema.graphql, resolvers in Resolvers.res. */
+let make = (): Apollo.server =>
+  Apollo.make({
+    "typeDefs": readFileSync(join(dirname, "schema.graphql"), "utf8"),
+    "resolvers": Resolvers.resolvers,
+  })
 
-  let resolvers = {
-    "Query": {
-      "health": (_args, _obj) => {
-        Js.Promise.resolve({"status": "healthy", "timestamp": Js.Date.now()})
-      },
-
-      "me": (_args, {user}) => {
-        switch user {
-        | None => Js.Promise.reject(Js.Exn.raiseError("Not authenticated"))
-        | Some(u) => Js.Promise.resolve(u)
-        }
-      },
-
-      "user": (args, _obj) => {
-        let id = args->Js.Dict.get("id")->Belt.Option.getWithDefault("")
-        let user = Data.findUser(id)
-        switch user {
-        | None => Js.Promise.reject(Js.Exn.raiseError("User not found"))
-        | Some(u) -> Js.Promise.t<Resolvers.user> = Js.Promise.resolve(u)
-        }
-      },
-
-      "users": (args, _obj) => {
-        let limit = args->Js.Dict.get("limit")
-          ->Belt.Option.mapOr(10, s-> Js.Int.parse(s)->Belt.Option.getWithDefault(10))
-
-        let users = Data.getUsers(limit)
-        let connection = GraphQL.paginateUsers(users, limit, args->Js.Dict.get("cursor"))
-        Js.Promise.resolve(connection)
-      }},
-
-    "Mutation": {
-      "register": (args, _obj) => {
-        let name = args->Js.Dict.get("name")->Belt.Option.getWithDefault("")
-        let email = args->Js.Dict.get("email")->Belt.Option.getWithDefault("")
-        let password = args->Js.Dict.get("password")->Belt.Option.getWithDefault("")
-
-        let user = Data.createUser(name, email, password)
-        let token = Auth.generateToken(user)
-
-        Js.Promise.resolve({
-          "token": token,
-          "user": user})
-      },
-
-      "login": (args, _obj) => {
-        let email = args->Js.Dict.get("email")->Belt.Option.getWithDefault("")
-        let password = args->Js.Dict.get("password")->Belt.Option.getWithDefault("")
-
-        let user = Data.findUserByEmail(email)
-        switch user {
-        | None => Js.Promise.reject(Js.Exn.raiseError("Invalid credentials"))
-        | Some(u) =>
-          let isValid = Auth.verifyPassword(password, u->Js.Dict.get("password")->Belt.Option.getWithDefault(""))
-          if (isValid) {
-            let token = Auth.generateToken(u)
-            Js.Promise.resolve({
-              "token": token,
-              "user": u})
-          } else {
-            Js.Promise.reject(Js.Exn.raiseError("Invalid credentials"))
-          }
-        }
-      },
-
-      "createProduct": (args, {user}) => {
-        switch user {
-        | None => Js.Promise.reject(Js.Exn.raiseError("Not authenticated"))
-        | Some(u) =>
-          let name = args->Js.Dict.get("name")->Belt.Option.getWithDefault("")
-          let description = args->Js.Dict.get("description")->Belt.Option.getWithDefault("")
-          let price = args->Js.Dict.get("price")
-            ->Belt.Option.mapOr(0.0, s-> Js.Float.parse(s)->Belt.Option.getWithDefault(0.0))
-          let status = args->Js.Dict.get("status")->Belt.Option.getWithDefault("AVAILABLE")
-
-          let product = Data.createProduct(name, description, price, status, u->Js.Dict.get("id")->Belt.Option.getWithDefault(""))
-          Js.Promise.resolve(product)
-        }
-      }}}
-
-  let server = ApolloServer.make(
-    ~typeDefs=typeDefs,
-    ~resolvers=Js.Dict.fromArray([("Query", resolvers->Js.Dict.get("Query"), ("Mutation", resolvers->Js.Dict.get("Mutation"))]),
-    ~context=Context.getContext,
-    (),
+let start = async (~port: int): string => {
+  let server = make()
+  let started = await Apollo.startStandaloneServer(
+    server,
+    {
+      "listen": {"port": port},
+      "context": async args =>
+        Context.fromAuthorization(args["req"]["headers"]->Dict.get("authorization")),
+    },
   )
-
-  server
+  started["url"]
 }
-
-// Start server
-let start = () => {
-  let server = makeServer()
-
-  server->ApolloServer.start
-    ->Js.Promise.then_=url => {
-      Console.log("🚀 GraphQL Server ready at " ++ url)
-      Console.log("📖 GraphQL Playground: " ++ url ++ "graphql")
-      Js.Promise.resolve()
-    }
-    ->Js.Promise.catch(err => {
-      Console.error("Failed to start server:")
-      Console.error(err->Js.Exn.message)
-      Js.Promise.resolve()
-    })
-
-  Js.Promise.resolve()
-}
-
-// Run if this is the main module
-switch Node.Process.argv->Js.Array.get(1) {
-| None => start()->ignore
-| Some(_) => start()->ignore
-}`,
+`,
 
     // Context module
-    'src/Context.res': `open RescriptCore
-open Node
+    'src/Context.res': `/** Per-request GraphQL context. */
+type t = {user: option<Types.claims>}
 
-// GraphQL context type
-type context = {
-  user: option<Js.Dict.t<string, string>>,
-  req: option<Node.Http.Server.req>}
+let fromAuthorization = (header: option<string>): t => {
+  let token =
+    header->Option.flatMap(h =>
+      h->String.startsWith("Bearer ") ? Some(h->String.sliceToEnd(~start=7)) : None
+    )
+  {user: token->Option.flatMap(Auth.verifyToken)}
+}
 
-// Get context from request
-let getContext = (~req=None, ()) => {
-  let user = None
-
-  // Extract user from JWT token
-  switch req {
-  | Some(r) =>
-    let authHeader = r->Js.Dict.get("headers")
-      ->Belt.Option.flatMap(h => h->Js.Dict.get("authorization"))
-      ->Belt.Option.mapOr("", t => t->Js.Dict.get("0")->Belt.Option.getWithDefault(""))
-
-    if (String.includes(authHeader, "Bearer ")) {
-      let token = String.substring(authHeader, 7)->Js.String2.length
-      user = Auth.verifyToken(token)
-    }
-  | None => ()
+/** The authenticated user, or a GraphQL error. */
+let requireUser = (ctx: t): Types.claims =>
+  switch ctx.user {
+  | Some(claims) => claims
+  | None => Exn.raiseError("Not authenticated")
   }
-
-  {user: user, req: req}
-}`,
+`,
 
     // Data module with mock data
-    'src/Data.res': `open RescriptCore
+    'src/Data.res': `// In-memory data store: replace with a real database for production use.
+open Types
 
-// Types
-type user = {
-  id: string,
-  name: string,
-  email: string,
-  password: string,
-  role: string,
-  createdAt: string,
-  updatedAt: string}
+let now = (): string => Date.make()->Date.toISOString
 
-type product = {
-  id: string,
-  name: string,
-  description: string,
-  price: float,
-  status: string,
-  userId: string,
-  createdAt: string,
-  updatedAt: string}
-
-// Mock data storage
-let users = ref(array<user>[])
-let products = ref(array<product>[])
-
-// Initialize with mock data
-let _ = {
-  let now = Js.Date.toString(Js.Date.now())
-  users := [
+let users: array<user> = {
+  let timestamp = now()
+  [
     {
-      "id": "1",
-      "name": "Admin User",
-      "email": "admin@example.com",
-      "password": "$2a$10$hash", // In production, use bcrypt
-      "role": "ADMIN",
-      "createdAt": now,
-      "updatedAt": now},
+      id: "1",
+      name: "Admin User",
+      email: "admin@example.com",
+      passwordHash: Auth.hashPassword("admin123"),
+      role: "ADMIN",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+  ]
+}
+
+let products: array<product> = {
+  let timestamp = now()
+  [
     {
-      "id": "2",
-      "name": "Test User",
-      "email": "user@example.com",
-      "password": "$2a$10$hash",
-      "role": "USER",
-      "createdAt": now,
-      "updatedAt": now}]
-
-  products := [
+      id: "1",
+      name: "Product 1",
+      description: "First product",
+      price: 99.99,
+      status: "AVAILABLE",
+      userId: "1",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
     {
-      "id": "1",
-      "name": "Product 1",
-      "description": "First product",
-      "price": 99.99,
-      "status": "AVAILABLE",
-      "userId": "1",
-      "createdAt": now,
-      "updatedAt": now},
-    {
-      "id": "2",
-      "name": "Product 2",
-      "description": "Second product",
-      "price": 149.99,
-      "status": "AVAILABLE",
-      "userId": "1",
-      "createdAt": now,
-      "updatedAt": now}]
+      id: "2",
+      name: "Product 2",
+      description: "Second product",
+      price: 149.99,
+      status: "AVAILABLE",
+      userId: "1",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+  ]
 }
 
-// User operations
-let findUser = (id: string): option<user> => {
-  users->Belt.Array.getBy(u => u["id"] == id)
+let nextUserId = ref(2)
+let nextProductId = ref(3)
+
+let findUser = (id: string): option<user> => users->Array.find(u => u.id == id)
+
+let findUserByEmail = (email: string): option<user> => users->Array.find(u => u.email == email)
+
+let addUser = (~name: string, ~email: string, ~password: string): user => {
+  let timestamp = now()
+  let user: user = {
+    id: Int.toString(nextUserId.contents),
+    name,
+    email,
+    passwordHash: Auth.hashPassword(password),
+    role: "USER",
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+  nextUserId := nextUserId.contents + 1
+  users->Array.push(user)
+  user
 }
 
-let findUserByEmail = (email: string): option<user> => {
-  users->Belt.Array.getBy(u => u["email"] == email)
+let findProduct = (id: string): option<product> => products->Array.find(p => p.id == id)
+
+let productsOf = (userId: string): array<product> => products->Array.filter(p => p.userId == userId)
+
+let addProduct = (
+  ~name: string,
+  ~description: string,
+  ~price: float,
+  ~status: string,
+  ~userId: string,
+): product => {
+  let timestamp = now()
+  let product: product = {
+    id: Int.toString(nextProductId.contents),
+    name,
+    description,
+    price,
+    status,
+    userId,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+  nextProductId := nextProductId.contents + 1
+  products->Array.push(product)
+  product
 }
 
-let getUsers = (limit: int): array<user> => {
-  users->Belt.Array.slice(~from=0, ~to=limit)
-}
+let updateProduct = (id: string, update: product => product): option<product> =>
+  switch products->Array.findIndex(p => p.id == id) {
+  | -1 => None
+  | index => {
+      let updated = {...update(products->Array.getUnsafe(index)), updatedAt: now()}
+      products->Array.setUnsafe(index, updated)
+      Some(updated)
+    }
+  }
 
-let createUser = (name: string, email: string, password: string): Js.Dict.t<string, string> => {
-  let now = Js.Date.toString(Js.Date.now())
-  let id = Js.String2.make(length=10)
+let removeProduct = (id: string): bool =>
+  switch products->Array.findIndex(p => p.id == id) {
+  | -1 => false
+  | index => {
+      products->Array.splice(~start=index, ~remove=1, ~insert=[])
+      true
+    }
+  }
 
-  let newUser = {
-    "id": id,
-    "name": name,
-    "email": email,
-    "password": password, // In production, hash with bcrypt
-    "role": "USER",
-    "createdAt": now,
-    "updatedAt": now}
-
-  users->Belt.Array.push(newUser)->ignore
-
-  newUser
-}
-
-// Product operations
-let findProduct = (id: string): option<product> => {
-  products->Belt.Array.getBy(p => p["id"] == id)
-}
-
-let getProducts = (limit: int): array<product> => {
-  products->Belt.Array.slice(~from=0, ~to=limit)
-}
-
-let createProduct = (name: string, description: string, price: float, status: string, userId: string): Js.Dict.t<string, string> => {
-  let now = Js.Date.toString(Js.Date.now())
-  let id = Js.String2.make(length=10)
-
-  let newProduct = {
-    "id": id,
-    "name": name,
-    "description": description,
-    "price": Js.Float.toString(price),
-    "status": status,
-    "userId": userId,
-    "createdAt": now,
-    "updatedAt": now}
-
-  products->Belt.Array.push(newProduct)->ignore
-
-  newProduct
-}`,
-
-    // Auth module
-    'src/Auth.res': `open RescriptCore
-
-// Generate JWT token (simplified - use real JWT in production)
-let generateToken = (user: Js.Dict.t<string, string>): string => {
-  let id = user->Js.Dict.get("id")->Belt.Option.getWithDefault("")
-  let email = user->Js.Dict.get("email")->Belt.Option.getWithDefault("")
-  let role = user->Js.Dict.get("role")->Belt.Option.getWithDefault("USER")
-
-  // Simplified token - use jsonwebtoken in production
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." ++
-  Js.Dict.stringify({
-    "id": id,
-    "email": email,
-    "role": role,
-    "exp": Js.Int.toString(Js.Float.toInt(Js.Date.time(Js.Date.now()) /. 1000.0 +. 3600.0))})
-}
-
-// Verify JWT token (simplified)
-let verifyToken = (token: string): option<Js.Dict.t<string, string>> => {
-  // Simplified verification - use real JWT in production
-  if (String.length(token) > 20) {
-    Some({
-      "id": "1",
-      "name": "Admin User",
-      "email": "admin@example.com",
-      "role": "ADMIN"})
-  } else {
-    None
+// Cursor-based pagination: the cursor is the index of the last item of the previous page.
+let paginate = (items: array<'a>, ~limit: int, ~cursor: option<string>) => {
+  let total = Array.length(items)
+  let start = cursor->Option.flatMap(c => Int.fromString(c))->Option.map(i => i + 1)->Option.getOr(0)
+  let page = items->Array.slice(~start, ~end=start + limit)
+  let edges = page->Array.mapWithIndex((node, i) => {"node": node, "cursor": Int.toString(start + i)})
+  let lastIndex = start + Array.length(page) - 1
+  {
+    "edges": edges,
+    "pageInfo": {
+      "hasNextPage": lastIndex + 1 < total,
+      "hasPreviousPage": start > 0,
+      "startCursor": Array.length(page) > 0 ? Nullable.make(Int.toString(start)) : Nullable.null,
+      "endCursor": Array.length(page) > 0 ? Nullable.make(Int.toString(lastIndex)) : Nullable.null,
+    },
+    "totalCount": total,
   }
 }
+`,
 
-// Hash password (use bcrypt in production)
-let hashPassword = (password: string): string => {
-  "$2a$10$hash" // Simplified - use bcryptjs in production
-}
+    // Auth module
+    'src/Auth.res': `@module("jsonwebtoken") external sign: (Types.claims, string, {"expiresIn": string}) => string = "sign"
+@module("jsonwebtoken") external verify: (string, string) => Types.claims = "verify"
+@module("bcryptjs") external hashSync: (string, int) => string = "hashSync"
+@module("bcryptjs") external compareSync: (string, string) => bool = "compareSync"
 
-// Verify password
-let verifyPassword = (password: string, hash: string): bool => {
-  // Simplified verification - use bcrypt.compare in production
-  password != ""
-}`,
+let secret = (): string => Env.get("JWT_SECRET")->Option.getOr("change-this-secret-in-production")
 
-    // GraphQL utilities
-    'src/GraphQL.res': `open RescriptCore
-open Data
+let hashPassword = (password: string): string => hashSync(password, 10)
 
-// Pagination helper
-let paginateUsers = (users: array<Data.user>, limit: int, cursor: option<string>): Js.Dict.t<string, Js.Dict.t<string, string>> => {
-  let totalCount = Js.Array.length(users)
+let verifyPassword = (password: string, hash: string): bool => compareSync(password, hash)
 
-  let edges = users->Belt.Array.mapWithIndex((u, i) => {
-    {
-      "node": u,
-      "cursor": Js.Int.toString(i)}
-  })
+let generateToken = (user: Types.user): string =>
+  sign({sub: user.id, email: user.email, role: user.role}, secret(), {"expiresIn": "7d"})
 
-  let startCursor = Some(Js.Int.toString(0))
-  let endCursor = Some(Js.Int.toString(totalCount - 1))
-  let hasNextPage = false
-  let hasPreviousPage = false
-
-  {
-    "edges": edges->Belt.Array.map(e => {
-      "node": e->Js.Dict.get("node")->Belt.Option.getWithDefault(Js.Dict.empty()),
-      "cursor": e->Js.Dict.get("cursor")->Belt.Option.getWithDefault("")}),
-    "pageInfo": {
-      "hasNextPage": Js.Bool.toString(hasNextPage),
-      "hasPreviousPage": Js.Bool.toString(hasPreviousPage),
-      "startCursor": startCursor->Belt.Option.getOr(""),
-      "endCursor": endCursor->Belt.Option.getOr("")},
-    "totalCount": Js.Int.toString(totalCount)}
-}
-
-let paginateProducts = (products: array<Data.product>, limit: int, cursor: option<string>): Js.Dict.t<string, Js.Dict.t<string, string>> => {
-  let totalCount = Js.Array.length(products)
-
-  let edges = products->Belt.Array.mapWithIndex((p, i) => {
-    {
-      "node": p,
-      "cursor": Js.Int.toString(i)}
-  })
-
-  {
-    "edges": edges->Belt.Array.map(e => {
-      "node": e->Js.Dict.get("node")->Belt.Option.getWithDefault(Js.Dict.empty()),
-      "cursor": e->Js.Dict.get("cursor")->Belt.Option.getWithDefault("")}),
-    "pageInfo": {
-      "hasNextPage": "false",
-      "hasPreviousPage": "false",
-      "startCursor": "0",
-      "endCursor": Js.Int.toString(totalCount - 1)},
-    "totalCount": Js.Int.toString(totalCount)}
-}`,
+/** The claims inside a valid token, or None for a missing, expired or forged one. */
+let verifyToken = (token: string): option<Types.claims> =>
+  switch verify(token, secret()) {
+  | claims => Some(claims)
+  | exception _ => None
+  }
+`,
 
     // Resolvers module
-    'src/Resolvers.res': `open RescriptCore
+    'src/Resolvers.res': `open Types
 
-// Resolver type aliases
-type user = Js.Dict.t<string, string>
-type product = Js.Dict.t<string, string>
-type authPayload = Js.Dict.t<string, Js.Dict.t<string, string>>
+let authPayload = (user: user) => {"token": Auth.generateToken(user), "user": user}
 
-// Query resolvers
-let query = {
-  "health": (_args, _obj) => {
-    Js.Promise.resolve({
-      "status": "healthy",
-      "timestamp": Js.Date.toString(Js.Date.now())})
-  }}
+let canModify = (claims: claims, product: product) => product.userId == claims.sub || claims.role == "ADMIN"
 
-// Mutation resolvers
-let mutation = {
-  "register": (_args, _obj) => {
-    let name = _args->Js.Dict.get("name")->Belt.Option.getWithDefault("")
-    let email = _args->Js.Dict.get("email")->Belt.Option.getWithDefault("")
-    let password = _args->Js.Dict.get("password")->Belt.Option.getWithDefault("")
+let requireProduct = (id: string): product =>
+  switch Data.findProduct(id) {
+  | Some(product) => product
+  | None => Exn.raiseError("Product not found")
+  }
 
-    let user = Data.createUser(name, email, password)
-    let token = Auth.generateToken(user)
-
-    Js.Promise.resolve({
-      "token": token,
-      "user": user})
-  }}`,
+let resolvers = {
+  "Query": {
+    "health": (_parent: unit, _args: unit, _ctx: Context.t) => "healthy",
+    "me": (_parent: unit, _args: unit, ctx: Context.t) =>
+      ctx.user->Option.flatMap(claims => Data.findUser(claims.sub)),
+    "user": (_parent: unit, args: {"id": string}, _ctx: Context.t) => Data.findUser(args["id"]),
+    "users": (_parent: unit, args: {"limit": int, "cursor": Nullable.t<string>}, _ctx: Context.t) =>
+      Data.paginate(Data.users, ~limit=args["limit"], ~cursor=args["cursor"]->Nullable.toOption),
+    "product": (_parent: unit, args: {"id": string}, _ctx: Context.t) => Data.findProduct(args["id"]),
+    "products": (_parent: unit, args: {"limit": int, "cursor": Nullable.t<string>}, _ctx: Context.t) =>
+      Data.paginate(Data.products, ~limit=args["limit"], ~cursor=args["cursor"]->Nullable.toOption),
+  },
+  "Mutation": {
+    "register": (
+      _parent: unit,
+      args: {"name": string, "email": string, "password": string},
+      _ctx: Context.t,
+    ) =>
+      switch Data.findUserByEmail(args["email"]) {
+      | Some(_) => Exn.raiseError("Email already registered")
+      | None =>
+        authPayload(Data.addUser(~name=args["name"], ~email=args["email"], ~password=args["password"]))
+      },
+    "login": (_parent: unit, args: {"email": string, "password": string}, _ctx: Context.t) =>
+      switch Data.findUserByEmail(args["email"]) {
+      | Some(user) if Auth.verifyPassword(args["password"], user.passwordHash) => authPayload(user)
+      | _ => Exn.raiseError("Invalid credentials")
+      },
+    "createProduct": (
+      _parent: unit,
+      args: {"name": string, "description": string, "price": float, "status": string},
+      ctx: Context.t,
+    ) => {
+      let claims = Context.requireUser(ctx)
+      Data.addProduct(
+        ~name=args["name"],
+        ~description=args["description"],
+        ~price=args["price"],
+        ~status=args["status"],
+        ~userId=claims.sub,
+      )
+    },
+    "updateProduct": (
+      _parent: unit,
+      args: {
+        "id": string,
+        "name": Nullable.t<string>,
+        "description": Nullable.t<string>,
+        "price": Nullable.t<float>,
+        "status": Nullable.t<string>,
+      },
+      ctx: Context.t,
+    ) => {
+      let claims = Context.requireUser(ctx)
+      let existing = requireProduct(args["id"])
+      if !canModify(claims, existing) {
+        Exn.raiseError("Forbidden")
+      } else {
+        switch Data.updateProduct(args["id"], p => {
+          ...p,
+          name: args["name"]->Nullable.toOption->Option.getOr(p.name),
+          description: args["description"]->Nullable.toOption->Option.getOr(p.description),
+          price: args["price"]->Nullable.toOption->Option.getOr(p.price),
+          status: args["status"]->Nullable.toOption->Option.getOr(p.status),
+        }) {
+        | Some(product) => product
+        | None => Exn.raiseError("Product not found")
+        }
+      }
+    },
+    "deleteProduct": (_parent: unit, args: {"id": string}, ctx: Context.t) => {
+      let claims = Context.requireUser(ctx)
+      let existing = requireProduct(args["id"])
+      if !canModify(claims, existing) {
+        Exn.raiseError("Forbidden")
+      } else {
+        Data.removeProduct(args["id"])
+      }
+    },
+  },
+  "User": {
+    "products": (user: user, args: {"limit": int, "cursor": Nullable.t<string>}, _ctx: Context.t) =>
+      Data.paginate(
+        Data.productsOf(user.id),
+        ~limit=args["limit"],
+        ~cursor=args["cursor"]->Nullable.toOption,
+      ),
+  },
+  "Product": {
+    "user": (product: product, _args: unit, _ctx: Context.t) => Data.findUser(product.userId),
+  },
+}
+`,
 
     // Environment configuration
     '.env.example': `PORT=4000
@@ -687,18 +537,18 @@ coverage/
     // README
     'README.md': `# {{projectName}}
 
-Type-safe GraphQL API built with ReScript and Apollo Server.
+GraphQL API built with ReScript and Apollo Server 4.
 
 ## Features
 
-- ⚡ **ReScript** - Compile-time type safety
-- 🚀 **GraphQL** - Type-safe API queries
-- 📝 **Apollo Server** - Production-ready GraphQL server
-- 🔒 **Authentication** - JWT-based auth
-- 🎯 **Type Generation** - Auto-generated types from schema
-- 📊 **Pagination** - Cursor-based pagination
-- 🔗 **DataLoader** - Batched data loading
-- 🧪 **Testing** - Jest testing framework
+- **ReScript**: compile-time type safety, in-place CommonJS output (\`src/*.bs.js\`)
+- **Apollo Server 4**: standalone server with the Apollo landing page
+- **Authentication**: JWT (\`jsonwebtoken\`) and password hashing (\`bcryptjs\`)
+- **Pagination**: cursor-based connections for users and products
+- **Tests**: ReScript tests on Node's built-in test runner (\`server.executeOperation\`, no network)
+
+The in-memory store in \`src/Data.res\` stands in for a database. The standalone server has no
+WebSocket transport, so the schema has queries and mutations only (no subscriptions).
 
 ## Quick Start
 
@@ -706,22 +556,23 @@ Type-safe GraphQL API built with ReScript and Apollo Server.
 # Install dependencies
 npm install
 
-# Generate GraphQL types
-npm run codegen
-
-# Start development server
-npm run dev
-
-# Build for production
+# Build (compiles in place to src/*.bs.js)
 npm run build
 
-# Start production server
+# Start the server
 npm start
+
+# Run tests
+npm test
 \`\`\`
 
-## GraphQL Playground
+Watch mode: \`npm run dev\` (recompiles) and \`npm run server\` (restarts on change).
 
-Visit http://localhost:4000/graphql for the interactive GraphQL playground.
+## GraphQL Endpoint
+
+The server listens on http://localhost:4000/ (\`PORT\` to change it). Open it in a browser for
+Apollo's explorer. Authenticated operations send \`Authorization: Bearer <token>\`; the seeded admin
+is \`admin@example.com\` / \`admin123\`.
 
 ## Example Queries
 
@@ -779,15 +630,222 @@ mutation {
 }
 \`\`\`
 
-## Type Safety
+## Project Structure
 
-ReScript generates types from your GraphQL schema:
+\`\`\`
+src/
+  schema.graphql     # the schema
+  Resolvers.res      # resolvers
+  Data.res           # in-memory data and pagination
+  Context.res        # per-request context (the user behind the token)
+  Auth.res           # JWT and password hashing
+  Apollo.res         # Apollo Server bindings
+  Server.res         # server construction and startup
+  Main.res           # entry point (npm start runs src/Main.bs.js)
+  __tests__/         # ReScript tests
+rescript.json        # ReScript configuration
+\`\`\`
 
-1. Edit \`src/schema.graphql\`
-2. Run \`npm run codegen\`
-3. Use generated types in \`*.res\` files
+## Changing the Schema
+
+Edit \`src/schema.graphql\`, then add or adjust the matching resolver in \`src/Resolvers.res\`.
 
 ## License
 
 MIT
+`,
+
+    'src/Apollo.res': `// Minimal Apollo Server 4 bindings
+type server
+
+@module("@apollo/server") @new
+external make: {"typeDefs": string, "resolvers": 'resolvers} => server = "ApolloServer"
+
+@module("@apollo/server/standalone")
+external startStandaloneServer: (
+  server,
+  {
+    "listen": {"port": int},
+    "context": {"req": {"headers": Dict.t<string>}} => promise<Context.t>,
+  },
+) => promise<{"url": string}> = "startStandaloneServer"
+
+@send external stop: server => promise<unit> = "stop"
+
+/** Runs an operation without HTTP (used by the tests). */
+@send
+external executeOperation: (
+  server,
+  {"query": string, "variables": option<JSON.t>},
+  {"contextValue": Context.t},
+) => promise<{"body": {"singleResult": JSON.t}}> = "executeOperation"
+`,
+
+    'src/Env.res': `// Environment variables
+@val external env: Dict.t<string> = "process.env"
+
+let get = (key: string): option<string> => env->Dict.get(key)
+`,
+
+    'src/Json.res': `// Helpers for reading values out of a parsed JSON request body
+let field = (json: JSON.t, key: string): option<JSON.t> =>
+  json->JSON.Decode.object->Option.flatMap(fields => fields->Dict.get(key))
+
+let string = (json: JSON.t, key: string): option<string> =>
+  field(json, key)->Option.flatMap(JSON.Decode.string)
+
+let float = (json: JSON.t, key: string): option<float> =>
+  field(json, key)->Option.flatMap(JSON.Decode.float)
+`,
+
+    'src/Main.res': `@module("dotenv") external loadEnv: unit => unit = "config"
+
+loadEnv()
+
+let port = Env.get("PORT")->Option.flatMap(value => Int.fromString(value))->Option.getOr(4000)
+
+Server.start(~port)
+->Promise.then(url => {
+  Console.log(\`GraphQL server ready at \${url}\`)
+  Promise.resolve()
+})
+->Promise.catch(error => {
+  Console.error2("Failed to start server:", error)
+  Promise.resolve()
+})
+->ignore
+`,
+
+    'src/Types.res': `type user = {
+  id: string,
+  name: string,
+  email: string,
+  passwordHash: string,
+  role: string,
+  createdAt: string,
+  updatedAt: string,
+}
+
+type product = {
+  id: string,
+  name: string,
+  description: string,
+  price: float,
+  status: string,
+  userId: string,
+  createdAt: string,
+  updatedAt: string,
+}
+
+/** What is stored in (and read back from) the JWT. */
+type claims = {
+  sub: string,
+  email: string,
+  role: string,
+}
+`,
+
+    'src/__tests__/ApiTest.res': `// Run with: npm test (node's built-in test runner)
+@module("node:test") external test: (string, unit => promise<unit>) => unit = "test"
+@module("node:assert/strict") external equal: ('a, 'a) => unit = "equal"
+@module("node:assert/strict") external ok: bool => unit = "ok"
+
+let execute = async (
+  server: Apollo.server,
+  query: string,
+  ~variables: option<JSON.t>=?,
+  ~token: option<string>=?,
+): JSON.t => {
+  let header = token->Option.map(t => "Bearer " ++ t)
+  let result = await server->Apollo.executeOperation(
+    {"query": query, "variables": variables},
+    {"contextValue": Context.fromAuthorization(header)},
+  )
+  result["body"]["singleResult"]
+}
+
+let data = (result: JSON.t, path: array<string>): option<JSON.t> =>
+  path->Array.reduce(Json.field(result, "data"), (current, key) =>
+    current->Option.flatMap(json => Json.field(json, key))
+  )
+
+let text = (result: JSON.t, path: array<string>): string =>
+  data(result, path)->Option.flatMap(JSON.Decode.string)->Option.getOr("")
+
+let hasErrors = (result: JSON.t): bool => Json.field(result, "errors")->Option.isSome
+
+test("GraphQL API", async () => {
+  let server = Server.make()
+
+  // health
+  let result = await execute(server, "{ health }")
+  equal(text(result, ["health"]), "healthy")
+
+  // login as the seeded admin
+  let result = await execute(
+    server,
+    \`mutation { login(email: "admin@example.com", password: "admin123") { token user { name role } } }\`,
+  )
+  let adminToken = text(result, ["login", "token"])
+  ok(String.length(adminToken) > 20)
+  equal(text(result, ["login", "user", "role"]), "ADMIN")
+
+  // wrong password is an error
+  let result = await execute(
+    server,
+    \`mutation { login(email: "admin@example.com", password: "nope") { token } }\`,
+  )
+  ok(hasErrors(result))
+
+  // register
+  let result = await execute(
+    server,
+    \`mutation { register(name: "Jane", email: "jane@example.com", password: "secret123") { token user { id email } } }\`,
+  )
+  let userToken = text(result, ["register", "token"])
+  ok(String.length(userToken) > 20)
+
+  // me needs a token
+  let result = await execute(server, "{ me { email } }")
+  equal(data(result, ["me"]), Some(JSON.Encode.null))
+  let result = await execute(server, "{ me { email } }", ~token=userToken)
+  equal(text(result, ["me", "email"]), "jane@example.com")
+
+  // products need an authenticated user to be created
+  let create = \`mutation { createProduct(name: "Widget", description: "A widget", price: 9.5, status: AVAILABLE) { id name user { email } } }\`
+  ok(hasErrors(await execute(server, create)))
+  let result = await execute(server, create, ~token=userToken)
+  equal(text(result, ["createProduct", "name"]), "Widget")
+  equal(text(result, ["createProduct", "user", "email"]), "jane@example.com")
+  let widgetId = text(result, ["createProduct", "id"])
+
+  // only the owner (or an admin) may delete it
+  let otherToken = text(
+    await execute(
+      server,
+      \`mutation { register(name: "Joe", email: "joe@example.com", password: "secret123") { token } }\`,
+    ),
+    ["register", "token"],
+  )
+  let deleteQuery = \`mutation { deleteProduct(id: "\${widgetId}") }\`
+  ok(hasErrors(await execute(server, deleteQuery, ~token=otherToken)))
+  let result = await execute(server, deleteQuery, ~token=userToken)
+  equal(data(result, ["deleteProduct"]), Some(JSON.Encode.bool(true)))
+
+  // pagination
+  let result = await execute(
+    server,
+    "{ products(limit: 1) { totalCount edges { cursor node { name } } pageInfo { hasNextPage endCursor } } }",
+  )
+  equal(data(result, ["products", "totalCount"]), Some(JSON.Encode.int(2)))
+  equal(data(result, ["products", "pageInfo", "hasNextPage"]), Some(JSON.Encode.bool(true)))
+
+  let result = await execute(
+    server,
+    \`{ products(limit: 5, cursor: "0") { edges { node { name user { name } } } } }\`,
+  )
+  ok(!hasErrors(result))
+
+  await server->Apollo.stop
+})
 `}};
