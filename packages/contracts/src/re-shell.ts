@@ -114,6 +114,16 @@ export {
   uiDimensionRollupSchema,
   uiFailureSchema,
   uiTestResponseSchema,
+  // kubernetes rollback / crd / operator / mesh
+  k8sRollbackMethodSchema,
+  k8sRollbackFailureReasonSchema,
+  k8sRollbackResponseSchema,
+  k8sCrdIdentitySchema,
+  k8sGeneratedManifestSchema,
+  k8sToolCheckSchema,
+  k8sCrdResponseSchema,
+  k8sMeshResponseSchema,
+  k8sOperatorResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsClientMessageSchema,
@@ -224,6 +234,16 @@ export type {
   UiDimensionRollup,
   UiFailure,
   UiTestResponse,
+  // kubernetes rollback / crd / operator / mesh
+  K8sRollbackMethod,
+  K8sRollbackFailureReason,
+  K8sRollbackResponse,
+  K8sCrdIdentity,
+  K8sGeneratedManifest,
+  K8sToolCheck,
+  K8sCrdResponse,
+  K8sMeshResponse,
+  K8sOperatorResponse,
   // sse / ws wire messages
   SseEvent,
   WsClientMessage,

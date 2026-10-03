@@ -1426,3 +1426,121 @@ export const uiTestResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type UiTestResponse = z.infer<typeof uiTestResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Kubernetes rollback / CRD / operator / service-mesh generators (P9-D)
+//
+// `re-shell k8s rollback` talks to a real cluster (kubectl / helm); the CRD,
+// operator and mesh generators are pure, workspace-driven file generators. The
+// payloads below are what each command emits under `data` with `--json`.
+// ---------------------------------------------------------------------------
+
+/** How a rollback was performed. */
+export const k8sRollbackMethodSchema = z.enum(['kubectl', 'helm']);
+export type K8sRollbackMethod = z.infer<typeof k8sRollbackMethodSchema>;
+
+/** Stable machine-readable reason carried in `error.details.reason` when a rollback fails. */
+export const k8sRollbackFailureReasonSchema = z.enum([
+  'INVALID_ARGUMENT',
+  'TOOL_MISSING',
+  'CLUSTER_UNREACHABLE',
+  'NOT_FOUND',
+  'NOT_HELM_MANAGED',
+  'NO_PREVIOUS_REVISION',
+  'REVISION_NOT_FOUND',
+  'COMMAND_FAILED',
+  'ROLLOUT_FAILED',
+]);
+export type K8sRollbackFailureReason = z.infer<typeof k8sRollbackFailureReasonSchema>;
+
+/**
+ * Envelope payload for `re-shell k8s rollback --json`. `rolledBack` is true only
+ * when the undo was applied AND the workload became ready again; a dry-run
+ * reports the planned command with `rolledBack: false`.
+ */
+export const k8sRollbackResponseSchema = z.object({
+  service: z.string(),
+  namespace: z.string(),
+  method: k8sRollbackMethodSchema,
+  /** Helm release name when `method` is `helm`. */
+  release: z.string().optional(),
+  dryRun: z.boolean(),
+  /** Revision that was live before the rollback (null when unknown). */
+  fromRevision: z.number().nullable(),
+  /** Revision the rollback returns to. */
+  toRevision: z.number(),
+  /** Revision live after the rollback (null for a dry-run). */
+  currentRevision: z.number().nullable(),
+  /** The mutating command that was (or, for a dry-run, would be) executed. */
+  command: z.array(z.string()),
+  rolledBack: z.boolean(),
+  output: z.string(),
+  rolloutStatus: z.string().optional(),
+});
+export type K8sRollbackResponse = z.infer<typeof k8sRollbackResponseSchema>;
+
+/** Identity of the generated ReShellWorkspace CRD. */
+export const k8sCrdIdentitySchema = z.object({
+  /** `<plural>.<group>`, the CRD's metadata.name. */
+  name: z.string(),
+  group: z.string(),
+  version: z.string(),
+  kind: z.string(),
+  plural: z.string(),
+  singular: z.string(),
+  scope: z.enum(['Namespaced', 'Cluster']),
+});
+export type K8sCrdIdentity = z.infer<typeof k8sCrdIdentitySchema>;
+
+/** One rendered manifest of a generator (CRD, sample CR, mesh resource). */
+export const k8sGeneratedManifestSchema = z.object({
+  kind: z.string(),
+  name: z.string(),
+  /** Path relative to the output directory. */
+  path: z.string(),
+  yaml: z.string(),
+});
+export type K8sGeneratedManifest = z.infer<typeof k8sGeneratedManifestSchema>;
+
+/** Outcome of an external verification tool (kubectl/go): `ran` is false when it was unavailable. */
+export const k8sToolCheckSchema = z.object({
+  ran: z.boolean(),
+  ok: z.boolean().optional(),
+  detail: z.string().optional(),
+});
+export type K8sToolCheck = z.infer<typeof k8sToolCheckSchema>;
+
+/** Envelope payload for `re-shell k8s crd --json`. */
+export const k8sCrdResponseSchema = z.object({
+  crd: k8sCrdIdentitySchema,
+  manifests: z.array(k8sGeneratedManifestSchema),
+  written: z.array(z.string()),
+  /** `kubectl apply --dry-run=server` outcome when a cluster is reachable. */
+  kubectl: k8sToolCheckSchema,
+});
+export type K8sCrdResponse = z.infer<typeof k8sCrdResponseSchema>;
+
+/** Envelope payload for `re-shell k8s mesh --json`. */
+export const k8sMeshResponseSchema = z.object({
+  mesh: z.enum(['istio', 'linkerd']),
+  namespace: z.string(),
+  mtls: z.boolean(),
+  trafficManagement: z.boolean(),
+  manifests: z.array(k8sGeneratedManifestSchema),
+  /** Generated documentation files (README with injection + multi-cluster notes). */
+  docs: z.array(z.object({ path: z.string(), content: z.string() })),
+  written: z.array(z.string()),
+});
+export type K8sMeshResponse = z.infer<typeof k8sMeshResponseSchema>;
+
+/** Envelope payload for `re-shell k8s operator --json`. */
+export const k8sOperatorResponseSchema = z.object({
+  /** Go module path of the scaffold. */
+  module: z.string(),
+  crd: k8sCrdIdentitySchema,
+  files: z.array(z.object({ path: z.string(), bytes: z.number() })),
+  written: z.array(z.string()),
+  /** Result of the optional `--verify` `go build` (ran:false when not requested). */
+  build: k8sToolCheckSchema,
+});
+export type K8sOperatorResponse = z.infer<typeof k8sOperatorResponseSchema>;

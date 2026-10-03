@@ -106,7 +106,7 @@ export function validateWithKubectl(manifests: RenderedManifest[]): KubectlValid
 
 /**
  * `k8s generate` — read the workspace v2 config and emit Kubernetes manifests
- * (Deployment, Service, HPA, NetworkPolicy) per service.
+ * (Deployment, Service, HPA, NetworkPolicy, PodDisruptionBudget) per service.
  *
  * In `--json`/`--dry-run` mode nothing is written; the ok envelope carries
  * `{ namespace, manifests: [{kind, name, yaml}], kubectl }`. With `--out` (and
@@ -133,7 +133,7 @@ export async function runK8sGenerate(
     try {
       const result = generate();
       const kubectl = validateWithKubectl(result.manifests);
-      const warnings: string[] = [];
+      const warnings: string[] = [...result.warnings];
       if (!kubectl.ran) {
         warnings.push(`kubectl not run: ${kubectl.detail ?? 'unavailable'}`);
       } else if (kubectl.ok === false) {
@@ -164,6 +164,7 @@ export async function runK8sGenerate(
     const result = generate();
     const kubectl = validateWithKubectl(result.manifests);
     displayResult(result, kubectl, Boolean(options.dryRun));
+    for (const warning of result.warnings) console.log(chalk.yellow(`warning: ${warning}`));
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'Unknown k8s generate error';

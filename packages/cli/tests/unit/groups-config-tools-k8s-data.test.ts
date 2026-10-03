@@ -85,6 +85,10 @@ vi.mock('../../src/commands/profile-optimize', () => ({
 vi.mock('../../src/commands/k8s-generate', () => ({ runK8sGenerate: vi.fn() }));
 vi.mock('../../src/commands/helm-generate', () => ({ runHelmGenerate: vi.fn() }));
 vi.mock('../../src/commands/gitops-generate', () => ({ runGitOpsGenerate: vi.fn() }));
+vi.mock('../../src/commands/k8s-rollback', () => ({ runK8sRollback: vi.fn() }));
+vi.mock('../../src/commands/k8s-crd', () => ({ runK8sCrd: vi.fn() }));
+vi.mock('../../src/commands/k8s-mesh', () => ({ runK8sMesh: vi.fn() }));
+vi.mock('../../src/commands/k8s-operator', () => ({ runK8sOperator: vi.fn() }));
 
 vi.mock('../../src/commands/submodule', () => ({
   addGitSubmodule: vi.fn(),
@@ -274,6 +278,10 @@ const { manageWorkspaceTemplates } = await import('../../src/commands/workspace'
 const { runK8sGenerate } = await import('../../src/commands/k8s-generate');
 const { runHelmGenerate } = await import('../../src/commands/helm-generate');
 const { runGitOpsGenerate } = await import('../../src/commands/gitops-generate');
+const { runK8sRollback } = await import('../../src/commands/k8s-rollback');
+const { runK8sCrd } = await import('../../src/commands/k8s-crd');
+const { runK8sMesh } = await import('../../src/commands/k8s-mesh');
+const { runK8sOperator } = await import('../../src/commands/k8s-operator');
 const { createUnifiedConfig } = await import('../../src/utils/unified-config');
 const { validateWorkspaceFile } = await import('../../src/utils/schema-generator');
 
@@ -1178,7 +1186,7 @@ describe('groups — config / tools / k8s / data registration', () => {
       expect(k8s.commands.map(command => command.name())).toEqual([
         'generate', 'manifests', 'helm', 'gitops', 'mesh', 'hpa',
         'network-policy', 'crd', 'operator', 'multi-tenant', 'cicd',
-        'multi-cluster', 'ingress', 'pod-security', 'cluster',
+        'multi-cluster', 'ingress', 'pod-security', 'cluster', 'rollback',
       ]);
     });
 
@@ -1202,6 +1210,81 @@ describe('groups — config / tools / k8s / data registration', () => {
       ]);
       expect(runGitOpsGenerate).toHaveBeenCalledWith(expect.objectContaining({
         tool: 'flux', namespace: 'gitops', revision: 'release',
+      }));
+    });
+
+    it('gitops generate forwards --source (helm|manifests)', async () => {
+      const program = programWith(registerK8sGroup);
+      await program.parseAsync(['node', 're-shell', 'k8s', 'gitops', 'generate', '--source', 'manifests']);
+      expect(runGitOpsGenerate).toHaveBeenLastCalledWith(expect.objectContaining({ source: 'manifests' }));
+    });
+
+    it('crd (workspace-driven) forwards group/version/out and does not touch the legacy generator', async () => {
+      const program = programWith(registerK8sGroup);
+      vi.mocked(k8sUtils.crd.writeFiles).mockClear();
+      await program.parseAsync([
+        'node', 're-shell', 'k8s', 'crd', '--group', 'example.com', '--api-version', 'v1beta1',
+        '--namespace', 'apps', '--out', 'out/crd', '--json', '--dry-run',
+      ]);
+      expect(runK8sCrd).toHaveBeenLastCalledWith({
+        out: 'out/crd', namespace: 'apps', group: 'example.com', version: 'v1beta1',
+        json: true, dryRun: true, spinner: undefined,
+      });
+      expect(k8sUtils.crd.writeFiles).not.toHaveBeenCalled();
+    });
+
+    it('crd accepts the legacy -o/--output alias as the output directory', async () => {
+      const program = programWith(registerK8sGroup);
+      await program.parseAsync(['node', 're-shell', 'k8s', 'crd', '-o', 'legacy/out', '--json']);
+      expect(runK8sCrd).toHaveBeenLastCalledWith(expect.objectContaining({ out: 'legacy/out' }));
+    });
+
+    it('mesh (workspace-driven) forwards mesh/mtls/traffic/services and the legacy --no-* flags', async () => {
+      const program = programWith(registerK8sGroup);
+      vi.mocked(k8sUtils.mesh.writeFiles).mockClear();
+      await program.parseAsync([
+        'node', 're-shell', 'k8s', 'mesh', '--mesh', 'linkerd', '--services', 'api:3000',
+        '--no-mtls', '--no-traffic-management', '--namespace', 'apps', '--out', 'out/mesh', '--json',
+      ]);
+      expect(runK8sMesh).toHaveBeenLastCalledWith({
+        mesh: 'linkerd', namespace: 'apps', mtls: false, trafficManagement: false,
+        services: 'api:3000', out: 'out/mesh', json: true, dryRun: undefined, spinner: undefined,
+      });
+      expect(k8sUtils.mesh.writeFiles).not.toHaveBeenCalled();
+      // commander keeps parsed option values on the command, so use a fresh program for the defaults
+      await programWith(registerK8sGroup).parseAsync(['node', 're-shell', 'k8s', 'mesh', '--json']);
+      expect(runK8sMesh).toHaveBeenLastCalledWith(expect.objectContaining({
+        mesh: 'istio', mtls: true, trafficManagement: true,
+      }));
+    });
+
+    it('operator (workspace-driven) forwards module/image/group/verify/out', async () => {
+      const program = programWith(registerK8sGroup);
+      vi.mocked(k8sUtils.operator.writeFiles).mockClear();
+      await program.parseAsync([
+        'node', 're-shell', 'k8s', 'operator', '--module', 'example.com/op', '--image', 'op:1',
+        '--group', 'example.com', '--api-version', 'v1beta1', '--verify', '--out', 'out/op', '--json',
+      ]);
+      expect(runK8sOperator).toHaveBeenLastCalledWith({
+        out: 'out/op', module: 'example.com/op', image: 'op:1', group: 'example.com',
+        version: 'v1beta1', namespace: 'default', verify: true, json: true, dryRun: undefined, spinner: undefined,
+      });
+      expect(k8sUtils.operator.writeFiles).not.toHaveBeenCalled();
+    });
+
+    it('rollback forwards the service and its options to runK8sRollback', async () => {
+      const program = programWith(registerK8sGroup);
+      await program.parseAsync([
+        'node', 're-shell', 'k8s', 'rollback', 'api', '--to-revision', '3', '--namespace', 'apps',
+        '--method', 'helm', '--release', 'shop', '--timeout', '90', '--context', 'prod', '--dry-run', '--json',
+      ]);
+      expect(runK8sRollback).toHaveBeenLastCalledWith({
+        service: 'api', namespace: 'apps', toRevision: '3', method: 'helm', release: 'shop',
+        timeout: '90', context: 'prod', dryRun: true, json: true, spinner: undefined,
+      });
+      await programWith(registerK8sGroup).parseAsync(['node', 're-shell', 'k8s', 'rollback', 'web']);
+      expect(runK8sRollback).toHaveBeenLastCalledWith(expect.objectContaining({
+        service: 'web', namespace: 'default', method: 'auto', timeout: '300',
       }));
     });
 
@@ -1261,7 +1344,7 @@ describe('groups — config / tools / k8s / data registration', () => {
     it('mesh parses services and applies --no-* flag inversions', async () => {
       const program = programWith(registerK8sGroup);
       await program.parseAsync([
-        'node', 're-shell', 'k8s', 'mesh', 'my-app',
+        'node', 're-shell', 'k8s', 'mesh', 'my-app', '--legacy',
         '--mesh', 'linkerd', '--services', 'api:3000', '--no-mtls', '--no-traffic-management',
       ]);
       expect(k8sUtils.mesh.displayConfig).toHaveBeenCalledWith(expect.objectContaining({
@@ -1314,7 +1397,7 @@ describe('groups — config / tools / k8s / data registration', () => {
 
     it('crd registers the two built-in CRD definitions', async () => {
       const program = programWith(registerK8sGroup);
-      await program.parseAsync(['node', 're-shell', 'k8s', 'crd', 'my-app', '--no-webhooks']);
+      await program.parseAsync(['node', 're-shell', 'k8s', 'crd', 'my-app', '--legacy', '--no-webhooks']);
       const config = vi.mocked(k8sUtils.crd.displayConfig).mock.calls[0][0] as any;
       expect(config.enableController).toBe(true);
       expect(config.enableWebhooks).toBe(false);
@@ -1325,7 +1408,7 @@ describe('groups — config / tools / k8s / data registration', () => {
     it('operator resolves known and unknown languages onto runtime configs', async () => {
       const program = programWith(registerK8sGroup);
       await program.parseAsync([
-        'node', 're-shell', 'k8s', 'operator', 'my-app',
+        'node', 're-shell', 'k8s', 'operator', 'my-app', '--legacy',
         '--languages', 'python, unknown-lang', '--no-rollback',
       ]);
       const config = vi.mocked(k8sUtils.operator.displayConfig).mock.calls[0][0] as any;
