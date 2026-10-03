@@ -1,5 +1,15 @@
-import ora from 'ora';
+import type ora from 'ora';
 import chalk from 'chalk';
+
+/**
+ * `ora` costs ~75ms to load, so it is required only when an interactive spinner
+ * is actually created (never for --json/CI/piped runs or `--help`).
+ */
+function loadOra(): typeof ora {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const mod = require('ora');
+  return (mod.default ?? mod) as typeof ora;
+}
 
 /**
  * Color names supported by the underlying `ora` spinner for visual customization.
@@ -66,7 +76,7 @@ export class ProgressSpinner {
     ) && !this.isQuiet;
 
     if (this.isInteractive) {
-      this.spinner = ora({
+      this.spinner = loadOra()({
         text: options.text,
         color: options.color || 'cyan',
         stream: options.stream || process.stdout,
@@ -84,7 +94,9 @@ export class ProgressSpinner {
       } else {
         process.stderr.write(`${chalk.cyan('⏳')} ${options.text}\n`);
       }
-      this.spinner = ora(); // Create dummy spinner
+      // Non-interactive: every method below guards on isInteractive, so no
+      // ora instance (and no ora import) is needed.
+      this.spinner = undefined as unknown as ora.Ora;
     }
   }
 
