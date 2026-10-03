@@ -1,93 +1,108 @@
 ---
 title: "Roadmap"
-description: "Re-Shell delivery status — what's shipped, what's scaffolded, what's planned, and what's explicitly out of scope."
+description: "Re-Shell delivery status: what is done and tested, what is environment-limited, what is partial, and what was dropped."
 ---
 
-This is the single forward-looking roadmap for the Re-Shell monorepo
-(`@re-shell/cli` + `@re-shell/ui` + `@re-shell/contracts` + the dashboard app).
-It records honest delivery status, not aspiration — every "done" item is shipped
-in the current CLI (`0.29.2`) and backed by tests.
+This is the status page for the Re-Shell monorepo. It records what was **checked**, not
+what was hoped for. The authoritative, more detailed version, with the test files and
+commands behind each claim, is
+[`docs/ROADMAP.md`](https://github.com/UmutKorkmaz/re-shell/blob/main/docs/ROADMAP.md);
+release gates are in
+[`docs/STABILITY.md`](https://github.com/UmutKorkmaz/re-shell/blob/main/docs/STABILITY.md).
+
+## Snapshot
+
+| Fact | Value |
+| --- | --- |
+| CLI | `0.31.0` in the tree; **`0.30.1` is the last published version** |
+| Other packages | contracts `0.3.0` (published `0.2.0`), mcp `0.2.0` (published `0.1.0`), ui `0.6.0` (published `0.5.0`) |
+| Commands | **585** command paths in **46** top-level commands (`re-shell commands list --json`) |
+| Backend templates | **208** across **36** languages (`re-shell templates list --json`) |
+| Dashboard | **11** screens |
+| Startup | Lazy command loading: `--version` about 45 ms, `--help` about 100 ms (median of 10 runs on the development VM; `--help` took about 2.6 s before). Measured, machine-dependent. The older "under 100 ms, about 43 ms" claim was true only for `--version`. |
+
+Nothing has been published or deployed by this work. "Pending first CI run" means a
+workflow exists but no hosted run has executed it yet.
 
 ## Status legend
 
-| Status | Meaning |
+- **DONE+tested**: implemented and covered by automated tests that run in CI (or a script that was run for real).
+- **DONE (env-limited: ...)**: implemented and tested except for the named part, which needs something the development environment did not have.
+- **PARTIAL (...)**: part of the feature exists; the parentheses say what is missing.
+- **DROPPED**: removed from scope on purpose.
+
+## CLI platform
+
+| Area | Status |
 | --- | --- |
-| **MVP-done** | Shipped in the current monorepo. |
-| **DONE+tested** | Implemented **and** verified by unit/integration tests. |
-| **SCAFFOLD/SPEC** | Code structure + types present, but live-environment requirements (network, running cluster, LLM backend, Rust toolchain) make it env-limited; unit tests pass with controlled doubles. |
-| **post-MVP-planned** | A real, scoped intention carried forward. |
-| **DROPPED** | Explicitly removed from scope (speculative / mission-divergent). |
+| Config, workspaces (schema v2), dependency graph, state, change impact, incremental builds | DONE+tested |
+| Single-envelope `--json` contract (`COMMAND_ERROR` / `USAGE_ERROR`, incidental output on stderr, `--version` only the version, EPIPE handled), `doctor` as a gate, completion generated from the live tree | DONE+tested |
+| Lazy command loading | DONE+tested (a regression test asserts which modules load) |
+| Resource governor: `run --max-memory --rate-limit`, same on `workspace ibuild build` | DONE+tested |
+| Compliance audit trail, `security audit verify`, `security compliance report` | DONE+tested (evidence collection, not a certification) |
+| Real `analyze --type architecture\|scalability` and `--fail-on` | DONE+tested |
+| Profile insights and optimization from recorded history (`config profile insights\|optimize`), `dev --profile` | DONE+tested |
+| `pkg`, `debug config`, `refactor rename-service` | DONE+tested |
+| `cloud iac generate\|validate`, `cloud deploy` | DONE (env-limited: `cloud deploy` needs real credentials and was never run against an account; Terraform validation runs in CI) |
+| `fix --ci` | DONE (env-limited: no live LLM call) |
+| Backend template registry: 208 templates, every placeholder substituted (including in file paths), at least 3 templates per emerging runtime (Deno, Bun, Kotlin, Scala, Crystal, Zig, Elixir, Nim) | DONE+tested |
+| Generated projects install, build and boot | PARTIAL: representative sets are built with each toolchain (25 templates) and booted (8 Node/Bun templates) by scripts that CI runs on every push; the catalog-wide count is not claimed yet |
+| `create` non-interactive in every mode, honest skeletons, dry-run diffs | DONE+tested |
 
-## CLI platform — shipped (MVP-done)
+## UI / dashboard
 
-- **Configuration** — global config (`~/.re-shell/config.yaml`) and project config
-  (`.re-shell/config.yaml`) with inheritance, cascading, templating, diff/merge,
-  backup/restore, hot-reload, and schema validation.
-- **Workspaces** — declarative `re-shell.workspaces.yaml`, dependency-graph engine
-  with cycle detection, topology health, state persistence, and change-impact
-  analysis with content-hash file watching.
-- **Plugins** — registration/discovery, lifecycle, hooks API, dependency
-  resolution, sandboxing, and the command-extension system.
-- **Performance** — sub-100ms startup (≈43ms achieved), lazy loading, tree
-  shaking, and a startup cache.
-- **Templates** — a large, shipped backend/frontend registry (Node, Python, Rust,
-  Java, .NET, PHP, Go, Ruby, and emerging languages), Docker/orchestration
-  output, API-contract management, and database integration.
-- **Health & analysis** — `doctor`, `analyze`, and `completion` wired and
-  reachable; command-group architecture (`config` / `tools` / `workspace` /
-  `templates` / …).
-
-## Phase 9 — post-MVP feature status
-
-Status as of Wave 9d. Each row states what was verified.
-
-| Feature | Status |
+| Area | Status |
 | --- | --- |
-| **AI / NLP offline command interface** (`re-shell ai <prompt>`) | DONE+tested — offline intent parser resolves prompts to catalog-vetted argv with confidence scores; never auto-executes; spawns without a shell. |
-| **Cross-language service bridge** (`service bridge generate`) | DONE+tested — typed gRPC/REST/GraphQL client scaffolds, validated against installed `tsc`. Async transport (Kafka/Redis Streams, circuit breakers, tracing) is SCAFFOLD. |
-| **workspace.yaml v2 + JSON Schema + IDE autocomplete** | DONE+tested — canonical schema, AJV validation, VSCode/IntelliJ/Vim/Emacs config generation. Live `$schema` TLS resolution is SCAFFOLD. |
-| **K8s / Helm / GitOps generation** (`k8s generate`, `k8s helm generate`, `k8s gitops generate`) | DONE+tested — Deployment/Service/HPA/NetworkPolicy, Helm charts, and ArgoCD/Flux manifests; `--out` + `--dry-run`. Live cluster apply not run in CI. |
-| **Nx / Turbo monorepo importer** (`workspace migrate`) | DONE+tested — reads Nx and Turborepo configs, emits `re-shell.workspaces.yaml` v2. |
-| **Plugin marketplace / registry** | DONE+tested (CI-mocked) — real installer (npm/git/local) + registry client against the npm registry; live-network install is best-effort. |
-| **Policy packs + dependency drift** (`workspace policy check`, `workspace drift`) | DONE+tested — declarative zod-validated policy packs (`recommended`, `baseline`) + cross-workspace version-mismatch detection. |
-| **Template compatibility matrix + dry-run visual diff** (`templates matrix`, `create --dry-run`) | DONE+tested — full compat grid from the registry; throwaway-dir scaffold preview with per-file diff. |
-| **VS Code extension bridge** (`@re-shell/vscode`) | DONE+tested (compiled + unit) — pure core layer tested without the host; VS Code host launch is SCAFFOLD. |
-| **Hosted control plane** (`@re-shell/control-plane`) | SCAFFOLD/SPEC — typed tenant model, token auth, RBAC, allow-listed proxy as pure in-memory logic; no running server/DB/deploy. |
-| **Desktop / Tauri packaging** | SCAFFOLD/SPEC — `src-tauri/` config + scaffold exist and the dashboard compiles; no signed binary produced. |
+| shadcn-React component system, exact wire schemas and adapters, 11-screen dashboard over the token-authed hub | DONE+tested |
+| `re-shell ui` fails if the hub is unhealthy; hub URL pinned to loopback | DONE+tested |
+| WCAG 2.1 AA work (skip link, focus management, live regions, contrast in both themes) | DONE+tested (axe audit passed locally when merged; CI job pending first run; automated checks are not a manual audit) |
+| Code splitting with enforced gzip budgets | DONE+tested |
+| Storybook 9 and a real `ui test` runner (interaction, a11y, visual; an empty run is an error) | DONE+tested (CI job pending first run) |
+| `ui component new`, `ui generate`, `ui theme ...`, white-label (`re-shell.whitelabel.json`, `RE_SHELL_BRAND_*`) | DONE+tested (theme search on the live npm registry not exercised) |
+| Polymorphic `Box`/`Text`/`Stack`, branded CSS units | DONE+tested (the earlier "shipped" claim was premature; it is true now) |
 
-## UI / dashboard — shipped (MVP-done)
+## Phase 9
 
-- A single shadcn-React component system in `@re-shell/ui` (the Web Components
-  layer was retired).
-- `@re-shell/contracts` as the authoritative shared contract for CLI and UI.
-- The dashboard app + token-authed [hub server](/re-shell/architecture/secure-hub/):
-  SSE `/events`, WS `/jobs`, `127.0.0.1` bind.
-- The `re-shell ui` launcher, design-system tokens, and theming.
+| ID | Feature | Status |
+| --- | --- | --- |
+| P9-A | [AI](/re-shell/cli/ai/): Anthropic, OpenAI-compatible and offline providers, sessions, cache, `ai suggest`, `@re-shell/cli/ai` | DONE (env-limited: no live LLM call, no key) |
+| P9-B | [Bridge](/re-shell/cli/service-bridge/): spec-driven clients, `service link\|unlink\|validate`, gateway, async (Kafka, Redis Streams), transform, diff, mock | DONE+tested (broker round trips need Docker and skip without it) |
+| P9-C | workspace.yaml v2 JSON Schema, served by this site; every writer emits valid v2 | DONE+tested (live URL not reachable from the development environment; Pages verifies it post-deploy) |
+| P9-D | [Kubernetes](/re-shell/cli/k8s-helm-gitops/): hardened manifests, Helm, GitOps (Flux defaults to HelmRelease), `k8s rollback`, CRD, operator, mesh | DONE (env-limited: live k3s checks steps 1-8 ran locally; Flux and Argo CD sync only in CI) |
+| P9-E | `workspace migrate-monorepo` Nx/Turbo importer | DONE+tested |
+| P9-F | [Plugins](/re-shell/cli/plugin/): uninstall, update, validate, pin, review, ratings | DONE+tested (against a fake registry; live npm not asserted) |
+| P9-G | [Policy packs](/re-shell/cli/workspace/#workspace-policy) and drift | DONE+tested |
+| P9-H | Template matrix and dry-run diffs | DONE+tested |
+| P9-I | [VS Code extension](/re-shell/integrations/vscode/) | DONE (env-limited: the host test could not download VS Code; CI) |
+| P9-J | [Control plane](/re-shell/architecture/control-plane/) | DONE+tested, **not deployed** |
+| P9-K | [Desktop app](/re-shell/integrations/desktop/) | DONE (env-limited: Linux built and smoke-tested; macOS and Windows only in CI; never signed) |
+| P9-L | [Graph explorer](/re-shell/dashboard/overview/#the-workspace-graph-explorer), `workspace graph diff`, `workspace status`, `workspace explore` | DONE+tested |
+| P9-M | `dev --profile` | DONE+tested |
+| P9-N | [Collaboration](/re-shell/integrations/collaboration/) | DONE (env-limited: no TURN server; control plane not deployed) |
 
-Planned: WCAG 2.1 AA across all components, component performance budgets,
-component dev tooling (playground/codegen), and enterprise theming.
+## Remaining items
 
-## Post-MVP-planned
+Everything left depends on something outside the development environment:
 
-- Expand emerging-language coverage (Deno, Bun, Kotlin, Scala, Crystal, Zig,
-  Elixir, Nim) to parity.
-- Interactive terminal graph explorer scaling to thousands of nodes.
-- Optional, provider-abstracted LLM-assisted command translation / architecture
-  analysis (no always-on telemetry, no mandatory cloud).
-- Unified package-manager abstraction and cross-language debugging/refactoring.
-- Multi-cloud deployment targets and compliance reporting.
+- The VS Code host test (network access to download VS Code; runs in CI).
+- Signed and notarized desktop builds (signing secrets in the repository).
+- Flux and Argo CD sync against a live cluster (registry egress; Flux runs in CI).
+- `cloud deploy` against a real account (cloud credentials).
+- Live LLM calls for `ai`, `ui generate` and `fix --ci` (an API key or a local server).
+- Broker round-trip tests (Docker).
+- Public hosting of the control plane (a deployment target, TLS, a security review).
+- WebRTC across symmetric NATs (a TURN server).
+- The first hosted run of the new CI workflows.
+- Catalog-wide template verification counts.
 
-## Explicitly DROPPED (out of scope)
+## Explicitly dropped
 
-Recorded so the decision is explicit and not silently re-introduced:
+Recorded so the decision stays explicit:
 
-- **Quantum computing integration** — DROPPED.
-- **Blockchain / Web3** (smart-contract templates, dApp workflows) — DROPPED.
-- **VR/AR / immersive development environments** — DROPPED.
-- **Voice/neural "natural-language-as-primary-interface"** as a core pillar —
-  DROPPED. (A narrow, optional, provider-abstracted AI assist remains — see
-  [`ai`](/re-shell/cli/ai/).)
+- **Quantum computing integration.**
+- **Blockchain / Web3** (smart-contract templates, dApp workflows).
+- **VR/AR / immersive development environments.**
+- **Voice or neural "natural-language-as-primary-interface"** as a core pillar. (A narrow, optional, provider-abstracted AI assist remains: [`ai`](/re-shell/cli/ai/).)
 
-These are speculative and mission-divergent; they would dilute the platform's
-actual value: a polyglot workspace + microfrontend toolkit with a typed CLI ↔ UI
-[contract](/re-shell/contract/json-contract/).
+These are speculative and mission-divergent; the value is a polyglot workspace and
+microfrontend toolkit with a typed CLI-to-UI [contract](/re-shell/contract/json-contract/).

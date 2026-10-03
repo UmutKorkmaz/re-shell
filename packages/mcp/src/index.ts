@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createRequire } from 'node:module';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -8,6 +9,9 @@ import { getActiveTools, isWriteEnabled, type ToolDefinition } from './tools.js'
 import { RESOURCES } from './resources.js';
 import { PROMPTS } from './prompts.js';
 import { isMainEntry } from './entry.js';
+
+/** The server reports the package's own version (dist/ and src/ both sit next to package.json). */
+const PACKAGE_VERSION = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
 
 /**
  * We always return one pretty-printed JSON text block as the tool result;
@@ -87,7 +91,7 @@ const scaffoldNameSchema = z
 export function buildMcpServer(invocation: CliInvocation): McpServer {
   const server = new McpServer({
     name: '@re-shell/mcp',
-    version: '0.1.0',
+    version: PACKAGE_VERSION,
   });
 
   // ── Tools ───────────────────────────────────────────────────────────────────

@@ -48,10 +48,10 @@ re-shell config --help
 | `show` / `get <key>` / `set <key> <value>` | Inspect and edit configuration. |
 | `preset <action> [name]` | Manage presets (save/load/list/delete). |
 | `backup` / `restore <backup>` | Back up and restore configuration. |
-| `schema` | Manage JSON schemas for IDE autocompletion. |
+| `schema generate\|publish\|validate` | JSON Schema for `re-shell.workspaces.yaml` (v2): IDE configs for VS Code, IntelliJ, Vim and Emacs, and validation. |
 | `env` | Manage environment configurations. |
 | `validate` | Validate configurations with detailed error messages. |
-| `profile` | Manage environment-specific configuration profiles. |
+| `profile` | Environment profiles: `config profile create\|list\|activate\|show\|diff\|sync\|history\|rollback\|insights\|optimize`, ... (see below). |
 | `diff` | Compare and merge configurations. |
 
 ```bash
@@ -59,6 +59,46 @@ re-shell config show
 re-shell config set packageManager pnpm
 re-shell config preset save my-defaults
 re-shell config validate
+```
+
+### Profiles
+
+Profiles are **`config profile <verb>`** (there are no top-level `profile-*` commands).
+A profile is an environment configuration with inheritance and overrides; activating one
+changes the resolved configuration deterministically, and conflicts are detected.
+
+```bash
+re-shell config profile create                   # guided creation
+re-shell config profile activate staging
+re-shell config profile tree staging             # inheritance tree
+re-shell config profile validate staging
+re-shell config profile sync                     # share profiles with a team (git or a local directory)
+re-shell config profile snapshot staging         # version a profile
+re-shell config profile history staging
+re-shell config profile rollback staging 3
+re-shell dev --profile staging                   # apply a profile to the dev runtime
+```
+
+- `dev --profile <name>` resolves the profile (inheritance and overrides) and applies it
+  to the dev runtime; an unknown profile is an explicit error, not a silent fallback.
+- **`profile insights`** and **`profile optimize`** are computed from **recorded
+  activation history** (`.re-shell/profile-analytics.json`) and the profile's own
+  configuration, not from canned text. With no history, `insights` says so
+  (`"No Profiles Tracked"`) instead of inventing recommendations. `optimize --apply
+  <ids...>` or `--auto` applies the safe ones.
+
+### `config schema`
+
+The workspace definition is validated against a published JSON Schema:
+`https://umutkorkmaz.github.io/re-shell/schemas/workspace-v2.json`, served by this
+documentation site (the Pages workflow checks the deployed file after every deploy; the
+live URL was not reachable from the environment this was written in). Generated
+`re-shell.workspaces.yaml` files carry a `$schema` modeline pointing at it, and every
+command that writes the file emits valid v2.
+
+```bash
+re-shell config schema validate re-shell.workspaces.yaml --json
+re-shell config schema generate --ide vscode --output-dir schemas
 ```
 
 ## `quality`

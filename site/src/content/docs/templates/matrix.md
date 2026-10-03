@@ -1,6 +1,6 @@
 ---
 title: "Compatibility Matrix"
-description: "The full language / framework / database / cache / deployment-target / feature grid across all 205 templates."
+description: "The full language / framework / database / cache / deployment-target / feature grid across all 208 templates."
 ---
 
 `re-shell templates matrix` builds a **compatibility grid** across every template:
@@ -14,11 +14,11 @@ re-shell templates matrix --json
 ```
 
 ```
-📊 Template compatibility matrix (205)
+📊 Template compatibility matrix (208)
 
 Languages: ballerina, clojure, cpp, crystal, csharp, dart, ... typescript, unison, v, zig
-Frameworks: 171
-Databases: couchbase, couchdb, elasticsearch, generic-sql, ... postgresql
+Frameworks: 174
+Databases: couchbase, couchdb, elasticsearch, generic-sql, ... sqlite
 Caches: in-memory, memcached, redis
 Deployment: ci-cd, docker, kubernetes, serverless
 
@@ -28,7 +28,7 @@ Deployment: ci-cd, docker, kubernetes, serverless
 ```
 
 > The facet values below come from the live registry
-> (`re-shell templates matrix --json`) at CLI `0.29.2`. The `--json` form emits
+> (`re-shell templates matrix --json`) at CLI `0.31.0`. The `--json` form emits
 > the [contract envelope](/re-shell/contract/json-contract/) with a `data.matrix[]`
 > grid plus a `data.facets` summary.
 
@@ -41,17 +41,17 @@ haskell, java, javascript, julia, kotlin, lua, mojo, nim, ocaml, odin, perl, php
 pony, python, red, rescript, roc, ruby, rust, scala, swift, typescript, unison,
 v, zig.
 
-### Frameworks (171)
+### Frameworks (174)
 
-171 frameworks across web, RPC, messaging, and infrastructure — from Express,
+174 frameworks across web, RPC, messaging, and infrastructure — from Express,
 FastAPI, Spring Boot, Actix-Web, Gin, Phoenix, and Laravel to gRPC, GraphQL,
 Kubernetes, Nginx, Istio, Kong, and Vault. Run `re-shell templates matrix` for the
 complete current list, or see the [catalog](/re-shell/templates/catalog/).
 
-### Databases (10)
+### Databases (11)
 
 couchbase, couchdb, elasticsearch, generic-sql, influxdb, mariadb, mongodb,
-mysql, neo4j, postgresql.
+mysql, neo4j, postgresql, sqlite.
 
 ### Caches (3)
 
@@ -95,8 +95,8 @@ re-shell templates matrix --json > matrix.json
     ],
     "facets": {
       "languages": ["...36..."],
-      "frameworks": ["...171..."],
-      "databases": ["...10..."],
+      "frameworks": ["...174..."],
+      "databases": ["...11..."],
       "caches": ["in-memory", "memcached", "redis"],
       "deploymentTargets": ["ci-cd", "docker", "kubernetes", "serverless"],
       "features": ["...42..."]

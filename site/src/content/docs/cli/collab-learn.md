@@ -3,12 +3,34 @@ title: "collab & learn"
 description: "Collaboration and learning command suites."
 ---
 
-Two generator groups round out the team-productivity surface: `collab` for
-real-time collaboration and team analytics, and `learn` for training,
-mentorship, and knowledge development. Both generate integrations for a named
-project.
+Two groups round out the team-productivity surface: `collab` (real shared sessions
+plus collaboration generators) and `learn` for training, mentorship, and knowledge
+development (generators for a named project).
 
-## `collab`
+## `collab session`: shared sessions (a real client)
+
+`collab session` is a client for live, shared sessions on a hosted
+[control plane](/re-shell/architecture/control-plane/): a shared console, handover of
+control, and team analytics. It talks to a control plane you run; none is deployed
+for you.
+
+```bash
+re-shell collab session start --workspace acme-web --title "billing refactor"
+re-shell collab session list --status active
+re-shell collab session join <sessionId>
+re-shell collab session run <sessionId> workspace.summary
+re-shell collab session handover <sessionId> <userId>
+re-shell collab session cancel <sessionId>
+re-shell collab session end <sessionId>
+```
+
+See [Collaboration](/re-shell/integrations/collaboration/) for the session model,
+connection settings, WebRTC and the relay fallback, and the limits.
+
+## `collab` generators
+
+Every other `collab` subcommand is a **code generator**: it writes starter code for a
+named project and talks to no server.
 
 ```bash
 re-shell collab --help

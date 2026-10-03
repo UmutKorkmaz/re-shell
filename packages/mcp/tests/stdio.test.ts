@@ -167,6 +167,10 @@ describe('re-shell-mcp started through its bin symlink', () => {
     try {
       // initialize ran inside connect(); the server identified itself.
       expect(client.getServerVersion()?.name).toBe('@re-shell/mcp');
+      // The server reports the package's own version, not a hard-coded constant.
+      expect(client.getServerVersion()?.version).toBe(
+        JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version
+      );
       expect(client.getServerCapabilities()?.tools).toBeDefined();
 
       const { tools } = await client.listTools();

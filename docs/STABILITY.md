@@ -1,86 +1,115 @@
 # Stability Work
 
-This is the current stability backlog as of 2026-10-02. It supersedes historical
-implementation checklists for the next stability batch, not the product's
-long-term roadmap. Changes on a branch are not published-release proof.
+This is the stability status as of 2026-10-03, at CLI `0.31.0` (not published; `0.30.1`
+is the last published version, and a published version is never reused). It
+supersedes the historical implementation checklists for the stability batch, not the
+product's long-term roadmap ([`ROADMAP.md`](./ROADMAP.md)). Changes on a branch are
+not published-release proof.
 
-## First Batch
+**The release is not declared ready.** Everything in the Next Batch below is
+implemented, but several of its gates are CI jobs and **none of the new workflows has
+run on GitHub yet** ("pending first CI run"). What was and was not verified locally is
+stated precisely in [Current Verification](#current-verification).
 
-- Dependency overrides live in root `package.json` under `pnpm.overrides`, which
-  the pinned pnpm 9.15.9 toolchain reads. The generated lockfile records all five
-  overrides; frozen installation and resolved-version regression checks verify
-  them. This is not a claim that all dependency advisories are resolved.
-- `fix --ci` fails with `FIX_CI_ERROR` when no evaluator is wired. It does not
-  claim that gates passed or attempt a fix/PR based on an unavailable evaluator.
-- `ui test` fails with `UI_TEST_ERROR` when no runner is wired. Empty runs and
-  invalid or empty gate configurations cannot pass. The `test` subcommand
-  attaches to the dashboard's existing `ui` command rather than shadowing it.
-- Plugin update and compatibility validation are explicitly unavailable. They
-  return nonzero errors (`PLUGIN_UPDATE_ERROR`, `PLUGIN_VALIDATE_ERROR` in JSON)
-  without simulated checks, delays or changes. Plugin installation's manifest
-  validation is a separate supported path.
-- The NestJS package template emits strict JSON without a trailing comma.
-  Strict JSON output alone does not prove dependency installation, compilation
-  or application boot.
-- Template creation persists one shared initial creation/update timestamp even
-  when filesystem operations advance the clock. Later saves refresh only the
-  update timestamp; deterministic regressions verify both returned and saved data.
-- Template health distinguishes passed, failed and skipped builds. Missing Node
-  apps/manifests/configs/compiler, failed scaffold/install/Prisma/typecheck and
-  malformed manifests fail. Native builds without configured toolchains are
-  explicitly skipped and unverified, never counted as passed.
+## First Batch (carried forward, updated)
+
+- Dependency overrides live in root `package.json` under `pnpm.overrides`, which the
+  pinned pnpm 9.15.9 toolchain reads; the lockfile records them and frozen installation
+  verifies them. This is not a claim that all dependency advisories are resolved.
+- `fix --ci` is now **real**: a gate evaluator (real processes, test gates locked), AI
+  patches validated before they touch the tree (no test, config or CI edits, no
+  suppression directives), rollback, and a PR flow. Without `ANTHROPIC_API_KEY` it is
+  report-only and claims no fix; without `--ci` it still fails with `FIX_CI_ERROR`.
+  *(env-limited: no live LLM call has been made.)*
+- `ui test` is now **real**: it runs Storybook interaction, a11y and visual tests and
+  gates on them. No Storybook, an empty run or an invalid gate configuration is
+  `UI_TEST_ERROR`, never a pass.
+- Plugin `update` and `validate` are now **real** (npm and git updates that respect pins;
+  manifest, entry, engines, dependency and security validation). They no longer return
+  the unavailable-feature errors. Uninstall, pin and review are also real.
+- The NestJS package template was rewritten; it installs, typechecks, builds and boots
+  (the earlier compilation failure is resolved), and is part of the boot check.
+- Template creation persists one shared initial creation/update timestamp.
+- Template health distinguishes passed, failed and skipped builds. Native builds without
+  a configured toolchain are explicitly skipped and unverified, never counted as passed.
 
 ## Current Verification
 
-Local checks on `fix/stability-verification`:
+Run in this worktree for this documentation pass (Linux VM, Node 22, pnpm 9.15.9).
 
-- Frozen dependency installation, full workspace build and typecheck pass.
-- Full workspace test run passes: 6,187 tests across CLI, contracts, MCP, UI
-  and dashboard; five existing CLI E2E tests are skipped, not verified.
-- Configured CLI coverage checks pass: 93.81% lines and 85.22% branches. This
-  is the configured coverage surface, not whole-product runtime coverage.
-- Focused persistence, template-health accounting and real CLI-routing checks
-  pass (54 tests). Interactive CLI checks pass (16 tests).
-- Generated Express, Fastify, Koa and Hono projects install and typecheck with
-  the repository's pinned package manager.
-- Generated NestJS installs but fails compilation (65 diagnostic lines),
-  including missing authentication guards/configuration and undefined module
-  symbols. The strict-JSON repair does not address those existing omissions.
-  The template-health command reports four passes and one failure and exits 1.
+| Check | Result |
+|-------|--------|
+| `pnpm install --frozen-lockfile` | passes; the version bump needed no lockfile change (internal dependencies use `workspace:` ranges) |
+| `pnpm -r build` | passes (exit 0), and `pnpm -r typecheck` passes (exit 0) |
+| `pnpm --filter @re-shell/site build` | passes (44 pages) |
+| `node packages/cli/scripts/gen-cli-contracts.mjs --check` | `docs/CLI-CONTRACTS.md is up to date.` |
+| `vitest run tests/contract-conformance.test.ts tests/integration/json-hygiene-cli.test.ts tests/unit/brand-urls.test.ts` (packages/cli) | passes: 3 files, 97 tests |
+| `node scripts/pack-smoke.mjs` | passes 10/10 checks (packed contracts 0.3.0, cli 0.31.0, mcp 0.2.0; `--version` printed `0.31.0`; `templates list --json` returned 208; the MCP handshake exposed 9 tools). The first run failed 9/10 because the script still read the `ui --dry-run --json` plan as a bare object while the CLI now wraps it in the standard envelope; the script was fixed to accept the envelope and the rerun passed |
+| `node scripts/check-doc-commands.mjs --flags` | passes: 777 invocations in 66 files, 0 unknown commands, 0 undeclared flags |
+| `node scripts/check-site-links.mjs` | passes: 254 internal links, 0 broken (anchors included) |
+| Package test suites | contracts 329 tests (18 files) pass; mcp 73 (8 files) pass; ui 318 (22 files) pass when run as CI does (`npx vitest run`; invoking the binary directly picks up a global TypeScript 6 on this machine and fails the typecheck step); dashboard 50 hub tests (5 files) and 344 UI tests (36 files) pass; control plane 349 tests (25 files) pass at 93.1% line coverage; CLI (everything except `tests/interactive`) 8291 pass, 24 skipped, **4 fail**, all four in `tests/integration/plugin-create-cli.test.ts` with `process.chdir() is not supported in workers`, a quirk of running from a checkout whose path contains `.claude/` (the config relies on a path glob to run that file outside a worker); those four are not claimed as passing here |
 
-This is local source/generated-project evidence, not application boot,
-browser, clean-package or published-release proof. NestJS remains a required
-generated-project blocker; do not mark the release ready or bypass that check.
+Evidence from the feature workstreams that landed these changes (run locally when they
+were merged; **not re-run in this documentation pass**):
 
-## Next Batch
+- Playwright against the real hub and CLI: the axe audit of every screen in both themes
+  (83 specs passed) and the 2001-node graph explorer scale spec (8 specs passed).
+- `scripts/k8s-live-check.sh` steps 1-8 against a local k3s cluster; Docker builds of the
+  control-plane images with a `/healthz` check; the desktop `.deb`, release binary and
+  AppImage under Xvfb.
+- Redis and Kafka round trips of the generated async bridge in Docker containers.
 
-1. Establish repeatable install/build/boot evidence for representative generated
-   projects, fixing failures surfaced by the stricter template checks.
-2. Verify frontend-only/backend/fullstack creation and non-TTY microfrontend
-   `--yes` behavior. Keep skeleton creation distinct from runnable apps.
-3. Harden service spawn failures, immediate exits, PID/log cleanup and stopping.
-4. Run real browser flows against the hub; make browser E2E an executable release
-   gate rather than a skipped optional check.
-5. Verify packed CLI/dashboard/MCP artifacts from a clean installation outside
-   the monorepo, including declared dependencies and command routing.
-6. Reconcile public capability claims, versions, paths and examples with actual
-   command behavior before selecting new adapters or optional features.
+**What this machine could not run:** the interactive CLI suite (`tests/interactive`
+uses `node-pty`, which aborts the worker pool when the checkout path contains `.claude/`;
+it runs in CI), the VS Code host test (download blocked), Flux/Argo CD sync, any live
+LLM or cloud call, and any hosted GitHub Actions run.
+
+**Template verification counts. TODO (coordinator): fill in once the catalog sweep
+finishes**: how many of the 208 registry templates were scaffolded, built with their own
+toolchain and (for Node/Bun) booted, and which were skipped or failed. Until then the
+only claim is the representative set below.
+
+## Next Batch (status)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| 1 | Repeatable install/build/boot evidence for representative generated projects, fixing the failures the stricter checks surface | **PARTIAL**: representative set verified; catalog-wide counts pending (TODO above) | `scripts/scaffold-test-templates.sh` scaffolds 25 templates and builds each with its own toolchain (express, fastify, nestjs, koa, hono, fastapi, flask, django, gin, echo, fiber, actix-web, rocket, axum, spring-boot, quarkus, laravel, rails-api, phoenix, vapor, elysia-bun, bun-serve, trpc-bun, zig-http, std-http-zig); `scripts/boot-test-templates.mjs` installs, builds, boots on a free port with no DB or Redis, probes `/health` and a route, and requires a clean SIGTERM for express, fastify, koa, hono, nestjs, elysia-bun, bun-serve and trpc-bun. Failures found were fixed (NestJS, Go, Rust, Java, Python, PHP, Ruby, Phoenix templates; placeholders in file paths; slow-start and shutdown). The `template-health` workflow runs both on every push and PR (pending first CI run). |
+| 2 | Frontend-only/backend/fullstack creation and non-TTY microfrontend `--yes` behavior; skeletons distinct from runnable apps | **DONE** | `create` never prompts under `--yes`/`--json`/`--dry-run`/non-TTY for every mode; `--gateway --services --remotes --force --template blank`; `TEMPLATE_NOT_FOUND`; `--type` limited to `app\|package\|lib\|tool`; `create --dry-run --json` returns the exact files and diffs. Tests: `tests/integration/create-headless-*.test.ts`, `tests/unit/create-noninteractive.test.ts`. Skeletons are labelled: `generate backend` writes a small starter, `create` the full template, and neither claims the project runs. |
+| 3 | Harden service spawn failures, immediate exits, PID/log cleanup and stopping | **DONE** | `service run`: `SERVICES_*` error codes, `--alive-ms`, JSON pid files, `re-shell.services.<script>` metadata, graceful SIGTERM then SIGKILL, `health` exits non-zero when nothing runs. `tests/unit/service-process.test.ts`, `services-runtime.test.ts`, `tests/integration/service-run-cli.test.ts`. |
+| 4 | Real browser flows against the hub, as an executable release gate | **DONE as CI jobs; pending first CI run** | `ci.yml` job `e2e` (Playwright `chromium` flow and the graph-scale spec) and `accessibility.yml` (axe) run on every push and PR. Both passed locally when merged (see above). |
+| 5 | Verify packed CLI/dashboard/MCP artifacts from a clean install outside the monorepo | **DONE locally; pending first CI run** | `scripts/pack-smoke.mjs` (CI job `pack-smoke`): packs contracts, cli and mcp (the cli `prepack` bundles the dashboard), installs the tarballs in a temp dir outside the repo, checks `--version` equals the package version, `--help`, `templates list --json`, `ui --dry-run --json` and an MCP handshake. Ran in this pass: passes 10/10 checks (packed contracts 0.3.0, cli 0.31.0, mcp 0.2.0; `--version` printed `0.31.0`; `templates list --json` returned 208; the MCP handshake exposed 9 tools). The first run failed 9/10 because the script still read the `ui --dry-run --json` plan as a bare object while the CLI now wraps it in the standard envelope; the script was fixed to accept the envelope and the rerun passed. |
+| 6 | Reconcile public claims, versions, paths and examples with actual behavior | **DONE for the maintained docs; one legacy file excepted** | Every `re-shell ...` command in the site, READMEs and `docs/` is checked against the built CLI by `scripts/check-doc-commands.mjs`; every internal site link by `scripts/check-site-links.mjs`. Versions, command and template counts are taken from the CLI and `package.json`. `packages/cli/EXAMPLES.md` is unmaintained, contains commands that do not exist, and now carries a warning banner; it is excluded from the check. |
 
 ## Release Gates
 
-- Build, typecheck and focused plus relevant broad/interactive suites pass on
-  the exact candidate.
-- Unsupported commands cannot return verified-success claims.
-- Required generated-project install/build/boot checks pass; skips and external
-  prerequisites remain explicit.
-- Dashboard browser checks and clean-package smoke pass before a release is
-  declared ready. A passing build or CI run alone is insufficient.
-- Reviewed commits, version changes and release notes describe the work only.
-  Publication, deployment and optional scaffold promotion are separate actions.
+| Gate | Status | What remains |
+|------|--------|--------------|
+| Build, typecheck and focused plus relevant broad/interactive suites pass on the exact candidate | **PARTIAL** | Build and the suites listed in Current Verification passed here (see the table). The interactive suite did not run on this machine; no hosted CI run has executed on the candidate. |
+| Unsupported commands cannot return verified-success claims | **Met for the commands that were unsupported** | `fix --ci`, `ui test`, `plugin update`, `plugin validate` are now real; the stricter `UI_TEST_ERROR`/`FIX_CI_ERROR` failure paths remain. Gates (`doctor`, `analyze --fail-on`, `security audit verify`, `service validate`) exit non-zero on failure. `cloud deploy` never fakes a deployment. This is not an exhaustive audit of the 585 command paths: many generator commands write starter files and say nothing about running. |
+| Required generated-project install/build/boot checks pass; skips and external prerequisites stay explicit | **PARTIAL** | Representative set passes with explicit skips (see Next Batch item 1); catalog-wide results TODO; the hosted `template-health` run is pending. |
+| Dashboard browser checks and clean-package smoke pass before a release is declared ready; a passing build or CI run alone is insufficient | **PARTIAL** | Browser checks passed locally and clean-package smoke passed in this pass; the CI jobs (`e2e`, `accessibility`, `storybook`, `pack-smoke`) are **pending first CI run**. |
+| Reviewed commits, version changes and release notes describe the work only; publication, deployment and optional scaffold promotion are separate actions | **Met, nothing published** | Versions bumped (cli 0.31.0, contracts 0.3.0, mcp 0.2.0, ui 0.6.0); the CHANGELOG has an `Unreleased` section; nothing was published or deployed. |
 
-## Parked Scope
+## What remains, and why it is external
 
-VS Code host integration, desktop/Tauri distribution, hosted control plane,
-additional provider-backed AI and broad cloud/collaboration extensions are not
-required for this stability batch. Graph-Loop and Sol Advisor remain disabled.
-Historical agent handoffs and speculative plans do not authorize their restart.
+Everything left needs something outside the repository or its development environment.
+
+| Item | Needs |
+|------|-------|
+| VS Code extension host test | Network access to `update.code.visualstudio.com` (runs in the `vscode-extension` workflow) |
+| Signed and notarized desktop builds | Apple and Windows signing secrets in the repository (the `desktop` workflow builds unsigned without them) |
+| Live Flux and Argo CD sync | Registry egress; Flux runs in the `k8s-live` workflow, Argo CD is schema-validated only |
+| `cloud deploy` against a real account | Cloud credentials |
+| Live LLM calls (`ai`, `ui generate`, `fix --ci`) | An API key or a local OpenAI-compatible server (`tests/live` skips without one) |
+| Public hosting of the control plane | A deployment target, TLS termination and an external security review; see [`control-plane.md`](./control-plane.md) |
+| WebRTC across symmetric NATs | A TURN server (none is shipped or deployed) |
+| First hosted CI run of the new workflows | A push to GitHub |
+| Catalog-wide template verification counts | The catalog sweep (TODO above) |
+
+## Scope notes
+
+The VS Code extension, desktop app, hosted control plane, provider-backed AI,
+multi-cloud generation and collaboration, parked in the first stability batch, are now
+implemented and are tracked in [`ROADMAP.md`](./ROADMAP.md) with what was and was not
+verified. Graph-Loop and Sol Advisor remain disabled. Historical agent handoffs and
+speculative plans do not authorize their restart.
