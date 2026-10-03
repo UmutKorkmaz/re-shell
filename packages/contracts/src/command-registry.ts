@@ -64,6 +64,28 @@ const analyzeParamsSchema = baseParamsSchema.extend({
 });
 
 /**
+ * A git ref or a workspace-relative `.json` graph file for `workspace.graph.diff`.
+ * The charset is deliberately narrow so the value can only ever be ONE safe argv
+ * token: it must start with an alphanumeric/underscore (never `-`, so it can't be
+ * parsed as an option, and never `/` so no absolute paths), contains no `..`
+ * (no parent traversal, no ranges), no whitespace, no shell/glob metacharacters
+ * and no `@{` reflog syntax.
+ */
+export const GRAPH_REF_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._/@^~+-]*$/;
+const graphRefSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .regex(GRAPH_REF_PATTERN, 'ref must be a git ref or relative .json path (letters, digits, . _ / @ ^ ~ + -)')
+  .refine((value) => !value.includes('..'), 'ref must not contain ".."')
+  .refine((value) => !value.includes('//') && !value.endsWith('/'), 'ref must not contain empty path segments');
+
+const graphDiffParamsSchema = baseParamsSchema.extend({
+  base: graphRefSchema,
+  head: graphRefSchema.optional(),
+});
+
+/**
  * Allow-list of vetted re-shell subcommand paths the generic `run` command may
  * resolve to. The Command Builder still goes through the registry — it cannot
  * pass a free-form command. Each entry is a fixed argv prefix; the only variable
@@ -181,6 +203,31 @@ const REGISTRY = {
     description: 'Health checks for the current workspace.',
     schema: noParamsSchema,
     buildArgs: () => ['workspace', 'health', '--json'],
+  }),
+
+  'workspace.status': defineCommand({
+    id: 'workspace.status',
+    title: 'Workspace live status',
+    description:
+      'Live running/stopped/unhealthy/unknown status per workspace, from supervised service records and configured ports or health URLs.',
+    schema: noParamsSchema,
+    buildArgs: () => ['workspace', 'status', '--json'],
+  }),
+
+  'workspace.graph.diff': defineCommand({
+    id: 'workspace.graph.diff',
+    title: 'Workspace graph diff',
+    description:
+      'Added, removed and changed workspaces and dependency edges between a base git ref (or graph JSON file) and a head ref (default: the working tree).',
+    schema: graphDiffParamsSchema,
+    buildArgs: (params) => {
+      const args = ['workspace', 'graph', 'diff', '--base', params.base];
+      if (params.head) {
+        args.push('--head', params.head);
+      }
+      args.push('--json');
+      return args;
+    },
   }),
 
   'templates.list': defineCommand({
