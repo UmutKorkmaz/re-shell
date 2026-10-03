@@ -20,30 +20,31 @@ export const echoTemplate: BackendTemplate = {
 go 1.21
 
 require (
-	github.com/labstack/echo/v4 v4.11.4
-	github.com/joho/godotenv v1.5.1
 	github.com/go-playground/validator/v10 v10.16.0
 	github.com/golang-jwt/jwt/v5 v5.2.0
-	github.com/swaggo/echo-swagger v1.4.1
-	github.com/swaggo/swag v1.16.2
-	go.uber.org/zap v1.26.0
-	github.com/redis/go-redis/v9 v9.3.1
-	gorm.io/gorm v1.25.5
-	gorm.io/driver/postgres v1.5.4
-	gorm.io/driver/mysql v1.5.2
-	gorm.io/driver/sqlite v1.5.4
-	golang.org/x/crypto v0.17.0
-	golang.org/x/time v0.5.0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.1
 	github.com/graphql-go/graphql v0.8.1
 	github.com/graphql-go/handler v0.2.3
+	github.com/joho/godotenv v1.5.1
+	github.com/labstack/echo/v4 v4.11.4
+	github.com/redis/go-redis/v9 v9.3.1
+	github.com/stretchr/testify v1.8.4
+	github.com/swaggo/echo-swagger v1.4.1
+	github.com/swaggo/swag v1.16.2
+	go.uber.org/zap v1.26.0
+	golang.org/x/crypto v0.17.0
+	golang.org/x/time v0.5.0
+	gorm.io/driver/mysql v1.5.2
+	gorm.io/driver/postgres v1.5.4
+	gorm.io/driver/sqlite v1.5.4
+	gorm.io/gorm v1.25.5
 )
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/PuerkitoBio/purell v1.2.1 // indirect
-	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
@@ -53,6 +54,8 @@ require (
 	github.com/go-openapi/swag v0.22.7 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
+	github.com/go-sql-driver/mysql v1.7.0 // indirect
+	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect
 	github.com/jackc/pgx/v5 v5.5.1 // indirect
@@ -66,6 +69,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-sqlite3 v1.14.19 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/swaggo/files/v2 v2.0.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
@@ -197,8 +201,9 @@ func main() {
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	// GraphQL endpoint
+	gqlSchema := graphql.Schema()
 	gqlHandler := graphqlHandler.New(&graphqlHandler.Config{
-		Schema:   graphql.Schema(),
+		Schema:   &gqlSchema,
 		Pretty:   true,
 		GraphiQL: true})
 	e.POST("/graphql", echo.WrapHandler(gqlHandler))
@@ -664,7 +669,6 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 // @Summary Register a new user
@@ -1425,26 +1429,30 @@ import (
 	"{{projectName}}/utils"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 )
 
+// JWT validates the Bearer token with the same golang-jwt/v5 claims the token
+// was issued with (echo's bundled JWT middleware targets the older v3 library)
+// and exposes the claims to handlers through the echo context.
 func JWT(secret string) echo.MiddlewareFunc {
-	return middleware.JWTWithConfig(middleware.JWTConfig{
-		SigningKey: []byte(secret),
-		TokenLookup: "header:Authorization",
-		AuthScheme: "Bearer",
-		Claims: &utils.JWTClaims{},
-		ErrorHandler: func(err error) error {
-			return echo.NewHTTPError(401, "Invalid or expired token")
-		},
-		SuccessHandler: func(c echo.Context) {
-			user := c.Get("user").(*jwt.Token)
-			claims := user.Claims.(*utils.JWTClaims)
-			
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			tokenString, err := ExtractToken(c.Request().Header.Get("Authorization"))
+			if err != nil {
+				return err
+			}
+
+			claims, err := utils.ValidateToken(tokenString, secret)
+			if err != nil {
+				return echo.NewHTTPError(401, "Invalid or expired token")
+			}
+
 			c.Set("userID", claims.UserID)
 			c.Set("userEmail", claims.Email)
 			c.Set("userRole", claims.Role)
-		}})
+			return next(c)
+		}
+	}
 }
 
 func RequireRole(roles ...string) echo.MiddlewareFunc {
@@ -1534,6 +1542,7 @@ func ZapLogger(logger *zap.Logger) echo.MiddlewareFunc {
     'middleware/rate_limiter.go': `package middleware
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -1606,6 +1615,7 @@ func RateLimiter(cfg *config.Config) echo.MiddlewareFunc {
     'middleware/error_handler.go': `package middleware
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -1710,6 +1720,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"{{projectName}}/config"
 	"{{projectName}}/database"
@@ -1841,6 +1852,51 @@ func TestLogin(t *testing.T) {
 `,
 
     // Environment file
+    // Swagger description served at /swagger. A minimal stand-in for the file
+    // "swag init" generates, so that a fresh checkout builds; "make swagger"
+    // regenerates it from the handler annotations.
+    'docs/docs.go': `// Package docs holds the OpenAPI description served at /swagger.
+//
+// This is a minimal, hand-written stand-in for the file that "swag init"
+// generates, so that a fresh checkout compiles. Run "make swagger" to
+// regenerate it from the annotations in main.go and the route handlers; the
+// generated docs/docs.go replaces this file.
+package docs
+
+import "github.com/swaggo/swag"
+
+const docTemplate = \`{
+    "schemes": {{ marshal .Schemes }},
+    "swagger": "2.0",
+    "info": {
+        "description": "{{escape .Description}}",
+        "title": "{{.Title}}",
+        "version": "{{.Version}}"
+    },
+    "host": "{{.Host}}",
+    "basePath": "{{.BasePath}}",
+    "paths": {}
+}\`
+
+// SwaggerInfo holds exported Swagger Info so clients can modify it.
+var SwaggerInfo = &swag.Spec{
+	Version:          "1.0",
+	Host:             "localhost:8080",
+	BasePath:         "/api/v1",
+	Schemes:          []string{},
+	Title:            "{{projectName}} API",
+	Description:      "API server for {{projectName}}",
+	InfoInstanceName: "swagger",
+	SwaggerTemplate:  docTemplate,
+	LeftDelim:        "{{",
+	RightDelim:       "}}",
+}
+
+func init() {
+	swag.Register(SwaggerInfo.InstanceName(), SwaggerInfo)
+}
+`,
+
     '.env.example': `# Environment
 ENVIRONMENT=development
 
