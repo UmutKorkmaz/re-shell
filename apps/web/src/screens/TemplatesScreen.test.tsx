@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TemplatesScreen } from './TemplatesScreen';
 import type { TemplateFeed } from './shared/feedSchemas';
@@ -126,5 +126,27 @@ describe('TemplatesScreen', () => {
     render(<TemplatesScreen />);
     expect(screen.getByLabelText('language')).toHaveValue('javascript');
     expect(screen.queryByText('Express.js')).not.toBeInTheDocument();
+  });
+  it('opens the detail drawer from a card, traps focus in it, and returns focus to the opener on close', async () => {
+    // The list query returns the catalog; the drawer's own templates.show query stays in flight.
+    useHubQueryMock.mockImplementation((commandId: string) =>
+      commandId === 'templates.show'
+        ? queryState({ isLoading: true })
+        : queryState({ data: { ok: true, data: TEMPLATES, warnings: [] } })
+    );
+    render(<TemplatesScreen />);
+
+    const opener = screen.getAllByRole('button', { name: 'View details' })[0];
+    opener.focus();
+    fireEvent.click(opener);
+
+    const dialog = await screen.findByRole('dialog');
+    // Focus moved into the drawer.
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    // Radix has no <Trigger> to return to, so the screen restores focus to the control that opened it.
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 });

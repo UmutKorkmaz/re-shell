@@ -18,6 +18,8 @@ import { scaffoldCommand } from './templateAdapters';
 interface TemplateDetailDrawerProps {
   template: TemplateFeed | null;
   onOpenChange: (open: boolean) => void;
+  /** The control that opened the drawer; focus returns to it when the drawer closes. */
+  returnFocusTo?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -28,10 +30,21 @@ interface TemplateDetailDrawerProps {
 export function TemplateDetailDrawer({
   template,
   onOpenChange,
+  returnFocusTo,
 }: TemplateDetailDrawerProps): React.ReactElement {
   return (
     <Sheet open={template !== null} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col gap-5 overflow-y-auto sm:max-w-md">
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-5 overflow-y-auto sm:max-w-md"
+        onCloseAutoFocus={(event) => {
+          const target = returnFocusTo?.current;
+          if (target && target.isConnected) {
+            event.preventDefault();
+            target.focus();
+          }
+        }}
+      >
         {template ? <DetailBody template={template} /> : null}
       </SheetContent>
     </Sheet>
