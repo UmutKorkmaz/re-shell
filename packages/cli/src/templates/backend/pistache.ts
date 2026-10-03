@@ -23,60 +23,22 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Find packages
+# Dependencies come from the system (Debian/Ubuntu: libpistache-dev
+# nlohmann-json3-dev libspdlog-dev libgtest-dev libssl-dev; macOS: brew install
+# pistache nlohmann-json spdlog googletest openssl). Nothing is downloaded at
+# configure time.
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(nlohmann_json 3.2.0 REQUIRED)
+find_package(spdlog REQUIRED)
+find_package(GTest REQUIRED)
 
 # Find Pistache using pkg-config
 pkg_check_modules(Pistache REQUIRED IMPORTED_TARGET libpistache)
 
-# Include FetchContent
-include(FetchContent)
-
-# Fetch nlohmann/json
-FetchContent_Declare(
-    json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.11.3
-)
-FetchContent_MakeAvailable(json)
-
-# Fetch spdlog
-FetchContent_Declare(
-    spdlog
-    GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG v1.12.0
-)
-FetchContent_MakeAvailable(spdlog)
-
-# Fetch jwt-cpp
-FetchContent_Declare(
-    jwt-cpp
-    GIT_REPOSITORY https://github.com/Thalhammer/jwt-cpp.git
-    GIT_TAG v0.7.0
-)
-FetchContent_MakeAvailable(jwt-cpp)
-
-# Fetch Google Test
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.14.0
-)
-FetchContent_MakeAvailable(googletest)
-
-# Fetch graphql-parser (cpp-graphql)
-FetchContent_Declare(
-    graphqlparser
-    GIT_REPOSITORY https://github.com/graphql/libgraphqlparser.git
-    GIT_TAG master
-)
-FetchContent_MakeAvailable(graphqlparser)
-
-# Source files
-set(SOURCES
-    src/main.cpp
+# Application code shared by the server executable and the tests
+add_library(\${PROJECT_NAME}_lib STATIC
     src/server/server.cpp
     src/routes/health_routes.cpp
     src/routes/graphql_routes.cpp
@@ -92,53 +54,36 @@ set(SOURCES
     src/config/config.cpp
 )
 
-# Main executable
-add_executable(\${PROJECT_NAME} \${SOURCES})
-
-target_include_directories(\${PROJECT_NAME} PRIVATE
+target_include_directories(\${PROJECT_NAME}_lib PUBLIC
     \${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_link_libraries(\${PROJECT_NAME} PRIVATE
+target_link_libraries(\${PROJECT_NAME}_lib PUBLIC
     PkgConfig::Pistache
     nlohmann_json::nlohmann_json
     spdlog::spdlog
-    jwt-cpp::jwt-cpp
-    \${CMAKE_THREAD_LIBS_INIT}
-    \${OPENSSL_LIBRARIES}
-    graphqlparser
+    Threads::Threads
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
-# Test executable
+# Main executable
+add_executable(\${PROJECT_NAME} src/main.cpp)
+target_link_libraries(\${PROJECT_NAME} PRIVATE \${PROJECT_NAME}_lib)
+
+# Tests
 enable_testing()
-set(TEST_SOURCES
+add_executable(tests
     tests/test_main.cpp
     tests/test_routes.cpp
     tests/test_middleware.cpp
     tests/test_services.cpp
     tests/test_utils.cpp
-    src/services/user_service.cpp
-    src/services/cache_service.cpp
-    src/utils/jwt_utils.cpp
-    src/utils/validation.cpp
-    src/config/config.cpp
-)
-
-add_executable(tests \${TEST_SOURCES})
-
-target_include_directories(tests PRIVATE
-    \${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 target_link_libraries(tests PRIVATE
-    PkgConfig::Pistache
-    nlohmann_json::nlohmann_json
-    spdlog::spdlog
-    jwt-cpp::jwt-cpp
+    \${PROJECT_NAME}_lib
     GTest::gtest
-    GTest::gtest_main
-    \${CMAKE_THREAD_LIBS_INIT}
-    \${OPENSSL_LIBRARIES}
 )
 
 add_test(NAME tests COMMAND tests)
@@ -154,6 +99,7 @@ install(FILES config.json DESTINATION etc/\${PROJECT_NAME})
 #include <spdlog/spdlog.h>
 #include <csignal>
 #include <memory>
+#include <string>
 #include "server/server.hpp"
 #include "config/config.hpp"
 
@@ -173,7 +119,14 @@ int main(int argc, char* argv[]) {
     
     // Load configuration
     Config& config = Config::getInstance();
-    config.load("config.json");
+    // ./{{serviceName}} --config custom-config.json
+    std::string config_path = "config.json";
+    for (int i = 1; i + 1 < argc; ++i) {
+        if (std::string(argv[i]) == "--config") {
+            config_path = argv[i + 1];
+        }
+    }
+    config.load(config_path);
     
     // Setup logging
     spdlog::set_level(spdlog::level::from_str(config.getLogLevel()));
@@ -257,10 +210,16 @@ void HttpServer::shutdown() {
 }
 
 void HttpServer::setupMiddleware() {
-    // Apply middleware in order
-    Rest::Routes::Use(router_, std::make_shared<LoggingMiddleware>());
-    Rest::Routes::Use(router_, std::make_shared<CorsMiddleware>());
-    Rest::Routes::Use(router_, std::make_shared<RateLimitMiddleware>());
+    // Middleware runs in registration order for every request; one that
+    // returns false has answered the request itself and stops the chain.
+    router_.addMiddleware(LoggingMiddleware());
+    router_.addMiddleware(CorsMiddleware());
+
+    auto rate_limit = std::make_shared<RateLimitMiddleware>(
+        config_.getRateLimitRequests(), config_.getRateLimitWindow());
+    router_.addMiddleware([rate_limit](Http::Request& req, Http::ResponseWriter& response) {
+        return (*rate_limit)(req, response);
+    });
 }
 
 void HttpServer::setupRoutes() {
@@ -274,7 +233,7 @@ void HttpServer::setupRoutes() {
     UserRoutes::setup(router_);
     
     // Default handler for 404
-    router_.addCustomHandler(Rest::Routes::NotFound, 
+    router_.addNotFoundHandler(
         [](const Rest::Request& req, Http::ResponseWriter response) {
             nlohmann::json error;
             error["error"] = "Not Found";
@@ -299,7 +258,8 @@ private:
     nlohmann::json config_data_;
     static Config instance_;
     
-    Config() = default;
+    // Start from the defaults so every getter works before (or without) load().
+    Config() { setDefaults(); }
     void setDefaults();
     
 public:
@@ -442,7 +402,7 @@ public:
     static void setup(Pistache::Rest::Router& router);
 
 private:
-    static void handle(Pistache::Rest::Request req,
+    static void handle(const Pistache::Rest::Request& req,
                        Pistache::Http::ResponseWriter response);
 };
 `,
@@ -458,7 +418,7 @@ void GraphqlRoutes::setup(Pistache::Rest::Router& router) {
     Routes::Post(router, "/graphql", Routes::bind(&GraphqlRoutes::handle));
 }
 
-void GraphqlRoutes::handle(Pistache::Rest::Request req,
+void GraphqlRoutes::handle(const Pistache::Rest::Request& req,
                            Pistache::Http::ResponseWriter response) {
     nlohmann::json result;
     result["data"]["hello"] = "Hello from Pistache GraphQL!";
@@ -754,6 +714,7 @@ void UserRoutes::login(const Pistache::Rest::Request& req,
     // User Model and Service
     'include/models/user.hpp': `#pragma once
 #include <string>
+#include <nlohmann/json.hpp>
 
 struct User {
     std::string id;
@@ -763,6 +724,9 @@ struct User {
     std::string created_at;
     std::string updated_at;
 };
+
+// Lets CacheService store a User as JSON (nlohmann::json conversions)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(User, id, email, name, password, created_at, updated_at)
 `,
 
     'include/services/user_service.hpp': `#pragma once
@@ -1097,170 +1061,136 @@ std::optional<JwtClaims> AuthMiddleware::getAuthClaims(const Pistache::Rest::Req
 `,
 
     'include/middleware/cors_middleware.hpp': `#pragma once
-#include <pistache/middleware.h>
 #include <pistache/http.h>
+#include <pistache/router.h>
 
-class CorsMiddleware : public Pistache::Http::Middleware {
+// Router middleware: adds the CORS headers to every response and answers
+// preflight (OPTIONS) requests itself. Register with Router::addMiddleware();
+// returning false stops the request from reaching a route.
+class CorsMiddleware {
 public:
-    void onRequest(const Pistache::Http::Request& req, 
-                  Pistache::Http::ResponseWriter& response) override;
-    
-    void onResponse(const Pistache::Http::Request& req,
-                   Pistache::Http::ResponseWriter& response) override;
+    bool operator()(Pistache::Http::Request& req, Pistache::Http::ResponseWriter& response) const;
 };
 `,
 
     'src/middleware/cors_middleware.cpp': `#include "middleware/cors_middleware.hpp"
 
-void CorsMiddleware::onRequest(const Pistache::Http::Request& req, 
-                              Pistache::Http::ResponseWriter& response) {
-    if (req.method() == Pistache::Http::Method::Options) {
-        response.headers()
-            .add<Pistache::Http::Header::AccessControlAllowOrigin>("*")
-            .add<Pistache::Http::Header::AccessControlAllowMethods>("GET, POST, PUT, DELETE, OPTIONS")
-            .add<Pistache::Http::Header::AccessControlAllowHeaders>("Content-Type, Authorization")
-            .add<Pistache::Http::Header::AccessControlMaxAge>("86400");
-        
-        response.send(Pistache::Http::Code::No_Content);
-        return;
-    }
-}
-
-void CorsMiddleware::onResponse(const Pistache::Http::Request& req,
-                               Pistache::Http::ResponseWriter& response) {
+bool CorsMiddleware::operator()(Pistache::Http::Request& req,
+                                Pistache::Http::ResponseWriter& response) const {
     response.headers()
         .add<Pistache::Http::Header::AccessControlAllowOrigin>("*")
         .add<Pistache::Http::Header::AccessControlAllowMethods>("GET, POST, PUT, DELETE, OPTIONS")
         .add<Pistache::Http::Header::AccessControlAllowHeaders>("Content-Type, Authorization");
+
+    if (req.method() == Pistache::Http::Method::Options) {
+        response.headers().addRaw(Pistache::Http::Header::Raw("Access-Control-Max-Age", "86400"));
+        response.send(Pistache::Http::Code::No_Content);
+        return false;  // answered here, do not route
+    }
+    return true;
 }
 `,
 
     'include/middleware/logging_middleware.hpp': `#pragma once
-#include <pistache/middleware.h>
 #include <pistache/http.h>
-#include <chrono>
+#include <pistache/router.h>
 
-class LoggingMiddleware : public Pistache::Http::Middleware {
-private:
-    struct RequestContext {
-        std::chrono::steady_clock::time_point start;
-    };
-    
+// Router middleware: logs every request before it is routed.
+class LoggingMiddleware {
 public:
-    void onRequest(const Pistache::Http::Request& req, 
-                  Pistache::Http::ResponseWriter& response) override;
-    
-    void onResponse(const Pistache::Http::Request& req,
-                   Pistache::Http::ResponseWriter& response) override;
+    bool operator()(Pistache::Http::Request& req, Pistache::Http::ResponseWriter& response) const;
 };
 `,
 
     'src/middleware/logging_middleware.cpp': `#include "middleware/logging_middleware.hpp"
 #include <spdlog/spdlog.h>
 
-void LoggingMiddleware::onRequest(const Pistache::Http::Request& req, 
-                                 Pistache::Http::ResponseWriter& response) {
-    auto context = std::make_shared<RequestContext>();
-    context->start = std::chrono::steady_clock::now();
-    req.associateData(context);
-    
-    spdlog::info("{} {} from {}", 
-                req.method(), 
-                req.resource(), 
-                req.address().host());
-}
-
-void LoggingMiddleware::onResponse(const Pistache::Http::Request& req,
-                                  Pistache::Http::ResponseWriter& response) {
-    auto context = req.getData<RequestContext>();
-    if (context) {
-        auto end = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-            end - context->start);
-        
-        spdlog::info("{} {} {} - {} μs", 
-                    req.method(), 
-                    req.resource(), 
-                    static_cast<int>(response.code()),
-                    duration.count());
-    }
+bool LoggingMiddleware::operator()(Pistache::Http::Request& req,
+                                   Pistache::Http::ResponseWriter& response) const {
+    spdlog::info("{} {} from {}",
+                 Pistache::Http::methodString(req.method()),
+                 req.resource(),
+                 req.address().host());
+    return true;
 }
 `,
 
     'include/middleware/rate_limit_middleware.hpp': `#pragma once
-#include <pistache/middleware.h>
 #include <pistache/http.h>
+#include <pistache/router.h>
 #include <unordered_map>
 #include <chrono>
 #include <mutex>
+#include <string>
 
-class RateLimitMiddleware : public Pistache::Http::Middleware {
+// Router middleware: fixed-window rate limit per client address. Answers 429
+// and stops routing once a client exceeds max_requests per window.
+//
+// It holds a mutex, so it is not copyable: keep it in a std::shared_ptr and
+// register a lambda that calls it (see HttpServer::setupMiddleware).
+class RateLimitMiddleware {
 private:
     struct RateLimitInfo {
         int requests = 0;
         std::chrono::steady_clock::time_point window_start;
     };
-    
+
     std::unordered_map<std::string, RateLimitInfo> rate_limits_;
     mutable std::mutex mutex_;
     int max_requests_ = 100;
     int window_seconds_ = 60;
-    
+
 public:
     RateLimitMiddleware(int max_requests = 100, int window_seconds = 60)
         : max_requests_(max_requests), window_seconds_(window_seconds) {}
-    
-    void onRequest(const Pistache::Http::Request& req, 
-                  Pistache::Http::ResponseWriter& response) override;
+
+    bool operator()(Pistache::Http::Request& req, Pistache::Http::ResponseWriter& response);
+
+    // Count one request from \`client\` at \`now\`; false when it is over the limit.
+    bool allow(const std::string& client, std::chrono::steady_clock::time_point now);
 };
 `,
 
     'src/middleware/rate_limit_middleware.cpp': `#include "middleware/rate_limit_middleware.hpp"
 #include <nlohmann/json.hpp>
 
-void RateLimitMiddleware::onRequest(const Pistache::Http::Request& req, 
-                                   Pistache::Http::ResponseWriter& response) {
-    std::string client_ip = req.address().host();
-    auto now = std::chrono::steady_clock::now();
-    
+bool RateLimitMiddleware::allow(const std::string& client,
+                                std::chrono::steady_clock::time_point now) {
     std::lock_guard<std::mutex> lock(mutex_);
-    
-    auto& limit_info = rate_limits_[client_ip];
-    
-    // Check if we need to reset the window
-    auto window_duration = std::chrono::seconds(window_seconds_);
-    if (now - limit_info.window_start > window_duration) {
-        limit_info.requests = 0;
-        limit_info.window_start = now;
+
+    auto& info = rate_limits_[client];
+
+    // Start a new window when the previous one has expired
+    if (now - info.window_start > std::chrono::seconds(window_seconds_)) {
+        info.requests = 0;
+        info.window_start = now;
     }
-    
-    // Check rate limit
-    if (limit_info.requests >= max_requests_) {
-        nlohmann::json error;
-        error["error"] = "Rate limit exceeded";
-        error["retry_after"] = window_seconds_;
-        
-        response.headers()
-            .add<Pistache::Http::Header::ContentType>(MIME(Application, Json))
-            .add<Pistache::Http::Header::Raw>("X-RateLimit-Limit", std::to_string(max_requests_))
-            .add<Pistache::Http::Header::Raw>("X-RateLimit-Remaining", "0")
-            .add<Pistache::Http::Header::Raw>("X-RateLimit-Reset", 
-                std::to_string(std::chrono::duration_cast<std::chrono::seconds>(
-                    limit_info.window_start + window_duration - std::chrono::steady_clock::epoch()
-                ).count()));
-        
-        response.send(Pistache::Http::Code::Too_Many_Requests, error.dump());
-        return;
+
+    if (info.requests >= max_requests_) {
+        return false;
     }
-    
-    // Increment request count
-    limit_info.requests++;
-    
-    // Add rate limit headers
-    response.headers()
-        .add<Pistache::Http::Header::Raw>("X-RateLimit-Limit", std::to_string(max_requests_))
-        .add<Pistache::Http::Header::Raw>("X-RateLimit-Remaining", 
-            std::to_string(max_requests_ - limit_info.requests));
+    info.requests++;
+    return true;
+}
+
+bool RateLimitMiddleware::operator()(Pistache::Http::Request& req,
+                                     Pistache::Http::ResponseWriter& response) {
+    using Pistache::Http::Header::Raw;
+    const bool allowed = allow(req.address().host(), std::chrono::steady_clock::now());
+
+    response.headers().addRaw(Raw("X-RateLimit-Limit", std::to_string(max_requests_)));
+    if (allowed) {
+        return true;
+    }
+
+    nlohmann::json error;
+    error["error"] = "Rate limit exceeded";
+    error["retry_after"] = window_seconds_;
+
+    response.headers().addRaw(Raw("X-RateLimit-Remaining", "0"));
+    response.headers().addRaw(Raw("Retry-After", std::to_string(window_seconds_)));
+    response.send(Pistache::Http::Code::Too_Many_Requests, error.dump(), MIME(Application, Json));
+    return false;
 }
 `,
 
@@ -1284,42 +1214,120 @@ public:
 
     'src/utils/jwt_utils.cpp': `#include "utils/jwt_utils.hpp"
 #include "config/config.hpp"
-#include <jwt-cpp/jwt.h>
+#include <nlohmann/json.hpp>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
 #include <chrono>
+#include <sstream>
+#include <vector>
+
+// Minimal HS256 JSON Web Tokens built on OpenSSL's HMAC (no extra dependency).
+namespace {
+
+const char* kIssuer = "{{serviceName}}";
+const char* kAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+std::string base64UrlEncode(const std::string& input) {
+    std::string out;
+    unsigned int val = 0;
+    int bits = -6;
+    for (unsigned char c : input) {
+        val = (val << 8) + c;
+        bits += 8;
+        while (bits >= 0) {
+            out.push_back(kAlphabet[(val >> bits) & 0x3F]);
+            bits -= 6;
+        }
+    }
+    if (bits > -6) {
+        out.push_back(kAlphabet[((val << 8) >> (bits + 8)) & 0x3F]);
+    }
+    return out;  // base64url without padding
+}
+
+std::string base64UrlDecode(const std::string& input) {
+    std::vector<int> table(256, -1);
+    for (int i = 0; i < 64; ++i) {
+        table[static_cast<unsigned char>(kAlphabet[i])] = i;
+    }
+    std::string out;
+    unsigned int val = 0;
+    int bits = -8;
+    for (unsigned char c : input) {
+        if (table[c] == -1) break;
+        val = (val << 6) + static_cast<unsigned int>(table[c]);
+        bits += 6;
+        if (bits >= 0) {
+            out.push_back(static_cast<char>((val >> bits) & 0xFF));
+            bits -= 8;
+        }
+    }
+    return out;
+}
+
+std::string sign(const std::string& data) {
+    const std::string secret = Config::getInstance().getJwtSecret();
+    unsigned char digest[EVP_MAX_MD_SIZE];
+    unsigned int length = 0;
+    HMAC(EVP_sha256(), secret.data(), static_cast<int>(secret.size()),
+         reinterpret_cast<const unsigned char*>(data.data()), data.size(), digest, &length);
+    return base64UrlEncode(std::string(reinterpret_cast<char*>(digest), length));
+}
+
+// Compare without returning early on the first differing byte.
+bool constantTimeEquals(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) return false;
+    unsigned char diff = 0;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        diff |= static_cast<unsigned char>(a[i] ^ b[i]);
+    }
+    return diff == 0;
+}
+
+int64_t nowSeconds() {
+    return std::chrono::duration_cast<std::chrono::seconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+}
+
+}  // namespace
 
 std::string JwtUtils::generateToken(const std::string& user_id, const std::string& email) {
-    auto now = std::chrono::system_clock::now();
-    auto exp = now + std::chrono::hours(Config::getInstance().getJwtExpiry());
-    
-    auto token = jwt::create()
-        .set_issuer("{{serviceName}}")
-        .set_type("JWS")
-        .set_payload_claim("user_id", jwt::claim(user_id))
-        .set_payload_claim("email", jwt::claim(email))
-        .set_issued_at(now)
-        .set_expires_at(exp)
-        .sign(jwt::algorithm::hs256{Config::getInstance().getJwtSecret()});
-    
-    return token;
+    nlohmann::json header = {{"alg", "HS256"}, {"typ", "JWT"}};
+    const int64_t issued = nowSeconds();
+    nlohmann::json payload = {
+        {"iss", kIssuer},
+        {"user_id", user_id},
+        {"email", email},
+        {"iat", issued},
+        {"exp", issued + static_cast<int64_t>(Config::getInstance().getJwtExpiry()) * 3600},
+    };
+    const std::string data = base64UrlEncode(header.dump()) + "." + base64UrlEncode(payload.dump());
+    return data + "." + sign(data);
 }
 
 std::optional<JwtClaims> JwtUtils::validateToken(const std::string& token) {
+    std::vector<std::string> parts;
+    std::stringstream ss(token);
+    std::string part;
+    while (std::getline(ss, part, '.')) {
+        parts.push_back(part);
+    }
+    if (parts.size() != 3) return std::nullopt;
+
+    if (!constantTimeEquals(parts[2], sign(parts[0] + "." + parts[1]))) return std::nullopt;
+
     try {
-        auto decoded = jwt::decode(token);
-        
-        auto verifier = jwt::verify()
-            .allow_algorithm(jwt::algorithm::hs256{Config::getInstance().getJwtSecret()})
-            .with_issuer("{{serviceName}}");
-        
-        verifier.verify(decoded);
-        
+        auto payload = nlohmann::json::parse(base64UrlDecode(parts[1]));
+        if (payload.at("iss").get<std::string>() != kIssuer) return std::nullopt;
+
         JwtClaims claims;
-        claims.user_id = decoded.get_payload_claim("user_id").as_string();
-        claims.email = decoded.get_payload_claim("email").as_string();
-        claims.exp = decoded.get_expires_at().time_since_epoch().count();
-        
+        claims.exp = payload.at("exp").get<int64_t>();
+        if (claims.exp < nowSeconds()) return std::nullopt;
+        claims.user_id = payload.at("user_id").get<std::string>();
+        claims.email = payload.at("email").get<std::string>();
         return claims;
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         return std::nullopt;
     }
 }
@@ -1415,53 +1423,124 @@ int main(int argc, char** argv) {
 `,
 
     'tests/test_routes.cpp': `#include <gtest/gtest.h>
-#include <pistache/client.h>
 #include <nlohmann/json.hpp>
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include <optional>
+#include <string>
+
+// Integration tests: they talk to a server that is already running on
+// localhost:9080 (./build/{{serviceName}}) and are skipped when none is reachable.
+// A plain blocking socket keeps the tests independent of the Pistache client API,
+// which differs between Pistache releases.
+namespace {
+
+struct HttpResult {
+    int status = 0;
+    std::string body;
+};
+
+std::optional<HttpResult> http_request(const std::string& method, const std::string& path,
+                                       const std::string& body = "") {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return std::nullopt;
+
+    timeval timeout{3, 0};
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(9080);
+    inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+    if (connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+        close(fd);
+        return std::nullopt;
+    }
+
+    std::string request = method + " " + path + " HTTP/1.1\\r\\nHost: localhost\\r\\n" +
+                          "Connection: close\\r\\nContent-Type: application/json\\r\\n" +
+                          "Content-Length: " + std::to_string(body.size()) + "\\r\\n\\r\\n" + body;
+    if (send(fd, request.data(), request.size(), 0) < 0) {
+        close(fd);
+        return std::nullopt;
+    }
+
+    // Read until the body is complete (Content-Length) or the peer closes the
+    // connection: Pistache does not always close after "Connection: close".
+    std::string raw;
+    char buffer[4096];
+    ssize_t n;
+    while ((n = recv(fd, buffer, sizeof(buffer), 0)) > 0) {
+        raw.append(buffer, static_cast<std::size_t>(n));
+        auto split = raw.find("\\r\\n\\r\\n");
+        if (split == std::string::npos) continue;
+        auto length_at = raw.find("Content-Length: ");
+        std::size_t expected = 0;
+        if (length_at != std::string::npos && length_at < split) {
+            expected = static_cast<std::size_t>(std::stoul(raw.substr(length_at + 16)));
+        }
+        if (raw.size() >= split + 4 + expected) break;
+    }
+    close(fd);
+
+    HttpResult result;
+    if (raw.size() < 12 || raw.compare(0, 5, "HTTP/") != 0) return std::nullopt;
+    result.status = std::stoi(raw.substr(9, 3));
+    auto split = raw.find("\\r\\n\\r\\n");
+    if (split != std::string::npos) result.body = raw.substr(split + 4);
+    return result;
+}
+
+}  // namespace
 
 class RoutesTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Server should be running for integration tests
+        if (!http_request("GET", "/health")) {
+            GTEST_SKIP() << "integration test: start the server first (./build/{{serviceName}})";
+        }
     }
 };
 
 TEST_F(RoutesTest, HealthCheck) {
-    Pistache::Http::Client client;
-    auto opts = Pistache::Http::Client::options().threads(1);
-    client.init(opts);
-    
-    auto response = client.get("http://localhost:9080/health").send();
-    response.then([](Pistache::Http::Response res) {
-        EXPECT_EQ(res.code(), Pistache::Http::Code::Ok);
-        EXPECT_FALSE(res.body().empty());
-    });
-    
-    client.shutdown();
+    auto res = http_request("GET", "/health");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 200);
+    EXPECT_EQ(nlohmann::json::parse(res->body)["status"], "healthy");
+}
+
+TEST_F(RoutesTest, UnknownRouteIsNotFound) {
+    auto res = http_request("GET", "/nonexistent");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 404);
 }
 
 TEST_F(RoutesTest, UserRegistration) {
-    Pistache::Http::Client client;
-    auto opts = Pistache::Http::Client::options().threads(1);
-    client.init(opts);
-    
     nlohmann::json user = {
-        {"email", "test@example.com"},
+        {"email", "routes-test@example.com"},
         {"name", "Test User"},
         {"password", "password123"}
     };
-    
-    auto response = client.post("http://localhost:9080/api/users/register")
-        .body(user.dump())
-        .send();
-        
-    response.then([](Pistache::Http::Response res) {
-        EXPECT_EQ(res.code(), Pistache::Http::Code::Created);
-        auto json = nlohmann::json::parse(res.body());
+
+    auto res = http_request("POST", "/api/users/register", user.dump());
+    ASSERT_TRUE(res);
+    // 409 when the test already ran against this server instance
+    ASSERT_TRUE(res->status == 201 || res->status == 409) << res->body;
+    if (res->status == 201) {
+        auto json = nlohmann::json::parse(res->body);
         EXPECT_TRUE(json.contains("id"));
-        EXPECT_EQ(json["email"], "test@example.com");
-    });
-    
-    client.shutdown();
+        EXPECT_EQ(json["email"], "routes-test@example.com");
+    }
+}
+
+TEST_F(RoutesTest, ProtectedRouteRequiresAuth) {
+    auto res = http_request("GET", "/api/users");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 401);
 }
 `,
 
@@ -1482,6 +1561,19 @@ TEST(MiddlewareTest, JWTGeneration) {
 TEST(MiddlewareTest, InvalidJWT) {
     auto claims = JwtUtils::validateToken("invalid.token.here");
     EXPECT_FALSE(claims.has_value());
+}
+
+TEST(MiddlewareTest, RateLimitBlocksAfterMaxRequests) {
+    RateLimitMiddleware limiter(2, 60);
+    auto now = std::chrono::steady_clock::now();
+
+    EXPECT_TRUE(limiter.allow("10.0.0.1", now));
+    EXPECT_TRUE(limiter.allow("10.0.0.1", now));
+    EXPECT_FALSE(limiter.allow("10.0.0.1", now));
+
+    // Other clients are counted separately, and the window resets
+    EXPECT_TRUE(limiter.allow("10.0.0.2", now));
+    EXPECT_TRUE(limiter.allow("10.0.0.1", now + std::chrono::seconds(61)));
 }
 `,
 
@@ -1609,31 +1701,19 @@ echo "Pistache installed successfully!"
 `,
 
     'Dockerfile': `# Build stage
-FROM ubuntu:22.04 AS builder
+FROM ubuntu:24.04 AS builder
 
-# Install dependencies
+# Install dependencies (Pistache, nlohmann-json, spdlog and GoogleTest come from the distribution)
 RUN apt-get update && apt-get install -y \\
     build-essential \\
     cmake \\
-    git \\
     pkg-config \\
     libssl-dev \\
-    rapidjson-dev \\
+    libpistache-dev \\
+    nlohmann-json3-dev \\
+    libspdlog-dev \\
+    libgtest-dev \\
     && rm -rf /var/lib/apt/lists/*
-
-# Install Pistache
-WORKDIR /tmp
-RUN git clone https://github.com/pistacheio/pistache.git && \\
-    cd pistache && \\
-    mkdir build && cd build && \\
-    cmake -G "Unix Makefiles" \\
-        -DCMAKE_BUILD_TYPE=Release \\
-        -DPISTACHE_BUILD_EXAMPLES=OFF \\
-        -DPISTACHE_BUILD_TESTS=OFF \\
-        -DPISTACHE_BUILD_DOCS=OFF \\
-        .. && \\
-    make -j$(nproc) && \\
-    make install
 
 # Build application
 WORKDIR /app
@@ -1643,11 +1723,14 @@ RUN mkdir build && cd build && \\
     make -j$(nproc)
 
 # Runtime stage
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
-# Install runtime dependencies
+# Install runtime dependencies (curl is used by the health check)
 RUN apt-get update && apt-get install -y \\
-    libssl3 \\
+    libssl3t64 \\
+    libpistache0t64 \\
+    libspdlog1.12 \\
+    curl \\
     && rm -rf /var/lib/apt/lists/*
 
 # Create user
@@ -1656,11 +1739,6 @@ RUN useradd -m -s /bin/bash appuser
 # Copy binary and config
 COPY --from=builder /app/build/{{serviceName}} /usr/local/bin/
 COPY --from=builder /app/config.json /etc/{{serviceName}}/
-COPY --from=builder /usr/local/lib/libpistache* /usr/local/lib/
-
-# Update library cache
-RUN ldconfig
-
 # Set ownership
 RUN chown -R appuser:appuser /etc/{{serviceName}}
 
@@ -1670,7 +1748,7 @@ EXPOSE 9080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
     CMD curl -f http://localhost:9080/health || exit 1
 
-CMD ["{{serviceName}}"]
+CMD ["{{serviceName}}", "--config", "/etc/{{serviceName}}/config.json"]
 `,
 
     'docker-compose.yml': `version: '3.8'
@@ -1753,16 +1831,21 @@ A modern C++ REST API server built with the Pistache framework.
 - C++17 or later
 - CMake 3.16+
 - Pistache framework
-- OpenSSL
+- OpenSSL, nlohmann_json, spdlog and GoogleTest (found with find_package / pkg-config)
 
 ## Building
 
-### Install Pistache
+### Install dependencies
+
+Debian/Ubuntu (24.04 or newer):
 
 \`\`\`bash
-chmod +x scripts/install-pistache.sh
-./scripts/install-pistache.sh
+sudo apt-get install build-essential cmake pkg-config libssl-dev \\
+    libpistache-dev nlohmann-json3-dev libspdlog-dev libgtest-dev
 \`\`\`
+
+Distributions without a Pistache package can build it from source with
+\`scripts/install-pistache.sh\`.
 
 ### Build Application
 
