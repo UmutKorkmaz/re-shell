@@ -444,7 +444,10 @@ describePosix('startServiceProcess', () => {
     } finally {
       await stopServiceProcess(record, { timeoutMs: 3000 });
     }
-    expect(await portIsClosed(port)).toBe(true);
+    // The whole process group has exited, so the listener is gone. Poll briefly rather
+    // than probing once: under a full parallel run a single loopback probe can see the
+    // freed port reused by another worker for a moment. A leaked listener still fails.
+    expect(await waitFor(() => portIsClosed(port), 2000)).toBe(true);
   });
 
   it('fails, tears the process group down and removes the PID file on a readiness timeout', async () => {
