@@ -117,6 +117,109 @@ export const MIGRATIONS: readonly Migration[] = [
       ) STRICT;
     `,
   },
+  {
+    version: 3,
+    name: 'collab-sessions',
+    sql: `
+      -- A shared session: one per (tenant, workspace) conversation. Every table
+      -- below is keyed tenant-first, like the rest of the schema, so a session id
+      -- from another tenant is simply absent.
+      CREATE TABLE collab_sessions (
+        tenant_id    TEXT NOT NULL,
+        id           TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        title        TEXT NOT NULL,
+        owner_id     TEXT NOT NULL,
+        driver_id    TEXT,
+        status       TEXT NOT NULL CHECK (status IN ('active', 'ended')),
+        seq          INTEGER NOT NULL DEFAULT 0,
+        created_at   INTEGER NOT NULL,
+        ended_at     INTEGER,
+        ended_by     TEXT,
+        PRIMARY KEY (tenant_id, id),
+        FOREIGN KEY (tenant_id, workspace_id) REFERENCES workspaces (tenant_id, id)
+      ) STRICT;
+      CREATE INDEX collab_sessions_created_idx ON collab_sessions (tenant_id, created_at DESC);
+      CREATE INDEX collab_sessions_workspace_idx ON collab_sessions (tenant_id, workspace_id, created_at DESC);
+
+      -- Everyone who ever joined; left_at IS NULL means currently present.
+      CREATE TABLE collab_participants (
+        tenant_id  TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        joined_at  INTEGER NOT NULL,
+        left_at    INTEGER,
+        PRIMARY KEY (tenant_id, session_id, user_id),
+        FOREIGN KEY (tenant_id, session_id) REFERENCES collab_sessions (tenant_id, id)
+      ) STRICT;
+
+      -- The ordered, append-only session log. (tenant, session, seq) is the
+      -- total order every participant observes. 'ref'/'ref_seq' index the
+      -- stream an event belongs to: a document id + revision for doc.* events, a
+      -- job id + output chunk number for command.* events.
+      CREATE TABLE collab_events (
+        tenant_id  TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        seq        INTEGER NOT NULL,
+        type       TEXT NOT NULL,
+        ts         INTEGER NOT NULL,
+        actor      TEXT,
+        data       TEXT NOT NULL,
+        ref        TEXT,
+        ref_seq    INTEGER,
+        client_id  TEXT,
+        client_seq INTEGER,
+        PRIMARY KEY (tenant_id, session_id, seq),
+        FOREIGN KEY (tenant_id, session_id) REFERENCES collab_sessions (tenant_id, id)
+      ) STRICT;
+      CREATE INDEX collab_events_ref_idx
+        ON collab_events (tenant_id, session_id, type, ref, ref_seq) WHERE ref IS NOT NULL;
+      -- A retried document op (same client, same client sequence) is applied once.
+      CREATE UNIQUE INDEX collab_events_client_idx
+        ON collab_events (tenant_id, session_id, ref, client_id, client_seq) WHERE client_id IS NOT NULL;
+
+      CREATE TABLE collab_docs (
+        tenant_id  TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        id         TEXT NOT NULL,
+        title      TEXT NOT NULL,
+        kind       TEXT NOT NULL CHECK (kind IN ('notes', 'yaml-draft', 'text')),
+        content    TEXT NOT NULL,
+        rev        INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (tenant_id, session_id, id),
+        FOREIGN KEY (tenant_id, session_id) REFERENCES collab_sessions (tenant_id, id)
+      ) STRICT;
+
+      -- The console: one row per command run in a session, linked to the job
+      -- that a worker executes. status/exit_code mirror what has been LOGGED
+      -- (collab_events), not the job row, so a snapshot is always consistent
+      -- with its sequence number. forwarded_seq is the job_output cursor.
+      CREATE TABLE collab_runs (
+        tenant_id     TEXT NOT NULL,
+        session_id    TEXT NOT NULL,
+        job_id        TEXT NOT NULL,
+        command_id    TEXT NOT NULL,
+        params        TEXT NOT NULL DEFAULT '{}',
+        requested_by  TEXT NOT NULL,
+        status        TEXT NOT NULL
+                      CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'canceled')),
+        exit_code     INTEGER,
+        error_code    TEXT,
+        queued_at     INTEGER NOT NULL,
+        started_at    INTEGER,
+        finished_at   INTEGER,
+        forwarded_seq INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (tenant_id, session_id, job_id),
+        FOREIGN KEY (tenant_id, session_id) REFERENCES collab_sessions (tenant_id, id),
+        FOREIGN KEY (job_id) REFERENCES jobs (id)
+      ) STRICT;
+      CREATE INDEX collab_runs_open_idx ON collab_runs (status) WHERE status IN ('queued', 'running');
+      CREATE INDEX collab_runs_job_idx ON collab_runs (job_id);
+      CREATE INDEX collab_runs_time_idx ON collab_runs (tenant_id, queued_at);
+    `,
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

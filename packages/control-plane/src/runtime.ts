@@ -1,5 +1,6 @@
 import type { ServeConfig } from './config.js';
 import { migrate } from './db/migrations.js';
+import { SqliteCollabStore } from './db/sqlite-collab.js';
 import { SqliteAuditLog } from './db/sqlite-audit.js';
 import { SqliteJobStore } from './db/sqlite-jobs.js';
 import { SqliteTenantStore } from './db/sqlite-store.js';
@@ -17,6 +18,7 @@ export interface Runtime {
   store: SqliteTenantStore;
   audit: SqliteAuditLog;
   jobs: SqliteJobStore;
+  collab: SqliteCollabStore;
   server: ControlPlaneServer;
   listening: ListenInfo;
   close(): Promise<void>;
@@ -34,11 +36,14 @@ export async function startRuntime(
   const store = new SqliteTenantStore(db);
   const audit = new SqliteAuditLog(db);
   const jobs = new SqliteJobStore(db);
+  const collab = new SqliteCollabStore(db);
 
   const server = createControlPlaneServer({
     store,
     audit,
     jobs,
+    collab,
+    iceServers: config.iceServers,
     identity: { keyRing: config.keyRing, issuer: config.issuer, audience: config.audience },
     platformAdmins: config.platformAdmins,
     corsOrigins: config.corsOrigins,
@@ -64,6 +69,7 @@ export async function startRuntime(
     store,
     audit,
     jobs,
+    collab,
     server,
     listening,
     async close() {
