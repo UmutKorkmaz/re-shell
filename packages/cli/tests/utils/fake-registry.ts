@@ -111,10 +111,18 @@ export async function startFakeRegistry(options: FakeRegistryOptions): Promise<F
   const tarballs = new Map<string, string>();
   let baseUrl = '';
 
+  // Tarballs are built once per published version: gzip/tar embed mtimes, so rebuilding
+  // on every request would change the integrity between packument fetches.
+  const built = new Map<FakeVersion, ReturnType<typeof buildTarball>>();
+
   function packument(pkg: FakePackage): unknown {
     const versions: Record<string, unknown> = {};
     for (const [version, def] of Object.entries(pkg.versions)) {
-      const tar = buildTarball(pkg.name, version, def, workDir);
+      let tar = built.get(def);
+      if (!tar) {
+        tar = buildTarball(pkg.name, version, def, workDir);
+        built.set(def, tar);
+      }
       const tarballPath = `/${pkg.name}/-/${path.basename(pkg.name)}-${version}.tgz`;
       tarballs.set(tarballPath, tar.file);
       const dist: Record<string, unknown> = {
