@@ -126,6 +126,8 @@ export {
   k8sOperatorResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
+  wsJobMessageSchema,
+  wsAuthMessageSchema,
   wsClientMessageSchema,
   wsServerMessageSchema,
   hubServerConfigSchema,
@@ -246,6 +248,8 @@ export type {
   K8sOperatorResponse,
   // sse / ws wire messages
   SseEvent,
+  WsJobMessage,
+  WsAuthMessage,
   WsClientMessage,
   WsServerMessage,
   HubServerConfig,

@@ -472,16 +472,35 @@ export const sseEventSchema = z.object({
 export type SseEvent = z.infer<typeof sseEventSchema>;
 
 /**
- * A message sent FROM the browser client TO the hub over the `/jobs` WebSocket.
- * Browsers may only ever supply a stable `commandId` + opaque `params`; never a
- * raw command/argv. The hub resolves these against its allow-listed registry.
+ * A job-control message sent FROM the browser client TO the hub over the `/jobs`
+ * WebSocket. Browsers may only ever supply a stable `commandId` + opaque
+ * `params`; never a raw command/argv. The hub resolves these against its
+ * allow-listed registry.
  */
-export const wsClientMessageSchema = z.object({
+export const wsJobMessageSchema = z.object({
   type: z.enum(['start', 'cancel']),
   id: z.string(),
   commandId: z.string().optional(),
   params: z.unknown().optional(),
 });
+export type WsJobMessage = z.infer<typeof wsJobMessageSchema>;
+
+/**
+ * The first-message authentication handshake. A client that could not present
+ * the per-launch session token on the WebSocket upgrade (via the
+ * `Sec-WebSocket-Protocol` header) must send `{ type: 'auth', token }` before
+ * any other message; the hub closes the socket with a policy violation otherwise.
+ */
+export const wsAuthMessageSchema = z.object({
+  type: z.literal('auth'),
+  token: z.string(),
+});
+export type WsAuthMessage = z.infer<typeof wsAuthMessageSchema>;
+
+/**
+ * Every message a client may send to the hub over the `/jobs` WebSocket.
+ */
+export const wsClientMessageSchema = z.union([wsJobMessageSchema, wsAuthMessageSchema]);
 export type WsClientMessage = z.infer<typeof wsClientMessageSchema>;
 
 /**
