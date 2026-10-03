@@ -14,6 +14,7 @@ import {
 } from '../../src/commands/plugin-cache';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/plugin-cache.ts (667 lines, 6 exports): stats rendering,
 // setting validation/parsing, clear flows (all/command/tags + --force gate),
 // the performance harness, optimization recommendations and the cached-command
@@ -179,7 +180,7 @@ describe('showCacheStats', () => {
   it('emits a JSON envelope with stats, metrics and config', async () => {
     const m = manager();
     await showCacheStats({ json: true });
-    const payload = JSON.parse(output());
+    const payload = jsonData();
     expect(payload.stats.size).toBe(10);
     expect(payload.metrics.cacheHits).toBe(75);
     expect(payload.config.strategy).toBe(CacheStorageStrategy.HYBRID);
@@ -380,7 +381,7 @@ describe('testCachePerformance', () => {
     await pending;
 
     // The header banner logs before the payload — parse the final logged line.
-    const payload = JSON.parse(logSpy.mock.calls.at(-1)![0] as string);
+    const payload = jsonData();
     expect(payload.totalIterations).toBe(2);
     expect(payload.hitCount).toBe(2);
     expect(payload.hitRate).toBe(1);
@@ -513,7 +514,7 @@ describe('listCachedCommands', () => {
   it('emits the raw entry array in json mode', async () => {
     manager();
     await listCachedCommands({ json: true });
-    const payload = JSON.parse(output());
+    const payload = jsonData();
     expect(payload).toHaveLength(2);
     expect(payload[0].command).toBe('build');
     expect(payload[1].command).toBe('test');

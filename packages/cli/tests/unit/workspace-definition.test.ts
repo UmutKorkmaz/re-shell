@@ -5,6 +5,7 @@ import * as os from 'os';
 import { manageWorkspaceDefinition } from '../../src/commands/workspace-definition';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/workspace-definition.ts — the `workspace-def` command
 // (init/validate/auto-detect/structure/fix/interactive/default-status). We mock
 // workspace-schema (load/save/createDefault + WorkspaceSchemaValidator) and
@@ -63,8 +64,9 @@ let exitSpy: ReturnType<typeof vi.spyOn>;
 function out(): string {
   return [...logSpy.mock.calls, ...errSpy.mock.calls].map(a => a.join(' ')).join('\n');
 }
-function loggedJson(find: (s: string) => boolean): any {
-  return JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(find)!);
+function loggedJson(_find?: (s: string) => boolean): any {
+  // --json results are now one envelope on stdout; return its data.
+  return jsonData();
 }
 
 beforeEach(() => {

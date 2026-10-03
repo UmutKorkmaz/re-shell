@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
+import { jsonData } from '../utils/stdout-json';
 import {
   buildAll,
   generateDeploymentConfig,
@@ -317,7 +318,7 @@ describe('polyglot — listServices', () => {
   it('emits services as a JSON array in json mode', async () => {
     mocks.scanWorkspace.mockReturnValue([WEB]);
     await listServices({ json: true });
-    const json = JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(s => s.trim().startsWith('['))!);
+    const json = jsonData();
     expect(json).toHaveLength(1);
     expect(json[0].name).toBe('web');
   });

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { manageWorkspaceState } from '../../src/commands/workspace-state';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { jsonData } from '../utils/stdout-json';
 // UNIT coverage for src/commands/workspace-state.ts — the `workspace-state`
 // command (NOT utils/workspace-state, covered by the open workspace-state.test.ts
 // from PR #133). Named workspace-state-command.test.ts to avoid that collision.
@@ -70,8 +71,9 @@ let logSpy: ReturnType<typeof vi.spyOn>;
 function logged(): string {
   return logSpy.mock.calls.map(a => a.join(' ')).join('\n');
 }
-function loggedJson(find: (s: string) => boolean): any {
-  return JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(find)!);
+function loggedJson(_find?: (s: string) => boolean): any {
+  // --json results are now one envelope on stdout; return its data.
+  return jsonData();
 }
 
 beforeEach(() => {

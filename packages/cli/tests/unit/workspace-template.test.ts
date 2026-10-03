@@ -5,6 +5,7 @@ import * as os from 'os';
 import { manageWorkspaceTemplate } from '../../src/commands/workspace-template';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/workspace-template.ts — the `workspace-template` command
 // (list/create/apply/show/delete/export/interactive/default-list). We mock the
 // WorkspaceTemplateManager factory + exportWorkspaceAsTemplate + loadWorkspaceDefinition
@@ -65,8 +66,9 @@ let logSpy: ReturnType<typeof vi.spyOn>;
 function out(): string {
   return logSpy.mock.calls.map(a => a.join(' ')).join('\n');
 }
-function loggedJson(find: (s: string) => boolean): any {
-  return JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(find)!);
+function loggedJson(_find?: (s: string) => boolean): any {
+  // --json results are now one envelope on stdout; return its data.
+  return jsonData();
 }
 
 beforeAll(() => {
