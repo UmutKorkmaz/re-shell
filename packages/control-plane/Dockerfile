@@ -63,6 +63,16 @@ RUN --mount=type=secret,id=cacert,required=false \
     pnpm --filter @re-shell/control-plane --prod deploy /out/control-plane \
  && pnpm --filter @re-shell/cli --prod deploy /out/re-shell-cli
 
+# WORKAROUND: packages/cli imports `zod` (utils/policy-engine.js) but does not
+# declare it in its dependencies; it only resolves in the monorepo through
+# hoisting. Expose the zod copy that @re-shell/contracts brings along so the
+# deployed CLI can load. Fails the build if no zod is present. Remove once the
+# CLI declares the dependency.
+RUN ZOD_DIR="$(find /out/re-shell-cli/node_modules/.pnpm -maxdepth 4 -type d -path '*/node_modules/zod' | head -1)" \
+ && test -n "$ZOD_DIR" \
+ && ln -s "${ZOD_DIR#/out/re-shell-cli/node_modules/}" /out/re-shell-cli/node_modules/zod \
+ && node -e "require('/out/re-shell-cli/node_modules/zod')"
+
 # ---------------------------------------------------------------------------
 # control-plane: the server image.
 # ---------------------------------------------------------------------------

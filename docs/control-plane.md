@@ -355,7 +355,16 @@ on a `/data` volume, and contain no native addons (SQLite is Node's built-in
 `node:sqlite`). `HEALTHCHECK` calls `/healthz`. Behind a TLS-intercepting proxy
 pass its CA as a build secret: `--secret id=cacert,src=/path/ca.crt`. The worker
 image does not include `git`; add OS packages with
-`--build-arg WORKER_APT_PACKAGES="git"`.
+`--build-arg WORKER_APT_PACKAGES="git"`. The CLI does not declare its `zod`
+dependency (it only resolves through monorepo hoisting), so the Dockerfile links
+the `zod` that `@re-shell/contracts` brings into the deployed CLI tree — a
+documented workaround to remove once `packages/cli` declares it.
+
+Verified locally (Docker 29, Node 22 image): both targets build; the server
+container reports `healthy`, answers `GET /healthz` with 200 and rejects
+unauthenticated `/me` with 401; a worker container on the same network claimed a
+job and ran the real CLI against a mounted fixture workspace (`succeeded`, exit
+0). This was not run in CI and not on any remote host.
 
 `packages/control-plane/docker-compose.yml` runs the control plane plus one
 worker, publishing the API on loopback only:
