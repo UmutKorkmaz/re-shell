@@ -110,7 +110,9 @@ export const restifyTemplate: BackendTemplate = {
     "nyc": "^15.1.0",
     "ts-node": "^10.9.2",
     "source-map-support": "^0.5.21",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "@types/uuid": "^9.0.8",
+    "@types/swagger-jsdoc": "^6.0.4"
   },
   "nyc": {
     "extension": [
@@ -182,7 +184,7 @@ import { connectDatabase } from './config/database';
 import { redisClient } from './config/redis';
 import { initializeWebSocket } from './config/websocket';
 import { gracefulShutdown } from './utils/gracefulShutdown';
-import { ApolloServer } from '@apollo/server';
+import { ApolloServer, HeaderMap } from '@apollo/server';
 import { typeDefs } from './graphql/schema';
 import { resolvers } from './graphql/resolver';
 
@@ -257,27 +259,39 @@ setupSwagger(server);
 
 // GraphQL endpoint
 const apolloServer = new ApolloServer({ typeDefs, resolvers });
+const apolloStarted = apolloServer.start();
 server.post('/graphql', async (req, res, next) => {
   try {
-    const { body, headers } = await apolloServer.executeHTTPGraphQLRequest({
+    await apolloStarted;
+    const headers = new HeaderMap();
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (value !== undefined) {
+        headers.set(key, Array.isArray(value) ? value.join(', ') : String(value));
+      }
+    }
+
+    const result = await apolloServer.executeHTTPGraphQLRequest({
       httpGraphQLRequest: {
-        method: req.method,
-        headers: req.headers as Record<string, string>,
+        method: (req.method ?? 'POST').toUpperCase(),
+        headers,
         search: '',
         body: req.body
       },
       context: async () => ({ req, res })
     });
 
-    if (body.kind === 'complete') {
-      for (const [key, value] of headers) {
-        res.setHeader(key, value);
-      }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(body.string);
+    for (const [key, value] of result.headers) {
+      res.setHeader(key, value);
+    }
+    res.statusCode = result.status ?? 200;
+
+    if (result.body.kind === 'complete') {
+      res.end(result.body.string);
     } else {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(body.string);
+      for await (const chunk of result.body.asyncIterator) {
+        res.write(chunk);
+      }
+      res.end();
     }
 
     return next();
@@ -405,7 +419,7 @@ export const config = {
     refreshExpire: envVars.JWT_REFRESH_EXPIRE
   },
   
-  corsOrigins: envVars.CORS_ORIGINS.split(',').map(origin => origin.trim()),
+  corsOrigins: envVars.CORS_ORIGINS.split(',').map((origin: string) => origin.trim()),
   
   email: {
     host: envVars.SMTP_HOST,
@@ -468,8 +482,11 @@ export function setupRoutes(server: restify.Server): void {
   
   // Metrics endpoint
   server.get('/metrics', authenticate, (req, res, next) => {
-    const metrics = server.getMetrics();
-    res.send(metrics);
+    res.send({
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      pid: process.pid
+    });
     next();
   });
 }`,
@@ -674,6 +691,7 @@ export default router;`,
 import { AuthService } from '../services/auth.service';
 import { EmailService } from '../services/email.service';
 import { logger } from '../utils/logger';
+import { clearCookie, readCookies, setCookie } from '../utils/cookies';
 import { BadRequestError, UnauthorizedError } from 'restify-errors';
 
 export class AuthController {
@@ -718,7 +736,7 @@ export class AuthController {
       const result = await this.authService.login(email, password);
 
       // Set refresh token as HTTP-only cookie
-      res.setCookie('refreshToken', result.refreshToken, {
+      setCookie(res, 'refreshToken', result.refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
@@ -743,7 +761,7 @@ export class AuthController {
 
   refreshToken = async (req: restify.Request, res: restify.Response, next: restify.Next) => {
     try {
-      const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
+      const refreshToken = readCookies(req).refreshToken || req.body.refreshToken;
 
       if (!refreshToken) {
         throw new UnauthorizedError('Refresh token not provided');
@@ -773,7 +791,7 @@ export class AuthController {
         await this.authService.logout(userId);
       }
 
-      res.clearCookie('refreshToken');
+      clearCookie(res, 'refreshToken');
 
       res.send({
         success: true,
@@ -1183,6 +1201,7 @@ interface JwtPayload {
 declare module 'restify' {
   interface Request {
     user?: JwtPayload;
+    file?: Express.Multer.File;
   }
 }
 
@@ -1495,7 +1514,7 @@ export const requestLogger = (req: restify.Request, res: restify.Response, next:
 };`,
 
     // Upload middleware
-    'src/middlewares/upload.middleware.ts': `import * as multer from 'multer';
+    'src/middlewares/upload.middleware.ts': `import multer from 'multer';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config/config';
@@ -1696,11 +1715,11 @@ export const getClient = async () => {
 };`,
 
     // Redis configuration
-    'src/config/redis.ts': `import { createClient } from 'redis';
+    'src/config/redis.ts': `import { createClient, RedisClientType } from 'redis';
 import { config } from './config';
 import { logger } from '../utils/logger';
 
-export const redisClient = createClient({
+export const redisClient: RedisClientType = createClient({
   url: config.redis.url,
   socket: {
     reconnectStrategy: (retries) => {
@@ -1713,7 +1732,7 @@ export const redisClient = createClient({
       return delay;
     }
   }
-});
+}) as RedisClientType;
 
 redisClient.on('error', (err) => {
   logger.error('Redis Client Error:', err);
@@ -1732,7 +1751,7 @@ redisClient.on('reconnecting', () => {
 });`,
 
     // WebSocket configuration
-    'src/config/websocket.ts': `import { Server } from 'socket.io';
+    'src/config/websocket.ts': `import { Server, Socket } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
 import { config } from './config';
 import { logger } from '../utils/logger';
@@ -1805,7 +1824,7 @@ export const emitToUser = (io: Server, userId: string, event: string, data: any)
 
     // Swagger configuration
     'src/config/swagger.ts': `import * as restify from 'restify';
-import * as swaggerJsdoc from 'swagger-jsdoc';
+import swaggerJsdoc from 'swagger-jsdoc';
 import { config } from './config';
 
 const options = {
@@ -1959,25 +1978,190 @@ export class EmailService {
   async sendPasswordResetEmail(email: string, token: string): Promise<void> {}
 }
 `,
-    'src/services/user.service.ts': `import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+    'src/services/user.service.ts': `import * as bcrypt from 'bcryptjs';
+import { BadRequestError, NotFoundError, UnauthorizedError } from 'restify-errors';
+import { query } from '../config/database';
+
+export interface UserRecord {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  avatar: string | null;
+  created_at: Date;
+}
+
+const PUBLIC_COLUMNS = 'id, email, name, role, avatar, created_at';
+
 export class UserService {
-  async getAllUsers() { return prisma.user.findMany(); }
-  async getUserById(id: string) { return prisma.user.findUnique({ where: { id } }); }
-  async findByEmail(email: string) { return prisma.user.findUnique({ where: { email } }); }
-  async createUser(data: Record<string, unknown>) { return prisma.user.create({ data: data as never }); }
-  async updateUser(id: string, data: Record<string, unknown>) { return prisma.user.update({ where: { id }, data: data as never }); }
-  async deleteUser(id: string) { return prisma.user.delete({ where: { id } }); }
+  async getAllUsers(options: { page?: number; limit?: number; search?: string } = {}) {
+    const page = Math.max(options.page ?? 1, 1);
+    const limit = Math.min(Math.max(options.limit ?? 10, 1), 100);
+    const search = options.search ? \`%\${options.search}%\` : '%';
+
+    const [rows, total] = await Promise.all([
+      query(
+        \`SELECT \${PUBLIC_COLUMNS} FROM users WHERE name ILIKE $1 OR email ILIKE $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3\`,
+        [search, limit, (page - 1) * limit]
+      ),
+      query('SELECT COUNT(*)::int AS count FROM users WHERE name ILIKE $1 OR email ILIKE $1', [search])
+    ]);
+
+    return {
+      items: rows.rows as UserRecord[],
+      pagination: { page, limit, total: total.rows[0].count }
+    };
+  }
+
+  async getUserById(id: string): Promise<UserRecord | null> {
+    const result = await query(\`SELECT \${PUBLIC_COLUMNS} FROM users WHERE id = $1\`, [id]);
+    return (result.rows[0] as UserRecord | undefined) ?? null;
+  }
+
+  async findByEmail(email: string) {
+    const result = await query('SELECT * FROM users WHERE email = $1', [email]);
+    return result.rows[0] ?? null;
+  }
+
+  async updateUser(id: string, updates: { name?: string; email?: string }): Promise<UserRecord> {
+    const result = await query(
+      \`UPDATE users SET name = COALESCE($2, name), email = COALESCE($3, email) WHERE id = $1 RETURNING \${PUBLIC_COLUMNS}\`,
+      [id, updates.name ?? null, updates.email ?? null]
+    );
+    if (result.rows.length === 0) {
+      throw new NotFoundError('User not found');
+    }
+    return result.rows[0] as UserRecord;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    const result = await query('DELETE FROM users WHERE id = $1', [id]);
+    if (result.rowCount === 0) {
+      throw new NotFoundError('User not found');
+    }
+  }
+
+  async changePassword(id: string, currentPassword: string, newPassword: string): Promise<void> {
+    const result = await query('SELECT password FROM users WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      throw new NotFoundError('User not found');
+    }
+    if (!(await bcrypt.compare(currentPassword, result.rows[0].password))) {
+      throw new UnauthorizedError('Current password is incorrect');
+    }
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestError('New password must be at least 8 characters');
+    }
+    await query('UPDATE users SET password = $2 WHERE id = $1', [id, await bcrypt.hash(newPassword, 10)]);
+  }
+
+  async updateAvatar(id: string, file: { filename: string }): Promise<string> {
+    const avatarUrl = \`/uploads/\${file.filename}\`;
+    await query('UPDATE users SET avatar = $2 WHERE id = $1', [id, avatarUrl]);
+    return avatarUrl;
+  }
 }
 `,
-    'src/services/todo.service.ts': `import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+    'src/services/todo.service.ts': `import { NotFoundError } from 'restify-errors';
+import { query } from '../config/database';
+
+export interface TodoRecord {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  due_date: Date | null;
+  user_id: string;
+}
+
+export interface TodoInput {
+  title?: string;
+  description?: string;
+  status?: string;
+  priority?: string;
+  dueDate?: string;
+  userId?: string;
+}
+
 export class TodoService {
-  async getAllTodos() { return prisma.todo.findMany(); }
-  async getTodoById(id: string) { return prisma.todo.findUnique({ where: { id } }); }
-  async createTodo(data: Record<string, unknown>) { return prisma.todo.create({ data: data as never }); }
-  async updateTodo(id: string, data: Record<string, unknown>) { return prisma.todo.update({ where: { id }, data: data as never }); }
-  async deleteTodo(id: string) { return prisma.todo.delete({ where: { id } }); }
+  async getAllTodos(options: { userId: string; page?: number; limit?: number; status?: string; priority?: string }) {
+    const page = Math.max(options.page ?? 1, 1);
+    const limit = Math.min(Math.max(options.limit ?? 10, 1), 100);
+    const filters = [options.userId, options.status ?? null, options.priority ?? null];
+
+    const where = 'user_id = $1 AND ($2::text IS NULL OR status = $2) AND ($3::text IS NULL OR priority = $3)';
+    const [rows, total] = await Promise.all([
+      query(\`SELECT * FROM todos WHERE \${where} ORDER BY created_at DESC LIMIT $4 OFFSET $5\`, [
+        ...filters,
+        limit,
+        (page - 1) * limit
+      ]),
+      query(\`SELECT COUNT(*)::int AS count FROM todos WHERE \${where}\`, filters)
+    ]);
+
+    return {
+      items: rows.rows as TodoRecord[],
+      pagination: { page, limit, total: total.rows[0].count }
+    };
+  }
+
+  async getTodoById(id: string, userId: string): Promise<TodoRecord> {
+    const result = await query('SELECT * FROM todos WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (result.rows.length === 0) {
+      throw new NotFoundError('Todo not found');
+    }
+    return result.rows[0] as TodoRecord;
+  }
+
+  async createTodo(data: TodoInput & { userId: string }): Promise<TodoRecord> {
+    const result = await query(
+      \`INSERT INTO todos (title, description, status, priority, due_date, user_id)
+       VALUES ($1, $2, COALESCE($3, 'pending'), COALESCE($4, 'medium'), $5, $6) RETURNING *\`,
+      [data.title, data.description ?? null, data.status ?? null, data.priority ?? null, data.dueDate ?? null, data.userId]
+    );
+    return result.rows[0] as TodoRecord;
+  }
+
+  async updateTodo(id: string, userId: string, updates: TodoInput): Promise<TodoRecord> {
+    const result = await query(
+      \`UPDATE todos SET
+         title = COALESCE($3, title),
+         description = COALESCE($4, description),
+         status = COALESCE($5, status),
+         priority = COALESCE($6, priority),
+         due_date = COALESCE($7, due_date)
+       WHERE id = $1 AND user_id = $2 RETURNING *\`,
+      [id, userId, updates.title ?? null, updates.description ?? null, updates.status ?? null, updates.priority ?? null, updates.dueDate ?? null]
+    );
+    if (result.rows.length === 0) {
+      throw new NotFoundError('Todo not found');
+    }
+    return result.rows[0] as TodoRecord;
+  }
+
+  async deleteTodo(id: string, userId: string): Promise<void> {
+    const result = await query('DELETE FROM todos WHERE id = $1 AND user_id = $2', [id, userId]);
+    if (result.rowCount === 0) {
+      throw new NotFoundError('Todo not found');
+    }
+  }
+
+  async bulkDelete(ids: string[], userId: string): Promise<number> {
+    const result = await query('DELETE FROM todos WHERE id = ANY($1::uuid[]) AND user_id = $2', [ids, userId]);
+    return result.rowCount ?? 0;
+  }
+
+  async bulkUpdate(ids: string[], userId: string, updates: TodoInput): Promise<number> {
+    const result = await query(
+      \`UPDATE todos SET
+         status = COALESCE($3, status),
+         priority = COALESCE($4, priority)
+       WHERE id = ANY($1::uuid[]) AND user_id = $2\`,
+      [ids, userId, updates.status ?? null, updates.priority ?? null]
+    );
+    return result.rowCount ?? 0;
+  }
 }
 `,
     'src/services/auth.service.ts': `import * as bcrypt from 'bcryptjs';
@@ -2535,9 +2719,7 @@ describe('Auth API', () => {
 });`,
 
     // GraphQL schema (type definitions)
-    'src/graphql/schema.ts': `import { gql } from '@apollo/server';
-
-export const typeDefs = gql\`
+    'src/graphql/schema.ts': `export const typeDefs = \`#graphql
   type Query {
     hello: String!
     health: String!
@@ -2697,6 +2879,53 @@ src/
 ## License
 
 MIT
+`,
+
+    'src/utils/cookies.ts': `import * as restify from 'restify';
+
+export interface CookieOptions {
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: 'strict' | 'lax' | 'none';
+  /** Lifetime in milliseconds. */
+  maxAge?: number;
+  path?: string;
+}
+
+/** Parse the Cookie header into a name/value map. */
+export function readCookies(req: restify.Request): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  for (const part of (req.headers.cookie ?? '').split(';')) {
+    const index = part.indexOf('=');
+    if (index > 0) {
+      cookies[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim());
+    }
+  }
+  return cookies;
+}
+
+/** Add a Set-Cookie header to the response. */
+export function setCookie(res: restify.Response, name: string, value: string, options: CookieOptions = {}): void {
+  const attributes = [\`\${name}=\${encodeURIComponent(value)}\`, \`Path=\${options.path ?? '/'}\`];
+  if (options.maxAge !== undefined) attributes.push(\`Max-Age=\${Math.floor(options.maxAge / 1000)}\`);
+  if (options.httpOnly) attributes.push('HttpOnly');
+  if (options.secure) attributes.push('Secure');
+  if (options.sameSite) attributes.push(\`SameSite=\${options.sameSite[0].toUpperCase()}\${options.sameSite.slice(1)}\`);
+  const cookie = attributes.join('; ');
+  const existing = res.getHeader('Set-Cookie');
+  if (Array.isArray(existing)) {
+    res.setHeader('Set-Cookie', [...existing, cookie]);
+  } else if (existing) {
+    res.setHeader('Set-Cookie', [String(existing), cookie]);
+  } else {
+    res.setHeader('Set-Cookie', cookie);
+  }
+}
+
+/** Expire a cookie. */
+export function clearCookie(res: restify.Response, name: string): void {
+  setCookie(res, name, '', { maxAge: 0, httpOnly: true });
+}
 `
   }
 };

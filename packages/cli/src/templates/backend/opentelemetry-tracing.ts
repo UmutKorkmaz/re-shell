@@ -40,13 +40,23 @@ export const openTelemetryTracingTemplate: BackendTemplate = {
     'src/tracing/index.ts': `import { NodeSDK } from '@opentelemetry/sdk-node';
 import { Resource } from '@opentelemetry/resources';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { BatchMetricReader } from '@opentelemetry/sdk-metrics';
-import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
-import { ConsoleSpanExporter, ConsoleMetricExporter } from '@opentelemetry/sdk-trace-node';
+import {
+  BatchSpanProcessor,
+  ConsoleSpanExporter,
+  TraceIdRatioBasedSampler,
+  type SpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
+import {
+  ConsoleMetricExporter,
+  PeriodicExportingMetricReader,
+  type MetricReader,
+} from '@opentelemetry/sdk-metrics';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-grpc';
-import { InstrumentationOption } from '@opentelemetry/instrumentation';
+import type { Instrumentation } from '@opentelemetry/instrumentation';
+import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
+import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
+import { GrpcInstrumentation } from '@opentelemetry/instrumentation-grpc';
 
 export interface TracingConfig {
   serviceName: string;
@@ -55,7 +65,7 @@ export interface TracingConfig {
   otlpEndpoint?: string;
   consoleExport?: boolean;
   samplingRate?: number;
-  instrumentations?: InstrumentationOption[];
+  instrumentations?: Instrumentation[];
 }
 
 export class TracingManager {
@@ -71,7 +81,7 @@ export class TracingManager {
     );
 
     // Configure exporters
-    const spanProcessors = [];
+    const spanProcessors: SpanProcessor[] = [];
 
     if (config.consoleExport) {
       spanProcessors.push(
@@ -89,41 +99,33 @@ export class TracingManager {
       );
     }
 
-    const metricReaders = [];
-
-    if (config.consoleExport) {
-      metricReaders.push(
-        new PeriodicExportingMetricReader({
-          exporter: new ConsoleMetricExporter(),
-        })
-      );
-    }
+    // NodeSDK takes a single metric reader: prefer OTLP, fall back to the console
+    let metricReader: MetricReader | undefined;
 
     if (config.otlpEndpoint) {
-      metricReaders.push(
-        new PeriodicExportingMetricReader({
-          exporter: new OTLPMetricExporter({
-            url: config.otlpEndpoint,
-          }),
-        })
-      );
+      metricReader = new PeriodicExportingMetricReader({
+        exporter: new OTLPMetricExporter({
+          url: config.otlpEndpoint,
+        }),
+      });
+    } else if (config.consoleExport) {
+      metricReader = new PeriodicExportingMetricReader({
+        exporter: new ConsoleMetricExporter(),
+      });
     }
 
     // Create SDK
     this.sdk = new NodeSDK({
       resource,
-      traceExporter: spanProcessors.length > 0 ? undefined : undefined,
-      spanProcessor: spanProcessors,
-      metricReader: metricReaders,
+      spanProcessors,
+      metricReader,
       instrumentations: config.instrumentations || [
-        '@opentelemetry/instrumentation-express',
-        '@opentelemetry/instrumentation-http',
-        '@opentelemetry/instrumentation-grpc',
+        new ExpressInstrumentation(),
+        new HttpInstrumentation(),
+        new GrpcInstrumentation(),
       ],
       sampler: config.samplingRate !== undefined
-        ? {
-            sample: config.samplingRate,
-          }
+        ? new TraceIdRatioBasedSampler(config.samplingRate)
         : undefined,
     });
 
@@ -249,7 +251,7 @@ export function traceAsync<T extends (...args: any[]) => Promise<unknown>>(
   }) as T;
 }
 `,
-    'src/tracing/decorators.ts': `import { trace, Span } from '@opentelemetry/api';
+    'src/tracing/decorators.ts': `import { trace, Span, SpanStatusCode } from '@opentelemetry/api';
 
 /**
  * Class method decorator for automatic tracing
@@ -322,13 +324,13 @@ export function TraceFunction(spanName?: string) {
   };
 }
 `,
-    'src/tracing/instrumentation.ts': `import { trace, Context, Span } from '@opentelemetry/api';
+    'src/tracing/instrumentation.ts': `import { trace, context, Span, Attributes } from '@opentelemetry/api';
 
 /**
  * Manual span creation utilities
  */
 export class ManualTracer {
-  startSpan(name: string, options?: { parent?: Span; attributes?: Record<string, unknown> }): Span {
+  startSpan(name: string, options?: { parent?: Span; attributes?: Attributes }): Span {
     const tracer = trace.getTracer('manual');
     return tracer.startSpan(name, {
       root: !options?.parent,
@@ -337,10 +339,10 @@ export class ManualTracer {
   }
 
   setActiveSpan(span: Span): void {
-    trace.setSpan(Context.active(), span);
+    trace.setSpan(context.active(), span);
   }
 
-  addEvent(name: string, attributes?: Record<string, unknown>): void {
+  addEvent(name: string, attributes?: Attributes): void {
     const span = trace.getActiveSpan();
     if (span) {
       span.addEvent(name, attributes);
@@ -364,7 +366,7 @@ export class ManualTracer {
 
 export const tracer = new ManualTracer();
 `,
-    'src/tracing/express.ts': `import { trace, Span } from '@opentelemetry/api';
+    'src/tracing/express.ts': `import { trace, context, Span, SpanStatusCode } from '@opentelemetry/api';
 import type { Router, RequestHandler } from 'express';
 
 /**
@@ -379,9 +381,11 @@ export function createTracedRouter(router: Router, routerName: string): void {
       const originalHandle = layer.handle;
       layer.handle = async (req: any, res: any, next: any) => {
         const span = trace.getActiveSpan();
-        const childSpan = tracer.startSpan(\`\${routerName}.\${layer.name}\`, {
-          parentSpan: span,
-        });
+        const childSpan = tracer.startSpan(
+          \`\${routerName}.\${layer.name}\`,
+          {},
+          span ? trace.setSpan(context.active(), span) : context.active()
+        );
 
         try {
           const result = await originalHandle(req, res, next);
@@ -419,8 +423,7 @@ export function traceRoute(handler: RequestHandler, routeName: string): RequestH
   };
 }
 `,
-    'src/tracing/database.ts': `import { trace, Span, Context, SpanContext } from '@opentelemetry/api';
-import { SpanStatusCode } from '@opentelemetry/api';
+    'src/tracing/database.ts': `import { trace, context, Span, SpanStatusCode } from '@opentelemetry/api';
 
 export interface DatabaseQueryOptions {
   query?: string;
@@ -450,7 +453,7 @@ export class DatabaseTracer {
       },
     });
 
-    return this.tracer.withSpan(span, async () => {
+    return context.with(trace.setSpan(context.active(), span), async () => {
       try {
         const result = await fn();
         span.setStatus({ code: SpanStatusCode.OK });
@@ -509,7 +512,7 @@ export class GrpcTracer {
         kind: SpanKind.SERVER,
       });
 
-      return new Promise((resolve, reject) => {
+      return new Promise<void>((resolve, reject) => {
         const next = nextCall(options);
 
         next.on('data', (data: any) => {
@@ -615,8 +618,6 @@ const tracingConfig = {
   samplingRate: parseFloat(process.env.SAMPLING_RATE || '1.0'),
 };
 
-await setupTracing(tracingConfig);
-
 // Middleware
 app.use(tracingMiddleware);
 app.use(express.json());
@@ -645,17 +646,20 @@ class UserService {
 // Error handler
 app.use(errorTracingMiddleware);
 
-// Start server
-const server = app.listen(PORT, () => {
-  console.log(\`Server running on port \${PORT}\`);
-  console.log(\`Service: \${tracingConfig.serviceName}\`);
-  console.log(\`Tracing: \${tracingConfig.otlpEndpoint ? 'Enabled' : 'Console only'}\`);
-});
+// Start server once tracing is initialized
+const serverReady = setupTracing(tracingConfig).then(() =>
+  app.listen(PORT, () => {
+    console.log(\`Server running on port \${PORT}\`);
+    console.log(\`Service: \${tracingConfig.serviceName}\`);
+    console.log(\`Tracing: \${tracingConfig.otlpEndpoint ? 'Enabled' : 'Console only'}\`);
+  })
+);
 
 // Graceful shutdown
 async function shutdown() {
   console.log('\\nShutting down gracefully...');
 
+  const server = await serverReady;
   server.close(async () => {
     await shutdownTracing();
     console.log('Server shut down');
@@ -691,7 +695,7 @@ process.on('SIGINT', shutdown);
 }
 `,
     'package.json': `{
-  "name": "{{name}}",
+  "name": "{{projectName}}",
   "version": "1.0.0",
   "description": "OpenTelemetry distributed tracing demo",
   "main": "dist/index.js",
@@ -704,17 +708,19 @@ process.on('SIGINT', shutdown);
   },
   "dependencies": {
     "express": "^4.18.2",
-    "@opentelemetry/api": "^1.7.0",
-    "@opentelemetry/sdk-node": "^0.45.0",
-    "@opentelemetry/auto-instrumentations-node": "^0.39.0",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.45.0",
-    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.45.0",
-    "@opentelemetry/exporter-logs-otlp-grpc": "^0.45.0",
-    "@opentelemetry/resources": "^1.18.0",
-    "@opentelemetry/semantic-conventions": "^1.18.0",
-    "@opentelemetry/instrumentation-express": "^0.33.0",
-    "@opentelemetry/instrumentation-http": "^0.45.0",
-    "@grpc/grpc-js": "^1.9.0"
+    "@grpc/grpc-js": "^1.9.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "~0.52.1",
+    "@opentelemetry/exporter-trace-otlp-grpc": "~0.52.1",
+    "@opentelemetry/instrumentation": "~0.52.1",
+    "@opentelemetry/instrumentation-express": "~0.41.1",
+    "@opentelemetry/instrumentation-grpc": "~0.52.1",
+    "@opentelemetry/instrumentation-http": "~0.52.1",
+    "@opentelemetry/resources": "~1.25.1",
+    "@opentelemetry/sdk-metrics": "~1.25.1",
+    "@opentelemetry/sdk-node": "~0.52.1",
+    "@opentelemetry/sdk-trace-base": "~1.25.1",
+    "@opentelemetry/semantic-conventions": "~1.25.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
@@ -722,8 +728,7 @@ process.on('SIGINT', shutdown);
     "typescript": "^5.3.3",
     "tsx": "^4.7.0"
   }
-}
-`,
+}`,
     'docker-compose.yml': `version: '3.8'
 
 services:
