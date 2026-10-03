@@ -356,6 +356,8 @@ beforeAll(async () => {
     sourcemap: false,
     logLevel: 'silent',
     alias: {
+      // The subpath alias must come first: esbuild would otherwise append "/command-registry" to the file path below.
+      '@re-shell/contracts/command-registry': path.resolve(APP_ROOT, '../../packages/contracts/src/command-registry.ts'),
       '@re-shell/contracts': path.resolve(APP_ROOT, '../../packages/contracts/src/index.ts'),
     },
   });

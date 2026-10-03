@@ -20,7 +20,8 @@ interface TemplateCardProps {
  * derived domain/framework/database facets) plus a `CommandPreview` of the
  * scaffold command with a per-card dry-run toggle that injects `--dry-run`, and
  * copy. Copy always copies the exact command currently shown. Tier-1 templates
- * get an accent glow ring so flagship templates read first in the grid.
+ * are marked by their badge and an accent border (depth comes from elevation and
+ * hairlines, never a decorative gradient).
  */
 export function TemplateCard({ template, onShowDetails }: TemplateCardProps): React.ReactElement {
   const [dryRun, setDryRun] = React.useState(false);
@@ -29,14 +30,7 @@ export function TemplateCard({ template, onShowDetails }: TemplateCardProps): Re
   const isTier1 = summary.tier === 1;
 
   return (
-    <div
-      className={cn(
-        'group relative flex flex-col gap-2 rounded-lg p-px transition-all duration-normal ease-out-expo',
-        isTier1
-          ? 'bg-gradient-to-b from-signal/30 to-transparent shadow-glow-signal'
-          : ''
-      )}
-    >
+    <div className="group relative flex flex-col gap-2">
       <TemplateCatalogCard
         className={cn('h-full', isTier1 && 'border-signal/40')}
         template={summary}
@@ -55,6 +49,7 @@ export function TemplateCard({ template, onShowDetails }: TemplateCardProps): Re
             dryRunSupported: true,
           }}
           onDryRun={() => setDryRun((prev) => !prev)}
+          headingAs="h4"
         />
       </div>
       <Button

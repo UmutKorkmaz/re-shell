@@ -49,7 +49,9 @@ export const DEFAULT_SETTINGS: Settings = {
   cliBinaryPath: 're-shell',
   daemonPort: 3333,
   telemetryOptIn: false,
-  theme: 'light',
+  // Dark is the design-system default (docs/design/dashboard-design.md); index.html applies the
+  // stored choice before the first paint so a light preference never flashes dark first.
+  theme: 'dark',
   safetyMode: true,
 };
 

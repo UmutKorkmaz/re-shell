@@ -1,17 +1,42 @@
 <!doctype html>
-<html lang="en">
+<!--
+  `dark` is the default theme (docs/design/dashboard-design.md): the class is in the markup so the
+  very first paint is already dark. The inline script below runs before the first paint and, when
+  the person chose light (or installed a theme pack), applies that BEFORE anything is drawn, so the
+  page never flashes dark and then switches. Keep its storage keys in sync with
+  src/settings/settings-store.ts and src/theme/theme-packs.ts.
+-->
+<html lang="en" class="dark" style="color-scheme: dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Re-Shell UI</title>
-    <!--
-      Web Components Note:
-      This app uses @re-shell/ui Web Components which require native customElements support.
-      For browsers without native customElements (e.g., IE11, older Edge), add a polyfill:
-      <script src="https://cdn.jsdelivr.net/npm/@webcomponents/custom-elements@1.6.0/custom-elements.min.js"></script>
-      The polyfill should be loaded before the main.tsx script.
-    -->
+    <title>Re-Shell</title>
+    <script>
+      (function () {
+        try {
+          var root = document.documentElement;
+          var raw = window.localStorage.getItem('re-shell.dashboard.settings.v1');
+          var theme = raw ? JSON.parse(raw).theme : null;
+          if (theme === 'light' || theme === 'dark') {
+            root.classList.toggle('dark', theme === 'dark');
+            root.classList.toggle('light', theme === 'light');
+            root.style.colorScheme = theme;
+          }
+          var css = window.localStorage.getItem('re-shell.dashboard.themepack-css.v1');
+          if (css) {
+            var style = document.createElement('style');
+            style.id = 're-shell-theme-pack';
+            style.textContent = css;
+            document.head.appendChild(style);
+          }
+        } catch (error) {
+          /* storage unavailable (private mode, blocked): the dark default stands */
+        }
+      })();
+    </script>
+    <!-- White-label config (title, favicon and this block are filled in at build/serve time). -->
+    <script id="re-shell-brand" type="application/json">{}</script>
   </head>
   <body>
     <div id="root"></div>

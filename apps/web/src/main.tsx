@@ -1,8 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '@re-shell/ui';
 import App from './App';
+import { BrandProvider } from './brand/BrandProvider';
 import { SettingsProvider } from './settings/useSettings';
+import { ThemePackProvider } from './theme/useThemePacks';
+// Fonts are a separate stylesheet (real, hashed woff2 files fetched on demand), not inlined CSS.
+import '@re-shell/ui/fonts.css';
 import '@re-shell/ui/styles.css';
 import './styles.css';
 
@@ -26,9 +31,15 @@ if (!rootElement) {
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <App />
-      </SettingsProvider>
+      <BrandProvider>
+        <SettingsProvider>
+          <ThemePackProvider>
+            <ToastProvider>
+              <App />
+            </ToastProvider>
+          </ThemePackProvider>
+        </SettingsProvider>
+      </BrandProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );

@@ -159,9 +159,15 @@ function CheckGroup({
     <div className="surface overflow-hidden">
       <div className="flex items-center justify-between gap-3 px-5 py-3.5">
         <div className="min-w-0">
-          <h3 className={cn('font-display text-base font-semibold tracking-tight', titleClass)}>{title}</h3>
+          <h2 className={cn('font-display text-base font-semibold tracking-tight', titleClass)}>{title}</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {checks.length === 0 ? emptyLabel : `${checks.length} check(s)`}
+            {checks.length === 0 ? (
+              emptyLabel
+            ) : (
+              <>
+                <span className="font-mono tabular-nums">{checks.length}</span> check(s)
+              </>
+            )}
           </p>
         </div>
         <span className={cn(countClass, 'font-mono tabular-nums')}>{checks.length}</span>
