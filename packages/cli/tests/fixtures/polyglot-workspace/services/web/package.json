@@ -1,0 +1,13 @@
+{
+  "name": "@acme/web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "api": "node scripts/api.js"
+  },
+  "dependencies": {
+    "@acme/api": "workspace:*",
+    "react": "^18.3.0"
+  }
+}

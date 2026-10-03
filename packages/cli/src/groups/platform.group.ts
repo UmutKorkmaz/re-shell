@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { registerPkgGroup } from './pkg.group';
+import { registerRefactorGroup } from './refactor.group';
 
 /**
  * Registers the platform command groups (R-1a): `pkg`, `debug` and `refactor`.
@@ -9,4 +10,5 @@ import { registerPkgGroup } from './pkg.group';
  */
 export function registerPlatformGroups(program: Command): void {
   registerPkgGroup(program);
+  registerRefactorGroup(program);
 }
