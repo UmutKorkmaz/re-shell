@@ -1,0 +1,7 @@
+# runtime
+requests==2.31.0
+Flask[async]>=2.3,<3 ; python_version >= "3.9"
+-r other.txt
+--index-url https://example.invalid/simple
+git+https://example.invalid/repo.git#egg=skipped
+numpy

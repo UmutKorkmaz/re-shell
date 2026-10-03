@@ -263,4 +263,23 @@ export const GROUP_MANIFEST: readonly GroupManifestEntry[] = [
     module: './groups/ui-test.group',
     register: 'registerUiTestGroup',
   },
+  {
+    name: 'pkg',
+    description:
+      'Unified package manager: add/remove/install/list/outdated across npm, pip, cargo, maven, dotnet, composer, bundler, go',
+    module: './groups/pkg.group',
+    register: 'registerPkgGroup',
+  },
+  {
+    name: 'debug',
+    description: 'Cross-language debugging configuration for workspace services',
+    module: './groups/debug.group',
+    register: 'registerDebugGroup',
+  },
+  {
+    name: 'refactor',
+    description: 'Workspace-wide refactors across languages and config files',
+    module: './groups/refactor.group',
+    register: 'registerRefactorGroup',
+  },
 ];
