@@ -1706,8 +1706,10 @@ SMTP_FROM=noreply@example.com
 
 ### Frontend SDK Example
 
+The client SDK is generated into this project's \`auth-service/client-sdk/\` folder (it is not published to npm). The imports below are relative to the project root; adjust them to wherever you copy the folder, or expose it as a workspace package.
+
 \`\`\`typescript
-import { createAuthClient } from '@re-shell/auth-client';
+import { createAuthClient } from './auth-service/client-sdk';
 
 const auth = createAuthClient({
   baseURL: 'http://localhost:3001',
@@ -1754,7 +1756,7 @@ await auth.logout();
 
 \`\`\`typescript
 import { createContext, useContext, useEffect, useState } from 'react';
-import { createAuthClient, AuthClient } from '@re-shell/auth-client';
+import { createAuthClient, AuthClient } from './auth-service/client-sdk';
 
 const AuthContext = createContext<{ auth: AuthClient } | null>(null);
 
