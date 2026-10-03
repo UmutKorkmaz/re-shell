@@ -39,6 +39,7 @@ import type { SceneInput } from './graph/exportScene';
 import { parsePollSeconds, useGraphUrlState } from './graph/useGraphUrlState';
 import { useLiveStatus } from './graph/useLiveStatus';
 import { useGraphDiff } from './graph/useGraphDiff';
+import { useDocumentColorMode } from './graph/useDocumentColorMode';
 
 const NODE_TYPES = { topology: GraphNodeCard } as const;
 // Stable props: a fresh object/function per render would make React Flow (and the
@@ -119,6 +120,7 @@ function GraphContent({ graph }: { graph: WorkspaceGraph }): React.ReactElement 
   const [exportNote, setExportNote] = React.useState<{ ok: boolean; text: string } | null>(null);
   const canvasRef = React.useRef<HTMLDivElement | null>(null);
   const rfRef = React.useRef<ReactFlowInstance<Node<GraphNodeData>> | null>(null);
+  const colorMode = useDocumentColorMode();
 
   // --- live status (polled) -------------------------------------------------
   const defaultPoll = data.nodes.length > 500 ? 30 : 5; // a status probe per node gets costly on huge workspaces
@@ -395,6 +397,7 @@ function GraphContent({ graph }: { graph: WorkspaceGraph }): React.ReactElement 
             nodes={flow.nodes}
             edges={flow.edges}
             nodeTypes={NODE_TYPES}
+            colorMode={colorMode}
             fitView
             fitViewOptions={FIT_VIEW_OPTIONS}
             minZoom={0.02}

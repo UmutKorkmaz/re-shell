@@ -87,6 +87,12 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      # Phoenix: Erlang/OTP + Elixir (mix deps.get needs hex.pm, reachable from hosted runners).
+      - if: matrix.group == 'core'
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: '27'
+          elixir-version: '1.17'
       - if: matrix.group == 'core'
         uses: oven-sh/setup-bun@v2
       - if: matrix.group == 'core'
@@ -97,6 +103,8 @@ jobs:
       # packages (CPAN is not reachable from every runner network); Lua with
       # luac -p (syntax only); the C++ templates (Drogon, cpp-httplib, Boost.Beast,
       # Pistache) build against the distribution's -dev packages, never FetchContent.
+      # Ubuntu's DrogonConfig.cmake requires the MySQL client headers even when a
+      # template does not use MySQL.
       - if: matrix.group == 'native'
         run: |
           sudo apt-get update
@@ -108,7 +116,7 @@ jobs:
             libcatalyst-plugin-session-store-file-perl libcatalyst-plugin-static-simple-perl \
             libconfig-general-perl libgraphql-perl libjson-maybexs-perl libjson-perl \
             libplack-middleware-crossorigin-perl libtest-www-mechanize-catalyst-perl libyaml-perl \
-            cmake build-essential pkg-config libdrogon-dev libpq-dev libgtest-dev libjsoncpp-dev uuid-dev \
+            cmake build-essential pkg-config libdrogon-dev libpq-dev default-libmysqlclient-dev libsqlite3-dev libgtest-dev libjsoncpp-dev uuid-dev \
             libcpp-httplib-dev libboost-dev libpistache-dev libssl-dev zlib1g-dev nlohmann-json3-dev libspdlog-dev
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build

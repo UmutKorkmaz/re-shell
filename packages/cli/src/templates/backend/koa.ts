@@ -368,6 +368,14 @@ initializeWebSocket(io);
 // services. Every step is best-effort so a never-connected Redis/DB cannot turn
 // a clean shutdown into a crash trace.
 let shuttingDown = false;
+// Bound each step: a connection attempt that is still pending (for example to a
+// database host that drops packets instead of refusing) must not hold the
+// process open until the force-exit below.
+const settleWithin = (work: Promise<unknown>, ms: number) =>
+  Promise.race([
+    work.catch(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, ms).unref())
+  ]);
 const gracefulShutdown = async (signal: string) => {
   if (shuttingDown) return;
   shuttingDown = true;
@@ -381,12 +389,12 @@ const gracefulShutdown = async (signal: string) => {
 
   try {
     // io.close() also closes the HTTP server it is attached to.
-    await new Promise<void>((resolve) => io.close(() => resolve()));
-    await apolloServer.stop().catch(() => undefined);
-    await closeDatabase().catch(() => undefined);
+    await settleWithin(new Promise<void>((resolve) => io.close(() => resolve())), 3000);
+    await settleWithin(apolloServer.stop(), 2000);
+    await settleWithin(closeDatabase(), 2000);
     // quit() on a client that never connected throws, so only quit a ready one.
     if (redis.status === 'ready') {
-      await redis.quit().catch(() => undefined);
+      await settleWithin(redis.quit(), 1000);
     } else {
       redis.disconnect();
     }

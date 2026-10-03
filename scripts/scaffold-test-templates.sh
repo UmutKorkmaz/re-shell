@@ -177,6 +177,19 @@ skip_template() {
   SKIPPED_TEMPLATES+=("$TPL ($1)")
 }
 
+# Remove a scaffolded project. A build tool can leave a background process
+# writing into it for a moment (sbt's server keeps writing target/ after
+# `sbt -batch` returns), so retry briefly and never abort the run over cleanup.
+remove_project() {
+  local i
+  for i in 1 2 3 4 5; do
+    rm -rf "$1" 2>/dev/null && return 0
+    sleep 1
+  done
+  echo "  NOTE: could not fully remove $1 (a build process may still be writing to it)"
+  return 0
+}
+
 have() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -540,7 +553,7 @@ for TPL in "${TEMPLATES[@]}"; do
         ;;
     esac
     cd "$REPO_ROOT"
-    rm -rf "$PROJ_DIR"
+    remove_project "$PROJ_DIR"
     continue
   fi
 
@@ -595,7 +608,7 @@ for TPL in "${TEMPLATES[@]}"; do
     echo "  ✓ Tests passed"
     PASS=$((PASS + 1))
     cd "$REPO_ROOT"
-    rm -rf "$PROJ_DIR"
+    remove_project "$PROJ_DIR"
     continue
   fi
 
@@ -645,7 +658,7 @@ for TPL in "${TEMPLATES[@]}"; do
     echo "  ✓ JavaScript syntax and imports verified ($JS_COUNT files)"
     PASS=$((PASS + 1))
     cd "$REPO_ROOT"
-    rm -rf "$PROJ_DIR"
+    remove_project "$PROJ_DIR"
     continue
   fi
 
@@ -666,7 +679,7 @@ for TPL in "${TEMPLATES[@]}"; do
   fi
 
   cd "$REPO_ROOT"
-  rm -rf "$PROJ_DIR"
+  remove_project "$PROJ_DIR"
 done
 
 echo ""
