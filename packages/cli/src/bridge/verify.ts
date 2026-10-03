@@ -43,7 +43,7 @@ function nodeModulesWith(pkg: string): string | undefined {
   return undefined;
 }
 
-function copyBundle(root: string): string {
+export function copyBundle(root: string): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-verify-'));
   fs.cpSync(root, tmp, {
     recursive: true,
@@ -60,8 +60,8 @@ function readProtocol(dir: string): string | undefined {
   }
 }
 
-function verifyTypeScript(dir: string): VerifyResult {
-  const entry = path.join(dir, 'ts', 'client.ts');
+export function verifyTypeScript(dir: string, entryRel = 'ts/client.ts'): VerifyResult {
+  const entry = path.join(dir, ...entryRel.split('/'));
   if (!fs.existsSync(entry)) {
     return { language: 'ts', tool: 'tsc --strict', status: 'skipped', detail: 'no TypeScript client was generated' };
   }
@@ -124,7 +124,7 @@ function listPy(dir: string): string[] {
   return out;
 }
 
-function verifyPython(dir: string, protocol: string | undefined): VerifyResult[] {
+export function verifyPython(dir: string, protocol: string | undefined): VerifyResult[] {
   const pyFiles = listPy(dir);
   if (pyFiles.length === 0) {
     return [{ language: 'python', tool: 'python3 -m py_compile', status: 'skipped', detail: 'no Python client was generated' }];

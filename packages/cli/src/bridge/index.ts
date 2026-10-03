@@ -6,12 +6,14 @@
 //   re-shell service validate
 //   re-shell service bridge diff --base <spec> --head <spec>
 //   re-shell service bridge mock --spec <file...>
+//   re-shell service bridge async --transport kafka|redis-streams
 //   re-shell service bridge gateway --services a,b | --subgraph name=sdl[@url]
 
 import { Command } from 'commander';
 
 import { createAsyncCommand, withTimeout } from '../utils/error-handler';
 import { runDiff, runLink, runUnlink, runValidate } from './commands';
+import { runAsync } from './async/command';
 import { runGateway } from './gateway-command';
 import { runMock } from './mock-command';
 
@@ -153,6 +155,41 @@ export function registerBridgeCommands(serviceCommand: Command, bridgeCommand: C
           configPath: options.config,
           json: options.json,
         });
+      })
+    );
+  bridgeCommand
+    .command('async')
+    .description(
+      'Generate typed async producers/consumers (Kafka or Redis Streams) from an async contract: envelopes with correlationId/schemaVersion/traceparent, version upcasters, discovery, circuit breaker + retry, dead-letter channels'
+    )
+    .option('--transport <transport>', 'kafka | redis-streams')
+    .option('--spec <file>', 'Async contract (default: ./async.yaml)')
+    .option('--service <name>', 'Service name (default: from the contract)')
+    .option('--lang <langs>', 'ts,python (default: ts,python for redis-streams; ts for kafka)')
+    .option('--out <dir>', 'Directory to write the package into')
+    .option('--dry-run', 'Generate in memory, write nothing')
+    .option('--verify', 'Type-check the TypeScript output with tsc and the Python output with py_compile + mypy')
+    .option('--init', 'Write a starter async.yaml (does not overwrite)')
+    .option('--config <file>', 'Workspace config path (used to emit services.registry.json)')
+    .option('--json', 'Emit a machine-readable JSON envelope')
+    .action(
+      createAsyncCommand(async options => {
+        await withTimeout(
+          () =>
+            runAsync({
+              transport: options.transport,
+              spec: options.spec,
+              service: options.service,
+              lang: options.lang,
+              out: options.out,
+              dryRun: options.dryRun,
+              verify: options.verify,
+              init: options.init,
+              configPath: options.config,
+              json: options.json,
+            }),
+          600000
+        );
       })
     );
 }
