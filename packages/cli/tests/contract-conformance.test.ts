@@ -19,7 +19,7 @@ import {
   microfrontendListWireSchema,
 } from '@re-shell/contracts';
 // @ts-expect-error -- plain ESM script (no type declarations); see scripts/gen-cli-contracts.mjs
-import { findUndeclaredKeys, generateDoc, describeDifference, DOC_PATH, REGENERATE_COMMAND } from '../scripts/gen-cli-contracts.mjs';
+import { buildFixtureWorkspace, findUndeclaredKeys, generateDoc, describeDifference, DOC_PATH, REGENERATE_COMMAND } from '../scripts/gen-cli-contracts.mjs';
 
 /**
  * Contract conformance regression suite.
@@ -170,6 +170,7 @@ const FIND_QUERIES = {
 
 describe('contract conformance: --json envelope + data shapes', () => {
   let emptyDir: string;
+  let fixtureParent: string;
   let runs: Record<string, RunResult>;
 
   beforeAll(async () => {
@@ -199,10 +200,12 @@ describe('contract conformance: --json envelope + data shapes', () => {
       ['healthOutside', ['workspace', 'health', '--json'], emptyDir],
       ['findBadType', ['find', 'anything', '--type', '__nope__', '--json']],
     ];
-    // `doctor` at the monorepo root shells out to `npm audit` / `npm outdated` and
-    // has its own 120s operation timeout, so it runs ALONE (never competing with
-    // the pool for CPU), before everything else.
-    const doctor = await runCliAsync(['doctor', '--json']);
+    // `doctor` shells out to `npm audit` / `npm outdated` per workspace and has its
+    // own 120s operation timeout; at this repository's root that takes over a
+    // minute on an idle machine. It runs against a small real fixture workspace
+    // instead (same checks, same output shape), alone before the pool starts.
+    fixtureParent = fs.mkdtempSync(path.join(os.tmpdir(), 'rs-conformance-fx-'));
+    const doctor = await runCliAsync(['doctor', '--json'], buildFixtureWorkspace(fixtureParent));
 
     const results = await mapLimited(jobs, 4, ([, args, cwd]) => runCliAsync(args, cwd));
     runs = { doctor, ...Object.fromEntries(jobs.map(([key], index) => [key, results[index]])) };
@@ -210,6 +213,7 @@ describe('contract conformance: --json envelope + data shapes', () => {
 
   afterAll(() => {
     fs.rmSync(emptyDir, { recursive: true, force: true });
+    fs.rmSync(fixtureParent, { recursive: true, force: true });
   });
 
   // --- OK-path shape conformance -----------------------------------------
