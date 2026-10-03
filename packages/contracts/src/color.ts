@@ -115,6 +115,18 @@ export function parseColorToLinearRgb(input: string): LinearRgb | null {
   return parseHexToLinearRgb(trimmed);
 }
 
+/** Linear light (0..1) -> sRGB-encoded byte (0..255). */
+function linearToSrgbByte(value: number): number {
+  const v = value <= 0.0031308 ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055;
+  return Math.round(Math.min(1, Math.max(0, v)) * 255);
+}
+
+/** Convert a clipped linear-light colour to `#rrggbb`. */
+export function linearRgbToHex({ r, g, b }: LinearRgb): string {
+  const byte = (v: number): string => linearToSrgbByte(v).toString(16).padStart(2, '0');
+  return `#${byte(r)}${byte(g)}${byte(b)}`;
+}
+
 /** WCAG 2.x relative luminance of a linear-light sRGB colour. */
 export function relativeLuminance({ r, g, b }: LinearRgb): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;

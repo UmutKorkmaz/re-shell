@@ -1,17 +1,3 @@
-/* ---------------------------------------------------------------------------
- * Self-hosted fonts (offline-safe — bundled via @fontsource, NO Google CDN).
- * Body: Inter · Display/labels: Space Grotesk · Data/mono: JetBrains Mono.
- * ------------------------------------------------------------------------- */
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
-@import '@fontsource/space-grotesk/500.css';
-@import '@fontsource/space-grotesk/600.css';
-@import '@fontsource/space-grotesk/700.css';
-@import '@fontsource/jetbrains-mono/400.css';
-@import '@fontsource/jetbrains-mono/500.css';
-@import '@fontsource/jetbrains-mono/700.css';
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -65,6 +51,8 @@
     /* lines & fields */
     --border: oklch(0.3 0.012 265 / 0.55);
     --border-strong: oklch(0.4 0.014 265 / 0.7);
+    /* control boundary / off-state: >= 3:1 on every surface (WCAG 1.4.11) */
+    --control: oklch(0.55 0.014 265);
     --input: oklch(0.27 0.014 265);
     --ring: oklch(0.86 0.21 130);
 
@@ -77,23 +65,26 @@
     --status-warn-foreground: oklch(0.2 0.05 85);
     --status-warn-glow: oklch(0.83 0.16 85 / 0.3);
 
-    --status-critical: oklch(0.66 0.21 25);
-    --status-critical-foreground: oklch(0.97 0.01 25);
-    --status-critical-glow: oklch(0.66 0.21 25 / 0.32);
+    --status-critical: oklch(0.78 0.14 25);
+    --status-critical-foreground: oklch(0.16 0.03 25);
+    --status-critical-glow: oklch(0.78 0.14 25 / 0.32);
 
     --status-info: oklch(0.75 0.13 235);
     --status-info-foreground: oklch(0.18 0.04 235);
     --status-info-glow: oklch(0.75 0.13 235 / 0.3);
 
     /* destructive == critical for shadcn */
-    --destructive: oklch(0.66 0.21 25);
-    --destructive-foreground: oklch(0.97 0.01 25);
+    --destructive: oklch(0.55 0.21 25);
+    --destructive-foreground: oklch(0.99 0.01 25);
 
     /* inner top highlight used in elevation shadows */
     --hairline-top: oklch(1 0 0 / 0.06);
 
     /* radius + motion */
     --radius: 0.625rem;
+    --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
     --dur-fast: 120ms;
     --dur-normal: 200ms;
     --dur-slow: 360ms;
@@ -122,9 +113,9 @@
     --secondary: oklch(0.95 0.005 265);
     --secondary-foreground: oklch(0.21 0.015 265);
 
-    --signal: oklch(0.74 0.18 130);
-    --signal-foreground: oklch(0.18 0.04 130);
-    --signal-glow: oklch(0.74 0.18 130 / 0.28);
+    --signal: oklch(0.5 0.14 130);
+    --signal-foreground: oklch(0.99 0.01 130);
+    --signal-glow: oklch(0.5 0.14 130 / 0.28);
 
     --primary: oklch(0.74 0.18 130);
     --primary-foreground: oklch(0.16 0.03 130);
@@ -134,24 +125,25 @@
 
     --border: oklch(0.86 0.008 265 / 0.9);
     --border-strong: oklch(0.78 0.01 265);
+    --control: oklch(0.58 0.012 265);
     --input: oklch(0.9 0.006 265);
-    --ring: oklch(0.74 0.18 130);
+    --ring: oklch(0.5 0.14 130);
 
-    --status-healthy: oklch(0.62 0.16 150);
+    --status-healthy: oklch(0.49 0.14 150);
     --status-healthy-foreground: oklch(0.99 0.01 150);
-    --status-healthy-glow: oklch(0.62 0.16 150 / 0.22);
+    --status-healthy-glow: oklch(0.49 0.14 150 / 0.22);
 
-    --status-warn: oklch(0.7 0.15 75);
-    --status-warn-foreground: oklch(0.99 0.01 75);
-    --status-warn-glow: oklch(0.7 0.15 75 / 0.22);
+    --status-warn: oklch(0.51 0.11 72);
+    --status-warn-foreground: oklch(0.99 0.01 72);
+    --status-warn-glow: oklch(0.51 0.11 72 / 0.22);
 
-    --status-critical: oklch(0.55 0.21 25);
+    --status-critical: oklch(0.53 0.2 25);
     --status-critical-foreground: oklch(0.99 0.01 25);
-    --status-critical-glow: oklch(0.55 0.21 25 / 0.22);
+    --status-critical-glow: oklch(0.53 0.2 25 / 0.22);
 
-    --status-info: oklch(0.58 0.15 235);
+    --status-info: oklch(0.49 0.14 235);
     --status-info-foreground: oklch(0.99 0.01 235);
-    --status-info-glow: oklch(0.58 0.15 235 / 0.22);
+    --status-info-glow: oklch(0.49 0.14 235 / 0.22);
 
     --destructive: oklch(0.55 0.21 25);
     --destructive-foreground: oklch(0.99 0.01 25);
@@ -163,84 +155,101 @@
   @supports not (color: oklch(0 0 0)) {
     :root,
     .dark {
-      --bg-0: #0c0e12;
-      --bg-1: #14171d;
-      --bg-2: #1c2028;
-      --bg-3: #262b35;
-      --background: #0c0e12;
-      --foreground: #f0f1f4;
-      --card: #14171d;
-      --card-foreground: #f0f1f4;
-      --popover: #1c2028;
-      --popover-foreground: #f0f1f4;
-      --muted: #1c2028;
-      --muted-foreground: #9aa0ab;
-      --secondary: #1c2028;
-      --secondary-foreground: #f0f1f4;
-      --signal: #c4f042;
-      --signal-foreground: #14180a;
-      --signal-glow: rgba(196, 240, 66, 0.35);
-      --primary: #c4f042;
-      --primary-foreground: #14180a;
-      --accent: #1f240f;
-      --accent-foreground: #dbe9a0;
-      --border: rgba(53, 58, 68, 0.55);
-      --border-strong: rgba(78, 84, 96, 0.7);
-      --input: #262b35;
-      --ring: #c4f042;
-      --status-healthy: #5fd49a;
-      --status-healthy-foreground: #0a160f;
-      --status-healthy-glow: rgba(95, 212, 154, 0.3);
-      --status-warn: #f0c64a;
-      --status-warn-foreground: #1a1404;
-      --status-warn-glow: rgba(240, 198, 74, 0.3);
-      --status-critical: #f0584e;
-      --status-critical-foreground: #fdeceb;
-      --status-critical-glow: rgba(240, 88, 78, 0.32);
-      --status-info: #5fb6ec;
-      --status-info-foreground: #08151f;
-      --status-info-glow: rgba(95, 182, 236, 0.3);
-      --destructive: #f0584e;
-      --destructive-foreground: #fdeceb;
+      --bg-0: #0b0d13;
+      --bg-1: #11141a;
+      --bg-2: #1a1d24;
+      --bg-3: #23262e;
+      --background: #0b0d13;
+      --foreground: #f0f2f6;
+      --card: #11141a;
+      --card-foreground: #f0f2f6;
+      --popover: #1a1d24;
+      --popover-foreground: #f0f2f6;
+      --muted: #1a1d24;
+      --muted-foreground: #8f929a;
+      --secondary: #1a1d24;
+      --secondary-foreground: #f0f2f6;
+      --signal: #a2eb3c;
+      --signal-foreground: #0c1503;
+      --signal-glow: rgba(162, 235, 60, 0.35);
+      --primary: #a2eb3c;
+      --primary-foreground: #0c1503;
+      --accent: #1c2117;
+      --accent-foreground: #caf59f;
+      --border: rgba(43, 46, 52, 0.55);
+      --border-strong: rgba(68, 72, 79, 0.7);
+      --control: #6d727a;
+      --input: #23262d;
+      --ring: #a2eb3c;
+      --status-healthy: #5edb81;
+      --status-healthy-foreground: #041608;
+      --status-healthy-glow: rgba(94, 219, 129, 0.3);
+      --status-warn: #f7be2b;
+      --status-warn-foreground: #201300;
+      --status-warn-glow: rgba(247, 190, 43, 0.3);
+      --status-critical: #ff9189;
+      --status-critical-foreground: #180807;
+      --status-critical-glow: rgba(255, 145, 137, 0.32);
+      --status-info: #4abaf4;
+      --status-info-foreground: #001421;
+      --status-info-glow: rgba(74, 186, 244, 0.3);
+      --destructive: #d01c29;
+      --destructive-foreground: #fff9f8;
       --hairline-top: rgba(255, 255, 255, 0.06);
     }
     .light {
-      --bg-0: #f4f5f7;
-      --bg-1: #fbfbfc;
+      --bg-0: #f4f5f8;
+      --bg-1: #fbfcfd;
       --bg-2: #ffffff;
       --bg-3: #ffffff;
-      --background: #f4f5f7;
-      --foreground: #1d2129;
-      --card: #fbfbfc;
-      --card-foreground: #1d2129;
+      --background: #f4f5f8;
+      --foreground: #15181f;
+      --card: #fbfcfd;
+      --card-foreground: #15181f;
       --popover: #ffffff;
-      --popover-foreground: #1d2129;
-      --muted: #eceef1;
-      --muted-foreground: #646b76;
-      --secondary: #eceef1;
-      --secondary-foreground: #1d2129;
-      --signal: #8fb834;
-      --signal-foreground: #14180a;
-      --signal-glow: rgba(143, 184, 52, 0.28);
-      --primary: #8fb834;
-      --primary-foreground: #11140a;
-      --accent: #e9f2cf;
-      --accent-foreground: #4d5e1f;
-      --border: #d4d7dd;
-      --border-strong: #b6bbc4;
-      --input: #e1e3e8;
-      --ring: #8fb834;
-      --status-healthy: #2f9e6a;
-      --status-warn: #c98a16;
-      --status-critical: #d23b32;
-      --status-info: #2b82c4;
-      --destructive: #d23b32;
+      --popover-foreground: #15181f;
+      --muted: #edeef2;
+      --muted-foreground: #55585f;
+      --secondary: #edeef2;
+      --secondary-foreground: #15181f;
+      --signal: #477200;
+      --signal-foreground: #f9fdf6;
+      --signal-glow: rgba(71, 114, 0, 0.28);
+      --primary: #84c030;
+      --primary-foreground: #091003;
+      --accent: #e0f3d0;
+      --accent-foreground: #284400;
+      --border: rgba(206, 209, 214, 0.9);
+      --border-strong: #b4b7be;
+      --control: #777a82;
+      --input: #dcdee2;
+      --ring: #477200;
+      --status-healthy: #007531;
+      --status-healthy-foreground: #f7fef8;
+      --status-healthy-glow: rgba(0, 117, 49, 0.22);
+      --status-warn: #8c5a00;
+      --status-warn-foreground: #fffbf5;
+      --status-warn-glow: rgba(140, 90, 0, 0.22);
+      --status-critical: #c51d28;
+      --status-critical-foreground: #fff9f8;
+      --status-critical-glow: rgba(197, 29, 40, 0.22);
+      --status-info: #006aa3;
+      --status-info-foreground: #f6fdff;
+      --status-info-glow: rgba(0, 106, 163, 0.22);
+      --destructive: #d01c29;
+      --destructive-foreground: #fff9f8;
       --hairline-top: rgba(255, 255, 255, 0.8);
     }
   }
 
   * {
     @apply border-border;
+  }
+
+  /* Baseline keyboard focus indicator for anything a component does not style. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 
   body {

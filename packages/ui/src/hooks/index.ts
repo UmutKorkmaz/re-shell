@@ -20,3 +20,5 @@ export type { UseHubQueryOptions } from './useHubQuery';
 
 export { useJob } from './useJob';
 export type { JobLine, UseJobResult, UseJobOptions } from './useJob';
+
+export { useChangeFlash, LOG_FLASH_CLASS } from './useChangeFlash';

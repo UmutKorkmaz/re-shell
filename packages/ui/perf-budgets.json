@@ -1,0 +1,41 @@
+{
+  "root": "dist",
+  "budgets": [
+    { "name": "stylesheet (index.css)", "match": "index.css", "maxGzipBytes": 9216 },
+    { "name": "fonts.css", "match": "fonts.css", "maxGzipBytes": 1024 },
+    { "name": "ES graph (all modules)", "match": "**/*.js", "maxGzipBytes": 40960 },
+    { "name": "each component module", "match": "components/*/*.js", "maxGzipBytes": 4096, "each": true }
+  ],
+  "treeShake": [
+    {
+      "name": "Button only (root entry)",
+      "source": "import { Button } from './index.js'; console.log(Button);",
+      "maxGzipBytes": 1024,
+      "mustNotContain": ["ToastProvider", "SheetContent", "useHubStream", "JobLogPanel", "TooltipContent"]
+    },
+    {
+      "name": "Badge + Card (root entry)",
+      "source": "import { Badge, Card, CardTitle } from './index.js'; console.log(Badge, Card, CardTitle);",
+      "maxGzipBytes": 2560,
+      "mustNotContain": ["ToastProvider", "SheetContent", "useHubStream", "JobLogPanel", "Button"]
+    },
+    {
+      "name": "layout primitives (sub-path entry)",
+      "source": "import { Box, Stack, Text } from './components/primitives/index.js'; console.log(Box, Stack, Text);",
+      "maxGzipBytes": 3072,
+      "mustNotContain": ["ToastProvider", "SheetContent", "useHubStream", "CardTitle"]
+    },
+    {
+      "name": "unit helpers only (lib sub-path)",
+      "source": "import { px, rem } from './lib/index.js'; console.log(px(1), rem(1));",
+      "maxGzipBytes": 2048,
+      "mustNotContain": ["ToastProvider", "SheetContent", "formatCommand"]
+    },
+    {
+      "name": "deep import of one module",
+      "source": "import { Alert } from './components/ui/alert.js'; console.log(Alert);",
+      "maxGzipBytes": 1536,
+      "mustNotContain": ["ToastProvider", "SheetContent", "Badge"]
+    }
+  ]
+}
