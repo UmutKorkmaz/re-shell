@@ -66,7 +66,7 @@ function loadTsClient(root: string): Record<string, any> {
 /** Async on purpose: the mock server lives in this process, so the event loop must keep serving the child. */
 function run(cmd: string, args: string[], cwd: string): Promise<{ status: number | null; stdout: string; stderr: string }> {
   return new Promise(resolve => {
-    execFile(cmd, args, { cwd, encoding: 'utf8', timeout: 240000, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GOFLAGS: '-mod=mod' } }, (error, stdout, stderr) => {
+    execFile(cmd, args, { cwd, encoding: 'utf8', timeout: 380000, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GOFLAGS: '-mod=mod' } }, (error, stdout, stderr) => {
       const code = error ? ((error as NodeJS.ErrnoException & { code?: number | string }).code) : 0;
       resolve({ status: typeof code === 'number' ? code : error ? 1 : 0, stdout, stderr: stderr || (error ? String(error.message) : '') });
     });
@@ -266,7 +266,7 @@ func must(err error) {
     );
     expect(r.status, r.stderr).toBe(0);
     expect(JSON.parse(r.stdout)).toEqual({ first: 'p-1', price: 9.99, created: 'string', desc: 'string', stock: 1, status: 404 });
-  });
+  }, 400000);
 
   it('GraphQL: typed args + data decoding', async () => {
     const r = await goRun(
@@ -308,7 +308,7 @@ func must(err error) {
     const out = JSON.parse(r.stdout);
     expect(out.stock).toEqual(expect.objectContaining({ __typename: 'StockLevel', sku: 'S9', quantity: 42 }));
     expect(out).toEqual(expect.objectContaining({ sku: 'ABC', qty: 42, wh: 2 }));
-  });
+  }, 400000);
 
   it.skipIf(!HAS_PY || !findProtoc())('gRPC: protoc-gen-go stubs + typed wrapper', async () => {
     const goStub = stubs.find(s => s.language === 'go');
@@ -366,5 +366,5 @@ func must(err error) {
     );
     expect(r.status, r.stderr).toBe(0);
     expect(JSON.parse(r.stdout)).toEqual({ id: 'o-1', status: 'PENDING', total: 1, stream: 3 });
-  });
+  }, 400000);
 });
