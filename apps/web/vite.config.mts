@@ -31,6 +31,15 @@ export default defineConfig({
           return;
         }
 
+        // Under `tauri dev` the Tauri CLI exports TAURI_ENV_PLATFORM to the dev
+        // command. The desktop shell spawns and owns its own hub (random port +
+        // token, injected into the webview at runtime), so this plugin must not
+        // start a second, token-less one.
+        if (process.env.TAURI_ENV_PLATFORM) {
+          console.log('[hub-server] Desktop shell owns the hub; not starting one here');
+          return;
+        }
+
         const hub = await loadHubServer();
         if (!hub) {
           console.warn('[hub-server] hub-server.ts not found, skipping hub server startup');
