@@ -1,8 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import * as React from 'react';
 import { render } from 'ink-testing-library';
 import type { GraphModel } from '@re-shell/contracts';
-import { GraphExplorer, loadExplorerRuntime } from '../../src/commands/graph-explore';
+import { GraphExplorer, loadExplorerData, loadExplorerRuntime, loadStatusMap } from '../../src/commands/graph-explore';
+import { watchWorkspaceChanges, type WorkspaceChangeKind } from '../../src/utils/graph-explorer-watch';
 import type { ExplorerData, ExplorerStatus } from '../../src/utils/graph-explorer-state';
 import { syntheticGraph, syntheticStatuses } from '../utils/synthetic-graph';
 
@@ -212,6 +216,47 @@ describe('GraphExplorer (ink)', () => {
     expect(loadGraphCalls).toBe(1);
     unmount();
     expect(notify).toBeUndefined(); // unsubscribed on unmount
+  });
+
+  it('end to end: editing a package.json on disk refreshes the explorer through the real watcher and loaders', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rs-explore-live-'));
+    const write = (rel: string, pkg: Record<string, unknown>) => {
+      fs.mkdirSync(path.join(root, rel), { recursive: true });
+      fs.writeFileSync(path.join(root, rel, 'package.json'), JSON.stringify(pkg));
+    };
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'root', workspaces: ['apps/*', 'packages/*'] }));
+    write('apps/web', { name: 'web', dependencies: { core: '*' } });
+    write('packages/core', { name: 'core' });
+
+    const subscribers = new Set<(kinds: ReadonlySet<WorkspaceChangeKind>) => void>();
+    const close = await watchWorkspaceChanges(root, (kinds) => subscribers.forEach((cb) => cb(kinds)), { debounceMs: 80, usePolling: true });
+    const initial = await loadExplorerData(root, true);
+    const { lastFrame, unmount } = mount({
+      initial,
+      loadGraph: () => loadExplorerData(root, true),
+      loadStatuses: () => loadStatusMap(root),
+      subscribe: (cb) => {
+        subscribers.add(cb);
+        return () => subscribers.delete(cb);
+      },
+    });
+    try {
+      expect(lastFrame()).toContain('2/2 nodes');
+      expect(lastFrame()).not.toContain('late-addition');
+
+      // A new workspace appears on disk...
+      write('packages/late-addition', { name: 'late-addition', dependencies: { core: '*' } });
+      const grown = await until(lastFrame, (f) => f.includes('3/3 nodes') && f.includes('late-addition'), 15000);
+      expect(grown).toContain('2 edges'); // web->core, late-addition->core
+
+      // ...and an edited manifest changes the edges.
+      write('apps/web', { name: 'web' });
+      await until(lastFrame, (f) => f.includes('1 edges'), 15000);
+    } finally {
+      unmount();
+      await close();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('surfaces a failed refresh instead of hiding it', async () => {
