@@ -98,6 +98,7 @@ function clamp01(n: number): number {
 }
 
 function sanitizeText(text: string, max: number): string {
+  // eslint-disable-next-line no-control-regex
   return text.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 

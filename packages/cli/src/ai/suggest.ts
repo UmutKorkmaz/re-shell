@@ -60,6 +60,8 @@ const KIND_WEIGHT: Readonly<Record<SuggestionKind, number>> = {
 
 const MIN_REPORTED_CONFIDENCE = 0.15;
 const DEFAULT_LIMIT = 8;
+/** Confidence margin by which a history phrasing beats another pool for the same command. */
+const HISTORY_TIE_MARGIN = 0.1;
 /** Characters of partial at which the length factor saturates. */
 const FULL_LENGTH_FACTOR_AT = 6;
 
@@ -205,7 +207,12 @@ export function suggest(partial: string, input: SuggestInput): Suggestion[] {
     if (confidence < MIN_REPORTED_CONFIDENCE) continue;
     const key = `${p.argv.join(' ')}`;
     const existing = best.get(key);
-    if (existing && existing.confidence >= confidence) continue;
+    if (existing) {
+      // Same command from two pools: the user's own phrasing wins unless the
+      // other candidate is clearly the better match.
+      const historyBonus = (k: SuggestionKind): number => (k === 'history' ? HISTORY_TIE_MARGIN : 0);
+      if (existing.confidence + historyBonus(existing.kind) >= confidence + historyBonus(p.kind)) continue;
+    }
     best.set(key, {
       text: p.text,
       kind: p.kind,

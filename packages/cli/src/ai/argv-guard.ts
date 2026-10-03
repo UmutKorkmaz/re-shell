@@ -159,6 +159,7 @@ export function vetArgv(
       typeof token !== 'string' ||
       token.length === 0 ||
       token.length > MAX_TOKEN_LENGTH ||
+      // eslint-disable-next-line no-control-regex
       /[\s\u0000-\u001f\u007f]/.test(token)
     ) {
       return {
