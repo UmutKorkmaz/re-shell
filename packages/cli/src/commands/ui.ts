@@ -976,6 +976,22 @@ async function launchViteDev(plan: UiLaunchPlan, hubReadyTimeoutMs: number): Pro
   resolveStopReason(reason, hub);
 }
 
+/** Placeholder printed instead of the hub token when nothing is launched. */
+export const REDACTED_TOKEN = '<redacted>';
+
+/**
+ * Copy of a launch plan that is safe to print or log: the hub token (and the
+ * env vars that carry it) are replaced by {@link REDACTED_TOKEN}. A plan that
+ * is only printed (`--json`, `--dry-run`) is never launched, so its token would
+ * authenticate nothing; redacting it keeps tokens out of CI logs and transcripts.
+ */
+export function redactLaunchPlan(plan: UiLaunchPlan): UiLaunchPlan {
+  const env = Object.fromEntries(
+    Object.entries(plan.env).map(([key, value]) => [key, value === plan.hubToken ? REDACTED_TOKEN : value])
+  );
+  return { ...plan, hubToken: REDACTED_TOKEN, env };
+}
+
 /**
  * Entry point for the `re-shell ui` command. Resolves a launch plan and either
  * prints it (`--dry-run` / `--json`) or starts the dashboard + hub processes.
@@ -987,7 +1003,7 @@ export async function launchUi(options: UiCommandOptions = {}): Promise<void> {
   const plan = createUiLaunchPlan(options);
 
   if (options.json) {
-    ok(plan);
+    ok(redactLaunchPlan(plan));
     return;
   }
 
@@ -1004,7 +1020,7 @@ export async function launchUi(options: UiCommandOptions = {}): Promise<void> {
     }
     console.log(`  Dashboard: ${plan.url}`);
     console.log(`  Hub: ${plan.hubUrl} (loopback-only, token-protected)`);
-    console.log(`  Hub token: ${plan.hubToken}`);
+    console.log(`  Hub token: ${REDACTED_TOKEN} (generated fresh for each launch)`);
     return;
   }
 
