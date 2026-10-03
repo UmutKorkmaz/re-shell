@@ -18,6 +18,9 @@ export const DEFAULT_REGISTRY_URL = 'https://registry.npmjs.org';
 /** Keyword every Re-Shell plugin is expected to carry on npm. */
 export const PLUGIN_KEYWORD = 'reshell-plugin';
 
+/** Keyword every Re-Shell policy pack is expected to carry on npm. */
+export const POLICY_PACK_KEYWORD = 'reshell-policy-pack';
+
 /** Minimal global fetch type so we don't depend on DOM lib typings. */
 export type FetchLike = (
   url: string,
@@ -52,6 +55,16 @@ export interface RegistrySearchHit {
   author?: { name?: string };
   publisher?: { username?: string };
   links?: { homepage?: string; repository?: string; npm?: string };
+  /**
+   * npms-derived scores the npm search endpoint attaches to every hit
+   * (`final`, and `detail.{quality,popularity,maintenance}`, all 0-1).
+   */
+  score?: {
+    final?: number;
+    detail?: { quality?: number; popularity?: number; maintenance?: number };
+  };
+  /** Download counts, when the search endpoint reports them. */
+  downloads?: { monthly?: number; weekly?: number };
 }
 
 /** A single registry signature entry attached to a published version. */
@@ -72,6 +85,8 @@ export interface RegistryVersion {
   dependencies?: Record<string, string>;
   repository?: { url?: string } | string;
   engines?: { node?: string };
+  /** Present (a message) when the version has been deprecated. */
+  deprecated?: string;
   dist: {
     tarball: string;
     integrity?: string;
@@ -149,24 +164,44 @@ export class RegistryClient {
    * Search the registry for plugins. We bias the query toward Re-Shell plugins
    * by appending the `keywords:reshell-plugin` qualifier the npm search API
    * understands, so the result set is plugins rather than arbitrary packages.
+   * Pass another `keyword` (e.g. {@link POLICY_PACK_KEYWORD}) to search a
+   * different kind of Re-Shell package.
    *
    * @param query - Optional free-text search term.
    * @param limit - Maximum number of hits to return (clamped to 1-250).
+   * @param keyword - Keyword qualifier to scope the search to (default `reshell-plugin`).
    * @returns Matching registry search hits.
    * @throws {RegistryUnreachableError} on transport failure or non-OK status.
    */
-  async search(query: string | undefined, limit: number): Promise<RegistrySearchHit[]> {
-    const text = [query?.trim(), `keywords:${PLUGIN_KEYWORD}`].filter(Boolean).join(' ');
+  async search(
+    query: string | undefined,
+    limit: number,
+    keyword: string = PLUGIN_KEYWORD
+  ): Promise<RegistrySearchHit[]> {
+    const text = [query?.trim(), `keywords:${keyword}`].filter(Boolean).join(' ');
     const size = Math.max(1, Math.min(limit, 250));
     const url = `${this.registryUrl}/-/v1/search?text=${encodeURIComponent(text)}&size=${size}`;
 
     const body = await this.getJson(url);
-    const objects = (body as { objects?: Array<{ package?: RegistrySearchHit }> }).objects;
+    const objects = (
+      body as {
+        objects?: Array<{
+          package?: RegistrySearchHit;
+          score?: RegistrySearchHit['score'];
+          downloads?: RegistrySearchHit['downloads'];
+        }>;
+      }
+    ).objects;
     if (!Array.isArray(objects)) {
       return [];
     }
     return objects
-      .map((o) => o.package)
+      .map((o) => {
+        const hit = o.package;
+        if (!hit) return undefined;
+        // Search results carry the npms score/downloads as siblings of `package`.
+        return { ...hit, ...(o.score ? { score: o.score } : {}), ...(o.downloads ? { downloads: o.downloads } : {}) };
+      })
       .filter((p): p is RegistrySearchHit => !!p && typeof p.name === 'string');
   }
 
@@ -198,10 +233,10 @@ export class RegistryClient {
   async getVersion(name: string, versionOrTag?: string): Promise<RegistryVersion> {
     const packument = await this.getPackument(name);
     const tag = versionOrTag ?? 'latest';
+    // An unknown explicit version/tag must fail, never silently resolve to
+    // `latest` (that would install a different version than the one requested).
     const resolved =
-      packument.versions[tag] !== undefined
-        ? tag
-        : packument['dist-tags']?.[tag] ?? packument['dist-tags']?.latest;
+      packument.versions[tag] !== undefined ? tag : packument['dist-tags']?.[tag];
     if (!resolved || !packument.versions[resolved]) {
       throw new RegistryUnreachableError(
         `Version "${versionOrTag ?? 'latest'}" not found for "${name}"`,
@@ -272,10 +307,13 @@ export interface SignatureVerification {
 /**
  * Honest, gated npm registry signature verification.
  *
- * npm signs each published version with Ed25519. The signed message is
- * `"<name>@<version>:<integrity>"`; `dist.signatures[].sig` is the base64
+ * npm signs each published version with ECDSA over P-256 (SHA-256 digest; key
+ * type `ecdsa-sha2-nistp256`). The signed message is
+ * `"<name>@<version>:<integrity>"`; `dist.signatures[].sig` is the base64 DER
  * signature and the matching public key (base64 SPKI) is published at
- * `/-/npm/v1/keys`. This mirrors what the npm CLI / pacote does.
+ * `/-/npm/v1/keys`. This mirrors what the npm CLI / pacote does. Because the
+ * key type carries the algorithm, `crypto.verify(null, ...)` selects ECDSA with
+ * SHA-256 for these keys (and also accepts Ed25519 keys from other registries).
  *
  * Returns `{ verified: false, reason }` when the version has no signatures, no
  * integrity, or no signature validates against a known, unexpired key. It never

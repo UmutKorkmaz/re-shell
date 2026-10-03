@@ -17,6 +17,12 @@ import { manageChangeDetector } from '../commands/change-detector';
 import { manageChangeImpact, analyzeWorkspaceImpact } from '../commands/change-impact';
 import { manageIncrementalBuild } from '../commands/incremental-build';
 import { runPolicyCheck, runDriftCheck } from '../commands/workspace-policy';
+import {
+  runPolicySearch,
+  runPolicyInstall,
+  runPolicyList,
+  runPolicyRemove,
+} from '../commands/workspace-policy-packs';
 
 /**
  * Registers the `workspace` command group on the given CLI program.
@@ -2246,12 +2252,12 @@ export function registerWorkspaceGroup(program: Command): void {
 
   // === POLICY PACKS + READINESS SCORE (P9-G1) ===
   const policyGroup = new Command('policy')
-    .description('Evaluate declarative policy packs and compute a readiness score');
+    .description('Evaluate declarative policy packs, compute a readiness score, and install packs from the npm registry');
 
   policyGroup
     .command('check')
     .description('Check the workspace against a policy pack and compute a 0-100 readiness score')
-    .option('--pack <file>', 'Built-in pack name (recommended, baseline) or path to a YAML/JSON pack')
+    .option('--pack <name>', 'Built-in pack (recommended, baseline), an installed pack (see `policy list`), or a path to a YAML/JSON pack')
     .option('--json', 'Emit machine-readable JSON envelope to stdout')
     .action(
       createAsyncCommand(async options => {
@@ -2266,6 +2272,57 @@ export function registerWorkspaceGroup(program: Command): void {
         await withTimeout(async () => {
           await runPolicyCheck({ pack: options.pack, json: options.json, spinner });
         }, 60000); // 1 minute timeout
+      })
+    );
+
+  policyGroup
+    .command('search [query]')
+    .description('Search the npm registry for policy packs (keyword reshell-policy-pack)')
+    .option('--limit <n>', 'Maximum number of results', '20')
+    .option('--registry <url>', 'npm registry URL')
+    .option('--json', 'Emit machine-readable JSON envelope to stdout')
+    .action(
+      createAsyncCommand(async (query, options) => {
+        await withTimeout(async () => {
+          await runPolicySearch(query, options);
+        }, 60000);
+      })
+    );
+
+  policyGroup
+    .command('install <source>')
+    .description('Install a policy pack from an npm package, git URL, package directory or pack file into .re-shell/policy-packs')
+    .option('--force', 'Replace an already-installed pack of the same name')
+    .option('--dry-run', 'Resolve and validate the pack without installing it')
+    .option('--verify', 'Require registry signature verification for npm packs')
+    .option('--no-verify', 'Skip registry signature verification (explicit opt-out)')
+    .option('--registry <url>', 'npm registry URL')
+    .option('--json', 'Emit machine-readable JSON envelope to stdout')
+    .action(
+      createAsyncCommand(async (source, options) => {
+        await withTimeout(async () => {
+          await runPolicyInstall(source, options);
+        }, 120000);
+      })
+    );
+
+  policyGroup
+    .command('list')
+    .description('List built-in and installed policy packs')
+    .option('--json', 'Emit machine-readable JSON envelope to stdout')
+    .action(
+      createAsyncCommand(async options => {
+        await runPolicyList(options);
+      })
+    );
+
+  policyGroup
+    .command('remove <name>')
+    .description('Remove an installed policy pack')
+    .option('--json', 'Emit machine-readable JSON envelope to stdout')
+    .action(
+      createAsyncCommand(async (name, options) => {
+        await runPolicyRemove(name, options);
       })
     );
 

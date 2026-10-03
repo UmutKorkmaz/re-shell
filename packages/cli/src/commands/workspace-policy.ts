@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import {
   evaluatePolicyPack,
-  resolvePolicyPack,
+  resolvePolicyPackWithSource,
   type PolicyCheckResult,
 } from '../utils/policy-engine';
 import { detectDependencyDrift, type DriftResult } from '../utils/dependency-drift';
@@ -10,7 +10,7 @@ import type { ProgressSpinner } from '../utils/spinner';
 
 /** Options for the `workspace policy check` command. */
 export interface PolicyCheckCommandOptions {
-  /** Policy pack name or path to evaluate. */
+  /** Built-in pack name, installed pack name, or path to a YAML/JSON pack to evaluate. */
   pack?: string;
   /** Emit machine-readable JSON output. */
   json?: boolean;
@@ -40,13 +40,15 @@ export async function runPolicyCheck(
   if (options.json) {
     const restore = enableJsonMode();
     try {
-      const pack = await resolvePolicyPack(options.pack);
-      const result = await evaluatePolicyPack(pack, rootPath);
+      const resolved = await resolvePolicyPackWithSource(options.pack, rootPath);
+      const result = await evaluatePolicyPack(resolved.pack, rootPath);
       const warnings = result.failed
         .filter(f => f.severity === 'warning')
         .map(f => `[${f.target}] ${f.message}`);
       ok(
         {
+          pack: result.pack,
+          source: resolved.source,
           score: result.score,
           passed: result.passed,
           failed: result.failed,
@@ -67,8 +69,8 @@ export async function runPolicyCheck(
   if (options.spinner) options.spinner.stop();
 
   try {
-    const pack = await resolvePolicyPack(options.pack);
-    const result = await evaluatePolicyPack(pack, rootPath);
+    const resolved = await resolvePolicyPackWithSource(options.pack, rootPath);
+    const result = await evaluatePolicyPack(resolved.pack, rootPath);
     displayPolicyResult(result);
     if (result.hasErrors) process.exitCode = 1;
   } catch (error: unknown) {
