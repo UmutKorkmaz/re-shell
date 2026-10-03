@@ -104,7 +104,6 @@ describe('GraphExplorer (ink)', () => {
   it('searches, filters live, and Esc clears', async () => {
     const { lastFrame, stdin, unmount } = mount();
     stdin.write('/');
-    await tick();
     for (const ch of 'loop') stdin.write(ch);
     const frame = await until(lastFrame, (f) => f.includes('search: loop'));
     expect(frame).toContain('2/6 nodes');
@@ -241,7 +240,6 @@ describe('GraphExplorer (ink)', () => {
 
     const { lastFrame, stdin, unmount } = mount();
     stdin.write('/');
-    await tick();
     for (const ch of 'zzzz') stdin.write(ch);
     const frame = await until(lastFrame, (f) => f.includes('0/6 nodes'));
     expect(frame).toContain('(no matches)');
@@ -283,7 +281,6 @@ describe('GraphExplorer (ink)', () => {
     const t2 = performance.now();
     stdin.write('g');
     stdin.write('/');
-    await tick();
     for (const ch of 'group-7 pkg-0001') stdin.write(ch);
     const filtered = await until(lastFrame, (f) => /\d+\/5000 nodes/.test(f) && !f.includes('5000/5000'), 15000);
     const searchMs = performance.now() - t2;
