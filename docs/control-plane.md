@@ -361,10 +361,11 @@ on a `/data` volume, and contain no native addons (SQLite is Node's built-in
 `node:sqlite`). `HEALTHCHECK` calls `/healthz`. Behind a TLS-intercepting proxy
 pass its CA as a build secret: `--secret id=cacert,src=/path/ca.crt`. The worker
 image does not include `git`; add OS packages with
-`--build-arg WORKER_APT_PACKAGES="git"`. The CLI does not declare its `zod`
-dependency (it only resolves through monorepo hoisting), so the Dockerfile links
-the `zod` that `@re-shell/contracts` brings into the deployed CLI tree — a
-documented workaround to remove once `packages/cli` declares it.
+`--build-arg WORKER_APT_PACKAGES="git"`. `@re-shell/cli` now declares `zod` as a
+runtime dependency, which makes the Dockerfile step that links the `zod` brought in
+by `@re-shell/contracts` into the deployed CLI tree redundant. It was written when the
+CLI did not declare it, still passes (it only fails the build if no zod is found),
+and can be removed.
 
 Verified locally (Docker 29, Node 22 image): both targets build; the server
 container reports `healthy`, answers `GET /healthz` with 200 and rejects
@@ -389,9 +390,9 @@ curl -fsS http://127.0.0.1:8787/healthz
 
 ## 10. What is tested
 
-`pnpm --filter @re-shell/control-plane test` (vitest, ~270 tests, coverage gated
-at 80% and currently ~90%; CI runs it after the build because the end-to-end
-suites need the built CLI):
+`pnpm --filter @re-shell/control-plane test` (vitest; at the 2026-10-03 run: 349 tests in
+25 files, 93.1% line coverage, gated at 80%; CI runs it after the build because the
+end-to-end suites need the built CLI):
 
 - **Isolation / authz / API** against both stores (parameterized); admin writes,
   policy versions, last-admin guard; migrations (fresh, partial, newer-than-build,

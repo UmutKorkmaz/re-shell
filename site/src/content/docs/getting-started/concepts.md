@@ -19,8 +19,8 @@ many packages, apps, and services. `re-shell init` lays one down with:
 - A dependency graph engine with cycle detection and topology health checks.
 
 The [`workspace`](/re-shell/cli/workspace/) command group is your control panel:
-`summary`, `health`, `graph`, `drift`, `policy`, and the Nx/Turbo importer
-(`migrate-monorepo`).
+`summary`, `health`, `graph` (and `graph diff`), live `status`, `drift`, `policy`, and
+the Nx/Turbo importer (`migrate-monorepo`).
 
 ```bash
 re-shell workspace summary --json   # root, packageManager, workspaces, graph, health
@@ -46,12 +46,12 @@ backend.
 ```bash
 re-shell create storefront --microfrontend --framework react-ts
 re-shell generate backend orders --framework fastapi --language python
-re-shell service bridge generate   # typed cross-language client between them
+re-shell service link web orders   # a typed client of `orders`, generated from its own spec, inside `web`
 ```
 
 ## The JSON contract
 
-Every command that accepts `--json` emits a single-line envelope:
+Every command that accepts `--json` emits exactly one envelope on stdout:
 
 ```json
 { "ok": true, "data": { "...": "..." }, "warnings": [] }

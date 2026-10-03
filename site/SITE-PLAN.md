@@ -1,5 +1,11 @@
 # Re-Shell Site — Plan (W15-1)
 
+> **Historical planning note.** The numbers and versions in this document (205 templates,
+> `0.29.2`, "27 command groups", "~43ms startup") are from the 2026-06 planning pass and
+> are out of date. The live values are on the site itself and in `docs/ROADMAP.md`
+> (208 templates, CLI `0.31.0` in the tree, 585 command paths in 46 top-level commands,
+> `--version` about 45 ms). Kept as a record of the design intent.
+
 > Marketing landing + docs for **Re-Shell** built on **Astro + Starlight**, deployed to the GitHub
 > Pages project page `https://umutkorkmaz.github.io/re-shell` (`site: 'https://umutkorkmaz.github.io'`,
 > `base: '/re-shell'`). One product, two surfaces: the **CLI** (`@re-shell/cli@0.29.2`) and the

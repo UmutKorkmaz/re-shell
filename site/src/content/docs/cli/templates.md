@@ -3,7 +3,7 @@ title: "templates"
 description: "Discover, inspect, and apply framework templates."
 ---
 
-The `templates` group is your window into the **205-template, 36-language**
+The `templates` group is your window into the **208-template, 36-language**
 catalog. It lists templates, shows details for one, renders a compatibility
 matrix, and previews exactly what a scaffold would produce — all without writing
 files.
@@ -42,7 +42,7 @@ re-shell templates list --json
 ```
 
 ```
-📋 Templates (205)
+📋 Templates (208)
 
   ● express [typescript] express
     Fast, unopinionated, minimalist web framework for Node.js ...
@@ -75,7 +75,7 @@ re-shell templates show express --json
     "tags": ["nodejs", "express", "api", "rest", "middleware", "typescript"],
     "features": ["middleware", "routing", "cors", "authentication", "validation"],
     "port": 3000,
-    "fileCount": 27
+    "fileCount": 34
   },
   "warnings": []
 }
@@ -95,11 +95,11 @@ re-shell templates matrix --json
 ```
 
 ```
-📊 Template compatibility matrix (205)
+📊 Template compatibility matrix (208)
 
 Languages: ballerina, clojure, cpp, crystal, csharp, dart, ... typescript, unison, v, zig
-Frameworks: 171
-Databases: couchbase, couchdb, elasticsearch, generic-sql, ... postgresql
+Frameworks: 174
+Databases: couchbase, couchdb, elasticsearch, generic-sql, ... sqlite
 Caches: in-memory, memcached, redis
 Deployment: ci-cd, docker, kubernetes, serverless
 
@@ -129,19 +129,22 @@ re-shell templates apply express --name billing
 ```
 🔍 Dry run: express → "billing"
 
-Would create 27 files (39040 bytes). Nothing written.
+Would create 34 files (52080 bytes). Nothing written.
 
-  + package.json (2360b)
-  + src/index.ts (2915b)
-  + src/controllers/auth.controller.ts (3328b)
-  + src/routes/index.ts (608b)
-  + tsconfig.json (966b)
+  + .dockerignore (356b)
+  + .env.example (592b)
+  + docker-compose.yml (1418b)
+  + Dockerfile (1228b)
+  + jest.config.js (1000b)
+  + package.json (2538b)
+  + prisma/schema.prisma (1273b)
   ...
 ```
 
-To actually write a backend service, use
-[`generate backend`](/re-shell/cli/generate/) or
-[`create`](/re-shell/cli/generate/#create-and-related-commands).
+To write the full template, use
+[`create <name> --backend <id>`](/re-shell/cli/generate/#create-and-related-commands)
+(add `--dry-run --json` for the file set with diffs first). [`generate backend`](/re-shell/cli/generate/)
+writes a smaller starter service.
 
 ## `templates recommend`
 

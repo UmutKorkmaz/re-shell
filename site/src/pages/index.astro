@@ -7,7 +7,7 @@
  * landing composition (landing.css), and shares the dark/light theme state with
  * the docs via the same `localStorage['starlight-theme']` key + `data-theme`.
  *
- * All facts/commands are real (CLI v0.29.2): 205 templates · 36 languages,
+ * All facts/commands are real (CLI v0.31.0 tree; 0.30.1 is the last published): 208 templates · 36 languages,
  * typed { ok, data, warnings } contract, 127.0.0.1-bound shell-free dashboard.
  */
 import '../styles/theme.css';
@@ -19,9 +19,9 @@ const NPM = 'https://www.npmjs.com/package/@re-shell/cli';
 const docs = (slug: string) => `${base}/${slug}/`;
 
 const trust = [
-  { num: '205', label: 'framework templates', accent: true },
+  { num: '208', label: 'framework templates', accent: true },
   { num: '36', label: 'languages' },
-  { num: '171', label: 'frameworks' },
+  { num: '174', label: 'frameworks' },
   { num: '127.0.0.1', label: 'local-only dashboard' },
 ] as const;
 
@@ -39,10 +39,10 @@ type Stat = {
   accent?: boolean;
 };
 const stats: Stat[] = [
-  { to: 205, value: '205', label: 'framework templates', accent: true },
+  { to: 208, value: '208', label: 'framework templates', accent: true },
   { to: 36, value: '36', label: 'languages' },
-  { to: 27, value: '27', label: 'command groups' },
-  { to: 43, value: '43', prefix: '~', suffix: 'ms', label: 'cold startup' },
+  { to: 46, value: '46', label: 'top-level commands' },
+  { to: 45, value: '45', prefix: '~', suffix: 'ms', label: '--version startup' },
 ];
 
 /* ---------------------------------------------------------------------------
@@ -90,8 +90,8 @@ const features = [
     signal: true,
   },
   {
-    title: '205 templates · 36 languages',
-    body: 'A verified catalog spanning TypeScript, Python, Go, Rust, C#, Elixir, Zig and dozens more — inspectable before you scaffold.',
+    title: '208 templates · 36 languages',
+    body: 'A catalog spanning TypeScript, Python, Go, Rust, C#, Elixir, Zig and dozens more — inspectable before you scaffold.',
     icon: 'grid',
     chips: ['templates list', 'templates matrix'],
     span: 'tall',
@@ -141,7 +141,7 @@ const why = [
   {
     n: '04',
     h: 'Real language breadth',
-    p: '36 languages and 171 frameworks, each a maintained template with compatible database, cache, and deployment options.',
+    p: '36 languages and 174 frameworks, each a maintained template with compatible database, cache, and deployment options.',
   },
   {
     n: '05',
@@ -199,7 +199,7 @@ const PLAYGROUND: PlayCmd[] = [
     label: 'templates list',
     cmd: 'templates list',
     out: [
-      [seg('📋 Templates (', 'lp-mute'), seg('205', 'lp-ok'), seg(')', 'lp-mute')],
+      [seg('📋 Templates (', 'lp-mute'), seg('208', 'lp-ok'), seg(')', 'lp-mute')],
       [],
       [seg('  frontend', 'lp-mute')],
       [seg('  ● ', 'lp-str'), seg('react       '), seg('[typescript]', 'lp-mute'), seg(' Module-Federation shell')],
@@ -211,7 +211,7 @@ const PLAYGROUND: PlayCmd[] = [
       [seg('  ● ', 'lp-str'), seg('actix-web   '), seg('[rust]', 'lp-mute'), seg('       high-performance async')],
       [seg('  ● ', 'lp-str'), seg('phoenix     '), seg('[elixir]', 'lp-mute'), seg('     real-time, fault-tolerant')],
       [],
-      [seg('  … 36 languages · 171 frameworks', 'lp-mute')],
+      [seg('  … 36 languages · 174 frameworks', 'lp-mute')],
     ],
   },
   {
@@ -379,14 +379,14 @@ const icon = (name: string) => ICONS[name] ?? '';
     <title>Re-Shell — Microfrontends + microservices under one CLI</title>
     <meta
       name="description"
-      content="Re-Shell unites microfrontends and polyglot microservices under one CLI: 205 framework templates across 36 languages, a hardened local dashboard, and a typed JSON contract."
+      content="Re-Shell unites microfrontends and polyglot microservices under one CLI: 208 framework templates across 36 languages, a hardened local dashboard, and a typed JSON contract."
     />
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
     <meta name="theme-color" content="#0c0e12" />
     <meta property="og:title" content="Re-Shell" />
     <meta
       property="og:description"
-      content="Microfrontends + polyglot microservices under one CLI. 205 templates, 36 languages, a hardened dashboard, and a typed JSON contract."
+      content="Microfrontends + polyglot microservices under one CLI. 208 templates, 36 languages, a hardened dashboard, and a typed JSON contract."
     />
     <meta property="og:type" content="website" />
     {/* Restore shared theme before paint (matches Starlight's storage key) */}
@@ -424,7 +424,7 @@ const icon = (name: string) => ICONS[name] ?? '';
             <path d="M12 7.2 16.8 12 12 16.8 7.2 12 12 7.2Z" fill="#0c0e12" />
           </svg>
           Re-Shell
-          <span class="lp-ver">v0.29.2</span>
+          <span class="lp-ver">v0.31.0</span>
         </a>
         <nav class="lp-nav" aria-label="Primary">
           <a class="lp-nav-hide" href="#features">Features</a>
@@ -487,7 +487,7 @@ const icon = (name: string) => ICONS[name] ?? '';
             </h1>
             <p class="lp-sub">
               Re-Shell unifies Module-Federation microfrontends and polyglot
-              microservices under a single tool — 205 framework templates across
+              microservices under a single tool — 208 framework templates across
               36 languages, a hardened local dashboard, and a stable typed JSON
               contract for automation.
             </p>
@@ -983,14 +983,14 @@ const icon = (name: string) => ICONS[name] ?? '';
                 <span class="lp-term__title">templates list</span>
               </div>
 <pre class="lp-term__body" aria-label="re-shell templates list output"><span class="lp-prompt">$</span> <span class="lp-cmd">re-shell templates list</span>
-<span class="lp-mute">📋 Templates (</span><span class="lp-ok">205</span><span class="lp-mute">)</span>
+<span class="lp-mute">📋 Templates (</span><span class="lp-ok">208</span><span class="lp-mute">)</span>
 
   <span class="lp-str">●</span> express   <span class="lp-mute">[typescript]</span> minimalist Node.js web framework
   <span class="lp-str">●</span> fastify   <span class="lp-mute">[typescript]</span> fast, schema-based validation
   <span class="lp-str">●</span> actix-web <span class="lp-mute">[rust]</span>       high-performance async web
   <span class="lp-str">●</span> fiber     <span class="lp-mute">[go]</span>         express-style router
   <span class="lp-str">●</span> phoenix   <span class="lp-mute">[elixir]</span>     real-time, fault-tolerant
-  <span class="lp-mute">… 36 languages · 171 frameworks</span></pre>
+  <span class="lp-mute">… 36 languages · 174 frameworks</span></pre>
             </div>
 
             <div class="lp-term lp-reveal">
@@ -1445,10 +1445,10 @@ const icon = (name: string) => ICONS[name] ?? '';
         </div>
         <div class="lp-footer__bar">
           <span class="lp-mono"
-            >@re-shell/cli@0.29.2 · @re-shell/ui@0.3.0 ·
-            @re-shell/contracts@0.1.0</span
+            >@re-shell/cli@0.31.0 · @re-shell/ui@0.6.0 ·
+            @re-shell/contracts@0.3.0</span
           >
-          <span>MIT licensed · © 2026 Re-Shell</span>
+          <span>CLI Apache-2.0 · other packages MIT · © 2026 Re-Shell</span>
         </div>
       </div>
     </footer>

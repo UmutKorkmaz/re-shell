@@ -8,6 +8,15 @@ comes from the CLI's `--json` commands, validated against the shared
 `@re-shell/contracts` envelope before anything is rendered. A malformed or
 `ok:false` payload surfaces an error instead of being trusted.
 
+> Part of the [Re-Shell monorepo](https://github.com/UmutKorkmaz/re-shell). Package `re-shell`,
+> version **0.3.0**, private (not on the Marketplace; install the `.vsix`).
+>
+> **Verification status.** The unit and real-hub integration suites (built CLI + built hub,
+> no editor) and the `.vsix` packaging check run without VS Code. The **VS Code host test**
+> (`@vscode/test-electron`, inside a real editor) was **not run in the environment this
+> was developed in**: it downloads VS Code from `update.code.visualstudio.com`, which was
+> blocked. It runs in the `VS Code Extension` GitHub workflow (pending its first run).
+
 ## What it does
 
 - **Views** (Re-Shell activity-bar container)
