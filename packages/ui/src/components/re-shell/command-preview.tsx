@@ -5,6 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { copyTextToClipboard, formatCommand } from '@/lib/command';
+import { cn } from '@/lib/utils';
+import { useChangeFlash } from '@/hooks/useChangeFlash';
+import { LiveRegion } from '@/components/primitives/live-region';
 import type { CommandSpec, CommandSpecInput } from '@/contracts';
 
 type CommandPreviewSpec = Pick<
@@ -31,6 +34,7 @@ export function CommandPreview({
   const [copied, setCopied] = React.useState(false);
   const copiedTimerRef = React.useRef<ReturnType<typeof setTimeout>>();
   const commandText = spec.commandText ?? formatCommand(spec.command);
+  const flash = useChangeFlash(commandText);
 
   React.useEffect(() => {
     return () => {
@@ -70,11 +74,18 @@ export function CommandPreview({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ScrollArea className="max-h-32 rounded-md border border-border bg-bg-0 shadow-elev-1">
-          <pre className="re-shell-mono min-w-max p-3 pl-7 text-foreground before:absolute before:left-3 before:select-none before:text-signal before:content-['$'] relative">
+        <ScrollArea label="Command text" className="max-h-32 rounded-md border border-border bg-bg-0 shadow-elev-1">
+          <pre
+            key={flash.key}
+            className={cn(
+              "re-shell-mono min-w-max p-3 pl-7 text-foreground before:absolute before:left-3 before:select-none before:text-signal before:content-['$'] relative",
+              flash.className
+            )}
+          >
             {commandText}
           </pre>
         </ScrollArea>
+        <LiveRegion>{copied ? 'Command copied to clipboard' : ''}</LiveRegion>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="justify-start">
             {copied ? <Check className="size-4 text-signal" /> : <Clipboard className="size-4" />}

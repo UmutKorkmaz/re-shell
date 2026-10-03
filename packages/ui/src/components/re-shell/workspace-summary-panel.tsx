@@ -59,17 +59,17 @@ export function WorkspaceSummaryPanel({
             <Separator className="my-4" />
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <GitBranch className="size-4 text-muted-foreground" />
-              <span className="font-mono text-[0.8125rem]">{workspace.git.branch ?? 'unknown'}</span>
+              <span className="font-mono text-[0.8125rem] tabular-nums">{workspace.git.branch ?? 'unknown'}</span>
               <Badge variant={workspace.git.dirty ? 'warn' : 'healthy'}>
                 {workspace.git.dirty ? 'Dirty workspace' : 'Clean workspace'}
               </Badge>
               {workspace.git.ahead ? (
-                <Badge variant="outline" className="font-mono tracking-normal">
+                <Badge variant="outline" className="font-mono tabular-nums tracking-normal">
                   ahead {workspace.git.ahead}
                 </Badge>
               ) : null}
               {workspace.git.behind ? (
-                <Badge variant="outline" className="font-mono tracking-normal">
+                <Badge variant="outline" className="font-mono tabular-nums tracking-normal">
                   behind {workspace.git.behind}
                 </Badge>
               ) : null}

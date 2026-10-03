@@ -288,7 +288,8 @@ export function renderThemePackCss(pack: ThemePack): string {
   if (pack.fonts?.display) shared.push(`--font-display:${pack.fonts.display};`);
   if (pack.fonts?.sans) shared.push(`--font-sans:${pack.fonts.sans};`);
   if (pack.fonts?.mono) shared.push(`--font-mono:${pack.fonts.mono};`);
-  if (shared.length > 0) blocks.push(`:root{${shared.join('')}}`);
+  // `:root:root` out-ranks the built-in `:root, .dark` block regardless of order.
+  if (shared.length > 0) blocks.push(`:root:root{${shared.join('')}}`);
   for (const scheme of ['light', 'dark'] as const) {
     const colors = pack.colors[scheme];
     if (!colors) continue;

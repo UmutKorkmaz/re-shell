@@ -5,6 +5,8 @@ import {
   THEME_PACK_MAX_BYTES,
   contrastRatio,
   findThemeContrastIssues,
+  linearRgbToHex,
+  oklchToLinearRgb,
   parseOklch,
   parseThemePack,
   readableInkOn,
@@ -48,6 +50,12 @@ describe('colour math', () => {
     // oklch(1 0 0) is white, oklch(0 0 0) is black.
     expect(contrastRatio('oklch(0 0 0)', 'oklch(1 0 0)')).toBeCloseTo(21, 1);
     expect(contrastRatio('nope', '#fff')).toBeNull();
+  });
+
+  it('converts OKLCH to hex', () => {
+    expect(linearRgbToHex(oklchToLinearRgb(parseOklch('oklch(1 0 0)')!))).toBe('#ffffff');
+    expect(linearRgbToHex(oklchToLinearRgb(parseOklch('oklch(0 0 0)')!))).toBe('#000000');
+    expect(linearRgbToHex(oklchToLinearRgb(parseOklch('oklch(0.86 0.21 130)')!))).toMatch(/^#[0-9a-f]{6}$/);
   });
 
   it('picks readable ink for a brand colour', () => {
@@ -142,7 +150,7 @@ describe('renderThemePackCss', () => {
     const parsed = parseThemePack(pack({ colors: { light: lightColors, dark: { ...lightColors, background: 'oklch(0.16 0.01 265)', foreground: 'oklch(0.96 0.006 265)' } } }));
     if (!parsed.ok) throw new Error(parsed.errors.join('; '));
     const css = renderThemePackCss(parsed.pack);
-    expect(css).toContain(':root{--radius:0.5rem;--font-display:"Space Grotesk", system-ui;--font-mono:ui-monospace, Menlo;}');
+    expect(css).toContain(':root:root{--radius:0.5rem;--font-display:"Space Grotesk", system-ui;--font-mono:ui-monospace, Menlo;}');
     expect(css).toContain(':root.light{--background:oklch(0.97 0.004 265);');
     expect(css).toContain(':root.dark{--background:oklch(0.16 0.01 265);');
     expect(css).not.toContain('{}');

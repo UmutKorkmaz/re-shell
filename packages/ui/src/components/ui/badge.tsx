@@ -12,7 +12,9 @@ const badgeVariants = cva(
         default:
           "border-transparent bg-primary text-primary-foreground",
         destructive:
-          "border-destructive/40 bg-destructive/10 text-destructive shadow-glow-critical",
+          // Border/tint come from the destructive fill; the TEXT uses the critical
+          // status colour, which is tuned to hold 4.5:1 on this tint in both themes.
+          "border-destructive/40 bg-destructive/10 text-critical shadow-glow-critical",
         outline: "border-border bg-bg-1 text-foreground",
         secondary:
           "border-border bg-secondary text-secondary-foreground",
@@ -25,11 +27,6 @@ const badgeVariants = cva(
           "border-critical/40 bg-critical/10 text-critical shadow-glow-critical",
         info:
           "border-info/40 bg-info/10 text-info shadow-glow-info",
-        // legacy emerald/amber variants kept for stable behavior
-        success:
-          "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-glow-healthy",
-        warning:
-          "border-amber-500/40 bg-amber-500/10 text-amber-400 shadow-glow-warn",
       },
     },
     defaultVariants: {

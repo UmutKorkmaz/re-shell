@@ -58,7 +58,7 @@ export function TopologyNodeCard({ item, kind, className }: TopologyNodeCardProp
             </Badge>
           ) : null}
           {item.port ? (
-            <Badge variant="outline" className="font-mono tracking-normal">
+            <Badge variant="outline" className="font-mono tabular-nums tracking-normal">
               :{item.port}
             </Badge>
           ) : null}

@@ -17,6 +17,14 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // Type-level tests (`*.test-d.ts[x]`, `expectTypeOf` + `@ts-expect-error`) run
+    // under `vitest run` too, so a regression in the polymorphic / branded-unit /
+    // discriminated-union typings fails the normal test command.
+    typecheck: {
+      enabled: true,
+      include: ['src/**/*.test-d.{ts,tsx}'],
+      tsconfig: './tsconfig.json'
+    },
     // Coverage decision: SCOPED + FAST. The UI package is all live surface, so
     // coverage is scoped to the component/hook/hub/lib modules that ship. All
     // UI suites are fast jsdom/unit tests; there is nothing slow to exclude.
@@ -33,7 +41,16 @@ export default defineConfig({
       ],
       // Barrel files are pure re-exports with no logic; excluding them keeps the
       // scoped 80% bar meaningful (it measures behavior, not export plumbing).
-      exclude: ['**/*.test.ts', '**/*.test.tsx', '**/*.d.ts', '**/index.ts'],
+      exclude: [
+        '**/*.test.ts',
+        '**/*.test.tsx',
+        '**/*.test-d.ts',
+        '**/*.test-d.tsx',
+        '**/*.stories.tsx',
+        '**/*.d.ts',
+        '**/index.ts',
+        'src/test/**'
+      ],
       thresholds: {
         lines: 80,
         functions: 80,

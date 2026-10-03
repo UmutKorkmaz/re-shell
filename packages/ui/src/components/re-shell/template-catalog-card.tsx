@@ -31,7 +31,7 @@ export function TemplateCatalogCard({
       <CardHeader className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <CardTitle className="truncate">{template.name}</CardTitle>
+            <CardTitle as="h3" className="truncate">{template.name}</CardTitle>
             {template.description ? <CardDescription className="mt-1">{template.description}</CardDescription> : null}
           </div>
           {template.tier === 1 ? <Badge variant="healthy">Tier 1</Badge> : null}
@@ -67,7 +67,7 @@ export function TemplateCatalogCard({
           ))}
         </div>
         {template.command ? (
-          <ScrollArea className="max-h-24 rounded-md border border-border bg-bg-0">
+          <ScrollArea label={`${template.name} command`} className="max-h-24 rounded-md border border-border bg-bg-0">
             <pre className="font-mono min-w-max p-3 text-xs tabular-nums text-foreground">
               {formatCommand(template.command)}
             </pre>
