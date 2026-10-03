@@ -955,6 +955,9 @@ const MF_SHELL_FRAMEWORKS = ['react', 'react-ts', 'vue', 'vue-ts', 'angular', 's
 /** Frameworks a remote can be generated with. */
 const MF_REMOTE_FRAMEWORKS = MF_SHELL_FRAMEWORKS;
 
+/** Module Federation frameworks verified end to end (install + build) by the verify script. */
+const MF_VERIFIED_FRAMEWORKS = ['react', 'react-ts', 'vue'];
+
 /** First remote's port; each further remote takes the next one. */
 const MF_REMOTE_PORT_BASE = 3001;
 
@@ -1276,6 +1279,18 @@ async function buildMicrofrontendPlan(
 
   const mf = config;
   const projectPath = path.join(rootPath, normalizedName);
+
+  // Only these Module Federation templates are verified to install and build
+  // (see scripts/verify-create-modes.mjs); say so rather than imply the rest are.
+  const unverified = [...new Set([mf.shellFramework, ...mf.remotes.map((r) => r.framework)])].filter(
+    (framework) => !MF_VERIFIED_FRAMEWORKS.includes(framework)
+  );
+  if (unverified.length > 0) {
+    notes.push(
+      `The Module Federation templates for ${unverified.join(', ')} are experimental and not verified to build; ` +
+        `the ${MF_VERIFIED_FRAMEWORKS.join(', ')} ones are. Run "${packageManager} install && ${packageManager} run build" to check.`
+    );
+  }
 
   return {
     mode: 'microfrontend',
@@ -3847,6 +3862,26 @@ async function buildMonorepoPlan(
     spinner.stop();
   }
 
+  // With a human present and no stack chosen, ask which template (its default,
+  // react-ts, is what a non-interactive run uses).
+  let mode: CreateMode = request.mode;
+  let chosenFrontend = request.frontend;
+  if (interactive && request.mode === 'frontend' && !request.frontend) {
+    const answer = await ask({
+      type: 'select',
+      name: 'template',
+      message: 'Select a template:',
+      choices: [
+        { title: 'React', value: 'react' },
+        { title: 'React with TypeScript', value: 'react-ts' },
+        { title: 'Blank (empty workspace, no app)', value: 'blank' },
+      ],
+      initial: 1, // Default to react-ts
+    });
+    if (answer.template === 'blank') mode = 'skeleton';
+    else chosenFrontend = assertFrontend(answer.template);
+  }
+
   // The package manager is the only choice that can still be unset here (the
   // CLI defaults it to pnpm). Ask when a human is present, otherwise default.
   let packageManager = options.packageManager;
@@ -3869,12 +3904,10 @@ async function buildMonorepoPlan(
     }
   }
 
-  const skeleton = request.mode === 'skeleton';
-  const frontend =
-    request.mode === 'frontend' || request.mode === 'fullstack' ? request.frontend : undefined;
-  const backend =
-    request.mode === 'backend' || request.mode === 'fullstack' ? request.backend : undefined;
-  const fullStackApp = request.mode === 'fullstack';
+  const skeleton = mode === 'skeleton';
+  const frontend = mode === 'frontend' || mode === 'fullstack' ? chosenFrontend : undefined;
+  const backend = mode === 'backend' || mode === 'fullstack' ? request.backend : undefined;
+  const fullStackApp = mode === 'fullstack';
 
   const backendTemplate = backend ? getBackendTemplate(backend) : undefined;
   if (backend && !backendTemplate) {
@@ -3930,7 +3963,7 @@ async function buildMonorepoPlan(
   ];
 
   return {
-    mode: request.mode,
+    mode,
     name,
     root: process.cwd(),
     targetDirs: [rootPath],

@@ -123,7 +123,7 @@ export const SUPPORTED_FRAMEWORKS: Record<string, FrameworkConfig> = {
       'vite': '^4.4.0',
       '@vitejs/plugin-vue': '^4.0.0',
       'typescript': '^5.0.0',
-      'vue-tsc': '^1.8.0',
+      'vue-tsc': '^2.2.0',
       'eslint': '^8.44.0',
       'vitest': '^0.34.3'
     },

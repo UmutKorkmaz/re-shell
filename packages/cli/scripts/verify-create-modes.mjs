@@ -123,28 +123,28 @@ const MODES = {
     artifacts: ['poly/gateway/dist/index.js', 'poly/frontend/dist', 'poly/services/typescript-service-1/dist'],
   },
   'in-monorepo': {
-    description: 'init + create web / create shop --fullstack / generate backend, inside one monorepo',
+    description: 'init + create web / create shop --fullstack, inside one monorepo',
     steps: [
       { args: ['init', 'mono', '--yes', '--skip-install', '--no-git'] },
       { args: ['create', 'web', '--framework', 'react-ts', '--yes'], cwd: 'mono' },
       { args: ['create', 'shop', '--fullstack', '--yes'], cwd: 'mono' },
-      { args: ['generate', 'backend', 'api'], cwd: 'mono' },
     ],
-    files: ['mono/apps/web/package.json', 'mono/apps/shop/package.json', 'mono/services/shop-api/package.json', 'mono/services/api/package.json'],
+    files: ['mono/apps/web/package.json', 'mono/apps/shop/package.json', 'mono/services/shop-api/package.json'],
     project: 'mono',
     artifacts: ['mono/apps/web/dist/mf.umd.js', 'mono/apps/shop/dist/mf.umd.js', 'mono/services/shop-api/dist'],
-    // `workspace health --json` must see the generated services.
-    after: (root) => {
-      const res = run(process.execPath, [args.cli, 'workspace', 'health', '--json'], path.join(root, 'mono'), args.cliTimeoutMs);
-      if (res.status !== 0) return `workspace health exited ${res.status}`;
-      const env = JSON.parse(res.stdout.trim());
-      const check = (env.data?.checks ?? []).find(c => c.name === 'Workspaces');
-      const details = (check?.details ?? []).join(',');
-      for (const expected of ['api (service)', 'shop-api (service)']) {
-        if (!details.includes(expected)) return `workspace health did not list "${expected}" (got: ${details || check?.message})`;
-      }
-      return null;
-    },
+    // `workspace health --json` must see the fullstack API under services/.
+    after: (root) => workspaceSees(root, ['shop-api (service)']),
+  },
+  'generated-service': {
+    description: 'init + generate backend: the generated service is part of the workspace',
+    steps: [
+      { args: ['init', 'gen', '--yes', '--skip-install', '--no-git'] },
+      { args: ['generate', 'backend', 'api'], cwd: 'gen' },
+    ],
+    files: ['gen/services/api/package.json'],
+    after: (root) => workspaceSees(root, ['api (service)']),
+    // Only workspace visibility is verified: the generate-backend template is another component's concern.
+    noInstall: true,
   },
   skeleton: {
     description: 'create blank --template blank (honest empty skeleton; nothing to install or build)',
@@ -155,6 +155,20 @@ const MODES = {
     noInstall: true,
   },
 };
+
+/** `workspace health --json` (run from the monorepo under `root`) must list every expected workspace. */
+function workspaceSees(root, expected) {
+  const monorepo = fs.readdirSync(root).find(d => fs.existsSync(path.join(root, d, 'pnpm-workspace.yaml')));
+  const res = run(process.execPath, [args.cli, 'workspace', 'health', '--json'], path.join(root, monorepo), args.cliTimeoutMs);
+  if (res.status !== 0) return `workspace health exited ${res.status}`;
+  const env = JSON.parse(res.stdout.trim());
+  const check = (env.data?.checks ?? []).find(c => c.name === 'Workspaces');
+  const details = (check?.details ?? []).join(',');
+  for (const name of expected) {
+    if (!details.includes(name)) return `workspace health did not list "${name}" (got: ${details || check?.message})`;
+  }
+  return null;
+}
 
 if (args.list) {
   for (const [name, mode] of Object.entries(MODES)) console.log(`${name.padEnd(14)} ${mode.description}`);

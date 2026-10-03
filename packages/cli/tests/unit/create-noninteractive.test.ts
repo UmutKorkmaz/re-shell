@@ -356,6 +356,16 @@ describe('polyglot and microfrontend without a terminal', () => {
     expect(() => new Function(shell.replace(/require\([^)]*\)/g, '({})').replace(/module\.exports\s*=/, 'return'))).not.toThrow();
   });
 
+  it('microfrontend flags the frameworks whose templates are not verified to build', async () => {
+    const react = await created('mf-ok', { microfrontend: true });
+    expect(react.notes.join('\n')).not.toContain('experimental');
+
+    const svelte = await created('mf-exp', { microfrontend: true, framework: 'svelte', remotes: 'a:angular' });
+    const note = svelte.notes.find(n => n.includes('experimental')) ?? '';
+    expect(note).toContain('svelte, angular');
+    expect(note).toContain('react, react-ts, vue');
+  });
+
   it('microfrontend rejects an unsupported shell/remote framework with suggestions', async () => {
     const shell = await errorOf(createProject('m1', { microfrontend: true, framework: 'jekyll' }));
     expect(shell.code).toBe('TEMPLATE_NOT_FOUND');
