@@ -21,10 +21,12 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.0.0",
     "@re-shell/contracts": "workspace:*",
     "@re-shell/ui": "workspace:*",
+    "@tanstack/react-query": "^5.0.0",
     "@xyflow/react": "^12.11.0",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.14.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

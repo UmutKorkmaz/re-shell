@@ -28,6 +28,7 @@ vi.mock('@xyflow/react', () => ({
   ),
   Background: () => null,
   Controls: () => null,
+  MiniMap: () => null,
   Handle: () => null,
   Position: { Top: 'top', Bottom: 'bottom' },
 }));

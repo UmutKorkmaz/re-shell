@@ -77,3 +77,110 @@
     stroke-dasharray: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Graph explorer states (P9-L): dim, selection/dependency highlight, path,
+ * cycles and diff colouring. Nodes use `.gn-*`, edges `.ge-*`. No transitions
+ * on nodes: with 2000+ nodes, animating every state flip costs more than it
+ * is worth.
+ * ------------------------------------------------------------------------- */
+/* Dimming is driven by ONE rule on the React Flow container, not by per-node data:
+ *  - gx-focus:     a node/path is selected -> every non-highlighted node is dimmed
+ *  - gx-filtering: a search/facet filter is active -> every node that is neither
+ *                  a match nor highlighted is dimmed
+ * so selecting or typing restyles a handful of nodes instead of re-rendering all. */
+.rf-mission-control.gx-focus .gn[data-highlight='none'] {
+  opacity: 0.18;
+}
+.rf-mission-control.gx-filtering .gn[data-highlight='none']:not(.gn-match) {
+  opacity: 0.18;
+}
+.gn-selected {
+  border-color: var(--signal) !important;
+  box-shadow: 0 0 0 2px var(--signal);
+}
+.gn-upstream {
+  border-color: var(--status-info) !important;
+  box-shadow: 0 0 0 1.5px var(--status-info);
+}
+.gn-downstream {
+  border-color: var(--status-warn) !important;
+  box-shadow: 0 0 0 1.5px var(--status-warn);
+}
+.gn-path,
+.gn-path-end {
+  border-color: #c084fc !important;
+  box-shadow: 0 0 0 2px #c084fc;
+}
+.gn-path-end {
+  box-shadow: 0 0 0 3px #c084fc;
+}
+.gn-cycle {
+  outline: 2px dashed var(--status-critical);
+  outline-offset: 2px;
+}
+.gn-diff-added {
+  border-color: #2da44e !important;
+  background: color-mix(in oklab, #2da44e 14%, var(--bg-1));
+  box-shadow: 0 0 0 1.5px #2da44e;
+}
+.gn-diff-removed {
+  border-color: #cf222e !important;
+  border-style: dashed !important;
+  background: color-mix(in oklab, #cf222e 14%, var(--bg-1));
+  box-shadow: 0 0 0 1.5px #cf222e;
+}
+.gn-diff-changed {
+  border-color: #bf8700 !important;
+  background: color-mix(in oklab, #bf8700 16%, var(--bg-1));
+  box-shadow: 0 0 0 1.5px #bf8700;
+}
+.gn-diff-unchanged {
+  opacity: 0.6;
+}
+
+/* While a node/path is focused or a filter is active, every edge that is not
+ * explicitly emphasized is dimmed by this one container rule. */
+.rf-mission-control.gx-dim-edges .react-flow__edge:not(.ge-up):not(.ge-down):not(.ge-path):not(.ge-match):not(.ge-added):not(.ge-removed):not(.ge-changed) .react-flow__edge-path {
+  stroke-opacity: 0.12; /* not `opacity`: no per-edge compositing group */
+}
+.rf-mission-control .react-flow__edge.ge-up .react-flow__edge-path {
+  stroke: var(--status-info);
+  stroke-width: 2.5;
+}
+.rf-mission-control .react-flow__edge.ge-down .react-flow__edge-path {
+  stroke: var(--status-warn);
+  stroke-width: 2.5;
+}
+.rf-mission-control .react-flow__edge.ge-path .react-flow__edge-path {
+  stroke: #c084fc;
+  stroke-width: 3.5;
+}
+.rf-mission-control .react-flow__edge.ge-cycle .react-flow__edge-path {
+  stroke: var(--status-critical);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 4;
+}
+.rf-mission-control .react-flow__edge.ge-added .react-flow__edge-path {
+  stroke: #2da44e;
+  stroke-width: 3;
+}
+.rf-mission-control .react-flow__edge.ge-removed .react-flow__edge-path {
+  stroke: #cf222e;
+  stroke-width: 3;
+  stroke-dasharray: 6 4;
+}
+.rf-mission-control .react-flow__edge.ge-changed .react-flow__edge-path {
+  stroke: #bf8700;
+  stroke-width: 3;
+}
+/* Edges are cheap when static: drop the hover animation on big graphs. */
+.rf-big .react-flow__edge:hover .react-flow__edge-path {
+  animation: none !important;
+  stroke-dasharray: none;
+}
+.rf-mission-control .react-flow__minimap {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
