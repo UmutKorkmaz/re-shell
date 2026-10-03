@@ -142,8 +142,8 @@ is the machine-readable catalog.
 
 [`examples/`](./examples) holds workflow guides by command area; their `re-shell`
 commands are checked against the CLI catalog by `node scripts/check-doc-commands.mjs`
-(repo root). [`EXAMPLES.md`](./EXAMPLES.md) is an older catalog that is **not** checked
-and mentions commands that do not exist.
+(repo root). Task-oriented walkthroughs live on the
+[documentation site](https://umutkorkmaz.github.io/re-shell/).
 
 ## Development
 

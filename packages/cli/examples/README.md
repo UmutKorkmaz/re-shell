@@ -1,7 +1,7 @@
 # Re-Shell CLI Example Library
 
 This directory breaks the CLI feature surface into smaller, workflow-oriented guides.
-Use it when `../EXAMPLES.md` is too broad and you want concrete commands by topic.
+Every `re-shell` command in these guides is checked against the CLI by `node scripts/check-doc-commands.mjs` (repo root).
 
 ## Coverage Map
 

@@ -71,6 +71,10 @@ signing certificate, network access to a download), which the entry names.
 - Public URLs (site, repository, schema `$id`) come from one module, `src/constants/brand.ts`.
 - `workspace migrate` is documented as the config-version migration, `workspace migrate-monorepo` as the Nx/Turbo importer (they were conflated).
 - Declared `zod` and `jsonc-parser` as runtime dependencies (they resolved only through monorepo hoisting).
+- `ui --json` and `ui --dry-run` print the hub token as `<redacted>` (the plan is not launched; a real launch mints and prints its own token).
+- `workspace health`'s human summary uses the same normalized status and score as `--json` (it could say GOOD while the envelope said `degraded`).
+- `service bridge generate` without a spec or a protocol flag says how to recover (`--spec`, or `--rest`/`--grpc`/`--graphql`).
+- Removed `EXAMPLES.md` from the repository and the npm package: it was unchecked and described many commands that do not exist. The checked guides in `examples/` and the documentation site replace it.
 
 ### Companion packages (separate tarballs, versions in the tree)
 - `@re-shell/contracts` 0.3.0: exact wire schemas and adapters, workspace graph model, OT and collaboration protocol, AI, bridge, Kubernetes, IaC, plugin and policy-pack schemas, theme and white-label schemas, the shared command registry (`@re-shell/contracts/command-registry`), CommonJS build.

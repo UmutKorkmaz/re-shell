@@ -75,7 +75,7 @@ checked against the built CLI's catalog by
 ### CLI usage examples
 
 - [`packages/cli/examples/*.md`](../packages/cli/examples/) are workflow guides. Their `re-shell` invocations pass `scripts/check-doc-commands.mjs`.
-- [`packages/cli/EXAMPLES.md`](../packages/cli/EXAMPLES.md) is an older, very large catalog. **It is not checked and contains commands that do not exist** (it carries a warning banner); prefer the site and `examples/`.
+- The old `packages/cli/EXAMPLES.md` catalog (unchecked, full of commands that did not exist) was removed in 0.31.0; use the site and `packages/cli/examples/`, which are checked.
 - `packages/cli/tests/README.md` is the test-suite reference.
 - `packages/cli/CHANGELOG.md` is the release history, with an `Unreleased` section for what has not been published.
 

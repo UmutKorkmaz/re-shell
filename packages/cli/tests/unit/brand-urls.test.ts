@@ -122,8 +122,8 @@ describe('no stale brand URLs in the CLI source', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('README.md and EXAMPLES.md carry no re-shell.dev or re-shell-cli GitHub URLs', () => {
-    for (const file of ['README.md', 'EXAMPLES.md']) {
+  it('README.md carries no re-shell.dev or re-shell-cli GitHub URLs', () => {
+    for (const file of ['README.md']) {
       const content = fs.readFileSync(path.join(CLI_ROOT, file), 'utf8');
       expect(content, file).not.toMatch(/re-shell\.dev/i);
       expect(content, file).not.toMatch(/github\.com\/[^/\s)]+\/re-shell-cli/i);
