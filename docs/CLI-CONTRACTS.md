@@ -126,15 +126,15 @@ status of each code is read from the CLI sources every time it is regenerated, s
 it cannot claim a code is emitted when nothing emits it.
 
 <!-- BEGIN GENERATED: error-codes -->
-The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (90 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
+The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (105 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
 
 | Code | Status | Emitted from |
 | --- | --- | --- |
-| `NOT_IN_MONOREPO` | emitted | `packages/cli/src/commands/analyze.ts`, `packages/cli/src/commands/ink-tui.tsx`, `packages/cli/src/commands/workspace.ts` |
+| `NOT_IN_MONOREPO` | emitted | `packages/cli/src/commands/analyze.ts`, `packages/cli/src/commands/ink-tui.tsx`, `packages/cli/src/commands/workspace.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
 | `LIST_WORKSPACES_ERROR` | emitted | `packages/cli/src/commands/workspace.ts` |
 | `GRAPH_GENERATION_ERROR` | emitted | `packages/cli/src/commands/workspace.ts` |
-| `WORKSPACE_NOT_FOUND` | emitted | `packages/cli/src/commands/workspace-graph.ts`, `packages/cli/src/commands/workspace-health.ts`, `packages/cli/src/commands/workspace.ts` |
-| `TEMPLATE_NOT_FOUND` | emitted | `packages/cli/src/groups/templates.group.ts` |
+| `WORKSPACE_NOT_FOUND` | emitted | `packages/cli/src/commands/workspace.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
+| `TEMPLATE_NOT_FOUND` | emitted | `packages/cli/src/commands/workspace.ts`, `packages/cli/src/groups/templates.group.ts`, `packages/cli/src/utils/create-request.ts` |
 | `INVALID_VARIABLES` | reserved | |
 | `NOT_IN_RESHELL_PROJECT` | emitted | `packages/cli/src/commands/list.ts` |
 | `APPS_DIR_NOT_FOUND` | emitted | `packages/cli/src/commands/list.ts` |
@@ -142,7 +142,7 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (90 codes). A code 
 | `TEMPLATES_LIST_ERROR` | emitted | `packages/cli/src/commands/workspace.ts`, `packages/cli/src/groups/templates.group.ts` |
 | `WORKSPACE_SUMMARY_ERROR` | emitted | `packages/cli/src/commands/workspace.ts` |
 | `COMMANDS_LIST_ERROR` | emitted | `packages/cli/src/groups/commands.group.ts` |
-| `DOCTOR_ERROR` | reserved | |
+| `DOCTOR_ERROR` | emitted | `packages/cli/src/commands/doctor.ts` |
 | `ANALYZE_ERROR` | emitted | `packages/cli/src/commands/analyze.ts` |
 | `HEALTH_CHECK_ERROR` | reserved | |
 | `SCHEMA_VALIDATION_ERROR` | emitted | `packages/cli/src/commands/plugin-create.ts`, `packages/cli/src/groups/config/schema.ts` |
@@ -192,7 +192,7 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (90 codes). A code 
 | `TENANT_NOT_FOUND` | reserved | |
 | `INVALID_REQUEST` | reserved | |
 | `COMMAND_NOT_ALLOWED` | reserved | |
-| `NOT_FOUND` | emitted | `packages/cli/src/utils/k8s-rollback.ts` |
+| `NOT_FOUND` | emitted | `packages/cli/src/commands/config.ts`, `packages/cli/src/commands/plugin-command.ts`, `packages/cli/src/commands/profile-analytics.ts`, `packages/cli/src/commands/profile.ts`, `packages/cli/src/commands/project-config.ts`, `packages/cli/src/commands/validate.ts`, `packages/cli/src/commands/workspace-config.ts`, `packages/cli/src/utils/k8s-rollback.ts` |
 | `METHOD_NOT_ALLOWED` | reserved | |
 | `ALREADY_EXISTS` | reserved | |
 | `CONFLICT` | reserved | |
@@ -220,6 +220,21 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (90 codes). A code 
 | `AI_SESSION_ERROR` | emitted | `packages/cli/src/ai/cli.ts`, `packages/cli/src/ai/resolver.ts`, `packages/cli/src/groups/ai.group.ts` |
 | `AI_CACHE_ERROR` | emitted | `packages/cli/src/ai/cli.ts` |
 | `AI_SUGGEST_ERROR` | emitted | `packages/cli/src/ai/cli.ts` |
+| `COMMAND_ERROR` | emitted | `packages/cli/src/commands/workspace-conflict.ts`, `packages/cli/src/commands/workspace-definition.ts`, `packages/cli/src/commands/workspace-graph.ts`, `packages/cli/src/commands/workspace-health.ts`, `packages/cli/src/commands/workspace-migration.ts`, `packages/cli/src/groups/tools.group.ts`, `packages/cli/src/utils/json-output.ts` |
+| `USAGE_ERROR` | emitted | `packages/cli/src/aliases.ts`, `packages/cli/src/commands/workspace.ts`, `packages/cli/src/groups/config/diff.ts`, `packages/cli/src/groups/dev.group.ts`, `packages/cli/src/groups/fix-ci.group.ts`, `packages/cli/src/groups/service.group.ts`, `packages/cli/src/groups/workspace.group.ts`, `packages/cli/src/utils/json-mode-hook.ts` |
+| `WORKSPACE_DEFINITION_ERROR` | emitted | `packages/cli/src/commands/workspace-graph.ts`, `packages/cli/src/commands/workspace-health.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
+| `CREATE_ERROR` | emitted | `packages/cli/src/commands/create.ts`, `packages/cli/src/index.ts` |
+| `CREATE_INVALID_OPTIONS` | emitted | `packages/cli/src/commands/create.ts`, `packages/cli/src/utils/create-request.ts` |
+| `CREATE_INPUT_REQUIRED` | emitted | `packages/cli/src/commands/create.ts` |
+| `CREATE_TARGET_EXISTS` | emitted | `packages/cli/src/commands/create.ts` |
+| `BRIDGE_LINK_ERROR` | emitted | `packages/cli/src/bridge/commands.ts` |
+| `BRIDGE_VALIDATE_ERROR` | emitted | `packages/cli/src/bridge/commands.ts` |
+| `BRIDGE_SPEC_ERROR` | emitted | `packages/cli/src/bridge/mock-command.ts`, `packages/cli/src/bridge/run.ts`, `packages/cli/src/bridge/spec/errors.ts`, `packages/cli/src/commands/bridge-generate.ts` |
+| `BRIDGE_DIFF_ERROR` | emitted | `packages/cli/src/bridge/commands.ts` |
+| `BRIDGE_ASYNC_ERROR` | emitted | `packages/cli/src/bridge/async/command.ts` |
+| `BRIDGE_TRANSFORM_ERROR` | emitted | `packages/cli/src/bridge/transform/command.ts`, `packages/cli/src/bridge/transform/index.ts` |
+| `BRIDGE_MOCK_ERROR` | emitted | `packages/cli/src/bridge/mock-command.ts` |
+| `BRIDGE_GATEWAY_ERROR` | emitted | `packages/cli/src/bridge/gateway-command.ts`, `packages/cli/src/bridge/gateway.ts` |
 <!-- END GENERATED: error-codes -->
 
 ---
@@ -795,7 +810,7 @@ is slow and needs the network; the generator runs it in an empty directory.
 <!-- BEGIN GENERATED: command:doctor -->
 - **Invocation:** `re-shell doctor --json`
 - **Wire schema:** `doctorWireSchema` (`@re-shell/contracts`); domain / UI model: none
-- **Error codes:** `DOCTOR_ERROR` *(reserved)*
+- **Error codes:** `DOCTOR_ERROR`
 
 `data` shape:
 
@@ -807,6 +822,12 @@ is slow and needs the network; the generator runs it in an empty directory.
     message: string;
     suggestion?: string;
   }>;
+  summary?: {
+    passed: number;
+    warnings: number;
+    errors: number;
+  };
+  healthy?: boolean;
   suggestions?: Array<{
     checkId: string;
     cause: string;

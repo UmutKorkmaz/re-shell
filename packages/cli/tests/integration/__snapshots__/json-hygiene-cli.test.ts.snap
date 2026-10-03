@@ -6,7 +6,17 @@ agents check
 agents init
 agents sync
 ai
+ai cache clear
+ai cache stats
+ai config get
+ai config set
+ai config show
+ai config unset
 ai create
+ai session clear
+ai session list
+ai session show
+ai suggest
 analyze
 api analytics docker-compose
 api analytics generate
@@ -250,6 +260,7 @@ k8s multi-tenant
 k8s network-policy
 k8s operator
 k8s pod-security
+k8s rollback
 learn best-practices
 learn code-quality-coaching
 learn interactive-tutorials
@@ -309,6 +320,7 @@ plugin middleware-chain
 plugin middleware-example
 plugin middleware-stats
 plugin optimize-cache
+plugin pin
 plugin popular
 plugin register-command
 plugin reload
@@ -316,6 +328,8 @@ plugin resolution-history
 plugin resolve
 plugin resolve-conflict
 plugin resolve-conflicts
+plugin review add
+plugin review list
 plugin search
 plugin search-docs
 plugin security-fix
@@ -331,6 +345,7 @@ plugin test-middleware
 plugin test-validation
 plugin transformations
 plugin uninstall
+plugin unpin
 plugin unregister-command
 plugin update
 plugin update-deps
@@ -375,7 +390,13 @@ security vendor
 security vulnerability-scan
 security zero-trust
 serve
+service bridge async
+service bridge diff
+service bridge gateway
 service bridge generate
+service bridge mock
+service bridge transform
+service link
 service polyglot build-all
 service polyglot deploy
 service polyglot generate-deployment
@@ -390,6 +411,8 @@ service run optimize
 service run restart
 service run scale
 service run up
+service unlink
+service validate
 templates apply
 templates list
 templates matrix
@@ -498,6 +521,10 @@ workspace migration upgrade
 workspace migration validate
 workspace optimize
 workspace policy check
+workspace policy install
+workspace policy list
+workspace policy remove
+workspace policy search
 workspace state backup
 workspace state cache
 workspace state clear

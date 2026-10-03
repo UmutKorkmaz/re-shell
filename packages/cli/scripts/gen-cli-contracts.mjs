@@ -161,6 +161,7 @@ export const COMMANDS = [
     // would make the run slow and network-dependent.
     where: 'empty',
     schema: 'doctorWireSchema',
+    gateField: 'healthy',
     errors: ['DOCTOR_ERROR'],
     example: false,
     domain: 'none',
@@ -632,8 +633,11 @@ export async function generateRegions() {
             `${label}: the CLI prints keys ${command.schema} does not declare: ${undeclared.join(', ')}`
           );
         }
-        if (result.status !== 0) {
-          problems.push(`${label}: ok:true envelope but exit code ${result.status}`);
+        // Gate commands (doctor) report a failed verdict as ok:true + data.<gateField>
+        // false + exit 1; any other ok:true run must exit 0, and a passing gate too.
+        const gateFailed = command.gateField && envelope.data?.[command.gateField] === false;
+        if (gateFailed ? result.status === 0 : result.status !== 0) {
+          problems.push(`${label}: ok:true envelope (gate failed: ${Boolean(gateFailed)}) but exit code ${result.status}`);
         }
         if (command.example) examples.set(command.id, normalize(envelope));
       } else if (command.id !== 'doctor') {

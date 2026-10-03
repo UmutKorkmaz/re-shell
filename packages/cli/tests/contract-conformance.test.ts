@@ -284,9 +284,11 @@ describe('contract conformance: --json envelope + data shapes', () => {
     const parsed = jsonResponseSchema(doctorWireSchema).safeParse(env);
     expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
     if (env.ok === true) {
-      expect(runs.doctor.status).toBe(0);
+      // doctor is a gate: a completed run is ok:true and the exit code carries the verdict.
+      const data = doctorWireSchema.parse(env.data);
+      expect(runs.doctor.status).toBe(data.healthy === false ? 1 : 0);
       expect(findUndeclaredKeys(doctorWireSchema, env.data)).toEqual([]);
-      expect(doctorWireSchema.parse(env.data).checks.length).toBeGreaterThan(0);
+      expect(data.checks.length).toBeGreaterThan(0);
     } else {
       expect(runs.doctor.status).not.toBe(0);
       expect((env as { error: { code: string } }).error.code).toBe('DOCTOR_ERROR');
