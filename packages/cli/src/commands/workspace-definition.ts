@@ -231,6 +231,11 @@ async function validateWorkspaceDefinition(options: WorkspaceDefinitionCommandOp
 
   } catch (error) {
     if (spinner) spinner.fail(chalk.red('Validation failed'));
+
+    if (options.json) {
+      failFromError(error, error instanceof ValidationError ? workspaceDefinitionErrorCode(error) : 'COMMAND_ERROR');
+      return;
+    }
     
     if (error instanceof ValidationError) {
       console.error(chalk.red(`❌ ${error.message}`));

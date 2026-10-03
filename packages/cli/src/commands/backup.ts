@@ -306,14 +306,15 @@ async function listBackups(options: BackupCommandOptions, spinner?: ProgressSpin
 
   if (spinner) spinner.stop();
 
-  if (backups.length === 0) {
-    console.log(chalk.yellow('No backups found.'));
-    console.log(chalk.gray('Create your first backup with: re-shell backup create'));
+  if (options.json) {
+    // An empty list is a valid answer, not an error.
+    ok(backups);
     return;
   }
 
-  if (options.json) {
-    ok(backups);
+  if (backups.length === 0) {
+    console.log(chalk.yellow('No backups found.'));
+    console.log(chalk.gray('Create your first backup with: re-shell backup create'));
     return;
   }
 

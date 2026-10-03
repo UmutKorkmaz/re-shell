@@ -10,6 +10,7 @@ import {
 } from '../../src/commands/plugin-validation';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/plugin-validation.ts (655 lines) — all 7 exports
 // driving the real plugin-command-registry + plugin-command-validation
 // engines against an empty (no plugins installed) environment, so the
@@ -44,7 +45,7 @@ function logged(): string {
 
 /** The raw JSON payload logged in json mode. */
 function jsonPayload(): unknown {
-  return JSON.parse(logSpy.mock.calls.map(c => c.map(String).join('')).join(''));
+  return jsonData();
 }
 
 describe('plugin-validation — command', () => {

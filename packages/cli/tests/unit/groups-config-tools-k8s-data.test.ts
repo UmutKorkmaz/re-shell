@@ -876,7 +876,7 @@ describe('groups — config / tools / k8s / data registration', () => {
       ] as never);
       const program = programWith(registerConfigGroup);
       await program.parseAsync(['node', 're-shell', 'config', 'profile', 'analytics', 'dev']);
-      expect(profileAnalyticsCmds.showAnalyticsDashboard).toHaveBeenCalledWith('dev');
+      expect(profileAnalyticsCmds.showAnalyticsDashboard).toHaveBeenCalledWith('dev', { json: undefined });
       await program.parseAsync([
         'node', 're-shell', 'config', 'profile', 'stats', '--sort', 'duration', '--limit', '5', '--format', 'json',
       ]);
@@ -931,15 +931,15 @@ describe('groups — config / tools / k8s / data registration', () => {
       expect(output()).toContain('re-shell create test-app --dry-run');
     });
 
-    it('dry-run --json currently produces no output (writes suppressed by enableJsonMode)', async () => {
-      // BUG: the action wraps its stdout write in enableJsonMode(), whose
-      // patched write swallows everything not emitted through emitJson. The
-      // direct process.stdout.write here is suppressed, so `tools dry-run
-      // --json` prints nothing. Pinned as current behavior.
+    it('dry-run --json emits exactly one envelope (no longer swallowed)', async () => {
       const program = programWith(registerToolsGroup);
       await program.parseAsync(['node', 're-shell', 'tools', 'dry-run', '--json']);
-      const lines = stdoutSpy.mock.calls.map(call => String(call[0])).join('');
-      expect(lines.trim()).toBe('');
+      const lines = stdoutSpy.mock.calls.map(call => String(call[0])).join('').split('\n').filter(Boolean);
+      expect(lines).toHaveLength(1);
+      const env = JSON.parse(lines[0]);
+      expect(env.ok).toBe(true);
+      expect(env.data.mode).toBe('dry-run');
+      expect(env.data.examples).toHaveLength(3);
     });
 
     it('di-analyze writes the auto-wiring config and prints recommendations', async () => {
@@ -963,8 +963,9 @@ describe('groups — config / tools / k8s / data registration', () => {
       } as never);
       const program = programWith(registerToolsGroup);
       await program.parseAsync(['node', 're-shell', 'tools', 'di-analyze', '--json']);
-      const lines = stdoutSpy.mock.calls.map(call => String(call[0])).join('');
-      const parsed = JSON.parse(lines.slice(lines.indexOf('{'), lines.lastIndexOf('}') + 1));
+      const lines = stdoutSpy.mock.calls.map(call => String(call[0])).join('').split('\n').filter(Boolean);
+      expect(lines).toHaveLength(1);
+      const parsed = JSON.parse(lines[0]).data;
       expect(parsed.nodes).toEqual([['api', { name: 'api' }]]);
       expect(parsed.edges).toEqual([['api', ['db']]]);
       expect(parsed.cycles).toEqual([['api', 'db', 'api']]);
@@ -1106,9 +1107,9 @@ describe('groups — config / tools / k8s / data registration', () => {
       } as never);
       const program = programWith(registerToolsGroup);
       await program.parseAsync(['node', 're-shell', 'tools', 'hotreload', 'detect', '--json']);
-      const lines = logSpy.mock.calls.map(call => call.join(' ')).join('\n');
-      const parsed = JSON.parse(lines.slice(lines.indexOf('{'), lines.lastIndexOf('}') + 1));
-      expect(parsed.framework).toBe('vite');
+      const lines = stdoutSpy.mock.calls.map(call => String(call[0])).join('').split('\n').filter(Boolean);
+      expect(lines).toHaveLength(1);
+      expect(JSON.parse(lines[0])).toMatchObject({ ok: true, data: { framework: 'vite' } });
     });
 
     it('hotreload list groups frameworks by language with strategy icons', async () => {
@@ -1127,9 +1128,9 @@ describe('groups — config / tools / k8s / data registration', () => {
       logSpy.mockClear();
       await programWith(registerToolsGroup)
         .parseAsync(['node', 're-shell', 'tools', 'hotreload', 'list', '--json']);
-      const lines = logSpy.mock.calls.map(call => call.join(' ')).join('\n');
-      const parsed = JSON.parse(lines.slice(lines.indexOf('['), lines.lastIndexOf(']') + 1));
-      expect(parsed).toHaveLength(2);
+      const lines = stdoutSpy.mock.calls.map(call => String(call[0])).join('').split('\n').filter(Boolean);
+      expect(lines).toHaveLength(1);
+      expect(JSON.parse(lines[0]).data).toHaveLength(2);
     });
 
     it('debug generate assembles the project info and skips writes on --dry-run', async () => {

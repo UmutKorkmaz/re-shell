@@ -241,7 +241,9 @@ describe('groups — quality / templates / agents registration', () => {
     it('test frameworks emits JSON with --json', async () => {
       const program = programWith(registerQualityGroup);
       await program.parseAsync(['node', 're-shell', 'quality', 'test', 'frameworks', '--json']);
-      const parsed = JSON.parse(output());
+      const parsed = JSON.parse(
+        stdoutSpy.mock.calls.map(c => String(c[0])).filter(c => c.trim().startsWith('{')).pop()!
+      ).data;
       expect(parsed).toHaveLength(3);
       expect(parsed[0]).toMatchObject({ name: 'jest', language: 'javascript' });
     });
@@ -302,7 +304,9 @@ describe('groups — quality / templates / agents registration', () => {
       await program.parseAsync([
         'node', 're-shell', 'quality', 'intellisense', 'list-languages', '--json',
       ]);
-      const parsed = JSON.parse(output());
+      const parsed = JSON.parse(
+        stdoutSpy.mock.calls.map(c => String(c[0])).filter(c => c.trim().startsWith('{')).pop()!
+      ).data;
       expect(Object.keys(parsed)).toEqual(['typescript', 'python']);
     });
 

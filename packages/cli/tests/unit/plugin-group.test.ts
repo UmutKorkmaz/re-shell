@@ -201,7 +201,7 @@ describe('plugin — command group', () => {
       await managePlugins({ json: true });
 
       const raw = writeSpy.mock.calls.map(c => String(c[0])).join('');
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(raw).data;
       expect(parsed[0]).toMatchObject({
         name: 'my-plugin',
         version: '1.2.3',
@@ -487,8 +487,8 @@ describe('plugin — command group', () => {
       await showPluginInfo('my-plugin', { json: true });
 
       // json branch prints via console.log(JSON.stringify(...)).
-      const raw = logs.join('');
-      const parsed = JSON.parse(raw);
+      const raw = writeSpy.mock.calls.map(c => String(c[0])).join('');
+      const parsed = JSON.parse(raw).data;
       expect(parsed.manifest.name).toBe('my-plugin');
       expect(parsed.state).toBe('unloaded');
     });
@@ -634,8 +634,8 @@ describe('plugin — command group', () => {
 
       await showPluginStats({ json: true });
 
-      const raw = logs.join('');
-      expect(JSON.parse(raw).total).toBe(0);
+      const raw = writeSpy.mock.calls.map(c => String(c[0])).join('');
+      expect(JSON.parse(raw).data.total).toBe(0);
     });
 
     it('verbose lists plugins with errors', async () => {
@@ -837,8 +837,8 @@ describe('plugin — command group', () => {
     it('emits the flat hook-type array in json mode', async () => {
       await listHookTypes({ json: true });
 
-      const raw = logs.join('');
-      const parsed = JSON.parse(raw);
+      const raw = writeSpy.mock.calls.map(c => String(c[0])).join('');
+      const parsed = JSON.parse(raw).data;
       expect(parsed).toEqual(expect.arrayContaining([HookType.CLI_INIT]));
     });
   });

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { manageMigration } from '../../src/commands/migration';
 
+import { jsonData } from '../utils/stdout-json';
 // UNIT coverage for src/commands/migration.ts — the `migration` command
 // (NOT utils/migration MigrationManager, covered by the open migration.test.ts
 // from PR #225). Named migration-command.test.ts to avoid that collision.
@@ -63,8 +64,9 @@ let logSpy: ReturnType<typeof vi.spyOn>;
 function logged(): string {
   return logSpy.mock.calls.map(a => a.join(' ')).join('\n');
 }
-function loggedJson(find: (s: string) => boolean): any {
-  return JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(find)!);
+function loggedJson(_find?: (s: string) => boolean): any {
+  // --json results are now one envelope on stdout; return its data.
+  return jsonData();
 }
 
 beforeEach(() => {

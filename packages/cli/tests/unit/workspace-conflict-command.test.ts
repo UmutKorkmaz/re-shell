@@ -5,6 +5,7 @@ import * as os from 'os';
 import { manageWorkspaceConflict } from '../../src/commands/workspace-conflict';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { jsonData } from '../utils/stdout-json';
 // UNIT coverage for src/commands/workspace-conflict.ts — the `workspace-conflict`
 // command (detect/resolve/preview/auto-resolve/interactive/default-detect).
 // Complements the existing workspace-conflict.test.ts MANAGER suite (PR #137).
@@ -77,8 +78,9 @@ let exitSpy: ReturnType<typeof vi.spyOn>;
 function out(): string {
   return [...logSpy.mock.calls, ...errSpy.mock.calls].map(a => a.join(' ')).join('\n');
 }
-function loggedJson(find: (s: string) => boolean): any {
-  return JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(find)!);
+function loggedJson(_find?: (s: string) => boolean): any {
+  // --json results are now one envelope on stdout; return its data.
+  return jsonData();
 }
 function spinner() {
   return { setText: vi.fn(), stop: vi.fn(), start: vi.fn(), succeed: vi.fn(), fail: vi.fn(), warn: vi.fn() } as any;

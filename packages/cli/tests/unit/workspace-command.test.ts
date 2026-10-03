@@ -50,6 +50,7 @@ vi.mock('../../src/utils/json-output', async (importOriginal) => {
 
 import prompts from 'prompts';
 
+import { jsonData } from '../utils/stdout-json';
 let tempRoot: string;
 let logSpy: ReturnType<typeof vi.spyOn>;
 let errSpy: ReturnType<typeof vi.spyOn>;
@@ -798,9 +799,7 @@ services:
 
       await optimizeWorkspace({ json: true });
 
-      const payload = JSON.parse(
-        logSpy.mock.calls.map((c) => c.join(' ')).filter((l) => l.trim().startsWith('{')).at(-1)!
-      );
+      const payload = jsonData();
       expect(payload).toHaveProperty('recommendations');
       expect(payload).toHaveProperty('summary');
       expect(payload).toHaveProperty('estimatedImpact');
