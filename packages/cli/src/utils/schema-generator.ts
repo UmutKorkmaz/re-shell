@@ -6,7 +6,6 @@
 
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as os from 'os';
 import * as yaml from 'js-yaml';
 import Ajv, { type ErrorObject } from 'ajv';
 // The canonical v2 schema is the single source of truth. Importing the JSON
@@ -14,14 +13,21 @@ import Ajv, { type ErrorObject } from 'ajv';
 // document the IDE-autocomplete schema is published from, regardless of any
 // build-time copy under dist/utils/schemas.
 import workspaceV2Schema from '../schemas/workspace-v2.schema.json';
+import { SCHEMA_URL, REPO_URL, WORKSPACE_FILE_NAMES } from '../constants/brand';
 
 /**
- * Owned/served placeholder for the published IDE schema. Deliberately NOT
- * re-shell.dev: it points at a path we control so VSCode/IntelliJ can resolve a
- * stable $id without depending on an unowned domain.
+ * `$id` of the published IDE schema: the hosted URL the docs site serves it
+ * from. Alias of {@link SCHEMA_URL}; the URL itself lives only in
+ * `constants/brand.ts`.
  */
-export const SCHEMA_ID =
-  'https://schemas.umutkorkmaz.dev/re-shell/workspace-v2.schema.json';
+export const SCHEMA_ID = SCHEMA_URL;
+
+/**
+ * Glob patterns (as used by yaml-language-server `yaml.schemas`) that select the
+ * workspace files the schema applies to. Derived from the names the CLI itself
+ * loads, so IDE mappings and CLI behaviour cannot drift apart.
+ */
+export const WORKSPACE_FILE_GLOBS: readonly string[] = WORKSPACE_FILE_NAMES;
 
 /**
  * A single field-level validation error, mirroring ajv's shape but reduced to
@@ -40,7 +46,7 @@ export interface SchemaValidationError {
 export interface SchemaPublishOptions {
   /** Directory where the schema and IDE-specific config files are written. Defaults to `<cwd>/schemas`. */
   outputDir?: string;
-  /** VSCode user settings directory whose `settings.json` is updated with schema associations. Defaults to `~/.vscode`. */
+  /** Directory whose `settings.json` is updated with the `yaml.schemas` association. Defaults to the project's `<cwd>/.vscode` (workspace settings, which VSCode reads). */
   vscodeDir?: string;
   /** When `true`, additionally generates a VSCode extension scaffold under `outputDir/vscode-extension`. Defaults to `false`. */
   createVscodeExtension?: boolean;
@@ -56,26 +62,18 @@ export interface SchemaPublishOptions {
  * The returned JSON string maps the workspace JSON schema to the common
  * re-shell workspace YAML file names and enables YAML validation/completion.
  *
- * @param schemaPath - Absolute or relative path/URL to the workspace JSON schema that VSCode should associate with the workspace files.
+ * @param schemaPath - URL or path of the workspace JSON schema that VSCode should associate with the workspace files. Defaults to the hosted {@link SCHEMA_URL}.
  * @returns A pretty-printed JSON string suitable for writing to VSCode's `settings.json`.
  */
-export function generateVSCodeConfig(schemaPath: string): string {
+export function generateVSCodeConfig(schemaPath: string = SCHEMA_URL): string {
   return JSON.stringify(
     {
       "yaml.schemas": {
-        [schemaPath]: [
-          "re-shell.workspaces.yaml",
-          "re-shell.workspace.yaml",
-          "workspace.yaml",
-          "*.workspace.yaml",
-          "workspaces/*.yaml"
-        ]
+        [schemaPath]: [...WORKSPACE_FILE_GLOBS]
       },
       "yaml.validate": true,
       "yaml.completion": true,
-      "yaml.format.enable": true,
-      "yaml.hover": true,
-      "yaml.schemaStore.enable": false
+      "yaml.hover": true
     },
     null,
     2
@@ -83,94 +81,114 @@ export function generateVSCodeConfig(schemaPath: string): string {
 }
 
 /**
- * Generate IntelliJ/IDEA schema mapping.
+ * Generate the IntelliJ/IDEA JSON Schema mapping.
  *
- * The returned XML snippet registers the re-shell workspace schema against the
- * `re-shell.workspaces.yaml` file name inside IntelliJ's `SchemaColorSettings`.
+ * The returned XML is the content of `.idea/jsonSchemas.xml` (the project-level
+ * "JSON Schema Mappings" store), mapping the hosted schema to the workspace
+ * file names. IntelliJ applies JSON Schema mappings to YAML files as well.
  *
- * @returns An XML string intended to be merged into `.idea/workspace.xml`.
+ * @returns An XML document to save as `.idea/jsonSchemas.xml`.
  */
 export function generateIntelliJConfig(): string {
-  return `# IntelliJ/IDEA YAML Schema Configuration
-# Add this to .idea/workspace.xml or project settings
+  const items = WORKSPACE_FILE_GLOBS.map(
+    (glob) => `                  <Item>
+                    <option name="path" value="${glob}" />
+                    <option name="mappingKind" value="Pattern" />
+                  </Item>`
+  ).join('\n');
 
-<application>
-  <component name="SchemaColorSettings">
-    <options>
-      <option name="SCHEMA_ASSOCIATIONS">
-        <map>
-          <entry key="re-shell.workspaces.yaml">
-            <value>
-              <SchemaInfo>
-                <option name="name" value="Re-Shell Workspace" />
-                <option name="namespace" value="https://schemas.umutkorkmaz.dev/re-shell/workspace-v2.schema.json" />
-                <option name="fileRelativePath" value="schemas/re-shell-workspace.schema.json" />
-              </SchemaInfo>
-            </value>
-          </entry>
-        </map>
-      </option>
-    </options>
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!-- Save as .idea/jsonSchemas.xml (IntelliJ IDEA, WebStorm, PyCharm, ...). -->
+<project version="4">
+  <component name="JsonSchemaMappingsProjectConfiguration">
+    <state>
+      <map>
+        <entry key="Re-Shell Workspace">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="Re-Shell Workspace" />
+              <option name="relativePathToSchema" value="${SCHEMA_URL}" />
+              <option name="schemaVersion" value="JSON Schema version 7" />
+              <option name="patterns">
+                <list>
+${items}
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
+      </map>
+    </state>
   </component>
-</component>
+</project>
 `;
 }
 
 /**
  * Generate Vim/Neovim schema configuration.
  *
- * The returned Vimscript configures schema namespace matching, file
- * associations, and omnifunc-based completion for `yaml` filetypes.
+ * The returned Vimscript registers `yaml-language-server` through vim-lsp and
+ * hands it the hosted workspace schema for the workspace file names. A Neovim
+ * (nvim-lspconfig) equivalent is included as comments.
  *
  * @returns A Vimscript snippet to append to `.vimrc` or `init.vim`.
  */
 export function generateVimConfig(): string {
-  return `# Vim/Neovim YAML Schema Configuration
-# Add to .vimrc or init.vim for vim-yaml-config
+  const globs = WORKSPACE_FILE_GLOBS.map((g) => `'${g}'`).join(', ');
+  const luaGlobs = WORKSPACE_FILE_GLOBS.map((g) => `"${g}"`).join(', ');
 
-" Enable YAML completion with schemas
-let g:yaml_schema_namespace_pattern = '^https://schemas.umutkorkmaz.dev/re-shell/'
+  return `" Vim/Neovim YAML Schema Configuration for Re-Shell workspace files
+" Requires yaml-language-server (npm i -g yaml-language-server).
+" Schema: ${SCHEMA_URL}
 
-" Associate schema with workspace files
-let g:yaml_schema_associations = {
-  \\ 're-shell.workspaces.yaml': 'https://schemas.umutkorkmaz.dev/re-shell/workspace-v2.schema.json',
-  \\ 'workspace.yaml': 'https://schemas.umutkorkmaz.dev/re-shell/workspace-v2.schema.json',
-  \\}
+" vim-lsp (prabirshrestha/vim-lsp)
+if executable('yaml-language-server')
+  augroup reshell_yaml_schema
+    autocmd!
+    autocmd User lsp_setup call lsp#register_server({
+      \\ 'name': 'yaml-language-server',
+      \\ 'cmd': {server_info -> ['yaml-language-server', '--stdio']},
+      \\ 'allowlist': ['yaml'],
+      \\ 'workspace_config': {'yaml': {'schemas': {'${SCHEMA_URL}': [${globs}]}}},
+      \\ })
+  augroup END
+endif
 
-" Enable completion
-autocmd FileType yaml setlocal omnifunc=yamlcomplete#Complete
+" Neovim (nvim-lspconfig), in init.lua:
+"   require('lspconfig').yamlls.setup({
+"     settings = { yaml = { schemas = {
+"       ["${SCHEMA_URL}"] = { ${luaGlobs} },
+"     } } },
+"   })
+"
+" Any yaml-language-server client also honours the modeline that
+" \`re-shell workspace init\` writes on the first line of the file:
+"   # yaml-language-server: $schema=${SCHEMA_URL}
 `;
 }
 
 /**
  * Generate Emacs schema configuration.
  *
- * The returned Emacs Lisp registers the re-shell workspace schema against the
- * relevant YAML file names and wires up `company`-based completion within
- * `yaml-mode`.
+ * The returned Emacs Lisp associates the hosted workspace schema with the
+ * workspace file names for lsp-mode's yaml-language-server client.
  *
  * @returns An Emacs Lisp snippet to append to `init.el` or `.emacs`.
  */
 export function generateEmacsConfig(): string {
-  return `;; Emacs YAML Schema Configuration
-;; Add to init.el or .emacs for yaml-mode
+  const globs = WORKSPACE_FILE_GLOBS.map((g) => `"${g}"`).join(' ');
 
-(require 'yaml-mode)
+  return `;; Emacs YAML Schema Configuration for Re-Shell workspace files
+;; Requires lsp-mode with yaml-language-server (npm i -g yaml-language-server).
+;; Schema: ${SCHEMA_URL}
 
-;; Associate schema with workspace files
-(add-to-list 'yaml-schema-alist
-  '("re-shell.workspaces.yaml" .
-    "https://schemas.umutkorkmaz.dev/re-shell/workspace-v2.schema.json"))
+(with-eval-after-load 'lsp-yaml
+  (setq lsp-yaml-schemas
+        '(("${SCHEMA_URL}" . [${globs}]))))
 
-(add-to-list 'yaml-schema-alist
-  '("workspace.yaml" .
-    "https://schemas.umutkorkmaz.dev/re-shell/workspace-v2.schema.json"))
-
-;; Enable auto-completion
-(add-hook 'yaml-mode-hook
-  (lambda ()
-    (set (make-local-variable 'company-backends)
-      '((company-yaml-vars company-capf company-dabbrev-code)))))
+;; Any yaml-language-server client also honours the modeline that
+;; \`re-shell workspace init\` writes on the first line of the file:
+;;   # yaml-language-server: $schema=${SCHEMA_URL}
 `;
 }
 
@@ -197,28 +215,20 @@ export function generateVSCodeExtension(): string {
           "id": "re-shell-workspace",
           "aliases": ["Re-Shell Workspace", "Workspace YAML"],
           "extensions": [".yaml", ".yml"],
-          "filenames": [
-            "re-shell.workspaces.yaml",
-            "re-shell.workspace.yaml",
-            "workspace.yaml"
-          ],
+          "filenames": [...WORKSPACE_FILE_GLOBS],
           "configuration": "./language-configuration.json"
         }],
-        "jsonValidation": [{
-          "fileMatch": "re-shell.workspaces.yaml",
-          "url": "https://schemas.umutkorkmaz.dev/re-shell/workspace-v2.schema.json"
-        }],
         "yamlValidation": [{
-          "fileMatch": "*workspace*.yaml",
-          "url": "https://schemas.umutkorkmaz.dev/re-shell/workspace-v2.schema.json"
+          "fileMatch": [...WORKSPACE_FILE_GLOBS],
+          "url": SCHEMA_URL
         }],
         "configuration": {
           "title": "Re-Shell Workspace",
           "properties": {
             "reShell.workspace.schemaPath": {
               "type": "string",
-              "default": "./schemas/re-shell-workspace.schema.json",
-              "description": "Path to workspace JSON schema"
+              "default": SCHEMA_URL,
+              "description": "URL or path of the workspace JSON schema"
             },
             "reShell.workspace.enableValidation": {
               "type": "boolean",
@@ -250,7 +260,7 @@ export function generateVSCodeExtension(): string {
       },
       "repository": {
         "type": "git",
-        "url": "https://github.com/re-shell/re-shell-vscode"
+        "url": `${REPO_URL}.git`
       }
     },
     null,
@@ -306,9 +316,11 @@ export function generateLanguageConfig(): string {
 /**
  * Publish the workspace schema and IDE-specific configuration files.
  *
- * Writes the canonical v2 schema, VSCode `settings.json` (merged with any
- * existing settings), and IntelliJ/Vim/Emacs config snippets. Optionally
- * scaffolds a VSCode extension under the output directory.
+ * Writes a local copy of the canonical v2 schema, VSCode `settings.json` (the
+ * `yaml.schemas` entry is merged into any existing settings and mappings), and
+ * IntelliJ/Vim/Emacs config snippets. Every IDE config points at the hosted
+ * {@link SCHEMA_URL}, not at the local copy. Optionally scaffolds a VSCode
+ * extension under the output directory.
  *
  * @param options - Controls output location, VSCode target directory, and whether to emit a VSCode extension scaffold. Defaults to sensible locations with no extension scaffold.
  * @returns Resolves once all files have been written; rejects on filesystem errors.
@@ -316,20 +328,20 @@ export function generateLanguageConfig(): string {
 export async function publishSchemas(options: SchemaPublishOptions = {}): Promise<void> {
   const {
     outputDir = path.join(process.cwd(), 'schemas'),
-    vscodeDir = path.join(os.homedir(), '.vscode'),
+    vscodeDir = path.join(process.cwd(), '.vscode'),
     createVscodeExtension = false,
   } = options;
 
   await fs.ensureDir(outputDir);
 
-  // Emit the canonical v2 IDE schema (with owned $id) as the published file.
+  // Emit a local copy of the canonical v2 schema (its $id is the hosted URL).
   const schemaDest = path.join(outputDir, 're-shell-workspace.schema.json');
   await fs.writeJson(schemaDest, getIdeSchema(), { spaces: 2 });
 
   console.log(`✅ Schema published to: ${schemaDest}`);
 
-  // Generate VSCode settings.json
-  const vscodeSettings = generateVSCodeConfig(schemaDest);
+  // Generate VSCode settings.json (maps the hosted schema URL, not the local copy)
+  const vscodeSettings = generateVSCodeConfig(SCHEMA_URL);
   const settingsPath = path.join(vscodeDir, 'settings.json');
   await fs.ensureDir(vscodeDir);
 
@@ -342,10 +354,22 @@ export async function publishSchemas(options: SchemaPublishOptions = {}): Promis
     }
   }
 
-  // Merge settings
+  // Merge settings. `yaml.schemas` is merged key-by-key so mappings the user
+  // already has (Kubernetes, CI schemas, ...) are preserved.
+  const generated = JSON.parse(vscodeSettings) as Record<string, unknown>;
+  const existingSchemas =
+    existingSettings['yaml.schemas'] !== null &&
+    typeof existingSettings['yaml.schemas'] === 'object' &&
+    !Array.isArray(existingSettings['yaml.schemas'])
+      ? (existingSettings['yaml.schemas'] as Record<string, unknown>)
+      : {};
   const mergedSettings = {
     ...existingSettings,
-    ...JSON.parse(vscodeSettings)
+    ...generated,
+    'yaml.schemas': {
+      ...existingSchemas,
+      ...(generated['yaml.schemas'] as Record<string, unknown>),
+    },
   };
 
   await fs.writeJson(settingsPath, mergedSettings, { spaces: 2 });
@@ -382,10 +406,11 @@ export async function publishSchemas(options: SchemaPublishOptions = {}): Promis
   }
 
   console.log('\n📝 Setup Instructions:');
-  console.log('   VSCode: Schema already registered in settings.json');
-  console.log('   IntelliJ: Copy intellij-config.xml to .idea/workspace.xml');
-  console.log('   Vim/Neovim: Copy vim-config.vim to ~/.vimrc or ~/.config/nvim/init.vim');
-  console.log('   Emacs: Copy emacs-config.el to ~/.emacs or ~/.emacs.d/init.el');
+  console.log(`   Schema URL: ${SCHEMA_URL}`);
+  console.log('   VSCode: yaml.schemas registered in settings.json (needs the redhat.vscode-yaml extension)');
+  console.log('   IntelliJ: Save intellij-config.xml as .idea/jsonSchemas.xml');
+  console.log('   Vim/Neovim: Add vim-config.vim to ~/.vimrc or ~/.config/nvim/init.vim');
+  console.log('   Emacs: Add emacs-config.el to ~/.emacs or ~/.emacs.d/init.el');
 }
 
 /**
@@ -460,11 +485,25 @@ export async function validateWorkspaceFile(
   }
 
   // Real JSON-Schema validation against the canonical v2 schema.
+  errors.push(...validateWorkspaceDocument(parsed));
+
+  return { valid: errors.length === 0, errors, warnings };
+}
+
+/**
+ * Validate an already-parsed workspace document against the canonical v2 JSON
+ * Schema using ajv. Used by {@link validateWorkspaceFile} and by writers that
+ * want to verify what they are about to emit.
+ *
+ * @param document - The parsed workspace document (YAML/JSON value).
+ * @returns Field-level errors (instancePath + message); empty when the document conforms.
+ */
+export function validateWorkspaceDocument(document: unknown): SchemaValidationError[] {
   const ajv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
   const validate = ajv.compile(getWorkspaceSchema());
-  const valid = validate(parsed);
+  const errors: SchemaValidationError[] = [];
 
-  if (!valid && validate.errors) {
+  if (!validate(document) && validate.errors) {
     for (const err of validate.errors as ErrorObject[]) {
       errors.push({
         instancePath: err.instancePath || '',
@@ -472,22 +511,22 @@ export async function validateWorkspaceFile(
       });
     }
   }
-
-  return { valid: errors.length === 0, errors, warnings };
+  return errors;
 }
 
 /**
- * Build the IDE-autocomplete JSON Schema: the canonical v2 schema with an
- * owned/served $id (and a draft-07 $schema) so VSCode/IntelliJ can resolve it.
+ * Build the IDE-autocomplete JSON Schema: the canonical v2 schema with its
+ * `$id` pinned to the hosted {@link SCHEMA_URL} (and a draft-07 `$schema`), i.e.
+ * exactly the document the docs site serves at that URL.
  *
- * @returns A JSON Schema object augmented with `$schema` and owned `$id` fields ready for IDE consumption.
+ * @returns A JSON Schema object with `$schema` and the hosted `$id`, ready for IDE consumption.
  */
 export function getIdeSchema(): Record<string, unknown> {
   const base = getWorkspaceSchema();
   return {
     ...base,
     $schema: 'http://json-schema.org/draft-07/schema#',
-    $id: SCHEMA_ID,
+    $id: SCHEMA_URL,
   };
 }
 
@@ -504,7 +543,7 @@ export function getSchemaPath(): string {
 /**
  * Load the IDE-autocomplete schema as a JSON object.
  *
- * @returns The IDE-ready schema (canonical v2 schema with `$schema` and owned `$id`).
+ * @returns The IDE-ready schema (canonical v2 schema with `$schema` and the hosted `$id`).
  */
 export async function loadSchema(): Promise<Record<string, unknown>> {
   return getIdeSchema();

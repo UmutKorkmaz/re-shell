@@ -1,26 +1,29 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://re-shell.dev/schemas/workspace-v2.schema.json",
-  "title": "Re-Shell Workspace Configuration v2.0",
-  "description": "Comprehensive workspace configuration for multi-language, multi-framework microservices projects",
+  "$id": "https://umutkorkmaz.github.io/re-shell/schemas/workspace-v2.json",
+  "title": "Re-Shell Workspace Configuration (re-shell.workspaces.yaml, v2)",
+  "description": "Describes a Re-Shell workspace: the services (microfrontends and polyglot microservices) it contains, their languages and frameworks, runtime settings, external dependencies, deployment and monitoring. Lives at the repository root as re-shell.workspaces.yaml. Required: name, version (2.0.x) and services. Validate with `re-shell config schema validate re-shell.workspaces.yaml`.",
   "type": "object",
   "required": ["name", "version", "services"],
   "properties": {
     "name": {
       "type": "string",
-      "description": "Workspace name",
+      "description": "Workspace name. Lowercase letters, digits and hyphens only (kebab-case), 1-63 characters, starting and ending with a letter or digit.",
+      "examples": ["my-platform"],
       "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
       "minLength": 1,
       "maxLength": 63
     },
     "version": {
       "type": "string",
-      "description": "Configuration version",
+      "description": "Workspace configuration schema version. Must be a 2.0.x release string, for example \"2.0.0\".",
+      "examples": ["2.0.0"],
+      "default": "2.0.0",
       "pattern": "^2\\.0\\.[0-9]+$"
     },
     "description": {
       "type": "string",
-      "description": "Workspace description"
+      "description": "Human-readable summary of what this workspace is for."
     },
     "metadata": {
       "type": "object",
@@ -76,14 +79,14 @@
     },
     "services": {
       "type": "object",
-      "description": "Service definitions",
+      "description": "Services in this workspace, keyed by service name (kebab-case). Each value defines one microfrontend or microservice; `name`, `language` and `framework` are required on each. An empty map (`services: {}`) is valid for a workspace that has no services yet.",
       "additionalProperties": {
         "$ref": "#/definitions/service"
       }
     },
     "dependencies": {
       "type": "object",
-      "description": "External dependencies",
+      "description": "External infrastructure the workspace depends on: databases, caches, message queues and object storage.",
       "properties": {
         "databases": {
           "type": "array",
@@ -145,20 +148,24 @@
     },
     "service": {
       "type": "object",
+      "description": "A single service in the workspace: one microfrontend, API, background worker or function. Requires name, language and framework.",
       "required": ["name", "language", "framework"],
       "properties": {
         "name": {
           "type": "string",
+          "description": "Service name. Kebab-case (lowercase letters, digits, hyphens), 1-63 characters; should match the key it is listed under in `services`.",
           "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
         },
-        "displayName": { "type": "string" },
-        "description": { "type": "string" },
+        "displayName": { "type": "string", "description": "Human-friendly name shown in dashboards and generated docs." },
+        "description": { "type": "string", "description": "What this service does." },
         "type": {
           "type": "string",
+          "description": "Role of the service: frontend (UI / microfrontend), backend (API or server), worker (background or shared library) or function (serverless function).",
           "enum": ["frontend", "backend", "worker", "function"]
         },
         "language": {
           "type": "string",
+          "description": "Primary implementation language (lowercase, e.g. typescript, python, go, rust).",
           "enum": [
             "typescript", "javascript",
             "python", "go", "rust",
@@ -173,6 +180,7 @@
           ]
         },
         "framework": {
+          "description": "Framework the service is built on: either a framework name (e.g. \"react\", \"express\", \"fastapi\") or an object with `name`, `version` and optional `config`. Use \"vanilla\" when no framework applies.",
           "oneOf": [
             { "type": "string" },
             {
@@ -192,6 +200,7 @@
         },
         "port": {
           "type": "integer",
+          "description": "TCP port the service listens on (1024-65535).",
           "minimum": 1024,
           "maximum": 65535
         },
@@ -224,6 +233,7 @@
         },
         "scripts": {
           "type": "object",
+          "description": "Named shell commands for this service (build, start, dev, test, lint, or any custom script).",
           "properties": {
             "build": { "type": "string" },
             "start": { "type": "string" },
@@ -247,10 +257,12 @@
         },
         "routes": {
           "type": "array",
+          "description": "HTTP routes exposed by the service and where they are forwarded.",
           "items": { "$ref": "#/definitions/route" }
         },
         "middleware": {
           "type": "array",
+          "description": "Middleware applied to the service, by name or as { name, config } objects.",
           "items": {
             "oneOf": [
               { "type": "string" },
@@ -267,6 +279,7 @@
         },
         "features": {
           "type": "array",
+          "description": "Capabilities the service is generated with or provides.",
           "items": {
             "type": "string",
             "enum": [
@@ -280,16 +293,19 @@
         },
         "tags": {
           "type": "array",
+          "description": "Free-form labels used for grouping and filtering services.",
           "items": { "type": "string" }
         },
         "metadata": {
           "type": "object",
+          "description": "Free-form string key/value metadata attached to the service.",
           "additionalProperties": { "type": "string" }
         }
       }
     },
     "database": {
       "type": "object",
+      "description": "A database the workspace depends on.",
       "required": ["name", "type"],
       "properties": {
         "name": { "type": "string" },
@@ -308,6 +324,7 @@
     },
     "cache": {
       "type": "object",
+      "description": "A cache the workspace depends on.",
       "required": ["name", "type"],
       "properties": {
         "name": { "type": "string" },
@@ -323,6 +340,7 @@
     },
     "queue": {
       "type": "object",
+      "description": "A message queue or broker the workspace depends on.",
       "required": ["name", "type"],
       "properties": {
         "name": { "type": "string" },
@@ -336,6 +354,7 @@
     },
     "storage": {
       "type": "object",
+      "description": "An object/file storage backend the workspace depends on.",
       "required": ["name", "type"],
       "properties": {
         "name": { "type": "string" },
@@ -349,6 +368,7 @@
     },
     "buildConfig": {
       "type": "object",
+      "description": "How the service is built into an artifact or container image.",
       "properties": {
         "output": { "type": "string" },
         "dockerfile": { "type": "string" },
@@ -365,6 +385,7 @@
     },
     "scalingConfig": {
       "type": "object",
+      "description": "Autoscaling bounds and metrics for the service.",
       "properties": {
         "min": { "type": "integer", "minimum": 0 },
         "max": { "type": "integer", "minimum": 1 },
@@ -389,6 +410,7 @@
     },
     "resourceConfig": {
       "type": "object",
+      "description": "CPU and memory requests/limits (CPU in millicores like \"250m\", memory like \"512Mi\" or \"1Gi\").",
       "properties": {
         "cpu": {
           "type": "object",
@@ -408,6 +430,7 @@
     },
     "healthCheck": {
       "type": "object",
+      "description": "Liveness/readiness probe settings for the service.",
       "properties": {
         "path": { "type": "string" },
         "interval": { "type": "integer", "minimum": 1 },
@@ -417,6 +440,7 @@
     },
     "route": {
       "type": "object",
+      "description": "Maps a request path (and optional HTTP method) to a target service or URL.",
       "required": ["path", "target"],
       "properties": {
         "path": { "type": "string" },
@@ -433,6 +457,7 @@
     },
     "deployment": {
       "type": "object",
+      "description": "Workspace-wide deployment settings: target platform, rollout strategy, replicas and environment.",
       "properties": {
         "platform": {
           "type": "string",
@@ -459,6 +484,7 @@
     },
     "monitoring": {
       "type": "object",
+      "description": "Workspace-wide monitoring: which metrics to collect and which alerts to raise.",
       "properties": {
         "enabled": { "type": "boolean" },
         "metrics": {

@@ -133,7 +133,12 @@ describe('import-monorepo — command', () => {
     await importFromMonorepo({ source: 'turbo' });
     const yaml = outputYaml(root);
     expect(logged()).toContain('Detected: TURBO');
-    expect(yaml).toContain('@scope/dashboard:');
+    // npm-scoped names are neither valid v2 service names nor valid as a bare
+    // YAML key (leading `@`): the key is sanitised to kebab-case and the
+    // original name is kept in metadata.
+    expect(yaml).toContain('  dashboard:');
+    expect(yaml).toContain('originalName: "@scope/dashboard"');
+    expect(yaml).not.toContain('@scope/dashboard:');
     expect(yaml).toContain('    framework: vue');
     expect(yaml).toContain('    type: frontend');
   });

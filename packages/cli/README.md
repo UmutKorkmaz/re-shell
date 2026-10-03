@@ -5,11 +5,11 @@
 The most comprehensive and powerful command-line interface for building complete full-stack applications with distributed microservices and microfrontend architectures. Re-Shell unites backend and frontend development under a single CLI, providing enterprise-grade reliability, seamless integration, and exceptional developer experience.
 
 [![Version](https://img.shields.io/npm/v/@re-shell/cli.svg)](https://www.npmjs.com/package/@re-shell/cli)
-[![License](https://img.shields.io/npm/l/@re-shell/cli.svg)](https://github.com/umutkorkmaz/re-shell-cli/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/umutkorkmaz/re-shell-cli/ci.yml?branch=main)](https://github.com/umutkorkmaz/re-shell-cli/actions/workflows/ci.yml)
+[![License](https://img.shields.io/npm/l/@re-shell/cli.svg)](https://github.com/UmutKorkmaz/re-shell/blob/main/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/UmutKorkmaz/re-shell/ci.yml?branch=main)](https://github.com/UmutKorkmaz/re-shell/actions/workflows/ci.yml)
 [![Downloads](https://img.shields.io/npm/dm/@re-shell/cli.svg)](https://www.npmjs.com/package/@re-shell/cli)
 
-> This package lives in the [Re-Shell monorepo](https://github.com/umutkorkmaz/re-shell-cli). See [`/docs`](../../docs) for the full documentation index and the [`CLI-CONTRACTS.md`](../../docs/CLI-CONTRACTS.md) JSON contract.
+> This package lives in the [Re-Shell monorepo](https://github.com/UmutKorkmaz/re-shell). See [`/docs`](../../docs) for the full documentation index and the [`CLI-CONTRACTS.md`](../../docs/CLI-CONTRACTS.md) JSON contract.
 
 ## 🚀 Platform Overview
 
@@ -1046,7 +1046,7 @@ templates:
     bundler: "vite"
 plugins:
   autoUpdate: true
-  marketplace: "https://marketplace.re-shell.dev"
+  marketplace: "https://registry.npmjs.org"
 ```
 
 ### Project Configuration
@@ -1144,14 +1144,14 @@ re-shell audit generate --quarterly-report
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! Open an issue or pull request on [GitHub](https://github.com/UmutKorkmaz/re-shell-cli).
+We welcome contributions from the community! Open an issue or pull request on [GitHub](https://github.com/UmutKorkmaz/re-shell).
 
 ### Development Setup
 
 ```bash
 # Clone the monorepo
-git clone https://github.com/umutkorkmaz/re-shell-cli.git
-cd re-shell-cli
+git clone https://github.com/UmutKorkmaz/re-shell.git
+cd re-shell
 
 # Install workspace dependencies
 pnpm install
@@ -1179,21 +1179,21 @@ pnpm --filter @re-shell/cli dev
 
 ### Community Support
 
-- **GitHub Discussions**: [https://github.com/umutkorkmaz/re-shell-cli/discussions](https://github.com/umutkorkmaz/re-shell-cli/discussions)
+- **GitHub Discussions**: [https://github.com/UmutKorkmaz/re-shell/discussions](https://github.com/UmutKorkmaz/re-shell/discussions)
 - **Discord Community**: [https://discord.gg/re-shell](https://discord.gg/re-shell)
 - **Stack Overflow**: Tag questions with `@re-shell/cli`
 
 ### Documentation
 
-- **Official Documentation**: [https://docs.re-shell.dev](https://docs.re-shell.dev)
-- **API Reference**: [https://api.re-shell.dev](https://api.re-shell.dev)
-- **Video Tutorials**: [https://learn.re-shell.dev](https://learn.re-shell.dev)
+- **Official Documentation**: [https://umutkorkmaz.github.io/re-shell/](https://umutkorkmaz.github.io/re-shell/)
+- **API Reference**: [https://umutkorkmaz.github.io/re-shell/cli/api/](https://umutkorkmaz.github.io/re-shell/cli/api/)
+- **Quickstart**: [https://umutkorkmaz.github.io/re-shell/getting-started/quickstart/](https://umutkorkmaz.github.io/re-shell/getting-started/quickstart/)
 
 ### Enterprise Support
 
 For enterprise support, consulting, and custom development:
-- **Email**: enterprise@re-shell.dev
-- **Website**: [https://enterprise.re-shell.dev](https://enterprise.re-shell.dev)
+- **Contact**: [open an issue](https://github.com/UmutKorkmaz/re-shell/issues)
+- **Website**: [https://umutkorkmaz.github.io/re-shell/](https://umutkorkmaz.github.io/re-shell/)
 
 ## 📄 License
 
@@ -1221,10 +1221,10 @@ See the [LICENSE](./LICENSE) file for the full license text.
 
 <div align="center">
 
-**[Website](https://re-shell.dev)** •
-**[Documentation](https://docs.re-shell.dev)** •
-**[Examples](https://examples.re-shell.dev)** •
-**[Community](https://community.re-shell.dev)**
+**[Website](https://umutkorkmaz.github.io/re-shell/)** •
+**[Documentation](https://umutkorkmaz.github.io/re-shell/)** •
+**[Examples](https://github.com/UmutKorkmaz/re-shell/tree/main/packages/cli/examples)** •
+**[Community](https://github.com/UmutKorkmaz/re-shell/discussions)**
 
 Made with ❤️ by the Re-Shell Team | Open Source Apache-2.0 License
 
