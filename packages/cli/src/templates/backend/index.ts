@@ -92,6 +92,8 @@ import { alephDenoTemplate } from './aleph-deno';
 // Bun
 import { elysiaBunTemplate } from './elysia-bun';
 import { honoTemplate } from './hono';
+import { bunServeTemplate } from './bun-serve';
+import { trpcBunTemplate } from './trpc-bun';
 // Elixir
 import { phoenixTemplate } from './phoenix';
 import { plugExTemplate } from './plug-ex';
@@ -103,6 +105,7 @@ import { amberCrTemplate } from './amber-cr';
 // Zig
 import { zigHttpTemplate } from './zig-http';
 import { zapZigTemplate } from './zap-zig';
+import { stdHttpZigTemplate } from './std-http-zig';
 // Nim
 import { jesterTemplate } from './jester';
 import { prologueNimTemplate } from './prologue-nim';
@@ -435,6 +438,8 @@ export const backendTemplates: Record<string, BackendTemplate> = {
   // Bun
   'elysia-bun': elysiaBunTemplate,
   'hono': honoTemplate,
+  'bun-serve': bunServeTemplate,
+  'trpc-bun': trpcBunTemplate,
   // Elixir
   'phoenix': phoenixTemplate,
   'plug-ex': plugExTemplate,
@@ -446,6 +451,7 @@ export const backendTemplates: Record<string, BackendTemplate> = {
   // Zig
   'zig-http': zigHttpTemplate,
   'zap-zig': zapZigTemplate,
+  'std-http-zig': stdHttpZigTemplate,
   // Nim
   'jester': jesterTemplate,
   'prologue-nim': prologueNimTemplate,
@@ -626,6 +632,8 @@ export { alephDenoTemplate } from './aleph-deno';
 // Bun
 export { elysiaBunTemplate } from './elysia-bun';
 export { honoTemplate } from './hono';
+export { bunServeTemplate } from './bun-serve';
+export { trpcBunTemplate } from './trpc-bun';
 // Elixir
 export { phoenixTemplate } from './phoenix';
 export { plugExTemplate } from './plug-ex';
@@ -637,6 +645,7 @@ export { amberCrTemplate } from './amber-cr';
 // Zig
 export { zigHttpTemplate } from './zig-http';
 export { zapZigTemplate } from './zap-zig';
+export { stdHttpZigTemplate } from './std-http-zig';
 // Nim
 export { jesterTemplate } from './jester';
 export { prologueNimTemplate } from './prologue-nim';
