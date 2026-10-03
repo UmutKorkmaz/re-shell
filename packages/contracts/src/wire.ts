@@ -267,19 +267,84 @@ export type DoctorFixWire = z.infer<typeof doctorFixWireSchema>;
 // analyze  (`analyze --json`)
 // ---------------------------------------------------------------------------
 
+/** One built asset of a workspace (`rawBytes` is the exact size, `size` its display form). */
+export const analysisAssetWireSchema = z.looseObject({
+  name: z.string(),
+  size: z.string(),
+  rawBytes: z.number(),
+  type: z.string(),
+});
+
 /**
- * One analysis block (bundle/dependencies/performance/security). Only the
- * `workspace` discriminator is contractual; the rest of each block is the
- * analyzer's own report and is passed through untouched.
+ * Bundle analysis of one workspace. `size.total` is a display string (`"14 Bytes"`)
+ * or, when nothing could be measured, `"N/A"` / `"Build failed"` / `"Error: ..."`.
  */
-export const analysisBlockWireSchema = z.looseObject({ workspace: z.string() });
-export type AnalysisBlockWire = z.infer<typeof analysisBlockWireSchema>;
+export const bundleAnalysisWireSchema = z.looseObject({
+  workspace: z.string(),
+  size: z.looseObject({
+    total: z.string(),
+    gzipped: z.string(),
+    assets: z.array(analysisAssetWireSchema),
+  }),
+  chunks: z.array(z.looseObject({ name: z.string(), size: z.string(), modules: z.number() })),
+  treeshaking: z.looseObject({ unusedExports: z.array(z.string()), deadCode: z.number() }),
+});
+export type BundleAnalysisWire = z.infer<typeof bundleAnalysisWireSchema>;
+
+/** Dependency analysis of one workspace (counts, outdated, duplicates, vulnerabilities, licenses). */
+export const dependencyAnalysisWireSchema = z.looseObject({
+  workspace: z.string(),
+  total: z.number(),
+  production: z.number(),
+  development: z.number(),
+  outdated: z.array(
+    z.looseObject({
+      name: z.string(),
+      current: z.string(),
+      wanted: z.string(),
+      latest: z.string(),
+    })
+  ),
+  duplicates: z.array(
+    z.looseObject({ name: z.string(), versions: z.array(z.string()), locations: z.array(z.string()) })
+  ),
+  vulnerabilities: z.array(z.looseObject({ severity: z.string(), count: z.number() })),
+  licenses: z.array(z.looseObject({ license: z.string(), packages: z.array(z.string()) })),
+});
+export type DependencyAnalysisWire = z.infer<typeof dependencyAnalysisWireSchema>;
+
+/**
+ * Performance analysis of one workspace. `buildTime` is milliseconds, `0` when the
+ * workspace has no build script and `-1` when the build failed.
+ */
+export const performanceAnalysisWireSchema = z.looseObject({
+  workspace: z.string(),
+  buildTime: z.number(),
+  bundleSize: z.string(),
+  loadTime: z.looseObject({ ttfb: z.number(), fcp: z.number(), lcp: z.number() }),
+  suggestions: z.array(z.string()),
+});
+export type PerformanceAnalysisWire = z.infer<typeof performanceAnalysisWireSchema>;
+
+/**
+ * Security analysis of one workspace. `audit` is the raw `npm audit --json`
+ * document (or `{}` / an `{ error }` object when the audit could not run) and is
+ * opaque to this contract.
+ */
+export const securityAnalysisWireSchema = z.looseObject({
+  workspace: z.string(),
+  audit: z.record(z.string(), z.unknown()),
+  sensitiveFiles: z.array(z.string()),
+  secretPatterns: z.array(z.string()),
+  recommendations: z.array(z.string()),
+});
+export type SecurityAnalysisWire = z.infer<typeof securityAnalysisWireSchema>;
 
 /**
  * `data` of `analyze --json`. `analysis` is keyed by workspace path; each value
- * carries whichever of the four blocks the requested `--type` produced.
- * `timestamp` is an ISO-8601 instant, `workspaces` the number of workspaces
- * considered.
+ * carries whichever of the four blocks the requested `--type` produced (`all`
+ * produces every block). `timestamp` is an ISO-8601 instant and `workspaces` the
+ * number of workspaces considered.
  */
 export const analyzeWireSchema = z.looseObject({
   timestamp: z.string(),
@@ -288,10 +353,10 @@ export const analyzeWireSchema = z.looseObject({
   analysis: z.record(
     z.string(),
     z.looseObject({
-      bundle: analysisBlockWireSchema.optional(),
-      dependencies: analysisBlockWireSchema.optional(),
-      performance: analysisBlockWireSchema.optional(),
-      security: analysisBlockWireSchema.optional(),
+      bundle: bundleAnalysisWireSchema.optional(),
+      dependencies: dependencyAnalysisWireSchema.optional(),
+      performance: performanceAnalysisWireSchema.optional(),
+      security: securityAnalysisWireSchema.optional(),
     })
   ),
 });
