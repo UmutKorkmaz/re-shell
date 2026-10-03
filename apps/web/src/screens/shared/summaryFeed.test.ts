@@ -39,6 +39,23 @@ describe('summaryFeed adapters', () => {
       expect(summary.health.checks.map((c) => c.level)).toEqual(['pass', 'warn', 'fail']);
     });
 
+    it('tolerates the "service" category the CLI emits for services/* (shown as a service, never fails the screen)', () => {
+      const feed = summaryFeedSchema.parse({
+        root: '/repo/demo',
+        packageManager: 'npm',
+        workspaces: [
+          { name: 'web', path: 'apps/web', type: 'app' },
+          { name: 'api', path: 'services/api', type: 'service' },
+          { name: 'odd', path: 'x/odd', type: 'something-new' },
+        ],
+        health: { score: 90, status: 'healthy', checks: [] },
+      });
+      expect(feed.workspaces.map((w) => w.type)).toEqual(['app', 'package', 'package']);
+      const summary = feedToWorkspaceSummary(feed);
+      expect(summary.apps.map((a) => a.name)).toEqual(['web']);
+      expect(summary.services.map((s) => s.name)).toEqual(['api', 'odd']);
+    });
+
     it('falls back to "workspace" name and "unknown" package manager', () => {
       const feed = summaryFeedSchema.parse({
         root: '',

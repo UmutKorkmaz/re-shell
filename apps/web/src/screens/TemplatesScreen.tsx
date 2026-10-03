@@ -49,6 +49,14 @@ export function TemplatesScreen(): React.ReactElement {
 function TemplatesContent({ templates }: { templates: TemplateFeed[] }): React.ReactElement {
   const [filters, setFilters] = useUrlState<FilterKey>(FILTER_KEYS);
   const [selected, setSelected] = React.useState<TemplateFeed | null>(null);
+  // The control that opened the drawer. The drawer has no <Trigger> (it opens from card buttons),
+  // so Radix has nothing to return focus to; we restore it ourselves when the drawer closes.
+  const opener = React.useRef<HTMLElement | null>(null);
+  const showDetails = React.useCallback((template: TemplateFeed): void => {
+    const active = document.activeElement;
+    opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    setSelected(template);
+  }, []);
 
   const options = React.useMemo(
     () => ({
@@ -146,7 +154,7 @@ function TemplatesContent({ templates }: { templates: TemplateFeed[] }): React.R
         ) : (
           <div className="stagger-children grid auto-rows-min gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {filtered.map((template) => (
-              <TemplateCard key={template.id} template={template} onShowDetails={setSelected} />
+              <TemplateCard key={template.id} template={template} onShowDetails={showDetails} />
             ))}
           </div>
         )}
@@ -154,6 +162,7 @@ function TemplatesContent({ templates }: { templates: TemplateFeed[] }): React.R
 
       <TemplateDetailDrawer
         template={selected}
+        returnFocusTo={opener}
         onOpenChange={(open) => {
           if (!open) setSelected(null);
         }}
