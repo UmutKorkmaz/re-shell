@@ -6,7 +6,7 @@ import { promisify } from 'util';
 import { EventEmitter } from 'events';
 import chalk from 'chalk';
 import { ValidationError } from './error-handler';
-import { RECOGNIZED_PKG_SCOPES } from './scope';
+import { isRecognizedPlugin, isFirstPartyPackage } from './plugin-installer';
 import { 
   PluginLifecycleManager, 
   PluginState, 
@@ -354,6 +354,41 @@ export interface PluginDiscoveryOptions {
 }
 
 /**
+ * Whether `target` is a directory, following symlinks (`fs.stat`, not `lstat`).
+ * pnpm and `npm link` expose packages as symlinks, which a plain dirent check
+ * would skip. Broken links and unreadable entries report `false`.
+ * @param target - Absolute path to test.
+ */
+async function isDirectoryFollowingLinks(target: string): Promise<boolean> {
+  try {
+    return (await fs.stat(target)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Outcome of {@link PluginRegistry.removePlugin}.
+ */
+export interface PluginRemovalResult {
+  /** True when the plugin was known to the registry and has been removed. */
+  removed: boolean;
+  /** True when a loaded/active instance was deactivated and unloaded first. */
+  unloaded: boolean;
+  /** Number of hook handlers deregistered for the plugin. */
+  hooks: number;
+  /** Number of commands deregistered for the plugin. */
+  commands: number;
+  /** Non-fatal problems met while tearing the plugin down (e.g. a throwing deactivate()). */
+  warnings: string[];
+}
+
+/** Minimal command-registry surface needed to deregister a plugin's commands. */
+export interface PluginCommandDeregistrar {
+  unregisterPluginCommands(pluginName: string): Promise<number>;
+}
+
+/**
  * Central registry and discovery system for Re-Shell plugins. Manages plugin
  * discovery, registration, lifecycle, hooks, and dependency resolution.
  */
@@ -637,9 +672,21 @@ export class PluginRegistry extends EventEmitter {
         const entries = await fs.readdir(basePath, { withFileTypes: true });
         
         for (const entry of entries) {
-          if (!entry.isDirectory()) continue;
-          
+          // Hidden entries are installer staging/backup directories, never plugins.
+          if (entry.name.startsWith('.')) continue;
+
           const pluginPath = path.join(basePath, entry.name);
+          // Follow symlinks (fs.stat, not the dirent): linked plugins are real plugins.
+          if (!await isDirectoryFollowingLinks(pluginPath)) {
+            if (entry.isSymbolicLink()) {
+              result.skipped.push({
+                path: pluginPath,
+                reason: 'Broken symlink'
+              });
+            }
+            continue;
+          }
+
           const manifestPath = path.join(pluginPath, 'package.json');
           
           if (!await fs.pathExists(manifestPath)) {
@@ -737,17 +784,25 @@ export class PluginRegistry extends EventEmitter {
       const entries = await fs.readdir(nodeModulesPath, { withFileTypes: true });
       
       for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        
+        // `.bin`, `.pnpm` (the pnpm virtual store) and other dot entries are
+        // package-manager internals; real packages are reached via their
+        // top-level (possibly symlinked) entries.
+        if (entry.name.startsWith('.')) continue;
+
         const packagePath = path.join(nodeModulesPath, entry.name);
+        // pnpm (and `npm link`) install packages as symlinks: follow them with
+        // fs.stat rather than trusting the dirent type.
+        if (!await isDirectoryFollowingLinks(packagePath)) continue;
         
         // Handle scoped packages
         if (entry.name.startsWith('@')) {
           const scopedEntries = await fs.readdir(packagePath, { withFileTypes: true });
           for (const scopedEntry of scopedEntries) {
-            if (!scopedEntry.isDirectory()) continue;
-            
+            if (scopedEntry.name.startsWith('.')) continue;
+
             const scopedPackagePath = path.join(packagePath, scopedEntry.name);
+            if (!await isDirectoryFollowingLinks(scopedPackagePath)) continue;
+
             await this.checkPackageForPlugin(scopedPackagePath, result);
           }
         } else {
@@ -767,7 +822,9 @@ export class PluginRegistry extends EventEmitter {
 
   /**
    * Inspect a single package directory and, if it is a Re-Shell plugin, add
-   * it to the provided discovery result.
+   * it to the provided discovery result. Recognition uses the same
+   * {@link isRecognizedPlugin} rule the installer applies, and first-party
+   * Re-Shell packages (cli, ui, contracts, ...) are never reported as plugins.
    * @param packagePath - Absolute path to the package directory.
    * @param result - Discovery result to append findings to.
    */
@@ -780,15 +837,17 @@ export class PluginRegistry extends EventEmitter {
 
     try {
       const manifestData = await fs.readJSON(manifestPath);
+
+      if (isFirstPartyPackage(manifestData?.name)) {
+        result.skipped.push({
+          path: packagePath,
+          reason: `${manifestData.name} is a first-party Re-Shell package, not a plugin`
+        });
+        return;
+      }
       
       // Check if it's a Re-Shell plugin
-      const isPlugin = manifestData.keywords?.includes('reshell-plugin') ||
-                      manifestData.name?.startsWith('reshell-plugin-') ||
-                      manifestData.reshell ||
-                      // Accept the '@re-shell/' scope
-                      RECOGNIZED_PKG_SCOPES.some((scope) => manifestData.name?.startsWith(scope));
-      
-      if (!isPlugin) {
+      if (!manifestData || typeof manifestData !== 'object' || !isRecognizedPlugin(manifestData)) {
         return;
       }
 
@@ -1002,6 +1061,69 @@ export class PluginRegistry extends EventEmitter {
     this.emit('plugin-unregistered', { name, registration });
     
     return true;
+  }
+
+  /**
+   * Fully remove a plugin from the running registry: deactivate and unload it
+   * (calling the plugin's own `deactivate()`), drop it from the lifecycle manager
+   * and the registry map, and deregister its hook handlers and (when a command
+   * registry is supplied) its commands. Does not touch the filesystem — see
+   * `uninstallPluginFromWorkspace` for that.
+   *
+   * A plugin whose `deactivate()` throws is still removed; the failure is
+   * returned in `warnings` so callers can surface it.
+   *
+   * @param name - Name of the plugin to remove.
+   * @param options - Optionally a command registry whose plugin commands should be deregistered.
+   * @returns What was torn down.
+   */
+  async removePlugin(
+    name: string,
+    options: { commandRegistry?: PluginCommandDeregistrar } = {}
+  ): Promise<PluginRemovalResult> {
+    const result: PluginRemovalResult = {
+      removed: false,
+      unloaded: false,
+      hooks: 0,
+      commands: 0,
+      warnings: [],
+    };
+
+    const managed = this.lifecycleManager.getPlugin(name);
+    const registration = this.plugins.get(name);
+    if (!managed && !registration) {
+      return result;
+    }
+
+    if (managed && managed.state !== PluginState.UNLOADED) {
+      try {
+        await this.lifecycleManager.unloadPlugin(name);
+        result.unloaded = true;
+      } catch (error) {
+        result.warnings.push(
+          `Plugin '${name}' failed to unload cleanly: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+
+    await this.lifecycleManager.removePlugin(name);
+    result.hooks = this.hookSystem.unregisterAll(name);
+
+    if (options.commandRegistry) {
+      try {
+        result.commands = await options.commandRegistry.unregisterPluginCommands(name);
+      } catch (error) {
+        result.warnings.push(
+          `Failed to deregister commands for '${name}': ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+
+    this.plugins.delete(name);
+    this.discoveryCache.clear();
+    result.removed = true;
+    this.emit('plugin-removed', { name, ...result });
+    return result;
   }
 
   /**

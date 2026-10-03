@@ -125,6 +125,7 @@ vi.mock('../../src/commands/plugin', () => ({
   disablePlugin: vi.fn(), updatePlugins: vi.fn(), validatePlugin: vi.fn(),
   clearPluginCache: vi.fn(), showPluginStats: vi.fn(), reloadPlugin: vi.fn(),
   showPluginHooks: vi.fn(), executeHook: vi.fn(), listHookTypes: vi.fn(),
+  pinPlugin: vi.fn(), unpinPlugin: vi.fn(), addPluginReview: vi.fn(), listPluginReviews: vi.fn(),
 }));
 vi.mock('../../src/commands/plugin-cache', () => ({
   showCacheStats: vi.fn(), configureCacheSettings: vi.fn(), clearCache: vi.fn(),
@@ -196,6 +197,9 @@ vi.mock('../../src/commands/incremental-build', () => ({ manageIncrementalBuild:
 vi.mock('../../src/commands/workspace-policy', () => ({
   runPolicyCheck: vi.fn(), runDriftCheck: vi.fn(),
 }));
+vi.mock('../../src/commands/workspace-policy-packs', () => ({
+  runPolicySearch: vi.fn(), runPolicyInstall: vi.fn(), runPolicyList: vi.fn(), runPolicyRemove: vi.fn(),
+}));
 vi.mock('../../src/commands/workspace-docs', () => ({ generateWorkspaceDocs: vi.fn() }));
 vi.mock('../../src/commands/workspace-diff', () => ({ diffWorkspace: vi.fn() }));
 
@@ -230,6 +234,7 @@ const changeDetector = await import('../../src/commands/change-detector');
 const changeImpact = await import('../../src/commands/change-impact');
 const incrementalBuild = await import('../../src/commands/incremental-build');
 const workspacePolicy = await import('../../src/commands/workspace-policy');
+const workspacePolicyPacks = await import('../../src/commands/workspace-policy-packs');
 const workspaceDocs = await import('../../src/commands/workspace-docs');
 const workspaceDiff = await import('../../src/commands/workspace-diff');
 const spinnerUtil = await import('../../src/utils/spinner');
@@ -817,13 +822,13 @@ describe('groups — api / plugin / workspace registration', () => {
   // plugin.group.ts
   // ========================================================================
   describe('plugin group', () => {
-    it('registers all 74 plugin subcommands in declaration order', () => {
+    it('registers all 77 plugin subcommands in declaration order', () => {
       const program = programWith(registerPluginGroup);
       const names = sub(program, 'plugin').commands.map(c => c.name());
       expect(names).toEqual([
         // lifecycle
         'list', 'discover', 'install', 'uninstall', 'info', 'enable', 'disable',
-        'update', 'validate', 'clear-cache', 'stats', 'reload', 'hooks',
+        'update', 'validate', 'pin', 'unpin', 'review', 'clear-cache', 'stats', 'reload', 'hooks',
         'execute-hook', 'hook-types',
         // dependency
         'resolve', 'deps', 'conflicts', 'validate-versions', 'update-deps',
@@ -853,7 +858,75 @@ describe('groups — api / plugin / workspace registration', () => {
         // authoring
         'create', 'validate-publish',
       ]);
-      expect(names).toHaveLength(74);
+      expect(names).toHaveLength(77);
+    });
+
+    it('registers the team-review subcommands under plugin review', () => {
+      const program = programWith(registerPluginGroup);
+      const review = sub(sub(program, 'plugin'), 'review');
+      expect(review.commands.map(c => c.name())).toEqual(['add', 'list']);
+    });
+
+    it('forwards update [plugin] with --check/--no-verify/--registry, and defers verify to config otherwise', async () => {
+      const program = programWith(registerPluginGroup);
+      await program.parseAsync([
+        'node', 're-shell', 'plugin', 'update', 'my-plugin', '--check', '--no-verify', '--registry', 'http://r', '--json',
+      ]);
+      expect(pluginCmds.updatePlugins).toHaveBeenCalledWith('my-plugin', {
+        check: true, verify: false, registry: 'http://r', json: true,
+      });
+
+      vi.mocked(pluginCmds.updatePlugins).mockClear();
+      await programWith(registerPluginGroup).parseAsync(['node', 're-shell', 'plugin', 'update']);
+      const [name, options] = vi.mocked(pluginCmds.updatePlugins).mock.calls[0] as [unknown, Record<string, unknown>];
+      expect(name).toBeUndefined();
+      // Neither --verify nor --no-verify: undefined means "use the workspace security setting".
+      expect(options.verify).toBeUndefined();
+
+      vi.mocked(pluginCmds.updatePlugins).mockClear();
+      await programWith(registerPluginGroup).parseAsync(['node', 're-shell', 'plugin', 'update', '--verify']);
+      expect((vi.mocked(pluginCmds.updatePlugins).mock.calls[0][1] as Record<string, unknown>).verify).toBe(true);
+    });
+
+    it('forwards validate, uninstall, install --pin, pin, unpin and review options', async () => {
+      await programWith(registerPluginGroup).parseAsync([
+        'node', 're-shell', 'plugin', 'validate', './p', '--strict', '--check-registry', '--json',
+      ]);
+      expect(pluginCmds.validatePlugin).toHaveBeenCalledWith('./p', { strict: true, checkRegistry: true, json: true });
+
+      await programWith(registerPluginGroup).parseAsync([
+        'node', 're-shell', 'plugin', 'uninstall', 'my-plugin', '--force', '--purge', '--dry-run', '--json',
+      ]);
+      expect(pluginCmds.uninstallPlugin).toHaveBeenCalledWith('my-plugin', { force: true, purge: true, dryRun: true, json: true });
+
+      await programWith(registerPluginGroup).parseAsync(['node', 're-shell', 'plugin', 'install', 'foo@1.2.3', '--pin']);
+      expect(pluginCmds.installPlugin).toHaveBeenCalledWith('foo@1.2.3', { pin: true });
+
+      await programWith(registerPluginGroup).parseAsync(['node', 're-shell', 'plugin', 'pin', 'foo', '^1.2.0', '--json']);
+      expect(pluginCmds.pinPlugin).toHaveBeenCalledWith('foo', '^1.2.0', { json: true });
+
+      await programWith(registerPluginGroup).parseAsync(['node', 're-shell', 'plugin', 'unpin', 'foo']);
+      expect(pluginCmds.unpinPlugin).toHaveBeenCalledWith('foo', {});
+
+      await programWith(registerPluginGroup).parseAsync([
+        'node', 're-shell', 'plugin', 'review', 'add', 'foo', '--rating', '4', '--comment', 'good', '--author', 'me', '--json',
+      ]);
+      expect(pluginCmds.addPluginReview).toHaveBeenCalledWith('foo', { rating: '4', comment: 'good', author: 'me', json: true });
+
+      await programWith(registerPluginGroup).parseAsync(['node', 're-shell', 'plugin', 'review', 'list', 'foo', '--json']);
+      expect(pluginCmds.listPluginReviews).toHaveBeenCalledWith('foo', { json: true });
+    });
+
+    it('review add requires --rating', async () => {
+      const program = programWith(registerPluginGroup);
+      program.exitOverride();
+      sub(sub(program, 'plugin'), 'review').exitOverride();
+      sub(sub(sub(program, 'plugin'), 'review'), 'add')
+        .exitOverride()
+        .configureOutput({ writeErr: () => undefined });
+      await expect(
+        program.parseAsync(['node', 're-shell', 'plugin', 'review', 'add', 'foo'])
+      ).rejects.toThrow(/required option '--rating <n>' not specified/);
     });
 
     it('forwards plugin + options to the lifecycle handlers', async () => {
@@ -977,7 +1050,7 @@ describe('groups — api / plugin / workspace registration', () => {
         'build', 'plan', 'stats', 'clear-cache',
       ]);
       expect(sub(program, 'workspace', 'policy').commands.map(c => c.name())).toEqual([
-        'check',
+        'check', 'search', 'install', 'list', 'remove',
       ]);
     });
 
@@ -1125,6 +1198,36 @@ describe('groups — api / plugin / workspace registration', () => {
       expect(workspacePolicy.runPolicyCheck).toHaveBeenCalledWith(
         expect.objectContaining({ pack: 'recommended' })
       );
+    });
+
+    it('policy search/install/list/remove delegate to the policy-pack commands', async () => {
+      await programWith(registerWorkspaceGroup).parseAsync([
+        'node', 're-shell', 'workspace', 'policy', 'search', 'acme', '--limit', '5', '--registry', 'http://r', '--json',
+      ]);
+      expect(workspacePolicyPacks.runPolicySearch).toHaveBeenCalledWith('acme', {
+        limit: '5', registry: 'http://r', json: true,
+      });
+
+      await programWith(registerWorkspaceGroup).parseAsync([
+        'node', 're-shell', 'workspace', 'policy', 'install', '@acme/pack', '--force', '--dry-run', '--no-verify', '--json',
+      ]);
+      expect(workspacePolicyPacks.runPolicyInstall).toHaveBeenCalledWith('@acme/pack', {
+        force: true, dryRun: true, verify: false, json: true,
+      });
+
+      // Neither --verify nor --no-verify: defer to the workspace security setting.
+      await programWith(registerWorkspaceGroup).parseAsync([
+        'node', 're-shell', 'workspace', 'policy', 'install', './pack.yml',
+      ]);
+      const lastInstall = vi.mocked(workspacePolicyPacks.runPolicyInstall).mock.calls.at(-1)!;
+      expect(lastInstall[0]).toBe('./pack.yml');
+      expect((lastInstall[1] as Record<string, unknown>).verify).toBeUndefined();
+
+      await programWith(registerWorkspaceGroup).parseAsync(['node', 're-shell', 'workspace', 'policy', 'list', '--json']);
+      expect(workspacePolicyPacks.runPolicyList).toHaveBeenCalledWith({ json: true });
+
+      await programWith(registerWorkspaceGroup).parseAsync(['node', 're-shell', 'workspace', 'policy', 'remove', 'acme']);
+      expect(workspacePolicyPacks.runPolicyRemove).toHaveBeenCalledWith('acme', {});
     });
 
     it('graph-analysis analyze delegates with the analyse flag', async () => {

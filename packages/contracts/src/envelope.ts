@@ -86,6 +86,15 @@ export const errorCodeSchema = z.enum([
   'ENV_ERROR',
   // Code introduced by the Storybook UI-test aggregation slice (issue #22)
   'UI_TEST_ERROR',
+  // Codes introduced by the plugin lifecycle / marketplace / policy-pack distribution slice (P9-F + P9-G1)
+  'PLUGIN_LIST_ERROR',
+  'PLUGIN_INFO_ERROR',
+  'PLUGIN_NOT_FOUND',
+  'PLUGIN_UNINSTALL_ERROR',
+  'PLUGIN_PIN_ERROR',
+  'PLUGIN_REVIEW_ERROR',
+  'POLICY_PACK_ERROR',
+  'POLICY_PACK_NOT_FOUND',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

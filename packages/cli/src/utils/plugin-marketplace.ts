@@ -1,13 +1,14 @@
 import { EventEmitter } from 'events';
 import { ValidationError } from './error-handler';
+import type { PluginQuality } from '@re-shell/contracts';
 import {
   RegistryClient,
   RegistryUnreachableError,
   RegistrySearchHit,
   RegistryPackument,
   RegistryVersion,
-  verifyRegistrySignature,
   PLUGIN_KEYWORD,
+  DEFAULT_REGISTRY_URL,
   type FetchLike,
 } from './registry-client';
 import {
@@ -15,6 +16,9 @@ import {
   PluginInstallError,
   type PluginInstallResult,
 } from './plugin-installer';
+import { checkVersionSignature } from './plugin-signature';
+import { fetchPluginQuality, qualityCachePath } from './plugin-ratings';
+import { readReviewAggregates } from './plugin-reviews';
 
 /**
  * Registry-backed plugin marketplace client (P9-F2/F3).
@@ -28,8 +32,14 @@ import {
  * command layer) instead of pretending to return data.
  *
  * Signature verification is honest and config-gated: when `verifySignatures` is
- * true, install REJECTS any version whose npm Ed25519 registry signature cannot
- * be cryptographically validated (see {@link verifyRegistrySignature}).
+ * true, install REJECTS any version whose npm (ECDSA P-256) registry signature
+ * cannot be cryptographically validated (see `verifyRegistrySignature`).
+ *
+ * Ratings are real: search results carry the npms-derived score the npm search
+ * endpoint returns; `getPlugin` (with `fetchQuality`) pulls npms.io / npm download
+ * data through {@link fetchPluginQuality}; `reviewCount`/`teamRating` come from the
+ * workspace's team reviews (`.re-shell/plugin-reviews.json`). Unknown values are
+ * `null`, never a placeholder zero.
  */
 
 /**
@@ -48,9 +58,16 @@ export interface MarketplacePlugin {
   repository?: string;
   keywords: string[];
   category: PluginCategory;
-  downloads: number;
-  rating: number;
+  /** Downloads in the last month; null when the registry data did not include it. */
+  downloads: number | null;
+  /** 0-5 rating derived from the npms quality score; null when unknown. */
+  rating: number | null;
+  /** Where the rating/quality data came from; null when no quality data was fetched. */
+  quality: PluginQuality | null;
+  /** Number of team reviews recorded in `.re-shell/plugin-reviews.json`. */
   reviewCount: number;
+  /** Mean team review rating (1-5); null when there are no team reviews. */
+  teamRating: number | null;
   featured: boolean;
   verified: boolean;
   createdAt: string;
@@ -137,7 +154,7 @@ export interface InstallationResult {
   installPath: string;
   source: PluginInstallResult['source'] | '';
   /** Outcome of the gated signature check (honest; never faked). */
-  signature: { verified: boolean; reason?: string; gated: boolean };
+  signature: { verified: boolean; reason?: string; gated: boolean; keyid?: string };
   warnings: string[];
   errors: string[];
   duration: number;
@@ -157,6 +174,14 @@ export interface MarketplaceConfig {
   workspaceRoot?: string;
   /** Injected fetch for tests; defaults to the global fetch via RegistryClient. */
   fetchImpl?: FetchLike;
+  /**
+   * When true, `getPlugin` also fetches npms.io / npm download quality data
+   * (cached on disk under the workspace). Off by default so library callers and
+   * tests make no extra requests.
+   */
+  fetchQuality?: boolean;
+  /** Skip the network for quality data and serve only the on-disk cache. */
+  qualityOffline?: boolean;
 }
 
 const RESHELL_CATEGORY_KEYWORDS: Array<[PluginCategory, string[]]> = [
@@ -189,6 +214,31 @@ function authorName(
 function repoUrl(repository: RegistryVersion['repository']): string | undefined {
   if (!repository) return undefined;
   return typeof repository === 'string' ? repository : repository.url;
+}
+
+/**
+ * The npms-derived quality score the npm search endpoint attaches to each hit,
+ * as a {@link PluginQuality}; null when the hit carries no score.
+ */
+function searchQuality(hit: RegistrySearchHit): PluginQuality | null {
+  const final = hit.score?.final;
+  if (typeof final !== 'number' || !Number.isFinite(final)) return null;
+  const detail = hit.score?.detail ?? {};
+  const num = (v: number | undefined): number | null =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null;
+  return {
+    source: 'npms',
+    rating: Math.round(Math.max(0, Math.min(1, final)) * 50) / 10,
+    score: Math.max(0, Math.min(1, final)),
+    quality: num(detail.quality),
+    popularity: num(detail.popularity),
+    maintenance: num(detail.maintenance),
+    downloadsLastMonth: hit.downloads?.monthly ?? null,
+    fetchedAt: new Date().toISOString(),
+    cached: false,
+    stale: false,
+    derived: false,
+  };
 }
 
 /**
@@ -237,7 +287,8 @@ export class PluginMarketplace extends EventEmitter {
       const limit = filters.limit ?? 10;
       const offset = filters.offset ?? 0;
       const hits = await this.client.search(filters.query, limit + offset);
-      let plugins = hits.map((hit) => this.hitToPlugin(hit));
+      const reviews = await this.loadReviewAggregates();
+      let plugins = hits.map((hit) => this.withTeamReviews(this.hitToPlugin(hit), reviews));
 
       plugins = this.applyFilters(plugins, filters);
       plugins = this.applySort(plugins, filters);
@@ -274,8 +325,25 @@ export class PluginMarketplace extends EventEmitter {
     this.emit('plugin-fetch-started', pluginId);
     try {
       const packument = await this.client.getPackument(pluginId);
-      const plugin = this.packumentToPlugin(packument);
-      if (plugin) this.setCachedData(cacheKey, plugin);
+      let plugin = this.packumentToPlugin(packument);
+      if (plugin) {
+        plugin = this.withTeamReviews(plugin, await this.loadReviewAggregates());
+        if (this.config.fetchQuality) {
+          const quality = await fetchPluginQuality(pluginId, {
+            fetchImpl: this.config.fetchImpl,
+            cacheFile: qualityCachePath(this.workspaceRoot()),
+            offline: this.config.qualityOffline,
+            registryUrl: this.config.apiUrl,
+          });
+          plugin = {
+            ...plugin,
+            quality,
+            rating: quality.rating,
+            downloads: quality.downloadsLastMonth ?? plugin.downloads,
+          };
+        }
+        this.setCachedData(cacheKey, plugin);
+      }
       this.emit('plugin-fetch-completed', { pluginId, found: !!plugin });
       return plugin;
     } catch (error) {
@@ -299,7 +367,7 @@ export class PluginMarketplace extends EventEmitter {
   async installPlugin(
     pluginId: string,
     version?: string,
-    options: { force?: boolean; dryRun?: boolean } = {}
+    options: { force?: boolean; dryRun?: boolean; pin?: boolean | string } = {}
   ): Promise<InstallationResult> {
     const startTime = Date.now();
     this.emit('installation-started', { pluginId, version, options });
@@ -309,14 +377,15 @@ export class PluginMarketplace extends EventEmitter {
 
       // Gated, honest signature verification.
       const gated = this.config.verifySignatures;
-      let signature: { verified: boolean; reason?: string; gated: boolean } = {
+      const signature: { verified: boolean; reason?: string; gated: boolean; keyid?: string } = {
         verified: false,
         gated,
       };
       if (gated) {
-        const keys = await this.client.getSigningKeys();
-        const check = verifyRegistrySignature(resolved, keys);
-        signature = { verified: check.verified, reason: check.reason, gated: true };
+        const check = await checkVersionSignature(this.client, resolved, true);
+        signature.verified = check.verified;
+        if (check.reason) signature.reason = check.reason;
+        if (check.keyid) signature.keyid = check.keyid;
         if (!check.verified) {
           throw new ValidationError(
             `Refusing to install unverified plugin "${pluginId}@${resolved.version}": ` +
@@ -329,9 +398,24 @@ export class PluginMarketplace extends EventEmitter {
       const installResult = await installPluginFromIdentifier(
         `${pluginId}@${resolved.version}`,
         {
-          workspaceRoot: this.config.workspaceRoot ?? process.cwd(),
+          workspaceRoot: this.workspaceRoot(),
           force: options.force,
           dryRun: options.dryRun,
+          pin: options.pin,
+          // Fetch from the registry we verified against (npm would otherwise use its own config).
+          ...(this.config.apiUrl.replace(/\/+$/, '') !== DEFAULT_REGISTRY_URL
+            ? { registry: this.config.apiUrl }
+            : {}),
+          record: {
+            ...(resolved.dist.integrity ? { integrity: resolved.dist.integrity } : {}),
+            signature: {
+              verified: signature.verified,
+              gated: signature.gated,
+              ...(signature.keyid ? { keyid: signature.keyid } : {}),
+              ...(signature.reason ? { reason: signature.reason } : {}),
+              checkedAt: new Date().toISOString(),
+            },
+          },
         }
       );
 
@@ -439,9 +523,11 @@ export class PluginMarketplace extends EventEmitter {
       repository: hit.links?.repository,
       keywords: hit.keywords ?? [],
       category: inferCategory(hit.keywords),
-      downloads: 0,
-      rating: 0,
+      downloads: hit.downloads?.monthly ?? null,
+      rating: searchQuality(hit)?.rating ?? null,
+      quality: searchQuality(hit),
       reviewCount: 0,
+      teamRating: null,
       featured: false,
       // `verified` reflects registry-signature status, which is only known after
       // an install-time check; search results are conservatively unverified.
@@ -485,9 +571,11 @@ export class PluginMarketplace extends EventEmitter {
       repository: repoUrl(version.repository),
       keywords: version.keywords ?? [],
       category: inferCategory(version.keywords),
-      downloads: 0,
-      rating: 0,
+      downloads: null,
+      rating: null,
+      quality: null,
       reviewCount: 0,
+      teamRating: null,
       featured: false,
       verified: (version.dist.signatures?.length ?? 0) > 0,
       createdAt: '',
@@ -538,6 +626,11 @@ export class PluginMarketplace extends EventEmitter {
           return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
         case 'created':
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        // Ascending by value; `sortOrder: 'desc'` (the default) reverses to highest first.
+        case 'downloads':
+          return (a.downloads ?? -1) - (b.downloads ?? -1);
+        case 'rating':
+          return (a.rating ?? -1) - (b.rating ?? -1);
         default:
           return 0;
       }
@@ -550,6 +643,29 @@ export class PluginMarketplace extends EventEmitter {
     if (error instanceof ValidationError) return error;
     if (error instanceof PluginInstallError) return error;
     return error instanceof Error ? error : new Error(String(error));
+  }
+
+  private workspaceRoot(): string {
+    return this.config.workspaceRoot ?? process.cwd();
+  }
+
+  /** Team review aggregates; a missing/unreadable review file simply means "no reviews" here. */
+  private async loadReviewAggregates(): Promise<Awaited<ReturnType<typeof readReviewAggregates>>> {
+    try {
+      return await readReviewAggregates(this.workspaceRoot());
+    } catch {
+      return new Map();
+    }
+  }
+
+  private withTeamReviews(
+    plugin: MarketplacePlugin,
+    reviews: Awaited<ReturnType<typeof readReviewAggregates>>
+  ): MarketplacePlugin {
+    const aggregate = reviews.get(plugin.name);
+    return aggregate
+      ? { ...plugin, reviewCount: aggregate.count, teamRating: aggregate.average }
+      : plugin;
   }
 
   private getCachedData<T>(key: string): T | null {
