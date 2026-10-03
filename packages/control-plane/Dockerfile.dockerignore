@@ -1,0 +1,23 @@
+# Build-context filter for packages/control-plane/Dockerfile (BuildKit reads
+# <Dockerfile>.dockerignore). The image needs only the root manifests plus the
+# contracts, control-plane and cli workspace packages.
+**/node_modules
+**/dist
+**/coverage
+**/.turbo
+**/*.db
+**/*.db-shm
+**/*.db-wal
+.git
+.github
+.claude
+site
+apps
+docs
+experimental
+scripts
+packages/ui
+packages/mcp
+packages/control-plane/fixtures
+packages/cli/tests
+packages/cli/examples

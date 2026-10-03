@@ -1,0 +1,11 @@
+dist
+coverage
+# Local control-plane databases (SQLite + WAL side files) and key material.
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+keys.json
+.env
+# Compose bind mount for worker workspaces (docker-compose.yml)
+workspaces/

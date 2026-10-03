@@ -95,6 +95,25 @@ export const errorCodeSchema = z.enum([
   'PLUGIN_REVIEW_ERROR',
   'POLICY_PACK_ERROR',
   'POLICY_PACK_NOT_FOUND',
+  // Codes introduced by the hosted control-plane slice (P9-J). The control
+  // plane's HTTP/CLI envelopes reuse this schema so one parser handles both
+  // surfaces; WORKSPACE_NOT_FOUND above is shared with it.
+  'UNAUTHENTICATED',
+  'FORBIDDEN',
+  'TENANT_NOT_FOUND',
+  'INVALID_REQUEST',
+  'COMMAND_NOT_ALLOWED',
+  'NOT_FOUND',
+  'METHOD_NOT_ALLOWED',
+  'ALREADY_EXISTS',
+  'CONFLICT',
+  'JOB_NOT_FOUND',
+  'RATE_LIMITED',
+  'PAYLOAD_TOO_LARGE',
+  'UNSUPPORTED_MEDIA_TYPE',
+  'CONFIG_ERROR',
+  'INTERNAL_ERROR',
+  'SERVICE_UNAVAILABLE',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

@@ -5,13 +5,8 @@ intentionally placed outside the pnpm workspace globs (`packages/*`, `apps/*`),
 so they are **excluded from install, build, test, and release**. They exist
 here for future reference only.
 
-## control-plane (`@re-shell/control-plane`)
-
-A hosted multi-tenant control-plane **stub** (tenant isolation, authz, request
-validation) intended as a future hosted extension of the local Re-Shell hub.
-
-- Status: logic is **unit-tested only**.
-- Not deployed, no live server, no database — single-process logic only.
+> The hosted control plane (`@re-shell/control-plane`) graduated out of this
+> directory into `packages/control-plane`; see `docs/control-plane.md`.
 
 ## Important
 
