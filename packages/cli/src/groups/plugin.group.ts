@@ -8,6 +8,7 @@ import {
   showPluginInfo, enablePlugin, disablePlugin, updatePlugins,
   validatePlugin, clearPluginCache, showPluginStats, reloadPlugin,
   showPluginHooks, executeHook, listHookTypes,
+  pinPlugin, unpinPlugin, addPluginReview, listPluginReviews,
 } from '../commands/plugin';
 import {
   showCacheStats, configureCacheSettings, clearCache,
@@ -93,6 +94,8 @@ export function registerPluginGroup(program: Command): void {
     .description('Install a plugin from a local path, git URL, or npm package')
     .option('--global', 'Install globally')
     .option('--force', 'Force installation (overwrite existing)')
+    .option('--pin', 'Pin the installed version (name@1.2.3 pins that version, name@^1.2.0 pins the range)')
+    .option('--registry <url>', 'npm registry URL to install from')
     .option('--dry-run', 'Resolve and validate without installing')
     .option('--json', 'Output as JSON')
     .option('--verbose', 'Show detailed information')
@@ -104,8 +107,11 @@ export function registerPluginGroup(program: Command): void {
 
   pluginCommand
     .command('uninstall <plugin>')
-    .description('Uninstall a plugin')
-    .option('--force', 'Force uninstallation')
+    .description('Uninstall a plugin: remove its files, registry entry, hooks and commands')
+    .option('--force', 'Skip the confirmation prompt and ignore dependents')
+    .option('--purge', 'Also delete the plugin data directory (.re-shell/data/<plugin>)')
+    .option('--dry-run', 'Show what would be removed without removing anything')
+    .option('--json', 'Output as JSON')
     .option('--verbose', 'Show detailed information')
     .action(
       createAsyncCommand(async (plugin, options) => {
@@ -115,7 +121,8 @@ export function registerPluginGroup(program: Command): void {
 
   pluginCommand
     .command('info <plugin>')
-    .description('Show plugin information')
+    .description('Show plugin information, install provenance, team reviews and registry quality')
+    .option('--offline', 'Do not query the registry for quality data (use the cache only)')
     .option('--verbose', 'Show detailed information')
     .option('--json', 'Output as JSON')
     .action(
@@ -145,19 +152,26 @@ export function registerPluginGroup(program: Command): void {
     );
 
   pluginCommand
-    .command('update')
-    .description('Update plugins (not implemented; returns an error)')
+    .command('update [plugin]')
+    .description('Update installed plugins (respects pins; npm, git; local plugins are not updatable)')
+    .option('--check', 'Only report available updates; change nothing')
+    .option('--verify', 'Require registry signature verification for npm updates')
+    .option('--no-verify', 'Skip registry signature verification (explicit opt-out)')
+    .option('--registry <url>', 'npm registry URL')
     .option('--verbose', 'Show detailed information')
     .option('--json', 'Output as JSON')
     .action(
-      createAsyncCommand(async (options) => {
-        await updatePlugins(options);
+      createAsyncCommand(async (plugin, options) => {
+        await updatePlugins(plugin, options);
       })
     );
 
   pluginCommand
     .command('validate <path>')
-    .description('Validate plugin compatibility (not implemented; returns an error)')
+    .description('Validate a plugin: manifest, entry, engines, dependencies, security scan, size')
+    .option('--strict', 'Treat warnings as failures')
+    .option('--check-registry', 'Resolve dependencies that are not installed locally against the npm registry')
+    .option('--registry <url>', 'npm registry URL for --check-registry')
     .option('--verbose', 'Show detailed information')
     .option('--json', 'Output as JSON')
     .action(
@@ -165,6 +179,54 @@ export function registerPluginGroup(program: Command): void {
         await validatePlugin(path, options);
       })
     );
+
+  pluginCommand
+    .command('pin <plugin> [version]')
+    .description('Pin a plugin to an exact version or semver range (default: the installed version)')
+    .option('--json', 'Output as JSON')
+    .action(
+      createAsyncCommand(async (plugin, version, options) => {
+        await pinPlugin(plugin, version, options);
+      })
+    );
+
+  pluginCommand
+    .command('unpin <plugin>')
+    .description('Remove a plugin version pin')
+    .option('--json', 'Output as JSON')
+    .action(
+      createAsyncCommand(async (plugin, options) => {
+        await unpinPlugin(plugin, options);
+      })
+    );
+
+  const reviewCommand = new Command('review')
+    .description('Team plugin reviews stored in .re-shell/plugin-reviews.json (commit it to share)');
+
+  reviewCommand
+    .command('add <plugin>')
+    .description('Add (or replace your) review of a plugin')
+    .requiredOption('--rating <n>', 'Rating from 1 to 5')
+    .option('--comment <text>', 'Review comment')
+    .option('--author <name>', 'Author identity (default: git user.email / user.name)')
+    .option('--json', 'Output as JSON')
+    .action(
+      createAsyncCommand(async (plugin, options) => {
+        await addPluginReview(plugin, options);
+      })
+    );
+
+  reviewCommand
+    .command('list <plugin>')
+    .description('List team reviews of a plugin with the aggregate rating')
+    .option('--json', 'Output as JSON')
+    .action(
+      createAsyncCommand(async (plugin, options) => {
+        await listPluginReviews(plugin, options);
+      })
+    );
+
+  pluginCommand.addCommand(reviewCommand);
 
   pluginCommand
     .command('clear-cache')
@@ -371,6 +433,7 @@ export function registerPluginGroup(program: Command): void {
     .command('install-marketplace <plugin> [version]')
     .description('Install plugin from marketplace (npm registry)')
     .option('--force', 'Force installation (overwrite existing)')
+    .option('--pin', 'Pin the installed version')
     .option('--dry-run', 'Resolve and verify only; do not write to disk')
     .option('--no-verify', 'Disable signature verification (explicit, honest opt-out)')
     .option('--verbose', 'Show detailed information')
