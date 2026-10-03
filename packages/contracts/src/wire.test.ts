@@ -226,7 +226,7 @@ const CASES: Record<string, Case> = {
       'lib type': { ...workspaceInfo, type: 'lib' },
     },
     malformed: {
-      'unknown type': { ...workspaceInfo, type: 'service' },
+      'unknown type': { ...workspaceInfo, type: 'daemon' },
       'missing version': without(workspaceInfo, 'version'),
       'dependencies not an array': { ...workspaceInfo, dependencies: 'react' },
       'null framework (omitted, never null)': { ...workspaceInfo, framework: null },

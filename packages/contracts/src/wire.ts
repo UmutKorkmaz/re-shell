@@ -33,7 +33,7 @@ import { analysisReportSchema } from './platform.js';
 // ---------------------------------------------------------------------------
 
 /** Workspace category the CLI infers from the parent directory. */
-export const workspaceTypeWireSchema = z.enum(['app', 'package', 'lib', 'tool']);
+export const workspaceTypeWireSchema = z.enum(['app', 'package', 'lib', 'tool', 'service']);
 export type WorkspaceTypeWire = z.infer<typeof workspaceTypeWireSchema>;
 
 /**
@@ -47,6 +47,8 @@ export const workspaceInfoWireSchema = z.looseObject({
   path: z.string(),
   type: workspaceTypeWireSchema,
   framework: z.string().optional(),
+  /** Detected implementation language (marker files / tsconfig), when known. */
+  language: z.string().optional(),
   version: z.string(),
   dependencies: z.array(z.string()),
 });
@@ -66,6 +68,10 @@ export const graphNodeWireSchema = z.looseObject({
   path: z.string(),
   framework: z.string().nullable(),
   dependencies: z.array(z.string()),
+  /** Workspace kind (app / package / lib / tool / service), when known. */
+  type: workspaceTypeWireSchema.optional(),
+  /** Detected implementation language, when known. */
+  language: z.string().optional(),
 });
 export type GraphNodeWire = z.infer<typeof graphNodeWireSchema>;
 

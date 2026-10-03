@@ -29,6 +29,35 @@ export interface MonorepoConfig {
   };
 }
 
+// Language detection (shared by the workspace graph, status and explorer).
+/** Files whose presence decides a workspace's language (in priority order). */
+export const LANGUAGE_MARKERS: Array<[string, string]> = [
+  ['go.mod', 'go'],
+  ['Cargo.toml', 'rust'],
+  ['pyproject.toml', 'python'],
+  ['requirements.txt', 'python'],
+  ['pom.xml', 'java'],
+  ['build.gradle', 'java'],
+  ['build.gradle.kts', 'java'],
+];
+
+/**
+ * Detect a workspace's primary language from marker files and package.json:
+ * go / rust / python / java by manifest, otherwise `typescript` when a
+ * tsconfig.json or a `typescript` dependency exists, otherwise `javascript`.
+ */
+export function detectWorkspaceLanguage(
+  dir: string,
+  pkg?: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
+): string {
+  for (const [file, language] of LANGUAGE_MARKERS) {
+    if (fs.existsSync(path.join(dir, file))) return language;
+  }
+  if (fs.existsSync(path.join(dir, 'tsconfig.json'))) return 'typescript';
+  if (pkg && (pkg.dependencies?.typescript || pkg.devDependencies?.typescript)) return 'typescript';
+  return 'javascript';
+}
+
 /**
  * Metadata describing a single discovered workspace within a monorepo.
  */
@@ -41,6 +70,8 @@ export interface WorkspaceInfo {
   type: 'app' | 'package' | 'lib' | 'tool' | 'service';
   /** Detected framework (e.g. `react-ts`, `angular`), if any. */
   framework?: string;
+  /** Primary language inferred from marker files (go/rust/python/java) or tsconfig/typescript, else javascript. */
+  language?: string;
   /** Semver version declared by the workspace package. */
   version: string;
   /** List of dependency names merged from dependencies and devDependencies. */
@@ -316,6 +347,7 @@ export async function getWorkspaces(rootPath: string = process.cwd()): Promise<W
             path: match,
             type,
             framework,
+            language: detectWorkspaceLanguage(workspacePath, workspacePackage),
             version: workspacePackage.version || '0.0.0',
             dependencies: Object.keys({
               ...workspacePackage.dependencies,

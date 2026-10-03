@@ -7,6 +7,7 @@ import { listWorkspaces, updateWorkspaces, generateWorkspaceGraph, initWorkspace
 import { importFromMonorepo } from '../commands/import-monorepo';
 import { manageWorkspaceDefinition } from '../commands/workspace-definition';
 import { manageWorkspaceGraph } from '../commands/workspace-graph';
+import { registerWorkspaceGraphExtensions } from './workspace-graph-extensions';
 import { manageWorkspaceHealth } from '../commands/workspace-health';
 import { manageWorkspaceState } from '../commands/workspace-state';
 import { manageWorkspaceTemplate } from '../commands/workspace-template';
@@ -318,14 +319,20 @@ export function registerWorkspaceGroup(program: Command): void {
       })
     );
 
-  workspace
+  const workspaceGraphCommand = workspace
     .command('graph')
-    .description('Generate workspace dependency graph')
+    .description('Generate workspace dependency graph (subcommand: diff)')
     .option('--output <file>', 'Output file path')
     .option('--format <format>', 'Output format (text, json, mermaid, svg, d3)', 'text')
     .option('--json', 'Emit machine-readable JSON envelope to stdout (alias of --format json)')
+    .option('--interactive', 'Open the interactive terminal graph explorer (TTY only)')
     .action(
       createAsyncCommand(async options => {
+        if (options.interactive) {
+          const { launchGraphExplorerCommand } = await import('../commands/graph-explore');
+          await launchGraphExplorerCommand({});
+          return;
+        }
         // `--json` is a convenience alias for `--format json`, so a consumer can
         // run `workspace graph --json` without it failing as an unknown option.
         const format = options.json ? 'json' : options.format;
@@ -2359,6 +2366,9 @@ export function registerWorkspaceGroup(program: Command): void {
         }, 60000); // 1 minute timeout
       })
     );
+
+  // === GRAPH EXPLORER (P9-L): `graph diff`, `status`, `explore` ===
+  registerWorkspaceGraphExtensions(workspace, workspaceGraphCommand);
 
   program.addCommand(workspace);
 }

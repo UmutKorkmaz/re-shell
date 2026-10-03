@@ -29,6 +29,8 @@ const BASE_URL = `http://127.0.0.1:${PREVIEW_PORT}`;
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.spec.ts',
+  // The 2000-node graph spec needs its own stack: playwright.graph.config.ts.
+  testIgnore: '**/graph-scale.spec.ts',
   // Every screen read and job spawns the REAL CLI (a cold node start plus, for
   // the template/command catalogs, a 100-350 KB JSON payload), which takes
   // seconds on a busy runner. Allow generous time without masking genuine hangs.
