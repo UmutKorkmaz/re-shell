@@ -4,6 +4,10 @@ import chalk from 'chalk';
 import { runK8sGenerate } from '../commands/k8s-generate';
 import { runHelmGenerate } from '../commands/helm-generate';
 import { runGitOpsGenerate } from '../commands/gitops-generate';
+import { runK8sRollback } from '../commands/k8s-rollback';
+import { runK8sCrd } from '../commands/k8s-crd';
+import { runK8sMesh } from '../commands/k8s-mesh';
+import { runK8sOperator } from '../commands/k8s-operator';
 import { createSpinner } from '../utils/spinner';
 
 /**
@@ -229,6 +233,11 @@ export function registerK8sGroup(program: Command): void {
     .option('--repo-url <url>', 'Git repository URL the GitOps tool reconciles from')
     .option('--revision <rev>', 'Git revision/branch to track', 'main')
     .option('--chart-path <path>', 'Path within the repo to the chart/manifests')
+    .option(
+      '--source <source>',
+      'What the tool reconciles: the Helm chart (helm) or raw manifests (manifests)',
+      'helm'
+    )
     .option('--json', 'Emit machine-readable JSON envelope to stdout')
     .option('--dry-run', 'Render manifests without writing any files')
     .action(
@@ -245,6 +254,7 @@ export function registerK8sGroup(program: Command): void {
             repoUrl: options.repoUrl,
             revision: options.revision,
             chartPath: options.chartPath,
+            source: options.source,
             json: options.json,
             dryRun: options.dryRun,
             spinner,
@@ -253,55 +263,88 @@ export function registerK8sGroup(program: Command): void {
       })
     );
 
-  // service-mesh → k8s mesh
+  // service-mesh → k8s mesh (workspace-driven; --legacy keeps the old name-only scripts)
   k8s
     .command('mesh')
-    .description('Generate service mesh integration with Istio/Linkerd for traffic management and security')
-    .argument('<project-name>', 'Name of the project')
-    .option('-l, --language <language>', 'Tool language (typescript|python)', 'typescript')
+    .description(
+      'Generate Istio/Linkerd mesh resources (sidecar injection, mTLS, traffic policy, multi-cluster notes) from the workspace v2 config'
+    )
+    .argument('[project-name]', 'Project name (only used with --legacy)')
+    .option(
+      '--legacy',
+      'Generate the legacy standalone generator scripts for <project-name> instead of workspace-driven manifests'
+    )
+    .option('-l, --language <language>', '(legacy) Tool language (typescript|python)', 'typescript')
     .option('--mesh <mesh>', 'Service mesh (istio|linkerd)', 'istio')
-    .option('--services <services>', 'Services (api:3000,worker:8080)', 'api:3000,worker:8080')
-    .option('--no-mtls', 'Disable mTLS')
-    .option('--no-traffic-management', 'Disable traffic management')
-    .option('-o, --output <output>', 'Output directory', '/tmp/service-mesh')
+    .option(
+      '--services <services>',
+      'Services: an optional filter of workspace services (name or name:port); with --legacy the service list (api:3000,worker:8080)'
+    )
+    .option('--namespace <ns>', 'Namespace the workloads run in', 'default')
+    .option('--no-mtls', 'Disable mTLS enforcement')
+    .option('--no-traffic-management', 'Skip per-service traffic management resources')
+    .option('--out <dir>', 'Output directory to write the manifests and README into')
+    .option('-o, --output <output>', 'Output directory (alias of --out; legacy default /tmp/service-mesh)')
+    .option('--json', 'Emit machine-readable JSON envelope to stdout')
+    .option('--dry-run', 'Render without writing any files')
     .action(
       createAsyncCommand(async (projectName, options) => {
-        await withTimeout(async () => {
-          const { writeFiles, displayConfig } = await import('../utils/service-mesh-integration');
+        if (options.legacy) {
+          await withTimeout(async () => {
+            const { writeFiles, displayConfig } = await import('../utils/service-mesh-integration');
 
-          console.log(chalk.cyan.bold('\n🔗 Service Mesh Integration\n'));
+            console.log(chalk.cyan.bold('\n🔗 Service Mesh Integration\n'));
 
-          // Parse services
-          const services = options.services.split(',').map((s: string) => {
-            const [name, port] = s.split(':');
-            return {
-              name,
-              port: parseInt(port) || 3000,
-              namespace: 'default',
+            // Parse services
+            const services = (options.services ?? 'api:3000,worker:8080').split(',').map((s: string) => {
+              const [name, port] = s.split(':');
+              return {
+                name,
+                port: parseInt(port) || 3000,
+                namespace: 'default',
+              };
+            });
+
+            const config = {
+              projectName,
+              mesh: options.mesh,
+              services,
+              enableMTLS: options.mtls !== false,
+              enableTrafficManagement: options.trafficManagement !== false,
             };
-          });
 
-          const config = {
-            projectName,
+            displayConfig(config);
+
+            console.log(chalk.gray('Generating service mesh integration tool...'));
+
+            await writeFiles(config, options.output ?? '/tmp/service-mesh');
+
+            console.log(chalk.green('✅ Generated: service-mesh-integration.' + (options.language === 'python' ? 'py' : 'ts')));
+            console.log(chalk.green('✅ Generated: SERVICE_MESH.md'));
+            console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+            console.log(chalk.green('✅ Generated: service-mesh-config.json'));
+            console.log('');
+            console.log(chalk.green('✓ Service mesh integration tool generated successfully!'));
+          }, 30000);
+          return;
+        }
+
+        const spinner = options.json
+          ? undefined
+          : createSpinner('Generating service mesh resources...').start();
+        await withTimeout(async () => {
+          await runK8sMesh({
             mesh: options.mesh,
-            services,
-            enableMTLS: options.mtls !== false,
-            enableTrafficManagement: options.trafficManagement !== false,
-          };
-
-          displayConfig(config);
-
-          console.log(chalk.gray('Generating service mesh integration tool...'));
-
-          await writeFiles(config, options.output);
-
-          console.log(chalk.green('✅ Generated: service-mesh-integration.' + (options.language === 'python' ? 'py' : 'ts')));
-          console.log(chalk.green('✅ Generated: SERVICE_MESH.md'));
-          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
-          console.log(chalk.green('✅ Generated: service-mesh-config.json'));
-          console.log('');
-          console.log(chalk.green('✓ Service mesh integration tool generated successfully!'));
-        }, 30000);
+            namespace: options.namespace,
+            mtls: options.mtls,
+            trafficManagement: options.trafficManagement,
+            services: options.services,
+            out: options.out ?? options.output,
+            json: options.json,
+            dryRun: options.dryRun,
+            spinner,
+          });
+        }, 60000);
       })
     );
 
@@ -495,205 +538,276 @@ export function registerK8sGroup(program: Command): void {
       })
     );
 
-  // crd → k8s crd
+  // crd → k8s crd (workspace-driven; --legacy keeps the old name-only scripts)
   k8s
     .command('crd')
-    .description('Generate Custom Resource Definitions and Operators for Kubernetes')
-    .argument('<project-name>', 'Name of the project')
-    .option('-l, --language <language>', 'Tool language (typescript|python)', 'typescript')
-    .option('--namespace <namespace>', 'Kubernetes namespace', 'default')
-    .option('--no-controller', 'Disable operator controller deployment')
-    .option('--no-webhooks', 'Disable validation/mutation webhooks')
-    .option('-o, --output <output>', 'Output directory', '/tmp/crd')
+    .description(
+      'Generate the ReShellWorkspace CustomResourceDefinition (schema derived from the workspace v2 schema) and a sample resource'
+    )
+    .argument('[project-name]', 'Project name (only used with --legacy)')
+    .option(
+      '--legacy',
+      'Generate the legacy standalone generator scripts for <project-name> instead of the workspace-derived CRD'
+    )
+    .option('-l, --language <language>', '(legacy) Tool language (typescript|python)', 'typescript')
+    .option('--namespace <namespace>', 'Namespace of the sample resource', 'default')
+    .option('--group <group>', 'API group of the CRD (default re-shell.io)')
+    .option('--api-version <version>', 'API version of the CRD (default v1alpha1)')
+    .option('--no-controller', '(legacy) Disable operator controller deployment')
+    .option('--no-webhooks', '(legacy) Disable validation/mutation webhooks')
+    .option('--out <dir>', 'Output directory to write the CRD and sample resource into')
+    .option('-o, --output <output>', 'Output directory (alias of --out; legacy default /tmp/crd)')
+    .option('--json', 'Emit machine-readable JSON envelope to stdout')
+    .option('--dry-run', 'Render without writing any files')
     .action(
       createAsyncCommand(async (projectName, options) => {
+        if (options.legacy) {
+          await withTimeout(async () => {
+            const { writeFiles, displayConfig } = await import('../utils/crd-generator');
+
+            console.log(chalk.cyan.bold('\n📋 Custom Resource Definitions\n'));
+
+            const config = {
+              projectName,
+              namespace: options.namespace,
+              enableController: options.controller !== false,
+              enableWebhooks: options.webhooks !== false,
+              crds: [
+                {
+                  name: 'MicroService',
+                  group: 're-shell.io',
+                  scope: 'Namespaced' as const,
+                  kind: 'MicroService',
+                  plural: 'microservices',
+                  singular: 'microservice',
+                  shortNames: ['ms'],
+                  properties: {
+                    spec: {
+                      type: 'object',
+                      description: 'Specification of the MicroService',
+                      required: true,
+                      properties: {
+                        replicas: {
+                          type: 'number',
+                          description: 'Number of replicas',
+                        },
+                        image: {
+                          type: 'string',
+                          description: 'Container image',
+                          required: true,
+                        },
+                        port: {
+                          type: 'number',
+                          description: 'Service port',
+                        },
+                      },
+                    },
+                  },
+                },
+                {
+                  name: 'Database',
+                  group: 're-shell.io',
+                  scope: 'Namespaced' as const,
+                  kind: 'Database',
+                  plural: 'databases',
+                  singular: 'database',
+                  shortNames: ['db'],
+                  properties: {
+                    spec: {
+                      type: 'object',
+                      description: 'Database specification',
+                      properties: {
+                        type: {
+                          type: 'string',
+                          description: 'Database type (postgres, mysql, mongo)',
+                          required: true,
+                        },
+                        version: {
+                          type: 'string',
+                          description: 'Database version',
+                        },
+                        size: {
+                          type: 'string',
+                          description: 'Storage size',
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+            };
+
+            displayConfig(config);
+
+            console.log(chalk.gray('Generating CRD operator...'));
+
+            await writeFiles(config, options.output ?? '/tmp/crd');
+
+            console.log(chalk.green('✅ Generated: crd-generator.' + (options.language === 'python' ? 'py' : 'ts')));
+            console.log(chalk.green('✅ Generated: CRD.md'));
+            console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+            console.log(chalk.green('✅ Generated: crd-config.json'));
+            console.log('');
+            console.log(chalk.green('✓ CRD operator generated successfully!'));
+          }, 30000);
+          return;
+        }
+
+        const spinner = options.json
+          ? undefined
+          : createSpinner('Generating ReShellWorkspace CRD...').start();
         await withTimeout(async () => {
-          const { writeFiles, displayConfig } = await import('../utils/crd-generator');
-
-          console.log(chalk.cyan.bold('\n📋 Custom Resource Definitions\n'));
-
-          const config = {
-            projectName,
+          await runK8sCrd({
+            out: options.out ?? options.output,
             namespace: options.namespace,
-            enableController: options.controller !== false,
-            enableWebhooks: options.webhooks !== false,
-            crds: [
-              {
-                name: 'MicroService',
-                group: 're-shell.io',
-                scope: 'Namespaced' as const,
-                kind: 'MicroService',
-                plural: 'microservices',
-                singular: 'microservice',
-                shortNames: ['ms'],
-                properties: {
-                  spec: {
-                    type: 'object',
-                    description: 'Specification of the MicroService',
-                    required: true,
-                    properties: {
-                      replicas: {
-                        type: 'number',
-                        description: 'Number of replicas',
-                      },
-                      image: {
-                        type: 'string',
-                        description: 'Container image',
-                        required: true,
-                      },
-                      port: {
-                        type: 'number',
-                        description: 'Service port',
-                      },
-                    },
-                  },
-                },
-              },
-              {
-                name: 'Database',
-                group: 're-shell.io',
-                scope: 'Namespaced' as const,
-                kind: 'Database',
-                plural: 'databases',
-                singular: 'database',
-                shortNames: ['db'],
-                properties: {
-                  spec: {
-                    type: 'object',
-                    description: 'Database specification',
-                    properties: {
-                      type: {
-                        type: 'string',
-                        description: 'Database type (postgres, mysql, mongo)',
-                        required: true,
-                      },
-                      version: {
-                        type: 'string',
-                        description: 'Database version',
-                      },
-                      size: {
-                        type: 'string',
-                        description: 'Storage size',
-                      },
-                    },
-                  },
-                },
-              },
-            ],
-          };
-
-          displayConfig(config);
-
-          console.log(chalk.gray('Generating CRD operator...'));
-
-          await writeFiles(config, options.output);
-
-          console.log(chalk.green('✅ Generated: crd-generator.' + (options.language === 'python' ? 'py' : 'ts')));
-          console.log(chalk.green('✅ Generated: CRD.md'));
-          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
-          console.log(chalk.green('✅ Generated: crd-config.json'));
-          console.log('');
-          console.log(chalk.green('✓ CRD operator generated successfully!'));
-        }, 30000);
+            group: options.group,
+            version: options.apiVersion,
+            json: options.json,
+            dryRun: options.dryRun,
+            spinner,
+          });
+        }, 60000);
       })
     );
 
-  // polyglot-operator → k8s operator
+  // polyglot-operator → k8s operator (workspace-driven Go operator; --legacy keeps the old name-only scripts)
   k8s
     .command('operator')
-    .description('Generate polyglot Kubernetes operator for multi-language application management')
-    .argument('<project-name>', 'Name of the project')
-    .option('-l, --language <language>', 'Tool language (typescript|python)', 'typescript')
-    .option('--namespace <namespace>', 'Kubernetes namespace', 'default')
-    .option('--languages <languages>', 'Supported languages (nodejs,python,go)', 'nodejs,python,go')
-    .option('--no-lifecycle-hooks', 'Disable lifecycle hooks')
-    .option('--no-rollback', 'Disable automatic rollback')
-    .option('--no-scaling', 'Disable dynamic scaling')
-    .option('--no-monitoring', 'Disable monitoring integration')
-    .option('-o, --output <output>', 'Output directory', '/tmp/polyglot-operator')
+    .description(
+      'Generate a Go (controller-runtime) operator that reconciles the ReShellWorkspace CRD into Deployments and Services'
+    )
+    .argument('[project-name]', 'Project name (only used with --legacy)')
+    .option(
+      '--legacy',
+      'Generate the legacy standalone generator scripts for <project-name> instead of the Go operator scaffold'
+    )
+    .option('-l, --language <language>', '(legacy) Tool language (typescript|python)', 'typescript')
+    .option('--namespace <namespace>', 'Namespace of the sample resource', 'default')
+    .option('--languages <languages>', '(legacy) Supported languages (nodejs,python,go)')
+    .option('--no-lifecycle-hooks', '(legacy) Disable lifecycle hooks')
+    .option('--no-rollback', '(legacy) Disable automatic rollback')
+    .option('--no-scaling', '(legacy) Disable dynamic scaling')
+    .option('--no-monitoring', '(legacy) Disable monitoring integration')
+    .option('--module <path>', 'Go module path of the operator (default <group>/operator)')
+    .option('--image <image>', 'Operator image referenced by the generated manager Deployment')
+    .option('--group <group>', 'API group of the reconciled CRD (default re-shell.io)')
+    .option('--api-version <version>', 'API version of the reconciled CRD (default v1alpha1)')
+    .option(
+      '--verify',
+      'Build the written scaffold for real (go mod tidy && go build ./... && go vet ./...); fails if Go is missing or the build fails'
+    )
+    .option('--out <dir>', 'Output directory to write the operator scaffold into')
+    .option('-o, --output <output>', 'Output directory (alias of --out; legacy default /tmp/polyglot-operator)')
+    .option('--json', 'Emit machine-readable JSON envelope to stdout')
+    .option('--dry-run', 'Render without writing any files')
     .action(
       createAsyncCommand(async (projectName, options) => {
-        await withTimeout(async () => {
-          const { writeFiles, displayConfig } = await import('../utils/polyglot-operator');
+        if (options.legacy) {
+          await withTimeout(async () => {
+            const { writeFiles, displayConfig } = await import('../utils/polyglot-operator');
 
-          console.log(chalk.cyan.bold('\n🔧 Polyglot Kubernetes Operator\n'));
+            console.log(chalk.cyan.bold('\n🔧 Polyglot Kubernetes Operator\n'));
 
-          // Parse languages
-          const languages = options.languages.split(',').map((lang: string) => {
-            const langConfigs: Record<string, unknown> = {
-              nodejs: {
-                name: 'nodejs',
-                runtime: 'node',
-                version: '18',
-                buildTool: 'npm',
-                port: 3000,
-                healthCheck: { path: '/health', interval: 30 },
-              },
-              python: {
-                name: 'python',
-                runtime: 'python',
-                version: '3.11',
-                buildTool: 'pip',
-                port: 8000,
-                healthCheck: { path: '/health', interval: 30 },
-              },
-              go: {
-                name: 'go',
-                runtime: 'go',
-                version: '1.21',
-                buildTool: 'go',
-                port: 8080,
-                healthCheck: { path: '/health', interval: 30 },
-              },
-              java: {
-                name: 'java',
-                runtime: 'java',
-                version: '17',
-                buildTool: 'maven',
-                port: 8080,
-                healthCheck: { path: '/actuator/health', interval: 30 },
-              },
+            // Parse languages
+            const languages = (options.languages ?? 'nodejs,python,go').split(',').map((lang: string) => {
+              const langConfigs: Record<string, unknown> = {
+                nodejs: {
+                  name: 'nodejs',
+                  runtime: 'node',
+                  version: '18',
+                  buildTool: 'npm',
+                  port: 3000,
+                  healthCheck: { path: '/health', interval: 30 },
+                },
+                python: {
+                  name: 'python',
+                  runtime: 'python',
+                  version: '3.11',
+                  buildTool: 'pip',
+                  port: 8000,
+                  healthCheck: { path: '/health', interval: 30 },
+                },
+                go: {
+                  name: 'go',
+                  runtime: 'go',
+                  version: '1.21',
+                  buildTool: 'go',
+                  port: 8080,
+                  healthCheck: { path: '/health', interval: 30 },
+                },
+                java: {
+                  name: 'java',
+                  runtime: 'java',
+                  version: '17',
+                  buildTool: 'maven',
+                  port: 8080,
+                  healthCheck: { path: '/actuator/health', interval: 30 },
+                },
+              };
+              return langConfigs[lang.trim()] || langConfigs.nodejs;
+            });
+
+            const config = {
+              projectName,
+              namespace: options.namespace,
+              languages,
+              enableLifecycleHooks: options.lifecycleHooks !== false,
+              enableRollback: options.rollback !== false,
+              enableScaling: options.scaling !== false,
+              enableMonitoring: options.monitoring !== false,
+              lifecycleHooks: [
+                {
+                  name: 'migrate-db',
+                  type: 'pre-install' as const,
+                  command: 'npm',
+                  args: ['run', 'migrate'],
+                },
+                {
+                  name: 'seed-data',
+                  type: 'post-install' as const,
+                  command: 'npm',
+                  args: ['run', 'seed'],
+                },
+              ],
             };
-            return langConfigs[lang.trim()] || langConfigs.nodejs;
-          });
 
-          const config = {
-            projectName,
-            namespace: options.namespace,
-            languages,
-            enableLifecycleHooks: options.lifecycleHooks !== false,
-            enableRollback: options.rollback !== false,
-            enableScaling: options.scaling !== false,
-            enableMonitoring: options.monitoring !== false,
-            lifecycleHooks: [
-              {
-                name: 'migrate-db',
-                type: 'pre-install' as const,
-                command: 'npm',
-                args: ['run', 'migrate'],
-              },
-              {
-                name: 'seed-data',
-                type: 'post-install' as const,
-                command: 'npm',
-                args: ['run', 'seed'],
-              },
-            ],
-          };
+            displayConfig(config);
 
-          displayConfig(config);
+            console.log(chalk.gray('Generating polyglot operator...'));
 
-          console.log(chalk.gray('Generating polyglot operator...'));
+            await writeFiles(config, options.output ?? '/tmp/polyglot-operator');
 
-          await writeFiles(config, options.output);
+            console.log(chalk.green('✅ Generated: polyglot-operator.' + (options.language === 'python' ? 'py' : 'ts')));
+            console.log(chalk.green('✅ Generated: POLYGLOT_OPERATOR.md'));
+            console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
+            console.log(chalk.green('✅ Generated: polyglot-operator-config.json'));
+            console.log('');
+            console.log(chalk.green('✓ Polyglot operator generated successfully!'));
+          }, 30000);
+          return;
+        }
 
-          console.log(chalk.green('✅ Generated: polyglot-operator.' + (options.language === 'python' ? 'py' : 'ts')));
-          console.log(chalk.green('✅ Generated: POLYGLOT_OPERATOR.md'));
-          console.log(chalk.green('✅ Generated: package.json (TypeScript) or requirements.txt (Python)'));
-          console.log(chalk.green('✅ Generated: polyglot-operator-config.json'));
-          console.log('');
-          console.log(chalk.green('✓ Polyglot operator generated successfully!'));
-        }, 30000);
+        const spinner = options.json
+          ? undefined
+          : createSpinner('Generating ReShellWorkspace operator...').start();
+        // `go mod tidy` downloads modules, so a verified build gets a long budget.
+        await withTimeout(
+          async () => {
+            await runK8sOperator({
+              out: options.out ?? options.output,
+              module: options.module,
+              image: options.image,
+              group: options.group,
+              version: options.apiVersion,
+              namespace: options.namespace,
+              verify: options.verify,
+              json: options.json,
+              dryRun: options.dryRun,
+              spinner,
+            });
+          },
+          options.verify ? 15 * 60 * 1000 : 60000
+        );
       })
     );
 
@@ -1127,6 +1241,47 @@ export function registerK8sGroup(program: Command): void {
 
           console.log(chalk.green('✓ Cluster management generated successfully!'));
         }, 30000);
+      })
+    );
+
+  // k8s rollback → real rollback via kubectl rollout undo / helm rollback
+  k8s
+    .command('rollback')
+    .description(
+      'Roll a service back to its previous revision (kubectl rollout undo, or helm rollback for Helm releases); exits non-zero on any failure'
+    )
+    .argument('<service>', 'Service (Deployment) to roll back')
+    .option('--to-revision <n>', 'Revision to return to (default: the previous revision)')
+    .option('--namespace <ns>', 'Kubernetes namespace', 'default')
+    .option('--method <method>', 'How to roll back: auto, kubectl or helm', 'auto')
+    .option('--release <name>', 'Helm release name (default: detected from the Deployment)')
+    .option('--timeout <seconds>', 'Seconds to wait for the rolled-back workload to become ready', '300')
+    .option('--context <context>', 'kubeconfig context to use')
+    .option('--dry-run', 'Plan the rollback with the tool dry-run; the cluster is not changed')
+    .option('--json', 'Emit machine-readable JSON envelope to stdout')
+    .action(
+      createAsyncCommand(async (service, options) => {
+        const spinner = options.json
+          ? undefined
+          : createSpinner(`Rolling back ${service}...`).start();
+        const timeoutSeconds = Number(options.timeout);
+        const budgetMs =
+          ((Number.isFinite(timeoutSeconds) && timeoutSeconds > 0 ? timeoutSeconds : 300) + 180) *
+          1000;
+        await withTimeout(async () => {
+          await runK8sRollback({
+            service,
+            namespace: options.namespace,
+            toRevision: options.toRevision,
+            method: options.method,
+            release: options.release,
+            timeout: options.timeout,
+            context: options.context,
+            dryRun: options.dryRun,
+            json: options.json,
+            spinner,
+          });
+        }, budgetMs);
       })
     );
 

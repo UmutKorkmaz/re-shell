@@ -112,6 +112,9 @@
     "monitoring": {
       "$ref": "#/definitions/monitoring"
     },
+    "kubernetes": {
+      "$ref": "#/definitions/kubernetesConfig"
+    },
     "tasks": {
       "type": "object",
       "description": "Task graph for the dependency-aware task runner (`re-shell run <task>`). Maps a task name to its dependencies. A dependency is either a sibling task in the same package (e.g. \"build\") or, with a \"^\" prefix, the same task on this package's upstream workspace dependencies (e.g. \"^build\"). When omitted, sensible defaults apply (build -> ^build; test -> build).",
@@ -121,6 +124,144 @@
     }
   },
   "definitions": {
+    "intOrString": {
+      "description": "A Kubernetes int-or-string value (e.g. maxSurge: 1 or maxSurge: \"25%\").",
+      "oneOf": [{ "type": "integer" }, { "type": "string" }],
+      "x-kubernetes-int-or-string": true
+    },
+    "k8sProbe": {
+      "type": "object",
+      "description": "A liveness/readiness/startup probe. An httpGet probe is generated when a health path is known (this block's `path`, `kubernetes.probes.path`, or the service `healthCheck.path`); otherwise a tcpSocket probe on the container port.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "description": "HTTP path to probe (httpGet)." },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 },
+        "successThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "kubernetesConfig": {
+      "type": "object",
+      "description": "Kubernetes deployment settings used by `re-shell k8s generate`, `k8s helm generate`, `k8s gitops generate`, `k8s crd|operator|mesh`. Set at the workspace level for defaults and per service to override. Resolution order: built-in defaults < workspace `deployment` < workspace `kubernetes` < service `resources`/`healthCheck`/`scaling` < service `kubernetes`.",
+      "properties": {
+        "image": {
+          "type": "object",
+          "properties": {
+            "registry": { "type": "string", "description": "Registry prefix (e.g. ghcr.io/acme); prepended to the repository." },
+            "repository": { "type": "string", "description": "Image repository; defaults to the service name." },
+            "tag": { "type": "string", "description": "Image tag; defaults to \"latest\" (CI should override)." },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "replicas": { "type": "integer", "minimum": 1 },
+        "resources": {
+          "type": "object",
+          "description": "Kubernetes-shaped resources; overrides the service `resources` block.",
+          "properties": {
+            "requests": { "type": "object", "additionalProperties": { "type": "string" } },
+            "limits": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Pod and container hardening. Defaults satisfy the Pod Security Standards `restricted` profile.",
+          "properties": {
+            "runAsNonRoot": { "type": "boolean" },
+            "runAsUser": { "type": "integer", "minimum": 0 },
+            "runAsGroup": { "type": "integer", "minimum": 0 },
+            "fsGroup": { "type": "integer", "minimum": 0 },
+            "readOnlyRootFilesystem": { "type": "boolean" },
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": { "type": "array", "items": { "type": "string" } },
+                "add": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "seccompProfile": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] },
+            "writablePaths": {
+              "type": "array",
+              "description": "Absolute paths mounted as emptyDir volumes so the app can write while the root filesystem is read-only. Defaults to [\"/tmp\"].",
+              "items": { "type": "string", "pattern": "^/" }
+            }
+          }
+        },
+        "automountServiceAccountToken": { "type": "boolean" },
+        "probes": {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string", "description": "Health path used by every probe that does not set its own." },
+            "liveness": { "$ref": "#/definitions/k8sProbe" },
+            "readiness": { "$ref": "#/definitions/k8sProbe" },
+            "startup": { "$ref": "#/definitions/k8sProbe" }
+          }
+        },
+        "strategy": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RollingUpdate", "Recreate"] },
+            "maxSurge": { "$ref": "#/definitions/intOrString" },
+            "maxUnavailable": { "$ref": "#/definitions/intOrString" }
+          }
+        },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0, "description": "ReplicaSets kept for `kubectl rollout undo` / `re-shell k8s rollback`." },
+        "progressDeadlineSeconds": { "type": "integer", "minimum": 1 },
+        "minReadySeconds": { "type": "integer", "minimum": 0 },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+        "pdb": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minAvailable": { "$ref": "#/definitions/intOrString" },
+            "maxUnavailable": { "$ref": "#/definitions/intOrString" }
+          }
+        },
+        "autoscaling": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minReplicas": { "type": "integer", "minimum": 1 },
+            "maxReplicas": { "type": "integer", "minimum": 1 },
+            "cpuUtilization": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "memoryUtilization": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "customMetric": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "name": { "type": "string" },
+                "averageValue": { "type": "string" }
+              }
+            }
+          }
+        },
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "host": { "type": "string" },
+            "path": { "type": "string" },
+            "pathType": { "type": "string", "enum": ["Prefix", "Exact", "ImplementationSpecific"] },
+            "className": { "type": "string" },
+            "clusterIssuer": { "type": "string", "description": "cert-manager ClusterIssuer used for TLS automation." },
+            "tls": { "type": "boolean" }
+          }
+        },
+        "networkPolicy": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "allowFromNamespaces": {
+              "type": "array",
+              "description": "Extra namespaces allowed to reach the service in addition to its own namespace. Defaults to [\"ingress-nginx\"] for nginx-class ingress.",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "taskConfig": {
       "type": "object",
       "description": "Dependencies and cache hints for a single task in the task graph.",
@@ -254,6 +395,9 @@
         },
         "healthCheck": {
           "$ref": "#/definitions/healthCheck"
+        },
+        "kubernetes": {
+          "$ref": "#/definitions/kubernetesConfig"
         },
         "routes": {
           "type": "array",
@@ -402,7 +546,11 @@
               "type": {
                 "enum": ["cpu", "memory", "requests", "custom"]
               },
-              "value": { "type": "number" }
+              "value": { "type": "number" },
+              "name": {
+                "type": "string",
+                "description": "Metric name for type \"custom\" (and \"requests\"); surfaced as a Pods metric on the generated HorizontalPodAutoscaler."
+              }
             }
           }
         }

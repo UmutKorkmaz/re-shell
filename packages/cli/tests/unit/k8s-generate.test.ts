@@ -10,6 +10,11 @@ import {
   type RenderedManifest,
 } from '../../src/utils/k8s-generate';
 import { runK8sGenerate } from '../../src/commands/k8s-generate';
+import {
+  kubeconformReady,
+  runKubeconform,
+  workspaceInTmp,
+} from '../helpers/k8s-test-utils';
 
 const FIXTURES = path.join(__dirname, '..', 'fixtures');
 
@@ -54,11 +59,11 @@ describe('k8s-generate: generateManifests', () => {
     if (tmpDir) await fs.remove(tmpDir);
   });
 
-  it('emits four manifests per service (Deployment, Service, HPA, NetworkPolicy)', async () => {
+  it('emits five manifests per service (Deployment, Service, HPA, NetworkPolicy, PodDisruptionBudget)', async () => {
     tmpDir = await inTmp();
     const result = generateManifests({ cwd: tmpDir });
-    // 2 services × 4 manifests = 8
-    expect(result.manifests).toHaveLength(8);
+    // 2 services × 5 manifests = 10 (P9-D1 added the PodDisruptionBudget)
+    expect(result.manifests).toHaveLength(10);
     const kinds = result.manifests.map(m => m.kind).sort();
     expect(kinds).toEqual([
       'Deployment',
@@ -67,6 +72,8 @@ describe('k8s-generate: generateManifests', () => {
       'HorizontalPodAutoscaler',
       'NetworkPolicy',
       'NetworkPolicy',
+      'PodDisruptionBudget',
+      'PodDisruptionBudget',
       'Service',
       'Service',
     ]);
@@ -153,7 +160,7 @@ describe('k8s-generate: generateManifests', () => {
     tmpDir = await inTmp();
     const outDir = path.join(tmpDir, 'k8s-out');
     const result = generateManifests({ cwd: tmpDir, out: outDir });
-    expect(result.written).toHaveLength(8);
+    expect(result.written).toHaveLength(10);
     for (const file of result.written) {
       expect(fs.existsSync(file)).toBe(true);
     }
@@ -195,7 +202,7 @@ describe('k8s-generate: command layer (envelopes + exit codes)', () => {
     }>(() => runK8sGenerate({ json: true, cwd: tmpDir }));
 
     expect(env.ok).toBe(true);
-    expect(env.data.manifests).toHaveLength(8);
+    expect(env.data.manifests).toHaveLength(10);
     // Each manifest yaml must parse and have apiVersion/kind/metadata.name.
     for (const manifest of env.data.manifests) {
       const doc = yaml.load(manifest.yaml) as Record<string, unknown>;
@@ -229,5 +236,282 @@ describe('k8s-generate: command layer (envelopes + exit codes)', () => {
     expect(env.ok).toBe(false);
     expect(env.error.code).toBe('K8S_GENERATE_ERROR');
     expect(process.exitCode).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P9-D1: security, resilience and rollback settings
+// ---------------------------------------------------------------------------
+
+type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+function find(result: { manifests: RenderedManifest[] }, kind: string, name: string): Doc {
+  const m = result.manifests.find(x => x.kind === kind && x.name === name);
+  expect(m, `${kind}/${name}`).toBeDefined();
+  return yaml.load((m as RenderedManifest).yaml) as Doc;
+}
+
+describe('k8s-generate: hardened Deployment (P9-D1)', () => {
+  let tmpDir: string;
+  afterEach(async () => {
+    if (tmpDir) await fs.remove(tmpDir);
+  });
+
+  it('sets pod and container securityContext to the restricted profile', async () => {
+    tmpDir = await inTmp();
+    const dep = find(generateManifests({ cwd: tmpDir }), 'Deployment', 'api');
+    const pod = dep.spec.template.spec;
+    expect(pod.securityContext).toEqual({
+      runAsNonRoot: true,
+      runAsUser: 10001,
+      runAsGroup: 10001,
+      fsGroup: 10001,
+      seccompProfile: { type: 'RuntimeDefault' },
+    });
+    expect(pod.automountServiceAccountToken).toBe(false);
+    const c = pod.containers[0];
+    expect(c.securityContext).toMatchObject({
+      allowPrivilegeEscalation: false,
+      readOnlyRootFilesystem: true,
+      runAsNonRoot: true,
+      runAsUser: 10001,
+      capabilities: { drop: ['ALL'] },
+      seccompProfile: { type: 'RuntimeDefault' },
+    });
+  });
+
+  it('mounts an emptyDir on /tmp so the read-only root filesystem stays usable', async () => {
+    tmpDir = await inTmp();
+    const pod = find(generateManifests({ cwd: tmpDir }), 'Deployment', 'api').spec.template.spec;
+    expect(pod.containers[0].volumeMounts).toEqual([{ name: 'tmp', mountPath: '/tmp' }]);
+    expect(pod.volumes).toEqual([{ name: 'tmp', emptyDir: {} }]);
+  });
+
+  it('declares resource requests and limits', async () => {
+    tmpDir = await inTmp();
+    const c = find(generateManifests({ cwd: tmpDir }), 'Deployment', 'api').spec.template.spec.containers[0];
+    expect(c.resources.requests).toEqual({ cpu: '100m', memory: '128Mi' });
+    expect(c.resources.limits).toEqual({ cpu: '500m', memory: '512Mi' });
+  });
+
+  it('derives liveness/readiness probes from healthCheck.path (tcpSocket without one)', async () => {
+    tmpDir = await workspaceInTmp(`name: probes
+version: 2.0.0
+services:
+  api:
+    name: api
+    language: typescript
+    framework: express
+    port: 3000
+    healthCheck: { path: /healthz, interval: 4, timeout: 2, retries: 6 }
+  worker:
+    name: worker
+    language: python
+    framework: flask
+    port: 8081
+`);
+    const result = generateManifests({ cwd: tmpDir });
+    const api = find(result, 'Deployment', 'api').spec.template.spec.containers[0];
+    expect(api.livenessProbe).toMatchObject({
+      httpGet: { path: '/healthz', port: 'http' },
+      periodSeconds: 4,
+      timeoutSeconds: 2,
+      failureThreshold: 6,
+    });
+    expect(api.readinessProbe.httpGet).toEqual({ path: '/healthz', port: 'http' });
+    const worker = find(result, 'Deployment', 'worker').spec.template.spec.containers[0];
+    expect(worker.livenessProbe.tcpSocket).toEqual({ port: 'http' });
+    expect(worker.readinessProbe.tcpSocket).toEqual({ port: 'http' });
+  });
+
+  it('configures rollback: RollingUpdate strategy and revisionHistoryLimit', async () => {
+    tmpDir = await inTmp();
+    const spec = find(generateManifests({ cwd: tmpDir }), 'Deployment', 'api').spec;
+    expect(spec.strategy).toEqual({
+      type: 'RollingUpdate',
+      rollingUpdate: { maxSurge: 1, maxUnavailable: 0 },
+    });
+    expect(spec.revisionHistoryLimit).toBe(10);
+    expect(spec.progressDeadlineSeconds).toBe(600);
+  });
+
+  it('honors workspace/service configuration of every setting', async () => {
+    tmpDir = await workspaceInTmp(`name: custom
+version: 2.0.0
+kubernetes:
+  revisionHistoryLimit: 4
+  securityContext:
+    runAsUser: 2000
+services:
+  api:
+    name: api
+    language: go
+    framework: gin
+    port: 8080
+    kubernetes:
+      replicas: 3
+      progressDeadlineSeconds: 90
+      strategy: { type: RollingUpdate, maxSurge: "50%", maxUnavailable: 1 }
+      securityContext:
+        readOnlyRootFilesystem: false
+        capabilities: { drop: [ALL], add: [NET_BIND_SERVICE] }
+        seccompProfile: Unconfined
+      image: { registry: ghcr.io/acme, tag: "1.4.0", pullPolicy: Always }
+      pdb: { maxUnavailable: "30%" }
+`);
+    const result = generateManifests({ cwd: tmpDir });
+    const dep = find(result, 'Deployment', 'api');
+    expect(dep.spec.replicas).toBe(3);
+    expect(dep.spec.revisionHistoryLimit).toBe(4);
+    expect(dep.spec.progressDeadlineSeconds).toBe(90);
+    expect(dep.spec.strategy.rollingUpdate).toEqual({ maxSurge: '50%', maxUnavailable: 1 });
+    const pod = dep.spec.template.spec;
+    expect(pod.securityContext.runAsUser).toBe(2000);
+    expect(pod.securityContext.seccompProfile).toEqual({ type: 'Unconfined' });
+    const c = pod.containers[0];
+    expect(c.image).toBe('ghcr.io/acme/api:1.4.0');
+    expect(c.imagePullPolicy).toBe('Always');
+    expect(c.securityContext.readOnlyRootFilesystem).toBe(false);
+    expect(c.securityContext.capabilities).toEqual({ drop: ['ALL'], add: ['NET_BIND_SERVICE'] });
+    expect(c.volumeMounts).toBeUndefined(); // no read-only root fs -> no emptyDir needed
+    expect(find(result, 'PodDisruptionBudget', 'api').spec).toEqual({
+      maxUnavailable: '30%',
+      selector: { matchLabels: { app: 'api' } },
+    });
+  });
+
+  it('fails explicitly on settings Kubernetes would reject', async () => {
+    tmpDir = await workspaceInTmp(`name: bad
+version: 2.0.0
+services:
+  api:
+    name: api
+    language: go
+    framework: gin
+    port: 8080
+    resources: { cpu: { request: 900m, limit: 100m } }
+`);
+    expect(() => generateManifests({ cwd: tmpDir })).toThrow(/cpu request \(900m\) exceeds its limit/);
+  });
+
+  it('PodDisruptionBudget keeps one pod available for multi-replica services', async () => {
+    tmpDir = await inTmp();
+    const pdb = find(generateManifests({ cwd: tmpDir }), 'PodDisruptionBudget', 'api');
+    expect(pdb.apiVersion).toBe('policy/v1');
+    expect(pdb.spec).toEqual({ minAvailable: 1, selector: { matchLabels: { app: 'api' } } });
+  });
+
+  it('autoscaling/networkPolicy/pdb can each be switched off', async () => {
+    tmpDir = await workspaceInTmp(`name: lean
+version: 2.0.0
+services:
+  api:
+    name: api
+    language: go
+    framework: gin
+    port: 8080
+    kubernetes:
+      autoscaling: { enabled: false }
+      networkPolicy: { enabled: false }
+      pdb: { enabled: false }
+`);
+    const kinds = generateManifests({ cwd: tmpDir }).manifests.map(m => m.kind).sort();
+    expect(kinds).toEqual(['Deployment', 'Service']);
+  });
+
+  it('HPA scales on CPU plus the Pods custom metric (and memory when configured)', async () => {
+    tmpDir = await workspaceInTmp(`name: hpa
+version: 2.0.0
+services:
+  api:
+    name: api
+    language: go
+    framework: gin
+    port: 8080
+    kubernetes:
+      autoscaling:
+        minReplicas: 3
+        maxReplicas: 9
+        cpuUtilization: 60
+        memoryUtilization: 75
+        customMetric: { name: queue_depth, averageValue: "30" }
+`);
+    const hpa = find(generateManifests({ cwd: tmpDir }), 'HorizontalPodAutoscaler', 'api').spec;
+    expect(hpa.minReplicas).toBe(3);
+    expect(hpa.maxReplicas).toBe(9);
+    expect(hpa.metrics).toEqual([
+      { type: 'Resource', resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 60 } } },
+      { type: 'Resource', resource: { name: 'memory', target: { type: 'Utilization', averageUtilization: 75 } } },
+      {
+        type: 'Pods',
+        pods: { metric: { name: 'queue_depth' }, target: { type: 'AverageValue', averageValue: '30' } },
+      },
+    ]);
+  });
+
+  it('NetworkPolicy also admits the ingress controller namespace', async () => {
+    tmpDir = await inTmp();
+    const np = find(generateManifests({ cwd: tmpDir, namespace: 'apps' }), 'NetworkPolicy', 'api-default-deny-allow-intra');
+    const sources = np.spec.ingress[0].from.map(
+      (f: Doc) => f.namespaceSelector.matchLabels['kubernetes.io/metadata.name']
+    );
+    expect(sources).toEqual(['apps', 'ingress-nginx']);
+  });
+
+  it('surfaces non-fatal warnings (non-native deployment strategy)', async () => {
+    tmpDir = await workspaceInTmp(`name: warn
+version: 2.0.0
+deployment: { strategy: canary }
+services:
+  api: { name: api, language: go, framework: gin, port: 8080 }
+`);
+    const result = generateManifests({ cwd: tmpDir });
+    expect(result.warnings.join(' ')).toMatch(/canary/);
+    // the JSON envelope carries them
+    process.exitCode = 0;
+    const env = await captureEnvelope<{ ok: boolean; warnings: string[] }>(() =>
+      runK8sGenerate({ json: true, cwd: tmpDir })
+    );
+    expect(env.ok).toBe(true);
+    expect(env.warnings.join(' ')).toMatch(/canary/);
+  });
+});
+
+describe.skipIf(!kubeconformReady)('k8s-generate: kubeconform schema validation', () => {
+  let tmpDir: string;
+  afterEach(async () => {
+    if (tmpDir) await fs.remove(tmpDir);
+  });
+
+  it('every generated manifest validates against the Kubernetes 1.31 schemas (strict)', async () => {
+    tmpDir = await inTmp();
+    const result = generateManifests({ cwd: tmpDir, namespace: 'apps' });
+    const verdict = runKubeconform(result.manifests.map(m => m.yaml).join('---\n'));
+    expect(verdict.output).toMatch(/Invalid: 0, Errors: 0/);
+    expect(verdict.ok).toBe(true);
+  });
+
+  it('a customised workspace (probes, strategy, security overrides, PDB) still validates', async () => {
+    tmpDir = await workspaceInTmp(`name: full
+version: 2.0.0
+kubernetes:
+  securityContext: { writablePaths: [/tmp, /var/cache/app] }
+services:
+  api:
+    name: api
+    language: typescript
+    framework: express
+    port: 3000
+    healthCheck: { path: /healthz }
+    scaling: { min: 2, max: 6, metrics: [{ type: cpu, value: 65 }, { type: custom, name: rps, value: 200 }] }
+    kubernetes:
+      strategy: { maxSurge: "25%", maxUnavailable: 0 }
+      probes: { startup: { failureThreshold: 40 } }
+      pdb: { minAvailable: "50%" }
+`);
+    const result = generateManifests({ cwd: tmpDir });
+    const verdict = runKubeconform(result.manifests.map(m => m.yaml).join('---\n'));
+    expect(verdict.output).toMatch(/Invalid: 0, Errors: 0/);
+    expect(verdict.ok).toBe(true);
   });
 });
