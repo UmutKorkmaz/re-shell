@@ -99,6 +99,7 @@ GROUP_NODE=(
   websocket-api-docs websocket-realtime
   loopback adonisjs restify polka middy hyper-express foalts tinyhttp marblejs eggjs
   graphql-yoga opentelemetry-tracing distributed-caching frontend-service-mesh-client
+  moleculer tsed comprehensive-auth-service realtime-data-sync strapi
 )
 
 # Configuration-only templates: no toolchain, YAML syntax is checked (see
