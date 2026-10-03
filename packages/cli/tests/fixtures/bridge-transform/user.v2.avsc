@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "User",
+  "namespace": "demo",
+  "fields": [
+    { "name": "id", "type": "string" },
+    { "name": "name", "type": "string" },
+    { "name": "age", "type": "int" },
+    { "name": "tags", "type": { "type": "array", "items": "string" } },
+    { "name": "balance", "type": "long" },
+    { "name": "role", "type": { "type": "enum", "name": "Role", "symbols": ["ROLE_UNSPECIFIED", "ADMIN", "USER"] } },
+    { "name": "avatar", "type": "bytes" },
+    { "name": "address", "type": ["null", { "type": "record", "name": "Address", "fields": [{ "name": "city", "type": "string" }, { "name": "zip", "type": "string" }] }], "default": null },
+    { "name": "labels", "type": { "type": "map", "values": "string" } },
+    { "name": "email", "type": ["null", "string"], "default": null },
+    { "name": "nickname", "type": "string", "default": "" }
+  ]
+}
