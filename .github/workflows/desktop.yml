@@ -127,7 +127,7 @@ jobs:
             libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
             patchelf libssl-dev libgtk-3-dev libsoup-3.0-dev \
             libjavascriptcoregtk-4.1-dev build-essential pkg-config \
-            xvfb x11-utils imagemagick curl
+            xvfb openbox wmctrl x11-utils imagemagick iproute2 curl
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -274,9 +274,16 @@ jobs:
 
       # Smoke test the real Linux binary: it must start its own hub, the webview
       # must connect to it with the token, and the hub must die with the app.
+      - name: Build the CLI the smoke test drives through the hub
+        if: matrix.platform == 'ubuntu-latest'
+        run: pnpm --filter @re-shell/cli run build
+
       - name: Smoke test the built app (Linux, xvfb)
         if: matrix.platform == 'ubuntu-latest'
         shell: bash
+        env:
+          RE_SHELL_CLI_BIN: ${{ github.workspace }}/packages/cli/dist/index.js
+          SMOKE_WORKSPACE: ${{ github.workspace }}/apps/web/e2e/fixtures/demo-monorepo
         run: |
           bash apps/web/src-tauri/scripts/smoke-linux.sh \
             apps/web/src-tauri/target/release/re-shell-desktop \
