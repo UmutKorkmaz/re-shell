@@ -1946,10 +1946,12 @@ npm run dev
 
 ### Frontend SDK
 
+The SDK is generated into this project's \`client-sdk/\` folder (it is not published to npm). The imports below are relative to the project root; adjust them to wherever you copy the folder, or expose it as a workspace package.
+
 #### React
 
 \`\`\`typescript
-import { useMicrofrontend } from '@re-shell/microfrontend-client/react';
+import { useMicrofrontend } from './client-sdk/react/useMicrofrontend';
 
 function MyComponent() {
   const { isConnected, state, loadComponent, setState, fetchFromBackend } = useMicrofrontend({
@@ -1977,7 +1979,7 @@ function MyComponent() {
 #### Vue
 
 \`\`\`typescript
-import { useMicrofrontend } from '@re-shell/microfrontend-client/vue';
+import { useMicrofrontend } from './client-sdk/vue/useMicrofrontend';
 
 const { isConnected, state, loadComponent, setState, fetchFromBackend } = useMicrofrontend({
   orchestratorURL: 'http://localhost:3000',
@@ -1988,7 +1990,7 @@ const { isConnected, state, loadComponent, setState, fetchFromBackend } = useMic
 #### Angular
 
 \`\`\`typescript
-import { MicrofrontendService } from '@re-shell/microfrontend-client/angular';
+import { MicrofrontendService } from './client-sdk/angular/Microfrontend.service';
 
 constructor(private microfrontend: MicrofrontendService) {
   const data = await this.microfrontend.fetchFromBackend('api-service', '/users');
@@ -1999,7 +2001,7 @@ constructor(private microfrontend: MicrofrontendService) {
 
 \`\`\`svelte
 <script>
-  import { createMicrofrontendStore } from '@re-shell/microfrontend-client/svelte';
+  import { createMicrofrontendStore } from './client-sdk/svelte/useMicrofrontend';
 
   const { isConnected, state, loadComponent, setState, fetchFromBackend } = createMicrofrontendStore({
     orchestratorURL: 'http://localhost:3000',

@@ -1843,10 +1843,12 @@ event sourcing, and framework-agnostic SDKs.
 
 ## Usage
 
+The client SDK is generated into this project's \`client-sdk/\` folder (it is not published to npm). The imports below are relative to the project root; adjust them to wherever you copy the folder, or expose it as a workspace package.
+
 ### React Hook
 
 \`\`\`typescript
-import { useRealtimeSync } from '@re-shell/sync-client/react';
+import { useRealtimeSync } from './client-sdk/react/useRealtimeSync';
 
 function DocumentEditor({ documentId }) {
   const { isConnected, data, presence, sendOperation } = useRealtimeSync(documentId);
@@ -1875,7 +1877,7 @@ function DocumentEditor({ documentId }) {
 ### Vue Composable
 
 \`\`\`typescript
-import { useRealtimeSync } from '@re-shell/sync-client/vue';
+import { useRealtimeSync } from './client-sdk/vue/useRealtimeSync';
 
 export default {
   setup() {

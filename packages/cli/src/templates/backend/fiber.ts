@@ -20,32 +20,30 @@ export const fiberTemplate: BackendTemplate = {
 go 1.21
 
 require (
+	github.com/go-playground/validator/v10 v10.16.0
+	github.com/gofiber/contrib/fiberzap/v2 v2.0.0
 	github.com/gofiber/fiber/v2 v2.52.0
 	github.com/gofiber/jwt/v4 v4.0.0
+	github.com/gofiber/storage/redis/v3 v3.1.0
 	github.com/gofiber/swagger v1.0.0
 	github.com/gofiber/websocket/v2 v2.2.1
-	github.com/gofiber/contrib/fiberzap/v2 v2.0.0
-	github.com/gofiber/storage/redis/v3 v3.1.0
-	github.com/joho/godotenv v1.5.1
-	github.com/go-playground/validator/v10 v10.16.0
 	github.com/golang-jwt/jwt/v5 v5.2.0
-	github.com/swaggo/swag v1.16.2
+	github.com/google/uuid v1.6.0
+	github.com/graphql-go/graphql v0.8.1
+	github.com/joho/godotenv v1.5.1
+	github.com/lib/pq v1.12.3
+	github.com/swaggo/swag v1.16.3
 	go.uber.org/zap v1.26.0
-	github.com/redis/go-redis/v9 v9.3.1
-	gorm.io/gorm v1.25.5
-	gorm.io/driver/postgres v1.5.4
+	golang.org/x/crypto v0.21.0
 	gorm.io/driver/mysql v1.5.2
+	gorm.io/driver/postgres v1.5.4
 	gorm.io/driver/sqlite v1.5.4
-	golang.org/x/crypto v0.17.0
-	github.com/google/uuid v1.5.0
-	github.com/99designs/gqlgen v0.17.45
-	github.com/vektah/gqlparser/v2 v2.5.11
+	gorm.io/gorm v1.25.5
 )
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/PuerkitoBio/purell v1.2.1 // indirect
-	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
+	github.com/MicahParks/keyfunc/v2 v2.0.3 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -57,6 +55,7 @@ require (
 	github.com/go-openapi/swag v0.22.7 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
+	github.com/go-sql-driver/mysql v1.7.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect
 	github.com/jackc/pgx/v5 v5.5.1 // indirect
@@ -72,8 +71,8 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/mattn/go-sqlite3 v1.14.19 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
+	github.com/redis/go-redis/v9 v9.3.1 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/savsgio/dictpool v0.0.0-20221023140959-7bf2e61cea94 // indirect
 	github.com/savsgio/gotils v0.0.0-20230208104028-c358bd845dee // indirect
 	github.com/swaggo/files/v2 v2.0.0 // indirect
 	github.com/tinylib/msgp v1.1.9 // indirect
@@ -81,11 +80,11 @@ require (
 	github.com/valyala/fasthttp v1.51.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/net v0.19.0 // indirect
-	golang.org/x/sync v0.5.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/net v0.22.0 // indirect
+	golang.org/x/sync v0.6.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/tools v0.16.1 // indirect
+	golang.org/x/tools v0.19.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 `,
@@ -108,6 +107,7 @@ import (
 	"{{projectName}}/middleware"
 	"{{projectName}}/routes"
 
+	"github.com/gofiber/contrib/fiberzap/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -115,7 +115,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/swagger"
-	"github.com/gofiber/contrib/fiberzap/v2"
 	"github.com/gofiber/websocket/v2"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
@@ -243,7 +242,7 @@ func main() {
 	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	logger.Info("Starting server", zap.String("address", addr))
-	
+
 	if err := app.Listen(addr); err != nil {
 		logger.Fatal("Failed to start server", zap.Error(err))
 	}
@@ -256,7 +255,6 @@ func main() {
 import (
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -264,7 +262,7 @@ type Config struct {
 	Environment string
 	Port        int
 	Prefork     bool
-	
+
 	// Database
 	DBHost     string
 	DBPort     int
@@ -272,24 +270,24 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	DBSSLMode  string
-	
+
 	// JWT
-	JWTSecret             string
-	JWTAccessExpiration   time.Duration
-	JWTRefreshExpiration  time.Duration
-	
+	JWTSecret            string
+	JWTAccessExpiration  time.Duration
+	JWTRefreshExpiration time.Duration
+
 	// Redis
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
-	
+
 	// Rate limiting
 	RateLimitRequests int
 	RateLimitDuration time.Duration
-	
+
 	// CORS
 	AllowedOrigins string
-	
+
 	// Session
 	SessionSecret     string
 	SessionExpiration time.Duration
@@ -300,7 +298,7 @@ func New() *Config {
 		Environment: getEnv("ENVIRONMENT", "development"),
 		Port:        getEnvAsInt("PORT", 3000),
 		Prefork:     getEnvAsBool("PREFORK", false),
-		
+
 		// Database
 		DBHost:     getEnv("DB_HOST", "localhost"),
 		DBPort:     getEnvAsInt("DB_PORT", 5432),
@@ -308,24 +306,24 @@ func New() *Config {
 		DBPassword: getEnv("DB_PASSWORD", "password"),
 		DBName:     getEnv("DB_NAME", "{{projectName}}"),
 		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
-		
+
 		// JWT
 		JWTSecret:            getEnv("JWT_SECRET", "your-secret-key-change-this"),
 		JWTAccessExpiration:  time.Duration(getEnvAsInt("JWT_ACCESS_EXPIRATION_MINUTES", 15)) * time.Minute,
 		JWTRefreshExpiration: time.Duration(getEnvAsInt("JWT_REFRESH_EXPIRATION_DAYS", 7)) * 24 * time.Hour,
-		
+
 		// Redis
 		RedisAddr:     getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
 		RedisDB:       getEnvAsInt("REDIS_DB", 0),
-		
+
 		// Rate limiting
 		RateLimitRequests: getEnvAsInt("RATE_LIMIT_REQUESTS", 100),
 		RateLimitDuration: time.Duration(getEnvAsInt("RATE_LIMIT_DURATION_MINUTES", 1)) * time.Minute,
-		
+
 		// CORS
 		AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
-		
+
 		// Session
 		SessionSecret:     getEnv("SESSION_SECRET", "session-secret-change-this"),
 		SessionExpiration: time.Duration(getEnvAsInt("SESSION_EXPIRATION_HOURS", 24)) * time.Hour}
@@ -362,6 +360,7 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 
 import (
 	"fmt"
+	"time"
 
 	"{{projectName}}/config"
 	"{{projectName}}/models"
@@ -442,7 +441,7 @@ type User struct {
 	CreatedAt time.Time      \`json:"created_at"\`
 	UpdatedAt time.Time      \`json:"updated_at"\`
 	DeletedAt gorm.DeletedAt \`gorm:"index" json:"-"\`
-	
+
 	Email    string \`gorm:"uniqueIndex;not null" json:"email" validate:"required,email"\`
 	Password string \`gorm:"not null" json:"-"\`
 	Name     string \`gorm:"not null" json:"name" validate:"required,min=2,max=100"\`
@@ -451,7 +450,7 @@ type User struct {
 	Role     string \`gorm:"default:user" json:"role" validate:"omitempty,oneof=user admin moderator"\`
 	Active   bool   \`gorm:"default:true" json:"active"\`
 	Verified bool   \`gorm:"default:false" json:"verified"\`
-	
+
 	RefreshTokens []RefreshToken \`gorm:"foreignKey:UserID" json:"-"\`
 	Sessions      []Session      \`gorm:"foreignKey:UserID" json:"-"\`
 }
@@ -559,7 +558,7 @@ type Product struct {
 	CreatedAt time.Time      \`json:"created_at"\`
 	UpdatedAt time.Time      \`json:"updated_at"\`
 	DeletedAt gorm.DeletedAt \`gorm:"index" json:"-"\`
-	
+
 	Name        string   \`gorm:"not null;index" json:"name" validate:"required,min=1,max=200"\`
 	Description string   \`json:"description" validate:"max=1000"\`
 	Price       float64  \`gorm:"not null" json:"price" validate:"required,min=0"\`
@@ -623,9 +622,12 @@ type PaginatedResponse struct {
     'handlers/handler.go': `package handlers
 
 import (
+	"fmt"
+	"reflect"
 	"{{projectName}}/config"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -639,10 +641,10 @@ type Handler struct {
 
 func NewHandler(db *gorm.DB, cfg *config.Config, logger *zap.Logger) *Handler {
 	v := validator.New()
-	
+
 	// Register custom validators
 	v.RegisterValidation("password", validatePassword)
-	
+
 	return &Handler{
 		db:       db,
 		cfg:      cfg,
@@ -657,7 +659,7 @@ func validatePassword(fl validator.FieldLevel) bool {
 	if len(password) < 6 {
 		return false
 	}
-	
+
 	var hasUpper, hasLower, hasDigit bool
 	for _, char := range password {
 		switch {
@@ -669,7 +671,7 @@ func validatePassword(fl validator.FieldLevel) bool {
 			hasDigit = true
 		}
 	}
-	
+
 	return hasUpper && hasLower && hasDigit
 }
 
@@ -686,7 +688,7 @@ type ValidationError struct {
 
 func (h *Handler) formatValidationErrors(err error) ValidationErrorResponse {
 	var errors []ValidationError
-	
+
 	if validationErrors, ok := err.(validator.ValidationErrors); ok {
 		for _, e := range validationErrors {
 			errors = append(errors, ValidationError{
@@ -694,7 +696,7 @@ func (h *Handler) formatValidationErrors(err error) ValidationErrorResponse {
 				Message: h.getErrorMessage(e)})
 		}
 	}
-	
+
 	return ValidationErrorResponse{
 		Error:  "Validation failed",
 		Fields: errors}
@@ -764,7 +766,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 // @Summary Register a new user
@@ -1009,6 +1010,7 @@ func (h *Handler) generateRefreshToken() (string, error) {
     'handlers/user.go': `package handlers
 
 import (
+	"math"
 	"strconv"
 
 	"{{projectName}}/models"
@@ -1262,6 +1264,7 @@ import (
 	"{{projectName}}/models"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -1285,7 +1288,7 @@ import (
 // @Router /products [get]
 func (h *Handler) ListProducts(c *fiber.Ctx) error {
 	var req models.ProductListRequest
-	
+
 	// Parse query parameters
 	if err := c.QueryParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -1561,6 +1564,7 @@ func (h *Handler) DeleteProduct(c *fiber.Ctx) error {
 
 import (
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/websocket/v2"
@@ -1588,12 +1592,12 @@ var broadcast = make(chan WebSocketMessage)
 // @Router /ws [get]
 func (h *Handler) WebSocketHandler(c *websocket.Conn) {
 	userID := c.Locals("userID").(uint)
-	
+
 	client := &WebSocketClient{
 		Conn:   c,
 		UserID: userID,
 		Send:   make(chan WebSocketMessage, 256)}
-	
+
 	clients[userID] = client
 	defer func() {
 		delete(clients, userID)
@@ -1606,7 +1610,7 @@ func (h *Handler) WebSocketHandler(c *websocket.Conn) {
 	welcome := WebSocketMessage{
 		Type:    "welcome",
 		Payload: json.RawMessage(\`{"message":"Connected to WebSocket","user_id":\` + strconv.Itoa(int(userID)) + \`}\`)}
-	
+
 	if err := c.WriteJSON(welcome); err != nil {
 		h.logger.Error("Failed to send welcome message", zap.Error(err))
 		return
@@ -1619,7 +1623,7 @@ func (h *Handler) WebSocketHandler(c *websocket.Conn) {
 
 func (c *WebSocketClient) readPump(logger *zap.Logger) {
 	defer c.Conn.Close()
-	
+
 	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.Conn.SetPongHandler(func(string) error {
 		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
@@ -1635,7 +1639,7 @@ func (c *WebSocketClient) readPump(logger *zap.Logger) {
 			break
 		}
 
-		logger.Debug("Received WebSocket message", 
+		logger.Debug("Received WebSocket message",
 			zap.Uint("user_id", c.UserID),
 			zap.String("type", msg.Type))
 
@@ -1645,11 +1649,11 @@ func (c *WebSocketClient) readPump(logger *zap.Logger) {
 			c.Send <- WebSocketMessage{
 				Type:    "pong",
 				Payload: msg.Payload}
-		
+
 		case "broadcast":
 			// Broadcast message to all connected clients
 			broadcast <- msg
-		
+
 		default:
 			c.Send <- WebSocketMessage{
 				Type:    "error",
@@ -1706,164 +1710,109 @@ func init() {
 }
 `,
 
-    // GraphQL schema
-    'graphql/schema.graphql': `# GraphQL schema for {{projectName}}
-# Regenerate resolver code with: go run github.com/99designs/gqlgen generate
-
-type Query {
-  hello: String!
-  health: String!
-}
-`,
-
-    // GraphQL resolver
-    'graphql/resolver.go': `package graphql
-
-import (
-	"context"
-	"time"
-)
-
-type Resolver struct{}
-
-// Query entry point
-func (r *Resolver) Query() QueryResolver {
-	return &queryResolver{r}
-}
-
-type queryResolver struct{ *Resolver }
-
-func (q *queryResolver) Hello(_ context.Context) (string, error) {
-	return "Hello from {{projectName}} GraphQL!", nil
-}
-
-func (q *queryResolver) Health(_ context.Context) (string, error) {
-	return "healthy at " + time.Now().UTC().Format(time.RFC3339), nil
-}
-`,
-
-    // GraphQL handler wired into Fiber
+// GraphQL handler wired into Fiber
     'graphql/handler.go': `package graphql
 
 import (
-	"context"
 	"encoding/json"
-	"io"
-	"net/http"
-	"runtime/debug"
 
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/handler/transport"
-	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/utils"
-	"github.com/vektah/gqlparser/v2/gqlerror"
+	gql "github.com/graphql-go/graphql"
 )
 
-// graphqlServer holds the configured gqlgen server. It is initialized
-// lazily on first request so the generated ExecutableSchema (created by
-// \`go generate\`) is available.
-var graphqlServer = handler.New(NewExecutableSchema(Config{Resolvers: &Resolver{}}))
-
-func init() {
-	graphqlServer.AddTransport(transport.POST{})
-	graphqlServer.AddTransport(transport.Options{})
-	graphqlServer.AddTransport(transport.GET{})
-	graphqlServer.SetRecoverFunc(func(ctx context.Context, err interface{}) (userMessage error) {
-		debug.PrintStack()
-		return gqlerror.Errorf("internal server error")
+// NewSchema builds the GraphQL schema in code, so there is no code generation
+// step between a fresh checkout and a working build. Add fields to the Query
+// (and a Mutation object) here, or split them into their own files.
+func NewSchema() (gql.Schema, error) {
+	query := gql.NewObject(gql.ObjectConfig{
+		Name: "Query",
+		Fields: gql.Fields{
+			"hello": &gql.Field{
+				Type:        gql.NewNonNull(gql.String),
+				Description: "Simple hello world query",
+				Resolve: func(p gql.ResolveParams) (interface{}, error) {
+					return "Hello from {{projectName}} GraphQL!", nil
+				},
+			},
+			"health": &gql.Field{
+				Type:        gql.NewNonNull(gql.String),
+				Description: "Service health check",
+				Resolve: func(p gql.ResolveParams) (interface{}, error) {
+					return "healthy", nil
+				},
+			},
+		},
 	})
+
+	return gql.NewSchema(gql.SchemaConfig{Query: query})
 }
 
-// graphqlPlayground serves the interactive GraphQL Playground.
-var graphqlPlayground = playground.Handler("GraphQL Playground", "/api/v1/graphql")
-
-// NewHandler returns a Fiber handler that bridges Fiber requests to the
-// net/http-based gqlgen server. GET requests serve the Playground; all
-// other methods execute GraphQL operations.
-func NewHandler() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		w := &fiberResponseWriter{c: c}
-		r, err := fiberToHTTPRequest(c)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"errors": []fiber.Map{{"message": "invalid GraphQL request"}}})
-		}
-
-		if c.Method() == fiber.MethodGet {
-			graphqlPlayground(w, r)
-			return nil
-		}
-
-		graphqlServer.ServeHTTP(w, r)
-		return nil
-	}
+type request struct {
+	Query         string                 \`json:"query"\`
+	OperationName string                 \`json:"operationName"\`
+	Variables     map[string]interface{} \`json:"variables"\`
 }
 
-// fiberToHTTPRequest converts a Fiber request into an *http.Request so it
-// can be passed to net/http-based handlers from gqlgen.
-func fiberToHTTPRequest(c *fiber.Ctx) (*http.Request, error) {
-	r, err := http.NewRequest(
-		string(c.Method()),
-		c.OriginalURL(),
-		utils.CopyBytes(c.Body()))
+// playgroundHTML is a GraphiQL page loaded from a CDN; it posts to the same URL.
+const playgroundHTML = \`<!doctype html>
+<html>
+  <head>
+    <title>GraphiQL</title>
+    <link rel="stylesheet" href="https://unpkg.com/graphiql@3/graphiql.min.css" />
+  </head>
+  <body style="margin:0;height:100vh">
+    <div id="graphiql" style="height:100vh"></div>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/graphiql@3/graphiql.min.js"></script>
+    <script>
+      const fetcher = GraphiQL.createFetcher({ url: window.location.pathname });
+      ReactDOM.createRoot(document.getElementById('graphiql')).render(
+        React.createElement(GraphiQL, { fetcher })
+      );
+    </script>
+  </body>
+</html>\`
+
+// NewHandler returns a Fiber handler that executes GraphQL operations.
+// POST takes a JSON body ({"query": ..., "variables": ..., "operationName": ...});
+// GET with ?query=... executes it, and GET from a browser serves GraphiQL.
+func NewHandler() (fiber.Handler, error) {
+	schema, err := NewSchema()
 	if err != nil {
 		return nil, err
 	}
-	c.Request().Header.VisitAll(func(key, value []byte) {
-		r.Header.Add(string(key), string(value))
-	})
-	if r.Header.Get("Content-Type") == "" {
-		r.Header.Set("Content-Type", "application/json")
-	}
-	return r, nil
-}
 
-// fiberResponseWriter adapts a *fiber.Ctx to the http.ResponseWriter
-// interface used by gqlgen's handlers.
-type fiberResponseWriter struct {
-	c       *fiber.Ctx
-	headers http.Header
-	status  int
-}
+	return func(c *fiber.Ctx) error {
+		var req request
 
-func (w *fiberResponseWriter) Header() http.Header {
-	if w.headers == nil {
-		w.headers = http.Header{}
-	}
-	return w.headers
-}
-
-func (w *fiberResponseWriter) Write(data []byte) (int, error) {
-	for key, values := range w.headers {
-		for _, value := range values {
-			w.c.Set(key, value)
+		switch c.Method() {
+		case fiber.MethodPost:
+			if err := json.Unmarshal(c.Body(), &req); err != nil {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"errors": []fiber.Map{{"message": "invalid JSON body"}}})
+			}
+		case fiber.MethodGet:
+			req.Query = c.Query("query")
+			req.OperationName = c.Query("operationName")
+			if req.Query == "" {
+				c.Type("html", "utf-8")
+				return c.SendString(playgroundHTML)
+			}
+		default:
+			return c.Status(fiber.StatusMethodNotAllowed).JSON(fiber.Map{
+				"errors": []fiber.Map{{"message": "use GET or POST"}}})
 		}
-	}
-	if w.status != 0 {
-		w.c.Status(w.status)
-	}
-	return w.c.Write(data)
-}
 
-func (w *fiberResponseWriter) WriteHeader(statusCode int) {
-	w.status = statusCode
-}
-
-// Ensure io.ReaderFrom is satisfied if a body is needed via fiber ctx.
-var _ io.Writer = (*fiberResponseWriter)(nil)
-
-// decodeGraphQLRequest is a small helper kept for future use / debugging.
-func decodeGraphQLRequest(body []byte) (query, operationName string, variables map[string]interface{}, err error) {
-	var payload struct {
-		Query         string                 \`json:"query"\`
-		OperationName string                 \`json:"operationName"\`
-		Variables     map[string]interface{} \`json:"variables"\`
-	}
-	if err = json.Unmarshal(body, &payload); err != nil {
-		return "", "", nil, err
-	}
-	return payload.Query, payload.OperationName, payload.Variables, nil
+		result := gql.Do(gql.Params{
+			Schema:         schema,
+			RequestString:  req.Query,
+			VariableValues: req.Variables,
+			OperationName:  req.OperationName,
+			Context:        c.UserContext(),
+		})
+		return c.JSON(result)
+	}, nil
 }
 `,
 
@@ -1916,7 +1865,11 @@ func SetupRoutes(api fiber.Router, h *handlers.Handler, cfg *config.Config) {
 	}
 
 	// GraphQL endpoint
-	api.All("/graphql", graphql.NewHandler())
+	graphqlHandler, err := graphql.NewHandler()
+	if err != nil {
+		panic("failed to build GraphQL schema: " + err.Error())
+	}
+	api.All("/graphql", graphqlHandler)
 
 	// WebSocket endpoint
 	api.Get("/ws", middleware.JWT(cfg), websocket.New(h.WebSocketHandler))
@@ -1950,15 +1903,15 @@ func JWT(cfg *config.Config) fiber.Handler {
 		SuccessHandler: func(c *fiber.Ctx) error {
 			user := c.Locals("user").(*jwt.Token)
 			claims := user.Claims.(jwt.MapClaims)
-			
+
 			userID := uint(claims["user_id"].(float64))
 			email := claims["email"].(string)
 			role := claims["role"].(string)
-			
+
 			c.Locals("userID", userID)
 			c.Locals("userEmail", email)
 			c.Locals("userRole", role)
-			
+
 			return c.Next()
 		},
 		TokenLookup: "header:Authorization",
@@ -2136,6 +2089,51 @@ func ValidateToken(tokenString, secret string) (*JWTClaims, error) {
 `,
 
     // Environment file
+    // Swagger description served at /swagger. A minimal stand-in for the file
+    // "swag init" generates, so that a fresh checkout builds; "make swagger"
+    // regenerates it from the handler annotations.
+    'docs/docs.go': `// Package docs holds the OpenAPI description served at /swagger.
+//
+// This is a minimal, hand-written stand-in for the file that "swag init"
+// generates, so that a fresh checkout compiles. Run "make swagger" to
+// regenerate it from the annotations in main.go and the route handlers; the
+// generated docs/docs.go replaces this file.
+package docs
+
+import "github.com/swaggo/swag"
+
+const docTemplate = \`{
+    "schemes": {{ marshal .Schemes }},
+    "swagger": "2.0",
+    "info": {
+        "description": "{{escape .Description}}",
+        "title": "{{.Title}}",
+        "version": "{{.Version}}"
+    },
+    "host": "{{.Host}}",
+    "basePath": "{{.BasePath}}",
+    "paths": {}
+}\`
+
+// SwaggerInfo holds exported Swagger Info so clients can modify it.
+var SwaggerInfo = &swag.Spec{
+	Version:          "1.0",
+	Host:             "localhost:3000",
+	BasePath:         "/api/v1",
+	Schemes:          []string{},
+	Title:            "{{projectName}} API",
+	Description:      "API server for {{projectName}}",
+	InfoInstanceName: "swagger",
+	SwaggerTemplate:  docTemplate,
+	LeftDelim:        "{{",
+	RightDelim:       "}}",
+}
+
+func init() {
+	swag.Register(SwaggerInfo.InstanceName(), SwaggerInfo)
+}
+`,
+
     '.env.example': `# Environment
 ENVIRONMENT=development
 

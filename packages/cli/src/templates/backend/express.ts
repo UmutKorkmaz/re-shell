@@ -151,8 +151,8 @@ import { errorHandler } from './middlewares/error.middleware';
 import { notFoundHandler } from './middlewares/notFound.middleware';
 import { rateLimiter } from './middlewares/rateLimit.middleware';
 import { logger } from './utils/logger';
-import { connectDatabase } from './config/database';
-import { redisClient } from './config/redis';
+import { connectDatabase, disconnectDatabase } from './config/database';
+import { connectRedis, disconnectRedis } from './config/redis';
 import routes from './routes';
 import { swaggerDocs } from './config/swagger';
 import { initializeWebSocket } from './config/websocket';
@@ -215,38 +215,50 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/v1', routes);
 
-// GraphQL endpoint (Apollo Server mounted as Express middleware)
+// GraphQL endpoint (Apollo Server mounted as Express middleware). Apollo must
+// be started before its middleware is created, so the /graphql route is mounted
+// inside startServer(), and the 404 + error handlers are registered AFTER it:
+// Express matches routes in registration order, so a catch-all registered first
+// would shadow /graphql.
 const apolloServer = new ApolloServer({ typeDefs, resolvers });
 
-// 404 handler
-app.use(notFoundHandler);
+let shuttingDown = false;
 
-// Global error handler
-app.use(errorHandler);
+// Graceful shutdown: stop accepting connections, then release backing services.
+// Every step is best-effort so a never-connected Redis/DB cannot turn a clean
+// shutdown into a crash trace.
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info(\`\${signal} received: shutting down\`);
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM signal received: closing HTTP server');
-  httpServer.close(() => {
-    logger.info('HTTP server closed');
-  });
-  
-  // Close database connections. A client that never finished connecting (or is
-  // still reconnecting) throws ClientClosedError on quit() — don't let that
-  // turn a clean shutdown into a crash trace.
-  if (redisClient.isOpen) {
-    await redisClient.quit().catch(() => undefined);
+  const forceExit = setTimeout(() => {
+    logger.error('Graceful shutdown timed out, forcing exit');
+    process.exit(1);
+  }, 10000);
+  forceExit.unref();
+
+  try {
+    // io.close() also closes the HTTP server it is attached to.
+    await new Promise<void>((resolve) => io.close(() => resolve()));
+    await apolloServer.stop().catch(() => undefined);
+    await disconnectRedis();
+    await disconnectDatabase();
+    logger.info('Shutdown complete');
+    process.exit(0);
+  } catch (error) {
+    logger.error('Error during shutdown:', error);
+    process.exit(1);
   }
-  process.exit(0);
-});
+};
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 // Start server
 const startServer = async () => {
   try {
-    // Connect to database (warns + continues if unreachable)
-    await connectDatabase();
-
-    // Start Apollo Server and mount the GraphQL endpoint at /graphql
+    // Start Apollo Server and mount the GraphQL endpoint at /graphql.
     await apolloServer.start();
     app.use(
       '/graphql',
@@ -256,20 +268,24 @@ const startServer = async () => {
       })
     );
 
-    // Connect to Redis — non-fatal so a fresh scaffold without Redis boots
-    try {
-      await redisClient.connect();
-      logger.info('Redis connected successfully');
-    } catch (err) {
-      logger.warn('Redis connection failed — starting without Redis. Set REDIS_URL if you need caching/sessions.');
-    }
+    // 404 + global error handler must come after every route, /graphql included.
+    app.use(notFoundHandler);
+    app.use(errorHandler);
 
-    httpServer.listen(PORT, () => {
-      logger.info(\`🚀 Server is running on port \${PORT}\`);
-      logger.info(\`📚 API Documentation: http://localhost:\${PORT}/api-docs\`);
-      logger.info(\`🪐 GraphQL endpoint: http://localhost:\${PORT}/graphql\`);
-      logger.info(\`🔧 Environment: \${process.env.NODE_ENV || 'development'}\`);
+    await new Promise<void>((resolve, reject) => {
+      httpServer.once('error', reject);
+      httpServer.listen(PORT, () => resolve());
     });
+    logger.info(\`🚀 Server is running on port \${PORT}\`);
+    logger.info(\`📚 API Documentation: http://localhost:\${PORT}/api-docs\`);
+    logger.info(\`🪐 GraphQL endpoint: http://localhost:\${PORT}/graphql\`);
+    logger.info(\`🔧 Environment: \${process.env.NODE_ENV || 'development'}\`);
+
+    // Backing services connect in the background AFTER the server is listening.
+    // A missing database or Redis is logged and tolerated; it never delays or
+    // blocks startup. Routes that need them fail per-request instead.
+    void connectDatabase();
+    void connectRedis();
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);
@@ -1113,6 +1129,9 @@ export const uploadRateLimiter = rateLimit({
 import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient({
+  // Falls back to the local development URL from .env.example so a fresh
+  // scaffold reports "database unreachable" rather than "variable not found".
+  datasourceUrl: process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/{{projectName}}',
   log: [
     { emit: 'event', level: 'query' },
     { emit: 'event', level: 'error' },
@@ -1131,17 +1150,24 @@ prisma.$on('error', (e) => {
   logger.error(\`Database error: \${e.message}\`);
 });
 
-export const connectDatabase = async () => {
+// Connect in the background and never throw: a fresh scaffold with no database
+// running must still boot and serve non-DB routes (health, GraphQL, docs).
+// Prisma also connects lazily on the first query, so DB-backed routes recover
+// on their own once the database becomes reachable.
+export const connectDatabase = async (): Promise<boolean> => {
   try {
     await prisma.$connect();
     logger.info('Database connected successfully');
+    return true;
   } catch (error) {
-    // Don't crash the whole server when the database isn't reachable (e.g. a
-    // fresh scaffold with no DB running yet). The API still boots and serves
-    // non-DB routes; DB-backed routes will error per-request instead.
-    logger.warn('Database connection failed — starting anyway without a DB. Set DATABASE_URL and ensure the DB server is reachable.');
+    logger.warn('Database connection failed - continuing without a DB. Set DATABASE_URL and make sure the DB server is reachable.');
     logger.warn(error instanceof Error ? error.message : String(error));
+    return false;
   }
+};
+
+export const disconnectDatabase = async (): Promise<void> => {
+  await prisma.$disconnect().catch(() => undefined);
 };
 
 export { prisma };`,
@@ -1215,37 +1241,61 @@ enum TodoPriority {
 import { logger } from '../utils/logger';
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const RETRY_INTERVAL_MS = 15000;
+
+// The first connection attempt fails fast (no reconnect loop), so a missing
+// Redis never stalls startup. Once a connection has been established the
+// client reconnects forever with capped exponential backoff.
+let everConnected = false;
+let retryTimer: NodeJS.Timeout | undefined;
+let stopped = false;
 
 export const redisClient = createClient({
   url: redisUrl,
   socket: {
+    connectTimeout: 2000,
     reconnectStrategy: (retries) => {
-      if (retries > 10) {
-        logger.error('Redis: Maximum reconnection attempts reached');
-        return new Error('Maximum reconnection attempts reached');
-      }
-      const delay = Math.min(retries * 100, 3000);
-      logger.info(\`Redis: Reconnecting in \${delay}ms...\`);
-      return delay;
+      if (!everConnected) return new Error('Redis unavailable');
+      return Math.min(2 ** retries * 100, 5000);
     }
   }
 });
 
 redisClient.on('error', (err) => {
-  logger.error('Redis Client Error:', err);
-});
-
-redisClient.on('connect', () => {
-  logger.info('Redis Client Connected');
+  logger.warn(\`Redis client error: \${err.message}\`);
 });
 
 redisClient.on('ready', () => {
-  logger.info('Redis Client Ready');
+  everConnected = true;
+  logger.info('Redis client ready');
 });
 
-redisClient.on('reconnecting', () => {
-  logger.warn('Redis Client Reconnecting');
-});`,
+// Connect in the background. Never throws: if Redis is down, log once and retry
+// periodically (an unref'd timer, so it never keeps the process alive).
+export const connectRedis = async (): Promise<boolean> => {
+  if (stopped || redisClient.isOpen) return redisClient.isReady;
+  try {
+    await redisClient.connect();
+    logger.info('Redis connected successfully');
+    return true;
+  } catch {
+    logger.warn(\`Redis unavailable at \${redisUrl} - continuing without it. Retrying in \${RETRY_INTERVAL_MS / 1000}s.\`);
+    if (!stopped) {
+      retryTimer = setTimeout(() => void connectRedis(), RETRY_INTERVAL_MS);
+      retryTimer.unref();
+    }
+    return false;
+  }
+};
+
+export const disconnectRedis = async (): Promise<void> => {
+  stopped = true;
+  if (retryTimer) clearTimeout(retryTimer);
+  // quit() on a client that never finished connecting throws ClientClosedError.
+  if (redisClient.isOpen) {
+    await redisClient.quit().catch(() => redisClient.disconnect().catch(() => undefined));
+  }
+};`,
 
     // WebSocket configuration
     'src/config/websocket.ts': `import { Server, Socket } from 'socket.io';

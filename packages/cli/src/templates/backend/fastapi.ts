@@ -23,47 +23,26 @@ authors = ["Your Name <you@example.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
+# Keep in sync with requirements.txt (pip users) - the same packages, same bounds.
 python = "^3.11"
-fastapi = "^0.111.0"
-uvicorn = {extras = ["standard"], version = "^0.30.0"}
-pydantic = "^2.7.0"
-pydantic-settings = "^2.2.1"
-sqlalchemy = {extras = ["asyncio"], version = "^2.0.29"}
-asyncpg = "^0.29.0"
-alembic = "^1.13.1"
-python-jose = {extras = ["cryptography"], version = "^3.3.0"}
-passlib = {extras = ["bcrypt"], version = "^1.7.4"}
-python-multipart = "^0.0.9"
-email-validator = "^2.1.1"
-redis = {extras = ["hiredis"], version = "^5.0.3"}
-celery = {extras = ["caching"], version = "^5.3.6"}
-httpx = "^0.27.0"
-aiofiles = "^23.2.1"
-python-dotenv = "^1.0.1"
-psycopg2-binary = "^2.9.9"
-aiomysql = "^0.2.0"
-motor = "^3.4.0"
-beanie = "^1.25.0"
-tortoise-orm = {extras = ["asyncpg"], version = "^0.20.0"}
-strawberry-graphql = {extras = ["fastapi"], version = "^0.227.0"}
-prometheus-client = "^0.20.0"
-opentelemetry-api = "^1.24.0"
-opentelemetry-sdk = "^1.24.0"
-opentelemetry-instrumentation-fastapi = "^0.45b0"
-sentry-sdk = {extras = ["fastapi"], version = "^1.45.0"}
-structlog = "^24.1.0"
-orjson = "^3.10.0"
-pydantic-extra-types = "^2.7.0"
-pendulum = "^3.0.0"
-python-socketio = "^5.11.2"
-broadcaster = {extras = ["caching"], version = "^0.2.0"}
-pillow = "^10.3.0"
-python-magic = "^0.4.27"
-minio = "^7.2.5"
-boto3 = "^1.34.84"
-jinja2 = "^3.1.3"
-markdown = "^3.6"
-pygments = "^2.17.2"
+fastapi = ">=0.111,<1.0"
+uvicorn = {extras = ["standard"], version = ">=0.30,<1.0"}
+pydantic = ">=2.7,<3.0"
+pydantic-settings = ">=2.2,<3.0"
+sqlalchemy = {extras = ["asyncio"], version = ">=2.0.29,<2.1"}
+asyncpg = ">=0.29"
+alembic = ">=1.13"
+python-jose = {extras = ["cryptography"], version = ">=3.3"}
+passlib = {extras = ["bcrypt"], version = ">=1.7.4"}
+bcrypt = ">=4.0.1,<4.1"
+python-multipart = ">=0.0.9"
+email-validator = ">=2.1"
+redis = ">=5.0.3"
+httpx = ">=0.27"
+aiofiles = ">=23.2"
+python-dotenv = ">=1.0"
+prometheus-client = ">=0.20"
+itsdangerous = ">=2.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
@@ -243,10 +222,16 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up application...")
     
     # Initialize database
-    await init_db()
+    try:
+        await init_db()
+    except Exception as exc:  # noqa: BLE001 - optional at startup
+        logger.warning("Database unavailable (%s); continuing without it", exc)
     
     # Initialize Redis
-    await init_redis()
+    try:
+        await init_redis()
+    except Exception as exc:  # noqa: BLE001 - optional at startup
+        logger.warning("Redis unavailable (%s); continuing without it", exc)
     
     # Create upload directory
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
@@ -286,7 +271,10 @@ if settings.RATE_LIMIT_ENABLED:
     app.add_middleware(RateLimitMiddleware)
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+STATIC_DIR = Path(__file__).parent / "static"
+STATIC_DIR.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # Mount Prometheus metrics
@@ -336,8 +324,11 @@ if __name__ == "__main__":
     'app/core/config.py': `from functools import lru_cache
 from typing import List, Optional
 
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+DEV_SECRET_KEY = "dev-only-secret-key-change-me"
 
 
 class Settings(BaseSettings):
@@ -346,7 +337,8 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
-    SECRET_KEY: str
+    # Development-only default so a fresh checkout starts; production must set its own.
+    SECRET_KEY: str = DEV_SECRET_KEY
     API_PREFIX: str = "/api/v1"
     
     # Server
@@ -356,7 +348,7 @@ class Settings(BaseSettings):
     RELOAD: bool = False
     
     # Database
-    DATABASE_URL: str
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/{{projectName}}"
     DB_ECHO: bool = False
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 0
@@ -423,6 +415,12 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
     
+    @model_validator(mode="after")
+    def reject_dev_secret_in_production(self) -> "Settings":
+        if self.ENVIRONMENT == "production" and self.SECRET_KEY == DEV_SECRET_KEY:
+            raise ValueError("SECRET_KEY must be set explicitly when ENVIRONMENT=production")
+        return self
+
     @property
     def is_development(self) -> bool:
         return self.ENVIRONMENT == "development"
@@ -651,7 +649,7 @@ api_router.include_router(websocket.router, prefix="/ws", tags=["websockets"])`,
     'app/api/api_v1/endpoints/__init__.py': '',
     
     'app/api/api_v1/endpoints/health.py': `from datetime import datetime
-from typing import Dict
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
@@ -715,7 +713,7 @@ async def readiness(
 
     // Authentication endpoints
     'app/api/api_v1/endpoints/auth.py': `from datetime import timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -725,6 +723,7 @@ from app import schemas
 from app.api import deps
 from app.core import security  # noqa
 from app.core.config import settings
+from app.core.security import get_password_hash
 from app.core.database import get_db
 from app.crud import crud_user
 from app.utils.email import send_reset_password_email
@@ -871,12 +870,13 @@ async def reset_password(
     // User endpoints
     'app/api/api_v1/endpoints/users.py': `from typing import Any, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models, schemas
 from app.api import deps
 from app.core.database import get_db
+from app.core.security import get_password_hash, verify_password
 from app.crud import crud_user
 
 router = APIRouter()
@@ -1015,12 +1015,15 @@ class BaseModel(Base, TimestampMixin):
         """Convert model to dictionary."""
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}`,
 
-    'app/models/user.py': `from typing import List, Optional
+    'app/models/user.py': `from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.todo import Todo  # noqa: F401
 
 
 class User(BaseModel):
@@ -1782,6 +1785,26 @@ router = APIRouter()
 def list_todos(skip: int = 0, limit: int = 100):
     return []
 `,
+    'requirements.txt': `fastapi>=0.111,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic>=2.7,<3.0
+pydantic-settings>=2.2,<3.0
+sqlalchemy[asyncio]>=2.0.29,<2.1
+asyncpg>=0.29
+alembic>=1.13
+python-jose[cryptography]>=3.3
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.1,<4.1
+python-multipart>=0.0.9
+email-validator>=2.1
+redis>=5.0.3
+httpx>=0.27
+aiofiles>=23.2
+python-dotenv>=1.0
+prometheus-client>=0.20
+itsdangerous>=2.1
+`,
+
     'README.md': `# {{projectName}}
 
 FastAPI backend service with async support, automatic documentation, and comprehensive features.

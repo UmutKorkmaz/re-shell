@@ -7,1001 +7,608 @@ export const elysiaBunTemplate: BackendTemplate = {
   description: 'Type-safe, high-performance web framework for Bun runtime',
   language: 'typescript',
   framework: 'elysia',
-  version: '1.0.3',
-  tags: ['bun', 'elysia', 'typescript', 'api', 'rest', 'fast', 'type-safe'],
+  version: '1.4.0',
+  tags: ['bun', 'elysia', 'typescript', 'api', 'rest', 'fast', 'type-safe', 'jwt', 'graphql'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'swagger', 'graphql'],
+  features: ['authentication', 'authorization', 'cors', 'docker', 'documentation', 'graphql', 'rest-api', 'swagger', 'testing', 'validation'],
 
   files: {
-    // Package.json
     'package.json': `{
   "name": "{{projectName}}",
   "version": "1.0.0",
+  "description": "Type-safe REST and GraphQL API with Elysia on Bun",
+  "private": true,
+  "type": "module",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "test": "bun test",
-    "lint": "bunx @biomejs/biome check src",
-    "format": "bunx @biomejs/biome format --write src",
-    "build": "bun build src/index.ts --compile --outfile={{projectName}}"
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "compile": "bun build src/index.ts --compile --outfile={{projectName}}",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
-    "elysia": "^1.0.3",
-    "@elysiajs/cors": "^1.0.2",
-    "@elysiajs/jwt": "^1.0.2",
-    "@elysiajs/swagger": "^1.0.3",
-    "@elysiajs/bearer": "^1.0.2",
-    "@sinclair/typebox": "^0.32.5",
-    "graphql-yoga": "^5.3.0",
-    "graphql": "^16.8.1"
+    "@elysiajs/cors": "^1.4.0",
+    "@elysiajs/jwt": "^1.4.0",
+    "@elysiajs/swagger": "^1.3.0",
+    "@sinclair/typebox": "^0.34.0",
+    "elysia": "^1.4.0",
+    "graphql": "^16.8.1",
+    "graphql-yoga": "^5.3.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.4.1",
     "@types/bun": "latest",
-    "typescript": "^5.3.3"
+    "typescript": "^5.4.5"
   }
 }
 `,
 
-    // TypeScript config
     'tsconfig.json': `{
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "lib": ["ESNext"],
     "strict": true,
     "skipLibCheck": true,
-    "declaration": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
     "isolatedModules": true,
-    "types": ["bun-types"]
+    "resolveJsonModule": true,
+    "types": ["bun"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "dist"]
 }
 `,
 
-    // Biome config
-    'biome.json': `{
-  "$schema": "https://biomejs.dev/schemas/1.4.1/schema.json",
-  "organizeImports": {
-    "enabled": true
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true
-    }
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 100
-  }
-}
+    '.gitignore': `node_modules/
+dist/
+.env
+*.log
 `,
 
-    // Main entry point
-    'src/index.ts': `import { Elysia } from 'elysia';
-import { cors } from '@elysiajs/cors';
-import { swagger } from '@elysiajs/swagger';
-import { createYoga } from 'graphql-yoga';
-import { config } from './config/env';
-import { authPlugin } from './plugins/auth';
-import { loggerPlugin } from './plugins/logger';
-import { rateLimitPlugin } from './plugins/rate-limit';
-import { authRoutes } from './routes/auth';
-import { userRoutes } from './routes/users';
-import { productRoutes } from './routes/products';
-import { db } from './config/database';
-import { typeDefs, resolvers } from './graphql';
+    '.env.example': `# Server
+PORT=3000
+NODE_ENV=development
 
-// Initialize database
-await db.initialize();
+# Auth (required in production, at least 16 characters)
+JWT_SECRET=change-me-to-a-long-random-string
+JWT_EXPIRES_IN=1h
 
-// GraphQL Yoga instance
-const yoga = createYoga({
-  schema: { typeDefs, resolvers },
-  graphqlEndpoint: '/graphql',
-  landingPage: false
+# CORS: comma separated origins, or * for any
+ALLOWED_ORIGINS=*
+`,
+
+    'src/config.ts': `const environment = process.env.NODE_ENV ?? 'development';
+const isProduction = environment === 'production';
+
+const DEV_JWT_SECRET = 'dev-only-jwt-secret-change-me';
+
+const jwtSecret = process.env.JWT_SECRET ?? (isProduction ? '' : DEV_JWT_SECRET);
+if (isProduction && jwtSecret.length < 16) {
+  throw new Error('JWT_SECRET must be set (at least 16 characters) when NODE_ENV=production');
+}
+
+export const config = {
+  environment,
+  isProduction,
+  port: Number(process.env.PORT ?? 3000),
+  jwtSecret,
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1h',
+  allowedOrigins: (process.env.ALLOWED_ORIGINS ?? '*').split(',').map((origin) => origin.trim()),
+} as const;
+`,
+
+    'src/store.ts': `// In-memory data store. Swap it for a database in a real service; the routes only
+// use the functions exported here.
+
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  passwordHash: string;
+  role: 'user' | 'admin';
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+}
+
+const users: User[] = [];
+const products: Product[] = [
+  { id: 1, name: 'Sample Product 1', description: 'This is a sample product', price: 29.99, stock: 100 },
+  { id: 2, name: 'Sample Product 2', description: 'Another sample product', price: 49.99, stock: 50 },
+];
+let nextUserId = 1;
+let nextProductId = products.length + 1;
+
+export const publicUser = ({ passwordHash: _passwordHash, ...user }: User) => user;
+
+export const store = {
+  findUserByEmail: (email: string) => users.find((user) => user.email === email.toLowerCase()),
+  findUserById: (id: number) => users.find((user) => user.id === id),
+  listUsers: () => users.map(publicUser),
+
+  async createUser(input: { email: string; name: string; password: string }): Promise<User> {
+    const user: User = {
+      id: nextUserId++,
+      email: input.email.toLowerCase(),
+      name: input.name,
+      passwordHash: await Bun.password.hash(input.password),
+      // The first account becomes the administrator.
+      role: users.length === 0 ? 'admin' : 'user',
+    };
+    users.push(user);
+    return user;
+  },
+
+  listProducts: () => products,
+  findProduct: (id: number) => products.find((product) => product.id === id),
+  createProduct(input: Omit<Product, 'id'>): Product {
+    const product = { id: nextProductId++, ...input };
+    products.push(product);
+    return product;
+  },
+  updateProduct(id: number, patch: Partial<Omit<Product, 'id'>>): Product | undefined {
+    const product = products.find((candidate) => candidate.id === id);
+    return product ? Object.assign(product, patch) : undefined;
+  },
+  deleteProduct(id: number): boolean {
+    const index = products.findIndex((product) => product.id === id);
+    if (index === -1) return false;
+    products.splice(index, 1);
+    return true;
+  },
+};
+`,
+
+    'src/plugins/auth.ts': `import { jwt } from '@elysiajs/jwt';
+import { Elysia } from 'elysia';
+import { config } from '../config';
+import { store } from '../store';
+
+/**
+ * Verifies the Bearer token on every request and exposes the signed-in user as
+ * \`user\` (null when anonymous). Routes decide whether they need one.
+ */
+export const authPlugin = new Elysia({ name: 'auth' })
+  .use(jwt({ name: 'jwt', secret: config.jwtSecret, exp: config.jwtExpiresIn }))
+  .derive({ as: 'global' }, async ({ jwt, headers }) => {
+    const header = headers.authorization;
+    const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+    const payload = token ? await jwt.verify(token) : false;
+    const user = payload && payload.sub ? store.findUserById(Number(payload.sub)) : undefined;
+    return { user: user ?? null };
+  });
+`,
+
+    'src/routes/auth.ts': `import { Elysia, t } from 'elysia';
+import { authPlugin } from '../plugins/auth';
+import { publicUser, store } from '../store';
+
+export const authRoutes = new Elysia({ prefix: '/auth', detail: { tags: ['auth'] } })
+  .use(authPlugin)
+  .post(
+    '/register',
+    async ({ body, jwt, status }) => {
+      if (store.findUserByEmail(body.email)) {
+        return status(409, { error: 'Email already registered' });
+      }
+      const user = await store.createUser(body);
+      return status(201, { user: publicUser(user), token: await jwt.sign({ sub: String(user.id) }) });
+    },
+    {
+      body: t.Object({
+        email: t.String({ format: 'email' }),
+        name: t.String({ minLength: 1, maxLength: 100 }),
+        password: t.String({ minLength: 8, maxLength: 200 }),
+      }),
+      detail: { summary: 'Register a user (the first user becomes admin)' },
+    },
+  )
+  .post(
+    '/login',
+    async ({ body, jwt, status }) => {
+      const user = store.findUserByEmail(body.email);
+      if (!user || !(await Bun.password.verify(body.password, user.passwordHash))) {
+        return status(401, { error: 'Invalid credentials' });
+      }
+      return { user: publicUser(user), token: await jwt.sign({ sub: String(user.id) }) };
+    },
+    {
+      body: t.Object({ email: t.String({ format: 'email' }), password: t.String({ minLength: 1 }) }),
+      detail: { summary: 'Log in' },
+    },
+  );
+`,
+
+    'src/routes/users.ts': `import { Elysia, t } from 'elysia';
+import { authPlugin } from '../plugins/auth';
+import { publicUser, store } from '../store';
+
+export const userRoutes = new Elysia({ prefix: '/users', detail: { tags: ['users'] } })
+  .use(authPlugin)
+  .get(
+    '/me',
+    ({ user, status }) => (user ? publicUser(user) : status(401, { error: 'Unauthorized' })),
+    { detail: { summary: 'The signed-in user', security: [{ bearerAuth: [] }] } },
+  )
+  .get(
+    '/',
+    ({ user, status }) => {
+      if (!user) return status(401, { error: 'Unauthorized' });
+      if (user.role !== 'admin') return status(403, { error: 'Admin only' });
+      return store.listUsers();
+    },
+    { detail: { summary: 'List users (admin)', security: [{ bearerAuth: [] }] } },
+  )
+  .get(
+    '/:id',
+    ({ params, user, status }) => {
+      if (!user) return status(401, { error: 'Unauthorized' });
+      if (user.role !== 'admin' && user.id !== Number(params.id)) return status(403, { error: 'Forbidden' });
+      const found = store.findUserById(Number(params.id));
+      return found ? publicUser(found) : status(404, { error: 'User not found' });
+    },
+    {
+      params: t.Object({ id: t.String({ pattern: '^[0-9]+$' }) }),
+      detail: { summary: 'Get a user (yourself, or anyone as admin)', security: [{ bearerAuth: [] }] },
+    },
+  );
+`,
+
+    'src/routes/products.ts': `import { Elysia, t } from 'elysia';
+import { authPlugin } from '../plugins/auth';
+import { store } from '../store';
+
+const productBody = t.Object({
+  name: t.String({ minLength: 1, maxLength: 200 }),
+  description: t.String({ maxLength: 2000, default: '' }),
+  price: t.Number({ minimum: 0 }),
+  stock: t.Integer({ minimum: 0, default: 0 }),
 });
 
-const app = new Elysia()
-  // GraphQL endpoint
-  .on('request', (ctx) => {
-    const url = new URL(ctx.request.url);
-    if (url.pathname === '/graphql') {
-      return yoga.handleRequest(ctx.request, ctx);
-    }
-  })
-  .all('/graphql', (ctx) => yoga.handleRequest(ctx.request, ctx))
-  // Swagger documentation
-  .use(swagger({
-    documentation: {
-      info: {
-        title: '{{projectName}} API',
-        version: '1.0.0',
-        description: 'REST API built with Elysia on Bun'},
-      tags: [
-        { name: 'auth', description: 'Authentication endpoints' },
-        { name: 'users', description: 'User management' },
-        { name: 'products', description: 'Product management' }],
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT'}}}}}))
-  // CORS
-  .use(cors({
-    origin: config.allowedOrigins.includes('*') ? true : config.allowedOrigins,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID']}))
-  // Plugins
-  .use(loggerPlugin)
-  .use(rateLimitPlugin)
+export const productRoutes = new Elysia({ prefix: '/products', detail: { tags: ['products'] } })
   .use(authPlugin)
-  // Health check
-  .get('/health', () => ({
-    status: 'healthy',
-    timestamp: new Date().toISOString()}), {
-    detail: {
-      tags: ['health'],
-      summary: 'Health check'}})
-  // API routes
-  .group('/api/v1', (app) =>
-    app
-      .use(authRoutes)
-      .use(userRoutes)
-      .use(productRoutes)
+  .get('/', () => ({ products: store.listProducts() }), { detail: { summary: 'List products' } })
+  .get(
+    '/:id',
+    ({ params, status }) => {
+      const product = store.findProduct(Number(params.id));
+      return product ? { product } : status(404, { error: 'Product not found' });
+    },
+    { params: t.Object({ id: t.String({ pattern: '^[0-9]+$' }) }), detail: { summary: 'Get a product' } },
   )
-  .listen(config.port);
+  .post(
+    '/',
+    ({ body, user, status }) => {
+      if (!user) return status(401, { error: 'Unauthorized' });
+      if (user.role !== 'admin') return status(403, { error: 'Admin only' });
+      return status(201, { product: store.createProduct(body) });
+    },
+    { body: productBody, detail: { summary: 'Create a product (admin)', security: [{ bearerAuth: [] }] } },
+  )
+  .patch(
+    '/:id',
+    ({ params, body, user, status }) => {
+      if (!user) return status(401, { error: 'Unauthorized' });
+      if (user.role !== 'admin') return status(403, { error: 'Admin only' });
+      const product = store.updateProduct(Number(params.id), body);
+      return product ? { product } : status(404, { error: 'Product not found' });
+    },
+    {
+      params: t.Object({ id: t.String({ pattern: '^[0-9]+$' }) }),
+      body: t.Partial(productBody),
+      detail: { summary: 'Update a product (admin)', security: [{ bearerAuth: [] }] },
+    },
+  )
+  .delete(
+    '/:id',
+    ({ params, user, status }) => {
+      if (!user) return status(401, { error: 'Unauthorized' });
+      if (user.role !== 'admin') return status(403, { error: 'Admin only' });
+      return store.deleteProduct(Number(params.id)) ? status(204, undefined) : status(404, { error: 'Product not found' });
+    },
+    { params: t.Object({ id: t.String({ pattern: '^[0-9]+$' }) }), detail: { summary: 'Delete a product (admin)', security: [{ bearerAuth: [] }] } },
+  );
+`,
 
-console.log(\`🦊 Server running at http://localhost:\${app.server?.port}\`);
-console.log(\`📚 Swagger docs at http://localhost:\${app.server?.port}/swagger\`);
+    'src/graphql.ts': `import { createSchema, createYoga } from 'graphql-yoga';
+
+const typeDefs = /* GraphQL */ \`
+  type Query {
+    "Simple hello world query"
+    hello: String!
+    "Service health check"
+    health: String!
+  }
+\`;
+
+const resolvers = {
+  Query: {
+    hello: () => 'Hello from GraphQL!',
+    health: () => 'healthy',
+  },
+};
+
+export const yoga = createYoga({
+  schema: createSchema({ typeDefs, resolvers }),
+  graphqlEndpoint: '/graphql',
+  landingPage: false,
+});
+`,
+
+    'src/app.ts': `import { cors } from '@elysiajs/cors';
+import { swagger } from '@elysiajs/swagger';
+import { Elysia } from 'elysia';
+import { config } from './config';
+import { yoga } from './graphql';
+import { authRoutes } from './routes/auth';
+import { productRoutes } from './routes/products';
+import { userRoutes } from './routes/users';
+
+/**
+ * The application, without a listening socket: index.ts starts it and the tests
+ * call app.handle() directly.
+ */
+export const app = new Elysia()
+  .use(
+    swagger({
+      documentation: {
+        info: { title: '{{projectName}} API', version: '1.0.0', description: 'REST and GraphQL API built with Elysia on Bun' },
+        tags: [
+          { name: 'auth', description: 'Authentication' },
+          { name: 'users', description: 'User management' },
+          { name: 'products', description: 'Product management' },
+        ],
+        components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } } },
+      },
+    }),
+  )
+  .use(
+    cors({
+      origin: config.allowedOrigins.includes('*') ? true : config.allowedOrigins,
+      credentials: !config.allowedOrigins.includes('*'),
+    }),
+  )
+  .get('/health', () => ({ status: 'healthy', timestamp: new Date().toISOString(), uptime: process.uptime() }), {
+    detail: { tags: ['health'], summary: 'Health check' },
+  })
+  // GraphQL (graphql-yoga): forward the raw request.
+  .all('/graphql', ({ request }) => yoga.fetch(request))
+  .group('/api/v1', (api) => api.use(authRoutes).use(userRoutes).use(productRoutes))
+  .onError(({ code, error, status }) => {
+    if (code === 'NOT_FOUND') return status(404, { error: 'Not found' });
+    if (code === 'VALIDATION') return status(422, { error: 'Validation failed', details: error.message });
+  });
 
 export type App = typeof app;
 `,
 
-    // Configuration
-    'src/config/env.ts': `export const config = {
-  port: Number(process.env.PORT) || 3000,
-  environment: process.env.ENVIRONMENT || 'development',
+    'src/index.ts': `import { app } from './app';
+import { config } from './config';
 
-  // Database
-  dbHost: process.env.DB_HOST || 'localhost',
-  dbPort: Number(process.env.DB_PORT) || 5432,
-  dbName: process.env.DB_NAME || '{{projectName}}',
-  dbUser: process.env.DB_USER || 'postgres',
-  dbPassword: process.env.DB_PASSWORD || 'password',
-  useMemoryDb: process.env.USE_MEMORY_DB === 'true',
+app.listen(config.port);
 
-  // JWT
-  jwtSecret: process.env.JWT_SECRET || 'your-secret-key',
-  jwtExpirationHours: Number(process.env.JWT_EXPIRATION_HOURS) || 24,
+console.log('Server running at http://localhost:' + app.server?.port);
+console.log('Swagger docs at http://localhost:' + app.server?.port + '/swagger');
 
-  // CORS
-  allowedOrigins: (process.env.ALLOWED_ORIGINS || '*').split(','),
-
-  // Rate limiting
-  rateLimitRequests: Number(process.env.RATE_LIMIT_REQUESTS) || 100,
-  rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60000} as const;
-`,
-
-    // Database
-    'src/config/database.ts': `import { config } from './env';
-
-interface DbRecord {
-  id: string;
-  [key: string]: unknown;
-}
-
-class InMemoryDb {
-  private tables = new Map<string, Map<string, DbRecord>>();
-
-  getTable(name: string): Map<string, DbRecord> {
-    if (!this.tables.has(name)) {
-      this.tables.set(name, new Map());
-    }
-    return this.tables.get(name)!;
-  }
-
-  insert<T extends DbRecord>(table: string, record: T): T {
-    this.getTable(table).set(record.id, record);
-    return record;
-  }
-
-  findById<T extends DbRecord>(table: string, id: string): T | undefined {
-    return this.getTable(table).get(id) as T | undefined;
-  }
-
-  findAll<T extends DbRecord>(table: string): T[] {
-    return Array.from(this.getTable(table).values()) as T[];
-  }
-
-  findOne<T extends DbRecord>(table: string, predicate: (r: T) => boolean): T | undefined {
-    return this.findAll<T>(table).find(predicate);
-  }
-
-  find<T extends DbRecord>(table: string, predicate: (r: T) => boolean): T[] {
-    return this.findAll<T>(table).filter(predicate);
-  }
-
-  update<T extends DbRecord>(table: string, id: string, updates: Partial<T>): T | undefined {
-    const record = this.findById<T>(table, id);
-    if (record) {
-      const updated = { ...record, ...updates, id } as T;
-      this.getTable(table).set(id, updated);
-      return updated;
-    }
-    return undefined;
-  }
-
-  delete(table: string, id: string): boolean {
-    return this.getTable(table).delete(id);
-  }
-
-  count<T extends DbRecord>(table: string, predicate?: (r: T) => boolean): number {
-    if (predicate) {
-      return this.find(table, predicate).length;
-    }
-    return this.getTable(table).size;
-  }
-}
-
-const memoryDb = new InMemoryDb();
-
-export const db = {
-  async initialize() {
-    if (config.useMemoryDb) {
-      console.log('📦 Using in-memory database');
-    } else {
-      console.log(\`📦 Would connect to PostgreSQL at \${config.dbHost}:\${config.dbPort}\`);
-    }
-    console.log('✅ Database initialized');
-  },
-
-  users: {
-    insert: <T extends DbRecord>(record: T) => memoryDb.insert('users', record),
-    findById: <T extends DbRecord>(id: string) => memoryDb.findById<T>('users', id),
-    findByEmail: <T extends DbRecord>(email: string) =>
-      memoryDb.findOne<T>('users', (r) => r.email === email),
-    findAll: <T extends DbRecord>() => memoryDb.findAll<T>('users'),
-    update: <T extends DbRecord>(id: string, updates: Partial<T>) =>
-      memoryDb.update<T>('users', id, updates),
-    delete: (id: string) => memoryDb.delete('users', id)},
-
-  products: {
-    insert: <T extends DbRecord>(record: T) => memoryDb.insert('products', record),
-    findById: <T extends DbRecord>(id: string) => memoryDb.findById<T>('products', id),
-    findAll: <T extends DbRecord>() => memoryDb.findAll<T>('products'),
-    find: <T extends DbRecord>(predicate: (r: T) => boolean) =>
-      memoryDb.find<T>('products', predicate),
-    count: <T extends DbRecord>(predicate?: (r: T) => boolean) =>
-      memoryDb.count<T>('products', predicate),
-    update: <T extends DbRecord>(id: string, updates: Partial<T>) =>
-      memoryDb.update<T>('products', id, updates),
-    delete: (id: string) => memoryDb.delete('products', id)}};
-`,
-
-    // Types
-    'src/types/index.ts': `import { t, Static } from 'elysia';
-
-export const UserSchema = t.Object({
-  id: t.String(),
-  email: t.String({ format: 'email' }),
-  password: t.String(),
-  name: t.String(),
-  role: t.String(),
-  active: t.Boolean(),
-  createdAt: t.String(),
-  updatedAt: t.String()});
-
-export const UserResponseSchema = t.Object({
-  id: t.String(),
-  email: t.String({ format: 'email' }),
-  name: t.String(),
-  role: t.String(),
-  active: t.Boolean(),
-  createdAt: t.String()});
-
-export const ProductSchema = t.Object({
-  id: t.String(),
-  name: t.String(),
-  description: t.Optional(t.String()),
-  price: t.Number(),
-  stock: t.Number(),
-  active: t.Boolean(),
-  createdAt: t.String(),
-  updatedAt: t.String()});
-
-export const RegisterSchema = t.Object({
-  email: t.String({ format: 'email' }),
-  password: t.String({ minLength: 6 }),
-  name: t.String({ minLength: 2 })});
-
-export const LoginSchema = t.Object({
-  email: t.String({ format: 'email' }),
-  password: t.String({ minLength: 1 })});
-
-export const CreateProductSchema = t.Object({
-  name: t.String({ minLength: 1 }),
-  description: t.Optional(t.String()),
-  price: t.Number({ minimum: 0 }),
-  stock: t.Number({ minimum: 0, default: 0 })});
-
-export const UpdateProductSchema = t.Object({
-  name: t.Optional(t.String({ minLength: 1 })),
-  description: t.Optional(t.String()),
-  price: t.Optional(t.Number({ minimum: 0 })),
-  stock: t.Optional(t.Number({ minimum: 0 })),
-  active: t.Optional(t.Boolean())});
-
-export const PaginatedResponseSchema = <T extends object>(itemSchema: T) =>
-  t.Object({
-    data: t.Array(itemSchema),
-    total: t.Number(),
-    page: t.Number(),
-    limit: t.Number()});
-
-export type User = Static<typeof UserSchema>;
-export type UserResponse = Static<typeof UserResponseSchema>;
-export type Product = Static<typeof ProductSchema>;
-export type RegisterInput = Static<typeof RegisterSchema>;
-export type LoginInput = Static<typeof LoginSchema>;
-export type CreateProductInput = Static<typeof CreateProductSchema>;
-export type UpdateProductInput = Static<typeof UpdateProductSchema>;
-`,
-
-    // GraphQL schema and resolvers
-    'src/graphql/index.ts': `export const typeDefs = \`#graphql
-type Query {
-  hello: String!
-  health: String!
-}
-\`;
-
-export const resolvers = {
-  Query: {
-    hello: () => 'Hello from Elysia GraphQL!',
-    health: () => 'healthy'
-  }
+// Graceful shutdown: stop accepting connections, let in-flight requests finish,
+// then exit 0 so process managers see a clean stop.
+let shuttingDown = false;
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(signal + ' received: shutting down');
+  await app.stop();
+  process.exit(0);
 };
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 `,
 
-    // Auth Plugin
-    'src/plugins/auth.ts': `import { Elysia } from 'elysia';
-import { jwt } from '@elysiajs/jwt';
-import { bearer } from '@elysiajs/bearer';
-import { config } from '../config/env';
-import { db } from '../config/database';
-import type { User } from '../types';
+    'src/app.test.ts': `import { describe, expect, it } from 'bun:test';
+import { app } from './app';
 
-export const authPlugin = new Elysia({ name: 'auth' })
-  .use(jwt({
-    name: 'jwt',
-    secret: config.jwtSecret,
-    exp: \`\${config.jwtExpirationHours}h\`}))
-  .use(bearer())
-  .derive(async ({ jwt, bearer }) => {
-    if (!bearer) {
-      return { user: null };
-    }
+// Response.json() is typed unknown; the tests assert on the shape themselves.
+const body = (res: Response): Promise<any> => res.json();
 
-    const payload = await jwt.verify(bearer);
-    if (!payload) {
-      return { user: null };
-    }
-
-    const user = db.users.findById<User>(payload.userId as string);
-    if (!user || !user.active) {
-      return { user: null };
-    }
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role}};
-  })
-  .macro(({ onBeforeHandle }) => ({
-    isAuth(enabled: boolean) {
-      if (!enabled) return;
-
-      onBeforeHandle(({ user, error }) => {
-        if (!user) {
-          return error(401, { error: 'Unauthorized' });
-        }
-      });
-    },
-    hasRole(roles: string[]) {
-      onBeforeHandle(({ user, error }) => {
-        if (!user) {
-          return error(401, { error: 'Unauthorized' });
-        }
-        if (!roles.includes(user.role)) {
-          return error(403, { error: 'Forbidden' });
-        }
-      });
-    }}));
-`,
-
-    // Logger Plugin
-    'src/plugins/logger.ts': `import { Elysia } from 'elysia';
-
-export const loggerPlugin = new Elysia({ name: 'logger' })
-  .derive(() => {
-    return {
-      requestId: crypto.randomUUID().slice(0, 8)};
-  })
-  .onRequest(({ request, requestId }) => {
-    console.log(\`[\${requestId}] -> \${request.method} \${new URL(request.url).pathname}\`);
-  })
-  .onAfterResponse(({ request, requestId, response }) => {
-    const status = response instanceof Response ? response.status : 200;
-    console.log(\`[\${requestId}] <- \${request.method} \${new URL(request.url).pathname} \${status}\`);
-  })
-  .onError(({ requestId, error }) => {
-    console.error(\`[\${requestId}] Error: \${error.message}\`);
-  });
-`,
-
-    // Rate Limit Plugin
-    'src/plugins/rate-limit.ts': `import { Elysia } from 'elysia';
-import { config } from '../config/env';
-
-const requests = new Map<string, { count: number; resetTime: number }>();
-
-export const rateLimitPlugin = new Elysia({ name: 'rate-limit' })
-  .onBeforeHandle(({ request, error, set }) => {
-    const ip = request.headers.get('x-forwarded-for') || 'unknown';
-    const now = Date.now();
-
-    let record = requests.get(ip);
-
-    if (!record || now > record.resetTime) {
-      record = {
-        count: 0,
-        resetTime: now + config.rateLimitWindowMs};
-    }
-
-    record.count++;
-    requests.set(ip, record);
-
-    set.headers['X-RateLimit-Limit'] = String(config.rateLimitRequests);
-    set.headers['X-RateLimit-Remaining'] = String(
-      Math.max(0, config.rateLimitRequests - record.count)
-    );
-    set.headers['X-RateLimit-Reset'] = String(record.resetTime);
-
-    if (record.count > config.rateLimitRequests) {
-      return error(429, { error: 'Too many requests' });
-    }
-  });
-`,
-
-    // Routes - Auth
-    'src/routes/auth.ts': `import { Elysia } from 'elysia';
-import { RegisterSchema, LoginSchema, UserResponseSchema } from '../types';
-import type { User, UserResponse } from '../types';
-import { db } from '../config/database';
-import { authPlugin } from '../plugins/auth';
-
-function toUserResponse(user: User): UserResponse {
-  return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    active: user.active,
-    createdAt: user.createdAt};
-}
-
-export const authRoutes = new Elysia({ prefix: '/auth' })
-  .use(authPlugin)
-  .post(
-    '/register',
-    async ({ body, error }) => {
-      const existingUser = db.users.findByEmail<User>(body.email);
-      if (existingUser) {
-        return error(409, { error: 'Email already registered' });
-      }
-
-      const hashedPassword = await Bun.password.hash(body.password);
-      const now = new Date().toISOString();
-
-      const user: User = {
-        id: crypto.randomUUID(),
-        email: body.email,
-        password: hashedPassword,
-        name: body.name,
-        role: 'user',
-        active: true,
-        createdAt: now,
-        updatedAt: now};
-
-      db.users.insert(user);
-
-      return toUserResponse(user);
-    },
-    {
-      body: RegisterSchema,
-      response: UserResponseSchema,
-      detail: {
-        tags: ['auth'],
-        summary: 'Register new user'}}
-  )
-  .post(
-    '/login',
-    async ({ body, jwt, error }) => {
-      const user = db.users.findByEmail<User>(body.email);
-      if (!user) {
-        return error(401, { error: 'Invalid credentials' });
-      }
-
-      const validPassword = await Bun.password.verify(body.password, user.password);
-      if (!validPassword) {
-        return error(401, { error: 'Invalid credentials' });
-      }
-
-      if (!user.active) {
-        return error(401, { error: 'Account is disabled' });
-      }
-
-      const token = await jwt.sign({
-        userId: user.id,
-        email: user.email,
-        role: user.role});
-
-      return {
-        token,
-        user: toUserResponse(user)};
-    },
-    {
-      body: LoginSchema,
-      detail: {
-        tags: ['auth'],
-        summary: 'Login user'}}
+const call = (path: string, init: RequestInit & { token?: string } = {}) => {
+  const { token, ...rest } = init;
+  return app.handle(
+    new Request('http://localhost' + path, {
+      ...rest,
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: 'Bearer ' + token } : {}),
+        ...rest.headers,
+      },
+    }),
   );
-`,
+};
 
-    // Routes - Users
-    'src/routes/users.ts': `import { Elysia, t } from 'elysia';
-import { UserResponseSchema } from '../types';
-import type { User, UserResponse } from '../types';
-import { db } from '../config/database';
-import { authPlugin } from '../plugins/auth';
+describe('{{projectName}}', () => {
+  let adminToken = '';
+  let userToken = '';
 
-function toUserResponse(user: User): UserResponse {
-  return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    active: user.active,
-    createdAt: user.createdAt};
-}
-
-export const userRoutes = new Elysia({ prefix: '/users' })
-  .use(authPlugin)
-  .get(
-    '/me',
-    ({ user, error }) => {
-      const fullUser = db.users.findById<User>(user!.id);
-      if (!fullUser) {
-        return error(404, { error: 'User not found' });
-      }
-      return toUserResponse(fullUser);
-    },
-    {
-      isAuth: true,
-      response: UserResponseSchema,
-      detail: {
-        tags: ['users'],
-        summary: 'Get current user',
-        security: [{ bearerAuth: [] }]}}
-  )
-  .put(
-    '/me',
-    ({ user, body, error }) => {
-      const updated = db.users.update<User>(user!.id, {
-        name: body.name,
-        updatedAt: new Date().toISOString()});
-
-      if (!updated) {
-        return error(404, { error: 'User not found' });
-      }
-
-      return toUserResponse(updated);
-    },
-    {
-      isAuth: true,
-      body: t.Object({
-        name: t.Optional(t.String())}),
-      response: UserResponseSchema,
-      detail: {
-        tags: ['users'],
-        summary: 'Update current user',
-        security: [{ bearerAuth: [] }]}}
-  )
-  .get(
-    '/',
-    () => {
-      const users = db.users.findAll<User>();
-      return users.map(toUserResponse);
-    },
-    {
-      hasRole: ['admin'],
-      response: t.Array(UserResponseSchema),
-      detail: {
-        tags: ['users'],
-        summary: 'List all users (admin only)',
-        security: [{ bearerAuth: [] }]}}
-  )
-  .get(
-    '/:id',
-    ({ params, error }) => {
-      const user = db.users.findById<User>(params.id);
-      if (!user) {
-        return error(404, { error: 'User not found' });
-      }
-      return toUserResponse(user);
-    },
-    {
-      isAuth: true,
-      params: t.Object({
-        id: t.String()}),
-      response: UserResponseSchema,
-      detail: {
-        tags: ['users'],
-        summary: 'Get user by ID',
-        security: [{ bearerAuth: [] }]}}
-  )
-  .delete(
-    '/:id',
-    ({ params, error }) => {
-      const deleted = db.users.delete(params.id);
-      if (!deleted) {
-        return error(404, { error: 'User not found' });
-      }
-      return null;
-    },
-    {
-      hasRole: ['admin'],
-      params: t.Object({
-        id: t.String()}),
-      detail: {
-        tags: ['users'],
-        summary: 'Delete user (admin only)',
-        security: [{ bearerAuth: [] }]}}
-  );
-`,
-
-    // Routes - Products
-    'src/routes/products.ts': `import { Elysia, t } from 'elysia';
-import {
-  ProductSchema,
-  CreateProductSchema,
-  UpdateProductSchema,
-  PaginatedResponseSchema} from '../types';
-import type { Product, CreateProductInput, UpdateProductInput } from '../types';
-import { db } from '../config/database';
-import { authPlugin } from '../plugins/auth';
-
-export const productRoutes = new Elysia({ prefix: '/products' })
-  .use(authPlugin)
-  .get(
-    '/',
-    ({ query }) => {
-      const page = Number(query.page) || 1;
-      const limit = Number(query.limit) || 10;
-      const offset = (page - 1) * limit;
-
-      const allProducts = db.products.find<Product>((p) => p.active);
-      const total = allProducts.length;
-      const data = allProducts.slice(offset, offset + limit);
-
-      return { data, total, page, limit };
-    },
-    {
-      query: t.Object({
-        page: t.Optional(t.String()),
-        limit: t.Optional(t.String())}),
-      response: PaginatedResponseSchema(ProductSchema),
-      detail: {
-        tags: ['products'],
-        summary: 'List products'}}
-  )
-  .get(
-    '/:id',
-    ({ params, error }) => {
-      const product = db.products.findById<Product>(params.id);
-      if (!product) {
-        return error(404, { error: 'Product not found' });
-      }
-      return product;
-    },
-    {
-      params: t.Object({
-        id: t.String()}),
-      response: ProductSchema,
-      detail: {
-        tags: ['products'],
-        summary: 'Get product by ID'}}
-  )
-  .post(
-    '/',
-    ({ body }) => {
-      const now = new Date().toISOString();
-
-      const product: Product = {
-        id: crypto.randomUUID(),
-        name: body.name,
-        description: body.description,
-        price: body.price,
-        stock: body.stock || 0,
-        active: true,
-        createdAt: now,
-        updatedAt: now};
-
-      db.products.insert(product);
-
-      return product;
-    },
-    {
-      hasRole: ['admin'],
-      body: CreateProductSchema,
-      response: ProductSchema,
-      detail: {
-        tags: ['products'],
-        summary: 'Create product (admin only)',
-        security: [{ bearerAuth: [] }]}}
-  )
-  .put(
-    '/:id',
-    ({ params, body, error }) => {
-      const product = db.products.update<Product>(params.id, {
-        ...body,
-        updatedAt: new Date().toISOString()});
-
-      if (!product) {
-        return error(404, { error: 'Product not found' });
-      }
-
-      return product;
-    },
-    {
-      hasRole: ['admin'],
-      params: t.Object({
-        id: t.String()}),
-      body: UpdateProductSchema,
-      response: ProductSchema,
-      detail: {
-        tags: ['products'],
-        summary: 'Update product (admin only)',
-        security: [{ bearerAuth: [] }]}}
-  )
-  .delete(
-    '/:id',
-    ({ params, error }) => {
-      const deleted = db.products.delete(params.id);
-      if (!deleted) {
-        return error(404, { error: 'Product not found' });
-      }
-      return null;
-    },
-    {
-      hasRole: ['admin'],
-      params: t.Object({
-        id: t.String()}),
-      detail: {
-        tags: ['products'],
-        summary: 'Delete product (admin only)',
-        security: [{ bearerAuth: [] }]}}
-  );
-`,
-
-    // Tests
-    'src/index.test.ts': `import { describe, expect, it } from 'bun:test';
-
-describe('Health check', () => {
-  it('returns healthy status', async () => {
-    const response = await fetch('http://localhost:3000/health');
-    expect(response.status).toBe(200);
-
-    const body = await response.json();
-    expect(body.status).toBe('healthy');
+  it('answers /health', async () => {
+    const res = await call('/health');
+    expect(res.status).toBe(200);
+    expect((await body(res)).status).toBe('healthy');
   });
-});
 
-describe('Auth', () => {
-  it('registers a new user', async () => {
-    const response = await fetch('http://localhost:3000/api/v1/auth/register', {
+  it('serves GraphQL', async () => {
+    const res = await call('/graphql', { method: 'POST', body: JSON.stringify({ query: '{ __typename hello }' }) });
+    expect(res.status).toBe(200);
+    expect((await body(res)).data).toEqual({ __typename: 'Query', hello: 'Hello from GraphQL!' });
+  });
+
+  it('registers the first user as admin and the second as a normal user', async () => {
+    const first = await call('/api/v1/auth/register', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: \`test-\${Date.now()}@example.com\`,
-        password: 'password123',
-        name: 'Test User'})});
+      body: JSON.stringify({ email: 'Ada@Example.com', name: 'Ada', password: 'correct horse' }),
+    });
+    expect(first.status).toBe(201);
+    const firstBody = await body(first);
+    expect(firstBody.user.role).toBe('admin');
+    expect(firstBody.user.passwordHash).toBeUndefined();
+    adminToken = firstBody.token;
 
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.email).toBeDefined();
-    expect(body.name).toBe('Test User');
+    const second = await call('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'bob@example.com', name: 'Bob', password: 'another horse' }),
+    });
+    const secondBody = await body(second);
+    expect(secondBody.user.role).toBe('user');
+    userToken = secondBody.token;
+  });
+
+  it('rejects duplicates, bad credentials and invalid bodies', async () => {
+    const duplicate = await call('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'ada@example.com', name: 'Ada', password: 'correct horse' }),
+    });
+    expect(duplicate.status).toBe(409);
+
+    const wrong = await call('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'ada@example.com', password: 'wrong password' }),
+    });
+    expect(wrong.status).toBe(401);
+
+    const invalid = await call('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'not-an-email', name: 'X', password: 'short' }),
+    });
+    expect(invalid.status).toBe(422);
+  });
+
+  it('logs in and returns the current user', async () => {
+    const login = await call('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'ada@example.com', password: 'correct horse' }),
+    });
+    expect(login.status).toBe(200);
+    const me = await call('/api/v1/users/me', { token: (await body(login)).token });
+    expect((await body(me)).email).toBe('ada@example.com');
+    expect((await call('/api/v1/users/me')).status).toBe(401);
+  });
+
+  it('lists products publicly and restricts writes to admins', async () => {
+    const list = await call('/api/v1/products');
+    expect((await body(list)).products.length).toBeGreaterThan(0);
+
+    const anonymous = await call('/api/v1/products', { method: 'POST', body: JSON.stringify({ name: 'Widget', price: 5 }) });
+    expect(anonymous.status).toBe(401);
+
+    const forbidden = await call('/api/v1/products', { method: 'POST', token: userToken, body: JSON.stringify({ name: 'Widget', price: 5 }) });
+    expect(forbidden.status).toBe(403);
+
+    const created = await call('/api/v1/products', { method: 'POST', token: adminToken, body: JSON.stringify({ name: 'Widget', price: 5 }) });
+    expect(created.status).toBe(201);
+    const { product } = await body(created);
+    expect(product.name).toBe('Widget');
+
+    const updated = await call('/api/v1/products/' + product.id, { method: 'PATCH', token: adminToken, body: JSON.stringify({ price: 7 }) });
+    expect((await body(updated)).product.price).toBe(7);
+
+    const removed = await call('/api/v1/products/' + product.id, { method: 'DELETE', token: adminToken });
+    expect(removed.status).toBe(204);
+    expect((await call('/api/v1/products/' + product.id)).status).toBe(404);
+  });
+
+  it('answers unknown routes with a JSON 404', async () => {
+    const res = await call('/nope');
+    expect(res.status).toBe(404);
   });
 });
 `,
 
-    // Environment file
-    '.env.example': `# Server
-PORT=3000
-ENVIRONMENT=development
-
-# Database
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME={{projectName}}
-DB_USER=postgres
-DB_PASSWORD=password
-USE_MEMORY_DB=true
-
-# JWT
-JWT_SECRET=your-secret-key-change-in-production
-JWT_EXPIRATION_HOURS=24
-
-# CORS
-ALLOWED_ORIGINS=*
-
-# Rate Limiting
-RATE_LIMIT_REQUESTS=100
-RATE_LIMIT_WINDOW_MS=60000
-`,
-
-    // Dockerfile
     'Dockerfile': `FROM oven/bun:1
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json bun.lockb* ./
+COPY package.json bun.lock* bun.lockb* ./
+RUN bun install --production
 
-# Install dependencies
-RUN bun install --frozen-lockfile
+COPY src ./src
 
-# Copy source
-COPY . .
-
-# Create non-root user
-RUN adduser --disabled-password --gecos '' appuser
-USER appuser
-
+ENV NODE_ENV=production
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
-    CMD curl -f http://localhost:3000/health || exit 1
-
-CMD ["bun", "run", "src/index.ts"]
+USER bun
+CMD ["bun", "run", "start"]
 `,
 
-    // Docker Compose
-    'docker-compose.yml': `version: '3.8'
-
-services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME={{projectName}}
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - USE_MEMORY_DB=false
-      - JWT_SECRET=change-this-secret
-    depends_on:
-      - postgres
-
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB={{projectName}}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  postgres_data:
-`,
-
-    // README
     'README.md': `# {{projectName}}
 
-A blazing fast REST API built with Elysia on Bun runtime.
-
-## Features
-
-- **Bun Runtime**: Fastest JavaScript runtime
-- **Elysia Framework**: Type-safe, high-performance web framework
-- **TypeBox Validation**: Compile-time type checking
-- **JWT Authentication**: Secure token-based auth
-- **Swagger UI**: Interactive API documentation
-- **CORS Support**: Configurable cross-origin requests
-- **Rate Limiting**: Request throttling
-- **Docker Support**: Containerized deployment
+A type-safe REST and GraphQL API built with [Elysia](https://elysiajs.com) on [Bun](https://bun.sh): schema validation with TypeBox, JWT authentication, role checks, Swagger docs at \`/swagger\`, and GraphQL through graphql-yoga.
 
 ## Requirements
 
-- Bun 1.0+
-- PostgreSQL (optional, uses in-memory DB by default)
-- Docker (optional)
+- Bun 1.1 or newer
 
-## Quick Start
-
-1. Clone the repository
-2. Install dependencies:
-   \`\`\`bash
-   bun install
-   \`\`\`
-
-3. Copy \`.env.example\` to \`.env\` and configure
-
-4. Run in development mode:
-   \`\`\`bash
-   bun run dev
-   \`\`\`
-
-5. Or run with Docker:
-   \`\`\`bash
-   docker-compose up
-   \`\`\`
-
-## Available Scripts
+## Quick start
 
 \`\`\`bash
-bun run dev      # Run with hot reload
-bun run start    # Run in production
-bun run test     # Run tests
-bun run lint     # Lint code
-bun run format   # Format code
-bun run build    # Compile to binary
+bun install
+bun run dev        # restarts on change
+bun run start      # run once
+bun run typecheck  # tsc --noEmit
+bun test
+bun run build      # bundle to dist/
+bun run compile    # single-file executable
 \`\`\`
 
-## API Documentation
+Every setting has a development default; copy \`.env.example\` to \`.env\` to change them. In production (\`NODE_ENV=production\`) \`JWT_SECRET\` is required.
 
-Once the server is running, visit:
-- Swagger UI: http://localhost:3000/swagger
+## Endpoints
 
-## Project Structure
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | \`/health\` | no | Liveness probe |
+| GET | \`/swagger\` | no | Swagger UI |
+| POST | \`/graphql\` | no | GraphQL (\`hello\`, \`health\` queries) |
+| POST | \`/api/v1/auth/register\` | no | \`{ email, name, password }\`; the first account becomes admin |
+| POST | \`/api/v1/auth/login\` | no | \`{ email, password }\` returns a token |
+| GET | \`/api/v1/users/me\` | bearer | The signed-in user |
+| GET | \`/api/v1/users\` | admin | List users |
+| GET | \`/api/v1/users/:id\` | bearer | Yourself, or anyone as admin |
+| GET | \`/api/v1/products\`, \`/api/v1/products/:id\` | no | Read products |
+| POST / PATCH / DELETE | \`/api/v1/products[/:id]\` | admin | Manage products |
+
+Data lives in memory (\`src/store.ts\`); replace it with a database for real use.
+
+## Project structure
 
 \`\`\`
 src/
-├── config/        # Configuration
-├── plugins/       # Elysia plugins
-├── routes/        # API routes
-├── types/         # TypeBox schemas
-└── index.ts       # Entry point
+├── index.ts        # starts the server, graceful shutdown
+├── app.ts          # the Elysia app (plugins, routes, error handling)
+├── config.ts       # environment
+├── store.ts        # in-memory users and products
+├── graphql.ts      # graphql-yoga schema
+├── plugins/auth.ts # JWT verification, exposes \`user\`
+├── routes/         # auth, users, products
+└── app.test.ts     # tests (bun test, no port needed)
 \`\`\`
 
-## Performance
+## Docker
 
-Elysia on Bun is one of the fastest web frameworks:
-- ~3x faster than Express
-- ~2x faster than Fastify
-- Native TypeScript support
-- Zero-config bundling
+\`\`\`bash
+docker build -t {{projectName}} .
+docker run -p 3000:3000 -e JWT_SECRET=<16+ chars> {{projectName}}
 \`\`\`
+
+## License
+
+MIT
 `
   }
 };
