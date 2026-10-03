@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { createAsyncCommand, withTimeout } from '../utils/error-handler';
 import chalk from 'chalk';
+import { registerCloudDeployCommand, registerIacSubcommands } from './cloud-iac.group';
 
 /**
  * Registers the `cloud` command group, which provides cloud provider
@@ -15,7 +16,7 @@ export function registerCloudGroup(program: Command): void {
   // aws-cloud → cloud aws
   cloud
     .command('aws')
-    .description('Generate AWS ECS/EKS with CDK templates and auto-scaling with cost optimization')
+    .description('Generate standalone AWS ECS/EKS CDK tooling (for deploying workspace services use `cloud iac generate --provider aws`)')
     .argument('<project-name>', 'Name of the project')
     .option('-l, --language <language>', 'Tool language (typescript|python)', 'typescript')
     .option('--region <region>', 'AWS region', 'us-east-1')
@@ -98,7 +99,7 @@ export function registerCloudGroup(program: Command): void {
   // azure-cloud → cloud azure
   cloud
     .command('azure')
-    .description('Generate Azure AKS with ARM/Bicep integration and Azure DevOps with native services')
+    .description('Generate standalone Azure AKS/ARM tooling (for deploying workspace services use `cloud iac generate --provider azure`)')
     .argument('<project-name>', 'Name of the project')
     .option('-l, --language <language>', 'Tool language (typescript|python)', 'typescript')
     .option('--subscription-id <id>', 'Azure subscription ID')
@@ -182,7 +183,7 @@ export function registerCloudGroup(program: Command): void {
   // gcp-cloud → cloud gcp
   cloud
     .command('gcp')
-    .description('Generate GCP GKE with Cloud Deployment Manager and Cloud Build with ML integration')
+    .description('Generate standalone GCP GKE tooling (for deploying workspace services use `cloud iac generate --provider gcp`)')
     .argument('<project-name>', 'Name of the project')
     .option('-l, --language <language>', 'Tool language (typescript|python)', 'typescript')
     .option('--project-id <id>', 'GCP project ID')
@@ -740,10 +741,16 @@ export function registerCloudGroup(program: Command): void {
       }, 30000);
     }));
 
-  // iac → cloud iac
-  cloud
+  // iac → cloud iac: `generate`/`validate` are the documented deployment path (Terraform from the
+  // workspace v2 config); `scaffold` keeps the original standalone codegen and stays the default
+  // subcommand so `cloud iac <name> ...` keeps working.
+  const iac = cloud
     .command('iac')
-    .description('Generate Infrastructure as Code with Terraform/Pulumi and state management')
+    .description('Infrastructure as Code: generate and validate Terraform for AWS/Azure/GCP from the workspace (documented deployment path)');
+  registerIacSubcommands(iac);
+  iac
+    .command('scaffold', { isDefault: true })
+    .description('Generate standalone Terraform/Pulumi tooling for a named project (default for `cloud iac <name>`)')
     .argument('<name>', 'Name of the project')
     .option('-o, --output <output>', 'Output directory', '/tmp/iac')
     .option('--language <language>', 'Language (typescript|python)', 'typescript')
@@ -1286,6 +1293,8 @@ export function registerCloudGroup(program: Command): void {
         console.log(chalk.green('✓ Multi-cloud networking configuration generated successfully!'));
       }, 30000);
     }));
+
+  registerCloudDeployCommand(cloud);
 
   program.addCommand(cloud);
 }

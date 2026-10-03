@@ -630,7 +630,7 @@ describe('groups — ai / cloud / learn registration', () => {
       const cloud = program.commands.find(c => c.name() === 'cloud');
       expect(cloud?.commands.map(c => c.name())).toEqual([
         'aws', 'azure', 'gcp', 'multi', 'db', 'serverless', 'storage',
-        'iac', 'dr', 'cost', 'hybrid', 'resources', 'network',
+        'iac', 'dr', 'cost', 'hybrid', 'resources', 'network', 'deploy',
       ]);
     });
 

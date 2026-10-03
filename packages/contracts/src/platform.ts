@@ -104,6 +104,96 @@ export const pkgResponseSchema = z.object({
 export type PkgResponse = z.infer<typeof pkgResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// cloud iac generate|validate / cloud deploy
+//
+// Terraform generated from the workspace v2 config for AWS (ECS Fargate), Azure
+// (Container Apps) and GCP (Cloud Run); `validate` reports exactly which
+// terraform steps ran; `deploy` applies with real credentials and an explicit
+// --yes gate.
+// ---------------------------------------------------------------------------
+
+export const iacProviderSchema = z.enum(['aws', 'azure', 'gcp']);
+export type IacProviderName = z.infer<typeof iacProviderSchema>;
+
+export const iacValidationStepSchema = z.object({
+  name: z.enum(['version', 'fmt', 'init', 'validate', 'hcl-structure']),
+  /** False when the step could not run (e.g. terraform missing, init failed). */
+  ran: z.boolean(),
+  ok: z.boolean().nullable(),
+  exitCode: z.number().nullable(),
+  output: z.string(),
+  reason: z.string().optional(),
+});
+export type IacValidationStep = z.infer<typeof iacValidationStepSchema>;
+
+export const iacValidationSchema = z.object({
+  terraform: z.object({ found: z.boolean(), path: z.string().optional(), version: z.string().optional() }),
+  steps: z.array(iacValidationStepSchema),
+  /** True only when `init -backend=false` and `validate` both ran and passed. */
+  validated: z.boolean(),
+  formatted: z.boolean().nullable(),
+  providersInstalled: z.boolean().nullable(),
+  summary: z.string(),
+});
+export type IacValidation = z.infer<typeof iacValidationSchema>;
+
+export const iacFileSchema = z.object({
+  path: z.string(),
+  bytes: z.number(),
+  /** File content (present on dry runs). */
+  content: z.string().optional(),
+});
+export type IacFile = z.infer<typeof iacFileSchema>;
+
+/** Envelope payload for `re-shell cloud iac generate --json`. */
+export const iacGenerateResponseSchema = z.object({
+  provider: iacProviderSchema,
+  /** Deployment target (ECS Fargate, Container Apps, Cloud Run). */
+  target: z.string(),
+  outDir: z.string().nullable(),
+  dryRun: z.boolean(),
+  written: z.boolean(),
+  services: z.array(z.object({ name: z.string(), port: z.number(), exposed: z.boolean() })),
+  files: z.array(iacFileSchema),
+  /** Variables for image tags and regions accepted by the generated configuration. */
+  variables: z.array(z.object({ name: z.string(), type: z.string(), description: z.string() })),
+  /** Present when `--validate` was requested. */
+  validation: iacValidationSchema.nullable(),
+  warnings: z.array(z.string()),
+});
+export type IacGenerateResponse = z.infer<typeof iacGenerateResponseSchema>;
+
+/** Envelope payload for `re-shell cloud iac validate --json`. */
+export const iacValidateResponseSchema = z.object({
+  dir: z.string(),
+  validation: iacValidationSchema,
+});
+export type IacValidateResponse = z.infer<typeof iacValidateResponseSchema>;
+
+export const cloudDeployStepSchema = z.object({
+  name: z.enum(['init', 'plan', 'apply', 'output']),
+  argv: z.array(z.string()),
+  executed: z.boolean(),
+  exitCode: z.number().nullable(),
+  durationMs: z.number().nullable(),
+  output: z.string(),
+});
+export type CloudDeployStep = z.infer<typeof cloudDeployStepSchema>;
+
+/** Envelope payload for `re-shell cloud deploy --json` (success: apply ran). */
+export const cloudDeployResponseSchema = z.object({
+  provider: iacProviderSchema,
+  dir: z.string(),
+  dryRun: z.boolean(),
+  credentials: z.object({ checked: z.boolean(), source: z.string().nullable() }),
+  steps: z.array(cloudDeployStepSchema),
+  /** True only when `terraform apply` ran and succeeded. */
+  applied: z.boolean(),
+  outputs: z.record(z.string(), z.unknown()),
+});
+export type CloudDeployResponse = z.infer<typeof cloudDeployResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // debug config  (`re-shell debug config`)
 //
 // Generates a VS Code launch.json (one set of configurations per workspace
