@@ -3,20 +3,16 @@ import * as path from 'path';
 import prompts from 'prompts';
 import chalk from 'chalk';
 import * as yaml from 'js-yaml';
-import { getFrameworkChoices, getFrameworkConfig, validateFramework, type FrameworkConfig } from '../utils/framework';
-import { findMonorepoRoot } from '../utils/monorepo';
+import type { CreateDryRunResponse, CreateMode, CreateResponse } from '@re-shell/contracts';
+import { getFrameworkChoices, getFrameworkConfig, type FrameworkConfig } from '../utils/framework';
+import { findMonorepoRoot, WORKSPACE_GLOBS } from '../utils/monorepo';
 import { getBackendTemplate, listBackendTemplates, type BackendTemplate } from '../templates/backend/index';
 import {
-  getDatabaseConfig,
   getDatabaseChoices,
   getBackendLanguageChoices,
   getFrameworkChoicesForLanguage,
   getPopularBackendFrameworks,
-  getRecommendedFrontends,
   validateFrameworkCompatibility,
-  validateBackendFramework,
-  validateFrontendFramework,
-  validateDatabaseType,
   getCompatibilitySummary,
   checkDependencyConflicts,
   formatDependencyReport,
@@ -33,58 +29,49 @@ import {
   getArchitectureTemplate,
   getAllArchitectureTemplates,
   getPopularArchitectureTemplates,
-  type ArchitectureTemplate
 } from '../templates/architecture/index';
-import { ReactTemplate } from '../templates/frontend/react';
-import { VueTemplate } from '../templates/frontend/vue';
-import { SvelteTemplate } from '../templates/frontend/svelte';
-import { NextJsTemplate } from '../templates/frontend/next';
-import { RemixTemplate } from '../templates/frontend/remix';
-import { GatsbyTemplate } from '../templates/frontend/gatsby';
-import { NuxtTemplate } from '../templates/frontend/nuxt';
-import { QuasarTemplate } from '../templates/frontend/quasar';
-import { AngularTemplate } from '../templates/frontend/angular';
-import { ViteReactTemplate } from '../templates/frontend/vite-react';
-import { SvelteKitTemplate } from '../templates/frontend/sveltekit';
-import { SolidJsTemplate } from '../templates/frontend/solid-js';
-import { QwikTemplate } from '../templates/frontend/qwik';
-import { LitTemplate } from '../templates/frontend/lit';
-import { StencilTemplate } from '../templates/frontend/stencil';
-import { AlpineTemplate } from '../templates/frontend/alpine';
-import { PreactTemplate } from '../templates/frontend/preact';
-import { MithrilTemplate } from '../templates/frontend/mithril';
-import { HyperappTemplate } from '../templates/frontend/hyperapp';
-import { AstroTemplate } from '../templates/frontend/astro';
-import { EleventyTemplate } from '../templates/frontend/eleventy';
-import { VuePressTemplate } from '../templates/frontend/vuepress';
-import { DocusaurusTemplate } from '../templates/frontend/docusaurus';
-import { GridsomeTemplate } from '../templates/frontend/gridsome';
-import { ScullyTemplate } from '../templates/frontend/scully';
-import { JekyllTemplate } from '../templates/frontend/jekyll';
-import { HugoTemplate } from '../templates/frontend/hugo';
-import { HexoTemplate } from '../templates/frontend/hexo';
-import { ZolaTemplate } from '../templates/frontend/zola';
-import { CreateReactAppTemplate } from '../templates/frontend/create-react-app';
-import { VueCliTemplate } from '../templates/frontend/vue-cli';
-import { AngularCliTemplate } from '../templates/frontend/angular-cli';
-import { ViteSvelteTemplate } from '../templates/frontend/vite-svelte';
 import { ReactModuleFederationTemplate } from '../templates/frontend/react-module-federation';
 import { VueModuleFederationTemplate } from '../templates/frontend/vue-module-federation';
 import { AngularModuleFederationTemplate } from '../templates/frontend/angular-module-federation';
 import { SvelteModuleFederationTemplate } from '../templates/frontend/svelte-module-federation';
-import { NxAngularTemplate } from '../templates/frontend/nx-angular';
-import { AnalogTemplate } from '../templates/frontend/analog';
+import { createFrontendTemplate, hasFrontendTemplate } from '../templates/frontend/registry';
 import { BaseTemplate, TemplateContext } from '../templates/index';
 import { ProgressSpinner, flushOutput } from '../utils/spinner';
+import {
+  CreateError,
+  assertBackend,
+  assertFrontend,
+  backendIds,
+  isNonInteractive,
+  parseNameFrameworkList,
+  resolveCreateRequest,
+  templateNotFound,
+  DEFAULT_BACKEND,
+  type ResolvedCreateRequest,
+} from '../utils/create-request';
+import {
+  createBackendTemplate,
+  type BackendTemplateContext,
+} from '../utils/backend-scaffold';
+import {
+  compareScaffoldToDisk,
+  readTree,
+  toPosix,
+  touchedFiles,
+  withScratchDir,
+} from '../utils/scaffold-compare';
+
+export { CreateError } from '../utils/create-request';
 
 /**
  * Options accepted by the `createProject` command, covering team/org metadata,
  * framework selections, workspace type, and operational flags like `dryRun`.
  */
-interface CreateProjectOptions {
+export interface CreateProjectOptions {
   team?: string;
   org?: string;
   description?: string;
+  /** Backend template id, frontend framework id, architecture template id, or `blank`. */
   template?: string;
   framework?: string;      // Frontend framework
   backend?: string;         // Backend framework
@@ -93,6 +80,12 @@ interface CreateProjectOptions {
   fullstack?: boolean;      // Create full-stack project
   polyglot?: boolean;       // Create polyglot microservices
   microfrontend?: boolean;  // Create microfrontend with module federation
+  /** Polyglot API gateway (express|fastify|nestjs|traefik|kong). */
+  gateway?: string;
+  /** Polyglot services as `name:framework,name:framework`. */
+  services?: string;
+  /** Microfrontend remotes as `name[:framework],...`. */
+  remotes?: string;
   packageManager?: string;
   type?: 'app' | 'package' | 'lib' | 'tool';
   port?: string;
@@ -101,6 +94,8 @@ interface CreateProjectOptions {
   dryRun?: boolean;
   /** Skip prompts and use defaults (non-interactive; auto-enabled without a TTY). */
   yes?: boolean;
+  /** Overwrite files in an existing target and continue past compatibility warnings. */
+  force?: boolean;
   spinner?: ProgressSpinner;
   verbose?: boolean;
 }
@@ -160,179 +155,530 @@ interface PolyglotConfig {
 }
 
 /**
- * Creates a new Re-Shell project or workspace
+ * What a finished `create` run returns to the CLI layer: the wire payload for
+ * `--json`, or `cancelled` when an interactive prompt was declined.
+ */
+export type CreateResult =
+  | { status: 'created'; response: CreateResponse }
+  | { status: 'dry-run'; response: CreateDryRunResponse }
+  | { status: 'cancelled' };
+
+/**
+ * A fully-resolved scaffold: everything `create` is about to do, with no
+ * prompts left. The same plan drives the real write and the dry-run preview
+ * (rendered into a throwaway directory), so the preview is exact by
+ * construction.
+ */
+interface ScaffoldPlan {
+  mode: CreateMode;
+  /** The name as the user typed it. */
+  name: string;
+  /** Absolute directory every relative output path is anchored at. */
+  root: string;
+  /** Absolute directories the scaffold creates; used for exists-checks and rollback. */
+  targetDirs: string[];
+  /** Absolute project (or primary workspace) directory, reported to the caller. */
+  projectPath: string;
+  frontend?: string;
+  backend?: string;
+  /** Lines printed under the dry-run header (e.g. `Frontend: react-ts`). */
+  summary: string[];
+  /** True when the scaffold has no app yet (nothing runnable). */
+  skeleton: boolean;
+  /** Defaults that were applied or flags that were ignored. */
+  notes: string[];
+  /** Root files the scaffold edits in place; copied into the dry-run scratch dir first. */
+  seedFiles: string[];
+  /** Shown as `Next steps` after a real run. */
+  nextSteps: string[];
+  /** Writes the scaffold under `outRoot` (no prompts, no output); returns files written, relative to it. */
+  write(outRoot: string): Promise<string[]>;
+  /** Runs after a successful real write (health check, extra output). */
+  afterWrite?(files: string[]): Promise<void>;
+  /**
+   * Interactive only: asked when a target directory already exists and `--force`
+   * was not given. Returns `overwrite` to replace the directory or `cancel`.
+   */
+  confirmOverwrite?(existing: string[]): Promise<'overwrite' | 'cancel'>;
+}
+
+/** Synchronous file sink anchored at an output root; records every path it writes. */
+class ScaffoldSink {
+  readonly written: string[] = [];
+
+  constructor(private readonly outRoot: string) {}
+
+  mkdir(rel: string): void {
+    fs.mkdirSync(path.join(this.outRoot, rel), { recursive: true });
+  }
+
+  write(rel: string, content: string, executable = false): void {
+    const abs = path.join(this.outRoot, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content);
+    if (executable) fs.chmodSync(abs, 0o755);
+    this.written.push(toPosix(rel));
+  }
+}
+
+/** Join path segments with forward slashes (used for payload paths). */
+function posixJoin(...segments: string[]): string {
+  return toPosix(path.join(...segments));
+}
+
+/**
+ * Wrap `prompts` so an aborted prompt (Ctrl-C / Esc / closed stdin) is an
+ * explicit failure instead of silently continuing with `undefined` answers.
+ */
+async function ask<T extends string = string>(
+  questions: prompts.PromptObject<T> | prompts.PromptObject<T>[]
+): Promise<prompts.Answers<T>> {
+  return prompts(questions, {
+    onCancel: () => {
+      throw new CreateError('CREATE_ERROR', 'Cancelled: a prompt was aborted before it was answered.');
+    },
+  });
+}
+
+/**
+ * Creates a new Re-Shell project or workspace.
+ *
+ * Every prompt has a documented default that is used under `--yes`, with
+ * `--dry-run`, with `--json`, or whenever stdin is not a TTY; a value with no
+ * sensible default fails with a coded {@link CreateError} instead of waiting on
+ * input that will never arrive.
  *
  * @param name - Name of the project/workspace
  * @param options - Additional options for project creation
+ * @returns The created/dry-run payload, or `cancelled` when a prompt was declined.
  * @version 0.2.5
  */
-export async function createProject(name: string, options: CreateProjectOptions): Promise<void> {
+export async function createProject(
+  name: string,
+  options: CreateProjectOptions
+): Promise<CreateResult> {
   // Reject path traversal — a project name must not contain path separators or ..
   if (/[\/\\]|\.\./.test(name)) {
-    throw new Error(`Invalid project name "${name}": must not contain path separators (/, \\) or ..`);
+    throw new CreateError(
+      'CREATE_INVALID_OPTIONS',
+      `Invalid project name "${name}": must not contain path separators (/, \\) or ..`,
+      { name }
+    );
+  }
+
+  if (options.packageManager !== undefined && !PACKAGE_MANAGERS.includes(options.packageManager)) {
+    throw new CreateError(
+      'CREATE_INVALID_OPTIONS',
+      `Invalid --package-manager "${options.packageManager}": expected one of ${PACKAGE_MANAGERS.join(', ')}.`,
+      { packageManager: options.packageManager }
+    );
   }
 
   // Check if we're in a monorepo
   const monorepoRoot = await findMonorepoRoot();
-  const inMonorepo = !!monorepoRoot;
 
-  if (options.dryRun) {
-    previewProjectCreation(name, options, monorepoRoot);
-    return;
+  // A dry run never prompts: it previews what the documented defaults would do.
+  const dryRun = options.dryRun === true;
+  const interactive = !dryRun && !isNonInteractive(options);
+
+  const request = resolveCreateRequest(options, { fillDefaults: !interactive });
+
+  let plan: ScaffoldPlan | null;
+  switch (request.mode) {
+    case 'polyglot':
+      plan = await buildPolyglotPlan(name, options, monorepoRoot, request, interactive);
+      break;
+    case 'microfrontend':
+      plan = await buildMicrofrontendPlan(name, options, monorepoRoot, request, interactive);
+      break;
+    default:
+      // Determine if this is a monorepo project creation or workspace creation
+      plan =
+        monorepoRoot || options.type
+          ? await buildWorkspacePlan(name, options, monorepoRoot, request, interactive, dryRun)
+          : await buildMonorepoPlan(name, options, request, interactive);
   }
 
-  // Handle polyglot microservices creation
-  if (options.polyglot) {
-    await createPolyglotProject(name, options, monorepoRoot);
-    return;
+  if (!plan) return { status: 'cancelled' };
+
+  if (dryRun) {
+    const report = await computeDryRun(plan);
+    printDryRun(report, plan, options);
+    return { status: 'dry-run', response: report };
   }
 
-  // Handle microfrontend with module federation creation
-  if (options.microfrontend) {
-    await createMicrofrontendProject(name, options, monorepoRoot);
-    return;
-  }
-
-  // Determine if this is a monorepo project creation or workspace creation
-  const isWorkspaceCreation = inMonorepo || options.type;
-
-  if (isWorkspaceCreation) {
-    await createWorkspace(name, options, monorepoRoot);
-  } else {
-    await createMonorepoProject(name, options);
-  }
+  return executePlan(plan, options);
 }
 
+/** Package managers `create` can generate workspace configuration for. */
+const PACKAGE_MANAGERS = ['npm', 'yarn', 'pnpm', 'bun'];
+
 /**
- * Prints a dry-run preview of the project layout without creating any files.
- *
- * @param name - The project name provided by the user.
- * @param options - The full options object received from the CLI.
- * @param monorepoRoot - Detected monorepo root, if running inside one.
+ * Render the plan into a throwaway directory, then classify every file it would
+ * write against the real target (added / modified / unchanged, with a unified
+ * diff for modified files). Nothing is written to the user's project.
  */
-function previewProjectCreation(
-  name: string,
-  options: CreateProjectOptions,
-  monorepoRoot?: string | null
-): void {
-  const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
-  const rootPath = monorepoRoot || process.cwd();
-  const workspaceType = options.type || 'app';
-  const workspaceDir =
-    workspaceType === 'package'
-      ? 'packages'
-      : workspaceType === 'lib'
-      ? 'libs'
-      : workspaceType === 'tool'
-      ? 'tools'
-      : 'apps';
-  const inMonorepo = !!monorepoRoot;
-  const targetPaths: string[] = [];
-  const previewFiles: string[] = [];
-
-  if (options.polyglot) {
-    targetPaths.push(path.join(rootPath, normalizedName));
-    previewFiles.push(
-      `${normalizedName}/package.json`,
-      `${normalizedName}/gateway/package.json`,
-      `${normalizedName}/services/<service-name>/Dockerfile`
-    );
-  } else if (options.microfrontend) {
-    targetPaths.push(path.join(rootPath, normalizedName));
-    previewFiles.push(
-      `${normalizedName}/shell/package.json`,
-      `${normalizedName}/shell/vite.config.ts`,
-      `${normalizedName}/package.json`
-    );
-  } else if (inMonorepo || options.type) {
-    const workspacePath = path.join(rootPath, workspaceDir, normalizedName);
-    targetPaths.push(workspacePath);
-    previewFiles.push(
-      `${workspaceDir}/${normalizedName}/package.json`,
-      `${workspaceDir}/${normalizedName}/src/App.tsx`,
-      `${workspaceDir}/${normalizedName}/vite.config.ts`
-    );
-
-    if (options.fullstack || options.backend) {
-      const serviceName = `${normalizedName}-api`;
-      targetPaths.push(path.join(rootPath, 'services', serviceName));
-      previewFiles.push(
-        `services/${serviceName}/package.json`,
-        `services/${serviceName}/src/index.ts`
-      );
+async function computeDryRun(plan: ScaffoldPlan): Promise<CreateDryRunResponse> {
+  const comparison = await withScratchDir('re-shell-create-dryrun-', async (scratch) => {
+    // Seed the small root files the scaffold edits in place (e.g. the workspace
+    // registry) so an in-place edit shows up as `modified` instead of `added`.
+    for (const rel of plan.seedFiles) {
+      const source = path.join(plan.root, rel);
+      if (fs.existsSync(source)) {
+        fs.mkdirSync(path.dirname(path.join(scratch, rel)), { recursive: true });
+        fs.copyFileSync(source, path.join(scratch, rel));
+      }
     }
-  } else {
-    targetPaths.push(path.join(rootPath, normalizedName));
-    previewFiles.push(
-      `${normalizedName}/package.json`,
-      `${normalizedName}/README.md`,
-      `${normalizedName}/apps/`,
-      `${normalizedName}/packages/`
+    const before = readTree(scratch);
+    await plan.write(scratch);
+    const touched = touchedFiles(before, readTree(scratch));
+    return compareScaffoldToDisk(touched, plan.root);
+  });
+
+  const targetExists = plan.targetDirs.some((dir) => fs.existsSync(dir));
+  const notes = [...plan.notes];
+  if (targetExists) {
+    notes.push(
+      `Target already exists (${plan.targetDirs.filter((d) => fs.existsSync(d)).join(', ')}); ` +
+        'a real run needs --force and then overwrites files in place.'
     );
   }
 
+  return {
+    project: plan.name,
+    mode: plan.mode,
+    templateId: plan.backend ?? plan.frontend,
+    frontend: plan.frontend,
+    backend: plan.backend,
+    dryRun: true,
+    root: plan.root,
+    targetExists,
+    files: comparison.files,
+    totalBytes: comparison.totalBytes,
+    previews: comparison.previews,
+    summary: comparison.summary,
+    notes,
+  };
+}
+
+/** Print the human-readable dry-run preview. */
+function printDryRun(
+  report: CreateDryRunResponse,
+  plan: ScaffoldPlan,
+  options: CreateProjectOptions
+): void {
   console.log(chalk.cyan('\n🔎 Dry Run Preview\n'));
   console.log(chalk.gray('No files will be created.\n'));
-  console.log(`Mode: ${options.polyglot ? 'polyglot' : options.microfrontend ? 'microfrontend' : (options.fullstack || options.backend) ? 'fullstack' : 'frontend'}`);
-  console.log(`Name: ${normalizedName}`);
-  console.log(`Root: ${rootPath}`);
-  if (options.framework) {
-    console.log(`Frontend: ${options.framework}`);
-  }
-  if (options.backend) {
-    console.log(`Backend: ${options.backend}`);
-  }
-  if (options.route) {
-    console.log(`Route: ${options.route}`);
-  }
-  if (options.port) {
-    console.log(`Port: ${options.port}`);
-  }
+  console.log(`Mode: ${plan.mode}`);
+  for (const line of plan.summary) console.log(line);
+  console.log(`Root: ${plan.root}`);
 
   console.log('\nTargets:');
-  for (const targetPath of targetPaths) {
-    console.log(`  • ${targetPath}`);
+  for (const dir of plan.targetDirs) {
+    console.log(`  • ${dir}`);
   }
 
-  if (options.verbose) {
-    console.log('\nPreview files:');
-    for (const file of previewFiles) {
-      console.log(`  • ${file}`);
+  const { added, modified, unchanged } = report.summary;
+  console.log(
+    chalk.gray(
+      `\n${report.files.length} files (${report.totalBytes} bytes): ` +
+        `${added} added, ${modified} modified, ${unchanged} unchanged. Nothing written.`
+    )
+  );
+  for (const note of report.notes) {
+    console.log(chalk.yellow(`  ! ${note}`));
+  }
+
+  const limit = options.verbose ? report.files.length : 30;
+  console.log('\nPreview files:');
+  for (const file of report.files.slice(0, limit)) {
+    const mark =
+      file.status === 'added'
+        ? chalk.green('+')
+        : file.status === 'modified'
+          ? chalk.yellow('~')
+          : chalk.gray('=');
+    console.log(`  ${mark} ${file.path} ${chalk.gray(`(${file.bytes}b, ${file.status})`)}`);
+  }
+  if (report.files.length > limit) {
+    console.log(chalk.gray(`  … and ${report.files.length - limit} more (use --verbose to list all)`));
+  }
+
+  const modifiedFiles = report.files.filter((f) => f.status === 'modified' && f.diff);
+  if (modifiedFiles.length > 0) {
+    console.log('\nChanges to existing files:');
+    for (const file of modifiedFiles) {
+      console.log((file.diff as string).trimEnd());
+    }
+  }
+  console.log();
+}
+
+/**
+ * Write the plan for real: refuse an existing target (unless `--force`), write,
+ * roll back directories this run created if the write fails, then print the
+ * honest next steps.
+ */
+async function executePlan(plan: ScaffoldPlan, options: CreateProjectOptions): Promise<CreateResult> {
+  const { spinner } = options;
+  let preexisting = plan.targetDirs.filter((dir) => fs.existsSync(dir));
+
+  if (preexisting.length > 0 && !options.force) {
+    if (!plan.confirmOverwrite) {
+      throw new CreateError(
+        'CREATE_TARGET_EXISTS',
+        `Directory already exists: ${preexisting[0]}. Pass --force to overwrite files in place.`,
+        { targets: preexisting }
+      );
+    }
+    if (spinner) spinner.stop();
+    if ((await plan.confirmOverwrite(preexisting)) === 'cancel') {
+      console.log(chalk.yellow('Operation cancelled.'));
+      return { status: 'cancelled' };
+    }
+    // Interactive "overwrite" replaces the directory outright.
+    for (const dir of preexisting) fs.removeSync(dir);
+    preexisting = [];
+  }
+
+  if (spinner) {
+    spinner.start();
+    spinner.setText('Creating project structure...');
+    flushOutput();
+  }
+
+  let files: string[];
+  try {
+    files = await plan.write(plan.root);
+  } catch (error) {
+    // Don't leave a half-written project behind: remove only what this run created.
+    for (const dir of plan.targetDirs) {
+      if (!preexisting.includes(dir)) {
+        try {
+          fs.removeSync(dir);
+        } catch {
+          /* best effort */
+        }
+      }
+    }
+    throw error;
+  }
+
+  if (spinner) spinner.stop();
+  if (plan.afterWrite) await plan.afterWrite(files);
+
+  return {
+    status: 'created',
+    response: {
+      project: plan.name,
+      mode: plan.mode,
+      dryRun: false,
+      root: plan.root,
+      projectPath: plan.projectPath,
+      skeleton: plan.skeleton,
+      files,
+      nextSteps: plan.nextSteps,
+      notes: plan.notes,
+    },
+  };
+}
+
+/** Print notes and the numbered next steps for a finished run. */
+function printNextSteps(plan: Pick<ScaffoldPlan, 'notes' | 'nextSteps'>): void {
+  for (const note of plan.notes) {
+    console.log(chalk.gray(`  note: ${note}`));
+  }
+  console.log('\nNext steps:');
+  plan.nextSteps.forEach((step, index) => console.log(`  ${index + 1}. ${step}`));
+}
+
+/** Convert a project name to its kebab-case directory name. */
+function normalizeProjectName(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '-');
+}
+
+/** Files under `dir` (recursively, skipping node_modules/.git), relative to `base`. */
+function listWrittenFiles(dir: string, base: string): string[] {
+  return [...readTree(dir).keys()].map((rel) => posixJoin(path.relative(base, dir), rel)).sort();
+}
+
+/**
+ * Port the frontend dev server uses: an explicit `--port`, else the documented
+ * default of 5173.
+ */
+function frontendPort(options: CreateProjectOptions): string {
+  return options.port ?? '5173';
+}
+
+/**
+ * Point a vite frontend's dev server at the API: add a `/api` proxy to the
+ * generated vite config. Frameworks without a vite config are left untouched.
+ */
+function injectApiProxy(
+  files: { path: string; content: string; executable?: boolean }[],
+  apiPort: string
+): void {
+  for (const file of files) {
+    if (/^vite\.config\.(ts|js)$/.test(file.path) && file.content.includes('server: {')) {
+      file.content = file.content.replace(
+        'server: {',
+        `server: {\n    proxy: { '/api': 'http://localhost:${apiPort}' },`
+      );
     }
   }
 }
 
 /**
- * Creates a polyglot microservices project with services in multiple languages
- *
- * @param name - Name of the polyglot project
- * @param options - Additional options for project creation
- * @param monorepoRoot - Optional monorepo root path
+ * Root script that runs a workspace script in every workspace in parallel.
+ * pnpm fans out recursively (a `dev:*` pattern would only match scripts of the
+ * selected workspaces, so it would silently run nothing and exit 0); npm and
+ * yarn use npm-run-all over the per-workspace `<script>:<name>` scripts.
  */
-async function createPolyglotProject(
+function parallelRootScript(packageManager: string, script: string): string {
+  return packageManager === 'pnpm'
+    ? `pnpm run --parallel -r ${script}`
+    : `npm-run-all --parallel ${script}:*`;
+}
+
+/**
+ * Per-package-manager root scripts. pnpm runs workspace scripts recursively
+ * (skipping packages without the script); npm and yarn get explicit per-app
+ * scripts driven by npm-run-all, since neither can fan out in parallel natively.
+ */
+function rootScripts(
+  packageManager: string,
+  appDirs: string[]
+): { scripts: Record<string, string>; devDependencies?: Record<string, string> } {
+  if (packageManager === 'pnpm') {
+    return {
+      scripts: {
+        dev: 'pnpm run --parallel -r dev',
+        build: 'pnpm run --parallel -r build',
+        lint: 'pnpm run --parallel -r lint',
+        test: 'pnpm run --parallel -r test',
+        clean: 'pnpm run --parallel -r clean',
+      },
+    };
+  }
+  const scripts: Record<string, string> = {
+    dev: 'npm-run-all --parallel dev:*',
+    build: 'npm-run-all --parallel build:*',
+  };
+  for (const dir of appDirs) {
+    const label = path.basename(dir);
+    scripts[`dev:${label}`] = `cd ${dir} && ${packageManager} run dev`;
+    scripts[`build:${label}`] = `cd ${dir} && ${packageManager} run build`;
+  }
+  return { scripts, devDependencies: { 'npm-run-all': '^4.1.5' } };
+}
+
+/** API gateways a polyglot project can be generated with. */
+const POLYGLOT_GATEWAYS = ['express', 'fastify', 'nestjs', 'traefik', 'kong'];
+
+/** Frontend frameworks a polyglot project's generated API client supports. */
+const POLYGLOT_FRONTENDS = ['react', 'react-ts', 'next', 'vue', 'vue-ts', 'angular', 'svelte', 'svelte-ts'];
+
+/** Services generated when `--yes` / a non-TTY run gives no `--services`. */
+const DEFAULT_POLYGLOT_SERVICES = 'typescript-service-1:express,python-service-2:fastapi';
+
+/**
+ * Build the service list for a non-interactive polyglot run from `--services`
+ * (or the documented default of one TypeScript and one Python service).
+ */
+function polyglotServicesFromFlags(spec: string | undefined): PolyglotService[] {
+  const entries = parseNameFrameworkList('--services', spec ?? DEFAULT_POLYGLOT_SERVICES);
+  if (entries.length < 2) {
+    throw new CreateError(
+      'CREATE_INVALID_OPTIONS',
+      'A polyglot project needs at least 2 services; pass --services name:framework,name:framework.',
+      { services: spec }
+    );
+  }
+  return entries.map((entry, index) => {
+    const framework = assertBackend(entry.framework ?? DEFAULT_BACKEND);
+    const template = getBackendTemplate(framework) as BackendTemplate;
+    return {
+      name: entry.name,
+      framework,
+      port: template.port?.toString() || (3001 + index).toString(),
+      language: template.language,
+      path: `services/${entry.name}`,
+    };
+  });
+}
+
+/**
+ * Resolve a polyglot project's configuration without prompting: every value
+ * comes from a flag or its documented default (the same defaults the wizard
+ * pre-selects), and anything that cannot be satisfied is a coded error.
+ */
+function polyglotConfigFromFlags(
   name: string,
+  normalizedName: string,
   options: CreateProjectOptions,
-  monorepoRoot?: string | null
-): Promise<void> {
-  const {
+  request: ResolvedCreateRequest,
+  notes: string[]
+): PolyglotConfig {
+  const { team, org = 're-shell', description, packageManager = 'pnpm' } = options;
+
+  const gatewayFramework = options.gateway ?? 'express';
+  if (!POLYGLOT_GATEWAYS.includes(gatewayFramework)) {
+    throw templateNotFound('gateway framework', gatewayFramework, POLYGLOT_GATEWAYS);
+  }
+  if (options.gateway === undefined) {
+    notes.push('No --gateway given; using the default API gateway "express".');
+  }
+
+  let frontendFramework = request.frontend;
+  if (frontendFramework === undefined) {
+    frontendFramework = 'react';
+    notes.push('No --frontend given; including the default "react" frontend.');
+  } else if (!POLYGLOT_FRONTENDS.includes(frontendFramework)) {
+    throw new CreateError(
+      'CREATE_INVALID_OPTIONS',
+      `Frontend "${frontendFramework}" is not supported in polyglot mode; use one of ${POLYGLOT_FRONTENDS.join(', ')}.`,
+      { frontend: frontendFramework }
+    );
+  }
+
+  const database = (request.db ?? 'none') as DatabaseType;
+  if (request.db === undefined) {
+    notes.push('No --db given; no shared database is configured (pass --db prisma|typeorm|mongoose to add one).');
+  }
+
+  if (options.services === undefined) {
+    notes.push(`No --services given; generating the default services (${DEFAULT_POLYGLOT_SERVICES}).`);
+  }
+  const services = polyglotServicesFromFlags(options.services);
+
+  return {
+    name,
+    normalizedName,
+    services,
+    gatewayFramework,
+    frontendFramework,
+    database,
+    org,
     team,
-    org = 're-shell',
-    description,
-    db = 'prisma',
-    packageManager = 'pnpm',
-    spinner,
-  } = options;
+    description: description || `Polyglot microservices project with ${services.length} services`,
+    packageManager,
+  };
+}
 
-  const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
-  const rootPath = monorepoRoot || process.cwd();
-
-  console.log(chalk.cyan.bold('\n🌐 Creating Polyglot Microservices Project\n'));
-
-  // Stop spinner for interactive prompts
-  if (spinner) spinner.stop();
+/**
+ * Run the interactive polyglot wizard. Every prompt pre-selects the same value
+ * the non-interactive defaults use. Returns `null` if the user declines the
+ * final confirmation.
+ */
+async function polyglotConfigFromWizard(
+  name: string,
+  normalizedName: string,
+  options: CreateProjectOptions
+): Promise<PolyglotConfig | null> {
+  const { team, org = 're-shell', description, packageManager = 'pnpm' } = options;
 
   // Step 1: Ask about API Gateway framework
-  const { gatewayFramework } = await prompts({
+  const { gatewayFramework } = await ask({
     type: 'select',
     name: 'gatewayFramework',
     message: 'Select API Gateway framework:',
@@ -347,7 +693,7 @@ async function createPolyglotProject(
   });
 
   // Step 2: Ask if frontend is needed
-  const { includeFrontend } = await prompts({
+  const { includeFrontend } = await ask({
     type: 'confirm',
     name: 'includeFrontend',
     message: 'Include a frontend application?',
@@ -356,7 +702,7 @@ async function createPolyglotProject(
 
   let frontendFramework: string | undefined;
   if (includeFrontend) {
-    const { frontend } = await prompts({
+    const { frontend } = await ask({
       type: 'select',
       name: 'frontend',
       message: 'Select frontend framework:',
@@ -373,12 +719,12 @@ async function createPolyglotProject(
   }
 
   // Step 3: Select database
-  const { database } = await prompts({
+  const { database } = await ask({
     type: 'select',
     name: 'database',
     message: 'Select database for shared data access:',
     choices: getDatabaseChoices(),
-    initial: 1, // Default to Prisma
+    initial: 0, // Default to none, matching the non-interactive default
   });
 
   // Step 4: Add services
@@ -390,7 +736,7 @@ async function createPolyglotProject(
 
   while (addingServices) {
     // Select programming language
-    const { language } = await prompts({
+    const { language } = await ask({
       type: 'select',
       name: 'language',
       message: `Select language for service ${services.length + 1}:`,
@@ -400,7 +746,7 @@ async function createPolyglotProject(
 
     // Select framework within that language
     const frameworkChoices = getFrameworkChoicesForLanguage(language);
-    const { framework } = await prompts({
+    const { framework } = await ask({
       type: 'select',
       name: 'framework',
       message: `Select ${language} framework:`,
@@ -409,7 +755,7 @@ async function createPolyglotProject(
     });
 
     // Service name
-    const { serviceName } = await prompts({
+    const { serviceName } = await ask({
       type: 'text',
       name: 'serviceName',
       message: 'Service name (kebab-case):',
@@ -438,7 +784,7 @@ async function createPolyglotProject(
 
     // Ask if user wants to add more services
     if (services.length >= 2) {
-      const { addMore } = await prompts({
+      const { addMore } = await ask({
         type: 'confirm',
         name: 'addMore',
         message: 'Add another service?',
@@ -450,50 +796,10 @@ async function createPolyglotProject(
 
   if (services.length === 0) {
     console.log(chalk.yellow('\nNo services added. Project creation cancelled.\n'));
-    return;
+    return null;
   }
 
-  // Show summary
-  console.log(chalk.bold('\n📋 Polyglot Project Summary:\n'));
-  console.log(chalk.gray('─'.repeat(50)));
-  console.log(`${chalk.bold('Project:')} ${name}`);
-  console.log(`${chalk.bold('API Gateway:')} ${gatewayFramework}`);
-  if (frontendFramework) {
-    console.log(`${chalk.bold('Frontend:')} ${frontendFramework}`);
-  }
-  console.log(`${chalk.bold('Database:')} ${database}`);
-  console.log(chalk.bold('\nServices:'));
-  services.forEach((s, i) => {
-    const icon = getServiceIcon(s.language);
-    console.log(`  ${i + 1}. ${icon} ${s.name} (${s.language}) - Port ${s.port}`);
-  });
-  console.log(chalk.gray('─'.repeat(50)));
-
-  const { confirm } = await prompts({
-    type: 'confirm',
-    name: 'confirm',
-    message: '\nCreate this polyglot project?',
-    initial: true,
-  });
-
-  if (!confirm) {
-    console.log(chalk.yellow('\nProject creation cancelled.\n'));
-    return;
-  }
-
-  // Restart spinner for file operations
-  if (spinner) {
-    spinner.start();
-    spinner.setText('Creating polyglot project structure...');
-    flushOutput();
-  }
-
-  // Create project structure
-  const projectPath = path.join(rootPath, normalizedName);
-  await fs.ensureDir(projectPath);
-
-  // Create polyglot configuration
-  const polyglotConfig: PolyglotConfig = {
+  return {
     name,
     normalizedName,
     services,
@@ -505,24 +811,116 @@ async function createPolyglotProject(
     description: description || `Polyglot microservices project with ${services.length} services`,
     packageManager,
   };
+}
 
-  // Generate project files
-  await generatePolyglotProjectFiles(projectPath, polyglotConfig);
-
-  console.log(chalk.green.bold(`\n✓ Polyglot project "${normalizedName}" created successfully!\n`));
-  console.log(chalk.gray(`Path: ${path.relative(process.cwd(), projectPath)}`));
-  console.log('\nNext steps:');
-  console.log(`  1. cd ${normalizedName}`);
-  console.log(`  2. ${packageManager} install`);
-  console.log(`  3. ${packageManager} run dev`);
-  console.log('\n📚 Services will be available at:');
-  services.forEach((s) => {
-    console.log(`  • http://localhost:${s.port} - ${s.name}`);
-  });
-  if (frontendFramework) {
-    console.log(`  • http://localhost:3000 - Frontend`);
+/** Print the polyglot summary table (shared by the wizard confirmation and the non-interactive run). */
+function printPolyglotSummary(config: PolyglotConfig): void {
+  console.log(chalk.bold('\n📋 Polyglot Project Summary:\n'));
+  console.log(chalk.gray('─'.repeat(50)));
+  console.log(`${chalk.bold('Project:')} ${config.name}`);
+  console.log(`${chalk.bold('API Gateway:')} ${config.gatewayFramework}`);
+  if (config.frontendFramework) {
+    console.log(`${chalk.bold('Frontend:')} ${config.frontendFramework}`);
   }
-  console.log(`  • http://localhost:8080 - API Gateway`);
+  console.log(`${chalk.bold('Database:')} ${config.database}`);
+  console.log(chalk.bold('\nServices:'));
+  config.services.forEach((s, i) => {
+    const icon = getServiceIcon(s.language);
+    console.log(`  ${i + 1}. ${icon} ${s.name} (${s.language}) - Port ${s.port}`);
+  });
+  console.log(chalk.gray('─'.repeat(50)));
+}
+
+/**
+ * Plan a polyglot microservices project: an API gateway, services in multiple
+ * languages, an optional frontend and a shared types package.
+ *
+ * @param name - Name of the polyglot project
+ * @param options - Additional options for project creation
+ * @param monorepoRoot - Optional monorepo root path
+ * @param request - The validated create request (frontend / database choices)
+ * @param interactive - Whether to run the wizard (otherwise flags + defaults)
+ * @returns The plan, or `null` when the wizard was declined.
+ */
+async function buildPolyglotPlan(
+  name: string,
+  options: CreateProjectOptions,
+  monorepoRoot: string | null | undefined,
+  request: ResolvedCreateRequest,
+  interactive: boolean
+): Promise<ScaffoldPlan | null> {
+  const { packageManager = 'pnpm', spinner } = options;
+  const normalizedName = normalizeProjectName(name);
+  const rootPath = monorepoRoot || process.cwd();
+  const notes = [...request.notes];
+
+  if (!options.dryRun) {
+    console.log(chalk.cyan.bold('\n🌐 Creating Polyglot Microservices Project\n'));
+  }
+  // Stop spinner for prompts / console output
+  if (spinner) spinner.stop();
+
+  let config: PolyglotConfig | null;
+  if (interactive) {
+    config = await polyglotConfigFromWizard(name, normalizedName, options);
+    if (!config) return null;
+    printPolyglotSummary(config);
+    const { confirm } = await ask({
+      type: 'confirm',
+      name: 'confirm',
+      message: '\nCreate this polyglot project?',
+      initial: true,
+    });
+    if (!confirm) {
+      console.log(chalk.yellow('\nProject creation cancelled.\n'));
+      return null;
+    }
+  } else {
+    config = polyglotConfigFromFlags(name, normalizedName, options, request, notes);
+    if (!options.dryRun) printPolyglotSummary(config);
+  }
+
+  const polyglot = config;
+  const projectPath = path.join(rootPath, normalizedName);
+
+  return {
+    mode: 'polyglot',
+    name,
+    root: rootPath,
+    targetDirs: [projectPath],
+    projectPath,
+    frontend: polyglot.frontendFramework,
+    summary: [
+      `Name: ${normalizedName}`,
+      `Gateway: ${polyglot.gatewayFramework}`,
+      ...(polyglot.frontendFramework ? [`Frontend: ${polyglot.frontendFramework}`] : []),
+      `Database: ${polyglot.database}`,
+      `Services: ${polyglot.services.map((s) => `${s.name} (${s.framework})`).join(', ')}`,
+    ],
+    skeleton: false,
+    notes,
+    seedFiles: [],
+    nextSteps: [`cd ${normalizedName}`, `${packageManager} install`, `${packageManager} run dev`],
+    async write(outRoot: string): Promise<string[]> {
+      const target = path.join(outRoot, normalizedName);
+      await fs.ensureDir(target);
+      await generatePolyglotProjectFiles(target, polyglot);
+      return listWrittenFiles(target, outRoot);
+    },
+    async afterWrite(): Promise<void> {
+      console.log(chalk.green.bold(`\n✓ Polyglot project "${normalizedName}" created successfully!\n`));
+      console.log(chalk.gray(`Path: ${path.relative(process.cwd(), projectPath)}`));
+      printNextSteps({ notes, nextSteps: this.nextSteps });
+      console.log('\n📚 Services will be available at:');
+      polyglot.services.forEach((s) => {
+        console.log(`  • http://localhost:${s.port} - ${s.name}`);
+      });
+      if (polyglot.frontendFramework) {
+        console.log(`  • http://localhost:3000 - Frontend`);
+      }
+      console.log(`  • http://localhost:8080 - API Gateway`);
+    },
+  };
 }
 
 /**
@@ -551,36 +949,120 @@ function getServiceIcon(language: string): string {
   return icons[language] || '📦';
 }
 
+/** Frameworks the microfrontend shell (and remotes) can be generated with. */
+const MF_SHELL_FRAMEWORKS = ['react', 'react-ts', 'vue', 'vue-ts', 'angular', 'svelte', 'svelte-ts'];
+
+/** Frameworks a remote can be generated with. */
+const MF_REMOTE_FRAMEWORKS = MF_SHELL_FRAMEWORKS;
+
+/** First remote's port; each further remote takes the next one. */
+const MF_REMOTE_PORT_BASE = 3001;
+
 /**
- * Creates a microfrontend project with Module Federation
+ * Module Federation container name for a remote. The container is a global
+ * variable (`remote_1@http://.../remoteEntry.js`), so it must be a valid
+ * identifier: kebab-case remote names have their hyphens replaced. The shell
+ * still imports the remote by its original name (the `remotes` key).
  *
- * @param name - Name of the microfrontend project
- * @param options - Additional options for project creation
- * @param monorepoRoot - Optional monorepo root path
+ * @param remoteName - The kebab-case remote name.
+ * @returns An identifier-safe container name.
  */
-async function createMicrofrontendProject(
+function mfContainerName(remoteName: string): string {
+  return remoteName.replace(/[^A-Za-z0-9_$]/g, '_');
+}
+
+/**
+ * Shared singletons that fit the frameworks in use: React apps share
+ * react + react-dom, Vue apps vue, Angular apps @angular/core + rxjs. This is
+ * the non-interactive counterpart of the wizard's pre-selected dependencies.
+ */
+function defaultSharedDeps(frameworks: string[]): string[] {
+  const deps = new Set<string>();
+  for (const framework of frameworks) {
+    if (framework.includes('react')) {
+      deps.add('react');
+      deps.add('react-dom');
+    } else if (framework.includes('vue')) {
+      deps.add('vue');
+    } else if (framework.includes('angular')) {
+      deps.add('@angular/core');
+      deps.add('rxjs');
+    }
+  }
+  return [...deps];
+}
+
+/** Build the remote list for a non-interactive run from `--remotes` (or one default remote). */
+function microfrontendRemotesFromFlags(spec: string | undefined): MicrofrontendRemote[] {
+  const entries = parseNameFrameworkList('--remotes', spec ?? 'remote-1');
+  return entries.map((entry, index) => {
+    const framework = entry.framework ?? 'react';
+    if (!MF_REMOTE_FRAMEWORKS.includes(framework)) {
+      throw templateNotFound('remote framework', framework, MF_REMOTE_FRAMEWORKS);
+    }
+    return {
+      name: entry.name,
+      framework,
+      port: (MF_REMOTE_PORT_BASE + index).toString(),
+      route: `/${entry.name}`,
+      path: `remotes/${entry.name}`,
+      exposes: { './App': './src/App' },
+    };
+  });
+}
+
+/** Resolve a microfrontend project's configuration without prompting (flags + documented defaults). */
+function microfrontendConfigFromFlags(
   name: string,
+  normalizedName: string,
   options: CreateProjectOptions,
-  monorepoRoot?: string | null
-): Promise<void> {
-  const {
+  request: ResolvedCreateRequest,
+  notes: string[]
+): MicrofrontendConfig {
+  const { team, org = 're-shell', description, packageManager = 'pnpm' } = options;
+
+  let shellFramework = request.frontend;
+  if (shellFramework === undefined) {
+    shellFramework = 'react-ts';
+    notes.push('No --framework given; using the default shell framework "react-ts".');
+  } else if (!MF_SHELL_FRAMEWORKS.includes(shellFramework)) {
+    throw templateNotFound('shell framework', shellFramework, MF_SHELL_FRAMEWORKS);
+  }
+
+  if (options.remotes === undefined) {
+    notes.push('No --remotes given; generating one default remote "remote-1" (react).');
+  }
+  const remotes = microfrontendRemotesFromFlags(options.remotes);
+  const sharedDeps = defaultSharedDeps([shellFramework, ...remotes.map((r) => r.framework)]);
+
+  return {
+    name,
+    normalizedName,
+    shellFramework,
+    remotes,
+    org,
     team,
-    org = 're-shell',
-    description,
-    packageManager = 'pnpm',
-    spinner,
-  } = options;
+    description:
+      description ||
+      `Microfrontend project with ${remotes.length} remote${remotes.length !== 1 ? 's' : ''}`,
+    packageManager,
+    sharedDeps,
+  };
+}
 
-  const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
-  const rootPath = monorepoRoot || process.cwd();
-
-  console.log(chalk.cyan.bold('\n🧩 Creating Microfrontend Project with Module Federation\n'));
-
-  // Stop spinner for interactive prompts
-  if (spinner) spinner.stop();
+/**
+ * Run the interactive microfrontend wizard. Every prompt pre-selects the same
+ * value the non-interactive defaults use. Returns `null` if the user declines.
+ */
+async function microfrontendConfigFromWizard(
+  name: string,
+  normalizedName: string,
+  options: CreateProjectOptions
+): Promise<MicrofrontendConfig | null> {
+  const { team, org = 're-shell', description, packageManager = 'pnpm' } = options;
 
   // Step 1: Select shell framework
-  const { shellFramework } = await prompts({
+  const { shellFramework } = await ask({
     type: 'select',
     name: 'shellFramework',
     message: 'Select shell application framework:',
@@ -596,7 +1078,7 @@ async function createMicrofrontendProject(
   });
 
   // Step 2: Select shared dependencies
-  const { useSharedDeps } = await prompts({
+  const { useSharedDeps } = await ask({
     type: 'multiselect',
     name: 'useSharedDeps',
     message: 'Select shared dependencies (will be single instance):',
@@ -620,13 +1102,13 @@ async function createMicrofrontendProject(
   // Step 3: Add remote microfrontends
   const remotes: MicrofrontendRemote[] = [];
   let addingRemotes = true;
-  const portBase = 3001;
+  const portBase = MF_REMOTE_PORT_BASE;
 
   console.log(chalk.blue('\n📦 Add remote microfrontends:\n'));
 
   while (addingRemotes) {
     // Select framework for remote
-    const { framework } = await prompts({
+    const { framework } = await ask({
       type: 'select',
       name: 'framework',
       message: `Select framework for remote ${remotes.length + 1}:`,
@@ -642,7 +1124,7 @@ async function createMicrofrontendProject(
     });
 
     // Remote name
-    const { remoteName } = await prompts({
+    const { remoteName } = await ask({
       type: 'text',
       name: 'remoteName',
       message: 'Remote name (kebab-case):',
@@ -656,7 +1138,7 @@ async function createMicrofrontendProject(
     });
 
     // Route for remote
-    const { route } = await prompts({
+    const { route } = await ask({
       type: 'text',
       name: 'route',
       message: 'Route path (for shell routing):',
@@ -665,7 +1147,7 @@ async function createMicrofrontendProject(
     });
 
     // Exposed modules
-    const { hasExposed } = await prompts({
+    const { hasExposed } = await ask({
       type: 'confirm',
       name: 'hasExposed',
       message: 'Expose specific components from this remote?',
@@ -674,7 +1156,7 @@ async function createMicrofrontendProject(
 
     const exposes: Record<string, string> = {};
     if (hasExposed) {
-      const { exposePath } = await prompts({
+      const { exposePath } = await ask({
         type: 'text',
         name: 'exposePath',
         message: 'Default exposed component path:',
@@ -698,7 +1180,7 @@ async function createMicrofrontendProject(
 
     // Ask if user wants to add more remotes
     if (remotes.length >= 1) {
-      const { addMore } = await prompts({
+      const { addMore } = await ask({
         type: 'confirm',
         name: 'addMore',
         message: 'Add another remote microfrontend?',
@@ -712,70 +1194,122 @@ async function createMicrofrontendProject(
     console.log(chalk.yellow('\nNo remotes added. Creating shell only...\n'));
   }
 
-  // Show summary
-  console.log(chalk.bold('\n📋 Microfrontend Project Summary:\n'));
-  console.log(chalk.gray('─'.repeat(50)));
-  console.log(`${chalk.bold('Project:')} ${name}`);
-  console.log(`${chalk.bold('Shell:')} ${shellFramework} (Port 3000)`);
-  console.log(`${chalk.bold('Shared Dependencies:')} ${useSharedDeps.join(', ')}`);
-  if (remotes.length > 0) {
-    console.log(chalk.bold('\nRemote Microfrontends:'));
-    remotes.forEach((r, i) => {
-      console.log(`  ${i + 1}. ${r.name} (${r.framework}) - Port ${r.port} - Route: ${r.route}`);
-    });
-  }
-  console.log(chalk.gray('─'.repeat(50)));
-
-  const { confirm } = await prompts({
-    type: 'confirm',
-    name: 'confirm',
-    message: '\nCreate this microfrontend project?',
-    initial: true,
-  });
-
-  if (!confirm) {
-    console.log(chalk.yellow('\nProject creation cancelled.\n'));
-    return;
-  }
-
-  // Restart spinner for file operations
-  if (spinner) {
-    spinner.start();
-    spinner.setText('Creating microfrontend project structure...');
-    flushOutput();
-  }
-
-  // Create project structure
-  const projectPath = path.join(rootPath, normalizedName);
-  await fs.ensureDir(projectPath);
-
-  // Create microfrontend configuration
-  const mfConfig: MicrofrontendConfig = {
+  return {
     name,
     normalizedName,
     shellFramework,
     remotes,
     org,
     team,
-    description: description || `Microfrontend project with ${remotes.length} remote${remotes.length !== 1 ? 's' : ''}`,
+    description:
+      description ||
+      `Microfrontend project with ${remotes.length} remote${remotes.length !== 1 ? 's' : ''}`,
     packageManager,
     sharedDeps: useSharedDeps,
   };
+}
 
-  // Generate project files
-  await generateMicrofrontendProjectFiles(projectPath, mfConfig);
+/** Print the microfrontend summary table (shared by the wizard confirmation and the non-interactive run). */
+function printMicrofrontendSummary(config: MicrofrontendConfig): void {
+  console.log(chalk.bold('\n📋 Microfrontend Project Summary:\n'));
+  console.log(chalk.gray('─'.repeat(50)));
+  console.log(`${chalk.bold('Project:')} ${config.name}`);
+  console.log(`${chalk.bold('Shell:')} ${config.shellFramework} (Port 3000)`);
+  console.log(`${chalk.bold('Shared Dependencies:')} ${config.sharedDeps.join(', ')}`);
+  if (config.remotes.length > 0) {
+    console.log(chalk.bold('\nRemote Microfrontends:'));
+    config.remotes.forEach((r, i) => {
+      console.log(`  ${i + 1}. ${r.name} (${r.framework}) - Port ${r.port} - Route: ${r.route}`);
+    });
+  }
+  console.log(chalk.gray('─'.repeat(50)));
+}
 
-  console.log(chalk.green.bold(`\n✓ Microfrontend project "${normalizedName}" created successfully!\n`));
-  console.log(chalk.gray(`Path: ${path.relative(process.cwd(), projectPath)}`));
-  console.log('\nNext steps:');
-  console.log(`  1. cd ${normalizedName}`);
-  console.log(`  2. ${packageManager} install`);
-  console.log(`  3. ${packageManager} run dev`);
-  console.log('\n📚 Applications will be available at:');
-  console.log(`  • http://localhost:3000 - Shell Application`);
-  remotes.forEach((r) => {
-    console.log(`  • http://localhost:${r.port} - ${r.name} (for standalone development)`);
-  });
+/**
+ * Plan a microfrontend project with Module Federation: a shell, remotes and a
+ * shared package.
+ *
+ * @param name - Name of the microfrontend project
+ * @param options - Additional options for project creation
+ * @param monorepoRoot - Optional monorepo root path
+ * @param request - The validated create request (shell framework)
+ * @param interactive - Whether to run the wizard (otherwise flags + defaults)
+ * @returns The plan, or `null` when the wizard was declined.
+ */
+async function buildMicrofrontendPlan(
+  name: string,
+  options: CreateProjectOptions,
+  monorepoRoot: string | null | undefined,
+  request: ResolvedCreateRequest,
+  interactive: boolean
+): Promise<ScaffoldPlan | null> {
+  const { packageManager = 'pnpm', spinner } = options;
+  const normalizedName = normalizeProjectName(name);
+  const rootPath = monorepoRoot || process.cwd();
+  const notes = [...request.notes];
+
+  if (!options.dryRun) {
+    console.log(chalk.cyan.bold('\n🧩 Creating Microfrontend Project with Module Federation\n'));
+  }
+  // Stop spinner for prompts / console output
+  if (spinner) spinner.stop();
+
+  let config: MicrofrontendConfig | null;
+  if (interactive) {
+    config = await microfrontendConfigFromWizard(name, normalizedName, options);
+    if (!config) return null;
+    printMicrofrontendSummary(config);
+    const { confirm } = await ask({
+      type: 'confirm',
+      name: 'confirm',
+      message: '\nCreate this microfrontend project?',
+      initial: true,
+    });
+    if (!confirm) {
+      console.log(chalk.yellow('\nProject creation cancelled.\n'));
+      return null;
+    }
+  } else {
+    config = microfrontendConfigFromFlags(name, normalizedName, options, request, notes);
+    if (!options.dryRun) printMicrofrontendSummary(config);
+  }
+
+  const mf = config;
+  const projectPath = path.join(rootPath, normalizedName);
+
+  return {
+    mode: 'microfrontend',
+    name,
+    root: rootPath,
+    targetDirs: [projectPath],
+    projectPath,
+    frontend: mf.shellFramework,
+    summary: [
+      `Name: ${normalizedName}`,
+      `Shell: ${mf.shellFramework}`,
+      `Remotes: ${mf.remotes.map((r) => `${r.name} (${r.framework})`).join(', ') || 'none'}`,
+    ],
+    skeleton: false,
+    notes,
+    seedFiles: [],
+    nextSteps: [`cd ${normalizedName}`, `${packageManager} install`, `${packageManager} run dev`],
+    async write(outRoot: string): Promise<string[]> {
+      const target = path.join(outRoot, normalizedName);
+      await fs.ensureDir(target);
+      await generateMicrofrontendProjectFiles(target, mf);
+      return listWrittenFiles(target, outRoot);
+    },
+    async afterWrite(): Promise<void> {
+      console.log(chalk.green.bold(`\n✓ Microfrontend project "${normalizedName}" created successfully!\n`));
+      console.log(chalk.gray(`Path: ${path.relative(process.cwd(), projectPath)}`));
+      printNextSteps({ notes, nextSteps: this.nextSteps });
+      console.log('\n📚 Applications will be available at:');
+      console.log(`  • http://localhost:3000 - Shell Application`);
+      mf.remotes.forEach((r) => {
+        console.log(`  • http://localhost:${r.port} - ${r.name} (for standalone development)`);
+      });
+    },
+  };
 }
 
 /**
@@ -802,14 +1336,10 @@ async function generateMicrofrontendProjectFiles(
       'shared',
     ],
     scripts: {
-      dev: packageManager === 'npm'
-        ? 'npm-run-all --parallel dev:*'
-        : `${packageManager} run --parallel dev:*`,
+      dev: parallelRootScript(packageManager, 'dev'),
       'dev:shell': `cd shell && ${packageManager} run dev`,
       ...Object.fromEntries(remotes.map((r) => [`dev:${r.name}`, `cd ${r.path} && ${packageManager} run dev`])),
-      build: packageManager === 'npm'
-        ? 'npm-run-all --parallel build:*'
-        : `${packageManager} run --parallel build:*`,
+      build: parallelRootScript(packageManager, 'build'),
       'build:shell': `cd shell && ${packageManager} run build`,
       ...Object.fromEntries(remotes.map((r) => [`build:${r.name}`, `cd ${r.path} && ${packageManager} run build`])),
       lint: 'eslint . --ext .js,.ts,.jsx,.tsx,.vue',
@@ -1371,7 +1901,7 @@ module.exports = {
     new ModuleFederationPlugin({
       name: 'shell',
       remotes: {
-${remotes.map((r) => `        ${r.name}: '${r.name}@http://localhost:${r.port}/remoteEntry.js',`).join('\n')}
+${remotes.map((r) => `        '${r.name}': '${mfContainerName(r.name)}@http://localhost:${r.port}/remoteEntry.js',`).join('\n')}
       },
       shared: {
 ${config.sharedDeps.map((d) => `        '${d}': { singleton: true },`).join('\n')}
@@ -1439,20 +1969,14 @@ async function generatePolyglotProjectFiles(
       'gateway',
     ].filter(Boolean) as string[],
     scripts: {
-      dev: packageManager === 'npm'
-        ? 'npm-run-all --parallel dev:*'
-        : `${packageManager} run --parallel dev:*`,
+      dev: parallelRootScript(packageManager, 'dev'),
       'dev:gateway': `cd gateway && ${packageManager} run dev`,
       ...(frontendFramework ? { 'dev:frontend': `cd frontend && ${packageManager} run dev` } : {}),
       ...Object.fromEntries(services.map((s) => [`dev:${s.name}`, `cd services/${s.name} && ${packageManager} run dev`])),
-      build: packageManager === 'npm'
-        ? 'npm-run-all --parallel build:*'
-        : `${packageManager} run --parallel build:*`,
+      build: parallelRootScript(packageManager, 'build'),
       'build:gateway': `cd gateway && ${packageManager} run build`,
       ...(frontendFramework ? { 'build:frontend': `cd frontend && ${packageManager} run build` } : {}),
-      test: packageManager === 'npm'
-        ? 'npm-run-all --parallel test:*'
-        : `${packageManager} run --parallel test:*`,
+      test: parallelRootScript(packageManager, 'test'),
       lint: 'eslint . --ext .js,.ts,.jsx,.tsx',
       clean: 'rm -rf node_modules **/node_modules **/dist **/build',
     },
@@ -1697,6 +2221,18 @@ async function generateApiGateway(gatewayPath: string, config: PolyglotConfig): 
 }
 
 /**
+ * Environment variable that overrides a service's URL in the gateway. Service
+ * names are kebab-case, which is not a valid identifier, so non-alphanumerics
+ * become underscores (`user-service` -> `USER_SERVICE_SERVICE_URL`).
+ *
+ * @param serviceName - The kebab-case service name.
+ * @returns The environment variable name.
+ */
+function serviceEnvVar(serviceName: string): string {
+  return `${serviceName.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_SERVICE_URL`;
+}
+
+/**
  * Generate a Node.js API Gateway (Express, Fastify, or NestJS).
  *
  * @param gatewayPath - Directory where the gateway will be created.
@@ -1720,11 +2256,15 @@ async function generateNodeGateway(gatewayPath: string, config: PolyglotConfig):
         '@types/express': '^4.17.0',
       } : gatewayFramework === 'fastify' ? {
         fastify: '^4.0.0',
+        '@fastify/cors': '^8.5.0',
+        '@fastify/http-proxy': '^9.5.0',
       } : {
         '@nestjs/common': '^10.0.0',
         '@nestjs/core': '^10.0.0',
         '@nestjs/platform-express': '^10.0.0',
+        '@types/express': '^4.17.0',
         'reflect-metadata': '^0.1.0',
+        rxjs: '^7.8.0',
       }),
       'http-proxy-middleware': '^2.0.0',
       cors: '^2.8.5',
@@ -1733,6 +2273,8 @@ async function generateNodeGateway(gatewayPath: string, config: PolyglotConfig):
     devDependencies: {
       typescript: '^5.0.0',
       tsx: '^4.0.0',
+      '@types/node': '^20.0.0',
+      '@types/cors': '^2.8.0',
     },
   };
 
@@ -1755,6 +2297,7 @@ async function generateNodeGateway(gatewayPath: string, config: PolyglotConfig):
       strict: true,
       esModuleInterop: true,
       skipLibCheck: true,
+      ...(gatewayFramework === 'nestjs' ? { experimentalDecorators: true, emitDecoratorMetadata: true } : {}),
     },
     include: ['src/**/*'],
   };
@@ -1768,7 +2311,7 @@ async function generateNodeGateway(gatewayPath: string, config: PolyglotConfig):
 NODE_ENV=development
 
 # Service URLs
-${services.map((s) => `${s.name.toUpperCase()}_SERVICE_URL=http://${s.name}:${s.port}`).join('\n')}
+${services.map((s) => `${serviceEnvVar(s.name)}=http://${s.name}:${s.port}`).join('\n')}
 `
   );
 }
@@ -1797,7 +2340,7 @@ app.get('/health', (_req: Request, res: Response) => {
     status: 'healthy',
     gateway: '${config.normalizedName}',
     services: [
-${services.map(s => `      { name: '${s.name}', url: process.env.${s.name.toUpperCase()}_SERVICE_URL || 'http://${s.name}:${s.port}' },`).join('\n')}
+${services.map(s => `      { name: '${s.name}', url: process.env.${serviceEnvVar(s.name)} || 'http://${s.name}:${s.port}' },`).join('\n')}
     ],
     timestamp: new Date().toISOString(),
   });
@@ -1807,10 +2350,10 @@ ${services.map(s => `      { name: '${s.name}', url: process.env.${s.name.toUppe
 ${services.map((s) => `
 // Proxy to ${s.name}
 app.use('/api/${s.name}', createProxyMiddleware({
-  target: process.env.${s.name.toUpperCase()}_SERVICE_URL || 'http://${s.name}:${s.port}',
+  target: process.env.${serviceEnvVar(s.name)} || 'http://${s.name}:${s.port}',
   changeOrigin: true,
   pathRewrite: {
-    \`^/api/${s.name}\`: '',
+    '^/api/${s.name}': '',
   },
 }));
 `).join('\n')}
@@ -1849,33 +2392,33 @@ const fastify: FastifyInstance = Fastify({
   logger: true,
 });
 
-await fastify.register(cors, {
-  origin: true,
-});
-
 // Health check
 fastify.get('/health', async () => {
   return {
     status: 'healthy',
     gateway: '${config.normalizedName}',
     services: [
-${services.map(s => `      { name: '${s.name}', url: process.env.${s.name.toUpperCase()}_SERVICE_URL || 'http://${s.name}:${s.port}' },`).join('\n')}
+${services.map(s => `      { name: '${s.name}', url: process.env.${serviceEnvVar(s.name)} || 'http://${s.name}:${s.port}' },`).join('\n')}
     ],
     timestamp: new Date().toISOString(),
   };
 });
 
-// Service proxies
-${services.map((s) => `
-await fastify.register(httpProxy, {
-  upstream: process.env.${s.name.toUpperCase()}_SERVICE_URL || 'http://${s.name}:${s.port}',
-  prefix: '/api/${s.name}',
-  http2: false,
-});
-`).join('\n')}
-
 const start = async () => {
   try {
+    await fastify.register(cors, {
+      origin: true,
+    });
+
+    // Service proxies
+${services.map((s) => `
+    await fastify.register(httpProxy, {
+      upstream: process.env.${serviceEnvVar(s.name)} || 'http://${s.name}:${s.port}',
+      prefix: '/api/${s.name}',
+      http2: false,
+    });
+`).join('\n')}
+
     const PORT = process.env.PORT || 8080;
     await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });
     console.log(\`🚀 API Gateway running on port \${PORT}\`);
@@ -1897,9 +2440,11 @@ start();
  */
 function generateNestJSGateway(config: PolyglotConfig): string {
   const { services } = config;
-  return `import { NestFactory } from '@nestjs/core';
+  return `import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
 import { Controller, Get, Module } from '@nestjs/common';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 @Controller()
 class GatewayController {
@@ -1909,7 +2454,7 @@ class GatewayController {
       status: 'healthy',
       gateway: '${config.normalizedName}',
       services: [
-${services.map(s => `        { name: '${s.name}', url: process.env.${s.name.toUpperCase()}_SERVICE_URL || 'http://${s.name}:${s.port}' },`).join('\n')}
+${services.map(s => `        { name: '${s.name}', url: process.env.${serviceEnvVar(s.name)} || 'http://${s.name}:${s.port}' },`).join('\n')}
       ],
       timestamp: new Date().toISOString(),
     };
@@ -1928,6 +2473,16 @@ async function bootstrap() {
   );
   app.enableCors();
 
+  // Service proxies
+${services.map((s) => `
+  app.use('/api/${s.name}', createProxyMiddleware({
+    target: process.env.${serviceEnvVar(s.name)} || 'http://${s.name}:${s.port}',
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/${s.name}': '',
+    },
+  }));
+`).join('')}
   const PORT = process.env.PORT || 8080;
   await app.listen(PORT);
   console.log(\`🚀 API Gateway running on port \${PORT}\`);
@@ -2480,67 +3035,63 @@ function getPrimaryLanguage(backend?: string, frontend?: string): string | null 
   return null;
 }
 
+/** One workspace to register in `re-shell.workspaces.yaml`. */
+interface WorkspaceRegistration {
+  name: string;
+  type: 'frontend' | 'backend' | 'worker';
+  framework?: string;
+  port?: string;
+  /** Path of the workspace relative to the monorepo root. */
+  relPath: string;
+}
+
 /**
- * Auto-register a service in the workspace YAML configuration.
+ * Register newly created workspaces in `re-shell.workspaces.yaml` when the
+ * monorepo has one. Quiet: returns the lines to print instead of printing, so a
+ * dry run can call it against a scratch copy.
  *
- * @param monorepoRoot - Absolute path to the monorepo root.
- * @param serviceName - Normalized name of the service to register.
- * @param config - Service metadata including type, frameworks, port, and path.
+ * @param monorepoRoot - Directory holding `re-shell.workspaces.yaml`.
+ * @param entries - The workspaces to register.
+ * @returns Whether the file changed, plus the informational lines to print.
  */
 async function autoRegisterInWorkspace(
   monorepoRoot: string,
-  serviceName: string,
-  config: {
-    type: string;
-    projectType: string;
-    finalFrontend?: string;
-    finalBackend?: string;
-    finalDb?: string;
-    finalPort: string;
-    workspacePath: string;
-    packageManager: string;
-  }
-): Promise<void> {
+  entries: WorkspaceRegistration[]
+): Promise<{ changed: boolean; messages: string[] }> {
   const workspaceYamlPath = path.join(monorepoRoot, 're-shell.workspaces.yaml');
 
   // Check if workspace YAML exists
-  if (!await fs.pathExists(workspaceYamlPath)) {
-    console.log(chalk.gray('\nNo workspace configuration found - skipping auto-registration'));
-    console.log(chalk.gray('Tip: Run "re-shell workspace init" to create a workspace configuration\n'));
-    return;
+  if (!(await fs.pathExists(workspaceYamlPath))) {
+    return {
+      changed: false,
+      messages: [
+        'No workspace configuration found - skipping auto-registration',
+        'Tip: Run "re-shell workspace init" to create a workspace configuration',
+      ],
+    };
   }
 
   try {
     const workspaceContent = await fs.readFile(workspaceYamlPath, 'utf8');
-    const workspaceConfig = yaml.load(workspaceContent) as Record<string, unknown>;
+    const workspaceConfig = (yaml.load(workspaceContent) ?? {}) as Record<string, unknown>;
 
     // Initialize services if not present
     if (!workspaceConfig.services) {
       workspaceConfig.services = {};
     }
+    const services = workspaceConfig.services as Record<string, unknown>;
 
-    // Determine service type and framework
-    const serviceType: 'frontend' | 'backend' | 'worker' =
-      config.projectType === 'backend' ? 'backend' :
-      config.projectType === 'full-stack' ? 'backend' :
-      'frontend';
-
-    // For backend services, prefer backend framework; for frontend, prefer frontend
-    const framework = serviceType === 'backend' ? (config.finalBackend || config.finalFrontend) : (config.finalFrontend || config.finalBackend);
-
-    // Build service entry
-    const serviceEntry = {
-      name: serviceName,
-      displayName: toDisplayName(serviceName),
-      type: serviceType,
-      language: detectLanguage(framework),
-      framework: framework,
-      port: parseInt(config.finalPort) || undefined,
-      path: path.relative(monorepoRoot, config.workspacePath),
-    };
-
-    // Add to services
-    workspaceConfig.services[serviceName] = serviceEntry;
+    for (const entry of entries) {
+      services[entry.name] = {
+        name: entry.name,
+        displayName: toDisplayName(entry.name),
+        type: entry.type,
+        language: detectLanguage(entry.framework),
+        framework: entry.framework,
+        port: parseInt(entry.port ?? '') || undefined,
+        path: toPosix(entry.relPath),
+      };
+    }
 
     // Write back to YAML
     const newYaml = yaml.dump(workspaceConfig, {
@@ -2548,16 +3099,27 @@ async function autoRegisterInWorkspace(
       lineWidth: -1,
       sortKeys: false,
       noRefs: true,
+      skipInvalid: true, // drop `undefined` fields (e.g. no port) instead of throwing
     });
 
     await fs.writeFile(workspaceYamlPath, newYaml, 'utf8');
 
-    console.log(chalk.gray(`\n✓ Auto-registered in workspace configuration`));
-    console.log(chalk.gray(`  Service: ${serviceName}`));
-    console.log(chalk.gray(`  Config: re-shell.workspaces.yaml\n`));
+    return {
+      changed: true,
+      messages: [
+        'Auto-registered in workspace configuration',
+        ...entries.map((entry) => `  Service: ${entry.name}`),
+        '  Config: re-shell.workspaces.yaml',
+      ],
+    };
   } catch (error: unknown) {
-    console.log(chalk.yellow('\n⚠ Failed to auto-register in workspace: ' + (error as Error).message));
-    console.log(chalk.gray('You can manually add the service to re-shell.workspaces.yaml\n'));
+    return {
+      changed: false,
+      messages: [
+        'Failed to auto-register in workspace: ' + (error as Error).message,
+        'You can manually add the service to re-shell.workspaces.yaml',
+      ],
+    };
   }
 }
 
@@ -2611,92 +3173,126 @@ function detectLanguage(framework?: string): string {
 }
 
 /**
- * Creates a new workspace (app/package/lib/tool) in an existing monorepo.
+ * Decide whether to continue past a risky-but-overridable condition (framework
+ * mismatch, dependency conflict, failed validation). Interactive runs ask
+ * (default: no); `--force` continues; a dry run records a note and continues so
+ * the preview is still produced; any other non-interactive run fails explicitly
+ * instead of waiting on a prompt that can never be answered.
  *
- * Handles interactive prompts for missing options, validates framework
- * compatibility, generates frontend/backend files, and auto-registers
- * the service in the workspace YAML.
+ * @returns `true` to continue, `false` when the user declined.
+ */
+async function confirmRisky(
+  ctx: { interactive: boolean; force: boolean; dryRun: boolean; notes: string[] },
+  problem: string,
+  promptMessage: string
+): Promise<boolean> {
+  if (ctx.force) return true;
+  if (ctx.interactive) {
+    const { proceed } = await ask({
+      type: 'confirm',
+      name: 'proceed',
+      message: promptMessage,
+      initial: false,
+    });
+    return Boolean(proceed);
+  }
+  if (ctx.dryRun) {
+    ctx.notes.push(`${problem} A real run would stop here unless --force is passed.`);
+    return true;
+  }
+  throw new CreateError(
+    'CREATE_INPUT_REQUIRED',
+    `${problem} Re-run with --force to proceed anyway, or choose a compatible stack.`,
+    { problem }
+  );
+}
+
+/**
+ * Plan a new workspace (app/package/lib/tool) inside an existing monorepo.
+ *
+ * Interactive runs ask for anything not given as a flag; non-interactive and
+ * dry runs use the documented defaults (react-ts frontend, express backend,
+ * route `/<name>`, port 5173) and fail explicitly on a condition that needs a
+ * human decision. A fullstack workspace puts the frontend under `<type>/<name>`
+ * and the API under `services/<name>-api`; both are covered by the workspace
+ * globs. The new workspaces are auto-registered in `re-shell.workspaces.yaml`.
  *
  * @param name - Name of the workspace to create.
  * @param options - Additional options for workspace creation.
  * @param monorepoRoot - Detected monorepo root path, if inside a monorepo.
+ * @param request - The validated create request.
+ * @param interactive - Whether to prompt for missing choices.
+ * @param dryRun - Whether this plan is only being previewed.
+ * @returns The plan, or `null` when the user cancelled.
  */
-async function createWorkspace(
+async function buildWorkspacePlan(
   name: string,
   options: CreateProjectOptions,
-  monorepoRoot?: string | null
-): Promise<void> {
+  monorepoRoot: string | null | undefined,
+  request: ResolvedCreateRequest,
+  interactive: boolean,
+  dryRun: boolean
+): Promise<ScaffoldPlan | null> {
   const {
     team,
     org = 're-shell',
     description,
-    template,
-    framework,
-    frontend,
-    backend,
-    db = 'none',
-    fullstack,
     packageManager = 'pnpm',
     type = 'app',
-    port = '5173',
     route,
     spinner,
   } = options;
+  const port = frontendPort(options);
+  const notes = [...request.notes];
 
   // Handle architecture template - extract predefined stack
-  let architectureTemplate: ArchitectureTemplate | undefined;
-  if (template) {
-    architectureTemplate = getArchitectureTemplate(template);
-    if (architectureTemplate) {
-      console.log(chalk.blue(`Using architecture template: ${architectureTemplate.displayName}`));
-      console.log(chalk.gray(architectureTemplate.description));
-    }
+  let architectureTemplate = request.architectureTemplate;
+  if (architectureTemplate && !dryRun) {
+    console.log(chalk.blue(`Using architecture template: ${architectureTemplate.displayName}`));
+    console.log(chalk.gray(architectureTemplate.description));
   }
 
+  const backend = request.backend;
+  const frontend = request.frontend;
+
   // Determine if we're creating backend, frontend, or fullstack
-  // If template is specified, use its configuration
-  const templateBackend = architectureTemplate?.backend;
-  const templateFrontend = architectureTemplate?.frontend;
-  const templateDb = architectureTemplate?.db;
+  const isBackendOnly = request.mode === 'backend';
+  const isFullStack = request.mode === 'fullstack';
+  const isFrontendOnly = !backend;
 
-  const isBackendOnly = (backend || templateBackend) && !frontend && !framework && !templateFrontend;
-  const isFullStack = fullstack || ((backend || templateBackend) && (frontend || framework || templateFrontend)) || architectureTemplate;
-  const isFrontendOnly = !backend && !templateBackend;
-
-  const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
+  const normalizedName = normalizeProjectName(name);
   const rootPath = monorepoRoot || process.cwd();
 
-  console.log(chalk.cyan(`Creating ${type} "${normalizedName}"...`));
+  if (!dryRun) console.log(chalk.cyan(`Creating ${type} "${normalizedName}"...`));
 
   // Stop spinner for interactive prompts
   if (spinner) {
     spinner.stop();
   }
 
-  // Build prompts for missing options
-  const promptsConfig: prompts.PromptObject<string>[] = [];
+  // Interactive wizard: ask for the choices that were not given as flags.
+  const responses: Record<string, string> = {};
+  if (interactive) {
+    // Build prompts for missing options
+    const promptsConfig: prompts.PromptObject<string>[] = [];
 
-  // Architecture template prompt (if no specific stack is specified)
-  if (!template && !backend && !frontend && !framework) {
-    promptsConfig.push({
-      type: 'select' as const,
-      name: 'useTemplate',
-      message: 'Would you like to use a predefined architecture template?',
-      choices: [
-        { title: 'Yes, show me popular stacks', value: 'yes' },
-        { title: 'No, I will choose manually', value: 'no' },
-        { title: 'Show me all templates', value: 'all' },
-      ],
-      initial: 0,
-    });
-  }
+    // Architecture template prompt (if no specific stack is specified)
+    if (!options.template && !backend && !frontend) {
+      promptsConfig.push({
+        type: 'select' as const,
+        name: 'useTemplate',
+        message: 'Would you like to use a predefined architecture template?',
+        choices: [
+          { title: 'Yes, show me popular stacks', value: 'yes' },
+          { title: 'No, I will choose manually', value: 'no' },
+          { title: 'Show me all templates', value: 'all' },
+        ],
+        initial: 0,
+      });
+    }
 
-  // If user wants to use a template, show template selection
-  // This is handled after the first round of prompts
-
-  // Backend prompt (if needed)
-  if (isBackendOnly || isFullStack) {
-    if (!backend) {
+    // Backend prompt (if needed)
+    if ((isBackendOnly || isFullStack) && !backend) {
       promptsConfig.push({
         type: 'select' as const,
         name: 'backendMode',
@@ -2710,141 +3306,109 @@ async function createWorkspace(
       });
     }
 
-    // Database prompt (if backend is selected)
-    if (!db) {
-      promptsConfig.push({
-        type: 'select' as const,
-        name: 'db',
-        message: 'Select a database:',
-        choices: getDatabaseChoices(),
-        initial: 0,
-      });
-    }
-  }
-
-  // Frontend prompt (if needed)
-  if (isFrontendOnly || isFullStack) {
-    if (!framework && !frontend) {
+    // Frontend prompt (if needed)
+    if ((isFrontendOnly || isFullStack) && !frontend) {
       promptsConfig.push({
         type: 'select' as const,
         name: 'framework',
         message: 'Select a frontend framework:',
-        choices: getFrameworkChoices(),
+        choices: getFrameworkChoices().filter((choice) => hasFrontendTemplate(choice.value)),
         initial: 1, // Default to react-ts
       });
     }
-  }
 
-  // Port prompt (for apps)
-  if (type === 'app' && !port) {
-    promptsConfig.push({
-      type: 'text' as const,
-      name: 'port',
-      message: 'Development server port:',
-      initial: isBackendOnly ? '3000' : '5173',
-      validate: (value: string) => {
-        const num = parseInt(value);
-        return num > 0 && num < 65536 ? true : 'Port must be between 1 and 65535';
-      },
-    });
-  }
-
-  // Route prompt (for frontend apps)
-  if ((isFrontendOnly || isFullStack) && type === 'app' && !route) {
-    promptsConfig.push({
-      type: 'text' as const,
-      name: 'route',
-      message: 'Route path:',
-      initial: `/${normalizedName}`,
-      validate: (value: string) => (value.startsWith('/') ? true : 'Route must start with /'),
-    });
-  }
-
-  // Interactive prompts for missing options
-  const responses = await prompts(promptsConfig);
-
-  // Handle architecture template selection
-  if (responses.useTemplate && responses.useTemplate !== 'no') {
-    const templateChoices = responses.useTemplate === 'yes'
-      ? getPopularArchitectureTemplates()
-      : getAllArchitectureTemplates();
-
-    const { selectedTemplate } = await prompts({
-      type: 'select',
-      name: 'selectedTemplate',
-      message: 'Select an architecture template:',
-      choices: templateChoices.map((t) => ({
-        title: `${t.displayName}`,
-        value: t.id,
-        description: t.description,
-      })),
-      initial: 0,
-    });
-
-    architectureTemplate = getArchitectureTemplate(selectedTemplate);
-    if (architectureTemplate) {
-      console.log(chalk.blue(`\n✓ Selected: ${architectureTemplate.displayName}`));
-      console.log(chalk.gray(`  Backend: ${architectureTemplate.backend || 'none'}`));
-      console.log(chalk.gray(`  Frontend: ${architectureTemplate.frontend || 'none'}`));
-      console.log(chalk.gray(`  Database: ${architectureTemplate.db || 'none'}`));
-      console.log('');
+    // Route prompt (for frontend apps)
+    if ((isFrontendOnly || isFullStack) && type === 'app' && !route) {
+      promptsConfig.push({
+        type: 'text' as const,
+        name: 'route',
+        message: 'Route path:',
+        initial: `/${normalizedName}`,
+        validate: (value: string) => (value.startsWith('/') ? true : 'Route must start with /'),
+      });
     }
-  }
 
-  // Handle multi-step backend selection
-  let selectedBackend = backend;
-  if (!selectedBackend && responses.backendMode) {
-    if (responses.backendMode === 'popular') {
-      // Show popular frameworks
-      const popularChoices = getPopularBackendFrameworks();
-      const { backend } = await prompts({
+    Object.assign(responses, await ask(promptsConfig));
+
+    // Handle architecture template selection
+    if (responses.useTemplate && responses.useTemplate !== 'no') {
+      const templateChoices =
+        responses.useTemplate === 'yes' ? getPopularArchitectureTemplates() : getAllArchitectureTemplates();
+
+      const { selectedTemplate } = await ask({
         type: 'select',
-        name: 'backend',
-        message: 'Select a popular backend framework:',
-        choices: popularChoices,
+        name: 'selectedTemplate',
+        message: 'Select an architecture template:',
+        choices: templateChoices.map((t) => ({
+          title: `${t.displayName}`,
+          value: t.id,
+          description: t.description,
+        })),
         initial: 0,
       });
-      selectedBackend = backend;
-    } else if (responses.backendMode === 'language') {
-      // First, select language
-      const { language } = await prompts({
-        type: 'select',
-        name: 'language',
-        message: 'Select a programming language:',
-        choices: getBackendLanguageChoices(),
-        initial: 0,
-      });
-      // Then, select framework within that language
-      const frameworkChoices = getFrameworkChoicesForLanguage(language);
-      const { backend } = await prompts({
-        type: 'select',
-        name: 'backend',
-        message: `Select ${language} framework:`,
-        choices: frameworkChoices,
-        initial: 0,
-      });
-      selectedBackend = backend;
-    } else {
-      // Show all frameworks
-      const allChoices = listBackendTemplates().map((t) => ({
-        title: `${t.displayName} (${t.language})`,
-        value: t.id,
-      }));
-      const { backend } = await prompts({
-        type: 'autocomplete',
-        name: 'backend',
-        message: 'Search and select a backend framework (type to filter):',
-        choices: allChoices,
-        initial: 0,
-        suggest: async (input: string, choices: { title: string; [key: string]: unknown }[]) => {
-          return Promise.resolve(
-            choices.filter((c) =>
-              c.title.toLowerCase().includes(input.toLowerCase())
-            )
-          );
-        },
-      });
-      selectedBackend = backend;
+
+      architectureTemplate = getArchitectureTemplate(selectedTemplate);
+      if (architectureTemplate) {
+        console.log(chalk.blue(`\n✓ Selected: ${architectureTemplate.displayName}`));
+        console.log(chalk.gray(`  Backend: ${architectureTemplate.backend || 'none'}`));
+        console.log(chalk.gray(`  Frontend: ${architectureTemplate.frontend || 'none'}`));
+        console.log(chalk.gray(`  Database: ${architectureTemplate.db || 'none'}`));
+        console.log('');
+      }
+    }
+
+    // Handle multi-step backend selection
+    if (!backend && responses.backendMode) {
+      if (responses.backendMode === 'popular') {
+        // Show popular frameworks
+        const popularChoices = getPopularBackendFrameworks();
+        const { backend: chosen } = await ask({
+          type: 'select',
+          name: 'backend',
+          message: 'Select a popular backend framework:',
+          choices: popularChoices,
+          initial: 0,
+        });
+        responses.selectedBackend = chosen;
+      } else if (responses.backendMode === 'language') {
+        // First, select language
+        const { language } = await ask({
+          type: 'select',
+          name: 'language',
+          message: 'Select a programming language:',
+          choices: getBackendLanguageChoices(),
+          initial: 0,
+        });
+        // Then, select framework within that language
+        const frameworkChoices = getFrameworkChoicesForLanguage(language);
+        const { backend: chosen } = await ask({
+          type: 'select',
+          name: 'backend',
+          message: `Select ${language} framework:`,
+          choices: frameworkChoices,
+          initial: 0,
+        });
+        responses.selectedBackend = chosen;
+      } else {
+        // Show all frameworks
+        const allChoices = listBackendTemplates().map((t) => ({
+          title: `${t.displayName} (${t.language})`,
+          value: t.id,
+        }));
+        const { backend: chosen } = await ask({
+          type: 'autocomplete',
+          name: 'backend',
+          message: 'Search and select a backend framework (type to filter):',
+          choices: allChoices,
+          initial: 0,
+          suggest: async (input: string, choices: { title: string; [key: string]: unknown }[]) => {
+            return Promise.resolve(
+              choices.filter((c) => c.title.toLowerCase().includes(input.toLowerCase()))
+            );
+          },
+        });
+        responses.selectedBackend = chosen;
+      }
     }
   }
 
@@ -2852,67 +3416,59 @@ async function createWorkspace(
   // Use architecture template values if available
   const resolvedTemplateBackend = architectureTemplate?.backend;
   const resolvedTemplateFrontend = architectureTemplate?.frontend;
-  const resolvedTemplateDb = architectureTemplate?.db as DatabaseType;
+  const resolvedTemplateDb = architectureTemplate?.db;
 
-  const finalBackend = backend || selectedBackend || resolvedTemplateBackend;
-  const finalFrontend = frontend || framework || responses.framework || resolvedTemplateFrontend;
-  const finalDb: DatabaseType = resolvedTemplateDb || (db || responses.db || 'none') as DatabaseType;
-  const finalPort = port || responses.port || (isBackendOnly ? '3000' : '5173');
+  const finalBackend = backend || responses.selectedBackend || resolvedTemplateBackend;
+  const finalFrontend = frontend || responses.framework || resolvedTemplateFrontend;
+  const finalDb: DatabaseType = ((request.db && request.db !== 'none' ? request.db : undefined) ||
+    resolvedTemplateDb ||
+    'none') as DatabaseType;
+  const finalPort = port;
   const finalRoute = route || responses.route || `/${normalizedName}`;
 
-  // Validate framework selections
-  if (finalBackend) {
-    const backendValidation = validateBackendFramework(finalBackend);
-    if (!backendValidation.valid) {
-      console.log(chalk.red(`\n⚠️  Warning: ${backendValidation.error}`));
-    }
-  }
+  // The wizard (or an architecture template picked in it) can still introduce
+  // names no registry has: fail loudly rather than scaffold something else.
+  if (finalBackend) assertBackend(finalBackend);
+  if (finalFrontend) assertFrontend(finalFrontend);
 
-  if (finalFrontend) {
-    const frontendValidation = validateFrontendFramework(finalFrontend);
-    if (!frontendValidation.valid) {
-      console.log(chalk.red(`\n⚠️  Warning: ${frontendValidation.error}`));
-    }
-  }
-
-  const dbValidation = validateDatabaseType(finalDb);
-  if (!dbValidation.valid) {
-    console.log(chalk.red(`\n⚠️  Warning: ${dbValidation.error}`));
-  }
+  const fullStack = isFullStack || Boolean(architectureTemplate) || Boolean(finalBackend && finalFrontend && !isBackendOnly);
+  const backendOnly = !fullStack && Boolean(finalBackend) && !finalFrontend;
+  const mode: CreateMode = fullStack ? 'fullstack' : backendOnly ? 'backend' : 'frontend';
+  const confirmCtx = { interactive, force: options.force === true, dryRun, notes };
 
   // Validate compatibility for fullstack projects
-  if (finalFrontend && finalBackend && (isFullStack || (!isBackendOnly && !isFrontendOnly))) {
+  if (finalFrontend && finalBackend && fullStack) {
     const compatibility = validateFrameworkCompatibility(finalFrontend, finalBackend);
     const summary = getCompatibilitySummary(finalFrontend, finalBackend);
 
-    console.log(chalk[summary.color](`\n${'━'.repeat(50)}`));
-    console.log(`${chalk.bold('Framework Compatibility:')}: ${summary.icon} ${summary.text}`);
-    console.log(chalk[summary.color](`${'━'.repeat(50)}\n`));
+    if (!dryRun) {
+      console.log(chalk[summary.color](`\n${'━'.repeat(50)}`));
+      console.log(`${chalk.bold('Framework Compatibility:')}: ${summary.icon} ${summary.text}`);
+      console.log(chalk[summary.color](`${'━'.repeat(50)}\n`));
 
-    if (compatibility.warnings.length > 0) {
-      console.log(chalk.yellow('Warnings:'));
-      compatibility.warnings.forEach((w) => console.log(chalk.yellow(`  • ${w}`)));
-      console.log('');
-    }
+      if (compatibility.warnings.length > 0) {
+        console.log(chalk.yellow('Warnings:'));
+        compatibility.warnings.forEach((w) => console.log(chalk.yellow(`  • ${w}`)));
+        console.log('');
+      }
 
-    if (compatibility.suggestions.length > 0) {
-      console.log(chalk.cyan('Suggestions:'));
-      compatibility.suggestions.forEach((s) => console.log(chalk.cyan(`  • ${s}`)));
-      console.log('');
+      if (compatibility.suggestions.length > 0) {
+        console.log(chalk.cyan('Suggestions:'));
+        compatibility.suggestions.forEach((s) => console.log(chalk.cyan(`  • ${s}`)));
+        console.log('');
+      }
     }
 
     // If incompatible, ask user to confirm
     if (!compatibility.valid) {
-      const { confirm } = await prompts({
-        type: 'confirm',
-        name: 'confirm',
-        message: 'This framework combination is not recommended. Continue anyway?',
-        initial: false,
-      });
-
-      if (!confirm) {
+      const proceed = await confirmRisky(
+        confirmCtx,
+        `The framework combination ${finalFrontend} + ${finalBackend} is not recommended.`,
+        'This framework combination is not recommended. Continue anyway?'
+      );
+      if (!proceed) {
         console.log(chalk.yellow('\nOperation cancelled. Please select compatible frameworks.\n'));
-        return;
+        return null;
       }
     }
   }
@@ -2925,20 +3481,18 @@ async function createWorkspace(
   });
 
   if (depCheckResult.hasConflicts || depCheckResult.warnings.length > 0) {
-    console.log(formatDependencyReport(depCheckResult));
+    if (!dryRun) console.log(formatDependencyReport(depCheckResult));
 
     // If there are critical conflicts, ask for confirmation
     if (depCheckResult.hasConflicts) {
-      const { proceedAnyway } = await prompts({
-        type: 'confirm',
-        name: 'proceedAnyway',
-        message: 'Dependency conflicts detected. Continue anyway?',
-        initial: false,
-      });
-
-      if (!proceedAnyway) {
+      const proceed = await confirmRisky(
+        confirmCtx,
+        'Dependency conflicts detected.',
+        'Dependency conflicts detected. Continue anyway?'
+      );
+      if (!proceed) {
         console.log(chalk.yellow('\nOperation cancelled. Please resolve conflicts and try again.\n'));
-        return;
+        return null;
       }
     }
   }
@@ -2959,229 +3513,323 @@ async function createWorkspace(
   const validationResult = validateProjectConfig(projectConfig);
 
   if (validationResult.errors.length > 0) {
-    console.log(formatValidationResult(validationResult));
+    if (!dryRun) console.log(formatValidationResult(validationResult));
 
     // If there are critical errors, ask for confirmation
     if (!validationResult.isValid) {
-      const { proceedAnyway } = await prompts({
-        type: 'confirm',
-        name: 'proceedAnyway',
-        message: 'Configuration validation failed. Continue anyway?',
-        initial: false,
-      });
-
-      if (!proceedAnyway) {
+      const proceed = await confirmRisky(
+        confirmCtx,
+        'Configuration validation failed.',
+        'Configuration validation failed. Continue anyway?'
+      );
+      if (!proceed) {
         console.log(chalk.yellow('\nOperation cancelled. Please fix the configuration errors and try again.\n'));
-        return;
+        return null;
       }
     }
-  } else if (validationResult.suggestions.length > 0) {
+  } else if (validationResult.suggestions.length > 0 && !dryRun) {
     // Show suggestions even if validation passes
     console.log(formatValidationResult(validationResult));
   }
 
-  // Show pairing recommendations for fullstack projects
-  if (isFullStack && finalBackend && !finalFrontend && !resolvedTemplateFrontend) {
-    const recommendations = getRecommendedFrontends(finalBackend);
-    if (recommendations.length > 0) {
-      console.log(chalk.blue('\n💡 Recommended frontends for your backend:'));
-      recommendations.slice(0, 5).forEach((rec, i) => {
-        const icon = rec.compatibility === 'excellent' ? '⭐' : rec.compatibility === 'good' ? '✓' : '○';
-        console.log(`  ${icon} ${rec.framework.padEnd(15)} - ${rec.reason}`);
-      });
-      console.log('');
-    }
-  }
-
-  // Restart spinner for file operations
-  if (spinner) {
-    spinner.start();
-    spinner.setText(`Creating ${type} files...`);
-    flushOutput();
-  }
-
-  // Determine workspace path based on type
+  // Determine workspace paths based on type. A fullstack workspace splits into
+  // the frontend (<type>/<name>) and its API (services/<name>-api).
   const typeDir =
     type === 'app' ? 'apps' : type === 'package' ? 'packages' : type === 'lib' ? 'libs' : 'tools';
-
+  const primaryRel = posixJoin(typeDir, normalizedName);
+  const apiRel = fullStack ? posixJoin('services', `${normalizedName}-api`) : primaryRel;
   const workspacePath = path.join(rootPath, typeDir, normalizedName);
+  const targetDirs = fullStack ? [workspacePath, path.join(rootPath, 'services', `${normalizedName}-api`)] : [workspacePath];
 
-  // Check if directory already exists and handle it gracefully
-  if (fs.existsSync(workspacePath)) {
-    if (spinner) spinner.stop();
-
-    const { action } = await prompts({
-      type: 'select',
-      name: 'action',
-      message: `Directory "${normalizedName}" already exists in ${typeDir}/. What would you like to do?`,
-      choices: [
-        { title: 'Overwrite existing directory', value: 'overwrite' },
-        { title: 'Cancel', value: 'cancel' },
-      ],
-      initial: 0,
-    });
-
-    if (action === 'cancel') {
-      console.log(chalk.yellow('Operation cancelled.'));
-      return;
-    }
-
-    if (action === 'overwrite') {
-      if (spinner) {
-        spinner.start();
-        spinner.setText('Removing existing directory...');
-        flushOutput();
-      }
-      await fs.remove(workspacePath);
-    }
-
-    if (spinner) {
-      spinner.start();
-      spinner.setText(`Creating ${type} files...`);
-      flushOutput();
-    }
+  // Validate the backend up front (before anything is written).
+  const backendTemplate = finalBackend ? getBackendTemplate(finalBackend) : undefined;
+  if (finalBackend && !backendTemplate) {
+    throw templateNotFound('backend template', finalBackend, backendIds());
   }
 
-  const allFiles: { path: string; content: string; executable?: boolean }[] = [];
+  const backendPort = backendOnly
+    ? options.port ?? backendTemplate?.port?.toString() ?? '3000'
+    : backendTemplate?.port?.toString() ?? '3000';
+  const bestPracticeNotes: string[] = [];
+  let registryMessages: string[] = [];
 
-  // Generate frontend files (if applicable)
-  if (finalFrontend && !isBackendOnly) {
-    // Validate framework
-    if (!validateFramework(finalFrontend)) {
-      throw new Error(`Unsupported framework: ${finalFrontend}`);
-    }
+  const summary = [
+    `Name: ${normalizedName}`,
+    ...(finalFrontend ? [`Frontend: ${finalFrontend}`] : []),
+    ...(finalBackend ? [`Backend: ${finalBackend}`] : []),
+    ...(finalFrontend ? [`Route: ${finalRoute}`] : []),
+    `Port: ${backendOnly ? backendPort : finalPort}`,
+  ];
 
-    const frameworkConfig = getFrameworkConfig(finalFrontend);
-
-    // Create template context
-    const templateContext: TemplateContext = {
-      name,
-      normalizedName,
-      framework: finalFrontend,
-      hasTypeScript: frameworkConfig.hasTypeScript || false,
-      port: finalPort,
-      route: type === 'app' ? finalRoute : undefined,
-      org,
-      team,
-      description: description || `${name} - A ${frameworkConfig.displayName} ${type}`,
-      packageManager,
-    };
-
-    // Generate files using appropriate template
-    const template = createTemplate(frameworkConfig, templateContext);
-    const files = await template.generateFiles();
-    allFiles.push(...files);
-  }
-
-  // Generate backend files (if applicable)
-  if (finalBackend && (isBackendOnly || isFullStack)) {
-    const backendTemplate = getBackendTemplate(finalBackend);
-    if (!backendTemplate) {
-      const allIds = listBackendTemplates().map(t => t.id);
-      const suggestions = allIds.filter(id => id.includes(finalBackend) || finalBackend.includes(id)).slice(0, 5);
-      const hint = suggestions.length > 0
-        ? ` Did you mean: ${suggestions.join(', ')}?`
-        : ' Run `re-shell templates list` to see available IDs.';
-      throw new Error(`Unknown backend template "${finalBackend}".${hint}`);
-    }
-
-    const backendContext: BackendTemplateContext = {
-      name,
-      normalizedName,
-      port: backendTemplate.port?.toString() || '3000',
-      db: finalDb,
-      org,
-      team,
-      description: description || `${name} - A ${backendTemplate.displayName} backend`,
-    };
-
-    const backendFiles = await createBackendTemplate(backendTemplate, backendContext);
-    allFiles.push(...backendFiles);
-  }
-
-  // Create workspace directory
-  await fs.ensureDir(workspacePath);
-
-  // Write all generated files
-  for (const file of allFiles) {
-    const filePath = path.join(workspacePath, file.path);
-    await fs.ensureDir(path.dirname(filePath));
-    await fs.writeFile(filePath, file.content);
-
-    if (file.executable) {
-      await fs.chmod(filePath, '755');
-    }
-  }
-
-  // Apply best practices based on the primary language
-  const primaryLanguage = getPrimaryLanguage(finalBackend, finalFrontend);
-  if (primaryLanguage) {
-    const bestPractices = getBestPracticesForLanguage(primaryLanguage);
-    if (bestPractices.files.length > 0 || bestPractices.folders.length > 0) {
-      await applyBestPractices(workspacePath, primaryLanguage);
-      console.log(chalk.gray(`✓ Applied ${bestPractices.description}`));
-    }
-  }
-
-  // Stop spinner temporarily for health check
-  if (spinner) {
-    spinner.stop();
-  }
-
-  // Perform project health check
-  const healthCheckResult = await performProjectHealthCheck(workspacePath, projectConfig);
-
-  const projectType = isBackendOnly ? 'backend' : isFullStack ? 'full-stack' : 'frontend';
-
-  // Auto-register in workspace YAML if in a monorepo
-  if (monorepoRoot) {
-    await autoRegisterInWorkspace(monorepoRoot, normalizedName, {
-      type,
-      projectType,
-      finalFrontend,
-      finalBackend,
-      finalDb,
-      finalPort,
-      workspacePath,
-      packageManager,
-    });
-  }
-
-  console.log(
-    chalk.green(`\n✓ ${type.charAt(0).toUpperCase() + type.slice(1)} "${normalizedName}" (${projectType}) created successfully!`)
-  );
-  console.log(chalk.gray(`Path: ${path.relative(process.cwd(), workspacePath)}`));
-  console.log('\nNext steps:');
-  console.log(`  1. cd ${path.relative(process.cwd(), workspacePath)}`);
-  console.log(`  2. ${packageManager} install`);
-  console.log(`  3. ${packageManager} run dev`);
-
-  // Show database setup instructions if database was selected
+  const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+  const relativeWorkspace = path.relative(process.cwd(), workspacePath);
+  const nextSteps = fullStack
+    ? [
+        `${packageManager} install  (from the workspace root)`,
+        `${packageManager} run dev  (starts ${primaryRel} and ${apiRel})`,
+      ]
+    : [`cd ${relativeWorkspace}`, `${packageManager} install`, `${packageManager} run dev`];
   if (finalDb && finalDb !== 'none') {
-    console.log('\nDatabase setup:');
-    console.log(`  4. Configure your ${finalDb} database connection in .env`);
-    console.log(`  5. Run ${packageManager} run db:migrate (or db:push for Prisma)`);
+    nextSteps.push(`Configure your ${finalDb} database connection in .env`);
+    nextSteps.push(`Run ${packageManager} run db:migrate (or db:push for Prisma)`);
   }
 
-  // Show health check summary
-  if (healthCheckResult.overallStatus === 'unhealthy') {
-    console.log(chalk.yellow('\n⚠️  Project Health Check: Some issues detected'));
-    console.log(formatHealthCheckReport(healthCheckResult));
-  } else if (healthCheckResult.overallStatus === 'warning') {
-    console.log(chalk.yellow('\n⚠️  Project Health Check: Minor issues detected'));
-    console.log(formatHealthCheckReport(healthCheckResult));
-  } else {
-    console.log(chalk.green('\n✅ Project Health Check: All checks passed'));
-  }
+  return {
+    mode,
+    name,
+    root: rootPath,
+    targetDirs,
+    projectPath: workspacePath,
+    frontend: finalFrontend && !backendOnly ? finalFrontend : undefined,
+    backend: finalBackend,
+    summary,
+    skeleton: false,
+    notes,
+    seedFiles: ['re-shell.workspaces.yaml'],
+    nextSteps,
+    confirmOverwrite: interactive
+      ? async (existing: string[]) => {
+          const { action } = await ask({
+            type: 'select',
+            name: 'action',
+            message: `Directory "${normalizedName}" already exists in ${typeDir}/. What would you like to do?`,
+            choices: [
+              { title: 'Overwrite existing directory', value: 'overwrite' },
+              { title: 'Cancel', value: 'cancel' },
+            ],
+            initial: 0,
+          });
+          return action === 'cancel' ? 'cancel' : 'overwrite';
+        }
+      : undefined,
+    async write(outRoot: string): Promise<string[]> {
+      const sink = new ScaffoldSink(outRoot);
+      const registrations: WorkspaceRegistration[] = [];
+
+      // Frontend files (if applicable)
+      if (finalFrontend && !backendOnly) {
+        const frameworkConfig = getFrameworkConfig(finalFrontend);
+        const templateContext: TemplateContext = {
+          name,
+          normalizedName,
+          framework: finalFrontend,
+          hasTypeScript: frameworkConfig.hasTypeScript || false,
+          port: finalPort,
+          route: type === 'app' ? finalRoute : undefined,
+          org,
+          team,
+          description: description || `${name} - A ${frameworkConfig.displayName} ${type}`,
+          packageManager,
+        };
+        const frontendFiles = await createTemplate(frameworkConfig, templateContext).generateFiles();
+        if (fullStack && backendTemplate) injectApiProxy(frontendFiles, backendPort);
+        for (const file of frontendFiles) {
+          sink.write(posixJoin(primaryRel, file.path), file.content, file.executable);
+        }
+        registrations.push({
+          name: normalizedName,
+          type: 'frontend',
+          framework: finalFrontend,
+          port: finalPort,
+          relPath: primaryRel,
+        });
+      }
+
+      // Backend files (if applicable)
+      if (backendTemplate && (backendOnly || fullStack)) {
+        const backendName = fullStack ? `${normalizedName}-api` : normalizedName;
+        const backendContext: BackendTemplateContext = {
+          name: backendName,
+          normalizedName: backendName,
+          port: backendPort,
+          db: finalDb,
+          org,
+          team,
+          description: description || `${name} - A ${backendTemplate.displayName} backend`,
+        };
+        const backendFiles = await createBackendTemplate(backendTemplate, backendContext);
+        for (const file of backendFiles) {
+          sink.write(posixJoin(apiRel, file.path), file.content, file.executable);
+        }
+        registrations.push({
+          name: backendName,
+          type: 'backend',
+          framework: finalBackend,
+          port: backendPort,
+          relPath: apiRel,
+        });
+      }
+
+      // Apply best practices based on the primary language of each workspace
+      const bestPracticeTargets: Array<{ rel: string; language: string | null }> = [];
+      if (finalFrontend && !backendOnly) {
+        bestPracticeTargets.push({ rel: primaryRel, language: getPrimaryLanguage(undefined, finalFrontend) });
+      }
+      if (backendTemplate && (backendOnly || fullStack)) {
+        bestPracticeTargets.push({ rel: apiRel, language: getPrimaryLanguage(finalBackend) });
+      }
+      for (const target of bestPracticeTargets) {
+        if (!target.language) continue;
+        const bestPractices = getBestPracticesForLanguage(target.language);
+        if (bestPractices.files.length > 0 || bestPractices.folders.length > 0) {
+          await applyBestPractices(path.join(outRoot, target.rel), target.language);
+          for (const file of bestPractices.files) {
+            sink.written.push(posixJoin(target.rel, file.path));
+          }
+          bestPracticeNotes.push(bestPractices.description);
+        }
+      }
+
+      // Auto-register in workspace YAML if in a monorepo
+      if (monorepoRoot) {
+        const registration = await autoRegisterInWorkspace(outRoot, registrations);
+        registryMessages = registration.messages;
+        if (registration.changed) sink.written.push('re-shell.workspaces.yaml');
+      }
+
+      return [...new Set(sink.written)].sort();
+    },
+    async afterWrite(): Promise<void> {
+      for (const description of bestPracticeNotes) {
+        console.log(chalk.gray(`✓ Applied ${description}`));
+      }
+
+      // Perform project health check
+      const healthCheckResult = await performProjectHealthCheck(workspacePath, projectConfig);
+
+      for (const message of registryMessages) {
+        console.log(chalk.gray(`\n${message}`));
+      }
+
+      const projectType = backendOnly ? 'backend' : fullStack ? 'full-stack' : 'frontend';
+      console.log(chalk.green(`\n✓ ${typeLabel} "${normalizedName}" (${projectType}) created successfully!`));
+      console.log(chalk.gray(`Path: ${relativeWorkspace}`));
+      if (fullStack) console.log(chalk.gray(`API:  ${path.relative(process.cwd(), targetDirs[1])}`));
+      printNextSteps({ notes, nextSteps: this.nextSteps });
+
+      // Show health check summary
+      if (healthCheckResult.overallStatus === 'unhealthy') {
+        console.log(chalk.yellow('\n⚠️  Project Health Check: Some issues detected'));
+        console.log(formatHealthCheckReport(healthCheckResult));
+      } else if (healthCheckResult.overallStatus === 'warning') {
+        console.log(chalk.yellow('\n⚠️  Project Health Check: Minor issues detected'));
+        console.log(formatHealthCheckReport(healthCheckResult));
+      } else {
+        console.log(chalk.green('\n✅ Project Health Check: All checks passed'));
+      }
+    },
+  };
+}
+
+/** One app a new top-level project contains. */
+interface MonorepoApp {
+  /** Directory under `apps/`. */
+  dir: string;
+  kind: 'frontend' | 'backend';
+  label: string;
+  url: string;
+}
+
+/** README for a new top-level project; describes exactly the apps that were generated. */
+function monorepoReadme(
+  normalizedName: string,
+  packageManager: string,
+  apps: MonorepoApp[]
+): string {
+  const skeleton = apps.length === 0;
+  const tree = [
+    `${normalizedName}/`,
+    '├── apps/                 # Applications',
+    ...apps.map((app) => `│   └── ${app.dir}/${' '.repeat(Math.max(1, 18 - app.dir.length))}# ${app.label}`),
+    '├── packages/             # Shared libraries',
+    '└── docs/                 # Documentation',
+  ].join('\n');
+
+  const gettingStarted = skeleton
+    ? `## Getting Started
+
+This workspace is an empty skeleton: it has no apps yet, so there is nothing to
+install, run or build until you add one.
+
+\`\`\`bash
+# Add a frontend app
+re-shell create my-app --frontend react-ts
+
+# Add a backend service
+re-shell generate backend my-service
+
+# Then install and run everything
+${packageManager} install
+${packageManager} run dev
+\`\`\`
+`
+    : `## Getting Started
+
+### Installation
+\`\`\`bash
+${packageManager} install
+\`\`\`
+
+### Development
+\`\`\`bash
+# Start every app in development mode
+${packageManager} run dev
+\`\`\`
+${apps.map((app) => `\n- ${app.label}: ${app.url}`).join('')}
+
+### Building
+\`\`\`bash
+${packageManager} run build
+\`\`\`
+`;
+
+  return `# ${normalizedName}
+
+## Overview
+${
+  skeleton
+    ? 'An empty Re-Shell workspace skeleton (no apps yet).'
+    : `A Re-Shell workspace containing ${apps.map((app) => app.label).join(' and ')}.`
+}
+
+## Project Structure
+\`\`\`
+${tree}
+\`\`\`
+
+${gettingStarted}
+## Adding More
+\`\`\`bash
+re-shell create <name> --frontend react-ts   # another frontend app
+re-shell generate backend <name>             # a backend service (services/<name>)
+re-shell add <name>                          # a microfrontend
+\`\`\`
+
+## Documentation
+For more information, see the [Re-Shell documentation](https://umutkorkmaz.github.io/re-shell/)
+`;
 }
 
 /**
- * Creates a new monorepo project (legacy function for backward compatibility).
+ * Plan a new top-level Re-Shell project: a workspace root (package.json,
+ * workspace globs, README) plus the app(s) the request asks for. The default and
+ * `--frontend` modes scaffold a runnable frontend at `apps/<name>` from the
+ * frontend template system; `--backend` scaffolds just the API; `--fullstack`
+ * (or both) scaffolds the API and a frontend; `--template blank` scaffolds the
+ * bare workspace and says so.
  *
  * @param name - Name of the monorepo project to create.
  * @param options - Additional options for project creation.
+ * @param request - The validated create request.
+ * @param interactive - Whether to prompt for a missing package manager.
+ * @returns The plan, or `null` when the user cancelled.
  */
-async function createMonorepoProject(name: string, options: CreateProjectOptions): Promise<void> {
+async function buildMonorepoPlan(
+  name: string,
+  options: CreateProjectOptions,
+  request: ResolvedCreateRequest,
+  interactive: boolean
+): Promise<ScaffoldPlan | null> {
   const {
     team,
     org = 're-shell',
@@ -3190,319 +3838,222 @@ async function createMonorepoProject(name: string, options: CreateProjectOptions
   } = options;
 
   // Normalize name to kebab-case for consistency
-  const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
+  const normalizedName = normalizeProjectName(name);
 
-  console.log(chalk.cyan(`Creating Re-Shell project "${normalizedName}"...`));
+  if (!options.dryRun) console.log(chalk.cyan(`Creating Re-Shell project "${normalizedName}"...`));
 
   // Stop spinner for interactive prompts
   if (spinner) {
     spinner.stop();
   }
 
-  // Ask for additional information if not provided. In non-interactive mode
-  // (--yes, or stdin is not a TTY such as CI/piped AND prompts are not injected
-  // by a test harness), skip prompts and use the documented defaults so `create`
-  // never hangs headless.
-  const injected = Boolean((prompts as unknown as { _injected?: unknown[] })._injected?.length);
-  const nonInteractive = options.yes === true || (!process.stdin.isTTY && !injected);
-  let template = options.template;
+  // The package manager is the only choice that can still be unset here (the
+  // CLI defaults it to pnpm). Ask when a human is present, otherwise default.
   let packageManager = options.packageManager;
-  if (!template || !packageManager) {
-    if (nonInteractive) {
-      template = template || 'react-ts';
-      packageManager = packageManager || 'pnpm';
+  if (!packageManager) {
+    if (interactive) {
+      const answer = await ask({
+        type: 'select',
+        name: 'packageManager',
+        message: 'Select a package manager:',
+        choices: [
+          { title: 'npm', value: 'npm' },
+          { title: 'yarn', value: 'yarn' },
+          { title: 'pnpm', value: 'pnpm' },
+        ],
+        initial: 2, // Default to pnpm
+      });
+      packageManager = answer.packageManager;
     } else {
-      const responses = await prompts([
-        {
-          type: template ? null : 'select',
-          name: 'template',
-          message: 'Select a template:',
-          choices: [
-            { title: 'React', value: 'react' },
-            { title: 'React with TypeScript', value: 'react-ts' },
-          ],
-          initial: 1, // Default to react-ts
-        },
-        {
-          type: packageManager ? null : 'select',
-          name: 'packageManager',
-          message: 'Select a package manager:',
-          choices: [
-            { title: 'npm', value: 'npm' },
-            { title: 'yarn', value: 'yarn' },
-            { title: 'pnpm', value: 'pnpm' },
-          ],
-          initial: 2, // Default to pnpm
-        },
-      ]);
-      template = template || responses.template;
-      packageManager = packageManager || responses.packageManager;
+      packageManager = 'pnpm';
     }
   }
 
-  // Merge resolved values with options
-  const finalOptions = {
-    ...options,
-    template,
-    packageManager,
-  };
+  const skeleton = request.mode === 'skeleton';
+  const frontend =
+    request.mode === 'frontend' || request.mode === 'fullstack' ? request.frontend : undefined;
+  const backend =
+    request.mode === 'backend' || request.mode === 'fullstack' ? request.backend : undefined;
+  const fullStackApp = request.mode === 'fullstack';
 
-  // Restart spinner for file operations
-  if (spinner) {
-    spinner.start();
-    spinner.setText('Creating project structure...');
-    flushOutput();
+  const backendTemplate = backend ? getBackendTemplate(backend) : undefined;
+  if (backend && !backendTemplate) {
+    throw templateNotFound('backend template', backend, backendIds());
   }
 
-  // Create project structure
-  const projectPath = path.resolve(process.cwd(), normalizedName);
+  const rootPath = path.resolve(process.cwd(), normalizedName);
+  const dbType: DatabaseType | undefined =
+    request.db && request.db !== 'none' ? (request.db as DatabaseType) : undefined;
 
-  // Check if directory already exists
-  if (fs.existsSync(projectPath)) {
-    throw new Error(`Directory already exists: ${projectPath}`);
+  // App layout. A fullstack project's API gets a `-api` suffix so the two apps
+  // don't collide on the same workspace package name.
+  const apps: MonorepoApp[] = [];
+  const frontendDir = normalizedName;
+  const backendDir = fullStackApp ? `${normalizedName}-api` : normalizedName;
+  const backendPort = backend
+    ? fullStackApp
+      ? backendTemplate?.port?.toString() ?? '3000'
+      : options.port ?? backendTemplate?.port?.toString() ?? '3000'
+    : '3000';
+  if (frontend) {
+    apps.push({
+      dir: frontendDir,
+      kind: 'frontend',
+      label: `${frontend} frontend (apps/${frontendDir})`,
+      url: `http://localhost:${frontendPort(options)}`,
+    });
+  }
+  if (backendTemplate) {
+    apps.push({
+      dir: backendDir,
+      kind: 'backend',
+      label: `${backendTemplate.displayName} API (apps/${backendDir})`,
+      url: `http://localhost:${backendPort}`,
+    });
   }
 
-  // Create directory structure
-  fs.mkdirSync(projectPath);
-  fs.mkdirSync(path.join(projectPath, 'apps'));
-  fs.mkdirSync(path.join(projectPath, 'packages'));
-  fs.mkdirSync(path.join(projectPath, 'docs'));
+  const nextSteps = skeleton
+    ? [
+        `cd ${normalizedName}`,
+        'Add an app (the workspace is empty, nothing is runnable yet): ' +
+          're-shell create <app> --frontend react-ts, or re-shell generate backend <service>',
+        `${packageManager} install && ${packageManager} run dev  (once an app exists)`,
+      ]
+    : [`cd ${normalizedName}`, `${packageManager} install`, `${packageManager} run dev`];
 
-  // Create package.json for the project
-  const packageJson = {
-    name: normalizedName,
-    version: '0.1.0',
-    description,
-    private: true,
-    workspaces: ['apps/*', 'packages/*'],
-    scripts: {
-      dev: `${finalOptions.packageManager} run --parallel -r dev`,
-      build: `${finalOptions.packageManager} run --parallel -r build`,
-      lint: `${finalOptions.packageManager} run --parallel -r lint`,
-      test: `${finalOptions.packageManager} run --parallel -r test`,
-      clean: `${finalOptions.packageManager} run --parallel -r clean`,
-    },
-    author: team || org,
-    license: 'MIT',
-  };
+  const summary = [
+    `Name: ${normalizedName}`,
+    ...(frontend ? [`Frontend: ${frontend}`] : []),
+    ...(backend ? [`Backend: ${backend}`] : []),
+    ...(frontend ? [`Route: ${options.route ?? `/${normalizedName}`}`] : []),
+    `Port: ${backend && !frontend ? backendPort : frontendPort(options)}`,
+  ];
 
-  fs.writeFileSync(path.join(projectPath, 'package.json'), JSON.stringify(packageJson, null, 2));
+  return {
+    mode: request.mode,
+    name,
+    root: process.cwd(),
+    targetDirs: [rootPath],
+    projectPath: rootPath,
+    frontend,
+    backend,
+    summary,
+    skeleton,
+    notes: [...request.notes],
+    seedFiles: [],
+    nextSteps,
+    async write(outRoot: string): Promise<string[]> {
+      const sink = new ScaffoldSink(outRoot);
+      const projectRel = normalizedName;
+      const appsRel = (dir: string) => posixJoin(projectRel, 'apps', dir);
 
-  // Create workspace config
-  if (finalOptions.packageManager === 'pnpm') {
-    fs.writeFileSync(
-      path.join(projectPath, 'pnpm-workspace.yaml'),
-      `packages:\n  - 'apps/*'\n  - 'packages/*'\n`
-    );
-  }
+      // Create directory structure
+      sink.mkdir(projectRel);
+      sink.mkdir(posixJoin(projectRel, 'apps'));
+      sink.mkdir(posixJoin(projectRel, 'packages'));
+      sink.mkdir(posixJoin(projectRel, 'docs'));
 
-  // Create README.md
-  const readmeContent = `# ${normalizedName}
-
-## Overview
-A microfrontend project created with Re-Shell CLI.
-
-## Project Structure
-\`\`\`
-${normalizedName}/
-├── apps/                 # Microfrontend applications
-│   └── shell/            # Main shell application
-├── packages/             # Shared libraries
-└── docs/                 # Documentation
-\`\`\`
-
-## Getting Started
-
-### Installation
-\`\`\`bash
-# Install dependencies
-${finalOptions.packageManager} install
-\`\`\`
-
-### Development
-\`\`\`bash
-# Start all applications in development mode
-${finalOptions.packageManager} run dev
-\`\`\`
-
-### Building
-\`\`\`bash
-# Build all applications
-${finalOptions.packageManager} run build
-\`\`\`
-
-## Adding Microfrontends
-To add a new microfrontend to this project:
-
-\`\`\`bash
-re-shell add my-feature
-\`\`\`
-
-## Documentation
-For more information, see the [Re-Shell documentation](https://github.com/your-org/re-shell)
-`;
-
-  fs.writeFileSync(path.join(projectPath, 'README.md'), readmeContent);
-
-  // ── Scaffold the actual app(s) from the requested stack ───────────────────
-  // Previously this function only wrote the monorepo skeleton and ignored
-  // --backend/--db/--fullstack; the real scaffolding primitive
-  // (createBackendTemplate, the same one `createWorkspace` and the dry-run use)
-  // is reused here so a top-level `create` produces a runnable app, not an
-  // empty shell.
-  const requestedBackend = options.backend;
-  if (requestedBackend) {
-    const backendTemplate = getBackendTemplate(requestedBackend);
-    if (!backendTemplate) {
-      console.log(
-        chalk.yellow(
-          `\n  ! Unknown backend "${requestedBackend}"; skipping backend scaffold. Run \`re-shell templates list\` for supported ids.`
-        )
+      // Create package.json for the project
+      const { scripts, devDependencies } = rootScripts(
+        packageManager as string,
+        apps.map((app) => posixJoin('apps', app.dir))
       );
-    } else {
-      const isFullStackApp = Boolean(
-        options.fullstack || (options.framework && requestedBackend)
-      );
-      // When --fullstack is explicitly set but no framework is given, default
-      // to react-ts so a frontend shell is actually scaffolded (previously it
-      // was silently skipped).
-      if (options.fullstack && !options.framework) {
-        options.framework = 'react-ts';
-      }
-      const backendDirName = isFullStackApp
-        ? `${normalizedName}-api`
-        : normalizedName;
-      const backendAppPath = path.join(projectPath, 'apps', backendDirName);
-      fs.mkdirSync(backendAppPath, { recursive: true });
-
-      const dbCheck =
-        options.db && options.db !== 'none'
-          ? validateDatabaseType(options.db)
-          : { valid: false };
-      const dbType: DatabaseType | undefined = dbCheck.valid
-        ? (options.db as DatabaseType)
-        : undefined;
-
-      const backendContext: BackendTemplateContext = {
-        // Use the backend dir name as the package name so a fullstack project's
-        // backend (apps/<name>-api) and frontend (apps/<name>) don't collide on
-        // the same workspace package name.
-        name: backendDirName,
-        normalizedName: backendDirName,
-        port: backendTemplate.port?.toString() || options.port || '3000',
-        db: dbType,
-        org,
-        team,
-        description:
-          description || `${name} - A ${backendTemplate.displayName} backend`,
+      const packageJson = {
+        name: normalizedName,
+        version: '0.1.0',
+        description,
+        private: true,
+        workspaces: [...WORKSPACE_GLOBS],
+        scripts,
+        author: team || org,
+        license: 'MIT',
+        ...(devDependencies ? { devDependencies } : {}),
       };
+      sink.write(posixJoin(projectRel, 'package.json'), JSON.stringify(packageJson, null, 2));
 
-      const backendFiles = await createBackendTemplate(backendTemplate, backendContext);
-      for (const file of backendFiles) {
-        const filePath = path.join(backendAppPath, file.path);
-        fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        fs.writeFileSync(filePath, file.content);
-        if (file.executable) fs.chmodSync(filePath, 0o755);
+      // Create workspace config
+      if (packageManager === 'pnpm') {
+        sink.write(
+          posixJoin(projectRel, 'pnpm-workspace.yaml'),
+          `packages:\n${WORKSPACE_GLOBS.map((glob) => `  - '${glob}'`).join('\n')}\n`
+        );
       }
-      console.log(
-        chalk.green(
-          `  ✓ Scaffolded ${backendTemplate.displayName} backend → apps/${backendDirName} (${backendFiles.length} files)`
-        )
+
+      sink.write(
+        posixJoin(projectRel, '.gitignore'),
+        'node_modules/\ndist/\nbuild/\ncoverage/\n.env\n.env.local\n*.log\n.DS_Store\n'
       );
 
-      // For a fullstack project, also scaffold a minimal frontend shell so
-      // `pnpm dev` runs both the API and the web app.
-      if (isFullStackApp && options.framework) {
-        const frontendAppPath = path.join(projectPath, 'apps', normalizedName);
-        fs.mkdirSync(path.join(frontendAppPath, 'src'), { recursive: true });
-        fs.writeFileSync(
-          path.join(frontendAppPath, 'package.json'),
-          JSON.stringify(
-            {
-              name: normalizedName,
-              version: '0.1.0',
-              private: true,
-              type: 'module',
-              scripts: {
-                dev: 'vite',
-                build: 'tsc && vite build',
-                preview: 'vite preview',
-              },
-              dependencies: { react: '^18.2.0', 'react-dom': '^18.2.0' },
-              devDependencies: {
-                '@types/react': '^18.2.0',
-                '@types/react-dom': '^18.2.0',
-                '@vitejs/plugin-react': '^4.2.0',
-                typescript: '^5.3.0',
-                vite: '^5.0.0',
-              },
-            },
-            null,
-            2
-          )
-        );
-        fs.writeFileSync(
-          path.join(frontendAppPath, 'index.html'),
-          `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>${name}</title>\n  </head>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`
-        );
-        fs.writeFileSync(
-          path.join(frontendAppPath, 'vite.config.ts'),
-          `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()], server: { proxy: { '/api': 'http://localhost:3000' } } });\n`
-        );
-        fs.writeFileSync(
-          path.join(frontendAppPath, 'tsconfig.json'),
-          JSON.stringify(
-            {
-              compilerOptions: {
-                target: 'ES2020',
-                module: 'ESNext',
-                moduleResolution: 'bundler',
-                jsx: 'react-jsx',
-                strict: true,
-                esModuleInterop: true,
-                skipLibCheck: true,
-              },
-              include: ['src'],
-            },
-            null,
-            2
-          )
-        );
-        fs.writeFileSync(
-          path.join(frontendAppPath, 'src', 'main.tsx'),
-          `import React from 'react';\nimport { createRoot } from 'react-dom/client';\n\nfunction App() {\n  return (\n    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>\n      <h1>${name}</h1>\n      <p>Re-Shell fullstack app. The API runs at <code>/api</code>.</p>\n    </main>\n  );\n}\n\ncreateRoot(document.getElementById('root')!).render(<App />);\n`
-        );
+      // Create README.md
+      sink.write(
+        posixJoin(projectRel, 'README.md'),
+        monorepoReadme(normalizedName, packageManager as string, apps)
+      );
+
+      // Backend app (the API; the whole project for --backend)
+      if (backendTemplate) {
+        const backendContext: BackendTemplateContext = {
+          // Use the backend dir name as the package name so a fullstack project's
+          // backend (apps/<name>-api) and frontend (apps/<name>) don't collide on
+          // the same workspace package name.
+          name: backendDir,
+          normalizedName: backendDir,
+          port: backendPort,
+          db: dbType,
+          org,
+          team,
+          description: description || `${name} - A ${backendTemplate.displayName} backend`,
+        };
+        const backendFiles = await createBackendTemplate(backendTemplate, backendContext);
+        for (const file of backendFiles) {
+          sink.write(posixJoin(appsRel(backendDir), file.path), file.content, file.executable);
+        }
+      }
+
+      // Frontend app, from the frontend template system
+      if (frontend) {
+        const frameworkConfig = getFrameworkConfig(frontend);
+        const templateContext: TemplateContext = {
+          name,
+          normalizedName,
+          framework: frontend,
+          hasTypeScript: frameworkConfig.hasTypeScript || false,
+          port: frontendPort(options),
+          route: options.route ?? `/${normalizedName}`,
+          org,
+          team,
+          description: `${name} - A ${frameworkConfig.displayName} app`,
+          packageManager: packageManager as string,
+        };
+        const frontendFiles = await createTemplate(frameworkConfig, templateContext).generateFiles();
+        if (fullStackApp && backendTemplate) injectApiProxy(frontendFiles, backendPort);
+        for (const file of frontendFiles) {
+          sink.write(posixJoin(appsRel(frontendDir), file.path), file.content, file.executable);
+        }
+      }
+
+      return [...new Set(sink.written)].sort();
+    },
+    async afterWrite(): Promise<void> {
+      for (const app of apps) {
+        console.log(chalk.green(`  ✓ Scaffolded ${app.label}`));
+      }
+      console.log(chalk.green(`\nRe-Shell project "${normalizedName}" created successfully at ${rootPath}`));
+      if (skeleton) {
         console.log(
-          chalk.green(
-            `  ✓ Scaffolded ${options.framework} frontend shell → apps/${normalizedName}`
+          chalk.yellow(
+            '\n⚠ This is an empty workspace skeleton: it has no apps, so nothing is runnable yet.'
           )
         );
       }
-    }
-  }
-
-  console.log(
-    chalk.green(`\nRe-Shell project "${normalizedName}" created successfully at ${projectPath}`)
-  );
-  console.log('\nNext steps:');
-  console.log(`  1. cd ${normalizedName}`);
-  console.log(`  2. ${finalOptions.packageManager} install`);
-  console.log(`  3. ${finalOptions.packageManager} run dev`);
-  console.log(`  4. re-shell add my-feature (to add your first microfrontend)`);
-}
-
-/**
- * Backend template context used for placeholder substitution when generating
- * backend service files.
- */
-interface BackendTemplateContext {
-  name: string;
-  normalizedName: string;
-  port: string;
-  db?: DatabaseType;
-  org?: string;
-  team?: string;
-  description?: string;
+      printNextSteps({ notes: this.notes, nextSteps: this.nextSteps });
+      if (!skeleton) {
+        for (const app of apps) {
+          console.log(chalk.gray(`     ${app.label}: ${app.url}`));
+        }
+      }
+    },
+  };
 }
 
 /**
@@ -3530,157 +4081,16 @@ function getBackendTemplateChoices() {
 }
 
 /**
- * Create files from a backend template.
- *
- * Flattens the template's nested file tree, applies placeholder substitution
- * using the provided context, and optionally merges database configuration
- * files.
- *
- * @param template - The backend template to generate files from.
- * @param context - Context values used for placeholder substitution and database config.
- * @returns Array of generated file objects with path, content, and optional executable flag.
- */
-async function createBackendTemplate(
-  template: BackendTemplate,
-  context: BackendTemplateContext
-): Promise<{ path: string; content: string; executable?: boolean }[]> {
-  const files: { path: string; content: string; executable?: boolean }[] = [];
-
-  // Recursively flatten nested file trees (e.g. django's 'config/': { 'settings/': { ... } }).
-  function flattenFiles(entries: Record<string, unknown>, prefix: string): void {
-    for (const [key, value] of Object.entries(entries)) {
-      const fullPath = prefix ? `${prefix}${key}` : key;
-      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-        flattenFiles(value as Record<string, unknown>, fullPath.endsWith('/') ? fullPath : `${fullPath}/`);
-      } else {
-        const contentStr = String(value ?? '');
-        files.push({
-          path: fullPath,
-          content: contentStr
-            .replace(/\{\{projectName\}\}/g, context.name)
-            .replace(/\{\{name\}\}/g, context.name)
-            .replace(/\{\{normalizedName\}\}/g, context.normalizedName)
-            .replace(/\{\{port\}\}/g, context.port)
-            .replace(/\{\{org\}\}/g, context.org || 're-shell')
-            .replace(/\{\{team\}\}/g, context.team || '')
-            .replace(/\{\{description\}\}/g, context.description || ''),
-        });
-      }
-    }
-  }
-
-  flattenFiles(template.files, '');
-
-  // Add database configuration if specified
-  if (context.db && context.db !== 'none') {
-    const dbConfig = getDatabaseConfig(context.db);
-    if (dbConfig) {
-      for (const [filePath, content] of Object.entries(dbConfig.files)) {
-        files.push({ path: filePath, content });
-      }
-    }
-  }
-
-  return files;
-}
-
-/**
  * Creates the appropriate template instance based on the framework name.
  *
  * @param framework - Framework configuration identifying which template to use.
  * @param context - Template context used for file generation.
  * @returns An instance of a `BaseTemplate` subclass matching the framework.
+ * @throws if the framework has no scaffold template (it never falls back to a
+ *   different framework's template).
  */
 function createTemplate(framework: FrameworkConfig, context: TemplateContext): BaseTemplate {
-  switch (framework.name) {
-    case 'react':
-    case 'react-ts':
-      return new ReactTemplate(framework, context);
-    case 'vue':
-    case 'vue-ts':
-      return new VueTemplate(framework, context);
-    case 'svelte':
-    case 'svelte-ts':
-      return new SvelteTemplate(framework, context);
-    case 'next':
-    case 'nextjs':
-      return new NextJsTemplate(framework, context);
-    case 'remix':
-      return new RemixTemplate(framework, context);
-    case 'gatsby':
-      return new GatsbyTemplate(framework, context);
-    case 'nuxt':
-      return new NuxtTemplate(framework, context);
-    case 'quasar':
-      return new QuasarTemplate(framework, context);
-    case 'angular':
-      return new AngularTemplate(framework, context);
-    case 'vite-react':
-      return new ViteReactTemplate(framework, context);
-    case 'sveltekit':
-      return new SvelteKitTemplate(framework, context);
-    case 'solid-js':
-      return new SolidJsTemplate(framework, context);
-    case 'qwik':
-      return new QwikTemplate(framework, context);
-    case 'lit':
-      return new LitTemplate(framework, context);
-    case 'stencil':
-      return new StencilTemplate(framework, context);
-    case 'alpine':
-      return new AlpineTemplate(framework, context);
-    case 'preact':
-      return new PreactTemplate(framework, context);
-    case 'mithril':
-      return new MithrilTemplate(framework, context);
-    case 'hyperapp':
-      return new HyperappTemplate(framework, context);
-    case 'astro':
-      return new AstroTemplate(framework, context);
-    case 'eleventy':
-      return new EleventyTemplate(framework, context);
-    case 'vuepress':
-      return new VuePressTemplate(framework, context);
-    case 'docusaurus':
-      return new DocusaurusTemplate(framework, context);
-    case 'gridsome':
-      return new GridsomeTemplate(framework, context);
-    case 'scully':
-      return new ScullyTemplate(framework, context);
-    case 'jekyll':
-      return new JekyllTemplate(framework, context);
-    case 'hugo':
-      return new HugoTemplate(framework, context);
-    case 'hexo':
-      return new HexoTemplate(framework, context);
-    case 'zola':
-      return new ZolaTemplate(framework, context);
-    case 'create-react-app':
-    case 'cra':
-      return new CreateReactAppTemplate(framework, context);
-    case 'vue-cli':
-      return new VueCliTemplate(framework, context);
-    case 'angular-cli':
-      return new AngularCliTemplate(framework, context);
-    case 'vite-svelte':
-      return new ViteSvelteTemplate(framework, context);
-    case 'react-module-federation':
-      return new ReactModuleFederationTemplate(framework, context);
-    case 'vue-module-federation':
-      return new VueModuleFederationTemplate(framework, context);
-    case 'angular-module-federation':
-      return new AngularModuleFederationTemplate(framework, context);
-    case 'svelte-module-federation':
-      return new SvelteModuleFederationTemplate(framework, context);
-    case 'nx-angular':
-      return new NxAngularTemplate(framework, context);
-    case 'analog':
-      return new AnalogTemplate(framework, context);
-    // Add more frameworks as templates are implemented
-    default:
-      // Fallback to React template for unsupported frameworks
-      return new ReactTemplate(framework, context);
-  }
+  return createFrontendTemplate(framework, context);
 }
 
 /**
@@ -3732,7 +4142,7 @@ class ReactModuleFederationShellTemplate extends ReactModuleFederationTemplate {
 
   private generateShellWebpackConfig(): string {
     const remotesConfig = this.remotes
-      .map((r) => `        ${r.name}: '${r.name}@http://localhost:${r.port}/remoteEntry.js',`)
+      .map((r) => `        '${r.name}': '${mfContainerName(r.name)}@http://localhost:${r.port}/remoteEntry.js',`)
       .join('\n');
 
     const sharedConfig = this.sharedDeps
@@ -3860,7 +4270,7 @@ class VueModuleFederationShellTemplate extends VueModuleFederationTemplate {
 
   private generateShellWebpackConfig(): string {
     const remotesConfig = this.remotes
-      .map((r) => `      ${r.name}: '${r.name}@http://localhost:${r.port}/remoteEntry.js',`)
+      .map((r) => `      '${r.name}': '${mfContainerName(r.name)}@http://localhost:${r.port}/remoteEntry.js',`)
       .join('\n');
 
     const sharedConfig = this.sharedDeps
@@ -3989,7 +4399,7 @@ class SvelteModuleFederationShellTemplate extends SvelteModuleFederationTemplate
 
   private generateShellWebpackConfig(): string {
     const remotesConfig = this.remotes
-      .map((r) => `      ${r.name}: '${r.name}@http://localhost:${r.port}/remoteEntry.js',`)
+      .map((r) => `      '${r.name}': '${mfContainerName(r.name)}@http://localhost:${r.port}/remoteEntry.js',`)
       .join('\n');
 
     const sharedConfig = this.sharedDeps
@@ -4120,7 +4530,7 @@ module.exports = {
   },
   plugins: [
     new ModuleFederationPlugin({
-      name: '${this.remote.name}',
+      name: '${mfContainerName(this.remote.name)}',
       filename: 'remoteEntry.js',
       exposes: {
 ${exposesConfig}
@@ -4216,7 +4626,7 @@ module.exports = {
   },
   plugins: [
     new ModuleFederationPlugin({
-      name: '${this.remote.name}',
+      name: '${mfContainerName(this.remote.name)}',
       filename: 'remoteEntry.js',
       exposes: {
 ${exposesConfig}
@@ -4341,7 +4751,7 @@ module.exports = {
   },
   plugins: [
     new ModuleFederationPlugin({
-      name: '${this.remote.name}',
+      name: '${mfContainerName(this.remote.name)}',
       filename: 'remoteEntry.js',
       exposes: {
 ${exposesConfig}

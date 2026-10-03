@@ -218,7 +218,7 @@ export class AngularModuleFederationTemplate extends BaseTemplate {
         'karma-coverage': '^2.2.0',
         'karma-jasmine': '^5.1.0',
         'karma-jasmine-html-reporter': '^2.1.0',
-        'typescript': '^5.3.0',
+        'typescript': '~5.4.5',
         'webpack': '^5.89.0'
       }
     };
@@ -359,7 +359,7 @@ module.exports = {
 
   plugins: [
     new ModuleFederationPlugin({
-      name: '${normalizedName}',
+      name: '${normalizedName.replace(/[^A-Za-z0-9_$]/g, '_')}',
       filename: 'remoteEntry.js',
       exposes: {
         './CounterComponent': './src/app/counter/counter.component',

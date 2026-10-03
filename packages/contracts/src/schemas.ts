@@ -1426,3 +1426,100 @@ export const uiTestResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type UiTestResponse = z.infer<typeof uiTestResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// create  (`re-shell create [--dry-run] [--json]`)  — P9-H2 (S-D)
+//
+// `create` scaffolds a project in one of six modes. `--dry-run` renders the
+// exact file set the real run would write (via a throwaway directory) and, when
+// the target already exists, classifies each file against what is on disk:
+// added / modified / unchanged, with a unified diff for modified files. The real
+// (non-dry-run) `--json` run reports what was written plus the next steps.
+// ---------------------------------------------------------------------------
+
+/** Scaffold modes `create` resolves a request into. `skeleton` is an empty workspace (`--template blank`). */
+export const createModeSchema = z.enum([
+  'frontend',
+  'backend',
+  'fullstack',
+  'microfrontend',
+  'polyglot',
+  'skeleton',
+]);
+export type CreateMode = z.infer<typeof createModeSchema>;
+
+/** How a scaffolded file compares to what already exists at the target. */
+export const scaffoldFileStatusSchema = z.enum(['added', 'modified', 'unchanged']);
+export type ScaffoldFileStatus = z.infer<typeof scaffoldFileStatusSchema>;
+
+/** What the scaffold WOULD do to the file (retained from the clean dry-run payload). */
+export const scaffoldFileActionSchema = z.enum(['create', 'overwrite', 'unchanged']);
+export type ScaffoldFileAction = z.infer<typeof scaffoldFileActionSchema>;
+
+/** One file in a dry-run: where it goes, how big it is, and how it compares to disk. */
+export const scaffoldFileSchema = z.object({
+  /** Path relative to the payload's `root`, always forward-slashed. */
+  path: z.string(),
+  /** Size of the rendered file in bytes (UTF-8). */
+  bytes: z.number(),
+  /** `create` when the file does not exist yet, `overwrite` when it differs, else `unchanged`. */
+  action: scaffoldFileActionSchema,
+  /** `added` / `modified` / `unchanged` relative to the existing target. */
+  status: scaffoldFileStatusSchema,
+  /** Unified diff (existing -> scaffolded). Present only for `modified` text files. */
+  diff: z.string().optional(),
+});
+export type ScaffoldFile = z.infer<typeof scaffoldFileSchema>;
+
+/** Counts of files per {@link ScaffoldFileStatus}. */
+export const scaffoldDryRunSummarySchema = z.object({
+  added: z.number(),
+  modified: z.number(),
+  unchanged: z.number(),
+});
+export type ScaffoldDryRunSummary = z.infer<typeof scaffoldDryRunSummarySchema>;
+
+/**
+ * Envelope payload for `re-shell create --dry-run --json`: the resolved `mode`,
+ * the absolute `root` every file `path` is relative to, whether the target
+ * directory already exists (`targetExists`), the exact `files` the real run
+ * would write (each classified against disk, with a `diff` when modified), a
+ * short `previews` head per file, per-status `summary` counts, and `notes`
+ * describing defaults that were applied. Nothing is written.
+ */
+export const createDryRunResponseSchema = z.object({
+  project: z.string(),
+  mode: createModeSchema,
+  /** Primary template id (backend template for backend/fullstack, else the frontend framework). */
+  templateId: z.string().optional(),
+  frontend: z.string().optional(),
+  backend: z.string().optional(),
+  dryRun: z.literal(true),
+  root: z.string(),
+  targetExists: z.boolean(),
+  files: z.array(scaffoldFileSchema),
+  totalBytes: z.number(),
+  previews: z.record(z.string(), z.string()),
+  summary: scaffoldDryRunSummarySchema,
+  notes: z.array(z.string()),
+});
+export type CreateDryRunResponse = z.infer<typeof createDryRunResponseSchema>;
+
+/**
+ * Envelope payload for a real `re-shell create --json` run: the resolved `mode`,
+ * the absolute `root`/`projectPath`, whether the output is a bare `skeleton`
+ * (nothing runnable yet), every `files` path written (relative to `root`), the
+ * honest `nextSteps`, and `notes` describing defaults that were applied.
+ */
+export const createResponseSchema = z.object({
+  project: z.string(),
+  mode: createModeSchema,
+  dryRun: z.literal(false),
+  root: z.string(),
+  projectPath: z.string(),
+  skeleton: z.boolean(),
+  files: z.array(z.string()),
+  nextSteps: z.array(z.string()),
+  notes: z.array(z.string()),
+});
+export type CreateResponse = z.infer<typeof createResponseSchema>;
