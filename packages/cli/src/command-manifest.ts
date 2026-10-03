@@ -239,7 +239,7 @@ export const GROUP_MANIFEST: readonly GroupManifestEntry[] = [
   },
   {
     name: 'fix',
-    description: 'CI fixer scaffold (unavailable: no gate evaluator wired; use --ci)',
+    description: 'Autonomous CI fixer: run the workspace gates and fix failures with validated AI patches on a new branch (use --ci)',
     hasOptions: true,
     module: './groups/fix-ci.group',
     register: 'registerFixCiGroup',

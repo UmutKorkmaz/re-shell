@@ -300,6 +300,11 @@ function exitGuard(code: number): void {
   const raw = process.exitCode;
   const effective = typeof raw === 'number' ? raw : code;
   emitMissingEnvelopeFailure(effective);
+  // `fail` marks the process with exit code 1; a command that was already
+  // exiting non-zero (e.g. 130 after Ctrl-C) keeps its own, more specific code.
+  if (effective !== 0) {
+    process.exitCode = effective;
+  }
 }
 
 /**

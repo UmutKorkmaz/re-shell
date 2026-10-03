@@ -257,10 +257,13 @@ describe('groups — small registration groups', () => {
     it('registers fix with ci/json/dry-run/max-iterations options', () => {
       const program = programWith(registerFixCiGroup);
       const cmd = subcommand(program, 'fix');
-      expect(cmd.description()).toContain('unavailable: no gate evaluator wired');
+      expect(cmd.description()).toContain('Autonomous CI fixer');
       expect(optionFlags(cmd)).toContain('--ci');
       expect(optionFlags(cmd)).toContain('--no-dry-run');
       expect(optionFlags(cmd)).toContain('--max-iterations <n>');
+      expect(optionFlags(cmd)).toContain('--allow-dirty');
+      expect(optionFlags(cmd)).toContain('--skip-gate <name>');
+      expect(optionFlags(cmd)).toContain('--model <id>');
     });
 
     it('refuses to run without --ci and points at doctor', async () => {
