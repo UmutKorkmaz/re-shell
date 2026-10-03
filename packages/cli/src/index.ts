@@ -126,6 +126,7 @@ import { registerFixCiGroup } from './groups/fix-ci.group';
 import { registerBoundariesGroup } from './groups/boundaries.group';
 import { registerEnvGroup } from './groups/env.group';
 import { registerUiTestGroup } from './groups/ui-test.group';
+import { registerUiGroup } from './groups/ui.group';
 import { registerCompletionGroup } from './groups/completion.group';
 import { registerAliases } from './aliases';
 
@@ -643,6 +644,7 @@ registerFixCiGroup(program);
 registerBoundariesGroup(program);
 registerEnvGroup(program);
 registerUiTestGroup(program);
+registerUiGroup(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 

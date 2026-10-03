@@ -3,6 +3,8 @@ import {
   type AiProvider,
   type ProviderRequest,
   type ProviderResponse,
+  type TextRequest,
+  type TextResponse,
 } from '../types';
 import { PROPOSAL_JSON_SCHEMA, SYSTEM_PROMPT, buildMessages } from '../prompt';
 import { scrubSecrets } from '../config';
@@ -43,6 +45,8 @@ import { parseProposalText } from './parse';
 const EFFORT_MODELS = /^claude-(opus-(4-[5-9]|[5-9])|sonnet-(4-[6-9]|[5-9])|fable|mythos)/;
 
 const MAX_OUTPUT_TOKENS = 4096;
+/** Ceiling for free-form completions (generated source files are longer than a command proposal). */
+const MAX_TEXT_TOKENS = 8192;
 
 /** Options for {@link AnthropicProvider}. */
 export interface AnthropicProviderOptions {
@@ -148,6 +152,68 @@ export class AnthropicProvider implements AiProvider {
           inputTokens: message.usage?.input_tokens,
           outputTokens: message.usage?.output_tokens,
         },
+      };
+    } catch (error) {
+      throw await mapAnthropicError(error, deadlineHit, secrets);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onExternalAbort);
+    }
+  }
+
+  /**
+   * Free-form completion (no structured-output schema): the same deadline, SDK,
+   * refusal / truncation handling and error mapping as {@link propose}.
+   */
+  async complete(request: TextRequest, signal?: AbortSignal): Promise<TextResponse> {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const started = Date.now();
+    const controller = new AbortController();
+    let deadlineHit = false;
+    const timer = setTimeout(() => {
+      deadlineHit = true;
+      controller.abort();
+    }, this.options.timeoutMs);
+    const onExternalAbort = (): void => controller.abort();
+    signal?.addEventListener('abort', onExternalAbort, { once: true });
+
+    const secrets = [this.options.apiKey];
+    try {
+      const client = new Anthropic({
+        ...(this.options.apiKey ? { apiKey: this.options.apiKey } : {}),
+        ...(this.options.baseUrl ? { baseURL: this.options.baseUrl } : {}),
+        timeout: this.options.timeoutMs,
+        maxRetries: this.options.maxRetries ?? 1,
+        ...(this.options.fetch ? { fetch: this.options.fetch } : {}),
+      });
+      const message = await client.messages.create(
+        {
+          model: this.model,
+          max_tokens: Math.min(request.maxTokens ?? MAX_TEXT_TOKENS, MAX_TEXT_TOKENS),
+          system: request.system,
+          messages: [{ role: 'user', content: request.prompt }],
+        },
+        { signal: controller.signal }
+      );
+
+      if (message.stop_reason === 'refusal') {
+        throw new AiProviderError('anthropic', 'refusal', 'the model declined this request');
+      }
+      if (message.stop_reason === 'max_tokens') {
+        throw new AiProviderError('anthropic', 'truncated', 'the model response was cut off before it finished');
+      }
+      const text = message.content
+        .filter((block): block is Extract<typeof block, { type: 'text' }> => block.type === 'text')
+        .map(block => block.text)
+        .join('');
+      if (!text.trim()) {
+        throw new AiProviderError('anthropic', 'malformed', 'the model returned no text content');
+      }
+      return {
+        text,
+        model: message.model ?? this.model,
+        latencyMs: Date.now() - started,
+        usage: { inputTokens: message.usage?.input_tokens, outputTokens: message.usage?.output_tokens },
       };
     } catch (error) {
       throw await mapAnthropicError(error, deadlineHit, secrets);

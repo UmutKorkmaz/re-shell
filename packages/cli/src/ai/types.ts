@@ -124,14 +124,39 @@ export interface ProviderResponse {
   usage?: { inputTokens?: number; outputTokens?: number };
 }
 
+/** A free-form text completion request (used by generators such as `re-shell ui generate`). */
+export interface TextRequest {
+  /** System prompt: the rules the model must follow. */
+  system: string;
+  /** The user's request. */
+  prompt: string;
+  /** Output ceiling; providers clamp it to their own maximum. */
+  maxTokens?: number;
+}
+
+/** A free-form text completion. The text is UNTRUSTED model output. */
+export interface TextResponse {
+  text: string;
+  model: string;
+  latencyMs: number;
+  usage?: { inputTokens?: number; outputTokens?: number };
+}
+
 /**
  * A model backend. Implementations MUST NOT execute anything: they only turn a
- * request into an untrusted {@link RawProposal}.
+ * request into an untrusted {@link RawProposal} (or, via the optional
+ * {@link AiProvider.complete}, untrusted text).
  */
 export interface AiProvider {
   readonly name: AiProviderName;
   readonly model?: string;
   propose(request: ProviderRequest, signal?: AbortSignal): Promise<ProviderResponse>;
+  /**
+   * Free-form text completion. Implemented by the network providers; the offline
+   * provider has no model and does not implement it, so callers must fall back to
+   * their own deterministic path when it is `undefined`.
+   */
+  complete?(request: TextRequest, signal?: AbortSignal): Promise<TextResponse>;
 }
 
 /** Why a provider call failed. Every kind maps to an offline fallback. */
