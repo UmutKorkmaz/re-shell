@@ -10,6 +10,7 @@ import {
   FACETS,
   createExplorerState,
   explorerReducer,
+  type ExplorerAction,
   relationCounts,
   selectedId,
   statusOf,
@@ -245,7 +246,18 @@ export const GraphExplorer: React.FC<GraphExplorerProps> = (props) => {
   const columns = props.columns ?? stdout?.columns ?? 100;
   const listHeight = Math.max(3, rows - CHROME_ROWS);
 
-  const [state, dispatch] = useReducer(explorerReducer, undefined, () => createExplorerState(props.initial, listHeight));
+  // State lives in a ref and is updated synchronously by `dispatch`, so a key
+  // pressed before the previous key's re-render has committed (fast typing,
+  // pasted text, a loaded terminal) still sees the up-to-date mode and query.
+  // A render-time `useReducer` state would give the input handler a stale closure.
+  const stateRef = useRef<ExplorerState | null>(null);
+  if (stateRef.current === null) stateRef.current = createExplorerState(props.initial, listHeight);
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  const dispatch = useCallback((action: ExplorerAction): void => {
+    stateRef.current = explorerReducer(stateRef.current!, action);
+    bump();
+  }, []);
+  const state = stateRef.current;
   const [live, setLive] = useState<{ busy: boolean; error: string | null; updates: number }>({
     busy: false,
     error: null,
@@ -287,6 +299,7 @@ export const GraphExplorer: React.FC<GraphExplorerProps> = (props) => {
   }, [props.subscribe, props.statusIntervalMs, props.loadStatuses, reload]);
 
   useInput((input, key) => {
+    const state = stateRef.current!;
     if (state.mode === 'search') {
       if (key.return) dispatch({ type: 'endSearch', clear: false });
       else if (key.escape) dispatch({ type: 'endSearch', clear: true });
