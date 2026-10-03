@@ -139,7 +139,7 @@ if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
       node) TEMPLATES+=("${GROUP_NODE[@]}") ;;
       config) TEMPLATES+=("${GROUP_CONFIG[@]}") ;;
       haskell) TEMPLATES+=("${GROUP_HASKELL[@]}") ;;
-      *) echo "unknown group: $1 (core|jvm|dotnet|native|node|config)" >&2; exit 2 ;;
+      *) echo "unknown group: $1 (core|jvm|dotnet|native|node|config|haskell)" >&2; exit 2 ;;
     esac
     shift
   done
