@@ -9,7 +9,7 @@ import chalk from 'chalk';
 export function registerOperationalTransform(collab: Command): void {
   collab
   .command('operational-transform')
-  .description('Generate Operational Transform for conflict resolution in shared editing')
+  .description('[code generator] Generate Operational Transform for conflict resolution in shared editing (the control plane ships a real OT editor: collab session)')
   .argument('<name>', 'Name of the OT setup')
   .option('--algorithm <algo>', 'OT algorithm (ot0, cactus, juggee, google-wave)', 'ot0')
   .option('--strategy <strategy>', 'Conflict strategy (last-write-wins, operational-transform, crdt)', 'operational-transform')

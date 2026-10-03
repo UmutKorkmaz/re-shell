@@ -9,7 +9,7 @@ import chalk from 'chalk';
 export function registerWebrtcSharing(collab: Command): void {
   collab
   .command('webrtc-sharing')
-  .description('Generate WebRTC-based code sharing and pair programming with low latency')
+  .description('[code generator] Generate WebRTC-based code sharing and pair programming with low latency (for real pairing use: collab session)')
   .argument('<name>', 'Name of the WebRTC sharing setup')
   .option('--signaling-url <url>', 'Signaling server URL', 'wss://signaling.example.com')
   .option('--codec <codec>', 'Video codec (vp8, vp9, h264, av1)', 'vp9')

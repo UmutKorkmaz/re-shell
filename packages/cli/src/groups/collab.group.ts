@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 
+import { registerSession } from './collab/session';
 import { registerWebrtcSharing } from './collab/webrtc-sharing';
 import { registerTerminalBroadcasting } from './collab/terminal-broadcasting';
 import { registerOperationalTransform } from './collab/operational-transform';
@@ -29,14 +30,22 @@ import { registerCollaboration } from './collab/collaboration';
 import { registerFeatureFlag } from './collab/feature-flag';
 
 /**
- * Wires the `collab` command group. Each subcommand lives in its own module
+ * Wires the `collab` command group. `collab session` is the real collaboration
+ * client (start/join/list/end/run/handover against the hosted control plane);
+ * every other subcommand is a CODE GENERATOR that writes starter code and talks
+ * to no server. Each subcommand lives in its own module
  * under ./collab/ and registers itself onto the shared `collab` command in the
  * original declaration order. The per-module `import('../../utils/X.js')`
  * dynamic edges are preserved. This file is a thin registrar only.
  */
 export function registerCollabGroup(program: Command): void {
   const collab = new Command('collab')
-    .description('Collaboration, team management, and productivity commands');
+    .description(
+      'Real-time collaboration (shared sessions on the control plane: `collab session ...`) plus collaboration code generators'
+    );
+
+  // The real, server-backed commands come first; every other subcommand is a code generator.
+  registerSession(collab);
 
   registerWebrtcSharing(collab);
   registerTerminalBroadcasting(collab);
