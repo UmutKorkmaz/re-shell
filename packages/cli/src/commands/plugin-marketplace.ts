@@ -46,6 +46,8 @@ interface MarketplaceCommandOptions {
   dryRun?: boolean;
   /** Commander maps `--no-verify` to `verify: false` (defaults to true). */
   verify?: boolean;
+  /** Record a version pin for the installed plugin. */
+  pin?: boolean;
 }
 
 /**
@@ -178,7 +180,8 @@ export async function showPluginDetails(
       throw new ValidationError(`Invalid plugin ID: ${pluginId}`);
     }
 
-    const marketplace = createMarketplace();
+    // Fetch real npms.io / npm download quality data for the detail view.
+    const marketplace = createMarketplace({ fetchQuality: true });
     const spinner = json ? undefined : createSpinner(`Fetching plugin details for ${pluginId}...`);
     if (spinner) spinner.start();
 
@@ -245,7 +248,11 @@ export async function installMarketplacePlugin(
       : createSpinner(`Installing ${pluginId}${version ? `@${version}` : ''}...`);
     if (spinner) spinner.start();
 
-    const result = await marketplace.installPlugin(pluginId, version, { force, dryRun });
+    const result = await marketplace.installPlugin(pluginId, version, {
+      force,
+      dryRun,
+      ...(options.pin ? { pin: true } : {}),
+    });
     if (spinner) spinner.stop();
 
     if (!result.success) {
@@ -507,6 +514,9 @@ function displayPluginSummary(plugin: MarketplacePlugin, verbose: boolean): void
   console.log(`${chalk.white(plugin.name)}${badgeText}`);
   console.log(`${plugin.description}`);
   console.log(`${chalk.blue(plugin.author)} • v${plugin.version} • ${chalk.gray(plugin.category)}`);
+  if (plugin.rating !== null) {
+    console.log(chalk.gray(`Rating: ${plugin.rating}/5 (npms)`));
+  }
   if (verbose) {
     console.log(`Keywords: ${plugin.keywords.join(', ')}`);
     if (plugin.size > 0) console.log(`Size: ${formatFileSize(plugin.size)}`);
@@ -527,6 +537,17 @@ function displayPluginDetails(plugin: MarketplacePlugin, verbose: boolean): void
   console.log(`  License: ${plugin.license}`);
   if (plugin.size > 0) console.log(`  Size: ${formatFileSize(plugin.size)}`);
   console.log(`  Signed: ${plugin.verified ? chalk.green('yes') : chalk.yellow('no')}`);
+  if (plugin.quality && plugin.quality.source !== 'unavailable') {
+    console.log(
+      `  Rating: ${plugin.quality.rating}/5 (${plugin.quality.source}${plugin.quality.derived ? ', derived from downloads + registry metadata' : ''})`
+    );
+    if (plugin.downloads !== null) console.log(`  Downloads (last month): ${plugin.downloads}`);
+  } else if (plugin.quality) {
+    console.log(`  Rating: unavailable (${plugin.quality.error ?? 'unknown error'})`);
+  }
+  if (plugin.reviewCount > 0) {
+    console.log(`  Team rating: ${plugin.teamRating}/5 (${plugin.reviewCount} review(s))`);
+  }
 
   if (plugin.keywords.length > 0) {
     console.log(chalk.yellow('\nKeywords:'));

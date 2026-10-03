@@ -1,11 +1,22 @@
 import chalk from 'chalk';
+import * as path from 'path';
+import * as fs from 'fs-extra';
+import { Command } from 'commander';
+import type {
+  PluginInfoResponse,
+  PluginListItem,
+  PluginOrigin,
+  PluginQuality,
+  PluginReview,
+  PluginValidateResponse,
+} from '@re-shell/contracts';
 
 import { createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
-import { 
+import {
   PluginDiscoveryOptions,
   PluginRegistration,
-  createPluginRegistry 
+  createPluginRegistry
 } from '../utils/plugin-system';
 import { PluginState, ManagedPluginRegistration } from '../utils/plugin-lifecycle';
 import { HookType, HookHandler } from '../utils/plugin-hooks';
@@ -13,7 +24,40 @@ import {
   installPluginFromIdentifier,
   PluginInstallError,
 } from '../utils/plugin-installer';
-import { ok, fail, enableJsonMode } from '../utils/json-output';
+import {
+  readPluginsFile,
+  pluginsDir,
+  PluginStoreError,
+  type PluginRegistryEntry,
+} from '../utils/plugin-store';
+import {
+  uninstallPluginFromWorkspace,
+  PluginUninstallError,
+  isStrictlyInside,
+} from '../utils/plugin-uninstaller';
+import {
+  updateInstalledPlugins,
+  pinInstalledPlugin,
+  unpinInstalledPlugin,
+  PluginUpdateInputError,
+} from '../utils/plugin-updater';
+import { resolveVerifyPolicy } from '../utils/plugin-signature';
+import {
+  validatePluginPath,
+  PluginValidationInputError,
+} from '../utils/plugin-validator';
+import {
+  addReview,
+  listReviews,
+  readReviewAggregates,
+  aggregateReviews,
+  PluginReviewError,
+  REVIEWS_RELATIVE_PATH,
+} from '../utils/plugin-reviews';
+import { fetchPluginQuality, qualityCachePath } from '../utils/plugin-ratings';
+import { createPluginCommandRegistry } from '../utils/plugin-command-registry';
+import type { FetchLike } from '../utils/registry-client';
+import { ok, fail, emitJson, enableJsonMode } from '../utils/json-output';
 
 /**
  * Options for the `re-shell plugin` command.
@@ -29,49 +73,156 @@ interface PluginCommandOptions {
   force?: boolean;
   dryRun?: boolean;
   timeout?: number;
+  /** Workspace root (defaults to `process.cwd()`); programmatic only, not a CLI flag. */
+  cwd?: string;
+  /** Record a version pin on install. */
+  pin?: boolean;
+  /** npm registry URL for install/update/validate. */
+  registry?: string;
+  /** `--verify` / `--no-verify`; undefined defers to the workspace security setting. */
+  verify?: boolean;
+  /** Update: report only, change nothing. */
+  check?: boolean;
+  /** Uninstall: also delete the plugin's data directory. */
+  purge?: boolean;
+  /** Validate: treat warnings as failures. */
+  strict?: boolean;
+  /** Validate: resolve locally-missing dependencies against the npm registry. */
+  checkRegistry?: boolean;
+  /** Info: do not hit the network for quality data (cache only). */
+  offline?: boolean;
+  /** Review: 1-5 rating (string from the command line). */
+  rating?: string | number;
+  /** Review: free-text comment. */
+  comment?: string;
+  /** Review: author identity (default: git user). */
+  author?: string;
+  /** Injected fetch (tests). */
+  fetchImpl?: FetchLike;
+}
+
+/** Workspace root for a command invocation. */
+function rootOf(options: { cwd?: string }): string {
+  return options.cwd ?? process.cwd();
+}
+
+/**
+ * Report a failure in the right mode: a JSON envelope with a non-zero exit in
+ * `--json` mode, otherwise a ValidationError the command wrapper turns into a
+ * non-zero exit.
+ */
+function failCommand(
+  json: boolean,
+  code: Parameters<typeof fail>[0],
+  message: string,
+  details?: Record<string, unknown>,
+  humanPrefix?: string
+): void {
+  if (json) {
+    fail(code, message, details);
+    return;
+  }
+  throw new ValidationError(humanPrefix ? `${humanPrefix}: ${message}` : message);
 }
 
 // Main plugin management function
 /**
+ * Where an installed plugin came from: the recorded install source when the CLI
+ * installed it, otherwise inferred from where it lives on disk.
+ */
+function originOf(
+  plugin: { pluginPath: string },
+  entry: PluginRegistryEntry | undefined,
+  root: string
+): PluginOrigin {
+  if (entry) return entry.source;
+  if (isStrictlyInside(path.join(root, 'node_modules'), plugin.pluginPath)) return 'node_modules';
+  if (
+    isStrictlyInside(pluginsDir(root), plugin.pluginPath) ||
+    isStrictlyInside(path.join(root, 'plugins'), plugin.pluginPath)
+  ) {
+    return 'workspace';
+  }
+  if (isStrictlyInside(path.join(__dirname, '..', 'plugins'), plugin.pluginPath)) return 'builtin';
+  return 'global';
+}
+
+function toListItem(
+  plugin: ManagedPluginRegistration,
+  entry: PluginRegistryEntry | undefined,
+  root: string,
+  reviews: Map<string, ReturnType<typeof aggregateReviews>>
+): PluginListItem {
+  return {
+    name: plugin.manifest.name,
+    version: plugin.manifest.version,
+    description: plugin.manifest.description ?? '',
+    path: plugin.pluginPath,
+    origin: originOf(plugin, entry, root),
+    state: plugin.state,
+    isLoaded: plugin.isLoaded,
+    isActive: plugin.isActive,
+    usageCount: plugin.usageCount,
+    pin: entry?.pin ?? null,
+    installedAt: entry?.installedAt ?? null,
+    managed: entry !== undefined,
+    reviews: reviews.get(plugin.manifest.name) ?? aggregateReviews([]),
+  };
+}
+
+/**
  * Lists all installed plugins managed by the registry.
  *
- * Initializes the plugin registry and displays the managed plugins, optionally
- * emitting JSON output for scripting.
+ * Initializes the plugin registry and displays the managed plugins. With
+ * `--json` emits the standard envelope (`{ ok, data: { plugins, total }, warnings }`).
  *
  * @param options - Options controlling output format and verbosity
  * @returns Promise that resolves when the plugin list has been displayed
  */
 export async function managePlugins(options: PluginCommandOptions = {}): Promise<void> {
   const { verbose = false, json = false } = options;
+  const root = rootOf(options);
+  const restoreJson = json ? enableJsonMode() : () => {};
 
   try {
-    const restoreJson = json ? (await import('../utils/json-output')).enableJsonMode() : () => {};
-    
-    const registry = createPluginRegistry();
-    
+    const registry = createPluginRegistry(root);
+
     const spinner = json ? undefined : createSpinner('Initializing plugin registry...');
     if (spinner) spinner.start();
-    
+
     await registry.initialize();
-    
+
     if (spinner) spinner.stop();
 
     const plugins = registry.getManagedPlugins();
-    
+    const file = await readPluginsFile(root);
+    const warnings: string[] = [];
+
+    let reviews = new Map<string, ReturnType<typeof aggregateReviews>>();
+    try {
+      reviews = await readReviewAggregates(root);
+    } catch (error) {
+      warnings.push(error instanceof Error ? error.message : String(error));
+    }
+
+    const known = new Set(plugins.map(p => p.manifest.name));
+    for (const [name, entry] of Object.entries(file.plugins)) {
+      if (!known.has(name)) {
+        warnings.push(
+          `plugins.json lists '${name}' but no plugin was found at ${entry.path}; ` +
+            `run 're-shell plugin install' again or 're-shell plugin uninstall ${name} --force' to clean up`
+        );
+      }
+    }
+
+    const items = plugins.map(p => toListItem(p, file.plugins[p.manifest.name], root, reviews));
+
     if (json) {
-      process.stdout.write(JSON.stringify(plugins.map(p => ({
-        name: p.manifest.name,
-        version: p.manifest.version,
-        description: p.manifest.description,
-        path: p.pluginPath,
-        isLoaded: p.isLoaded,
-        isActive: p.isActive,
-        usageCount: p.usageCount,
-        state: p.state
-      })), null, 2) + '\n');
-      restoreJson();
+      ok({ plugins: items, total: items.length }, warnings);
       return;
     }
+
+    warnings.forEach(w => console.log(chalk.yellow(`⚠ ${w}`)));
 
     if (plugins.length === 0) {
       console.log(chalk.yellow('No plugins found.'));
@@ -80,13 +231,18 @@ export async function managePlugins(options: PluginCommandOptions = {}): Promise
     }
 
     console.log(chalk.cyan(`\n🔌 Installed Plugins (${plugins.length})\n`));
-    
-    displayPluginList(plugins, verbose);
+
+    displayPluginList(plugins, verbose, items);
 
   } catch (error) {
-    throw new ValidationError(
-      `Plugin management failed: ${error instanceof Error ? error.message : String(error)}`
-    );
+    const message = error instanceof Error ? error.message : String(error);
+    if (json) {
+      fail('PLUGIN_LIST_ERROR', message);
+      return;
+    }
+    throw new ValidationError(`Plugin management failed: ${message}`);
+  } finally {
+    restoreJson();
   }
 }
 
@@ -191,9 +347,11 @@ export async function installPlugin(
     if (spinner) spinner.start();
 
     const result = await installPluginFromIdentifier(pluginIdentifier, {
-      workspaceRoot: process.cwd(),
+      workspaceRoot: rootOf(options),
       dryRun,
       force,
+      ...(options.pin ? { pin: true } : {}),
+      ...(options.registry ? { registry: options.registry } : {}),
     });
 
     if (spinner) {
@@ -213,6 +371,7 @@ export async function installPlugin(
         source: result.source,
         path: result.path,
         dryRun: result.dryRun,
+        ...(result.pin ? { pin: result.pin } : {}),
       });
       return;
     }
@@ -220,6 +379,9 @@ export async function installPlugin(
     if (verbose) {
       console.log(chalk.gray(`Source: ${result.source}`));
       console.log(chalk.gray(`Location: ${result.path}`));
+    }
+    if (result.pin) {
+      console.log(chalk.gray(`Pinned: ${result.pin}`));
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -239,108 +401,246 @@ export async function installPlugin(
 
 // Uninstall a plugin
 /**
- * Uninstalls a managed plugin by name.
+ * Uninstalls a plugin from the workspace.
  *
- * Deactivates, unloads, and unregisters the plugin from the registry.
+ * Deactivates and unloads it (calling the plugin's own `deactivate()`),
+ * deregisters its hooks and commands, deletes its files under
+ * `.re-shell/plugins` (plus its cache; its data directory only with `--purge`)
+ * and removes its `plugins.json` entry. Reports exactly what was removed and
+ * what was kept. An unknown plugin, or one that was not installed by the CLI
+ * (e.g. provided by node_modules), is a failure with a non-zero exit.
  *
  * @param pluginName - Name of the plugin to uninstall
- * @param options - Options controlling confirmation, verbosity, and force behavior
+ * @param options - `force` (skip the prompt, ignore dependents), `purge` (also
+ *   delete plugin data), `dryRun`, `json`, `verbose`
  * @returns Promise that resolves when the plugin has been uninstalled
  */
 export async function uninstallPlugin(
-  pluginName: string, 
+  pluginName: string,
   options: PluginCommandOptions = {}
 ): Promise<void> {
-  const { verbose = false, force = false } = options;
+  const { verbose = false, force = false, json = false, dryRun = false, purge = false } = options;
+  const root = rootOf(options);
+  const restoreJson = json ? enableJsonMode() : () => {};
 
   try {
-    const registry = createPluginRegistry();
+    const registry = createPluginRegistry(root);
     await registry.initialize();
 
-    const plugin = registry.getManagedPlugin(pluginName);
-    if (!plugin) {
-      throw new ValidationError(`Plugin '${pluginName}' is not installed`);
+    const target = registry.getManagedPlugin(pluginName);
+    const entry = (await readPluginsFile(root)).plugins[pluginName];
+    if (!target && !entry) {
+      failCommand(json, 'PLUGIN_NOT_FOUND', `Plugin '${pluginName}' is not installed`, { name: pluginName });
+      return;
     }
 
-    if (!force) {
-      // TODO: Add confirmation prompt
-      console.log(chalk.yellow(`Are you sure you want to uninstall '${pluginName}'?`));
+    // Only ask when a human is at the keyboard; scripts and --json callers are explicit.
+    if (!force && !json && !dryRun && process.stdin.isTTY && process.stdout.isTTY) {
+      const { default: prompts } = await import('prompts');
+      const answer = await prompts({
+        type: 'confirm',
+        name: 'confirmed',
+        message: `Uninstall '${pluginName}'? This deletes its files from ${pluginsDir(root)}.`,
+        initial: false,
+      });
+      if (!answer.confirmed) {
+        console.log(chalk.yellow(`Uninstall of '${pluginName}' cancelled.`));
+        return;
+      }
     }
 
-    const spinner = createSpinner(`Uninstalling plugin ${pluginName}...`);
-    spinner.start();
+    const spinner = json ? undefined : createSpinner(`Uninstalling plugin ${pluginName}...`);
+    if (spinner) spinner.start();
 
-    // Unload the plugin (which includes deactivation)
-    await registry.unloadPlugin(pluginName);
-    
-    // Unregister from registry
-    const success = await registry.unregisterPlugin(pluginName);
-    
-    if (!success) {
-      throw new ValidationError(`Failed to unregister plugin '${pluginName}'`);
+    const result = await uninstallPluginFromWorkspace(pluginName, {
+      workspaceRoot: root,
+      registry,
+      commandRegistry: createPluginCommandRegistry(new Command()),
+      force,
+      purgeData: purge,
+      dryRun,
+    });
+
+    if (spinner) {
+      spinner.succeed(
+        chalk.green(
+          dryRun
+            ? `Plugin ${pluginName} would be uninstalled (dry run)`
+            : `Plugin ${pluginName} uninstalled successfully!`
+        )
+      );
     }
 
-    // TODO: Remove plugin files and dependencies
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate uninstallation
-    
-    spinner.succeed(chalk.green(`Plugin ${pluginName} uninstalled successfully!`));
+    if (json) {
+      const { warnings, ...data } = result;
+      ok(data, warnings);
+      return;
+    }
+
+    const removedLabel = dryRun ? 'Would remove' : 'Removed';
+    result.removed.paths.forEach(p => console.log(chalk.gray(`${removedLabel}: ${p}`)));
+    if (result.removed.registryEntry) {
+      console.log(chalk.gray(`${removedLabel}: plugins.json entry for ${pluginName}`));
+    }
+    result.kept.forEach(p => console.log(chalk.gray(`Kept: ${p}${p.includes(`${path.sep}data${path.sep}`) ? ' (use --purge to delete)' : ''}`)));
+    if (!dryRun && (verbose || result.deregistered.hooks > 0 || result.deregistered.commands > 0)) {
+      console.log(
+        chalk.gray(
+          `Deregistered: ${result.deregistered.hooks} hook(s), ${result.deregistered.commands} command(s)` +
+            (result.deregistered.unloaded ? ', plugin unloaded' : '')
+        )
+      );
+    }
+    result.warnings.forEach(w => console.log(chalk.yellow(`⚠ ${w}`)));
 
   } catch (error) {
-    throw new ValidationError(
-      `Plugin uninstallation failed: ${error instanceof Error ? error.message : String(error)}`
-    );
+    if (error instanceof PluginUninstallError) {
+      failCommand(
+        json,
+        error.code === 'not-found' ? 'PLUGIN_NOT_FOUND' : 'PLUGIN_UNINSTALL_ERROR',
+        error.message,
+        { reason: error.code, ...(error.details ?? {}) },
+        'Plugin uninstallation failed'
+      );
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    failCommand(json, 'PLUGIN_UNINSTALL_ERROR', message, undefined, 'Plugin uninstallation failed');
+  } finally {
+    restoreJson();
   }
 }
 
 // Show plugin information
 /**
- * Displays detailed information about a single managed plugin.
+ * Displays detailed information about a single installed plugin: manifest,
+ * install provenance (source, pin, recorded signature), lifecycle state, team
+ * reviews and - for registry plugins - real quality data from npms.io / npm.
+ * With `--json` emits the standard envelope.
  *
  * @param pluginName - Name of the plugin to inspect
- * @param options - Options controlling JSON output and verbosity
+ * @param options - Options controlling JSON output, verbosity and `offline`
  * @returns Promise that resolves when the plugin details have been displayed
  */
 export async function showPluginInfo(
-  pluginName: string, 
+  pluginName: string,
   options: PluginCommandOptions = {}
 ): Promise<void> {
-  const { verbose = false, json = false } = options;
+  const { verbose = false, json = false, offline = false } = options;
+  const root = rootOf(options);
+  const restoreJson = json ? enableJsonMode() : () => {};
 
   try {
-    const registry = createPluginRegistry();
+    const registry = createPluginRegistry(root);
     await registry.initialize();
 
     const plugin = registry.getManagedPlugin(pluginName);
     if (!plugin) {
-      throw new ValidationError(`Plugin '${pluginName}' not found`);
-    }
-
-    if (json) {
-      console.log(JSON.stringify({
-        manifest: plugin.manifest,
-        path: plugin.pluginPath,
-        isLoaded: plugin.isLoaded,
-        isActive: plugin.isActive,
-        usageCount: plugin.usageCount,
-        lastUsed: plugin.lastUsed,
-        state: plugin.state,
-        dependencies: plugin.dependencies,
-        dependents: plugin.dependents,
-        performance: plugin.performance,
-        errors: plugin.errors,
-        stateHistory: plugin.stateHistory
-      }, null, 2));
+      failCommand(json, 'PLUGIN_NOT_FOUND', `Plugin '${pluginName}' not found`, { name: pluginName });
       return;
     }
 
+    const file = await readPluginsFile(root);
+    const entry = file.plugins[pluginName];
+    const warnings: string[] = [];
+
+    let reviewData: Awaited<ReturnType<typeof listReviews>> = { reviews: [], aggregate: aggregateReviews([]) };
+    try {
+      reviewData = await listReviews(root, pluginName);
+    } catch (error) {
+      warnings.push(error instanceof Error ? error.message : String(error));
+    }
+
+    const origin = originOf(plugin, entry, root);
+    let quality: PluginQuality | null = null;
+    // Only packages that really came from the npm registry have registry quality data.
+    if (entry?.source === 'npm' || origin === 'node_modules') {
+      quality = await fetchPluginQuality(pluginName, {
+        fetchImpl: options.fetchImpl,
+        cacheFile: qualityCachePath(root),
+        offline,
+      });
+      if (quality.source === 'unavailable') {
+        warnings.push(`Quality data unavailable: ${quality.error ?? 'unknown error'}`);
+      } else if (quality.stale) {
+        warnings.push('Quality data is from an expired cache entry (the registry could not be reached)');
+      }
+    }
+
+    const manifest = plugin.manifest;
+    const info: PluginInfoResponse = {
+      ...toListItem(plugin, entry, root, new Map([[pluginName, reviewData.aggregate]])),
+      manifest: {
+        name: manifest.name,
+        version: manifest.version,
+        description: manifest.description ?? '',
+        main: manifest.main,
+        author: typeof manifest.author === 'string' ? manifest.author : null,
+        license: manifest.license ?? null,
+        homepage: manifest.homepage ?? null,
+        keywords: manifest.keywords ?? [],
+        engines: (manifest.engines as Record<string, string> | undefined) ?? null,
+        dependencies: manifest.dependencies ?? null,
+        peerDependencies: manifest.peerDependencies ?? null,
+        reshell: manifest.reshell ?? null,
+      },
+      install: entry
+        ? {
+            source: entry.source,
+            spec: entry.spec ?? null,
+            installedAt: entry.installedAt,
+            updatedAt: entry.updatedAt ?? null,
+            git: entry.git
+              ? { url: entry.git.url, ref: entry.git.ref ?? null, commit: entry.git.commit ?? null }
+              : null,
+            integrity: entry.integrity ?? null,
+            signature: entry.signature
+              ? {
+                  verified: entry.signature.verified,
+                  gated: entry.signature.gated,
+                  ...(entry.signature.keyid ? { keyid: entry.signature.keyid } : {}),
+                  ...(entry.signature.reason ? { reason: entry.signature.reason } : {}),
+                }
+              : null,
+          }
+        : null,
+      lifecycle: {
+        lastUsed: plugin.lastUsed ?? null,
+        loadMs: plugin.performance.loadDuration,
+        initMs: plugin.performance.initDuration,
+        activationMs: plugin.performance.activationDuration,
+        errors: plugin.errors.map(e => ({
+          stage: e.stage,
+          message: e.error.message,
+          timestamp: e.timestamp,
+        })),
+      },
+      dependencies: plugin.dependencies.map(d => ({
+        name: d.name,
+        version: d.version,
+        required: d.required,
+        resolved: d.resolved,
+      })),
+      dependents: plugin.dependents,
+      recentReviews: reviewData.reviews.slice(0, 5),
+      quality,
+    };
+
+    if (json) {
+      ok(info, warnings);
+      return;
+    }
+
+    warnings.forEach(w => console.log(chalk.yellow(`⚠ ${w}`)));
     console.log(chalk.cyan(`\n📦 ${plugin.manifest.name} v${plugin.manifest.version}\n`));
-    
-    displayPluginDetails(plugin, verbose);
+
+    displayPluginDetails(plugin, verbose, info);
 
   } catch (error) {
-    throw new ValidationError(
-      `Failed to show plugin info: ${error instanceof Error ? error.message : String(error)}`
-    );
+    const message = error instanceof Error ? error.message : String(error);
+    failCommand(json, 'PLUGIN_INFO_ERROR', message, undefined, 'Failed to show plugin info');
+  } finally {
+    restoreJson();
   }
 }
 
@@ -452,23 +752,282 @@ export async function disablePlugin(
 
 // Update plugins
 /**
- * Reports that plugin update checking and installation are not implemented.
+ * Checks for and applies plugin updates.
  *
- * @param options - Options controlling JSON output
- * @returns Promise that resolves after a JSON failure, or rejects in human mode
+ * npm plugins query the registry (dist-tags + versions) and respect a stored pin
+ * (an exact version holds the plugin; a range bounds the update); git plugins
+ * compare the recorded commit with the remote ref; local plugins are reported as
+ * not updatable. Updates reinstall through the installer, with signature
+ * verification when configured (`--verify` / `--no-verify`, else the workspace
+ * `allowUnverified` setting). `--check` only reports. Any failed plugin makes the
+ * command exit non-zero.
+ *
+ * @param name - Optional plugin to update; all installed plugins when omitted
+ * @param options - `check`, `verify`, `registry`, `json`, `verbose`
+ * @returns Promise that resolves when all updates have been checked/applied
  */
-export async function updatePlugins(options: PluginCommandOptions = {}): Promise<void> {
-  const message = 'Plugin update is not implemented. No update checks or changes were performed.';
-  if (options.json) {
-    const restoreJson = enableJsonMode();
-    try {
-      fail('PLUGIN_UPDATE_ERROR', message, { status: 'not-implemented', operation: 'update' });
-    } finally {
-      restoreJson();
+export async function updatePlugins(
+  name?: string,
+  options: PluginCommandOptions = {}
+): Promise<void> {
+  const { json = false, check = false, verbose = false } = options;
+  const root = rootOf(options);
+  const restoreJson = json ? enableJsonMode() : () => {};
+
+  try {
+    const verifySignatures = await resolveVerifyPolicy(root, options.verify);
+    const spinner = json
+      ? undefined
+      : createSpinner(check ? 'Checking for plugin updates...' : 'Updating plugins...');
+    if (spinner) spinner.start();
+
+    const result = await updateInstalledPlugins({
+      workspaceRoot: root,
+      names: name ? [name] : [],
+      checkOnly: check,
+      verifySignatures,
+      registryUrl: options.registry,
+      fetchImpl: options.fetchImpl,
+    });
+    if (spinner) spinner.stop();
+
+    const failures = result.plugins.filter(p => p.status === 'failed');
+    if (failures.length > 0) {
+      const message = `${failures.length} plugin update(s) failed: ${failures
+        .map(f => `${f.name} (${f.message ?? 'unknown error'})`)
+        .join('; ')}`;
+      if (json) {
+        fail('PLUGIN_UPDATE_ERROR', message, result as unknown as Record<string, unknown>);
+        return;
+      }
+      displayUpdateResult(result, verbose);
+      throw new ValidationError(message);
     }
+
+    if (json) {
+      ok(result);
+      return;
+    }
+    displayUpdateResult(result, verbose);
+  } catch (error) {
+    if (error instanceof ValidationError) throw error;
+    if (error instanceof PluginUpdateInputError) {
+      failCommand(json, 'PLUGIN_NOT_FOUND', error.message, error.details, 'Plugin update failed');
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    failCommand(json, 'PLUGIN_UPDATE_ERROR', message, undefined, 'Plugin update failed');
+  } finally {
+    restoreJson();
+  }
+}
+
+/** Human-readable rendering of an update run. */
+function displayUpdateResult(
+  result: Awaited<ReturnType<typeof updateInstalledPlugins>>,
+  verbose: boolean
+): void {
+  if (result.plugins.length === 0) {
+    console.log(chalk.yellow('No plugins installed.'));
     return;
   }
-  throw new ValidationError(message);
+  console.log(chalk.cyan(result.checkOnly ? '\n🔄 Plugin update check\n' : '\n🔄 Plugin updates\n'));
+  for (const p of result.plugins) {
+    const label =
+      p.status === 'updated' ? chalk.green('updated') :
+      p.status === 'update-available' ? chalk.yellow('update available') :
+      p.status === 'up-to-date' ? chalk.green('up to date') :
+      p.status === 'pinned' ? chalk.blue('pinned') :
+      p.status === 'not-updatable' ? chalk.gray('not updatable') :
+      chalk.red('failed');
+    const versions = p.target && p.target !== p.installed ? ` ${p.installed} -> ${p.target}` : ` ${p.installed}`;
+    console.log(`${chalk.white(p.name)}${versions}  ${label}`);
+    if (p.message && (verbose || p.status === 'failed' || p.status === 'pinned' || p.status === 'not-updatable')) {
+      console.log(chalk.gray(`  ${p.message}`));
+    }
+    if (p.signature?.gated && (verbose || !p.signature.verified)) {
+      console.log(chalk.gray(`  signature: ${p.signature.verified ? 'verified' : `NOT verified (${p.signature.reason ?? 'unknown'})`}`));
+    }
+  }
+  const s = result.summary;
+  console.log(
+    chalk.gray(
+      `\n${s.total} plugin(s): ${s.updated} updated, ${s.updateAvailable} update(s) available, ` +
+        `${s.upToDate} up to date, ${s.pinned} pinned, ${s.notUpdatable} not updatable, ${s.failed} failed`
+    )
+  );
+}
+
+// Pin / unpin a plugin version
+/**
+ * Pins an installed plugin: an exact version holds it there, a semver range
+ * bounds `plugin update`. With no version, pins what is installed now.
+ *
+ * @param pluginName - Installed plugin
+ * @param version - Exact version or semver range (git plugins: a commit/ref)
+ * @param options - `json`
+ */
+export async function pinPlugin(
+  pluginName: string,
+  version?: string,
+  options: PluginCommandOptions = {}
+): Promise<void> {
+  const { json = false } = options;
+  const restoreJson = json ? enableJsonMode() : () => {};
+  try {
+    const result = await pinInstalledPlugin(rootOf(options), pluginName, version);
+    if (json) {
+      ok(result);
+      return;
+    }
+    console.log(chalk.green(`Pinned ${result.name} to ${result.pin}`));
+    if (result.previousPin) console.log(chalk.gray(`Previous pin: ${result.previousPin}`));
+  } catch (error) {
+    reportPinError(error, json);
+  } finally {
+    restoreJson();
+  }
+}
+
+/**
+ * Removes a plugin's version pin.
+ *
+ * @param pluginName - Installed plugin
+ * @param options - `json`
+ */
+export async function unpinPlugin(
+  pluginName: string,
+  options: PluginCommandOptions = {}
+): Promise<void> {
+  const { json = false } = options;
+  const restoreJson = json ? enableJsonMode() : () => {};
+  try {
+    const result = await unpinInstalledPlugin(rootOf(options), pluginName);
+    if (json) {
+      ok(result);
+      return;
+    }
+    console.log(
+      result.previousPin
+        ? chalk.green(`Unpinned ${result.name} (was ${result.previousPin})`)
+        : chalk.yellow(`${result.name} had no pin`)
+    );
+  } catch (error) {
+    reportPinError(error, json);
+  } finally {
+    restoreJson();
+  }
+}
+
+function reportPinError(error: unknown, json: boolean): void {
+  if (error instanceof PluginUpdateInputError) {
+    const notFound = error.details?.reason === 'not-found';
+    failCommand(json, notFound ? 'PLUGIN_NOT_FOUND' : 'PLUGIN_PIN_ERROR', error.message, error.details, 'Pin failed');
+    return;
+  }
+  failCommand(
+    json,
+    'PLUGIN_PIN_ERROR',
+    error instanceof Error ? error.message : String(error),
+    undefined,
+    'Pin failed'
+  );
+}
+
+// Team reviews
+/**
+ * Adds (or replaces, for the same author) a team review of a plugin in
+ * `.re-shell/plugin-reviews.json`, which is meant to be committed and shared.
+ *
+ * @param pluginName - Plugin being reviewed
+ * @param options - `rating` (1-5, required), `comment`, `author`, `json`
+ */
+export async function addPluginReview(
+  pluginName: string,
+  options: PluginCommandOptions = {}
+): Promise<void> {
+  const { json = false } = options;
+  const root = rootOf(options);
+  const restoreJson = json ? enableJsonMode() : () => {};
+  try {
+    const rating = typeof options.rating === 'number' ? options.rating : Number(options.rating);
+    const entry = (await readPluginsFile(root)).plugins[pluginName];
+    const result = await addReview(root, {
+      plugin: pluginName,
+      rating,
+      comment: options.comment,
+      author: options.author,
+      version: entry?.version ?? null,
+    });
+    if (json) {
+      ok({ ...result, file: REVIEWS_RELATIVE_PATH });
+      return;
+    }
+    console.log(
+      chalk.green(
+        `${result.updated ? 'Updated' : 'Added'} review for ${pluginName}: ${result.review.rating}/5 by ${result.review.author}`
+      )
+    );
+    console.log(
+      chalk.gray(
+        `Team rating: ${result.aggregate.average}/5 from ${result.aggregate.count} review(s). ` +
+          `Commit ${REVIEWS_RELATIVE_PATH} to share it.`
+      )
+    );
+  } catch (error) {
+    failCommand(
+      json,
+      'PLUGIN_REVIEW_ERROR',
+      error instanceof Error ? error.message : String(error),
+      error instanceof PluginReviewError ? error.details : undefined,
+      'Review failed'
+    );
+  } finally {
+    restoreJson();
+  }
+}
+
+/**
+ * Lists the team reviews for a plugin with their aggregate.
+ *
+ * @param pluginName - Plugin to list reviews for
+ * @param options - `json`
+ */
+export async function listPluginReviews(
+  pluginName: string,
+  options: PluginCommandOptions = {}
+): Promise<void> {
+  const { json = false } = options;
+  const restoreJson = json ? enableJsonMode() : () => {};
+  try {
+    const { reviews, aggregate } = await listReviews(rootOf(options), pluginName);
+    if (json) {
+      ok({ plugin: pluginName, reviews, aggregate });
+      return;
+    }
+    if (reviews.length === 0) {
+      console.log(chalk.yellow(`No team reviews for ${pluginName}.`));
+      return;
+    }
+    console.log(chalk.cyan(`\n⭐ ${pluginName}: ${aggregate.average}/5 (${aggregate.count} review(s))\n`));
+    reviews.forEach((r: PluginReview) => {
+      console.log(
+        `${chalk.yellow('★'.repeat(r.rating) + '☆'.repeat(5 - r.rating))} ${chalk.white(r.author)}` +
+          `${r.version ? chalk.gray(` (v${r.version})`) : ''} ${chalk.gray((r.updatedAt ?? r.createdAt).slice(0, 10))}`
+      );
+      if (r.comment) console.log(`  ${r.comment}`);
+    });
+  } catch (error) {
+    failCommand(
+      json,
+      'PLUGIN_REVIEW_ERROR',
+      error instanceof Error ? error.message : String(error),
+      error instanceof PluginReviewError ? error.details : undefined,
+      'Review failed'
+    );
+  } finally {
+    restoreJson();
+  }
 }
 
 // Display discovered plugin list (without lifecycle info)
@@ -495,19 +1054,31 @@ function displayDiscoveredPluginList(plugins: PluginRegistration[], verbose: boo
 }
 
 // Display plugin list with lifecycle info
-function displayPluginList(plugins: ManagedPluginRegistration[], verbose: boolean): void {
+function displayPluginList(
+  plugins: ManagedPluginRegistration[],
+  verbose: boolean,
+  items: PluginListItem[] = []
+): void {
   plugins.forEach((plugin, index) => {
+    const item = items.find(i => i.name === plugin.manifest.name);
     const status = plugin.state === PluginState.ACTIVE ? chalk.green('●') : 
                    plugin.state === PluginState.LOADED || plugin.state === PluginState.INITIALIZED ? chalk.yellow('●') : 
                    chalk.gray('●');
     const statusText = plugin.state;
     
-    console.log(`${status} ${chalk.white(plugin.manifest.name)} ${chalk.gray(`v${plugin.manifest.version}`)}`);
+    const pinText = item?.pin ? chalk.blue(` [pinned ${item.pin}]`) : '';
+    console.log(`${status} ${chalk.white(plugin.manifest.name)} ${chalk.gray(`v${plugin.manifest.version}`)}${pinText}`);
     console.log(`  ${chalk.gray(plugin.manifest.description)}`);
     
     if (verbose) {
       console.log(`  ${chalk.gray(`Path: ${plugin.pluginPath}`)}`);
       console.log(`  ${chalk.gray(`Status: ${statusText}`)}`);
+      if (item) {
+        console.log(`  ${chalk.gray(`Origin: ${item.origin}`)}`);
+        if (item.reviews.count > 0) {
+          console.log(`  ${chalk.gray(`Team rating: ${item.reviews.average}/5 (${item.reviews.count})`)}`);
+        }
+      }
       if (plugin.usageCount > 0) {
         console.log(`  ${chalk.gray(`Usage: ${plugin.usageCount} times`)}`);
       }
@@ -520,7 +1091,11 @@ function displayPluginList(plugins: ManagedPluginRegistration[], verbose: boolea
 }
 
 // Display detailed plugin information
-function displayPluginDetails(plugin: ManagedPluginRegistration, verbose: boolean): void {
+function displayPluginDetails(
+  plugin: ManagedPluginRegistration,
+  verbose: boolean,
+  info?: PluginInfoResponse
+): void {
   const manifest = plugin.manifest;
   
   console.log(chalk.yellow('Description:'));
@@ -553,6 +1128,23 @@ function displayPluginDetails(plugin: ManagedPluginRegistration, verbose: boolea
   console.log(`  Path: ${plugin.pluginPath}`);
   console.log(`  State: ${plugin.state}`);
   console.log(`  Status: ${plugin.isActive ? 'Active' : plugin.isLoaded ? 'Loaded' : 'Inactive'}`);
+  if (info) {
+    console.log(`  Origin: ${info.origin}`);
+    if (info.pin) console.log(`  Pinned: ${info.pin}`);
+    if (info.install?.installedAt) console.log(`  Installed: ${new Date(info.install.installedAt).toLocaleString()}`);
+    if (info.install?.git?.commit) console.log(`  Commit: ${info.install.git.commit}`);
+    if (info.install?.signature) {
+      console.log(
+        `  Signature: ${
+          info.install.signature.verified
+            ? 'verified'
+            : info.install.signature.gated
+              ? 'NOT verified'
+              : 'not checked (verification disabled)'
+        }`
+      );
+    }
+  }
   
   if (plugin.usageCount > 0) {
     console.log(`  Usage Count: ${plugin.usageCount}`);
@@ -590,6 +1182,32 @@ function displayPluginDetails(plugin: ManagedPluginRegistration, verbose: boolea
     });
   }
   
+  if (info) {
+    console.log(`\n${chalk.yellow('Team reviews:')}`);
+    if (info.reviews.count === 0) {
+      console.log('  none (add one with `re-shell plugin review add`)');
+    } else {
+      console.log(`  ${info.reviews.average}/5 from ${info.reviews.count} review(s)`);
+      info.recentReviews.slice(0, 3).forEach(r => {
+        console.log(`  - ${r.rating}/5 ${r.author}${r.comment ? `: ${r.comment}` : ''}`);
+      });
+    }
+
+    console.log(`\n${chalk.yellow('Registry quality:')}`);
+    if (!info.quality) {
+      console.log('  not applicable (plugin was not installed from the npm registry)');
+    } else if (info.quality.source === 'unavailable') {
+      console.log(`  unavailable (${info.quality.error ?? 'unknown error'})`);
+    } else {
+      console.log(`  Rating: ${info.quality.rating}/5 (${info.quality.source}${info.quality.derived ? ', derived' : ''})`);
+      if (info.quality.quality !== null) console.log(`  Quality: ${info.quality.quality}`);
+      if (info.quality.popularity !== null) console.log(`  Popularity: ${info.quality.popularity}`);
+      if (info.quality.maintenance !== null) console.log(`  Maintenance: ${info.quality.maintenance}`);
+      if (info.quality.downloadsLastMonth !== null) console.log(`  Downloads (last month): ${info.quality.downloadsLastMonth}`);
+      if (info.quality.cached) console.log(chalk.gray(`  (cached ${info.quality.fetchedAt}${info.quality.stale ? ', expired' : ''})`));
+    }
+  }
+
   if (verbose) {
     console.log(`\n${chalk.yellow('Manifest:')}`);
     console.log(`  Main: ${manifest.main}`);
@@ -620,29 +1238,111 @@ function displayPluginDetails(plugin: ManagedPluginRegistration, verbose: boolea
 
 // Validate plugin compatibility
 /**
- * Reports that comprehensive plugin compatibility validation is not implemented.
+ * Statically validates a plugin directory: manifest schema, entry file,
+ * `engines.reshell-cli` / `engines.node` against this CLI and Node, dependency
+ * resolvability, a source security scan (child_process, eval/new Function,
+ * dynamic require of user input, network calls, writes outside the plugin dir)
+ * and package size. Nothing in the plugin is executed.
  *
- * @param pluginPath - Filesystem path to the plugin to validate
- * @param options - Options controlling JSON output and verbosity
- * @returns Promise that resolves after a JSON failure, or rejects in human mode
+ * Errors make the command exit non-zero (with `--json`: `ok:false`,
+ * `PLUGIN_VALIDATE_ERROR`, the full report under `error.details`); warnings stay
+ * in the envelope's `warnings` and the report's findings. `--strict` promotes
+ * warnings to failures.
+ *
+ * @param pluginPath - Path to the plugin directory (or its package.json)
+ * @param options - `json`, `strict`, `checkRegistry`, `registry`, `verbose`
+ * @returns Promise that resolves once the report has been emitted
  */
 export async function validatePlugin(
-  pluginPath: string, 
+  pluginPath: string,
   options: PluginCommandOptions = {}
 ): Promise<void> {
-  const message = 'Plugin compatibility validation is not implemented. No validation checks were performed.';
-  if (options.json) {
-    const restoreJson = enableJsonMode();
-    try {
-      fail('PLUGIN_VALIDATE_ERROR', message, {
-        status: 'not-implemented', operation: 'validate', path: pluginPath,
-      });
-    } finally {
-      restoreJson();
+  const { json = false, verbose = false, strict = false } = options;
+  const restoreJson = json ? enableJsonMode() : () => {};
+
+  try {
+    const report = await validatePluginPath(path.resolve(rootOf(options), pluginPath), {
+      strict,
+      checkRegistry: options.checkRegistry,
+      registryUrl: options.registry,
+      fetchImpl: options.fetchImpl,
+    });
+
+    const warnings = report.findings
+      .filter(f => f.severity === 'warning')
+      .map(f => `${f.id}: ${f.message}${f.file ? ` (${f.file}${f.line ? `:${f.line}` : ''})` : ''}`);
+
+    if (json) {
+      if (report.valid) {
+        ok(report, warnings);
+      } else {
+        emitJson({
+          ok: false,
+          error: {
+            code: 'PLUGIN_VALIDATE_ERROR',
+            message: validationSummary(report),
+            details: report as unknown as Record<string, unknown>,
+          },
+          warnings,
+        });
+        process.exitCode = 1;
+      }
+      return;
     }
-    return;
+
+    displayValidationReport(report, verbose);
+    if (!report.valid) {
+      throw new ValidationError(validationSummary(report));
+    }
+  } catch (error) {
+    if (error instanceof ValidationError) throw error;
+    if (error instanceof PluginValidationInputError) {
+      failCommand(json, 'PLUGIN_VALIDATE_ERROR', error.message, error.details, 'Plugin validation failed');
+      return;
+    }
+    failCommand(
+      json,
+      'PLUGIN_VALIDATE_ERROR',
+      error instanceof Error ? error.message : String(error),
+      { path: pluginPath },
+      'Plugin validation failed'
+    );
+  } finally {
+    restoreJson();
   }
-  throw new ValidationError(message);
+}
+
+function validationSummary(report: PluginValidateResponse): string {
+  const { errors, warnings } = report.counts;
+  return report.counts.errors > 0
+    ? `Plugin validation failed: ${errors} error(s), ${warnings} warning(s)`
+    : `Plugin validation failed in strict mode: ${warnings} warning(s)`;
+}
+
+function displayValidationReport(report: PluginValidateResponse, verbose: boolean): void {
+  console.log(chalk.cyan(`\n🔍 Plugin validation: ${report.name ?? report.path}${report.version ? ` v${report.version}` : ''}\n`));
+  const order = ['error', 'warning', 'info'] as const;
+  for (const severity of order) {
+    const findings = report.findings.filter(f => f.severity === severity);
+    if (findings.length === 0 || (severity === 'info' && !verbose)) continue;
+    const color = severity === 'error' ? chalk.red : severity === 'warning' ? chalk.yellow : chalk.gray;
+    findings.forEach(f => {
+      const where = f.file ? ` ${chalk.gray(`${f.file}${f.line ? `:${f.line}` : ''}`)}` : '';
+      console.log(`${color(severity.toUpperCase().padEnd(7))} ${f.id}: ${f.message}${where}`);
+    });
+  }
+  if (report.findings.every(f => f.severity === 'info') || report.findings.length === 0) {
+    console.log(chalk.gray('No errors or warnings.'));
+  }
+  console.log(
+    chalk.gray(
+      `\nSize: ${report.size.bytes} bytes in ${report.size.files} file(s) | CLI ${report.cliVersion} | ` +
+        `${report.counts.errors} error(s), ${report.counts.warnings} warning(s), ${report.counts.info} note(s)`
+    )
+  );
+  if (report.valid) {
+    console.log(chalk.green('\n✓ Plugin is valid'));
+  }
 }
 
 // Clear plugin cache
