@@ -253,8 +253,17 @@ time.sleep(1.0)
 bus.close()
 print(json.dumps(seen))
 `;
-      const child = run('python3', ['-c', script], tmp);
-      await new Promise(r => setTimeout(r, 2500)); // let Python join the group
+      // Wait for Python to print READY (its consumer group exists) instead of sleeping: deterministic under load.
+      let ready!: () => void;
+      const readyPromise = new Promise<void>(r => (ready = r));
+      const child = new Promise<{ status: number; stdout: string; stderr: string }>(resolve => {
+        const proc = execFile('python3', ['-c', script], { cwd: tmp, encoding: 'utf8', timeout: 120000, env: process.env }, (error, stdout, stderr) => {
+          const code = error ? (error as NodeJS.ErrnoException & { code?: number | string }).code : 0;
+          resolve({ status: typeof code === 'number' ? code : error ? 1 : 0, stdout, stderr });
+        });
+        proc.stdout?.on('data', (d: string) => { if (String(d).includes('READY')) ready(); });
+      });
+      await Promise.race([readyPromise, child.then(r => { throw new Error(`python exited before READY: ${r.stderr}`); })]);
       const sent = await messaging.publishOrderCreated({ orderId: 'x1', total: 3, currency: 'EUR', quantity: 4 }, { correlationId: 'cross-lang-1' });
       const res = await child;
       expect(res.status, res.stderr).toBe(0);

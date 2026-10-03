@@ -323,11 +323,11 @@ describe('groups — run + service registration groups', () => {
   });
 
   describe('service group', () => {
-    it('registers the three subgroups with aliases', () => {
+    it('registers the bridge/link/unlink/validate/polyglot/run subcommands with aliases', () => {
       const program = programWith(registerServiceGroup);
       const service = subcommand(program, 'service');
       expect(service.commands.map(command => command.name())).toEqual([
-        'bridge', 'polyglot', 'run',
+        'bridge', 'link', 'unlink', 'validate', 'polyglot', 'run',
       ]);
       expect(subcommand(service, 'run').alias()).toBe('svc');
       expect(
