@@ -1,4 +1,5 @@
 import { Command, Option, Argument } from 'commander';
+import { ensureFullCommandTree } from '../lazy-commands';
 
 /**
  * A single declared argument for a catalog entry.
@@ -187,6 +188,8 @@ function walk(command: Command, parentPath: string, out: CommandCatalogEntry[]):
  * @returns A sorted array of catalog entries, one per runnable command.
  */
 export function buildCommandCatalog(program: Command): CommandCatalogEntry[] {
+  // Command groups are loaded lazily; the catalog must describe the whole tree.
+  ensureFullCommandTree(program);
   const out: CommandCatalogEntry[] = [];
   walk(program, '', out);
   out.sort((a, b) => a.path.localeCompare(b.path));
