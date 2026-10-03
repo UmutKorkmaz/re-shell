@@ -3,8 +3,10 @@
 #
 #   smoke-linux.sh <path-to-re-shell-desktop> <evidence-dir>
 #
-# Needs: xvfb-run, curl, ss, imagemagick (import, identify), Node.js >= 18 on PATH.
-# Optional: xdotool (enables the "close the window" exit-code check).
+# Needs: xvfb-run, openbox + wmctrl (a window manager, so the window can be closed
+# like a user would), curl, ss, imagemagick (import, identify), Node.js >= 18.
+# Optional env: RE_SHELL_CLI_BIN (path to the built CLI's dist/index.js, so the
+# dashboard shows real data), SMOKE_WORKSPACE (workspace to open).
 #
 # For each scenario it launches the REAL binary and checks, with hard failures
 # (non-zero exit), that:
@@ -14,7 +16,8 @@
 #   4. the dashboard webview connected to the hub WITH the token (the hub's
 #      path-only access log shows a 200/101 for origin tauri://localhost);
 #   5. a screenshot of the display shows rendered content (not a blank window);
-#   6. stopping the app (SIGTERM, then SIGKILL) leaves no hub process or port;
+#   6. stopping the app (SIGTERM, SIGKILL, or closing its window) leaves no hub
+#      process or port, and closing the window exits 0;
 #   7. when the hub cannot start (no usable Node.js) the window says so and the
 #      app exits non-zero when that window is closed.
 # Logs and screenshots land in <evidence-dir>.
@@ -31,6 +34,15 @@ if [ -z "${SMOKE_INSIDE_XVFB:-}" ]; then
   export SMOKE_INSIDE_XVFB=1
   exec xvfb-run -a -s "-screen 0 1440x900x24" bash "$0" "$BIN" "$OUT"
 fi
+
+# Xvfb has no GPU: without these WebKitGTK paints nothing into the virtual display.
+export WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
+
+# A window manager so wmctrl can send the same close request a user's click does.
+openbox >/dev/null 2>&1 &
+WM_PID=$!
+trap 'kill "$WM_PID" 2>/dev/null || true' EXIT
+sleep 1
 
 fail() { echo "SMOKE FAIL: $*" >&2; exit 1; }
 note() { echo "smoke: $*"; }
@@ -64,6 +76,15 @@ wait_gone() {
   fail "$what (pid $pid) is still running"
 }
 
+# wait_exit <pid>: true once the process has exited (10s limit).
+wait_exit() {
+  for _ in $(seq 1 40); do
+    kill -0 "$1" 2>/dev/null || return 0
+    sleep 0.25
+  done
+  return 1
+}
+
 screenshot() {
   local file="$1"
   import -window root "$file"
@@ -76,13 +97,22 @@ screenshot() {
 run_scenario() {
   local mode="$1" shot="$2"
   local log="$OUT/app-$mode.log" ws
-  ws="$(mktemp -d)"
-  note "=== scenario: stop with SIG$mode ==="
+  ws="${SMOKE_WORKSPACE:-$(mktemp -d)}"
+  note "=== scenario: $mode (workspace $ws) ==="
 
-  "$BIN" --workspace "$ws" >"$log" 2>&1 &
-  local app_pid=$!
-
-  wait_for_line "$log" '\[desktop\] hub ready at http://127\.0\.0\.1:[0-9]+ \(pid [0-9]+\)' 40
+  # GTK occasionally fails to attach to a just-reused Xvfb display ("Failed to
+  # initialize gtk"), before any of our code runs; relaunch a few times.
+  local app_pid attempt
+  for attempt in 1 2 3; do
+    "$BIN" --workspace "$ws" >"$log" 2>&1 &
+    app_pid=$!
+    wait_for_line "$log" '\[desktop\] hub ready at http://127\.0\.0\.1:[0-9]+ \(pid [0-9]+\)' 40
+    sleep 2
+    if ! grep -q 'Failed to initialize gtk' "$log"; then break; fi
+    note "GTK could not initialize on attempt $attempt; relaunching"
+    wait "$app_pid" 2>/dev/null || true
+    [ "$attempt" -lt 3 ] || fail "GTK failed to initialize 3 times in a row"
+  done
   local ready port hub_pid
   ready="$(grep -Eo 'hub ready at http://127\.0\.0\.1:[0-9]+ \(pid [0-9]+\)' "$log" | head -1)"
   port="$(echo "$ready" | sed -E 's/.*127\.0\.0\.1:([0-9]+).*/\1/')"
@@ -118,15 +148,25 @@ $(grep -E 'access .* -> 401' "$log")"
   [ -z "$shot" ] || screenshot "$OUT/$shot"
 
   # (6) stop the app; the hub must go with it.
-  note "sending SIG$mode to the app"
-  kill "-$mode" "$app_pid"
-  wait "$app_pid" 2>/dev/null || true
+  if [ "$mode" = "CLOSE" ]; then
+    note "closing the window (wmctrl -c)"
+    wmctrl -c Re-Shell
+    local code=0
+    wait_exit "$app_pid" || fail "app did not exit after its window was closed"
+    wait "$app_pid" || code=$?
+    [ "$code" = "0" ] || fail "app exited with $code after a normal window close, expected 0"
+    note "app exited with status 0 after its window was closed"
+  else
+    note "sending SIG$mode to the app"
+    kill "-$mode" "$app_pid"
+    wait "$app_pid" 2>/dev/null || true
+  fi
   wait_gone "$hub_pid" "hub"
   if curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$port/health"; then
     fail "hub port $port still answers after the app was stopped"
   fi
   note "hub pid $hub_pid and port $port are gone after SIG$mode"
-  rm -rf "$ws"
+  [ -n "${SMOKE_WORKSPACE:-}" ] || rm -rf "$ws"
 }
 
 scenario_no_node() {
@@ -141,33 +181,18 @@ scenario_no_node() {
   sleep 3
   screenshot "$OUT/screenshot-no-node.png"
 
-  if command -v xdotool >/dev/null 2>&1; then
-    local wid
-    wid="$(xdotool search --onlyvisible --pid "$app_pid" 2>/dev/null | tail -1 || true)"
-    if [ -n "$wid" ]; then
-      note "closing the error window ($wid)"
-      xdotool windowquit "$wid" || true
-      for _ in $(seq 1 40); do
-        if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
-        sleep 0.25
-      done
-    fi
-  fi
-
-  if kill -0 "$app_pid" 2>/dev/null; then
-    note "could not close the window through xdotool; stopping with SIGTERM (exit status not asserted)"
-    kill -TERM "$app_pid"
-    wait "$app_pid" 2>/dev/null || true
-  else
-    wait "$app_pid" || code=$?
-    [ "$code" = "1" ] || fail "app exited with $code after the error window closed, expected 1"
-    note "app exited with status 1 after its error window was closed"
-  fi
+  note "closing the error window (wmctrl -c)"
+  wmctrl -c Re-Shell
+  wait_exit "$app_pid" || fail "app did not exit after its error window was closed"
+  wait "$app_pid" || code=$?
+  [ "$code" = "1" ] || fail "app exited with $code after the error window closed, expected 1"
+  note "app exited with status 1 after its error window was closed"
   rm -rf "$ws"
 }
 
 run_scenario TERM screenshot-dashboard.png
 run_scenario KILL ""
+run_scenario CLOSE ""
 scenario_no_node
 
 note "ALL SMOKE CHECKS PASSED"

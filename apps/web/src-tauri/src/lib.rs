@@ -29,7 +29,6 @@ use tauri::utils::config::Csp;
 use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder};
 
 use hub::{Hub, HubError, HubOptions, NodeSearch};
-use webview::NoticeKind;
 
 const MAIN_WINDOW: &str = "main";
 const HUB_READY_TIMEOUT: Duration = Duration::from_secs(20);
@@ -127,16 +126,15 @@ fn create_main_window(
                 .build()?;
         }
         Startup::Failed { message } => {
-            let blank: Url = "about:blank".parse().expect("about:blank is a valid URL");
-            WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::External(blank))
+            // A static, scriptless page that holds no credentials; the window
+            // may not navigate away from it.
+            let page = webview::error_page_url("Re-Shell could not start its local hub", message);
+            WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::External(page))
                 .title(window_config.title.clone())
                 .inner_size(900.0, 600.0)
-                .initialization_script(webview::notice_script(
-                    NoticeKind::Page,
-                    "Re-Shell could not start its local hub",
-                    message,
-                ))
-                .on_navigation(|target| webview::is_allowed_navigation(target, None))
+                // The engine re-serializes the data URL, so match its kind, not
+                // its exact text.
+                .on_navigation(webview::is_error_page)
                 .build()?;
         }
     }
@@ -168,8 +166,7 @@ fn spawn_hub_watchdog(app: AppHandle) {
             };
             eprintln!("[desktop] the hub stopped unexpectedly ({detail})");
             if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
-                let _ = window.eval(webview::notice_script(
-                    NoticeKind::Banner,
+                let _ = window.eval(webview::banner_script(
                     "The local Re-Shell hub stopped",
                     &format!("The hub process exited unexpectedly ({detail}). Close and reopen Re-Shell to start a new one."),
                 ));
