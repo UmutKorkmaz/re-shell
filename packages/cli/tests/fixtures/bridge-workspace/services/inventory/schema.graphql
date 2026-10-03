@@ -1,0 +1,44 @@
+"A warehouse that holds stock."
+type Warehouse {
+  id: ID!
+  name: String!
+  city: String
+}
+
+enum StockStatus {
+  IN_STOCK
+  LOW
+  OUT
+}
+
+type StockLevel {
+  sku: ID!
+  quantity: Int!
+  status: StockStatus!
+  warehouse: Warehouse
+  history(last: Int!): [Int!]!
+}
+
+type Discontinued {
+  sku: ID!
+  reason: String
+}
+
+union StockResult = StockLevel | Discontinued
+
+input AdjustInput {
+  sku: ID!
+  delta: Int!
+  note: String
+}
+
+type Query {
+  "Look up stock for a SKU."
+  stock(sku: ID!): StockResult
+  warehouses(first: Int = 10): [Warehouse!]!
+}
+
+type Mutation {
+  "Adjust stock by a delta."
+  adjustStock(input: AdjustInput!): StockLevel!
+}

@@ -287,6 +287,40 @@
       },
       "additionalProperties": false
     },
+    "serviceLink": {
+      "type": "object",
+      "description": "A generated typed client of a provider service's own contract.",
+      "required": ["service", "protocol", "spec", "client"],
+      "properties": {
+        "service": {
+          "type": "string",
+          "description": "Provider service name (a key of `services`).",
+          "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+        },
+        "protocol": {
+          "type": "string",
+          "enum": ["rest", "grpc", "graphql"]
+        },
+        "spec": {
+          "type": "string",
+          "description": "Provider spec (OpenAPI / .proto / GraphQL SDL) the client was generated from, relative to the workspace root."
+        },
+        "client": {
+          "type": "string",
+          "description": "Directory of the generated client, relative to the workspace root."
+        },
+        "languages": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["ts", "python", "go"] }
+        },
+        "contractSha256": {
+          "type": "string",
+          "description": "sha256 of the provider spec when the client was generated.",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
     "service": {
       "type": "object",
       "description": "A single service in the workspace: one microfrontend, API, background worker or function. Requires name, language and framework.",
@@ -357,6 +391,11 @@
             "type": "string",
             "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
           }
+        },
+        "links": {
+          "type": "array",
+          "description": "Typed client links from this (consumer) service to provider services, recorded by `re-shell service link` and checked by `re-shell service validate`. Each link implies a `dependsOn` edge.",
+          "items": { "$ref": "#/definitions/serviceLink" }
         },
         "dependencies": {
           "type": "object",
