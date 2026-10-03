@@ -143,6 +143,15 @@ export const errorCodeSchema = z.enum([
   'CREATE_INVALID_OPTIONS',
   'CREATE_INPUT_REQUIRED',
   'CREATE_TARGET_EXISTS',
+  // Codes introduced by the P9-B cross-language service bridge workstream
+  'BRIDGE_LINK_ERROR',
+  'BRIDGE_VALIDATE_ERROR',
+  'BRIDGE_SPEC_ERROR',
+  'BRIDGE_DIFF_ERROR',
+  'BRIDGE_ASYNC_ERROR',
+  'BRIDGE_TRANSFORM_ERROR',
+  'BRIDGE_MOCK_ERROR',
+  'BRIDGE_GATEWAY_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
