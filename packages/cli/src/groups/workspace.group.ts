@@ -2145,6 +2145,9 @@ export function registerWorkspaceGroup(program: Command): void {
     .option('--targets <targets...>', 'Specific targets to build')
     .option('--changed-files <files...>', 'Specific changed files to analyze')
     .option('--max-parallel <num>', 'Maximum parallel builds', '4')
+    .option('--concurrency <n>', 'Alias for --max-parallel (takes precedence)')
+    .option('--max-memory <mb>', 'Pause starting new builds while this process exceeds <mb> MB RSS or system free memory is critically low')
+    .option('--rate-limit <n>', 'Start at most <n> target builds per second')
     .option('--no-cache', 'Disable build caching')
     .option('--cache-location <path>', 'Build cache location')
     .option('--clean', 'Clean build (ignore cache)')
@@ -2164,7 +2167,7 @@ export function registerWorkspaceGroup(program: Command): void {
         await withTimeout(async () => {
           await manageIncrementalBuild({
             ...options,
-            maxParallelBuilds: parseInt(options.maxParallel),
+            maxParallelBuilds: parseInt(options.concurrency ?? options.maxParallel),
             buildTimeout: parseInt(options.buildTimeout),
             enableCache: options.cache !== false,
             cleanBuild: options.clean,
