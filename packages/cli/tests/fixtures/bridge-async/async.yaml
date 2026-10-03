@@ -1,0 +1,34 @@
+service: orders
+messages:
+  OrderCreated:
+    channel: orders.created
+    currentVersion: 3
+    versions:
+      1:
+        fields: { orderId: string, amount: number }
+      2:
+        fields: { orderId: string, total: number, currency: "enum(USD|EUR)" }
+        migrate:
+          - rename: { from: amount, to: total }
+          - add: { field: currency, default: USD }
+      3:
+        fields: { orderId: string, total: number, currency: "enum(USD|EUR)", quantity: integer, note: "string?" }
+        migrate:
+          - add: { field: quantity, default: 1 }
+  InvoiceIssued:
+    channel: billing.invoice
+    currentVersion: 1
+    versions:
+      1:
+        fields: { orderId: string, invoiceId: string, lines: "string[]?" }
+  ShipmentPlanned:
+    channel: shipping.planned
+    currentVersion: 2
+    versions:
+      1:
+        fields: { orderId: string, weight: string, legacy: any }
+      2:
+        fields: { orderId: string, weight: number }
+        migrate:
+          - convert: { field: weight, to: number }
+          - remove: legacy
