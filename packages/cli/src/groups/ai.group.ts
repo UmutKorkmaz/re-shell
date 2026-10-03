@@ -13,6 +13,7 @@ import {
   plannerFromEnv,
 } from '../utils/ai-plan';
 import type {
+  ErrorCode,
   ScaffoldIntent,
   ScaffoldPlan,
   ScaffoldPlanStep,
@@ -88,7 +89,8 @@ export function registerAiGroup(program: Command): void {
             !(AI_PROVIDER_NAMES as readonly string[]).includes(String(provider).toLowerCase())
           ) {
             if (spinner) spinner.stop();
-            fail(
+            emitFailure(
+              options.json === true,
               'AI_CONFIG_ERROR',
               `Unknown provider "${provider}". Valid: auto, ${AI_PROVIDER_NAMES.join(', ')}`
             );
@@ -96,7 +98,11 @@ export function registerAiGroup(program: Command): void {
           }
           if (options.session !== undefined && options.continue) {
             if (spinner) spinner.stop();
-            fail('AI_SESSION_ERROR', 'Use either --session <id> or --continue, not both.');
+            emitFailure(
+              options.json === true,
+              'AI_SESSION_ERROR',
+              'Use either --session <id> or --continue, not both.'
+            );
             return;
           }
 
@@ -120,7 +126,7 @@ export function registerAiGroup(program: Command): void {
           } catch (error) {
             if (spinner) spinner.stop();
             if (error instanceof AiResolveError) {
-              fail(error.code, error.message, error.details);
+              emitFailure(options.json === true, error.code, error.message, error.details);
               return;
             }
             throw error;
@@ -143,7 +149,8 @@ export function registerAiGroup(program: Command): void {
           });
         } catch (error) {
           if (spinner) spinner.stop();
-          fail(
+          emitFailure(
+            options.json === true,
             'AI_INTENT_ERROR',
             `Error resolving intent: ${error instanceof Error ? error.message : 'Unknown error'}`
           );
@@ -331,6 +338,24 @@ async function executePlan(plan: ScaffoldPlan): Promise<ScaffoldPlan> {
 }
 
 /**
+ * Report a failure: a JSON error envelope in `--json` mode, readable text on
+ * stderr otherwise. Either way the process exits non-zero.
+ */
+function emitFailure(
+  json: boolean,
+  code: ErrorCode,
+  message: string,
+  details?: Record<string, unknown>
+): void {
+  if (json) {
+    fail(code, message, details);
+    return;
+  }
+  console.error(chalk.red(`Error: ${message}`));
+  process.exitCode = 1;
+}
+
+/**
  * Emit the JSON envelope for a resolution. On the clarify branch we return
  * `{ needsClarification: true, candidates, ... }`; on resolution we return the
  * spec plus confidence (and, with --explain, the explanation), alongside the
@@ -499,6 +524,14 @@ async function confirmAndRunResolved(
   output: ResolveOutput,
   program: Command
 ): Promise<void> {
+  if (!process.stdin.isTTY) {
+    // An explicit interactive "yes" is the whole safety contract of --run.
+    console.log();
+    console.log(chalk.red('Refusing to run: --run needs an interactive terminal to confirm. Nothing was executed.'));
+    console.log(chalk.gray(`Run it yourself:  re-shell ${candidate.argv.join(' ')}`));
+    process.exitCode = 1;
+    return;
+  }
   const { confirmAndRun } = await import('../ai/run');
   const { indexCatalog, vetArgv } = await import('../ai/argv-guard');
   const { EXCLUDED_PATH_PREFIXES } = await import('../ai/prompt');

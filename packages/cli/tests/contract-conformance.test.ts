@@ -4,7 +4,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { z } from 'zod';
-import { jsonResponseSchema, findResponseSchema } from '@re-shell/contracts';
+import {
+  jsonResponseSchema,
+  findResponseSchema,
+  aiIntentResponseSchema,
+  aiSuggestResponseSchema,
+  aiConfigShowResponseSchema,
+} from '@re-shell/contracts';
 
 /**
  * Contract conformance regression suite.
@@ -255,6 +261,42 @@ describe('contract conformance: --json envelope + data shapes', () => {
     expect(env.ok).toBe(true);
     const parsed = jsonResponseSchema(microfrontendListSchema).safeParse(env);
     expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
+  });
+
+  // `--offline --no-cache` keeps these hermetic: no network, no cache/session writes.
+  it('ai <prompt> --json conforms to the envelope + aiIntentResponse shape and never executes', () => {
+    const { stdout } = runCli(['ai', 'list templates', '--json', '--offline', '--no-cache']);
+    const env = parseSingleLine(stdout);
+    expect(env.ok).toBe(true);
+    const parsed = jsonResponseSchema(aiIntentResponseSchema).safeParse(env);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
+    expect((env.data as { executed: boolean }).executed).toBe(false);
+    expect((env.data as { provider: string }).provider).toBe('offline');
+  });
+
+  it('ai suggest --json conforms to the envelope + aiSuggestResponse shape', () => {
+    const { stdout } = runCli(['ai', 'suggest', 'workspace he', '--json']);
+    const env = parseSingleLine(stdout);
+    expect(env.ok).toBe(true);
+    const parsed = jsonResponseSchema(aiSuggestResponseSchema).safeParse(env);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
+  });
+
+  it('ai config show --json conforms to the envelope + shape and never contains a secret', () => {
+    const { stdout } = runCli(['ai', 'config', 'show', '--json']);
+    const env = parseSingleLine(stdout);
+    expect(env.ok).toBe(true);
+    const parsed = jsonResponseSchema(aiConfigShowResponseSchema).safeParse(env);
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues[0])).toBe(true);
+    expect(stdout).not.toMatch(/sk-[A-Za-z0-9_-]{12,}/);
+  });
+
+  it('ai with an unknown provider emits {ok:false} AI_CONFIG_ERROR + non-zero exit', () => {
+    const { stdout, status } = runCli(['ai', 'list templates', '--provider', 'bogus', '--json']);
+    const env = parseSingleLine(stdout);
+    expect(env.ok).toBe(false);
+    expect((env.error as { code: string }).code).toBe('AI_CONFIG_ERROR');
+    expect(status).not.toBe(0);
   });
 
   it('find --json conforms to the envelope + findResponse shape with relevant hits', () => {

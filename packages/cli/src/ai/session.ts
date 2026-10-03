@@ -224,6 +224,7 @@ export class SessionStore {
 
 /** Trim a prompt for storage. */
 export function storablePrompt(prompt: string): string {
+  // eslint-disable-next-line no-control-regex
   return prompt.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, MAX_STORED_PROMPT);
 }
 

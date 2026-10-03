@@ -218,6 +218,7 @@ function renderEntry(e: CatalogExcerptEntry): string {
  */
 export function sanitizePromptForModel(prompt: string): string {
   return prompt
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ')
     .replace(/<<<|>>>/g, ' ')
     .trim()
