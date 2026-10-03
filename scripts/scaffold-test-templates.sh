@@ -27,6 +27,8 @@
 #                             app's own tests (npm test)
 #   Dart                      dart pub get, dart analyze (errors and warnings fail)
 #   Haskell (Cabal)           cabal build all (tests included), cabal test
+#   Deno (Oak, Fresh)         deno check on every module, deno task build when the app has
+#                             one (Fresh), deno test; dependencies come from JSR and npm
 #   Configuration-only        every YAML file must parse (scripts/check-yaml.mjs)
 #
 # A template is only SKIPped when its language toolchain is genuinely missing
@@ -36,7 +38,7 @@
 # configuration templates: syntax only) prints a NOTE saying so.
 #
 # Usage: bash scripts/scaffold-test-templates.sh [template ...]
-#        bash scripts/scaffold-test-templates.sh --group core|jvm|dotnet|native|node|config|haskell ...
+#        bash scripts/scaffold-test-templates.sh --group core|jvm|dotnet|native|node|config|haskell|deno ...
 # Runs from the repo root after `pnpm -r build`.
 
 set -euo pipefail
@@ -115,6 +117,13 @@ GROUP_HASKELL=(
   servant scotty-hs spock-hs yesod-hs
 )
 
+# Deno: needs the deno binary; the dependencies are JSR and npm packages (the
+# deno.land/x and esm.sh registries are not used, so these build wherever
+# jsr.io and registry.npmjs.org are reachable).
+GROUP_DENO=(
+  oak-deno fresh-deno
+)
+
 # Configuration-only templates: no toolchain, YAML syntax is checked (see
 # verify_config); the TypeScript snippets some of them ship are not compiled.
 GROUP_CONFIG=(
@@ -128,7 +137,7 @@ GROUP_CONFIG=(
 
 TEMPLATES=()
 if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
-  # --group core|jvm|dotnet|native|node|config|haskell [...]: run whole groups
+  # --group core|jvm|dotnet|native|node|config|haskell|deno [...]: run whole groups
   shift
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -139,14 +148,15 @@ if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
       node) TEMPLATES+=("${GROUP_NODE[@]}") ;;
       config) TEMPLATES+=("${GROUP_CONFIG[@]}") ;;
       haskell) TEMPLATES+=("${GROUP_HASKELL[@]}") ;;
-      *) echo "unknown group: $1 (core|jvm|dotnet|native|node|config)" >&2; exit 2 ;;
+      deno) TEMPLATES+=("${GROUP_DENO[@]}") ;;
+      *) echo "unknown group: $1 (core|jvm|dotnet|native|node|config|haskell|deno)" >&2; exit 2 ;;
     esac
     shift
   done
 elif [ "$#" -gt 0 ]; then
   TEMPLATES=("$@")
 else
-  TEMPLATES=("${GROUP_CORE[@]}" "${GROUP_JVM[@]}" "${GROUP_DOTNET[@]}" "${GROUP_NATIVE[@]}" "${GROUP_NODE[@]}" "${GROUP_CONFIG[@]}" "${GROUP_HASKELL[@]}")
+  TEMPLATES=("${GROUP_CORE[@]}" "${GROUP_JVM[@]}" "${GROUP_DOTNET[@]}" "${GROUP_NATIVE[@]}" "${GROUP_NODE[@]}" "${GROUP_CONFIG[@]}" "${GROUP_HASKELL[@]}" "${GROUP_DENO[@]}")
 fi
 
 PASS=0
@@ -400,6 +410,19 @@ verify_haskell() {
   step test cabal test all || return 1
 }
 
+# Deno (Oak, Fresh): type-check every module, build the production bundle when the
+# app defines a build task (Fresh), then run the tests. Dependencies are JSR and npm
+# packages that deno resolves itself.
+verify_deno() {
+  have deno || { NATIVE_REASON="deno is not installed"; return 2; }
+  export DENO_NO_UPDATE_CHECK=1 NO_COLOR=1
+  step check deno check || return 1
+  if grep -q '"build"' deno.json 2>/dev/null; then
+    step build deno task build || return 1
+  fi
+  step test deno test -A || return 1
+}
+
 # Dart (shelf, Angel3, Conduit): resolve the packages and type-check every library, bin and test.
 verify_dart() {
   have dart || { NATIVE_REASON="dart is not installed"; return 2; }
@@ -430,6 +453,8 @@ verify_native() {
     verify_gradle
   elif [ -f build.sbt ]; then
     verify_sbt
+  elif [ -f deno.json ] || [ -f deno.jsonc ]; then
+    verify_deno
   elif compgen -G "*.cabal" >/dev/null; then
     verify_haskell
   elif compgen -G "*.csproj" >/dev/null || compgen -G "*.fsproj" >/dev/null; then
@@ -454,7 +479,7 @@ verify_native() {
     verify_config
   else
     echo "  ✗ no recognised build manifest in the generated app"
-    NATIVE_REASON="no recognised build manifest (package.json, go.mod, Cargo.toml, pubspec.yaml, pom.xml, build.gradle(.kts), build.sbt, *.cabal, *.csproj, *.fsproj, composer.json, Gemfile, requirements.txt, cpanfile, CMakeLists.txt, build.zig, mix.exs, Package.swift, *.lua, *.yaml)"
+    NATIVE_REASON="no recognised build manifest (package.json, go.mod, Cargo.toml, deno.json, pubspec.yaml, pom.xml, build.gradle(.kts), build.sbt, *.cabal, *.csproj, *.fsproj, composer.json, Gemfile, requirements.txt, cpanfile, CMakeLists.txt, build.zig, mix.exs, Package.swift, *.lua, *.yaml)"
     return 1
   fi
 }
