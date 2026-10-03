@@ -48,7 +48,7 @@ export const eggjsTemplate: BackendTemplate = {
   },
   "dependencies": {
     "egg": "^3.17.5",
-    "egg-scripts": "^2.19.0",
+    "egg-scripts": "^2.17.0",
     "egg-sequelize": "^6.0.0",
     "egg-redis": "^2.4.0",
     "egg-session-redis": "^2.1.0",
@@ -59,7 +59,7 @@ export const eggjsTemplate: BackendTemplate = {
     "egg-socket.io": "^4.1.6",
     "egg-view-nunjucks": "^2.3.0",
     "egg-multipart": "^3.3.0",
-    "egg-oss": "^3.2.0",
+    "egg-oss": "^3.1.0",
     "egg-static": "^2.3.1",
     "egg-logrotator": "^3.2.0",
     "egg-schedule": "^3.7.0",
@@ -67,13 +67,13 @@ export const eggjsTemplate: BackendTemplate = {
     "egg-security": "^2.10.0",
     "egg-jsonp": "^2.0.0",
     "egg-swagger-doc": "^2.3.2",
-    "egg-bull": "^1.3.0",
-    "egg-grpc": "^1.0.6",
-    "egg-kafka": "^2.0.3",
-    "egg-amqp": "^0.2.0",
+    "egg-bull": "^1.0.0",
+    "egg-grpc": "^1.0.3",
+    "egg-kafka": "^1.2.6",
+    "egg-amqp": "^1.0.2",
     "egg-mongoose": "^3.3.1",
     "egg-elasticsearch": "^1.0.0",
-    "egg-graphql": "^3.0.0",
+    "egg-graphql": "^2.8.0",
     "mysql2": "^3.9.7",
     "pg": "^8.11.5",
     "ioredis": "^5.3.2",
@@ -128,9 +128,7 @@ export const eggjsTemplate: BackendTemplate = {
     "noImplicitAny": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "charset": "utf8",
     "allowJs": false,
-    "pretty": true,
     "lib": ["ES2020"],
     "noEmitOnError": false,
     "noUnusedLocals": true,
@@ -503,6 +501,16 @@ export default class AppBootHook implements IBoot {
     this.app.logger.info('Application is closing');
   }
 }`,
+
+    'typings/index.d.ts': `// Type augmentations contributed by the Egg plugins listed in config/plugin.ts
+// (app.model, app.redis, app.jwt, app.io, ...). egg-ts-helper regenerates the
+// rest of this folder on "npm run dev".
+import 'egg';
+import 'egg-sequelize';
+import 'egg-redis';
+import 'egg-jwt';
+import 'egg-socket.io';
+`,
 
     // Router
     'app/router.ts': `import { Application } from 'egg';

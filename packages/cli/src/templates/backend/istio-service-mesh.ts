@@ -179,16 +179,15 @@ spec:
   - name: v1
     labels:
       version: v1
+    trafficPolicy:
+      loadBalancer:
+        simple: LEAST_CONN
   - name: v2
     labels:
       version: v2
-  trafficPolicy:
-    loadBalancer:
-      simple: LEAST_CONN
-  - name: v2
     trafficPolicy:
       loadBalancer:
-      simple: RANDOM
+        simple: RANDOM
 `,
 
     'istio/traffic-management/traffic-splitting.yaml': `# Traffic Splitting by Header

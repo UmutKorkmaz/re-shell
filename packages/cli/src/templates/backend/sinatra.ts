@@ -17,7 +17,7 @@ export const sinatraTemplate: BackendTemplate = {
     // Gemfile
     'Gemfile': `source 'https://rubygems.org'
 
-ruby '3.3.0'
+ruby '>= 3.3.0'
 
 # Web framework
 gem 'sinatra', '~> 3.1.0'
@@ -56,13 +56,9 @@ gem 'hiredis', '~> 0.6'
 
 # Background jobs
 gem 'sidekiq', '~> 7.2'
-gem 'sidekiq', '~> 1.0'
 
 # Pagination
 gem 'will_paginate', '~> 4.0'
-
-# API Documentation
-gem 'sinatra-swagger-exposer', '~> 0.4'
 
 # GraphQL
 gem 'graphql', '~> 2.1'
@@ -70,9 +66,6 @@ gem 'graphql-client', '~> 0.18', group: :test
 
 # Rate limiting
 gem 'rack-throttle', '~> 0.7'
-
-# Health checks
-gem 'health_check', '~> 3.1'
 
 group :development do
   gem 'rerun', '~> 0.14'
@@ -112,29 +105,29 @@ require 'sinatra/namespace'
 require 'sinatra/cross_origin'
 require 'sinatra/custom_logger'
 require 'sinatra/param'
-require 'sinatra/swagger-exposer/swagger-exposer'
 require 'bcrypt'
 require 'jwt'
 require 'json'
 require 'logger'
 require 'redis'
+require 'rack/throttle'
 require 'graphql'
 
 # Load environment variables
 require 'dotenv/load'
 
 # Load application files
-Dir['./config/*.rb'].sort.each { |file| require file }
+Dir['./config/*.rb'].sort.reject { |file| file.end_with?('puma.rb') }.each { |file| require file }
 Dir['./app/models/*.rb'].sort.each { |file| require file }
 Dir['./app/helpers/*.rb'].sort.each { |file| require file }
+Dir['./app/graphql/types/*.rb'].sort.each { |file| require file }
 Dir['./app/graphql/*.rb'].sort.each { |file| require file }
 Dir['./app/controllers/*.rb'].sort.each { |file| require file }
 
-class {{projectName}}App < Sinatra::Base
+class {{projectNamePascal}}App < Sinatra::Base
   register Sinatra::ActiveRecordExtension
   register Sinatra::Namespace
   register Sinatra::CrossOrigin
-  register Sinatra::Swagger::Exposer
   
   helpers Sinatra::Param
   helpers Sinatra::CustomLogger
@@ -178,15 +171,6 @@ class {{projectName}}App < Sinatra::Base
   configure :production do
     logger.level = Logger::INFO
   end
-  
-  # Swagger documentation
-  general_info(
-    info: {
-      version: '1.0.0',
-      title: '{{projectName}} API',
-      description: 'Lightweight API built with Sinatra'
-    }
-  )
   
   # Error handling
   error ActiveRecord::RecordNotFound do
@@ -255,7 +239,7 @@ class {{projectName}}App < Sinatra::Base
     query = parse_json_body[:query]
     operation_name = parse_json_body[:operationName]
 
-    result = {{projectName}}Schema.execute(
+    result = {{projectNamePascal}}Schema.execute(
       query,
       variables: variables,
       operation_name: operation_name,
@@ -327,7 +311,7 @@ end
     // Config files
     'config.ru': `require './app'
 
-run {{projectName}}App
+run {{projectNamePascal}}App
 `,
 
     'Rakefile': `require 'sinatra/activerecord'
@@ -371,7 +355,7 @@ end
 
 development:
   <<: *default
-  database: {{projectName}}_development
+  database: {{projectNameSnake}}_development
   username: <%= ENV.fetch("DATABASE_USERNAME", "postgres") %>
   password: <%= ENV.fetch("DATABASE_PASSWORD", "") %>
   host: <%= ENV.fetch("DATABASE_HOST", "localhost") %>
@@ -379,7 +363,7 @@ development:
 
 test:
   <<: *default
-  database: {{projectName}}_test
+  database: {{projectNameSnake}}_test
   username: <%= ENV.fetch("DATABASE_USERNAME", "postgres") %>
   password: <%= ENV.fetch("DATABASE_PASSWORD", "") %>
   host: <%= ENV.fetch("DATABASE_HOST", "localhost") %>
@@ -387,9 +371,9 @@ test:
 
 production:
   <<: *default
-  database: {{projectName}}_production
-  username: {{projectName}}
-  password: <%= ENV["{{projectName}}_DATABASE_PASSWORD"] %>
+  database: {{projectNameSnake}}_production
+  username: {{projectNameSnake}}
+  password: <%= ENV["{{projectNameSnake}}_DATABASE_PASSWORD"] %>
   url: <%= ENV["DATABASE_URL"] %>
 `,
 
@@ -512,8 +496,7 @@ end
 `,
 
     // GraphQL schema and resolvers
-    'app/graphql/{{projectName}}_schema.rb': `class {{projectName}}Schema < GraphQL::Schema
-  mutation(null: true)
+    'app/graphql/{{projectNameSnake}}_schema.rb': `class {{projectNamePascal}}Schema < GraphQL::Schema
   query(Types::QueryType)
 
   # Resolve types for relay-style interfaces (future-proofing)
@@ -1279,7 +1262,7 @@ VCR.configure do |config|
 end
 
 def app
-  {{projectName}}App
+  {{projectNamePascal}}App
 end
 `,
 
@@ -1501,7 +1484,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB={{projectName}}_development
+      - POSTGRES_DB={{projectNameSnake}}_development
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:

@@ -24,11 +24,11 @@ plugins {
     application
 }
 
-group = "com.{{projectName}}"
+group = "{{packageName}}"
 version = "0.0.1"
 
 application {
-    mainClass.set("com.{{projectName}}.ApplicationKt")
+    mainClass.set("{{packageName}}.ApplicationKt")
 
     val isDevelopment: Boolean = project.ext.has("development")
     applicationDefaultJvmArgs = listOf("-Dio.ktor.development=$isDevelopment")
@@ -65,7 +65,7 @@ dependencies {
     implementation("io.ktor:ktor-server-swagger-jvm:2.3.7")
 
     // GraphQL (graphql-kotlin)
-    implementation("com.expediagroup:graphql-kotlin-ktor:7.0.2")
+    implementation("com.expediagroup:graphql-kotlin-ktor-server:7.0.2")
     implementation("com.expediagroup:graphql-kotlin-schema-generator:7.0.2")
 
     // Database
@@ -92,13 +92,18 @@ dependencies {
     testImplementation("io.ktor:ktor-client-content-negotiation-jvm:2.3.7")
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "17"
 }
 
 ktor {
     docker {
-        jreVersion.set(io.ktor.plugin.features.JavaVersion.VERSION_17)
+        jreVersion.set(JavaVersion.VERSION_17)
         localImageName.set("{{projectName}}")
         imageTag.set("latest")
     }
@@ -118,17 +123,17 @@ zipStorePath=wrapper/dists
 `,
 
     // Main Application
-    'src/main/kotlin/com/{{projectName}}/Application.kt': `package com.{{projectName}}
+    'src/main/kotlin/{{packagePath}}/Application.kt': `package {{packageName}}
 
-import com.{{projectName}}.config.configureCORS
-import com.{{projectName}}.config.configureDatabase
-import com.{{projectName}}.config.configureLogging
-import com.{{projectName}}.config.configureSecurity
-import com.{{projectName}}.config.configureSerialization
-import com.{{projectName}}.config.configureStatusPages
-import com.{{projectName}}.config.configureSwagger
-import com.{{projectName}}.graphql.configureGraphQL
-import com.{{projectName}}.routes.configureRouting
+import {{packageName}}.config.configureCORS
+import {{packageName}}.config.configureDatabase
+import {{packageName}}.config.configureLogging
+import {{packageName}}.config.configureSecurity
+import {{packageName}}.config.configureSerialization
+import {{packageName}}.config.configureStatusPages
+import {{packageName}}.config.configureSwagger
+import {{packageName}}.graphql.configureGraphQL
+import {{packageName}}.routes.configureRouting
 import io.github.cdimascio.dotenv.dotenv
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -160,7 +165,7 @@ fun Application.module() {
 `,
 
     // Configuration - Serialization
-    'src/main/kotlin/com/{{projectName}}/config/Serialization.kt': `package com.{{projectName}}.config
+    'src/main/kotlin/{{packagePath}}/config/Serialization.kt': `package {{packageName}}.config
 
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -180,7 +185,7 @@ fun Application.configureSerialization() {
 `,
 
     // Configuration - CORS
-    'src/main/kotlin/com/{{projectName}}/config/CORS.kt': `package com.{{projectName}}.config
+    'src/main/kotlin/{{packagePath}}/config/CORS.kt': `package {{packageName}}.config
 
 import io.github.cdimascio.dotenv.dotenv
 import io.ktor.http.*
@@ -231,7 +236,7 @@ fun Application.configureCORS() {
 `,
 
     // Configuration - Logging
-    'src/main/kotlin/com/{{projectName}}/config/Logging.kt': `package com.{{projectName}}.config
+    'src/main/kotlin/{{packagePath}}/config/Logging.kt': `package {{packageName}}.config
 
 import io.ktor.server.application.*
 import io.ktor.server.plugins.callid.*
@@ -267,10 +272,10 @@ private object HttpHeaders {
 `,
 
     // Configuration - Database
-    'src/main/kotlin/com/{{projectName}}/config/Database.kt': `package com.{{projectName}}.config
+    'src/main/kotlin/{{packagePath}}/config/Database.kt': `package {{packageName}}.config
 
-import com.{{projectName}}.models.Products
-import com.{{projectName}}.models.Users
+import {{packageName}}.models.Products
+import {{packageName}}.models.Users
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.github.cdimascio.dotenv.dotenv
@@ -321,10 +326,10 @@ fun Application.configureDatabase() {
 `,
 
     // Configuration - Security
-    'src/main/kotlin/com/{{projectName}}/config/Security.kt': `package com.{{projectName}}.config
+    'src/main/kotlin/{{packagePath}}/config/Security.kt': `package {{packageName}}.config
 
-import com.{{projectName}}.models.User
-import com.{{projectName}}.models.Users
+import {{packageName}}.models.User
+import {{packageName}}.models.Users
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import io.github.cdimascio.dotenv.dotenv
@@ -405,7 +410,7 @@ fun generateToken(userId: Int, email: String, role: String): String {
 `,
 
     // Configuration - Status Pages
-    'src/main/kotlin/com/{{projectName}}/config/StatusPages.kt': `package com.{{projectName}}.config
+    'src/main/kotlin/{{packagePath}}/config/StatusPages.kt': `package {{packageName}}.config
 
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -498,7 +503,7 @@ fun Application.configureStatusPages() {
 `,
 
     // Configuration - Swagger
-    'src/main/kotlin/com/{{projectName}}/config/Swagger.kt': `package com.{{projectName}}.config
+    'src/main/kotlin/{{packagePath}}/config/Swagger.kt': `package {{packageName}}.config
 
 import io.ktor.server.application.*
 import io.ktor.server.plugins.swagger.*
@@ -512,7 +517,7 @@ fun Application.configureSwagger() {
 `,
 
     // Models - User
-    'src/main/kotlin/com/{{projectName}}/models/User.kt': `package com.{{projectName}}.models
+    'src/main/kotlin/{{packagePath}}/models/User.kt': `package {{packageName}}.models
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import kotlinx.serialization.Serializable
@@ -544,7 +549,7 @@ class User(id: EntityID<Int>) : IntEntity(id) {
     var createdAt by Users.createdAt
     var updatedAt by Users.updatedAt
 
-    fun setPassword(plainPassword: String) {
+    fun hashAndSetPassword(plainPassword: String) {
         password = BCrypt.withDefaults().hashToString(12, plainPassword.toCharArray())
     }
 
@@ -593,7 +598,7 @@ data class AuthResponse(
 `,
 
     // Models - Product
-    'src/main/kotlin/com/{{projectName}}/models/Product.kt': `package com.{{projectName}}.models
+    'src/main/kotlin/{{packagePath}}/models/Product.kt': `package {{packageName}}.models
 
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.dao.IntEntity
@@ -675,9 +680,9 @@ data class PaginatedResponse<T>(
 `,
 
     // Routes - Main routing
-    'src/main/kotlin/com/{{projectName}}/routes/Routing.kt': `package com.{{projectName}}.routes
+    'src/main/kotlin/{{packagePath}}/routes/Routing.kt': `package {{packageName}}.routes
 
-import com.{{projectName}}.graphql.graphqlRoute
+import {{packageName}}.graphql.graphqlRoute
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
@@ -708,11 +713,13 @@ fun Application.configureRouting() {
 `,
 
     // GraphQL - Query root
-    'src/main/kotlin/com/{{projectName}}/graphql/Query.kt': `package com.{{projectName}}.graphql
+    'src/main/kotlin/{{packagePath}}/graphql/Query.kt': `package {{packageName}}.graphql
 
 import com.expediagroup.graphql.generator.annotations.GraphQLDescription
 import com.expediagroup.graphql.server.operations.Query
 import com.expediagroup.graphql.server.ktor.GraphQL
+import com.expediagroup.graphql.server.ktor.graphQLPostRoute
+import com.expediagroup.graphql.server.ktor.graphiQLRoute
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import java.time.Instant
@@ -746,31 +753,31 @@ data class HealthStatus(
 fun Application.configureGraphQL() {
     install(GraphQL) {
         schema {
-            packages = listOf("com.{{projectName}}.graphql")
+            packages = listOf("{{packageName}}.graphql")
             queries = listOf(
-                com.{{projectName}}.graphql.QueryService()
+                {{packageName}}.graphql.QueryService()
             )
         }
     }
 }
 
 /**
- * Registers the GraphQL endpoint and a Playground UI.
+ * Registers the GraphQL endpoint and a GraphiQL UI.
  * Call this inside a routing { } block.
  */
 fun Route.graphqlRoute() {
     graphQLPostRoute()
-    graphQLPlaygroundRoute()
+    graphiQLRoute()
 }
 `,
 
     // Routes - Auth
-    'src/main/kotlin/com/{{projectName}}/routes/AuthRoutes.kt': `package com.{{projectName}}.routes
+    'src/main/kotlin/{{packagePath}}/routes/AuthRoutes.kt': `package {{packageName}}.routes
 
-import com.{{projectName}}.config.AuthenticationException
-import com.{{projectName}}.config.ValidationException
-import com.{{projectName}}.config.generateToken
-import com.{{projectName}}.models.*
+import {{packageName}}.config.AuthenticationException
+import {{packageName}}.config.ValidationException
+import {{packageName}}.config.generateToken
+import {{packageName}}.models.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.ratelimit.*
@@ -809,7 +816,7 @@ fun Route.authRoutes() {
                     User.new {
                         email = request.email
                         name = request.name
-                        setPassword(request.password)
+                        hashAndSetPassword(request.password)
                     }
                 }
 
@@ -844,11 +851,11 @@ fun Route.authRoutes() {
 `,
 
     // Routes - User
-    'src/main/kotlin/com/{{projectName}}/routes/UserRoutes.kt': `package com.{{projectName}}.routes
+    'src/main/kotlin/{{packagePath}}/routes/UserRoutes.kt': `package {{packageName}}.routes
 
-import com.{{projectName}}.config.AuthorizationException
-import com.{{projectName}}.config.NotFoundException
-import com.{{projectName}}.models.*
+import {{packageName}}.config.AuthorizationException
+import {{packageName}}.config.NotFoundException
+import {{packageName}}.models.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -945,12 +952,12 @@ fun Route.userRoutes() {
 `,
 
     // Routes - Product
-    'src/main/kotlin/com/{{projectName}}/routes/ProductRoutes.kt': `package com.{{projectName}}.routes
+    'src/main/kotlin/{{packagePath}}/routes/ProductRoutes.kt': `package {{packageName}}.routes
 
-import com.{{projectName}}.config.AuthorizationException
-import com.{{projectName}}.config.NotFoundException
-import com.{{projectName}}.config.ValidationException
-import com.{{projectName}}.models.*
+import {{packageName}}.config.AuthorizationException
+import {{packageName}}.config.NotFoundException
+import {{packageName}}.config.ValidationException
+import {{packageName}}.models.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -1459,7 +1466,7 @@ volumes:
 `,
 
     // Test file
-    'src/test/kotlin/com/{{projectName}}/ApplicationTest.kt': `package com.{{projectName}}
+    'src/test/kotlin/{{packagePath}}/ApplicationTest.kt': `package {{packageName}}
 
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -1558,7 +1565,7 @@ Once the server is running, visit:
 \`\`\`
 src/
 ├── main/
-│   ├── kotlin/com/{{projectName}}/
+│   ├── kotlin/{{packagePath}}/
 │   │   ├── config/       # Configuration
 │   │   ├── models/       # Data models
 │   │   ├── routes/       # API routes

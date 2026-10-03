@@ -343,17 +343,21 @@ class Filters extends BaseConfig
         'honeypot' => Honeypot::class,
         'invalidchars' => InvalidChars::class,
         'secureheaders' => SecureHeaders::class,
-        'jwt' => JWTFilter::class];
+        'jwt' => JWTFilter::class,
+    ];
 
     public array $globals = [
         'before' => [
             // 'honeypot',
             // 'csrf',
-            // 'invalidchars'],
+            // 'invalidchars',
+        ],
         'after' => [
             'toolbar',
             // 'honeypot',
-            'secureheaders']];
+            'secureheaders',
+        ],
+    ];
 
     public array $methods = [];
 

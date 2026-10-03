@@ -35,7 +35,7 @@ export const polkaTemplate: BackendTemplate = {
   },
   "dependencies": {
     "polka": "^1.0.0-next.23",
-    "@polka/send-type": "^1.0.0-next.12",
+    "@polka/send-type": "^0.5.2",
     "@polka/redirect": "^1.0.0-next.12",
     "@polka/compression": "^1.0.0-next.12",
     "@polka/url": "^1.0.0-next.23",

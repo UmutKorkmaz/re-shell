@@ -64,6 +64,8 @@ export const crossFrameworkComponentSharingTemplate: BackendTemplate = {
   },
   "devDependencies": {
     "@types/express": "^4.17.17",
+    "@types/cors": "^2.8.17",
+    "@types/compression": "^1.7.5",
     "@types/node": "^20.5.0",
     "typescript": "^5.1.6",
     "ts-node": "^10.9.1",

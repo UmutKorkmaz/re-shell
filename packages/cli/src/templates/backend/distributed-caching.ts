@@ -61,7 +61,7 @@ export const distributedCachingTemplate: BackendTemplate = {
     "helmet": "^7.0.0",
     "compression": "^1.7.4",
     "ioredis": "^5.3.2",
-    "memjs": "^10.0.0",
+    "memjs": "^1.3.2",
     "node-cache": "^5.1.2",
     "axios": "^1.5.0",
     "etag": "^1.8.1",
@@ -74,8 +74,8 @@ export const distributedCachingTemplate: BackendTemplate = {
     "@types/cors": "^2.8.13",
     "@types/compression": "^1.7.2",
     "@types/node": "^20.5.0",
-    "@types/node-cache": "^5.1.0",
-    "@types/memjs": "^10.0.0",
+    "@types/node-cache": "^4.2.5",
+    "@types/memjs": "^1.3.3",
     "typescript": "^5.1.6",
     "ts-node": "^10.9.1"
   }
@@ -89,6 +89,7 @@ export const distributedCachingTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

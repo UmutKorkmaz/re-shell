@@ -88,13 +88,13 @@ addSbtPlugin("io.spray" % "sbt-revolver" % "0.10.0")
 `,
 
     // Main Application
-    'src/main/scala/com/{{projectName}}/Main.scala': `package com.{{projectName}}
+    'src/main/scala/{{packagePath}}/Main.scala': `package {{packageName}}
 
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
-import com.{{projectName}}.config.{AppConfig, DatabaseConfig}
-import com.{{projectName}}.routes.Routes
+import {{packageName}}.config.{AppConfig, DatabaseConfig}
+import {{packageName}}.routes.Routes
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.ExecutionContext
@@ -127,7 +127,7 @@ object Main extends App with LazyLogging {
 `,
 
     // Configuration
-    'src/main/scala/com/{{projectName}}/config/AppConfig.scala': `package com.{{projectName}}.config
+    'src/main/scala/{{packagePath}}/config/AppConfig.scala': `package {{packageName}}.config
 
 import com.typesafe.config.{Config, ConfigFactory}
 
@@ -172,7 +172,7 @@ object AppConfig {
 `,
 
     // Database Configuration
-    'src/main/scala/com/{{projectName}}/config/DatabaseConfig.scala': `package com.{{projectName}}.config
+    'src/main/scala/{{packagePath}}/config/DatabaseConfig.scala': `package {{packageName}}.config
 
 import com.typesafe.scalalogging.LazyLogging
 import slick.jdbc.PostgresProfile.api._
@@ -201,7 +201,7 @@ object DatabaseConfig extends LazyLogging {
   }
 
   def runMigrations(): Unit = {
-    import com.{{projectName}}.models.{Users, Products}
+    import {{packageName}}.models.{Users, Products}
 
     val schema = Users.schema ++ Products.schema
 
@@ -222,7 +222,7 @@ object DatabaseConfig extends LazyLogging {
 `,
 
     // Models - User
-    'src/main/scala/com/{{projectName}}/models/User.scala': `package com.{{projectName}}.models
+    'src/main/scala/{{packagePath}}/models/User.scala': `package {{packageName}}.models
 
 import com.github.t3hnar.bcrypt._
 import io.circe.{Decoder, Encoder}
@@ -305,7 +305,7 @@ object Users extends TableQuery(new Users(_))
 `,
 
     // Models - Product
-    'src/main/scala/com/{{projectName}}/models/Product.scala': `package com.{{projectName}}.models
+    'src/main/scala/{{packagePath}}/models/Product.scala': `package {{packageName}}.models
 
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto._
@@ -399,14 +399,15 @@ object Products extends TableQuery(new Products(_))
 `,
 
     // Auth
-    'src/main/scala/com/{{projectName}}/auth/JwtAuth.scala': `package com.{{projectName}}.auth
+    'src/main/scala/{{packagePath}}/auth/JwtAuth.scala': `package {{packageName}}.auth
 
 import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.model.StatusCodes
-import com.{{projectName}}.config.AppConfig
-import com.{{projectName}}.models.{User, Users}
-import com.{{projectName}}.config.DatabaseConfig.db
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import {{packageName}}.config.AppConfig
+import {{packageName}}.models.{User, Users}
+import {{packageName}}.config.DatabaseConfig.db
 import io.circe.syntax._
 import io.circe.generic.auto._
 import pdi.jwt.{JwtAlgorithm, JwtCirce, JwtClaim}
@@ -439,7 +440,7 @@ object JwtAuth {
     }
   }
 
-  def authenticated(config: AppConfig)(implicit ec: ExecutionContext): Directive1[UserPrincipal] = {
+  def authenticated(config: AppConfig): Directive1[UserPrincipal] = extractExecutionContext.flatMap { implicit ec =>
     optionalHeaderValueByName("Authorization").flatMap {
       case Some(authHeader) if authHeader.startsWith("Bearer ") =>
         val token = authHeader.substring(7)
@@ -458,7 +459,7 @@ object JwtAuth {
     }
   }
 
-  def requireRole(roles: String*)(config: AppConfig)(implicit ec: ExecutionContext): Directive1[UserPrincipal] = {
+  def requireRole(roles: String*)(config: AppConfig): Directive1[UserPrincipal] = {
     authenticated(config).flatMap { principal =>
       if (roles.contains(principal.role)) {
         provide(principal)
@@ -471,13 +472,11 @@ object JwtAuth {
 `,
 
     // GraphQL Schema
-    'src/main/scala/com/{{projectName}}/graphql/Schema.scala': `package com.{{projectName}}.graphql
+    'src/main/scala/{{packagePath}}/graphql/Schema.scala': `package {{packageName}}.graphql
 
 import sangria.schema._
 
 object Schema {
-  val HelloArg = Argument("name", OptionInputType(StringType), defaultValue = "world")
-
   val HelloArg: Argument[String] = Argument("name", StringType, defaultValue = "World")
 
   val QueryType: ObjectType[Unit, Unit] = ObjectType(
@@ -502,14 +501,15 @@ object Schema {
 `,
 
     // GraphQL Route
-    'src/main/scala/com/{{projectName}}/graphql/GraphQLRoute.scala': `package com.{{projectName}}.graphql
+    'src/main/scala/{{packagePath}}/graphql/GraphQLRoute.scala': `package {{packageName}}.graphql
 
-import akka.http.scaladsl.model.MediaTypes
+import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import sangria.execution.Executor
 import sangria.parser.QueryParser
-import sangria.spray.json.SprayJsonSupport._
+import sangria.marshalling.sprayJson._
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import spray.json._
 
 import scala.concurrent.ExecutionContext
@@ -527,19 +527,19 @@ class GraphQLRoute(implicit ec: ExecutionContext) {
   val routes: Route = path("graphql") {
     post {
       entity(as[GraphQLRequest]) { request =>
-        onComplete(QueryParser.parse(request.query)) {
+        QueryParser.parse(request.query) match {
           case Success(queryAst) =>
             onComplete(Executor.execute(Schema.schema, queryAst)) {
-              case Success(result) => complete(result.toJson.compactPrint)
-              case Failure(ex)     => complete(s\\"{\\"errors\\":[{\\"message\\":\\\"\${ex.getMessage}\\"}]}}\\")
+              case Success(result) => complete(result.compactPrint)
+              case Failure(ex)     => complete(s"""{"errors":[{"message":"\${ex.getMessage}"}]}""")
             }
           case Failure(ex) =>
-            complete(s\\"{\\"errors\\":[{\\"message\\":\\\"\${ex.getMessage}\\"}]}}\\")
+            complete(s"""{"errors":[{"message":"\${ex.getMessage}"}]}""")
         }
       }
     } ~
     get {
-      complete(MediaTypes.\`text/html\` -> graphqlPlaygroundHtml)
+      complete(HttpEntity(ContentTypes.\`text/html(UTF-8)\`, graphqlPlaygroundHtml))
     }
   }
 
@@ -564,16 +564,16 @@ class GraphQLRoute(implicit ec: ExecutionContext) {
 `,
 
     // Routes - Main
-    'src/main/scala/com/{{projectName}}/routes/Routes.scala': `package com.{{projectName}}.routes
+    'src/main/scala/{{packagePath}}/routes/Routes.scala': `package {{packageName}}.routes
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{ExceptionHandler, RejectionHandler, Route}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
-import com.{{projectName}}.config.AppConfig
+import {{packageName}}.config.AppConfig
 import com.typesafe.scalalogging.LazyLogging
-import com.{{projectName}}.graphql.GraphQLRoute
+import {{packageName}}.graphql.GraphQLRoute
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 
@@ -634,14 +634,14 @@ class Routes(config: AppConfig)(implicit ec: ExecutionContext) extends LazyLoggi
 `,
 
     // Routes - Auth
-    'src/main/scala/com/{{projectName}}/routes/AuthRoutes.scala': `package com.{{projectName}}.routes
+    'src/main/scala/{{packagePath}}/routes/AuthRoutes.scala': `package {{packageName}}.routes
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.{{projectName}}.auth.JwtAuth
-import com.{{projectName}}.config.{AppConfig, DatabaseConfig}
-import com.{{projectName}}.models._
+import {{packageName}}.auth.JwtAuth
+import {{packageName}}.config.{AppConfig, DatabaseConfig}
+import {{packageName}}.models._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import slick.jdbc.PostgresProfile.api._
@@ -713,14 +713,14 @@ class AuthRoutes(config: AppConfig)(implicit ec: ExecutionContext) {
 `,
 
     // Routes - User
-    'src/main/scala/com/{{projectName}}/routes/UserRoutes.scala': `package com.{{projectName}}.routes
+    'src/main/scala/{{packagePath}}/routes/UserRoutes.scala': `package {{packageName}}.routes
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.{{projectName}}.auth.JwtAuth
-import com.{{projectName}}.config.{AppConfig, DatabaseConfig}
-import com.{{projectName}}.models._
+import {{packageName}}.auth.JwtAuth
+import {{packageName}}.config.{AppConfig, DatabaseConfig}
+import {{packageName}}.models._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import slick.jdbc.PostgresProfile.api._
@@ -813,14 +813,14 @@ class UserRoutes(config: AppConfig)(implicit ec: ExecutionContext) {
 `,
 
     // Routes - Product
-    'src/main/scala/com/{{projectName}}/routes/ProductRoutes.scala': `package com.{{projectName}}.routes
+    'src/main/scala/{{packagePath}}/routes/ProductRoutes.scala': `package {{packageName}}.routes
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.{{projectName}}.auth.JwtAuth
-import com.{{projectName}}.config.{AppConfig, DatabaseConfig}
-import com.{{projectName}}.models._
+import {{packageName}}.auth.JwtAuth
+import {{packageName}}.config.{AppConfig, DatabaseConfig}
+import {{packageName}}.models._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import slick.jdbc.PostgresProfile.api._
@@ -1098,12 +1098,12 @@ volumes:
 `,
 
     // Test file
-    'src/test/scala/com/{{projectName}}/RoutesSpec.scala': `package com.{{projectName}}
+    'src/test/scala/{{packagePath}}/RoutesSpec.scala': `package {{packageName}}
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import com.{{projectName}}.config.AppConfig
-import com.{{projectName}}.routes.Routes
+import {{packageName}}.config.AppConfig
+import {{packageName}}.routes.Routes
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -1125,8 +1125,8 @@ class RoutesSpec extends AnyWordSpec with Matchers with ScalatestRouteTest {
   )
 
   // Initialize database for tests
-  com.{{projectName}}.config.DatabaseConfig.initialize(config)
-  com.{{projectName}}.config.DatabaseConfig.runMigrations()
+  {{packageName}}.config.DatabaseConfig.initialize(config)
+  {{packageName}}.config.DatabaseConfig.runMigrations()
 
   val routes = new Routes(config)
 
@@ -1204,7 +1204,7 @@ sbt stage
 ## Project Structure
 
 \`\`\`
-src/main/scala/com/{{projectName}}/
+src/main/scala/{{packagePath}}/
 ├── auth/         # Authentication
 ├── config/       # Configuration
 ├── models/       # Data models

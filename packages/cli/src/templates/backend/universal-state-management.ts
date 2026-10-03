@@ -83,6 +83,7 @@ export const universalStateManagementTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -136,14 +137,12 @@ const stateManager = new StateManager(stateStore);
 const stateSync = new StateSync(io, stateManager);
 const timeTravel = new TimeTravel(stateManager);
 
-// Initialize state manager
-await stateManager.initialize();
-
-// Initialize state sync
-await stateSync.initialize();
-
-// Initialize time travel
-await timeTravel.initialize();
+// Initialize state manager, state sync and time travel (the server starts listening once they are ready)
+const servicesReady = (async () => {
+  await stateManager.initialize();
+  await stateSync.initialize();
+  await timeTravel.initialize();
+})();
 
 // Routes
 app.use('/api/state', stateRoutes(stateManager));
@@ -177,9 +176,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Start server
 const PORT = process.env.PORT || {{port}};
-httpServer.listen(PORT, () => {
+servicesReady.then(() => httpServer.listen(PORT, () => {
   console.log(\`🚀 Universal State Management Server running on port \${PORT}\`);
   console.log(\`📊 State Store: \${stateStore.getStats().keys} keys\`);
+})).catch((err) => {
+  console.error('Failed to initialise services:', err);
+  process.exit(1);
 });
 
 // Graceful shutdown
@@ -619,12 +621,12 @@ export class StateManager extends EventEmitter {
     'src/state/state-sync.ts': `// State Sync
 // Synchronize state between server and clients
 
-import { Server as SocketIOServer } from 'socket.io';
+import { Server } from 'socket.io';
 import { StateManager } from './state-manager';
 import { EventEmitter } from 'events';
 
 export class StateSync extends EventEmitter {
-  private io: Server as SocketIOServer;
+  private io: Server;
   private stateManager: StateManager;
   private subscriptions: Map<string, Set<string>> = new Map(); // key -> socket IDs
   private initialized = false;

@@ -41,9 +41,13 @@ export const actionheroTemplate: BackendTemplate = {
     "target": "ES2022",
     "module": "commonjs",
     "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true
-  }
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*", "config/**/*", "initializers/**/*"],
+  "exclude": ["node_modules", "dist"]
 }`,
 
     'config/servers/web.ts': `export const DEFAULT = {
@@ -101,7 +105,7 @@ export const DEFAULT = {
       server,
       async handle(request: any, response: any) {
         try {
-          const body = await new Promise((resolve) => {
+          const body = await new Promise<any>((resolve) => {
             let data = '';
             request.on('data', (chunk: string) => { data += chunk; });
             request.on('end', () => resolve(JSON.parse(data || '{}')));

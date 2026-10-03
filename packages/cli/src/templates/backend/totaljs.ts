@@ -24,7 +24,8 @@ export const totaljsTemplate: BackendTemplate = {
   },
   "dependencies": {
     "total.js": "^3.0.0",
-    "graphql-yoga": "^5.10.0"
+    "graphql-yoga": "^5.10.0",
+    "graphql": "^16.8.1"
   }
 }`,
 

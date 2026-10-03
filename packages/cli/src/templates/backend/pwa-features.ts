@@ -49,8 +49,8 @@ export const pwaFeaturesTemplate: BackendTemplate = {
   "main": "dist/index.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "start": "node dist/index.js",
+    "build": "tsc && tsc -p tsconfig.sw.json && vite build",
+    "start": "node dist/server/index.js",
     "preview": "vite preview",
     "generate-sw": "workbox generateSW workbox-config.js",
     "lint": "eslint src --ext .ts,.tsx"
@@ -66,9 +66,13 @@ export const pwaFeaturesTemplate: BackendTemplate = {
     "workbox-routing": "^7.0.0",
     "workbox-strategies": "^7.0.0",
     "workbox-expiration": "^7.0.0",
-    "workbox-precaching": "^7.0.0"
+    "workbox-precaching": "^7.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "@types/express": "^4.17.17",
     "@types/cors": "^2.8.13",
     "@types/compression": "^1.7.2",
@@ -90,6 +94,7 @@ export const pwaFeaturesTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -101,7 +106,21 @@ export const pwaFeaturesTemplate: BackendTemplate = {
     "jsx": "react-jsx"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "src/frontend/sw.ts"]
+}`,
+
+    'tsconfig.sw.json': `{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "node",
+    "lib": ["ES2020", "WebWorker"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["src/frontend/sw.ts"]
 }`,
 
     'vite.config.ts': `import { defineConfig } from 'vite';
@@ -262,8 +281,7 @@ const pushManager = new PushSubscriptionManager(webpush);
 const syncManager = new OfflineSyncManager();
 
 // Initialize
-await pushManager.initialize();
-await syncManager.initialize();
+const managersReady = Promise.all([pushManager.initialize(), syncManager.initialize()]);
 
 // Make managers available globally
 app.set('pushManager', pushManager);
@@ -315,10 +333,13 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Start server
 const PORT = process.env.PORT || {{port}};
-app.listen(PORT, () => {
+managersReady.then(() => app.listen(PORT, () => {
   console.log(\`🚀 PWA Server running on port \${PORT}\`);
   console.log(\`📱 Progressive Web App features enabled\`);
   console.log(\`🔑 VAPID Public Key: \${publicVapidKey}\`);
+})).catch((err) => {
+  console.error('Failed to initialise PWA managers:', err);
+  process.exit(1);
 });
 
 // Graceful shutdown
@@ -403,7 +424,7 @@ export class PushSubscriptionManager extends EventEmitter {
       );
       this.emit('notification:sent', { userId, payload });
       console.log(\`📤 Notification sent to user \${userId}\`);
-    } catch (error: unknown) {
+    } catch (error: any) {
       if (error.statusCode === 410) {
         // Subscription expired, remove it
         await this.unsubscribe(userId);
@@ -588,7 +609,7 @@ export class OfflineSyncManager extends EventEmitter {
     'src/server/routes/api.routes.ts': `// API Routes
 import { Router } from 'express';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * @swagger
@@ -677,7 +698,7 @@ export function pushRoutes(pushManager: PushSubscriptionManager): Router {
       await pushManager.subscribe(userId, subscription);
       res.json({ success: true, message: 'Subscribed to push notifications' });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -689,7 +710,7 @@ export function pushRoutes(pushManager: PushSubscriptionManager): Router {
       await pushManager.unsubscribe(userId);
       res.json({ success: true, message: 'Unsubscribed from push notifications' });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -708,7 +729,7 @@ export function pushRoutes(pushManager: PushSubscriptionManager): Router {
 
       res.json({ success: true, message: 'Notification sent' });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -727,7 +748,7 @@ export function pushRoutes(pushManager: PushSubscriptionManager): Router {
 
       res.json({ success: true, message: 'Broadcast sent' });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -749,7 +770,7 @@ export function pushRoutes(pushManager: PushSubscriptionManager): Router {
     'src/server/routes/manifest.routes.ts': `// Web App Manifest Routes
 import { Router } from 'express';
 
-const router = Router();
+const router: Router = Router();
 
 // Serve web app manifest
 router.get('/web-app-manifest.json', (req, res) => {
@@ -831,6 +852,8 @@ import { registerRoute, NavigationRoute } from 'workbox-routing';
 import { StaleWhileRevalidate, NetworkFirst, CacheFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { BackgroundSyncPlugin } from 'workbox-background-sync';
+
+declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<string | { url: string; revision: string | null }> };
 
 // Precache assets
 precacheAndRoute(self.__WB_MANIFEST);
@@ -944,13 +967,13 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'explore') {
     event.waitUntil(
-      clients.openWindow('/explore')
+      self.clients.openWindow('/explore')
     );
   } else if (event.action === 'close') {
     // Just close the notification
   } else {
     event.waitUntil(
-      clients.openWindow('/')
+      self.clients.openWindow('/')
     );
   }
 });
@@ -1030,7 +1053,7 @@ export async function subscribeToPush(
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(applicationServerKey),
+      applicationServerKey: urlBase64ToUint8Array(applicationServerKey) as BufferSource,
     });
 
     // Send subscription to backend
@@ -1107,7 +1130,7 @@ export function isNotificationsGranted(): boolean {
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding '='.repeat((4 - (base64String.length % 4)) % 4);
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding)
     .replace(/\\-/g, '+')
     .replace(/_/g, '/');

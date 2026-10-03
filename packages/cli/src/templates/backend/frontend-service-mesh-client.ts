@@ -1287,6 +1287,7 @@ MIT
     "outDir": "./dist",
     "rootDir": "./",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

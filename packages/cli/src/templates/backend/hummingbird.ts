@@ -81,11 +81,11 @@ let package = Package(
             path: "Sources/{{projectName}}"
         ),
         .testTarget(
-            name: "{{projectName}}Tests",
+            name: "{{projectNamePascal}}Tests",
             dependencies: [
                 .target(name: "{{projectName}}"),
                 .product(name: "HummingbirdXCT", package: "hummingbird")],
-            path: "Tests/{{projectName}}Tests"
+            path: "Tests/{{projectNamePascal}}Tests"
         )]
 )`,
 
@@ -95,7 +95,7 @@ import ArgumentParser
 import Logging
 
 @main
-struct {{projectName}}App: AsyncParsableCommand {
+struct {{projectNamePascal}}App: AsyncParsableCommand {
     @Option(name: .shortAndLong)
     var hostname: String = "127.0.0.1"
     
@@ -1169,7 +1169,7 @@ struct WebSocketMessage: Codable {
 }`,
 
     // Tests
-    'Tests/{{projectName}}Tests/AuthTests.swift': `import XCTest
+    'Tests/{{projectNamePascal}}Tests/AuthTests.swift': `import XCTest
 import HummingbirdXCT
 import Fluent
 @testable import {{projectName}}
@@ -1243,7 +1243,7 @@ final class AuthTests: XCTestCase {
     }
 }`,
 
-    'Tests/{{projectName}}Tests/TodoTests.swift': `import XCTest
+    'Tests/{{projectNamePascal}}Tests/TodoTests.swift': `import XCTest
 import HummingbirdXCT
 import JWT
 @testable import {{projectName}}

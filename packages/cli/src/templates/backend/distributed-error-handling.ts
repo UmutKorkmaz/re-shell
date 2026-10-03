@@ -433,12 +433,13 @@ export class DistributedErrorHandler {
 
     if (!context) {
       // No correlation context, create one
-      return res.status(500).json({
+      res.status(500).json({
         error: {
           message: err.message,
           timestamp: Date.now(),
         },
       });
+      return;
     }
 
     // Categorize error
@@ -532,6 +533,9 @@ export class DistributedErrorHandler {
     }) as T;
   }
 }
+
+export const asyncHandler = DistributedErrorHandler.asyncHandler;
+export const withErrorTracking = DistributedErrorHandler.withErrorTracking;
 
 /**
  * Categorize error based on type and message
@@ -1150,11 +1154,11 @@ CMD ["npm", "run", "dev"]
   "name": "distributed-error-handling",
   "version": "1.0.0",
   "description": "Distributed error handling and monitoring system",
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "scripts": {
     "dev": "ts-node-dev src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/src/index.js",
     "test": "jest",
     "lint": "eslint src/**/*.ts"
   },
@@ -1192,7 +1196,7 @@ CMD ["npm", "run", "dev"]
     "module": "commonjs",
     "lib": ["ES2020"],
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -1201,7 +1205,7 @@ CMD ["npm", "run", "dev"]
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "error-handling/**/*"],
   "exclude": ["node_modules", "dist"]
 }
 `,

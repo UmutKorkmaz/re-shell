@@ -86,7 +86,9 @@ export const hapiTypeScriptTemplate: BackendTemplate = {
   "license": "MIT",
   "dependencies": {
     "@hapi/hapi": "^21.3.10",
-    "@hapi/joi": "^17.1.3",
+    "joi": "^18.0.0",
+    "@hapi/good": "^9.0.1",
+    "@hapi/basic": "^7.0.2",
     "@hapi/boom": "^10.0.1",
     "@hapi/inert": "^7.1.0",
     "@hapi/vision": "^7.0.3",
@@ -106,8 +108,6 @@ export const hapiTypeScriptTemplate: BackendTemplate = {
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
-    "@types/hapi__hapi": "^21.0.0",
-    "@types/hapi__joi": "^17.1.15",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.6",
     "typescript": "^5.4.5",
@@ -128,6 +128,7 @@ export const hapiTypeScriptTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -223,7 +224,7 @@ export const configureServer = async (): Promise<Hapi.Server> => {
   return server;
 };`,
     'src/config/environment.ts': `import dotenv from 'dotenv';
-import Joi from '@hapi/joi';
+import Joi from 'joi';
 
 dotenv.config();
 
@@ -267,7 +268,8 @@ import Good from '@hapi/good';
 import Basic from '@hapi/basic';
 import Jwt from '@hapi/jwt';
 import HapiSwagger from 'hapi-swagger';
-import RateLimit from 'hapi-rate-limit';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const RateLimit = require('hapi-rate-limit');
 import { loadEnvironment } from './environment';
 import { validateUser } from '../auth/strategies';
 import { logger } from '../utils/logger';
@@ -316,7 +318,8 @@ export const registerPlugins = async (server: Hapi.Server): Promise<void> => {
   });
   
   // Authentication
-  await server.register([Basic, Jwt]);
+  await server.register(Basic);
+  await server.register(Jwt);
   
   // JWT Strategy
   server.auth.strategy('jwt', 'jwt', {
@@ -335,7 +338,7 @@ export const registerPlugins = async (server: Hapi.Server): Promise<void> => {
   
   // Basic Auth Strategy
   server.auth.strategy('basic', 'basic', {
-    validate: async (request, username, password) => {
+    validate: async (_request: Hapi.Request, _username: string, _password: string) => {
       // Implement basic auth validation
       return { isValid: false, credentials: {} };
     }
@@ -390,6 +393,13 @@ export const setupRoutes = (server: Hapi.Server): void => {
     'src/config/cache.ts': `import Hapi from '@hapi/hapi';
 import { loadEnvironment } from './environment';
 
+declare module '@hapi/hapi' {
+  interface ServerApplicationState {
+    cache: ReturnType<Hapi.Server['cache']>;
+    userCache: ReturnType<Hapi.Server['cache']>;
+  }
+}
+
 export const setupCache = async (server: Hapi.Server): Promise<void> => {
   const env = loadEnvironment();
   
@@ -431,7 +441,7 @@ export const setupCache = async (server: Hapi.Server): Promise<void> => {
 };`,
     'src/graphql/server.ts': `import Hapi from '@hapi/hapi';
 import { ApolloServer } from '@apollo/server';
-import { hapiApollo } from '@as-integrations/hapi';
+import hapiApollo from '@as-integrations/hapi';
 import { typeDefs } from './schema';
 import { resolvers } from './resolver';
 import { logger } from '../utils/logger';
@@ -443,16 +453,13 @@ export const setupGraphQL = async (server: Hapi.Server): Promise<void> => {
     introspection: true
   });
 
+  await apolloServer.start();
+
   await server.register({
-    plugin: {
-      name: 'apollo-graphql',
-      register: async (hapiServer: Hapi.Server) => {
-        await hapiApollo({
-          apolloServer,
-          path: '/graphql',
-          hapiServer
-        });
-      }
+    plugin: hapiApollo,
+    options: {
+      apolloServer,
+      path: '/graphql'
     }
   });
 
@@ -501,7 +508,7 @@ export const validateUser = async (
 export const requireRole = (role: Role | string) => {
   return (request: Hapi.Request, h: Hapi.ResponseToolkit) => {
     const { credentials } = request.auth;
-    const requiredRole = typeof role === 'string' ? role.toLowerCase() : role.toLowerCase();
+    const requiredRole = String(role).toLowerCase();
     
     if (!credentials?.scope?.includes(requiredRole)) {
       throw Boom.forbidden('Insufficient permissions');
@@ -511,7 +518,7 @@ export const requireRole = (role: Role | string) => {
   };
 };`,
     'src/routes/auth.ts': `import Hapi from '@hapi/hapi';
-import Joi from '@hapi/joi';
+import Joi from 'joi';
 import { AuthController } from '../controllers/authController';
 
 const authController = new AuthController();
@@ -604,7 +611,7 @@ export const authRoutes: Hapi.ServerRoute[] = [
   }
 ];`,
     'src/routes/users.ts': `import Hapi from '@hapi/hapi';
-import Joi from '@hapi/joi';
+import Joi from 'joi';
 import { UserController } from '../controllers/userController';
 import { requireRole } from '../auth/strategies';
 
@@ -741,7 +748,7 @@ export const userRoutes: Hapi.ServerRoute[] = [
   }
 ];`,
     'src/routes/posts.ts': `import Hapi from '@hapi/hapi';
-import Joi from '@hapi/joi';
+import Joi from 'joi';
 import { PostController } from '../controllers/postController';
 import { requireRole } from '../auth/strategies';
 
@@ -937,7 +944,7 @@ export const postRoutes: Hapi.ServerRoute[] = [
   }
 ];`,
     'src/routes/health.ts': `import Hapi from '@hapi/hapi';
-import Joi from '@hapi/joi';
+import Joi from 'joi';
 import { HealthController } from '../controllers/healthController';
 
 const healthController = new HealthController();
@@ -1176,6 +1183,7 @@ export class UserController {
 }`,
     'src/controllers/postController.ts': `import Hapi from '@hapi/hapi';
 import Boom from '@hapi/boom';
+import { PostStatus } from '@prisma/client';
 import { PostService } from '../services/postService';
 import { logger } from '../utils/logger';
 
@@ -1225,7 +1233,7 @@ export class PostController {
       const { page, limit, status } = request.query as {
         page: number;
         limit: number;
-        status?: string;
+        status?: PostStatus;
       };
 
       const result = await this.postService.getUserPosts(credentials.id, page, limit, status);
@@ -1243,7 +1251,7 @@ export class PostController {
         title: string;
         content?: string;
         excerpt?: string;
-        status?: string;
+        status?: PostStatus;
       };
 
       const post = await this.postService.createPost(credentials.id, postData);
@@ -1264,7 +1272,7 @@ export class PostController {
         title?: string;
         content?: string;
         excerpt?: string;
-        status?: string;
+        status?: PostStatus;
       };
 
       const post = await this.postService.updatePost(id, credentials.id, credentials.role, updates);
@@ -1309,7 +1317,7 @@ export class PostController {
       const { page, limit, status, author } = request.query as {
         page: number;
         limit: number;
-        status?: string;
+        status?: PostStatus;
         author?: string;
       };
 
@@ -1351,7 +1359,7 @@ export class HealthController {
     return h.response(isLive ? 'Live' : 'Not Live').code(isLive ? 200 : 503);
   };
 }`,
-    'src/services/authService.ts': `import bcrypt from 'bcrypt';
+    'src/services/authService.ts': `import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Role } from '@prisma/client';
 import { UserService } from './userService';
@@ -1447,7 +1455,7 @@ export class AuthService {
     return jwt.sign(
       { id, email, role },
       this.env.JWT_SECRET,
-      { expiresIn: this.env.JWT_EXPIRATION }
+      { expiresIn: this.env.JWT_EXPIRATION as jwt.SignOptions['expiresIn'] }
     );
   }
 }`,
@@ -2238,6 +2246,23 @@ if (env.NODE_ENV !== 'production') {
 }
 
 export { logger };`,
+
+    'src/types/modules.d.ts': `// Ambient declarations for plugins that ship without TypeScript types
+declare module '@hapi/good';
+`,
+
+    'src/types/hapi.d.ts': `import '@hapi/hapi';
+import type { Role } from '@prisma/client';
+
+// Credentials produced by the JWT validate function in src/auth/strategies.ts
+declare module '@hapi/hapi' {
+  interface AuthCredentials {
+    id: string;
+    email: string;
+    role: Role;
+  }
+}
+`,
     'src/utils/gracefulShutdown.ts': `import { logger } from './logger';
 
 export const gracefulShutdown = (): void => {
@@ -2502,12 +2527,14 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });`,
-    'src/lib/prisma.ts': `import { PrismaClient } from '@prisma/client';
+    'src/lib/prisma.ts': `import { Prisma, PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
+
+type LoggedPrismaClient = PrismaClient<Prisma.PrismaClientOptions, 'query' | 'error' | 'info' | 'warn'>;
 
 declare global {
   // eslint-disable-next-line no-var
-  var __prisma: PrismaClient | undefined;
+  var __prisma: LoggedPrismaClient | undefined;
 }
 
 // Prevent multiple instances during development

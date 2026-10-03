@@ -38,6 +38,8 @@ export const grpcServiceTemplate: BackendTemplate = {
     <PackageReference Include="AutoMapper" Version="12.0.1" />
     <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
     <PackageReference Include="FluentValidation" Version="11.8.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.8.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
@@ -48,9 +50,9 @@ export const grpcServiceTemplate: BackendTemplate = {
     // Protocol Buffer definitions
     'Protos/{{serviceName}}.proto': `syntax = "proto3";
 
-option csharp_namespace = "{{serviceName}}.Protos";
+option csharp_namespace = "{{projectNamePascal}}.Protos";
 
-package {{serviceName}};
+package {{projectNamePascal}};
 
 // User service definition
 service UserService {
@@ -249,9 +251,9 @@ message ProductReply {
 import "google/protobuf/timestamp.proto";`,
 
     // Program.cs
-    'Program.cs': `using {{serviceName}}.Services;
-using {{serviceName}}.Data;
-using {{serviceName}}.Interceptors;
+    'Program.cs': `using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Interceptors;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using AutoMapper;
@@ -331,7 +333,7 @@ app.Run();`,
     // Models
     'Models/User.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class User
 {
@@ -360,7 +362,7 @@ public class User
     'Models/Product.cs': `using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class Product
 {
@@ -390,10 +392,10 @@ public class Product
 
     // Data
     'Data/ApplicationDbContext.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 using System.Text.Json;
 
-namespace {{serviceName}}.Data;
+namespace {{projectNamePascal}}.Data;
 
 public class ApplicationDbContext : DbContext
 {
@@ -454,9 +456,9 @@ public class ApplicationDbContext : DbContext
 }`,
 
     // Services
-    'Services/IUserDataService.cs': `using {{serviceName}}.Models;
+    'Services/IUserDataService.cs': `using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IUserDataService
 {
@@ -468,10 +470,10 @@ public interface IUserDataService
 }`,
 
     'Services/UserDataService.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class UserDataService : IUserDataService
 {
@@ -597,9 +599,9 @@ public class UserDataService : IUserDataService
     }
 }`,
 
-    'Services/IProductDataService.cs': `using {{serviceName}}.Models;
+    'Services/IProductDataService.cs': `using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IProductDataService
 {
@@ -612,10 +614,10 @@ public interface IProductDataService
 }`,
 
     'Services/ProductDataService.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class ProductDataService : IProductDataService
 {
@@ -785,11 +787,11 @@ public class ProductDataService : IProductDataService
     // gRPC Services
     'Services/UserGrpcService.cs': `using Grpc.Core;
 using AutoMapper;
-using {{serviceName}}.Protos;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Protos;
+using {{projectNamePascal}}.Models;
 using Google.Protobuf.WellKnownTypes;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class UserGrpcService : UserService.UserServiceBase
 {
@@ -971,10 +973,10 @@ public class UserGrpcService : UserService.UserServiceBase
 
     'Services/ProductGrpcService.cs': `using Grpc.Core;
 using AutoMapper;
-using {{serviceName}}.Protos;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Protos;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class ProductGrpcService : ProductService.ProductServiceBase
 {
@@ -1248,11 +1250,11 @@ public class ProductGrpcService : ProductService.ProductServiceBase
 
     // Mapping Profiles
     'Mappings/MappingProfile.cs': `using AutoMapper;
-using {{serviceName}}.Models;
-using {{serviceName}}.Protos;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Protos;
 using Google.Protobuf.WellKnownTypes;
 
-namespace {{serviceName}}.Mappings;
+namespace {{projectNamePascal}}.Mappings;
 
 public class MappingProfile : Profile
 {
@@ -1291,7 +1293,7 @@ public class MappingProfile : Profile
     'Interceptors/LoggingInterceptor.cs': `using Grpc.Core;
 using Grpc.Core.Interceptors;
 
-namespace {{serviceName}}.Interceptors;
+namespace {{projectNamePascal}}.Interceptors;
 
 public class LoggingInterceptor : Interceptor
 {
@@ -1428,7 +1430,7 @@ public class LoggingInterceptor : Interceptor
     'Interceptors/ExceptionInterceptor.cs': `using Grpc.Core;
 using Grpc.Core.Interceptors;
 
-namespace {{serviceName}}.Interceptors;
+namespace {{projectNamePascal}}.Interceptors;
 
 public class ExceptionInterceptor : Interceptor
 {
@@ -1805,22 +1807,22 @@ go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 grpcurl -plaintext localhost:{{port}} list
 
 # List methods for UserService
-grpcurl -plaintext localhost:{{port}} list {{serviceName}}.UserService
+grpcurl -plaintext localhost:{{port}} list {{projectNamePascal}}.UserService
 
 # Create a user
 grpcurl -plaintext \\
   -d '{"name": "John Doe", "email": "john@example.com", "phone": "+1-555-0123", "roles": ["user"]}' \\
-  localhost:{{port}} {{serviceName}}.UserService/CreateUser
+  localhost:{{port}} {{projectNamePascal}}.UserService/CreateUser
 
 # Get a user
 grpcurl -plaintext \\
   -d '{"id": 1}' \\
-  localhost:{{port}} {{serviceName}}.UserService/GetUser
+  localhost:{{port}} {{projectNamePascal}}.UserService/GetUser
 
 # List users
 grpcurl -plaintext \\
   -d '{"page_size": 10}' \\
-  localhost:{{port}} {{serviceName}}.UserService/ListUsers
+  localhost:{{port}} {{projectNamePascal}}.UserService/ListUsers
 \`\`\`
 
 ### Client Development
