@@ -221,6 +221,14 @@ jobs:
         env:
           CI: true
 
+      # 2000-node graph explorer scale test (own stack: real hub + real CLI over
+      # a generated 2001-workspace git repo; render/filter/path/diff/export budgets).
+      - name: Run Playwright graph-scale E2E
+        working-directory: apps/web
+        run: npx playwright test -c playwright.graph.config.ts
+        env:
+          CI: true
+
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
