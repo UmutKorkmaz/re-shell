@@ -29,6 +29,8 @@ import {
 } from './task-scheduler';
 import { CacheController } from './cache-runner';
 import { LocalFsCache, type CacheBackend } from './cache-store';
+import { PriorityQueue } from '../resources/priority-queue';
+import type { GovernorStats, ResourceGovernor } from '../resources/governor';
 
 /** Conventional monorepo workspace roots scanned for packages. */
 const WORKSPACE_DIRS = ['apps', 'packages', 'libs', 'tools'] as const;
@@ -442,6 +444,21 @@ export interface RunTaskOptions {
    * uses; tests typically inject `cache` directly instead.
    */
   cacheConfig?: RunCacheConfig;
+  /**
+   * Admission control for starting tasks: a token-bucket start-rate limit and
+   * memory backpressure (`--rate-limit`, `--max-memory`). When it refuses, no
+   * new task starts until it admits again; running tasks are never interrupted.
+   */
+  governor?: ResourceGovernor;
+  /**
+   * Priority points a ready task gains per second it waits in the ready queue.
+   * Ready tasks are ordered by how much downstream work they unblock; aging
+   * stops a leaf task from being starved by a long stream of high-fan-out ones.
+   * Default 0.5.
+   */
+  agingPerSecond?: number;
+  /** Injectable clock (ms) for the ready queue; tests use fake timers. */
+  now?: () => number;
 }
 
 /** Declarative cache setup the CLI hands to {@link runTask}. */
@@ -512,6 +529,40 @@ export interface RunTaskResult {
   cycleError?: { cycle: string[]; message: string };
   /** True if any node finished `failed`. */
   hadFailure: boolean;
+  /** Admission-control counters, present when a governor was supplied. */
+  resourceStats?: GovernorStats;
+  /** Order in which nodes were started (node ids); useful for diagnostics and tests. */
+  startOrder?: string[];
+}
+
+/**
+ * Priority of every node = how many nodes transitively depend on it (how much
+ * work finishing it unblocks). Higher runs first.
+ */
+function computeUnblockCounts(
+  nodes: ReadonlyMap<string, { id: string }>,
+  dependencies: ReadonlyMap<string, ReadonlySet<string>>
+): Map<string, number> {
+  const dependents = new Map<string, string[]>();
+  for (const id of nodes.keys()) dependents.set(id, []);
+  for (const [id, deps] of dependencies) {
+    for (const dep of deps) dependents.get(dep)?.push(id);
+  }
+  const memo = new Map<string, Set<string>>();
+  const reach = (id: string): Set<string> => {
+    const hit = memo.get(id);
+    if (hit) return hit;
+    const out = new Set<string>();
+    memo.set(id, out); // plan is acyclic, so this cannot recurse into itself
+    for (const child of dependents.get(id) ?? []) {
+      out.add(child);
+      for (const grand of reach(child)) out.add(grand);
+    }
+    return out;
+  };
+  const counts = new Map<string, number>();
+  for (const id of nodes.keys()) counts.set(id, reach(id).size);
+  return counts;
 }
 
 /** Default real spawner: argv array, never `shell: true`. */
@@ -691,29 +742,71 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
   };
 
   // Event-loop driven worker pool: keep launching ready nodes up to the
-  // concurrency cap until the plan is fully drained. `ready()` has the side
-  // effect of cascading nodes with a failed/skipped dependency into `skipped`,
-  // so a stalled-but-not-done plan converges once nothing is left in flight.
+  // concurrency cap until the plan is fully drained. Ready nodes wait in a
+  // stable priority queue (most downstream work unblocked first, with aging so
+  // nothing starves); the optional governor can hold back starts (start-rate
+  // limit, memory backpressure) without ever interrupting running work.
+  const unblockCounts = computeUnblockCounts(planResult.plan.nodes, planResult.plan.dependencies);
+  const readyQueue = new PriorityQueue<{ id: string; package: string; task: string }>({
+    agingPerSecond: options.agingPerSecond ?? 0.5,
+    now: options.now,
+  });
+  const enqueued = new Set<string>();
+  const startOrder: string[] = [];
+  const governor = options.governor;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
   await new Promise<void>(resolveAll => {
     const pump = (): void => {
       // Launch as many ready nodes as the concurrency budget allows.
       // `ready()` is recomputed each pass so newly-unblocked nodes appear and
       // failed-dependency nodes are cascaded out.
-      let ready = scheduler.ready();
-      while (ready.length > 0 && scheduler.inFlight < concurrency) {
-        const node = ready[0];
+      for (;;) {
+        const readyNodes = scheduler.ready();
+        const readyIds = new Set<string>();
+        for (const n of readyNodes) {
+          readyIds.add(n.id);
+          if (!enqueued.has(n.id)) {
+            enqueued.add(n.id);
+            readyQueue.push(n, unblockCounts.get(n.id) ?? 0);
+          }
+        }
+        if (scheduler.inFlight >= concurrency) break;
+
+        // Drop queue heads that a failure cascade has skipped since they were queued.
+        while (readyQueue.size > 0 && !readyIds.has(readyQueue.peek()!.id)) readyQueue.pop();
+        if (readyQueue.size === 0) break;
+
+        const node = readyQueue.peek()!;
         const pkg = packages.get(node.package);
-        scheduler.start(node.id);
 
         // A package that does not define the task script is recorded as skipped
-        // immediately (no process spawned); its dependents still proceed.
+        // immediately (no process spawned, so no admission needed); its
+        // dependents still proceed.
         if (!pkg || !pkg.scripts.has(node.task)) {
+          readyQueue.pop();
+          scheduler.start(node.id);
           recordSkip(node.id);
           scheduler.complete(node.id, 'skipped');
-          ready = scheduler.ready();
           continue;
         }
 
+        if (governor) {
+          const decision = governor.admit(scheduler.inFlight);
+          if (!decision.ok) {
+            if (!retryTimer) {
+              retryTimer = setTimeout(() => {
+                retryTimer = null;
+                pump();
+              }, decision.retryAfterMs ?? 50);
+            }
+            break;
+          }
+        }
+
+        readyQueue.pop();
+        scheduler.start(node.id);
+        startOrder.push(node.id);
         void processNode(pkg, node)
           .then(status => {
             // `cached` satisfies dependents exactly like `success` does.
@@ -731,13 +824,12 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
             scheduler.complete(node.id, 'failed');
             pump();
           });
-
-        ready = scheduler.ready();
       }
 
-      // No work in flight and nothing newly ready: the only nodes left are ones
-      // the cascade left out. Finalise them and resolve.
-      if (scheduler.inFlight === 0) {
+      // No work in flight, nothing waiting on an admission retry, and nothing
+      // newly ready: the only nodes left are ones the cascade left out.
+      // Finalise them and resolve.
+      if (scheduler.inFlight === 0 && retryTimer === null) {
         for (const id of scheduler.allNodeIds) {
           if (!results.has(id)) recordSkip(id);
         }
@@ -766,6 +858,8 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
     results: ordered,
     affected: affectedPackages,
     hadFailure,
+    ...(governor ? { resourceStats: { ...governor.stats } } : {}),
+    startOrder,
   };
 }
 

@@ -161,6 +161,10 @@ export const errorCodeSchema = z.enum([
   'PARTICIPANT_NOT_FOUND',
   'DOCUMENT_NOT_FOUND',
   'COLLAB_ERROR',
+  // Codes introduced by R-1b (compliance audit trail, profile insights)
+  'AUDIT_ERROR',
+  'COMPLIANCE_ERROR',
+  'PROFILE_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

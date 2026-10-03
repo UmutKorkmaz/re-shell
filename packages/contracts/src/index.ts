@@ -8,3 +8,4 @@ export * from './adapters.js';
 export * from './ot.js';
 export * from './collab.js';
 export * from './collab-client.js';
+export * from './platform.js';

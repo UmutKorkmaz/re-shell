@@ -1,3 +1,4 @@
+import { ensureFullCommandTree } from '../lazy-commands';
 // Shell Completion Installation
 // Install shell completion scripts for bash and zsh
 
@@ -43,6 +44,8 @@ function requireProgram(program: Command | undefined): Command {
  * @returns The script text.
  */
 export function getCompletionScript(program: Command, shell: CompletionShell): string {
+  // Command groups load lazily; completion must describe the whole tree.
+  ensureFullCommandTree(program);
   return generateCompletionScript(program, shell);
 }
 

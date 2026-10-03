@@ -69,9 +69,6 @@ import chalk from 'chalk';
 // Utilities
 import { createSpinner, flushOutput } from './utils/spinner';
 
-// Standalone command handlers
-import { initMonorepo } from './commands/init';
-import { createProject, CreateError } from './commands/create';
 import {
   enableJsonMode,
   ok,
@@ -81,52 +78,32 @@ import {
   isJsonModeActive,
 } from './utils/json-output';
 import { installJsonModeHook, installJsonUsageErrors } from './utils/json-mode-hook';
-import { computeBackendDryRun, isBackendTemplate } from './utils/template-dry-run';
-import { addMicrofrontend } from './commands/add';
-import { removeMicrofrontend } from './commands/remove';
-import { listMicrofrontends } from './commands/list';
-import { buildMicrofrontend } from './commands/build';
-import { serveMicrofrontend } from './commands/serve';
-import { launchTUI } from './commands/tui';
-import { launchUi } from './commands/ui';
-import { runDoctorCheck } from './commands/doctor';
-import { runProjectAnalysis } from './commands/analyze';
 
-// Command group registrations
-import { registerWorkspaceGroup } from './groups/workspace.group';
-import { registerConfigGroup } from './groups/config.group';
-import { registerGenerateGroup } from './groups/generate.group';
-import { registerQualityGroup } from './groups/quality.group';
-import { registerApiGroup } from './groups/api.group';
-import { registerPluginGroup } from './groups/plugin.group';
-import { registerServiceGroup } from './groups/service.group';
-import { registerToolsGroup } from './groups/tools.group';
-import { registerK8sGroup } from './groups/k8s.group';
-import { registerCloudGroup } from './groups/cloud.group';
-import { registerObserveGroup } from './groups/observe.group';
-import { registerSecurityGroup } from './groups/security.group';
-import { registerCollabGroup } from './groups/collab.group';
-import { registerLearnGroup } from './groups/learn.group';
-import { registerDataGroup } from './groups/data.group';
-import { registerTemplatesGroup } from './groups/templates.group';
-import { registerCommandsGroup } from './groups/commands.group';
-import { registerAiGroup } from './groups/ai.group';
-import { registerFindGroup } from './groups/find.group';
-import { registerAgentsGroup } from './groups/agents.group';
-import { registerRunGroup } from './groups/run.group';
-import { registerCacheGroup } from './groups/cache.group';
-import { registerDevGroup } from './groups/dev.group';
-import { registerScorecardGroup } from './groups/scorecard.group';
-import { registerReleaseGroup } from './groups/release.group';
-import { registerMigrateGroup } from './groups/migrate.group';
-import { registerCatalogGroup } from './groups/catalog.group';
-import { registerFederationGroup } from './groups/federation.group';
-import { registerApiVerifyGroup } from './groups/api-verify.group';
-import { registerFixCiGroup } from './groups/fix-ci.group';
-import { registerBoundariesGroup } from './groups/boundaries.group';
-import { registerEnvGroup } from './groups/env.group';
-import { registerUiTestGroup } from './groups/ui-test.group';
-import { registerCompletionGroup } from './groups/completion.group';
+// Standalone command handlers. They are loaded on first call (not at startup)
+// so `re-shell --help` / `--version` / any single command only pay for the
+// modules it actually runs. The `typeof import(...)` annotations keep the
+// signatures type-checked against the real modules.
+/* eslint-disable @typescript-eslint/no-var-requires */
+const initMonorepo: typeof import('./commands/init').initMonorepo = (...a) => require('./commands/init').initMonorepo(...a);
+const createProject: typeof import('./commands/create').createProject = (...a) => require('./commands/create').createProject(...a);
+const computeBackendDryRun: typeof import('./utils/template-dry-run').computeBackendDryRun = (...a) => require('./utils/template-dry-run').computeBackendDryRun(...a);
+const isBackendTemplate: typeof import('./utils/template-dry-run').isBackendTemplate = (...a) => require('./utils/template-dry-run').isBackendTemplate(...a);
+const addMicrofrontend: typeof import('./commands/add').addMicrofrontend = (...a) => require('./commands/add').addMicrofrontend(...a);
+const removeMicrofrontend: typeof import('./commands/remove').removeMicrofrontend = (...a) => require('./commands/remove').removeMicrofrontend(...a);
+const listMicrofrontends: typeof import('./commands/list').listMicrofrontends = (...a) => require('./commands/list').listMicrofrontends(...a);
+const buildMicrofrontend: typeof import('./commands/build').buildMicrofrontend = (...a) => require('./commands/build').buildMicrofrontend(...a);
+const serveMicrofrontend: typeof import('./commands/serve').serveMicrofrontend = (...a) => require('./commands/serve').serveMicrofrontend(...a);
+const launchTUI: typeof import('./commands/tui').launchTUI = (...a) => require('./commands/tui').launchTUI(...a);
+const launchUi: typeof import('./commands/ui').launchUi = (...a) => require('./commands/ui').launchUi(...a);
+const runDoctorCheck: typeof import('./commands/doctor').runDoctorCheck = (...a) => require('./commands/doctor').runDoctorCheck(...a);
+const runProjectAnalysis: typeof import('./commands/analyze').runProjectAnalysis = (...a) => require('./commands/analyze').runProjectAnalysis(...a);
+const isCreateError = (e: unknown): e is import('./commands/create').CreateError =>
+  e instanceof require('./commands/create').CreateError;
+/* eslint-enable @typescript-eslint/no-var-requires */
+
+// Command groups are registered lazily from ./command-manifest (see lazy-commands.ts).
+import { registerLazyGroups } from './lazy-commands';
+import { installAuditHooks } from './audit/session';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -195,6 +172,10 @@ program
   )
   .enablePositionalOptions()
   .version(version);
+
+// Compliance audit trail: one central preAction hook records every state-changing
+// command (see src/audit/classify.ts) to .re-shell/audit/audit.jsonl.
+installAuditHooks(program);
 
 // ─── Standalone commands ─────────────────────────────────────────────────────
 
@@ -377,7 +358,7 @@ Examples:
         if (spinner) spinner.stop();
         if (jsonMode) {
           const message = error instanceof Error ? error.message : 'Unknown error';
-          if (error instanceof CreateError) {
+          if (isCreateError(error)) {
             fail(error.code, message, error.details);
           } else {
             fail(options.dryRun ? 'TEMPLATE_DRY_RUN_ERROR' : 'CREATE_ERROR', message);
@@ -582,7 +563,8 @@ program
   .command('analyze')
   .description('Analyze project bundles, dependencies, performance, and security')
   .option('--workspace <name>', 'Analyze a specific workspace only')
-  .option('--type <type>', 'Analysis type (bundle|dependencies|performance|security|all)', 'all')
+  .option('--type <type>', 'Analysis type (bundle|dependencies|performance|security|scalability|architecture|all)', 'all')
+  .option('--fail-on <severity>', 'Exit non-zero when a finding at or above this severity exists (critical|high|medium|low|info)')
   .option('--output <file>', 'Save analysis results to a file')
   .option('--verbose', 'Show detailed breakdown')
   .option('--json', 'Output results as JSON')
@@ -604,45 +586,10 @@ program
     })
   );
 
-// Completion command - install/print shell completion scripts generated from
-// the live command tree (kept here to preserve its position in --help).
-registerCompletionGroup(program);
-
 // ─── Command groups ───────────────────────────────────────────────────────────
 
-registerWorkspaceGroup(program);
-registerConfigGroup(program);
-registerGenerateGroup(program);
-registerQualityGroup(program);
-registerApiGroup(program);
-registerPluginGroup(program);
-registerServiceGroup(program);
-registerToolsGroup(program);
-registerK8sGroup(program);
-registerCloudGroup(program);
-registerObserveGroup(program);
-registerSecurityGroup(program);
-registerCollabGroup(program);
-registerLearnGroup(program);
-registerDataGroup(program);
-registerTemplatesGroup(program);
-registerCommandsGroup(program);
-registerAiGroup(program);
-registerFindGroup(program);
-registerAgentsGroup(program);
-registerRunGroup(program);
-registerCacheGroup(program);
-registerDevGroup(program);
-registerScorecardGroup(program);
-registerReleaseGroup(program);
-registerMigrateGroup(program);
-registerCatalogGroup(program);
-registerFederationGroup(program);
-registerApiVerifyGroup(program);
-registerFixCiGroup(program);
-registerBoundariesGroup(program);
-registerEnvGroup(program);
-registerUiTestGroup(program);
+// One manifest entry per group: see src/command-manifest.ts. Only the group argv selects is loaded.
+registerLazyGroups(program, process.argv.slice(2));
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 

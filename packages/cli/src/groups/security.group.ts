@@ -22,6 +22,7 @@ import { registerRisk } from './security/risk';
 import { registerVendor } from './security/vendor';
 import { registerBcp } from './security/bcp';
 import { registerGovernance } from './security/governance';
+import { registerAuditTrail } from './security/audit-trail';
 
 /**
  * Wires the `security` command group. Each subcommand lives in its own module
@@ -54,6 +55,8 @@ export function registerSecurityGroup(program: Command): void {
   registerVendor(security);
   registerBcp(security);
   registerGovernance(security);
+  // Real hash-chained audit trail: `security audit verify`, `security compliance report`.
+  registerAuditTrail(security);
 
   program.addCommand(security);
 }
