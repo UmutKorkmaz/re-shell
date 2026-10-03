@@ -14,7 +14,7 @@ const SECRET_NAME =
   /(token|secret|passw(?:or)?d|passwd|pwd|api[-_]?key|apikey|access[-_]?key|private[-_]?key|secret[-_]?key|(?:^|[-_.])auth(?:orization)?(?:$|[-_.])|credential|bearer|session[-_]?id|(?:^|[-_.])key(?:$|[-_.]))/i;
 
 /** Well-known credential formats, matched anywhere inside a value. */
-const SECRET_VALUE_PATTERNS: RegExp[] = [
+export const SECRET_VALUE_PATTERNS: RegExp[] = [
   /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, // GitHub tokens
   /\bgithub_pat_[A-Za-z0-9_]{20,}\b/g,
   /\bglpat-[A-Za-z0-9_-]{16,}\b/g, // GitLab
