@@ -2,6 +2,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
 import { EnvironmentProfile, loadProfileConfig } from './profile';
+import { fail, ok } from '../utils/json-output';
 
 /**
  * Profile analytics and usage tracking.
@@ -460,8 +461,27 @@ export async function generateProfileInsights(profileName?: string): Promise<Pro
  * @param profileName - Optional profile name to display analytics for.
  * @returns Resolves once the dashboard has been printed.
  */
-export async function showAnalyticsDashboard(profileName?: string): Promise<void> {
+export async function showAnalyticsDashboard(
+  profileName?: string,
+  options: { json?: boolean } = {}
+): Promise<void> {
   const analytics = await loadAnalytics();
+
+  if (options.json) {
+    if (profileName && !analytics.profiles[profileName]) {
+      fail('NOT_FOUND', `No analytics data for profile "${profileName}"`, { profile: profileName });
+      return;
+    }
+    const insights = await generateProfileInsights(profileName);
+    ok({
+      scope: profileName ? 'profile' : 'global',
+      ...(profileName
+        ? { profile: profileName, analytics: analytics.profiles[profileName] }
+        : { global: analytics.global, profiles: analytics.profiles, lastUpdated: analytics.lastUpdated }),
+      insights,
+    });
+    return;
+  }
 
   console.log(chalk.cyan.bold('\n📊 Profile Analytics Dashboard\n'));
 
@@ -640,6 +660,7 @@ async function loadAnalytics(): Promise<ProfileAnalytics> {
       },
       lastUpdated: new Date().toISOString(),
     };
+    await fs.ensureDir(path.dirname(analyticsPath));
     await fs.writeFile(analyticsPath, JSON.stringify(emptyAnalytics, null, 2), 'utf8');
     return emptyAnalytics;
   }

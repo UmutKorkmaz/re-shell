@@ -2,7 +2,12 @@
 
 // Start performance tracking
 import { mark, isVersionRequest, getFromCache, setCache } from './startup-optimizer';
+import { installEpipeHandler } from './utils/epipe';
 mark('startup-begin');
+
+// A reader that closes the pipe early (`re-shell ... --json | head -c 100`) must
+// end the process quietly, not with an uncaught EPIPE stack trace.
+installEpipeHandler();
 
 // Only force color in interactive terminals and never override NO_COLOR.
 const shouldForceColor =
@@ -43,21 +48,12 @@ if (typeof packageVersion === 'string') {
   }
 }
 
-// Fast path for version requests
+// Fast path for version requests. stdout carries exactly the version line: the
+// ASCII banner is decoration for an interactive terminal and has no place in
+// output a script may capture (`VERSION=$(re-shell --version)`).
 if (isVersionRequest()) {
   mark('version-fast-path');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const chalk = require('chalk');
-  console.log(chalk.cyan(`
-██████╗ ███████╗           ███████╗██╗  ██╗███████╗██╗     ██╗
-██╔══██╗██╔════╝           ██╔════╝██║  ██║██╔════╝██║     ██║
-██████╔╝█████╗  ████████╗  ███████╗███████║█████╗  ██║     ██║
-██╔══██╗██╔══╝  ╚═══════╝  ╚════██║██╔══██║██╔══╝  ██║     ██║
-██║  ██║███████╗           ███████║██║  ██║███████╗███████╗███████╗
-╚═╝  ╚═╝╚══════╝           ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
-                                v${version}
-`));
-  console.log(version);
+  process.stdout.write(`${version}\n`);
   process.exit(0);
 }
 
@@ -76,7 +72,15 @@ import { createSpinner, flushOutput } from './utils/spinner';
 // Standalone command handlers
 import { initMonorepo } from './commands/init';
 import { createProject } from './commands/create';
-import { enableJsonMode, ok, fail } from './utils/json-output';
+import {
+  enableJsonMode,
+  ok,
+  fail,
+  failFromError,
+  getEmittedEnvelopeCount,
+  isJsonModeActive,
+} from './utils/json-output';
+import { installJsonModeHook, installJsonUsageErrors } from './utils/json-mode-hook';
 import { computeBackendDryRun, isBackendTemplate } from './utils/template-dry-run';
 import { addMicrofrontend } from './commands/add';
 import { removeMicrofrontend } from './commands/remove';
@@ -87,7 +91,6 @@ import { launchTUI } from './commands/tui';
 import { launchUi } from './commands/ui';
 import { runDoctorCheck } from './commands/doctor';
 import { runProjectAnalysis } from './commands/analyze';
-import { installCompletion } from './commands/completion';
 
 // Command group registrations
 import { registerWorkspaceGroup } from './groups/workspace.group';
@@ -123,6 +126,7 @@ import { registerFixCiGroup } from './groups/fix-ci.group';
 import { registerBoundariesGroup } from './groups/boundaries.group';
 import { registerEnvGroup } from './groups/env.group';
 import { registerUiTestGroup } from './groups/ui-test.group';
+import { registerCompletionGroup } from './groups/completion.group';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -165,13 +169,21 @@ setupStreamErrorHandlers();
 const program = new Command();
 mark('program-created');
 
+// `--json` hygiene as a property of the command tree: any command run with
+// --json gets stdout reserved for exactly one envelope (see json-mode-hook.ts).
+installJsonModeHook(program);
+
 checkUpdate();
 mark('update-check-deferred');
 
-// Display banner for main command
+// Display the banner for the bare command and for --help, but only to an
+// interactive terminal: never for --version (stdout is just the version line),
+// never alongside --json, and never when stdout is piped or redirected.
 if (
-  process.argv.length <= 2 ||
-  (process.argv.length === 3 && ['-h', '--help', '-V', '--version'].includes(process.argv[2]))
+  process.stdout.isTTY &&
+  !process.argv.includes('--json') &&
+  (process.argv.length <= 2 ||
+    (process.argv.length === 3 && ['-h', '--help'].includes(process.argv[2])))
 ) {
   console.log(getBanner());
 }
@@ -585,16 +597,9 @@ program
     })
   );
 
-// Completion command - install shell completion scripts
-program
-  .command('completion')
-  .description('Install shell completion scripts')
-  .option('--shell <shell>', 'Target shell (bash|zsh)', 'bash')
-  .action(
-    createAsyncCommand(async (options) => {
-      await installCompletion({ shell: options.shell });
-    })
-  );
+// Completion command - install/print shell completion scripts generated from
+// the live command tree (kept here to preserve its position in --help).
+registerCompletionGroup(program);
 
 // ─── Command groups ───────────────────────────────────────────────────────────
 
@@ -635,6 +640,10 @@ registerUiTestGroup(program);
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 
 registerAliases(program);
+
+// With --json, Commander's own parse failures (missing option/argument, unknown
+// option or command) become a USAGE_ERROR envelope instead of empty stdout.
+installJsonUsageErrors(program);
 
 // ─── Parse and execute ────────────────────────────────────────────────────────
 
@@ -682,5 +691,10 @@ program.parseAsync(process.argv).then(() => {
   }
 }).catch((err) => {
   console.error(err.message || err);
+  // Under --json a failure is an envelope on stdout too (and exit code 1), not
+  // only a line on stderr.
+  if (isJsonModeActive() && getEmittedEnvelopeCount() === 0) {
+    failFromError(err);
+  }
   exitAfterFlush(1);
 });

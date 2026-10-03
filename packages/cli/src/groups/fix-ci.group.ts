@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { createAsyncCommand } from '../utils/error-handler';
-import { enableJsonMode } from '../utils/json-output';
+import { enableJsonMode, fail } from '../utils/json-output';
 import { createSpinner } from '../utils/spinner';
 import { runFixCi } from '../commands/fix-ci';
 
@@ -22,10 +22,14 @@ export function registerFixCiGroup(program: Command): void {
     .action(
       createAsyncCommand(async options => {
         if (!options.ci) {
-          process.stderr.write(
+          const usage =
             'fix: pass --ci to run the autonomous gated fix loop. ' +
-              'For a single doctor remediation plan, use `re-shell doctor --fix`.\n'
-          );
+            'For a single doctor remediation plan, use `re-shell doctor --fix`.';
+          if (options.json) {
+            fail('USAGE_ERROR', usage);
+            return;
+          }
+          process.stderr.write(`${usage}\n`);
           process.exitCode = 1;
           return;
         }

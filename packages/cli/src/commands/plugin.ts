@@ -282,7 +282,7 @@ export async function discoverPlugins(options: PluginCommandOptions = {}): Promi
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -1392,7 +1392,7 @@ export async function showPluginStats(options: PluginCommandOptions = {}): Promi
     };
     
     if (json) {
-      console.log(JSON.stringify(stats, null, 2));
+      ok(stats);
       return;
     }
 
@@ -1509,9 +1509,9 @@ export async function showPluginHooks(
       if (pluginName) {
         const hookSystem = registry.getHookSystem();
         const pluginHooks = hookSystem.getPluginHooks(pluginName);
-        console.log(JSON.stringify(pluginHooks, null, 2));
+        ok(pluginHooks);
       } else {
-        console.log(JSON.stringify(hookStats, null, 2));
+        ok(hookStats);
       }
       return;
     }
@@ -1611,7 +1611,7 @@ export async function executeHook(
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -1666,7 +1666,7 @@ export async function listHookTypes(options: PluginCommandOptions = {}): Promise
     const hookTypes = Object.values(HookType);
     
     if (json) {
-      console.log(JSON.stringify(hookTypes, null, 2));
+      ok(hookTypes);
       return;
     }
 

@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { createAsyncCommand, withTimeout, processManager } from '../utils/error-handler';
 import { createSpinner, flushOutput } from '../utils/spinner';
+import { enableJsonMode, fail, ok } from '../utils/json-output';
 import chalk from 'chalk';
 import { listWorkspaces, updateWorkspaces, generateWorkspaceGraph, initWorkspace, validateWorkspaceConfig, checkWorkspaceHealth, migrateWorkspace, optimizeWorkspace, manageWorkspaceTemplates, produceWorkspaceSummary } from '../commands/workspace';
 import { importFromMonorepo } from '../commands/import-monorepo';
@@ -384,7 +385,6 @@ export function registerWorkspaceGroup(program: Command): void {
 
         // JSON mode: emit exactly one envelope, suppress spinner/banner noise.
         if (options.json) {
-          const { enableJsonMode, ok, fail } = await import('../utils/json-output');
           const restore = enableJsonMode();
           try {
             await withTimeout(async () => {
@@ -667,7 +667,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceGraph({ ...options, analyze: true, spinner });
         }, 60000); // 1 minute timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Graph analysis completed!'));
         } else {
           spinner.stop();
@@ -691,7 +691,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceGraph({ ...options, cycles: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Cycle detection completed!'));
         } else {
           spinner.stop();
@@ -715,7 +715,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceGraph({ ...options, order: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Build order generated!'));
         } else {
           spinner.stop();
@@ -738,7 +738,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceGraph({ ...options, critical: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Critical path analysis completed!'));
         } else {
           spinner.stop();
@@ -807,7 +807,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceHealth({ ...options, check: true, spinner });
         }, 120000); // 2 minute timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Health check completed!'));
         } else {
           spinner.stop();
@@ -830,7 +830,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceHealth({ ...options, topology: true, spinner });
         }, 60000); // 1 minute timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Topology validation completed!'));
         } else {
           spinner.stop();
@@ -853,7 +853,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceHealth({ ...options, quick: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Quick check completed!'));
         } else {
           spinner.stop();
@@ -934,7 +934,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceState({ ...options, status: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('State status loaded!'));
         } else {
           spinner.stop();
@@ -1074,7 +1074,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceTemplate({ ...options, list: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Templates loaded!'));
         } else {
           spinner.stop();
@@ -1116,7 +1116,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceTemplate({ ...options, show: true, template: name, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green(`Template '${name}' loaded!`));
         } else {
           spinner.stop();
@@ -1246,7 +1246,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceBackup({ ...options, list: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Backups loaded!'));
         } else {
           spinner.stop();
@@ -1269,7 +1269,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceBackup({ ...options, show: true, name: id, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green(`Backup '${id}' loaded!`));
         } else {
           spinner.stop();
@@ -1410,7 +1410,7 @@ export function registerWorkspaceGroup(program: Command): void {
           });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Comparison completed!'));
         } else {
           spinner.stop();
@@ -1456,7 +1456,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceMigration({ ...options, check: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Upgrade check completed!'));
         } else {
           spinner.stop();
@@ -1468,12 +1468,16 @@ export function registerWorkspaceGroup(program: Command): void {
     .command('plan')
     .description('Create migration plan to target version')
     .option('--workspace-file <file>', 'Workspace definition file', 're-shell.workspaces.yaml')
-    .option('--target-version <version>', 'Target version for migration', true)
+    .option('--target-version <version>', 'Target version for migration (required)')
     .option('--json', 'Output as JSON')
     .option('--verbose', 'Show detailed plan information')
     .action(
       createAsyncCommand(async (options) => {
         if (!options.targetVersion) {
+          if (options.json) {
+            fail('USAGE_ERROR', '--target-version is required');
+            return;
+          }
           console.log(chalk.red('Error: --target-version is required'));
           process.exit(1);
         }
@@ -1486,7 +1490,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceMigration({ ...options, plan: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Migration plan created!'));
         } else {
           spinner.stop();
@@ -1507,6 +1511,10 @@ export function registerWorkspaceGroup(program: Command): void {
     .action(
       createAsyncCommand(async (options) => {
         if (!options.targetVersion) {
+          if (options.json) {
+            fail('USAGE_ERROR', '--target-version is required');
+            return;
+          }
           console.log(chalk.red('Error: --target-version is required'));
           process.exit(1);
         }
@@ -1547,7 +1555,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceMigration({ ...options, validate: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('Validation completed!'));
         } else {
           spinner.stop();
@@ -1570,7 +1578,7 @@ export function registerWorkspaceGroup(program: Command): void {
           await manageWorkspaceMigration({ ...options, history: true, spinner });
         }, 30000); // 30 second timeout
 
-        if (!options.json) {
+        if (!options.json && !process.exitCode) {
           spinner.succeed(chalk.green('History loaded!'));
         } else {
           spinner.stop();

@@ -11,9 +11,15 @@ import { runApiVerify } from '../commands/api-verify';
  * the workspace graph, and exits non-zero on backward-incompatible changes.
  */
 export function registerApiVerifyGroup(program: Command): void {
-  const api = program
-    .command('api')
-    .description('API contract testing + cross-service spec-drift detection');
+  // `verify` belongs to the existing `api` group. Registering a second top-level
+  // `api` command would be shadowed by the first (Commander dispatches to the
+  // first registered match), leaving `api verify` unreachable. Only when no
+  // `api` group exists yet (this group registered standalone) is one created.
+  const api =
+    program.commands.find(command => command.name() === 'api') ??
+    program
+      .command('api')
+      .description('API contract testing + cross-service spec-drift detection');
 
   api
     .command('verify')

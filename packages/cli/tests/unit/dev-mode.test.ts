@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { DevProfileError, manageDevMode } from '../../src/commands/dev-mode';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/dev-mode.ts — the `dev` command (start/stop/restart/status/
 // interactive/default). The command is orchestration over configWatcher +
 // setupConfigHotReload + processManager + resolveProfile; we mock all of those
@@ -64,8 +65,9 @@ let logSpy: ReturnType<typeof vi.spyOn>;
 function logged(): string {
   return logSpy.mock.calls.map(a => a.join(' ')).join('\n');
 }
-function loggedJson(find: (s: string) => boolean): any {
-  return JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(find)!);
+function loggedJson(_find?: (s: string) => boolean): any {
+  // --json results are now one envelope on stdout; return its data.
+  return jsonData();
 }
 
 beforeEach(() => {

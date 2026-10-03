@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { createAsyncCommand } from '../utils/error-handler';
-import { enableJsonMode, ok as jsonOk, fail as jsonFail } from '../utils/json-output';
+import { enableJsonMode, ok as jsonOk, fail as jsonFail, fail } from '../utils/json-output';
 import { runDevCluster } from '../commands/dev-cluster';
 import { runRestartPlan } from '../commands/dev-restart-plan';
 import {
@@ -124,10 +124,14 @@ export function registerDevGroup(program: Command): void {
           }
           // The non-cluster dev runtime is provided by the existing tools group
           // (`re-shell tools dev`). Steer the user there rather than no-op.
-          process.stderr.write(
+          const usage =
             'dev: pass --cluster for the Kubernetes inner loop, ' +
-              'or use `re-shell tools dev` for config hot-reloading.\n'
-          );
+            'or use `re-shell tools dev` for config hot-reloading.';
+          if (options.json) {
+            fail('USAGE_ERROR', usage);
+            return;
+          }
+          process.stderr.write(`${usage}\n`);
           process.exitCode = 1;
           return;
         }

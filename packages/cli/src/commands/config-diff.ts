@@ -7,6 +7,7 @@ import { configDiffer, ConfigDiffer, ConfigDiff, MergeResult, MergeStrategies, M
 import { configManager } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok } from '../utils/json-output';
 
 /**
  * Options for the configuration diff/merge command.
@@ -97,7 +98,7 @@ async function performDiff(options: ConfigDiffCommandOptions, spinner?: Progress
 
   // Output results
   if (options.json) {
-    console.log(JSON.stringify(diff, null, 2));
+    ok(diff);
   } else {
     const report = differ.generateDiffReport(diff, options.format || 'text');
     
@@ -166,9 +167,17 @@ async function performMerge(options: ConfigDiffCommandOptions, spinner?: Progres
       await fs.writeFile(outputPath, yaml.stringify(result.merged));
     }
     
+    if (options.json) {
+      ok({ output: outputPath, conflicts: result.conflicts.length }, mergeWarnings(result));
+      return;
+    }
+
     console.log(chalk.green(`✅ Merged configuration saved to: ${outputPath}`));
   } else if (options.json) {
-    console.log(JSON.stringify(result.merged, null, 2));
+    // data stays the merged configuration; conflicts and warnings ride in the
+    // envelope's warnings so one document carries everything.
+    ok(result.merged, mergeWarnings(result));
+    return;
   } else {
 
     console.log(chalk.cyan('\\n🔀 Merged Configuration:'));
@@ -193,6 +202,14 @@ async function performMerge(options: ConfigDiffCommandOptions, spinner?: Progres
       console.log(`  ${index + 1}. ${warning}`);
     });
   }
+}
+
+/** Envelope warnings for a merge: the merger's warnings plus one line per conflict. */
+function mergeWarnings(result: MergeResult): string[] {
+  return [
+    ...result.warnings,
+    ...result.conflicts.map(c => `Conflict at ${c.path}: ${c.reason} (${c.resolution})`),
+  ];
 }
 
 async function applyDiff(options: ConfigDiffCommandOptions, spinner?: ProgressSpinner): Promise<void> {
@@ -225,9 +242,15 @@ async function applyDiff(options: ConfigDiffCommandOptions, spinner?: ProgressSp
       await fs.writeFile(outputPath, yaml.stringify(result));
     }
     
+    if (options.json) {
+      ok({ output: outputPath, appliedChanges: diff.summary.total });
+      return;
+    }
+
     console.log(chalk.green(`✅ Configuration with applied diff saved to: ${outputPath}`));
   } else if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
+    ok(result);
+    return;
   } else {
 
     console.log(chalk.cyan('\\n📄 Configuration with Applied Diff:'));
@@ -529,6 +552,21 @@ async function showConfigStatus(options: ConfigDiffCommandOptions, spinner?: Pro
   const projectConfig = await configManager.loadProjectConfig();
 
   if (spinner) spinner.stop();
+
+  if (options.json) {
+    const inheritance = projectConfig
+      ? (await configDiffer.diff(globalConfig, projectConfig)).summary
+      : null;
+    ok({
+      global: { present: true, properties: Object.keys(globalConfig).length },
+      project: {
+        present: Boolean(projectConfig),
+        properties: projectConfig ? Object.keys(projectConfig).length : 0,
+      },
+      inheritance,
+    });
+    return;
+  }
 
   console.log(chalk.cyan('\\n📊 Configuration Status'));
   console.log(chalk.gray('═'.repeat(40)));

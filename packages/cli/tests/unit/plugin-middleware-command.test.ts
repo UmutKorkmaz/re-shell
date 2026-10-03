@@ -8,6 +8,7 @@ import {
   createExampleMiddleware,
 } from '../../src/commands/plugin-middleware';
 import { ValidationError } from '../../src/utils/error-handler';
+import { jsonData } from '../utils/stdout-json';
 import {
   createMiddlewareChainManager,
   builtinMiddleware,
@@ -187,7 +188,7 @@ describe('listMiddleware', () => {
     mocks.getMiddlewares.mockReturnValue([registration()]);
     await listMiddleware({ json: true });
 
-    const parsed = JSON.parse(out());
+    const parsed = jsonData();
     expect(parsed[0].id).toBe('my-plugin:validation:123');
   });
 
@@ -234,7 +235,7 @@ describe('showMiddlewareStats', () => {
 
     await showMiddlewareStats({ json: true });
 
-    expect(JSON.parse(out()).totalMiddlewares).toBe(1);
+    expect(jsonData().totalMiddlewares).toBe(1);
   });
 
   it('lists the type catalogue and built-ins in verbose mode', async () => {
@@ -324,7 +325,7 @@ describe('showMiddlewareChain', () => {
     // QUIRK: the header console.log fires before the json early-return, so the
     // JSON payload is the last console.log call, not the whole output
     const last = String(logSpy.mock.calls.at(-1)![0]);
-    const parsed = JSON.parse(last);
+    const parsed = jsonData();
     expect(Array.isArray(parsed)).toBe(true);
     expect(parsed.length).toBe(11);
   });

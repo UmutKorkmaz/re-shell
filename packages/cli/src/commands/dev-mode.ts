@@ -6,6 +6,7 @@ import { configWatcher, setupConfigHotReload, HotReloadOptions } from '../utils/
 import { ProgressSpinner, flushOutput } from '../utils/spinner';
 import { processManager } from '../utils/error-handler';
 import { resolveProfile, EnvironmentProfile } from './profile';
+import { ok } from '../utils/json-output';
 
 /** Where users list the available profiles (the real command lives under `config`). */
 export const PROFILE_LIST_HINT = 're-shell config profile list';
@@ -413,7 +414,7 @@ async function showDevModeStatus(options: DevModeCommandOptions, spinner?: Progr
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(status, null, 2));
+    ok(status);
     return;
   }
 

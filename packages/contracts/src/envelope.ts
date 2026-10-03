@@ -134,6 +134,10 @@ export const errorCodeSchema = z.enum([
   'AI_SESSION_ERROR',
   'AI_CACHE_ERROR',
   'AI_SUGGEST_ERROR',
+  // Codes introduced by the S-B JSON-output hygiene / command-tree workstream
+  'COMMAND_ERROR',
+  'USAGE_ERROR',
+  'WORKSPACE_DEFINITION_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

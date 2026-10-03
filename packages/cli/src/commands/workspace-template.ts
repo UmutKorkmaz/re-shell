@@ -13,6 +13,7 @@ import {
 import { loadWorkspaceDefinition } from '../utils/workspace-schema';
 import { ProgressSpinner, createSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok } from '../utils/json-output';
 
 /**
  * Options for the workspace template command, including listing, creation,
@@ -116,7 +117,7 @@ async function listTemplates(options: WorkspaceTemplateCommandOptions, spinner?:
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(templates, null, 2));
+      ok(templates);
       return;
     }
 
@@ -410,7 +411,7 @@ async function applyTemplate(options: WorkspaceTemplateCommandOptions, spinner?:
       console.log(chalk.green(`✅ Template applied and saved to: ${options.output}`));
     } else if (options.json) {
       // Output as JSON
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
     } else {
       // Display result
       console.log(chalk.cyan('\n📄 Applied Template Result'));
@@ -445,11 +446,11 @@ async function showTemplate(options: WorkspaceTemplateCommandOptions, spinner?: 
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({
+      ok({
         template,
         inheritance: chain.templates.map(t => t.name),
         mergedVariables: chain.variables
-      }, null, 2));
+      });
       return;
     }
 

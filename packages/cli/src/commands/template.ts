@@ -6,6 +6,7 @@ import { templateEngine, ConfigTemplate, TemplateVariable, TemplateHelpers } fro
 import { configManager } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok } from '../utils/json-output';
 
 /**
  * Options for the `re-shell template` command.
@@ -92,7 +93,7 @@ async function listTemplates(options: TemplateCommandOptions, spinner?: Progress
   }
 
   if (options.json) {
-    console.log(JSON.stringify(templates, null, 2));
+    ok(templates);
   } else {
     console.log(chalk.cyan('\\n📋 Available Configuration Templates'));
     console.log(chalk.gray('═'.repeat(50)));
@@ -723,7 +724,7 @@ async function applyTemplate(templateName: string, options: TemplateCommandOptio
     await fsExtra.writeFile(outputPath, JSON.stringify(result, null, 2));
     console.log(chalk.green(`✅ Configuration saved to: ${outputPath}`));
   } else if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
+    ok(result);
   } else {
     console.log(chalk.cyan('\\n📄 Generated Configuration:'));
     console.log(chalk.gray('═'.repeat(40)));
@@ -743,7 +744,7 @@ async function showTemplate(templateName: string, options: TemplateCommandOption
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(template, null, 2));
+    ok(template);
   } else {
     console.log(chalk.cyan(`\\n📄 Template: ${template.name} (v${template.version})`));
     console.log(chalk.gray('═'.repeat(50)));

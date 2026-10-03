@@ -466,16 +466,37 @@ describe('groups — run + service registration groups', () => {
       );
     });
 
-    it('run health forwards watch + interval + json', async () => {
+    it('run health forwards watch + interval', async () => {
       const program = programWith(registerServiceGroup);
       vi.mocked(svcs.servicesHealth).mockResolvedValue(undefined);
       await program.parseAsync([
-        'node', 're-shell', 'service', 'run', 'health', '-w', '--interval', '2500', '--json',
+        'node', 're-shell', 'service', 'run', 'health', '-w', '--interval', '2500',
       ]);
       expect(svcs.servicesHealth).toHaveBeenCalledWith(
         tempRoot,
-        expect.objectContaining({ watch: true, interval: 2500, json: true })
+        expect.objectContaining({ watch: true, interval: 2500 })
       );
+    });
+
+    it('run health rejects --watch with --json (a watch cannot yield one envelope)', async () => {
+      const program = programWith(registerServiceGroup);
+      vi.mocked(svcs.servicesHealth).mockClear();
+      const writes: string[] = [];
+      const spy = vi.spyOn(process.stdout, 'write').mockImplementation((c: string | Uint8Array) => {
+        writes.push(String(c));
+        return true;
+      });
+      try {
+        await program.parseAsync([
+          'node', 're-shell', 'service', 'run', 'health', '-w', '--json',
+        ]);
+      } finally {
+        spy.mockRestore();
+      }
+      expect(svcs.servicesHealth).not.toHaveBeenCalled();
+      expect(writes.join('')).toContain('USAGE_ERROR');
+      expect(process.exitCode).toBe(1);
+      process.exitCode = 0;
     });
 
     it('run logs forwards an optional service + tail', async () => {

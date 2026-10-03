@@ -292,15 +292,18 @@ export function registerServiceGroup(program: Command): void {
       createAsyncCommand(async (options) => {
         const { servicesHealth } = await import('../commands/services');
 
+        if (options.watch && options.json) {
+          // A watch never ends, so it cannot produce the single --json envelope.
+          jsonFail('USAGE_ERROR', '--watch cannot be combined with --json');
+          return;
+        }
+
         await withServiceEnvelope(Boolean(options.json), () =>
           servicesHealth(process.cwd(), {
             watch: options.watch,
             interval: parseMs(options.interval, '--interval'),
             json: options.json,
             verbose: options.verbose,
-            // Watch + JSON streams one envelope per interval.
-            onReport:
-              options.watch && options.json ? (report) => jsonOk(report) : undefined,
           })
         );
       })

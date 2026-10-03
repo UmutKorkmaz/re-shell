@@ -35,6 +35,7 @@ import { validateConfigFile, validateGlobalConfig, validateProjectConfig } from 
 import { configManager } from '../../src/utils/config';
 import prompts from 'prompts';
 
+import { jsonData } from '../utils/stdout-json';
 const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
 beforeEach(() => {
@@ -90,13 +91,13 @@ describe('validateConfiguration — dispatch precedence', () => {
 describe('validateConfiguration — JSON output', () => {
   it('prints the file result as JSON when options.json is set', async () => {
     await validateConfiguration({ file: '/a.json', json: true });
-    const printed = JSON.parse(log.mock.calls[0][0] as string);
+    const printed = jsonData();
     expect(printed).toEqual(validResult);
   });
 
   it('prints combined global+project results as JSON in default mode', async () => {
     await validateConfiguration({ json: true });
-    const printed = JSON.parse(log.mock.calls[0][0] as string);
+    const printed = jsonData();
     expect(printed.global).toEqual(validResult);
     expect(printed.project).toEqual(validResult);
   });
@@ -104,7 +105,7 @@ describe('validateConfiguration — JSON output', () => {
   it('includes a null project result when no project config exists', async () => {
     vi.mocked(configManager.loadProjectConfig).mockResolvedValue(null as never);
     await validateConfiguration({ json: true });
-    const printed = JSON.parse(log.mock.calls[0][0] as string);
+    const printed = jsonData();
     expect(printed.global).toEqual(validResult);
     expect(printed.project).toBeNull();
   });

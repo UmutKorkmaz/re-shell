@@ -10,6 +10,7 @@ import {
 } from '../utils/workspace-backup';
 import { ProgressSpinner} from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok } from '../utils/json-output';
 
 /**
  * Options for the workspace backup command, including backup creation,
@@ -168,7 +169,7 @@ async function createBackup(options: WorkspaceBackupCommandOptions, spinner?: Pr
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({ backupId }, null, 2));
+      ok({ backupId });
     } else {
       console.log(chalk.green('✅ Backup created successfully!'));
       console.log(chalk.gray(`Backup ID: ${backupId}`));
@@ -204,7 +205,7 @@ async function listBackups(options: WorkspaceBackupCommandOptions, spinner?: Pro
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(backups, null, 2));
+      ok(backups);
       return;
     }
 
@@ -402,7 +403,7 @@ async function cleanupBackups(options: WorkspaceBackupCommandOptions, spinner?: 
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -443,7 +444,7 @@ async function showBackup(options: WorkspaceBackupCommandOptions, spinner?: Prog
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(backup, null, 2));
+      ok(backup);
       return;
     }
 
@@ -502,7 +503,7 @@ async function compareBackupsCommand(options: WorkspaceBackupCommandOptions, spi
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(comparison, null, 2));
+      ok(comparison);
       return;
     }
 

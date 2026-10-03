@@ -12,6 +12,7 @@ import {
   formatExecutionTime
 } from '../utils/plugin-command-cache';
 import { createPluginCommandRegistry, type PluginCommandContext } from '../utils/plugin-command-registry';
+import { ok } from '../utils/json-output';
 
 /** Options for the plugin cache commands. */
 interface CacheCommandOptions {
@@ -44,11 +45,11 @@ export async function showCacheStats(
     const config = cacheManager.getConfiguration();
 
     if (json) {
-      console.log(JSON.stringify({
+      ok({
         stats,
         metrics,
         config
-      }, null, 2));
+      });
       return;
     }
 
@@ -378,14 +379,14 @@ export async function testCachePerformance(
     const performanceGain = averageMissTime > 0 ? ((averageMissTime - averageHitTime) / averageMissTime) * 100 : 0;
 
     if (json) {
-      console.log(JSON.stringify({
+      ok({
         ...results,
         averageExecutionTime,
         averageHitTime,
         averageMissTime,
         hitRate,
         performanceGain
-      }, null, 2));
+      });
       
       await cacheManager.destroy();
       return;
@@ -622,7 +623,7 @@ export async function listCachedCommands(
     ];
 
     if (json) {
-      console.log(JSON.stringify(mockEntries, null, 2));
+      ok(mockEntries);
       await cacheManager.destroy();
       return;
     }
