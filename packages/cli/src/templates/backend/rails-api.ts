@@ -17,7 +17,7 @@ export const railsApiTemplate: BackendTemplate = {
     // Gemfile
     'Gemfile': `source "https://rubygems.org"
 
-ruby "3.3.0"
+ruby ">= 3.1.0"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 7.1.2"
@@ -250,7 +250,7 @@ require "action_cable/engine"
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
 
-module {{projectName}}
+module RailsApiApp
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 7.1
@@ -276,15 +276,17 @@ module {{projectName}}
     # Middleware
     config.middleware.use Rack::Attack
     
-    # CORS configuration
+    # CORS configuration. Browsers refuse credentialed requests to a wildcard origin
+    # (and rack-cors raises), so credentials are only enabled for an explicit list.
+    cors_origins = ENV.fetch('CORS_ORIGINS', '*').split(',').map(&:strip)
     config.middleware.insert_before 0, Rack::Cors do
       allow do
-        origins ENV.fetch('CORS_ORIGINS', '*').split(',')
+        origins cors_origins
         resource '*',
           headers: :any,
           methods: [:get, :post, :put, :patch, :delete, :options, :head],
           expose: ['X-Total-Count', 'X-Total-Pages', 'X-Current-Page', 'X-Next-Page', 'X-Prev-Page'],
-          credentials: true
+          credentials: cors_origins != ['*']
       end
     end
 
@@ -330,12 +332,6 @@ end
         end
       end
       
-      # Orders
-        member do
-          patch 'cancel'
-          patch 'complete'
-        end
-      end
     end
   end
   
@@ -1781,6 +1777,117 @@ spec/examples.txt
 # macOS
 .DS_Store
 `,
+    'Rakefile': `# Add your own tasks in files placed in lib/tasks ending in .rake,
+# for example lib/tasks/capistrano.rake, and they will automatically be available to Rake.
+
+require_relative "config/application"
+
+Rails.application.load_tasks
+`,
+    'config.ru': `# This file is used by Rack-based servers to start the application.
+
+require_relative "config/environment"
+
+run Rails.application
+Rails.application.load_server
+`,
+    'config/puma.rb': `# Puma configuration. PORT selects the listening port (default 3000).
+max_threads_count = ENV.fetch("RAILS_MAX_THREADS") { 5 }
+min_threads_count = ENV.fetch("RAILS_MIN_THREADS") { max_threads_count }
+threads min_threads_count, max_threads_count
+
+port ENV.fetch("PORT") { 3000 }
+
+environment ENV.fetch("RAILS_ENV") { "development" }
+
+pidfile ENV.fetch("PIDFILE") { "tmp/pids/server.pid" }
+
+workers ENV.fetch("WEB_CONCURRENCY") { 0 }.to_i
+preload_app! if ENV.fetch("WEB_CONCURRENCY") { 0 }.to_i > 0
+
+plugin :tmp_restart
+`,
+    'config/environment.rb': `# Load the Rails application.
+require_relative "application"
+
+# Initialize the Rails application.
+Rails.application.initialize!
+`,
+    'config/boot.rb': `ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../Gemfile", __dir__)
+
+require "bundler/setup" # Set up gems listed in the Gemfile.
+require "bootsnap/setup" # Speed up boot time by caching expensive operations.
+`,
+    'config/environments/test.rb': `require "active_support/core_ext/integer/time"
+
+Rails.application.configure do
+  config.enable_reloading = false
+  config.eager_load = ENV["CI"].present?
+  config.public_file_server.enabled = true
+  config.consider_all_requests_local = true
+  config.action_controller.perform_caching = false
+  config.cache_store = :null_store
+  config.action_dispatch.show_exceptions = :rescuable
+  config.action_controller.allow_forgery_protection = false
+  config.active_support.deprecation = :stderr
+  config.active_support.disallowed_deprecation = :raise
+  config.active_support.disallowed_deprecation_warnings = []
+end
+`,
+    'config/environments/production.rb': `require "active_support/core_ext/integer/time"
+
+Rails.application.configure do
+  config.enable_reloading = false
+  config.eager_load = true
+  config.consider_all_requests_local = false
+  config.public_file_server.enabled = ENV["RAILS_SERVE_STATIC_FILES"].present?
+  config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
+  config.log_tags = [:request_id]
+  config.logger = ActiveSupport::Logger.new($stdout)
+                                       .tap { |logger| logger.formatter = ::Logger::Formatter.new }
+                                       .then { |logger| ActiveSupport::TaggedLogging.new(logger) }
+  config.cache_store = :memory_store
+  config.i18n.fallbacks = true
+  config.active_support.report_deprecations = false
+  config.active_record.dump_schema_after_migration = false
+end
+`,
+    'config/environments/development.rb': `require "active_support/core_ext/integer/time"
+
+Rails.application.configure do
+  config.enable_reloading = true
+  config.eager_load = false
+  config.consider_all_requests_local = true
+  config.server_timing = true
+  config.cache_store = :memory_store
+  config.active_support.deprecation = :log
+  config.active_support.disallowed_deprecation = :raise
+  config.active_support.disallowed_deprecation_warnings = []
+  config.active_record.migration_error = :page_load
+  config.active_record.verbose_query_logs = true
+  config.action_controller.raise_on_missing_callback_actions = true
+end
+`,
+    'bin/rails': `#!/usr/bin/env ruby
+APP_PATH = File.expand_path("../config/application", __dir__)
+require_relative "../config/boot"
+require "rails/commands"
+`,
+    'bin/rake': `#!/usr/bin/env ruby
+require_relative "../config/boot"
+require "rake"
+Rake.application.run
+`,
+
+
+
+
+
+
+
+
+
+
 
     'README.md': `# {{projectName}}
 
