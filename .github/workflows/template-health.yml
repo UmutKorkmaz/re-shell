@@ -15,7 +15,7 @@ jobs:
   # Scaffolds every verified template with the built CLI and builds it with that
   # language's own toolchain (pip/compileall, go build, cargo check, php -l +
   # composer, ruby -c + bundle, mvn package, gradle build, sbt Test/compile,
-  # dotnet build, perl -c, luac -p, pnpm + tsc, zig build, ...). The templates
+  # dotnet build, perl -c, luac -p, pnpm + tsc, rescript build, dart analyze, zig build, ...). The templates
   # are split into groups (see scripts/scaffold-test-templates.sh) so each job
   # installs only the toolchains it needs and the groups run in parallel.
   # A template whose toolchain is not installed is reported as SKIP with the
@@ -55,6 +55,10 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
+      - if: matrix.group == 'native'
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
       - if: matrix.group == 'core' || matrix.group == 'jvm'
         uses: actions/setup-java@v4
         with:

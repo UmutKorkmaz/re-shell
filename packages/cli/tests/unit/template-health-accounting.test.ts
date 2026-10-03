@@ -50,6 +50,7 @@ function runHealthFixture(scenario: string, templates: string | string[] = 'expr
   writeFileSync(join(bin, 'node'), `#!/bin/bash
 set -eu
 if [ "$1" = -e ]; then exec "$REAL_NODE" "$@"; fi
+if [ "$1" = --check ] || [[ "$1" == *check-js-imports.mjs ]]; then exit 0; fi
 if [ "$SCENARIO" = scaffold ]; then echo Scaffolded; exit 1; fi
 if [ "$SCENARIO" = missing-app ]; then echo Scaffolded; exit 0; fi
 if [ "$SCENARIO" = mixed ]; then case "$3" in test-fastapi|test-phoenix) SCENARIO=non-node ;; esac; fi
@@ -66,6 +67,8 @@ case "$kind" in
   zig) printf '' > build.zig ;;
   elixir) printf '' > mix.exs ;;
   swift) printf '' > Package.swift ;;
+  dart) printf 'name: x\n' > pubspec.yaml ;;
+  rescript) printf '{}' > rescript.json ;;
 esac
 if [ "$SCENARIO" != non-node ] && [ "$SCENARIO" != missing-package ]; then printf '{}' > package.json; fi
 if [ "$SCENARIO" = malformed-package ]; then printf '{"name":}' > package.json; fi
@@ -75,6 +78,11 @@ echo Scaffolded
 `, { mode: 0o755 });
   writeFileSync(join(bin, 'pnpm'), `#!/bin/bash
 set -eu
+if [ "$1" = exec ] || [ "$1" = run ]; then
+  echo "pnpm $*" >> "$SHIM_LOG"
+  if [ -n "\${FAIL_ON:-}" ] && [[ "pnpm $*" == *"$FAIL_ON"* ]]; then echo "shim failure: pnpm $*" >&2; exit 1; fi
+  exit 0
+fi
 if [ "$PWD" != "$FIXTURE_REPO" ] || [ "$1" != --dir ]; then echo incorrect-package-manager-selection; exit 1; fi
 cd "$2"
 shift 2
@@ -181,6 +189,7 @@ describe('native (non-Node) template verification', () => {
     ['rails-api', 'ruby', ['ruby', 'bundle'], 'bundle install', 'bundle-install failed', 'ruby -c'],
     ['spring-boot', 'java', ['mvn', 'java'], 'mvn', 'package failed', 'mvn -B -q -DskipTests package'],
     ['zig-http', 'zig', ['zig'], 'zig build', 'build failed', 'zig build'],
+    ['shelf', 'dart', ['dart'], 'dart analyze', 'analyze failed', 'dart analyze'],
   ];
 
   it.each(TOOLCHAINS)('%s: verified with its own toolchain, never through pnpm', (template, kind, tools, _failOn, _reason, ran) => {
@@ -225,6 +234,7 @@ describe('native (non-Node) template verification', () => {
     ['rails-api', 'ruby', 'ruby is not installed'],
     ['spring-boot', 'java', 'mvn (Maven) is not installed'],
     ['zig-http', 'zig', 'zig is not installed'],
+    ['shelf', 'dart', 'dart is not installed'],
     ['phoenix', 'elixir', 'elixir (mix) is not installed'],
     ['vapor', 'swift', 'swift is not installed'],
   ])('%s: SKIP names the missing toolchain when it is not installed', (template, kind, reason) => {
@@ -263,3 +273,33 @@ describe('native (non-Node) template verification', () => {
     expect(result.stdout).toContain('NOTE: composer dependencies were resolved but not downloaded');
   });
 });
+
+describe('ReScript template verification', () => {
+  const options = { kinds: { 'rescript-express': 'rescript' } };
+
+  it('builds with rescript, checks the JavaScript and runs the app tests', () => {
+    const result = runHealthFixture('pass', 'rescript-express', options);
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('RESULTS: 1 passed, 0 failed, 0 skipped');
+    expect(result.stdout).toContain('ReScript build passed');
+    expect(result.stdout).toContain('Tests passed');
+    const log = result.shimLog.split('\n');
+    const order = ['pnpm exec rescript build', 'pnpm run test'].map((fragment) => log.findIndex((line) => line.includes(fragment)));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect(order[0]).toBeLessThan(order[1]);
+  });
+
+  it.each([
+    ['exec rescript build', 'ReScript build failed'],
+    ['run test', 'tests failed'],
+  ])('fails (never passes) when %s fails', (failOn, reason) => {
+    const result = runHealthFixture('pass', 'rescript-express', { ...options, failOn });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('RESULTS: 0 passed, 1 failed, 0 skipped');
+    expect(result.stdout).toContain(reason);
+    expect(result.stdout).not.toContain('ALL TEMPLATES PASSED');
+  });
+});
+

@@ -20,42 +20,39 @@ export const rescriptExpressTemplate: BackendTemplate = {
   "version": "1.0.0",
   "description": "ReScript + Express API server with type safety",
   "scripts": {
-    "dev": "rescript clean && rescript dev -w",
+    "dev": "rescript build -w",
     "build": "rescript build",
-    "start": "node dist/js/src/Server.bs.js",
-    "server": "nodemon -x 'rescript build && node dist/js/src/Server.bs.js'",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test:ci": "jest --ci --coverage --watchAll=false",
+    "start": "node src/Main.bs.js",
+    "server": "nodemon --watch src -e js --exec \\"node src/Main.bs.js\\"",
+    "test": "rescript build && node --test src/__tests__/ApiTest.bs.js",
     "clean": "rescript clean",
     "format": "rescript format"
   },
   "dependencies": {
     "@rescript/core": "^1.3.0",
-    "rescript-express": "^0.3.0",
-    "express": "^4.19.2",
-    "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
-    "dotenv": "^16.4.5",
     "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "graphql": "^16.8.1",
+    "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "@apollo/server": "^4.10.0",
-    "graphql": "^16.8.1"
+    "morgan": "^1.10.0"
   },
   "devDependencies": {
-    "rescript": "^11.1.0",
-    "rescript-nodejs": "^16.1.0",
-    "jest": "^29.7.0",
-    "@types/jest": "^29.5.0",
-    "ts-jest": "^29.1.0",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "rescript": "^11.1.0"
   },
-  "keywords": ["rescript", "express", "api", "rest"],
-  "author": "{{author}}",
+  "keywords": [
+    "rescript",
+    "express",
+    "api",
+    "rest"
+  ],
+  "author": "re-shell",
   "license": "MIT"
-}`,
+}
+`,
 
     // ReScript configuration
     // ReScript resolves bs-dependencies through plain node_modules paths, which pnpm's isolated layout hides
@@ -76,208 +73,61 @@ export const rescriptExpressTemplate: BackendTemplate = {
   },
   "suffix": ".bs.js",
   "bs-dependencies": [
-    "@rescript/core",
-    "rescript-express",
-    "rescript-nodejs"
+    "@rescript/core"
   ],
-  "warnings": {
-    "error": true
-  },
   "bsc-flags": [
-    "-bs-gentype",
     "-open RescriptCore"
   ]
-}`,
-
-    // Jest configuration
-    'jest.config.js': `module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
-  roots: ['<rootDir>/src'],
-  testMatch: [
-    '**/__tests__/**/*.res',
-    '**/?(*.)+(spec|test).res'
-  ],
-  transform: {
-    '^.+\\\\.res$': '<rootDir>/jest-rescript-transformer.js',
-    '^.+\\\\.js$': 'babel-jest'},
-  moduleFileExtensions: ['res', 'js', 'json'],
-  collectCoverageFrom: [
-    'src/**/*.{res,js}',
-    '!src/**/*.bs.js',
-    '!src/**/*.gen.tsx',
-    '!src/**/__tests__/**'],
-  coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov', 'html'],
-  coverageThreshold: {
-    global: {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70}},
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  testTimeout: 10000,
-  verbose: true}`,
-
-    // Jest transformer for ReScript
-    'jest-rescript-transformer.js': `const { execSync } = require('child_process');
-const path = require('path');
-
-module.exports = {
-  process: (src, filename) => {
-    // Compile ReScript file
-    try {
-      execSync(\`rescript build -clean \${filename}\`, {
-        stdio: 'ignore',
-        cwd: process.cwd()});
-
-      // Read the compiled JavaScript
-      const compiledFile = filename.replace(/\\.res$/, '.bs.js');
-      const module = require(compiledFile);
-
-      // Return as CommonJS
-      return {
-        code: \`module.exports = require('\${compiledFile}');\`};
-    } catch (error) {
-      throw new Error(\`Failed to compile \${filename}: \${error.message}\`);
-    }
-  },
-  getCacheKey: (fileData, filePath) => {
-    return filePath;
-  }};`,
-
-    // Jest setup file
-    'jest.setup.js': `// Jest setup for ReScript tests
-require('rescript');
-
-// Mock environment variables
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'test-secret-key';
-
-// Mock console methods to reduce noise in tests
-global.console = {
-  ...console,
-  log: jest.fn(),
-  debug: jest.fn(),
-  info: jest.fn(),
-  warn: jest.fn(),
-  // Keep error for debugging test failures
-  error: console.error};`,
-
-    // Test helper utilities
-    'src/__tests__/TestHelpers.res': `open RescriptCore
-open Node
-open Jest
-
-// Test utilities module
-module TestHelpers = {
-  // Create mock request
-  let makeMockRequest = (~method="GET", ~path="/", ~body={}: Js.Dict.t<string>, ()) => {
-    {
-      "method": method,
-      "path": path,
-      "body": body,
-      "headers": Js.Dict.empty(),
-      "query": Js.Dict.empty()}
-  }
-
-  // Create mock response
-  let makeMockResponse = () => {
-    let statusCode = ref(200)
-    let data = ref(Js.Dict.empty())
-
-    {
-      "statusCode": statusCode,
-      "data": data,
-      "json": (json: Js.Dict.t<string>) => {
-        data := json
-        Js.Promise.resolve()
-      },
-      "status": (code: int) => {
-        statusCode := code
-      }}
-  }
-
-  // Async test helper
-  let waitFor = (ms: int) => {
-    Js.Promise.resolve()->Js.Promise.then_(() => {
-      Node.Process.setTimeoutMs(ms)->Js.Promise.resolve
-    })
-  }
-
-  // Mock user data
-  let mockUser = {
-    "id": 1,
-    "name": "Test User",
-    "email": "test@example.com",
-    "role": "user"}
-
-  // Mock product data
-  let mockProduct = {
-    "id": 1,
-    "name": "Test Product",
-    "price": 99.99,
-    "description": "Test Description"}
-}`,
-
-    // Example integration test
-    'src/__tests__/Server.test.res': `open RescriptCore
-open Node
-open Jest
-open Server
-open TestHelpers
-
-describe("Server Tests", () => {
-  test("health endpoint returns healthy status", () => {
-    let mockReq = TestHelpers.makeMockRequest()
-    let mockRes = TestHelpers.makeMockResponse()
-
-    AppRoutes.healthGet(mockReq, mockRes)->Js.Promise.then_=(_ => {
-      let statusCode = mockRes["statusCode"]->Js.Option.getExn
-      expect(Js.Int.toString(statusCode))->toBe("200")
-
-      Js.Promise.resolve()
-    })
-  })
-
-  test("home endpoint returns HTML", () => {
-    let mockReq = TestHelpers.makeMockRequest()
-    let mockRes = TestHelpers.makeMockResponse()
-
-    AppRoutes.homeGet(mockReq, mockRes)->ignore
-
-    let statusCode = mockRes["statusCode"]->Js.Option.getExn
-    expect(Js.Int.toString(statusCode))->toBe("200")
-  })
-
-  test("auth middleware rejects requests without token", () => {
-    let mockReq = TestHelpers.makeMockRequest()
-    let mockRes = TestHelpers.makeMockResponse()
-
-    // Call auth middleware
-    // Should return 401
-    let statusCode = mockRes["statusCode"]->Js.Option.getExn
-    expect(Js.Int.toString(statusCode))->toBe("401")
-  })
-})`,
+}
+`,
 
     // Main server file
-    'src/Server.res': `open RescriptCore
-open RescriptExpress
-open Node
+    'src/Server.res': `let jsonError = (res: Express.res, status: int, message: string) =>
+  res->Express.status(status)->Express.sendJson({"error": message})
 
-// Routes
-module AppRoutes = {
-  @send
-  let healthGet = (_req, res) => {
-    res->Json.stringify({ "status": "healthy", "timestamp": Js.Date.now() })
-    ->res->Response.sendJson
+let publicUser = (u: Types.user) => {"id": u.id, "email": u.email, "name": u.name, "role": u.role}
+
+let bearerToken = (req: Express.req): option<string> =>
+  req
+  ->Express.header("authorization")
+  ->Nullable.toOption
+  ->Option.flatMap(header =>
+    header->String.startsWith("Bearer ") ? Some(header->String.sliceToEnd(~start=7)) : None
+  )
+
+// Middleware
+let requireUser: Express.middleware = (req, res, next) =>
+  switch bearerToken(req)->Option.flatMap(Auth.verifyToken) {
+  | Some(claims) => {
+      req->Express.setUser(claims)
+      next()
+    }
+  | None => jsonError(res, 401, "Unauthorized")
   }
 
-  @send
-  let homeGet = (_req, res) => {
-    let html = \`
-<!DOCTYPE html>
+let requireAdmin: Express.middleware = (req, res, next) =>
+  requireUser(req, res, () => {
+    let claims: option<Types.claims> = req->Express.user->Nullable.toOption
+    switch claims {
+    | Some({role: "admin"}) => next()
+    | _ => jsonError(res, 403, "Admin role required")
+    }
+  })
+
+@module external graphqlHandler: Express.handler = "./graphqlHandler.js"
+
+// Routes
+module Routes = {
+  let health: Express.handler = (_req, res) =>
+    res->Express.sendJson({
+      "status": "healthy",
+      "timestamp": Date.now(),
+      "version": "1.0.0",
+    })
+
+  let home: Express.handler = (_req, res) => {
+    res->Express.setHeader("Content-Type", "text/html")
+    res->Express.sendText(\`<!DOCTYPE html>
 <html>
   <head>
     <title>{{projectName}}</title>
@@ -291,302 +141,226 @@ module AppRoutes = {
     <p>Type-safe API built with ReScript and Express</p>
     <p>API available at: <a href="/api/v1/health">/api/v1/health</a></p>
   </body>
-</html>
-    \`
-    res->Response.send(html)
+</html>\`)
   }
 
-  @send
-  let registerPost = (req, res) => {
-    // In production, parse JSON body
-    let email = "user@example.com"
-    let password = "password123"
-    let name = "New User"
-
-    // Check if user exists (simplified)
-    if (email == "admin@example.com") {
-      res->Status.statusCode(409)
-      ->Json.stringify({ "error": "Email already registered" })
-      ->res->Response.sendJson
-    } else {
-      // Create user
-      let user = {
-        "id": Js.Date.now()->Int.toFloat->Js.String.toString,
-        "email": email,
-        "name": name,
-        "role": "user"}
-
-      // Generate token (simplified)
-      let token = "jwt-token-placeholder"
-
-      res->Status.statusCode(201)
-      ->Json.stringify({ "token": token, "user": user })
-      ->res->Response.sendJson
+  let register: Express.handler = (req, res) => {
+    let body = Express.body(req)
+    switch (Json.string(body, "email"), Json.string(body, "name"), Json.string(body, "password")) {
+    | (Some(email), Some(name), Some(password)) if String.length(password) >= 6 =>
+      switch Store.findUserByEmail(email) {
+      | Some(_) => jsonError(res, 409, "Email already registered")
+      | None => {
+          let user = Store.addUser(~email, ~name, ~password, ~role="user")
+          res
+          ->Express.status(201)
+          ->Express.sendJson({"token": Auth.generateToken(user), "user": publicUser(user)})
+        }
+      }
+    | _ => jsonError(res, 400, "email, name and a password of at least 6 characters are required")
     }
   }
 
-  @send
-  let loginPost = (req, res) => {
-    let email = "admin@example.com"
-    let password = "admin123"
-
-    // Validate credentials (simplified)
-    if (email == "admin@example.com" && password == "admin123") {
-      let token = "jwt-token-placeholder"
-      let user = {
-        "id": "1",
-        "email": "admin@example.com",
-        "name": "Admin User",
-        "role": "admin"}
-
-      res->Status.statusCode(200)
-      ->Json.stringify({ "token": token, "user": user })
-      ->res->Response.sendJson
-    } else {
-      res->Status.statusCode(401)
-      ->Json.stringify({ "error": "Invalid credentials" })
-      ->res->Response.sendJson
+  let login: Express.handler = (req, res) => {
+    let body = Express.body(req)
+    switch (Json.string(body, "email"), Json.string(body, "password")) {
+    | (Some(email), Some(password)) =>
+      switch Store.findUserByEmail(email) {
+      | Some(user) if Auth.verifyPassword(password, user.passwordHash) =>
+        res->Express.sendJson({"token": Auth.generateToken(user), "user": publicUser(user)})
+      | _ => jsonError(res, 401, "Invalid credentials")
+      }
+    | _ => jsonError(res, 400, "email and password are required")
     }
   }
 
-  @send
-  let listProductsGet = (_req, res) => {
-    let products = [%raw([
-      {"id": 1, "name": "Sample Product 1", "description": "This is a sample product", "price": 29.99, "stock": 100},
-      {"id": 2, "name": "Sample Product 2", "description": "Another sample product", "price": 49.99, "stock": 50}
-    ])]
-
-    res->Json.stringify({ "products": products, "count": Array.length(products) })
-    ->res->Response.sendJson
+  let me: Express.handler = (req, res) => {
+    let claims: option<Types.claims> = req->Express.user->Nullable.toOption
+    switch claims {
+    | Some(c) => res->Express.sendJson({"userId": c.sub, "email": c.email, "role": c.role})
+    | None => jsonError(res, 401, "Unauthorized")
+    }
   }
 
-  @send
-  let getProductGet = (req, res) => {
-    let id = req->Route.param("id")->Belt.Option.getOr("")
+  let listProducts: Express.handler = (_req, res) =>
+    res->Express.sendJson({"products": Store.products, "count": Array.length(Store.products)})
 
-    let products = [%raw([
-      {"id": 1, "name": "Sample Product 1", "description": "This is a sample product", "price": 29.99, "stock": 100},
-      {"id": 2, "name": "Sample Product 2", "description": "Another sample product", "price": 49.99, "stock": 50}
-    ])]
+  let withProductId = (req: Express.req, res: Express.res, found: Types.product => unit) =>
+    switch req->Express.params->Dict.get("id")->Option.flatMap(id => Int.fromString(id)) {
+    | None => jsonError(res, 400, "Invalid product id")
+    | Some(id) =>
+      switch Store.findProduct(id) {
+      | Some(product) => found(product)
+      | None => jsonError(res, 404, "Product not found")
+      }
+    }
 
-    let product = products->Js.Array.find(p => {
-      let p = p->Js.Dictionary.unsafeGet("id")
-      let idNum = p->Js.Int.toFloat
-      let reqId = id->Js.Int.parse->Belt.Option.getOr(0)
-      idNum == reqId
+  let getProduct: Express.handler = (req, res) =>
+    withProductId(req, res, product => res->Express.sendJson({"product": product}))
+
+  let createProduct: Express.handler = (req, res) => {
+    let body = Express.body(req)
+    switch (Json.string(body, "name"), Json.float(body, "price")) {
+    | (Some(name), Some(price)) => {
+        let product = Store.addProduct(
+          ~name,
+          ~description=Json.string(body, "description")->Option.getOr(""),
+          ~price,
+          ~stock=Json.float(body, "stock")->Option.map(Float.toInt)->Option.getOr(0),
+        )
+        res->Express.status(201)->Express.sendJson({"product": product})
+      }
+    | _ => jsonError(res, 400, "name and price are required")
+    }
+  }
+
+  let updateProduct: Express.handler = (req, res) =>
+    withProductId(req, res, existing => {
+      let body = Express.body(req)
+      let updated = Store.updateProduct(existing.id, p => {
+        ...p,
+        name: Json.string(body, "name")->Option.getOr(p.name),
+        description: Json.string(body, "description")->Option.getOr(p.description),
+        price: Json.float(body, "price")->Option.getOr(p.price),
+        stock: Json.float(body, "stock")->Option.map(Float.toInt)->Option.getOr(p.stock),
+      })
+      res->Express.sendJson({"product": updated})
     })
 
-    switch (product) {
-    | Some(p) => res->Json.stringify({ "product": p })->res->Response.sendJson
-    | None =>
-      res->Status.statusCode(404)
-      ->Json.stringify({ "error": "Product not found" })
-      ->res->Response.sendJson
-    }
-  }
-
-  @send
-  let createProductPost = (req, res) => {
-    // In production, parse JSON body
-    let product = {
-      "id": Js.Date.now()->Int.toFloat,
-      "name": "New Product",
-      "description": "",
-      "price": 29.99,
-      "stock": 100}
-
-    res->Status.statusCode(201)
-    ->Json.stringify({ "product": product })
-    ->res->Response.sendJson
-  }
+  let deleteProduct: Express.handler = (req, res) =>
+    withProductId(req, res, product => {
+      let _ = Store.removeProduct(product.id)
+      res->Express.sendStatus(204)
+    })
 }
 
-// Middleware
-module Middleware = {
-  @send
-  let cors = (_, res, next) => {
-    res->Response.setHeader("Access-Control-Allow-Origin", "*")
-    res->Response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-    res->Response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
-    next()
+/** Builds the Express application (does not listen). */
+let make = (): Express.app => {
+  let app = Express.make()
+
+  app->Express.use(Express.helmet())
+  app->Express.use(Express.cors())
+  app->Express.use(Express.jsonBody())
+  if Env.get("NODE_ENV") != Some("test") {
+    app->Express.use(Express.morgan("combined"))
   }
 
-  @send
-  let logger = (req, res, next) => {
-    let method = req->Method.method
-    let url = req->ReqUrl.path
-    Js.log3(Js.Date.now(), method, url)
-    next()
-  }
-
-  @send
-  let errorHandler = (err, _req, res, _next) => {
-    Js.log2("Error:", err)
-    res->Status.statusCode(500)
-    ->Json.stringify({ "error": "Internal server error" })
-    ->res->Response.sendJson
-  }
-}
-
-// Main app setup
-@send
-let setup = () => {
-  let app = AppRoutes.App.make()
-
-  // Middleware
-  app->Middleware.cors
-  app->Middleware.logger
-
-  // Home
-  app->AppRoutes.homeGet->Route.get("/")
+  app->Express.get("/", Routes.home)
 
   // API routes
-  app->AppRoutes.healthGet->Route.get("/api/v1/health")
-  app->AppRoutes.registerPost->Route.post("/api/v1/auth/register")
-  app->AppRoutes.loginPost->Route.post("/api/v1/auth/login")
-  app->AppRoutes.listProductsGet->Route.get("/api/v1/products")
-  app->AppRoutes.getProductGet->Route.get("/api/v1/products/:id")
-  app->AppRoutes.createProductPost->Route.post("/api/v1/products")
+  app->Express.get("/api/v1/health", Routes.health)
+  app->Express.post("/api/v1/auth/register", Routes.register)
+  app->Express.post("/api/v1/auth/login", Routes.login)
+  app->Express.getWith("/api/v1/auth/me", requireUser, Routes.me)
+  app->Express.get("/api/v1/products", Routes.listProducts)
+  app->Express.get("/api/v1/products/:id", Routes.getProduct)
+  app->Express.postWith("/api/v1/products", requireAdmin, Routes.createProduct)
+  app->Express.putWith("/api/v1/products/:id", requireAdmin, Routes.updateProduct)
+  app->Express.deleteWith("/api/v1/products/:id", requireAdmin, Routes.deleteProduct)
 
-  // GraphQL endpoint (Apollo Server via JS interop)
-  app->GraphQL.graphqlHandler->Route.post("/graphql")
-  app->GraphQL.graphqlHandler->Route.get("/graphql")
+  // GraphQL endpoint
+  app->Express.post("/graphql", graphqlHandler)
+  app->Express.get("/graphql", graphqlHandler)
+
+  app->Express.get("*", (_req, res) => jsonError(res, 404, "Not found"))
 
   // Error handling
-  app->Middleware.errorHandler
+  app->Express.useErrorHandler((err, _req, res, _next) => {
+    Console.error2("Error:", err)
+    jsonError(res, 500, "Internal server error")
+  })
 
   app
 }
-
-@send
-let start = () => {
-  let port = Node.Process.env->Js.Dict.get("PORT")->Belt.Option.mapOr("3000", x => x)
-  let app = setup()
-
-  Express.listen(app, port->Js.Int.parse->Belt.Option.getOr(3000), () => {
-    Js.log("🚀 Server running at http://localhost:" ++ port)
-    Js.log("📚 API docs: http://localhost:" ++ port ++ "/api/v1/health")
-  })
-}
-
-// Start server when file is run directly
-if (Node.Process.argv->Js.Array2.get(1) == Some("dist/js/src/Server.bs.js")) {
-  start()
-}`,
+`,
 
     // Types file
-    'src/Types.res': `open RescriptCore
-
-type user = {
+    'src/Types.res': `type user = {
   id: string,
   email: string,
   name: string,
-  role: string}
+  role: string,
+  passwordHash: string,
+}
 
 type product = {
-  id: float,
+  id: int,
   name: string,
   description: string,
   price: float,
-  stock: int}
-
-type authResponse = {
-  token: string,
-  user: user}
-
-type errorResponse = {
-  error: string}`,
-
-    // Auth utilities
-    'src/Auth.res': `open RescriptCore
-open Src.Types
-
-// SHA256 hash (simplified - in production use proper crypto)
-let hashPassword = (password: string): string => {
-  // Simplified - use proper SHA256 in production
-  password
+  stock: int,
 }
 
-// Generate JWT token (simplified)
-let generateToken = (user: user): string => {
-  // Simplified - use proper JWT library
-  "jwt-token-placeholder"
-}
-
-// Verify JWT token (simplified)
-let verifyToken = (token: string): option<user> => {
-  // Simplified - use proper JWT verification
-  if (token == "jwt-token-placeholder") {
-    Some({
-      id: "1",
-      email: "admin@example.com",
-      name: "Admin User",
-      role: "admin"})
-  } else {
-    None
-  }
-}`,
-
-    // GraphQL binding (Apollo Server via JS interop)
-    'src/GraphQL.res': `open RescriptCore
-
-// External Apollo Server handler imported from JS
-@module("./graphqlHandler.js")
-external handleGraphQL: (Express.req, Express.res) => Js.Promise.t<unit> = "default"
-
-// Express route handler for /graphql
-@send
-let graphqlHandler = (req, res) => {
-  let _ = handleGraphQL(req, res)
-  Js.Promise.resolve()
+/** What is stored in (and read back from) the JWT. */
+type claims = {
+  sub: string,
+  email: string,
+  role: string,
 }
 `,
 
-    // Apollo Server handler (JS interop layer)
-    'src/graphqlHandler.js': `const { ApolloServer } = require('@apollo/server');
-const { typeDefs, resolvers } = require('./graphqlSchema');
+    // Auth utilities
+    'src/Auth.res': `@module("jsonwebtoken") external sign: (Types.claims, string, {"expiresIn": string}) => string = "sign"
+@module("jsonwebtoken") external verify: (string, string) => Types.claims = "verify"
+@module("bcryptjs") external hashSync: (string, int) => string = "hashSync"
+@module("bcryptjs") external compareSync: (string, string) => bool = "compareSync"
 
-const server = new ApolloServer({ typeDefs, resolvers });
+let secret = (): string => Env.get("JWT_SECRET")->Option.getOr("change-this-secret-in-production")
 
-module.exports = async (req, res) => {
-  try {
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
-    }
-    const body = JSON.parse(Buffer.concat(chunks).toString() || '{}');
+let hashPassword = (password: string): string => hashSync(password, 10)
 
-    const result = await server.executeOperation(body);
+let verifyPassword = (password: string, hash: string): bool => compareSync(password, hash)
 
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(result));
-  } catch (error) {
-    res.statusCode = 400;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ errors: [{ message: error.message }] }));
+let generateToken = (user: Types.user): string =>
+  sign({sub: user.id, email: user.email, role: user.role}, secret(), {"expiresIn": "7d"})
+
+/** The claims inside a valid token, or None for a missing, expired or forged one. */
+let verifyToken = (token: string): option<Types.claims> =>
+  switch verify(token, secret()) {
+  | claims => Some(claims)
+  | exception _ => None
   }
+`,
+
+    // Apollo Server handler (JS interop layer)
+    'src/graphqlHandler.js': `const { graphql, buildSchema } = require('graphql');
+const { typeDefs, rootValue } = require('./graphqlSchema');
+
+const schema = buildSchema(typeDefs);
+
+// Express handler: POST /graphql with {query, variables, operationName}, or GET /graphql?query=...
+module.exports = async (req, res) => {
+  const input = req.method === 'GET' ? req.query : req.body;
+  if (!input || typeof input.query !== 'string') {
+    res.status(400).json({ errors: [{ message: 'A GraphQL query is required' }] });
+    return;
+  }
+
+  const result = await graphql({
+    schema,
+    source: input.query,
+    rootValue,
+    variableValues: input.variables,
+    operationName: input.operationName,
+  });
+  res.status(200).json(result);
 };
 `,
 
     // GraphQL schema and resolvers (JS)
-    'src/graphqlSchema.js': `const { gql } = require('@apollo/server');
-
-const typeDefs = gql\\\`
+    'src/graphqlSchema.js': `const typeDefs = \`
   type Query {
     hello: String!
     health: String!
   }
-\\\`;
+\`;
 
-const resolvers = {
-  Query: {
-    hello: () => 'Hello from ReScript Express GraphQL!',
-    health: () => 'healthy'
-  }
+const rootValue = {
+  hello: () => 'Hello from ReScript Express GraphQL!',
+  health: () => 'healthy',
 };
 
-module.exports = { typeDefs, resolvers };
+module.exports = { typeDefs, rootValue };
 `,
 
     // Environment file
@@ -710,7 +484,7 @@ Type-safe API server built with ReScript and Express.js.
 # Install dependencies
 npm install
 
-# Build ReScript
+# Build ReScript (compiles in place to src/*.bs.js)
 npm run build
 \`\`\`
 
@@ -742,13 +516,19 @@ Visit http://localhost:3000
 - \`GET /api/v1/health\` - Health check
 
 ### Authentication
-- \`POST /api/v1/auth/register\` - Register new user
-- \`POST /api/v1/auth/login\` - Login user
+- \`POST /api/v1/auth/register\` - Register new user (\`email\`, \`name\`, \`password\`)
+- \`POST /api/v1/auth/login\` - Login user, returns a JWT
+- \`GET /api/v1/auth/me\` - Current user (bearer token required)
 
 ### Products
 - \`GET /api/v1/products\` - List all products
 - \`GET /api/v1/products/:id\` - Get product by ID
-- \`POST /api/v1/products\` - Create product
+- \`POST /api/v1/products\` - Create product (admin only)
+- \`PUT /api/v1/products/:id\` - Update product (admin only)
+- \`DELETE /api/v1/products/:id\` - Delete product (admin only)
+
+### GraphQL
+- \`POST /graphql\` - \`{ hello health }\` (graphql-js)
 
 ## Default Credentials
 
@@ -759,9 +539,14 @@ Visit http://localhost:3000
 
 \`\`\`
 src/
-  Server.res         # Main server and routes
+  Main.res           # Entry point (npm start runs src/Main.bs.js)
+  Server.res         # Express app and routes
+  Express.res        # Express bindings
+  Auth.res           # JWT and password hashing (jsonwebtoken, bcryptjs)
+  Store.res          # In-memory data store
   Types.res          # Type definitions
-  Auth.res           # Authentication utilities
+  graphqlHandler.js  # GraphQL endpoint (graphql-js)
+  __tests__/         # ReScript tests
 rescript.json        # ReScript configuration
 package.json         # Dependencies and scripts
 \`\`\`
@@ -793,77 +578,13 @@ npm run format
 
 ## Testing
 
-The project is configured with Jest for testing ReScript code.
+Tests are written in ReScript (\`src/__tests__/ApiTest.res\`) and run with Node's built-in test runner against a server on a random port:
 
 \`\`\`bash
-# Run tests once
 npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run tests with coverage report
-npm run test:coverage
-
-# Run tests in CI mode
-npm run test:ci
 \`\`\`
 
-### Test Structure
-
-\`\`\`
-src/__tests__/
-├── TestHelpers.res      # Test utilities and mocks
-├── Server.test.res      # Server integration tests
-└── *.test.res           # Component tests
-\`\`\`
-
-### Writing Tests
-
-ReScript tests use Jest bindings with type-safe matchers:
-
-\`\`\`ocaml
-open Jest
-open TestHelpers
-
-test("example test", () => {
-  let result = someFunction()
-  expect(result)->toBe(expected)
-})
-
-test("async test", () => {
-  asyncOperation()->Js.Promise.then_=data => {
-    expect(data)->toBeTruthy()
-    Js.Promise.resolve()
-  }
-})
-\`\`\`
-
-### Test Helpers
-
-\`\`\`ocaml
-// Mock request/response
-let mockReq = TestHelpers.makeMockRequest(~path="/api/v1/health", ())
-let mockRes = TestHelpers.makeMockResponse()
-
-// Wait for async operations
-TestHelpers.waitFor(1000)->ignore
-
-// Mock data
-let user = TestHelpers.mockUser
-let product = TestHelpers.mockProduct
-\`\`\`
-
-### Coverage
-
-Coverage reports are generated in \`coverage/\` directory:
-- HTML report: \`coverage/index.html\`
-- LCOV: \`coverage/lcov.info\`
-- Terminal summary
-
-Coverage thresholds: 70% for all metrics.
-
-## Docker
+## ## Docker
 
 \`\`\`bash
 docker build -t {{projectName}} .
@@ -889,5 +610,299 @@ docker-compose up
 ## License
 
 MIT
+`,
+
+    'src/Env.res': `// Environment variables
+@val external env: Dict.t<string> = "process.env"
+
+let get = (key: string): option<string> => env->Dict.get(key)
+`,
+
+    'src/Express.res': `// Minimal Express bindings
+type app
+type server
+type req
+type res
+type next = unit => unit
+type handler = (req, res) => unit
+type middleware = (req, res, next) => unit
+
+@module external make: unit => app = "express"
+@module("express") external jsonBody: unit => middleware = "json"
+
+@send external use: (app, middleware) => unit = "use"
+@send external useAt: (app, string, middleware) => unit = "use"
+@send external get: (app, string, handler) => unit = "get"
+@send external getWith: (app, string, middleware, handler) => unit = "get"
+@send external post: (app, string, handler) => unit = "post"
+@send external postWith: (app, string, middleware, handler) => unit = "post"
+@send external put: (app, string, handler) => unit = "put"
+@send external putWith: (app, string, middleware, handler) => unit = "put"
+@send external delete: (app, string, handler) => unit = "delete"
+@send external deleteWith: (app, string, middleware, handler) => unit = "delete"
+@send external useErrorHandler: (app, (Exn.t, req, res, next) => unit) => unit = "use"
+
+@send external listen: (app, int, unit => unit) => server = "listen"
+@send external listenOn: (app, int) => server = "listen"
+@send external once: (server, string, unit => unit) => unit = "once"
+@send external close: (server, unit => unit) => unit = "close"
+@send external address: server => {"port": int} = "address"
+
+@send external status: (res, int) => res = "status"
+@send external sendJson: (res, 'a) => unit = "json"
+@send external sendText: (res, string) => unit = "send"
+@send external setHeader: (res, string, string) => unit = "setHeader"
+@send external sendStatus: (res, int) => unit = "sendStatus"
+
+@get external body: req => JSON.t = "body"
+@get external params: req => Dict.t<string> = "params"
+@get external query: req => Dict.t<string> = "query"
+@get external httpMethod: req => string = "method"
+@get external path: req => string = "path"
+@send external header: (req, string) => Nullable.t<string> = "get"
+
+// Per-request data set by middleware
+@set external setUser: (req, 'a) => unit = "user"
+@get external user: req => Nullable.t<'a> = "user"
+
+/** Starts listening and resolves once the server accepts connections (port 0 picks a free port). */
+let listenAsync = (app: app, port: int): promise<server> =>
+  Promise.make((resolve, _reject) => {
+    let server = app->listenOn(port)
+    server->once("listening", () => resolve(server))
+  })
+
+// Middleware packages
+@module external cors: unit => middleware = "cors"
+@module external helmet: unit => middleware = "helmet"
+@module external morgan: string => middleware = "morgan"
+`,
+
+    'src/Json.res': `// Helpers for reading values out of a parsed JSON request body
+let field = (json: JSON.t, key: string): option<JSON.t> =>
+  json->JSON.Decode.object->Option.flatMap(fields => fields->Dict.get(key))
+
+let string = (json: JSON.t, key: string): option<string> =>
+  field(json, key)->Option.flatMap(JSON.Decode.string)
+
+let float = (json: JSON.t, key: string): option<float> =>
+  field(json, key)->Option.flatMap(JSON.Decode.float)
+`,
+
+    'src/Main.res': `@module("dotenv") external loadEnv: unit => unit = "config"
+
+loadEnv()
+
+let port = Env.get("PORT")->Option.flatMap(value => Int.fromString(value))->Option.getOr(3000)
+
+let _ = Server.make()->Express.listen(port, () => {
+  Console.log(\`Server running at http://localhost:\${Int.toString(port)}\`)
+  Console.log(\`API: http://localhost:\${Int.toString(port)}/api/v1/health\`)
+})
+`,
+
+    'src/Store.res': `// In-memory data store: replace with a real database for production use.
+open Types
+
+let users: array<user> = [
+  {
+    id: "1",
+    email: "admin@example.com",
+    name: "Admin User",
+    role: "admin",
+    passwordHash: Auth.hashPassword("admin123"),
+  },
+]
+
+let products: array<product> = [
+  {id: 1, name: "Sample Product 1", description: "This is a sample product", price: 29.99, stock: 100},
+  {id: 2, name: "Sample Product 2", description: "Another sample product", price: 49.99, stock: 50},
+]
+
+let nextUserId = ref(2)
+let nextProductId = ref(3)
+
+let findUserByEmail = (email: string): option<user> => users->Array.find(u => u.email == email)
+
+let addUser = (~email: string, ~name: string, ~password: string, ~role: string): user => {
+  let user = {
+    id: Int.toString(nextUserId.contents),
+    email,
+    name,
+    role,
+    passwordHash: Auth.hashPassword(password),
+  }
+  nextUserId := nextUserId.contents + 1
+  users->Array.push(user)
+  user
+}
+
+let findProduct = (id: int): option<product> => products->Array.find(p => p.id == id)
+
+let addProduct = (~name: string, ~description: string, ~price: float, ~stock: int): product => {
+  let product = {id: nextProductId.contents, name, description, price, stock}
+  nextProductId := nextProductId.contents + 1
+  products->Array.push(product)
+  product
+}
+
+let updateProduct = (id: int, update: product => product): option<product> =>
+  switch products->Array.findIndex(p => p.id == id) {
+  | -1 => None
+  | index => {
+      let updated = update(products->Array.getUnsafe(index))
+      products->Array.setUnsafe(index, updated)
+      Some(updated)
+    }
+  }
+
+let removeProduct = (id: int): bool =>
+  switch products->Array.findIndex(p => p.id == id) {
+  | -1 => false
+  | index => {
+      products->Array.splice(~start=index, ~remove=1, ~insert=[])
+      true
+    }
+  }
+`,
+
+    'src/__tests__/ApiTest.res': `// Run with: npm test (node's built-in test runner)
+@module("node:test") external test: (string, unit => promise<unit>) => unit = "test"
+@module("node:assert/strict") external equal: ('a, 'a) => unit = "equal"
+@module("node:assert/strict") external ok: bool => unit = "ok"
+
+type response
+@val external fetch: (string, 'options) => promise<response> = "fetch"
+@get external status: response => int = "status"
+@send external json: response => promise<JSON.t> = "json"
+
+let request = async (
+  base: string,
+  path: string,
+  ~method="GET",
+  ~body: option<JSON.t>=?,
+  ~token: option<string>=?,
+): (int, JSON.t) => {
+  let headers = Dict.fromArray([("content-type", "application/json")])
+  switch token {
+  | Some(t) => headers->Dict.set("authorization", "Bearer " ++ t)
+  | None => ()
+  }
+  let response = await fetch(
+    base ++ path,
+    {
+      "method": method,
+      "headers": headers,
+      "body": body->Option.map(b => JSON.stringify(b)),
+    },
+  )
+  (response->status, await response->json)
+}
+
+let string = (json: JSON.t, key: string) => Json.string(json, key)->Option.getOr("")
+
+test("API", async () => {
+  Dict.set(Env.env, "NODE_ENV", "test")
+  let server = await Server.make()->Express.listenAsync(0)
+  let address = Express.address(server)
+  let base = \`http://127.0.0.1:\${Int.toString(address["port"])}\`
+
+  // health
+  let (code, health) = await request(base, "/api/v1/health")
+  equal(code, 200)
+  equal(string(health, "status"), "healthy")
+
+  // login with the seeded admin
+  let (code, login) = await request(
+    base,
+    "/api/v1/auth/login",
+    ~method="POST",
+    ~body=JSON.Encode.object(
+      Dict.fromArray([
+        ("email", JSON.Encode.string("admin@example.com")),
+        ("password", JSON.Encode.string("admin123")),
+      ]),
+    ),
+  )
+  equal(code, 200)
+  let adminToken = string(login, "token")
+  ok(String.length(adminToken) > 20)
+
+  // wrong password
+  let (code, _) = await request(
+    base,
+    "/api/v1/auth/login",
+    ~method="POST",
+    ~body=JSON.Encode.object(
+      Dict.fromArray([
+        ("email", JSON.Encode.string("admin@example.com")),
+        ("password", JSON.Encode.string("wrong")),
+      ]),
+    ),
+  )
+  equal(code, 401)
+
+  // register a regular user
+  let (code, registered) = await request(
+    base,
+    "/api/v1/auth/register",
+    ~method="POST",
+    ~body=JSON.Encode.object(
+      Dict.fromArray([
+        ("email", JSON.Encode.string("user@example.com")),
+        ("name", JSON.Encode.string("User")),
+        ("password", JSON.Encode.string("secret123")),
+      ]),
+    ),
+  )
+  equal(code, 201)
+  let userToken = string(registered, "token")
+
+  // protected routes
+  let (code, _) = await request(base, "/api/v1/auth/me")
+  equal(code, 401)
+  let (code, me) = await request(base, "/api/v1/auth/me", ~token=userToken)
+  equal(code, 200)
+  equal(string(me, "role"), "user")
+
+  // products: anyone reads, admins write
+  let (code, _) = await request(base, "/api/v1/products/1")
+  equal(code, 200)
+  let newProduct = JSON.Encode.object(
+    Dict.fromArray([("name", JSON.Encode.string("Widget")), ("price", JSON.Encode.float(9.5))]),
+  )
+  let (code, _) = await request(
+    base,
+    "/api/v1/products",
+    ~method="POST",
+    ~body=newProduct,
+    ~token=userToken,
+  )
+  equal(code, 403)
+  let (code, _) = await request(
+    base,
+    "/api/v1/products",
+    ~method="POST",
+    ~body=newProduct,
+    ~token=adminToken,
+  )
+  equal(code, 201)
+  let (code, _) = await request(base, "/api/v1/products/999")
+  equal(code, 404)
+
+  // graphql
+  let (code, gql) = await request(
+    base,
+    "/graphql",
+    ~method="POST",
+    ~body=JSON.Encode.object(
+      Dict.fromArray([("query", JSON.Encode.string("{ hello health }"))]),
+    ),
+  )
+  equal(code, 200)
+  equal(gql->Json.field("data")->Option.flatMap(data => Json.string(data, "health")), Some("healthy"))
+
+  await Promise.make((resolve, _) => server->Express.close(() => resolve()))
+})
 `}
 };

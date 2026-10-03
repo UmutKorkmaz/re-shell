@@ -25,13 +25,14 @@ environment:
 
 dependencies:
   conduit: ^4.0.0
+  conduit_core: ^4.0.0
   conduit_postgresql: ^4.0.0
-  graphql: ^5.1.3
-  
+
 dev_dependencies:
   conduit_test: ^4.0.0
   lints: ^3.0.0
-  test: ^1.24.0`,
+  test: ^1.24.0
+`,
 
     // Main application file
     'lib/{{projectNameSnake}}.dart': `/// {{projectName}}
@@ -43,15 +44,17 @@ export 'dart:async';
 export 'dart:io';
 
 export 'package:conduit/conduit.dart';
+export 'package:conduit_core/conduit_core.dart';
+export 'package:conduit_core/managed_auth.dart';
 export 'package:conduit_postgresql/conduit_postgresql.dart';
 
+export 'auth.dart';
 export 'channel.dart';
 export 'config.dart';
 
 // Models
 export 'model/user.dart';
 export 'model/todo.dart';
-export 'model/auth_token.dart';
 
 // Controllers
 export 'controller/register_controller.dart';
@@ -59,11 +62,11 @@ export 'controller/auth_controller.dart';
 export 'controller/user_controller.dart';
 export 'controller/todo_controller.dart';
 export 'controller/health_controller.dart';
-export 'controller/graphql_controller.dart';`,
+export 'controller/graphql_controller.dart';
+`,
 
     // Application channel
     'lib/channel.dart': `import '{{projectNameSnake}}.dart';
-import 'package:conduit_postgresql/conduit_postgresql.dart';
 
 /// This type initializes an application.
 ///
@@ -72,6 +75,7 @@ import 'package:conduit_postgresql/conduit_postgresql.dart';
 class {{projectNamePascal}}Channel extends ApplicationChannel {
   late ManagedContext context;
   late AuthServer authServer;
+  late AppAuth appAuth;
 
   /// Initialize services in this method.
   ///
@@ -86,7 +90,7 @@ class {{projectNamePascal}}Channel extends ApplicationChannel {
 
     // Load configuration
     final config = {{projectNamePascal}}Configuration(options!.configurationFilePath!);
-    
+
     // Set up database connection
     final dataModel = ManagedDataModel.fromCurrentMirrorSystem();
     final persistentStore = PostgreSQLPersistentStore.fromConnectionInfo(
@@ -100,8 +104,12 @@ class {{projectNamePascal}}Channel extends ApplicationChannel {
     context = ManagedContext(dataModel, persistentStore);
 
     // Set up auth server
-    final authStorage = ManagedAuthDelegate<User>(context);
-    authServer = AuthServer(authStorage);
+    authServer = AuthServer(ManagedAuthDelegate<User>(context));
+    appAuth = AppAuth(authServer, config.auth.clientId, config.auth.clientSecret);
+
+    if (config.createSchema ?? false) {
+      await createMissingSchema(context);
+    }
   }
 
   /// Construct the request channel.
@@ -115,35 +123,36 @@ class {{projectNamePascal}}Channel extends ApplicationChannel {
     final router = Router();
 
     // Health check
-    router.route("/health").link(() => HealthController());
+    router.route("/health").link(() => HealthController(context));
 
     // GraphQL endpoint
     router.route("/graphql").link(() => GraphqlController());
 
     // Authentication routes
-    router.route("/auth/register").link(() => RegisterController(context, authServer));
-    
-    router.route("/auth/login").link(() => AuthController(authServer));
-    
-    router.route("/auth/refresh").link(() => Authorizer.bearer(authServer))!
-      .link(() => AuthController(authServer));
+    router.route("/auth/register").link(() => RegisterController(context, appAuth));
+    router.route("/auth/login").link(() => LoginController(context, appAuth));
+    router.route("/auth/refresh").link(() => RefreshController(appAuth));
+
+    // Standard OAuth2 token endpoint (HTTP basic client credentials)
+    router.route("/auth/token").link(() => AuthController(authServer));
 
     // User routes - protected
     router.route("/users/[:id]")
       .link(() => Authorizer.bearer(authServer))!
       .link(() => UserController(context));
 
-    // Todo routes - protected  
+    // Todo routes - protected
     router.route("/todos/[:id]")
       .link(() => Authorizer.bearer(authServer))!
       .link(() => TodoController(context));
 
-    // API Documentation
+    // Static files
     router.route("/docs/*").link(() => FileController("public/"));
 
     return router;
   }
-}`,
+}
+`,
 
     // Configuration
     'lib/config.dart': `import '{{projectNameSnake}}.dart';
@@ -153,17 +162,29 @@ class {{projectNamePascal}}Configuration extends Configuration {
   {{projectNamePascal}}Configuration(String path) : super.fromFile(File(path));
 
   late DatabaseConfiguration database;
-  
-  @optionalConfiguration
-  int port = 8888;
-  
-  @optionalConfiguration
-  String host = "0.0.0.0";
-}`,
+
+  /// The OAuth2 client the API uses to issue tokens for /auth/login and /auth/register.
+  late ClientConfiguration auth;
+
+  /// Create the tables on startup when they do not exist (development convenience;
+  /// production databases are managed with \`conduit db upgrade\`).
+  bool? createSchema;
+}
+
+class ClientConfiguration extends Configuration {
+  late String clientId;
+  late String clientSecret;
+}
+`,
 
     'config.yaml': `# Conduit Configuration
-host: 0.0.0.0
-port: 8888
+# Tables are created on startup when missing; use \`conduit db upgrade\` for managed migrations.
+createSchema: true
+
+# OAuth2 client the API uses to issue tokens (change the secret in production)
+auth:
+  clientId: {{projectName}}
+  clientSecret: change-this-client-secret
 
 # Database Configuration
 database:
@@ -171,68 +192,55 @@ database:
   port: 5432
   username: conduit
   password: conduit
-  databaseName: {{projectNameSnake}}_db`,
+  databaseName: {{projectNameSnake}}_db
+`,
 
-    'config.src.yaml': `# Development Configuration
-host: localhost
-port: 8888
+    'config.src.yaml': `# Development / test configuration (used by the test harness)
+createSchema: false
+
+auth:
+  clientId: {{projectName}}
+  clientSecret: test-client-secret
 
 database:
   host: localhost
   port: 5432
   username: conduit
   password: conduit
-  databaseName: {{projectNameSnake}}_dev`,
+  databaseName: {{projectNameSnake}}_dev
+`,
 
     // Models
     'lib/model/user.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class User extends ManagedObject<_User> implements _User, ManagedAuthResourceOwner<_User> {
-  @Serialize(input: true, output: false)
-  String? password;
-
-  @override
-  void willInsert() {
-    salt = AuthUtility.generateRandomSalt();
-    hashedPassword = authServer!.hashPassword(password!, salt!);
-  }
-  
   Map<String, dynamic> toPublic() {
     return {
       'id': id,
       'username': username,
       'email': email,
+      'name': name,
       'createdAt': createdAt?.toIso8601String()};
   }
 }
 
+/// \`id\`, \`username\`, \`hashedPassword\`, \`salt\` and \`tokens\` come from
+/// [ResourceOwnerTableDefinition].
 @Table(name: "users")
 class _User extends ResourceOwnerTableDefinition {
   @Column(unique: true, indexed: true)
   String? email;
-  
+
   @Column()
   String? name;
-  
+
   @Column()
   DateTime? createdAt;
-  
+
   @Column()
   DateTime? updatedAt;
-  
+
   ManagedSet<Todo>? todos;
-  
-  @override
-  @Column(unique: true, indexed: true)
-  String? username;
-  
-  @override
-  @Column(omitByDefault: true)
-  String? hashedPassword;
-  
-  @override
-  @Column(omitByDefault: true)
-  String? salt;
 }
 
 class RegisterRequest extends Serializable {
@@ -240,16 +248,15 @@ class RegisterRequest extends Serializable {
   String? password;
   String? email;
   String? name;
-  
+
   @override
   Map<String, dynamic> asMap() {
     return {
       'username': username,
-      'password': password,
       'email': email,
       'name': name};
   }
-  
+
   @override
   void readFromMap(Map<String, dynamic> map) {
     username = map['username'] as String?;
@@ -257,7 +264,7 @@ class RegisterRequest extends Serializable {
     email = map['email'] as String?;
     name = map['name'] as String?;
   }
-  
+
   String? validate() {
     if (username == null || username!.isEmpty) {
       return 'Username is required';
@@ -278,20 +285,34 @@ class RegisterRequest extends Serializable {
 class LoginRequest extends Serializable {
   String? username;
   String? password;
-  
+
   @override
   Map<String, dynamic> asMap() {
     return {
-      'username': username,
-      'password': password};
+      'username': username};
   }
-  
+
   @override
   void readFromMap(Map<String, dynamic> map) {
     username = map['username'] as String?;
     password = map['password'] as String?;
   }
-}`,
+}
+
+class RefreshRequest extends Serializable {
+  String? refreshToken;
+
+  @override
+  Map<String, dynamic> asMap() {
+    return {};
+  }
+
+  @override
+  void readFromMap(Map<String, dynamic> map) {
+    refreshToken = (map['refresh_token'] ?? map['refreshToken']) as String?;
+  }
+}
+`,
 
     'lib/model/todo.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
@@ -317,7 +338,7 @@ class _Todo {
   @Column()
   DateTime? updatedAt;
   
-  @Relate(#todos)
+  @Relate(#todos, onDelete: DeleteRule.cascade, isRequired: true)
   User? user;
 }
 
@@ -367,130 +388,120 @@ class UpdateTodoRequest extends Serializable {
   }
 }`,
 
-    'lib/model/auth_token.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
-
-class AuthToken extends ManagedObject<_AuthToken> implements _AuthToken {}
-
-@Table(name: "auth_tokens")
-class _AuthToken extends ManagedAuthToken<_AuthToken> {
-  @Column()
-  DateTime? issuedAt;
-  
-  @Column()
-  DateTime? expiresAt;
-}`,
-
     // Controllers
     'lib/controller/register_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class RegisterController extends ResourceController {
-  RegisterController(this.context, this.authServer);
+  RegisterController(this.context, this.appAuth);
 
   final ManagedContext context;
-  final AuthServer authServer;
+  final AppAuth appAuth;
 
   @Operation.post()
-  Future<Response> createUser(@Bind.body() RegisterRequest request) async {
+  Future<Response> createUser(@Bind.body() RegisterRequest registerRequest) async {
     // Validate request
-    final error = request.validate();
+    final error = registerRequest.validate();
     if (error != null) {
       return Response.badRequest(body: {'error': error});
     }
 
     // Check if user exists
     final existingUserQuery = Query<User>(context)
-      ..where((u) => u.username).equalTo(request.username)
-      ..where((u) => u.email).equalTo(request.email);
+      ..where((u) => u.username).equalTo(registerRequest.username);
+    final emailQuery = Query<User>(context)
+      ..where((u) => u.email).equalTo(registerRequest.email);
 
-    final existingUser = await existingUserQuery.fetchOne();
-    if (existingUser != null) {
+    if (await existingUserQuery.fetchOne() != null || await emailQuery.fetchOne() != null) {
       return Response.conflict(body: {'error': 'User already exists'});
     }
 
     // Create user
+    final salt = generateRandomSalt();
     final user = User()
-      ..username = request.username
-      ..password = request.password
-      ..email = request.email
-      ..name = request.name
+      ..username = registerRequest.username
+      ..salt = salt
+      ..hashedPassword = appAuth.server.hashPassword(registerRequest.password!, salt)
+      ..email = registerRequest.email
+      ..name = registerRequest.name
       ..createdAt = DateTime.now()
       ..updatedAt = DateTime.now();
 
-    final insertedUser = await Query<User>(context)
-      ..values = user
-      ..returningProperties((u) => [u.id, u.username, u.email, u.name, u.createdAt])
-      ..insert();
+    final insertQuery = Query<User>(context)..values = user;
+    final insertedUser = await insertQuery.insert();
 
     // Generate auth token
-    final token = await authServer.authenticate(
-      request.username!,
-      request.password!,
-      request.asMap(),
-      duration: const Duration(days: 30),
+    final token = await appAuth.authenticate(
+      registerRequest.username!,
+      registerRequest.password!,
+      expiration: const Duration(days: 30),
     );
 
-    return Response.ok({
-      'user': insertedUser.toPublic(),
-      'token': token!.asMap()});
+    return Response.created(
+      '/users/\${insertedUser.id}',
+      body: {
+        'user': insertedUser.toPublic(),
+        'token': token.asMap()},
+    );
   }
-}`,
+}
+`,
 
     'lib/controller/auth_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
-class AuthController extends ResourceController {
-  AuthController(this.authServer);
+/// POST /auth/login: exchanges a username and password for an OAuth2 token.
+class LoginController extends ResourceController {
+  LoginController(this.context, this.appAuth);
 
-  final AuthServer authServer;
+  final ManagedContext context;
+  final AppAuth appAuth;
 
   @Operation.post()
-  Future<Response> login(@Bind.body() LoginRequest request) async {
-    final token = await authServer.authenticate(
-      request.username!,
-      request.password!,
-      request.asMap(),
-      duration: const Duration(hours: 24),
-    );
-
-    if (token == null) {
-      return Response.unauthorized();
+  Future<Response> login(@Bind.body() LoginRequest loginRequest) async {
+    if (loginRequest.username == null || loginRequest.password == null) {
+      return Response.badRequest(body: {'error': 'Username and password are required'});
     }
 
-    // Get user details
-    final userQuery = Query<User>(context!)
-      ..where((u) => u.username).equalTo(request.username);
-    
+    final AuthToken token;
+    try {
+      token = await appAuth.authenticate(loginRequest.username!, loginRequest.password!);
+    } on AuthServerException {
+      return Response.unauthorized(body: {'error': 'Invalid credentials'});
+    }
+
+    final userQuery = Query<User>(context)
+      ..where((u) => u.username).equalTo(loginRequest.username);
     final user = await userQuery.fetchOne();
 
     return Response.ok({
       'user': user?.toPublic(),
       'token': token.asMap()});
   }
+}
 
-  @Operation.post('refresh')
-  Future<Response> refresh(
-    @Bind.header(HttpHeaders.authorizationHeader) String authHeader,
-  ) async {
-    final currentToken = await authServer.verify(authHeader);
-    
-    if (currentToken == null) {
-      return Response.unauthorized();
+/// POST /auth/refresh: exchanges a refresh token for a new access token.
+class RefreshController extends ResourceController {
+  RefreshController(this.appAuth);
+
+  final AppAuth appAuth;
+
+  @Operation.post()
+  Future<Response> refresh(@Bind.body() RefreshRequest refreshRequest) async {
+    final refreshToken = refreshRequest.refreshToken;
+    if (refreshToken == null) {
+      return Response.badRequest(body: {'error': 'refresh_token is required'});
     }
 
-    // Issue new token
-    final newToken = await authServer.refresh(
-      currentToken.resourceOwnerIdentifier.toString(),
-      currentToken.clientID,
-      currentToken.scopes?.map((s) => s.toString()).toList(),
-    );
-
-    if (newToken == null) {
-      return Response.unauthorized();
+    final AuthToken token;
+    try {
+      token = await appAuth.refresh(refreshToken);
+    } on AuthServerException {
+      return Response.unauthorized(body: {'error': 'Invalid refresh token'});
     }
 
-    return Response.ok({
-      'token': newToken.asMap()});
+    return Response.ok({'token': token.asMap()});
   }
-}`,
+}
+`,
 
     'lib/controller/user_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
@@ -499,21 +510,21 @@ class UserController extends ResourceController {
 
   final ManagedContext context;
 
+  int? get _userId => request!.authorization!.ownerID;
+
   @Operation.get()
   Future<Response> getAllUsers() async {
-    final userQuery = Query<User>(context)
-      ..returningProperties((u) => [u.id, u.username, u.email, u.name, u.createdAt]);
+    final userQuery = Query<User>(context);
 
     final users = await userQuery.fetch();
-    
+
     return Response.ok(users.map((u) => u.toPublic()).toList());
   }
 
   @Operation.get('id')
   Future<Response> getUserByID(@Bind.path('id') int id) async {
     final userQuery = Query<User>(context)
-      ..where((u) => u.id).equalTo(id)
-      ..returningProperties((u) => [u.id, u.username, u.email, u.name, u.createdAt]);
+      ..where((u) => u.id).equalTo(id);
 
     final user = await userQuery.fetchOne();
 
@@ -530,16 +541,20 @@ class UserController extends ResourceController {
     @Bind.body() Map<String, dynamic> body,
   ) async {
     // Only allow users to update their own profile
-    if (request!.authorization!.resourceOwnerIdentifier != id) {
+    if (_userId != id) {
       return Response.forbidden();
     }
 
     final updateQuery = Query<User>(context)
-      ..where((u) => u.id).equalTo(id)
-      ..values.name = body['name'] as String?
-      ..values.email = body['email'] as String?
-      ..values.updatedAt = DateTime.now()
-      ..returningProperties((u) => [u.id, u.username, u.email, u.name, u.createdAt]);
+      ..where((u) => u.id).equalTo(id);
+
+    if (body['name'] is String) {
+      updateQuery.values.name = body['name'] as String;
+    }
+    if (body['email'] is String) {
+      updateQuery.values.email = body['email'] as String;
+    }
+    updateQuery.values.updatedAt = DateTime.now();
 
     final updatedUser = await updateQuery.updateOne();
 
@@ -553,7 +568,7 @@ class UserController extends ResourceController {
   @Operation.delete('id')
   Future<Response> deleteUser(@Bind.path('id') int id) async {
     // Only allow users to delete their own profile
-    if (request!.authorization!.resourceOwnerIdentifier != id) {
+    if (_userId != id) {
       return Response.forbidden();
     }
 
@@ -568,7 +583,8 @@ class UserController extends ResourceController {
 
     return Response.noContent();
   }
-}`,
+}
+`,
 
     'lib/controller/todo_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
@@ -577,12 +593,12 @@ class TodoController extends ResourceController {
 
   final ManagedContext context;
 
+  int? get _userId => request!.authorization!.ownerID;
+
   @Operation.get()
   Future<Response> getAllTodos() async {
-    final userId = request!.authorization!.resourceOwnerIdentifier;
-    
     final todoQuery = Query<Todo>(context)
-      ..where((t) => t.user!.id).equalTo(userId)
+      ..where((t) => t.user!.id).equalTo(_userId)
       ..sortBy((t) => t.createdAt, QuerySortOrder.descending);
 
     final todos = await todoQuery.fetch();
@@ -597,30 +613,25 @@ class TodoController extends ResourceController {
       return Response.badRequest(body: {'error': error});
     }
 
-    final userId = request!.authorization!.resourceOwnerIdentifier;
-
     final todo = Todo()
       ..title = todoRequest.title
       ..description = todoRequest.description
       ..completed = false
       ..createdAt = DateTime.now()
       ..updatedAt = DateTime.now()
-      ..user = User()..id = userId;
+      ..user = (User()..id = _userId);
 
-    final insertedTodo = await Query<Todo>(context)
-      ..values = todo
-      ..insert();
+    final insertQuery = Query<Todo>(context)..values = todo;
+    final insertedTodo = await insertQuery.insert();
 
-    return Response.ok(insertedTodo);
+    return Response.created('/todos/\${insertedTodo.id}', body: insertedTodo);
   }
 
   @Operation.get('id')
   Future<Response> getTodoByID(@Bind.path('id') int id) async {
-    final userId = request!.authorization!.resourceOwnerIdentifier;
-
     final todoQuery = Query<Todo>(context)
       ..where((t) => t.id).equalTo(id)
-      ..where((t) => t.user!.id).equalTo(userId);
+      ..where((t) => t.user!.id).equalTo(_userId);
 
     final todo = await todoQuery.fetchOne();
 
@@ -636,11 +647,9 @@ class TodoController extends ResourceController {
     @Bind.path('id') int id,
     @Bind.body() UpdateTodoRequest updateRequest,
   ) async {
-    final userId = request!.authorization!.resourceOwnerIdentifier;
-
     final updateQuery = Query<Todo>(context)
       ..where((t) => t.id).equalTo(id)
-      ..where((t) => t.user!.id).equalTo(userId);
+      ..where((t) => t.user!.id).equalTo(_userId);
 
     if (updateRequest.title != null) {
       updateQuery.values.title = updateRequest.title;
@@ -664,11 +673,9 @@ class TodoController extends ResourceController {
 
   @Operation.delete('id')
   Future<Response> deleteTodo(@Bind.path('id') int id) async {
-    final userId = request!.authorization!.resourceOwnerIdentifier;
-
     final deleteQuery = Query<Todo>(context)
       ..where((t) => t.id).equalTo(id)
-      ..where((t) => t.user!.id).equalTo(userId);
+      ..where((t) => t.user!.id).equalTo(_userId);
 
     final deletedCount = await deleteQuery.delete();
 
@@ -678,7 +685,8 @@ class TodoController extends ResourceController {
 
     return Response.noContent();
   }
-}`,
+}
+`,
 
     // GraphQL schema + controller (Dart GraphQL: graphql package)
     'lib/graphql/schema.dart': `// Minimal GraphQL schema for Conduit: type Query { hello: String!, health: String! }
@@ -693,35 +701,31 @@ class GraphqlResolvers {
   static const String helloValue = 'Hello from Conduit GraphQL!';
   static const String healthValue = 'healthy';
 
+  /// Resolves the top-level fields named in [query].
   static Map<String, dynamic> resolve(String query) {
-    // Minimal resolver returning hello and health. Full parsing via the
-    // graphql package.
     return {
-      'data': {
-        'hello': helloValue,
-        'health': healthValue}
-    };
+      if (query.contains('hello')) 'hello': helloValue,
+      if (query.contains('health')) 'health': healthValue};
   }
 }
 `,
 
-    'lib/controller/graphql_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
+    'lib/controller/graphql_controller.dart': `import 'package:{{projectNameSnake}}/graphql/schema.dart';
+import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class GraphqlController extends ResourceController {
   @Operation.post()
-  Future<Response> handle() async {
-    final body = await request!.body.decode<Map<String, dynamic>>();
+  Future<Response> graphql(@Bind.body() Map<String, dynamic> body) async {
     final query = body['query'] as String? ?? '';
-    final result = _resolve(query);
-    return Response.ok(result);
-  }
+    final result = GraphqlResolvers.resolve(query);
 
-  Map<String, dynamic> _resolve(String query) {
-    return {
-      'data': {
-        'hello': 'Hello from Conduit GraphQL!',
-        'health': 'healthy'}
-    };
+    if (result.isEmpty) {
+      return Response.badRequest(body: {
+        'errors': [
+          {'message': 'Query must select hello and/or health'}]});
+    }
+
+    return Response.ok({'data': result});
   }
 }
 `,
@@ -729,16 +733,20 @@ class GraphqlController extends ResourceController {
     'lib/controller/health_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class HealthController extends ResourceController {
+  HealthController(this.context);
+
+  final ManagedContext context;
+
   @Operation.get()
   Future<Response> checkHealth() async {
-    final health = {
+    final health = <String, dynamic>{
       'status': 'healthy',
       'timestamp': DateTime.now().toIso8601String(),
       'version': '1.0.0'};
 
     // Check database connection
     try {
-      final testQuery = Query<User>(context!)..fetchLimit = 1;
+      final testQuery = Query<User>(context)..fetchLimit = 1;
       await testQuery.fetch();
       health['database'] = true;
     } catch (e) {
@@ -748,7 +756,8 @@ class HealthController extends ResourceController {
 
     return Response.ok(health);
   }
-}`,
+}
+`,
 
     // Entry point
     'bin/main.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
@@ -756,125 +765,71 @@ class HealthController extends ResourceController {
 Future main() async {
   final app = Application<{{projectNamePascal}}Channel>()
     ..options.configurationFilePath = "config.yaml"
-    ..options.port = 8888;
+    ..options.port = int.tryParse(Platform.environment['PORT'] ?? '') ?? 8888;
 
   await app.startOnCurrentIsolate();
 
   print("Application started on port: \${app.options.port}.");
   print("Use Ctrl-C (SIGINT) to stop running the application.");
-}`,
+}
+`,
 
     // Migration files
     'migrations/00000001_initial.migration.dart': `import 'dart:async';
-import 'package:conduit/conduit.dart';
+import 'package:conduit_core/conduit_core.dart';
 
-class Migration1 extends Migration {
+
+class Migration1 extends Migration { 
   @override
   Future upgrade() async {
-    // Create users table
-    database.createTable(SchemaTable("users", [
-      SchemaColumn("id", ManagedPropertyType.bigInteger,
-          isPrimaryKey: true, autoincrement: true, isIndexed: false, isNullable: false, isUnique: false),
-      SchemaColumn("username", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: false, isUnique: true),
-      SchemaColumn("hashedPassword", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),
-      SchemaColumn("salt", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),
-      SchemaColumn("email", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: false, isUnique: true),
-      SchemaColumn("name", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),
-      SchemaColumn("createdAt", ManagedPropertyType.datetime,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),
-      SchemaColumn("updatedAt", ManagedPropertyType.datetime,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false)]));
-
-    // Create todos table
-    database.createTable(SchemaTable("todos", [
-      SchemaColumn("id", ManagedPropertyType.bigInteger,
-          isPrimaryKey: true, autoincrement: true, isIndexed: false, isNullable: false, isUnique: false),
-      SchemaColumn("title", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),
-      SchemaColumn("description", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),
-      SchemaColumn("completed", ManagedPropertyType.boolean,
-          isPrimaryKey: false, autoincrement: false, defaultValue: "false", isIndexed: false, isNullable: false, isUnique: false),
-      SchemaColumn("createdAt", ManagedPropertyType.datetime,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),
-      SchemaColumn("updatedAt", ManagedPropertyType.datetime,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false)]));
-
-    // Add foreign key for todos.user_id
-    database.addColumn("todos", SchemaColumn.relationship("user", ManagedPropertyType.bigInteger,
-        relatedTableName: "users", relatedColumnName: "id", rule: DeleteRule.cascade, isNullable: false, isUnique: false));
-
-    // Create auth tokens table
-    database.createTable(SchemaTable("auth_tokens", [
-      SchemaColumn("id", ManagedPropertyType.bigInteger,
-          isPrimaryKey: true, autoincrement: true, isIndexed: false, isNullable: false, isUnique: false),
-      SchemaColumn("code", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: true, isUnique: true),
-      SchemaColumn("accessToken", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: true, isUnique: true),
-      SchemaColumn("refreshToken", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: true, isUnique: true),
-      SchemaColumn("scope", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),
-      SchemaColumn("issueDate", ManagedPropertyType.datetime,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),
-      SchemaColumn("expirationDate", ManagedPropertyType.datetime,
-          isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: false, isUnique: false),
-      SchemaColumn("type", ManagedPropertyType.string,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),
-      SchemaColumn("issuedAt", ManagedPropertyType.datetime,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),
-      SchemaColumn("expiresAt", ManagedPropertyType.datetime,
-          isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false)]));
-
-    // Add foreign keys for auth tokens
-    database.addColumn("auth_tokens", SchemaColumn.relationship("resourceOwner", ManagedPropertyType.bigInteger,
-        relatedTableName: "users", relatedColumnName: "id", rule: DeleteRule.cascade, isNullable: false, isUnique: false));
-    database.addColumn("auth_tokens", SchemaColumn.relationship("client", ManagedPropertyType.string,
-        relatedTableName: "_authclient", relatedColumnName: "id", rule: DeleteRule.cascade, isNullable: true, isUnique: false));
+   		database.createTable(SchemaTable("_authclient", [SchemaColumn("id", ManagedPropertyType.string, isPrimaryKey: true, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("hashedSecret", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),SchemaColumn("salt", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),SchemaColumn("redirectURI", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),SchemaColumn("allowedScope", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false)]));
+		database.createTable(SchemaTable("_authtoken", [SchemaColumn("id", ManagedPropertyType.bigInteger, isPrimaryKey: true, autoincrement: true, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("code", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: true, isUnique: true),SchemaColumn("accessToken", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: true, isUnique: true),SchemaColumn("refreshToken", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: true, isUnique: true),SchemaColumn("scope", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),SchemaColumn("issueDate", ManagedPropertyType.datetime, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("expirationDate", ManagedPropertyType.datetime, isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: false, isUnique: false),SchemaColumn("type", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: true, isUnique: false)]));
+		database.createTable(SchemaTable("users", [SchemaColumn("email", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: false, isUnique: true),SchemaColumn("name", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("createdAt", ManagedPropertyType.datetime, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("updatedAt", ManagedPropertyType.datetime, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("id", ManagedPropertyType.bigInteger, isPrimaryKey: true, autoincrement: true, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("username", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: true, isNullable: false, isUnique: true),SchemaColumn("hashedPassword", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("salt", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false)]));
+		database.createTable(SchemaTable("todos", [SchemaColumn("id", ManagedPropertyType.bigInteger, isPrimaryKey: true, autoincrement: true, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("title", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("description", ManagedPropertyType.string, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: true, isUnique: false),SchemaColumn("completed", ManagedPropertyType.boolean, isPrimaryKey: false, autoincrement: false, defaultValue: "false", isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("createdAt", ManagedPropertyType.datetime, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false),SchemaColumn("updatedAt", ManagedPropertyType.datetime, isPrimaryKey: false, autoincrement: false, isIndexed: false, isNullable: false, isUnique: false)]));
+		database.addColumn("_authtoken", SchemaColumn.relationship("resourceOwner", ManagedPropertyType.bigInteger, relatedTableName: "users", relatedColumnName: "id", rule: DeleteRule.cascade, isNullable: false, isUnique: false));
+		database.addColumn("_authtoken", SchemaColumn.relationship("client", ManagedPropertyType.string, relatedTableName: "_authclient", relatedColumnName: "id", rule: DeleteRule.cascade, isNullable: false, isUnique: false));
+		database.addColumn("todos", SchemaColumn.relationship("user", ManagedPropertyType.bigInteger, relatedTableName: "users", relatedColumnName: "id", rule: DeleteRule.cascade, isNullable: false, isUnique: false));
   }
-
+  
   @override
   Future downgrade() async {}
-
+  
   @override
   Future seed() async {}
-}`,
+}
+    `,
 
     // Tests
-    'test/harness/app.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
-import 'package:conduit_test/conduit_test.dart';
+    'test/harness/app.dart': `import 'package:conduit_test/conduit_test.dart';
+import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
-export 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
-export 'package:conduit_test/conduit_test.dart';
-export 'package:test/test.dart';
 export 'package:conduit/conduit.dart';
+export 'package:conduit_test/conduit_test.dart';
+export 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
+export 'package:test/test.dart';
 
 /// A testing harness for {{projectName}}.
 ///
-/// A harness for testing an conduit application. Example test file:
+/// Starts the application on a random port with \`config.src.yaml\` and gives every
+/// test a fresh (temporary) copy of the database schema.
 ///
 ///     void main() {
-///       Harness harness = Harness()..install();
+///       final harness = Harness()..install();
 ///
-///       test("GET /path returns 200", () async {
-///         final response = await harness.agent.get("/path");
+///       test("GET /health returns 200", () async {
+///         final response = await harness.agent!.get("/health");
 ///         expectResponse(response, 200);
 ///       });
 ///     }
-///
-class Harness extends TestHarness<{{projectNamePascal}}Channel> {
+class Harness extends TestHarness<{{projectNamePascal}}Channel> with TestHarnessORMMixin {
   @override
-  Future onSetUp() async {}
+  ManagedContext? get context => channel!.context;
 
   @override
-  Future onTearDown() async {}
-  
+  Future afterStart() async {
+    await resetData();
+  }
+
   Future<Map<String, dynamic>> registerUser({
     String username = 'testuser',
     String password = 'password123',
@@ -885,26 +840,29 @@ class Harness extends TestHarness<{{projectNamePascal}}Channel> {
       'password': password,
       'email': email,
       'name': name});
-    
-    return response.body.as<Map<String, dynamic>>();
+
+    return response!.body.as<Map<String, dynamic>>();
   }
-  
+
   Future<String> getAuthToken({
     String username = 'testuser',
     String password = 'password123'}) async {
     final response = await agent!.post('/auth/login', body: {
       'username': username,
       'password': password});
-    
-    final body = response.body.as<Map<String, dynamic>>();
+
+    final body = response!.body.as<Map<String, dynamic>>();
     return body['token']['access_token'] as String;
   }
-}`,
+}
+`,
 
     'test/auth_test.dart': `import 'harness/app.dart';
 
 void main() {
   final harness = Harness()..install();
+
+  tearDown(harness.resetData);
 
   group('Authentication', () {
     test('POST /auth/register creates new user', () async {
@@ -914,9 +872,21 @@ void main() {
         'email': 'new@example.com',
         'name': 'New User'});
 
-      expectResponse(response, 200);
-      expect(response.body.as<Map>()['user']['username'], 'newuser');
+      expectResponse(response, 201);
+      expect(response!.body.as<Map>()['user']['username'], 'newuser');
       expect(response.body.as<Map>()['token'], isNotNull);
+    });
+
+    test('POST /auth/register rejects duplicates', () async {
+      await harness.registerUser();
+
+      final response = await harness.agent!.post('/auth/register', body: {
+        'username': 'testuser',
+        'password': 'password123',
+        'email': 'other@example.com',
+        'name': 'Other'});
+
+      expectResponse(response, 409);
     });
 
     test('POST /auth/login with valid credentials returns token', () async {
@@ -927,7 +897,7 @@ void main() {
         'password': 'password123'});
 
       expectResponse(response, 200);
-      expect(response.body.as<Map>()['token'], isNotNull);
+      expect(response!.body.as<Map>()['token'], isNotNull);
       expect(response.body.as<Map>()['user']['username'], 'testuser');
     });
 
@@ -938,22 +908,34 @@ void main() {
 
       expectResponse(response, 401);
     });
+
+    test('POST /auth/refresh returns a new token', () async {
+      final registered = await harness.registerUser();
+      final refreshToken = registered['token']['refresh_token'];
+
+      final response = await harness.agent!.post('/auth/refresh', body: {'refresh_token': refreshToken});
+
+      expectResponse(response, 200);
+      expect(response!.body.as<Map>()['token']['access_token'], isNotNull);
+    });
   });
-}`,
+}
+`,
 
     'test/todo_test.dart': `import 'harness/app.dart';
 
 void main() {
   final harness = Harness()..install();
 
+  late String authToken;
+
+  setUp(() async {
+    await harness.resetData();
+    await harness.registerUser();
+    authToken = await harness.getAuthToken();
+  });
+
   group('Todos', () {
-    late String authToken;
-
-    setUpAll(() async {
-      await harness.registerUser();
-      authToken = await harness.getAuthToken();
-    });
-
     test('GET /todos returns user todos', () async {
       final response = await harness.agent!.get(
         '/todos',
@@ -961,7 +943,7 @@ void main() {
       );
 
       expectResponse(response, 200);
-      expect(response.body.as<List>(), isEmpty);
+      expect(response!.body.as<List>(), isEmpty);
     });
 
     test('POST /todos creates new todo', () async {
@@ -973,9 +955,32 @@ void main() {
           'description': 'Test Description'},
       );
 
-      expectResponse(response, 200);
-      expect(response.body.as<Map>()['title'], 'Test Todo');
+      expectResponse(response, 201);
+      expect(response!.body.as<Map>()['title'], 'Test Todo');
       expect(response.body.as<Map>()['completed'], false);
+    });
+
+    test('PUT and DELETE /todos/:id', () async {
+      final created = await harness.agent!.post(
+        '/todos',
+        headers: {'Authorization': 'Bearer $authToken'},
+        body: {'title': 'Test Todo'},
+      );
+      final id = created!.body.as<Map>()['id'];
+
+      final updated = await harness.agent!.put(
+        '/todos/$id',
+        headers: {'Authorization': 'Bearer $authToken'},
+        body: {'completed': true},
+      );
+      expectResponse(updated, 200);
+      expect(updated!.body.as<Map>()['completed'], true);
+
+      final deleted = await harness.agent!.delete(
+        '/todos/$id',
+        headers: {'Authorization': 'Bearer $authToken'},
+      );
+      expectResponse(deleted, 204);
     });
 
     test('Unauthorized request returns 401', () async {
@@ -983,7 +988,8 @@ void main() {
       expectResponse(response, 401);
     });
   });
-}`,
+}
+`,
 
     // Docker configuration
     'Dockerfile': `# Build stage
@@ -1155,22 +1161,19 @@ dart pub get
    GRANT ALL PRIVILEGES ON DATABASE {{projectNameSnake}}_db TO conduit;
    \`\`\`
 
-2. Run migrations:
+2. Create the tables: either start the app (\`createSchema: true\` in \`config.yaml\` creates them when missing)
+   or apply the migration with the Conduit CLI:
    \`\`\`bash
    conduit db upgrade --connect postgres://conduit:conduit@localhost:5432/{{projectNameSnake}}_db
    \`\`\`
 
 ## Running the Application
 
-Development:
-\`\`\`bash
-conduit serve
-\`\`\`
-
-Production:
 \`\`\`bash
 dart run bin/main.dart
 \`\`\`
+
+or, with the Conduit CLI, \`conduit serve\`.
 
 The API will be available at \`http://localhost:8888\`.
 
@@ -1295,4 +1298,64 @@ linter:
     - prefer_void_to_null
     - test_types_in_equals
     - throw_in_finally
-    - unnecessary_statements`}};
+    - unnecessary_statements`,
+
+    'lib/auth.dart': `import '{{projectNameSnake}}.dart';
+
+/// Issues OAuth2 tokens on behalf of the API's own (confidential) client.
+class AppAuth {
+  AppAuth(this.server, this.clientId, this.clientSecret);
+
+  final AuthServer server;
+  final String clientId;
+  final String clientSecret;
+
+  /// Registers the client in the database the first time it is needed.
+  Future<void> ensureClient() async {
+    if (await server.getClient(clientId) == null) {
+      await server.addClient(generateAPICredentialPair(clientId, clientSecret));
+    }
+  }
+
+  Future<AuthToken> authenticate(String username, String password, {Duration expiration = const Duration(hours: 24)}) async {
+    await ensureClient();
+    return server.authenticate(username, password, clientId, clientSecret, expiration: expiration);
+  }
+
+  Future<AuthToken> refresh(String refreshToken) async {
+    await ensureClient();
+    return server.refresh(refreshToken, clientId, clientSecret);
+  }
+}
+
+/// Creates the application tables when the users table does not exist yet.
+Future<void> createMissingSchema(ManagedContext context) async {
+  final existing = await context.persistentStore.execute(
+    "SELECT 1 FROM information_schema.tables WHERE table_name = 'users'",
+  ) as List;
+  if (existing.isNotEmpty) return;
+
+  final builder = SchemaBuilder.toSchema(context.persistentStore, Schema.fromDataModel(context.dataModel!));
+  for (final command in builder.commands) {
+    await context.persistentStore.execute(command);
+  }
+}
+`,
+
+    'test/health_test.dart': `import 'harness/app.dart';
+
+void main() {
+  final harness = Harness()..install();
+
+  test('GET /health reports the database', () async {
+    final response = await harness.agent!.get('/health');
+    expectResponse(response, 200, body: partial({'status': 'healthy', 'database': true}));
+  });
+
+  test('POST /graphql resolves hello and health', () async {
+    final response = await harness.agent!.post('/graphql', body: {'query': '{ hello health }'});
+    expectResponse(response, 200);
+    expect(response!.body.as<Map>()['data']['health'], 'healthy');
+  });
+}
+`}};
