@@ -126,14 +126,14 @@ status of each code is read from the CLI sources every time it is regenerated, s
 it cannot claim a code is emitted when nothing emits it.
 
 <!-- BEGIN GENERATED: error-codes -->
-The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (115 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
+The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (134 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
 
 | Code | Status | Emitted from |
 | --- | --- | --- |
 | `NOT_IN_MONOREPO` | emitted | `packages/cli/src/commands/analyze.ts`, `packages/cli/src/commands/ink-tui.tsx`, `packages/cli/src/commands/workspace.ts`, `packages/cli/src/groups/security/audit-trail.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
 | `LIST_WORKSPACES_ERROR` | emitted | `packages/cli/src/commands/workspace.ts` |
 | `GRAPH_GENERATION_ERROR` | emitted | `packages/cli/src/commands/workspace.ts` |
-| `WORKSPACE_NOT_FOUND` | emitted | `packages/cli/src/commands/workspace.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
+| `WORKSPACE_NOT_FOUND` | emitted | `packages/cli/src/commands/pkg.ts`, `packages/cli/src/commands/workspace.ts`, `packages/cli/src/debug/engine.ts`, `packages/cli/src/iac/generate.ts`, `packages/cli/src/refactor/engine.ts`, `packages/cli/src/utils/workspace-definition-adapter.ts` |
 | `TEMPLATE_NOT_FOUND` | emitted | `packages/cli/src/commands/workspace.ts`, `packages/cli/src/groups/templates.group.ts`, `packages/cli/src/utils/create-request.ts` |
 | `INVALID_VARIABLES` | reserved | |
 | `NOT_IN_RESHELL_PROJECT` | emitted | `packages/cli/src/commands/list.ts` |
@@ -145,7 +145,7 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (115 codes). A code
 | `DOCTOR_ERROR` | emitted | `packages/cli/src/commands/doctor.ts` |
 | `ANALYZE_ERROR` | emitted | `packages/cli/src/commands/analyze.ts` |
 | `HEALTH_CHECK_ERROR` | reserved | |
-| `SCHEMA_VALIDATION_ERROR` | emitted | `packages/cli/src/commands/plugin-create.ts`, `packages/cli/src/groups/config/schema.ts` |
+| `SCHEMA_VALIDATION_ERROR` | emitted | `packages/cli/src/commands/pkg.ts`, `packages/cli/src/commands/plugin-create.ts`, `packages/cli/src/debug/engine.ts`, `packages/cli/src/groups/config/schema.ts`, `packages/cli/src/iac/generate.ts`, `packages/cli/src/refactor/engine.ts` |
 | `MONOREPO_MIGRATE_ERROR` | emitted | `packages/cli/src/groups/workspace.group.ts` |
 | `TEMPLATES_MATRIX_ERROR` | emitted | `packages/cli/src/groups/templates.group.ts` |
 | `TEMPLATE_DRY_RUN_ERROR` | emitted | `packages/cli/src/groups/templates.group.ts`, `packages/cli/src/index.ts` |
@@ -245,6 +245,25 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (115 codes). A code
 | `AUDIT_ERROR` | emitted | `packages/cli/src/groups/security/audit-trail.ts` |
 | `COMPLIANCE_ERROR` | emitted | `packages/cli/src/groups/security/audit-trail.ts` |
 | `PROFILE_ERROR` | emitted | `packages/cli/src/groups/config/profile.ts` |
+| `PKG_ERROR` | emitted | `packages/cli/src/commands/pkg.ts`, `packages/cli/src/pkg/engine.ts`, `packages/cli/src/pkg/manifest-edit.ts`, `packages/cli/src/pkg/types.ts` |
+| `PKG_TOOLCHAIN_MISSING` | emitted | `packages/cli/src/pkg/engine.ts`, `packages/cli/src/pkg/types.ts` |
+| `PKG_ECOSYSTEM_UNDETECTED` | emitted | `packages/cli/src/pkg/engine.ts`, `packages/cli/src/pkg/types.ts` |
+| `PKG_ECOSYSTEM_AMBIGUOUS` | emitted | `packages/cli/src/pkg/engine.ts`, `packages/cli/src/pkg/types.ts` |
+| `PKG_UNSUPPORTED_OPERATION` | emitted | `packages/cli/src/pkg/commands.ts`, `packages/cli/src/pkg/types.ts` |
+| `PKG_INVALID_ARGS` | emitted | `packages/cli/src/commands/pkg.ts`, `packages/cli/src/pkg/commands.ts`, `packages/cli/src/pkg/engine.ts`, `packages/cli/src/pkg/manifest-edit.ts`, `packages/cli/src/pkg/types.ts` |
+| `PKG_COMMAND_FAILED` | emitted | `packages/cli/src/pkg/engine.ts`, `packages/cli/src/pkg/types.ts` |
+| `DEBUG_CONFIG_ERROR` | emitted | `packages/cli/src/commands/debug-config.ts`, `packages/cli/src/debug/engine.ts` |
+| `REFACTOR_ERROR` | emitted | `packages/cli/src/commands/refactor.ts`, `packages/cli/src/refactor/engine.ts` |
+| `REFACTOR_SERVICE_NOT_FOUND` | emitted | `packages/cli/src/refactor/engine.ts` |
+| `REFACTOR_INVALID_NAME` | emitted | `packages/cli/src/refactor/engine.ts` |
+| `REFACTOR_NAME_COLLISION` | emitted | `packages/cli/src/refactor/engine.ts` |
+| `REFACTOR_DIRTY_TREE` | emitted | `packages/cli/src/refactor/engine.ts` |
+| `IAC_ERROR` | emitted | `packages/cli/src/commands/cloud-iac.ts`, `packages/cli/src/iac/deploy.ts`, `packages/cli/src/iac/generate.ts` |
+| `IAC_VALIDATE_ERROR` | emitted | `packages/cli/src/commands/cloud-iac.ts`, `packages/cli/src/iac/generate.ts` |
+| `IAC_TERRAFORM_MISSING` | emitted | `packages/cli/src/commands/cloud-iac.ts`, `packages/cli/src/iac/deploy.ts`, `packages/cli/src/iac/generate.ts` |
+| `CLOUD_CREDENTIALS_MISSING` | emitted | `packages/cli/src/iac/deploy.ts`, `packages/cli/src/iac/generate.ts` |
+| `CLOUD_DEPLOY_CONFIRMATION_REQUIRED` | emitted | `packages/cli/src/iac/deploy.ts`, `packages/cli/src/iac/generate.ts` |
+| `CLOUD_DEPLOY_ERROR` | emitted | `packages/cli/src/iac/deploy.ts`, `packages/cli/src/iac/generate.ts` |
 <!-- END GENERATED: error-codes -->
 
 ---

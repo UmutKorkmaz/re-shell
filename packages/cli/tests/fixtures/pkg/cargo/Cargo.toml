@@ -1,0 +1,18 @@
+[package]
+name = "fixture-cargo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+tokio = "1.37"
+local-helper = { path = "../helper" }
+
+[dev-dependencies]
+tempfile = "3"
+
+[build-dependencies]
+cc = "1.0"
+
+[target.'cfg(windows)'.dependencies]
+winapi = "0.3"

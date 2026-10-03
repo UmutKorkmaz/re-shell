@@ -1,0 +1,10 @@
+name: ci
+on: [push]
+jobs:
+  billing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: mvn -f services/billing/pom.xml -B verify
+        env:
+          BILLING_URL: http://localhost:8081

@@ -1,0 +1,8 @@
+{
+  "name": "fixture-node",
+  "version": "1.0.0",
+  "dependencies": { "express": "^4.18.2", "@scope/lib": "~1.2.0" },
+  "devDependencies": { "typescript": "^5.4.0" },
+  "optionalDependencies": { "fsevents": "^2.3.3" },
+  "peerDependencies": { "react": ">=18" }
+}

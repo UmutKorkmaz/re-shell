@@ -1,0 +1,89 @@
+name: IaC Validate
+
+# Generates Terraform for AWS (ECS Fargate), Azure (Container Apps) and GCP
+# (Cloud Run) from the polyglot fixture workspace and validates it with a real
+# terraform: fmt -check, init -backend=false (downloads the providers from the
+# registry) and validate. No cloud credentials are used or needed.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/cli/src/iac/**'
+      - 'packages/cli/src/commands/cloud-iac.ts'
+      - 'packages/cli/src/groups/cloud-iac.group.ts'
+      - 'packages/cli/tests/fixtures/polyglot-workspace/**'
+      - '.github/workflows/iac-validate.yml'
+  pull_request:
+    paths:
+      - 'packages/cli/src/iac/**'
+      - 'packages/cli/src/commands/cloud-iac.ts'
+      - 'packages/cli/src/groups/cloud-iac.group.ts'
+      - 'packages/cli/tests/fixtures/polyglot-workspace/**'
+      - '.github/workflows/iac-validate.yml'
+  workflow_dispatch:
+
+jobs:
+  terraform-validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [aws, azure, gcp]
+        terraform: ['1.9.8']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ matrix.terraform }}
+          terraform_wrapper: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r build
+
+      - name: Generate Terraform (${{ matrix.provider }})
+        working-directory: packages/cli/tests/fixtures/polyglot-workspace
+        run: node ../../../dist/index.js cloud iac generate --provider ${{ matrix.provider }} --out "$RUNNER_TEMP/tf-${{ matrix.provider }}"
+
+      - name: terraform fmt -check
+        working-directory: ${{ runner.temp }}/tf-${{ matrix.provider }}
+        run: terraform fmt -check -diff
+
+      - name: terraform init -backend=false
+        working-directory: ${{ runner.temp }}/tf-${{ matrix.provider }}
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        working-directory: ${{ runner.temp }}/tf-${{ matrix.provider }}
+        run: terraform validate
+
+      - name: Same checks through the CLI (re-shell cloud iac generate --validate)
+        working-directory: packages/cli/tests/fixtures/polyglot-workspace
+        run: node ../../../dist/index.js cloud iac generate --provider ${{ matrix.provider }} --out "$RUNNER_TEMP/tf-cli-${{ matrix.provider }}" --validate
+
+  iac-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+          terraform_wrapper: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r build
+      - name: IaC unit + integration tests (real terraform)
+        working-directory: packages/cli
+        run: npx vitest run tests/unit/iac-generate.test.ts tests/unit/iac-deploy.test.ts tests/integration/iac-cli.test.ts

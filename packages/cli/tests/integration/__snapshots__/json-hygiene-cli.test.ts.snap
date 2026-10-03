@@ -73,10 +73,13 @@ cloud aws
 cloud azure
 cloud cost
 cloud db
+cloud deploy
 cloud dr
 cloud gcp
 cloud hybrid
-cloud iac
+cloud iac generate
+cloud iac scaffold
+cloud iac validate
 cloud multi
 cloud network
 cloud resources
@@ -235,6 +238,7 @@ data format
 data lineage
 data schema
 data serialize
+debug config
 dev
 doctor
 env init
@@ -284,6 +288,11 @@ observe logs
 observe metrics
 observe scale
 observe trace
+pkg add
+pkg install
+pkg list
+pkg outdated
+pkg remove
 plugin auto-resolve
 plugin cache-stats
 plugin categories
@@ -370,6 +379,7 @@ quality test frameworks
 quality test info
 quality test list
 quality test run
+refactor rename-service
 release
 remove
 run
