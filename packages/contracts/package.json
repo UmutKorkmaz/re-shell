@@ -31,11 +31,12 @@
     },
     "./command-registry": {
       "types": "./dist/command-registry.d.ts",
-      "import": "./dist/command-registry.js"
+      "import": "./dist/command-registry.js",
+      "require": "./dist/cjs/command-registry.js"
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "echo 'contracts: no linter configured'"
