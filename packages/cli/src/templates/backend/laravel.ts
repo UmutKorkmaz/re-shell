@@ -7,7 +7,7 @@ export const laravelTemplate: BackendTemplate = {
   description: 'Enterprise PHP framework with Eloquent ORM, migrations, queues, and comprehensive features',
   language: 'php',
   framework: 'laravel',
-  version: '10.x',
+  version: '12.x',
   tags: ['php', 'laravel', 'eloquent', 'mvc', 'api', 'enterprise'],
   port: 8000,
   dependencies: {},
@@ -22,38 +22,38 @@ export const laravelTemplate: BackendTemplate = {
   "keywords": ["laravel", "api", "microservice"],
   "license": "MIT",
   "require": {
-    "php": "^8.1",
-    "laravel/framework": "^10.0",
-    "laravel/sanctum": "^3.2",
-    "laravel/tinker": "^2.8",
+    "php": "^8.2",
+    "laravel/framework": "^12.0",
+    "laravel/sanctum": "^4.0",
+    "laravel/tinker": "^2.10",
     "predis/predis": "^2.0",
-    "guzzlehttp/guzzle": "^7.5",
-    "spatie/laravel-permission": "^5.10",
-    "spatie/laravel-query-builder": "^5.3",
+    "guzzlehttp/guzzle": "^7.9",
+    "spatie/laravel-permission": "^6.0",
+    "spatie/laravel-query-builder": "^6.0",
     "spatie/laravel-fractal": "^6.0",
-    "spatie/laravel-backup": "^8.1",
-    "spatie/laravel-activitylog": "^4.7",
-    "laravel/horizon": "^5.15",
-    "laravel/telescope": "^4.14",
+    "spatie/laravel-backup": "^9.0",
+    "spatie/laravel-activitylog": "^4.9",
+    "laravel/horizon": "^5.30",
+    "laravel/telescope": "^5.0",
     "tymon/jwt-auth": "^2.0",
     "maatwebsite/excel": "^3.1",
-    "barryvdh/laravel-dompdf": "^2.0",
-    "intervention/image": "^2.7",
+    "barryvdh/laravel-dompdf": "^3.0",
+    "intervention/image": "^3.0",
     "league/flysystem-aws-s3-v3": "^3.0",
     "rebing/graphql-laravel": "^9.0"
   },
   "require-dev": {
-    "fakerphp/faker": "^1.21",
-    "laravel/pint": "^1.10",
-    "laravel/sail": "^1.21",
-    "mockery/mockery": "^1.5",
-    "nunomaduro/collision": "^7.0",
-    "phpunit/phpunit": "^10.0",
-    "spatie/laravel-ignition": "^2.0",
-    "barryvdh/laravel-ide-helper": "^2.13",
-    "barryvdh/laravel-debugbar": "^3.8",
-    "pestphp/pest": "^2.6",
-    "pestphp/pest-plugin-laravel": "^2.0"
+    "fakerphp/faker": "^1.23",
+    "laravel/pint": "^1.13",
+    "laravel/sail": "^1.26",
+    "mockery/mockery": "^1.6",
+    "nunomaduro/collision": "^8.0",
+    "phpunit/phpunit": "^11.0",
+    "spatie/laravel-ignition": "^2.4",
+    "barryvdh/laravel-ide-helper": "^3.0",
+    "barryvdh/laravel-debugbar": "^3.14",
+    "pestphp/pest": "^3.0",
+    "pestphp/pest-plugin-laravel": "^3.0"
   },
   "autoload": {
     "psr-4": {
@@ -127,8 +127,8 @@ DB_DATABASE={{projectName}}_db
 DB_USERNAME=root
 DB_PASSWORD=
 
-BROADCAST_DRIVER=log
-CACHE_DRIVER=redis
+BROADCAST_CONNECTION=log
+CACHE_STORE=redis
 FILESYSTEM_DISK=local
 QUEUE_CONNECTION=redis
 SESSION_DRIVER=redis
@@ -967,7 +967,7 @@ class RolePermissionSeeder extends Seeder
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
-        <env name="CACHE_DRIVER" value="array"/>
+        <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="MAIL_MAILER" value="array"/>
@@ -1451,7 +1451,7 @@ Enterprise PHP API built with Laravel framework, featuring Eloquent ORM, queue m
 
 ### Requirements
 
-- PHP >= 8.1
+- PHP >= 8.2
 - Composer
 - MySQL/PostgreSQL
 - Redis
