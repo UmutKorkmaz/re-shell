@@ -5,13 +5,13 @@ import { z } from 'zod';
  *
  * Mirrors the CLI's `ErrorCode` discipline in @re-shell/contracts: a stable,
  * documented vocabulary authored as a zod enum so it validates at runtime and
- * the TS union can never drift. The control plane is a hosted, multi-tenant
- * extension of the local hub, so its failure modes are auth/tenant-shaped rather
- * than CLI-shaped.
+ * the TS union can never drift. Every code here is ALSO a member of
+ * `errorCodeSchema` in @re-shell/contracts (enforced by a test), so the
+ * dashboard can parse CLI and control-plane envelopes with one parser.
  *
- * ENV-LIMITED: these are returned by PURE in-process functions. There is no live
- * HTTP server here; a real deployment would map each code to an HTTP status (see
- * docs/control-plane.md).
+ * Each code maps to an HTTP status in {@link HTTP_STATUS_BY_CODE}; the HTTP
+ * edge (http/server.ts) uses that table to turn a result envelope into a
+ * response.
  */
 export const controlPlaneErrorCodeSchema = z.enum([
   // Authentication: caller could not be identified.
@@ -26,13 +26,37 @@ export const controlPlaneErrorCodeSchema = z.enum([
   'INVALID_REQUEST',
   // The requested command id is not on the tenant's allow-list.
   'COMMAND_NOT_ALLOWED',
+  // --- Hosted-server additions (P9-J) ---
+  // No such route.
+  'NOT_FOUND',
+  // The route exists but not for this HTTP method.
+  'METHOD_NOT_ALLOWED',
+  // A create collided with an existing record.
+  'ALREADY_EXISTS',
+  // The change would violate an invariant (e.g. removing a tenant's last admin).
+  'CONFLICT',
+  // The job does not exist within the resolved tenant (same answer for "belongs
+  // to another tenant", like WORKSPACE_NOT_FOUND).
+  'JOB_NOT_FOUND',
+  // Per-principal rate limit or per-tenant queue limit exceeded.
+  'RATE_LIMITED',
+  // The request body exceeded the configured size limit.
+  'PAYLOAD_TOO_LARGE',
+  // A request body was sent with a non-JSON content type.
+  'UNSUPPORTED_MEDIA_TYPE',
+  // Misconfiguration detected by a CLI subcommand (bad env, missing key, ...).
+  'CONFIG_ERROR',
+  // Unexpected server fault (details are logged, never returned).
+  'INTERNAL_ERROR',
+  // A dependency (the database) is unavailable.
+  'SERVICE_UNAVAILABLE',
 ]);
 
 export type ControlPlaneErrorCode = z.infer<typeof controlPlaneErrorCodeSchema>;
 
 /**
- * Suggested HTTP status mapping for a real deployment. NOT used by the pure
- * logic here (there is no server) — documented for the deployment outline.
+ * HTTP status for each error code. The HTTP edge maps every failure envelope
+ * through this table; there is no other source of status codes.
  */
 export const HTTP_STATUS_BY_CODE: Readonly<Record<ControlPlaneErrorCode, number>> = {
   UNAUTHENTICATED: 401,
@@ -41,6 +65,17 @@ export const HTTP_STATUS_BY_CODE: Readonly<Record<ControlPlaneErrorCode, number>
   WORKSPACE_NOT_FOUND: 404,
   INVALID_REQUEST: 400,
   COMMAND_NOT_ALLOWED: 403,
+  NOT_FOUND: 404,
+  METHOD_NOT_ALLOWED: 405,
+  ALREADY_EXISTS: 409,
+  CONFLICT: 409,
+  JOB_NOT_FOUND: 404,
+  RATE_LIMITED: 429,
+  PAYLOAD_TOO_LARGE: 413,
+  UNSUPPORTED_MEDIA_TYPE: 415,
+  CONFIG_ERROR: 500,
+  INTERNAL_ERROR: 500,
+  SERVICE_UNAVAILABLE: 503,
 };
 
 /**
