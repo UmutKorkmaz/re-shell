@@ -1,0 +1,73 @@
+# Re-Shell hosted control plane + one execution worker.
+#
+# Run from this directory:   docker compose up --build
+# All configuration comes from the environment (an `.env` file next to this one
+# is read by Compose automatically — see .env.example). Nothing secret is baked
+# into an image or committed.
+#
+# First-time bootstrap (keys, first admin, worker token): docs/control-plane.md §9.
+
+name: re-shell-control-plane
+
+services:
+  control-plane:
+    build:
+      context: ../..
+      dockerfile: packages/control-plane/Dockerfile
+      target: control-plane
+    image: re-shell/control-plane:local
+    restart: unless-stopped
+    environment:
+      # Required. JSON {"activeKid": "...", "keys": {"<kid>": "<base64 secret>"}};
+      # produce one with `docker run --rm re-shell/control-plane:local gen-key --raw`.
+      CONTROL_PLANE_JWT_KEYS: ${CONTROL_PLANE_JWT_KEYS:?set CONTROL_PLANE_JWT_KEYS (see .env.example)}
+      # Comma-separated user ids that may create tenants.
+      CONTROL_PLANE_PLATFORM_ADMINS: ${CONTROL_PLANE_PLATFORM_ADMINS:-}
+      # Exact browser origins allowed to call the API (never "*"); empty = no CORS.
+      CONTROL_PLANE_CORS_ORIGINS: ${CONTROL_PLANE_CORS_ORIGINS:-}
+      # Set to 1 ONLY when a reverse proxy you control sits in front.
+      CONTROL_PLANE_TRUST_PROXY: ${CONTROL_PLANE_TRUST_PROXY:-0}
+      CONTROL_PLANE_HSTS: ${CONTROL_PLANE_HSTS:-0}
+      CONTROL_PLANE_RATE_LIMIT_PER_MINUTE: ${CONTROL_PLANE_RATE_LIMIT_PER_MINUTE:-120}
+      CONTROL_PLANE_MAX_QUEUED_PER_TENANT: ${CONTROL_PLANE_MAX_QUEUED_PER_TENANT:-100}
+    volumes:
+      - control-plane-data:/data
+    ports:
+      # Loopback only by default; put a TLS-terminating proxy in front to expose it.
+      - "127.0.0.1:${CONTROL_PLANE_PUBLISH_PORT:-8787}:8787"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: packages/control-plane/Dockerfile
+      target: worker
+    image: re-shell/control-plane-worker:local
+    # A worker with no/invalid token or tenant exits with a JSON CONFIG_ERROR /
+    # UNAUTHENTICATED envelope (non-zero); a few retries, then it stays stopped.
+    restart: on-failure:3
+    depends_on:
+      control-plane:
+        condition: service_healthy
+    environment:
+      CONTROL_PLANE_URL: http://control-plane:8787
+      # The tenant this worker serves; must match the worker token's tenant.
+      CONTROL_PLANE_TENANT: ${CONTROL_PLANE_TENANT:-}
+      # Issued with: docker compose run --rm control-plane issue-token --worker --worker-id w1 --tenant <id> --raw
+      CONTROL_PLANE_WORKER_TOKEN: ${CONTROL_PLANE_WORKER_TOKEN:-}
+      CONTROL_PLANE_WORKER_CONCURRENCY: ${CONTROL_PLANE_WORKER_CONCURRENCY:-1}
+    volumes:
+      # One subdirectory per workspace id: ./workspaces/<workspaceId>
+      - ${CONTROL_PLANE_WORKSPACES_DIR:-./workspaces}:/workspaces
+
+volumes:
+  control-plane-data:
