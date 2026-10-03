@@ -21,7 +21,7 @@ export const cppHttplibTemplate: BackendTemplate = {
     'CMakeLists.txt': `cmake_minimum_required(VERSION 3.14)
 project({{serviceName}} VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -30,40 +30,23 @@ find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 
-# Include FetchContent
-include(FetchContent)
+# Dependencies come from the system (Debian/Ubuntu: libcpp-httplib-dev
+# nlohmann-json3-dev libspdlog-dev libgtest-dev libssl-dev zlib1g-dev;
+# macOS: brew install cpp-httplib nlohmann-json spdlog googletest openssl).
+# Nothing is downloaded at configure time.
+find_package(nlohmann_json 3.2.0 REQUIRED)
+find_package(spdlog REQUIRED)
+find_package(GTest REQUIRED)
 
-# Fetch cpp-httplib
-FetchContent_Declare(
-    httplib
-    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-    GIT_TAG v0.15.3
-)
-FetchContent_MakeAvailable(httplib)
-
-# Fetch nlohmann/json
-FetchContent_Declare(
-    json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.11.3
-)
-FetchContent_MakeAvailable(json)
-
-# Fetch spdlog
-FetchContent_Declare(
-    spdlog
-    GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG v1.12.0
-)
-FetchContent_MakeAvailable(spdlog)
-
-# Fetch Google Test
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.14.0
-)
-FetchContent_MakeAvailable(googletest)
+# cpp-httplib: the upstream CMake package (httplib::httplib) when installed,
+# otherwise pkg-config (Debian/Ubuntu ship it as a compiled library whose
+# cpp-httplib.pc also supplies the OpenSSL/zlib feature defines).
+find_package(httplib CONFIG QUIET)
+if(NOT TARGET httplib::httplib)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(HTTPLIB REQUIRED IMPORTED_TARGET GLOBAL cpp-httplib)
+    add_library(httplib::httplib ALIAS PkgConfig::HTTPLIB)
+endif()
 
 # Source files
 set(SOURCES
@@ -101,7 +84,7 @@ target_link_libraries(\${PROJECT_NAME}
 )
 
 # Enable SSL support
-target_compile_definitions(\${PROJECT_NAME} PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions(\${PROJECT_NAME} PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT CPPHTTPLIB_ZLIB_SUPPORT)
 
 # Test executable
 enable_testing()
@@ -134,7 +117,7 @@ target_link_libraries(tests
         \${OPENSSL_LIBRARIES}
 )
 
-target_compile_definitions(tests PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions(tests PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT CPPHTTPLIB_ZLIB_SUPPORT)
 
 add_test(NAME tests COMMAND tests)
 
@@ -255,8 +238,8 @@ void HttpServer::start() {
     server_->set_idle_interval(config_.getIdleInterval());
     server_->set_payload_max_length(config_.getMaxPayloadSize());
     
-    // Enable compression
-    server_->set_compression(true);
+    // gzip/deflate responses are negotiated automatically: CMakeLists.txt defines
+    // CPPHTTPLIB_ZLIB_SUPPORT and links zlib.
     
     // Start server in a separate thread
     server_thread_ = std::thread([this, host, port]() {
@@ -371,7 +354,8 @@ private:
     nlohmann::json config_data_;
     static Config instance_;
     
-    Config() = default;
+    // Start from the defaults so every getter works before (or without) load().
+    Config() { setDefaults(); }
     void setDefaults();
     
 public:
@@ -1304,7 +1288,11 @@ std::optional<User> Database::getUserByEmail(const std::string& email) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = email_to_id_.find(email);
     if (it != email_to_id_.end()) {
-        return getUser(it->second);
+        // Look the user up directly: getUser() would lock the (non-recursive) mutex again.
+        auto user = users_by_id_.find(it->second);
+        if (user != users_by_id_.end()) {
+            return user->second;
+        }
     }
     return std::nullopt;
 }
@@ -1491,6 +1479,9 @@ protected:
     void SetUp() override {
         client = new httplib::Client("localhost", 8080);
         client->set_connection_timeout(3);
+        if (!client->Get("/health")) {
+            GTEST_SKIP() << "integration test: start the server first (./build/{{serviceName}})";
+        }
     }
     
     void TearDown() override {
@@ -1523,6 +1514,10 @@ protected:
     
     void SetUp() override {
         client = new httplib::Client("localhost", 8080);
+        client->set_connection_timeout(3);
+        if (!client->Get("/health")) {
+            GTEST_SKIP() << "integration test: start the server first (./build/{{serviceName}})";
+        }
         
         // Create a test user and get auth token
         nlohmann::json user = {
