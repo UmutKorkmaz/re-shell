@@ -123,6 +123,7 @@ import { registerFixCiGroup } from './groups/fix-ci.group';
 import { registerBoundariesGroup } from './groups/boundaries.group';
 import { registerEnvGroup } from './groups/env.group';
 import { registerUiTestGroup } from './groups/ui-test.group';
+import { registerPlatformGroups } from './groups/platform.group';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -631,6 +632,7 @@ registerFixCiGroup(program);
 registerBoundariesGroup(program);
 registerEnvGroup(program);
 registerUiTestGroup(program);
+registerPlatformGroups(program);
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 

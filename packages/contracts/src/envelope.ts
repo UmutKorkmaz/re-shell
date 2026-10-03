@@ -86,6 +86,26 @@ export const errorCodeSchema = z.enum([
   'ENV_ERROR',
   // Code introduced by the Storybook UI-test aggregation slice (issue #22)
   'UI_TEST_ERROR',
+  // Codes introduced by workstream R-1a (pkg / debug / refactor / cloud iac)
+  'PKG_ERROR',
+  'PKG_TOOLCHAIN_MISSING',
+  'PKG_ECOSYSTEM_UNDETECTED',
+  'PKG_ECOSYSTEM_AMBIGUOUS',
+  'PKG_UNSUPPORTED_OPERATION',
+  'PKG_INVALID_ARGS',
+  'PKG_COMMAND_FAILED',
+  'DEBUG_CONFIG_ERROR',
+  'REFACTOR_ERROR',
+  'REFACTOR_SERVICE_NOT_FOUND',
+  'REFACTOR_INVALID_NAME',
+  'REFACTOR_NAME_COLLISION',
+  'REFACTOR_DIRTY_TREE',
+  'IAC_ERROR',
+  'IAC_VALIDATE_ERROR',
+  'IAC_TERRAFORM_MISSING',
+  'CLOUD_CREDENTIALS_MISSING',
+  'CLOUD_DEPLOY_CONFIRMATION_REQUIRED',
+  'CLOUD_DEPLOY_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
