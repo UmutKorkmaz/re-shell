@@ -8,6 +8,7 @@ import { GENERATED_PKG_SCOPE, RECOGNIZED_PKG_SCOPES } from '../utils/scope';
 import { processManager } from '../utils/error-handler';
 import { ok } from '../utils/json-output';
 import { startStaticServer, type StaticServer } from '../utils/ui-static-server';
+import { loadWhiteLabel } from '../utils/ui-brand';
 
 // Recognized package names for the standalone UI app. Includes the legacy
 // scope so already-installed dashboards still resolve.
@@ -857,6 +858,13 @@ async function launchStatic(plan: UiLaunchPlan, hubReadyTimeoutMs: number): Prom
     throw new Error('Static launch mode requires a bundled dashboard directory.');
   }
 
+  // Resolve the white-label config BEFORE anything is spawned: an invalid config fails the
+  // launch with the reasons instead of silently serving the default brand.
+  const { brand, file: brandFile, customised } = loadWhiteLabel(plan.workspace);
+  if (customised) {
+    console.log(chalk.gray(`  White-label: ${brand.productName}${brandFile ? ` (${brandFile})` : ' (environment)'}`));
+  }
+
   const hub = plan.hubBundlePath ? spawnHub(plan, plan.hubBundlePath) : null;
   if (!hub) {
     console.log(chalk.yellow('  Hub server bundle unavailable - launching without the hub'));
@@ -881,7 +889,8 @@ async function launchStatic(plan: UiLaunchPlan, hubReadyTimeoutMs: number): Prom
       host: plan.env.VITE_RE_SHELL_UI_HOST,
       port: Number(plan.env.VITE_RE_SHELL_UI_PORT),
       hubUrl: plan.hubUrl,
-      hubToken: plan.hubToken
+      hubToken: plan.hubToken,
+      brand
     });
 
     if (plan.open) {

@@ -1,5 +1,65 @@
-import { defineConfig } from 'vite';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { defineConfig, type Plugin, type UserConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import {
+  WHITE_LABEL_FILES,
+  WHITE_LABEL_FILE_ENV,
+  renderBrandIntoHtml,
+  resolveWhiteLabel,
+  whiteLabelFromEnv,
+} from '@re-shell/contracts';
+
+/**
+ * White-label: read the product name / logo / favicon / accent from a config file or the
+ * environment at BUILD (and dev-server) time and write it into index.html: <title>, the favicon
+ * <link> and the `re-shell-brand` JSON block the app reads at boot. Sources, highest priority first:
+ *   RE_SHELL_BRAND_NAME / _TAGLINE / _LOGO / _FAVICON / _ACCENT   environment
+ *   RE_SHELL_WHITE_LABEL_FILE, else re-shell.whitelabel.json (or .re-shell/whitelabel.json)
+ *   in RE_SHELL_WORKSPACE or the current directory
+ * An invalid config FAILS the build with the reasons; it is never silently ignored.
+ */
+function whiteLabelPlugin(): Plugin {
+  const workspace = process.env.RE_SHELL_WORKSPACE ?? process.cwd();
+  const explicit = process.env[WHITE_LABEL_FILE_ENV];
+  const candidates = explicit ? [resolve(explicit)] : WHITE_LABEL_FILES.map((name) => resolve(workspace, name));
+  const file = candidates.find((candidate) => existsSync(candidate));
+  if (explicit && !file) {
+    throw new Error(`${WHITE_LABEL_FILE_ENV}=${explicit} does not exist`);
+  }
+  let fromFile: unknown;
+  if (file) {
+    try {
+      fromFile = JSON.parse(readFileSync(file, 'utf8'));
+    } catch (error) {
+      throw new Error(`white-label config ${file} is not valid JSON: ${(error as Error).message}`);
+    }
+  }
+  const result = resolveWhiteLabel(fromFile, whiteLabelFromEnv(process.env));
+  if (!result.ok) {
+    const errors = (result as { errors: readonly string[] }).errors;
+    throw new Error(`Invalid white-label config${file ? ` (${file})` : ''}:\n  ${errors.join('\n  ')}`);
+  }
+  const brand = result.config;
+  return {
+    name: 're-shell-white-label',
+    transformIndexHtml: (html) => renderBrandIntoHtml(html, brand),
+  };
+}
+
+/** Opt-in bundle report: `ANALYZE=1 pnpm build` writes an interactive treemap (gzip sizes). */
+async function bundleReportPlugin(): Promise<Plugin[]> {
+  if (!process.env.ANALYZE) return [];
+  const { visualizer } = await import('rollup-plugin-visualizer');
+  return [
+    visualizer({
+      filename: 'node_modules/.cache/bundle-report/stats.html',
+      template: 'treemap',
+      gzipSize: true,
+      brotliSize: true,
+    }) as Plugin,
+  ];
+}
 
 // Hub server configuration
 const HUB_PORT = Number.parseInt(process.env.VITE_RE_SHELL_UI_HUB_PORT || '3334', 10);
@@ -15,9 +75,11 @@ async function loadHubServer() {
   }
 }
 
-export default defineConfig({
+export default defineConfig(async (): Promise<UserConfig> => ({
   plugins: [
     react(),
+    whiteLabelPlugin(),
+    ...(await bundleReportPlugin()),
     {
       name: 'hub-server',
       async configureServer(server) {
@@ -80,5 +142,25 @@ export default defineConfig({
   server: {
     port: 3333,
     open: false
-  }
-});
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Stable vendor chunks: long-lived in the browser cache and separated from app code.
+        // Screens are lazy chunks (see App.tsx); React Flow is only ever pulled in by the
+        // Workspace Graph screen, so it never loads for anyone who does not open that screen.
+        manualChunks(id: string): string | undefined {
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules\/(@xyflow|d3-[a-z-]+|classcat|zustand)\//.test(id)) return 'vendor-xyflow';
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'vendor-react';
+          if (/node_modules\/@tanstack\//.test(id)) return 'vendor-query';
+          if (/node_modules\/(@radix-ui|@floating-ui|react-remove-scroll[a-z-]*|react-style-singleton|use-callback-ref|use-sidecar|aria-hidden|get-nonce|tslib)\//.test(id)) {
+            return 'vendor-radix';
+          }
+          if (/node_modules\/zod\//.test(id)) return 'vendor-zod';
+          return undefined;
+        },
+      },
+    },
+  },
+}));

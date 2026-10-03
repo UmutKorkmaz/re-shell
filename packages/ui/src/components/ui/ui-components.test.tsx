@@ -38,8 +38,15 @@ describe('Badge', () => {
   });
 
   it('applies semantic variants', () => {
-    render(<Badge variant="success">OK</Badge>);
-    expect(screen.getByText('OK').className).toContain('emerald');
+    render(<Badge variant="healthy">OK</Badge>);
+    expect(screen.getByText('OK').className).toContain('text-healthy');
+  });
+
+  it('has no hard-coded emerald/amber legacy variants', () => {
+    const variants = badgeVariants({ variant: 'healthy' }) + badgeVariants({ variant: 'warn' });
+    expect(variants).not.toMatch(/emerald|amber/);
+    // @ts-expect-error the legacy variants were removed; status variants replace them
+    expect(badgeVariants({ variant: 'success' })).not.toMatch(/emerald/);
   });
 
   it('renders asChild as the provided element', () => {

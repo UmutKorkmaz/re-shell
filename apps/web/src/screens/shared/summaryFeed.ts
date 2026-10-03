@@ -40,7 +40,10 @@ export type { HealthSummary };
 /** A discovered workspace as the CLI's `getWorkspaces()` emits it. */
 const workspaceInfoSchema = workspaceInfoWireSchema.extend({
   path: z.string().default(''),
-  type: workspaceTypeWireSchema.default('package'),
+  // The CLI also labels `services/*` workspaces "service", which the wire enum does not list. A
+  // category the dashboard does not know is shown as a plain package instead of failing the
+  // whole Overview (it is not an app either way, so the app/service split is unchanged).
+  type: workspaceTypeWireSchema.catch('package').default('package'),
   version: z.string().default('0.0.0'),
   dependencies: z.array(z.string()).default([]),
 });

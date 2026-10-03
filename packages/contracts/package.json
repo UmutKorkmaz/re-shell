@@ -17,6 +17,7 @@
     "directory": "packages/contracts"
   },
   "type": "module",
+  "sideEffects": false,
   "files": [
     "dist",
     "README.md"

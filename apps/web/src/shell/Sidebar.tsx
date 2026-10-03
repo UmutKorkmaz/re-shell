@@ -1,7 +1,9 @@
 import * as React from 'react';
 import { cn } from '@re-shell/ui';
+import { DEFAULT_PRODUCT_NAME } from '@re-shell/contracts';
 import { SCREENS, type ScreenId } from './screens';
 import { NAV_SECTIONS } from './nav';
+import { useBrand } from '../brand/BrandProvider';
 
 interface SidebarProps {
   activeScreen: ScreenId;
@@ -17,6 +19,7 @@ const SCREEN_LABELS = new Map(SCREENS.map((screen) => [screen.id, screen.label] 
  * the current focus without rainbow color.
  */
 export function Sidebar({ activeScreen, onNavigate }: SidebarProps): React.ReactElement {
+  const brand = useBrand();
   return (
     <aside
       className="flex flex-col gap-6 border-b border-border bg-bg-1 p-4 shadow-elev-1 lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r lg:gap-7 lg:p-5"
@@ -24,7 +27,7 @@ export function Sidebar({ activeScreen, onNavigate }: SidebarProps): React.React
     >
       <BrandMark />
 
-      <nav className="flex flex-col gap-6">
+      <nav aria-label="Screens" className="flex flex-col gap-6">
         {NAV_SECTIONS.map((section) => (
           <div key={section.label} className="flex flex-col gap-1.5">
             <div className="label-eyebrow px-2 lg:px-2.5">{section.label}</div>
@@ -73,7 +76,7 @@ export function Sidebar({ activeScreen, onNavigate }: SidebarProps): React.React
 
       <div className="mt-auto hidden lg:block">
         <div className="hairline pt-3">
-          <p className="label-eyebrow">Re-Shell CLI</p>
+          <p className="label-eyebrow">{brand.productName}</p>
           <p className="mt-1 font-mono text-[0.6875rem] text-muted-foreground">control surface</p>
         </div>
       </div>
@@ -81,18 +84,30 @@ export function Sidebar({ activeScreen, onNavigate }: SidebarProps): React.React
   );
 }
 
+/**
+ * The white-label brand: product name, optional tagline and logo. The logo sits next to the name,
+ * so it is decorative (`alt=""`); without one the signal diamond is shown.
+ */
 function BrandMark(): React.ReactElement {
+  const brand = useBrand();
+  const tagline = brand.tagline ?? (brand.productName === DEFAULT_PRODUCT_NAME ? 'Mission Control' : undefined);
   return (
-    <div className="flex items-center gap-2.5 px-1">
+    <div className="flex items-center gap-2.5 px-1" data-testid="brand-mark">
       <span
         aria-hidden
-        className="grid size-8 place-items-center rounded-md border border-border-strong bg-bg-0 text-signal shadow-elev-1"
+        className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-md border border-border-strong bg-bg-0 text-signal shadow-elev-1"
       >
-        <span className="text-base leading-none">◆</span>
+        {brand.logo ? (
+          <img src={brand.logo} alt="" className="size-full object-contain" data-testid="brand-logo" />
+        ) : (
+          <span className="text-base leading-none">◆</span>
+        )}
       </span>
       <div className="min-w-0">
-        <div className="font-display text-base font-bold tracking-tight">Re-Shell</div>
-        <div className="label-eyebrow">Mission Control</div>
+        <div className="truncate font-display text-base font-bold tracking-tight" data-testid="brand-name">
+          {brand.productName}
+        </div>
+        {tagline ? <div className="label-eyebrow">{tagline}</div> : null}
       </div>
     </div>
   );

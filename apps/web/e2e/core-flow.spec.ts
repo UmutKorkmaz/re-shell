@@ -89,7 +89,7 @@ test.describe('dashboard <-> hub core flow (secure transport)', () => {
     // "workspace" is also a substring of the "Inspect workspace" card heading, so
     // the exact name is required to resolve to the single summary-panel title.
     await expect(
-      screenMain(page).getByRole('heading', { level: 3, name: 'workspace', exact: true })
+      screenMain(page).getByRole('heading', { level: 2, name: 'workspace', exact: true })
     ).toBeVisible();
     await expect(page.getByText(/fixtures\/workspace$/)).toBeVisible();
 
@@ -377,7 +377,7 @@ test('full core flow: open, inspect, filter, build, dry-run, run, live logs, can
   await expectActiveScreen(page, 'Overview');
 
   // 2. Inspect the workspace (summary over SSE, then the dependency graph).
-  await expect(screenMain(page).getByRole('heading', { level: 3, name: 'workspace', exact: true })).toBeVisible();
+  await expect(screenMain(page).getByRole('heading', { level: 2, name: 'workspace', exact: true })).toBeVisible();
   await expect(page.getByTestId('metric-apps')).toContainText('2');
   await gotoScreen(page, 'Workspace Graph');
   await expect(page.getByTestId('graph-stat-apps')).toHaveText(/^2\s*apps$/);

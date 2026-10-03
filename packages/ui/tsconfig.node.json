@@ -7,11 +7,14 @@
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "types": [
-      "node"
-    ]
+      "node",
+      "jest"
+    ],
+    "jsx": "react-jsx"
   },
   "include": [
     "vite.config.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    ".storybook"
   ]
 }

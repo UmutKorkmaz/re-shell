@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Activity, Boxes, GitBranch, Server, Settings } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, type HeadingElement } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import type { WorkspaceSummary } from '@/contracts';
 
@@ -11,20 +11,23 @@ export interface WorkspaceSummaryPanelProps {
   onRunHealth?: () => void;
   onOpenSettings?: () => void;
   className?: string;
+  /** Element of the workspace name (default `h2`). */
+  headingAs?: HeadingElement;
 }
 
 export function WorkspaceSummaryPanel({
   workspace,
   onRunHealth,
   onOpenSettings,
-  className
+  className,
+  headingAs
 }: WorkspaceSummaryPanelProps): React.ReactElement {
   return (
     <Card className={className}>
       <CardHeader className="space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-2">
-            <CardTitle className="truncate font-display text-xl font-semibold tracking-tight">
+            <CardTitle as={headingAs} className="truncate font-display text-xl font-semibold tracking-tight">
               {workspace.name}
             </CardTitle>
             <div className="truncate font-mono text-[0.8125rem] text-muted-foreground">{workspace.path}</div>
@@ -59,17 +62,17 @@ export function WorkspaceSummaryPanel({
             <Separator className="my-4" />
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <GitBranch className="size-4 text-muted-foreground" />
-              <span className="font-mono text-[0.8125rem]">{workspace.git.branch ?? 'unknown'}</span>
+              <span className="font-mono text-[0.8125rem] tabular-nums">{workspace.git.branch ?? 'unknown'}</span>
               <Badge variant={workspace.git.dirty ? 'warn' : 'healthy'}>
                 {workspace.git.dirty ? 'Dirty workspace' : 'Clean workspace'}
               </Badge>
               {workspace.git.ahead ? (
-                <Badge variant="outline" className="font-mono tracking-normal">
+                <Badge variant="outline" className="font-mono tabular-nums tracking-normal">
                   ahead {workspace.git.ahead}
                 </Badge>
               ) : null}
               {workspace.git.behind ? (
-                <Badge variant="outline" className="font-mono tracking-normal">
+                <Badge variant="outline" className="font-mono tabular-nums tracking-normal">
                   behind {workspace.git.behind}
                 </Badge>
               ) : null}

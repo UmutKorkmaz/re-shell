@@ -264,6 +264,13 @@ export const GROUP_MANIFEST: readonly GroupManifestEntry[] = [
     register: 'registerUiTestGroup',
   },
   {
+    // `ui component new`, `ui generate`, `ui theme ...` on the standalone `ui` command.
+    name: 'ui',
+    attachesTo: 'ui',
+    module: './groups/ui.group',
+    register: 'registerUiGroup',
+  },
+  {
     name: 'pkg',
     description:
       'Unified package manager: add/remove/install/list/outdated across npm, pip, cargo, maven, dotnet, composer, bundler, go',

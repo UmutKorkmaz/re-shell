@@ -44,7 +44,14 @@ export default defineConfig({
     react(),
     dts({
       entryRoot: 'src',
-      exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test/**'],
+      exclude: [
+        'src/**/*.test.ts',
+        'src/**/*.test.tsx',
+        'src/**/*.test-d.ts',
+        'src/**/*.test-d.tsx',
+        'src/**/*.stories.tsx',
+        'src/test/**'
+      ],
       insertTypesEntry: true,
       tsconfigPath: resolve(packageRoot, 'tsconfig.json')
     })
@@ -58,15 +65,46 @@ export default defineConfig({
   build: {
     sourcemap: true,
     emptyOutDir: true,
-    cssCodeSplit: true,
+    // Per-module output (see rollupOptions.output) keeps every component in its
+    // own file so bundlers can tree-shake, and `@re-shell/ui/components/ui/<name>`
+    // style deep imports resolve to real files. Stylesheets are NOT part of the JS
+    // graph: `pnpm build:css` compiles globals.css with Tailwind into dist/index.css
+    // and copies fonts.css, so nothing is inlined into JS.
     lib: {
-      entry: resolve(packageRoot, 'src/index.ts'),
-      name: 'ReShellUI',
-      formats: ['es', 'cjs'],
-      fileName: (format) => (format === 'es' ? 'index.js' : 'index.cjs')
+      // Every barrel is an explicit entry: rollup would otherwise drop pure
+      // re-export modules from a preserveModules build, and the sub-path exports
+      // in package.json (`./components/ui`, `./hooks`, ...) point at them.
+      entry: {
+        index: resolve(packageRoot, 'src/index.ts'),
+        'components/ui/index': resolve(packageRoot, 'src/components/ui/index.ts'),
+        'components/primitives/index': resolve(packageRoot, 'src/components/primitives/index.ts'),
+        'components/re-shell/index': resolve(packageRoot, 'src/components/re-shell/index.ts'),
+        'contracts/index': resolve(packageRoot, 'src/contracts/index.ts'),
+        'hooks/index': resolve(packageRoot, 'src/hooks/index.ts'),
+        'lib/index': resolve(packageRoot, 'src/lib/index.ts')
+      },
+      formats: ['es', 'cjs']
     },
     rollupOptions: {
-      external
+      external: [...external, /^@radix-ui\//, /^@fontsource\//],
+      output: [
+        {
+          format: 'es',
+          dir: 'dist',
+          preserveModules: true,
+          preserveModulesRoot: 'src',
+          entryFileNames: '[name].js',
+          exports: 'named'
+        },
+        {
+          format: 'cjs',
+          dir: 'dist/cjs',
+          preserveModules: true,
+          preserveModulesRoot: 'src',
+          entryFileNames: '[name].cjs',
+          exports: 'named'
+        }
+      ]
     }
   }
 });
