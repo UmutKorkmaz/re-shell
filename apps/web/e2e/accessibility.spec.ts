@@ -1,5 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { SCREENS, openScreen, setTheme } from './support';
 
 /**
  * Accessibility audit for the re-shell dashboard (axe-core, WCAG 2.1 A/AA).
@@ -17,74 +18,6 @@ import AxeBuilder from '@axe-core/playwright';
  */
 
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
-
-interface ScreenCase {
-  /** Sidebar nav label (also the header h1). */
-  readonly label: string;
-}
-
-const SCREENS: readonly ScreenCase[] = [
-  { label: 'Overview' },
-  { label: 'Workspace Graph' },
-  { label: 'Templates' },
-  { label: 'Command Builder' },
-  { label: 'Assistant' },
-  { label: 'Jobs & Logs' },
-  { label: 'Health' },
-  { label: 'Scorecard' },
-  { label: 'Catalog' },
-  { label: 'Settings' },
-];
-
-/** Navigate via the sidebar and wait until the screen has left its loading state. */
-async function openScreen(page: Page, label: string): Promise<void> {
-  if (label !== 'Overview') {
-    await page
-      .getByRole('complementary', { name: /Dashboard navigation/i })
-      .getByRole('button', { name: label, exact: true })
-      .click();
-  }
-  // Not the <h1>: it flips to the workspace name once workspace.summary loads.
-  await expect(page.getByTestId('screen-label')).toHaveText(label);
-
-  // Loading panels read "Loading …" / "Running health checks…"; wait them out so
-  // the audit runs against real content, not skeletons.
-  await expect(page.getByRole('main')).not.toContainText(/Loading [^\n]*…|Running [^\n]*…|Fetching [^\n]*…/, {
-    timeout: 30_000,
-  });
-  await settleAnimations(page);
-}
-
-/**
- * Wait for finite entrance animations (`screen-enter`, `stagger-children`) to end:
- * axe's contrast check reads the computed colour, which is wrong while an element
- * is mid fade-in. Infinite animations (skeleton shimmer, live pulse) are ignored.
- */
-async function settleAnimations(page: Page): Promise<void> {
-  await page.waitForFunction(
-    () =>
-      document.getAnimations().every((animation) => {
-        const timing = animation.effect?.getComputedTiming();
-        return !timing || timing.iterations === Infinity || animation.playState !== 'running';
-      }),
-    undefined,
-    { timeout: 10_000 }
-  );
-}
-
-async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
-  // The app persists the choice and applies the `dark` class on <html>.
-  const html = page.locator('html');
-  const isDark = await html.evaluate((el) => el.classList.contains('dark'));
-  if (isDark !== (theme === 'dark')) {
-    await page
-      .getByRole('banner')
-      .getByRole('button', { name: /Switch to (dark|light) theme/i })
-      .click();
-  }
-  await expect(html).toHaveClass(theme === 'dark' ? /(^|\s)dark(\s|$)/ : /^((?!\bdark\b).)*$/);
-  await settleAnimations(page);
-}
 
 /** Render axe violations as readable text for the assertion message. */
 function describeViolations(
@@ -153,4 +86,64 @@ test.describe('Dashboard accessibility (WCAG 2.1 AA)', () => {
     // The accessible name excludes the decorative, aria-hidden active-row marker.
     await expect(current).toHaveAccessibleName('Overview');
   });
+});
+
+/**
+ * Structure beyond the WCAG-tagged rules: landmarks, bypass blocks and a heading outline that
+ * names the active screen and never skips a level (WCAG 1.3.1, 2.4.1, 2.4.6, 2.4.10). These are
+ * axe "best-practice" rules, so `withTags(WCAG_TAGS)` above does not run them.
+ */
+const STRUCTURE_RULES = [
+  'bypass',
+  'skip-link',
+  'page-has-heading-one',
+  'heading-order',
+  'empty-heading',
+  'landmark-one-main',
+  'landmark-unique',
+  'landmark-no-duplicate-banner',
+  'landmark-no-duplicate-main',
+  'landmark-no-duplicate-contentinfo',
+  'landmark-banner-is-top-level',
+  'landmark-main-is-top-level',
+  'landmark-complementary-is-top-level',
+  'region',
+  'scrollable-region-focusable',
+  'tabindex',
+];
+
+test.describe('Dashboard structure: landmarks and headings', () => {
+  for (const theme of ['light', 'dark'] as const) {
+    for (const screen of SCREENS) {
+      test(`${screen.label} (${theme}) has valid landmarks and a gap-free heading outline`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
+        await page.goto('/');
+        await setTheme(page, theme);
+        await openScreen(page, screen.label);
+
+        const results = await new AxeBuilder({ page }).withRules(STRUCTURE_RULES).analyze();
+        expect(describeViolations(results.violations), 'axe structure violations').toEqual([]);
+
+        // One h1, it names the active screen, and it is the first heading in the document.
+        const headings = await page.evaluate(() =>
+          Array.from(document.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6, [role="heading"]'))
+            .filter((el) => !el.closest('[aria-hidden="true"], [hidden]') && el.getClientRects().length > 0)
+            .map((el) => ({
+              level: el.getAttribute('aria-level') ? Number(el.getAttribute('aria-level')) : Number(el.tagName.slice(1)),
+              text: (el.textContent ?? '').trim().slice(0, 60),
+            }))
+        );
+        const h1 = headings.filter((heading) => heading.level === 1);
+        expect(h1.map((heading) => heading.text), 'exactly one h1, naming the screen').toEqual([screen.label]);
+        expect(headings[0].level, 'the first heading is the h1').toBe(1);
+
+        // No skipped levels going down (h1 -> h3 is a jump; h3 -> h2 is fine).
+        const jumps = headings
+          .map((heading, index) => ({ heading, previous: headings[index - 1] }))
+          .filter(({ heading, previous }) => previous && heading.level > previous.level + 1)
+          .map(({ heading, previous }) => `h${previous.level} "${previous.text}" -> h${heading.level} "${heading.text}"`);
+        expect(jumps, 'heading levels skipped').toEqual([]);
+      });
+    }
+  }
 });

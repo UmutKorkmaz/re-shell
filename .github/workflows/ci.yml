@@ -38,6 +38,18 @@ jobs:
       - name: Build all packages
         run: pnpm -r run build
 
+      # ── Performance budgets (enforced, gzip) ───────────────────────────────
+      # Fails the build when a built asset outgrows its budget: the dashboard's
+      # entry / vendor / per-screen chunks, CSS and fonts (apps/web/perf-budgets.json),
+      # and the ui package's per-component modules, CSS and tree-shake probes
+      # (packages/ui/perf-budgets.json). Raise a budget deliberately, in the same PR
+      # that grows the bundle, so the cost is visible in review.
+      - name: Performance budget - packages/ui (dist, tree-shaking)
+        run: pnpm --filter @re-shell/ui run budget
+
+      - name: Performance budget - apps/web (dashboard bundle)
+        run: pnpm --filter @re-shell/dashboard run budget
+
       # ── Typecheck ─────────────────────────────────────────────────────────
       - name: Typecheck all packages
         run: pnpm -r run typecheck
@@ -227,6 +239,75 @@ jobs:
         with:
           name: playwright-report
           path: apps/web/test-results/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Storybook: build the static component workshop, run every story's play
+  # function + axe a11y check + visual snapshot (both themes) with the Storybook
+  # test runner, run the same gate through `re-shell ui test`, and publish the
+  # static Storybook as a build artifact (download it from the run page, or serve
+  # the unzipped folder with any static server).
+  # ─────────────────────────────────────────────────────────────────────────────
+  storybook:
+    name: Storybook (stories, a11y, visual)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: packages/ui
+        run: npx playwright install --with-deps chromium
+
+      - name: Build all packages (the CLI drives `re-shell ui test`)
+        run: pnpm -r run build
+
+      - name: Build Storybook
+        run: pnpm --filter @re-shell/ui run build-storybook
+
+      # CI=true makes a missing visual baseline a failure instead of writing it.
+      - name: Test Storybook (play functions, axe, snapshots)
+        run: pnpm --filter @re-shell/ui run test-storybook
+        env:
+          CI: 'true'
+
+      # The user-facing gate: same runner behind `re-shell ui test`. An empty run or a
+      # missing Storybook is a failure (UI_TEST_ERROR), never a pass.
+      - name: re-shell ui test (packages/ui)
+        run: node packages/cli/dist/index.js ui test --storybook packages/ui --static-dir packages/ui/storybook-static --ci --json
+        env:
+          CI: 'true'
+
+      - name: Upload static Storybook
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-static
+          path: packages/ui/storybook-static/
+          retention-days: 14
+
+      - name: Upload Storybook visual diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-visual-diffs
+          path: packages/ui/__image_snapshots__/__diff_output__/
+          if-no-files-found: ignore
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────────────────
