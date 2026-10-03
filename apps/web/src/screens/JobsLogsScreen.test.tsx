@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JobsLogsScreen } from './JobsLogsScreen';
 import type { CommandCatalog } from './shared/commandCatalog';
@@ -166,5 +166,95 @@ describe('JobsLogsScreen', () => {
     render(<JobsLogsScreen />);
     fireEvent.click(screen.getByRole('button', { name: /copy command/i }));
     expect(writeTextMock).toHaveBeenCalledWith('re-shell commands list --json');
+  });
+});
+
+describe('JobsLogsScreen master / detail jobs table', () => {
+  beforeEach(() => {
+    useJobMock.mockReturnValue(jobState());
+    Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+  });
+  afterEach(() => {
+    useHubQueryMock.mockReset();
+    useJobMock.mockReset();
+    vi.restoreAllMocks();
+  });
+
+  function launchTwo(): void {
+    setCatalog();
+    render(<JobsLogsScreen />);
+    fireEvent.click(screen.getByRole('button', { name: 'doctor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'doctor' }));
+  }
+
+  it('renders a dense table: h-9 rows, mono tabular figures and a status badge with text per job', () => {
+    useJobMock.mockReturnValue(jobState({ lines: [{ stream: 'stdout', text: 'a' }, { stream: 'stdout', text: 'b' }], status: 'success', exitCode: 0 }));
+    launchTwo();
+    const table = screen.getByRole('table', { name: /Launched jobs/ });
+    const rows = within(table).getAllByRole('row');
+    expect(rows).toHaveLength(3); // header + two jobs
+    for (const row of rows.slice(1)) {
+      expect(row.className).toContain('h-9');
+    }
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['ID', 'Command', 'Status', 'Started', 'Duration', 'Lines', 'Exit']);
+    // newest first: #2 above #1; ids/counts/exit are mono + tabular-nums, status is text (not colour only)
+    expect(within(rows[1]).getByText('#2').className).toContain('tabular-nums');
+    expect(within(rows[1]).getByText('#2').className).toContain('font-mono');
+    expect(within(rows[1]).getByTestId('job-status-2')).toHaveTextContent('success');
+    const cells = within(rows[1]).getAllByRole('cell');
+    expect(cells[5]).toHaveTextContent('2'); // lines
+    expect(cells[6]).toHaveTextContent('0'); // exit code
+  });
+
+  it('selecting a row shows that job output; every job stays mounted (and streaming)', () => {
+    launchTwo();
+    const jobs = screen.getAllByTestId('live-job');
+    expect(jobs).toHaveLength(2);
+    // The newest job is selected on launch; the other is hidden but still mounted.
+    expect(jobs.filter((job) => !job.hasAttribute('hidden'))).toHaveLength(1);
+    const table = screen.getByRole('table', { name: /Launched jobs/ });
+    const first = within(table).getByRole('button', { name: /Show output of job 1/ });
+    const second = within(table).getByRole('button', { name: /Show output of job 2/ });
+    expect(second).toHaveAttribute('aria-pressed', 'true');
+    expect(first).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(first);
+    expect(first).toHaveAttribute('aria-pressed', 'true');
+    expect(second).toHaveAttribute('aria-pressed', 'false');
+    // jobs are rendered newest first, so job 1 is the second element
+    expect(screen.getAllByTestId('live-job')[1]).not.toHaveAttribute('hidden');
+    expect(screen.getAllByTestId('live-job')[0]).toHaveAttribute('hidden');
+    // both still own a running useJob instance
+    expect(startMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('moves between rows with ArrowDown / ArrowUp', () => {
+    launchTwo();
+    const table = screen.getByRole('table', { name: /Launched jobs/ });
+    const newest = within(table).getByRole('button', { name: /Show output of job 2/ });
+    const older = within(table).getByRole('button', { name: /Show output of job 1/ });
+    newest.focus();
+    fireEvent.keyDown(newest, { key: 'ArrowDown' });
+    expect(older).toHaveFocus();
+    fireEvent.keyDown(older, { key: 'ArrowUp' });
+    expect(newest).toHaveFocus();
+    // ends of the list do not wrap or throw
+    fireEvent.keyDown(newest, { key: 'ArrowUp' });
+    expect(newest).toHaveFocus();
+  });
+
+  it('announces a finished job in a polite live region and can clear finished jobs', async () => {
+    useJobMock.mockReturnValue(jobState({ status: 'failed', exitCode: 2 }));
+    setCatalog();
+    render(<JobsLogsScreen />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'doctor' }));
+    });
+    const live = screen.getAllByRole('status').find((el) => /Job 1/.test(el.textContent ?? ''));
+    expect(live).toHaveTextContent('Job 1 failed with exit code 2');
+
+    fireEvent.click(screen.getByRole('button', { name: /Clear finished/ }));
+    expect(screen.getByText(/No jobs running/i)).toBeInTheDocument();
+    expect(screen.getByText('0 active')).toBeInTheDocument();
   });
 });

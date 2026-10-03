@@ -128,7 +128,7 @@ function TemplatesContent({ templates }: { templates: TemplateFeed[] }): React.R
             data-total={templates.length}
           >
             <span className="font-semibold text-foreground tabular-nums">{filtered.length}</span>
-            <span className="text-muted-foreground">/ {templates.length}</span>
+            <span className="font-mono tabular-nums text-muted-foreground">/ {templates.length}</span>
           </span>
         </div>
 

@@ -13,7 +13,7 @@
 //     ]
 //   }
 //
-// A budget measures the GZIP size of the files its glob (`*` and `**`) matches:
+// A budget measures the GZIP size of the files its glob (`*`, `**`, `?`, `{a,b}`) matches:
 //   - default       the SUM of all matched files must stay under `maxGzipBytes`
 //   - "each": true  EVERY matched file must stay under `maxGzipBytes`
 //   - "optional": true  a glob that matches nothing is allowed (otherwise it is a
@@ -26,12 +26,21 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-/** Translate a glob (`*`, `**`, `?`) into an anchored RegExp over POSIX paths. */
+/** Translate a glob (`*`, `**`, `?`, `{a,b}`) into an anchored RegExp over POSIX paths. */
 export function globToRegExp(glob) {
   let source = '';
+  let braces = 0;
   for (let i = 0; i < glob.length; i += 1) {
     const ch = glob[i];
-    if (ch === '*') {
+    if (ch === '{') {
+      braces += 1;
+      source += '(?:';
+    } else if (ch === '}' && braces > 0) {
+      braces -= 1;
+      source += ')';
+    } else if (ch === ',' && braces > 0) {
+      source += '|';
+    } else if (ch === '*') {
       if (glob[i + 1] === '*') {
         source += '.*';
         i += 1;
