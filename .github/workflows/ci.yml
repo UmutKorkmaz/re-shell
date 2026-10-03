@@ -72,6 +72,13 @@ jobs:
           # regenerates the file; commit the result.
           node packages/cli/scripts/gen-cli-contracts.mjs --check
 
+      - name: Docs - every re-shell command and flag written in the docs exists
+        run: |
+          # Parses the `re-shell ...` invocations in the site, the READMEs and
+          # docs/ and checks each against the built CLI's `commands list --json`
+          # catalog (command paths, subcommands and declared flags).
+          node scripts/check-doc-commands.mjs --flags
+
       - name: Test packages/ui
         working-directory: packages/ui
         run: npx vitest run
