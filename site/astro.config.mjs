@@ -1,13 +1,16 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+// Single source of truth for the site origin/base and repo URL (shared with the
+// CLI, which uses the same constants for the schema $id and the links it prints).
+import { REPO_URL, SITE_BASE_PATH, SITE_ORIGIN } from '../packages/cli/src/constants/brand.ts';
 
-const GITHUB_REPO = 'https://github.com/UmutKorkmaz/re-shell';
+const GITHUB_REPO = REPO_URL;
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://umutkorkmaz.github.io',
-  base: '/re-shell',
+  site: SITE_ORIGIN,
+  base: SITE_BASE_PATH,
   output: 'static',
   trailingSlash: 'ignore',
   integrations: [

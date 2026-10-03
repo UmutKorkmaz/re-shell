@@ -16,6 +16,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { globSync } from 'glob';
+import { dumpWorkspaceYaml, toSchemaName, uniqueKey } from '../utils/workspace-yaml';
 
 /**
  * Identifies which kind of source monorepo is being migrated.
@@ -110,20 +111,7 @@ const VALID_LANGUAGES = new Set([
  * @returns A non-empty, lowercased, kebab-cased key no longer than 63 chars.
  */
 export function sanitizeServiceName(raw: string): string {
-  const withoutScope = raw.includes('/') ? raw.slice(raw.lastIndexOf('/') + 1) : raw;
-  let name = withoutScope
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+/, '')
-    .replace(/-+$/, '');
-
-  if (name.length === 0) {
-    name = 'service';
-  }
-  if (name.length > 63) {
-    name = name.slice(0, 63).replace(/-+$/, '');
-  }
-  return name;
+  return toSchemaName(raw, 'service');
 }
 
 /**
@@ -342,12 +330,7 @@ export function renderWorkspaceYaml(
   // De-duplicate sanitized names so two projects never collide on one key.
   const usedKeys = new Set<string>();
   for (const svc of services) {
-    let key = svc.name;
-    let suffix = 2;
-    while (usedKeys.has(key)) {
-      key = `${svc.name}-${suffix++}`;
-    }
-    usedKeys.add(key);
+    const key = uniqueKey(svc.name, usedKeys);
 
     servicesObj[key] = {
       name: key,
@@ -365,7 +348,9 @@ export function renderWorkspaceYaml(
     services: servicesObj,
   };
 
-  return yaml.dump(doc, { lineWidth: 120, noRefs: true, sortKeys: false });
+  // Serialised with the shared writer: adds the `$schema` modeline so IDEs
+  // resolve the hosted schema for the generated file.
+  return dumpWorkspaceYaml(doc);
 }
 
 /**

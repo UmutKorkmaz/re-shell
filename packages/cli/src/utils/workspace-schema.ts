@@ -4,6 +4,10 @@ import * as yaml from 'yaml';
 
 import glob from 'glob';
 import { ValidationError } from './error-handler';
+import { SCHEMA_MODELINE, WORKSPACE_CONFIG_VERSION } from './workspace-yaml';
+
+/** Matches a v2 workspace config version (`2.0.x`), as required by the v2 JSON Schema. */
+const V2_VERSION_PATTERN = /^2\.0\.[0-9]+$/;
 
 /**
  * Root schema describing a workspace definition for a Re-Shell monorepo.
@@ -99,6 +103,14 @@ export interface WorkspaceDefinition {
 
   /** Optional list of plugins to load for this workspace. */
   plugins?: string[];
+
+  /**
+   * v2 `services` map (see the v2 JSON Schema). Definitions created by
+   * `workspace-def init` carry `version: 2.0.x` plus an (initially empty)
+   * `services` map so the same file is valid both here and against the v2
+   * schema (`re-shell config schema validate`).
+   */
+  services?: Record<string, unknown>;
 
   /** Optional metadata tracking creation/modification and tags. */
   metadata?: {
@@ -645,9 +657,9 @@ export class WorkspaceSchemaValidator {
 
   private validateVersion(errors: ValidationError[], warnings: ValidationWarning[]): void {
     const version = this.definition.version;
-    const supportedVersions = ['1.0'];
+    const supportedVersions = ['1.0', '2.0.x'];
 
-    if (!supportedVersions.includes(version)) {
+    if (version !== '1.0' && !V2_VERSION_PATTERN.test(String(version))) {
       errors.push(new ValidationError(`Unsupported version: ${version}. Supported: ${supportedVersions.join(', ')}`));
     }
   }
@@ -989,11 +1001,16 @@ export async function saveWorkspaceDefinition(
       lastModified: new Date().toISOString()
     };
 
-    const content = yaml.stringify(definition, {
+    const body = yaml.stringify(definition, {
       indent: 2,
       lineWidth: 100,
       minContentWidth: 40
     });
+    // v2 files carry the `$schema` modeline so IDEs resolve the hosted schema;
+    // legacy 1.0 files are not v2-shaped and must not be pointed at it.
+    const content = V2_VERSION_PATTERN.test(String(definition.version))
+      ? `${SCHEMA_MODELINE}\n${body}`
+      : body;
 
     await fs.ensureDir(path.dirname(filePath));
     await fs.writeFile(filePath, content, 'utf8');
@@ -1007,6 +1024,9 @@ export async function saveWorkspaceDefinition(
 
 /**
  * Create a new workspace definition seeded from `DEFAULT_WORKSPACE_DEFINITION`.
+ * The result is v2-valid: `version` is `2.0.0` and `services` is an empty map,
+ * so the saved file also passes `re-shell config schema validate`. `name` must
+ * be a schema-valid kebab-case name (see `toSchemaName`).
  *
  * @param name - Name to assign to the new workspace definition.
  * @param options - Optional overrides applied on top of the defaults.
@@ -1019,6 +1039,10 @@ export function createDefaultWorkspaceDefinition(
 ): WorkspaceDefinition {
   return {
     ...DEFAULT_WORKSPACE_DEFINITION,
+    // New definitions are written as v2 files: `version: 2.0.x` and `services`
+    // (both required by the v2 JSON Schema) alongside the definition fields.
+    version: WORKSPACE_CONFIG_VERSION,
+    services: {},
     name,
     metadata: {
       created: new Date().toISOString(),

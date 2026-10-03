@@ -6,6 +6,8 @@ import * as path from 'path';
 import chalk from 'chalk';
 import glob from 'glob';
 import prompts from 'prompts';
+import * as jsYaml from 'js-yaml';
+import { SCHEMA_MODELINE, toSchemaName, uniqueKey } from '../utils/workspace-yaml';
 
 /**
  * Options for importing an existing monorepo into a Re-Shell workspace configuration.
@@ -534,38 +536,58 @@ function displayImportPreview(config: MonorepoConfig): void {
 }
 
 /**
- * Generate Re-Shell workspace config
+ * Render a string as a YAML scalar: plain when that is unambiguous, quoted
+ * otherwise (leading `@`, numeric-looking text, `: `, ...).
+ */
+function yamlScalar(value: string): string {
+  const rendered = jsYaml.dump(value, { lineWidth: -1 }).trim();
+  return rendered.includes('\n') ? JSON.stringify(value) : rendered;
+}
+
+/**
+ * Generate Re-Shell workspace config.
+ *
+ * The output must conform to the v2 JSON Schema, so service keys/names are
+ * sanitised to kebab-case (npm scopes like `@acme/web` become `web`, the
+ * original name is kept in `metadata.originalName`), every service gets a
+ * `framework` (the schema requires one), and non-trivial scalars are quoted.
  */
 function generateWorkspaceConfig(config: MonorepoConfig): string {
-  let yaml = 'name: imported-workspace\n';
+  let yaml = SCHEMA_MODELINE + '\n';
+  yaml += 'name: imported-workspace\n';
   yaml += 'version: 2.0.0\n';
   yaml += 'description: Workspace imported from ' + config.type + '\n';
-  yaml += 'packageManager: ' + (config.rootPackage?.packageManager || 'pnpm') + '\n\n';
+  yaml += 'packageManager: ' + yamlScalar(String(config.rootPackage?.packageManager || 'pnpm')) + '\n\n';
   yaml += 'services:\n';
 
+  const usedKeys = new Set<string>();
+
   for (const project of config.projects) {
-    yaml += '  ' + project.name + ':\n';
-    yaml += '    name: ' + project.name + '\n';
+    const key = uniqueKey(toSchemaName(project.name), usedKeys);
+
+    yaml += '  ' + key + ':\n';
+    yaml += '    name: ' + key + '\n';
 
     // Map library type to worker for valid schema
-    const serviceType = project.type === 'library' ? 'worker' : (project.type || 'worker');
+    const serviceType = project.type === 'library' || project.type === 'tool' ? 'worker' : (project.type || 'worker');
     yaml += '    type: ' + serviceType + '\n';
     yaml += '    language: ' + (project.language || 'javascript') + '\n';
 
-    // Add framework for libraries if not present
-    if (project.framework) {
-      yaml += '    framework: ' + project.framework + '\n';
-    } else if (project.type === 'library') {
-      yaml += '    framework: vanilla\n';
-    }
+    // `framework` is required by the schema: fall back to "vanilla".
+    yaml += '    framework: ' + (project.framework || 'vanilla') + '\n';
 
-    yaml += '    path: ' + project.path + '\n';
+    yaml += '    path: ' + yamlScalar(project.path) + '\n';
+
+    if (project.name !== key) {
+      yaml += '    metadata:\n';
+      yaml += '      originalName: ' + JSON.stringify(project.name) + '\n';
+    }
 
     if (project.type === 'frontend' && !project.port) {
       // Default ports for frontend
       const portHash = hashString(project.name) % 1000 + 3000;
       yaml += '    port: ' + portHash + '\n';
-      yaml += '    route: /' + project.name + '\n';
+      yaml += '    route: /' + key + '\n';
     }
 
     if (project.type === 'backend' && !project.port) {
@@ -577,7 +599,7 @@ function generateWorkspaceConfig(config: MonorepoConfig): string {
     if (project.scripts && Object.keys(project.scripts).length > 0) {
       yaml += '    scripts:\n';
       for (const [scriptName, scriptCommand] of Object.entries(project.scripts)) {
-        yaml += '      ' + scriptName + ': ' + JSON.stringify(scriptCommand) + '\n';
+        yaml += '      ' + yamlScalar(scriptName) + ': ' + JSON.stringify(scriptCommand) + '\n';
       }
     }
 
@@ -585,7 +607,7 @@ function generateWorkspaceConfig(config: MonorepoConfig): string {
       yaml += '    dependencies:\n';
       yaml += '      production:\n';
       for (const [dep, version] of Object.entries(project.dependencies)) {
-        yaml += '        ' + dep + ': ' + JSON.stringify(version) + '\n';
+        yaml += '        ' + yamlScalar(dep) + ': ' + JSON.stringify(version) + '\n';
       }
     }
 

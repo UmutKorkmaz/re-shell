@@ -12,6 +12,7 @@ import {
 } from '../utils/workspace-schema';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { SCHEMA_NAME_HINT, SCHEMA_NAME_PATTERN, toSchemaName } from '../utils/workspace-yaml';
 
 /**
  * Options for the workspace definition command, including initialization,
@@ -136,7 +137,8 @@ async function initializeWorkspaceDefinition(options: WorkspaceDefinitionCommand
 
   try {
     // Get project information
-    let projectName = path.basename(process.cwd());
+    // The name becomes the v2 workspace `name`, which the schema restricts to kebab-case.
+    let projectName = toSchemaName(path.basename(process.cwd()), 'workspace');
     let description = '';
 
     if (!options.dryRun) {
@@ -148,7 +150,7 @@ async function initializeWorkspaceDefinition(options: WorkspaceDefinitionCommand
           name: 'name',
           message: 'Project name:',
           initial: projectName,
-          validate: (value: string) => value.trim() ? true : 'Project name is required'
+          validate: (value: string) => SCHEMA_NAME_PATTERN.test(value.trim()) ? true : SCHEMA_NAME_HINT
         },
         {
           type: 'text',
@@ -158,7 +160,7 @@ async function initializeWorkspaceDefinition(options: WorkspaceDefinitionCommand
       ]);
 
       if (!response.name) return;
-      projectName = response.name;
+      projectName = String(response.name).trim();
       description = response.description || '';
     }
 
@@ -279,7 +281,7 @@ async function autoDetectWorkspaces(options: WorkspaceDefinitionCommandOptions, 
     if (await fs.pathExists(inputPath)) {
       definition = await loadWorkspaceDefinition(inputPath);
     } else {
-      definition = createDefaultWorkspaceDefinition(path.basename(process.cwd()));
+      definition = createDefaultWorkspaceDefinition(toSchemaName(path.basename(process.cwd()), 'workspace'));
     }
 
     const validator = new WorkspaceSchemaValidator(definition, path.dirname(inputPath));
