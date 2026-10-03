@@ -16,9 +16,9 @@ export const laravelTemplate: BackendTemplate = {
   files: {
     // Composer configuration
     'composer.json': `{
-  "name": "re-shell/{{serviceName}}",
+  "name": "re-shell/{{projectName}}",
   "type": "project",
-  "description": "{{serviceName}} - Laravel API Service",
+  "description": "{{projectName}} - Laravel API Service",
   "keywords": ["laravel", "api", "microservice"],
   "license": "MIT",
   "require": {
@@ -33,8 +33,6 @@ export const laravelTemplate: BackendTemplate = {
     "spatie/laravel-fractal": "^6.0",
     "spatie/laravel-backup": "^8.1",
     "spatie/laravel-activitylog": "^4.7",
-    "barryvdh/laravel-cors": "^3.0",
-    "fruitcake/laravel-cors": "^3.0",
     "laravel/horizon": "^5.15",
     "laravel/telescope": "^4.14",
     "tymon/jwt-auth": "^2.0",
@@ -112,7 +110,7 @@ export const laravelTemplate: BackendTemplate = {
 }`,
 
     // Environment configuration
-    '.env.example': `APP_NAME={{serviceName}}
+    '.env.example': `APP_NAME={{projectName}}
 APP_ENV=local
 APP_KEY=
 APP_DEBUG=true
@@ -125,7 +123,7 @@ LOG_LEVEL=debug
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE={{serviceName}}_db
+DB_DATABASE={{projectName}}_db
 DB_USERNAME=root
 DB_PASSWORD=
 
@@ -1149,19 +1147,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: {{serviceName}}
-    container_name: {{serviceName}}-app
+    image: {{projectName}}
+    container_name: {{projectName}}-app
     restart: unless-stopped
     working_dir: /var/www
     volumes:
       - ./:/var/www
       - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
     networks:
-      - {{serviceName}}-network
+      - {{projectName}}-network
 
   webserver:
     image: nginx:alpine
-    container_name: {{serviceName}}-nginx
+    container_name: {{projectName}}-nginx
     restart: unless-stopped
     ports:
       - "8000:80"
@@ -1169,39 +1167,39 @@ services:
       - ./:/var/www
       - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
     networks:
-      - {{serviceName}}-network
+      - {{projectName}}-network
 
   db:
     image: mysql:8.0
-    container_name: {{serviceName}}-db
+    container_name: {{projectName}}-db
     restart: unless-stopped
     ports:
       - "3306:3306"
     environment:
-      MYSQL_DATABASE: {{serviceName}}_db
+      MYSQL_DATABASE: {{projectName}}_db
       MYSQL_ROOT_PASSWORD: secret
       MYSQL_PASSWORD: secret
-      MYSQL_USER: {{serviceName}}
+      MYSQL_USER: {{projectName}}
     volumes:
       - dbdata:/var/lib/mysql
       - ./docker/mysql/my.cnf:/etc/mysql/my.cnf
     networks:
-      - {{serviceName}}-network
+      - {{projectName}}-network
 
   redis:
     image: redis:alpine
-    container_name: {{serviceName}}-redis
+    container_name: {{projectName}}-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
     networks:
-      - {{serviceName}}-network
+      - {{projectName}}-network
 
   queue:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: {{serviceName}}-queue
+    container_name: {{projectName}}-queue
     restart: unless-stopped
     command: php artisan queue:work --sleep=3 --tries=3
     volumes:
@@ -1211,13 +1209,13 @@ services:
       - db
       - redis
     networks:
-      - {{serviceName}}-network
+      - {{projectName}}-network
 
   scheduler:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: {{serviceName}}-scheduler
+    container_name: {{projectName}}-scheduler
     restart: unless-stopped
     command: php artisan schedule:work
     volumes:
@@ -1226,10 +1224,10 @@ services:
       - app
       - db
     networks:
-      - {{serviceName}}-network
+      - {{projectName}}-network
 
 networks:
-  {{serviceName}}-network:
+  {{projectName}}-network:
     driver: bridge
 
 volumes:
@@ -1434,7 +1432,7 @@ class HealthQuery extends Query
 }`,
 
     // README
-    'README.md': `# {{serviceName}} - Laravel API Service
+    'README.md': `# {{projectName}} - Laravel API Service
 
 Enterprise PHP API built with Laravel framework, featuring Eloquent ORM, queue management, and comprehensive authentication.
 

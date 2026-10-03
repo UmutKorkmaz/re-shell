@@ -83,7 +83,7 @@ SECRET_KEY=your-secret-key-here
 ALLOWED_HOSTS=localhost,127.0.0.1
 
 # Database
-DATABASE_URL=postgres://postgres:password@localhost:5432/{{service_name}}
+DATABASE_URL=postgres://postgres:password@localhost:5432/{{projectName}}
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
@@ -150,7 +150,7 @@ else:
     from .development import *  # noqa
 `,
           'base.py': `"""
-Django base settings for {{service_name}} project.
+Django base settings for {{projectName}} project.
 """
 import os
 from datetime import timedelta
@@ -170,7 +170,9 @@ env = environ.Env(
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env('SECRET_KEY')
+# A development-only default lets a fresh checkout start; production settings refuse it.
+DEV_SECRET_KEY = 'django-insecure-dev-only-secret-key-change-me'
+SECRET_KEY = env('SECRET_KEY', default=DEV_SECRET_KEY)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
@@ -229,7 +231,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 DATABASES = {
-    'default': env.db()
+    'default': env.db(default='postgres://postgres:postgres@localhost:5432/{{projectName}}')
 }
 
 # Password validation
@@ -334,8 +336,8 @@ DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@example.com')
 
 # Spectacular Settings (OpenAPI)
 SPECTACULAR_SETTINGS = {
-    'TITLE': '{{service_name}} API',
-    'DESCRIPTION': 'API documentation for {{service_name}}',
+    'TITLE': '{{projectName}} API',
+    'DESCRIPTION': 'API documentation for {{projectName}}',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'SWAGGER_UI_SETTINGS': {
@@ -387,9 +389,16 @@ Development-specific settings.
 """
 from .base import *  # noqa
 
-# Debug toolbar
-INSTALLED_APPS += ['debug_toolbar']  # noqa
-MIDDLEWARE = ['debug_toolbar.middleware.DebugToolbarMiddleware'] + MIDDLEWARE  # noqa
+# Debug toolbar (installed by requirements-dev.txt; optional so that the app also
+# starts from the production requirements alone)
+try:
+    import debug_toolbar  # noqa: F401
+except ImportError:
+    HAS_DEBUG_TOOLBAR = False
+else:
+    HAS_DEBUG_TOOLBAR = True
+    INSTALLED_APPS += ['debug_toolbar']  # noqa
+    MIDDLEWARE = ['debug_toolbar.middleware.DebugToolbarMiddleware'] + MIDDLEWARE  # noqa
 
 # Debug toolbar settings
 INTERNAL_IPS = ['127.0.0.1', 'localhost']
@@ -411,6 +420,11 @@ CELERY_TASK_EAGER_PROPAGATES = True
 Production-specific settings.
 """
 from .base import *  # noqa
+
+from django.core.exceptions import ImproperlyConfigured
+
+if SECRET_KEY == DEV_SECRET_KEY:  # noqa: F405
+    raise ImproperlyConfigured('SECRET_KEY must be set explicitly in production')
 
 # Security settings
 SECURE_SSL_REDIRECT = True
@@ -473,7 +487,7 @@ CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 `},
         'urls.py': `"""
-URL configuration for {{service_name}} project.
+URL configuration for {{projectName}} project.
 """
 from django.conf import settings
 from django.conf.urls.static import static
@@ -509,13 +523,14 @@ if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     
-    # Debug toolbar
-    import debug_toolbar
-    urlpatterns = [
-        path('__debug__/', include(debug_toolbar.urls))] + urlpatterns
+    # Debug toolbar (only when it is installed and enabled in the settings)
+    if 'debug_toolbar' in settings.INSTALLED_APPS:
+        import debug_toolbar
+        urlpatterns = [
+            path('__debug__/', include(debug_toolbar.urls))] + urlpatterns
 `,
         'wsgi.py': `"""
-WSGI config for {{service_name}} project.
+WSGI config for {{projectName}} project.
 """
 import os
 
@@ -526,7 +541,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 application = get_wsgi_application()
 `,
         'asgi.py': `"""
-ASGI config for {{service_name}} project.
+ASGI config for {{projectName}} project.
 """
 import os
 
@@ -537,7 +552,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 application = get_asgi_application()
 `,
         'celery.py': `"""
-Celery configuration for {{service_name}} project.
+Celery configuration for {{projectName}} project.
 """
 import os
 
@@ -547,7 +562,7 @@ from celery import Celery
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 # Create Celery app
-app = Celery('{{service_name}}')
+app = Celery('{{projectName}}')
 
 # Load configuration from Django settings
 app.config_from_object('django.conf:settings', namespace='CELERY')
@@ -1271,7 +1286,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: {{service_name}}
+      POSTGRES_DB: {{projectName}}
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
@@ -1386,7 +1401,7 @@ services:
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: {{service_name}}_dev
+      POSTGRES_DB: {{projectName}}_dev
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
@@ -1458,7 +1473,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: {{service_name}}
+      POSTGRES_DB: {{projectName}}
       POSTGRES_USER: \${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-changeme}
     restart: unless-stopped
@@ -1549,7 +1564,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: {{service_name}}
+      POSTGRES_DB: {{projectName}}
       POSTGRES_USER: \${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-changeme}
     restart: unless-stopped
@@ -2065,7 +2080,7 @@ YELLOW='\\033[1;33m'
 NC='\\033[0m' # No Color
 
 # Configuration
-IMAGE_NAME="\${IMAGE_NAME:-{{service_name}}:latest}"
+IMAGE_NAME="\${IMAGE_NAME:-{{projectName}}:latest}"
 IMAGE_TAG="\${IMAGE_TAG:-latest}"
 SEVERITY="\${SEVERITY:-HIGH,CRITICAL}"
 OUTPUT_DIR="security-reports"
@@ -2346,7 +2361,7 @@ jobs:
 # Enables faster builds with cache mounting and multi-platform support
 
 variable "IMAGE_NAME" {
-    default = "{{service_name}}"
+    default = "{{projectName}}"
 }
 
 variable "REGISTRY" {
@@ -2375,8 +2390,8 @@ target "dev" {
     dockerfile = "Dockerfile.dev"
     target = "development"
     tags = [
-        "{{service_name}}:dev",
-        "{{service_name}}:development"]
+        "{{projectName}}:dev",
+        "{{projectName}}:development"]
     cache-from = [
         "type=local,src=/tmp/.buildx-cache-dev"
     ]
@@ -2390,11 +2405,11 @@ target "prod" {
     inherits = ["_base"]
     target = "production"
     tags = [
-        "{{service_name}}:latest",
-        "{{service_name}}:prod",
-        "{{service_name}}:production"]
+        "{{projectName}}:latest",
+        "{{projectName}}:prod",
+        "{{projectName}}:production"]
     cache-from = [
-        "type=registry,ref={{service_name}}:cache",
+        "type=registry,ref={{projectName}}:cache",
         "type=local,src=/tmp/.buildx-cache-prod"
     ]
     cache-to = [
@@ -2412,7 +2427,7 @@ target "distroless" {
     inherits = ["_base"]
     dockerfile = "Dockerfile.distroless"
     tags = [
-        "{{service_name}}:distroless"]
+        "{{projectName}}:distroless"]
     cache-from = [
         "type=local,src=/tmp/.buildx-cache-distroless"
     ]
@@ -2426,7 +2441,7 @@ target "ephemeral" {
     inherits = ["_base"]
     dockerfile = "Dockerfile.ephemeral"
     tags = [
-        "{{service_name}}:ephemeral"]
+        "{{projectName}}:ephemeral"]
     cache-from = [
         "type=local,src=/tmp/.buildx-cache-ephemeral"
     ]
@@ -2440,12 +2455,12 @@ target "multiplatform" {
     inherits = ["_base"]
     platforms = split(PLATFORMS, ",")
     tags = [
-        "{{service_name}}:multi"]
+        "{{projectName}}:multi"]
     cache-from = [
-        "type=registry,ref={{service_name}}:cache"
+        "type=registry,ref={{projectName}}:cache"
     ]
     cache-to = [
-        "type=registry,ref={{service_name}}:cache,mode=max"
+        "type=registry,ref={{projectName}}:cache,mode=max"
     ]
 }
 
@@ -2454,10 +2469,10 @@ target "cache" {
     inherits = ["_base"]
     output = ["type=cacheonly"]
     cache-from = [
-        "type=registry,ref={{service_name}}:buildcache"
+        "type=registry,ref={{projectName}}:buildcache"
     ]
     cache-to = [
-        "type=registry,ref={{service_name}}:buildcache,mode=max"
+        "type=registry,ref={{projectName}}:buildcache,mode=max"
     ]
 }
 
@@ -2502,7 +2517,7 @@ BLUE='\\033[0;34m'
 NC='\\033[0m' # No Color
 
 # Configuration
-IMAGE_NAME="\${IMAGE_NAME:-{{service_name}}}"
+IMAGE_NAME="\${IMAGE_NAME:-{{projectName}}}"
 IMAGE_TAG="\${IMAGE_TAG:-latest}"
 DOCKERFILE="\${DOCKERFILE:-Dockerfile.prod}"
 BUILD_CONTEXT="\${BUILD_CONTEXT:-.}"
@@ -2687,7 +2702,7 @@ RED='\\033[0;31m'
 NC='\\033[0m' # No Color
 
 # Configuration
-IMAGE_NAME="\${IMAGE_NAME:-{{service_name}}}"
+IMAGE_NAME="\${IMAGE_NAME:-{{projectName}}}"
 IMAGE_TAG="\${IMAGE_TAG:-latest}"
 IMAGE_REF="\${IMAGE_NAME}:\${IMAGE_TAG}"
 COSIGN_EXPERIMENTAL="\${COSIGN_EXPERIMENTAL:-1}"
@@ -2757,7 +2772,7 @@ RED='\\033[0;31m'
 NC='\\033[0m' # No Color
 
 # Configuration
-IMAGE_REF="\${1:-\${IMAGE_NAME:-{{service_name}}}:latest}"
+IMAGE_REF="\${1:-\${IMAGE_NAME:-{{projectName}}}:latest}"
 PUBLIC_KEY="\${PUBLIC_KEY:-cosign.pub}"
 COSIGN_EXPERIMENTAL="\${COSIGN_EXPERIMENTAL:-1}"
 
@@ -2819,7 +2834,7 @@ RED='\\033[0;31m'
 NC='\\033[0m' # No Color
 
 # Configuration
-IMAGE_REF="\${1:-\${IMAGE_NAME:-{{service_name}}}:latest}"
+IMAGE_REF="\${1:-\${IMAGE_NAME:-{{projectName}}}:latest}"
 COSIGN_EXPERIMENTAL="\${COSIGN_EXPERIMENTAL:-1}"
 
 echo -e "\${BLUE}=== Keyless Image Signing with Sigstore ===\${NC}"
@@ -2997,7 +3012,7 @@ data:
       buffered_outputs: true
       buffered_outputs_timeout: 30
 
-    # Custom rules for {{service_name}}
+    # Custom rules for {{projectName}}
     rules:
       - macro: spawn_shell
         condition: >
@@ -3095,13 +3110,13 @@ data:
         priority: CRITICAL
         tags: [container, privilege]
 `,
-      'falco/rules.yaml': `# Additional Falco Rules for {{service_name}}
+      'falco/rules.yaml': `# Additional Falco Rules for {{projectName}}
 # Application-specific security rules
 
 apiVersion: falco.appscode.com/v1alpha1
 kind: FalcoPolicy
 metadata:
-  name: {{service_name}}-policy
+  name: {{projectName}}-policy
   namespace: falco
 spec:
   rules:
@@ -3128,7 +3143,7 @@ spec:
         outbound
         and container
         and fd.sport = 5432
-        and not container.image.repository in ("{{service_name}}-web", "{{service_name}}-worker")
+        and not container.image.repository in ("{{projectName}}-web", "{{projectName}}-worker")
       output: >
         Unauthorized database connection (container=%container.name
         dst=%fd.sip command=%proc.cmdline)
@@ -3177,7 +3192,7 @@ spec:
       priority: CRITICAL
       tags: [container, shell]
 `,
-      'opa/gatekeeper-constraints.yaml': `# OPA Gatekeeper Constraints for {{service_name}}
+      'opa/gatekeeper-constraints.yaml': `# OPA Gatekeeper Constraints for {{projectName}}
 # Enforces security policies on Kubernetes resources
 
 apiVersion: constraints.gatekeeper.sh/v1beta1
@@ -3190,7 +3205,7 @@ spec:
       - apiGroups: [""]
         kinds: ["Pod"]
     namespaces:
-      - {{service_name}}
+      - {{projectName}}
   parameters:
     labels:
       - key: "owner"
@@ -3207,7 +3222,7 @@ spec:
       - apiGroups: [""]
         kinds: ["Pod"]
     namespaces:
-      - {{service_name}}
+      - {{projectName}}
   parameters:
     cpu: "800m"
     memory: "1Gi"
@@ -3223,7 +3238,7 @@ spec:
       - apiGroups: [""]
         kinds: ["Pod"]
     namespaces:
-      - {{service_name}}
+      - {{projectName}}
   parameters:
     exemptImages: []
     exemptNamespaces: []
@@ -3239,7 +3254,7 @@ spec:
       - apiGroups: [""]
         kinds: ["Pod"]
     namespaces:
-      - {{service_name}}
+      - {{projectName}}
   parameters:
     exemptImages: []
     exemptNamespaces: []
@@ -3255,7 +3270,7 @@ spec:
       - apiGroups: [""]
         kinds: ["Pod"]
     namespaces:
-      - {{service_name}}
+      - {{projectName}}
   parameters:
     exemptImages: []
     requiredDropCapabilities:
@@ -3275,7 +3290,7 @@ spec:
       - apiGroups: [""]
         kinds: ["Pod"]
     namespaces:
-      - {{service_name}}
+      - {{projectName}}
   parameters:
     exemptImages: []
 
@@ -3290,17 +3305,17 @@ spec:
       - apiGroups: [""]
         kinds: ["Pod"]
     namespaces:
-      - {{service_name}}
+      - {{projectName}}
   parameters:
     repos:
       - "ghcr.io/"
       - "gcr.io/"
-      - "{{service_name}}/"
+      - "{{projectName}}/"
 `,
-      'opa/policies.rego': `# OPA Policies for {{service_name}}
+      'opa/policies.rego': `# OPA Policies for {{projectName}}
 # Rego policies for runtime security validation
 
-package {{service_name}}
+package {{projectName}}
 
 import future.keywords.contains
 import future.keywords.if
@@ -3353,7 +3368,7 @@ deny_invalid_registry[msg] if {
     some container in input.review.object.spec.containers
     not startswith(container.image, "ghcr.io/")
     not startswith(container.image, "gcr.io/")
-    not startswith(container.image, "{{service_name}}/")
+    not startswith(container.image, "{{projectName}}/")
     msg := sprintf("Image '%s' is from an untrusted registry", [container.image])
 }
 
@@ -3369,7 +3384,7 @@ deny_latest_tag[msg] if {
 deny_no_probes[msg] if {
     input.review.kind.kind == "Pod"
     some container in input.review.object.spec.containers
-    container.name == "{{service_name}}"
+    container.name == "{{projectName}}"
     not container.livenessProbe
     msg := sprintf("Container '%s' must have a liveness probe", [container.name])
 }
@@ -3377,7 +3392,7 @@ deny_no_probes[msg] if {
 deny_no_readiness_probe[msg] if {
     input.review.kind.kind == "Pod"
     some container in input.review.object.spec.containers
-    container.name == "{{service_name}}"
+    container.name == "{{projectName}}"
     not container.readinessProbe
     msg := sprintf("Container '%s' must have a readiness probe", [container.name])
 }
@@ -3498,7 +3513,7 @@ echo -e "\${GREEN}Constraints applied!\${NC}"
 echo -e "\${YELLOW}Installing OPA policies...\${NC}"
 kubectl create configmap opa-policies \\
     --from-file=opa/policies.rego \\
-    --namespace={{service_name}} \\
+    --namespace={{projectName}} \\
     --dry-run=client -o yaml | kubectl apply -f -
 
 echo -e "\${GREEN}Runtime security installation completed!\${NC}"
@@ -3591,14 +3606,14 @@ echo "To view Falco events in real-time:"
 echo "  kubectl logs -l app=falco -n falco -f"
 `,
       'kubernetes/resource-limits.yaml': `# Kubernetes Resource Limits and QoS Configuration
-# Defines resource requests, limits, and Quality of Service for {{service_name}}
+# Defines resource requests, limits, and Quality of Service for {{projectName}}
 
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{service_name}}
+  name: {{projectName}}
   labels:
-    name: {{service_name}}
+    name: {{projectName}}
     pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
@@ -3609,7 +3624,7 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: resource-limits
-  namespace: {{service_name}}
+  namespace: {{projectName}}
 spec:
   limits:
   - default:        # Default limit for containers
@@ -3635,7 +3650,7 @@ apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: compute-quota
-  namespace: {{service_name}}
+  namespace: {{projectName}}
 spec:
   hard:
     requests.cpu: "4"
@@ -3655,32 +3670,32 @@ spec:
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
-  name: {{service_name}}-high-priority
+  name: {{projectName}}-high-priority
 value: 1000
 globalDefault: false
-description: "High priority {{service_name}} workload"
+description: "High priority {{projectName}} workload"
 
 ---
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
-  name: {{service_name}}-low-priority
+  name: {{projectName}}-low-priority
 value: 100
 globalDefault: true
-description: "Low priority {{service_name}} workload"
+description: "Low priority {{projectName}} workload"
 
 ---
 # HorizontalPodAutoscaler for web deployment
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{service_name}}-web-hpa
-  namespace: {{service_name}}
+  name: {{projectName}}-web-hpa
+  namespace: {{projectName}}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{service_name}}-web
+    name: {{projectName}}-web
   minReplicas: 2
   maxReplicas: 10
   metrics:
@@ -3715,13 +3730,13 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{service_name}}-web-pdb
-  namespace: {{service_name}}
+  name: {{projectName}}-web-pdb
+  namespace: {{projectName}}
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: web
 
 ---
@@ -3729,12 +3744,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-network-policy
-  namespace: {{service_name}}
+  name: {{projectName}}-network-policy
+  namespace: {{projectName}}
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
   policyTypes:
   - Ingress
   - Egress
@@ -3749,7 +3764,7 @@ spec:
   - from:
     - podSelector:
         matchLabels:
-          app: {{service_name}}
+          app: {{projectName}}
     ports:
     - protocol: TCP
       port: 8000
@@ -3757,7 +3772,7 @@ spec:
   - to:
     - podSelector:
         matchLabels:
-          app: {{service_name}}
+          app: {{projectName}}
           component: db
     ports:
     - protocol: TCP
@@ -3765,7 +3780,7 @@ spec:
   - to:
     - podSelector:
         matchLabels:
-          app: {{service_name}}
+          app: {{projectName}}
           component: redis
     ports:
     - protocol: TCP
@@ -3791,10 +3806,10 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{service_name}}-web
-  namespace: {{service_name}}
+  name: {{projectName}}-web
+  namespace: {{projectName}}
   labels:
-    app: {{service_name}}
+    app: {{projectName}}
     component: web
 spec:
   replicas: 3
@@ -3805,19 +3820,19 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: web
   template:
     metadata:
       labels:
-        app: {{service_name}}
+        app: {{projectName}}
         component: web
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
     spec:
-      priorityClassName: {{service_name}}-high-priority
+      priorityClassName: {{projectName}}-high-priority
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -3825,8 +3840,8 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-      - name: {{service_name}}
-        image: ghcr.io/your-org/{{service_name}}:latest
+      - name: {{projectName}}
+        image: ghcr.io/your-org/{{projectName}}:latest
         imagePullPolicy: Always
         ports:
         - name: http
@@ -3836,17 +3851,17 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: {{service_name}}-secrets
+              name: {{projectName}}-secrets
               key: database-url
         - name: SECRET_KEY
           valueFrom:
             secretKeyRef:
-              name: {{service_name}}-secrets
+              name: {{projectName}}-secrets
               key: secret-key
         - name: REDIS_URL
           valueFrom:
             configMapKeyRef:
-              name: {{service_name}}-config
+              name: {{projectName}}-config
               key: redis-url
         # QoS: Burstable (request < limit)
         resources:
@@ -3922,7 +3937,7 @@ spec:
                 - key: app
                   operator: In
                   values:
-                  - {{service_name}}
+                  - {{projectName}}
               topologyKey: kubernetes.io/hostname
         # Prefer nodes with specific labels
         nodeAffinity:
@@ -3937,7 +3952,7 @@ spec:
       tolerations:
       - key: "application"
         operator: "Equal"
-        value: "{{service_name}}"
+        value: "{{projectName}}"
         effect: "NoSchedule"
 
 ---
@@ -3945,38 +3960,38 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{service_name}}-worker
-  namespace: {{service_name}}
+  name: {{projectName}}-worker
+  namespace: {{projectName}}
   labels:
-    app: {{service_name}}
+    app: {{projectName}}
     component: worker
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: worker
   template:
     metadata:
       labels:
-        app: {{service_name}}
+        app: {{projectName}}
         component: worker
     spec:
-      priorityClassName: {{service_name}}-low-priority
+      priorityClassName: {{projectName}}-low-priority
       containers:
       - name: worker
-        image: ghcr.io/your-org/{{service_name}}:latest
+        image: ghcr.io/your-org/{{projectName}}:latest
         command: ["celery", "-A", "config", "worker", "-l", "info"]
         env:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: {{service_name}}-secrets
+              name: {{projectName}}-secrets
               key: database-url
         - name: REDIS_URL
           valueFrom:
             configMapKeyRef:
-              name: {{service_name}}-config
+              name: {{projectName}}-config
               key: redis-url
         # Workers need less CPU, more memory
         resources:
@@ -3999,7 +4014,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: resource-profiles
-  namespace: {{service_name}}
+  namespace: {{projectName}}
 data:
   # Small profile - for development/testing
   small: |
@@ -4090,18 +4105,18 @@ data:
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
-  name: {{service_name}}-web-vpa
-  namespace: {{service_name}}
+  name: {{projectName}}-web-vpa
+  namespace: {{projectName}}
 spec:
   targetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{service_name}}-web
+    name: {{projectName}}-web
   updatePolicy:
     updateMode: "Auto"
   resourcePolicy:
     containerPolicies:
-    - containerName: "{{service_name}}"
+    - containerName: "{{projectName}}"
       minAllowed:
         cpu: "100m"
         memory: "128Mi"
@@ -4125,7 +4140,7 @@ RED='\\033[0;31m'
 NC='\\033[0m' # No Color
 
 # Configuration
-NAMESPACE="\${NAMESPACE:-{{service_name}}}"
+NAMESPACE="\${NAMESPACE:-{{projectName}}}"
 PROFILE="\${PROFILE:-medium}"
 
 echo -e "\${BLUE}=== Resource Limits Configuration ===\${NC}"
@@ -4154,7 +4169,7 @@ kubectl apply -f kubernetes/profiles.yaml
 
 # Wait for deployment to be ready
 echo -e "\${YELLOW}Waiting for deployment to be ready...\${NC}"
-kubectl rollout status deployment/{{service_name}}-web -n "\${NAMESPACE}" --timeout=120s
+kubectl rollout status deployment/{{projectName}}-web -n "\${NAMESPACE}" --timeout=120s
 
 # Show current resource usage
 echo ""
@@ -4183,29 +4198,29 @@ echo "  memory-optimized  - 250m CPU / 1Gi RAM / 2 replicas"
 echo "  cpu-optimized     - 1000m CPU / 512Mi RAM / 2 replicas"
 echo ""
 echo "To scale deployment:"
-echo "  kubectl scale deployment/{{service_name}}-web --replicas=5 -n \${NAMESPACE}"
+echo "  kubectl scale deployment/{{projectName}}-web --replicas=5 -n \${NAMESPACE}"
 `,
-      'monitoring/prometheus-rules.yaml': `# Prometheus Alerting Rules for {{service_name}}
+      'monitoring/prometheus-rules.yaml': `# Prometheus Alerting Rules for {{projectName}}
 # Defines alert conditions for monitoring the application
 
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{service_name}}-rules
+  name: {{projectName}}-rules
   namespace: monitoring
   labels:
     release: prometheus
-    app: {{service_name}}
+    app: {{projectName}}
 spec:
   groups:
-  - name: {{service_name}}-alerts
+  - name: {{projectName}}-alerts
     interval: 30s
     rules:
     # High error rate alert
     - alert: HighErrorRate
       expr: |
-        sum(rate(http_requests_total{status=~"5..",app="{{service_name}}"}[5m])) /
-        sum(rate(http_requests_total{app="{{service_name}}"}[5m])) > 0.05
+        sum(rate(http_requests_total{status=~"5..",app="{{projectName}}"}[5m])) /
+        sum(rate(http_requests_total{app="{{projectName}}"}[5m])) > 0.05
       for: 10m
       labels:
         severity: warning
@@ -4218,7 +4233,7 @@ spec:
     - alert: HighLatency
       expr: |
         histogram_quantile(0.95,
-          sum(rate(http_request_duration_seconds_bucket{app="{{service_name}}"}[5m])) by (le)
+          sum(rate(http_request_duration_seconds_bucket{app="{{projectName}}"}[5m])) by (le)
         ) > 1
       for: 10m
       labels:
@@ -4231,7 +4246,7 @@ spec:
     # Pod crash looping
     - alert: PodCrashLooping
       expr: |
-        rate(kube_pod_container_status_restarts_total{app="{{service_name}}"}[15m]) > 0
+        rate(kube_pod_container_status_restarts_total{app="{{projectName}}"}[15m]) > 0
       for: 5m
       labels:
         severity: critical
@@ -4243,8 +4258,8 @@ spec:
     # High memory usage
     - alert: HighMemoryUsage
       expr: |
-        sum(container_memory_usage_bytes{app="{{service_name}}"}) /
-        sum(container_spec_memory_limit_bytes{app="{{service_name}}"}) > 0.9
+        sum(container_memory_usage_bytes{app="{{projectName}}"}) /
+        sum(container_spec_memory_limit_bytes{app="{{projectName}}"}) > 0.9
       for: 10m
       labels:
         severity: warning
@@ -4256,8 +4271,8 @@ spec:
     # High CPU usage
     - alert: HighCPUUsage
       expr: |
-        sum(rate(container_cpu_usage_seconds_total{app="{{service_name}}"}[5m])) by (pod) >
-        sum(container_spec_cpu_quota{app="{{service_name}}"}/container_spec_cpu_period{app="{{service_name}}"}) by (pod) * 0.9
+        sum(rate(container_cpu_usage_seconds_total{app="{{projectName}}"}[5m])) by (pod) >
+        sum(container_spec_cpu_quota{app="{{projectName}}"}/container_spec_cpu_period{app="{{projectName}}"}) by (pod) * 0.9
       for: 10m
       labels:
         severity: warning
@@ -4269,8 +4284,8 @@ spec:
     # Database connection pool exhausted
     - alert: DatabasePoolExhausted
       expr: |
-        sum(django_db_pool_connections{state="idle",app="{{service_name}}"}) /
-        sum(django_db_pool_connections{app="{{service_name}}"}) < 0.1
+        sum(django_db_pool_connections{state="idle",app="{{projectName}}"}) /
+        sum(django_db_pool_connections{app="{{projectName}}"}) < 0.1
       for: 5m
       labels:
         severity: critical
@@ -4282,7 +4297,7 @@ spec:
     # Celery queue backlog
     - alert: CeleryQueueBacklog
       expr: |
-        sum(celery_queue_length{app="{{service_name}}"}) > 1000
+        sum(celery_queue_length{app="{{projectName}}"}) > 1000
       for: 15m
       labels:
         severity: warning
@@ -4328,15 +4343,15 @@ spec:
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total{app=\\"{{service_name}}\\"}[5m]))",
+          "expr": "sum(rate(http_requests_total{app=\\"{{projectName}}\\"}[5m]))",
           "legendFormat": "Total Requests"
         },
         {
-          "expr": "sum(rate(http_requests_total{status=~\\"4..\\",app=\\"{{service_name}}\\"}[5m]))",
+          "expr": "sum(rate(http_requests_total{status=~\\"4..\\",app=\\"{{projectName}}\\"}[5m]))",
           "legendFormat": "4xx Errors"
         },
         {
-          "expr": "sum(rate(http_requests_total{status=~\\"5..\\",app=\\"{{service_name}}\\"}[5m]))",
+          "expr": "sum(rate(http_requests_total{status=~\\"5..\\",app=\\"{{projectName}}\\"}[5m]))",
           "legendFormat": "5xx Errors"
         }
       ],
@@ -4346,7 +4361,7 @@ spec:
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{app=\\"{{service_name}}\\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{app=\\"{{projectName}}\\"}[5m])) by (le))",
           "legendFormat": "P95 Latency"
         }
       ],
@@ -4356,7 +4371,7 @@ spec:
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "sum(container_cpu_usage_seconds_total{app=\\"{{service_name}}\\"}) by (pod)",
+          "expr": "sum(container_cpu_usage_seconds_total{app=\\"{{projectName}}\\"}) by (pod)",
           "legendFormat": "CPU"
         }
       ],
@@ -4366,48 +4381,48 @@ spec:
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "sum(container_memory_working_set_bytes{app=\\"{{service_name}}\\"}) by (pod)",
+          "expr": "sum(container_memory_working_set_bytes{app=\\"{{projectName}}\\"}) by (pod)",
           "legendFormat": "Memory"
         }
       ],
       "title": "Memory Usage"
     }
   ],
-  "title": "{{service_name}} Dashboard"
+  "title": "{{projectName}} Dashboard"
 }
 `,
-      'monitoring/service-monitor.yaml': `# Prometheus ServiceMonitor for {{service_name}}
+      'monitoring/service-monitor.yaml': `# Prometheus ServiceMonitor for {{projectName}}
 
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{service_name}}-web
-  namespace: {{service_name}}
+  name: {{projectName}}-web
+  namespace: {{projectName}}
 spec:
   selector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
   endpoints:
   - port: http
     path: /metrics
     interval: 30s
 `,
-      'logging/fluentd-config.yaml': `# Fluentd Configuration for {{service_name}}
+      'logging/fluentd-config.yaml': `# Fluentd Configuration for {{projectName}}
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: fluentd-config
-  namespace: {{service_name}}
+  namespace: {{projectName}}
 data:
   fluent.conf: |
     <source>
       @type tail
-      path /var/log/containers/{{service_name}}*.log
-      tag {{service_name}}.*
+      path /var/log/containers/{{projectName}}*.log
+      tag {{projectName}}.*
     </source>
 
-    <match {{service_name}}.**>
+    <match {{projectName}}.**>
       @type elasticsearch
       host elasticsearch
       port 9200
@@ -4442,7 +4457,7 @@ echo "Grafana: kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 LOG_FILE="/var/log/lifecycle/pre-stop.log"
 
 log() {
@@ -4498,7 +4513,7 @@ log "Pre-stop lifecycle hook completed successfully"
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 LOG_FILE="/var/log/lifecycle/post-start.log"
 MAX_RETRIES=\${POST_START_MAX_RETRIES:-30}
 RETRY_DELAY=\${POST_START_RETRY_DELAY:-2}
@@ -4738,9 +4753,9 @@ exit 0
       'kubernetes/lifecycle-deployment.yaml': `apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{service_name}}-web
+  name: {{projectName}}-web
   labels:
-    app: {{service_name}}
+    app: {{projectName}}
     component: web
 spec:
   replicas: 3
@@ -4751,18 +4766,18 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: web
   template:
     metadata:
       labels:
-        app: {{service_name}}
+        app: {{projectName}}
         component: web
     spec:
       # Lifecycle hooks
       containers:
       - name: web
-        image: {{service_name}}:latest
+        image: {{projectName}}:latest
         ports:
         - name: http
           containerPort: 8000
@@ -4850,7 +4865,7 @@ spec:
       volumes:
       - name: lifecycle-scripts
         configMap:
-          name: {{service_name}}-lifecycle-scripts
+          name: {{projectName}}-lifecycle-scripts
           defaultMode: 0555
       - name: lifecycle-logs
         emptyDir: {}
@@ -4876,12 +4891,12 @@ spec:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{service_name}}-lifecycle-scripts
+  name: {{projectName}}-lifecycle-scripts
 data:
   pre-stop.sh: |
     #!/bin/bash
     set -e
-    SERVICE_NAME="{{service_name}}"
+    SERVICE_NAME="{{projectName}}"
     GRACE_PERIOD=\${PRE_STOP_GRACE_PERIOD:-10}
     echo "[$(date)] Pre-stop hook for $SERVICE_NAME"
     sleep $GRACE_PERIOD
@@ -4891,7 +4906,7 @@ data:
 # Apply lifecycle hooks configuration to Kubernetes
 set -e
 
-SERVICE_NAME="\${1:-{{service_name}}}"
+SERVICE_NAME="\${1:-{{projectName}}}"
 NAMESPACE="\${2:-default}"
 
 echo "Applying lifecycle hooks for $SERVICE_NAME in namespace $NAMESPACE..."
@@ -4901,21 +4916,21 @@ kubectl apply -f kubernetes/lifecycle-deployment.yaml -n "$NAMESPACE"
 
 # Verify the deployment
 echo "Verifying deployment..."
-kubectl rollout status deployment/{{service_name}}-web -n "$NAMESPACE"
+kubectl rollout status deployment/{{projectName}}-web -n "$NAMESPACE"
 
 echo "Lifecycle hooks applied successfully!"
 echo ""
 echo "To view lifecycle logs:"
-echo "  kubectl logs -n $NAMESPACE deployment/{{service_name}}-web -c lifecycle-hooks"
+echo "  kubectl logs -n $NAMESPACE deployment/{{projectName}}-web -c lifecycle-hooks"
 echo ""
 echo "To trigger a rolling update to test post-start hook:"
-echo "  kubectl rollout restart deployment/{{service_name}}-web -n $NAMESPACE"
+echo "  kubectl rollout restart deployment/{{projectName}}-web -n $NAMESPACE"
 `,
       'scripts/test-lifecycle-hooks.sh': `#!/bin/bash
 # Test lifecycle hooks functionality
 set -e
 
-SERVICE_NAME="\${1:-{{service_name}}}"
+SERVICE_NAME="\${1:-{{projectName}}}"
 NAMESPACE="\${2:-default}"
 
 echo "Testing lifecycle hooks for $SERVICE_NAME..."
@@ -4940,10 +4955,10 @@ check_lifecycle_logs() {
 test_post_start() {
     echo "=== Testing Post-Start Hook ==="
     echo "Restarting deployment to trigger post-start hook..."
-    kubectl rollout restart deployment/{{service_name}}-web -n "$NAMESPACE"
+    kubectl rollout restart deployment/{{projectName}}-web -n "$NAMESPACE"
 
     echo "Waiting for rollout to complete..."
-    kubectl rollout status deployment/{{service_name}}-web -n "$NAMESPACE"
+    kubectl rollout status deployment/{{projectName}}-web -n "$NAMESPACE"
 
     # Get the newest pod
     NEW_POD=$(kubectl get pods -n "$NAMESPACE" -l app="$SERVICE_NAME" --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
@@ -4961,17 +4976,17 @@ test_pre_stop() {
     echo "Scaling down to trigger pre-stop hook..."
 
     # Get current replicas
-    CURRENT_REPLICAS=$(kubectl get deployment {{service_name}}-web -n "$NAMESPACE" -o jsonpath='{.spec.replicas}')
+    CURRENT_REPLICAS=$(kubectl get deployment {{projectName}}-web -n "$NAMESPACE" -o jsonpath='{.spec.replicas}')
 
     # Scale down by 1
     if [ "$CURRENT_REPLICAS" -gt 1 ]; then
-        kubectl scale deployment {{service_name}}-web -n "$NAMESPACE" --replicas=$((CURRENT_REPLICAS - 1))
+        kubectl scale deployment {{projectName}}-web -n "$NAMESPACE" --replicas=$((CURRENT_REPLICAS - 1))
 
         echo "Waiting for pod termination..."
         sleep 15
 
         # Scale back up
-        kubectl scale deployment {{service_name}}-web -n "$NAMESPACE" --replicas="$CURRENT_REPLICAS"
+        kubectl scale deployment {{projectName}}-web -n "$NAMESPACE" --replicas="$CURRENT_REPLICAS"
 
         echo "Pre-stop hook test completed!"
     else
@@ -5033,12 +5048,12 @@ echo ""
 echo "All tests completed!"
 `,
       'backup/backup-script.sh': `#!/bin/bash
-# Backup script for {{service_name}}
+# Backup script for {{projectName}}
 # Creates backups of database, media files, and configuration
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 BACKUP_ROOT="\${BACKUP_ROOT:-./backups}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_DIR="$BACKUP_ROOT/$TIMESTAMP"
@@ -5199,11 +5214,11 @@ log "Backup location: $BACKUP_DIR"
 log "To restore, use: ./scripts/restore-backup.sh $TIMESTAMP"
 `,
       'backup/restore-script.sh': `#!/bin/bash
-# Restore script for {{service_name}}
+# Restore script for {{projectName}}
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 BACKUP_ROOT="\${BACKUP_ROOT:-./backups}"
 BACKUP_TIMESTAMP"\${1:-}"
 
@@ -5394,14 +5409,14 @@ log "Restore completed successfully!"
 log "Please restart the application:"
 log "  docker-compose restart"
 log "  or"
-log "  kubectl rollout restart deployment/{{service_name}}-web"
+log "  kubectl rollout restart deployment/{{projectName}}-web"
 `,
       'backup/schedule-backups.sh': `#!/bin/bash
 # Schedule automated backups using cron or Kubernetes CronJobs
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 
 case "\${1:-kubernetes}" in
     cron)
@@ -5429,7 +5444,7 @@ case "\${1:-kubernetes}" in
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{service_name}}-backup
+  name: {{projectName}}-backup
 spec:
   schedule: "0 2 * * *"  # Daily at 2 AM
   concurrencyPolicy: Forbid
@@ -5442,7 +5457,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: backup
-            image: {{service_name}}:latest
+            image: {{projectName}}:latest
             command:
             - /bin/bash
             - /app/backup/backup-script.sh
@@ -5458,7 +5473,7 @@ spec:
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{service_name}}-secrets
+                  name: {{projectName}}-secrets
                   key: db-password
             - name: BACKUP_ROOT
               value: /backups
@@ -5475,10 +5490,10 @@ spec:
           volumes:
           - name: backups
             persistentVolumeClaim:
-              claimName: {{service_name}}-backups-pvc
+              claimName: {{projectName}}-backups-pvc
           - name: data
             persistentVolumeClaim:
-              claimName: {{service_name}}-data-pvc
+              claimName: {{projectName}}-data-pvc
               readOnly: true
 EOF
 
@@ -5486,7 +5501,7 @@ EOF
 
         echo "Kubernetes CronJob created!"
         echo "View CronJobs: kubectl get cronjobs"
-        echo "View backup jobs: kubectl get jobs -l app={{service_name}}-backup"
+        echo "View backup jobs: kubectl get jobs -l app={{projectName}}-backup"
         ;;
 
     list)
@@ -5563,7 +5578,7 @@ echo "=== Verification Complete ==="
       'kubernetes/backup-pvc.yaml': `apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{service_name}}-backups-pvc
+  name: {{projectName}}-backups-pvc
 spec:
   accessModes:
   - ReadWriteOnce
@@ -5575,7 +5590,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{service_name}}-data-pvc
+  name: {{projectName}}-data-pvc
 spec:
   accessModes:
   - ReadWriteOnce
@@ -5589,9 +5604,9 @@ spec:
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 TEST_BACKUP_DIR="./backups/test-$(date +%s)"
-TEST_DB_NAME="{{service_name}}_test"
+TEST_DB_NAME="{{projectName}}_test"
 
 log() {
     echo "[$(date -Iseconds)] [TEST] $*"
@@ -5732,12 +5747,12 @@ log "- S3 upload: $( [ -n "$BACKUP_S3_BUCKET" ] && echo 'OK' || echo 'SKIPPED' )
 log "- Retention policy: OK"
 `,
       'scripts/disaster-recovery.sh': `#!/bin/bash
-# Disaster recovery script for {{service_name}}
+# Disaster recovery script for {{projectName}}
 # Handles complete environment restoration
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 BACKUP_ROOT="\${BACKUP_ROOT:-./backups}"
 DR_PLAN="\${DR_PLAN:-./disaster-recovery-plan.txt}"
 
@@ -6128,7 +6143,7 @@ def profile_querysets():
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 OUTPUT_DIR="\${PROFILING_OUTPUT_DIR:-./profiling/output}"
 DURATION="\${FLAMEGRAPH_DURATION:-30}"
 
@@ -6372,7 +6387,7 @@ if __name__ == '__main__':
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 OUTPUT_DIR="\${METRICS_OUTPUT_DIR:-./profiling/metrics}"
 DURATION="\${COLLECTION_DURATION:-60}"
 INTERVAL="\${COLLECTION_INTERVAL:-1}"
@@ -6449,7 +6464,7 @@ log "Metrics collection complete!"
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 OUTPUT_DIR="\${REPORT_OUTPUT_DIR:-./profiling/reports}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 REPORT_FILE="$OUTPUT_DIR/performance-report-$TIMESTAMP.md"
@@ -6623,7 +6638,7 @@ fi
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 NAMESPACE"\${2:-default}"
 
 log() {
@@ -6726,7 +6741,7 @@ log "Commit the sealed secret file to git - it can only be decrypted in the clus
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 
 log() {
     echo "[$(date -Iseconds)] [KEYS] $*"
@@ -6786,26 +6801,26 @@ log "  kubeseal --cert $CERT_FILE --format yaml < secret.yaml > sealed-secret.ya
       'secrets/external-secret.yaml': `apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: {{service_name}}-credentials
+  name: {{projectName}}-credentials
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: aws-secrets-manager  # or vault-backend, gcp-secret-manager, etc.
     kind: SecretStore
   target:
-    name: {{service_name}}-credentials
+    name: {{projectName}}-credentials
     creationPolicy: Owner
   data:
   # Map external secrets to Kubernetes secrets
   - secretKey: db-password
     remoteRef:
-      key: {{service_name}}/db-password
+      key: {{projectName}}/db-password
   - secretKey: secret-key
     remoteRef:
-      key: {{service_name}}/secret-key
+      key: {{projectName}}/secret-key
   - secretKey: api-token
     remoteRef:
-      key: {{service_name}}/api-token
+      key: {{projectName}}/api-token
 ---
 apiVersion: external-secrets.io/v1beta1
 kind: SecretStore
@@ -6819,12 +6834,12 @@ spec:
       auth:
         jwt:
           serviceAccountRef:
-            name: {{service_name}}-external-secrets-sa
+            name: {{projectName}}-external-secrets-sa
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{service_name}}-external-secrets-sa
+  name: {{projectName}}-external-secrets-sa
   annotations:
     eks.amazonaws.com/role-arn: {{AWS_IAM_ROLE_ARN:-}}
 `,
@@ -6857,25 +6872,25 @@ spec:
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: {{service_name}}-vault-secrets
+  name: {{projectName}}-vault-secrets
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: vault-backend
     kind: SecretStore
   target:
-    name: {{service_name}}-credentials
+    name: {{projectName}}-credentials
     creationPolicy: Owner
   data:
   - secretKey: db-password
     remoteRef:
-      key: {{service_name}}/db-password
+      key: {{projectName}}/db-password
   - secretKey: api-key
     remoteRef:
-      key: {{service_name}}/api-key
+      key: {{projectName}}/api-key
   - secretKey: redis-password
     remoteRef:
-      key: {{service_name}}/redis-password
+      key: {{projectName}}/redis-password
 `,
       'secrets/secret-template.yaml': `# Template for creating Kubernetes secrets
 # Use this as a reference for secret structure
@@ -6883,7 +6898,7 @@ spec:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{service_name}}-secrets
+  name: {{projectName}}-secrets
   namespace: default
 type: Opaque
 stringData:
@@ -6917,7 +6932,7 @@ stringData:
 apiVersion: bitnami.com/v1alpha1
 kind: SealedSecret
 metadata:
-  name: {{service_name}}-sealed-secrets
+  name: {{projectName}}-sealed-secrets
   namespace: default
 spec:
   encryptedData:
@@ -6932,7 +6947,7 @@ spec:
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 
 log() {
     echo "[$(date -Iseconds)] [ROTATE] $*"
@@ -7031,7 +7046,7 @@ log "Note: The secret will be synced to Kubernetes by the ExternalSecret operato
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 NAMESPACE"\${2:-default}"
 
 log() {
@@ -7298,7 +7313,7 @@ log "3. Enable etcd encryption: Follow cluster documentation"
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 NAMESPACE"\${2:-default}"
 
 log() {
@@ -7403,42 +7418,42 @@ log "- Secrets are rotated regularly (90 days recommended)"
 log "- etcd encryption is enabled"
 log "- Secret access is audited"
 `,
-      'network-policies/base-policy.yaml': `# Base network policies for {{service_name}}
+      'network-policies/base-policy.yaml': `# Base network policies for {{projectName}}
 # These policies provide baseline security with default-deny ingress
 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-default-deny-ingress
+  name: {{projectName}}-default-deny-ingress
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
   policyTypes:
   - Ingress
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-default-deny-egress
+  name: {{projectName}}-default-deny-egress
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
   policyTypes:
   - Egress
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-allow-ingress-from-ingress
+  name: {{projectName}}-allow-ingress-from-ingress
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: web
   policyTypes:
   - Ingress
@@ -7454,12 +7469,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-allow-egress-to-dns
+  name: {{projectName}}-allow-egress-to-dns
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
   policyTypes:
   - Egress
   egress:
@@ -7475,12 +7490,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-allow-egress-to-postgres
+  name: {{projectName}}-allow-egress-to-postgres
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: web
   policyTypes:
   - Egress
@@ -7496,12 +7511,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-allow-egress-to-redis
+  name: {{projectName}}-allow-egress-to-redis
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: web
   policyTypes:
   - Egress
@@ -7514,18 +7529,18 @@ spec:
     - protocol: TCP
       port: 6379
 `,
-      'network-policies/microsegmentation.yaml': `# Micro-segmentation policies for {{service_name}}
+      'network-policies/microsegmentation.yaml': `# Micro-segmentation policies for {{projectName}}
 # Implements zero-trust networking with granular controls
 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-web-to-api
+  name: {{projectName}}-web-to-api
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: web
   policyTypes:
   - Ingress
@@ -7553,12 +7568,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-worker-to-queue
+  name: {{projectName}}-worker-to-queue
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: worker
   policyTypes:
   - Egress
@@ -7602,12 +7617,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-allow-metrics-scraping
+  name: {{projectName}}-allow-metrics-scraping
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
   policyTypes:
   - Ingress
   ingress:
@@ -7625,12 +7640,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-deny-internet-access
+  name: {{projectName}}-deny-internet-access
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: worker
   policyTypes:
   - Egress
@@ -7650,12 +7665,12 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{service_name}}-l7-policy
+  name: {{projectName}}-l7-policy
   namespace: default
 spec:
   endpointSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: web
   ingress:
   # HTTP traffic from ingress
@@ -7711,16 +7726,16 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
 metadata:
-  name: {{service_name}}-service-mesh-policy
+  name: {{projectName}}-service-mesh-policy
 spec:
   # Allow communication between microservices
   endpointSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
   ingress:
   - fromEndpoints:
     - matchLabels:
-        app: {{service_name}}
+        app: {{projectName}}
     toPorts:
     - ports:
       - port: "8000"
@@ -7729,12 +7744,12 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{service_name}}-external-authz
+  name: {{projectName}}-external-authz
   namespace: default
 spec:
   endpointSelector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
       component: web
   egress:
   - toEndpoints:
@@ -7758,10 +7773,10 @@ spec:
 apiVersion: projectcalico.org/v3
 kind: NetworkPolicy
 metadata:
-  name: {{service_name}}-tier-policy
+  name: {{projectName}}-tier-policy
   namespace: default
 spec:
-  selector: app == '{{service_name}}'
+  selector: app == '{{projectName}}'
   types:
   - Ingress
   - Egress
@@ -7807,7 +7822,7 @@ spec:
 apiVersion: projectcalico.org/v3
 kind: GlobalNetworkPolicy
 metadata:
-  name: {{service_name}}-global-deny
+  name: {{projectName}}-global-deny
 spec:
   # Apply to all namespaces
   namespaceSelector: all()
@@ -7840,7 +7855,7 @@ spec:
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 NAMESPACE"\${2:-default}"
 CNI="\${CNI:-auto}"
 
@@ -7907,7 +7922,7 @@ log "  ./scripts/test-network-policies.sh"
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 NAMESPACE"\${2:-default}"
 
 log() {
@@ -8029,7 +8044,7 @@ log "Review the results above to ensure policies are working as expected"
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 NAMESPACE"\${2:-default}"
 OUTPUT_FILE="\${OUTPUT_FILE:-./network-policies-graph.png}"
 
@@ -8068,8 +8083,8 @@ digraph NetworkPolicies {
   monitoring [label="Monitoring (Prometheus)", shape=ellipse, style=filled, fillcolor=lightgreen];
 
   // Application components
-  web [label="{{service_name}}-web", shape=component, style=filled, fillcolor=lightyellow];
-  worker [label="{{service_name}}-worker", shape=component, style=filled, fillcolor=lightyellow];
+  web [label="{{projectName}}-web", shape=component, style=filled, fillcolor=lightyellow];
+  worker [label="{{projectName}}-worker", shape=component, style=filled, fillcolor=lightyellow];
 
   // Dependencies
   postgres [label="PostgreSQL", shape=cylinder, style=filled, fillcolor=lightgray];
@@ -8090,7 +8105,7 @@ digraph NetworkPolicies {
 EOF
 
 # Replace service name in DOT file
-sed -i '' "s/{{service_name}}/$SERVICE_NAME/g" "$DOT_FILE" 2>/dev/null || sed -i "s/{{service_name}}/$SERVICE_NAME/g" "$DOT_FILE"
+sed -i '' "s/{{projectName}}/$SERVICE_NAME/g" "$DOT_FILE" 2>/dev/null || sed -i "s/{{projectName}}/$SERVICE_NAME/g" "$DOT_FILE"
 
 # Generate PNG
 dot -Tpng "$DOT_FILE" -o "$OUTPUT_FILE"
@@ -8132,13 +8147,13 @@ fi
 # Clean up
 rm -f "$DOT_FILE"
 `,
-      'compliance/policies-soc2.yaml': `# SOC2 Type II compliance policies for {{service_name}}
+      'compliance/policies-soc2.yaml': `# SOC2 Type II compliance policies for {{projectName}}
 # Implements controls for security, availability, processing integrity, confidentiality, privacy
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{service_name}}-soc2-controls
+  name: {{projectName}}-soc2-controls
   namespace: default
 data:
   # SOC2 Common Criteria Mapping
@@ -8163,7 +8178,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{service_name}}-soc2-psp
+  name: {{projectName}}-soc2-psp
 data:
   require-non-root: "true"
   require-read-only-root: "true"
@@ -8173,13 +8188,13 @@ data:
   seccomp-profile: "runtime/default"
   app-armor-profile: "runtime/default"
 `,
-      'compliance/policies-gdpr.yaml': `# GDPR compliance policies for {{service_name}}
+      'compliance/policies-gdpr.yaml': `# GDPR compliance policies for {{projectName}}
 # General Data Protection Regulation (EU) 2016/679
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{service_name}}-gdpr-controls
+  name: {{projectName}}-gdpr-controls
   namespace: default
 data:
   # GDPR Principles
@@ -8213,7 +8228,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{service_name}}-gdpr-retention
+  name: {{projectName}}-gdpr-retention
 data:
   # Retention Periods (in days)
   user-data-retention: "365"
@@ -8227,13 +8242,13 @@ data:
   anonymization-method: "hashing"
   preserve-essential-data: "user-id,created-at"
 `,
-      'compliance/policies-hipaa.yaml': `# HIPAA compliance policies for {{service_name}}
+      'compliance/policies-hipaa.yaml': `# HIPAA compliance policies for {{projectName}}
 # Health Insurance Portability and Accountability Act
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{service_name}}-hipaa-controls
+  name: {{projectName}}-hipaa-controls
   namespace: default
 data:
   # HIPAA Rules
@@ -8278,7 +8293,7 @@ data:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{service_name}}-compliance-scan
+  name: {{projectName}}-compliance-scan
   namespace: default
 spec:
   schedule: "0 2 * * 0"  # Weekly at 2 AM Sunday
@@ -8292,7 +8307,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: compliance-scanner
-            image: {{service_name}}-scanner:latest
+            image: {{projectName}}-scanner:latest
             command:
             - /bin/bash
             - /scripts/compliance-scan.sh
@@ -8318,17 +8333,17 @@ spec:
           volumes:
           - name: reports
             persistentVolumeClaim:
-              claimName: {{service_name}}-reports-pvc
+              claimName: {{projectName}}-reports-pvc
 `,
       'compliance/scanner-config.yaml': `# Compliance scanner configuration
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{service_name}}-compliance-config
+  name: {{projectName}}-compliance-config
 data:
   scanner.yaml: |
-    # Compliance scanning configuration for {{service_name}}
+    # Compliance scanning configuration for {{projectName}}
 
     # Scan Settings
     scan:
@@ -8436,12 +8451,12 @@ data:
             to: "{{COMPLIANCE_EMAIL:-compliance@example.com}}"
 `,
       'scripts/compliance-scan.sh': `#!/bin/bash
-# Run comprehensive compliance scan for {{service_name}}
+# Run comprehensive compliance scan for {{projectName}}
 # Checks SOC2, GDPR, and HIPAA requirements
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 NAMESPACE"\${2:-default}"
 FRAMEWORKS="\${COMPLIANCE_FRAMEWORKS:-soc2,gdpr,hipaa}"
 SEVERITY_THRESHOLD="\${SEVERITY_THRESHOLD:-medium}"
@@ -8546,7 +8561,7 @@ run_check() {
             ;;
         audit-logging)
             # Check if audit logging is enabled
-            if kubectl get cm -n "$NAMESPACE" {{service_name}}-compliance-config 2>/dev/null | grep -q "audit-logging"; then
+            if kubectl get cm -n "$NAMESPACE" {{projectName}}-compliance-config 2>/dev/null | grep -q "audit-logging"; then
                 return 0
             else
                 return 1
@@ -8678,7 +8693,7 @@ log "Review the results and address any failures before production deployment"
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 INPUT_DIR"\${1:-./compliance/reports}"
 OUTPUT_FORMAT"\${2:-html}"
 
@@ -8789,7 +8804,7 @@ else
     log "Open the file manually: $OUTPUT_FILE"
 fi
 `,
-      'vulnerability/cve-tracking.yaml': `# CVE Tracking for {{service_name}}
+      'vulnerability/cve-tracking.yaml': `# CVE Tracking for {{projectName}}
 # This file tracks CVEs found in container images and their remediation status
 
 apiVersion: v1
@@ -8878,7 +8893,7 @@ spec:
             trivy image --severity HIGH,CRITICAL \
               --format json \
               --output /tmp/scan-results.json \
-              {{service_name}}:latest
+              {{projectName}}:latest
 
             # Count CVEs
             CVE_COUNT=$(jq '.Results | length' /tmp/scan-results.json)
@@ -8944,16 +8959,16 @@ spec:
             echo "Starting remediation..."
 
             # Update deployment with patched image
-            kubectl set image deployment/{{service_name}}-web \
-              {{service_name}}={{service_name}}:patched-$(date +%Y%m%d) \
+            kubectl set image deployment/{{projectName}}-web \
+              {{projectName}}={{projectName}}:patched-$(date +%Y%m%d) \
               -n default
 
             # Wait for rollout
-            kubectl rollout status deployment/{{service_name}}-web -n default
+            kubectl rollout status deployment/{{projectName}}-web -n default
 
             # Verify pods are healthy
             kubectl wait --for=condition=ready pod \
-              -l app={{service_name}} \
+              -l app={{projectName}} \
               -n default \
               --timeout=300s
 
@@ -8969,21 +8984,21 @@ spec:
 
             # Scan patched image
             trivy image --severity HIGH,CRITICAL \
-              {{service_name}}:patched-$(date +%Y%m%d)
+              {{projectName}}:patched-$(date +%Y%m%d)
 
             # Run health checks
-            kubectl exec -n default deployment/{{service_name}}-web \
+            kubectl exec -n default deployment/{{projectName}}-web \
               -- curl -f http://localhost:8000/health || exit 1
 
             echo "Verification passed!"
 `,
       'vulnerability/base-image-updater.sh': `#!/bin/bash
-# Base Image Auto-Updater for {{service_name}}
+# Base Image Auto-Updater for {{projectName}}
 # Automatically updates base Docker images and rebuilds containers
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 REGISTRY="\${REGISTRY:-docker.io}"
 BASE_IMAGE="\${BASE_IMAGE:-python:3.11-slim}"
 NOTIFICATION_WEBHOOK="\${WEBHOOK_URL:-}"
@@ -9268,12 +9283,12 @@ done
 main
 `,
       'vulnerability/patch-manager.sh': `#!/bin/bash
-# Patch Manager for {{service_name}}
+# Patch Manager for {{projectName}}
 # Manages security patches for dependencies and base images
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 VULN_DB_FILE="/var/lib/\${SERVICE_NAME}/vuln.db"
 PATCH_LOG_DIR="/var/log/\${SERVICE_NAME}/patches"
 STATE_DIR="/var/lib/\${SERVICE_NAME}/state"
@@ -9653,12 +9668,12 @@ main() {
 main "$@"
 `,
       'scripts/remediation-scan.sh': `#!/bin/bash
-# Remediation Scan Script for {{service_name}}
+# Remediation Scan Script for {{projectName}}
 # Scans for vulnerabilities and generates remediation recommendations
 
 set -e
 
-SERVICE_NAME="{{service_name}}"
+SERVICE_NAME="{{projectName}}"
 IMAGE_NAME="\${IMAGE_NAME:-\${SERVICE_NAME}:latest}"
 SEVERITY_THRESHOLD="\${SEVERITY_THRESHOLD:-HIGH}"
 OUTPUT_FORMAT="\${OUTPUT_FORMAT:-table}"
@@ -9905,7 +9920,7 @@ main() {
 
 main "$@"
 `,
-      'README.md': `# {{service_name}}
+      'README.md': `# {{projectName}}
 
 A Django REST API service with authentication, Celery tasks, and Redis caching.
 
@@ -9992,7 +10007,7 @@ This project provides multiple Dockerfile variants for different use cases:
   - Smaller image size
   - Requires external tooling for debugging (no shell access)
 
-  Build: \`docker build -f Dockerfile.distroless -t {{service_name}}:distroless .\`
+  Build: \`docker build -f Dockerfile.distroless -t {{projectName}}:distroless .\`
   Run: \`docker-compose -f docker-compose.distroless.yml up\`
 
 - **Dockerfile.ephemeral** - Scratch-based ultra-minimal image
@@ -10001,7 +10016,7 @@ This project provides multiple Dockerfile variants for different use cases:
   - Best for short-lived containers
   - No shell access, requires external health checks
 
-  Build: \`docker build -f Dockerfile.ephemeral -t {{service_name}}:ephemeral .\`
+  Build: \`docker build -f Dockerfile.ephemeral -t {{projectName}}:ephemeral .\`
   Run: \`docker-compose -f docker-compose.ephemeral.yml up\`
 
 ### Docker Compose Files
@@ -10153,7 +10168,7 @@ brew install cosign
 cosign generate-key-pair
 
 # Sign the image
-IMAGE_NAME={{service_name}} IMAGE_TAG=v1.0.0 ./scripts/sign-image.sh
+IMAGE_NAME={{projectName}} IMAGE_TAG=v1.0.0 ./scripts/sign-image.sh
 
 # This will:
 # 1. Generate cosign.key and cosign.pub
@@ -10165,7 +10180,7 @@ IMAGE_NAME={{service_name}} IMAGE_TAG=v1.0.0 ./scripts/sign-image.sh
 **Option 2: Keyless signing with Sigstore**
 \`\`\`bash
 # Sign using OIDC authentication (GitHub, Google, etc.)
-./scripts/sign-with-fulcio.sh {{service_name}}:v1.0.0
+./scripts/sign-with-fulcio.sh {{projectName}}:v1.0.0
 
 # You'll be redirected to authenticate via browser
 # No private key to manage!
@@ -10175,16 +10190,16 @@ IMAGE_NAME={{service_name}} IMAGE_TAG=v1.0.0 ./scripts/sign-image.sh
 
 \`\`\`bash
 # Verify with public key
-./scripts/verify-image.sh {{service_name}}:v1.0.0
+./scripts/verify-image.sh {{projectName}}:v1.0.0
 
 # Verify with specific public key
-PUBLIC_KEY=/path/to/cosign.pub ./scripts/verify-image.sh {{service_name}}:v1.0.0
+PUBLIC_KEY=/path/to/cosign.pub ./scripts/verify-image.sh {{projectName}}:v1.0.0
 
 # Verify keyless signature
 cosign verify \\
   --certificate-identity <your-identity> \\
   --certificate-oidc-issuer https://oauth2.sigstore.dev/auth \\
-  {{service_name}}:v1.0.0
+  {{projectName}}:v1.0.0
 \`\`\`
 
 ### GitHub Actions Integration
@@ -10221,10 +10236,10 @@ Verify images at admission with policy:
 apiVersion: policy.sigstore.dev/v1beta1
 kind: ClusterImagePolicy
 metadata:
-  name: {{service_name}}-policy
+  name: {{projectName}}-policy
 spec:
   images:
-  - glob: "**/{{service_name}}**"
+  - glob: "**/{{projectName}}**"
   authorities:
   - keyless:
       url: https://fulcio.sigstore.dev
@@ -10294,7 +10309,7 @@ Gatekeeper enforces the following constraints:
 3. **Privilege Escalation** - Blocks allowPrivilegeEscalation
 4. **Capabilities Restricted** - Only NET_BIND_SERVICE allowed
 5. **No Root User** - Containers must run as non-root
-6. **Allowed Registries** - Only ghcr.io, gcr.io, and {{service_name}}/
+6. **Allowed Registries** - Only ghcr.io, gcr.io, and {{projectName}}/
 7. **Owner Label** - All pods must have an "owner" label
 
 **View active constraints:**
@@ -10493,7 +10508,7 @@ updatePolicy:
   updateMode: "Auto"
 resourcePolicy:
   containerPolicies:
-    - containerName: "{{service_name}}"
+    - containerName: "{{projectName}}"
       minAllowed:
         cpu: "100m"
         memory: "128Mi"
@@ -10544,7 +10559,7 @@ spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app: {{service_name}}
+      app: {{projectName}}
 \`\`\`
 
 ### Health Probes
@@ -10585,16 +10600,16 @@ failureThreshold: 30  # 150s total
 View current resource usage:
 \`\`\`bash
 # Show pod resource usage
-kubectl top pods -n {{service_name}}
+kubectl top pods -n {{projectName}}
 
 # Show pod QoS classes
-kubectl get pods -n {{service_name}} -o custom-columns=NAME:.metadata.name,QOS:.status.qosClass
+kubectl get pods -n {{projectName}} -o custom-columns=NAME:.metadata.name,QOS:.status.qosClass
 
 # Show resource quota status
-kubectl describe resourcequota compute-quota -n {{service_name}}
+kubectl describe resourcequota compute-quota -n {{projectName}}
 
 # Show HPA status
-kubectl get hpa -n {{service_name}}
+kubectl get hpa -n {{projectName}}
 \`\`\`
 
 ### Scaling Operations
@@ -10602,13 +10617,13 @@ kubectl get hpa -n {{service_name}}
 Manual scaling:
 \`\`\`bash
 # Scale deployment
-kubectl scale deployment/{{service_name}}-web --replicas=5 -n {{service_name}}
+kubectl scale deployment/{{projectName}}-web --replicas=5 -n {{projectName}}
 
 # Scale based on profile
-kubectl set resources deployment/{{service_name}}-web \\
+kubectl set resources deployment/{{projectName}}-web \\
   --requests=cpu=500m,memory=512Mi \\
   --limits=cpu=2000m,memory=2Gi \\
-  -n {{service_name}}
+  -n {{projectName}}
 \`\`\`
 
 ## Monitoring & Logging
@@ -10697,7 +10712,7 @@ Fluentd collects container logs and forwards them to Elasticsearch:
 \`\`\`yaml
 <source>
   @type tail
-  path /var/log/containers/{{service_name}}*.log
+  path /var/log/containers/{{projectName}}*.log
 </source>
 
 <match>
@@ -10719,13 +10734,13 @@ View container logs:
 
 \`\`\`bash
 # All logs
-kubectl logs -f deployment/{{service_name}}-web -n {{service_name}}
+kubectl logs -f deployment/{{projectName}}-web -n {{projectName}}
 
 # Specific pod
-kubectl logs -f pod/{{service_name}}-web-xxxxx -n {{service_name}}
+kubectl logs -f pod/{{projectName}}-web-xxxxx -n {{projectName}}
 
 # Previous container (crashed)
-kubectl logs -f pod/{{service_name}}-web-xxxxx -n {{service_name}} --previous
+kubectl logs -f pod/{{projectName}}-web-xxxxx -n {{projectName}} --previous
 \`\`\`
 
 View aggregated logs:
@@ -10735,7 +10750,7 @@ View aggregated logs:
 kubectl port-forward -n monitoring svc/elasticsearch 9200:9200
 
 # Search logs
-curl "localhost:9200/{{service_name}}-*/_search?q=ERROR&size=10"
+curl "localhost:9200/{{projectName}}-*/_search?q=ERROR&size=10"
 \`\`\`
 
 ### Metrics Query Examples
@@ -10744,20 +10759,20 @@ PromQL queries for common scenarios:
 
 \`\`\`promql
 # Request rate
-sum(rate(http_requests_total{app="{{service_name}}"}[5m]))
+sum(rate(http_requests_total{app="{{projectName}}"}[5m]))
 
 # Error rate
-sum(rate(http_requests_total{status=~"5..",app="{{service_name}}"}[5m])) /
-sum(rate(http_requests_total{app="{{service_name}}"}[5m]))
+sum(rate(http_requests_total{status=~"5..",app="{{projectName}}"}[5m])) /
+sum(rate(http_requests_total{app="{{projectName}}"}[5m]))
 
 # P95 latency
 histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
 
 # CPU usage
-sum(rate(container_cpu_usage_seconds_total{app="{{service_name}}"}[5m])) by (pod)
+sum(rate(container_cpu_usage_seconds_total{app="{{projectName}}"}[5m])) by (pod)
 
 # Memory usage
-sum(container_memory_working_set_bytes{app="{{service_name}}"}) by (pod)
+sum(container_memory_working_set_bytes{app="{{projectName}}"}) by (pod)
 \`\`\`
 
 ## Container Lifecycle Hooks
@@ -10788,7 +10803,7 @@ This project includes comprehensive lifecycle hooks for deployment automation an
 Apply lifecycle hooks to Kubernetes:
 
 \`\`\`bash
-./scripts/apply-lifecycle-hooks.sh {{service_name}} production
+./scripts/apply-lifecycle-hooks.sh {{projectName}} production
 \`\`\`
 
 ### Pre-Stop Hook
@@ -10840,26 +10855,26 @@ Test lifecycle hooks:
 
 \`\`\`bash
 # Test all hooks
-./scripts/test-lifecycle-hooks.sh {{service_name}} production all
+./scripts/test-lifecycle-hooks.sh {{projectName}} production all
 
 # Test only post-start
-./scripts/test-lifecycle-hooks.sh {{service_name}} production post-start
+./scripts/test-lifecycle-hooks.sh {{projectName}} production post-start
 
 # Test only health probes
-./scripts/test-lifecycle-hooks.sh {{service_name}} production health
+./scripts/test-lifecycle-hooks.sh {{projectName}} production health
 \`\`\`
 
 ### Viewing Lifecycle Logs
 
 \`\`\`bash
 # View post-start logs
-kubectl logs -f deployment/{{service_name}}-web -n {{service_name}} --tail=100 | grep POST-START
+kubectl logs -f deployment/{{projectName}}-web -n {{projectName}} --tail=100 | grep POST-START
 
 # View pre-stop logs
-kubectl logs -f deployment/{{service_name}}-web -n {{service_name}} --tail=100 | grep PRE-STOP
+kubectl logs -f deployment/{{projectName}}-web -n {{projectName}} --tail=100 | grep PRE-STOP
 
 # View health probe logs
-kubectl exec -n {{service_name}} deployment/{{service_name}}-web -- cat /var/log/lifecycle/health-probe.log
+kubectl exec -n {{projectName}} deployment/{{projectName}}-web -- cat /var/log/lifecycle/health-probe.log
 \`\`\`
 
 ### Configuration
@@ -10940,7 +10955,7 @@ BACKUP_REDIS=true ./backup/backup-script.sh
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{service_name}}-backup
+  name: {{projectName}}-backup
 spec:
   schedule: "0 2 * * *"  # Daily at 2 AM
   concurrencyPolicy: Forbid
@@ -11036,7 +11051,7 @@ Kubernetes PVCs for backup storage:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{service_name}}-backups-pvc
+  name: {{projectName}}-backups-pvc
 spec:
   accessModes:
   - ReadWriteOnce
@@ -11390,19 +11405,19 @@ ExternalSecrets sync secrets from external providers to Kubernetes.
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: {{service_name}}-credentials
+  name: {{projectName}}-credentials
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: aws-secrets-manager
     kind: SecretStore
   target:
-    name: {{service_name}}-credentials
+    name: {{projectName}}-credentials
     creationPolicy: Owner
   data:
   - secretKey: db-password
     remoteRef:
-      key: {{service_name}}/db-password
+      key: {{projectName}}/db-password
 \`\`\`
 
 **HashiCorp Vault:**
@@ -11410,7 +11425,7 @@ spec:
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: {{service_name}}-vault-secrets
+  name: {{projectName}}-vault-secrets
 spec:
   refreshInterval: 1h
   secretStoreRef:
@@ -11419,7 +11434,7 @@ spec:
   data:
   - secretKey: db-password
     remoteRef:
-      key: {{service_name}}/db-password
+      key: {{projectName}}/db-password
 \`\`\`
 
 **GCP Secret Manager:**
@@ -11538,7 +11553,7 @@ This project includes comprehensive network policies for container micro-segment
 Apply all network policies:
 
 \`\`\`bash
-./scripts/apply-network-policies.sh {{service_name}} production
+./scripts/apply-network-policies.sh {{projectName}} production
 \`\`\`
 
 The script automatically detects your CNI plugin (Cilium, Calico, or standard Kubernetes) and applies the appropriate policies.
@@ -11599,7 +11614,7 @@ spec:
 Test network policy enforcement:
 
 \`\`\`bash
-./scripts/test-network-policies.sh {{service_name}} production
+./scripts/test-network-policies.sh {{projectName}} production
 \`\`\`
 
 **Tests include:**
@@ -11615,7 +11630,7 @@ Test network policy enforcement:
 Generate network topology graph:
 
 \`\`\`bash
-./scripts/visualize-network-policies.sh {{service_name}} production
+./scripts/visualize-network-policies.sh {{projectName}} production
 \`\`\`
 
 Generates a PNG graph showing:
