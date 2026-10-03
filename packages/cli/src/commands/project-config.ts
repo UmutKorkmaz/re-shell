@@ -87,8 +87,8 @@ async function initializeProjectConfig(options: ProjectConfigCommandOptions, spi
       template: globalConfig.defaultTemplate,
       workspaces: {
         root: '.',
-        patterns: ['apps/*', 'packages/*', 'libs/*'],
-        types: ['app', 'package', 'lib']
+        patterns: ['apps/*', 'packages/*', 'libs/*', 'services/*'],
+        types: ['app', 'package', 'lib', 'service']
       }
     }
   );

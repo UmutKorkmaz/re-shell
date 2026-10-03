@@ -217,7 +217,7 @@ module.exports = {
 
   plugins: [
     new ModuleFederationPlugin({
-      name: '${normalizedName}',
+      name: '${normalizedName.replace(/[^A-Za-z0-9_$]/g, '_')}',
 
       filename: 'remoteEntry.js',
 

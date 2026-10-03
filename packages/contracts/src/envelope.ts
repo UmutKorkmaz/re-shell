@@ -138,6 +138,11 @@ export const errorCodeSchema = z.enum([
   'COMMAND_ERROR',
   'USAGE_ERROR',
   'WORKSPACE_DEFINITION_ERROR',
+  // Codes introduced by the S-D `create` without-a-terminal slice
+  'CREATE_ERROR',
+  'CREATE_INVALID_OPTIONS',
+  'CREATE_INPUT_REQUIRED',
+  'CREATE_TARGET_EXISTS',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

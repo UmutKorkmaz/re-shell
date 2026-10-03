@@ -147,6 +147,14 @@ export {
   k8sCrdResponseSchema,
   k8sMeshResponseSchema,
   k8sOperatorResponseSchema,
+  // create (scaffold + dry-run)
+  createModeSchema,
+  scaffoldFileStatusSchema,
+  scaffoldFileActionSchema,
+  scaffoldFileSchema,
+  scaffoldDryRunSummarySchema,
+  createDryRunResponseSchema,
+  createResponseSchema,
   // sse / ws wire messages
   sseEventSchema,
   wsJobMessageSchema,
@@ -291,6 +299,14 @@ export type {
   K8sCrdResponse,
   K8sMeshResponse,
   K8sOperatorResponse,
+  // create (scaffold + dry-run)
+  CreateMode,
+  ScaffoldFileStatus,
+  ScaffoldFileAction,
+  ScaffoldFile,
+  ScaffoldDryRunSummary,
+  CreateDryRunResponse,
+  CreateResponse,
   // sse / ws wire messages
   SseEvent,
   WsJobMessage,

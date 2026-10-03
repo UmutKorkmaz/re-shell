@@ -4,7 +4,7 @@ import * as os from 'os';
 import { execSync} from 'child_process';
 import inquirer, { DistinctQuestion } from 'inquirer';
 import chalk from 'chalk';
-import { initializeMonorepo, DEFAULT_MONOREPO_STRUCTURE } from '../utils/monorepo';
+import { initializeMonorepo, DEFAULT_MONOREPO_STRUCTURE, SERVICES_WORKSPACE_GLOB } from '../utils/monorepo';
 import { initializeGitRepository } from '../utils/submodule';
 import { ProgressSpinner, flushOutput } from '../utils/spinner';
 import { AsyncPool } from '../utils/async-pool';
@@ -684,13 +684,8 @@ out/
       await fs.writeFile(path.join(projectPath, '.gitignore'), gitignore);
     }
 
-    // Set up submodule support
-    if (finalOptions.submodules) {
-      if (spinner) spinner.setText('Setting up submodule support...');
-      flushOutput();
-      // Submodule support is enabled but we don't create the helper files
-      await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for UX
-    }
+    // Submodule support needs no scaffolding here: the choice is recorded in the
+    // project config (git.submodules) by createAdditionalConfigs below.
 
     // Create additional configuration files
     if (spinner) spinner.setText('Creating configuration files...');
@@ -1561,9 +1556,11 @@ We prefer all communications to be in English.
         root: '.',
         patterns: [
           `${options.structure?.apps || 'apps'}/*`,
-          `${options.structure?.packages || 'packages'}/*`
+          `${options.structure?.packages || 'packages'}/*`,
+          // `generate backend` writes to services/<name>; keep it visible to workspace commands.
+          SERVICES_WORKSPACE_GLOB
         ],
-        types: ['app', 'package']
+        types: ['app', 'package', 'service']
       },
       git: {
         submodules: options.submodules,
