@@ -62,7 +62,7 @@ export const hyperExpressTemplate: BackendTemplate = {
     "bull": "^4.12.2",
     "bullmq": "^5.7.1",
     "node-cron": "^3.0.3",
-    "axios": "^1.6.8",
+    "axios": "^1.20.0",
     "lodash": "^4.17.21",
     "@types/lodash": "^4.17.0",
     "compression": "^1.7.4",

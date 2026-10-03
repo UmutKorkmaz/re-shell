@@ -150,7 +150,10 @@ const orchestrator = new MicrofrontendOrchestrator({
 });
 
 // Initialize orchestrator
-await orchestrator.initialize();
+orchestrator.initialize().catch((err) => {
+  console.error("Failed to initialize orchestrator", err);
+  process.exit(1);
+});
 
 // Routes
 app.use('/api/orchestrator', orchestratorRoutes(orchestrator));
@@ -1356,7 +1359,7 @@ export function serviceRoutes(backendIntegration: BackendServiceIntegration): Ro
   // Fetch data from service
   router.get('/:id/fetch/*', async (req, res, next) => {
     try {
-      const endpoint = req.params[0] || '/';
+      const endpoint = (req.params as Record<string, string>)[0] || '/';
       const data = await backendIntegration.fetchData(req.params.id, endpoint);
       res.json(data);
     } catch (error) {
@@ -1367,7 +1370,7 @@ export function serviceRoutes(backendIntegration: BackendServiceIntegration): Ro
   // Send data to service
   router.post('/:id/send/*', async (req, res, next) => {
     try {
-      const endpoint = req.params[0] || '/';
+      const endpoint = (req.params as Record<string, string>)[0] || '/';
       const data = await backendIntegration.sendData(req.params.id, endpoint, req.body);
       res.json(data);
     } catch (error) {

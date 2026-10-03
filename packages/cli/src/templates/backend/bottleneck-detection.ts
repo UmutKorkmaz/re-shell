@@ -38,7 +38,7 @@ export const bottleneckDetectionTemplate: BackendTemplate = {
     "acorn": "^8.10.0",
     "acorn-walk": "^8.2.0",
     "eslint": "^8.50.0",
-    "typescript-eslint": "^6.7.0"
+    "typescript-eslint": "^8.71.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.17",

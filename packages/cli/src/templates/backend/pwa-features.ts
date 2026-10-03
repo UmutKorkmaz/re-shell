@@ -66,9 +66,13 @@ export const pwaFeaturesTemplate: BackendTemplate = {
     "workbox-routing": "^7.0.0",
     "workbox-strategies": "^7.0.0",
     "workbox-expiration": "^7.0.0",
-    "workbox-precaching": "^7.0.0"
+    "workbox-precaching": "^7.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "@types/express": "^4.17.17",
     "@types/cors": "^2.8.13",
     "@types/compression": "^1.7.2",
@@ -1107,7 +1111,7 @@ export function isNotificationsGranted(): boolean {
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding '='.repeat((4 - (base64String.length % 4)) % 4);
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding)
     .replace(/\\-/g, '+')
     .replace(/_/g, '/');

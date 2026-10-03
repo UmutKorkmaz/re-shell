@@ -13,14 +13,14 @@ export const aspnetCoreWebApiTemplate: BackendTemplate = {
   
   files: {
     // Project file with all required packages
-    [`\${projectName}.csproj`]: `<Project Sdk="Microsoft.NET.Sdk.Web">
+    [`{{projectNamePascal}}.csproj`]: `<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <DocumentationFile>bin\\Debug\\net8.0\\\${projectName}.xml</DocumentationFile>
+    <DocumentationFile>bin\\Debug\\net8.0\\{{projectNamePascal}}.xml</DocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
@@ -43,8 +43,9 @@ export const aspnetCoreWebApiTemplate: BackendTemplate = {
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
     <PackageReference Include="StackExchange.Redis" Version="2.7.10" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning" Version="5.1.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" Version="5.1.0" />
+    <PackageReference Include="Asp.Versioning.Mvc" Version="8.0.0" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.0" />
     <PackageReference Include="GraphQL" Version="7.8.0" />
     <PackageReference Include="GraphQL.SystemTextJson" Version="7.8.0" />
     <PackageReference Include="GraphQL.MicrosoftDI" Version="7.8.0" />
@@ -53,7 +54,11 @@ export const aspnetCoreWebApiTemplate: BackendTemplate = {
 </Project>`,
 
     // Program.cs - Main entry point with comprehensive configuration
-    'Program.cs': `using Microsoft.AspNetCore.Authentication.JwtBearer;
+    'Program.cs': `using Asp.Versioning;
+using GraphQL;
+using GraphQL.SystemTextJson;
+using GraphQL.Types;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -61,11 +66,12 @@ using Microsoft.OpenApi.Models;
 using Serilog;
 using System.Reflection;
 using System.Text;
-using \${projectName}.Data;
-using \${projectName}.Models;
-using \${projectName}.Services;
-using \${projectName}.Middleware;
-using \${projectName}.Extensions;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Middleware;
+using {{projectNamePascal}}.Extensions;
+using {{projectNamePascal}}.GraphQL;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -135,16 +141,14 @@ try
     // API versioning
     builder.Services.AddApiVersioning(opt =>
     {
-        opt.DefaultApiVersion = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
+        opt.DefaultApiVersion = new ApiVersion(1, 0);
         opt.AssumeDefaultVersionWhenUnspecified = true;
-        opt.ApiVersionReader = Microsoft.AspNetCore.Mvc.ApiVersionReader.Combine(
-            new Microsoft.AspNetCore.Mvc.QueryStringApiVersionReader("apiVersion"),
-            new Microsoft.AspNetCore.Mvc.HeaderApiVersionReader("X-Version"),
-            new Microsoft.AspNetCore.Mvc.UrlSegmentApiVersionReader()
+        opt.ApiVersionReader = ApiVersionReader.Combine(
+            new QueryStringApiVersionReader("apiVersion"),
+            new HeaderApiVersionReader("X-Version"),
+            new UrlSegmentApiVersionReader()
         );
-    });
-
-    builder.Services.AddVersionedApiExplorer(setup =>
+    }).AddMvc().AddApiExplorer(setup =>
     {
         setup.GroupNameFormat = "'v'VVV";
         setup.SubstituteApiVersionInUrl = true;
@@ -156,13 +160,13 @@ try
     {
         c.SwaggerDoc("v1", new OpenApiInfo 
         { 
-            Title = "\${projectName} API", 
+            Title = "{{projectNamePascal}} API", 
             Version = "v1",
             Description = "A comprehensive ASP.NET Core Web API with authentication and CRUD operations",
             Contact = new OpenApiContact
             {
                 Name = "API Support",
-                Email = "support@\${projectName.toLowerCase()}.com"
+                Email = "support@{{projectName}}.com"
             }
         });
 
@@ -220,7 +224,7 @@ try
         app.UseSwagger();
         app.UseSwaggerUI(c =>
         {
-            c.SwaggerEndpoint("/swagger/v1/swagger.json", "\${projectName} API V1");
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "{{projectNamePascal}} API V1");
             c.RoutePrefix = string.Empty; // Set Swagger UI at app's root
         });
     }
@@ -238,11 +242,13 @@ try
     app.MapPost("/graphql", async (HttpContext context, ISchema schema, IDocumentExecuter executer, IGraphQLSerializer serializer) =>
     {
         var request = await context.Request.ReadFromJsonAsync<GraphQLRequest>();
-        var result = await executer.ExecuteAsync(options =>
+        var result = await executer.ExecuteAsync(new ExecutionOptions
         {
-            options.Schema = schema;
-            options.Query = request?.Query;
-            options.Inputs = request?.Variables;
+            Schema = schema,
+            Query = request?.Query,
+            Variables = request?.Variables,
+            RequestServices = context.RequestServices,
+            CancellationToken = context.RequestAborted
         });
 
         await serializer.WriteAsync(context.Response.Body, result);
@@ -272,9 +278,9 @@ finally
     // Database context
     'Data/ApplicationDbContext.cs': `using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using \${projectName}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Data;
+namespace {{projectNamePascal}}.Data;
 
 public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
@@ -379,7 +385,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     // Models
     'Models/ApplicationUser.cs': `using Microsoft.AspNetCore.Identity;
 
-namespace \${projectName}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class ApplicationUser : IdentityUser
 {
@@ -392,7 +398,7 @@ public class ApplicationUser : IdentityUser
 
     'Models/Product.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace \${projectName}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class Product
 {
@@ -424,7 +430,7 @@ public class Product
 
     'Models/Category.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace \${projectName}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class Category
 {
@@ -446,7 +452,7 @@ public class Category
 
     'Models/Order.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace \${projectName}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class Order
 {
@@ -478,7 +484,7 @@ public enum OrderStatus
 
     'Models/OrderItem.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace \${projectName}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class OrderItem
 {
@@ -506,7 +512,7 @@ public class OrderItem
     // DTOs
     'DTOs/UserRegisterDto.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace \${projectName}.DTOs;
+namespace {{projectNamePascal}}.DTOs;
 
 public class UserRegisterDto
 {
@@ -533,7 +539,7 @@ public class UserRegisterDto
 
     'DTOs/UserLoginDto.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace \${projectName}.DTOs;
+namespace {{projectNamePascal}}.DTOs;
 
 public class UserLoginDto
 {
@@ -547,7 +553,7 @@ public class UserLoginDto
 
     'DTOs/ProductDto.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace \${projectName}.DTOs;
+namespace {{projectNamePascal}}.DTOs;
 
 public class ProductCreateDto
 {
@@ -589,10 +595,10 @@ public class ProductResponseDto
 }`,
 
     // Services
-    'Services/IUserService.cs': `using \${projectName}.DTOs;
-using \${projectName}.Models;
+    'Services/IUserService.cs': `using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IUserService
 {
@@ -607,10 +613,10 @@ public interface IUserService
 
     'Services/UserService.cs': `using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using \${projectName}.DTOs;
-using \${projectName}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class UserService : IUserService
 {
@@ -754,10 +760,10 @@ public class UserService : IUserService
     }
 }`,
 
-    'Services/IProductService.cs': `using \${projectName}.DTOs;
-using \${projectName}.Models;
+    'Services/IProductService.cs': `using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IProductService
 {
@@ -774,11 +780,11 @@ public interface IProductService
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
-using \${projectName}.Data;
-using \${projectName}.DTOs;
-using \${projectName}.Models;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class ProductService : IProductService
 {
@@ -1019,9 +1025,9 @@ public class ProductService : IProductService
     }
 }`,
 
-    'Services/ITokenService.cs': `using \${projectName}.Models;
+    'Services/ITokenService.cs': `using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface ITokenService
 {
@@ -1035,9 +1041,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using \${projectName}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class TokenService : ITokenService
 {
@@ -1124,10 +1130,10 @@ public class TokenService : ITokenService
 
     // Controllers
     'Controllers/AuthController.cs': `using Microsoft.AspNetCore.Mvc;
-using \${projectName}.DTOs;
-using \${projectName}.Services;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Services;
 
-namespace \${projectName}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Authentication controller for user registration and login
@@ -1238,10 +1244,10 @@ public class AuthController : ControllerBase
 
     'Controllers/ProductsController.cs': `using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using \${projectName}.DTOs;
-using \${projectName}.Services;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Services;
 
-namespace \${projectName}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Products management controller
@@ -1396,7 +1402,7 @@ public class ProductsController : ControllerBase
     'Middleware/ExceptionHandlingMiddleware.cs': `using System.Net;
 using System.Text.Json;
 
-namespace \${projectName}.Middleware;
+namespace {{projectNamePascal}}.Middleware;
 
 public class ExceptionHandlingMiddleware
 {
@@ -1461,7 +1467,7 @@ public class ExceptionHandlingMiddleware
     }
 }`,
 
-    'Middleware/RequestLoggingMiddleware.cs': `namespace \${projectName}.Middleware;
+    'Middleware/RequestLoggingMiddleware.cs': `namespace {{projectNamePascal}}.Middleware;
 
 public class RequestLoggingMiddleware
 {
@@ -1502,11 +1508,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using \${projectName}.Data;
-using \${projectName}.Models;
-using \${projectName}.Services;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Services;
 
-namespace \${projectName}.Extensions;
+namespace {{projectNamePascal}}.Extensions;
 
 public static class ServiceCollectionExtensions
 {
@@ -1573,13 +1579,13 @@ public static class ServiceCollectionExtensions
   },
   "AllowedHosts": "*",
   "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\\\mssqllocaldb;Database=\${projectName}Db;Trusted_Connection=true;MultipleActiveResultSets=true",
+    "DefaultConnection": "Server=(localdb)\\\\mssqllocaldb;Database={{projectNamePascal}}Db;Trusted_Connection=true;MultipleActiveResultSets=true",
     "Redis": "localhost:6379"
   },
   "JwtSettings": {
     "SecretKey": "YourSuperSecretKeyThatIsAtLeast32CharactersLong!",
-    "Issuer": "\${projectName}-api",
-    "Audience": "\${projectName}-client",
+    "Issuer": "{{projectNamePascal}}-api",
+    "Audience": "{{projectNamePascal}}-client",
     "ExpirationInMinutes": 60
   }
 }`,
@@ -1593,17 +1599,17 @@ public static class ServiceCollectionExtensions
     }
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\\\mssqllocaldb;Database=\${projectName}DevDb;Trusted_Connection=true;MultipleActiveResultSets=true",
+    "DefaultConnection": "Server=(localdb)\\\\mssqllocaldb;Database={{projectNamePascal}}DevDb;Trusted_Connection=true;MultipleActiveResultSets=true",
     "Redis": "localhost:6379"
   }
 }`,
 
     // AutoMapper Profile
     'Profiles/MappingProfile.cs': `using AutoMapper;
-using \${projectName}.DTOs;
-using \${projectName}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Profiles;
+namespace {{projectNamePascal}}.Profiles;
 
 public class MappingProfile : Profile
 {
@@ -1622,10 +1628,9 @@ public class MappingProfile : Profile
 
     // GraphQL schema and resolvers
     'GraphQL/GraphQLSchema.cs': `using GraphQL;
-using GraphQL.NewtonsoftJson;
 using GraphQL.Types;
 
-namespace \${projectName}.GraphQL;
+namespace {{projectNamePascal}}.GraphQL;
 
 public class GraphQLSchema : Schema
 {
@@ -1681,16 +1686,16 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["\${projectName}.csproj", "."]
-RUN dotnet restore "./\${projectName}.csproj"
+COPY ["{{projectNamePascal}}.csproj", "."]
+RUN dotnet restore "./{{projectNamePascal}}.csproj"
 COPY . .
 WORKDIR "/src/."
-RUN dotnet build "./\${projectName}.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./{{projectNamePascal}}.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # Stage 3: Publish
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./\${projectName}.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./{{projectNamePascal}}.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 # =============================================================================
 # Stage 4: Final runtime image
@@ -1713,7 +1718,7 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \\
     CMD curl -f http://localhost:8080/health || exit 1
 
-ENTRYPOINT ["dotnet", "\${projectName}.dll"]`,
+ENTRYPOINT ["dotnet", "{{projectNamePascal}}.dll"]`,
 
     '.dockerignore': `**/.dockerignore
 **/.env
@@ -1748,7 +1753,7 @@ README.md`,
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
-      "applicationUrl": "http://localhost:\${port || 5000}",
+      "applicationUrl": "http://localhost:{{port}}",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
@@ -1757,7 +1762,7 @@ README.md`,
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
-      "applicationUrl": "https://localhost:\${(port ? parseInt(port) + 1 : 5001)};http://localhost:\${port || 5000}",
+      "applicationUrl": "https://localhost:5001;http://localhost:{{port}}",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
@@ -1766,7 +1771,7 @@ README.md`,
 }`,
 
     // README
-    'README.md': `# \${projectName} - ASP.NET Core Web API
+    'README.md': `# {{projectNamePascal}} - ASP.NET Core Web API
 
 Enterprise-grade ASP.NET Core Web API with comprehensive features including authentication, authorization, data access, caching, and more.
 
@@ -1821,8 +1826,8 @@ dotnet watch run
 
 Build and run with Docker:
 \`\`\`bash
-docker build -t \${projectName.toLowerCase()}-api .
-docker run -p 8080:8080 \${projectName.toLowerCase()}-api
+docker build -t {{projectName}}-api .
+docker run -p 8080:8080 {{projectName}}-api
 \`\`\`
 
 ## API Endpoints
@@ -1889,7 +1894,7 @@ dotnet test
 ## Project Structure
 
 \`\`\`
-\${projectName}/
+{{projectNamePascal}}/
 ├── Controllers/          # API controllers
 ├── Data/                # Database context and configurations
 ├── DTOs/                # Data Transfer Objects

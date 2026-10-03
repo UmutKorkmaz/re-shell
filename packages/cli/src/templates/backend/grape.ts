@@ -17,7 +17,7 @@ export const grapeTemplate: BackendTemplate = {
     // Gemfile
     'Gemfile': `source 'https://rubygems.org'
 
-ruby '3.3.0'
+ruby '>= 3.3.0'
 
 # API framework
 gem 'grape', '~> 2.0'
@@ -74,7 +74,6 @@ gem 'grape-kaminari', '~> 0.4'
 gem 'kaminari', '~> 1.2'
 
 # Caching
-gem 'grape-cache', '~> 0.1'
 gem 'redis-rack-cache', '~> 2.2'
 
 # Health checks
@@ -84,12 +83,9 @@ gem 'health_check', '~> 3.1'
 gem 'graphql', '~> 2.1'
 gem 'rack-graphql', '~> 1.0'
 
-# Error tracking
-gem 'grape-sentry', '~> 0.4'
 
 group :development do
   gem 'rerun', '~> 0.14'
-  gem 'grape-reload', '~> 0.1'
 end
 
 group :test do

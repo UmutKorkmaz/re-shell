@@ -37,7 +37,7 @@ export const globalCdnIntegrationTemplate: BackendTemplate = {
     "cloudflare": "^2.9.1",
     "aws-sdk": "^2.1450.0",
     "azure-storage-blob": "^12.17.0",
-    "fastly": "^5.1.0",
+    "fastly": "^5.0.2",
     "sharp": "^0.32.5",
     "mime-types": "^2.1.35",
     "node-cache": "^5.1.2",

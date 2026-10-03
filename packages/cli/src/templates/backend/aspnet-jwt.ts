@@ -40,7 +40,7 @@ export const aspnetJwtTemplate: BackendTemplate = {
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.0" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="7.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="8.0.0" />
@@ -59,14 +59,14 @@ export const aspnetJwtTemplate: BackendTemplate = {
 </Project>`,
 
     // Program.cs with comprehensive JWT configuration
-    'Program.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Services;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Profiles;
-using {{serviceName}}.Validators;
-using {{serviceName}}.Infrastructure.Security;
-using {{serviceName}}.Infrastructure.Middleware;
+    'Program.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Profiles;
+using {{projectNamePascal}}.Validators;
+using {{projectNamePascal}}.Infrastructure.Security;
+using {{projectNamePascal}}.Infrastructure.Middleware;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -389,10 +389,10 @@ app.MapHealthChecks("/health/ready");
 app.Run();`,
 
     // JWT Token Service
-    'Services/IJwtTokenService.cs': `using {{serviceName}}.Models;
+    'Services/IJwtTokenService.cs': `using {{projectNamePascal}}.Models;
 using System.Security.Claims;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IJwtTokenService
 {
@@ -408,9 +408,9 @@ public interface IJwtTokenService
     Task<bool> ValidateEmailConfirmationTokenAsync(ApplicationUser user, string token);
 }`,
 
-    'Services/JwtTokenService.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Models;
-using {{serviceName}}.Infrastructure.Security;
+    'Services/JwtTokenService.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Infrastructure.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -420,7 +420,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class JwtTokenService : IJwtTokenService
 {
@@ -657,10 +657,10 @@ public class JwtTokenService : IJwtTokenService
 }`,
 
     // Authentication Service
-    'Services/IAuthService.cs': `using {{serviceName}}.DTOs;
-using {{serviceName}}.Models;
+    'Services/IAuthService.cs': `using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IAuthService
 {
@@ -678,14 +678,14 @@ public interface IAuthService
     Task<ExternalLoginResponse> HandleExternalLoginAsync(string provider, string returnUrl);
 }`,
 
-    'Services/AuthService.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Models;
+    'Services/AuthService.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class AuthService : IAuthService
 {
@@ -1175,7 +1175,7 @@ public class AuthService : IAuthService
 }`,
 
     // JWT Settings Configuration
-    'Infrastructure/Security/JwtSettings.cs': `namespace {{serviceName}}.Infrastructure.Security;
+    'Infrastructure/Security/JwtSettings.cs': `namespace {{projectNamePascal}}.Infrastructure.Security;
 
 public class JwtSettings
 {
@@ -1197,7 +1197,7 @@ public class JwtSettings
     'Models/ApplicationUser.cs': `using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class ApplicationUser : IdentityUser<int>
 {
@@ -1230,7 +1230,7 @@ public class ApplicationUser : IdentityUser<int>
 
     'Models/UserToken.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class UserToken
 {
@@ -1259,12 +1259,12 @@ public class UserToken
     // Authentication Controller
     'Controllers/AuthController.cs': `using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using {{serviceName}}.Services;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.DTOs;
 using FluentValidation;
 using Swashbuckle.AspNetCore.Annotations;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Handles authentication and authorization operations

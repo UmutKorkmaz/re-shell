@@ -37,7 +37,7 @@ export const foaltsTemplate: BackendTemplate = {
   "scripts": {
     "build": "foal rmdir build && tsc",
     "start": "node ./build/index.js",
-    "dev": "npm run build && concurrently -r "tsc -w" "supervisor -w ./build,./config -e js,yml,json --no-restart-on error ./build/index.js"",
+    "dev": "npm run build && concurrently -r \\"tsc -w\\" \\"supervisor -w ./build,./config -e js,yml,json --no-restart-on error ./build/index.js\\"",
     "build:test": "foal rmdir build && tsc -p tsconfig.test.json",
     "start:test": "mocha --file "./build/test.js" "./build/**/*.spec.js"",
     "test": "npm run build:test && npm run start:test",

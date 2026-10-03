@@ -72,7 +72,7 @@ export const serviceCommunicationOptimizationTemplate: BackendTemplate = {
     "@types/cors": "^2.8.13",
     "@types/compression": "^1.7.2",
     "@types/node": "^20.5.0",
-    "@types/node-cache": "^5.1.0",
+    "@types/node-cache": "^4.2.5",
     "@types/lru-cache": "^7.10.0",
     "typescript": "^5.1.6",
     "ts-node": "^10.9.1"

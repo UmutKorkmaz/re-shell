@@ -71,7 +71,7 @@ export const middyTemplate: BackendTemplate = {
     "@aws-sdk/client-secrets-manager": "^3.540.0",
     "@aws-sdk/client-ssm": "^3.540.0",
     "@aws-sdk/client-cloudwatch": "^3.540.0",
-    "docker": "^1.0.7",
+    "docker": "^1.0.0",
     "ajv": "^8.12.0",
     "ajv-formats": "^2.1.1",
     "winston": "^3.13.0",

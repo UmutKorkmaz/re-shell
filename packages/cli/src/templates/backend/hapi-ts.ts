@@ -86,7 +86,7 @@ export const hapiTypeScriptTemplate: BackendTemplate = {
   "license": "MIT",
   "dependencies": {
     "@hapi/hapi": "^21.3.10",
-    "@hapi/joi": "^17.1.3",
+    "@hapi/joi": "^17.1.1",
     "@hapi/boom": "^10.0.1",
     "@hapi/inert": "^7.1.0",
     "@hapi/vision": "^7.0.3",

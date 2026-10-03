@@ -22,7 +22,16 @@ export const aspnetXUnitTemplate: BackendTemplate = {
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RootNamespace>{{projectNamePascal}}</RootNamespace>
   </PropertyGroup>
+
+  <!-- The test project lives in Tests/ and has its own csproj -->
+  <ItemGroup>
+    <Compile Remove="Tests/**" />
+    <Content Remove="Tests/**" />
+    <EmbeddedResource Remove="Tests/**" />
+    <None Remove="Tests/**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
@@ -38,13 +47,13 @@ export const aspnetXUnitTemplate: BackendTemplate = {
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
   </ItemGroup>
 
 </Project>`,
 
     // Test project file
-    '{{serviceName}}.Tests.csproj': `<Project Sdk="Microsoft.NET.Sdk">
+    'Tests/{{projectNamePascal}}.Tests.csproj': `<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -83,12 +92,12 @@ export const aspnetXUnitTemplate: BackendTemplate = {
 </Project>`,
 
     // Program.cs
-    'Program.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Services;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Profiles;
-using {{serviceName}}.Validators;
+    'Program.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Profiles;
+using {{projectNamePascal}}.Validators;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 using FluentValidation;
@@ -243,7 +252,7 @@ public partial class Program { }`,
     // Models/User.cs
     'Models/User.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class User
 {
@@ -289,7 +298,7 @@ public class User
     'Models/Product.cs': `using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class Product
 {
@@ -331,7 +340,7 @@ public class Product
     'Models/Order.cs': `using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class Order
 {
@@ -371,7 +380,7 @@ public class Order
     'Models/OrderItem.cs': `using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class OrderItem
 {
@@ -402,7 +411,7 @@ public class OrderItem
     // DTOs/UserDtos.cs
     'DTOs/UserDtos.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.DTOs;
+namespace {{projectNamePascal}}.DTOs;
 
 public class UserDto
 {
@@ -506,7 +515,7 @@ public class OrderItemDto
     // DTOs/ProductDtos.cs
     'DTOs/ProductDtos.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.DTOs;
+namespace {{projectNamePascal}}.DTOs;
 
 public class ProductDto
 {
@@ -578,10 +587,10 @@ public class UpdateProductDto
 
     // Profiles/UserProfile.cs
     'Profiles/UserProfile.cs': `using AutoMapper;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Profiles;
+namespace {{projectNamePascal}}.Profiles;
 
 public class UserProfile : Profile
 {
@@ -609,10 +618,10 @@ public class UserProfile : Profile
 
     // Profiles/ProductProfile.cs
     'Profiles/ProductProfile.cs': `using AutoMapper;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Profiles;
+namespace {{projectNamePascal}}.Profiles;
 
 public class ProductProfile : Profile
 {
@@ -638,10 +647,10 @@ public class ProductProfile : Profile
 
     // Profiles/OrderProfile.cs
     'Profiles/OrderProfile.cs': `using AutoMapper;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Profiles;
+namespace {{projectNamePascal}}.Profiles;
 
 public class OrderProfile : Profile
 {
@@ -654,9 +663,9 @@ public class OrderProfile : Profile
 
     // Validators/CreateUserDtoValidator.cs
     'Validators/CreateUserDtoValidator.cs': `using FluentValidation;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Validators;
+namespace {{projectNamePascal}}.Validators;
 
 public class CreateUserDtoValidator : AbstractValidator<CreateUserDto>
 {
@@ -690,9 +699,9 @@ public class CreateUserDtoValidator : AbstractValidator<CreateUserDto>
 
     // Data/ApplicationDbContext.cs
     'Data/ApplicationDbContext.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data;
+namespace {{projectNamePascal}}.Data;
 
 public class ApplicationDbContext : DbContext
 {
@@ -763,9 +772,9 @@ public class ApplicationDbContext : DbContext
 }`,
 
     // Services/IUserService.cs
-    'Services/IUserService.cs': `using {{serviceName}}.DTOs;
+    'Services/IUserService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IUserService
 {
@@ -782,12 +791,12 @@ public interface IUserService
     // Services/UserService.cs
     'Services/UserService.cs': `using Microsoft.EntityFrameworkCore;
 using AutoMapper;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 using BCrypt.Net;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class UserService : IUserService
 {
@@ -915,9 +924,9 @@ public class UserService : IUserService
 }`,
 
     // Services/IProductService.cs
-    'Services/IProductService.cs': `using {{serviceName}}.DTOs;
+    'Services/IProductService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IProductService
 {
@@ -933,11 +942,11 @@ public interface IProductService
     // Services/ProductService.cs
     'Services/ProductService.cs': `using Microsoft.EntityFrameworkCore;
 using AutoMapper;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class ProductService : IProductService
 {
@@ -1029,7 +1038,7 @@ public class ProductService : IProductService
 }`,
 
     // Services/IOrderService.cs (stub)
-    'Services/IOrderService.cs': `namespace {{serviceName}}.Services;
+    'Services/IOrderService.cs': `namespace {{projectNamePascal}}.Services;
 
 public interface IOrderService
 {
@@ -1037,7 +1046,7 @@ public interface IOrderService
 }`,
 
     // Services/OrderService.cs (stub)
-    'Services/OrderService.cs': `namespace {{serviceName}}.Services;
+    'Services/OrderService.cs': `namespace {{projectNamePascal}}.Services;
 
 public class OrderService : IOrderService
 {
@@ -1045,7 +1054,7 @@ public class OrderService : IOrderService
 }`,
 
     // Services/IAuthService.cs (stub)
-    'Services/IAuthService.cs': `namespace {{serviceName}}.Services;
+    'Services/IAuthService.cs': `namespace {{projectNamePascal}}.Services;
 
 public interface IAuthService
 {
@@ -1053,7 +1062,7 @@ public interface IAuthService
 }`,
 
     // Services/AuthService.cs (stub)
-    'Services/AuthService.cs': `namespace {{serviceName}}.Services;
+    'Services/AuthService.cs': `namespace {{projectNamePascal}}.Services;
 
 public class AuthService : IAuthService
 {
@@ -1067,10 +1076,10 @@ public class AuthService : IAuthService
     // Controllers/UsersController.cs
     'Controllers/UsersController.cs': `using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using {{serviceName}}.Services;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -1186,10 +1195,10 @@ public class UsersController : ControllerBase
 
     // Controllers/ProductsController.cs
     'Controllers/ProductsController.cs': `using Microsoft.AspNetCore.Mvc;
-using {{serviceName}}.Services;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -1312,9 +1321,9 @@ public class ProductsController : ControllerBase
 
     // Tests/TestFixtures/DatabaseFixture.cs
     'Tests/TestFixtures/DatabaseFixture.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Data;
+using {{projectNamePascal}}.Data;
 
-namespace {{serviceName}}.Tests.TestFixtures;
+namespace {{projectNamePascal}}.Tests.TestFixtures;
 
 public class DatabaseFixture : IDisposable
 {
@@ -1338,10 +1347,10 @@ public class DatabaseFixture : IDisposable
 
     // Tests/TestFixtures/TestDataGenerator.cs
     'Tests/TestFixtures/TestDataGenerator.cs': `using Bogus;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Tests.TestFixtures;
+namespace {{projectNamePascal}}.Tests.TestFixtures;
 
 public static class TestDataGenerator
 {
@@ -1419,14 +1428,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using AutoMapper;
-using {{serviceName}}.Services;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Profiles;
-using {{serviceName}}.Tests.TestFixtures;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Profiles;
+using {{projectNamePascal}}.Tests.TestFixtures;
 
-namespace {{serviceName}}.Tests.Services;
+namespace {{projectNamePascal}}.Tests.Services;
 
 public class UserServiceTests : IClassFixture<DatabaseFixture>
 {
@@ -1712,14 +1721,14 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
 using AutoMapper;
-using {{serviceName}}.Services;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Profiles;
-using {{serviceName}}.Tests.TestFixtures;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Profiles;
+using {{projectNamePascal}}.Tests.TestFixtures;
 
-namespace {{serviceName}}.Tests.Services;
+namespace {{projectNamePascal}}.Tests.Services;
 
 public class ProductServiceTests : IClassFixture<DatabaseFixture>
 {
@@ -1937,12 +1946,12 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
-using {{serviceName}}.Controllers;
-using {{serviceName}}.Services;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Tests.TestFixtures;
+using {{projectNamePascal}}.Controllers;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Tests.TestFixtures;
 
-namespace {{serviceName}}.Tests.Controllers;
+namespace {{projectNamePascal}}.Tests.Controllers;
 
 public class UsersControllerTests
 {
@@ -2139,12 +2148,12 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
-using {{serviceName}}.Controllers;
-using {{serviceName}}.Services;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Tests.TestFixtures;
+using {{projectNamePascal}}.Controllers;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Tests.TestFixtures;
 
-namespace {{serviceName}}.Tests.Controllers;
+namespace {{projectNamePascal}}.Tests.Controllers;
 
 public class ProductsControllerTests
 {
@@ -2299,16 +2308,17 @@ public class ProductsControllerTests
     // Tests/Integration/ApiIntegrationTests.cs
     'Tests/Integration/ApiIntegrationTests.cs': `using Xunit;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Http.Json;
 using System.Net;
-using {{serviceName}}.Data;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Tests.TestFixtures;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Tests.TestFixtures;
 
-namespace {{serviceName}}.Tests.Integration;
+namespace {{projectNamePascal}}.Tests.Integration;
 
 public class ApiIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 {
@@ -2515,11 +2525,11 @@ public class ApiIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     // Tests/Validators/CreateUserDtoValidatorTests.cs
     'Tests/Validators/CreateUserDtoValidatorTests.cs': `using Xunit;
 using FluentAssertions;
-using {{serviceName}}.Validators;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Tests.TestFixtures;
+using {{projectNamePascal}}.Validators;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Tests.TestFixtures;
 
-namespace {{serviceName}}.Tests.Validators;
+namespace {{projectNamePascal}}.Tests.Validators;
 
 public class CreateUserDtoValidatorTests
 {
@@ -2851,7 +2861,7 @@ dotnet watch test
 
 ### Test Project Structure
 \`\`\`
-{{serviceName}}.Tests/
+{{projectNamePascal}}.Tests/
 ├── Controllers/           # Controller layer tests
 ├── Services/             # Business logic tests
 ├── Integration/          # End-to-end API tests
@@ -2859,7 +2869,7 @@ dotnet watch test
 ├── TestFixtures/         # Shared test infrastructure
 │   ├── DatabaseFixture.cs
 │   └── TestDataGenerator.cs
-└── {{serviceName}}.Tests.csproj
+└── {{projectNamePascal}}.Tests.csproj
 \`\`\`
 
 ### Test Categories

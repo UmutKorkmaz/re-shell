@@ -38,7 +38,6 @@ export const rescriptGraphqlTemplate: BackendTemplate = {
     "@apollo/server": "^4.9.0",
     "graphql": "^16.8.0",
     "graphql-scalars": "^1.22.0",
-    : "^2.2.2",
     "jsonwebtoken": "^9.0.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

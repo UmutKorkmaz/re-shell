@@ -51,7 +51,7 @@ export const enterpriseSsoTemplate: BackendTemplate = {
     "@types/compression": "^1.7.2",
     "@types/node": "^20.5.0",
     "@types/passport": "^1.0.12",
-    "@types/passport-saml": "^3.2.3",
+    "@types/passport-saml": "^1.1.7",
     "@types/passport-oauth2": "^1.4.12",
     "@types/cookie-parser": "^1.4.3",
     "@types/express-session": "^1.17.7",

@@ -24,11 +24,11 @@ plugins {
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
-group = "com.{{projectName}}"
+group = "{{packageName}}"
 version = "0.0.1"
 
 application {
-    mainClass.set("com.{{projectName}}.ApplicationKt")
+    mainClass.set("{{packageName}}.ApplicationKt")
 }
 
 repositories {
@@ -59,7 +59,7 @@ dependencies {
 
     // GraphQL
     implementation("com.expediagroup:graphql-kotlin-server:7.1.1")
-    implementation("com.expediagroup:graphql-kotlin-schema:7.1.1")
+    implementation("com.expediagroup:graphql-kotlin-schema-generator:7.1.1")
 
     // Resilience
     implementation("org.http4k:http4k-resilience4j:$http4kVersion")
@@ -98,6 +98,11 @@ dependencies {
     testImplementation("io.mockk:mockk:1.13.8")
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "17"
 }
@@ -119,11 +124,11 @@ tasks.shadowJar {
 `,
 
     // Main Application
-    'src/main/kotlin/com/{{projectName}}/Application.kt': `package com.{{projectName}}
+    'src/main/kotlin/{{packagePath}}/Application.kt': `package {{packageName}}
 
-import com.{{projectName}}.config.Database
-import com.{{projectName}}.config.Environment
-import com.{{projectName}}.routes.createApi
+import {{packageName}}.config.Database
+import {{packageName}}.config.Environment
+import {{packageName}}.routes.createApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.http4k.server.Netty
 import org.http4k.server.asServer
@@ -147,7 +152,7 @@ fun main() {
 `,
 
     // Configuration - Environment
-    'src/main/kotlin/com/{{projectName}}/config/Environment.kt': `package com.{{projectName}}.config
+    'src/main/kotlin/{{packagePath}}/config/Environment.kt': `package {{packageName}}.config
 
 import io.github.cdimascio.dotenv.dotenv
 
@@ -190,10 +195,10 @@ data class Environment(
 `,
 
     // Configuration - Database
-    'src/main/kotlin/com/{{projectName}}/config/Database.kt': `package com.{{projectName}}.config
+    'src/main/kotlin/{{packagePath}}/config/Database.kt': `package {{packageName}}.config
 
-import com.{{projectName}}.models.Products
-import com.{{projectName}}.models.Users
+import {{packageName}}.models.Products
+import {{packageName}}.models.Users
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -238,14 +243,14 @@ object Database {
 `,
 
     // Configuration - JWT
-    'src/main/kotlin/com/{{projectName}}/config/JwtAuth.kt': `package com.{{projectName}}.config
+    'src/main/kotlin/{{packagePath}}/config/JwtAuth.kt': `package {{packageName}}.config
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.exceptions.JWTVerificationException
-import com.{{projectName}}.models.User
-import com.{{projectName}}.models.UserPrincipal
-import com.{{projectName}}.models.Users
+import {{packageName}}.models.User
+import {{packageName}}.models.UserPrincipal
+import {{packageName}}.models.Users
 import org.http4k.core.Filter
 import org.http4k.core.HttpHandler
 import org.http4k.core.Request
@@ -343,7 +348,7 @@ val errorLens = org.http4k.core.Body.auto<ErrorResponse>().toLens()
 `,
 
     // Models - User
-    'src/main/kotlin/com/{{projectName}}/models/User.kt': `package com.{{projectName}}.models
+    'src/main/kotlin/{{packagePath}}/models/User.kt': `package {{packageName}}.models
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import org.jetbrains.exposed.dao.IntEntity
@@ -425,7 +430,7 @@ data class AuthResponse(
 `,
 
     // Models - Product
-    'src/main/kotlin/com/{{projectName}}/models/Product.kt': `package com.{{projectName}}.models
+    'src/main/kotlin/{{packagePath}}/models/Product.kt': `package {{packageName}}.models
 
 import org.jetbrains.exposed.dao.IntEntity
 import org.jetbrains.exposed.dao.IntEntityClass
@@ -503,11 +508,11 @@ data class PaginatedResponse<T>(
 `,
 
     // Routes - Main API
-    'src/main/kotlin/com/{{projectName}}/routes/Api.kt': `package com.{{projectName}}.routes
+    'src/main/kotlin/{{packagePath}}/routes/Api.kt': `package {{packageName}}.routes
 
-import com.{{projectName}}.config.Environment
-import com.{{projectName}}.config.JwtAuth
-import com.{{projectName}}.models.UserPrincipal
+import {{packageName}}.config.Environment
+import {{packageName}}.config.JwtAuth
+import {{packageName}}.models.UserPrincipal
 import org.http4k.contract.contract
 import org.http4k.contract.openapi.ApiInfo
 import org.http4k.contract.openapi.v3.OpenApi3
@@ -526,7 +531,7 @@ import org.http4k.format.Jackson.auto
 import org.http4k.lens.RequestContextKey
 import org.http4k.routing.bind
 import org.http4k.routing.routes
-import com.{{projectName}}.graphql.QueryResolvers
+import {{packageName}}.graphql.QueryResolvers
 import java.time.Instant
 
 fun createApi(env: Environment): HttpHandler {
@@ -591,13 +596,13 @@ private fun loggingFilter(): Filter = Filter { next ->
 `,
 
     // Routes - Auth
-    'src/main/kotlin/com/{{projectName}}/routes/AuthRoutes.kt': `package com.{{projectName}}.routes
+    'src/main/kotlin/{{packagePath}}/routes/AuthRoutes.kt': `package {{packageName}}.routes
 
-import com.{{projectName}}.config.Environment
-import com.{{projectName}}.config.JwtAuth
-import com.{{projectName}}.config.ErrorResponse
-import com.{{projectName}}.config.errorLens
-import com.{{projectName}}.models.*
+import {{packageName}}.config.Environment
+import {{packageName}}.config.JwtAuth
+import {{packageName}}.config.ErrorResponse
+import {{packageName}}.config.errorLens
+import {{packageName}}.models.*
 import org.http4k.contract.ContractRoute
 import org.http4k.contract.meta
 import org.http4k.core.Body
@@ -685,13 +690,13 @@ fun authRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>): 
 `,
 
     // Routes - User
-    'src/main/kotlin/com/{{projectName}}/routes/UserRoutes.kt': `package com.{{projectName}}.routes
+    'src/main/kotlin/{{packagePath}}/routes/UserRoutes.kt': `package {{packageName}}.routes
 
-import com.{{projectName}}.config.Environment
-import com.{{projectName}}.config.ErrorResponse
-import com.{{projectName}}.config.JwtAuth
-import com.{{projectName}}.config.errorLens
-import com.{{projectName}}.models.*
+import {{packageName}}.config.Environment
+import {{packageName}}.config.ErrorResponse
+import {{packageName}}.config.JwtAuth
+import {{packageName}}.config.errorLens
+import {{packageName}}.models.*
 import org.http4k.contract.ContractRoute
 import org.http4k.contract.div
 import org.http4k.contract.meta
@@ -796,13 +801,13 @@ fun userRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>): 
 `,
 
     // Routes - Product
-    'src/main/kotlin/com/{{projectName}}/routes/ProductRoutes.kt': `package com.{{projectName}}.routes
+    'src/main/kotlin/{{packagePath}}/routes/ProductRoutes.kt': `package {{packageName}}.routes
 
-import com.{{projectName}}.config.Environment
-import com.{{projectName}}.config.ErrorResponse
-import com.{{projectName}}.config.JwtAuth
-import com.{{projectName}}.config.errorLens
-import com.{{projectName}}.models.*
+import {{packageName}}.config.Environment
+import {{packageName}}.config.ErrorResponse
+import {{packageName}}.config.JwtAuth
+import {{packageName}}.config.errorLens
+import {{packageName}}.models.*
 import org.http4k.contract.ContractRoute
 import org.http4k.contract.div
 import org.http4k.contract.meta
@@ -1044,10 +1049,10 @@ volumes:
 `,
 
     // Test file
-    'src/test/kotlin/com/{{projectName}}/ApplicationTest.kt': `package com.{{projectName}}
+    'src/test/kotlin/{{packagePath}}/ApplicationTest.kt': `package {{packageName}}
 
-import com.{{projectName}}.config.Environment
-import com.{{projectName}}.routes.createApi
+import {{packageName}}.config.Environment
+import {{packageName}}.routes.createApi
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -1072,7 +1077,7 @@ class ApplicationTest : StringSpec({
 
     // Initialize database for tests
     beforeSpec {
-        com.{{projectName}}.config.Database.init(env)
+        {{packageName}}.config.Database.init(env)
     }
 
     val app = createApi(env)
@@ -1150,7 +1155,7 @@ Once the server is running, visit:
 
 \`\`\`
 src/
-├── main/kotlin/com/{{projectName}}/
+├── main/kotlin/{{packagePath}}/
 │   ├── config/       # Configuration
 │   ├── models/       # Data models
 │   ├── routes/       # API routes
@@ -1161,7 +1166,7 @@ src/
 `,
 
     // GraphQL schema definition
-    'src/main/kotlin/com/{{projectName}}/graphql/Schema.kt': `package com.{{projectName}}.graphql
+    'src/main/kotlin/{{packagePath}}/graphql/Schema.kt': `package {{packageName}}.graphql
 
 import com.expediagroup.graphql.server.execution.GraphQLRequestParser
 import com.expediagroup.graphql.server.types.GraphQLServerRequest
@@ -1192,7 +1197,7 @@ data class GraphqlRequest(
 `,
 
     // GraphQL resolvers
-    'src/main/kotlin/com/{{projectName}}/graphql/QueryResolvers.kt': `package com.{{projectName}}.graphql
+    'src/main/kotlin/{{packagePath}}/graphql/QueryResolvers.kt': `package {{packageName}}.graphql
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
