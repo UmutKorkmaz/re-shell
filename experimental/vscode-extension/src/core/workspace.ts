@@ -1,10 +1,21 @@
-import { z } from 'zod';
 import {
   jsonResponseSchema,
-  workspaceSummarySchema,
-  healthSummarySchema,
-  type WorkspaceSummary,
+  doctorCheckStatusWireSchema,
+  doctorCheckWireSchema,
+  doctorWireSchema,
+  graphNodeWireSchema,
+  healthWireToSummary,
+  workspaceGraphWireSchema,
+  workspaceHealthWireSchema,
+  workspaceSummaryWireSchema,
+  workspaceSummaryWireToModel,
+  type DoctorCheckStatusWire,
+  type DoctorCheckWire,
+  type DoctorWire,
+  type GraphNodeWire,
   type HealthSummary,
+  type WorkspaceGraphWire,
+  type WorkspaceSummary,
 } from '@re-shell/contracts';
 
 /**
@@ -16,24 +27,28 @@ import {
  *
  * The CLI's `--json` envelope is the canonical `{ ok, data, warnings }` shape
  * from @re-shell/contracts, so every parser validates against
- * `jsonResponseSchema(<dataSchema>)` and never trusts the raw stdout blob.
+ * `jsonResponseSchema(<wire schema>)` and never trusts the raw stdout blob. The
+ * WIRE schemas (`*WireSchema`) describe exactly what the CLI prints; the summary
+ * and health payloads are then adapted to the domain models the tree/status bar
+ * render with the shared adapters from the contracts package.
  */
 
 // ---------------------------------------------------------------------------
 // workspace summary  (`re-shell workspace summary --json`)
 //
-// `data` is the full WorkspaceSummary: { path, name, packageManager, apps[],
-// services[], templates[], health }. Validated against the shared contract.
+// The CLI prints { root, packageManager, workspaces[], graph, health } (the wire
+// shape, `workspaceSummaryWireSchema`), NOT the domain WorkspaceSummary. It is
+// validated against the wire schema and adapted with `workspaceSummaryWireToModel`.
 // ---------------------------------------------------------------------------
 
-const summaryEnvelopeSchema = jsonResponseSchema(workspaceSummarySchema);
+const summaryEnvelopeSchema = jsonResponseSchema(workspaceSummaryWireSchema);
 
 export type ParseSummaryResult =
   | { ok: true; summary: WorkspaceSummary; warnings: string[] }
   | { ok: false; error: string };
 
 /**
- * Parse a raw `workspace summary --json` payload into a validated
+ * Parse a raw `workspace summary --json` payload into a validated, adapted
  * {@link WorkspaceSummary}. Never throws; returns a tagged result.
  */
 export function parseWorkspaceSummary(raw: unknown): ParseSummaryResult {
@@ -52,31 +67,23 @@ export function parseWorkspaceSummary(raw: unknown): ParseSummaryResult {
   if (!envelope.ok) {
     return { ok: false, error: `[${envelope.error.code}] ${envelope.error.message}` };
   }
-  return { ok: true, summary: envelope.data, warnings: envelope.warnings };
+  return { ok: true, summary: workspaceSummaryWireToModel(envelope.data), warnings: envelope.warnings };
 }
 
 // ---------------------------------------------------------------------------
 // workspace graph  (`re-shell workspace graph --json`)
 //
 // The CLI emits the consumer contract shape `{ apps, services }` where each
-// node is { name, path, framework (string|null), dependencies: string[] }.
-// (packages/cli/src/commands/workspace.ts → buildContractGraph.) This is NOT in
-// @re-shell/contracts, so the node schema is authored here.
+// node is { name, path, framework (string|null), dependencies: string[] }
+// (packages/cli/src/commands/workspace.ts -> buildContractGraph). That is
+// `workspaceGraphWireSchema` in @re-shell/contracts.
 // ---------------------------------------------------------------------------
 
-export const graphNodeSchema = z.object({
-  name: z.string(),
-  path: z.string(),
-  framework: z.string().nullable(),
-  dependencies: z.array(z.string()),
-});
-export type GraphNode = z.infer<typeof graphNodeSchema>;
+export const graphNodeSchema = graphNodeWireSchema;
+export type GraphNode = GraphNodeWire;
 
-export const workspaceGraphDataSchema = z.object({
-  apps: z.array(graphNodeSchema),
-  services: z.array(graphNodeSchema),
-});
-export type WorkspaceGraph = z.infer<typeof workspaceGraphDataSchema>;
+export const workspaceGraphDataSchema = workspaceGraphWireSchema;
+export type WorkspaceGraph = WorkspaceGraphWire;
 
 const graphEnvelopeSchema = jsonResponseSchema(workspaceGraphDataSchema);
 
@@ -107,17 +114,20 @@ export function parseWorkspaceGraph(raw: unknown): ParseGraphResult {
 // ---------------------------------------------------------------------------
 // workspace health  (`re-shell workspace health --json`)
 //
-// `data` is the HealthSummary: { score, status, checks[] }. The shared contract
-// covers this directly.
+// The CLI prints the canonical health report { score, status: healthy|degraded|
+// critical, checks: [{ name, status: healthy|warning|critical, message?, details? }] }
+// (`workspaceHealthWireSchema`), NOT the domain HealthSummary (pass|warn|fail,
+// id/title/level). It is validated against the wire schema and adapted with
+// `healthWireToSummary`.
 // ---------------------------------------------------------------------------
 
-const healthEnvelopeSchema = jsonResponseSchema(healthSummarySchema);
+const healthEnvelopeSchema = jsonResponseSchema(workspaceHealthWireSchema);
 
 export type ParseHealthResult =
   | { ok: true; health: HealthSummary; warnings: string[] }
   | { ok: false; error: string };
 
-/** Parse a raw `workspace health --json` payload into a validated summary. */
+/** Parse a raw `workspace health --json` payload into a validated, adapted summary. */
 export function parseWorkspaceHealth(raw: unknown): ParseHealthResult {
   const value = coerceJson(raw);
   if (typeof value === 'string') {
@@ -134,34 +144,26 @@ export function parseWorkspaceHealth(raw: unknown): ParseHealthResult {
   if (!envelope.ok) {
     return { ok: false, error: `[${envelope.error.code}] ${envelope.error.message}` };
   }
-  return { ok: true, health: envelope.data, warnings: envelope.warnings };
+  return { ok: true, health: healthWireToSummary(envelope.data), warnings: envelope.warnings };
 }
 
 // ---------------------------------------------------------------------------
 // doctor  (`re-shell doctor --json`)
 //
 // The CLI emits `{ checks: [{ name, status, message, suggestion? }] }` where
-// status is the LOOSE vocabulary ('success' | 'warning' | 'error') — this
-// differs from the contract health-check level vocabulary, so the doctor check
-// schema is authored here against the CLI's actual output.
-// (packages/cli/src/commands/doctor.ts → displayResults → jsonSuccess.)
+// status is the LOOSE vocabulary ('success' | 'warning' | 'error'), a different
+// vocabulary from the workspace health checks: `doctorWireSchema`.
+// (packages/cli/src/commands/doctor.ts -> displayResults -> jsonSuccess.)
 // ---------------------------------------------------------------------------
 
-export const doctorCheckStatusSchema = z.enum(['success', 'warning', 'error']);
-export type DoctorCheckStatus = z.infer<typeof doctorCheckStatusSchema>;
+export const doctorCheckStatusSchema = doctorCheckStatusWireSchema;
+export type DoctorCheckStatus = DoctorCheckStatusWire;
 
-export const doctorCheckSchema = z.object({
-  name: z.string(),
-  status: doctorCheckStatusSchema,
-  message: z.string(),
-  suggestion: z.string().optional(),
-});
-export type DoctorCheck = z.infer<typeof doctorCheckSchema>;
+export const doctorCheckSchema = doctorCheckWireSchema;
+export type DoctorCheck = DoctorCheckWire;
 
-export const doctorDataSchema = z.object({
-  checks: z.array(doctorCheckSchema),
-});
-export type DoctorResult = z.infer<typeof doctorDataSchema>;
+export const doctorDataSchema = doctorWireSchema;
+export type DoctorResult = DoctorWire;
 
 const doctorEnvelopeSchema = jsonResponseSchema(doctorDataSchema);
 
