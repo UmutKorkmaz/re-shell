@@ -141,9 +141,7 @@ const memcachedCache = new MemcachedCacheLayer({
   servers: (process.env.MEMCACHED_SERVERS || 'localhost:11211').split(','),
   options: {
     retries: 2,
-    retry: 5000,
-    timeout: 1000,
-    failOverServers: [],
+    failover: false,
   },
 });
 
@@ -155,15 +153,8 @@ const cdnManager = new CDNManager({
 
 const cacheManager = new DistributedCacheManager(redisCache, memcachedCache, cdnManager);
 
-// Initialize
-await redisCache.initialize();
-await memcachedCache.initialize();
-await cdnManager.initialize();
-await cacheManager.initialize();
-
 // Cache warmer
 const cacheWarmer = new CacheWarmer(cacheManager);
-await cacheWarmer.initialize();
 
 // Make available globally
 app.set('cacheManager', cacheManager);
@@ -199,13 +190,27 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// Start server
-const PORT = process.env.PORT || {{port}};
-app.listen(PORT, () => {
-  console.log(\`🚀 Distributed Caching Server running on port \${PORT}\`);
-  console.log(\`📦 Redis: \${redisCache.isConnected() ? '✅' : '❌'}\`);
-  console.log(\`💎 Memcached: \${memcachedCache.isConnected() ? '✅' : '❌'}\`);
-  console.log(\`🌐 CDN: \${cdnManager.isEnabled() ? '✅' : '❌'}\`);
+// Initialize the cache layers, then start the server
+const PORT = process.env.PORT || 3000;
+
+async function start(): Promise<void> {
+  await redisCache.initialize();
+  await memcachedCache.initialize();
+  await cdnManager.initialize();
+  await cacheManager.initialize();
+  await cacheWarmer.initialize();
+
+  app.listen(PORT, () => {
+    console.log(\`🚀 Distributed Caching Server running on port \${PORT}\`);
+    console.log(\`📦 Redis: \${redisCache.isConnected() ? '✅' : '❌'}\`);
+    console.log(\`💎 Memcached: \${memcachedCache.isConnected() ? '✅' : '❌'}\`);
+    console.log(\`🌐 CDN: \${cdnManager.isEnabled() ? '✅' : '❌'}\`);
+  });
+}
+
+start().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });
 
 // Graceful shutdown
@@ -272,7 +277,7 @@ export class DistributedCacheManager extends EventEmitter {
     console.log('✅ Distributed Cache Manager initialized');
   }
 
-  async get(key: string, options: CacheOptions = {}): Promise<unknown> {
+  async get(key: string, options: CacheOptions = {}): Promise<any> {
     const layers: string[] = [];
 
     // Try Redis first (fastest distributed cache)
@@ -407,19 +412,18 @@ export class DistributedCacheManager extends EventEmitter {
 // Distributed caching with Redis
 
 import { EventEmitter } from 'events';
-import Redis from 'ioredis';
+import Redis, { Cluster } from 'ioredis';
 import { Semaphore } from 'redis-semaphore';
 
 export interface RedisOptions {
   ttl?: number;
   compress?: boolean;
+  etag?: string;
 }
 
 export class RedisCacheLayer extends EventEmitter {
   private redis?: Redis;
-  private cluster?: Redis.Cluster;
-  private useCluster: boolean;
-  private semaphores: Map<string, Semaphore> = new Map();
+  private cluster?: Cluster;
   private stats: { hits: number; misses: number; sets: number; deletes: number } = {
     hits: 0,
     misses: 0,
@@ -434,7 +438,9 @@ export class RedisCacheLayer extends EventEmitter {
     password?: string;
     db?: number;
     clusterNodes?: Array<{ host: string; port: number }>;
-  }) {}
+  }) {
+    super();
+  }
 
   async initialize(): Promise<void> {
     if (this.connected) {
@@ -443,7 +449,7 @@ export class RedisCacheLayer extends EventEmitter {
 
     try {
       if (this.config.clusterNodes) {
-        this.cluster = new Redis.Cluster(this.config.clusterNodes, {
+        this.cluster = new Cluster(this.config.clusterNodes, {
           redisOptions: {
             password: this.config.password,
           },
@@ -460,7 +466,8 @@ export class RedisCacheLayer extends EventEmitter {
           db: this.config.db,
           retryStrategy: (times) => {
             if (times > 10) {
-              return new Error('Redis retry limit exceeded');
+              // stop retrying
+              return null;
             }
             return Math.min(times * 100, 3000);
           },
@@ -473,7 +480,7 @@ export class RedisCacheLayer extends EventEmitter {
 
       // Set up error handling
       const client = this.redis || this.cluster;
-      client!.on('error', (err) => {
+      client!.on('error', (err: Error) => {
         console.error('Redis error:', err);
       });
     } catch (error) {
@@ -491,7 +498,7 @@ export class RedisCacheLayer extends EventEmitter {
 
       if (value) {
         this.stats.hits++;
-        return JSON.parse(value);
+        return JSON.parse(value).value;
       }
 
       this.stats.misses++;
@@ -516,6 +523,7 @@ export class RedisCacheLayer extends EventEmitter {
         JSON.stringify({
           value,
           timestamp: Date.now(),
+          etag: options.etag,
           compressed: options.compress || false,
         })
       );
@@ -555,13 +563,21 @@ export class RedisCacheLayer extends EventEmitter {
     }
   }
 
+  /** Runs \`fn\` while holding one of \`limit\` distributed slots (see redis-semaphore). */
   async withSemaphore(key: string, limit: number, fn: () => Promise<unknown>): Promise<unknown> {
-    if (!this.semaphores.has(key)) {
-      this.semaphores.set(key, new Semaphore(limit));
+    const client = this.redis;
+    if (!client) {
+      // The semaphore needs a single-node client; run unguarded otherwise
+      return fn();
     }
 
-    const semaphore = this.semaphores.get(key)!;
-    return semaphore.use(fn);
+    const semaphore = new Semaphore(client, \`semaphore:\${key}\`, limit);
+    await semaphore.acquire();
+    try {
+      return await fn();
+    } finally {
+      await semaphore.release();
+    }
   }
 
   isConnected(): boolean {
@@ -576,8 +592,6 @@ export class RedisCacheLayer extends EventEmitter {
   }
 
   async shutdown(): Promise<void> {
-    this.semaphores.clear();
-
     if (this.redis) {
       await this.redis.quit();
     }
@@ -616,7 +630,9 @@ export class MemcachedCacheLayer extends EventEmitter {
   constructor(private config: {
     servers: string[];
     options?: MemJS.ClientOptions;
-  }) {}
+  }) {
+    super();
+  }
 
   async initialize(): Promise<void> {
     if (this.connected) {
@@ -624,7 +640,7 @@ export class MemcachedCacheLayer extends EventEmitter {
     }
 
     try {
-      this.client = new MemJS.Client(this.config.servers, this.config.options);
+      this.client = MemJS.Client.create(this.config.servers.join(','), this.config.options);
 
       await this.client.get('connect-check').then(() => true, () => false);
 
@@ -641,7 +657,7 @@ export class MemcachedCacheLayer extends EventEmitter {
     try {
       const value = await this.client!.get(\`cache:\${key}\`);
 
-      if (value) {
+      if (value.value) {
         this.stats.hits++;
         return JSON.parse(value.value.toString());
       }
@@ -713,7 +729,7 @@ export class MemcachedCacheLayer extends EventEmitter {
 
   async shutdown(): Promise<void> {
     if (this.client) {
-      await this.client!.end();
+      this.client.close();
     }
 
     this.connected = false;
@@ -1137,11 +1153,13 @@ import { Request, Response, NextFunction } from 'express';
 import { DistributedCacheManager } from '../cache/distributed-cache-manager';
 import { generateETag } from '../utils/etag';
 
-declare module 'express' {
-  interface Request {
-    cacheKey?: string;
-    cacheEntry?: any;
-    cacheOptions?: any;
+declare global {
+  namespace Express {
+    interface Request {
+      cacheKey?: string;
+      cacheEntry?: any;
+      cacheOptions?: any;
+    }
   }
 }
 
@@ -1167,7 +1185,7 @@ export function cache(cacheManager: DistributedCacheManager) {
 
       // Set cache headers
       res.set('X-Cache', 'HIT');
-      res.set('X-Cache-Layer', cached.layers.join(','));
+      res.set('X-Cache-Layer', (cached.layers ?? ['cache']).join(','));
 
       return res.json(cached.value);
     }
