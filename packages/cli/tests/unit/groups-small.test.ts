@@ -155,9 +155,22 @@ describe('groups — small registration groups', () => {
       const program = programWith(registerUiTestGroup);
       const ui = subcommand(program, 'ui');
       const test = subcommand(ui, 'test');
-      expect(ui.description()).toContain('unavailable: no Storybook runner wired');
-      expect(test.description()).toContain('unavailable: no Storybook runner wired');
-      expect(optionFlags(test)).toEqual(['--json', '--gate <pillars>']);
+      // `ui test` is wired to the real Storybook test runner (no "unavailable" stub any more).
+      expect(ui.description()).toBe('Launch the local Re-Shell UI dashboard');
+      expect(test.description()).toContain('Storybook');
+      expect(test.description()).not.toMatch(/unavailable/i);
+      expect(optionFlags(test)).toEqual([
+        '--json',
+        '--gate <pillars>',
+        '--workspace <path>',
+        '--storybook <dir>',
+        '--url <url>',
+        '--static-dir <dir>',
+        '--update-snapshots',
+        '--ci',
+        '--browser <path>',
+        '--timeout <ms>'
+      ]);
       const gateOption = test.options.find(option => option.long === '--gate');
       expect(gateOption?.defaultValue).toBe('a11y,visual');
     });
@@ -166,14 +179,16 @@ describe('groups — small registration groups', () => {
       const program = programWith(registerUiTestGroup);
       vi.mocked(runUiTest).mockResolvedValue(undefined);
       await program.parseAsync(['node', 're-shell', 'ui', 'test']);
-      expect(runUiTest).toHaveBeenCalledWith({ json: false, gate: 'a11y,visual' });
+      expect(runUiTest).toHaveBeenCalledWith(
+        expect.objectContaining({ json: false, gate: 'a11y,visual', updateSnapshots: false, ci: false })
+      );
     });
 
     it('forwards an explicit gate with json', async () => {
       const program = programWith(registerUiTestGroup);
       vi.mocked(runUiTest).mockResolvedValue(undefined);
       await program.parseAsync(['node', 're-shell', 'ui', 'test', '--json', '--gate', 'a11y']);
-      expect(runUiTest).toHaveBeenCalledWith({ json: true, gate: 'a11y' });
+      expect(runUiTest).toHaveBeenCalledWith(expect.objectContaining({ json: true, gate: 'a11y' }));
     });
 
     it('attaches test to an existing ui command without launching the dashboard', async () => {
@@ -190,7 +205,7 @@ describe('groups — small registration groups', () => {
       expect(ui.description()).toBe('Existing dashboard launcher');
       expect(optionFlags(ui)).toEqual(['--port <port>']);
       await program.parseAsync(['node', 're-shell', 'ui', 'test', '--json']);
-      expect(runUiTest).toHaveBeenCalledWith({ json: true, gate: 'a11y,visual' });
+      expect(runUiTest).toHaveBeenCalledWith(expect.objectContaining({ json: true, gate: 'a11y,visual' }));
       expect(launchDashboard).not.toHaveBeenCalled();
     });
 
