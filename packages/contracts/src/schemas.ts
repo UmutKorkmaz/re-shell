@@ -1247,14 +1247,73 @@ export type ApiVerifyResponse = z.infer<typeof apiVerifyResponseSchema>;
 // These schemas describe the durable --json run log + outcome.
 // ---------------------------------------------------------------------------
 
-/** Why the fix loop terminated. */
+/**
+ * Why the fix loop terminated.
+ *
+ * `report-only` (R-3): no fix applier (AI provider) was available, so the
+ * gates were evaluated and reported but no fix was attempted.
+ * `provider-error` (R-3): the AI provider failed; the loop stopped and rolled back.
+ */
 export const fixLoopOutcomeSchema = z.enum([
   'pr-ready',
   'no-progress',
   'bounded-out',
   'already-green',
+  'report-only',
+  'provider-error',
 ]);
 export type FixLoopOutcome = z.infer<typeof fixLoopOutcomeSchema>;
+
+/** Kind of a CI gate. Tests are ALWAYS locked. */
+export const fixCiGateKindSchema = z.enum(['typecheck', 'test', 'lint', 'build', 'custom']);
+export type FixCiGateKind = z.infer<typeof fixCiGateKindSchema>;
+
+/** One structured failure parsed from a gate's output (tsc, vitest/jest, eslint, generic). */
+export const fixCiFailingEntrySchema = z.object({
+  gate: z.string(),
+  /** Workspace-relative file path when parseable. */
+  file: z.string().optional(),
+  line: z.number().optional(),
+  column: z.number().optional(),
+  /** Diagnostic code (e.g. TS2322, an eslint rule id) when parseable. */
+  code: z.string().optional(),
+  message: z.string(),
+});
+export type FixCiFailingEntry = z.infer<typeof fixCiFailingEntrySchema>;
+
+/** The result of running one gate as a real child process. */
+export const fixCiGateResultSchema = z.object({
+  name: z.string(),
+  kind: fixCiGateKindSchema,
+  /** Locked gates can never be skipped and must pass. */
+  locked: z.boolean(),
+  /** The argv that was executed (no shell). */
+  command: z.array(z.string()),
+  passed: z.boolean(),
+  /** Process exit code; null when killed (timeout) or when spawning failed. */
+  exitCode: z.number().nullable(),
+  timedOut: z.boolean(),
+  durationMs: z.number(),
+  failing: z.array(fixCiFailingEntrySchema),
+});
+export type FixCiGateResult = z.infer<typeof fixCiGateResultSchema>;
+
+/** Diffstat + validation verdict for the patch proposed in one iteration. */
+export const fixCiPatchSchema = z.object({
+  /** True when the patch passed validation and was applied to the work tree. */
+  accepted: z.boolean(),
+  files: z.array(
+    z.object({ path: z.string(), additions: z.number(), deletions: z.number() })
+  ),
+  filesChanged: z.number(),
+  additions: z.number(),
+  deletions: z.number(),
+  /** Why the patch was rejected (validation / does not apply); absent when accepted. */
+  rejectedReason: z.string().optional(),
+  /** Short model-provided explanation of the change. */
+  explanation: z.string().optional(),
+});
+export type FixCiPatch = z.infer<typeof fixCiPatchSchema>;
 
 /** One iteration in the durable fix-loop log. */
 export const fixLoopIterationSchema = z.object({
@@ -1276,14 +1335,35 @@ export const fixLoopIterationSchema = z.object({
       failingGates: z.array(z.string()),
     })
     .optional(),
+  /** Per-gate detail at the start of the iteration (R-3 real evaluator). */
+  gateResultsBefore: z.array(fixCiGateResultSchema).optional(),
+  /** Per-gate detail after the patch was applied. */
+  gateResultsAfter: z.array(fixCiGateResultSchema).optional(),
+  /** The patch proposed this iteration, with its diffstat. */
+  patch: fixCiPatchSchema.optional(),
+  /** True when this iteration's patch was reverted (rejected, regressed, or run ended red). */
+  rolledBack: z.boolean().optional(),
 });
 export type FixLoopIteration = z.infer<typeof fixLoopIterationSchema>;
+
+/** The pull request opened for a green run, or why none was. */
+export const fixCiPrSchema = z.object({
+  url: z.string(),
+  branch: z.string(),
+  base: z.string(),
+});
+export type FixCiPr = z.infer<typeof fixCiPrSchema>;
 
 /**
  * Envelope payload for `re-shell fix --ci --json`: the loop `outcome`, the
  * durable per-iteration `iterations`, whether `gatesPassed`, the `appliedFixes`,
  * a human `summary`, whether a `prOpened` was attempted (only under
  * `--no-dry-run` AND `pr-ready`; never auto-merged), and any `warnings`.
+ *
+ * R-3 additions (all optional so legacy producers stay valid): the final
+ * `verdict`, the fix `branch`, the `pr` (null when none was opened), the
+ * `manualSteps` printed when a PR could not be opened automatically, and the
+ * gate definitions that were used.
  */
 export const fixCiResponseSchema = z.object({
   outcome: fixLoopOutcomeSchema,
@@ -1298,6 +1378,34 @@ export const fixCiResponseSchema = z.object({
   /** The PR URL when one was opened, else "". */
   prUrl: z.string(),
   warnings: z.array(z.string()),
+  /** Final verdict: `green` only when every gate passed at the end. */
+  verdict: z.enum(['green', 'red']).optional(),
+  /** The AI provider used as fix applier; null in report-only mode. */
+  provider: z.string().nullable().optional(),
+  /** Branch the work was done on (null when no branch was created). */
+  branch: z.string().nullable().optional(),
+  /** Branch the run started from. */
+  baseBranch: z.string().nullable().optional(),
+  /** The opened PR, or null (dry-run, gh unavailable, gates red). */
+  pr: fixCiPrSchema.nullable().optional(),
+  /** Exact manual steps when a green run could not open a PR automatically. */
+  manualSteps: z.array(z.string()).optional(),
+  /** Where the gate definitions came from and what they were. */
+  gates: z
+    .object({
+      source: z.string(),
+      definitions: z.array(
+        z.object({
+          name: z.string(),
+          kind: fixCiGateKindSchema,
+          locked: z.boolean(),
+          command: z.array(z.string()),
+        })
+      ),
+    })
+    .optional(),
+  /** Final gate results (after the last evaluation). */
+  finalGates: z.array(fixCiGateResultSchema).optional(),
 });
 export type FixCiResponse = z.infer<typeof fixCiResponseSchema>;
 

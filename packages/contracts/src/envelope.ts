@@ -86,6 +86,13 @@ export const errorCodeSchema = z.enum([
   'ENV_ERROR',
   // Code introduced by the Storybook UI-test aggregation slice (issue #22)
   'UI_TEST_ERROR',
+  // Codes introduced by the real `fix --ci` workstream (R-3)
+  'FIX_CI_NOT_A_REPO',
+  'FIX_CI_DIRTY_TREE',
+  'FIX_CI_CONFIG_INVALID',
+  'FIX_CI_NO_GATES',
+  'FIX_CI_NO_PROVIDER',
+  'FIX_CI_GATES_RED',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
