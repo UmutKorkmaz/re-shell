@@ -4,6 +4,7 @@ import * as path from 'path';
 import { configManager, WorkspaceConfig } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { fail, ok } from '../utils/json-output';
 
 /**
  * Options for the workspace configuration command.
@@ -136,13 +137,17 @@ async function showWorkspaceConfiguration(
   if (spinner) spinner.stop();
 
   if (!config.workspace) {
+    if (options.json) {
+      fail('NOT_FOUND', `No workspace configuration found for ${workspacePath}`, { workspace: workspacePath });
+      return;
+    }
     console.log(chalk.yellow('⚠️  No workspace configuration found.'));
     console.log(chalk.gray(`Run \`re-shell workspace-config init --workspace ${workspacePath}\` to create one.`));
     return;
   }
 
   if (options.json) {
-    console.log(JSON.stringify({
+    ok({
       workspace: config.workspace,
       merged: config.merged,
       inheritedFrom: {
@@ -157,7 +162,7 @@ async function showWorkspaceConfiguration(
           template: config.project.template
         } : null
       }
-    }, null, 2));
+    });
   } else {
     const workspaceName = path.basename(workspacePath);
     console.log(chalk.cyan(`\n🏗️  Workspace Configuration: ${workspaceName}`));
@@ -199,6 +204,9 @@ async function getWorkspaceConfigValue(
   
   if (!config.workspace) {
     if (spinner) spinner.fail(chalk.red('No workspace configuration found'));
+    if (options.json) {
+      fail('NOT_FOUND', `No workspace configuration found for ${workspacePath}`, { workspace: workspacePath });
+    }
     return;
   }
   
@@ -207,7 +215,11 @@ async function getWorkspaceConfigValue(
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify({ [key]: value }, null, 2));
+    if (value === undefined) {
+      fail('NOT_FOUND', `Configuration key '${key}' not found`, { key });
+    } else {
+      ok({ [key]: value });
+    }
   } else {
     if (value !== undefined) {
       console.log(chalk.cyan(`${key}:`), value);

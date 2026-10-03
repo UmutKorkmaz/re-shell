@@ -5,6 +5,7 @@ import prompts from 'prompts';
 import { configBackupManager, RestoreOptions } from '../utils/config-backup';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok } from '../utils/json-output';
 
 /**
  * Options for the backup management command
@@ -312,7 +313,7 @@ async function listBackups(options: BackupCommandOptions, spinner?: ProgressSpin
   }
 
   if (options.json) {
-    console.log(JSON.stringify(backups, null, 2));
+    ok(backups);
     return;
   }
 
@@ -454,7 +455,7 @@ async function showBackupStats(options: BackupCommandOptions, spinner?: Progress
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(stats, null, 2));
+    ok(stats);
     return;
   }
 

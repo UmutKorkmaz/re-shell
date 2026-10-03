@@ -12,6 +12,7 @@ import {
 } from '../utils/file-watcher';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok } from '../utils/json-output';
 
 /**
  * Options for the file watcher command.
@@ -141,11 +142,11 @@ async function startFileWatcher(options: FileWatcherCommandOptions, spinner?: Pr
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({
+      ok({
         status: 'started',
         timestamp: Date.now(),
         stats: globalWatcher.getStats()
-      }, null, 2));
+      });
       return;
     }
 
@@ -204,11 +205,11 @@ async function stopFileWatcher(options: FileWatcherCommandOptions, spinner?: Pro
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({
+      ok({
         status: 'stopped',
         timestamp: Date.now(),
         finalStats
-      }, null, 2));
+      });
       return;
     }
 
@@ -245,11 +246,11 @@ async function showWatcherStatus(options: FileWatcherCommandOptions, spinner?: P
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({
+      ok({
         active: isActive,
         stats: isActive ? globalWatcher!.getStats() : null,
         timestamp: Date.now()
-      }, null, 2));
+      });
       return;
     }
 
@@ -296,7 +297,7 @@ async function showWatcherStats(options: FileWatcherCommandOptions, spinner?: Pr
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(stats, null, 2));
+      ok(stats);
       return;
     }
 
@@ -370,7 +371,7 @@ async function showPropagationRules(options: FileWatcherCommandOptions, spinner?
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(rules, null, 2));
+      ok(rules);
       return;
     }
 

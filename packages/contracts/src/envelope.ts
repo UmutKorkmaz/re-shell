@@ -86,6 +86,11 @@ export const errorCodeSchema = z.enum([
   'ENV_ERROR',
   // Code introduced by the Storybook UI-test aggregation slice (issue #22)
   'UI_TEST_ERROR',
+  // Codes introduced by the S-B JSON-output hygiene / command-tree workstream
+  'COMMAND_ERROR',
+  'USAGE_ERROR',
+  'NOT_FOUND',
+  'WORKSPACE_DEFINITION_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

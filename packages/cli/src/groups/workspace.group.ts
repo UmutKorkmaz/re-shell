@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { createAsyncCommand, withTimeout, processManager } from '../utils/error-handler';
 import { createSpinner, flushOutput } from '../utils/spinner';
+import { enableJsonMode, fail, ok } from '../utils/json-output';
 import chalk from 'chalk';
 import { listWorkspaces, updateWorkspaces, generateWorkspaceGraph, initWorkspace, validateWorkspaceConfig, checkWorkspaceHealth, migrateWorkspace, optimizeWorkspace, manageWorkspaceTemplates, produceWorkspaceSummary } from '../commands/workspace';
 import { importFromMonorepo } from '../commands/import-monorepo';
@@ -378,7 +379,6 @@ export function registerWorkspaceGroup(program: Command): void {
 
         // JSON mode: emit exactly one envelope, suppress spinner/banner noise.
         if (options.json) {
-          const { enableJsonMode, ok, fail } = await import('../utils/json-output');
           const restore = enableJsonMode();
           try {
             await withTimeout(async () => {
@@ -1462,12 +1462,16 @@ export function registerWorkspaceGroup(program: Command): void {
     .command('plan')
     .description('Create migration plan to target version')
     .option('--workspace-file <file>', 'Workspace definition file', 're-shell.workspaces.yaml')
-    .option('--target-version <version>', 'Target version for migration', true)
+    .option('--target-version <version>', 'Target version for migration (required)')
     .option('--json', 'Output as JSON')
     .option('--verbose', 'Show detailed plan information')
     .action(
       createAsyncCommand(async (options) => {
         if (!options.targetVersion) {
+          if (options.json) {
+            fail('USAGE_ERROR', '--target-version is required');
+            return;
+          }
           console.log(chalk.red('Error: --target-version is required'));
           process.exit(1);
         }
@@ -1501,6 +1505,10 @@ export function registerWorkspaceGroup(program: Command): void {
     .action(
       createAsyncCommand(async (options) => {
         if (!options.targetVersion) {
+          if (options.json) {
+            fail('USAGE_ERROR', '--target-version is required');
+            return;
+          }
           console.log(chalk.red('Error: --target-version is required'));
           process.exit(1);
         }

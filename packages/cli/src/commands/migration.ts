@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import prompts from 'prompts';
 import { migrationManager, MigrationResult } from '../utils/migration';
 import { ProgressSpinner } from '../utils/spinner';
+import { ok } from '../utils/json-output';
 
 
 /**
@@ -86,7 +87,7 @@ async function autoMigrate(options: MigrationCommandOptions, spinner?: ProgressS
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(results, null, 2));
+    ok(results);
   } else {
     console.log(chalk.cyan('\n🔄 Auto-Migration Results'));
     console.log(chalk.gray('═'.repeat(40)));
@@ -116,7 +117,7 @@ async function checkMigrationStatus(options: MigrationCommandOptions, spinner?: 
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify({ global: globalCheck, project: projectCheck }, null, 2));
+    ok({ global: globalCheck, project: projectCheck });
   } else {
     console.log(chalk.cyan('\n🔍 Migration Status Check'));
     console.log(chalk.gray('═'.repeat(40)));
@@ -138,7 +139,7 @@ async function showMigrationHistory(options: MigrationCommandOptions, spinner?: 
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify({ global: globalHistory, project: projectHistory }, null, 2));
+    ok({ global: globalHistory, project: projectHistory });
   } else {
     console.log(chalk.cyan('\n📚 Migration History'));
     console.log(chalk.gray('═'.repeat(40)));
@@ -166,7 +167,7 @@ async function rollbackMigration(targetVersion: string, options: MigrationComman
   }
 
   if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
+    ok(result);
   } else {
     displayMigrationResult(result);
   }
@@ -186,7 +187,7 @@ async function migrateGlobalConfig(options: MigrationCommandOptions, spinner?: P
   }
 
   if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
+    ok(result);
   } else {
     displayMigrationResult(result);
   }
@@ -206,7 +207,7 @@ async function migrateProjectConfig(options: MigrationCommandOptions, spinner?: 
   }
 
   if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
+    ok(result);
   } else {
     displayMigrationResult(result);
   }

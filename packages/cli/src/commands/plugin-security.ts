@@ -9,6 +9,7 @@ import {
   getDefaultSecurityPolicy
 } from '../utils/plugin-security';
 import { createPluginRegistry } from '../utils/plugin-system';
+import { ok } from '../utils/json-output';
 
 /** Options for the plugin security scanning commands. */
 interface SecurityCommandOptions {
@@ -72,7 +73,7 @@ export async function scanPluginSecurity(
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify(results, null, 2));
+      ok(results);
       return;
     }
 
@@ -162,7 +163,7 @@ export async function checkSecurityPolicy(options: SecurityCommandOptions = {}):
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify({ policy: securityPolicy, results: complianceResults }, null, 2));
+      ok({ policy: securityPolicy, results: complianceResults });
       return;
     }
 
@@ -239,11 +240,11 @@ export async function generateSecurityReport(options: SecurityCommandOptions = {
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify({
+      ok({
         summary: stats,
         results: scanResults,
         timestamp: new Date().toISOString()
-      }, null, 2));
+      });
       return;
     }
 

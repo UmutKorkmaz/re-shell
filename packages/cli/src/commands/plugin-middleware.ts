@@ -8,6 +8,7 @@ import {
   builtinMiddleware
 } from '../utils/plugin-command-middleware';
 import { PluginCommandMiddleware, PluginCommandContext } from '../utils/plugin-command-registry';
+import { ok } from '../utils/json-output';
 
 
 /** Options for the plugin middleware management commands. */
@@ -50,7 +51,7 @@ export async function listMiddleware(
     }
 
     if (json) {
-      console.log(JSON.stringify(middlewares, null, 2));
+      ok(middlewares);
       return;
     }
 
@@ -145,7 +146,7 @@ export async function showMiddlewareStats(
     const stats = middlewareManager.getStats();
 
     if (json) {
-      console.log(JSON.stringify(stats, null, 2));
+      ok(stats);
       return;
     }
 
@@ -390,7 +391,7 @@ export async function showMiddlewareChain(
     ];
 
     if (json) {
-      console.log(JSON.stringify(middlewareTypes, null, 2));
+      ok(middlewareTypes);
       return;
     }
 

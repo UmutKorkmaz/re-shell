@@ -7,12 +7,20 @@ import {
   HealthCheckResult,
   HealthCheckCategory,
   TopologyValidation,
+  WorkspaceHealthChecker,
   createWorkspaceHealthChecker,
-  performQuickHealthCheck
+  createWorkspaceHealthCheckerFromDefinition,
+  performQuickHealthCheck,
+  performQuickHealthCheckForDefinition
 } from '../utils/workspace-health';
+import {
+  derivedDefinitionNote,
+  resolveWorkspaceDefinition,
+  workspaceDefinitionErrorCode
+} from '../utils/workspace-definition-adapter';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
-import { jsonSuccess, jsonError, enableJsonMode } from '../utils/json-output';
+import { jsonSuccess, jsonError, enableJsonMode, failFromError, ok } from '../utils/json-output';
 
 /**
  * Options for the workspace health command, including full check, quick check,
@@ -43,6 +51,90 @@ export interface WorkspaceHealthCommandOptions {
 }
 
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
+
+/** Quick-check result shape shared by the file and derived-definition paths. */
+type QuickHealthResult = { status: string; score: number; criticalIssues: number };
+
+/**
+ * Report that no workspace definition could be loaded or derived. JSON mode is an
+ * error envelope; human mode keeps the hint and, because the command could not do
+ * its job, exits non-zero.
+ */
+function reportDefinitionFailure(
+  error: unknown,
+  options: WorkspaceHealthCommandOptions,
+  inputFile: string,
+  spinner?: ProgressSpinner
+): void {
+  if (spinner) spinner.stop();
+  const message = error instanceof Error ? error.message : String(error);
+  if (options.json) {
+    jsonError(workspaceDefinitionErrorCode(error), message);
+    return;
+  }
+  console.log(chalk.yellow(`\n⚠️  ${message}`));
+  console.log(chalk.gray(`Expected: ${inputFile}`));
+  console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
+  process.exitCode = 1;
+}
+
+/**
+ * Build the health checker for the requested definition: the yaml file when it
+ * exists, otherwise a definition derived from the detected workspaces (plain
+ * npm/yarn/pnpm monorepo). Reports and returns `undefined` when neither is
+ * available (an explicitly named missing file, no monorepo, no workspaces).
+ */
+async function resolveChecker(
+  options: WorkspaceHealthCommandOptions,
+  spinner?: ProgressSpinner
+): Promise<{ checker: WorkspaceHealthChecker; inputFile: string; note?: string } | undefined> {
+  const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
+  const inputPath = path.resolve(inputFile);
+
+  if (await fs.pathExists(inputPath)) {
+    return {
+      checker: await createWorkspaceHealthChecker(inputPath, path.dirname(inputPath)),
+      inputFile
+    };
+  }
+
+  try {
+    const resolved = await resolveWorkspaceDefinition({ file: options.file });
+    return {
+      checker: createWorkspaceHealthCheckerFromDefinition(resolved.definition, resolved.rootPath),
+      inputFile: 'derived from detected workspaces',
+      note: derivedDefinitionNote(resolved)
+    };
+  } catch (error) {
+    reportDefinitionFailure(error, options, inputFile, spinner);
+    return undefined;
+  }
+}
+
+/** Quick health check against the yaml file when present, else a derived definition. */
+async function resolveQuickCheck(
+  options: WorkspaceHealthCommandOptions,
+  spinner?: ProgressSpinner
+): Promise<{ result: QuickHealthResult; inputFile: string; note?: string } | undefined> {
+  const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
+  const inputPath = path.resolve(inputFile);
+
+  if (await fs.pathExists(inputPath)) {
+    return { result: await performQuickHealthCheck(inputPath, path.dirname(inputPath)), inputFile };
+  }
+
+  try {
+    const resolved = await resolveWorkspaceDefinition({ file: options.file });
+    return {
+      result: await performQuickHealthCheckForDefinition(resolved.definition, resolved.rootPath),
+      inputFile: 'derived from detected workspaces',
+      note: derivedDefinitionNote(resolved)
+    };
+  } catch (error) {
+    reportDefinitionFailure(error, options, inputFile, spinner);
+    return undefined;
+  }
+}
 
 /**
  * Entry point for the workspace health command. Dispatches to the appropriate
@@ -90,6 +182,13 @@ export async function manageWorkspaceHealth(options: WorkspaceHealthCommandOptio
     await showHealthStatus(options, spinner);
 
   } catch (error) {
+    if (options.json) {
+      // Under --json a failure is an error envelope (and exit code 1), never
+      // human text.
+      if (spinner) spinner.stop();
+      failFromError(error, error instanceof ValidationError ? 'WORKSPACE_DEFINITION_ERROR' : 'COMMAND_ERROR');
+      return;
+    }
     if (error instanceof ValidationError) {
       if (spinner) spinner.stop();
       console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
@@ -104,25 +203,12 @@ export async function manageWorkspaceHealth(options: WorkspaceHealthCommandOptio
 async function performFullHealthCheck(options: WorkspaceHealthCommandOptions, spinner?: ProgressSpinner): Promise<void> {
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {
-    const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-    const inputPath = path.resolve(inputFile);
-
-    if (!(await fs.pathExists(inputPath))) {
-      if (spinner) spinner.stop();
-      if (options.json) {
-        jsonError('WORKSPACE_NOT_FOUND', `No workspace definition found at ${inputPath}`);
-      } else {
-        console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-        console.log(chalk.gray(`Expected: ${inputFile}`));
-        console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
-      }
-      return;
-    }
-
-    if (spinner) spinner.setText(`Performing comprehensive health check: ${inputFile}`);
+    if (spinner) spinner.setText('Performing comprehensive health check...');
 
     try {
-      const checker = await createWorkspaceHealthChecker(inputPath, path.dirname(inputPath));
+      const resolved = await resolveChecker(options, spinner);
+      if (!resolved) return;
+      const { checker, inputFile, note } = resolved;
       const report = await checker.performHealthCheck();
 
       if (spinner) spinner.stop();
@@ -135,13 +221,18 @@ async function performFullHealthCheck(options: WorkspaceHealthCommandOptions, sp
       }
 
       if (options.json) {
-        const warnings = report.categories.flatMap(cat => 
+        const warnings = report.categories.flatMap(cat =>
           cat.checks.filter(c => c.status === 'warning').map(c => c.message)
         );
-        jsonSuccess(report, warnings);
+        jsonSuccess(report, note ? [note, ...warnings] : warnings);
+        // Same gate as the human path: an unhealthy workspace is a non-zero exit.
+        if (report.overall.status === 'unhealthy') {
+          process.exitCode = 1;
+        }
         return;
       }
 
+      if (note) console.log(chalk.gray(note));
       displayHealthReport(report, inputFile, options.detailed || false, options.category);
 
       // Exit with error code if unhealthy
@@ -161,35 +252,26 @@ async function performFullHealthCheck(options: WorkspaceHealthCommandOptions, sp
 async function validateWorkspaceTopology(options: WorkspaceHealthCommandOptions, spinner?: ProgressSpinner): Promise<void> {
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {
-    const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-    const inputPath = path.resolve(inputFile);
-
-    if (!(await fs.pathExists(inputPath))) {
-      if (spinner) spinner.stop();
-      if (options.json) {
-        jsonError('WORKSPACE_NOT_FOUND', `No workspace definition found at ${inputPath}`);
-      } else {
-        console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-        console.log(chalk.gray(`Expected: ${inputFile}`));
-        console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
-      }
-      return;
-    }
-
-    if (spinner) spinner.setText(`Validating workspace topology: ${inputFile}`);
+    if (spinner) spinner.setText('Validating workspace topology...');
 
     try {
-      const checker = await createWorkspaceHealthChecker(inputPath, path.dirname(inputPath));
+      const resolved = await resolveChecker(options, spinner);
+      if (!resolved) return;
+      const { checker, inputFile, note } = resolved;
       const validation = await checker.validateTopology();
 
       if (spinner) spinner.stop();
 
       if (options.json) {
         const warnings = [...validation.warnings, ...validation.suggestions];
-        jsonSuccess(validation, warnings);
+        jsonSuccess(validation, note ? [note, ...warnings] : warnings);
+        if (!validation.isValid) {
+          process.exitCode = 1;
+        }
         return;
       }
 
+      if (note) console.log(chalk.gray(note));
       displayTopologyValidation(validation, inputFile);
 
       if (!validation.isValid) {
@@ -208,36 +290,27 @@ async function validateWorkspaceTopology(options: WorkspaceHealthCommandOptions,
 async function performQuickCheck(options: WorkspaceHealthCommandOptions, spinner?: ProgressSpinner): Promise<void> {
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {
-    const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-    const inputPath = path.resolve(inputFile);
-
-    if (!(await fs.pathExists(inputPath))) {
-      if (spinner) spinner.stop();
-      if (options.json) {
-        jsonError('WORKSPACE_NOT_FOUND', `No workspace definition found at ${inputPath}`);
-      } else {
-        console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-        console.log(chalk.gray(`Expected: ${inputFile}`));
-        console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
-      }
-      return;
-    }
-
-    if (spinner) spinner.setText(`Quick health check: ${inputFile}`);
+    if (spinner) spinner.setText('Quick health check...');
 
     try {
-      const result = await performQuickHealthCheck(inputPath, path.dirname(inputPath));
+      const resolved = await resolveQuickCheck(options, spinner);
+      if (!resolved) return;
+      const { result, inputFile, note } = resolved;
 
       if (spinner) spinner.stop();
 
       if (options.json) {
-        const warnings: string[] = result.criticalIssues > 0 
-          ? [`${result.criticalIssues} critical issues detected`] 
+        const warnings: string[] = result.criticalIssues > 0
+          ? [`${result.criticalIssues} critical issues detected`]
           : [];
-        jsonSuccess(result, warnings);
+        jsonSuccess(result, note ? [note, ...warnings] : warnings);
+        if (result.status === 'unhealthy') {
+          process.exitCode = 1;
+        }
         return;
       }
 
+      if (note) console.log(chalk.gray(note));
       displayQuickHealthResult(result, inputFile);
 
       if (result.status === 'unhealthy') {
@@ -272,7 +345,9 @@ async function watchWorkspaceHealth(options: WorkspaceHealthCommandOptions, spin
     const interval = setInterval(async () => {
       try {
         console.log(chalk.gray(`[${new Date().toLocaleTimeString()}] Running health check...`));
-        const result = await performQuickHealthCheck(inputFile);
+        const resolved = await resolveQuickCheck(options);
+        if (!resolved) return;
+        const { result } = resolved;
         
         const statusIcon = result.status === 'healthy' ? '✅' : 
                           result.status === 'degraded' ? '⚠️' : '❌';
@@ -307,21 +382,12 @@ async function watchWorkspaceHealth(options: WorkspaceHealthCommandOptions, spin
 }
 
 async function fixHealthIssues(options: WorkspaceHealthCommandOptions, spinner?: ProgressSpinner): Promise<void> {
-  const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-  const inputPath = path.resolve(inputFile);
-
-  if (!(await fs.pathExists(inputPath))) {
-    if (spinner) spinner.stop();
-    console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-    console.log(chalk.gray(`Expected: ${inputFile}`));
-    console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
-    return;
-  }
-
-  if (spinner) spinner.setText(`Analyzing health issues for auto-fix: ${inputFile}`);
+  if (spinner) spinner.setText('Analyzing health issues for auto-fix...');
 
   try {
-    const checker = await createWorkspaceHealthChecker(inputPath, path.dirname(inputPath));
+    const resolved = await resolveChecker(options, spinner);
+    if (!resolved) return;
+    const { checker, note } = resolved;
     const report = await checker.performHealthCheck();
 
     if (spinner) spinner.stop();
@@ -330,6 +396,27 @@ async function fixHealthIssues(options: WorkspaceHealthCommandOptions, spinner?:
     const fixableIssues = report.categories
       .flatMap(cat => cat.checks)
       .filter(check => check.status === 'fail' && check.suggestions && check.suggestions.length > 0);
+
+    if (options.json) {
+      // Analysis only: automatic fixing is not implemented, and the envelope says so
+      // rather than implying anything was changed.
+      ok(
+        {
+          autoFixImplemented: false,
+          applied: [],
+          fixable: fixableIssues.map(issue => ({
+            id: issue.id,
+            name: issue.name,
+            message: issue.message,
+            suggestions: issue.suggestions ?? []
+          }))
+        },
+        note ? [note] : []
+      );
+      return;
+    }
+
+    if (note) console.log(chalk.gray(note));
 
     if (fixableIssues.length === 0) {
       console.log(chalk.green('✅ No auto-fixable issues found'));
@@ -340,7 +427,7 @@ async function fixHealthIssues(options: WorkspaceHealthCommandOptions, spinner?:
     console.log(chalk.gray('═'.repeat(50)));
 
     console.log(`\nFound ${fixableIssues.length} potentially fixable issue(s):`);
-    
+
     for (let i = 0; i < fixableIssues.length; i++) {
       const issue = fixableIssues[i];
       console.log(`\n${i + 1}. ${issue.name}`);
@@ -363,37 +450,24 @@ async function fixHealthIssues(options: WorkspaceHealthCommandOptions, spinner?:
 async function showHealthStatus(options: WorkspaceHealthCommandOptions, spinner?: ProgressSpinner): Promise<void> {
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {
-    const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-    const inputPath = path.resolve(inputFile);
-
     if (spinner) spinner.setText('Checking workspace health status...');
 
     try {
-      if (!(await fs.pathExists(inputPath))) {
-        if (spinner) spinner.stop();
-        
-        if (options.json) {
-          jsonError('WORKSPACE_NOT_FOUND', `No workspace definition found at ${inputPath}`);
-        } else {
-          console.log(chalk.yellow('\n⚠️  No workspace definition found'));
-          console.log(chalk.gray(`Expected: ${inputFile}`));
-          console.log(chalk.cyan('\n🚀 Quick start:'));
-          console.log('  re-shell workspace-def init');
-        }
-        return;
-      }
-
-      const result = await performQuickHealthCheck(inputPath, path.dirname(inputPath));
+      const resolved = await resolveQuickCheck(options, spinner);
+      if (!resolved) return;
+      const { result, note } = resolved;
 
       if (spinner) spinner.stop();
 
       if (options.json) {
-        const warnings: string[] = result.criticalIssues > 0 
-          ? [`${result.criticalIssues} critical issues detected`] 
+        const warnings: string[] = result.criticalIssues > 0
+          ? [`${result.criticalIssues} critical issues detected`]
           : [];
-        jsonSuccess(result, warnings);
+        jsonSuccess(result, note ? [note, ...warnings] : warnings);
         return;
       }
+
+      if (note) console.log(chalk.gray(note));
 
       console.log(chalk.cyan('\n🏥 Workspace Health Status'));
       console.log(chalk.gray('═'.repeat(50)));

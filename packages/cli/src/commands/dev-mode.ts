@@ -6,6 +6,7 @@ import { configWatcher, setupConfigHotReload, HotReloadOptions } from '../utils/
 import { ProgressSpinner, flushOutput } from '../utils/spinner';
 import { processManager } from '../utils/error-handler';
 import { resolveProfile, EnvironmentProfile } from './profile';
+import { ok } from '../utils/json-output';
 
 /**
  * Options for the development mode command.
@@ -290,7 +291,7 @@ async function showDevModeStatus(options: DevModeCommandOptions, spinner?: Progr
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(status, null, 2));
+    ok(status);
     return;
   }
 

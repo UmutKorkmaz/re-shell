@@ -1095,6 +1095,22 @@ export async function createWorkspaceHealthChecker(
 }
 
 /**
+ * Construct a WorkspaceHealthChecker from an already-resolved definition (for
+ * example one derived from the detected workspaces by the workspace definition
+ * adapter) instead of loading a yaml file.
+ *
+ * @param definition - The workspace definition to check.
+ * @param rootPath - Directory workspace paths in the definition are relative to.
+ * @returns A configured WorkspaceHealthChecker instance.
+ */
+export function createWorkspaceHealthCheckerFromDefinition(
+  definition: WorkspaceDefinition,
+  rootPath: string
+): WorkspaceHealthChecker {
+  return new WorkspaceHealthChecker(definition, rootPath);
+}
+
+/**
  * Runs a quick health check and returns a summarized result with overall
  * status, score, and the count of critical issues.
  *
@@ -1108,18 +1124,7 @@ export async function performQuickHealthCheck(
 ): Promise<{ status: string; score: number; criticalIssues: number }> {
   try {
     const checker = await createWorkspaceHealthChecker(workspaceFile, rootPath);
-    const report = await checker.performHealthCheck();
-    
-    const criticalIssues = report.categories
-      .flatMap(cat => cat.checks)
-      .filter(check => check.severity === 'critical' && check.status === 'fail')
-      .length;
-
-    return {
-      status: report.overall.status,
-      score: report.overall.score,
-      criticalIssues
-    };
+    return await summarizeQuickHealth(checker);
   } catch (error) {
     return {
       status: 'unhealthy',
@@ -1127,4 +1132,36 @@ export async function performQuickHealthCheck(
       criticalIssues: 1
     };
   }
+}
+
+/**
+ * Quick health check for an already-resolved definition (see
+ * {@link createWorkspaceHealthCheckerFromDefinition}).
+ *
+ * @param definition - The workspace definition to check.
+ * @param rootPath - Directory workspace paths in the definition are relative to.
+ * @returns Promise resolving to the summarized status, score and critical issue count.
+ */
+export async function performQuickHealthCheckForDefinition(
+  definition: WorkspaceDefinition,
+  rootPath: string
+): Promise<{ status: string; score: number; criticalIssues: number }> {
+  return summarizeQuickHealth(new WorkspaceHealthChecker(definition, rootPath));
+}
+
+async function summarizeQuickHealth(
+  checker: WorkspaceHealthChecker
+): Promise<{ status: string; score: number; criticalIssues: number }> {
+  const report = await checker.performHealthCheck();
+
+  const criticalIssues = report.categories
+    .flatMap(cat => cat.checks)
+    .filter(check => check.severity === 'critical' && check.status === 'fail')
+    .length;
+
+  return {
+    status: report.overall.status,
+    score: report.overall.score,
+    criticalIssues
+  };
 }
