@@ -43,16 +43,16 @@ export const aspnetSwaggerTemplate: BackendTemplate = {
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.5.0" />
     <PackageReference Include="Swashbuckle.AspNetCore.Filters" Version="7.0.12" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning" Version="5.1.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning.ApiExplorer" Version="5.1.0" />
+    <PackageReference Include="Asp.Versioning.Mvc" Version="8.0.0" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.0.0" />
     <PackageReference Include="Microsoft.OpenApi" Version="1.6.14" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
     <!-- Additional documentation and analysis tools -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.0" />
-    <PackageReference Include="NSwag.AspNetCore" Version="13.20.0" />
-    <PackageReference Include="NSwag.MSBuild" Version="13.20.0" />
+    <PackageReference Include="NSwag.AspNetCore" Version="14.0.0" />
+    <PackageReference Include="NSwag.MSBuild" Version="14.0.0" />
   </ItemGroup>
 
   <!-- XML Documentation files to include -->

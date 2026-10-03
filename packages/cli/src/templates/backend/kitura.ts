@@ -79,9 +79,9 @@ let package = Package(
             path: "Sources/{{projectName}}"
         ),
         .testTarget(
-            name: "{{projectName}}Tests",
+            name: "{{projectNamePascal}}Tests",
             dependencies: ["{{projectName}}"],
-            path: "Tests/{{projectName}}Tests"
+            path: "Tests/{{projectNamePascal}}Tests"
         )
     ]
 )`,
@@ -1064,7 +1064,7 @@ struct PasswordHasher {
 }`,
 
     // Tests
-    'Tests/{{projectName}}Tests/AuthTests.swift': `import XCTest
+    'Tests/{{projectNamePascal}}Tests/AuthTests.swift': `import XCTest
 import Foundation
 import Kitura
 import KituraNet

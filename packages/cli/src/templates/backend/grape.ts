@@ -30,7 +30,7 @@ gem 'puma', '~> 6.4'
 gem 'rack', '~> 3.0'
 
 # Database
-gem 'activerecord', '~> 7.1.2'
+gem 'activerecord', '~> 7.1.2', require: 'active_record'
 gem 'pg', '~> 1.5'
 gem 'rake', '~> 13.1'
 
@@ -75,9 +75,6 @@ gem 'kaminari', '~> 1.2'
 
 # Caching
 gem 'redis-rack-cache', '~> 2.2'
-
-# Health checks
-gem 'health_check', '~> 3.1'
 
 # GraphQL (ruby-graphql / graphql gem)
 gem 'graphql', '~> 2.1'
@@ -197,7 +194,6 @@ use Rack::Cors do
 end
 
 use Rack::Attack
-use ActiveRecord::ConnectionAdapters::ConnectionManagement
 
 # Health check endpoint
 map '/health' do
@@ -205,9 +201,21 @@ map '/health' do
 end
 
 # GraphQL endpoint (ruby-graphql)
-require_relative '../app/graphql/schema'
 map '/graphql' do
-  run AppSchema
+  run lambda { |env|
+    request = Rack::Request.new(env)
+    payload = begin
+      JSON.parse(request.body.read)
+    rescue JSON::ParserError
+      {}
+    end
+    result = AppSchema.execute(
+      payload['query'],
+      variables: payload['variables'],
+      operation_name: payload['operationName']
+    )
+    [200, { 'Content-Type' => 'application/json' }, [result.to_json]]
+  }
 end
 
 # API endpoints
@@ -239,14 +247,17 @@ require 'bundler/setup'
 Bundler.require(:default, ENV['RACK_ENV'])
 
 # Load environment variables
-Dotenv.load(".env.\${ENV['RACK_ENV']}", '.env')
+Dotenv.load(".env.#{ENV['RACK_ENV']}", '.env')
 
 # Require all Ruby files
 Dir[File.expand_path('../lib/**/*.rb', __dir__)].sort.each { |f| require f }
-Dir[File.expand_path('../app/**/*.rb', __dir__)].sort.each { |f| require f }
+%w[models helpers entities graphql/types graphql api].each do |dir|
+  # root.rb mounts the other API classes, so it loads last
+  Dir[File.expand_path("../app/#{dir}/*.rb", __dir__)].sort_by { |f| [File.basename(f) == 'root.rb' ? 1 : 0, f] }.each { |f| require f }
+end
 
 # Configure database
-DATABASE_CONFIG = YAML.load_file('config/database.yml')[ENV['RACK_ENV']]
+DATABASE_CONFIG = YAML.load_file('config/database.yml', aliases: true)[ENV['RACK_ENV']]
 ActiveRecord::Base.establish_connection(DATABASE_CONFIG)
 ActiveRecord::Base.logger = Logger.new(STDOUT) if ENV['RACK_ENV'] == 'development'
 
@@ -270,7 +281,7 @@ Sidekiq.configure_client do |config|
 end
 
 # Configure Rack::Attack
-Rack::Attack.cache.store = ActiveSupport::Cache::RedisStore.new(REDIS_CONFIG[:url])
+Rack::Attack.cache.store = ActiveSupport::Cache::RedisCacheStore.new(url: REDIS_CONFIG[:url])
 
 # Throttle configuration
 Rack::Attack.throttle('api/ip', limit: 300, period: 5.minutes) do |req|
@@ -353,8 +364,6 @@ production:
     # Mount APIs
     mount API::Auth
     mount API::Users
-    mount API::Products
-    mount API::Orders
     mount API::Health
 
     # Swagger documentation
@@ -375,6 +384,7 @@ production:
 
   # Swagger UI for development
   class SwaggerUI < Grape::API
+    content_type :html, 'text/html'
     format :html
     
     get '/' do
@@ -532,13 +542,13 @@ end
     // app/api/users.rb
     'app/api/users.rb': `module API
   class Users < Grape::API
+    helpers PaginationHelpers
     before { authenticate! }
     
     resource :users do
       desc 'List all users' do
         detail 'Get paginated list of users'
         tags ['Users']
-        paginate per_page: 20, max_per_page: 100
       end
       params do
         optional :search, type: String, desc: 'Search by name or email'
@@ -620,6 +630,20 @@ end
         user = User.find(params[:id])
         user.destroy
         status 204
+      end
+    end
+  end
+end
+`,
+
+    'app/api/health.rb': `module API
+  class Health < Grape::API
+    resource :health do
+      desc 'Health check' do
+        tags ['Health']
+      end
+      get do
+        { status: 'healthy', timestamp: Time.now.utc.iso8601, version: '1.0.0' }
       end
     end
   end

@@ -78,7 +78,7 @@ tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-uuid = { version = "1.6", features = ["v4"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 bcrypt = "0.15"
 jsonwebtoken = "9.1"
@@ -428,7 +428,7 @@ pub async fn register(
     req.validate().map_err(|_| warp::reject::custom(AppError::ValidationError))?;
 
     // Check if user already exists
-    let existing_user = sqlx::query!("SELECT id FROM users WHERE email = $1 OR username = $2", req.email, req.username)
+    let existing_user = sqlx::query("SELECT id FROM users WHERE email = $1 OR username = $2").bind(&req.email).bind(&req.username)
         .fetch_optional(&db_pool)
         .await
         .map_err(|_| warp::reject::custom(AppError::DatabaseError))?;
@@ -445,26 +445,26 @@ pub async fn register(
     let user_id = Uuid::new_v4();
     let now = chrono::Utc::now();
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO users (id, email, username, password_hash, first_name, last_name, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         "#,
-        user_id,
-        req.email,
-        req.username,
-        password_hash,
-        req.first_name,
-        req.last_name,
-        now,
-        now
     )
+    .bind(user_id)
+    .bind(&req.email)
+    .bind(&req.username)
+    .bind(&password_hash)
+    .bind(&req.first_name)
+    .bind(&req.last_name)
+    .bind(now)
+    .bind(now)
     .execute(&db_pool)
     .await
     .map_err(|_| warp::reject::custom(AppError::DatabaseError))?;
 
     // Fetch created user
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", user_id)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1").bind(user_id)
         .fetch_one(&db_pool)
         .await
         .map_err(|_| warp::reject::custom(AppError::DatabaseError))?;
@@ -483,7 +483,7 @@ pub async fn login(
     req.validate().map_err(|_| warp::reject::custom(AppError::ValidationError))?;
 
     // Find user by email
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE email = $1", req.email)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1").bind(&req.email)
         .fetch_optional(&db_pool)
         .await
         .map_err(|_| warp::reject::custom(AppError::DatabaseError))?;
@@ -561,7 +561,7 @@ pub async fn get_profile(
     user_id: Uuid,
     db_pool: PgPool,
 ) -> Result<impl Reply, Rejection> {
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", user_id)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1").bind(user_id)
         .fetch_optional(&db_pool)
         .await
         .map_err(|_| warp::reject::custom(AppError::DatabaseError))?;
@@ -580,7 +580,7 @@ pub async fn update_profile(
 
     // Check if username is already taken
     if let Some(username) = &req.username {
-        let existing_user = sqlx::query!("SELECT id FROM users WHERE username = $1 AND id != $2", username, user_id)
+        let existing_user = sqlx::query("SELECT id FROM users WHERE username = $1 AND id != $2").bind(username).bind(user_id)
             .fetch_optional(&db_pool)
             .await
             .map_err(|_| warp::reject::custom(AppError::DatabaseError))?;
@@ -592,8 +592,7 @@ pub async fn update_profile(
 
     // Update user
     let now = chrono::Utc::now();
-    let user = sqlx::query_as!(
-        User,
+    let user = sqlx::query_as::<_, User>(
         r#"
         UPDATE users 
         SET 
@@ -604,12 +603,12 @@ pub async fn update_profile(
         WHERE id = $1
         RETURNING *
         "#,
-        user_id,
-        req.username,
-        req.first_name,
-        req.last_name,
-        now
     )
+    .bind(user_id)
+    .bind(&req.username)
+    .bind(&req.first_name)
+    .bind(&req.last_name)
+    .bind(now)
     .fetch_one(&db_pool)
     .await
     .map_err(|_| warp::reject::custom(AppError::DatabaseError))?;
@@ -621,7 +620,7 @@ pub async fn delete_account(
     user_id: Uuid,
     db_pool: PgPool,
 ) -> Result<impl Reply, Rejection> {
-    sqlx::query!("DELETE FROM users WHERE id = $1", user_id)
+    sqlx::query("DELETE FROM users WHERE id = $1").bind(user_id)
         .execute(&db_pool)
         .await
         .map_err(|_| warp::reject::custom(AppError::DatabaseError))?;

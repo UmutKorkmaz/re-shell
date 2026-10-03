@@ -11,7 +11,16 @@
 #   PHP                       php -l on every file, composer install
 #   Ruby                      ruby -c on every file, bundle install
 #   Java (Maven)              mvn -DskipTests package
+#   Kotlin / Java (Gradle)    gradle build -x test
+#   Scala (sbt)               sbt Test/compile
+#   C# / F# (.NET)            dotnet build, every project file (tests included)
+#   Perl                      perl -c on every module, script and test
+#   Lua                       luac -p on every file (syntax only: LuaRocks is not
+#                             reachable from every CI network, so dependencies are
+#                             not resolved)
 #   Zig                       zig build
+#   Plain JavaScript          pnpm install, node --check, and every import/require
+#                             must resolve (scripts/check-js-imports.mjs)
 #
 # A template is only SKIPped when its language toolchain is genuinely missing
 # from the machine; the reason is printed next to the SKIP and repeated in the
@@ -27,8 +36,10 @@ CLI_BIN="$REPO_ROOT/packages/cli/dist/index.js"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# Representative templates across languages — not all 213, but one per language
-# ecosystem + the most popular frameworks.
+# Every backend template that builds with a toolchain available in CI. The
+# list is grouped by language; templates that cannot be built here (their
+# toolchain or their dependency registry is unavailable) are deliberately not
+# listed rather than listed and skipped: see docs in the PR / commit message.
 TEMPLATES=(
   express fastify nestjs koa hono
   fastapi flask django
@@ -146,8 +157,12 @@ verify_python() {
     step import "$py" -c 'import main; assert hasattr(main, "app"), "main.app missing"' || return 1
   elif [ -f run.py ]; then
     step import "$py" -c 'import run; assert hasattr(run, "app"), "run.app missing"' || return 1
+  elif [ -f fastapi_app.py ]; then
+    step import "$py" -c 'import fastapi_app; assert hasattr(fastapi_app, "app"), "fastapi_app.app missing"' || return 1
+  elif [ -f src/main.py ]; then
+    step import env PYTHONPATH=src "$py" -c 'import main; assert hasattr(main, "app"), "main.app missing"' || return 1
   else
-    NATIVE_REASON="no manage.py, main.py or run.py entry point to import"
+    NATIVE_REASON="no manage.py, main.py, run.py, fastapi_app.py or src/main.py entry point to import"
     echo "  ✗ $NATIVE_REASON"
     return 1
   fi
@@ -204,6 +219,64 @@ verify_java() {
   step package mvn -B -q -DskipTests package || return 1
 }
 
+verify_gradle() {
+  have gradle || { NATIVE_REASON="gradle is not installed"; return 2; }
+  have java || { NATIVE_REASON="java is not installed"; return 2; }
+  step build gradle --no-daemon -q build -x test || return 1
+}
+
+verify_sbt() {
+  have sbt || { NATIVE_REASON="sbt is not installed"; return 2; }
+  have java || { NATIVE_REASON="java is not installed"; return 2; }
+  # Compiles main and test sources (and resolves the Play/sbt plugins).
+  step compile sbt -batch Test/compile || return 1
+}
+
+verify_dotnet() {
+  have dotnet || { NATIVE_REASON="dotnet (.NET SDK) is not installed"; return 2; }
+  export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+  # Build every project file: a template can ship a separate test project.
+  local proj count=0
+  while IFS= read -r proj; do
+    count=$((count + 1))
+    step "build-${proj##*/}" dotnet build "$proj" --nologo -v q || return 1
+  done < <(find . \( -path ./obj -o -path ./bin \) -prune -o \( -name '*.csproj' -o -name '*.fsproj' \) -print | awk '{ print length($0) " " $0 }' | sort -n | cut -d' ' -f2-)
+  if [ "$count" -eq 0 ]; then
+    NATIVE_REASON="no .csproj/.fsproj found"
+    return 1
+  fi
+}
+
+verify_perl() {
+  have perl || { NATIVE_REASON="perl is not installed"; return 2; }
+  # Every module, script and test must compile against the framework installed
+  # from the distribution packages (Mojolicious, Dancer2, Catalyst, ...).
+  local file count=0 log="$TMP_DIR/$TPL-perl.txt"
+  : >"$log"
+  while IFS= read -r file; do
+    count=$((count + 1))
+    if ! perl -Ilib -c "$file" >>"$log" 2>&1; then
+      echo "  ✗ perl -c failed on $file"
+      tail -n 10 "$log" | sed 's/^/    | /'
+      NATIVE_REASON="perl -c failed on $file"
+      return 1
+    fi
+  done < <(find . \( -name '*.pm' -o -name '*.pl' -o -path './script/*' -o -name '*.t' \) -type f)
+  if [ "$count" -eq 0 ]; then
+    NATIVE_REASON="no Perl files found"
+    return 1
+  fi
+  echo "  ✓ perl -c ($count files)"
+}
+
+verify_lua() {
+  local luac=""
+  if have luac5.4; then luac=luac5.4; elif have luac; then luac=luac; elif have luac5.3; then luac=luac5.3; fi
+  [ -n "$luac" ] || { NATIVE_REASON="luac (Lua compiler) is not installed"; return 2; }
+  check_each syntax '*.lua' "$luac" -p || return 1
+  NATIVE_NOTE="syntax only (luac -p): LuaRocks dependencies were not resolved"
+}
+
 verify_zig() {
   have zig || { NATIVE_REASON="zig is not installed"; return 2; }
   step build zig build || return 1
@@ -226,6 +299,14 @@ verify_native() {
     verify_ruby
   elif [ -f pom.xml ]; then
     verify_java
+  elif [ -f build.gradle.kts ] || [ -f build.gradle ]; then
+    verify_gradle
+  elif [ -f build.sbt ]; then
+    verify_sbt
+  elif compgen -G "*.csproj" >/dev/null || compgen -G "*.fsproj" >/dev/null; then
+    verify_dotnet
+  elif [ -f cpanfile ] || [ -f Makefile.PL ]; then
+    verify_perl
   elif [ -f build.zig ]; then
     verify_zig
   elif [ -f mix.exs ]; then
@@ -234,9 +315,11 @@ verify_native() {
   elif [ -f Package.swift ]; then
     have swift || { NATIVE_REASON="swift is not installed"; return 2; }
     step build swift build
+  elif [ -n "$(find . -type f -name '*.lua' -print -quit)" ]; then
+    verify_lua
   else
     echo "  ✗ no recognised build manifest in the generated app"
-    NATIVE_REASON="no recognised build manifest (package.json, go.mod, Cargo.toml, pom.xml, composer.json, Gemfile, requirements.txt, build.zig, mix.exs, Package.swift)"
+    NATIVE_REASON="no recognised build manifest (package.json, go.mod, Cargo.toml, pom.xml, build.gradle(.kts), build.sbt, *.csproj, *.fsproj, composer.json, Gemfile, requirements.txt, cpanfile, build.zig, mix.exs, Package.swift, *.lua)"
     return 1
   fi
 }
@@ -330,7 +413,40 @@ for TPL in "${TEMPLATES[@]}"; do
   # diagnostics to STDOUT, so capture both streams (counting only stderr
   # made tsconfig-less runs report "FAILED (0 errors)").
   if [ ! -f "tsconfig.json" ]; then
-    fail_template "missing tsconfig.json"
+    if [ -n "$(find . -path ./node_modules -prune -o -type f \( -name '*.ts' -o -name '*.tsx' \) -print -quit)" ]; then
+      fail_template "TypeScript sources but no tsconfig.json"
+      continue
+    fi
+    # Plain JavaScript has no compiler: parse every file and make sure every
+    # import / require resolves against the installed dependencies.
+    JS_COUNT=0
+    JS_BAD=""
+    while IFS= read -r JS_FILE; do
+      JS_COUNT=$((JS_COUNT + 1))
+      if ! node --check "$JS_FILE" >"$TMP_DIR/js-check-$TPL.txt" 2>&1; then
+        JS_BAD="$JS_FILE"
+        break
+      fi
+    done < <(find . -path ./node_modules -prune -o -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -print)
+    if [ -n "$JS_BAD" ]; then
+      echo "  ✗ syntax error in $JS_BAD"
+      head -5 "$TMP_DIR/js-check-$TPL.txt"
+      fail_template "JavaScript syntax error in $JS_BAD"
+      continue
+    fi
+    if [ "$JS_COUNT" -eq 0 ]; then
+      fail_template "no JavaScript or TypeScript sources to verify"
+      continue
+    fi
+    if ! node "$REPO_ROOT/scripts/check-js-imports.mjs" "$APP_DIR" >"$TMP_DIR/js-imports-$TPL.txt" 2>&1; then
+      head -8 "$TMP_DIR/js-imports-$TPL.txt"
+      fail_template "unresolved imports"
+      continue
+    fi
+    echo "  ✓ JavaScript syntax and imports verified ($JS_COUNT files)"
+    PASS=$((PASS + 1))
+    cd "$REPO_ROOT"
+    rm -rf "$PROJ_DIR"
     continue
   fi
 

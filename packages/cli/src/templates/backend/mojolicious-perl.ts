@@ -104,7 +104,7 @@ sub startup ($self) {
     'lib/{{projectNamePascal}}/Model/DB.pm': `package {{projectNamePascal}}::Model::DB;
 use strict;
 use warnings;
-use Mojo::Base -base;
+use Mojo::Base -base, -signatures;
 
 use Mojo::JSON qw(encode_json decode_json);
 use Digest::SHA qw(sha256_hex);
@@ -112,12 +112,13 @@ use Digest::SHA qw(sha256_hex);
 has users => sub { [] };
 has products => sub { [] };
 
+my $instance;
+
 sub init ($class) {
-  no strict 'refs';
-  my $var = '$' . '{class}::instance';
-  $$var ||= $class->new;
-  $$var->_init_data;
-  return $$var;
+  return $instance if $instance;
+  $instance = $class->new;
+  $instance->_init_data;
+  return $instance;
 }
 
 sub _init_data ($self) {
@@ -131,7 +132,7 @@ sub _init_data ($self) {
     role => 'admin',
     created_at => scalar localtime,
     updated_at => scalar localtime};
-  print "✅ Database initialized with admin user: admin@example.com / admin123\\n";
+  print "✅ Database initialized with admin user: admin\\@example.com / admin123\\n";
 
   # Create sample products
   push @{$self->products}, {
@@ -271,7 +272,7 @@ sub _generate_id ($self) {
     'lib/{{projectNamePascal}}/Helpers/Auth.pm': `package {{projectNamePascal}}::Helpers::Auth;
 use strict;
 use warnings;
-use Mojo::Base -base;
+use Mojo::Base -base, -signatures;
 
 use Mojo::JSON qw(encode_json decode_json);
 use Mojo::JWT;
@@ -321,7 +322,7 @@ sub get_user_from_token ($self) {
     'lib/{{projectNamePascal}}/Controller/API.pm': `package {{projectNamePascal}}::Controller::API;
 use strict;
 use warnings;
-use Mojo::Base 'Mojolicious::Controller';
+use Mojo::Base 'Mojolicious::Controller', -signatures;
 
 sub health ($self) {
   $self->render(json => {
@@ -337,7 +338,7 @@ sub health ($self) {
     'lib/{{projectNamePascal}}/Controller/Graphql.pm': `package {{projectNamePascal}}::Controller::Graphql;
 use strict;
 use warnings;
-use Mojo::Base 'Mojolicious::Controller';
+use Mojo::Base 'Mojolicious::Controller', -signatures;
 
 use {{projectNamePascal}}::GraphQL::Schema;
 
@@ -386,7 +387,7 @@ sub resolve {
     'lib/{{projectNamePascal}}/Controller/Auth.pm': `package {{projectNamePascal}}::Controller::Auth;
 use strict;
 use warnings;
-use Mojo::Base 'Mojolicious::Controller';
+use Mojo::Base 'Mojolicious::Controller', -signatures;
 
 use {{projectNamePascal}}::Model::DB;
 use Mojo::JSON qw(encode_json decode_json);
@@ -465,7 +466,7 @@ sub _validate_register ($self, $data) {
     'lib/{{projectNamePascal}}/Controller/User.pm': `package {{projectNamePascal}}::Controller::User;
 use strict;
 use warnings;
-use Mojo::Base 'Mojolicious::Controller';
+use Mojo::Base 'Mojolicious::Controller', -signatures;
 
 use {{projectNamePascal}}::Model::DB;
 
@@ -505,7 +506,7 @@ sub delete ($self) {
     'lib/{{projectNamePascal}}/Controller/Product.pm': `package {{projectNamePascal}}::Controller::Product;
 use strict;
 use warnings;
-use Mojo::Base 'Mojolicious::Controller';
+use Mojo::Base 'Mojolicious::Controller', -signatures;
 
 use {{projectNamePascal}}::Model::DB;
 
@@ -567,7 +568,7 @@ sub delete ($self) {
     'lib/{{projectNamePascal}}/Controller/Example.pm': `package {{projectNamePascal}}::Controller::Example;
 use strict;
 use warnings;
-use Mojo::Base 'Mojolicious::Controller';
+use Mojo::Base 'Mojolicious::Controller', -signatures;
 
 sub welcome ($self) {
   $self->render(msg => 'Welcome to the {{projectName}} API');

@@ -89,6 +89,10 @@ from app.core.logging_config import setup_logging
 define("port", default=settings.PORT, help="run on the given port", type=int)
 define("debug", default=settings.DEBUG, help="run in debug mode")
 
+# Application object (also what tests and ASGI/WSGI-style tooling import)
+app = create_application(debug=settings.DEBUG)
+
+
 async def main():
     """Main application entry point."""
     parse_command_line()
@@ -1272,7 +1276,7 @@ class GraphQLHandler(BaseHandler):
     'app/models/user.py': `"""
 User Model and Schema
 """
-from marshmallow import Schema, fields, validate
+from marshmallow import EXCLUDE, Schema, fields, validate
 from typing import Dict, Any
 
 class UserSchema(Schema):
@@ -1283,7 +1287,7 @@ class UserSchema(Schema):
     username = fields.Str(validate=validate.Length(min=3, max=50))
     
     class Meta:
-        unknown = 'EXCLUDE'
+        unknown = EXCLUDE
 
 class User:
     """User model (simplified for template)."""

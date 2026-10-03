@@ -27,7 +27,6 @@ export const thinkjsTemplate: BackendTemplate = {
   "dependencies": {
     "thinkjs": "^3.0.0",
     "think-model-mysql": "^1.0.0",
-    "think-graphql": "^1.0.0",
     "graphql": "^16.8.1"
   },
   "devDependencies": {

@@ -106,7 +106,7 @@ export const hapiTypeScriptTemplate: BackendTemplate = {
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
-    "@types/hapi__hapi": "^21.0.0",
+    "@types/hapi__hapi": "^20.0.13",
     "@types/hapi__joi": "^17.1.15",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.6",

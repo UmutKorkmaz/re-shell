@@ -54,6 +54,7 @@ sqlalchemy==2.0.23
 alembic==1.13.0
 aiofiles==23.2.1
 ujson==5.8.0
+psutil==5.9.8
 uvloop==0.19.0
 httptools==0.6.1
 ariadne==0.23.0`,
@@ -87,12 +88,13 @@ try:
 except ImportError:
     pass
 
+# Application object (also what tests and tooling import)
+app = create_app()
+
+
 def main():
     """Main application entry point."""
     try:
-        # Create Sanic app
-        app = create_app()
-        
         # Setup startup and shutdown handlers
         @app.before_server_start
         async def setup_database(app, loop):
@@ -458,7 +460,7 @@ from app.core.config import settings
 from app.core.redis_client import set_cache, get_cache, delete_cache
 from app.models.user import User, UserCreateSchema, UserLoginSchema
 
-auth_bp = Blueprint("auth", prefix="/api/v1/auth")
+auth_bp = Blueprint("auth", url_prefix="/api/v1/auth")
 
 @auth_bp.post("/register")
 async def register(request):
@@ -619,7 +621,7 @@ from sanic.response import json
 from sanic.exceptions import Unauthorized, NotFound
 from app.core.redis_client import get_cache, set_cache
 
-users_bp = Blueprint("users", prefix="/api/v1/users")
+users_bp = Blueprint("users", url_prefix="/api/v1/users")
 
 @users_bp.get("/")
 async def list_users(request):
@@ -967,7 +969,7 @@ from app.core.config import settings
 from app.core.redis_client import get_cache
 from app.blueprints.websocket import active_connections
 
-api_bp = Blueprint("api", prefix="/api/v1")
+api_bp = Blueprint("api", url_prefix="/api/v1")
 
 @api_bp.get("/status")
 async def get_status(request):
@@ -1236,9 +1238,16 @@ def add_authentication_middleware(app):
 Rate Limiting Middleware
 """
 import time
-from sanic.exceptions import TooManyRequests
+from sanic.exceptions import SanicException
 from app.core.config import settings
 from app.core.redis_client import get_cache, set_cache
+
+class TooManyRequests(SanicException):
+    """HTTP 429 (Sanic has no built-in exception for it)."""
+
+    status_code = 429
+    quiet = True
+
 
 def add_rate_limiting_middleware(app):
     """Add rate limiting middleware."""

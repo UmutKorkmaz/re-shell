@@ -1659,8 +1659,8 @@ function sanitizeValue(value: any): any {
   
   // Remove potential XSS patterns
   let sanitized = value
-    .replace(/<script[^>]*>.*?</script>/gi, '')
-    .replace(/<iframe[^>]*>.*?</iframe>/gi, '')
+    .replace(/<script[^>]*>.*?<\\/script>/gi, "")
+    .replace(/<iframe[^>]*>.*?<\\/iframe>/gi, "")
     .replace(/javascript:/gi, '')
     .replace(/onw+s*=/gi, '');
   
@@ -1668,7 +1668,7 @@ function sanitizeValue(value: any): any {
   sanitized = sanitized
     .replace(/(\b(union|select|insert|update|delete|drop|create|alter|exec|execute)\b)/gi, '')
     .replace(/[';]--/g, '')
-    .replace(//*.*?*//g, '');
+    .replace(/\\/\\*.*?\\*\\//g, "");
   
   // Trim whitespace
   return sanitized.trim();
