@@ -115,6 +115,8 @@
     "eslint": "^8.57.0",
     "globby": "^16.1.0",
     "ink-testing-library": "4",
+    "ioredis": "^6.0.0",
+    "kafkajs": "^2.2.4",
     "lodash": "^4.17.21",
     "node-pty": "1.0.0",
     "rimraf": "^5.0.0",
