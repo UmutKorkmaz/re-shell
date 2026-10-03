@@ -4,6 +4,7 @@ import * as fs from 'fs-extra';
 import chalk from 'chalk';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { parseResourceFlags } from '../resources/governor';
 import { IncrementalBuilder, createIncrementalBuilder, BuildResult} from '../utils/incremental-builder';
 
 /**
@@ -13,6 +14,10 @@ export interface IncrementalBuildCommandOptions {
   targets?: string[];
   changedFiles?: string[];
   maxParallelBuilds?: number;
+  /** Pause starting new target builds while this process exceeds this many MB RSS. */
+  maxMemory?: number | string;
+  /** Start at most this many target builds per second. */
+  rateLimit?: number | string;
   enableCache?: boolean;
   cacheLocation?: string;
   cleanBuild?: boolean;
@@ -49,8 +54,12 @@ export async function manageIncrementalBuild(options: IncrementalBuildCommandOpt
 
     spinner.start();
     
+    // Invalid --max-memory / --rate-limit values throw (reported below), never silently default.
+    const { governor } = parseResourceFlags({ maxMemory: options.maxMemory, rateLimit: options.rateLimit });
+
     const builder = await createIncrementalBuilder(rootPath, {
       maxParallelBuilds: options.maxParallelBuilds,
+      ...(governor ? { governor } : {}),
       enableCache: options.enableCache !== false,
       cacheLocation: options.cacheLocation,
       cleanBuild: options.cleanBuild || false,

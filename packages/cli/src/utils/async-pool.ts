@@ -3,21 +3,68 @@
  * debouncing, and retry-with-backoff helpers used across the CLI.
  */
 
+import { PriorityQueue } from '../resources/priority-queue';
+import type { ResourceGovernor } from '../resources/governor';
+
+/**
+ * Options for {@link AsyncPool}.
+ */
+export interface AsyncPoolOptions {
+  /**
+   * Admission control (rate limit + memory backpressure). When it refuses, the
+   * pool stops starting tasks and retries after the governor's `retryAfterMs`.
+   */
+  governor?: ResourceGovernor;
+  /** Priority points a queued task gains per second of waiting (anti-starvation). Default 0. */
+  agingPerSecond?: number;
+  /** Injectable clock for deterministic tests. */
+  now?: () => number;
+}
+
+interface PoolTask {
+  run: () => Promise<void>;
+}
+
 /**
  * Async pool utility for controlled concurrency.
  * Queues asynchronous tasks and runs at most `concurrency` of them simultaneously.
+ *
+ * Tasks are started in priority order (higher first, FIFO among equals, with
+ * optional aging so low-priority work cannot starve). With the default priority
+ * of 0 the behaviour is a plain FIFO queue.
  */
 export class AsyncPool {
   private running = 0;
-  private queue: Array<() => Promise<unknown>> = [];
+  private queue: PriorityQueue<PoolTask>;
+  private idleWaiters: Array<() => void> = [];
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly governor?: ResourceGovernor;
 
   /**
    * Creates a new AsyncPool instance.
    *
    * @description Initializes the pool with a maximum number of concurrently running tasks.
    * @param concurrency - Maximum number of tasks allowed to run at the same time. Defaults to 3.
+   * @param options - Optional governor (rate limit / memory backpressure), aging and clock.
    */
-  constructor(private concurrency: number = 3) {}
+  constructor(private concurrency: number = 3, options: AsyncPoolOptions = {}) {
+    if (!Number.isInteger(concurrency) || concurrency < 1) {
+      // A NaN/0 limit would otherwise queue every task forever (a silent hang).
+      throw new RangeError(`AsyncPool concurrency must be a positive integer (got ${concurrency})`);
+    }
+    this.governor = options.governor;
+    this.queue = new PriorityQueue<PoolTask>({ agingPerSecond: options.agingPerSecond, now: options.now });
+  }
+
+  /** Tasks waiting to start. */
+  get pending(): number {
+    return this.queue.size;
+  }
+
+  /** Tasks currently running. */
+  get active(): number {
+    return this.running;
+  }
 
   /**
    * Adds a task to the pool.
@@ -26,36 +73,60 @@ export class AsyncPool {
    * tasks are currently running, execution starts immediately; otherwise the task waits
    * in the queue until a slot frees up.
    * @param fn - The asynchronous function to execute.
+   * @param priority - Higher values start first. Defaults to 0.
    * @returns A promise that resolves (or rejects) with the result of `fn` once it runs.
    */
-  async add<T>(fn: () => Promise<T>): Promise<T> {
+  async add<T>(fn: () => Promise<T>, priority = 0): Promise<T> {
     return new Promise((resolve, reject) => {
-      this.queue.push(async () => {
-        try {
-          const result = await fn();
-          resolve(result);
-        } catch (error) {
-          reject(error);
-        }
-      });
-      
+      this.queue.push(
+        {
+          run: async () => {
+            try {
+              resolve(await fn());
+            } catch (error) {
+              reject(error);
+            }
+          },
+        },
+        priority
+      );
       this.process();
     });
   }
 
-  private async process(): Promise<void> {
-    if (this.running >= this.concurrency || this.queue.length === 0) {
-      return;
+  private process(): void {
+    while (this.running < this.concurrency && this.queue.size > 0) {
+      if (this.governor) {
+        const decision = this.governor.admit(this.running);
+        if (!decision.ok) {
+          this.scheduleRetry(decision.retryAfterMs);
+          return;
+        }
+      }
+      const task = this.queue.pop()!;
+      this.running++;
+      void task.run().finally(() => {
+        this.running--;
+        this.process();
+        this.notifyIdle();
+      });
     }
+    this.notifyIdle();
+  }
 
-    this.running++;
-    const task = this.queue.shift()!;
-    
-    try {
-      await task();
-    } finally {
-      this.running--;
+  private scheduleRetry(ms: number): void {
+    if (this.retryTimer) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
       this.process();
+    }, ms);
+  }
+
+  private notifyIdle(): void {
+    if (this.running === 0 && this.queue.size === 0 && this.idleWaiters.length > 0) {
+      const waiters = this.idleWaiters;
+      this.idleWaiters = [];
+      for (const w of waiters) w();
     }
   }
 
@@ -66,9 +137,8 @@ export class AsyncPool {
    * @returns A promise that resolves once every enqueued task has finished.
    */
   async waitForAll(): Promise<void> {
-    while (this.running > 0 || this.queue.length > 0) {
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
+    if (this.running === 0 && this.queue.size === 0) return;
+    await new Promise<void>(resolve => this.idleWaiters.push(resolve));
   }
 }
 
