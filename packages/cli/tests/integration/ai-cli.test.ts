@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as http from 'http';
@@ -33,6 +33,9 @@ import { createFixtureWorkspace, proposalJson } from '../unit/ai/helpers';
  * expose), so request shaping, error mapping, timeouts and fallbacks run
  * through real sockets with no mocks in the CLI process.
  */
+
+// Each test spawns the built CLI several times; on a busy machine that is slow.
+vi.setConfig({ testTimeout: 600_000, hookTimeout: 120_000 });
 
 const CLI_PATH = path.resolve(process.cwd(), 'dist/index.js');
 

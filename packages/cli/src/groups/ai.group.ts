@@ -53,7 +53,7 @@ export function registerAiGroup(program: Command): void {
   const ai = program
     .command('ai')
     .description(
-      'Resolve a natural-language prompt to a re-shell command (pluggable LLM or offline; never auto-runs)'
+      'Resolve a natural-language prompt to a re-shell command (cloud/local LLM or offline, never auto-runs)'
     )
     .argument('<prompt...>', 'Natural-language description of what you want to do')
     .option('--json', 'Output the resolved spec as JSON')
