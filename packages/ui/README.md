@@ -4,8 +4,9 @@ Shadcn-first React component library for Re-Shell interfaces. This is the **sing
 UI system** for the monorepo — `apps/web` consumes it instead of building a parallel
 component layer. There is no Web Components surface.
 
-> Part of the [Re-Shell monorepo](https://github.com/umutkorkmaz/re-shell-cli). See
-> [`/docs`](../../docs) for the documentation index.
+> Part of the [Re-Shell monorepo](https://github.com/UmutKorkmaz/re-shell). See
+> [`/docs`](../../docs) for the documentation index. Version in this tree: **0.6.0**
+> (published: 0.5.0).
 
 ## Install
 
@@ -40,8 +41,8 @@ import { px, rem } from '@re-shell/ui/lib';
 
 ### shadcn primitives - `./components/ui`
 
-`Alert`, `Badge`, `Button`, `Card`, `Input`, `Label`, `ScrollArea`, `Separator`,
-`Sheet`, `Tabs`, `Toast` (`ToastProvider`, `useToast`), `Tooltip`. Built on Radix
+`Alert`, `Badge`, `Button`, `Card`, `Dialog`, `Input`, `Label`, `ScrollArea`,
+`Separator`, `Sheet`, `Tabs`, `Toast` (`ToastProvider`, `useToast`), `Tooltip`. Built on Radix
 primitives, `class-variance-authority`, and `cn()`.
 
 ### Layout / a11y primitives - `./components/primitives`
@@ -119,8 +120,22 @@ an existing browser). Per story and per theme it runs axe and compares a screens
 with the committed baseline in `__image_snapshots__/`. `re-shell ui test` drives the
 same runner and reports the three pillars.
 
-The static Storybook is published with the docs site at `/re-shell/storybook/`
-(see `site/` and `.github/workflows/storybook.yml`).
+CI builds the static Storybook and uploads it as the `storybook-static` build artifact
+(the `storybook` job in `.github/workflows/ci.yml`); it is **not** published to the docs
+site. Component scaffolding: `re-shell ui component new <name>` creates the component,
+its story and its vitest + axe test; `re-shell ui generate --prompt "..."` generates a
+typechecked component from a description (AI provider if configured, offline template
+otherwise).
+
+## Theme packs and white-label
+
+The dashboard can be re-skinned without touching this package: `re-shell ui theme
+install|list|search|remove` manages theme packs (npm keyword `reshell-theme`; a pack
+whose colours fail the OKLCH contrast floor is rejected), and the white-label config
+(`re-shell.whitelabel.json`, or `RE_SHELL_BRAND_NAME`, `_TAGLINE`, `_LOGO`, `_FAVICON`,
+`_ACCENT`) sets the product name, logo, favicon and accent colour at dashboard build
+time and at `re-shell ui` serve time. The schemas and contrast helpers live in
+[`@re-shell/contracts`](../contracts) (`ui-theme.ts`, `brand-html.ts`).
 
 ## Build outputs
 

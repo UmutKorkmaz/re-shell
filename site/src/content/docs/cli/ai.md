@@ -1,35 +1,77 @@
 ---
 title: "ai"
-description: "Offline natural-language to command resolver that never auto-runs."
+description: "Resolve natural language to a vetted re-shell command with Anthropic, a local OpenAI-compatible model, or an offline parser. Never auto-runs."
 ---
 
-`ai` resolves a natural-language prompt into a concrete Re-Shell command. It is
-**offline** — no LLM backend, no network, no telemetry — and it **never
-auto-runs** a command unless you explicitly confirm with `--run`.
+`ai` turns a natural-language prompt into a concrete Re-Shell command. It works
+with **no network and no key** (the offline parser), and can use a cloud or local
+LLM when you configure one. In every mode it only **resolves**: nothing runs
+unless you pass `--run` and confirm, and every argument vector it returns has been
+checked against the real command catalog.
 
 ```
-Usage: re-shell ai [options] <prompt...>
-
-Arguments:
-  prompt      Natural-language description of what you want to do
+Usage: re-shell ai [options] [command] <prompt...>
 
 Options:
-  --json      Output the resolved spec as JSON
-  --explain   Include a human explanation of the resolved command
-  --run       Execute the resolved command after explicit confirmation
+  --json               Output the resolved spec as JSON
+  --explain            Include a human explanation of the resolved command
+  --run                Execute the resolved command after explicit confirmation
+  --session <id>       Use (or create) a multi-turn session
+  --continue           Continue the most recent session
+  --provider <name>    auto, anthropic, openai-compatible, offline
+  --offline            Use only the offline parser (no network)
+  --no-cache           Bypass the semantic response cache
+  --no-fallback        Fail instead of falling back to the offline parser
+
+Commands:
+  create <description...>   Plan a project scaffold (offline, dry-run by default)
+  suggest <partial...>      Confidence-scored autocomplete
+  session                   Manage multi-turn sessions (.re-shell/ai/sessions)
+  cache                     Inspect or clear the semantic response cache
+  config                    View or change the provider configuration
 ```
 
-## How it works
+## Providers
 
-The resolver matches your prompt against the machine-readable
-[command catalog](/re-shell/cli/overview/#command-introspection) and returns the
-best-matching command with a confidence score, plus alternatives. If nothing
-matches confidently, it returns `needsClarification: true` instead of guessing.
+| Provider | What it is | Needs |
+| --- | --- | --- |
+| `offline` | Local intent parser over the command catalog and workspace graph. Deterministic. | Nothing. |
+| `anthropic` | Anthropic Messages API. Default model `claude-opus-5-5` (override with `model`). | `ANTHROPIC_API_KEY` (or `RE_SHELL_AI_API_KEY`). |
+| `openai-compatible` | Any server that speaks the OpenAI `/v1` chat API, such as a local model server. | A base URL (`RE_SHELL_AI_BASE_URL` or `ai config set baseUrl ...`); a key only if the server needs one. |
+
+`auto` (the default) picks `openai-compatible` when a base URL is set, otherwise
+`anthropic` when an Anthropic key is available, otherwise `offline`. A provider
+that errors (timeout, bad key, malformed answer) falls back to the offline parser
+with a warning, unless you pass `--no-fallback`. A key from `ANTHROPIC_API_KEY` is
+never sent to a non-Anthropic server.
+
+**What was and was not verified.** The provider code is covered by tests against
+local fake servers, and the offline path is exercised end to end by the built CLI.
+No call to a live Anthropic or OpenAI-compatible server was made while writing this
+documentation, because no key was available; the `tests/live` suite exists for that
+and skips itself without a key or base URL.
+
+### Configure
+
+```bash
+re-shell ai config show                       # effective values and where each came from; the key is never printed
+re-shell ai config set provider anthropic
+re-shell ai config set model claude-opus-5-5
+re-shell ai config set baseUrl http://localhost:11434/v1
+echo "$KEY" | re-shell ai config set apiKey -     # "-" reads the key from stdin
+re-shell ai config unset baseUrl
+```
+
+Settable keys: `provider`, `model`, `baseUrl`, `apiKey`, `timeoutMs`, `cache`,
+`cacheTtlSeconds`. They are stored under `ai:` in `~/.re-shell/config.yaml`.
+Precedence: flags, then environment (`RE_SHELL_AI_PROVIDER`, `RE_SHELL_AI_MODEL`,
+`RE_SHELL_AI_BASE_URL`, `RE_SHELL_AI_API_KEY`, `RE_SHELL_AI_TIMEOUT_MS`,
+`ANTHROPIC_API_KEY`), then the persisted config, then defaults.
 
 ## Resolve a command
 
 ```bash
-re-shell ai "list templates as json" --json
+re-shell ai "check workspace health" --offline --json
 ```
 
 ```json
@@ -38,27 +80,41 @@ re-shell ai "list templates as json" --json
   "data": {
     "needsClarification": false,
     "resolved": {
-      "path": "templates list",
-      "description": "List available framework templates",
-      "argv": ["templates", "list", "--json"],
-      "confidence": 0.875,
+      "path": "workspace health",
+      "description": "Check workspace health with comprehensive diagnostics",
+      "argv": ["workspace", "health"],
+      "confidence": 0.9375,
       "destructive": false,
       "supportsJson": true,
       "supportsDryRun": false
     },
-    "confidence": 0.875,
+    "confidence": 0.9375,
     "alternatives": [
-      { "path": "config template list", "argv": ["config", "template", "list", "--json"], "confidence": 0.3636 }
-    ]
+      { "path": "workspace diagnostics check", "argv": ["workspace", "diagnostics", "check"], "confidence": 0.6818 }
+    ],
+    "provider": "offline",
+    "requestedProvider": "offline",
+    "source": "offline",
+    "cached": false,
+    "lowConfidence": false,
+    "workspace": { "inWorkspace": true, "nodes": 12, "fingerprint": "..." },
+    "executed": false
   },
   "warnings": []
 }
 ```
 
-## When it can't match
+(`alternatives` is abbreviated here.) `source` says what produced the answer
+(`offline`, a provider, or the cache), `cached` whether the semantic cache served
+it, and `workspace` is the context the resolver saw: with a provider configured,
+a compact, size-capped rendering of the real workspace graph (node names, kinds,
+languages, frameworks, ports and dependency edges; no source code) is added to the
+prompt so "build the payments service" resolves to an actual node.
+
+When nothing matches, the answer is a question rather than a guess:
 
 ```bash
-re-shell ai "do something vague please" --json
+re-shell ai "do something vague please" --offline --json
 ```
 
 ```json
@@ -68,29 +124,81 @@ re-shell ai "do something vague please" --json
     "needsClarification": true,
     "reason": "no-match",
     "question": "I could not match that to a known command. Try naming a command, e.g. \"list templates\" or \"check workspace health\".",
-    "candidates": []
+    "candidates": [],
+    "provider": "offline",
+    "executed": false
   },
   "warnings": []
 }
 ```
 
-## Safety model
+## Sessions
 
-- **Offline only.** The intent parser is local; there is no LLM call. A
-  pluggable model abstraction is planned but not wired (see
-  [Roadmap](/re-shell/roadmap/)).
-- **Never auto-executes.** Without `--run`, `ai` only *resolves* — it prints the
-  command it would run. `--run` requires explicit confirmation.
-- **No shell.** When `--run` does execute, it spawns `re-shell` without
-  `shell: true`, so the resolved argv cannot be injected into a shell.
+`--session <id>` (or `--continue` for the most recent) keeps a multi-turn session
+so a follow-up can answer a clarifying question. Sessions are plain JSON files
+under `.re-shell/ai/sessions` (the directory is git-ignored; a session keeps its
+last 50 turns).
 
 ```bash
-# Explain what it resolved, but do not run it
-re-shell ai "check workspace health" --explain
-
-# Resolve and run, after confirmation
-re-shell ai "check workspace health" --run
+re-shell ai "build it" --session demo      # asks which service
+re-shell ai "the billing one" --session demo
+re-shell ai session list
+re-shell ai session show demo
+re-shell ai session clear demo
 ```
+
+## Cache
+
+Resolutions are cached by prompt, catalog and workspace fingerprint
+(`.re-shell/ai/cache.json`, one-week TTL, 200 entries by default), so repeating a
+prompt costs no provider call. `--no-cache` bypasses it for one call; or
+`ai config set cache false`.
+
+```bash
+re-shell ai cache stats --json
+re-shell ai cache clear
+```
+
+## Suggest
+
+`ai suggest <partial...>` returns confidence-scored completions drawn from the
+command catalog, your session history and workspace node names. It is offline.
+
+```bash
+re-shell ai suggest "work" --limit 5 --json
+```
+
+## Safety model
+
+- **Never auto-executes.** Without `--run`, `ai` only resolves. `--run` asks for
+  explicit confirmation first.
+- **Vetted argv.** A provider can only propose a command; the result is accepted only
+  if it matches an entry in the command catalog and every argument passes the
+  shell-inert check (no metacharacters, no flags the command does not declare).
+  Anything else is dropped and the offline parser answers instead.
+- **No shell.** When `--run` executes, it spawns `re-shell` with an argv array and
+  never `shell: true`.
+- **No telemetry, no key in output.** API keys are never printed or logged
+  (`ai config show` reports only `set`/`unset` and the source), and nothing is
+  sent anywhere unless you configured a provider.
+
+## Programmatic API
+
+The same machinery is importable as `@re-shell/cli/ai`:
+
+```ts
+import { resolveIntent, createProvider, resolveAiConfig } from '@re-shell/cli/ai';
+
+const { result, meta } = await resolveIntent('build the payments service', {
+  catalog,            // CommandCatalogEntry[], e.g. from `commands list --json`
+  cwd: workspaceRoot,
+});
+if (!result.needsClarification) {
+  // result.candidate.argv is a vetted re-shell argv: run it with shell:false
+}
+```
+
+Nothing exported there executes a command.
 
 ## `ai create` — plan a project scaffold
 

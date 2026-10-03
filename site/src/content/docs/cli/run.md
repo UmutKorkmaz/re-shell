@@ -25,12 +25,34 @@ Arguments:
 Options:
   --affected            Only run for packages affected by current changes
   --concurrency <n>     Max parallel tasks (default: CPU count)
+  --max-memory <mb>     Pause starting new tasks while this process exceeds <mb> MB RSS
+                        or system free memory is critically low
+  --rate-limit <n>      Start at most <n> tasks per second (token bucket)
   --filter <pkg...>     Restrict to specific package name(s)
   --json                Output the run summary as a JSON envelope
   --continue            Continue scheduling unaffected branches after a failure
   --no-cache            Disable the content-addressed build cache
   --cache-dir <dir>     Override the cache directory (default: <root>/.re-shell/cache)
 ```
+
+## Resource governor
+
+`run` can pace itself so a large workspace does not overwhelm a laptop or a shared CI
+runner. All three controls are optional and independent:
+
+- `--concurrency <n>` caps parallel tasks (default: the CPU count).
+- `--max-memory <mb>` **pauses starting new tasks** while the runner's resident memory
+  is above the limit, or while system free memory is critically low, and resumes when
+  it drops. Running tasks are never killed by it.
+- `--rate-limit <n>` starts at most `n` tasks per second (a token bucket).
+
+```bash
+re-shell run build --concurrency 4 --max-memory 4096 --rate-limit 2
+re-shell workspace ibuild build --max-memory 4096 --rate-limit 2
+```
+
+Ready tasks are started from a priority queue with aging, so a long-waiting task is not
+starved by a stream of newer ones. The same flags exist on `workspace ibuild build`.
 
 ## How ordering works
 

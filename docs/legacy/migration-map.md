@@ -1,5 +1,17 @@
 # Commands from index.ts lines 492-3641
 
+> **Historical.** This is the working map from the v0.27 regrouping of the old flat
+> commands into groups. It is **not** a list of commands that exist today: many of the
+> "New Subcommand" targets were later removed or never wired, and the old `index.ts` line
+> numbers refer to a file that has since been split. For the real command tree run
+> `re-shell commands list --json`.
+>
+> In the service group below, the old `services-link` and `services-validate` map to
+> **`service link`** and **`service validate`**, which exist and are now spec-driven (they
+> generate typed clients and validate links). **`service unlink`** has no old equivalent and
+> was added with them. The old hyphenated names (`services-link`, `services-validate`,
+> `services-unlink`) are not commands and never will be.
+
 This file maps every command in that range to its target group and new subcommand name.
 
 ## tools group

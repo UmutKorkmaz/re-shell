@@ -1,5 +1,15 @@
 # Re-Shell CLI Examples
 
+> **Warning: this catalog is not kept in sync with the CLI.** It was written against
+> older releases and describes many commands and flags that **do not exist** in the
+> current command tree (for example `generate api`, `analyze performance`,
+> `security scan`, `monitor ...`, `benchmark ...`). Treat it as narrative, not as a
+> command reference. The accurate, checked sources are `re-shell commands list --json`,
+> `re-shell <group> --help`, the guides in `examples/`, and the documentation site
+> (<https://umutkorkmaz.github.io/re-shell/>). The repository script
+> `node scripts/check-doc-commands.mjs` verifies the commands in the checked docs
+> and deliberately skips this file.
+
 Need a smaller, feature-by-feature entry point? Start with `examples/README.md` in this package for grouped workflow guides.
 
 This document provides comprehensive real-world scenarios and examples for using the Re-Shell CLI to build full-stack applications with microfrontends and microservices.

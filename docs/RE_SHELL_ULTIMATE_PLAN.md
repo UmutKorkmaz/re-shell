@@ -1,6 +1,36 @@
-# Re-Shell — Ultimate Implementation Plan
+# Re-Shell — Ultimate Implementation Plan (HISTORICAL)
 
-> **Status:** Authoritative implementation plan. Supersedes `docs/RE_SHELL_MASTER_PLAN.md` (the earlier DRAFT) and the scattered legacy plan/TODO files.
+> **Status: historical record. Do not use it as the current plan or the current state.**
+> It was written on 2026-06-06 against three separate repositories (`re-shell-cli@0.28.0`,
+> `re-shell-ui`, legacy `re-shell`) that have since been consolidated into one pnpm monorepo
+> (`@re-shell/cli` is now `0.31.0` in the tree; `0.30.1` is the last published version). Phases 0-8
+> and Phase 9 (P9-A to P9-K) were executed, and the roadmap gained P9-L, P9-M and P9-N. The "verified
+> current state" sections below describe the repositories *as they were then*; several of those
+> findings no longer hold.
+>
+> **Where the truth lives now:** delivery status per feature is in [`ROADMAP.md`](./ROADMAP.md);
+> release gates and the stability backlog are in [`STABILITY.md`](./STABILITY.md); the CLI contract is
+> the generated [`CLI-CONTRACTS.md`](./CLI-CONTRACTS.md). Task IDs below (`P2-14`, `P9-B1`, ...) are
+> kept for provenance only.
+>
+> It superseded `docs/RE_SHELL_MASTER_PLAN.md` (the earlier DRAFT, also historical now) and the
+> scattered legacy plan/TODO files.
+>
+> ### Resolved open questions (recorded after execution)
+>
+> The open questions in sections D and G were answered by what was built. Each row says how to check it.
+>
+> | Open question | Resolution | Check |
+> |---|---|---|
+> | `packages/core` / the `Re-Shell/core` submodule: salvage or drop? | **Dropped.** Fully superseded by shadcn React in `packages/ui`. There is no submodule configuration in the repository. | `ls -a` at the repo root shows no submodule file |
+> | Emitted SDK packages (`@re-shell/config-client`, `shared-config`, `auth-client`, `service-mesh-client`, `microfrontend-client`, ...): real or aspirational? | **Not created.** Templates no longer reference unpublished `@re-shell/*` packages; generated projects use local modules (for example the microfrontend template ships a local `src/eventBus`). | `grep -rn "@re-shell/" packages/cli/src/templates` finds no package specifier; comments in `packages/cli/src/commands/add.ts` |
+> | Marketplace source of truth (P9-F): owned registry or npm keyword? | **The npm keyword** `reshell-plugin` (themes use `reshell-theme`, policy packs `reshell-policy-pack`). | `plugin search --help`, `workspace policy search --help`, `ui theme search --help` |
+> | Legacy plugin back-compat (P9-F4): keep or break? | **Kept.** The installer still recognizes the legacy `reshell` / `reshell-plugin` / `reshell-cli` manifest keys and the `@re-shell/` package scope. | `packages/cli/src/utils/plugin-installer.ts`, `tests/unit/plugin-installer.test.ts` |
+> | Health canonical engine (P2-06): lightweight or rich? | **The lightweight engine** backs `workspace health`; `doctor` is a separate gate. | `workspace health --json` shape in `CLI-CONTRACTS.md` |
+> | Runtime fields on apps/services: live probing or static detection? | Static detection stays in `workspace summary`/`graph`; **live status is its own command**, `workspace status` (running / stopped / unhealthy / unknown, with the reason), also shown in the graph explorer. | `workspace status --help` |
+> | Template data source for the Templates screen (P5-05) | A top-level `templates list --json`, plus `templates show|matrix|apply|recommend`. | `commands list --json` |
+> | vitest/vite pinning (P6-01), monorepo home (P1-01), hub relocation (P3-10) | Executed as recommended: one pnpm monorepo rooted here; the hub is bundled with the dashboard (`apps/web/dist/hub-server.js`). | repository layout |
+>
 > **Produced:** 2026-06-06, from a 41-agent workflow: **18 parallel empirical-audit agents** (read source + ran the built CLI/tests) → **18 adversarial verifiers** (each tried to *refute* the audit's CRITICAL/HIGH findings against the live working tree) → **5 domain-synthesis agents**. Every claim below is verified-against-code, with the verifier corrections folded in.
 > **Repos audited:** `re-shell-cli` (`re-shell-cli@0.28.0`, branch `the working branch`), `re-shell-ui` (branch `the UI working branch`, **no git remote**), legacy `re-shell` (`the legacy working branch`, broken build, to be archived).
 
@@ -1441,7 +1471,7 @@ Source: `CLI_IMPLEMENTATION_TODO.md:944-1010`; UI surface plan §19.
 
 #### P9-B — Cross-Language Service Bridge (gRPC/REST/GraphQL) [XL]
 Source: `CLI_IMPLEMENTATION_TODO.md:1263-1340`. Build FRESH — the existing `service-integration.ts`/`service-protocol.ts` etc. are dead stubs (salvage-referenced in P7-04, deleted). `service.group.ts` has NO bridge surface today.
-- **P9-B1 [L]** Command surface `re-shell service bridge generate --grpc|--rest|--graphql`; universal language-agnostic protocol contract; replace the bogus `services-link/validate/unlink` strings with real `service link`/`service validate`. *Acceptance:* `--help` lists bridge subcommands; each emits a valid client scaffold. *Deps:* P7-04, P7-13/14 (group split), P2-cli.
+- **P9-B1 [L]** Command surface `re-shell service bridge generate --grpc|--rest|--graphql`; universal language-agnostic protocol contract; replace the bogus `services-link/validate/unlink` strings with real `service link`/`service validate`/`service unlink`. *(Done: all three commands exist, with `service bridge generate|gateway|async|transform|diff|mock`; see ROADMAP P9-B.)* *Acceptance:* `--help` lists bridge subcommands; each emits a valid client scaffold. *Deps:* P7-04, P7-13/14 (group split), P2-cli.
 - **P9-B2 [L]** gRPC bridges (autogen clients), REST adapters (auto serialization), GraphQL federation (schema stitching). *Acceptance:* generated client compiles against a sample service in two languages. *Deps:* P9-B1.
 - **P9-B3 [M]** Async message-queue transport (Kafka/Redis Streams) with schema evolution; cross-language discovery, circuit breakers, distributed tracing (correlation IDs). *Acceptance:* generated async stub round-trips a message with a correlation ID. *Deps:* P9-B2.
 - **P9-B4 [M]** Data transformation across JSON/Protobuf/Avro/MessagePack with backward-compat migration; contract testing + universal mock servers; polyglot client-lib generation. *Acceptance:* a contract change is detected by the contract test; mock server serves all three protocols. *Deps:* P9-B3, P1-contract.

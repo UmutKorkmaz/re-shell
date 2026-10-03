@@ -1,5 +1,11 @@
 # Re-Shell Landing V2 — Concept Lock (W16-1)
 
+> **Historical planning note.** The numbers and versions in this document (205 templates,
+> `0.29.2`, "27 command groups", "~43ms startup") are from the 2026-06 planning pass and
+> are out of date. The live values are on the site itself and in `docs/ROADMAP.md`
+> (208 templates, CLI `0.31.0` in the tree, 585 command paths in 46 top-level commands,
+> `--version` about 45 ms). Kept as a record of the design intent.
+
 > **Direction (locked):** Dark mission-control — *one product* (CLI + dashboard + docs are three
 > surfaces of the same system). Premium, intentional, anti-slop. Built entirely from the existing
 > token system (`site/src/styles/theme.css` + `landing.css` + `docs/design/dashboard-design.md`):
