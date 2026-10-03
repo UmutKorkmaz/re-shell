@@ -121,7 +121,12 @@ function TemplatesContent({ templates }: { templates: TemplateFeed[] }): React.R
             <LayoutGrid className="size-4 text-signal" />
             Template catalog
           </h2>
-          <span className="cli-chip py-1 text-xs">
+          <span
+            className="cli-chip py-1 text-xs"
+            data-testid="template-count"
+            data-filtered={filtered.length}
+            data-total={templates.length}
+          >
             <span className="font-semibold text-foreground tabular-nums">{filtered.length}</span>
             <span className="text-muted-foreground">/ {templates.length}</span>
           </span>

@@ -82,7 +82,13 @@ export function LiveJob({ spec, onRemove }: LiveJobProps): React.ReactElement {
   }, [lines, error, isTerminal, status, exitCode, startedAt, finishedAt]);
 
   return (
-    <div className="grid gap-2">
+    <div
+      className="grid gap-2"
+      data-testid="live-job"
+      data-job-command={spec.command.join(' ')}
+      data-job-status={status}
+      data-job-exit-code={typeof exitCode === 'number' ? exitCode : undefined}
+    >
       <JobLogPanel job={job} logs={displayLines} onCancel={() => cancel()} />
       {isTerminal && onRemove ? (
         <button

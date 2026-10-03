@@ -36,7 +36,9 @@ export function Topbar({ current }: TopbarProps): React.ReactElement {
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-border bg-bg-0/85 px-4 py-3 backdrop-blur-md lg:px-8">
       <div className="min-w-0">
-        <div className="label-eyebrow">{current.label}</div>
+        <div className="label-eyebrow" data-testid="screen-label">
+          {current.label}
+        </div>
         <h1 className="truncate font-display text-lg font-bold tracking-tight">
           {data ? workspaceName(data.root) : current.label}
         </h1>

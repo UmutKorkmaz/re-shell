@@ -97,6 +97,13 @@ jobs:
         working-directory: packages/cli
         run: npx vitest run tests/interactive
 
+      # ── CLI end-to-end (scaffolds real projects with the built binary) ─────
+      - name: CLI end-to-end tests packages/cli (RUN_E2E=1)
+        working-directory: packages/cli
+        run: npx vitest run tests/e2e
+        env:
+          RUN_E2E: '1'
+
       # ── Smoke the binary ───────────────────────────────────────────────────
       - name: Smoke test - templates list
         run: node packages/cli/dist/index.js templates list --json | head -c 60
@@ -175,12 +182,12 @@ jobs:
         run: git diff --exit-code
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Playwright E2E (gated, requires RUN_E2E=true)
+  # Playwright E2E (always runs: dashboard <-> secure hub <-> real CLI)
   # ─────────────────────────────────────────────────────────────────────────────
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
-    if: ${{ vars.RUN_E2E == 'true' || github.event_name == 'workflow_dispatch' }}
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -206,9 +213,11 @@ jobs:
       - name: Build all packages (required for e2e)
         run: pnpm -r run build
 
+      # The `chromium` project is the functional core flow. The axe audit is the
+      # `a11y` project and runs in .github/workflows/accessibility.yml.
       - name: Run Playwright E2E
         working-directory: apps/web
-        run: npx playwright test
+        run: npx playwright test --project=chromium
         env:
           CI: true
 
@@ -219,3 +228,37 @@ jobs:
           name: playwright-report
           path: apps/web/test-results/
           retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Clean-install smoke: pack contracts + cli + mcp, install the tarballs into a
+  # fresh directory outside the repo, and exercise the installed binaries.
+  # ─────────────────────────────────────────────────────────────────────────────
+  pack-smoke:
+    name: Pack / Clean-install smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Builds contracts/ui/mcp, `pnpm pack`s the three packages (the cli's
+      # prepack hook builds the dashboard into the tarball), `npm install`s the
+      # tarballs into a temp dir outside the repo, then runs: re-shell --version,
+      # --help, templates list --json, ui --dry-run --json, and an MCP
+      # initialize + tools/list handshake against node_modules/.bin/re-shell-mcp.
+      - name: Pack and smoke-test the published packages
+        run: node scripts/pack-smoke.mjs
