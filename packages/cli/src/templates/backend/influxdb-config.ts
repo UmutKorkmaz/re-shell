@@ -270,7 +270,7 @@ from(bucket: "\${sourceBucket}")
 }
 `,
 
-    'db/queries/analytics.js': `import { executeQuery } from './index.js';
+    'db/queries/analytics.js': `import { executeQuery } from '../index.js';
 
 // Query: Average response time by route
 export async function getAverageResponseTime(timeRange = '-1h') {

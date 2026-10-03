@@ -67,9 +67,6 @@ gem 'graphql-client', '~> 0.18', group: :test
 # Rate limiting
 gem 'rack-throttle', '~> 0.7'
 
-# Health checks
-gem 'health_check', '~> 3.1'
-
 group :development do
   gem 'rerun', '~> 0.14'
   gem 'tux', '~> 0.3'
@@ -113,15 +110,17 @@ require 'jwt'
 require 'json'
 require 'logger'
 require 'redis'
+require 'rack/throttle'
 require 'graphql'
 
 # Load environment variables
 require 'dotenv/load'
 
 # Load application files
-Dir['./config/*.rb'].sort.each { |file| require file }
+Dir['./config/*.rb'].sort.reject { |file| file.end_with?('puma.rb') }.each { |file| require file }
 Dir['./app/models/*.rb'].sort.each { |file| require file }
 Dir['./app/helpers/*.rb'].sort.each { |file| require file }
+Dir['./app/graphql/types/*.rb'].sort.each { |file| require file }
 Dir['./app/graphql/*.rb'].sort.each { |file| require file }
 Dir['./app/controllers/*.rb'].sort.each { |file| require file }
 
@@ -498,7 +497,6 @@ end
 
     // GraphQL schema and resolvers
     'app/graphql/{{projectNameSnake}}_schema.rb': `class {{projectNamePascal}}Schema < GraphQL::Schema
-  mutation(null: true)
   query(Types::QueryType)
 
   # Resolve types for relay-style interfaces (future-proofing)

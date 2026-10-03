@@ -38,6 +38,7 @@ $app;
 
     // Application class
     'lib/{{projectNamePascal}}.pm': `package {{projectNamePascal}};
+use Moose;
 use Catalyst qw/
     ConfigLoader
     Static::Simple
@@ -47,8 +48,6 @@ use Catalyst qw/
 
     Session
     Session::Store::File
-
-    JSON
 /;
 
 use version; our $VERSION = qv('0.01');
@@ -190,6 +189,7 @@ sub endpoint :Path('/graphql') :Args(0) {
 use Moose;
 use namespace::autoclean;
 use JSON::MaybeXS;
+use {{projectNamePascal}}::Model::DB;
 use Digest::SHA qw(sha256_hex);
 
 BEGIN { extends 'Catalyst::Controller'; }
@@ -200,7 +200,7 @@ sub register :Local {
     my $params = $c->request->body_data;
     my $data = decode_json($params) if $params;
 
-    my $users = \${{projectNamePascal}}::Model::DB::get_all_users();
+    my $users = {{projectNamePascal}}::Model::DB::get_all_users();
 
     # Check if user exists
     for my $user (@$users) {
@@ -246,7 +246,7 @@ sub login :Local {
     my $params = $c->request->body_data;
     my $data = decode_json($params) if $params;
 
-    my $users = \${{projectNamePascal}}::Model::DB::get_all_users();
+    my $users = {{projectNamePascal}}::Model::DB::get_all_users();
 
     my $found_user;
     for my $user (@$users) {
@@ -295,13 +295,14 @@ sub _generate_token {
 use Moose;
 use namespace::autoclean;
 use JSON::MaybeXS;
+use {{projectNamePascal}}::Model::DB;
 
 BEGIN { extends 'Catalyst::Controller'; }
 
 sub list :Local {
     my ($self, $c) = @_;
 
-    my $products = \${{projectNamePascal}}::Model::DB::get_all_products();
+    my $products = {{projectNamePascal}}::Model::DB::get_all_products();
 
     my $response = {
         products => $products,
@@ -315,7 +316,7 @@ sub get :Local {
     my ($self, $c) = @_;
 
     my $id = $c->request->parameters->{id};
-    my $product = \${{projectNamePascal}}::Model::DB::get_product_by_id($id);
+    my $product = {{projectNamePascal}}::Model::DB::get_product_by_id($id);
 
     unless ($product) {
         $c->response->status(404);
@@ -334,7 +335,7 @@ sub create :Local {
     my $params = $c->request->body_data;
     my $data = decode_json($params) if $params;
 
-    my $products = \${{projectNamePascal}}::Model::DB::get_all_products();
+    my $products = {{projectNamePascal}}::Model::DB::get_all_products();
 
     my $new_product = {
         id => scalar(@$products) + 1,
@@ -359,7 +360,7 @@ sub update :Local {
     my $params = $c->request->body_data;
     my $data = decode_json($params) if $params;
 
-    my $product = \${{projectNamePascal}}::Model::DB::update_product($id, $data);
+    my $product = {{projectNamePascal}}::Model::DB::update_product($id, $data);
 
     unless ($product) {
         $c->response->status(404);
@@ -376,7 +377,7 @@ sub delete :Local {
     my ($self, $c) = @_;
 
     my $id = $c->request->parameters->{id};
-    my $success = \${{projectNamePascal}}::Model::DB::delete_product($id);
+    my $success = {{projectNamePascal}}::Model::DB::delete_product($id);
 
     unless ($success) {
         $c->response->status(404);
@@ -429,7 +430,7 @@ my @products = (
 
 sub init {
     print "📦 Database initialized\\n";
-    print "👤 Default admin: admin@example.com / admin123\\n";
+    print "👤 Default admin: admin\\@example.com / admin123\\n";
 }
 
 sub get_all_users {

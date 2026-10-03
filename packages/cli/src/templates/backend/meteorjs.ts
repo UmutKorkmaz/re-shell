@@ -27,7 +27,6 @@ export const meteorjsTemplate: BackendTemplate = {
   },
   "dependencies": {
     "@babel/runtime": "^7.23.5",
-    "@reactioncommerce/caching": "^1.1.0",
     "@reactioncommerce/logger": "^1.1.0",
     "bcrypt": "^5.1.1",
     "check": "^1.0.0",

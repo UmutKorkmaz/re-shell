@@ -69,7 +69,7 @@ import 'package:conduit_postgresql/conduit_postgresql.dart';
 ///
 /// Override methods in this class to set up routes and initialize services like
 /// database connections. See http://conduit.io/docs/http/channel/.
-class {{projectName}}Channel extends ApplicationChannel {
+class {{projectNamePascal}}Channel extends ApplicationChannel {
   late ManagedContext context;
   late AuthServer authServer;
 
@@ -85,7 +85,7 @@ class {{projectName}}Channel extends ApplicationChannel {
         (rec) => print("\${rec.level.name}: \${rec.time}: \${rec.message}"));
 
     // Load configuration
-    final config = {{projectName}}Configuration(options!.configurationFilePath!);
+    final config = {{projectNamePascal}}Configuration(options!.configurationFilePath!);
     
     // Set up database connection
     final dataModel = ManagedDataModel.fromCurrentMirrorSystem();
@@ -149,8 +149,8 @@ class {{projectName}}Channel extends ApplicationChannel {
     'lib/config.dart': `import '{{projectName}}.dart';
 
 /// This class represents configuration values read from a configuration file.
-class {{projectName}}Configuration extends Configuration {
-  {{projectName}}Configuration(String path) : super.fromFile(File(path));
+class {{projectNamePascal}}Configuration extends Configuration {
+  {{projectNamePascal}}Configuration(String path) : super.fromFile(File(path));
 
   late DatabaseConfiguration database;
   
@@ -754,7 +754,7 @@ class HealthController extends ResourceController {
     'bin/main.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
 
 Future main() async {
-  final app = Application<{{projectName}}Channel>()
+  final app = Application<{{projectNamePascal}}Channel>()
     ..options.configurationFilePath = "config.yaml"
     ..options.port = 8888;
 
@@ -868,7 +868,7 @@ export 'package:conduit/conduit.dart';
 ///       });
 ///     }
 ///
-class Harness extends TestHarness<{{projectName}}Channel> {
+class Harness extends TestHarness<{{projectNamePascal}}Channel> {
   @override
   Future onSetUp() async {}
 

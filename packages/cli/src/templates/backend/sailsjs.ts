@@ -22,6 +22,8 @@ export const sailsjsTemplate: BackendTemplate = {
   "keywords": ["sails", "microservices", "rest", "api", "waterline"],
   "dependencies": {
     "sails": "^1.5.8",
+    "ejs": "^3.1.10",
+    "dotenv": "^16.4.5",
     "sails-hook-grunt": "^5.0.0",
     "sails-hook-orm": "^4.0.0",
     "sails-hook-sockets": "^2.0.0",

@@ -12,9 +12,7 @@
  *   - relative specifiers must exist (with the usual extension / index lookup),
  *   - bare specifiers must resolve through the app's own node_modules.
  *
- * Every file is also parsed (`node --check` semantics via `vm.Script` /
- * `vm.SourceTextModule`-free syntax check using `new Function` is unreliable for
- * modules, so the caller runs `node --check` separately).
+ * Syntax is not checked here; the caller runs `node --check` on every file as well.
  *
  * Usage: node scripts/check-js-imports.mjs <appDir>
  * Exit code 1 when something does not resolve.
@@ -48,10 +46,12 @@ function stripComments(src) {
 function specifiers(src) {
   const code = stripComments(src);
   const found = new Set();
+  // require()/dynamic import() calls anywhere; import/export-from only as real statements
+  // (at the start of a line), so source text embedded in a string literal is not mistaken for one.
   const patterns = [
     /\brequire\s*\(\s*(['"])([^'"\n]+)\1\s*\)/g,
-    /\bimport\s+(?:[\w*\s{},$]+\s+from\s+)?(['"])([^'"\n]+)\1/g,
-    /\bexport\s+(?:\*|\{[^}]*\})\s+from\s+(['"])([^'"\n]+)\1/g,
+    /^[ \t]*import\s+(?:[\w*\s{},$]+\s+from\s+)?(['"])([^'"\n]+)\1/gm,
+    /^[ \t]*export\s+(?:\*|\{[^}]*\})\s+from\s+(['"])([^'"\n]+)\1/gm,
     /\bimport\s*\(\s*(['"])([^'"\n]+)\1\s*\)/g,
   ];
   for (const re of patterns) {

@@ -379,7 +379,7 @@ class User(id: EntityID<Int>) : IntEntity(id) {
     var createdAt by Users.createdAt
     var updatedAt by Users.updatedAt
 
-    fun setPassword(plainPassword: String) {
+    fun hashAndSetPassword(plainPassword: String) {
         password = BCrypt.withDefaults().hashToString(12, plainPassword.toCharArray())
     }
 
@@ -513,10 +513,6 @@ data class PaginatedResponse<T>(
 import {{packageName}}.config.Environment
 import {{packageName}}.config.JwtAuth
 import {{packageName}}.models.UserPrincipal
-import org.http4k.contract.contract
-import org.http4k.contract.openapi.ApiInfo
-import org.http4k.contract.openapi.v3.OpenApi3
-import org.http4k.contract.ui.swaggerUi
 import org.http4k.core.Filter
 import org.http4k.core.HttpHandler
 import org.http4k.core.Method
@@ -526,6 +522,9 @@ import org.http4k.core.Status
 import org.http4k.core.then
 import org.http4k.core.with
 import org.http4k.filter.CorsPolicy
+import org.http4k.filter.AllowAll
+import org.http4k.filter.AnyOf
+import org.http4k.filter.OriginPolicy
 import org.http4k.filter.ServerFilters
 import org.http4k.format.Jackson.auto
 import org.http4k.lens.RequestContextKey
@@ -544,21 +543,11 @@ fun createApi(env: Environment): HttpHandler {
 
     // CORS configuration
     val corsPolicy = CorsPolicy(
-        origins = if (env.allowedOrigins.contains("*")) listOf("*") else env.allowedOrigins,
+        originPolicy = if (env.allowedOrigins.contains("*")) OriginPolicy.AllowAll() else OriginPolicy.AnyOf(env.allowedOrigins),
         headers = listOf("Content-Type", "Authorization", "X-Request-ID"),
         methods = listOf(Method.GET, Method.POST, Method.PUT, Method.PATCH, Method.DELETE, Method.OPTIONS),
         credentials = true
     )
-
-    // OpenAPI contract
-    val apiContract = contract {
-        renderer = OpenApi3(ApiInfo("{{projectName}} API", "1.0.0", "REST API for {{projectName}}"))
-        descriptionPath = "/openapi.json"
-
-        routes += authRoutes(env, userLens)
-        routes += userRoutes(env, userLens)
-        routes += productRoutes(env, userLens)
-    }
 
     // Health check response
     val healthLens = org.http4k.core.Body.auto<Map<String, Any>>().toLens()
@@ -571,8 +560,11 @@ fun createApi(env: Environment): HttpHandler {
             ))
         },
         "/graphql" bind Method.POST to QueryResolvers::resolve,
-        "/docs" bind swaggerUi("/api/v1/openapi.json"),
-        "/api/v1" bind apiContract
+        "/api/v1" bind routes(
+            authRoutes(env, userLens),
+            userRoutes(env, userLens),
+            productRoutes(env, userLens)
+        )
     )
 
     // Apply filters
@@ -603,8 +595,6 @@ import {{packageName}}.config.JwtAuth
 import {{packageName}}.config.ErrorResponse
 import {{packageName}}.config.errorLens
 import {{packageName}}.models.*
-import org.http4k.contract.ContractRoute
-import org.http4k.contract.meta
 import org.http4k.core.Body
 import org.http4k.core.Method
 import org.http4k.core.Response
@@ -612,78 +602,69 @@ import org.http4k.core.Status
 import org.http4k.core.with
 import org.http4k.format.Jackson.auto
 import org.http4k.lens.RequestContextLens
+import org.http4k.routing.RoutingHttpHandler
+import org.http4k.routing.bind
+import org.http4k.routing.routes
 import org.jetbrains.exposed.sql.transactions.transaction
 
-fun authRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>): List<ContractRoute> {
+fun authRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>): RoutingHttpHandler {
     val registerRequestLens = Body.auto<RegisterRequest>().toLens()
     val loginRequestLens = Body.auto<LoginRequest>().toLens()
     val userResponseLens = Body.auto<UserResponse>().toLens()
     val authResponseLens = Body.auto<AuthResponse>().toLens()
 
-    return listOf(
+    return routes(
         // Register
-        "/auth/register" meta {
-            summary = "Register new user"
-            description = "Create a new user account"
-            receiving(registerRequestLens to RegisterRequest("user@example.com", "password123", "John Doe"))
-            returning(Status.CREATED, userResponseLens to UserResponse(1, "user@example.com", "John Doe", "user", true, "2024-01-01T00:00:00"))
-        } bindContract Method.POST to { request ->
+        "/auth/register" bind Method.POST to { request ->
             val body = registerRequestLens(request)
 
             // Validation
             if (body.email.isBlank() || !body.email.contains("@")) {
-                return@to Response(Status.BAD_REQUEST).with(errorLens of ErrorResponse("Valid email is required"))
-            }
-            if (body.password.length < 6) {
-                return@to Response(Status.BAD_REQUEST).with(errorLens of ErrorResponse("Password must be at least 6 characters"))
-            }
-            if (body.name.length < 2) {
-                return@to Response(Status.BAD_REQUEST).with(errorLens of ErrorResponse("Name must be at least 2 characters"))
-            }
+                Response(Status.BAD_REQUEST).with(errorLens of ErrorResponse("Valid email is required"))
+            } else if (body.password.length < 6) {
+                Response(Status.BAD_REQUEST).with(errorLens of ErrorResponse("Password must be at least 6 characters"))
+            } else if (body.name.length < 2) {
+                Response(Status.BAD_REQUEST).with(errorLens of ErrorResponse("Name must be at least 2 characters"))
+            } else {
+                val existingUser = transaction {
+                    User.find { Users.email eq body.email }.firstOrNull()
+                }
 
-            val existingUser = transaction {
-                User.find { Users.email eq body.email }.firstOrNull()
-            }
+                if (existingUser != null) {
+                    Response(Status.CONFLICT).with(errorLens of ErrorResponse("Email already registered"))
+                } else {
+                    val user = transaction {
+                        User.new {
+                            email = body.email
+                            name = body.name
+                            hashAndSetPassword(body.password)
+                        }.toResponse()
+                    }
 
-            if (existingUser != null) {
-                return@to Response(Status.CONFLICT).with(errorLens of ErrorResponse("Email already registered"))
-            }
-
-            val user = transaction {
-                User.new {
-                    email = body.email
-                    name = body.name
-                    setPassword(body.password)
+                    Response(Status.CREATED).with(userResponseLens of user)
                 }
             }
-
-            Response(Status.CREATED).with(userResponseLens of user.toResponse())
         },
 
         // Login
-        "/auth/login" meta {
-            summary = "Login user"
-            description = "Authenticate user and return JWT token"
-            receiving(loginRequestLens to LoginRequest("user@example.com", "password123"))
-            returning(Status.OK, authResponseLens to AuthResponse("jwt-token", UserResponse(1, "user@example.com", "John Doe", "user", true, "2024-01-01T00:00:00")))
-        } bindContract Method.POST to { request ->
+        "/auth/login" bind Method.POST to { request ->
             val body = loginRequestLens(request)
 
-            val user = transaction {
-                User.find { Users.email eq body.email }.firstOrNull()
+            val result = transaction {
+                val user = User.find { Users.email eq body.email }.firstOrNull()
+                when {
+                    user == null || !user.checkPassword(body.password) -> null to "Invalid credentials"
+                    !user.active -> null to "Account is disabled"
+                    else -> AuthResponse(JwtAuth.generateToken(user.id.value, user.email, user.role), user.toResponse()) to null
+                }
             }
 
-            if (user == null || !user.checkPassword(body.password)) {
-                return@to Response(Status.UNAUTHORIZED).with(errorLens of ErrorResponse("Invalid credentials"))
+            val auth = result.first
+            if (auth == null) {
+                Response(Status.UNAUTHORIZED).with(errorLens of ErrorResponse(result.second ?: "Invalid credentials"))
+            } else {
+                Response(Status.OK).with(authResponseLens of auth)
             }
-
-            if (!user.active) {
-                return@to Response(Status.UNAUTHORIZED).with(errorLens of ErrorResponse("Account is disabled"))
-            }
-
-            val token = JwtAuth.generateToken(user.id.value, user.email, user.role)
-
-            Response(Status.OK).with(authResponseLens of AuthResponse(token, user.toResponse()))
         }
     )
 }
@@ -697,22 +678,22 @@ import {{packageName}}.config.ErrorResponse
 import {{packageName}}.config.JwtAuth
 import {{packageName}}.config.errorLens
 import {{packageName}}.models.*
-import org.http4k.contract.ContractRoute
-import org.http4k.contract.div
-import org.http4k.contract.meta
-import org.http4k.contract.security.BearerAuthSecurity
 import org.http4k.core.Body
 import org.http4k.core.Method
 import org.http4k.core.Response
 import org.http4k.core.Status
+import org.http4k.core.then
 import org.http4k.core.with
 import org.http4k.format.Jackson.auto
 import org.http4k.lens.Path
 import org.http4k.lens.RequestContextLens
 import org.http4k.lens.int
+import org.http4k.routing.RoutingHttpHandler
+import org.http4k.routing.bind
+import org.http4k.routing.routes
 import org.jetbrains.exposed.sql.transactions.transaction
 
-fun userRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>): List<ContractRoute> {
+fun userRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>): RoutingHttpHandler {
     val userResponseLens = Body.auto<UserResponse>().toLens()
     val usersResponseLens = Body.auto<List<UserResponse>>().toLens()
     val updateLens = Body.auto<Map<String, String>>().toLens()
@@ -721,81 +702,70 @@ fun userRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>): 
     val authFilter = JwtAuth.authFilter(userLens)
     val adminFilter = JwtAuth.requireRole("admin", userLens = userLens)
 
-    return listOf(
+    return routes(
         // Get current user
-        "/users/me" meta {
-            summary = "Get current user"
-            description = "Get the currently authenticated user"
-            security = BearerAuthSecurity
-        } bindContract Method.GET to authFilter.then { request ->
-            val principal = userLens(request) ?: return@then Response(Status.UNAUTHORIZED)
+        "/users/me" bind Method.GET to authFilter.then { request ->
+            val principal = userLens(request)
+            val user = principal?.let { transaction { User.findById(it.id)?.toResponse() } }
 
-            val user = transaction {
-                User.findById(principal.id)
-            } ?: return@then Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("User not found"))
-
-            Response(Status.OK).with(userResponseLens of user.toResponse())
+            if (user == null) {
+                Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("User not found"))
+            } else {
+                Response(Status.OK).with(userResponseLens of user)
+            }
         },
 
         // Update current user
-        "/users/me" meta {
-            summary = "Update current user"
-            description = "Update the currently authenticated user's profile"
-            security = BearerAuthSecurity
-            receiving(updateLens to mapOf("name" to "New Name"))
-        } bindContract Method.PUT to authFilter.then { request ->
-            val principal = userLens(request) ?: return@then Response(Status.UNAUTHORIZED)
+        "/users/me" bind Method.PUT to authFilter.then { request ->
+            val principal = userLens(request)
             val updates = updateLens(request)
 
-            val user = transaction {
-                val u = User.findById(principal.id) ?: return@transaction null
-                updates["name"]?.let { u.name = it }
-                u
-            } ?: return@then Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("User not found"))
+            val user = principal?.let {
+                transaction {
+                    User.findById(it.id)?.also { u -> updates["name"]?.let { name -> u.name = name } }?.toResponse()
+                }
+            }
 
-            Response(Status.OK).with(userResponseLens of user.toResponse())
+            if (user == null) {
+                Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("User not found"))
+            } else {
+                Response(Status.OK).with(userResponseLens of user)
+            }
         },
 
         // List users (admin only)
-        "/users" meta {
-            summary = "List all users"
-            description = "Get a list of all users (admin only)"
-            security = BearerAuthSecurity
-        } bindContract Method.GET to authFilter.then(adminFilter).then { request ->
-            val users = transaction {
-                User.all().map { it.toResponse() }
-            }
-
+        "/users" bind Method.GET to authFilter.then(adminFilter).then { _ ->
+            val users = transaction { User.all().map { it.toResponse() } }
             Response(Status.OK).with(usersResponseLens of users)
         },
 
         // Get user by ID
-        "/users" / idPath meta {
-            summary = "Get user by ID"
-            description = "Get a specific user by ID"
-            security = BearerAuthSecurity
-        } bindContract Method.GET to authFilter.then { id -> { request ->
-            val user = transaction {
-                User.findById(id)
-            } ?: return@to Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("User not found"))
+        "/users/{id}" bind Method.GET to authFilter.then { request ->
+            val id = idPath(request)
+            val user = transaction { User.findById(id)?.toResponse() }
 
-            Response(Status.OK).with(userResponseLens of user.toResponse())
-        }},
+            if (user == null) {
+                Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("User not found"))
+            } else {
+                Response(Status.OK).with(userResponseLens of user)
+            }
+        },
 
         // Delete user (admin only)
-        "/users" / idPath meta {
-            summary = "Delete user"
-            description = "Delete a user (admin only)"
-            security = BearerAuthSecurity
-        } bindContract Method.DELETE to authFilter.then(adminFilter).then { id -> { request ->
-            transaction {
-                val user = User.findById(id) ?: return@transaction null
-                user.delete()
-                user
-            } ?: return@to Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("User not found"))
+        "/users/{id}" bind Method.DELETE to authFilter.then(adminFilter).then { request ->
+            val id = idPath(request)
+            val deleted = transaction {
+                val user = User.findById(id)
+                user?.delete()
+                user != null
+            }
 
-            Response(Status.NO_CONTENT)
-        }}
+            if (deleted) {
+                Response(Status.NO_CONTENT)
+            } else {
+                Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("User not found"))
+            }
+        }
     )
 }
 `,
@@ -808,25 +778,25 @@ import {{packageName}}.config.ErrorResponse
 import {{packageName}}.config.JwtAuth
 import {{packageName}}.config.errorLens
 import {{packageName}}.models.*
-import org.http4k.contract.ContractRoute
-import org.http4k.contract.div
-import org.http4k.contract.meta
-import org.http4k.contract.security.BearerAuthSecurity
 import org.http4k.core.Body
 import org.http4k.core.Method
 import org.http4k.core.Response
 import org.http4k.core.Status
+import org.http4k.core.then
 import org.http4k.core.with
 import org.http4k.format.Jackson.auto
 import org.http4k.lens.Path
 import org.http4k.lens.Query
 import org.http4k.lens.RequestContextLens
 import org.http4k.lens.int
+import org.http4k.routing.RoutingHttpHandler
+import org.http4k.routing.bind
+import org.http4k.routing.routes
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDateTime
 
-fun productRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>): List<ContractRoute> {
+fun productRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>): RoutingHttpHandler {
     val productResponseLens = Body.auto<ProductResponse>().toLens()
     val paginatedLens = Body.auto<PaginatedResponse<ProductResponse>>().toLens()
     val createLens = Body.auto<CreateProductRequest>().toLens()
@@ -838,14 +808,9 @@ fun productRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>
     val authFilter = JwtAuth.authFilter(userLens)
     val adminFilter = JwtAuth.requireRole("admin", userLens = userLens)
 
-    return listOf(
+    return routes(
         // List products
-        "/products" meta {
-            summary = "List products"
-            description = "Get a paginated list of products"
-            queries += pageQuery
-            queries += limitQuery
-        } bindContract Method.GET to { request ->
+        "/products" bind Method.GET to { request ->
             val page = pageQuery(request)
             val limit = limitQuery(request)
             val offset = (page - 1) * limit
@@ -862,82 +827,77 @@ fun productRoutes(env: Environment, userLens: RequestContextLens<UserPrincipal?>
         },
 
         // Get product by ID
-        "/products" / idPath meta {
-            summary = "Get product by ID"
-            description = "Get a specific product by ID"
-        } bindContract Method.GET to { id -> { request ->
-            val product = transaction {
-                Product.findById(id)
-            } ?: return@to Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("Product not found"))
+        "/products/{id}" bind Method.GET to { request ->
+            val id = idPath(request)
+            val product = transaction { Product.findById(id)?.toResponse() }
 
-            Response(Status.OK).with(productResponseLens of product.toResponse())
-        }},
+            if (product == null) {
+                Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("Product not found"))
+            } else {
+                Response(Status.OK).with(productResponseLens of product)
+            }
+        },
 
         // Create product (admin only)
-        "/products" meta {
-            summary = "Create product"
-            description = "Create a new product (admin only)"
-            security = BearerAuthSecurity
-            receiving(createLens to CreateProductRequest("Product Name", "Description", 29.99, 100))
-        } bindContract Method.POST to authFilter.then(adminFilter).then { request ->
+        "/products" bind Method.POST to authFilter.then(adminFilter).then { request ->
             val body = createLens(request)
 
             if (body.name.isBlank()) {
-                return@then Response(Status.BAD_REQUEST).with(errorLens of ErrorResponse("Product name is required"))
-            }
-            if (body.price < 0) {
-                return@then Response(Status.BAD_REQUEST).with(errorLens of ErrorResponse("Price must be non-negative"))
-            }
-
-            val product = transaction {
-                Product.new {
-                    name = body.name
-                    description = body.description
-                    price = BigDecimal.valueOf(body.price)
-                    stock = body.stock
+                Response(Status.BAD_REQUEST).with(errorLens of ErrorResponse("Product name is required"))
+            } else if (body.price < 0) {
+                Response(Status.BAD_REQUEST).with(errorLens of ErrorResponse("Price must be non-negative"))
+            } else {
+                val product = transaction {
+                    Product.new {
+                        name = body.name
+                        description = body.description
+                        price = BigDecimal.valueOf(body.price)
+                        stock = body.stock
+                    }.toResponse()
                 }
-            }
 
-            Response(Status.CREATED).with(productResponseLens of product.toResponse())
+                Response(Status.CREATED).with(productResponseLens of product)
+            }
         },
 
         // Update product (admin only)
-        "/products" / idPath meta {
-            summary = "Update product"
-            description = "Update a product (admin only)"
-            security = BearerAuthSecurity
-            receiving(updateLens to UpdateProductRequest("Updated Name", null, 39.99, null, null))
-        } bindContract Method.PUT to authFilter.then(adminFilter).then { id -> { request ->
+        "/products/{id}" bind Method.PUT to authFilter.then(adminFilter).then { request ->
+            val id = idPath(request)
             val body = updateLens(request)
 
             val product = transaction {
-                val p = Product.findById(id) ?: return@transaction null
-                body.name?.let { p.name = it }
-                body.description?.let { p.description = it }
-                body.price?.let { p.price = BigDecimal.valueOf(it) }
-                body.stock?.let { p.stock = it }
-                body.active?.let { p.active = it }
-                p.updatedAt = LocalDateTime.now()
-                p
-            } ?: return@to Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("Product not found"))
+                Product.findById(id)?.also { p ->
+                    body.name?.let { p.name = it }
+                    body.description?.let { p.description = it }
+                    body.price?.let { p.price = BigDecimal.valueOf(it) }
+                    body.stock?.let { p.stock = it }
+                    body.active?.let { p.active = it }
+                    p.updatedAt = LocalDateTime.now()
+                }?.toResponse()
+            }
 
-            Response(Status.OK).with(productResponseLens of product.toResponse())
-        }},
+            if (product == null) {
+                Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("Product not found"))
+            } else {
+                Response(Status.OK).with(productResponseLens of product)
+            }
+        },
 
         // Delete product (admin only)
-        "/products" / idPath meta {
-            summary = "Delete product"
-            description = "Delete a product (admin only)"
-            security = BearerAuthSecurity
-        } bindContract Method.DELETE to authFilter.then(adminFilter).then { id -> { request ->
-            transaction {
-                val product = Product.findById(id) ?: return@transaction null
-                product.delete()
-                product
-            } ?: return@to Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("Product not found"))
+        "/products/{id}" bind Method.DELETE to authFilter.then(adminFilter).then { request ->
+            val id = idPath(request)
+            val deleted = transaction {
+                val product = Product.findById(id)
+                product?.delete()
+                product != null
+            }
 
-            Response(Status.NO_CONTENT)
-        }}
+            if (deleted) {
+                Response(Status.NO_CONTENT)
+            } else {
+                Response(Status.NOT_FOUND).with(errorLens of ErrorResponse("Product not found"))
+            }
+        }
     )
 }
 `,

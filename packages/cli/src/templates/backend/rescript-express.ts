@@ -34,7 +34,6 @@ export const rescriptExpressTemplate: BackendTemplate = {
   "dependencies": {
     "@rescript/core": "^1.3.0",
     "rescript-express": "^0.3.0",
-    "rescript-json-combinators": "^2.3.0",
     "express": "^4.19.2",
     "cors": "^2.8.5",
     "helmet": "^7.1.0",
@@ -59,6 +58,9 @@ export const rescriptExpressTemplate: BackendTemplate = {
 }`,
 
     // ReScript configuration
+    // ReScript resolves bs-dependencies through plain node_modules paths, which pnpm's isolated layout hides
+    '.npmrc': `node-linker=hoisted\n`,
+
     'rescript.json': `{
   "name": "{{projectName}}",
   "version": "1.0.0",
@@ -76,8 +78,7 @@ export const rescriptExpressTemplate: BackendTemplate = {
   "bs-dependencies": [
     "@rescript/core",
     "rescript-express",
-    "rescript-nodejs",
-    "rescript-json-combinators"
+    "rescript-nodejs"
   ],
   "warnings": {
     "error": true

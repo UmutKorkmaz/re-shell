@@ -173,7 +173,7 @@ import {MyUserService} from './services';
 
 export {ApplicationConfig};
 
-export class {{projectName}}Application extends BootMixin(
+export class {{projectNamePascal}}Application extends BootMixin(
   ServiceMixin(RepositoryMixin(RestApplication)),
 ) {
   constructor(options: ApplicationConfig = {}) {
@@ -266,12 +266,12 @@ export class {{projectName}}Application extends BootMixin(
 }`,
 
     // Main entry point
-    'src/index.ts': `import {ApplicationConfig, {{projectName}}Application} from './application';
+    'src/index.ts': `import {ApplicationConfig, {{projectNamePascal}}Application} from './application';
 
 export * from './application';
 
 export async function main(options: ApplicationConfig = {}) {
-  const app = new {{projectName}}Application(options);
+  const app = new {{projectNamePascal}}Application(options);
   await app.boot();
   await app.start();
 

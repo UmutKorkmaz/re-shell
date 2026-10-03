@@ -61,7 +61,7 @@ let package = Package(
             path: "Sources"
         ),
         .testTarget(
-            name: "{{projectName}}Tests",
+            name: "{{projectNamePascal}}Tests",
             dependencies: ["{{projectName}}"],
             path: "Tests"
         )]
@@ -1218,12 +1218,12 @@ struct ValidationFilter: HTTPRequestFilter {
 }`,
 
     // Tests
-    'Tests/{{projectName}}Tests.swift': `import XCTest
+    'Tests/{{projectNamePascal}}Tests.swift': `import XCTest
 @testable import {{projectName}}
 import PerfectHTTP
 import PerfectHTTPServer
 
-final class {{projectName}}Tests: XCTestCase {
+final class {{projectNamePascal}}Tests: XCTestCase {
     var server: HTTPServer!
     
     override func setUp() {

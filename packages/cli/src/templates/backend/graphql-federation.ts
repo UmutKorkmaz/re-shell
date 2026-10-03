@@ -33,6 +33,7 @@ export const graphqlFederationTemplate: BackendTemplate = {
     "introspect": "node scripts/introspect-schemas.js"
   },
   "dependencies": {
+    "@apollo/composition": "^2.5.5",
     "@apollo/gateway": "^2.5.5",
     "@apollo/server": "^4.9.5",
     "@apollo/subgraph": "^2.5.5",
