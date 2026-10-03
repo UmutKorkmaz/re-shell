@@ -98,3 +98,6 @@ llms.txt
 *.bak
 *.tsbuildinfo
 *.tgz
+
+# re-shell audit trail written when the CLI runs inside this repo (dev noise, not product data)
+/.re-shell/audit/
