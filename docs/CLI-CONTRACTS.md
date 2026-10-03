@@ -126,7 +126,7 @@ status of each code is read from the CLI sources every time it is regenerated, s
 it cannot claim a code is emitted when nothing emits it.
 
 <!-- BEGIN GENERATED: error-codes -->
-The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (49 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
+The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (90 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
 
 | Code | Status | Emitted from |
 | --- | --- | --- |
@@ -152,16 +152,16 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (49 codes). A code 
 | `PLUGIN_INSTALL_ERROR` | emitted | `packages/cli/src/commands/plugin-create.ts`, `packages/cli/src/commands/plugin.ts` |
 | `PLUGIN_UPDATE_ERROR` | emitted | `packages/cli/src/commands/plugin.ts` |
 | `PLUGIN_VALIDATE_ERROR` | emitted | `packages/cli/src/commands/plugin.ts` |
-| `MARKETPLACE_UNREACHABLE` | emitted | `packages/cli/src/commands/plugin-marketplace.ts` |
+| `MARKETPLACE_UNREACHABLE` | emitted | `packages/cli/src/commands/plugin-marketplace.ts`, `packages/cli/src/commands/workspace-policy-packs.ts` |
 | `MARKETPLACE_ERROR` | emitted | `packages/cli/src/commands/plugin-marketplace.ts` |
-| `MARKETPLACE_VERIFY_ERROR` | emitted | `packages/cli/src/commands/plugin-marketplace.ts` |
+| `MARKETPLACE_VERIFY_ERROR` | emitted | `packages/cli/src/commands/plugin-marketplace.ts`, `packages/cli/src/commands/workspace-policy-packs.ts` |
 | `POLICY_CHECK_ERROR` | emitted | `packages/cli/src/commands/workspace-policy.ts` |
 | `DRIFT_CHECK_ERROR` | emitted | `packages/cli/src/commands/workspace-policy.ts` |
 | `K8S_GENERATE_ERROR` | emitted | `packages/cli/src/commands/k8s-generate.ts` |
 | `HELM_GENERATE_ERROR` | emitted | `packages/cli/src/commands/helm-generate.ts` |
 | `GITOPS_GENERATE_ERROR` | emitted | `packages/cli/src/commands/gitops-generate.ts` |
 | `BRIDGE_GENERATE_ERROR` | emitted | `packages/cli/src/commands/bridge-generate.ts` |
-| `AI_INTENT_ERROR` | emitted | `packages/cli/src/groups/ai.group.ts` |
+| `AI_INTENT_ERROR` | emitted | `packages/cli/src/ai/resolver.ts`, `packages/cli/src/groups/ai.group.ts` |
 | `FIND_ERROR` | emitted | `packages/cli/src/groups/find.group.ts`, `packages/cli/src/groups/templates.group.ts` |
 | `AGENTS_ERROR` | emitted | `packages/cli/src/groups/agents.group.ts` |
 | `RUN_ERROR` | emitted | `packages/cli/src/groups/run.group.ts` |
@@ -179,6 +179,47 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (49 codes). A code 
 | `BOUNDARIES_ERROR` | emitted | `packages/cli/src/commands/boundaries.ts` |
 | `ENV_ERROR` | emitted | `packages/cli/src/commands/env.ts` |
 | `UI_TEST_ERROR` | emitted | `packages/cli/src/commands/ui-test.ts` |
+| `PLUGIN_LIST_ERROR` | emitted | `packages/cli/src/commands/plugin.ts` |
+| `PLUGIN_INFO_ERROR` | emitted | `packages/cli/src/commands/plugin.ts` |
+| `PLUGIN_NOT_FOUND` | emitted | `packages/cli/src/commands/plugin.ts` |
+| `PLUGIN_UNINSTALL_ERROR` | emitted | `packages/cli/src/commands/plugin.ts` |
+| `PLUGIN_PIN_ERROR` | emitted | `packages/cli/src/commands/plugin.ts` |
+| `PLUGIN_REVIEW_ERROR` | emitted | `packages/cli/src/commands/plugin.ts` |
+| `POLICY_PACK_ERROR` | emitted | `packages/cli/src/commands/workspace-policy-packs.ts` |
+| `POLICY_PACK_NOT_FOUND` | emitted | `packages/cli/src/commands/workspace-policy-packs.ts` |
+| `UNAUTHENTICATED` | reserved | |
+| `FORBIDDEN` | reserved | |
+| `TENANT_NOT_FOUND` | reserved | |
+| `INVALID_REQUEST` | reserved | |
+| `COMMAND_NOT_ALLOWED` | reserved | |
+| `NOT_FOUND` | emitted | `packages/cli/src/utils/k8s-rollback.ts` |
+| `METHOD_NOT_ALLOWED` | reserved | |
+| `ALREADY_EXISTS` | reserved | |
+| `CONFLICT` | reserved | |
+| `JOB_NOT_FOUND` | reserved | |
+| `RATE_LIMITED` | reserved | |
+| `PAYLOAD_TOO_LARGE` | reserved | |
+| `UNSUPPORTED_MEDIA_TYPE` | reserved | |
+| `CONFIG_ERROR` | reserved | |
+| `INTERNAL_ERROR` | reserved | |
+| `SERVICE_UNAVAILABLE` | reserved | |
+| `SERVICES_NOT_FOUND` | emitted | `packages/cli/src/commands/services.ts` |
+| `SERVICES_COMPOSE_UNAVAILABLE` | emitted | `packages/cli/src/commands/services.ts` |
+| `SERVICES_COMPOSE_FAILED` | emitted | `packages/cli/src/commands/services.ts`, `packages/cli/src/utils/service-process.ts` |
+| `SERVICES_START_FAILED` | emitted | `packages/cli/src/commands/services.ts`, `packages/cli/src/utils/service-process.ts` |
+| `SERVICES_STOP_FAILED` | emitted | `packages/cli/src/commands/services.ts`, `packages/cli/src/utils/service-process.ts` |
+| `SERVICES_UNHEALTHY` | emitted | `packages/cli/src/commands/services.ts` |
+| `SERVICES_ERROR` | emitted | `packages/cli/src/commands/services.ts`, `packages/cli/src/groups/service.group.ts` |
+| `DEV_PROFILE_ERROR` | emitted | `packages/cli/src/commands/dev-mode.ts` |
+| `K8S_ROLLBACK_ERROR` | emitted | `packages/cli/src/commands/k8s-rollback.ts` |
+| `K8S_CRD_ERROR` | emitted | `packages/cli/src/commands/k8s-crd.ts` |
+| `K8S_MESH_ERROR` | emitted | `packages/cli/src/commands/k8s-mesh.ts` |
+| `K8S_OPERATOR_ERROR` | emitted | `packages/cli/src/commands/k8s-operator.ts` |
+| `AI_PROVIDER_ERROR` | emitted | `packages/cli/src/ai/resolver.ts` |
+| `AI_CONFIG_ERROR` | emitted | `packages/cli/src/ai/cli.ts`, `packages/cli/src/groups/ai.group.ts` |
+| `AI_SESSION_ERROR` | emitted | `packages/cli/src/ai/cli.ts`, `packages/cli/src/ai/resolver.ts`, `packages/cli/src/groups/ai.group.ts` |
+| `AI_CACHE_ERROR` | emitted | `packages/cli/src/ai/cli.ts` |
+| `AI_SUGGEST_ERROR` | emitted | `packages/cli/src/ai/cli.ts` |
 <!-- END GENERATED: error-codes -->
 
 ---

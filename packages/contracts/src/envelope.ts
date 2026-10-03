@@ -128,6 +128,12 @@ export const errorCodeSchema = z.enum([
   'K8S_CRD_ERROR',
   'K8S_MESH_ERROR',
   'K8S_OPERATOR_ERROR',
+  // Codes introduced by the AI/NLP command-interface slice (P9-A)
+  'AI_PROVIDER_ERROR',
+  'AI_CONFIG_ERROR',
+  'AI_SESSION_ERROR',
+  'AI_CACHE_ERROR',
+  'AI_SUGGEST_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

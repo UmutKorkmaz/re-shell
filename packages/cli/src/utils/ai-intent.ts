@@ -3,6 +3,7 @@ import {
   buildCommandCatalog,
   CommandCatalogEntry,
 } from './command-catalog';
+import type { WorkspaceNodeRef } from '../ai/types';
 
 /**
  * Offline, deterministic Natural-Language -> CLI-command intent parser.
@@ -52,6 +53,13 @@ export interface IntentCandidate {
   supportsJson: boolean;
   /** Whether the resolved command supports `--dry-run`. */
   supportsDryRun: boolean;
+  /**
+   * Real workspace nodes the argv refers to (set when a live workspace context
+   * was available and the command targets a node).
+   */
+  nodes?: WorkspaceNodeRef[];
+  /** Required positional arguments the argv does not supply yet. */
+  missingArgs?: string[];
 }
 
 /**
@@ -566,10 +574,15 @@ export class OfflineIntentBackend implements IntentBackend {
 }
 
 // ---------------------------------------------------------------------------
-// LLM adapter STUB — NOT used in tests/CI, NOT wired to any network call.
+// LLM adapter STUB — retained for API compatibility only.
 // ---------------------------------------------------------------------------
 
 /**
+ * @deprecated Superseded by the real provider layer in `src/ai/` (Anthropic,
+ * OpenAI-compatible/local, and the offline fallback — see `createProvider` and
+ * `resolveIntent`). Kept, inert, so existing imports and its contract test keep
+ * working; do not use it for new code.
+ *
  * Placeholder for a future LLM-backed intent backend.
  *
  * It is intentionally inert: constructing it is fine, but `parse` throws so it

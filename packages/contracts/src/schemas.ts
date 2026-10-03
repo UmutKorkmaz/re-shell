@@ -387,6 +387,273 @@ export const aiPlanResponseSchema = z.object({
 export type AiPlanResponse = z.infer<typeof aiPlanResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// AI command interface (`re-shell ai ...`)
+//
+// `ai <prompt>` resolves a natural-language prompt to a vetted `re-shell`
+// command through a pluggable provider (Anthropic, an OpenAI-compatible/local
+// LLM, or the always-available offline parser). The response is either a
+// RESOLVED command or a CLARIFYING question; it never executes anything
+// (`executed` is always false in machine output). Every resolved argv has been
+// validated against the live command catalogue and the shell-inert allow-list,
+// and refers only to REAL workspace nodes.
+//
+// The companion subcommands (`ai suggest`, `ai session`, `ai cache`,
+// `ai config`) each have their own response shape below.
+// ---------------------------------------------------------------------------
+
+export const aiProviderNameSchema = z.enum(['anthropic', 'openai-compatible', 'offline']);
+export type AiProviderName = z.infer<typeof aiProviderNameSchema>;
+
+/** A real workspace node a resolved command refers to. */
+export const aiWorkspaceNodeRefSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  kind: z.string(),
+});
+export type AiWorkspaceNodeRef = z.infer<typeof aiWorkspaceNodeRefSchema>;
+
+/** One ranked, vetted command candidate. `argv` excludes the `re-shell` binary. */
+export const aiIntentCandidateSchema = z.object({
+  path: z.string(),
+  description: z.string(),
+  argv: z.array(z.string()),
+  confidence: z.number(),
+  destructive: z.boolean(),
+  supportsJson: z.boolean(),
+  supportsDryRun: z.boolean(),
+  // Real workspace nodes the argv targets (present when a workspace was found).
+  nodes: z.array(aiWorkspaceNodeRefSchema).optional(),
+  // Required positionals the argv does not supply yet.
+  missingArgs: z.array(z.string()).optional(),
+});
+export type AiIntentCandidate = z.infer<typeof aiIntentCandidateSchema>;
+
+/** Where an answer came from. */
+export const aiResolutionSourceSchema = z.enum(['offline', 'llm', 'cache', 'clarification']);
+export type AiResolutionSource = z.infer<typeof aiResolutionSourceSchema>;
+
+/** Provenance + diagnostics shared by both response branches. */
+const aiIntentMetaShape = {
+  // The provider that actually produced the answer (offline after a fallback).
+  provider: aiProviderNameSchema,
+  // The provider that was configured.
+  requestedProvider: aiProviderNameSchema,
+  model: z.string().optional(),
+  source: aiResolutionSourceSchema,
+  // True when the answer came from the semantic cache.
+  cached: z.boolean(),
+  cache: z.object({ similarity: z.number(), hits: z.number() }).optional(),
+  // True when a resolved result's confidence is below the low-confidence bar.
+  lowConfidence: z.boolean(),
+  // Present when a provider failed and the offline parser answered instead.
+  fallback: z
+    .object({ from: aiProviderNameSchema, kind: z.string(), message: z.string() })
+    .optional(),
+  // Present when a session was used or created.
+  session: z.object({ id: z.string(), turn: z.number(), pending: z.boolean() }).optional(),
+  workspace: z.object({
+    root: z.string(),
+    inWorkspace: z.boolean(),
+    nodes: z.number(),
+    fingerprint: z.string(),
+  }),
+  usage: z
+    .object({
+      inputTokens: z.number().optional(),
+      outputTokens: z.number().optional(),
+      latencyMs: z.number().optional(),
+    })
+    .optional(),
+  // Machine output never executes anything.
+  executed: z.literal(false),
+};
+
+/** A confident resolution. */
+export const aiIntentResolvedSchema = z.object({
+  needsClarification: z.literal(false),
+  resolved: aiIntentCandidateSchema,
+  confidence: z.number(),
+  alternatives: z.array(aiIntentCandidateSchema),
+  explanation: z.string().optional(),
+  ...aiIntentMetaShape,
+});
+export type AiIntentResolved = z.infer<typeof aiIntentResolvedSchema>;
+
+/** A clarifying question with the candidates the user can pick from. */
+export const aiIntentClarifySchema = z.object({
+  needsClarification: z.literal(true),
+  reason: z.string(),
+  question: z.string(),
+  candidates: z.array(aiIntentCandidateSchema),
+  ...aiIntentMetaShape,
+});
+export type AiIntentClarify = z.infer<typeof aiIntentClarifySchema>;
+
+/** Envelope payload for `ai <prompt> --json`. */
+export const aiIntentResponseSchema = z.discriminatedUnion('needsClarification', [
+  aiIntentResolvedSchema,
+  aiIntentClarifySchema,
+]);
+export type AiIntentResponse = z.infer<typeof aiIntentResponseSchema>;
+
+/** One autocomplete suggestion. */
+export const aiSuggestionSchema = z.object({
+  text: z.string(),
+  kind: z.enum(['history', 'node', 'command']),
+  confidence: z.number(),
+  // True when confidence is below the low-confidence bar.
+  lowConfidence: z.boolean(),
+  argv: z.array(z.string()),
+  description: z.string().optional(),
+});
+export type AiSuggestion = z.infer<typeof aiSuggestionSchema>;
+
+/** Envelope payload for `ai suggest <partial> --json`. */
+export const aiSuggestResponseSchema = z.object({
+  partial: z.string(),
+  suggestions: z.array(aiSuggestionSchema),
+});
+export type AiSuggestResponse = z.infer<typeof aiSuggestResponseSchema>;
+
+/** One recorded session turn. */
+export const aiSessionTurnSchema = z.object({
+  at: z.string(),
+  prompt: z.string(),
+  kind: z.enum(['resolved', 'clarify', 'cancelled']),
+  argv: z.array(z.string()).optional(),
+  confidence: z.number().optional(),
+  question: z.string().optional(),
+  candidates: z.array(z.object({ argv: z.array(z.string()), confidence: z.number() })).optional(),
+  provider: z.string(),
+  source: z.string(),
+});
+export type AiSessionTurn = z.infer<typeof aiSessionTurnSchema>;
+
+/** A clarification awaiting the user's answer. */
+export const aiPendingClarificationSchema = z.object({
+  question: z.string(),
+  reason: z.string(),
+  candidates: z.array(aiIntentCandidateSchema),
+  originalPrompt: z.string(),
+  askedAt: z.string(),
+});
+export type AiPendingClarification = z.infer<typeof aiPendingClarificationSchema>;
+
+/** A full persisted session. */
+export const aiSessionSchema = z.object({
+  version: z.literal(1),
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  workspaceFingerprint: z.string(),
+  turns: z.array(aiSessionTurnSchema),
+  pending: aiPendingClarificationSchema.optional(),
+});
+export type AiSession = z.infer<typeof aiSessionSchema>;
+
+/** One row of `ai session list`. */
+export const aiSessionSummarySchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  turns: z.number(),
+  pending: z.boolean(),
+  lastPrompt: z.string().optional(),
+});
+export type AiSessionSummary = z.infer<typeof aiSessionSummarySchema>;
+
+/** Envelope payload for `ai session list --json`. */
+export const aiSessionListResponseSchema = z.object({
+  directory: z.string(),
+  sessions: z.array(aiSessionSummarySchema),
+});
+export type AiSessionListResponse = z.infer<typeof aiSessionListResponseSchema>;
+
+/** Envelope payload for `ai session show <id> --json`. */
+export const aiSessionShowResponseSchema = z.object({ session: aiSessionSchema });
+export type AiSessionShowResponse = z.infer<typeof aiSessionShowResponseSchema>;
+
+/** Envelope payload for `ai session clear --json`. */
+export const aiSessionClearResponseSchema = z.object({
+  removed: z.number(),
+  ids: z.array(z.string()),
+});
+export type AiSessionClearResponse = z.infer<typeof aiSessionClearResponseSchema>;
+
+/** Envelope payload for `ai cache stats --json`. */
+export const aiCacheStatsResponseSchema = z.object({
+  path: z.string(),
+  entries: z.number(),
+  expired: z.number(),
+  bytes: z.number(),
+  hits: z.number(),
+  misses: z.number(),
+  hitRate: z.number(),
+  oldestAt: z.string().nullable(),
+  newestAt: z.string().nullable(),
+  ttlSeconds: z.number(),
+  maxEntries: z.number(),
+  threshold: z.number(),
+  byProvider: z.record(z.string(), z.number()),
+});
+export type AiCacheStatsResponse = z.infer<typeof aiCacheStatsResponseSchema>;
+
+/** Envelope payload for `ai cache clear --json`. */
+export const aiCacheClearResponseSchema = z.object({ removed: z.number() });
+export type AiCacheClearResponse = z.infer<typeof aiCacheClearResponseSchema>;
+
+/** Where a config value came from. */
+export const aiConfigSourceSchema = z.enum(['override', 'env', 'config', 'auto', 'default']);
+
+/**
+ * The redacted view of the provider configuration. The API key is NEVER present:
+ * only whether one is set and which source supplied it.
+ */
+export const aiConfigViewSchema = z.object({
+  provider: aiProviderNameSchema,
+  model: z.string().optional(),
+  baseUrl: z.string().optional(),
+  apiKey: z.object({
+    set: z.boolean(),
+    source: z.union([aiConfigSourceSchema, z.literal('unset')]),
+  }),
+  timeoutMs: z.number(),
+  cache: z.boolean(),
+  cacheTtlSeconds: z.number(),
+  sources: z.object({
+    provider: aiConfigSourceSchema,
+    model: aiConfigSourceSchema,
+    baseUrl: aiConfigSourceSchema,
+    apiKey: z.union([aiConfigSourceSchema, z.literal('unset')]),
+    timeoutMs: aiConfigSourceSchema,
+  }),
+});
+export type AiConfigView = z.infer<typeof aiConfigViewSchema>;
+
+/** Envelope payload for `ai config show --json`. */
+export const aiConfigShowResponseSchema = z.object({
+  config: aiConfigViewSchema,
+  // Keys persisted in the global config (never their secret values).
+  persistedKeys: z.array(z.string()),
+  file: z.string(),
+});
+export type AiConfigShowResponse = z.infer<typeof aiConfigShowResponseSchema>;
+
+/** Envelope payload for `ai config get <key> --json` and `set`/`unset`. */
+export const aiConfigValueResponseSchema = z.object({
+  key: z.string(),
+  // Redacted for secrets; null when unset.
+  value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+  secret: z.boolean(),
+  set: z.boolean(),
+  // For `get`: where the effective value comes from (env > config > default).
+  source: z.string().optional(),
+  // The persisted global config file this key lives in.
+  file: z.string(),
+});
+export type AiConfigValueResponse = z.infer<typeof aiConfigValueResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // Agent-readiness docs
 //
 // `re-shell agents init|sync|check` make a repo "agent-ready by construction":
