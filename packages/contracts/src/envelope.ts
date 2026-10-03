@@ -123,6 +123,11 @@ export const errorCodeSchema = z.enum([
   'SERVICES_UNHEALTHY',
   'SERVICES_ERROR',
   'DEV_PROFILE_ERROR',
+  // Codes introduced by the P9-D Kubernetes/Helm/GitOps completion slice
+  'K8S_ROLLBACK_ERROR',
+  'K8S_CRD_ERROR',
+  'K8S_MESH_ERROR',
+  'K8S_OPERATOR_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import {
   generateGitOps,
   type GenerateGitOpsResult,
+  type GitOpsSource,
   type GitOpsTool,
 } from '../utils/gitops-generate';
 import { ok, fail, enableJsonMode } from '../utils/json-output';
@@ -27,6 +28,8 @@ export interface GitOpsGenerateCommandOptions {
   revision?: string;
   /** Path within the repository that points at the chart or raw manifests. */
   chartPath?: string;
+  /** What the GitOps tool reconciles: the Helm chart (`helm`, default) or raw manifests (`manifests`). */
+  source?: string;
   /** When `true`, emit a machine-readable JSON envelope instead of human-friendly output. */
   json?: boolean;
   /** When `true`, compute and report manifests without writing any files to disk. */
@@ -44,12 +47,18 @@ function normalizeTool(tool: string | undefined): GitOpsTool {
   throw new Error(`Unknown GitOps tool "${tool ?? ''}" (expected argocd|flux)`);
 }
 
+function normalizeSource(source: string | undefined): GitOpsSource {
+  if (source === undefined) return 'helm';
+  if (source === 'helm' || source === 'manifests') return source;
+  throw new Error(`Unknown GitOps source "${source}" (expected helm|manifests)`);
+}
+
 /**
  * Run the `k8s gitops generate --tool argocd|flux` command.
  *
  * Reads the workspace v2 config and emits GitOps manifests (an ArgoCD
- * `Application`, or a Flux `GitRepository` + `Kustomization`) plus an `Ingress`
- * with cert-manager TLS annotations. In `--json`/`--dry-run` mode nothing is
+ * `Application`, or a Flux `GitRepository` + `HelmRelease`/`Kustomization`) plus
+ * an `Ingress` with cert-manager TLS annotations. In `--json`/`--dry-run` mode nothing is
  * written; the ok envelope carries `{ tool, manifests, written }`. With `--out`
  * (and not dry-run) manifests are written to disk. Errors map to a
  * `GITOPS_GENERATE_ERROR` envelope (exit 1).
@@ -69,6 +78,7 @@ export async function runGitOpsGenerate(
       repoUrl: options.repoUrl,
       revision: options.revision,
       chartPath: options.chartPath,
+      source: normalizeSource(options.source),
       out: options.out,
       dryRun: options.dryRun,
     });
@@ -77,11 +87,15 @@ export async function runGitOpsGenerate(
     const restore = enableJsonMode();
     try {
       const result = generate();
-      ok({
-        tool: result.tool,
-        manifests: result.manifests,
-        written: result.written,
-      });
+      ok(
+        {
+          tool: result.tool,
+          source: result.source,
+          manifests: result.manifests,
+          written: result.written,
+        },
+        result.warnings
+      );
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Unknown gitops generate error';
@@ -97,6 +111,7 @@ export async function runGitOpsGenerate(
   try {
     const result = generate();
     displayResult(result, Boolean(options.dryRun));
+    for (const warning of result.warnings) console.log(chalk.yellow(`warning: ${warning}`));
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'Unknown gitops generate error';
