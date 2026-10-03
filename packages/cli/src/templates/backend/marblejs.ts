@@ -47,7 +47,6 @@ export const marblejsTemplate: BackendTemplate = {
     "@marblejs/messaging": "^4.1.0",
     "@marblejs/websockets": "^4.1.0",
     "@marblejs/testing": "^4.1.0",
-    "@marblejs/graphql": "^4.1.0",
     "graphql": "^16.8.1",
     "@graphql-tools/schema": "^10.0.0",
     "rxjs": "^7.8.1",
@@ -612,13 +611,28 @@ export const websocketEffect$ = webSocketListener({
 
     // GraphQL Effect (mounts /graphql endpoint)
     'src/effects/graphql.effects.ts': `import { r } from '@marblejs/http';
-import { graphqlServer$ } from '@marblejs/graphql';
+import { graphql } from 'graphql';
+import { from } from 'rxjs';
+import { map, mergeMap } from 'rxjs/operators';
 import { schema } from '../graphql/schema';
 
+interface GraphQLBody {
+  query: string;
+  variables?: Record<string, unknown>;
+  operationName?: string;
+}
+
+// POST /graphql: executes the query against the schema (the body is parsed by bodyParser$)
 export const graphqlEffect$ = r.pipe(
   r.matchPath('/graphql'),
   r.matchType('POST'),
-  r.useEffect(graphqlServer$({ schema })));`,
+  r.useEffect(req$ => req$.pipe(
+    mergeMap(req => {
+      const { query, variables, operationName } = req.body as GraphQLBody;
+      return from(graphql({ schema, source: query, variableValues: variables, operationName }));
+    }),
+    map(result => ({ body: result })),
+  )));`,
 
     // GraphQL Schema
     'src/graphql/schema.ts': `import { makeExecutableSchema } from '@graphql-tools/schema';

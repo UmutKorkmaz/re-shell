@@ -29,6 +29,7 @@ export const globalCdnIntegrationTemplate: BackendTemplate = {
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
+    "eventemitter3": "^5.0.1",
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "helmet": "^7.0.0",
@@ -36,7 +37,7 @@ export const globalCdnIntegrationTemplate: BackendTemplate = {
     "axios": "^1.5.0",
     "cloudflare": "^2.9.1",
     "aws-sdk": "^2.1450.0",
-    "azure-storage-blob": "^12.17.0",
+    "@azure/storage-blob": "^12.17.0",
     "fastly": "^5.0.2",
     "sharp": "^0.32.5",
     "mime-types": "^2.1.35",
@@ -64,6 +65,7 @@ export const globalCdnIntegrationTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -72,9 +74,9 @@ export const globalCdnIntegrationTemplate: BackendTemplate = {
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*"],
@@ -107,7 +109,7 @@ app.use(express.json());
 const cdnManager = new CDNManager();
 const edgeOptimizer = new EdgeOptimizer();
 const assetUploader = new AssetUploader();
-const cacheInvalidator = new CacheInvalidator();
+const cacheInvalidator = new CacheInvalidator(cdnManager);
 
 // Mount routes
 app.use('/api', apiRoutes(cdnManager, edgeOptimizer, cacheInvalidator));
@@ -143,7 +145,7 @@ export interface CDNPurgeResult {
   success: boolean;
   purgedUrls: string[];
   error?: string;
-  duration: number;
+  duration?: number;
 }
 
 export class CDNManager extends EventEmitter {
@@ -266,7 +268,7 @@ export class CDNManager extends EventEmitter {
 
       this.emit('purge', result);
       return [result];
-    } catch (error: unknown) {
+    } catch (error: any) {
       const failResult: CDNPurgeResult = {
         provider: targetProvider,
         success: false,
@@ -302,7 +304,7 @@ export class CDNManager extends EventEmitter {
       } else {
         throw new Error(response.data.errors?.[0]?.message || 'Purge failed');
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       throw new Error(\`Cloudflare purge failed: \${error.message}\`);
     }
   }
@@ -334,13 +336,13 @@ export class CDNManager extends EventEmitter {
         success: true,
         purgedUrls: urls,
       };
-    } catch (error: unknown) {
+    } catch (error: any) {
       throw new Error(\`CloudFront purge failed: \${error.message}\`);
     }
   }
 
   private async purgeAzure(urls: string[], config: any): Promise<CDNPurgeResult> {
-    const Azure = require('azure-storage-blob');
+    const Azure = require('@azure/storage-blob');
     const containerClient = Azure.BlobServiceClient(
       \`https://\${config.storageAccount}.blob.core.windows.net\`,
       config.accessKey
@@ -362,7 +364,7 @@ export class CDNManager extends EventEmitter {
         success: true,
         purgedUrls,
       };
-    } catch (error: unknown) {
+    } catch (error: any) {
       throw new Error(\`Azure purge failed: \${error.message}\`);
     }
   }
@@ -385,7 +387,7 @@ export class CDNManager extends EventEmitter {
         success: true,
         purgedUrls: urls,
       };
-    } catch (error: unknown) {
+    } catch (error: any) {
       throw new Error(\`Fastly purge failed: \${error.message}\`);
     }
   }
@@ -462,7 +464,7 @@ export class EdgeOptimizer {
     const originalSize = originalBuffer.length;
     const mimeType = mime.lookup(filePath) || 'application/octet-stream';
 
-    let optimizedBuffer = originalBuffer;
+    let optimizedBuffer: Buffer = originalBuffer;
 
     if (compressImages || convertToWebP) {
       let image = sharp(originalBuffer);
@@ -569,7 +571,7 @@ export class EdgeOptimizer {
     return \`\${cdnBaseUrl}\${versionPrefix}\${path}\`;
   }
 
-  private getOptizedPath(originalPath: string, newExt?: string): string {
+  private getOptimizedPath(originalPath: string, newExt?: string): string {
     const parsed = originalPath.split('/');
     const filename = parsed.pop()!;
     const name = basename(filename, extname(filename));
@@ -659,7 +661,7 @@ export class AssetUploader extends EventEmitter {
       async (file) => {
         return this.uploadFile(file, cdnBaseUrl, options);
       },
-      { concurrency }
+      { concurrency: concurrent }
     );
 
     this.emit('batch:complete', { directory, count: results.length });
@@ -691,7 +693,7 @@ export class AssetUploader extends EventEmitter {
 
       this.emit('upload:success', result);
       return result;
-    } catch (error: unknown) {
+    } catch (error: any) {
       const failResult: UploadResult = {
         provider: 'cdn',
         file: filePath,
@@ -854,7 +856,7 @@ export class CacheInvalidator extends EventEmitter {
       task.completedAt = Date.now();
 
       this.emit('task:completed', { task, results });
-    } catch (error: unknown) {
+    } catch (error: any) {
       task.status = 'failed';
       task.completedAt = Date.now();
 
@@ -1039,8 +1041,8 @@ export function cdnRoutes(cdnManager: CDNManager, assetUploader: AssetUploader):
         message: 'Purge completed',
         results,
       });
-    } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1054,8 +1056,8 @@ export function cdnRoutes(cdnManager: CDNManager, assetUploader: AssetUploader):
         message: 'Full purge completed',
         result,
       });
-    } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1077,8 +1079,8 @@ export function cdnRoutes(cdnManager: CDNManager, assetUploader: AssetUploader):
         failed: results.filter((r) => !r.success).length,
         results,
       });
-    } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1094,8 +1096,8 @@ export function cdnRoutes(cdnManager: CDNManager, assetUploader: AssetUploader):
       const result = await assetUploader.uploadFile(file, cdnBaseUrl, options);
 
       res.json(result);
-    } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1133,8 +1135,8 @@ export function edgeRoutes(edgeOptimizer: EdgeOptimizer): Router {
       const result = await edgeOptimizer.optimizeImage(filePath, options);
 
       res.json(result);
-    } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1150,8 +1152,8 @@ export function edgeRoutes(edgeOptimizer: EdgeOptimizer): Router {
       const result = edgeOptimizer.optimizeCSS(css);
 
       res.json(result);
-    } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1167,8 +1169,8 @@ export function edgeRoutes(edgeOptimizer: EdgeOptimizer): Router {
       const result = edgeOptimizer.optimizeJS(js);
 
       res.json(result);
-    } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 

@@ -68,7 +68,7 @@ target_link_libraries(\${PROJECT_NAME} PRIVATE \${PROJECT_NAME}_lib)
 
 # Copy config files to build directory
 configure_file(config.json \${CMAKE_CURRENT_BINARY_DIR}/config.json COPYONLY)
-configure_file(views/index.csp \${CMAKE_CURRENT_BINARY_DIR}/views/index.csp COPYONLY)
+configure_file(views/HomePage.csp \${CMAKE_CURRENT_BINARY_DIR}/views/HomePage.csp COPYONLY)
 
 # Drogon view compilation
 drogon_create_views(\${PROJECT_NAME}_lib \${CMAKE_CURRENT_SOURCE_DIR}/views
@@ -899,13 +899,14 @@ namespace services {
     void UserService::updateUser(const models::User& user, UserCallback callback) {
         auto now = trantor::Date::now().toDbString();
         
+        // An empty value means "leave the column unchanged" (NULLIF turns '' into NULL)
         auto dbClient = drogon::app().getDbClient("default");
-        *dbClient << "UPDATE users SET email = COALESCE($2, email), "
-                     "name = COALESCE($3, name), updated_at = $4 "
+        *dbClient << "UPDATE users SET email = COALESCE(NULLIF($2, ''), email), "
+                     "name = COALESCE(NULLIF($3, ''), name), updated_at = $4 "
                      "WHERE id = $1 RETURNING *"
-                  << user.id 
-                  << (user.email.empty() ? nullptr : &user.email)
-                  << (user.name.empty() ? nullptr : &user.name)
+                  << user.id
+                  << user.email
+                  << user.name
                   << now
                   >> [callback](const drogon::orm::Result &r) {
                       if (!r.empty()) {
@@ -1256,7 +1257,7 @@ CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 `,
 
     // Views
-    'views/index.csp': `<!DOCTYPE html>
+    'views/HomePage.csp': `<!DOCTYPE html>
 <html>
 <head>
     <title>{{serviceName}} - Drogon Framework</title>

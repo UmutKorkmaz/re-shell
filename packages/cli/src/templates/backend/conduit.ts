@@ -15,7 +15,7 @@ export const conduitTemplate: BackendTemplate = {
   
   files: {
     // Dart project configuration
-    'pubspec.yaml': `name: {{projectName}}
+    'pubspec.yaml': `name: {{projectNameSnake}}
 description: A web server built using the Conduit framework.
 version: 1.0.0
 publish_to: none
@@ -34,10 +34,10 @@ dev_dependencies:
   test: ^1.24.0`,
 
     // Main application file
-    'lib/{{projectName}}.dart': `/// {{projectName}}
+    'lib/{{projectNameSnake}}.dart': `/// {{projectName}}
 ///
 /// A Conduit web server.
-library {{projectName}};
+library {{projectNameSnake}};
 
 export 'dart:async';
 export 'dart:io';
@@ -62,7 +62,7 @@ export 'controller/health_controller.dart';
 export 'controller/graphql_controller.dart';`,
 
     // Application channel
-    'lib/channel.dart': `import '{{projectName}}.dart';
+    'lib/channel.dart': `import '{{projectNameSnake}}.dart';
 import 'package:conduit_postgresql/conduit_postgresql.dart';
 
 /// This type initializes an application.
@@ -146,7 +146,7 @@ class {{projectNamePascal}}Channel extends ApplicationChannel {
 }`,
 
     // Configuration
-    'lib/config.dart': `import '{{projectName}}.dart';
+    'lib/config.dart': `import '{{projectNameSnake}}.dart';
 
 /// This class represents configuration values read from a configuration file.
 class {{projectNamePascal}}Configuration extends Configuration {
@@ -171,7 +171,7 @@ database:
   port: 5432
   username: conduit
   password: conduit
-  databaseName: {{projectName}}_db`,
+  databaseName: {{projectNameSnake}}_db`,
 
     'config.src.yaml': `# Development Configuration
 host: localhost
@@ -182,10 +182,10 @@ database:
   port: 5432
   username: conduit
   password: conduit
-  databaseName: {{projectName}}_dev`,
+  databaseName: {{projectNameSnake}}_dev`,
 
     // Models
-    'lib/model/user.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'lib/model/user.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class User extends ManagedObject<_User> implements _User, ManagedAuthResourceOwner<_User> {
   @Serialize(input: true, output: false)
@@ -293,7 +293,7 @@ class LoginRequest extends Serializable {
   }
 }`,
 
-    'lib/model/todo.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'lib/model/todo.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class Todo extends ManagedObject<_Todo> implements _Todo {}
 
@@ -367,7 +367,7 @@ class UpdateTodoRequest extends Serializable {
   }
 }`,
 
-    'lib/model/auth_token.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'lib/model/auth_token.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class AuthToken extends ManagedObject<_AuthToken> implements _AuthToken {}
 
@@ -381,7 +381,7 @@ class _AuthToken extends ManagedAuthToken<_AuthToken> {
 }`,
 
     // Controllers
-    'lib/controller/register_controller.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'lib/controller/register_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class RegisterController extends ResourceController {
   RegisterController(this.context, this.authServer);
@@ -435,7 +435,7 @@ class RegisterController extends ResourceController {
   }
 }`,
 
-    'lib/controller/auth_controller.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'lib/controller/auth_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class AuthController extends ResourceController {
   AuthController(this.authServer);
@@ -492,7 +492,7 @@ class AuthController extends ResourceController {
   }
 }`,
 
-    'lib/controller/user_controller.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'lib/controller/user_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class UserController extends ResourceController {
   UserController(this.context);
@@ -570,7 +570,7 @@ class UserController extends ResourceController {
   }
 }`,
 
-    'lib/controller/todo_controller.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'lib/controller/todo_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class TodoController extends ResourceController {
   TodoController(this.context);
@@ -705,7 +705,7 @@ class GraphqlResolvers {
 }
 `,
 
-    'lib/controller/graphql_controller.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'lib/controller/graphql_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class GraphqlController extends ResourceController {
   @Operation.post()
@@ -726,7 +726,7 @@ class GraphqlController extends ResourceController {
 }
 `,
 
-    'lib/controller/health_controller.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'lib/controller/health_controller.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 class HealthController extends ResourceController {
   @Operation.get()
@@ -751,7 +751,7 @@ class HealthController extends ResourceController {
 }`,
 
     // Entry point
-    'bin/main.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'bin/main.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 Future main() async {
   final app = Application<{{projectNamePascal}}Channel>()
@@ -847,10 +847,10 @@ class Migration1 extends Migration {
 }`,
 
     // Tests
-    'test/harness/app.dart': `import 'package:{{projectName}}/{{projectName}}.dart';
+    'test/harness/app.dart': `import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 import 'package:conduit_test/conduit_test.dart';
 
-export 'package:{{projectName}}/{{projectName}}.dart';
+export 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 export 'package:conduit_test/conduit_test.dart';
 export 'package:test/test.dart';
 export 'package:conduit/conduit.dart';
@@ -1055,14 +1055,14 @@ services:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgres://conduit:conduit@db:5432/{{projectName}}_db
+      - DATABASE_URL=postgres://conduit:conduit@db:5432/{{projectNameSnake}}_db
 
   db:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=conduit
       - POSTGRES_PASSWORD=conduit
-      - POSTGRES_DB={{projectName}}_db
+      - POSTGRES_DB={{projectNameSnake}}_db
     ports:
       - "5432:5432"
     volumes:
@@ -1150,14 +1150,14 @@ dart pub get
 
 1. Create PostgreSQL database:
    \`\`\`sql
-   CREATE DATABASE {{projectName}}_db;
+   CREATE DATABASE {{projectNameSnake}}_db;
    CREATE USER conduit WITH PASSWORD 'conduit';
-   GRANT ALL PRIVILEGES ON DATABASE {{projectName}}_db TO conduit;
+   GRANT ALL PRIVILEGES ON DATABASE {{projectNameSnake}}_db TO conduit;
    \`\`\`
 
 2. Run migrations:
    \`\`\`bash
-   conduit db upgrade --connect postgres://conduit:conduit@localhost:5432/{{projectName}}_db
+   conduit db upgrade --connect postgres://conduit:conduit@localhost:5432/{{projectNameSnake}}_db
    \`\`\`
 
 ## Running the Application

@@ -33,7 +33,7 @@ kind: Secret
 metadata:
   name: linkerd-identity-issuer
   namespace: linkerd
-type:Opaque
+type: Opaque
 stringData:
   crt.pem: |
     # PEM-encoded issuer certificate
@@ -183,8 +183,6 @@ spec:
     weight: 100
   - service: payment-service-v2
     weight: 0  # Mirror only
-  apiversion: split.smi-spec.io/v1alpha1
-  service: payment-service
 `,
 
     'linkerd/security/mtls-policy.yaml': `# Enable mTLS per Namespace

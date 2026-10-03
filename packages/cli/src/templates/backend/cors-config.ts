@@ -436,7 +436,7 @@ spec:
         allowOrigins:
           - exact: http://localhost:3000
           - exact: http://localhost:3001
-          - regex: "https://.*\\.example\\.com"
+          - regex: 'https://.*\\.example\\.com'
         allowMethods:
           - GET
           - POST

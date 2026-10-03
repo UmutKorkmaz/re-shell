@@ -58,8 +58,8 @@ async function startApolloServer() {
   const serverCleanup = useServer(
     {
       schema,
-      context: async (ctx, msg, args) => {
-        return createContext({ req: ctx.extra.request, redis });
+      context: async (ctx) => {
+        return createContext({ req: ctx.extra.request as unknown as express.Request, redis });
       }},
     wsServer
   );
@@ -82,7 +82,7 @@ async function startApolloServer() {
       
       // Remove stack trace in production
       if (process.env.NODE_ENV === 'production') {
-        delete err.extensions?.exception?.stacktrace;
+        delete (err.extensions as any)?.exception?.stacktrace;
       }
       
       return err;
@@ -101,7 +101,7 @@ async function startApolloServer() {
   );
 
   // Health check
-  app.get('/health', (req, res) => {
+  app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
@@ -370,7 +370,7 @@ export const fileTypeDefs = gql\`
     'src/resolvers/index.ts': `import { userResolvers } from './user';
 import { postResolvers } from './post';
 import { fileResolvers } from './file';
-import { GraphQLUpload } from 'graphql-upload/GraphQLUpload.js';
+import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 
 export const resolvers = {
   Upload: GraphQLUpload,
@@ -556,7 +556,7 @@ export const postResolvers = {
         throw new GraphQLError('Not authorized to delete this post');
       }
 
-      return dataSources.postAPI.delete(id);
+      return dataSources.postAPI.deleteById(id);
     },
 
     likePost: async (_: any, { id }: any, { user, dataSources }: any) => {
@@ -698,7 +698,7 @@ export const fileResolvers = {
       await fs.unlink(filePath).catch(() => {}); // Ignore if file doesn't exist
 
       // Delete from database
-      return dataSources.fileAPI.delete(id);
+      return dataSources.fileAPI.deleteById(id);
     }}};`,
 
     'src/context.ts': `import jwt from 'jsonwebtoken';
@@ -937,7 +937,7 @@ export class PostAPI extends RESTDataSource {
     return updated;
   }
 
-  async delete(id: string) {
+  async deleteById(id: string) {
     return this.posts.delete(id);
   }
 
@@ -979,36 +979,39 @@ export class FileAPI extends RESTDataSource {
     return file;
   }
 
-  async delete(id: string) {
+  async deleteById(id: string) {
     return this.files.delete(id);
   }
 }`,
 
     'src/plugins/index.ts': `import responseCachePlugin from '@apollo/server-plugin-response-cache';
-import { ApolloServerPluginLandingPageGraphQLPlayground } from '@apollo/server-plugin-landing-page-graphql-playground';
+import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
+import type { ApolloServerPlugin } from '@apollo/server';
 import { rateLimitPlugin } from './rateLimit';
 import { depthLimitPlugin } from './depthLimit';
 import { costAnalysisPlugin } from './costAnalysis';
 import { loggingPlugin } from './logging';
 
-export const plugins = [
+export const plugins: ApolloServerPlugin<any>[] = [
   responseCachePlugin({
-    sessionId: ({ request }) => 
+    sessionId: async ({ request }) =>
       request.http?.headers.get('authorization') || 'anonymous'}),
-  process.env.NODE_ENV !== 'production' && 
-    ApolloServerPluginLandingPageGraphQLPlayground(),
+  ...(process.env.NODE_ENV !== 'production'
+    ? [ApolloServerPluginLandingPageLocalDefault({ embed: true })]
+    : []),
   rateLimitPlugin(),
   depthLimitPlugin(5),
   costAnalysisPlugin({ maximumCost: 1000 }),
-  loggingPlugin()].filter(Boolean);`,
+  loggingPlugin()];`,
 
     'src/plugins/rateLimit.ts': `import { GraphQLError } from 'graphql';
 import { getDirective, MapperKind, mapSchema } from '@graphql-tools/utils';
 import { defaultFieldResolver } from 'graphql';
 
-export function rateLimitPlugin() {
-  const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+// Shared by the plugin (cleanup) and the @rateLimit directive transformer
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
+export function rateLimitPlugin() {
   return {
     async requestDidStart() {
       return {
@@ -1153,6 +1156,28 @@ export const logger = winston.createLogger({
       filename: 'combined.log' 
     })]});`,
 
+    'src/types/modules.d.ts': `// Ambient declarations for packages that ship without TypeScript types
+declare module 'graphql-upload/graphqlUploadExpress.js' {
+  import { RequestHandler } from 'express';
+  export default function graphqlUploadExpress(options?: {
+    maxFieldSize?: number;
+    maxFileSize?: number;
+    maxFiles?: number;
+  }): RequestHandler;
+}
+
+declare module 'graphql-upload/GraphQLUpload.js' {
+  import { GraphQLScalarType } from 'graphql';
+  const GraphQLUpload: GraphQLScalarType;
+  export default GraphQLUpload;
+}
+
+declare module 'graphql-cost-analysis' {
+  const costAnalysis: (options: any) => number;
+  export default costAnalysis;
+}
+`,
+
     'src/utils/pubsub.ts': `import { PubSub } from 'graphql-subscriptions';
 
 // In production, use Redis PubSub for scalability
@@ -1214,11 +1239,19 @@ export function authDirectiveTransformer(schema: any) {
     }});
 }`,
 
-    'src/tests/server.test.ts': `import request from 'supertest';
-import { ApolloServer } from '@apollo/server';
+    'src/tests/server.test.ts': `import { ApolloServer } from '@apollo/server';
+import type { GraphQLResponse } from '@apollo/server';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { typeDefs } from '../schema';
 import { resolvers } from '../resolvers';
+
+// executeOperation may return an incremental result; these tests only use single results
+function singleResult(result: GraphQLResponse) {
+  if (result.body.kind !== 'single') {
+    throw new Error('expected a single GraphQL result');
+  }
+  return result.body.singleResult;
+}
 
 describe('Apollo Server', () => {
   let server: ApolloServer;
@@ -1243,7 +1276,7 @@ describe('Apollo Server', () => {
 
       const result = await server.executeOperation({ query });
       expect(result.body.kind).toBe('single');
-      expect(result.body.singleResult.errors).toBeUndefined();
+      expect(singleResult(result).errors).toBeUndefined();
     });
   });
 
@@ -1274,9 +1307,9 @@ describe('Apollo Server', () => {
       });
 
       expect(result.body.kind).toBe('single');
-      expect(result.body.singleResult.data?.register).toBeDefined();
-      expect(result.body.singleResult.data?.register.token).toBeDefined();
-      expect(result.body.singleResult.data?.register.user.email).toBe('test@example.com');
+      expect((singleResult(result).data as any)?.register).toBeDefined();
+      expect((singleResult(result).data as any)?.register.token).toBeDefined();
+      expect((singleResult(result).data as any)?.register.user.email).toBe('test@example.com');
     });
   });
 
@@ -1293,8 +1326,8 @@ describe('Apollo Server', () => {
 
       const result = await server.executeOperation({ query });
       expect(result.body.kind).toBe('single');
-      expect(result.body.singleResult.errors).toBeDefined();
-      expect(result.body.singleResult.errors?.[0].message).toBe('Not authenticated');
+      expect(singleResult(result).errors).toBeDefined();
+      expect(singleResult(result).errors?.[0].message).toBe('Not authenticated');
     });
   });
 });`,
@@ -1437,7 +1470,50 @@ UPLOAD_DIR=./uploads`,
   },
   "keywords": ["apollo", "graphql", "typescript", "api"],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@apollo/datasource-rest": "^6.2.2",
+    "@apollo/server": "^4.10.0",
+    "@apollo/server-plugin-response-cache": "^4.1.3",
+    "@graphql-tools/schema": "^10.0.3",
+    "@graphql-tools/utils": "^10.1.2",
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dataloader": "^2.2.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "graphql": "^16.8.1",
+    "graphql-cost-analysis": "^1.0.3",
+    "graphql-depth-limit": "^1.1.0",
+    "graphql-subscriptions": "^2.0.0",
+    "graphql-tag": "^2.12.6",
+    "graphql-upload": "^13.0.0",
+    "graphql-ws": "^5.16.0",
+    "ioredis": "^5.3.2",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.1",
+    "winston": "^3.13.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/body-parser": "^1.19.5",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/graphql-depth-limit": "^1.1.6",
+    "@types/jest": "^29.5.12",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.12.7",
+    "@types/supertest": "^6.0.2",
+    "@types/uuid": "^9.0.8",
+    "@types/ws": "^8.5.10",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.1.2",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5"
+  }
 }`,
 
     'jest.config.js': `module.exports = {
