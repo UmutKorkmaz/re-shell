@@ -77,7 +77,7 @@ export function CommandPreview({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ScrollArea label="Command text" className="max-h-32 rounded-md border border-border bg-bg-0 shadow-elev-1">
+        <ScrollArea label={`Command text: ${spec.commandText}`} className="max-h-32 rounded-md border border-border bg-bg-0 shadow-elev-1">
           <pre
             key={flash.key}
             className={cn(
