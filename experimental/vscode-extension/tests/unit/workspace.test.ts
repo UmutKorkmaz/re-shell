@@ -10,7 +10,9 @@ import {
 } from '../../src/core/workspace.js';
 
 // ---------------------------------------------------------------------------
-// Fixtures matching the contract shapes (packages/contracts/src/schemas.ts).
+// Fixtures matching what the CLI really prints (the WIRE shapes in
+// packages/contracts/src/wire.ts). The summary and health payloads are NOT the
+// domain WorkspaceSummary / HealthSummary: the parsers adapt them.
 // ---------------------------------------------------------------------------
 
 function okEnvelope<T>(data: T, warnings: string[] = []): string {
@@ -21,45 +23,41 @@ function errorEnvelope(code: string, message: string): string {
   return JSON.stringify({ ok: false, error: { code, message }, warnings: [] });
 }
 
-function sampleApp(over: Partial<{ id: string; name: string; type: string; path: string; framework: string; port: number; status: string }> = {}) {
+function wireWorkspace(over: Record<string, unknown> = {}) {
   return {
-    id: 'a',
     name: 'web',
-    type: 'frontend',
-    path: '/apps/web',
+    path: 'apps/web',
+    type: 'app',
     framework: 'react',
-    port: 3000,
-    scripts: { dev: 'vite' },
-    status: 'running',
+    version: '1.0.0',
+    dependencies: ['react'],
     ...over,
   };
 }
 
-function sampleService(over: Partial<{ id: string; name: string; type: string; path: string; framework: string; port: number; status: string }> = {}) {
+function wireHealth(over: Partial<{ score: number; status: string; checks: unknown[] }> = {}) {
   return {
-    id: 's',
-    name: 'api',
-    type: 'api',
-    path: '/services/api',
-    framework: 'fastify',
-    port: 4000,
-    healthUrl: '/health',
-    status: 'running',
+    score: 100,
+    status: 'healthy',
+    checks: [{ name: 'Workspaces', status: 'healthy', message: '2 workspace(s) detected' }],
     ...over,
   };
 }
 
-function sampleSummary(over: Partial<{ apps: unknown[]; services: unknown[]; health: unknown }> = {}) {
+function wireSummary(over: Partial<{ root: string; workspaces: unknown[]; health: unknown }> = {}) {
   return {
-    path: '/',
-    name: 'root',
+    root: '/work/root',
     packageManager: 'pnpm',
-    nodeVersion: '20',
-    git: { branch: 'main', dirty: false },
-    apps: [sampleApp()],
-    services: [sampleService()],
-    templates: [],
-    health: { score: 100, status: 'pass', checks: [] },
+    workspaces: [
+      wireWorkspace(),
+      // No framework detected: the CLI omits the key.
+      { name: 'api', path: 'packages/api', type: 'package', version: '1.0.0', dependencies: [] },
+    ],
+    graph: {
+      apps: [{ name: 'web', path: 'apps/web', framework: 'react', dependencies: [] }],
+      services: [{ name: 'api', path: 'packages/api', framework: null, dependencies: [] }],
+    },
+    health: wireHealth(),
     ...over,
   };
 }
@@ -69,20 +67,22 @@ function sampleSummary(over: Partial<{ apps: unknown[]; services: unknown[]; hea
 // ---------------------------------------------------------------------------
 
 describe('parseWorkspaceSummary', () => {
-  it('parses a valid workspace summary envelope', () => {
-    const raw = okEnvelope(sampleSummary(), ['heads up']);
+  it('parses a real workspace summary envelope and adapts it to the domain model', () => {
+    const raw = okEnvelope(wireSummary(), ['heads up']);
     const result = parseWorkspaceSummary(raw);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.summary.name).toBe('root');
+    expect(result.summary.name).toBe('root'); // basename of `root`
+    expect(result.summary.path).toBe('/work/root');
     expect(result.summary.packageManager).toBe('pnpm');
-    expect(result.summary.apps).toHaveLength(1);
-    expect(result.summary.services).toHaveLength(1);
+    expect(result.summary.apps.map((a) => a.name)).toEqual(['web']);
+    expect(result.summary.services.map((s) => s.name)).toEqual(['api']);
+    expect(result.summary.health.status).toBe('pass'); // healthy -> pass
     expect(result.warnings).toEqual(['heads up']);
   });
 
   it('accepts an already-parsed object', () => {
-    const obj = { ok: true, data: sampleSummary(), warnings: [] };
+    const obj = { ok: true, data: wireSummary(), warnings: [] };
     const result = parseWorkspaceSummary(obj);
     expect(result.ok).toBe(true);
   });
@@ -109,9 +109,23 @@ describe('parseWorkspaceSummary', () => {
   });
 
   it('rejects a payload that does not match the contract', () => {
-    const result = parseWorkspaceSummary(okEnvelope({ path: 123 }));
+    const result = parseWorkspaceSummary(okEnvelope({ root: 123 }));
     expect(result.ok).toBe(false);
     expect(result.error).toContain('does not match the contract');
+  });
+
+  it('rejects the domain-shaped summary the real CLI never prints', () => {
+    const domainShaped = {
+      path: '/',
+      name: 'root',
+      packageManager: 'pnpm',
+      apps: [],
+      services: [],
+      templates: [],
+      health: { score: 100, status: 'pass', checks: [] },
+    };
+    const result = parseWorkspaceSummary(okEnvelope(domainShaped));
+    expect(result.ok).toBe(false);
   });
 });
 
@@ -144,20 +158,40 @@ describe('parseWorkspaceGraph', () => {
 // ---------------------------------------------------------------------------
 
 describe('parseWorkspaceHealth', () => {
-  it('parses a health summary with checks', () => {
-    const health = {
+  it('parses the real canonical health report and adapts it to the domain summary', () => {
+    const health = wireHealth({
       score: 80,
-      status: 'warn',
+      status: 'degraded',
       checks: [
-        { id: 'c1', title: 'Check 1', level: 'pass', message: 'ok' },
-        { id: 'c2', title: 'Check 2', level: 'warn', message: 'watch' },
+        { name: 'Check 1', status: 'healthy', message: 'ok' },
+        { name: 'Check 2', status: 'warning', message: 'watch', details: ['a'] },
+        { name: 'Check 3', status: 'critical' },
       ],
-    };
+    });
     const result = parseWorkspaceHealth(okEnvelope(health));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.health.checks).toHaveLength(2);
-    expect(result.health.status).toBe('warn');
+    expect(result.health.checks).toHaveLength(3);
+    expect(result.health.status).toBe('warn'); // degraded -> warn
+    expect(result.health.checks.map((c) => c.level)).toEqual(['pass', 'warn', 'fail']);
+    expect(result.health.checks[0]).toMatchObject({ id: 'Check 1-0', title: 'Check 1', message: 'ok' });
+    expect(result.health.checks[2].message).toBe('');
+  });
+
+  it('rejects the domain vocabulary (pass/warn/fail) the CLI never prints', () => {
+    const domainShaped = {
+      score: 80,
+      status: 'warn',
+      checks: [{ id: 'c1', title: 'Check 1', level: 'pass', message: 'ok' }],
+    };
+    expect(parseWorkspaceHealth(okEnvelope(domainShaped)).ok).toBe(false);
+  });
+
+  it('surfaces a CLI error envelope', () => {
+    const result = parseWorkspaceHealth(errorEnvelope('WORKSPACE_NOT_FOUND', 'No workspace configuration found'));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('WORKSPACE_NOT_FOUND');
   });
 });
 
