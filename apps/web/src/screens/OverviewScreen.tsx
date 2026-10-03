@@ -235,6 +235,7 @@ function MetricTile({
   return (
     <button
       type="button"
+      data-testid={`metric-${label.toLowerCase()}`}
       onClick={onClick}
       className={cn(
         'surface group flex flex-col items-start p-4 text-left outline-none transition-all duration-fast',
