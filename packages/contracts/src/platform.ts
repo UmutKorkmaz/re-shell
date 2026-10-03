@@ -104,6 +104,64 @@ export const pkgResponseSchema = z.object({
 export type PkgResponse = z.infer<typeof pkgResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// debug config  (`re-shell debug config`)
+//
+// Generates a VS Code launch.json (one set of configurations per workspace
+// service, chosen by language, plus a compound that debugs several services
+// together) and a docker-compose debug override for services running in compose.
+// ---------------------------------------------------------------------------
+
+export const debugKindSchema = z.enum(['node', 'bun', 'python', 'go', 'rust', 'java', 'php', 'ruby', 'dotnet']);
+export type DebugKind = z.infer<typeof debugKindSchema>;
+
+export const debugServiceSchema = z.object({
+  name: z.string(),
+  language: z.string(),
+  debugKind: debugKindSchema,
+  /** Debug port; null for adapters that attach over a pipe (dotnet). */
+  debugPort: z.number().nullable(),
+  portSource: z.enum(['explicit', 'allocated', 'none']),
+  /** Names of the generated launch configurations. */
+  configurations: z.array(z.string()),
+  inCompose: z.boolean(),
+  composeService: z.string().nullable(),
+  remoteRoot: z.string().nullable(),
+});
+export type DebugService = z.infer<typeof debugServiceSchema>;
+
+/** Envelope payload for `re-shell debug config --json`. */
+export const debugConfigResponseSchema = z.object({
+  /** launch.json path (absolute). */
+  out: z.string(),
+  dryRun: z.boolean(),
+  written: z.boolean(),
+  services: z.array(debugServiceSchema),
+  skipped: z.array(z.object({ name: z.string(), language: z.string(), reason: z.string() })),
+  compound: z.object({ name: z.string(), configurations: z.array(z.string()) }).nullable(),
+  launch: z.object({
+    created: z.boolean(),
+    added: z.array(z.string()),
+    updated: z.array(z.string()),
+    unchanged: z.array(z.string()),
+    /** Existing entries the tool does not own (left untouched). */
+    preserved: z.number(),
+    /** Full merged launch.json text. */
+    content: z.string(),
+  }),
+  compose: z
+    .object({
+      path: z.string(),
+      written: z.boolean(),
+      services: z.array(z.string()),
+      content: z.string(),
+    })
+    .nullable(),
+  notes: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+export type DebugConfigResponse = z.infer<typeof debugConfigResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // refactor rename-service  (`re-shell refactor rename-service <old> <new>`)
 //
 // Renames a service across the workspace config, compose files, generated
