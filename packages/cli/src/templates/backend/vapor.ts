@@ -25,7 +25,7 @@ let package = Package(
     ],
     dependencies: [
         // 💧 A server-side Swift web framework.
-        .package(url: "https://github.com/vapor/vapor.git", from: "4.89.0"),
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.99.0"),
         // 🔵 Swift ORM (queries, models, relations, etc) built on SQLite 3.
         .package(url: "https://github.com/vapor/fluent.git", from: "4.8.0"),
         .package(url: "https://github.com/vapor/fluent-postgres-driver.git", from: "2.8.0"),
@@ -37,10 +37,8 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
         // 🔍 Swift Metrics API
         .package(url: "https://github.com/apple/swift-metrics.git", from: "2.4.1"),
-        // 🧪 Testing utilities
-        .package(url: "https://github.com/vapor/vapor-testing.git", from: "0.2.0"),
-        // 🌀 GraphQL for Vapor via Graphiti
-        .package(url: "https://github.com/vapor-community/Graphiti.git", from: "1.0.0")],
+        // 🌀 GraphQL schema DSL (Graphiti 1.x, EventLoopFuture-based execution)
+        .package(url: "https://github.com/GraphQLSwift/Graphiti.git", from: "1.0.0")],
     targets: [
         .executableTarget(
             name: "App",
@@ -50,7 +48,7 @@ let package = Package(
                 .product(name: "FluentMySQLDriver", package: "fluent-mysql-driver"),
                 .product(name: "FluentSQLiteDriver", package: "fluent-sqlite-driver"),
                 .product(name: "Vapor", package: "vapor"),
-                .product(name: "JWT", package: "authentication"),
+                .product(name: "JWT", package: "jwt"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Metrics", package: "swift-metrics"),
                 .product(name: "Graphiti", package: "Graphiti")]
@@ -59,8 +57,7 @@ let package = Package(
             name: "AppTests",
             dependencies: [
                 .target(name: "App"),
-                .product(name: "XCTVapor", package: "vapor"),
-                .product(name: "VaporTesting", package: "vapor-testing")]
+                .product(name: "XCTVapor", package: "vapor")]
         )
     ]
 )`,
@@ -74,23 +71,21 @@ import NIOPosix
 @main
 enum Entrypoint {
     static func main() async throws {
-        // Bootstrap logging system
-        LoggingSystem.bootstrap(StreamLogHandler.standardOutput)
-        
         var env = try Environment.detect()
+        // Bootstrap logging once, honouring --log / LOG_LEVEL.
         try LoggingSystem.bootstrap(from: &env)
-        
-        let app = Application(env)
-        defer { app.shutdown() }
-        
+
+        let app = try await Application.make(env)
+
         do {
             try await configure(app)
+            try await app.execute()
         } catch {
             app.logger.report(error: error)
+            try? await app.asyncShutdown()
             throw error
         }
-        
-        try await app.run()
+        try await app.asyncShutdown()
     }
 }`,
 
@@ -105,11 +100,8 @@ import JWT
 
 // configures your application
 public func configure(_ app: Application) async throws {
-    // Load environment variables from .env file
-    if let envPath = Environment.get("ENV_PATH") {
-        try DotEnv.load(path: envPath)
-    }
-    
+    // Vapor loads .env and .env.<environment> from the working directory at startup.
+
     // Configure server
     app.http.server.configuration.hostname = Environment.get("HOST") ?? "127.0.0.1"
     app.http.server.configuration.port = Environment.get("PORT").flatMap(Int.init) ?? 8080
@@ -135,7 +127,7 @@ public func configure(_ app: Application) async throws {
     case "postgres":
         app.databases.use(DatabaseConfigurationFactory.postgres(configuration: .init(
             hostname: Environment.get("DATABASE_HOST") ?? "localhost",
-            port: Environment.get("DATABASE_PORT").flatMap(Int.init) ?? PostgresConfiguration.ianaPortNumber,
+            port: Environment.get("DATABASE_PORT").flatMap(Int.init) ?? SQLPostgresConfiguration.ianaPortNumber,
             username: Environment.get("DATABASE_USERNAME") ?? "vapor_username",
             password: Environment.get("DATABASE_PASSWORD") ?? "vapor_password",
             database: Environment.get("DATABASE_NAME") ?? "vapor_database",
@@ -200,21 +192,17 @@ struct HealthType: Codable {
     let version: String
 }
 
-struct QueryType {
-    let helloField = Field("hello", String.self) { _ in
-        "Hello from {{projectName}} GraphQL!"
-    }
+/// The GraphQL schema: the hello and health queries, resolved by QueryResolver.
+func buildSchema() throws -> Schema<QueryResolver, Request> {
+    try Schema<QueryResolver, Request> {
+        Type(HealthType.self) {
+            Field("status", at: \\.status)
+            Field("version", at: \\.version)
+        }
 
-    let healthField = Field("health", HealthType.self) { _ in
-        HealthType(status: "healthy", version: "1.0.0")
-    }
-}
-
-func buildSchema(resolver: QueryResolver) throws -> Schema<QueryResolver, Request> {
-    return try Schema<QueryResolver, Request> {
         Query {
-            Field("hello", at: resolver.hello)
-            Field("health", at: resolver.health)
+            Field("hello", at: QueryResolver.hello)
+            Field("health", at: QueryResolver.health)
         }
     }
 }`,
@@ -222,15 +210,13 @@ func buildSchema(resolver: QueryResolver) throws -> Schema<QueryResolver, Reques
     'Sources/App/GraphQL/QueryResolver.swift': `import Graphiti
 import Vapor
 
-final class QueryResolver {
-    init() {}
-
-    func hello(context: Request, arguments: NoArguments) throws -> String {
-        return "Hello from {{projectName}} GraphQL!"
+struct QueryResolver {
+    func hello(context: Request, arguments: NoArguments) -> String {
+        "Hello from {{projectName}} GraphQL!"
     }
 
-    func health(context: Request, arguments: NoArguments) throws -> HealthType {
-        return HealthType(status: "healthy", version: "1.0.0")
+    func health(context: Request, arguments: NoArguments) -> HealthType {
+        HealthType(status: "healthy", version: "1.0.0")
     }
 }`,
 
@@ -254,26 +240,21 @@ func routes(_ app: Application) throws {
         )
     }
 
-    // GraphQL endpoint (POST /graphql)
-    app.post("graphql") { req -> EventLoopFuture<String> in
-        let resolver = QueryResolver()
-        let schema = try buildSchema(resolver: resolver)
-
-        guard let body = req.body.data.read(), let bodyString = String(data: body, encoding: .utf8) else {
-            throw Abort(.badRequest, reason: "Empty GraphQL request body")
-        }
-
-        do {
-            let result = try schema.execute(
-                request: bodyString,
-                resolver: resolver,
-                context: req
-            )
-            let json = try String(decoding: JSONEncoder().encode(result), as: UTF8.self)
-            return req.eventLoop.makeSucceededFuture(json)
-        } catch {
-            return req.eventLoop.makeFailedFuture(error)
-        }
+    // GraphQL endpoint (POST /graphql with {"query": "...", "operationName": "..."})
+    let schema = try buildSchema()
+    let resolver = QueryResolver()
+    app.post("graphql") { req async throws -> Response in
+        let body = try req.content.decode(GraphQLHTTPBody.self)
+        let result = try await schema.execute(
+            request: body.query,
+            resolver: resolver,
+            context: req,
+            eventLoopGroup: req.eventLoop,
+            operationName: body.operationName
+        ).get()
+        let response = Response(status: .ok, body: .init(data: try JSONEncoder().encode(result)))
+        response.headers.contentType = .json
+        return response
     }
 
     // API routes
@@ -298,6 +279,11 @@ private func checkDatabaseHealth(_ db: Database) async -> Bool {
     } catch {
         return false
     }
+}
+
+struct GraphQLHTTPBody: Content {
+    let query: String
+    let operationName: String?
 }
 
 struct HealthCheckResponse: Content {
@@ -402,8 +388,9 @@ final class Todo: Model, Content, @unchecked Sendable {
     @Field(key: "title")
     var title: String
     
+    // Not named description: Fluent models are CustomStringConvertible.
     @Field(key: "description")
-    var description: String?
+    var details: String?
     
     @Field(key: "completed")
     var completed: Bool
@@ -422,7 +409,7 @@ final class Todo: Model, Content, @unchecked Sendable {
     init(id: UUID? = nil, title: String, description: String? = nil, completed: Bool = false, userID: User.IDValue) {
         self.id = id
         self.title = title
-        self.description = description
+        self.details = description
         self.completed = completed
         self.$user.id = userID
     }
@@ -795,7 +782,7 @@ struct TodoController: RouteCollection {
     func show(req: Request) async throws -> TodoResponse {
         let user = try req.auth.require(User.self)
         
-        guard let todo = try await Todo.find(req.parameters.get("todoID"), on: req.db),
+        guard let todo = try await Todo.find(req.parameters.get("todoID", as: UUID.self), on: req.db),
               todo.$user.id == user.id else {
             throw Abort(.notFound)
         }
@@ -807,7 +794,7 @@ struct TodoController: RouteCollection {
     func update(req: Request) async throws -> TodoResponse {
         let user = try req.auth.require(User.self)
         
-        guard let todo = try await Todo.find(req.parameters.get("todoID"), on: req.db),
+        guard let todo = try await Todo.find(req.parameters.get("todoID", as: UUID.self), on: req.db),
               todo.$user.id == user.id else {
             throw Abort(.notFound)
         }
@@ -820,7 +807,7 @@ struct TodoController: RouteCollection {
         }
         
         if let description = update.description {
-            todo.description = description
+            todo.details = description
         }
         
         if let completed = update.completed {
@@ -836,7 +823,7 @@ struct TodoController: RouteCollection {
     func delete(req: Request) async throws -> HTTPStatus {
         let user = try req.auth.require(User.self)
         
-        guard let todo = try await Todo.find(req.parameters.get("todoID"), on: req.db),
+        guard let todo = try await Todo.find(req.parameters.get("todoID", as: UUID.self), on: req.db),
               todo.$user.id == user.id else {
             throw Abort(.notFound)
         }
@@ -858,7 +845,7 @@ struct TodoResponse: Content {
     init(todo: Todo) {
         self.id = todo.id!
         self.title = todo.title
-        self.description = todo.description
+        self.description = todo.details
         self.completed = todo.completed
         self.createdAt = todo.createdAt
         self.updatedAt = todo.updatedAt
@@ -874,14 +861,14 @@ final class AuthTests: XCTestCase {
     var app: Application!
     
     override func setUp() async throws {
-        app = Application(.testing)
+        app = try await Application.make(.testing)
         try await configure(app)
         try await app.autoMigrate()
     }
     
     override func tearDown() async throws {
         try await app.autoRevert()
-        app.shutdown()
+        try await app.asyncShutdown()
     }
     
     func testRegister() async throws {
@@ -944,7 +931,7 @@ final class TodoTests: XCTestCase {
     var authToken: String!
     
     override func setUp() async throws {
-        app = Application(.testing)
+        app = try await Application.make(.testing)
         try await configure(app)
         try await app.autoMigrate()
         
@@ -964,7 +951,7 @@ final class TodoTests: XCTestCase {
     
     override func tearDown() async throws {
         try await app.autoRevert()
-        app.shutdown()
+        try await app.asyncShutdown()
     }
     
     func testCreateTodo() async throws {
