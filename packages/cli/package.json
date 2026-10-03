@@ -29,7 +29,7 @@
     "test:plan": "node tests/run-cli-plan.mjs --suite=all",
     "lint": "eslint src --ext ts,tsx",
     "clean": "rimraf dist",
-    "prepublishOnly": "rimraf dist && npm run build && npm run bundle:dashboard"
+    "prepack": "rimraf dist && npm run build:dist"
   },
   "keywords": [
     "microfrontend",

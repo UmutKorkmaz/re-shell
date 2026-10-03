@@ -1,22 +1,28 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import * as fs from 'fs-extra';
+import * as os from 'os';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import {
   runCliCommand,
-  createTestDirectory,
   cleanupTestDirectory,
   verifyProjectStructure,
   verifyMicrofrontendStructure,
-  getCliPath,
-  buildCli
+  getCliPath
 } from '../utils/cli-test-utils';
 
 // These full end-to-end tests scaffold real projects and shell out to the built
 // CLI, so they are opt-in: set RUN_E2E=1 to run them (e.g. in a dedicated CI
 // job). They stay skipped by default to keep the quick test loop fast.
 describe.skipIf(!process.env.RUN_E2E)('CLI End-to-End Tests', () => {
-  const testBaseDir = path.join(process.cwd(), 'test-output');
+  // Scaffold OUTSIDE the repo. `re-shell create` detects an enclosing
+  // pnpm/monorepo workspace and, when it finds one, switches to an interactive
+  // "add an app to this workspace" flow that blocks on a prompt. A directory
+  // under os.tmpdir() is never inside a workspace, so `create` always takes the
+  // non-interactive "new project" path the tests assert on.
+  // Created in beforeAll (not at collection time) so a skipped suite never
+  // leaves an empty temp directory behind.
+  let testBaseDir = '';
   const cliPath = getCliPath();
   
   // Generate unique test IDs for each test run
@@ -26,16 +32,20 @@ describe.skipIf(!process.env.RUN_E2E)('CLI End-to-End Tests', () => {
   
   // Setup test directory and build CLI
   beforeAll(() => {
-    // Ensure CLI is built
-    expect(buildCli()).toBe(true);
+    // The CLI is built exactly once by vitest's globalSetup (tests/global-setup.ts)
+    // before any worker starts. Rebuilding it here would race with sibling test
+    // files that spawn the same dist/index.js, so only assert it is present.
+    expect(fs.existsSync(cliPath)).toBe(true);
     
-    // Create test directory
-    createTestDirectory(process.cwd(), 'test-output');
+    // Create the scratch directory outside the repo.
+    testBaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 're-shell-cli-e2e-'));
   });
   
   // Clean up test directory after all tests
   afterAll(() => {
-    cleanupTestDirectory(testBaseDir);
+    if (testBaseDir) {
+      cleanupTestDirectory(testBaseDir);
+    }
   });
   
   // Clean up project directory after each test
@@ -62,8 +72,14 @@ describe.skipIf(!process.env.RUN_E2E)('CLI End-to-End Tests', () => {
       expect(projectStructure.exists).toBe(true);
       expect(projectStructure.hasPackageJson).toBe(true);
       expect(projectStructure.hasAppsDir).toBe(true);
-      expect(projectStructure.hasShellApp).toBe(true);
       expect(projectStructure.hasPackagesDir).toBe(true);
+      // A plain `create` scaffolds an empty workspace (apps/ + packages/); the
+      // shell/remotes layout only exists for `create --microfrontend`. The root
+      // package.json must declare both directories as workspaces.
+      expect(projectStructure.hasShellApp).toBe(false);
+      const rootPackageJson = fs.readJsonSync(path.join(projectDir, 'package.json'));
+      expect(rootPackageJson.name).toBe(testProjectName);
+      expect(rootPackageJson.workspaces).toEqual(['apps/*', 'packages/*']);
       
       // Step 2: Add a microfrontend
       const addResult = runCliCommand(
@@ -99,8 +115,10 @@ describe.skipIf(!process.env.RUN_E2E)('CLI End-to-End Tests', () => {
       );
       
       expect(listResult.stderr).toBe('');
-      expect(listResult.stdout).toContain(testMfName);
-      expect(listResult.stdout).toContain(`${testMfName}-2`);
+      // `testMfName` is a prefix of `${testMfName}-2`, so match whole list
+      // entries ("- <name>" on its own line) rather than substrings.
+      expect(listResult.stdout).toMatch(new RegExp(`^- ${testMfName}$`, 'm'));
+      expect(listResult.stdout).toMatch(new RegExp(`^- ${testMfName}-2$`, 'm'));
       
       // Step 5: Remove a microfrontend
       const removeResult = runCliCommand(
@@ -121,8 +139,17 @@ describe.skipIf(!process.env.RUN_E2E)('CLI End-to-End Tests', () => {
       );
       
       expect(listResult2.stderr).toBe('');
-      expect(listResult2.stdout).not.toContain(testMfName);
-      expect(listResult2.stdout).toContain(`${testMfName}-2`);
+      expect(listResult2.stdout).not.toMatch(new RegExp(`^- ${testMfName}$`, 'm'));
+      expect(listResult2.stdout).toMatch(new RegExp(`^- ${testMfName}-2$`, 'm'));
+
+      // The machine-readable listing must agree with the human one.
+      const listJson = runCliCommand(`node ${cliPath} list --json`, projectDir);
+      expect(listJson.stderr).toBe('');
+      const parsed = JSON.parse(listJson.stdout.trim());
+      expect(parsed.ok).toBe(true);
+      expect(parsed.data.microfrontends.map((mf: { name: string }) => mf.name)).toEqual([
+        `${testMfName}-2`
+      ]);
     });
   });
   

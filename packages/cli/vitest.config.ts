@@ -34,7 +34,6 @@ export default defineConfig({
       all: true,
       include: [
         'src/utils/json-output.ts',
-        'src/utils/cli-adapters.ts',
         'src/utils/command-catalog.ts',
         'src/utils/health-normalizer.ts',
         'src/utils/workspace-definition-adapter.ts',
