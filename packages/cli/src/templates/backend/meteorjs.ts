@@ -39,6 +39,8 @@ export const meteorjsTemplate: BackendTemplate = {
   },
   "devDependencies": {
     "@types/meteor": "^2.9.7",
+    "@types/mocha": "^10.0.6",
+    "typescript": "^5.4.5",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
     "eslint": "^8.55.0",
@@ -68,7 +70,7 @@ export const meteorjsTemplate: BackendTemplate = {
     "noEmit": true,
     "strict": false,
     "moduleResolution": "node",
-    "types": ["meteor-typescript-compiler", "mocha"],
+    "types": ["meteor", "mocha"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true

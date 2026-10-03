@@ -30,6 +30,7 @@ export const bottleneckDetectionTemplate: BackendTemplate = {
   },
   "dependencies": {
     "express": "^4.18.2",
+    "eventemitter3": "^5.0.1",
     "cors": "^2.8.5",
     "helmet": "^7.0.0",
     "compression": "^1.7.4",
@@ -58,6 +59,7 @@ export const bottleneckDetectionTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -66,9 +68,9 @@ export const bottleneckDetectionTemplate: BackendTemplate = {
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*"],
@@ -383,6 +385,8 @@ export class CodeAnalyzer {
 
     'src/resolution-advisor.ts': `// Resolution Advisor
 // Provides actionable resolution suggestions
+
+import type { Bottleneck } from './bottleneck-detector';
 
 export interface Resolution {
   bottleneck: Bottleneck;

@@ -12,14 +12,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Scaffolds every representative template with the built CLI and builds it
-  # with that language's own toolchain (pip/compileall, go build, cargo check,
-  # php -l + composer, ruby -c + bundle, mvn package, zig build, ...).
+  # Scaffolds every verified template with the built CLI and builds it with that
+  # language's own toolchain (pip/compileall, go build, cargo check, php -l +
+  # composer, ruby -c + bundle, mvn package, gradle build, sbt Test/compile,
+  # dotnet build, perl -c, luac -p, pnpm + tsc, zig build, ...). The templates
+  # are split into groups (see scripts/scaffold-test-templates.sh) so each job
+  # installs only the toolchains it needs and the groups run in parallel.
   # A template whose toolchain is not installed is reported as SKIP with the
   # reason; a template that fails to build fails the job.
   scaffold-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [core, jvm, dotnet, native, node, config]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -29,33 +36,66 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - uses: actions/setup-python@v5
+      - if: matrix.group == 'core' || matrix.group == 'native'
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - uses: actions/setup-go@v5
+      - if: matrix.group == 'core' || matrix.group == 'native'
+        uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: shivammathur/setup-php@v2
+      - if: matrix.group == 'core' || matrix.group == 'native'
+        uses: dtolnay/rust-toolchain@stable
+      - if: matrix.group == 'core' || matrix.group == 'native'
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           tools: composer
-      - uses: ruby/setup-ruby@v1
+      - if: matrix.group == 'core' || matrix.group == 'native'
+        uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
-      - uses: actions/setup-java@v4
+      - if: matrix.group == 'core' || matrix.group == 'jvm'
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - uses: oven-sh/setup-bun@v2
-      - uses: mlugg/setup-zig@v1
+      - if: matrix.group == 'jvm'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - if: matrix.group == 'jvm'
+        uses: sbt/setup-sbt@v1
+      - if: matrix.group == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - if: matrix.group == 'core'
+        uses: oven-sh/setup-bun@v2
+      - if: matrix.group == 'core'
+        uses: mlugg/setup-zig@v1
         with:
           version: 0.13.0
+      # Perl templates are checked with perl -c against the distribution
+      # packages (CPAN is not reachable from every runner network); Lua with
+      # luac -p (syntax only); Drogon (C++) builds against libdrogon-dev.
+      - if: matrix.group == 'native'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            lua5.4 libmojolicious-perl libmojo-jwt-perl libdancer2-perl libcatalyst-perl \
+            libcatalyst-action-renderview-perl libcatalyst-model-dbic-schema-perl \
+            libcatalyst-plugin-authentication-perl libcatalyst-plugin-authorization-roles-perl \
+            libcatalyst-plugin-configloader-perl libcatalyst-plugin-session-perl \
+            libcatalyst-plugin-session-store-file-perl libcatalyst-plugin-static-simple-perl \
+            libconfig-general-perl libgraphql-perl libjson-maybexs-perl libjson-perl \
+            libplack-middleware-crossorigin-perl libtest-www-mechanize-catalyst-perl libyaml-perl \
+            cmake build-essential libdrogon-dev libpq-dev libgtest-dev libjsoncpp-dev uuid-dev
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
-      - name: Scaffold and build representative templates
-        run: bash scripts/scaffold-test-templates.sh
+      - name: Scaffold and build the ${{ matrix.group }} templates
+        run: bash scripts/scaffold-test-templates.sh --group ${{ matrix.group }}
 
   # Scaffolds each Node/Bun backend, installs it from the repo root, builds it,
   # starts it on a free port with unreachable DB/Redis, waits for /health,

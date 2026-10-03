@@ -45,9 +45,9 @@ export const tinyhttpTemplate: BackendTemplate = {
     "@tinyhttp/session": "^1.3.0",
     "@tinyhttp/jwt": "^2.0.0",
     "@tinyhttp/etag": "^2.1.0",
-    "@tinyhttp/compression": "^2.0.0",
+    "compression": "^1.7.4",
     "@tinyhttp/rate-limit": "^2.0.2",
-    "@tinyhttp/helmet": "^2.0.0",
+    "helmet": "^7.1.0",
     "@tinyhttp/unless": "^2.0.1",
     "milliparsec": "^2.3.0",
     "sirv": "^2.0.4",
@@ -61,7 +61,6 @@ export const tinyhttpTemplate: BackendTemplate = {
     "pino-pretty": "^11.0.0",
     "ioredis": "^5.3.2",
     "ws": "^8.16.0",
-    "@tinyhttp/ws": "^0.2.30",
     "nanoid": "^5.0.7",
     "dayjs": "^1.11.10",
     "node-cron": "^3.0.3",
@@ -73,6 +72,8 @@ export const tinyhttpTemplate: BackendTemplate = {
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/ws": "^8.5.10",
+    "typescript": "^5.4.5",
+    "@types/compression": "^1.7.5",
     "@typescript-eslint/eslint-plugin": "^7.7.1",
     "@typescript-eslint/parser": "^7.7.1",
     "eslint": "^8.57.0",
@@ -131,8 +132,8 @@ export const tinyhttpTemplate: BackendTemplate = {
 import { cors } from '@tinyhttp/cors';
 import { logger } from '@tinyhttp/logger';
 import { cookieParser } from '@tinyhttp/cookie-parser';
-import { compression } from '@tinyhttp/compression';
-import { helmet } from '@tinyhttp/helmet';
+import compression from 'compression';
+import helmet from 'helmet';
 import { rateLimit } from '@tinyhttp/rate-limit';
 import { json } from 'milliparsec';
 import { createServer } from 'http';

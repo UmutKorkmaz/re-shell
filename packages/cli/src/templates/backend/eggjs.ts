@@ -128,9 +128,7 @@ export const eggjsTemplate: BackendTemplate = {
     "noImplicitAny": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "charset": "utf8",
     "allowJs": false,
-    "pretty": true,
     "lib": ["ES2020"],
     "noEmitOnError": false,
     "noUnusedLocals": true,
@@ -503,6 +501,16 @@ export default class AppBootHook implements IBoot {
     this.app.logger.info('Application is closing');
   }
 }`,
+
+    'typings/index.d.ts': `// Type augmentations contributed by the Egg plugins listed in config/plugin.ts
+// (app.model, app.redis, app.jwt, app.io, ...). egg-ts-helper regenerates the
+// rest of this folder on "npm run dev".
+import 'egg';
+import 'egg-sequelize';
+import 'egg-redis';
+import 'egg-jwt';
+import 'egg-socket.io';
+`,
 
     // Router
     'app/router.ts': `import { Application } from 'egg';

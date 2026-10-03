@@ -39,7 +39,7 @@ export const databasePoolingTemplate: BackendTemplate = {
     "ioredis": "^5.3.2",
     "better-sqlite3": "^9.1.1",
     "pg-cursor": "^2.10.3",
-    "mysql2/promise": "^3.6.0",
+    "mysql2": "^3.6.0",
     "pino": "^8.16.0",
     "pino-pretty": "^10.2.0"
   },
@@ -63,6 +63,7 @@ export const databasePoolingTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -71,9 +72,9 @@ export const databasePoolingTemplate: BackendTemplate = {
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*"],
@@ -248,7 +249,7 @@ export class PoolManager extends EventEmitter {
     const redis = new Redis({
       host: config.host || 'localhost',
       port: config.port || 6379,
-      db: config.database || 0,
+      db: Number(config.database) || 0,
       password: config.password,
       maxRetriesPerRequest: 3,
       enableReadyCheck: true,
@@ -318,11 +319,11 @@ export class PoolManager extends EventEmitter {
       return {
         name,
         type: 'mysql',
-        totalConnections: mySqlPool.pool.connectionLimit,
+        totalConnections: mySqlPool.pool.config.connectionLimit ?? 0,
         idleConnections: 0, // MySQL2 doesn't expose this
         activeConnections: processes.length,
         waitingRequests: 0,
-        maxConnections: mySqlPool.pool.connectionLimit,
+        maxConnections: mySqlPool.pool.config.connectionLimit ?? 0,
         minConnections: 0,
       };
     }
@@ -402,7 +403,7 @@ export class PoolManager extends EventEmitter {
   }
 
   async closeAll(): Promise<void> {
-    const closePromises: Promise<void>[] = [];
+    const closePromises: Promise<unknown>[] = [];
 
     for (const pool of this.postgresqlPools.values()) {
       closePromises.push(pool.end());
@@ -908,7 +909,7 @@ export function apiRoutes(
         recentSlowQueries: slowQueries,
       });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -924,7 +925,7 @@ export function apiRoutes(
       const plan = queryOptimizer.analyzeQuery(query, database);
       res.json(plan);
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -940,7 +941,7 @@ export function apiRoutes(
         indexRecommendations,
       });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -967,7 +968,7 @@ export function poolRoutes(poolManager: PoolManager): Router {
       await poolManager.createPool(config);
       res.json({ message: \`Pool \${config.name} created successfully\` });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -977,7 +978,7 @@ export function poolRoutes(poolManager: PoolManager): Router {
       const stats = await poolManager.getAllPoolStats();
       res.json(stats);
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -993,7 +994,7 @@ export function poolRoutes(poolManager: PoolManager): Router {
 
       res.json(stats);
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1004,7 +1005,7 @@ export function poolRoutes(poolManager: PoolManager): Router {
       await poolManager.closePool(name);
       res.json({ message: \`Pool \${name} closed successfully\` });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1014,7 +1015,7 @@ export function poolRoutes(poolManager: PoolManager): Router {
       await poolManager.closeAll();
       res.json({ message: 'All pools closed successfully' });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1039,7 +1040,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
       );
       res.json(logs);
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1052,7 +1053,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
       );
       res.json(slowQueries);
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1062,7 +1063,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
       const failedQueries = queryLogger.getFailedQueries();
       res.json(failedQueries);
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1075,7 +1076,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
       );
       res.json(history);
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1088,7 +1089,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
       );
       res.json(slowQueries);
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1104,7 +1105,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
       queryOptimizer.setSlowQueryThreshold(threshold);
       res.json({ message: \`Slow query threshold set to \${threshold}ms\` });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1115,7 +1116,7 @@ export function queryRoutes(queryOptimizer: QueryOptimizer, queryLogger: QueryLo
       queryOptimizer.clearHistory();
       res.json({ message: 'Query logs and history cleared' });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 

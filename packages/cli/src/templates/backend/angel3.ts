@@ -15,7 +15,7 @@ export const angel3Template: BackendTemplate = {
   
   files: {
     // Dart project configuration
-    'pubspec.yaml': `name: {{projectName}}
+    'pubspec.yaml': `name: {{projectNameSnake}}
 description: A full-stack server application using Angel3 framework
 version: 1.0.0
 publish_to: none
@@ -73,8 +73,8 @@ dev_dependencies:
     'bin/server.dart': `import 'dart:io';
 import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_production/angel3_production.dart';
-import 'package:{{projectName}}/{{projectName}}.dart';
-import 'package:{{projectName}}/config/config.dart' as config;
+import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
+import 'package:{{projectNameSnake}}/config/config.dart' as config;
 import 'package:belatuk_pretty_logging/belatuk_pretty_logging.dart';
 import 'package:logging/logging.dart';
 
@@ -97,7 +97,7 @@ void main(List<String> args) {
     'bin/dev.dart': `import 'dart:io';
 import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_hot/angel3_hot.dart';
-import 'package:{{projectName}}/{{projectName}}.dart';
+import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 import 'package:logging/logging.dart';
 import 'package:belatuk_pretty_logging/belatuk_pretty_logging.dart';
 
@@ -120,20 +120,20 @@ void main() async {
 }`,
 
     // Main library file
-    'lib/{{projectName}}.dart': `library {{projectName}};
+    'lib/{{projectNameSnake}}.dart': `library {{projectNameSnake}};
 
 import 'dart:async';
 import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_static/angel3_static.dart';
 import 'package:file/file.dart';
-import 'package:{{projectName}}/config/config.dart' as config;
-import 'package:{{projectName}}/config/plugins/plugins.dart' as plugins;
-import 'package:{{projectName}}/routes/routes.dart' as routes;
-import 'package:{{projectName}}/services/services.dart' as services;
+import 'package:{{projectNameSnake}}/config/config.dart' as config;
+import 'package:{{projectNameSnake}}/config/plugins/plugins.dart' as plugins;
+import 'package:{{projectNameSnake}}/routes/routes.dart' as routes;
+import 'package:{{projectNameSnake}}/services/services.dart' as services;
 
-export 'package:{{projectName}}/models/models.dart';
-export 'package:{{projectName}}/services/services.dart';
-export 'package:{{projectName}}/controllers/controllers.dart';
+export 'package:{{projectNameSnake}}/models/models.dart';
+export 'package:{{projectNameSnake}}/services/services.dart';
+export 'package:{{projectNameSnake}}/controllers/controllers.dart';
 
 /// Configures the server instance
 Future configureServer(Angel app) async {
@@ -208,13 +208,13 @@ Future configureServer(Angel app) async {
     'db_type': env['DB_TYPE'] ?? 'postgres',
     'db_host': env['DB_HOST'] ?? 'localhost',
     'db_port': int.parse(env['DB_PORT'] ?? '5432'),
-    'db_name': env['DB_NAME'] ?? '{{projectName}}',
+    'db_name': env['DB_NAME'] ?? '{{projectNameSnake}}',
     'db_user': env['DB_USER'] ?? 'postgres',
     'db_password': env['DB_PASSWORD'] ?? ''});
 }`,
 
     'config/default.yaml': `# Default configuration
-name: {{projectName}}
+name: {{projectNameSnake}}
 version: 1.0.0
 
 # Server settings
@@ -299,7 +299,7 @@ import 'package:angel3_orm_mysql/angel3_orm_mysql.dart';
 import 'package:postgres/postgres.dart';
 import 'package:mysql_client/mysql_client.dart';
 import 'package:logging/logging.dart';
-import 'package:{{projectName}}/models/models.dart';
+import 'package:{{projectNameSnake}}/models/models.dart';
 
 final _logger = Logger('ORM');
 
@@ -369,8 +369,8 @@ Future<void> _runMigrations(QueryExecutor executor) async {
     'lib/config/plugins/auth.dart': `import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_auth/angel3_auth.dart';
 import 'package:jaguar_jwt/jaguar_jwt.dart';
-import 'package:{{projectName}}/models/user.dart';
-import 'package:{{projectName}}/services/user_service.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
+import 'package:{{projectNameSnake}}/services/user_service.dart';
 
 /// Configures authentication
 Future configureServer(Angel app) async {
@@ -516,7 +516,7 @@ Future configureServer(Angel app) async {
     'lib/config/plugins/graphql.dart': `import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_graphql/angel3_graphql.dart';
 import 'package:graphql_server/graphql_server.dart';
-import 'package:{{projectName}}/graphql/schema.dart';
+import 'package:{{projectNameSnake}}/graphql/schema.dart';
 
 /// Configures GraphQL
 Future configureServer(Angel app) async {
@@ -783,7 +783,7 @@ Future configureServer(Angel app) async {
     'lib/services/user_service.dart': `import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_orm/angel3_orm.dart';
 import 'package:uuid/uuid.dart';
-import 'package:{{projectName}}/models/user.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
 
 class UserService extends Service<String, User> {
   final _uuid = const Uuid();
@@ -929,8 +929,8 @@ class UserService extends Service<String, User> {
     'lib/services/todo_service.dart': `import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_orm/angel3_orm.dart';
 import 'package:uuid/uuid.dart';
-import 'package:{{projectName}}/models/todo.dart';
-import 'package:{{projectName}}/models/user.dart';
+import 'package:{{projectNameSnake}}/models/todo.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
 
 class TodoService extends Service<String, Todo> {
   final _uuid = const Uuid();
@@ -1037,8 +1037,8 @@ class TodoService extends Service<String, Todo> {
     'lib/services/token_service.dart': `import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_orm/angel3_orm.dart';
 import 'package:uuid/uuid.dart';
-import 'package:{{projectName}}/models/token.dart';
-import 'package:{{projectName}}/models/user.dart';
+import 'package:{{projectNameSnake}}/models/token.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
 
 class TokenService extends Service<String, RefreshToken> {
   final _uuid = const Uuid();
@@ -1085,9 +1085,9 @@ export 'health_controller.dart';`,
     'lib/controllers/auth_controller.dart': `import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_auth/angel3_auth.dart';
 import 'package:jaguar_jwt/jaguar_jwt.dart';
-import 'package:{{projectName}}/models/models.dart';
-import 'package:{{projectName}}/services/user_service.dart';
-import 'package:{{projectName}}/services/token_service.dart';
+import 'package:{{projectNameSnake}}/models/models.dart';
+import 'package:{{projectNameSnake}}/services/user_service.dart';
+import 'package:{{projectNameSnake}}/services/token_service.dart';
 
 @Expose('/auth')
 class AuthController extends Controller {
@@ -1239,7 +1239,7 @@ class HealthController extends Controller {
     'lib/routes/routes.dart': `import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_auth/angel3_auth.dart';
 import 'package:angel3_static/angel3_static.dart';
-import 'package:{{projectName}}/controllers/controllers.dart';
+import 'package:{{projectNameSnake}}/controllers/controllers.dart';
 
 /// Configure application routes
 Future configureServer(Angel app) async {
@@ -1273,8 +1273,8 @@ Future configureServer(Angel app) async {
     // GraphQL Schema
     'lib/graphql/schema.dart': `import 'package:angel3_framework/angel3_framework.dart';
 import 'package:graphql_server/graphql_server.dart';
-import 'package:{{projectName}}/models/models.dart';
-import 'package:{{projectName}}/services/services.dart';
+import 'package:{{projectNameSnake}}/models/models.dart';
+import 'package:{{projectNameSnake}}/services/services.dart';
 
 GraphQLSchema createGraphQLSchema(Angel app) {
   var userType = objectType(
@@ -1487,7 +1487,7 @@ GraphQLSchema createGraphQLSchema(Angel app) {
     'test/auth_test.dart': `import 'package:angel3_framework/angel3_framework.dart';
 import 'package:angel3_test/angel3_test.dart';
 import 'package:test/test.dart';
-import 'package:{{projectName}}/{{projectName}}.dart';
+import 'package:{{projectNameSnake}}/{{projectNameSnake}}.dart';
 
 void main() {
   late Angel app;
@@ -1555,7 +1555,7 @@ PORT=3000
 DB_TYPE=postgres
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME={{projectName}}
+DB_NAME={{projectNameSnake}}
 DB_USER=postgres
 DB_PASSWORD=
 
@@ -1633,7 +1633,7 @@ services:
       - DB_TYPE=postgres
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_NAME={{projectName}}
+      - DB_NAME={{projectNameSnake}}
       - DB_USER=angel
       - DB_PASSWORD=angel_password
       - JWT_SECRET=your-production-secret-key
@@ -1649,7 +1649,7 @@ services:
     environment:
       - POSTGRES_USER=angel
       - POSTGRES_PASSWORD=angel_password
-      - POSTGRES_DB={{projectName}}
+      - POSTGRES_DB={{projectNameSnake}}
     ports:
       - "5432:5432"
     volumes:

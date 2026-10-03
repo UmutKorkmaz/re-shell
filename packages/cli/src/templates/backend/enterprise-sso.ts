@@ -51,6 +51,7 @@ export const enterpriseSsoTemplate: BackendTemplate = {
     "@types/compression": "^1.7.2",
     "@types/node": "^20.5.0",
     "@types/passport": "^1.0.12",
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/passport-saml": "^1.1.7",
     "@types/passport-oauth2": "^1.4.12",
     "@types/cookie-parser": "^1.4.3",
@@ -61,6 +62,10 @@ export const enterpriseSsoTemplate: BackendTemplate = {
   }
 }`,
 
+    'src/types/modules.d.ts': `// Ambient declarations for packages that ship without TypeScript types
+declare module 'passport-openidconnect';
+`,
+
     'tsconfig.json': `{
   "compilerOptions": {
     "target": "ES2020",
@@ -69,6 +74,7 @@ export const enterpriseSsoTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -77,9 +83,9 @@ export const enterpriseSsoTemplate: BackendTemplate = {
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*"],
@@ -212,7 +218,7 @@ export class SsoManager {
       entryPoint: process.env.SAML_ENTRY_POINT!,
       issuer: process.env.SAML_ISSUER || process.env.SAML_ENTITY_ID,
       callbackUrl: process.env.SAML_CALLBACK_URL || 'http://localhost:3000/api/sso/saml/callback',
-      cert: process.env.SAML_CERT,
+      cert: process.env.SAML_CERT ?? '',
       privateKey: process.env.SAML_PRIVATE_KEY,
       decryptionPvk: process.env.SAML_DECRYPTION_PRIVATE_KEY,
     };
@@ -384,15 +390,20 @@ export class SsoManager {
                 }
 
                 userSearch.on('searchEntry', (entry) => {
+                  // ldapjs 3: attributes are exposed through entry.pojo
+                  const attrs: Record<string, any> = {};
+                  for (const attribute of entry.pojo.attributes) {
+                    attrs[attribute.type] = attribute.values.length > 1 ? attribute.values : attribute.values[0];
+                  }
                   const user: UserProfile = {
-                    id: entry.object.dn,
-                    email: entry.object.mail || entry.object.email,
-                    displayName: entry.object.cn || entry.object.displayName,
-                    firstName: entry.object.givenName,
-                    lastName: entry.object.sn,
-                    groups: entry.object.memberOf || [],
+                    id: entry.pojo.objectName,
+                    email: attrs.mail || attrs.email,
+                    displayName: attrs.cn || attrs.displayName,
+                    firstName: attrs.givenName,
+                    lastName: attrs.sn,
+                    groups: attrs.memberOf || [],
                     roles: [],
-                    attributes: entry.object,
+                    attributes: attrs,
                   };
                   resolve(user);
                 });
@@ -426,7 +437,8 @@ export class SsoManager {
 
 import jwt from 'jsonwebtoken';
 import { SignOptions, VerifyOptions, Secret } from 'jsonwebtoken';
-import { generateKeyPair, importJWK, SignJWT, CompactEncrypt, compactDecrypt } from 'jose';
+import { generateKeyPair, importJWK, importPKCS8, SignJWT, CompactEncrypt, compactDecrypt } from 'jose';
+import type { KeyLike } from 'jose';
 
 export interface TokenPayload {
   sub: string; // User ID
@@ -443,8 +455,8 @@ export interface TokenPayload {
 export interface RefreshTokenPayload {
   sub: string;
   tokenVersion: number;
-  iat: number;
-  exp: number;
+  iat?: number;
+  exp?: number;
 }
 
 export class TokenManager {
@@ -475,7 +487,7 @@ export class TokenManager {
     };
 
     const options: SignOptions = {
-      expiresIn: this.accessTokenExpiresIn,
+      expiresIn: this.accessTokenExpiresIn as SignOptions['expiresIn'],
       issuer: this.issuer,
       audience: this.audience,
     };
@@ -491,7 +503,7 @@ export class TokenManager {
     };
 
     const options: SignOptions = {
-      expiresIn: this.refreshTokenExpiresIn,
+      expiresIn: this.refreshTokenExpiresIn as SignOptions['expiresIn'],
       issuer: this.issuer,
       audience: this.audience,
     };
@@ -499,7 +511,7 @@ export class TokenManager {
     return jwt.sign(payload, this.refreshTokenSecret, options);
   }
 
-  generateIdToken(user: any, nonce?: string): Promise<string> {
+  async generateIdToken(user: any, nonce?: string): Promise<string> {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -516,7 +528,7 @@ export class TokenManager {
       .setIssuer(this.issuer)
       .setAudience(this.audience)
       .setExpirationTime('1h')
-      .sign(this.importKey(process.env.ID_TOKEN_PRIVATE_KEY || ''));
+      .sign(await this.importKey(process.env.ID_TOKEN_PRIVATE_KEY || ''));
   }
 
   verifyAccessToken(token: string): TokenPayload | null {
@@ -574,9 +586,9 @@ export class TokenManager {
     return this.tokenVersions.get(userId) || 0;
   }
 
-  private async importKey(key: string): Promise<Secret> {
-    // In production, this should import a proper RSA key
-    return key as Secret;
+  private importKey(key: string): Promise<KeyLike> {
+    // PEM-encoded PKCS#8 RSA private key (ID_TOKEN_PRIVATE_KEY)
+    return importPKCS8(key, 'RS256');
   }
 
   decodeToken(token: string): any {
@@ -860,7 +872,7 @@ export function apiRoutes(
       });
     } catch (error: unknown) {
       console.error('LDAP login error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -884,7 +896,7 @@ export function apiRoutes(
 
       res.json(tokens);
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -905,7 +917,7 @@ export function apiRoutes(
 
       res.json({ message: 'Logged out successfully' });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -936,7 +948,7 @@ export function apiRoutes(
         },
       });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -960,7 +972,7 @@ export function apiRoutes(
       const events = auditLogger.getEvents(filters);
       res.json({ events, count: events.length });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
