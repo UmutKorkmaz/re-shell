@@ -25,19 +25,17 @@ export const oakDenoTemplate: BackendTemplate = {
     "compile": "deno compile --allow-net --allow-env --allow-read --output {{projectName}} src/main.ts"
   },
   "imports": {
-    "oak": "https://deno.land/x/oak@v12.6.2/mod.ts",
-    "oak/": "https://deno.land/x/oak@v12.6.2/",
-    "djwt": "https://deno.land/x/djwt@v3.0.1/mod.ts",
-    "bcrypt": "https://deno.land/x/bcrypt@v0.4.1/mod.ts",
-    "dotenv": "https://deno.land/std@0.208.0/dotenv/mod.ts",
-    "uuid": "https://deno.land/std@0.208.0/uuid/mod.ts",
-    "datetime": "https://deno.land/std@0.208.0/datetime/mod.ts",
-    "testing": "https://deno.land/std@0.208.0/testing/asserts.ts",
-    "postgres": "https://deno.land/x/postgres@v0.17.2/mod.ts",
-    "caching": "https://deno.land/x/redis@v0.32.0/mod.ts",
-    "zod": "https://deno.land/x/zod@v3.22.4/mod.ts",
-    "gql": "https://deno.land/x/gql@v0.2.1/mod.ts",
-    "graphql": "https://deno.land/x/graphql_deno@v15.0.0/mod.ts"
+    "oak": "jsr:@oak/oak@^17.1.0",
+    "djwt": "jsr:@wok/djwt@^3.0.2",
+    "bcrypt": "npm:bcryptjs@^3.0.2",
+    "dotenv": "jsr:@std/dotenv@^0.225.2",
+    "uuid": "jsr:@std/uuid@^1.0.4",
+    "datetime": "jsr:@std/datetime@^0.225.2",
+    "testing": "jsr:@std/assert@^1.0.0",
+    "postgres": "jsr:@db/postgres@^0.19.4",
+    "caching": "jsr:@db/redis@^0.37.0",
+    "zod": "npm:zod@^3.23.8",
+    "graphql": "npm:graphql@^16.9.0"
   },
   "compilerOptions": {
     "strict": true
@@ -89,7 +87,7 @@ await app.listen({ port: config.port });
     // Configuration
     'src/config/env.ts': `import { load } from 'dotenv';
 
-await load({ export: true, allowEmptyValues: true });
+await load({ export: true });
 
 export const config = {
   port: parseInt(Deno.env.get('PORT') || '8000'),
@@ -119,9 +117,8 @@ export const config = {
     'src/config/database.ts': `import { config } from './env.ts';
 
 // In-memory database for development
-interface DbRecord {
+export interface DbRecord {
   id: string;
-  [key: string]: unknown;
 }
 
 class InMemoryDb {
@@ -134,31 +131,31 @@ class InMemoryDb {
     return this.tables.get(name)!;
   }
 
-  insert(table: string, record: DbRecord): DbRecord {
+  insert<T extends DbRecord>(table: string, record: T): T {
     const t = this.getTable(table);
     t.set(record.id, record);
     return record;
   }
 
-  findById(table: string, id: string): DbRecord | undefined {
-    return this.getTable(table).get(id);
+  findById<T extends DbRecord = DbRecord>(table: string, id: string): T | undefined {
+    return this.getTable(table).get(id) as T | undefined;
   }
 
-  findAll(table: string): DbRecord[] {
-    return Array.from(this.getTable(table).values());
+  findAll<T extends DbRecord = DbRecord>(table: string): T[] {
+    return Array.from(this.getTable(table).values()) as T[];
   }
 
-  findOne(table: string, predicate: (r: DbRecord) => boolean): DbRecord | undefined {
-    return this.findAll(table).find(predicate);
+  findOne<T extends DbRecord = DbRecord>(table: string, predicate: (r: T) => boolean): T | undefined {
+    return this.findAll<T>(table).find(predicate);
   }
 
-  find(table: string, predicate: (r: DbRecord) => boolean): DbRecord[] {
-    return this.findAll(table).filter(predicate);
+  find<T extends DbRecord = DbRecord>(table: string, predicate: (r: T) => boolean): T[] {
+    return this.findAll<T>(table).filter(predicate);
   }
 
-  update(table: string, id: string, updates: Partial<DbRecord>): DbRecord | undefined {
+  update<T extends DbRecord = DbRecord>(table: string, id: string, updates: Partial<T>): T | undefined {
     const t = this.getTable(table);
-    const record = t.get(id);
+    const record = t.get(id) as T | undefined;
     if (record) {
       const updated = { ...record, ...updates, id };
       t.set(id, updated);
@@ -171,9 +168,9 @@ class InMemoryDb {
     return this.getTable(table).delete(id);
   }
 
-  count(table: string, predicate?: (r: DbRecord) => boolean): number {
+  count<T extends DbRecord = DbRecord>(table: string, predicate?: (r: T) => boolean): number {
     if (predicate) {
-      return this.find(table, predicate).length;
+      return this.find<T>(table, predicate).length;
     }
     return this.getTable(table).size;
   }
@@ -293,7 +290,7 @@ const key = await crypto.subtle.importKey(
 );
 
 export async function hashPassword(password: string): Promise<string> {
-  return await bcrypt.hash(password);
+  return await bcrypt.hash(password, 10);
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
@@ -357,7 +354,7 @@ export async function createUser(email: string, password: string, name: string):
 }
 
 export function findUserByEmail(email: string): User | undefined {
-  return memoryDb.findOne('users', (u) => u.email === email) as User | undefined;
+  return memoryDb.findOne<User>('users', (u) => u.email === email);
 }
 
 export function findUserById(id: string): User | undefined {
@@ -369,7 +366,7 @@ export function findAllUsers(): User[] {
 }
 
 export function updateUser(id: string, updates: Partial<User>): User | undefined {
-  return memoryDb.update('users', id, {
+  return memoryDb.update<User>('users', id, {
     ...updates,
     updatedAt: new Date().toISOString()}) as User | undefined;
 }
@@ -409,7 +406,7 @@ export function findProducts(
   page: number = 1,
   limit: number = 10
 ): PaginatedResponse<Product> {
-  const allProducts = memoryDb.find('products', (p) => (p as Product).active) as Product[];
+  const allProducts = memoryDb.find<Product>('products', (p) => p.active);
   const total = allProducts.length;
   const offset = (page - 1) * limit;
   const data = allProducts.slice(offset, offset + limit);
@@ -418,7 +415,7 @@ export function findProducts(
 }
 
 export function updateProduct(id: string, updates: UpdateProductInput): Product | undefined {
-  return memoryDb.update('products', id, {
+  return memoryDb.update<Product>('products', id, {
     ...updates,
     updatedAt: new Date().toISOString()}) as Product | undefined;
 }
@@ -561,16 +558,16 @@ export async function rateLimitMiddleware(
 `,
 
     // Middleware - Auth
-    'src/middleware/auth.ts': `import { Context, Status } from 'oak';
+    'src/middleware/auth.ts': `import { RouterContext, Status } from 'oak';
 import { verifyToken } from '../services/auth.ts';
 import { findUserById } from '../services/user.ts';
 import { AuthPayload } from '../types/index.ts';
 
-export interface AuthContext extends Context {
-  state: {
-    user?: AuthPayload;
-  };
+export interface AuthState {
+  user?: AuthPayload;
 }
+
+export type AuthContext = RouterContext<string, Record<string, string>, AuthState>;
 
 export async function authMiddleware(
   ctx: AuthContext,
@@ -640,7 +637,7 @@ router.all('/graphql', async (ctx) => {
   let source = '{ hello health }';
 
   if (ctx.request.method === 'POST') {
-    const body = await ctx.request.body().value;
+    const body = await ctx.request.body.json();
     source = body.query || source;
   } else if (ctx.request.method === 'GET') {
     const q = ctx.request.url.searchParams.get('query');
@@ -692,7 +689,7 @@ export const authRouter = new Router();
 
 // Register
 authRouter.post('/register', async (ctx) => {
-  const body = await ctx.request.body().value;
+  const body = await ctx.request.body.json();
   const data = registerSchema.parse(body);
 
   const existingUser = findUserByEmail(data.email);
@@ -709,7 +706,7 @@ authRouter.post('/register', async (ctx) => {
 
 // Login
 authRouter.post('/login', async (ctx) => {
-  const body = await ctx.request.body().value;
+  const body = await ctx.request.body.json();
   const data = loginSchema.parse(body);
 
   const user = findUserByEmail(data.email);
@@ -765,7 +762,7 @@ userRouter.get('/me', authMiddleware, (ctx: AuthContext) => {
 
 // Update current user
 userRouter.put('/me', authMiddleware, async (ctx: AuthContext) => {
-  const body = await ctx.request.body().value;
+  const body = await ctx.request.body.json();
 
   const user = updateUser(ctx.state.user!.userId, {
     name: body.name});
@@ -855,7 +852,7 @@ productRouter.post(
   authMiddleware,
   requireRole('admin'),
   async (ctx: AuthContext) => {
-    const body = await ctx.request.body().value;
+    const body = await ctx.request.body.json();
     const data = createProductSchema.parse(body);
 
     const product = createProduct(data);
@@ -871,7 +868,7 @@ productRouter.put(
   authMiddleware,
   requireRole('admin'),
   async (ctx: AuthContext) => {
-    const body = await ctx.request.body().value;
+    const body = await ctx.request.body.json();
     const data = updateProductSchema.parse(body);
 
     const product = updateProduct(ctx.params.id!, data);
@@ -967,7 +964,7 @@ RATE_LIMIT_WINDOW_MS=60000
 `,
 
     // Dockerfile
-    'Dockerfile': `FROM denoland/deno:1.38.5
+    'Dockerfile': `FROM denoland/deno:2.1.4
 
 WORKDIR /app
 
@@ -988,7 +985,7 @@ EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
-    CMD deno run --allow-net --allow-env --allow-read -e "Deno.connect('http://localhost:8000/health').then(r => r.status === 200 ? Deno.exit(0) : Deno.exit(1))" || exit 1
+    CMD deno eval "const r = await fetch('http://localhost:8000/health'); Deno.exit(r.ok ? 0 : 1)" || exit 1
 
 CMD ["run", "--allow-net", "--allow-env", "--allow-read", "src/main.ts"]
 `,
@@ -1045,7 +1042,7 @@ A secure REST API built with Oak framework on Deno runtime.
 
 ## Requirements
 
-- Deno 1.38+
+- Deno 2.0+
 - PostgreSQL (optional, uses in-memory DB by default)
 - Docker (optional)
 

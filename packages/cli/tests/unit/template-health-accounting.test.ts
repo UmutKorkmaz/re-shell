@@ -70,6 +70,8 @@ case "$kind" in
   dart) printf 'name: x\n' > pubspec.yaml ;;
   rescript) printf '{}' > rescript.json ;;
   haskell) printf 'name: x\n' > x.cabal ;;
+  deno) printf '{}' > deno.json ;;
+  deno-build) printf '{"tasks":{"build":"deno run -A dev.ts build"}}' > deno.json ;;
 esac
 if [ "$SCENARIO" != non-node ] && [ "$SCENARIO" != missing-package ]; then printf '{}' > package.json; fi
 if [ "$SCENARIO" = malformed-package ]; then printf '{"name":}' > package.json; fi
@@ -192,6 +194,9 @@ describe('native (non-Node) template verification', () => {
     ['zig-http', 'zig', ['zig'], 'zig build', 'build failed', 'zig build'],
     ['shelf', 'dart', ['dart'], 'dart analyze', 'analyze failed', 'dart analyze'],
     ['servant', 'haskell', ['ghc', 'cabal'], 'cabal build', 'build failed', 'cabal build all --enable-tests'],
+    ['oak-deno', 'deno', ['deno'], 'deno check', 'check failed', 'deno check'],
+    ['oak-deno', 'deno', ['deno'], 'deno test', 'test failed', 'deno test -A'],
+    ['fresh-deno', 'deno-build', ['deno'], 'deno task build', 'build failed', 'deno task build'],
   ];
 
   it.each(TOOLCHAINS)('%s: verified with its own toolchain, never through pnpm', (template, kind, tools, _failOn, _reason, ran) => {
@@ -228,6 +233,19 @@ describe('native (non-Node) template verification', () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
+  it('runs the Deno steps in order (check, build when the app has a build task, test)', () => {
+    const fresh = runHealthFixture('non-node', 'fresh-deno', { kinds: { 'fresh-deno': 'deno-build' }, tools: ['node', 'pnpm', 'npx', 'deno'] });
+    const log = fresh.shimLog.split('\n');
+    const order = ['deno check', 'deno task build', 'deno test -A'].map((fragment) => log.findIndex((line) => line.includes(fragment)));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+
+    // Oak defines no build task, so none is run
+    const oak = runHealthFixture('non-node', 'oak-deno', { kinds: { 'oak-deno': 'deno' }, tools: ['node', 'pnpm', 'npx', 'deno'] });
+    expect(oak.status).toBe(0);
+    expect(oak.shimLog).not.toContain('deno task build');
+  });
+
   it.each([
     ['fastapi', 'python', 'python3 is not installed'],
     ['gin', 'go', 'go is not installed'],
@@ -238,6 +256,7 @@ describe('native (non-Node) template verification', () => {
     ['zig-http', 'zig', 'zig is not installed'],
     ['shelf', 'dart', 'dart is not installed'],
     ['servant', 'haskell', 'ghc is not installed'],
+    ['oak-deno', 'deno', 'deno is not installed'],
     ['phoenix', 'elixir', 'elixir (mix) is not installed'],
     ['vapor', 'swift', 'swift is not installed'],
   ])('%s: SKIP names the missing toolchain when it is not installed', (template, kind, reason) => {
