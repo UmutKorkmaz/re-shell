@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { iceServerSchema, type IceServerConfig } from '@re-shell/contracts';
 import { z } from 'zod';
 
 import { ControlPlaneResult, fail, ok } from './errors.js';
@@ -27,6 +28,9 @@ import type { ServerLimits } from './http/server.js';
  *   CONTROL_PLANE_HSTS                  "1" when TLS terminates in front of the server
  *   CONTROL_PLANE_BODY_LIMIT_BYTES, CONTROL_PLANE_RATE_LIMIT_PER_MINUTE,
  *   CONTROL_PLANE_MAX_QUEUED_PER_TENANT, CONTROL_PLANE_LEASE_MS   tuning
+ *   CONTROL_PLANE_MAX_ACTIVE_SESSIONS   shared sessions per tenant (default 50)
+ *   CONTROL_PLANE_ICE_SERVERS           JSON array of WebRTC STUN/TURN servers handed to
+ *                                       session participants (default: none = host candidates only)
  */
 
 export type Env = Readonly<Record<string, string | undefined>>;
@@ -43,6 +47,8 @@ export interface ServeConfig {
   trustProxy: boolean;
   hsts: boolean;
   limits: Partial<ServerLimits>;
+  /** WebRTC ICE servers for shared sessions. Empty = host candidates only. */
+  iceServers: IceServerConfig[];
 }
 
 const keyFileSchema = z
@@ -187,6 +193,11 @@ export function loadServeConfig(env: Env): ControlPlaneResult<ServeConfig> {
   const lease = intVar(env, 'CONTROL_PLANE_LEASE_MS', 1000, 3_600_000);
   if (!lease.ok) return lease;
   if (lease.data !== undefined) limits.leaseMs = lease.data;
+  const sessions = intVar(env, 'CONTROL_PLANE_MAX_ACTIVE_SESSIONS', 1, 10_000);
+  if (!sessions.ok) return sessions;
+  if (sessions.data !== undefined) limits.maxActiveSessionsPerTenant = sessions.data;
+  const iceServers = parseIceServers(env.CONTROL_PLANE_ICE_SERVERS);
+  if (!iceServers.ok) return iceServers;
 
   return ok({
     host: env.CONTROL_PLANE_HOST || '127.0.0.1',
@@ -200,7 +211,45 @@ export function loadServeConfig(env: Env): ControlPlaneResult<ServeConfig> {
     trustProxy: flag(env.CONTROL_PLANE_TRUST_PROXY),
     hsts: flag(env.CONTROL_PLANE_HSTS),
     limits,
+    iceServers: iceServers.data,
   });
+}
+
+/**
+ * Parse CONTROL_PLANE_ICE_SERVERS. Entries must use a stun:/stuns:/turn:/turns:
+ * URL, and TURN entries must carry credentials (an open relay is an abuse magnet).
+ * NOTE: these values are delivered to every session participant; use short-lived
+ * TURN credentials, not a long-lived secret.
+ */
+export function parseIceServers(raw: string | undefined): ControlPlaneResult<IceServerConfig[]> {
+  if (raw === undefined || raw.trim() === '') {
+    return ok([]);
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return configError('CONTROL_PLANE_ICE_SERVERS is not valid JSON.');
+  }
+  const parsed = z.array(iceServerSchema).max(8).safeParse(json);
+  if (!parsed.success) {
+    return configError('CONTROL_PLANE_ICE_SERVERS must be an array of {urls, username?, credential?} (at most 8).');
+  }
+  for (const server of parsed.data) {
+    const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+    if (urls.length === 0) {
+      return configError('An ICE server needs at least one URL.');
+    }
+    for (const url of urls) {
+      if (!/^(stun|stuns|turn|turns):[^\s]+$/i.test(url)) {
+        return configError(`ICE server URL "${url}" must start with stun:, stuns:, turn: or turns:.`);
+      }
+      if (/^turns?:/i.test(url) && (!server.username || !server.credential)) {
+        return configError(`TURN server "${url}" requires a username and credential.`);
+      }
+    }
+  }
+  return ok(parsed.data);
 }
 
 /** Read a worker token from CONTROL_PLANE_WORKER_TOKEN or the file named by `tokenFile`/env. */

@@ -5,3 +5,6 @@ export * from './plugins.js';
 export * from './wire.js';
 // Wire -> domain adapters (the documented bridge between the two layers).
 export * from './adapters.js';
+export * from './ot.js';
+export * from './collab.js';
+export * from './collab-client.js';

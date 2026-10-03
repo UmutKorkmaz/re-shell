@@ -20,6 +20,7 @@ export type ScreenId =
   | 'health'
   | 'scorecard'
   | 'catalog'
+  | 'collab'
   | 'settings';
 
 export const SCREENS: readonly ScreenDef[] = [
@@ -44,6 +45,12 @@ export const SCREENS: readonly ScreenDef[] = [
     id: 'catalog',
     label: 'Catalog',
     description: 'Auto-discovered software catalog with Backstage interop (no hand-written YAML).',
+  },
+  {
+    id: 'collab',
+    label: 'Collaboration',
+    description:
+      'Pair live on the hosted control plane: a shared console, presence with direct WebRTC links, a shared editor and team analytics.',
   },
   { id: 'settings', label: 'Settings', description: 'Hub connection and dashboard preferences.' },
 ];

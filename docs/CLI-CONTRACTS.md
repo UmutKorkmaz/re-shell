@@ -126,7 +126,7 @@ status of each code is read from the CLI sources every time it is regenerated, s
 it cannot claim a code is emitted when nothing emits it.
 
 <!-- BEGIN GENERATED: error-codes -->
-The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (105 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
+The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (112 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
 
 | Code | Status | Emitted from |
 | --- | --- | --- |
@@ -190,7 +190,7 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (105 codes). A code
 | `UNAUTHENTICATED` | reserved | |
 | `FORBIDDEN` | reserved | |
 | `TENANT_NOT_FOUND` | reserved | |
-| `INVALID_REQUEST` | reserved | |
+| `INVALID_REQUEST` | emitted | `packages/cli/src/commands/collab-session.ts`, `packages/cli/src/groups/collab/session.ts` |
 | `COMMAND_NOT_ALLOWED` | reserved | |
 | `NOT_FOUND` | emitted | `packages/cli/src/commands/config.ts`, `packages/cli/src/commands/plugin-command.ts`, `packages/cli/src/commands/profile-analytics.ts`, `packages/cli/src/commands/profile.ts`, `packages/cli/src/commands/project-config.ts`, `packages/cli/src/commands/validate.ts`, `packages/cli/src/commands/workspace-config.ts`, `packages/cli/src/utils/k8s-rollback.ts` |
 | `METHOD_NOT_ALLOWED` | reserved | |
@@ -200,7 +200,7 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (105 codes). A code
 | `RATE_LIMITED` | reserved | |
 | `PAYLOAD_TOO_LARGE` | reserved | |
 | `UNSUPPORTED_MEDIA_TYPE` | reserved | |
-| `CONFIG_ERROR` | reserved | |
+| `CONFIG_ERROR` | emitted | `packages/cli/src/commands/collab-session.ts` |
 | `INTERNAL_ERROR` | reserved | |
 | `SERVICE_UNAVAILABLE` | reserved | |
 | `SERVICES_NOT_FOUND` | emitted | `packages/cli/src/commands/services.ts` |
@@ -235,6 +235,13 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (105 codes). A code
 | `BRIDGE_TRANSFORM_ERROR` | emitted | `packages/cli/src/bridge/transform/command.ts`, `packages/cli/src/bridge/transform/index.ts` |
 | `BRIDGE_MOCK_ERROR` | emitted | `packages/cli/src/bridge/mock-command.ts` |
 | `BRIDGE_GATEWAY_ERROR` | emitted | `packages/cli/src/bridge/gateway-command.ts`, `packages/cli/src/bridge/gateway.ts` |
+| `SESSION_NOT_FOUND` | reserved | |
+| `SESSION_ENDED` | reserved | |
+| `SESSION_BUSY` | reserved | |
+| `NOT_SESSION_DRIVER` | reserved | |
+| `PARTICIPANT_NOT_FOUND` | reserved | |
+| `DOCUMENT_NOT_FOUND` | reserved | |
+| `COLLAB_ERROR` | emitted | `packages/cli/src/commands/collab-session.ts` |
 <!-- END GENERATED: error-codes -->
 
 ---

@@ -11,6 +11,7 @@ import { JobsLogsScreen } from './screens/JobsLogsScreen';
 import { HealthScreen } from './screens/HealthScreen';
 import { ScorecardScreen } from './screens/ScorecardScreen';
 import { CatalogScreen } from './screens/CatalogScreen';
+import { CollaborationScreen } from './screens/CollaborationScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 
@@ -34,6 +35,8 @@ function renderScreen(screen: ScreenDef, navigate: (next: ScreenId) => void): Re
       return <ScorecardScreen />;
     case 'catalog':
       return <CatalogScreen />;
+    case 'collab':
+      return <CollaborationScreen />;
     case 'settings':
       return <SettingsScreen />;
     default:

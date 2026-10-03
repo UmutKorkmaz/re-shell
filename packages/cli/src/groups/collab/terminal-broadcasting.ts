@@ -9,7 +9,7 @@ import chalk from 'chalk';
 export function registerTerminalBroadcasting(collab: Command): void {
   collab
   .command('terminal-broadcasting')
-  .description('Generate terminal broadcasting with encryption and access control')
+  .description('[code generator] Generate terminal broadcasting with encryption and access control (for a real shared terminal use: collab session)')
   .argument('<name>', 'Name of the terminal broadcasting setup')
   .option('--encryption <type>', 'Encryption type (aes-256-gcm, chacha20-poly1305, none)', 'aes-256-gcm')
   .option('--auth <method>', 'Authentication method (password, certificate, jwt, oauth2)', 'jwt')

@@ -1,6 +1,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
+import type { IceServerConfig } from '@re-shell/contracts';
 import { isRegisteredCommandId, resolveCommand } from '@re-shell/contracts/command-registry';
 import { z } from 'zod';
 
@@ -20,6 +21,30 @@ import {
 import { listWorkspaces } from '../api.js';
 import type { AuditReader, AuditSink } from '../audit.js';
 import { Principal, SessionResolver, roleSatisfies } from '../auth.js';
+import {
+  CollabDeps,
+  authorizeSessionStream,
+  cancelRun,
+  createDoc,
+  createSession,
+  endSession,
+  getAnalytics,
+  getDoc,
+  getSession,
+  handoverControl,
+  joinSession,
+  leaveSession,
+  listDocOps,
+  listDocs,
+  listSessionEvents,
+  listSessions,
+  runCommand,
+  sendRelay,
+  sendSignal,
+  submitDocOp,
+} from '../collab.js';
+import { CollabHub, StreamListener } from '../collab-hub.js';
+import type { SqliteCollabStore } from '../db/sqlite-collab.js';
 import type { SqliteJobStore } from '../db/sqlite-jobs.js';
 import { TERMINAL_STATUSES } from '../db/sqlite-jobs.js';
 import {
@@ -86,8 +111,13 @@ export interface ServerLimits {
   /** Failed authentications per address before further attempts are throttled. */
   authFailBurst: number;
   authFailPerMinute: number;
+  /** Collaboration writes (document ops, signaling, relays) have their own, higher, per-principal budget. */
+  collabBurst: number;
+  collabPerMinute: number;
   /** Concurrent SSE streams per principal. */
   maxStreamsPerPrincipal: number;
+  /** Active shared sessions per tenant. */
+  maxActiveSessionsPerTenant: number;
   maxQueuedPerTenant: number;
   /** Worker lease: a running job with no heartbeat for this long is failed. */
   leaseMs: number;
@@ -106,7 +136,10 @@ export const DEFAULT_LIMITS: ServerLimits = {
   ipPerMinute: 600,
   authFailBurst: 10,
   authFailPerMinute: 20,
+  collabBurst: 200,
+  collabPerMinute: 1200,
   maxStreamsPerPrincipal: 10,
+  maxActiveSessionsPerTenant: 50,
   maxQueuedPerTenant: 100,
   leaseMs: 60_000,
   reapIntervalMs: 10_000,
@@ -117,6 +150,10 @@ export interface ControlPlaneServerOptions {
   store: TenantAdminStore;
   audit: AuditSink & AuditReader;
   jobs: SqliteJobStore;
+  /** Enables the collaboration routes (shared sessions, documents, signaling, analytics). */
+  collab?: SqliteCollabStore;
+  /** STUN/TURN servers handed to session participants. Empty (default) = host candidates only. */
+  iceServers?: readonly IceServerConfig[];
   identity: IdentityOptions;
   events?: EventBus;
   /** User ids allowed to create tenants. */
@@ -144,6 +181,8 @@ export interface ListenInfo {
 export interface ControlPlaneServer {
   readonly server: http.Server;
   readonly events: EventBus;
+  /** Present when the server was created with a collaboration store. */
+  readonly collabHub: CollabHub | undefined;
   listen(port: number, host: string): Promise<ListenInfo>;
   close(): Promise<void>;
 }
@@ -168,6 +207,8 @@ interface RouteDef {
   auth: AuthKind;
   /** Body size cap; undefined means the route takes no body. */
   body?: 'client' | 'worker';
+  /** Charge the per-principal budget for high-frequency collaboration writes instead of the general one. */
+  rate?: 'collab';
   run: (ctx: Ctx, body: Record<string, unknown>) => void | Promise<void>;
 }
 
@@ -222,7 +263,28 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     leaseMs: limits.leaseMs,
   };
 
+  const hub = options.collab
+    ? new CollabHub({
+        store: options.collab,
+        jobs: options.jobs,
+        events,
+        now: clock,
+        iceServers: options.iceServers,
+        logger: log,
+      })
+    : undefined;
+  const collabDeps: CollabDeps | undefined =
+    options.collab && hub
+      ? {
+          ...jobDeps,
+          collab: options.collab,
+          hub,
+          maxActiveSessionsPerTenant: limits.maxActiveSessionsPerTenant,
+        }
+      : undefined;
+
   const userLimiter = new TokenBucketLimiter(limits.userBurst, limits.userPerMinute);
+  const collabLimiter = new TokenBucketLimiter(limits.collabBurst, limits.collabPerMinute);
   const workerLimiter = new TokenBucketLimiter(limits.workerBurst, limits.workerPerMinute);
   const ipLimiter = new TokenBucketLimiter(limits.ipBurst, limits.ipPerMinute);
   const authFailLimiter = new TokenBucketLimiter(limits.authFailBurst, limits.authFailPerMinute);
@@ -364,11 +426,14 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     return false;
   }
 
-  function principalRateLimit(ctx: Ctx): boolean {
+  function principalRateLimit(ctx: Ctx, route: RouteDef): boolean {
     const now = clock();
     let verdict: ReturnType<TokenBucketLimiter['take']>;
     if (ctx.principal) {
-      verdict = userLimiter.take(`u:${ctx.principal.userId}`, now);
+      verdict =
+        route.rate === 'collab'
+          ? collabLimiter.take(`u:${ctx.principal.userId}`, now)
+          : userLimiter.take(`u:${ctx.principal.userId}`, now);
     } else if (ctx.worker) {
       verdict = workerLimiter.take(`w:${ctx.worker.tenantId}:${ctx.worker.workerId}`, now);
     } else {
@@ -470,10 +535,11 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     };
   }
 
-  function openStream(ctx: Ctx, release: () => void): SseStream {
+  function openStream(ctx: Ctx, release: () => void, maxBufferedBytes?: number): SseStream {
     const stream = openSse(ctx.req, ctx.res, {
       keepAliveMs: limits.sseKeepAliveMs,
       headers: baseHeaders(ctx.cors),
+      ...(maxBufferedBytes !== undefined ? { maxBufferedBytes } : {}),
     });
     liveStreams.add(stream);
     stream.onClose(() => {
@@ -659,6 +725,84 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     pump();
   }
 
+  /**
+   * GET /tenants/:t/sessions/:s/stream — the live session: a snapshot (or a replay
+   * after `afterSeq` / Last-Event-ID), then every logged event in order, plus
+   * ephemeral presence, signaling and relayed peer messages addressed to this user.
+   */
+  function sessionStream(ctx: Ctx): void {
+    const principal = ctx.principal;
+    if (!principal || !collabDeps || !hub) {
+      sendError(ctx, 'UNAUTHENTICATED', UNAUTHENTICATED_MESSAGE);
+      return;
+    }
+    const q = queryObject(ctx, { ints: ['afterSeq'] });
+    if (!q.ok) {
+      sendResult(ctx, q);
+      return;
+    }
+    if (q.data.afterSeq !== undefined && typeof q.data.afterSeq !== 'number') {
+      sendError(ctx, 'INVALID_REQUEST', 'afterSeq must be a non-negative integer.');
+      return;
+    }
+    const fromHeader = ctx.req.headers['last-event-id'];
+    const headerSeq =
+      typeof fromHeader === 'string' && /^\d{1,15}$/.test(fromHeader) ? Number(fromHeader) : undefined;
+    const afterSeq = typeof q.data.afterSeq === 'number' ? q.data.afterSeq : headerSeq;
+
+    const authorized = authorizeSessionStream(collabDeps, {
+      token: tokenOf(ctx),
+      tenantId: ctx.params.tenantId,
+      sessionId: ctx.params.sessionId,
+    });
+    if (!authorized.ok) {
+      sendResult(ctx, authorized);
+      return;
+    }
+    const { session } = authorized.data;
+    const release = streamSlot(ctx);
+    if (!release) {
+      return;
+    }
+    const stream = openStream(ctx, release, 8 * 1024 * 1024);
+    const listener: StreamListener = {
+      userId: principal.userId,
+      snapshot: (snapshot) => void stream.send('snapshot', snapshot, snapshot.seq),
+      event: (event) => {
+        stream.send(event.type, event, event.seq);
+        if (event.type === 'session.ended') {
+          stream.close();
+        }
+      },
+      ready: (seq) => void stream.send('ready', { seq }),
+      presence: (online) => void stream.send('presence', { online }),
+      signal: (signal) => void stream.send('signal', signal),
+      relay: (message) => void stream.send('relay', message),
+    };
+    const connection = hub.connect(session.tenantId, session.id, listener, afterSeq);
+    if (!connection.ok) {
+      stream.send('error', { code: connection.code });
+      stream.close();
+      return;
+    }
+    if (session.status === 'ended') {
+      // History only: deliver the snapshot / replay and finish; there is nothing more to stream.
+      stream.close();
+    }
+    const unsubscribe = events.subscribe(session.tenantId, (event: TenantEvent) => {
+      if (event.type === 'member.changed' && event.userId === principal.userId) {
+        if (event.role === null || !roleSatisfies(event.role, 'operator')) {
+          stream.send('revoked', { reason: 'access-removed' });
+          stream.close();
+        }
+      }
+    });
+    stream.onClose(() => {
+      connection.close();
+      unsubscribe();
+    });
+  }
+
   // ---- routes --------------------------------------------------------------
 
   const router = new Router<RouteDef>();
@@ -842,6 +986,134 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     }),
   });
 
+  // Collaboration (shared sessions) ----------------------------------------------
+
+  if (collabDeps) {
+    const sessionServerFields = (ctx: Ctx): Record<string, unknown> => ({
+      token: tokenOf(ctx),
+      tenantId: ctx.params.tenantId,
+      sessionId: ctx.params.sessionId,
+    });
+
+    route('POST', {
+      pattern: '/tenants/:tenantId/sessions',
+      auth: 'user',
+      body: 'client',
+      run: userHandler(
+        createSession,
+        collabDeps,
+        (ctx, body) => compose(body, { token: tokenOf(ctx), tenantId: ctx.params.tenantId }),
+        201
+      ),
+    });
+    route('GET', {
+      pattern: '/tenants/:tenantId/sessions',
+      auth: 'user',
+      run: userHandler(listSessions, collabDeps, (ctx) => {
+        const q = queryObject(ctx, { ints: ['limit'], strings: ['status', 'workspaceId'] });
+        return q.ok ? ok({ ...q.data, token: tokenOf(ctx), tenantId: ctx.params.tenantId }) : q;
+      }),
+    });
+    route('GET', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId',
+      auth: 'user',
+      run: userHandler(getSession, collabDeps, (ctx) => ok(sessionServerFields(ctx))),
+    });
+    for (const [action, handler] of [
+      ['join', joinSession],
+      ['leave', leaveSession],
+      ['end', endSession],
+      ['handover', handoverControl],
+    ] as const) {
+      route('POST', {
+        pattern: `/tenants/:tenantId/sessions/:sessionId/${action}`,
+        auth: 'user',
+        body: 'client',
+        run: userHandler(handler, collabDeps, (ctx, body) => compose(body, sessionServerFields(ctx))),
+      });
+    }
+    route('POST', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/cancel',
+      auth: 'user',
+      body: 'client',
+      run: userHandler(cancelRun, collabDeps, (ctx, body) => compose(body, sessionServerFields(ctx))),
+    });
+    route('POST', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/run',
+      auth: 'user',
+      body: 'client',
+      run: userHandler(runCommand, collabDeps, (ctx, body) => compose(body, sessionServerFields(ctx)), 202),
+    });
+    route('GET', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/stream',
+      auth: 'user',
+      run: (ctx) => sessionStream(ctx),
+    });
+    route('GET', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/events',
+      auth: 'user',
+      run: userHandler(listSessionEvents, collabDeps, (ctx) => {
+        const q = queryObject(ctx, { ints: ['afterSeq', 'limit'] });
+        return q.ok ? ok({ ...q.data, ...sessionServerFields(ctx) }) : q;
+      }),
+    });
+    route('GET', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/docs',
+      auth: 'user',
+      run: userHandler(listDocs, collabDeps, (ctx) => ok(sessionServerFields(ctx))),
+    });
+    route('POST', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/docs',
+      auth: 'user',
+      body: 'client',
+      run: userHandler(createDoc, collabDeps, (ctx, body) => compose(body, sessionServerFields(ctx)), 201),
+    });
+    route('GET', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/docs/:docId',
+      auth: 'user',
+      run: userHandler(getDoc, collabDeps, (ctx) => ok({ ...sessionServerFields(ctx), docId: ctx.params.docId })),
+    });
+    route('POST', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/docs/:docId/ops',
+      auth: 'user',
+      body: 'client',
+      rate: 'collab',
+      run: userHandler(submitDocOp, collabDeps, (ctx, body) =>
+        compose(body, { ...sessionServerFields(ctx), docId: ctx.params.docId })
+      ),
+    });
+    route('GET', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/docs/:docId/ops',
+      auth: 'user',
+      run: userHandler(listDocOps, collabDeps, (ctx) => {
+        const q = queryObject(ctx, { ints: ['afterRev', 'limit'] });
+        return q.ok ? ok({ ...q.data, ...sessionServerFields(ctx), docId: ctx.params.docId }) : q;
+      }),
+    });
+    route('POST', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/signal',
+      auth: 'user',
+      body: 'client',
+      rate: 'collab',
+      run: userHandler(sendSignal, collabDeps, (ctx, body) => compose(body, sessionServerFields(ctx))),
+    });
+    route('POST', {
+      pattern: '/tenants/:tenantId/sessions/:sessionId/relay',
+      auth: 'user',
+      body: 'client',
+      rate: 'collab',
+      run: userHandler(sendRelay, collabDeps, (ctx, body) => compose(body, sessionServerFields(ctx))),
+    });
+    route('GET', {
+      pattern: '/tenants/:tenantId/analytics',
+      auth: 'user',
+      run: userHandler(getAnalytics, collabDeps, (ctx) => {
+        const q = queryObject(ctx, { ints: ['from', 'to'], strings: ['workspaceId'] });
+        return q.ok ? ok({ ...q.data, token: tokenOf(ctx), tenantId: ctx.params.tenantId }) : q;
+      }),
+    });
+  }
+
   // Worker protocol -----------------------------------------------------------
 
   route('POST', {
@@ -980,7 +1252,7 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
       req.resume();
       return;
     }
-    if (!principalRateLimit(ctx)) {
+    if (!principalRateLimit(ctx, def)) {
       req.resume();
       return;
     }
@@ -1029,6 +1301,7 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
   return {
     server,
     events,
+    collabHub: hub,
     listen(port, host) {
       return new Promise((resolve, reject) => {
         server.once('error', reject);
@@ -1047,6 +1320,8 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
             }
           }, limits.reapIntervalMs);
           reaper.unref();
+          // Pick up session runs that were in flight when the process last stopped.
+          hub?.recover();
           const shownHost = address.address.includes(':') ? `[${address.address}]` : address.address;
           resolve({
             port: address.port,
@@ -1064,6 +1339,7 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
         for (const stream of Array.from(liveStreams)) {
           stream.close();
         }
+        hub?.close();
         server.close(() => resolve());
         server.closeAllConnections();
       });

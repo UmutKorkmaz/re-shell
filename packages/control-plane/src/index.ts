@@ -25,6 +25,8 @@ export * from './events.js';
 export * from './policy.js';
 export * from './admin.js';
 export * from './jobs.js';
+export * from './collab.js';
+export * from './collab-hub.js';
 export * from './jwt.js';
 export * from './identity.js';
 export * from './config.js';
@@ -35,6 +37,7 @@ export { openDatabase, transaction } from './db/sqlite.js';
 export { SqliteTenantStore } from './db/sqlite-store.js';
 export { SqliteAuditLog } from './db/sqlite-audit.js';
 export { SqliteJobStore, MAX_JOB_OUTPUT_BYTES } from './db/sqlite-jobs.js';
+export { SqliteCollabStore } from './db/sqlite-collab.js';
 export type { Job, JobStatus, JobOutputChunk } from './db/sqlite-jobs.js';
 export {
   createControlPlaneServer,
