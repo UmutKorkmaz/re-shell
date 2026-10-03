@@ -198,6 +198,10 @@ export const errorCodeSchema = z.enum([
   'FIX_CI_NO_GATES',
   'FIX_CI_NO_PROVIDER',
   'FIX_CI_GATES_RED',
+  // Codes introduced by the R-2 UI/dashboard roadmap workstream
+  'UI_THEME_ERROR',
+  'UI_COMPONENT_ERROR',
+  'UI_GENERATE_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 

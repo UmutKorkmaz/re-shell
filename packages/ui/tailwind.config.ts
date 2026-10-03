@@ -1,7 +1,49 @@
 import type { Config } from 'tailwindcss';
 import tailwindcssAnimate from 'tailwindcss-animate';
 
+type OpacityContext = { opacityValue?: string };
+
+/**
+ * A theme colour backed by a CSS custom property. Tailwind cannot apply an
+ * opacity modifier (`bg-healthy/10`, `border-warn/40`, `text-foreground/90`) to a
+ * bare `var(--x)`, which silently dropped those classes from the stylesheet. The
+ * tokens are full colour values (OKLCH or hex), so the modifier is expressed with
+ * `color-mix`, which keeps the unmodified form a plain `var()`.
+ */
+const token =
+  (name: string) =>
+  ({ opacityValue }: OpacityContext): string =>
+    opacityValue === undefined || opacityValue === '1' || opacityValue.startsWith('var(--tw-')
+      ? `var(--${name})`
+      : `color-mix(in srgb, var(--${name}) calc(${opacityValue} * 100%), transparent)`;
+
+/**
+ * Component-layer utilities from globals.css that apps use by class name. Tailwind
+ * only emits an `@layer components` rule when its class appears in `content`, and
+ * a library build scans only its own sources, so consumers' use of these classes
+ * (the dashboard shell uses "cli-chip", "label-eyebrow", ...) must be safelisted.
+ */
+const componentClasses = [
+  'surface',
+  'surface-raised',
+  'surface-pop',
+  'hairline',
+  'label-eyebrow',
+  'cli-chip',
+  'status-badge',
+  'status-healthy',
+  'status-warn',
+  'status-critical',
+  'status-info',
+  're-shell-grid',
+  're-shell-mono',
+  'skeleton',
+  'stagger-children',
+  'screen-enter'
+];
+
 const config: Config = {
+  safelist: componentClasses,
   darkMode: ['class'],
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
@@ -14,74 +56,76 @@ const config: Config = {
     },
     extend: {
       colors: {
-        border: 'var(--border)',
-        'border-strong': 'var(--border-strong)',
-        input: 'var(--input)',
-        ring: 'var(--ring)',
-        background: 'var(--background)',
-        foreground: 'var(--foreground)',
-        'bg-0': 'var(--bg-0)',
-        'bg-1': 'var(--bg-1)',
-        'bg-2': 'var(--bg-2)',
-        'bg-3': 'var(--bg-3)',
+        border: token('border'),
+        'border-strong': token('border-strong'),
+        input: token('input'),
+        control: token('control'),
+        ring: token('ring'),
+        background: token('background'),
+        foreground: token('foreground'),
+        'bg-0': token('bg-0'),
+        'bg-1': token('bg-1'),
+        'bg-2': token('bg-2'),
+        'bg-3': token('bg-3'),
         primary: {
-          DEFAULT: 'var(--primary)',
-          foreground: 'var(--primary-foreground)'
+          DEFAULT: token('primary'),
+          foreground: token('primary-foreground')
         },
         signal: {
-          DEFAULT: 'var(--signal)',
-          foreground: 'var(--signal-foreground)',
-          glow: 'var(--signal-glow)'
+          DEFAULT: token('signal'),
+          foreground: token('signal-foreground'),
+          glow: token('signal-glow')
         },
         secondary: {
-          DEFAULT: 'var(--secondary)',
-          foreground: 'var(--secondary-foreground)'
+          DEFAULT: token('secondary'),
+          foreground: token('secondary-foreground')
         },
         destructive: {
-          DEFAULT: 'var(--destructive)',
-          foreground: 'var(--destructive-foreground)'
+          DEFAULT: token('destructive'),
+          foreground: token('destructive-foreground')
         },
         muted: {
-          DEFAULT: 'var(--muted)',
-          foreground: 'var(--muted-foreground)'
+          DEFAULT: token('muted'),
+          foreground: token('muted-foreground')
         },
         accent: {
-          DEFAULT: 'var(--accent)',
-          foreground: 'var(--accent-foreground)'
+          DEFAULT: token('accent'),
+          foreground: token('accent-foreground')
         },
         popover: {
-          DEFAULT: 'var(--popover)',
-          foreground: 'var(--popover-foreground)'
+          DEFAULT: token('popover'),
+          foreground: token('popover-foreground')
         },
         card: {
-          DEFAULT: 'var(--card)',
-          foreground: 'var(--card-foreground)'
+          DEFAULT: token('card'),
+          foreground: token('card-foreground')
         },
         healthy: {
-          DEFAULT: 'var(--status-healthy)',
-          foreground: 'var(--status-healthy-foreground)',
-          glow: 'var(--status-healthy-glow)'
+          DEFAULT: token('status-healthy'),
+          foreground: token('status-healthy-foreground'),
+          glow: token('status-healthy-glow')
         },
         warn: {
-          DEFAULT: 'var(--status-warn)',
-          foreground: 'var(--status-warn-foreground)',
-          glow: 'var(--status-warn-glow)'
+          DEFAULT: token('status-warn'),
+          foreground: token('status-warn-foreground'),
+          glow: token('status-warn-glow')
         },
         critical: {
-          DEFAULT: 'var(--status-critical)',
-          foreground: 'var(--status-critical-foreground)',
-          glow: 'var(--status-critical-glow)'
+          DEFAULT: token('status-critical'),
+          foreground: token('status-critical-foreground'),
+          glow: token('status-critical-glow')
         },
         info: {
-          DEFAULT: 'var(--status-info)',
-          foreground: 'var(--status-info-foreground)',
-          glow: 'var(--status-info-glow)'
+          DEFAULT: token('status-info'),
+          foreground: token('status-info-foreground'),
+          glow: token('status-info-glow')
         }
       },
       fontFamily: {
-        display: ['"Space Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace']
+        // Stacks live in CSS variables so a theme pack can swap them at runtime.
+        display: ['var(--font-display)', '"Space Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', '"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace']
       },
       borderRadius: {
         lg: 'var(--radius)',

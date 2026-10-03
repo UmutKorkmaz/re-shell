@@ -1,0 +1,24 @@
+/* ---------------------------------------------------------------------------
+ * Self-hosted fonts (offline-safe: bundled via @fontsource, NO Google CDN).
+ * Body: Inter · Display/labels: Space Grotesk · Data/mono: JetBrains Mono.
+ *
+ * Shipped as a SEPARATE stylesheet (`@re-shell/ui/fonts.css`) and only the Latin
+ * subset: the consuming bundler resolves these imports and emits real, hashed
+ * woff2 files the browser fetches on demand. Inlining them into the library CSS
+ * (what a lib build does to every url()) cost the dashboard ~1.2 MB of gzip CSS.
+ * Import it once next to `@re-shell/ui/styles.css`:
+ *
+ *   import '@re-shell/ui/fonts.css';
+ *   import '@re-shell/ui/styles.css';
+ *
+ * Need more scripts? Import the extra @fontsource subset files yourself.
+ * ------------------------------------------------------------------------- */
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/space-grotesk/latin-500.css';
+@import '@fontsource/space-grotesk/latin-600.css';
+@import '@fontsource/space-grotesk/latin-700.css';
+@import '@fontsource/jetbrains-mono/latin-400.css';
+@import '@fontsource/jetbrains-mono/latin-500.css';
+@import '@fontsource/jetbrains-mono/latin-700.css';

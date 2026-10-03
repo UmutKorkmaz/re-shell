@@ -1,0 +1,103 @@
+{
+  "root": "dist",
+  "budgets": [
+    {
+      "name": "initial JS: app entry",
+      "match": "assets/index-*.js",
+      "maxGzipBytes": 45056
+    },
+    {
+      "name": "initial JS: entry + vendor chunks loaded on first paint",
+      "match": "assets/{index,vendor-react,vendor-query,vendor-radix,vendor-zod}-*.js",
+      "maxGzipBytes": 141312
+    },
+    {
+      "name": "vendor-react",
+      "match": "assets/vendor-react-*.js",
+      "maxGzipBytes": 51200
+    },
+    {
+      "name": "vendor-query",
+      "match": "assets/vendor-query-*.js",
+      "maxGzipBytes": 13312
+    },
+    {
+      "name": "vendor-radix",
+      "match": "assets/vendor-radix-*.js",
+      "maxGzipBytes": 17408
+    },
+    {
+      "name": "vendor-zod",
+      "match": "assets/vendor-zod-*.js",
+      "maxGzipBytes": 22528
+    },
+    {
+      "name": "React Flow (Workspace Graph only)",
+      "match": "assets/vendor-xyflow-*.js",
+      "maxGzipBytes": 65536
+    },
+    {
+      "name": "each screen chunk",
+      "match": "assets/*Screen-*.js",
+      "each": true,
+      "maxGzipBytes": 6144,
+      "exclude": "assets/{WorkspaceGraphScreen,CollaborationScreen}-*.js"
+    },
+    {
+      "name": "feature screens (Workspace Graph explorer, Collaboration)",
+      "match": "assets/{WorkspaceGraphScreen,CollaborationScreen}-*.js",
+      "each": true,
+      "maxGzipBytes": 24576
+    },
+    {
+      "name": "every JS chunk",
+      "match": "assets/*.js",
+      "each": true,
+      "maxGzipBytes": 65536,
+      "exclude": "assets/{jspdf.es.min,html2canvas.esm,purify.es,index.es}-*.js"
+    },
+    {
+      "name": "on-demand export libraries (PDF/PNG export only, never on first paint)",
+      "match": "assets/{jspdf.es.min,html2canvas.esm,purify.es,index.es}-*.js",
+      "each": true,
+      "maxGzipBytes": 133120
+    },
+    {
+      "name": "all JS except on-demand export libraries",
+      "match": "assets/*.js",
+      "maxGzipBytes": 327680,
+      "exclude": "assets/{jspdf.es.min,html2canvas.esm,purify.es,index.es}-*.js"
+    },
+    {
+      "name": "on-demand export libraries, total",
+      "match": "assets/{jspdf.es.min,html2canvas.esm,purify.es,index.es}-*.js",
+      "maxGzipBytes": 245760
+    },
+    {
+      "name": "entry stylesheet",
+      "match": "assets/index-*.css",
+      "maxGzipBytes": 12288
+    },
+    {
+      "name": "all CSS",
+      "match": "assets/*.css",
+      "maxGzipBytes": 16384
+    },
+    {
+      "name": "each woff2 font",
+      "match": "assets/*.woff2",
+      "each": true,
+      "maxGzipBytes": 27648
+    },
+    {
+      "name": "all woff2 fonts",
+      "match": "assets/*.woff2",
+      "maxGzipBytes": 194560
+    },
+    {
+      "name": "index.html",
+      "match": "index.html",
+      "maxGzipBytes": 2048
+    }
+  ]
+}

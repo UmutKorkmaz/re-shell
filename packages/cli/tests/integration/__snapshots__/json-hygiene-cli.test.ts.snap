@@ -472,7 +472,13 @@ tools submodule status
 tools submodule update
 tui
 ui
+ui component new
+ui generate
 ui test
+ui theme install
+ui theme list
+ui theme remove
+ui theme search
 workspace backup cleanup
 workspace backup compare
 workspace backup create

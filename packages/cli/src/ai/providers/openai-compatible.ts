@@ -3,6 +3,8 @@ import {
   type AiProvider,
   type ProviderRequest,
   type ProviderResponse,
+  type TextRequest,
+  type TextResponse,
 } from '../types';
 import { PROPOSAL_JSON_SCHEMA, SYSTEM_PROMPT, buildMessages } from '../prompt';
 import { scrubSecrets } from '../config';
@@ -32,6 +34,8 @@ import { parseProposalText } from './parse';
  */
 
 const MAX_OUTPUT_TOKENS = 2048;
+/** Ceiling for free-form completions (generated source files are longer than a command proposal). */
+const MAX_TEXT_TOKENS = 8192;
 
 type FormatMode = 'json_schema' | 'json_object' | 'none';
 const FORMAT_LADDER: readonly FormatMode[] = ['json_schema', 'json_object', 'none'];
@@ -147,6 +151,101 @@ export class OpenAiCompatibleProvider implements AiProvider {
         }
       }
       throw lastError ?? new AiProviderError('openai-compatible', 'http', 'the server rejected every request format');
+    } catch (error) {
+      throw mapFetchError(error, deadlineHit, secrets);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onExternalAbort);
+    }
+  }
+
+  /**
+   * Free-form completion: a plain chat-completions call without a
+   * `response_format` (the caller parses the text). Same host / key / deadline /
+   * error rules as {@link propose}.
+   */
+  async complete(request: TextRequest, signal?: AbortSignal): Promise<TextResponse> {
+    const started = Date.now();
+    const base = normalizeBaseUrl(this.options.baseUrl);
+    const baseUrl = new URL(base);
+    if (this.options.apiKey && baseUrl.protocol === 'http:' && !isLocalOrPrivateHost(baseUrl.hostname)) {
+      throw new AiProviderError(
+        'openai-compatible',
+        'config',
+        'refusing to send an API key over plain http to a remote host; use https'
+      );
+    }
+
+    const controller = new AbortController();
+    let deadlineHit = false;
+    const timer = setTimeout(() => {
+      deadlineHit = true;
+      controller.abort();
+    }, this.options.timeoutMs);
+    const onExternalAbort = (): void => controller.abort();
+    signal?.addEventListener('abort', onExternalAbort, { once: true });
+    const secrets = [this.options.apiKey];
+
+    try {
+      const model = this.model ?? (await this.discoverModel(base, controller.signal));
+      this.model = model;
+      const res = await this.doFetch(`${base}/chat/completions`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: request.system },
+            { role: 'user', content: request.prompt },
+          ],
+          temperature: 0,
+          max_tokens: Math.min(request.maxTokens ?? MAX_TEXT_TOKENS, MAX_TEXT_TOKENS),
+          stream: false,
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const detail = scrubSecrets((await safeText(res)).slice(0, 300), secrets);
+        if (res.status === 401 || res.status === 403) {
+          throw new AiProviderError('openai-compatible', 'auth', `the server rejected the credentials (HTTP ${res.status})`, res.status);
+        }
+        if (res.status === 429) {
+          throw new AiProviderError('openai-compatible', 'rate-limit', 'the server rate-limited the request', 429);
+        }
+        throw new AiProviderError(
+          'openai-compatible',
+          'http',
+          `the server returned HTTP ${res.status}${detail ? `: ${detail}` : ''}`,
+          res.status
+        );
+      }
+      let data: unknown;
+      try {
+        data = await res.json();
+      } catch {
+        throw new AiProviderError('openai-compatible', 'malformed', 'the server did not return JSON');
+      }
+      const choice = (data as { choices?: Array<Record<string, unknown>> })?.choices?.[0];
+      if (!choice) throw new AiProviderError('openai-compatible', 'malformed', 'the response had no choices');
+      const message = (choice.message ?? {}) as Record<string, unknown>;
+      if (typeof message.refusal === 'string' && message.refusal.trim()) {
+        throw new AiProviderError('openai-compatible', 'refusal', 'the model declined this request');
+      }
+      if (choice.finish_reason === 'length') {
+        throw new AiProviderError('openai-compatible', 'truncated', 'the model response was cut off before it finished');
+      }
+      if (choice.finish_reason === 'content_filter') {
+        throw new AiProviderError('openai-compatible', 'refusal', 'the response was blocked by a content filter');
+      }
+      const text = contentToText(message.content);
+      if (!text.trim()) throw new AiProviderError('openai-compatible', 'malformed', 'the model returned no content');
+      const usage = (data as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
+      return {
+        text,
+        model: typeof (data as { model?: unknown }).model === 'string' ? (data as { model: string }).model : model,
+        latencyMs: Date.now() - started,
+        usage: { inputTokens: usage?.prompt_tokens, outputTokens: usage?.completion_tokens },
+      };
     } catch (error) {
       throw mapFetchError(error, deadlineHit, secrets);
     } finally {

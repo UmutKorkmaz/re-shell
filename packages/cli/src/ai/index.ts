@@ -82,6 +82,8 @@ export {
   type ProviderRequest,
   type ProviderResponse,
   type RawProposal,
+  type TextRequest,
+  type TextResponse,
 } from './types';
 
 export type { IntentCandidate, IntentResult } from '../utils/ai-intent';

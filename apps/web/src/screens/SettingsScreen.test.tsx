@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { ToastProvider } from '@re-shell/ui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsProvider } from '../settings/useSettings';
+import { ThemePackProvider } from '../theme/useThemePacks';
 import { loadSettings } from '../settings/settings-store';
 import { SettingsScreen } from './SettingsScreen';
 
@@ -9,7 +11,11 @@ const writeTextMock = vi.fn().mockResolvedValue(undefined);
 function renderScreen() {
   return render(
     <SettingsProvider>
-      <SettingsScreen />
+      <ThemePackProvider>
+        <ToastProvider>
+          <SettingsScreen />
+        </ToastProvider>
+      </ThemePackProvider>
     </SettingsProvider>
   );
 }
@@ -38,12 +44,18 @@ describe('SettingsScreen', () => {
     );
   });
 
-  it('theme toggle flips the dark token class live and persists', () => {
+  it('theme toggle flips the dark token class live and persists (dark is the default)', () => {
     renderScreen();
+    // The design-system default: dark out of the box.
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(loadSettings().theme).toBe('dark');
+
+    fireEvent.click(screen.getByRole('button', { name: /Switch to light theme/i }));
     expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(document.documentElement.classList.contains('light')).toBe(true);
+    expect(loadSettings().theme).toBe('light');
 
     fireEvent.click(screen.getByRole('button', { name: /Switch to dark theme/i }));
-
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(loadSettings().theme).toBe('dark');
   });

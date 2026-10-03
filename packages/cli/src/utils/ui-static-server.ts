@@ -1,6 +1,7 @@
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
+import { renderBrandIntoHtml, type ResolvedWhiteLabel } from '@re-shell/contracts';
 
 /**
  * Minimal, dependency-free static file server for the bundled dashboard SPA.
@@ -52,6 +53,12 @@ export interface StaticServerOptions {
    * SPA reads this from `window.__RE_SHELL_HUB__.token` at boot.
    */
   hubToken: string;
+  /**
+   * Resolved white-label brand (product name, logo, favicon, accent). When set, it is applied to
+   * the served `index.html` (title, favicon link and the `re-shell-brand` block the app reads at
+   * boot), so a prebuilt dashboard can be re-branded at serve time. Omit for the default brand.
+   */
+  brand?: ResolvedWhiteLabel;
 }
 
 /**
@@ -199,7 +206,8 @@ function sendIndexHtml(res: http.ServerResponse, options: StaticServerOptions): 
     return;
   }
 
-  const injected = injectRuntimeConfig(html, options.hubUrl, options.hubToken);
+  const branded = options.brand ? renderBrandIntoHtml(html, options.brand) : html;
+  const injected = injectRuntimeConfig(branded, options.hubUrl, options.hubToken);
   res.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-cache, no-store, must-revalidate'

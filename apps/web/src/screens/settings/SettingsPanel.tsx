@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Button, Input, cn } from '@re-shell/ui';
+import { Button, Input, cn, useToast } from '@re-shell/ui';
 import { Check, Moon, Plug, Settings2, Sun } from 'lucide-react';
 import {
   PORT_BOUNDS,
@@ -7,6 +7,7 @@ import {
   type Settings,
   type Theme,
 } from '../../settings/settings-store';
+import { AppearancePanel } from './AppearancePanel';
 
 interface SettingsPanelProps {
   settings: Settings;
@@ -32,6 +33,7 @@ export function SettingsPanel({
   const [draft, setDraft] = React.useState<Settings>(settings);
   const [portText, setPortText] = React.useState<string>(String(settings.daemonPort));
   const [saved, setSaved] = React.useState(false);
+  const { toast } = useToast();
 
   // Re-sync the draft if the persisted settings change underneath us (reset).
   React.useEffect(() => {
@@ -50,6 +52,7 @@ export function SettingsPanel({
       return;
     }
     onSave(result.data);
+    toast({ title: 'Settings saved', description: 'Stored in this browser.', tone: 'healthy' });
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1500);
   };
@@ -138,12 +141,14 @@ export function SettingsPanel({
         </div>
       </Panel>
 
+      <AppearancePanel />
+
       <div className="flex items-center gap-2">
         <Button type="button" onClick={handleSave} disabled={!canSave}>
           {saved ? <Check className="size-4" /> : null}
           {saved ? 'Saved' : 'Save settings'}
         </Button>
-        <Button type="button" variant="ghost" onClick={onReset}>
+        <Button type="button" variant="ghost" onClick={() => { onReset(); toast({ title: 'Settings reset to defaults', tone: 'info' }); }}>
           Reset to defaults
         </Button>
       </div>
@@ -168,7 +173,7 @@ function validatePort(value: string): string | null {
   return null;
 }
 
-function Panel({
+export function Panel({
   icon,
   title,
   description,
@@ -250,7 +255,8 @@ function ThemeToggle({
       type="button"
       variant="outline"
       size="sm"
-      aria-label={`Switch to ${next} theme`}
+      // The visible text names the CURRENT theme, so the accessible name contains it (WCAG 2.5.3).
+      aria-label={`Switch to ${next} theme (currently ${theme})`}
       onClick={() => onChange(next)}
     >
       {theme === 'dark' ? <Moon className="size-4" /> : <Sun className="size-4" />}
@@ -278,7 +284,7 @@ function Switch({
       className={cn(
         'relative inline-flex h-6 w-11 items-center rounded-full outline-none transition-colors duration-fast',
         'focus-visible:shadow-focus-ring',
-        checked ? 'bg-signal' : 'bg-input'
+        checked ? 'bg-signal' : 'bg-control'
       )}
     >
       <span

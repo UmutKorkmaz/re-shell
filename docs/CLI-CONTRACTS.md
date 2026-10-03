@@ -126,7 +126,7 @@ status of each code is read from the CLI sources every time it is regenerated, s
 it cannot claim a code is emitted when nothing emits it.
 
 <!-- BEGIN GENERATED: error-codes -->
-The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (145 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
+The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (148 codes). A code is **emitted** when it appears as a string literal in the code of `packages/cli/src`, and **reserved** when it is defined but nothing emits it yet.
 
 | Code | Status | Emitted from |
 | --- | --- | --- |
@@ -152,7 +152,7 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (145 codes). A code
 | `PLUGIN_INSTALL_ERROR` | emitted | `packages/cli/src/commands/plugin-create.ts`, `packages/cli/src/commands/plugin.ts` |
 | `PLUGIN_UPDATE_ERROR` | emitted | `packages/cli/src/commands/plugin.ts` |
 | `PLUGIN_VALIDATE_ERROR` | emitted | `packages/cli/src/commands/plugin.ts` |
-| `MARKETPLACE_UNREACHABLE` | emitted | `packages/cli/src/commands/plugin-marketplace.ts`, `packages/cli/src/commands/workspace-policy-packs.ts` |
+| `MARKETPLACE_UNREACHABLE` | emitted | `packages/cli/src/commands/plugin-marketplace.ts`, `packages/cli/src/commands/ui-theme.ts`, `packages/cli/src/commands/workspace-policy-packs.ts` |
 | `MARKETPLACE_ERROR` | emitted | `packages/cli/src/commands/plugin-marketplace.ts` |
 | `MARKETPLACE_VERIFY_ERROR` | emitted | `packages/cli/src/commands/plugin-marketplace.ts`, `packages/cli/src/commands/workspace-policy-packs.ts` |
 | `POLICY_CHECK_ERROR` | emitted | `packages/cli/src/commands/workspace-policy.ts` |
@@ -275,6 +275,9 @@ The vocabulary is `errorCodeSchema` in `@re-shell/contracts` (145 codes). A code
 | `FIX_CI_NO_GATES` | emitted | `packages/cli/src/fix-ci/config.ts`, `packages/cli/src/fix-ci/types.ts` |
 | `FIX_CI_NO_PROVIDER` | emitted | `packages/cli/src/commands/fix-ci.ts`, `packages/cli/src/fix-ci/types.ts` |
 | `FIX_CI_GATES_RED` | emitted | `packages/cli/src/commands/fix-ci.ts`, `packages/cli/src/fix-ci/types.ts` |
+| `UI_THEME_ERROR` | emitted | `packages/cli/src/commands/ui-theme.ts` |
+| `UI_COMPONENT_ERROR` | emitted | `packages/cli/src/commands/ui-component.ts` |
+| `UI_GENERATE_ERROR` | emitted | `packages/cli/src/commands/ui-generate.ts` |
 <!-- END GENERATED: error-codes -->
 
 ---

@@ -10,3 +10,6 @@ export * from './collab.js';
 export * from './collab-client.js';
 export * from './platform.js';
 export * from './graph.js';
+// Theme packs, brand/white-label config and the OKLCH/contrast helpers behind them.
+export * from './ui-theme.js';
+export * from './brand-html.js';

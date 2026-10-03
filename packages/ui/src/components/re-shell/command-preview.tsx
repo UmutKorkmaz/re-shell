@@ -1,10 +1,13 @@
 import * as React from 'react';
 import { Check, Clipboard, Play, ShieldAlert, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, type HeadingElement } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { copyTextToClipboard, formatCommand } from '@/lib/command';
+import { cn } from '@/lib/utils';
+import { useChangeFlash } from '@/hooks/useChangeFlash';
+import { LiveRegion } from '@/components/primitives/live-region';
 import type { CommandSpec, CommandSpecInput } from '@/contracts';
 
 type CommandPreviewSpec = Pick<
@@ -19,6 +22,8 @@ export interface CommandPreviewProps {
   onDryRun?: () => void;
   onRun?: () => void;
   className?: string;
+  /** Element of the title (default `h2`); use a deeper level when nested under another heading. */
+  headingAs?: HeadingElement;
 }
 
 export function CommandPreview({
@@ -26,11 +31,13 @@ export function CommandPreview({
   onCopy,
   onDryRun,
   onRun,
-  className
+  className,
+  headingAs
 }: CommandPreviewProps): React.ReactElement {
   const [copied, setCopied] = React.useState(false);
   const copiedTimerRef = React.useRef<ReturnType<typeof setTimeout>>();
   const commandText = spec.commandText ?? formatCommand(spec.command);
+  const flash = useChangeFlash(commandText);
 
   React.useEffect(() => {
     return () => {
@@ -55,7 +62,7 @@ export function CommandPreview({
       <CardHeader className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle as={headingAs} className="flex items-center gap-2 text-base">
               <Terminal className="size-4" />
               {spec.title}
             </CardTitle>
@@ -70,11 +77,18 @@ export function CommandPreview({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ScrollArea className="max-h-32 rounded-md border border-border bg-bg-0 shadow-elev-1">
-          <pre className="re-shell-mono min-w-max p-3 pl-7 text-foreground before:absolute before:left-3 before:select-none before:text-signal before:content-['$'] relative">
+        <ScrollArea label={`Command text: ${spec.commandText}`} className="max-h-32 rounded-md border border-border bg-bg-0 shadow-elev-1">
+          <pre
+            key={flash.key}
+            className={cn(
+              "re-shell-mono min-w-max p-3 pl-7 text-foreground before:absolute before:left-3 before:select-none before:text-signal before:content-['$'] relative",
+              flash.className
+            )}
+          >
             {commandText}
           </pre>
         </ScrollArea>
+        <LiveRegion>{copied ? 'Command copied to clipboard' : ''}</LiveRegion>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="justify-start">
             {copied ? <Check className="size-4 text-signal" /> : <Clipboard className="size-4" />}
