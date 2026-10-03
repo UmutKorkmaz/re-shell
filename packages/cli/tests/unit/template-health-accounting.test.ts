@@ -69,6 +69,7 @@ case "$kind" in
   swift) printf '' > Package.swift ;;
   dart) printf 'name: x\n' > pubspec.yaml ;;
   rescript) printf '{}' > rescript.json ;;
+  haskell) printf 'name: x\n' > x.cabal ;;
 esac
 if [ "$SCENARIO" != non-node ] && [ "$SCENARIO" != missing-package ]; then printf '{}' > package.json; fi
 if [ "$SCENARIO" = malformed-package ]; then printf '{"name":}' > package.json; fi
@@ -190,6 +191,7 @@ describe('native (non-Node) template verification', () => {
     ['spring-boot', 'java', ['mvn', 'java'], 'mvn', 'package failed', 'mvn -B -q -DskipTests package'],
     ['zig-http', 'zig', ['zig'], 'zig build', 'build failed', 'zig build'],
     ['shelf', 'dart', ['dart'], 'dart analyze', 'analyze failed', 'dart analyze'],
+    ['servant', 'haskell', ['ghc', 'cabal'], 'cabal build', 'build failed', 'cabal build all --enable-tests'],
   ];
 
   it.each(TOOLCHAINS)('%s: verified with its own toolchain, never through pnpm', (template, kind, tools, _failOn, _reason, ran) => {
@@ -235,6 +237,7 @@ describe('native (non-Node) template verification', () => {
     ['spring-boot', 'java', 'mvn (Maven) is not installed'],
     ['zig-http', 'zig', 'zig is not installed'],
     ['shelf', 'dart', 'dart is not installed'],
+    ['servant', 'haskell', 'ghc is not installed'],
     ['phoenix', 'elixir', 'elixir (mix) is not installed'],
     ['vapor', 'swift', 'swift is not installed'],
   ])('%s: SKIP names the missing toolchain when it is not installed', (template, kind, reason) => {

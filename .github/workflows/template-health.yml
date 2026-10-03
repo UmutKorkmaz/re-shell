@@ -15,7 +15,7 @@ jobs:
   # Scaffolds every verified template with the built CLI and builds it with that
   # language's own toolchain (pip/compileall, go build, cargo check, php -l +
   # composer, ruby -c + bundle, mvn package, gradle build, sbt Test/compile,
-  # dotnet build, perl -c, luac -p, pnpm + tsc, rescript build, dart analyze, zig build, ...). The templates
+  # dotnet build, perl -c, luac -p, pnpm + tsc, rescript build, dart analyze, cabal build, zig build, ...). The templates
   # are split into groups (see scripts/scaffold-test-templates.sh) so each job
   # installs only the toolchains it needs and the groups run in parallel.
   # A template whose toolchain is not installed is reported as SKIP with the
@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [core, jvm, dotnet, native, node, config]
+        group: [core, jvm, dotnet, native, node, config, haskell]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -59,6 +59,13 @@ jobs:
         uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
+      - if: matrix.group == 'haskell'
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.4.7'
+          cabal-version: '3.10'
+      - if: matrix.group == 'haskell'
+        run: cabal update
       - if: matrix.group == 'core' || matrix.group == 'jvm'
         uses: actions/setup-java@v4
         with:
