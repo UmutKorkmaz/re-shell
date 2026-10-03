@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { AlertCircle, CheckCircle2, Info, TriangleAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, type HeadingElement } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { HealthSummary } from '@/contracts';
 type HealthLevel = HealthSummary['checks'][number]['level'];
@@ -25,15 +25,17 @@ function LevelIcon({ level }: { level: HealthLevel }): React.ReactElement {
 export interface HealthStatusProps {
   health: HealthSummary;
   className?: string;
+  /** Element of the title (default `h2`). */
+  headingAs?: HeadingElement;
 }
 
-export function HealthStatus({ health, className }: HealthStatusProps): React.ReactElement {
+export function HealthStatus({ health, className, headingAs }: HealthStatusProps): React.ReactElement {
   const status = statusMap[health.status];
 
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="label-eyebrow !text-muted-foreground">Workspace health</CardTitle>
+        <CardTitle as={headingAs} className="label-eyebrow !text-muted-foreground">Workspace health</CardTitle>
         <Badge variant={status.variant}>{status.label}</Badge>
       </CardHeader>
       <CardContent className="space-y-4">

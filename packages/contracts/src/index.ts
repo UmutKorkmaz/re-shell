@@ -7,3 +7,4 @@ export * from './wire.js';
 export * from './adapters.js';
 // Theme packs, brand/white-label config and the OKLCH/contrast helpers behind them.
 export * from './ui-theme.js';
+export * from './brand-html.js';

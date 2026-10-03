@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Check, Clipboard, Play, ShieldAlert, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, type HeadingElement } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { copyTextToClipboard, formatCommand } from '@/lib/command';
@@ -22,6 +22,8 @@ export interface CommandPreviewProps {
   onDryRun?: () => void;
   onRun?: () => void;
   className?: string;
+  /** Element of the title (default `h2`); use a deeper level when nested under another heading. */
+  headingAs?: HeadingElement;
 }
 
 export function CommandPreview({
@@ -29,7 +31,8 @@ export function CommandPreview({
   onCopy,
   onDryRun,
   onRun,
-  className
+  className,
+  headingAs
 }: CommandPreviewProps): React.ReactElement {
   const [copied, setCopied] = React.useState(false);
   const copiedTimerRef = React.useRef<ReturnType<typeof setTimeout>>();
@@ -59,7 +62,7 @@ export function CommandPreview({
       <CardHeader className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle as={headingAs} className="flex items-center gap-2 text-base">
               <Terminal className="size-4" />
               {spec.title}
             </CardTitle>

@@ -2,7 +2,7 @@ import * as React from 'react';
 import { CircleStop, Clock, Terminal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, type HeadingElement } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatCommand } from '@/lib/command';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,8 @@ export interface JobLogPanelProps {
   logs: string[];
   onCancel?: (job: JobRecord) => void;
   className?: string;
+  /** Element of the title (default `h2`). */
+  headingAs?: HeadingElement;
 }
 
 function statusAnnouncement(job: JobRecord): string {
@@ -39,14 +41,14 @@ function statusAnnouncement(job: JobRecord): string {
   }
 }
 
-export function JobLogPanel({ job, logs, onCancel, className }: JobLogPanelProps): React.ReactElement {
+export function JobLogPanel({ job, logs, onCancel, className, headingAs }: JobLogPanelProps): React.ReactElement {
   // Lines present on first render are history; lines appended afterwards flash in.
   const initialCount = React.useRef(logs.length);
   return (
     <Card className={className}>
       <CardHeader className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle as={headingAs} className="flex items-center gap-2">
             <Terminal className="size-4 text-signal" />
             Job logs
           </CardTitle>
@@ -73,7 +75,7 @@ export function JobLogPanel({ job, logs, onCancel, className }: JobLogPanelProps
       <CardContent className="space-y-4">
         <ScrollArea label="Job output" className="h-72 rounded-md border border-border bg-bg-0 text-foreground/90 shadow-elev-1">
           {/* role="log" is an implicit polite live region: appended output is announced. */}
-          <div
+          <pre
             role="log"
             aria-label="Job output"
             aria-relevant="additions"
@@ -81,21 +83,21 @@ export function JobLogPanel({ job, logs, onCancel, className }: JobLogPanelProps
           >
             {logs.length ? (
               logs.map((line, index) => (
-                <div
+                <span
                   // Log lines are append-only, so the index is a stable key.
                   key={index}
                   className={cn(
-                    'whitespace-pre-wrap break-words',
+                    'block whitespace-pre-wrap break-words',
                     index >= initialCount.current && 'animate-log-flash'
                   )}
                 >
                   {line}
-                </div>
+                </span>
               ))
             ) : (
               <span>No logs yet.</span>
             )}
-          </div>
+          </pre>
         </ScrollArea>
         <LiveRegion>{statusAnnouncement(job)}</LiveRegion>
         {job.status === 'running' ? (
