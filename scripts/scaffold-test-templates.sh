@@ -75,7 +75,7 @@ GROUP_DOTNET=(
   aspnet-dapper aspnet-automapper aspnet-xunit aspnet-efcore aspnet-hotreload
   giraffe aspnet-jwt aspnet-swagger aspnet-serilog saturn-fs suave-fs
 )
-# Go, Rust, Python, Ruby, PHP, Perl, Lua, C++ (CMake; Drogon from the distribution packages), Dart
+# Go, Rust, Python, Ruby, PHP, Perl, Lua, C++ (CMake; Drogon, cpp-httplib, Boost.Beast and Pistache from the distribution packages), Dart
 GROUP_NATIVE=(
   chi go-sqlx grpc-go
   shelf angel3 conduit
@@ -85,7 +85,7 @@ GROUP_NATIVE=(
   slim symfony codeigniter
   mojolicious dancer2 catalyst
   openresty lapis lua-http kong-plugin
-  drogon
+  drogon cpp-httplib beast pistache
 )
 # Node / TypeScript / plain JavaScript / ReScript (pnpm install + tsc, node --check, or rescript build)
 GROUP_NODE=(
