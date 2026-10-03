@@ -5,6 +5,7 @@ import * as path from 'path';
 import chalk from 'chalk';
 import { GENERATED_PKG_SCOPE, RECOGNIZED_PKG_SCOPES } from '../utils/scope';
 import { processManager } from '../utils/error-handler';
+import { ok } from '../utils/json-output';
 import { startStaticServer, type StaticServer } from '../utils/ui-static-server';
 
 // Recognized package names for the standalone UI app. Includes the legacy
@@ -631,7 +632,7 @@ export async function launchUi(options: UiCommandOptions = {}): Promise<void> {
   const plan = createUiLaunchPlan(options);
 
   if (options.json) {
-    console.log(JSON.stringify(plan, null, 2));
+    ok(plan);
     return;
   }
 

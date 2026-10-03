@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { createAsyncCommand, processManager } from '../../utils/error-handler';
 import { flushOutput } from '../../utils/spinner';
 import chalk from 'chalk';
+import { ok } from '../../utils/json-output';
 
 /**
  * Registers the `config unified` section.
@@ -48,7 +49,7 @@ export function registerUnifiedGroup(config: Command): void {
           spinner.stop();
 
           if (options.json) {
-            console.log(JSON.stringify(status, null, 2));
+            ok(status);
             return;
           }
 
@@ -254,7 +255,7 @@ export function registerUnifiedGroup(config: Command): void {
           spinner.stop();
 
           if (options.json) {
-            console.log(JSON.stringify(validation, null, 2));
+            ok(validation);
             return;
           }
 

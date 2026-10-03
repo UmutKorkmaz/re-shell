@@ -1,5 +1,6 @@
 import ora from 'ora';
 import chalk from 'chalk';
+import { isJsonModeActive } from './json-output';
 
 /**
  * Color names supported by the underlying `ora` spinner for visual customization.
@@ -25,6 +26,10 @@ interface SpinnerOptions {
   /**
    * When true, the spinner must never emit anything to stdout. Any progress
    * text is routed to stderr instead so that --json output stays pure.
+   *
+   * Passing this is optional: a spinner also goes stderr-only on its own whenever
+   * JSON mode is active (`isJsonModeActive()`), so call sites no longer have to
+   * remember to opt in.
    */
   json?: boolean;
 }
@@ -40,7 +45,8 @@ interface SpinnerOptions {
 export class ProgressSpinner {
   private spinner: ora.Ora;
   private isInteractive: boolean;
-  private isQuiet: boolean;
+  /** Set by the caller (`json: true`); independent of the ambient JSON mode. */
+  private forcedQuiet: boolean;
 
   /**
    * Creates a new {@link ProgressSpinner}.
@@ -54,8 +60,9 @@ export class ProgressSpinner {
    */
   constructor(options: SpinnerOptions) {
     // In JSON/quiet mode stdout must stay pure JSON, so suppress all spinner
-    // output to stdout and route any progress text to stderr instead.
-    this.isQuiet = Boolean(options.json);
+    // output to stdout and route any progress text to stderr instead. Quiet is
+    // forced by the caller or inferred from the ambient JSON mode.
+    this.forcedQuiet = Boolean(options.json);
 
     // Check if we're in an interactive terminal
     this.isInteractive = Boolean(
@@ -86,6 +93,15 @@ export class ProgressSpinner {
       }
       this.spinner = ora(); // Create dummy spinner
     }
+  }
+
+  /**
+   * True when stdout must stay pure JSON: either the caller asked for it or JSON
+   * mode is active right now. Evaluated on every call (not captured at
+   * construction) so a spinner created before JSON mode was enabled still obeys it.
+   */
+  private get isQuiet(): boolean {
+    return this.forcedQuiet || isJsonModeActive();
   }
 
   /**
@@ -260,6 +276,9 @@ export class ProgressSpinner {
    * because flush failures are non-critical.
    */
   private forceFlush(): void {
+    if (this.isQuiet) {
+      return;
+    }
     try {
       // Multiple approaches to ensure output is flushed immediately
       if (process.stdout.write('')) {
@@ -320,6 +339,7 @@ export class ProgressSpinner {
  * @param text - Initial text displayed alongside the spinner.
  * @param color - Optional spinner color. Defaults to `cyan` when omitted.
  * @param options - Optional behavioral flags, such as `{ json: true }` to route all spinner output to stderr.
+ *   Not required in JSON mode: the spinner detects an active JSON mode on its own.
  * @returns A new {@link ProgressSpinner} configured with the supplied arguments.
  */
 export function createSpinner(

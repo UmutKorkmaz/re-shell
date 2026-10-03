@@ -21,16 +21,26 @@
  */
 
 import { Command } from 'commander';
+import { markDeprecatedAlias } from './utils/command-catalog';
+import { fail } from './utils/json-output';
 
 function deprecate(program: Command, oldName: string, newPath: string): void {
   const cmd = new Command(oldName)
     .allowUnknownOption()
     .description(`[deprecated] Use: re-shell ${newPath}`)
     .action(() => {
-      process.stderr.write(`[deprecated] re-shell ${oldName} → re-shell ${newPath}\n`);
+      const message = `[deprecated] re-shell ${oldName} → re-shell ${newPath}`;
+      process.stderr.write(`${message}\n`);
+      // A consumer that asked for --json still gets a parseable answer on stdout.
+      if (process.argv.includes('--json')) {
+        fail('USAGE_ERROR', message, { replacedBy: `re-shell ${newPath}` });
+      }
       process.exit(1);
     });
   program.addCommand(cmd, { hidden: true });
+  // Let the command catalog / completion tell this stub apart from a real
+  // command (and know what replaces it) without parsing its description.
+  markDeprecatedAlias(cmd, newPath);
 }
 
 export function registerAliases(program: Command): void {

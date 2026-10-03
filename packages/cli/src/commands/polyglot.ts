@@ -38,6 +38,7 @@ import {
   deployService,
   printDeploymentResults,
 } from '../utils/polyglot-deploy';
+import { ok } from '../utils/json-output';
 
 /**
  * Build all (or a filtered subset of) services discovered in the current workspace.
@@ -433,7 +434,7 @@ export async function listServices(options: { verbose?: boolean; json?: boolean 
     }
 
     if (options.json) {
-      console.log(JSON.stringify(services, null, 2));
+      ok(services);
       return;
     }
 

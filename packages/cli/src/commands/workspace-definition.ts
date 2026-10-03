@@ -12,6 +12,8 @@ import {
 } from '../utils/workspace-schema';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok, failFromError } from '../utils/json-output';
+import { reportMissingWorkspaceDefinition, workspaceDefinitionErrorCode } from '../utils/workspace-definition-adapter';
 
 /**
  * Options for the workspace definition command, including initialization,
@@ -92,6 +94,13 @@ export async function manageWorkspaceDefinition(options: WorkspaceDefinitionComm
     await showWorkspaceDefinitionStatus(options, spinner);
 
   } catch (error) {
+    if (options.json) {
+      // Under --json a failure is an error envelope (and exit code 1), never
+      // human text.
+      if (spinner) spinner.stop();
+      failFromError(error, error instanceof ValidationError ? workspaceDefinitionErrorCode(error) : 'COMMAND_ERROR');
+      return;
+    }
     if (error instanceof ValidationError) {
       if (spinner) spinner.stop();
       console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
@@ -209,7 +218,7 @@ async function validateWorkspaceDefinition(options: WorkspaceDefinitionCommandOp
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -247,7 +256,7 @@ async function validateWorkspaceStructure(options: WorkspaceDefinitionCommandOpt
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -425,6 +434,10 @@ async function showWorkspaceDefinitionStatus(options: WorkspaceDefinitionCommand
 
   try {
     if (!(await fs.pathExists(inputPath))) {
+      if (options.json) {
+        reportMissingWorkspaceDefinition({ json: true, file: inputFile, spinner });
+        return;
+      }
       if (spinner) spinner.stop();
       
       console.log(chalk.yellow('\\n⚠️  No workspace definition found'));
@@ -432,6 +445,7 @@ async function showWorkspaceDefinitionStatus(options: WorkspaceDefinitionCommand
       console.log(chalk.cyan('\\n🚀 Quick start:'));
       console.log('  re-shell workspace-def init');
       console.log('  re-shell workspace-def auto-detect --merge');
+      process.exitCode = 1;
       return;
     }
 
@@ -445,12 +459,12 @@ async function showWorkspaceDefinitionStatus(options: WorkspaceDefinitionCommand
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({
+      ok({
         file: inputFile,
         definition: defResult,
         structure: structResult,
         workspaces: Object.keys(definition.workspaces).length
-      }, null, 2));
+      });
       return;
     }
 

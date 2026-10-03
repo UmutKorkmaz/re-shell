@@ -4,6 +4,7 @@ import * as yaml from 'yaml';
 import chalk from 'chalk';
 import prompts from 'prompts';
 import { ProgressSpinner } from '../utils/spinner';
+import { fail, ok } from '../utils/json-output';
 
 // Profile interfaces
 /**
@@ -190,6 +191,16 @@ async function listProfiles(options: ProfileCommandOptions, spinner?: ProgressSp
 
   const config = await loadProfileConfig();
   const profileNames = Object.keys(config.profiles);
+
+  if (options.json) {
+    // An empty profile set is a valid answer, not an error.
+    if (spinner) spinner.stop();
+    ok({
+      activeProfile: config.activeProfile ?? null,
+      profiles: profileNames.map(name => ({ name, ...config.profiles[name] })),
+    });
+    return;
+  }
 
   if (profileNames.length === 0) {
     if (spinner) spinner.stop();
@@ -777,6 +788,10 @@ async function showProfile(profileName: string, options: ProfileCommandOptions, 
 
   if (!config.profiles[profileName]) {
     if (spinner) spinner.stop();
+    if (options.json) {
+      fail('NOT_FOUND', `Profile "${profileName}" not found`, { profile: profileName });
+      return;
+    }
     console.log(chalk.red(`\n✖ Profile "${profileName}" not found\n`));
     return;
   }
@@ -784,6 +799,11 @@ async function showProfile(profileName: string, options: ProfileCommandOptions, 
   if (spinner) spinner.stop();
 
   const profile = config.profiles[profileName];
+
+  if (options.json) {
+    ok({ name: profileName, active: config.activeProfile === profileName, ...profile });
+    return;
+  }
 
   console.log(chalk.cyan.bold(`\n📄 Profile: ${profileName}\n`));
 

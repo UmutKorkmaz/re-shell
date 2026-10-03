@@ -11,6 +11,8 @@ import {
 } from '../utils/workspace-migration';
 import { ProgressSpinner} from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok, failFromError } from '../utils/json-output';
+import { reportMissingWorkspaceDefinition, workspaceDefinitionErrorCode } from '../utils/workspace-definition-adapter';
 
 /**
  * Options for the workspace migration command, including upgrade checking,
@@ -96,6 +98,13 @@ export async function manageWorkspaceMigration(options: WorkspaceMigrationComman
     await checkUpgrades(options, spinner);
 
   } catch (error) {
+    if (options.json) {
+      // Under --json a failure is an error envelope (and exit code 1), never
+      // human text.
+      if (spinner) spinner.stop();
+      failFromError(error, error instanceof ValidationError ? workspaceDefinitionErrorCode(error) : 'COMMAND_ERROR');
+      return;
+    }
     if (error instanceof ValidationError) {
       if (spinner) spinner.stop();
       console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
@@ -111,10 +120,7 @@ async function checkUpgrades(options: WorkspaceMigrationCommandOptions, spinner?
   const workspaceFile = options.workspaceFile || DEFAULT_WORKSPACE_FILE;
 
   if (!(await fs.pathExists(workspaceFile))) {
-    if (spinner) spinner.stop();
-    console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-    console.log(chalk.gray(`Expected: ${workspaceFile}`));
-    console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
+    reportMissingWorkspaceDefinition({ json: options.json, file: workspaceFile, spinner });
     return;
   }
 
@@ -126,7 +132,7 @@ async function checkUpgrades(options: WorkspaceMigrationCommandOptions, spinner?
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(upgrades, null, 2));
+      ok(upgrades);
       return;
     }
 
@@ -184,7 +190,7 @@ async function createMigrationPlan(options: WorkspaceMigrationCommandOptions, sp
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(plan, null, 2));
+      ok(plan);
       return;
     }
 
@@ -255,7 +261,7 @@ async function upgradeWorkspace(options: WorkspaceMigrationCommandOptions, spinn
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -325,7 +331,7 @@ async function validateWorkspaceDefinition(options: WorkspaceMigrationCommandOpt
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(validation, null, 2));
+      ok(validation);
       return;
     }
 
@@ -381,7 +387,7 @@ async function showMigrationHistory(options: WorkspaceMigrationCommandOptions, s
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(history, null, 2));
+      ok(history);
       return;
     }
 

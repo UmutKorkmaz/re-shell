@@ -59,7 +59,7 @@ export async function managePlugins(options: PluginCommandOptions = {}): Promise
     const plugins = registry.getManagedPlugins();
     
     if (json) {
-      process.stdout.write(JSON.stringify(plugins.map(p => ({
+      ok(plugins.map(p => ({
         name: p.manifest.name,
         version: p.manifest.version,
         description: p.manifest.description,
@@ -68,7 +68,7 @@ export async function managePlugins(options: PluginCommandOptions = {}): Promise
         isActive: p.isActive,
         usageCount: p.usageCount,
         state: p.state
-      })), null, 2) + '\n');
+      })));
       restoreJson();
       return;
     }
@@ -126,7 +126,7 @@ export async function discoverPlugins(options: PluginCommandOptions = {}): Promi
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -316,7 +316,7 @@ export async function showPluginInfo(
     }
 
     if (json) {
-      console.log(JSON.stringify({
+      ok({
         manifest: plugin.manifest,
         path: plugin.pluginPath,
         isLoaded: plugin.isLoaded,
@@ -329,7 +329,7 @@ export async function showPluginInfo(
         performance: plugin.performance,
         errors: plugin.errors,
         stateHistory: plugin.stateHistory
-      }, null, 2));
+      });
       return;
     }
 
@@ -692,7 +692,7 @@ export async function showPluginStats(options: PluginCommandOptions = {}): Promi
     };
     
     if (json) {
-      console.log(JSON.stringify(stats, null, 2));
+      ok(stats);
       return;
     }
 
@@ -809,9 +809,9 @@ export async function showPluginHooks(
       if (pluginName) {
         const hookSystem = registry.getHookSystem();
         const pluginHooks = hookSystem.getPluginHooks(pluginName);
-        console.log(JSON.stringify(pluginHooks, null, 2));
+        ok(pluginHooks);
       } else {
-        console.log(JSON.stringify(hookStats, null, 2));
+        ok(hookStats);
       }
       return;
     }
@@ -911,7 +911,7 @@ export async function executeHook(
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -966,7 +966,7 @@ export async function listHookTypes(options: PluginCommandOptions = {}): Promise
     const hookTypes = Object.values(HookType);
     
     if (json) {
-      console.log(JSON.stringify(hookTypes, null, 2));
+      ok(hookTypes);
       return;
     }
 

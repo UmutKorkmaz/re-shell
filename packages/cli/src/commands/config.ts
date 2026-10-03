@@ -3,6 +3,7 @@ import prompts from 'prompts';
 import { configManager, GlobalConfig} from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { fail, ok } from '../utils/json-output';
 
 /**
  * Options for the configuration management command
@@ -137,7 +138,7 @@ async function listConfiguration(options: ConfigCommandOptions, spinner?: Progre
   }
 
   if (json) {
-    console.log(JSON.stringify(output, null, 2));
+    ok(output);
   } else {
     if (output.global) {
       console.log(chalk.cyan('\n📋 Global Configuration:'));
@@ -167,7 +168,11 @@ async function getConfigValue(key: string, options: ConfigCommandOptions, spinne
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify({ [key]: value }, null, 2));
+    if (value === undefined) {
+      fail('NOT_FOUND', `Configuration key '${key}' not found`, { key });
+    } else {
+      ok({ [key]: value });
+    }
   } else {
     if (value !== undefined) {
       console.log(chalk.cyan(`${key}:`), value);
@@ -234,7 +239,7 @@ async function loadPreset(name: string, options: ConfigCommandOptions, spinner?:
 
   if (options.json) {
     if (spinner) spinner.stop();
-    console.log(JSON.stringify(preset, null, 2));
+    ok(preset);
   } else {
     if (spinner) spinner.stop();
     console.log(chalk.cyan(`\n📦 Preset: ${preset.name}`));
@@ -468,11 +473,11 @@ async function showConfiguration(options: ConfigCommandOptions, spinner?: Progre
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify({
+    ok({
       global: config.global,
       project: config.project,
       merged: config.merged
-    }, null, 2));
+    });
   } else {
     console.log(chalk.cyan('\n📋 Current Configuration'));
     console.log(chalk.gray('═'.repeat(50)));

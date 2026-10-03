@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import prompts from 'prompts';
 import { environmentManager} from '../utils/environment';
 import { ProgressSpinner } from '../utils/spinner';
+import { ok } from '../utils/json-output';
 
 
 /**
@@ -100,7 +101,7 @@ async function listEnvironments(options: EnvironmentCommandOptions, spinner?: Pr
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(environments, null, 2));
+    ok(environments);
   } else {
     console.log(chalk.cyan('\n🌍 Available Environments:'));
     console.log(chalk.gray('═'.repeat(40)));
@@ -143,7 +144,7 @@ async function showActiveEnvironment(options: EnvironmentCommandOptions, spinner
   }
 
   if (options.json) {
-    console.log(JSON.stringify(activeEnv, null, 2));
+    ok(activeEnv);
   } else {
     console.log(chalk.cyan(`\n🌍 Active Environment: ${chalk.bold(activeEnv.name)}`));
     console.log(chalk.gray('═'.repeat(40)));
@@ -234,7 +235,7 @@ async function compareEnvironments(env1: string, env2: string, options: Environm
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(comparison, null, 2));
+    ok(comparison);
   } else {
     console.log(chalk.cyan(`\n🔍 Environment Comparison: ${env1} vs ${env2}`));
     console.log(chalk.gray('═'.repeat(50)));
@@ -288,10 +289,10 @@ async function showEnvironmentStatus(options: EnvironmentCommandOptions, spinner
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify({
+    ok({
       active: activeEnv,
       environments: environments
-    }, null, 2));
+    });
   } else {
     console.log(chalk.cyan('\n🌍 Environment Status'));
     console.log(chalk.gray('═'.repeat(30)));

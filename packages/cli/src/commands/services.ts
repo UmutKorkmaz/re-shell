@@ -7,6 +7,7 @@ import { spawn, execSync, ChildProcess } from 'child_process';
 import chalk from 'chalk';
 import { glob } from 'glob';
 import type { BackendTemplate } from '../templates/backend/index';
+import { fail, ok } from '../utils/json-output';
 
 /**
  * Service configuration extracted from a docker-compose.yml file or package.json scripts.
@@ -592,6 +593,12 @@ export async function servicesHealth(
     verbose = false,
   } = options;
 
+  if (json && watch) {
+    // A watch never ends, so it cannot produce the single JSON document.
+    fail('USAGE_ERROR', '--watch cannot be combined with --json');
+    return;
+  }
+
   const hasDockerCompose = await checkDockerComposeAvailable();
 
   if (hasDockerCompose) {
@@ -608,10 +615,48 @@ export async function servicesHealth(
 /**
  * Check Docker Compose service health
  */
+/**
+ * Parse `docker-compose ps --format json` output, which is a JSON array on some
+ * Compose versions and newline-delimited JSON objects on others.
+ */
+function parseComposePsJson(stdout: string): unknown[] {
+  const text = stdout.trim();
+  if (text.length === 0) {
+    return [];
+  }
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    return text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(line => JSON.parse(line) as unknown);
+  }
+}
+
 async function checkDockerHealth(
   projectPath: string,
   options: { json: boolean; verbose: boolean }
 ): Promise<void> {
+  if (options.json) {
+    const json = await runCommand('docker-compose', ['ps', '--format', 'json'], {
+      cwd: projectPath,
+      capture: true,
+    });
+    if (json.code !== 0) {
+      fail(
+        'COMMAND_ERROR',
+        `docker-compose ps failed: ${json.stderr.trim() || `exit code ${json.code}`}`,
+        { exitCode: json.code }
+      );
+      return;
+    }
+    ok(parseComposePsJson(json.stdout));
+    return;
+  }
+
   const result = await runCommand('docker-compose', ['ps'], {
     cwd: projectPath,
     capture: true,
@@ -681,7 +726,7 @@ async function checkNpmProcessHealth(
     }
 
     if (options.json) {
-      console.log(JSON.stringify(services, null, 2));
+      ok(services);
     } else {
       console.log(chalk.bold('\nService Health Status:\n'));
       for (const svc of services) {
@@ -1120,7 +1165,7 @@ export async function servicesInspect(
 
   // Display results
   if (json) {
-    console.log(JSON.stringify(inspection, null, 2));
+    ok(inspection);
   } else {
     displayInspection(inspection);
   }
