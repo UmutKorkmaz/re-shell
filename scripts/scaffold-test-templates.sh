@@ -68,7 +68,7 @@ GROUP_JVM=(
 GROUP_DOTNET=(
   aspnet-core-webapi aspnet-core-minimal blazor-server grpc-service
   aspnet-dapper aspnet-automapper aspnet-xunit aspnet-efcore aspnet-hotreload
-  giraffe aspnet-jwt aspnet-swagger aspnet-serilog
+  giraffe aspnet-jwt aspnet-swagger aspnet-serilog saturn-fs suave-fs
 )
 # Go, Rust, Python, Ruby, PHP, Perl, Lua, C++ (CMake; Drogon from the distribution packages)
 GROUP_NATIVE=(
