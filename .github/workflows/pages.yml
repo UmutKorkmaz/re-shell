@@ -43,6 +43,11 @@ jobs:
       - name: Build site
         run: pnpm --filter @re-shell/site run build
 
+      # Every internal /re-shell/... link (and #anchor) in the site sources must
+      # resolve to a page in the build.
+      - name: Check internal links
+        run: node scripts/check-site-links.mjs
+
       # The workspace.yaml v2 JSON Schema is served from the site. Fail the build
       # (before anything is deployed) if it was not emitted or its $id is not the
       # URL it will be served from.

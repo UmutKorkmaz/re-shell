@@ -433,7 +433,10 @@ async function main() {
       assert(result.status === 0, `exit ${result.status}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`);
       let plan;
       try {
-        plan = JSON.parse(result.stdout);
+        const parsed = JSON.parse(result.stdout);
+        // `--json` output is the standard { ok, data, warnings } envelope; accept the
+        // bare plan too so the check does not depend on the wrapper.
+        plan = parsed && parsed.ok === true && parsed.data ? parsed.data : parsed;
       } catch (error) {
         throw new Error(`stdout is not JSON (${error.message}): ${JSON.stringify(result.stdout.slice(0, 200))}`);
       }

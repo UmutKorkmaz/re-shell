@@ -27,8 +27,9 @@ CLI_BIN="$REPO_ROOT/packages/cli/dist/index.js"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# Representative templates across languages — not all 213, but one per language
-# ecosystem + the most popular frameworks.
+# Representative templates across languages: not every template in the registry
+# (`re-shell templates list --json`), but one per language ecosystem plus the most
+# popular frameworks.
 TEMPLATES=(
   express fastify nestjs koa hono
   fastapi flask django
