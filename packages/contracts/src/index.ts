@@ -5,3 +5,5 @@ export * from './plugins.js';
 export * from './wire.js';
 // Wire -> domain adapters (the documented bridge between the two layers).
 export * from './adapters.js';
+// Theme packs, brand/white-label config and the OKLCH/contrast helpers behind them.
+export * from './ui-theme.js';

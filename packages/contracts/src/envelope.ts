@@ -152,6 +152,10 @@ export const errorCodeSchema = z.enum([
   'BRIDGE_TRANSFORM_ERROR',
   'BRIDGE_MOCK_ERROR',
   'BRIDGE_GATEWAY_ERROR',
+  // Codes introduced by the R-2 UI/dashboard roadmap workstream
+  'UI_THEME_ERROR',
+  'UI_COMPONENT_ERROR',
+  'UI_GENERATE_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
