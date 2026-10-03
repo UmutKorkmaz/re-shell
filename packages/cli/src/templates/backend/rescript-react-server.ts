@@ -18,47 +18,45 @@ export const rescriptReactServerTemplate: BackendTemplate = {
     'package.json': `{
   "name": "{{projectName}}",
   "version": "1.0.0",
-  "description": "ReScript + React Server Components with type safety",
+  "description": "ReScript + React server-side rendering with type safety",
   "scripts": {
-    "dev": "rescript clean && rescript dev -w & nodemon -x 'node dist/js/src/Server.bs.js'",
+    "dev": "rescript build -w",
     "build": "rescript build",
-    "start": "node dist/js/src/Server.bs.js",
-    "server": "nodemon -x 'rescript build && node dist/js/src/Server.bs.js'",
-    "test": "jest",
-    "test:watch": "jest --watch",
+    "start": "node src/Main.bs.js",
+    "server": "nodemon --watch src -e js --exec \\"node src/Main.bs.js\\"",
+    "test": "rescript build && node --test src/__tests__/ApiTest.bs.js",
     "clean": "rescript clean",
     "format": "rescript format",
-    "typecheck": "rescript"
+    "typecheck": "rescript build"
   },
   "dependencies": {
     "@rescript/core": "^1.3.0",
     "@rescript/react": "^0.12.0",
-    "rescript-express": "^0.3.0",
-    "rescript-nodejs": "^16.1.0",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "react-server-dom-webpack": "^18.3.0",
-    "express": "^4.19.2",
-    "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
-    "dotenv": "^16.4.5",
     "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "graphql": "^16.8.1",
+    "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "graphql-yoga": "^5.3.0",
-    "graphql": "^16.8.1"
+    "morgan": "^1.10.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
   },
   "devDependencies": {
-    "rescript": "^11.1.0",
-    "jest": "^29.7.0",
     "nodemon": "^3.1.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0"
+    "rescript": "^11.1.0"
   },
-  "keywords": ["rescript", "react", "server-components"],
-  "author": "{{author}}",
+  "keywords": [
+    "rescript",
+    "react",
+    "ssr",
+    "express"
+  ],
+  "author": "re-shell",
   "license": "MIT"
-}`,
+}
+`,
 
     // ReScript configuration
     'rescript.json': `{
@@ -75,307 +73,155 @@ export const rescriptReactServerTemplate: BackendTemplate = {
     "in-source": true
   },
   "suffix": ".bs.js",
+  "jsx": {
+    "version": 4
+  },
   "bs-dependencies": [
     "@rescript/core",
-    "@rescript/react",
-    "rescript-express",
-    "rescript-nodejs"
+    "@rescript/react"
   ],
-  "warnings": {
-    "error": true
-  },
   "bsc-flags": [
-    "-bs-gentype",
     "-open RescriptCore"
   ]
-}`,
+}
+`,
 
     // Main server file
-    'src/Server.res': `open RescriptCore
-open RescriptExpress
-open Node
-open ReactServer
+    'src/Server.res': `let jsonError = (res: Express.res, status: int, message: string) =>
+  res->Express.status(status)->Express.sendJson({"error": message})
 
-// Types
-type user = {
-  id: int,
-  name: string,
-  email: string,
-  role: string}
+let publicUser = (u: Types.user) => {"id": u.id, "email": u.email, "name": u.name, "role": u.role}
 
-type product = {
-  id: int,
-  name: string,
-  price: float,
-  description: string}
-
-// Mock data (replace with real database)
-let mockUsers: array<user> = [
-  {id: 1, name: "Admin User", email: "admin@example.com", role: "admin"},
-  {id: 2, name: "Test User", email: "user@example.com", role: "user"}]
-
-let mockProducts: array<product> = [
-  {id: 1, name: "Product 1", price: 99.99, description: "Description 1"},
-  {id: 2, name: "Product 2", price: 149.99, description: "Description 2"}]
-
-// Auth middleware
-let authMiddleware = (req, res, next) => {
-  let authHeader = req->Express.getOptionHeader("authorization")
-
-  switch authHeader {
-  | None => res->Status.statusCode(401)->Response.json({"error": "Unauthorized"})
-  | Some(token) =>
-    if (String.startsWith(token, "Bearer ")) {
-      let token = String.substring(token, 7)->Js.String2.length
-      if (token > 10) {
-        next()
-      } else {
-        res->Status.statusCode(401)->Response.json({"error": "Invalid token"})
-      }
-    } else {
-      res->Status.statusCode(401)->Response.json({"error": "Invalid token format"})
-    }
-  }
-}
-
-// Routes
-module AppRoutes = {
-  @send
-  let healthGet = (_req, res) => {
-    let response = {
-      "status": "healthy",
-      "timestamp": Js.Date.now(),
-      "framework": "ReScript + React Server Components"}
-    res->Response.json(response)->Js.Promise.resolve
-  }
-
-  @send
-  let homeGet = (_req, res) => {
-    let component = HomePage.component
-    let payload = {"title": "ReScript React Server Components"}
-
-    component
-    ->ReactServer.renderToPipeableStream(payload)
-    ->Js.Promise.then_=stream => {
-      res->Header.setContentType("text/html")->ignore
-      res->Response.sendStream(stream)->ignore
-      Js.Promise.resolve()
-    }
-  }
-
-  @send
-  let usersGet = (_req, res) => {
-    let users = {
-      "data": mockUsers->Belt.Array.map(u => {
-        "id": Js.Int.toString(u.id),
-        "name": u.name,
-        "email": u.email,
-        "role": u.role}),
-      "count": Js.Array.length(mockUsers)}
-    res->Response.json(users)->Js.Promise.resolve
-  }
-
-  @send
-  let userGet = (req, res) => {
-    let id = req->Express.getParam("id")->Belt.Option.getWithDefault("")
-    let user = mockUsers->Belt.Array.getBy(u => Js.Int.toString(u.id) == id)
-
-    switch user {
-    | None => res->Status.statusCode(404)->Response.json({"error": "User not found"})
-    | Some(user) =>
-      let userData = {
-        "id": Js.Int.toString(user.id),
-        "name": user.name,
-        "email": user.email,
-        "role": user.role}
-      res->Response.json(userData)
-    }
-  }
-
-  @send
-  let productsGet = (_req, res) => {
-    let products = {
-      "data": mockProducts->Belt.Array.map(p => {
-        "id": Js.Int.toString(p.id),
-        "name": p.name,
-        "price": Js.Float.toString(p.price),
-        "description": p.description}),
-      "count": Js.Array.length(mockProducts)}
-    res->Response.json(products)->Js.Promise.resolve
-  }
-
-  @send
-  let loginPost = (req, res) => {
-    // Mock authentication - replace with real implementation
-    req->Express.getJsonBody->Js.Promise.then_=body => {
-      let email = body->Js.Dict.get("email")->Belt.Option.getWithDefault("")
-      let password = body->Js.Dict.get("password")->Belt.Option.getWithDefault("")
-
-      if (email != "" && password != "") {
-        let token = "mock-jwt-token-" ++ Js.String2.make(length=32)
-        let response = {
-          "token": token,
-          "user": {
-            "id": "1",
-            "name": "Admin User",
-            "email": email,
-            "role": "admin"}}
-        res->Response.json(response)
-      } else {
-        res->Status.statusCode(401)->Response.json({"error": "Invalid credentials"})
-      }
-    }
-  }
-}
-
-// Server Component: HomePage
-module HomePage = {
-  @react.component
-  let make = (~title) => {
-    let timestamp = React.useState(() => Js.Date.now())
-
-    React.useEffect0(() => {
-      let timer = Js.Global.setInterval(() => timestamp->React.setState(_ => Js.Date.now()), 1000)
-      Some(() => Js.Global.clearInterval(timer))
-    })
-
-    <html>
-      <head>
-        <title> {React.string(title)} </title>
-        <meta charSet="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      </head>
-      <body>
-        <div className="container">
-          <h1> {React.string(title)} </h1>
-          <p> {React.string("Welcome to ReScript + React Server Components!")} </p>
-          <div className="features">
-            <div className="feature-card">
-              <h3> {React.string("⚡ Type Safety")} </h3>
-              <p> {React.string("Compile-time type checking with ReScript's powerful type system")} </p>
-            </div>
-            <div className="feature-card">
-              <h3> {React.string("🚀 Server Components")} </h3>
-              <p> {React.string("React Server Components for reduced bundle size and improved performance")} </p>
-            </div>
-            <div className="feature-card">
-              <h3> {React.string("🔒 Full Stack")} </h3>
-              <p> {React.string("Share types between frontend and backend for end-to-end type safety")} </p>
-            </div>
-          </div>
-          <div className="timestamp">
-            <p> {React.string("Server time: " ++ Js.Date.toString(timestamp()))} </p>
-          </div>
-        </div>
-      </body>
-    </html>
-  }
-}
-
-// App
-let app = Express.app()
+let bearerToken = (req: Express.req): option<string> =>
+  req
+  ->Express.header("authorization")
+  ->Nullable.toOption
+  ->Option.flatMap(header =>
+    header->String.startsWith("Bearer ") ? Some(header->String.sliceToEnd(~start=7)) : None
+  )
 
 // Middleware
-app->Express.use(Cors.middleware)
-app->Express.use(Helmet.middleware)
-app->Express.use(Morgan.middleware("dev"))
-app->Express.use(Express.json)
-app->Express.use(Express.urlencodedWithConfig({~extended=true->Some, ()->}))
+let requireUser: Express.middleware = (req, res, next) =>
+  switch bearerToken(req)->Option.flatMap(Auth.verifyToken) {
+  | Some(claims) => {
+      req->Express.setUser(claims)
+      next()
+    }
+  | None => jsonError(res, 401, "Unauthorized")
+  }
+
+let requireAdmin: Express.middleware = (req, res, next) =>
+  requireUser(req, res, () => {
+    let claims: option<Types.claims> = req->Express.user->Nullable.toOption
+    switch claims {
+    | Some({role: "admin"}) => next()
+    | _ => jsonError(res, 403, "Admin role required")
+    }
+  })
+
+@module external graphqlHandler: Express.handler = "./graphqlHandler.js"
 
 // Routes
-app->Express.get("/health", AppRoutes.healthGet)
-app->Express.get("/", AppRoutes.homeGet)
+module Routes = {
+  let health: Express.handler = (_req, res) =>
+    res->Express.sendJson({
+      "status": "healthy",
+      "timestamp": Date.now(),
+      "framework": "ReScript + React",
+    })
 
-// GraphQL endpoint (graphql-yoga via JS interop)
-app->Express.get("/graphql", (req, res) => {
-  GraphQL.handleGraphQL(req, res)->ignore
-  Js.Promise.resolve()
-})
-app->Express.post("/graphql", (req, res) => {
-  GraphQL.handleGraphQL(req, res)->ignore
-  Js.Promise.resolve()
-})
-
-// API routes
-app->Express.get("/api/v1/users", AppRoutes.usersGet)
-app->Express.get("/api/v1/users/:id", AppRoutes.userGet)
-app->Express.get("/api/v1/products", AppRoutes.productsGet)
-
-// Auth routes
-app->Express.post("/api/v1/auth/login", AppRoutes.loginPost)
-
-// Protected routes
-let protectedRouter = Express.router()
-protectedRouter->Express.use(authMiddleware)
-// protectedRouter->Express.get("/profile", ProfileRoutes.profileGet)
-app->Express.use("/api/v1", protectedRouter)
-
-// 404 handler
-app->Express.use((req, res) => {
-  res->Status.statusCode(404)->Response.json({
-    "error": "Not found",
-    "path": req->Express.getUrl})->ignore
-})
-
-// Error handler
-app->Express.use((err, req, res, _next) => {
-  Console.error(err->Js.Exn.message)
-  res->Status.statusCode(500)->Response.json({
-    "error": "Internal server error",
-    "message": err->Js.Exn.message})->ignore
-})
-
-// Start server
-let port = Node.Process.env->Js.Dict.get("PORT")->Belt.Option.mapOr(3000, s-> {
-  switch Js.Int.parse(s) {
-  | Some(n) => n
-  | None => 3000
+  /** Renders a React component tree to an HTML page. */
+  let home: Express.handler = (_req, res) => {
+    let html = ReactDOMServer.renderToString(
+      <Components.HomePage
+        title="{{projectName}}"
+        products=Store.products
+        userCount={Array.length(Store.users)}
+      />,
+    )
+    res->Express.setHeader("Content-Type", "text/html")
+    res->Express.sendText("<!DOCTYPE html>" ++ html)
   }
-})
 
-let server = app->Express.listenWithConfig(port, {
-  let onListen = () => {
-    Console.log("🚀 ReScript + React Server Components server running on port " ++ Js.Int.toString(port))
-    Console.log("📖 API Documentation: http://localhost:" ++ Js.Int.toString(port) ++ "/api/v1")
-    Console.log("🏥 Health Check: http://localhost:" ++ Js.Int.toString(port) ++ "/health")
+  let login: Express.handler = (req, res) => {
+    let body = Express.body(req)
+    switch (Json.string(body, "email"), Json.string(body, "password")) {
+    | (Some(email), Some(password)) =>
+      switch Store.findUserByEmail(email) {
+      | Some(user) if Auth.verifyPassword(password, user.passwordHash) =>
+        res->Express.sendJson({"token": Auth.generateToken(user), "user": publicUser(user)})
+      | _ => jsonError(res, 401, "Invalid credentials")
+      }
+    | _ => jsonError(res, 400, "email and password are required")
+    }
   }
-  let onError = err => {
-    Console.error("Failed to start server:")
-    Console.error(err->Js.Exn.message)
+
+  let profile: Express.handler = (req, res) => {
+    let claims: option<Types.claims> = req->Express.user->Nullable.toOption
+    switch claims {
+    | Some(c) => res->Express.sendJson({"userId": c.sub, "email": c.email, "role": c.role})
+    | None => jsonError(res, 401, "Unauthorized")
+    }
   }
-  ("onListen", onListen, "onError", onError)
-})
 
-// Graceful shutdown
-Process.onSigInt->ignore
-Process.onSigTerm->ignore`,
+  let listUsers: Express.handler = (_req, res) => {
+    let users = Store.users->Array.map(publicUser)
+    res->Express.sendJson({"data": users, "count": Array.length(users)})
+  }
 
-    // React Server runtime bindings
-    'src/ReactServer.res': `open RescriptCore
-open React
+  let getUser: Express.handler = (req, res) =>
+    switch req->Express.params->Dict.get("id") {
+    | Some(id) =>
+      switch Store.users->Array.find(u => u.id == id) {
+      | Some(user) => res->Express.sendJson(publicUser(user))
+      | None => jsonError(res, 404, "User not found")
+      }
+    | None => jsonError(res, 400, "Invalid user id")
+    }
 
-// React Server Components runtime bindings
-module Render = {
-  @module("react-server-dom-webpack/node")
-  external renderToPipeableStream: (React.element, Js.Dict.t<string>) => nodeStream => unit =
-    "renderToPipeableStream"
+  let listProducts: Express.handler = (_req, res) =>
+    res->Express.sendJson({"data": Store.products, "count": Array.length(Store.products)})
 }
 
-module renderToPipeableStream = {
-  @send
-  let run = (element: React.element, ~payload={}: Js.Dict.t<string>=()) => {
-    Render.renderToPipeableStream(element, payload)
+/** Builds the Express application (does not listen). */
+let make = (): Express.app => {
+  let app = Express.make()
+
+  app->Express.use(Express.helmet())
+  app->Express.use(Express.cors())
+  app->Express.use(Express.jsonBody())
+  app->Express.use(Express.staticFiles("public"))
+  if Env.get("NODE_ENV") != Some("test") {
+    app->Express.use(Express.morgan("combined"))
   }
+
+  app->Express.get("/", Routes.home)
+  app->Express.get("/health", Routes.health)
+
+  // GraphQL endpoint
+  app->Express.post("/graphql", graphqlHandler)
+  app->Express.get("/graphql", graphqlHandler)
+
+  // API routes
+  app->Express.post("/api/v1/auth/login", Routes.login)
+  app->Express.getWith("/api/v1/profile", requireUser, Routes.profile)
+  app->Express.getWith("/api/v1/users", requireAdmin, Routes.listUsers)
+  app->Express.getWith("/api/v1/users/:id", requireAdmin, Routes.getUser)
+  app->Express.get("/api/v1/products", Routes.listProducts)
+
+  app->Express.get("*", (req, res) =>
+    res->Express.status(404)->Express.sendJson({"error": "Not found", "path": req->Express.path})
+  )
+
+  // Error handling
+  app->Express.useErrorHandler((err, _req, res, _next) => {
+    Console.error2("Error:", err)
+    jsonError(res, 500, "Internal server error")
+  })
+
+  app
 }
-
-// Server component utilities
-module Utils = {
-  let createPayload = (data: Js.Dict.t<string>) => data
-
-  let mergePayload = (payload1, payload2) => {
-    Js.Dict.merge(payload1, payload2)
-  }
-}`,
+`,
 
     // GraphQL schema and resolvers (graphql-yoga)
     'src/graphqlSchema.js': `const typeDefs = \`
@@ -385,115 +231,38 @@ module Utils = {
   }
 \`;
 
-const resolvers = {
-  Query: {
-    hello: () => 'Hello from ReScript React Server GraphQL!',
-    health: () => 'healthy'
-  }
+const rootValue = {
+  hello: () => 'Hello from ReScript React Server GraphQL!',
+  health: () => 'healthy',
 };
 
-module.exports = { typeDefs, resolvers };
+module.exports = { typeDefs, rootValue };
 `,
 
     // GraphQL Yoga handler (JS interop) for Express
-    'src/graphqlHandler.js': `const { createYoga } = require('graphql-yoga');
-const { typeDefs, resolvers } = require('./graphqlSchema');
+    'src/graphqlHandler.js': `const { graphql, buildSchema } = require('graphql');
+const { typeDefs, rootValue } = require('./graphqlSchema');
 
-const yoga = createYoga({
-  schema: { typeDefs, resolvers },
-  graphqlEndpoint: '/graphql',
-  landingPage: false
-});
+const schema = buildSchema(typeDefs);
 
-module.exports = (req, res) => {
-  return yoga.handleNodeRequestAndResponse(req, res, { req, res });
+// Express handler: POST /graphql with {query, variables, operationName}, or GET /graphql?query=...
+module.exports = async (req, res) => {
+  const input = req.method === 'GET' ? req.query : req.body;
+  if (!input || typeof input.query !== 'string') {
+    res.status(400).json({ errors: [{ message: 'A GraphQL query is required' }] });
+    return;
+  }
+
+  const result = await graphql({
+    schema,
+    source: input.query,
+    rootValue,
+    variableValues: input.variables,
+    operationName: input.operationName,
+  });
+  res.status(200).json(result);
 };
 `,
-
-    // ReScript binding for the GraphQL handler
-    'src/GraphQL.res': `open RescriptCore
-
-// GraphQL Yoga handler imported from JS
-@module("./graphqlHandler.js")
-external handleGraphQL: (Express.req, Express.res) => Js.Promise.t<unit> = "default"
-`,
-
-    // Styles
-    'src/styles.css': `* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-h1 {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
-  color: #333;
-}
-
-p {
-  font-size: 1.1rem;
-  line-height: 1.6;
-  color: #666;
-  margin-bottom: 1rem;
-}
-
-.features {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-  margin: 2rem 0;
-}
-
-.feature-card {
-  padding: 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
-}
-
-.feature-card:hover {
-  transform: translateY(-4px);
-}
-
-.feature-card h3 {
-  color: white;
-  margin-bottom: 1rem;
-  font-size: 1.5rem;
-}
-
-.feature-card p {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.timestamp {
-  margin-top: 2rem;
-  padding: 1rem;
-  background: #f5f5f5;
-  border-radius: 4px;
-  text-align: center;
-}
-
-.timestamp p {
-  margin: 0;
-  color: #333;
-  font-weight: 500;
-}`,
 
     // Environment configuration
     '.env.example': `PORT=3000
@@ -535,18 +304,20 @@ coverage/`,
     // README
     'README.md': `# {{projectName}}
 
-ReScript + React Server Components API with type safety and SSR.
+ReScript + React with server-side rendering, on Express. Pages are React components written in
+ReScript (JSX v4) and rendered to HTML on the server; the API is plain Express with JWT auth.
 
 ## Features
 
-- ⚡ **ReScript** - Compile-time type safety and excellent performance
-- 🚀 **React Server Components** - Reduced bundle size and improved performance
-- 🎯 **Type Safety** - End-to-end type safety from frontend to backend
-- 🔒 **Authentication** - JWT-based auth with bcrypt password hashing
-- 📝 **Logging** - Morgan request logging
-- 🌐 **CORS** - Cross-origin resource sharing enabled
-- 🧪 **Testing** - Jest testing framework
-- 📦 **Build** - Optimized production builds
+- **ReScript**: compile-time type safety, in-place CommonJS output (\`src/*.bs.js\`)
+- **React SSR**: \`ReactDOMServer.renderToString\` with \`@rescript/react\` components
+- **Authentication**: JWT (\`jsonwebtoken\`) and password hashing (\`bcryptjs\`)
+- **Security and logging**: Helmet, CORS, Morgan
+- **GraphQL**: \`POST /graphql\` with \`{ hello health }\` (graphql-js)
+- **Tests**: ReScript tests on Node's built-in test runner
+
+React Server Components in the Next.js sense (a Flight stream plus a client bundle) need a bundler;
+this template renders components to HTML on the server only, so they carry no hooks or effects.
 
 ## Quick Start
 
@@ -554,112 +325,455 @@ ReScript + React Server Components API with type safety and SSR.
 # Install dependencies
 npm install
 
-# Start development server
-npm run dev
-
-# Build for production
+# Build (compiles in place to src/*.bs.js)
 npm run build
 
-# Start production server
+# Start the server
 npm start
 
 # Run tests
 npm test
 \`\`\`
 
-## Project Structure
-
-\`\`\`
-{{projectName}}/
-├── src/
-│   ├── Server.res              # Main server and routes
-│   ├── ReactServer.res         # React Server Components runtime
-│   └── styles.css              # Server-rendered styles
-├── rescript.json              # ReScript configuration
-├── package.json               # Dependencies
-├── .env.example              # Environment variables
-└── README.md                 # This file
-\`\`\`
+Watch mode: \`npm run dev\` (recompiles) and \`npm run server\` (restarts on change).
 
 ## API Endpoints
 
-### Health Check
-\`\`\`bash
-curl http://localhost:3000/health
-\`\`\`
+| Endpoint | Description |
+| --- | --- |
+| \`GET /\` | server-rendered home page |
+| \`GET /health\` | health check |
+| \`POST /api/v1/auth/login\` | \`{ "email", "password" }\`, returns a JWT |
+| \`GET /api/v1/profile\` | current user (bearer token required) |
+| \`GET /api/v1/users\`, \`GET /api/v1/users/:id\` | users (admin only) |
+| \`GET /api/v1/products\` | products |
+| \`POST /graphql\` | GraphQL (\`{ hello health }\`) |
 
-### Server Component (SSR)
 \`\`\`bash
-curl http://localhost:3000/
-\`\`\`
-
-### Users API
-\`\`\`bash
-# Get all users
-curl http://localhost:3000/api/v1/users
-
-# Get user by ID
-curl http://localhost:3000/api/v1/users/1
-\`\`\`
-
-### Products API
-\`\`\`bash
-# Get all products
-curl http://localhost:3000/api/v1/products
-\`\`\`
-
-### Authentication
-\`\`\`bash
-# Login
 curl -X POST http://localhost:3000/api/v1/auth/login \\
   -H "Content-Type: application/json" \\
   -d '{"email":"admin@example.com","password":"admin123"}'
 \`\`\`
 
-## ReScript Features
+## Project Structure
 
-### Type Safety
-All types are checked at compile time, catching errors before runtime.
-
-### Pattern Matching
-\`\`\`ocaml
-switch result {
-| Ok(data) => handleSuccess(data)
-| Error(err) => handleError(err)
-}
+\`\`\`
+src/
+  Main.res           # Entry point (npm start runs src/Main.bs.js)
+  Server.res         # Express app and routes
+  Components.res     # React components (rendered on the server)
+  Express.res        # Express bindings
+  Auth.res           # JWT and password hashing
+  Store.res          # In-memory data store
+  Types.res          # Type definitions
+  graphqlHandler.js  # GraphQL endpoint (graphql-js)
+  __tests__/         # ReScript tests
+public/styles.css    # static assets
+rescript.json        # ReScript configuration (JSX v4)
 \`\`\`
 
-### Server Components
-React Server Components render on the server and stream to the client.
+## Configuration
 
-## Development
-
-### Watch Mode
-\`\`\`bash
-npm run dev
-\`\`\`
-
-### Type Checking
-\`\`\`bash
-npm run typecheck
-\`\`\`
-
-### Formatting
-\`\`\`bash
-npm run format
-\`\`\`
-
-## Deployment
-
-\`\`\`bash
-# Build
-npm run build
-
-# Start production server
-NODE_ENV=production npm start
-\`\`\`
+Copy \`.env.example\` to \`.env\`: \`PORT\`, \`JWT_SECRET\` (change it in production).
 
 ## License
 
 MIT
+`,
+
+    'public/styles.css': `* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+h1 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+p {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #666;
+  margin-bottom: 1rem;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.feature-card {
+  padding: 1.5rem;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+}
+
+.feature-card h3 {
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+`,
+
+    'src/Auth.res': `@module("jsonwebtoken") external sign: (Types.claims, string, {"expiresIn": string}) => string = "sign"
+@module("jsonwebtoken") external verify: (string, string) => Types.claims = "verify"
+@module("bcryptjs") external hashSync: (string, int) => string = "hashSync"
+@module("bcryptjs") external compareSync: (string, string) => bool = "compareSync"
+
+let secret = (): string => Env.get("JWT_SECRET")->Option.getOr("change-this-secret-in-production")
+
+let hashPassword = (password: string): string => hashSync(password, 10)
+
+let verifyPassword = (password: string, hash: string): bool => compareSync(password, hash)
+
+let generateToken = (user: Types.user): string =>
+  sign({sub: user.id, email: user.email, role: user.role}, secret(), {"expiresIn": "7d"})
+
+/** The claims inside a valid token, or None for a missing, expired or forged one. */
+let verifyToken = (token: string): option<Types.claims> =>
+  switch verify(token, secret()) {
+  | claims => Some(claims)
+  | exception _ => None
+  }
+`,
+
+    'src/Components.res': `// React components, rendered to HTML on the server (no hooks or effects: they never run in the browser)
+module Layout = {
+  @react.component
+  let make = (~title: string, ~children: React.element) =>
+    <html lang="en">
+      <head>
+        <meta charSet="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title> {React.string(title)} </title>
+        <link rel="stylesheet" href="/styles.css" />
+      </head>
+      <body>
+        <div className="container"> children </div>
+      </body>
+    </html>
+}
+
+module ProductCard = {
+  @react.component
+  let make = (~product: Types.product) =>
+    <div className="feature-card">
+      <h3> {React.string(product.name)} </h3>
+      <p> {React.string(product.description)} </p>
+      <p> {React.string("$" ++ Float.toFixed(product.price, ~digits=2))} </p>
+    </div>
+}
+
+module HomePage = {
+  @react.component
+  let make = (~title: string, ~products: array<Types.product>, ~userCount: int) =>
+    <Layout title>
+      <h1> {React.string(title)} </h1>
+      <p> {React.string("React components written in ReScript, rendered on the server.")} </p>
+      <p> {React.string(\`\${Int.toString(userCount)} registered users\`)} </p>
+      <div className="features">
+        {products
+        ->Array.map(product => <ProductCard key={Int.toString(product.id)} product />)
+        ->React.array}
+      </div>
+    </Layout>
+}
+`,
+
+    'src/Env.res': `// Environment variables
+@val external env: Dict.t<string> = "process.env"
+
+let get = (key: string): option<string> => env->Dict.get(key)
+`,
+
+    'src/Express.res': `// Minimal Express bindings
+type app
+type server
+type req
+type res
+type next = unit => unit
+type handler = (req, res) => unit
+type middleware = (req, res, next) => unit
+
+@module external make: unit => app = "express"
+@module("express") external jsonBody: unit => middleware = "json"
+
+@send external use: (app, middleware) => unit = "use"
+@send external useAt: (app, string, middleware) => unit = "use"
+@send external get: (app, string, handler) => unit = "get"
+@send external getWith: (app, string, middleware, handler) => unit = "get"
+@send external post: (app, string, handler) => unit = "post"
+@send external postWith: (app, string, middleware, handler) => unit = "post"
+@send external put: (app, string, handler) => unit = "put"
+@send external putWith: (app, string, middleware, handler) => unit = "put"
+@send external delete: (app, string, handler) => unit = "delete"
+@send external deleteWith: (app, string, middleware, handler) => unit = "delete"
+@send external useErrorHandler: (app, (Exn.t, req, res, next) => unit) => unit = "use"
+
+@send external listen: (app, int, unit => unit) => server = "listen"
+@send external listenOn: (app, int) => server = "listen"
+@send external once: (server, string, unit => unit) => unit = "once"
+@send external close: (server, unit => unit) => unit = "close"
+@send external address: server => {"port": int} = "address"
+
+@send external status: (res, int) => res = "status"
+@send external sendJson: (res, 'a) => unit = "json"
+@send external sendText: (res, string) => unit = "send"
+@send external setHeader: (res, string, string) => unit = "setHeader"
+@send external sendStatus: (res, int) => unit = "sendStatus"
+
+@get external body: req => JSON.t = "body"
+@get external params: req => Dict.t<string> = "params"
+@get external query: req => Dict.t<string> = "query"
+@get external httpMethod: req => string = "method"
+@get external path: req => string = "path"
+@send external header: (req, string) => Nullable.t<string> = "get"
+
+// Per-request data set by middleware
+@set external setUser: (req, 'a) => unit = "user"
+@get external user: req => Nullable.t<'a> = "user"
+
+/** Starts listening and resolves once the server accepts connections (port 0 picks a free port). */
+let listenAsync = (app: app, port: int): promise<server> =>
+  Promise.make((resolve, _reject) => {
+    let server = app->listenOn(port)
+    server->once("listening", () => resolve(server))
+  })
+
+@module("express") external staticFiles: string => middleware = "static"
+
+// Middleware packages
+@module external cors: unit => middleware = "cors"
+@module external helmet: unit => middleware = "helmet"
+@module external morgan: string => middleware = "morgan"
+`,
+
+    'src/Json.res': `// Helpers for reading values out of a parsed JSON request body
+let field = (json: JSON.t, key: string): option<JSON.t> =>
+  json->JSON.Decode.object->Option.flatMap(fields => fields->Dict.get(key))
+
+let string = (json: JSON.t, key: string): option<string> =>
+  field(json, key)->Option.flatMap(JSON.Decode.string)
+
+let float = (json: JSON.t, key: string): option<float> =>
+  field(json, key)->Option.flatMap(JSON.Decode.float)
+`,
+
+    'src/Main.res': `@module("dotenv") external loadEnv: unit => unit = "config"
+
+loadEnv()
+
+let port = Env.get("PORT")->Option.flatMap(value => Int.fromString(value))->Option.getOr(3000)
+
+let _ = Server.make()->Express.listen(port, () => {
+  Console.log(\`Server running at http://localhost:\${Int.toString(port)}\`)
+  Console.log(\`Health check: http://localhost:\${Int.toString(port)}/health\`)
+})
+`,
+
+    'src/Store.res': `// In-memory data store: replace with a real database for production use.
+open Types
+
+let users: array<user> = [
+  {
+    id: "1",
+    email: "admin@example.com",
+    name: "Admin User",
+    role: "admin",
+    passwordHash: Auth.hashPassword("admin123"),
+  },
+]
+
+let products: array<product> = [
+  {id: 1, name: "Sample Product 1", description: "This is a sample product", price: 29.99, stock: 100},
+  {id: 2, name: "Sample Product 2", description: "Another sample product", price: 49.99, stock: 50},
+]
+
+let nextUserId = ref(2)
+let nextProductId = ref(3)
+
+let findUserByEmail = (email: string): option<user> => users->Array.find(u => u.email == email)
+
+let addUser = (~email: string, ~name: string, ~password: string, ~role: string): user => {
+  let user = {
+    id: Int.toString(nextUserId.contents),
+    email,
+    name,
+    role,
+    passwordHash: Auth.hashPassword(password),
+  }
+  nextUserId := nextUserId.contents + 1
+  users->Array.push(user)
+  user
+}
+
+let findProduct = (id: int): option<product> => products->Array.find(p => p.id == id)
+
+let addProduct = (~name: string, ~description: string, ~price: float, ~stock: int): product => {
+  let product = {id: nextProductId.contents, name, description, price, stock}
+  nextProductId := nextProductId.contents + 1
+  products->Array.push(product)
+  product
+}
+
+let updateProduct = (id: int, update: product => product): option<product> =>
+  switch products->Array.findIndex(p => p.id == id) {
+  | -1 => None
+  | index => {
+      let updated = update(products->Array.getUnsafe(index))
+      products->Array.setUnsafe(index, updated)
+      Some(updated)
+    }
+  }
+
+let removeProduct = (id: int): bool =>
+  switch products->Array.findIndex(p => p.id == id) {
+  | -1 => false
+  | index => {
+      products->Array.splice(~start=index, ~remove=1, ~insert=[])
+      true
+    }
+  }
+`,
+
+    'src/Types.res': `type user = {
+  id: string,
+  email: string,
+  name: string,
+  role: string,
+  passwordHash: string,
+}
+
+type product = {
+  id: int,
+  name: string,
+  description: string,
+  price: float,
+  stock: int,
+}
+
+/** What is stored in (and read back from) the JWT. */
+type claims = {
+  sub: string,
+  email: string,
+  role: string,
+}
+`,
+
+    'src/__tests__/ApiTest.res': `// Run with: npm test (node's built-in test runner)
+@module("node:test") external test: (string, unit => promise<unit>) => unit = "test"
+@module("node:assert/strict") external equal: ('a, 'a) => unit = "equal"
+@module("node:assert/strict") external ok: bool => unit = "ok"
+
+type response
+@val external fetch: (string, 'options) => promise<response> = "fetch"
+@get external status: response => int = "status"
+@send external json: response => promise<JSON.t> = "json"
+@send external text: response => promise<string> = "text"
+
+let get = async (base: string, path: string, ~token: option<string>=?): response => {
+  let headers = Dict.make()
+  switch token {
+  | Some(t) => headers->Dict.set("authorization", "Bearer " ++ t)
+  | None => ()
+  }
+  await fetch(base ++ path, {"headers": headers})
+}
+
+let string = (json: JSON.t, key: string) => Json.string(json, key)->Option.getOr("")
+
+test("API and server-rendered pages", async () => {
+  Dict.set(Env.env, "NODE_ENV", "test")
+  let server = await Server.make()->Express.listenAsync(0)
+  let address = Express.address(server)
+  let base = \`http://127.0.0.1:\${Int.toString(address["port"])}\`
+
+  // health
+  let response = await get(base, "/health")
+  equal(response->status, 200)
+  equal(string(await response->json, "status"), "healthy")
+
+  // the home page is rendered by React on the server
+  let response = await get(base, "/")
+  equal(response->status, 200)
+  let html = await response->text
+  ok(String.startsWith(html, "<!DOCTYPE html>"))
+  ok(String.includes(html, "Sample Product 1"))
+
+  // static assets
+  let response = await get(base, "/styles.css")
+  equal(response->status, 200)
+
+  // login as the seeded admin
+  let response = await fetch(
+    base ++ "/api/v1/auth/login",
+    {
+      "method": "POST",
+      "headers": Dict.fromArray([("content-type", "application/json")]),
+      "body": JSON.stringify(
+        JSON.Encode.object(
+          Dict.fromArray([
+            ("email", JSON.Encode.string("admin@example.com")),
+            ("password", JSON.Encode.string("admin123")),
+          ]),
+        ),
+      ),
+    },
+  )
+  equal(response->status, 200)
+  let token = string(await response->json, "token")
+  ok(String.length(token) > 20)
+
+  // protected routes
+  let response = await get(base, "/api/v1/users")
+  equal(response->status, 401)
+  let response = await get(base, "/api/v1/users", ~token)
+  equal(response->status, 200)
+  let response = await get(base, "/api/v1/profile", ~token)
+  equal(response->status, 200)
+  equal(string(await response->json, "role"), "admin")
+
+  // products are public
+  let response = await get(base, "/api/v1/products")
+  equal(response->status, 200)
+
+  // graphql
+  let response = await fetch(
+    base ++ "/graphql",
+    {
+      "method": "POST",
+      "headers": Dict.fromArray([("content-type", "application/json")]),
+      "body": JSON.stringify(
+        JSON.Encode.object(Dict.fromArray([("query", JSON.Encode.string("{ hello health }"))])),
+      ),
+    },
+  )
+  equal(response->status, 200)
+  let gql = await response->json
+  equal(gql->Json.field("data")->Option.flatMap(data => Json.string(data, "health")), Some("healthy"))
+
+  // unknown routes
+  let response = await get(base, "/nope")
+  equal(response->status, 404)
+
+  await Promise.make((resolve, _) => server->Express.close(() => resolve()))
+})
 `}};

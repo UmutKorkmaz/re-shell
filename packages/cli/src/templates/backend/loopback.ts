@@ -65,21 +65,19 @@ export const loopbackTemplate: BackendTemplate = {
   ],
   "dependencies": {
     "@loopback/authentication": "^11.0.2",
-    "@loopback/authentication-jwt": "^0.15.2",
-    "@loopback/authorization": "^0.14.2",
+    "@loopback/authorization": "^0.15.2",
     "@loopback/boot": "^7.0.2",
     "@loopback/core": "^6.0.2",
     "@loopback/repository": "^7.0.2",
     "@loopback/rest": "^14.0.2",
     "@loopback/rest-crud": "^0.18.2",
-    "@loopback/security": "^0.10.2",
+    "@loopback/security": "^0.11.2",
     "@loopback/rest-explorer": "^7.0.2",
     "@loopback/service-proxy": "^7.0.2",
     "@loopback/logging": "^0.12.2",
     "@loopback/metrics": "^0.11.2",
     "@loopback/health": "^0.11.2",
     "@loopback/cron": "^0.11.2",
-    "@loopback/apiconnect": "^0.10.2",
     "@loopback/context": "^7.0.2",
     "@loopback/filter": "^4.0.2",
     "@loopback/metadata": "^6.0.2",
@@ -156,11 +154,14 @@ import {
 import {RepositoryMixin} from '@loopback/repository';
 import {RestApplication} from '@loopback/rest';
 import {ServiceMixin} from '@loopback/service-proxy';
-import {AuthenticationComponent} from '@loopback/authentication';
 import {
-  JWTAuthenticationComponent,
-  UserServiceBindings} from '@loopback/authentication-jwt';
-import {AuthorizationComponent} from '@loopback/authorization';
+  AuthenticationComponent,
+  registerAuthenticationStrategy} from '@loopback/authentication';
+import {
+  AuthorizationBindings,
+  AuthorizationComponent,
+  AuthorizationDecision,
+  AuthorizationTags} from '@loopback/authorization';
 import {HealthComponent, HealthBindings} from '@loopback/health';
 import {MetricsComponent} from '@loopback/metrics';
 import {LoggingComponent, LoggingBindings} from '@loopback/logging';
@@ -168,8 +169,10 @@ import {CronComponent} from '@loopback/cron';
 import path from 'path';
 import {MySequence} from './sequence';
 import {SECURITY_SCHEME_SPEC} from './utils/security-spec';
-import {UserRepository} from './repositories';
-import {MyUserService} from './services';
+import {JwtAuthenticationStrategy} from './auth/jwt.strategy';
+import {roleAuthorizer} from './auth/role.authorizer';
+import {UserServiceBindings} from './keys';
+import {JwtTokenService, MyUserService, TokenServiceBindings} from './services';
 
 export {ApplicationConfig};
 
@@ -195,12 +198,18 @@ export class {{projectNamePascal}}Application extends BootMixin(
 
     // Configure authentication
     this.component(AuthenticationComponent);
-    this.component(JWTAuthenticationComponent);
-    this.dataSource(UserRepository.dataSource);
+    registerAuthenticationStrategy(this, JwtAuthenticationStrategy);
+    this.bind(TokenServiceBindings.TOKEN_SERVICE).toClass(JwtTokenService);
     this.bind(UserServiceBindings.USER_SERVICE).toClass(MyUserService);
 
-    // Configure authorization
+    // Configure authorization (role based, see auth/role.authorizer.ts)
+    this.configure(AuthorizationBindings.COMPONENT).to({
+      precedence: AuthorizationDecision.DENY,
+      defaultDecision: AuthorizationDecision.DENY});
     this.component(AuthorizationComponent);
+    this.bind('authorizationProviders.role-authorizer')
+      .to(roleAuthorizer)
+      .tag(AuthorizationTags.AUTHORIZER);
 
     // Configure health check
     this.configure(HealthBindings.COMPONENT).to({
@@ -230,11 +239,11 @@ export class {{projectNamePascal}}Application extends BootMixin(
         extensions: ['.controller.js'],
         nested: true},
       repositories: {
-        dirs: ['database'],
+        dirs: ['repositories'],
         extensions: ['.repository.js'],
         nested: true},
       datasources: {
-        dirs: ['database'],
+        dirs: ['datasources'],
         extensions: ['.datasource.js'],
         nested: true},
       services: {
@@ -319,8 +328,11 @@ import {
   RestBindings,
   Send,
   SequenceHandler} from '@loopback/rest';
-import {AuthenticationBindings, AuthenticateFn} from '@loopback/authentication';
-import {AuthorizationBindings, AuthorizeFn} from '@loopback/authorization';
+import {
+  AUTHENTICATION_STRATEGY_NOT_FOUND,
+  AuthenticateFn,
+  AuthenticationBindings,
+  USER_PROFILE_NOT_FOUND} from '@loopback/authentication';
 
 const SequenceActions = RestBindings.SequenceActions;
 
@@ -340,43 +352,37 @@ export class MySequence implements SequenceHandler {
     @inject(SequenceActions.REJECT) public reject: Reject,
     @inject(AuthenticationBindings.AUTH_ACTION)
     protected authenticateRequest: AuthenticateFn,
-    @inject(AuthorizationBindings.AUTHORIZE_ACTION)
-    protected authorize: AuthorizeFn,
   ) {}
 
   async handle(context: RequestContext) {
     try {
       const {request, response} = context;
-      
-      // Log request
-      console.log(\`\${request.method} \${request.url}\`);
-      
+
       // Invoke middleware chain
       const finished = await this.invokeMiddleware(context);
       if (finished) return;
-      
+
       const route = this.findRoute(request);
 
-      // Authentication
+      // Authentication (the authorization decision is made by the
+      // AuthorizationComponent interceptor around each controller method)
       await this.authenticateRequest(request);
-
-      // Authorization
-      const authorizationMetadata = await this.authorize(
-        context.get(AuthenticationBindings.CURRENT_USER),
-        route.invokeMethod.bind(route),
-        route.methodName,
-      );
 
       const args = await this.parseParams(request, route);
       const result = await this.invoke(route, args);
       this.send(response, result);
     } catch (err) {
-      // Log error
-      console.error(err);
+      if (
+        err.code === AUTHENTICATION_STRATEGY_NOT_FOUND ||
+        err.code === USER_PROFILE_NOT_FOUND
+      ) {
+        Object.assign(err, {statusCode: 401});
+      }
       this.reject(context, err);
     }
   }
-}`,
+}
+`,
 
     // User controller
     'src/controllers/user.controller.ts': `import {
@@ -1250,4 +1256,302 @@ src/
 ## License
 
 MIT
+`,
+
+    'public/index.html': `<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>{{projectName}}</title></head>
+  <body>
+    <h1>{{projectName}}</h1>
+    <p>API explorer: <a href="/explorer">/explorer</a></p>
+  </body>
+</html>
+`,
+
+    'src/auth/jwt.strategy.ts': `import {AuthenticationStrategy, TokenService} from '@loopback/authentication';
+import {inject} from '@loopback/core';
+import {HttpErrors, Request} from '@loopback/rest';
+import {UserProfile} from '@loopback/security';
+import {TokenServiceBindings} from '../services';
+
+export class JwtAuthenticationStrategy implements AuthenticationStrategy {
+  name = 'jwt';
+
+  constructor(
+    @inject(TokenServiceBindings.TOKEN_SERVICE)
+    public tokenService: TokenService,
+  ) {}
+
+  async authenticate(request: Request): Promise<UserProfile | undefined> {
+    const header = request.headers.authorization;
+    if (!header) {
+      throw new HttpErrors.Unauthorized('Authorization header not found');
+    }
+    const [scheme, token] = header.split(' ');
+    if (scheme !== 'Bearer' || !token) {
+      throw new HttpErrors.Unauthorized('Authorization header must be "Bearer <token>"');
+    }
+    return this.tokenService.verifyToken(token);
+  }
+}
+`,
+
+    'src/auth/role.authorizer.ts': `import {
+  AuthorizationContext,
+  AuthorizationDecision,
+  AuthorizationMetadata,
+} from '@loopback/authorization';
+
+/** Allows the call when the caller has at least one of the \`allowedRoles\`. */
+export async function roleAuthorizer(
+  context: AuthorizationContext,
+  metadata: AuthorizationMetadata,
+): Promise<AuthorizationDecision> {
+  const roles: string[] = context.principals[0]?.roles ?? [];
+  const allowed = metadata.allowedRoles ?? [];
+  if (allowed.length === 0) return AuthorizationDecision.ALLOW;
+  return allowed.some(role => roles.includes(role))
+    ? AuthorizationDecision.ALLOW
+    : AuthorizationDecision.DENY;
+}
+`,
+
+    'src/controllers/auth.controller.ts': `import {TokenService, authenticate} from '@loopback/authentication';
+import {inject} from '@loopback/core';
+import {repository} from '@loopback/repository';
+import {SchemaObject, get, HttpErrors, post, requestBody} from '@loopback/rest';
+import {SecurityBindings, UserProfile, securityId} from '@loopback/security';
+import {hash} from 'bcryptjs';
+import {User} from '../models';
+import {UserRepository} from '../repositories';
+import {Credentials, MyUserService, TokenServiceBindings} from '../services';
+import {UserServiceBindings} from '../keys';
+
+const credentialsSchema: SchemaObject = {
+  type: 'object',
+  required: ['email', 'password'],
+  properties: {
+    email: {type: 'string', format: 'email'},
+    password: {type: 'string', minLength: 8},
+  },
+};
+
+export class AuthController {
+  constructor(
+    @inject(TokenServiceBindings.TOKEN_SERVICE) public tokenService: TokenService,
+    @inject(UserServiceBindings.USER_SERVICE) public userService: MyUserService,
+    @repository(UserRepository) public userRepository: UserRepository,
+  ) {}
+
+  @post('/auth/register', {
+    responses: {'200': {description: 'The registered user (without password)'}},
+  })
+  async register(
+    @requestBody({
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['email', 'password', 'name'],
+            properties: {
+              ...credentialsSchema.properties,
+              name: {type: 'string'},
+            },
+          },
+        },
+      },
+    })
+    body: {email: string; password: string; name: string},
+  ): Promise<User> {
+    if (await this.userRepository.findByEmail(body.email)) {
+      throw new HttpErrors.Conflict('Email is already registered');
+    }
+    return this.userRepository.create({
+      email: body.email,
+      name: body.name,
+      password: await hash(body.password, 10),
+    });
+  }
+
+  @post('/auth/login', {
+    responses: {'200': {description: 'JSON Web Token'}},
+  })
+  async login(
+    @requestBody({
+      content: {'application/json': {schema: credentialsSchema}},
+    })
+    credentials: Credentials,
+  ): Promise<{token: string}> {
+    const user = await this.userService.verifyCredentials(credentials);
+    const token = await this.tokenService.generateToken(
+      this.userService.convertToUserProfile(user),
+    );
+    await this.userRepository.updateById(user.id, {lastLogin: new Date().toISOString()});
+    return {token};
+  }
+
+  @get('/auth/whoami', {
+    security: [{jwt: []}],
+    responses: {'200': {description: 'The authenticated user id'}},
+  })
+  @authenticate('jwt')
+  async whoAmI(
+    @inject(SecurityBindings.USER) currentUserProfile: UserProfile,
+  ): Promise<{id: string; roles: string[]}> {
+    return {id: currentUserProfile[securityId], roles: currentUserProfile.roles ?? []};
+  }
+}
+`,
+
+    'src/datasources/index.ts': `export * from './db.datasource';
+`,
+
+    'src/keys.ts': `import {BindingKey} from '@loopback/core';
+import {MyUserService} from './services/user.service';
+
+export namespace UserServiceBindings {
+  export const USER_SERVICE = BindingKey.create<MyUserService>('services.user.service');
+}
+`,
+
+    'src/models/index.ts': `export * from './todo.model';
+export * from './user.model';
+`,
+
+    'src/repositories/index.ts': `export * from './todo.repository';
+export * from './user.repository';
+`,
+
+    'src/repositories/todo.repository.ts': `import {inject, Getter} from '@loopback/core';
+import {
+  BelongsToAccessor,
+  DefaultCrudRepository,
+  repository,
+} from '@loopback/repository';
+import {DbDataSource} from '../datasources';
+import {Todo, TodoRelations, User} from '../models';
+import {UserRepository} from './user.repository';
+
+export class TodoRepository extends DefaultCrudRepository<
+  Todo,
+  typeof Todo.prototype.id,
+  TodoRelations
+> {
+  public readonly user: BelongsToAccessor<User, typeof Todo.prototype.id>;
+
+  constructor(
+    @inject('datasources.db') dataSource: DbDataSource,
+    @repository.getter('UserRepository')
+    protected userRepositoryGetter: Getter<UserRepository>,
+  ) {
+    super(Todo, dataSource);
+    this.user = this.createBelongsToAccessorFor('user', userRepositoryGetter);
+    this.registerInclusionResolver('user', this.user.inclusionResolver);
+  }
+}
+`,
+
+    'src/services/index.ts': `export * from './jwt-token.service';
+export * from './user.service';
+`,
+
+    'src/services/jwt-token.service.ts': `import {TokenService} from '@loopback/authentication';
+import {BindingKey} from '@loopback/core';
+import {HttpErrors} from '@loopback/rest';
+import {securityId, UserProfile} from '@loopback/security';
+import jwt from 'jsonwebtoken';
+
+export namespace TokenServiceBindings {
+  export const TOKEN_SERVICE = BindingKey.create<TokenService>(
+    'services.authentication.jwt.tokenservice',
+  );
+}
+
+export class JwtTokenService implements TokenService {
+  private readonly secret = process.env.JWT_SECRET ?? 'change-me-in-production';
+  private readonly expiresIn = process.env.JWT_EXPIRES_IN ?? '6h';
+
+  async generateToken(userProfile: UserProfile): Promise<string> {
+    if (!userProfile) {
+      throw new HttpErrors.Unauthorized('Cannot generate a token for a missing user profile');
+    }
+    const payload = {
+      sub: userProfile[securityId],
+      name: userProfile.name,
+      email: userProfile.email,
+      roles: userProfile.roles ?? [],
+    };
+    return jwt.sign(payload, this.secret, {expiresIn: this.expiresIn as jwt.SignOptions['expiresIn']});
+  }
+
+  async verifyToken(token: string): Promise<UserProfile> {
+    if (!token) {
+      throw new HttpErrors.Unauthorized('Missing token');
+    }
+    try {
+      const decoded = jwt.verify(token, this.secret) as jwt.JwtPayload;
+      return {
+        [securityId]: String(decoded.sub),
+        name: decoded.name,
+        email: decoded.email,
+        roles: decoded.roles ?? [],
+      };
+    } catch (error) {
+      throw new HttpErrors.Unauthorized(\`Invalid token: \${(error as Error).message}\`);
+    }
+  }
+}
+`,
+
+    'src/services/user.service.ts': `import {UserService} from '@loopback/authentication';
+import {repository} from '@loopback/repository';
+import {HttpErrors} from '@loopback/rest';
+import {securityId, UserProfile} from '@loopback/security';
+import {compare} from 'bcryptjs';
+import {User} from '../models';
+import {UserRepository} from '../repositories';
+
+export type Credentials = {
+  email: string;
+  password: string;
+};
+
+export class MyUserService implements UserService<User, Credentials> {
+  constructor(
+    @repository(UserRepository) public userRepository: UserRepository,
+  ) {}
+
+  async verifyCredentials(credentials: Credentials): Promise<User> {
+    const invalid = 'Invalid email or password';
+    const user = await this.userRepository.findByEmail(credentials.email);
+    if (!user || !user.isActive) {
+      throw new HttpErrors.Unauthorized(invalid);
+    }
+    const matches = await compare(credentials.password, user.password);
+    if (!matches) {
+      throw new HttpErrors.Unauthorized(invalid);
+    }
+    return user;
+  }
+
+  convertToUserProfile(user: User): UserProfile {
+    return {
+      [securityId]: String(user.id),
+      name: user.name,
+      email: user.email,
+      roles: [user.role ?? 'user'],
+    };
+  }
+}
+`,
+
+    'src/utils/security-spec.ts': `import {SecuritySchemeObject} from '@loopback/openapi-v3';
+
+export const SECURITY_SCHEME_SPEC: Record<string, SecuritySchemeObject> = {
+  jwt: {
+    type: 'http',
+    scheme: 'bearer',
+    bearerFormat: 'JWT',
+  },
+};
 `}};
