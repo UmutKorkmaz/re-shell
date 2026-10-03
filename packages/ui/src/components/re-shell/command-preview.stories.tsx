@@ -30,7 +30,7 @@ export const CopyAnnouncesStatus: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('button', { name: /Copy command/ }));
     await waitFor(() => expect(args.onCopy).toHaveBeenCalledWith('re-shell workspace health --json'));
-    await expect(canvas.getByRole('status')).toHaveTextContent('Command copied to clipboard');
+    await waitFor(() => expect(canvas.getByRole('status')).toHaveTextContent('Command copied to clipboard'));
     // Let the transient "Copied" state revert so the screenshot is deterministic.
     await waitFor(() => expect(canvas.getByRole('button', { name: /Copy command/ })).toBeVisible(), { timeout: 4000 });
   }
