@@ -1426,3 +1426,217 @@ export const uiTestResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type UiTestResponse = z.infer<typeof uiTestResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// service bridge  (`re-shell service link|unlink|validate`, `service bridge ...`)
+// — P9-B cross-language service bridge
+// ---------------------------------------------------------------------------
+
+export const bridgeProtocolSchema = z.enum(['rest', 'grpc', 'graphql']);
+export type BridgeProtocolName = z.infer<typeof bridgeProtocolSchema>;
+
+export const bridgeClientLanguageSchema = z.enum(['ts', 'python', 'go']);
+export type BridgeClientLanguage = z.infer<typeof bridgeClientLanguageSchema>;
+
+/** A generated file (relative path + content + kind). */
+export const bridgeArtifactSchema = z.object({
+  path: z.string(),
+  kind: z.string(),
+  content: z.string(),
+});
+export type BridgeArtifactPayload = z.infer<typeof bridgeArtifactSchema>;
+
+/** Outcome of one toolchain verification step (tsc / py_compile / mypy / go build). */
+export const bridgeVerifyResultSchema = z.object({
+  language: bridgeClientLanguageSchema,
+  tool: z.string(),
+  status: z.enum(['passed', 'failed', 'skipped']),
+  detail: z.string().optional(),
+});
+export type BridgeVerifyResult = z.infer<typeof bridgeVerifyResultSchema>;
+
+/** Outcome of compiling protobuf stubs for the Python / Go gRPC clients. */
+export const bridgeStubResultSchema = z.object({
+  language: z.enum(['python', 'go']),
+  status: z.enum(['generated', 'skipped', 'failed']),
+  detail: z.string(),
+});
+export type BridgeStubResult = z.infer<typeof bridgeStubResultSchema>;
+
+/**
+ * `service bridge generate --json`: spec-driven (`contractSource: 'spec'`, with
+ * `spec`, `languages`, optional `verification`) or the default
+ * health/echo/config contract (`contractSource: 'default'`).
+ */
+export const bridgeGenerateResponseSchema = z.object({
+  protocol: bridgeProtocolSchema,
+  service: z.string(),
+  contractSource: z.enum(['spec', 'default']).optional(),
+  spec: z
+    .object({
+      path: z.string(),
+      sha256: z.string(),
+      title: z.string(),
+      version: z.string().optional(),
+      operations: z.number(),
+      models: z.number(),
+    })
+    .optional(),
+  languages: z.array(bridgeClientLanguageSchema).optional(),
+  artifacts: z.array(bridgeArtifactSchema),
+  written: z.array(z.string()),
+  tsCheck: z.object({ ran: z.boolean(), ok: z.boolean().optional(), detail: z.string().optional() }),
+  verification: z.array(bridgeVerifyResultSchema).optional(),
+  stubs: z.array(bridgeStubResultSchema).optional(),
+});
+export type BridgeGenerateResponse = z.infer<typeof bridgeGenerateResponseSchema>;
+
+/** `service link --json`. */
+export const bridgeLinkResponseSchema = z.object({
+  consumer: z.string(),
+  provider: z.string(),
+  protocol: bridgeProtocolSchema,
+  languages: z.array(bridgeClientLanguageSchema),
+  spec: z.string(),
+  client: z.string(),
+  contractSha256: z.string(),
+  operations: z.number(),
+  files: z.array(z.string()),
+  written: z.boolean(),
+  config: z.string(),
+  dependsOnAdded: z.boolean(),
+  stubs: z.array(bridgeStubResultSchema),
+});
+export type BridgeLinkResponse = z.infer<typeof bridgeLinkResponseSchema>;
+
+/** A recorded link (`services.<consumer>.links[]` in the v2 workspace config). */
+export const bridgeServiceLinkSchema = z.object({
+  service: z.string(),
+  protocol: bridgeProtocolSchema,
+  spec: z.string(),
+  client: z.string(),
+  languages: z.array(bridgeClientLanguageSchema).optional(),
+  contractSha256: z.string().optional(),
+});
+export type BridgeServiceLink = z.infer<typeof bridgeServiceLinkSchema>;
+
+/** `service unlink --json`. */
+export const bridgeUnlinkResponseSchema = z.object({
+  consumer: z.string(),
+  provider: z.string(),
+  removed: z.array(bridgeServiceLinkSchema),
+  clientRemoved: z.array(z.string()),
+  config: z.string(),
+});
+export type BridgeUnlinkResponse = z.infer<typeof bridgeUnlinkResponseSchema>;
+
+export const bridgeChangeSeveritySchema = z.enum(['breaking', 'dangerous', 'non-breaking']);
+export type BridgeChangeSeverity = z.infer<typeof bridgeChangeSeveritySchema>;
+
+/** One classified contract change. */
+export const bridgeContractChangeSchema = z.object({
+  severity: bridgeChangeSeveritySchema,
+  code: z.string(),
+  path: z.string(),
+  message: z.string(),
+});
+export type BridgeContractChange = z.infer<typeof bridgeContractChangeSchema>;
+
+/** `service validate --json` (ok:true even when invalid; exit code 1 signals the verdict). */
+export const bridgeValidateResponseSchema = z.object({
+  valid: z.boolean(),
+  config: z.string(),
+  services: z.number(),
+  links: z.array(
+    z.object({
+      consumer: z.string(),
+      provider: z.string(),
+      protocol: bridgeProtocolSchema,
+      spec: z.string(),
+      client: z.string(),
+      status: z.enum(['ok', 'stale', 'broken']),
+      changes: z.array(bridgeContractChangeSchema),
+    })
+  ),
+  cycles: z.array(z.array(z.string())),
+  issues: z.array(
+    z.object({
+      severity: z.enum(['error', 'warning']),
+      code: z.string(),
+      message: z.string(),
+      consumer: z.string().optional(),
+      provider: z.string().optional(),
+    })
+  ),
+});
+export type BridgeValidateResponse = z.infer<typeof bridgeValidateResponseSchema>;
+
+const bridgeContractRefSchema = z.object({
+  path: z.string(),
+  sha256: z.string(),
+  title: z.string(),
+  version: z.string().optional(),
+});
+
+/** `service bridge diff --json` (ok:true even when breaking; exit code 1 signals the verdict). */
+export const bridgeDiffResponseSchema = z.object({
+  protocol: bridgeProtocolSchema,
+  base: bridgeContractRefSchema,
+  head: bridgeContractRefSchema,
+  strict: z.boolean(),
+  compatible: z.boolean(),
+  pass: z.boolean(),
+  summary: z.object({ breaking: z.number(), dangerous: z.number(), nonBreaking: z.number() }),
+  changes: z.array(bridgeContractChangeSchema),
+});
+export type BridgeDiffResponse = z.infer<typeof bridgeDiffResponseSchema>;
+
+/** `service bridge mock --json` (emitted once the mock server is listening). */
+export const bridgeMockResponseSchema = z.object({
+  host: z.string(),
+  protocols: z.array(bridgeProtocolSchema),
+  baseUrl: z.string().optional(),
+  graphqlUrl: z.string().optional(),
+  grpcAddress: z.string().optional(),
+  httpPort: z.number().optional(),
+  grpcPort: z.number().optional(),
+  specs: z.array(z.object({ path: z.string(), protocol: bridgeProtocolSchema, title: z.string(), operations: z.number() })),
+});
+export type BridgeMockResponse = z.infer<typeof bridgeMockResponseSchema>;
+
+/** `service bridge gateway --json`. */
+export const bridgeGatewayResponseSchema = z.object({
+  mode: z.enum(['federation', 'stitch']),
+  subgraphs: z.array(z.object({ name: z.string(), url: z.string().optional(), types: z.number(), rootFields: z.array(z.string()) })),
+  supergraphSdl: z.string().optional(),
+  gatewaySdl: z.string(),
+  artifacts: z.array(bridgeArtifactSchema),
+  written: z.array(z.string()),
+});
+export type BridgeGatewayResponse = z.infer<typeof bridgeGatewayResponseSchema>;
+
+/** `service bridge async --json`. */
+export const bridgeAsyncResponseSchema = z.object({
+  service: z.string(),
+  transport: z.enum(['kafka', 'redis-streams']).nullable(),
+  languages: z.array(z.enum(['ts', 'python'])),
+  messages: z.array(z.object({ name: z.string(), channel: z.string(), currentVersion: z.number(), versions: z.array(z.number()) })),
+  artifacts: z.array(bridgeArtifactSchema),
+  written: z.array(z.string()),
+  verification: z.array(bridgeVerifyResultSchema).optional(),
+  initialized: z.string().optional(),
+});
+export type BridgeAsyncResponse = z.infer<typeof bridgeAsyncResponseSchema>;
+
+/** `service bridge transform --json`. */
+export const bridgeTransformResponseSchema = z.object({
+  from: z.enum(['json', 'protobuf', 'avro', 'msgpack']),
+  to: z.enum(['json', 'protobuf', 'avro', 'msgpack']),
+  bytes: z.number(),
+  output: z.string().optional(),
+  outputBase64: z.string().optional(),
+  value: z.unknown(),
+  steps: z.array(z.string()),
+  written: z.string().optional(),
+});
+export type BridgeTransformResponse = z.infer<typeof bridgeTransformResponseSchema>;

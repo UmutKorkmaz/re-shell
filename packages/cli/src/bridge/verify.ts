@@ -73,7 +73,8 @@ export function verifyTypeScript(dir: string, entryRel = 'ts/client.ts'): Verify
     return { language: 'ts', tool: 'tsc --strict', status: 'skipped', detail: 'typescript is not resolvable' };
   }
   const nm = nodeModulesWith('@grpc/grpc-js') ?? nodeModulesWith('typescript');
-  const nodeTypes = nodeModulesWith('@types/node') !== undefined;
+  const typesNm = nodeModulesWith('@types/node');
+  const nodeTypes = typesNm !== undefined;
   if (nm) {
     try {
       fs.symlinkSync(nm, path.join(dir, 'ts', 'node_modules'), 'dir');
@@ -90,6 +91,8 @@ export function verifyTypeScript(dir: string, entryRel = 'ts/client.ts'): Verify
     lib: ['lib.es2020.d.ts', 'lib.dom.d.ts'],
     skipLibCheck: true,
     esModuleInterop: true,
+    // explicit typeRoots: the default is relative to the process cwd, which is arbitrary for a CLI
+    ...(typesNm ? { typeRoots: [path.join(typesNm, '@types')] } : {}),
     types: nodeTypes ? ['node'] : [],
   });
   const diagnostics = ts.getPreEmitDiagnostics(program);
