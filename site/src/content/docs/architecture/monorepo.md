@@ -82,7 +82,7 @@ npx pnpm@9.15.9 --filter @re-shell/site build   # this site
 CI (`.github/workflows`) builds, typechecks and tests every package, enforces size
 budgets, checks that `docs/CLI-CONTRACTS.md` matches the CLI, runs Playwright end-to-end
 and axe accessibility audits, runs a Storybook test gate, smoke-tests the packed
-tarballs in a clean install, and (separately) builds representative templates with their
+tarballs in a clean install, and (separately) builds 172 of the 208 templates with their
 own toolchains. These workflows were added in this wave and are pending their first
 hosted run; see [Roadmap](/re-shell/roadmap/) for what was verified locally.
 

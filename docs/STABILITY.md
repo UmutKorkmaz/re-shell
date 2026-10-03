@@ -64,16 +64,47 @@ uses `node-pty`, which aborts the worker pool when the checkout path contains `.
 it runs in CI), the VS Code host test (download blocked), Flux/Argo CD sync, any live
 LLM or cloud call, and any hosted GitHub Actions run.
 
-**Template verification counts. TODO (coordinator): fill in once the catalog sweep
-finishes**: how many of the 208 registry templates were scaffolded, built with their own
-toolchain and (for Node/Bun) booted, and which were skipped or failed. Until then the
-only claim is the representative set below.
+**Template verification counts: 170 of the 208 registry templates were scaffolded with
+the built CLI and built with their own toolchain on this machine** by
+`scripts/scaffold-test-templates.sh`. The script lists 172; the other two, `vapor`
+(Swift) and `phoenix` (Elixir, needs the hex registry), could not be built here and run
+only in the `template-health` CI job:
+
+| Group (`--group`) | Templates | Check |
+|---|---|---|
+| `core` | 25 (23 built here) | `tsc`, `go build`, `cargo check`, `mvn package`, `zig build` (Zig 0.13.0), Python compile and import, `php -l` + composer, `ruby -c` + bundle; `mix compile` and `swift build` in CI only |
+| `jvm` | 9 | Maven, Gradle (Kotlin), sbt (Scala) |
+| `dotnet` | 15 | `dotnet build` of every C# and F# project |
+| `native` | 27 | Go, Rust, Python, Ruby, PHP, Perl (`perl -c`), Lua (`luac -p`, syntax only), C++ with CMake against distribution packages (`drogon`, `cpp-httplib`, `beast`, `pistache`), Dart (`dart pub get` + `dart analyze`, no test run) |
+| `node` | 72 | `pnpm install` + `tsc`, or `node --check` plus an import-resolution check for plain JavaScript, or `rescript build` |
+| `haskell` | 4 | `cabal build all --enable-tests` + `cabal test` (GHC 9.4.7); the shipped `stack.yaml` files are not exercised |
+| `deno` | 2 | `deno check` + `deno test` (Deno 2; dependencies from JSR and npm) |
+| `config` | 18 | YAML syntax only (configuration templates; their TypeScript snippets are not compiled) |
+
+Eight Node and Bun backends are also booted (`scripts/boot-test-templates.mjs`, below),
+and the agents that repaired templates ran many of them as servers or against their own
+tests; that is not repeated by the script.
+
+**The other 36 are registered, scaffoldable and covered by the registry and placeholder
+tests, but not built**, because this environment cannot reach what they need:
+
+- Dependency registry or source host blocked (17): Elixir `plug-ex`, `nerves-ex` (hex);
+  Clojure `compojure`, `luminus-clj`, `reitit-clj`, `pedestal-clj` (Clojars); Nim
+  `jester`, `prologue-nim`, `happyx-nim` (nimble); Crystal `kemal`, `lucky-cr`, `amber-cr`
+  (shards on GitHub); OCaml `dream-ocaml`, `opium-ocaml` (opam); `zap-zig` and C++ `crow`
+  (sources on GitHub); `aleph-deno` (Aleph.js is only on deno.land/x).
+- Toolchain not installable here (19): Swift `perfect`, `kitura`, `hummingbird`; Julia
+  `genie-jl`, `oxygen-jl`; V `vweb`, `vex-v`; Gleam `wisp`; `odin-http`, `jennet-pony`,
+  `red-http`, `grain`, `mojo`, `mojo-fastapi`, `roc`, `ballerina`, `unison`, `carbon`,
+  `vale`.
+
+None was deleted, and none is counted as verified.
 
 ## Next Batch (status)
 
 | # | Item | Status | Evidence |
 |---|------|--------|----------|
-| 1 | Repeatable install/build/boot evidence for representative generated projects, fixing the failures the stricter checks surface | **PARTIAL**: representative set verified; catalog-wide counts pending (TODO above) | `scripts/scaffold-test-templates.sh` scaffolds 25 templates and builds each with its own toolchain (express, fastify, nestjs, koa, hono, fastapi, flask, django, gin, echo, fiber, actix-web, rocket, axum, spring-boot, quarkus, laravel, rails-api, phoenix, vapor, elysia-bun, bun-serve, trpc-bun, zig-http, std-http-zig); `scripts/boot-test-templates.mjs` installs, builds, boots on a free port with no DB or Redis, probes `/health` and a route, and requires a clean SIGTERM for express, fastify, koa, hono, nestjs, elysia-bun, bun-serve and trpc-bun. Failures found were fixed (NestJS, Go, Rust, Java, Python, PHP, Ruby, Phoenix templates; placeholders in file paths; slow-start and shutdown). The `template-health` workflow runs both on every push and PR (pending first CI run). |
+| 1 | Repeatable install/build/boot evidence for representative generated projects, fixing the failures the stricter checks surface | **DONE for 170 of 208 templates built here (172 in CI); 36 environment-limited (listed above); pending first CI run** | `scripts/scaffold-test-templates.sh` scaffolds 172 templates and builds each with its own toolchain, in eight groups that CI runs as parallel jobs (counts and checks above); `scripts/boot-test-templates.mjs` installs, builds, boots on a free port with no DB or Redis, probes `/health` and a route, and requires a clean SIGTERM for express, fastify, koa, hono, nestjs, elysia-bun, bun-serve and trpc-bun. Failures found were fixed while the list grew from 25 to 172 (hyphenated project names used as identifiers, nonexistent dependency versions and APIs, files referenced but never shipped, ESM/CommonJS mismatches, YAML errors; some, such as `angel3`, `beast`, `fresh-deno` (ported to Fresh 2), the ReScript and the Haskell templates, were largely rewritten), plus placeholders in file paths and slow start and shutdown. The `template-health` workflow runs both on every push and PR (pending first CI run). |
 | 2 | Frontend-only/backend/fullstack creation and non-TTY microfrontend `--yes` behavior; skeletons distinct from runnable apps | **DONE** | `create` never prompts under `--yes`/`--json`/`--dry-run`/non-TTY for every mode; `--gateway --services --remotes --force --template blank`; `TEMPLATE_NOT_FOUND`; `--type` limited to `app\|package\|lib\|tool`; `create --dry-run --json` returns the exact files and diffs. Tests: `tests/integration/create-headless-*.test.ts`, `tests/unit/create-noninteractive.test.ts`. Skeletons are labelled: `generate backend` writes a small starter, `create` the full template, and neither claims the project runs. |
 | 3 | Harden service spawn failures, immediate exits, PID/log cleanup and stopping | **DONE** | `service run`: `SERVICES_*` error codes, `--alive-ms`, JSON pid files, `re-shell.services.<script>` metadata, graceful SIGTERM then SIGKILL, `health` exits non-zero when nothing runs. `tests/unit/service-process.test.ts`, `services-runtime.test.ts`, `tests/integration/service-run-cli.test.ts`. |
 | 4 | Real browser flows against the hub, as an executable release gate | **DONE as CI jobs; pending first CI run** | `ci.yml` job `e2e` (Playwright `chromium` flow and the graph-scale spec) and `accessibility.yml` (axe) run on every push and PR. Both passed locally when merged (see above). |
@@ -86,7 +117,7 @@ only claim is the representative set below.
 |------|--------|--------------|
 | Build, typecheck and focused plus relevant broad/interactive suites pass on the exact candidate | **PARTIAL** | Build and the suites listed in Current Verification passed here (see the table). The interactive suite did not run on this machine; no hosted CI run has executed on the candidate. |
 | Unsupported commands cannot return verified-success claims | **Met for the commands that were unsupported** | `fix --ci`, `ui test`, `plugin update`, `plugin validate` are now real; the stricter `UI_TEST_ERROR`/`FIX_CI_ERROR` failure paths remain. Gates (`doctor`, `analyze --fail-on`, `security audit verify`, `service validate`) exit non-zero on failure. `cloud deploy` never fakes a deployment. This is not an exhaustive audit of the 585 command paths: many generator commands write starter files and say nothing about running. |
-| Required generated-project install/build/boot checks pass; skips and external prerequisites stay explicit | **PARTIAL** | Representative set passes with explicit skips (see Next Batch item 1); catalog-wide results TODO; the hosted `template-health` run is pending. |
+| Required generated-project install/build/boot checks pass; skips and external prerequisites stay explicit | **Met locally; pending first CI run** | 170 of 208 templates build with their own toolchain here (172 in CI) and eight Node/Bun backends boot (Next Batch item 1); the 36 others are listed with the registry or toolchain each lacks, never reported as passing. The hosted `template-health` run is pending. |
 | Dashboard browser checks and clean-package smoke pass before a release is declared ready; a passing build or CI run alone is insufficient | **PARTIAL** | Browser checks passed locally and clean-package smoke passed in this pass; the CI jobs (`e2e`, `accessibility`, `storybook`, `pack-smoke`) are **pending first CI run**. |
 | Reviewed commits, version changes and release notes describe the work only; publication, deployment and optional scaffold promotion are separate actions | **Met, nothing published** | Versions bumped (cli 0.31.0, contracts 0.3.0, mcp 0.2.0, ui 0.6.0); the CHANGELOG has an `Unreleased` section; nothing was published or deployed. |
 
@@ -104,7 +135,7 @@ Everything left needs something outside the repository or its development enviro
 | Public hosting of the control plane | A deployment target, TLS termination and an external security review; see [`control-plane.md`](./control-plane.md) |
 | WebRTC across symmetric NATs | A TURN server (none is shipped or deployed) |
 | First hosted CI run of the new workflows | A push to GitHub |
-| Catalog-wide template verification counts | The catalog sweep (TODO above) |
+| Building `vapor` and `phoenix` locally, and the 36 environment-limited templates | Their package registries (hex, Clojars, nimble, shards, opam, deno.land, GitHub sources) or toolchains (Swift, Julia, V, Gleam, Odin, Pony, Red, Grain, Mojo, Roc, Ballerina, Unison, Carbon, Vale) |
 
 ## Scope notes
 
