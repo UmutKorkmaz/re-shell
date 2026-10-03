@@ -8,18 +8,20 @@ import { buildGraphSpec } from './fixtures/graph-fixture.mjs';
  * generated monorepo of 2000 workspaces (plus one uncommitted app, so 2001
  * nodes) committed to a git repo. See e2e/start-graph-stack.mjs.
  *
- * Budgets (deliberately generous so shared CI machines do not flake; a
- * regression to O(n^2) work or a non-virtualized canvas blows through them):
- *   - first render of the 2001-node graph (navigation -> canvas populated): 45 s
+ * Budgets are deliberately generous. They were set on a 4-core box at load
+ * average ~20-30, where first render took 17-37 s and a search 2-6 s; on an idle
+ * machine it is a few seconds and well under a second. An O(n^2) regression or a
+ * non-virtualized canvas still blows through them:
+ *   - first render of the 2001-node graph (navigation -> canvas populated): 60 s
  *     (dominated by the hub spawning the CLI for workspace.graph/summary; the
  *     browser needs ~0.2 s from data to painted nodes on an idle machine)
- *   - search / facet filter response (input -> matches updated):               6 s
- *   - path highlight (field input -> shortest path shown):                     8 s
+ *   - search / facet filter response (input -> matches updated):              10 s
+ *   - path highlight (field input -> shortest path shown):                    12 s
  * Run: npx playwright test -c playwright.graph.config.ts
  */
-const FIRST_RENDER_BUDGET_MS = 45_000;
-const FILTER_BUDGET_MS = 6_000;
-const PATH_BUDGET_MS = 8_000;
+const FIRST_RENDER_BUDGET_MS = 60_000;
+const FILTER_BUDGET_MS = 10_000;
+const PATH_BUDGET_MS = 12_000;
 const STATUS_BUDGET_MS = 60_000;
 
 const TOTAL_NODES = 2001; // 2000 committed + @fx/app-new in the working tree
