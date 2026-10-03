@@ -1,0 +1,26 @@
+syntax = "proto3";
+package demo;
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ADMIN = 1;
+  USER = 2;
+}
+
+message Address {
+  string city = 1;
+  string zip = 2;
+}
+
+message User {
+  string id = 1;
+  string name = 2;
+  int32 age = 3;
+  string legacy = 4;
+  repeated string tags = 5;
+  int64 balance = 6;
+  Role role = 7;
+  bytes avatar = 8;
+  Address address = 9;
+  map<string, string> labels = 10;
+}

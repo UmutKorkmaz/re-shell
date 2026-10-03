@@ -7,6 +7,7 @@
 //   re-shell service bridge diff --base <spec> --head <spec>
 //   re-shell service bridge mock --spec <file...>
 //   re-shell service bridge async --transport kafka|redis-streams
+//   re-shell service bridge transform --from <fmt> --to <fmt>
 //   re-shell service bridge gateway --services a,b | --subgraph name=sdl[@url]
 
 import { Command } from 'commander';
@@ -16,6 +17,7 @@ import { runDiff, runLink, runUnlink, runValidate } from './commands';
 import { runAsync } from './async/command';
 import { runGateway } from './gateway-command';
 import { runMock } from './mock-command';
+import { runTransform } from './transform/command';
 
 /**
  * Attach the bridge subcommands.
@@ -190,6 +192,47 @@ export function registerBridgeCommands(serviceCommand: Command, bridgeCommand: C
             }),
           600000
         );
+      })
+    );
+  bridgeCommand
+    .command('transform')
+    .description(
+      'Convert data between JSON, Protobuf, Avro and MessagePack, with schema evolution (Avro writer/reader resolution, tolerant protobuf decoding) and backward-compatible migration rules'
+    )
+    .requiredOption('--from <format>', 'json | protobuf | avro | msgpack')
+    .requiredOption('--to <format>', 'json | protobuf | avro | msgpack')
+    .option('--input <file>', 'Input file (- for stdin)')
+    .option('--data <text>', 'Inline input (JSON text, or base64/hex with --input-encoding)')
+    .option('--input-encoding <enc>', 'utf8 | base64 | hex (binary inputs given as text)')
+    .option('--schema <file>', '.proto or .avsc used for both sides')
+    .option('--message <name>', 'protobuf message name used for both sides')
+    .option('--from-schema <file>', 'Source schema (.proto / .avsc)')
+    .option('--from-message <name>', 'Source protobuf message')
+    .option('--to-schema <file>', 'Target schema (.proto / .avsc)')
+    .option('--to-message <name>', 'Target protobuf message')
+    .option('--migrate <file>', 'Migration rules (YAML/JSON): rename, add, remove, copy, convert')
+    .option('--out <file>', 'Write the encoded output here')
+    .option('--pretty', 'Pretty-print JSON output')
+    .option('--json', 'Emit a machine-readable JSON envelope')
+    .action(
+      createAsyncCommand(async options => {
+        await runTransform({
+          from: options.from,
+          to: options.to,
+          input: options.input,
+          data: options.data,
+          inputEncoding: options.inputEncoding,
+          schema: options.schema,
+          message: options.message,
+          fromSchema: options.fromSchema,
+          fromMessage: options.fromMessage,
+          toSchema: options.toSchema,
+          toMessage: options.toMessage,
+          migrate: options.migrate,
+          out: options.out,
+          pretty: options.pretty,
+          json: options.json,
+        });
       })
     );
 }
