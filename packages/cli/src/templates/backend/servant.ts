@@ -14,83 +14,6 @@ export const servantTemplate: BackendTemplate = {
   dependencies: {},
   devDependencies: {},
   files: {
-    'package.yaml': `name: {{projectName}}
-version: 0.1.0.0
-github: "{{author}}/{{projectName}}"
-license: MIT
-author: "{{author}}"
-maintainer: "{{author}}@example.com"
-copyright: "2024 {{author}}"
-
-extra-source-files:
-  - README.md
-  - CHANGELOG.md
-
-description: {{description}}
-
-dependencies:
-  - base >= 4.14 && < 5
-  - servant >= 0.19
-  - servant-server >= 0.19
-  - warp >= 3.3
-  - wai >= 3.2
-  - wai-cors >= 0.2
-  - aeson >= 2.0
-  - text >= 1.2
-  - bytestring >= 0.10
-  - mtl >= 2.2
-  - transformers >= 0.5
-  - time >= 1.9
-  - uuid >= 1.3
-  - jose >= 0.9
-  - containers >= 0.6
-  - unordered-containers >= 0.2
-  - http-types >= 0.12
-  - wai-extra >= 3.1
-  - morpheus-graphql >= 0.27
-  - morpheus-graphql-core >= 0.27
-  - morpheus-graphql-app >= 0.27
-
-ghc-options:
-  - -Wall
-  - -Wcompat
-  - -Widentities
-  - -Wincomplete-record-updates
-  - -Wincomplete-uni-patterns
-  - -Wmissing-export-lists
-  - -Wmissing-home-modules
-  - -Wpartial-fields
-  - -Wredundant-constraints
-
-library:
-  source-dirs: src
-
-executables:
-  {{projectName}}-exe:
-    main: Main.hs
-    source-dirs: app
-    ghc-options:
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
-    dependencies:
-      - {{projectName}}
-
-tests:
-  {{projectName}}-test:
-    main: Spec.hs
-    source-dirs: test
-    ghc-options:
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
-    dependencies:
-      - {{projectName}}
-      - hspec >= 2.9
-      - hspec-wai >= 0.11
-      - hspec-wai-json >= 0.11
-      - QuickCheck >= 2.14
-`,
 
     'stack.yaml': `resolver: lts-21.17
 
@@ -103,706 +26,148 @@ extra-deps: []
     'cabal.project': `packages: .
 `,
 
-    '{{projectName}}.cabal': `cabal-version: 2.4
-name: {{projectName}}
-version: 0.1.0.0
-synopsis: {{description}}
-license: MIT
-license-file: LICENSE
-author: {{author}}
-maintainer: {{author}}@example.com
-build-type: Simple
+    '{{projectName}}.cabal': `cabal-version:       2.4
+name:                {{projectName}}
+version:             0.1.0.0
+synopsis:            REST API built with Servant
+description:         Type-safe REST API with the Servant web framework
+license:             MIT
+license-file:        LICENSE
+author:              re-shell
+maintainer:          re-shell@example.com
+category:            Web
+build-type:          Simple
+extra-source-files:  README.md
+                     CHANGELOG.md
+
+common shared
+  default-language:   Haskell2010
+  default-extensions: OverloadedStrings
+  ghc-options:        -Wall
 
 library
-  exposed-modules:
-    Api
-    Api.Types
-    Api.Auth
-    Api.Users
-    Api.Items
-    Api.Graphql
-    Config
-    Database
-    Middleware
-  build-depends:
-    base >= 4.14 && < 5,
-    servant >= 0.19,
-    servant-server >= 0.19,
-    warp >= 3.3,
-    wai >= 3.2,
-    wai-cors >= 0.2,
-    aeson >= 2.0,
-    text >= 1.2,
-    bytestring >= 0.10,
-    mtl >= 2.2,
-    transformers >= 0.5,
-    time >= 1.9,
-    uuid >= 1.3,
-    jose >= 0.9,
-    containers >= 0.6,
-    unordered-containers >= 0.2,
-    http-types >= 0.12,
-    wai-extra >= 3.1,
-    morpheus-graphql >= 0.27,
-    morpheus-graphql-core >= 0.27,
-    morpheus-graphql-app >= 0.27
-  hs-source-dirs: src
-  default-language: Haskell2010
+  import:             shared
+  hs-source-dirs:     src
+  exposed-modules:    App
+                      Auth
+                      Graphql
+                      Models
+                      Store
+  build-depends:      base >=4.14 && <5
+                    , aeson >=2.0 && <2.3
+                    , bytestring >=0.11 && <0.13
+                    , containers >=0.6 && <0.8
+                    , crypton >=0.33 && <1.1
+                    , jwt >=0.11 && <0.12
+                    , servant >=0.19 && <0.21
+                    , servant-server >=0.19 && <0.21
+                    , stm >=2.5 && <2.6
+                    , text >=1.2 && <2.2
+                    , time >=1.12 && <1.15
+                    , uuid >=1.3 && <1.4
+                    , wai >=3.2 && <3.3
+                    , wai-cors >=0.2 && <0.3
 
 executable {{projectName}}-exe
-  main-is: Main.hs
-  build-depends:
-    base >= 4.14 && < 5,
-    {{projectName}}
-  hs-source-dirs: app
-  default-language: Haskell2010
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  import:             shared
+  main-is:            Main.hs
+  hs-source-dirs:     app
+  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
+  build-depends:      base >=4.14 && <5
+                    , {{projectName}}
+                    , warp >=3.3 && <3.5
 
 test-suite {{projectName}}-test
-  type: exitcode-stdio-1.0
-  main-is: Spec.hs
-  build-depends:
-    base >= 4.14 && < 5,
-    {{projectName}},
-    hspec >= 2.9,
-    hspec-wai >= 0.11,
-    hspec-wai-json >= 0.11,
-    QuickCheck >= 2.14
-  hs-source-dirs: test
-  default-language: Haskell2010
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  import:             shared
+  type:               exitcode-stdio-1.0
+  main-is:            Spec.hs
+  hs-source-dirs:     test
+  build-depends:      base >=4.14 && <5
+                    , aeson >=2.0 && <2.3
+                    , bytestring >=0.11 && <0.13
+                    , {{projectName}}
+                    , hspec >=2.9 && <3
+                    , hspec-wai >=0.11 && <0.12
+                    , wai-extra >=3.1 && <3.2
+                    , text >=1.2 && <2.2
 `,
 
-    'app/Main.hs': `module Main where
+    'app/Main.hs': `module Main (main) where
 
-import Config (getConfig, Config(..))
-import Api (app)
 import Network.Wai.Handler.Warp (run)
+import System.Environment (lookupEnv)
 import System.IO (hPutStrLn, stderr)
+import Text.Read (readMaybe)
+
+import App (mkApp)
 
 main :: IO ()
 main = do
-  config <- getConfig
-  let port = configPort config
-  hPutStrLn stderr $ "🚀 {{projectName}} server starting on http://localhost:" ++ show port
-  run port (app config)
-`,
-
-    'src/Config.hs': `{-# LANGUAGE OverloadedStrings #-}
-
-module Config
-  ( Config(..)
-  , getConfig
-  ) where
-
-import System.Environment (lookupEnv)
-import Data.Maybe (fromMaybe)
-import Data.Text (Text)
-import qualified Data.Text as T
-
-data Config = Config
-  { configPort :: Int
-  , configJwtSecret :: Text
-  , configDatabaseUrl :: Text
-  } deriving (Show, Eq)
-
-getConfig :: IO Config
-getConfig = do
-  port <- lookupEnv "PORT"
-  jwtSecret <- lookupEnv "JWT_SECRET"
-  dbUrl <- lookupEnv "DATABASE_URL"
-  return Config
-    { configPort = maybe 8080 read port
-    , configJwtSecret = T.pack $ fromMaybe "your-secret-key-change-in-production" jwtSecret
-    , configDatabaseUrl = T.pack $ fromMaybe "postgres://localhost/{{projectName}}" dbUrl
-    }
-`,
-
-    'src/Api.hs': `{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE OverloadedStrings #-}
-
-module Api
-  ( API
-  , app
-  ) where
-
-import Servant
-import Network.Wai (Application)
-import Network.Wai.Middleware.Cors (cors, simpleCorsResourcePolicy, corsRequestHeaders, corsMethods)
-import Network.HTTP.Types.Method (methodGet, methodPost, methodPut, methodDelete, methodOptions)
-
-import Config (Config)
-import Api.Types
-import Api.Auth (AuthAPI, authServer)
-import Api.Users (UsersAPI, usersServer)
-import Api.Items (ItemsAPI, itemsServer)
-import Api.Graphql (GraphqlAPI, graphqlServer)
-
--- Root API type combining all endpoints
-type API = HealthAPI
-      :<|> RootAPI
-      :<|> "graphql" :> GraphqlAPI
-      :<|> "api" :> "auth" :> AuthAPI
-      :<|> "api" :> "users" :> UsersAPI
-      :<|> "api" :> "items" :> ItemsAPI
-
--- Health check endpoint
-type HealthAPI = "health" :> Get '[JSON] HealthResponse
-
--- Root endpoint
-type RootAPI = Get '[JSON] ApiInfo
-
--- Combined server
-server :: Config -> Server API
-server config = healthHandler
-           :<|> rootHandler
-           :<|> graphqlServer
-           :<|> authServer config
-           :<|> usersServer config
-           :<|> itemsServer config
-
-healthHandler :: Handler HealthResponse
-healthHandler = return $ HealthResponse "healthy" "now"
-
-rootHandler :: Handler ApiInfo
-rootHandler = return $ ApiInfo
-  { aiName = "{{projectName}}"
-  , aiVersion = "1.0.0"
-  , aiFramework = "Servant"
-  , aiLanguage = "Haskell"
-  , aiDescription = "{{description}}"
-  }
-
--- CORS policy
-corsPolicy = cors $ const $ Just simpleCorsResourcePolicy
-  { corsRequestHeaders = ["Content-Type", "Authorization"]
-  , corsMethods = [methodGet, methodPost, methodPut, methodDelete, methodOptions]
-  }
-
--- Application
-app :: Config -> Application
-app config = corsPolicy $ serve (Proxy :: Proxy API) (server config)
-`,
-
-    'src/Api/Types.hs': `{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
-
-module Api.Types
-  ( User(..)
-  , CreateUserRequest(..)
-  , LoginRequest(..)
-  , TokenResponse(..)
-  , Item(..)
-  , CreateItemRequest(..)
-  , HealthResponse(..)
-  , ApiInfo(..)
-  , ErrorResponse(..)
-  ) where
-
-import GHC.Generics (Generic)
-import Data.Aeson (ToJSON, FromJSON)
-import Data.Text (Text)
-import Data.Time (UTCTime)
-
--- User types
-data User = User
-  { userId :: Int
-  , userEmail :: Text
-  , userName :: Text
-  , userCreatedAt :: UTCTime
-  } deriving (Show, Eq, Generic)
-
-instance ToJSON User
-instance FromJSON User
-
-data CreateUserRequest = CreateUserRequest
-  { curEmail :: Text
-  , curName :: Text
-  , curPassword :: Text
-  } deriving (Show, Eq, Generic)
-
-instance ToJSON CreateUserRequest
-instance FromJSON CreateUserRequest
-
-data LoginRequest = LoginRequest
-  { lrEmail :: Text
-  , lrPassword :: Text
-  } deriving (Show, Eq, Generic)
-
-instance ToJSON LoginRequest
-instance FromJSON LoginRequest
-
-data TokenResponse = TokenResponse
-  { trToken :: Text
-  , trExpiresAt :: Integer
-  } deriving (Show, Eq, Generic)
-
-instance ToJSON TokenResponse
-instance FromJSON TokenResponse
-
--- Item types
-data Item = Item
-  { itemId :: Int
-  , itemName :: Text
-  , itemDescription :: Text
-  , itemUserId :: Int
-  , itemCreatedAt :: UTCTime
-  } deriving (Show, Eq, Generic)
-
-instance ToJSON Item
-instance FromJSON Item
-
-data CreateItemRequest = CreateItemRequest
-  { cirName :: Text
-  , cirDescription :: Maybe Text
-  } deriving (Show, Eq, Generic)
-
-instance ToJSON CreateItemRequest
-instance FromJSON CreateItemRequest
-
--- Health and info types
-data HealthResponse = HealthResponse
-  { hrStatus :: Text
-  , hrTimestamp :: Text
-  } deriving (Show, Eq, Generic)
-
-instance ToJSON HealthResponse
-instance FromJSON HealthResponse
-
-data ApiInfo = ApiInfo
-  { aiName :: Text
-  , aiVersion :: Text
-  , aiFramework :: Text
-  , aiLanguage :: Text
-  , aiDescription :: Text
-  } deriving (Show, Eq, Generic)
-
-instance ToJSON ApiInfo
-instance FromJSON ApiInfo
-
--- Error types
-data ErrorResponse = ErrorResponse
-  { erError :: Text
-  , erMessage :: Text
-  } deriving (Show, Eq, Generic)
-
-instance ToJSON ErrorResponse
-instance FromJSON ErrorResponse
-`,
-
-    'src/Api/Auth.hs': `{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE OverloadedStrings #-}
-
-module Api.Auth
-  ( AuthAPI
-  , authServer
-  ) where
-
-import Servant
-import Data.Text (Text)
-import qualified Data.Text as T
-
-import Config (Config(..))
-import Api.Types
-import Database (findUserByEmail, createUser, verifyPassword)
-
-type AuthAPI = "register" :> ReqBody '[JSON] CreateUserRequest :> Post '[JSON] User
-          :<|> "login" :> ReqBody '[JSON] LoginRequest :> Post '[JSON] TokenResponse
-
-authServer :: Config -> Server AuthAPI
-authServer config = registerHandler config :<|> loginHandler config
-
-registerHandler :: Config -> CreateUserRequest -> Handler User
-registerHandler config req = do
-  -- Check if user exists
-  existingUser <- liftIO $ findUserByEmail (curEmail req)
-  case existingUser of
-    Just _ -> throwError err409 { errBody = "User with this email already exists" }
-    Nothing -> do
-      -- Validate input
-      when (T.null (curEmail req) || T.null (curName req) || T.null (curPassword req)) $
-        throwError err400 { errBody = "Email, name and password are required" }
-      -- Create user
-      liftIO $ createUser (curEmail req) (curName req) (curPassword req)
-
-loginHandler :: Config -> LoginRequest -> Handler TokenResponse
-loginHandler config req = do
-  userOpt <- liftIO $ findUserByEmail (lrEmail req)
-  case userOpt of
-    Nothing -> throwError err401 { errBody = "Invalid email or password" }
-    Just user -> do
-      valid <- liftIO $ verifyPassword (userId user) (lrPassword req)
-      if valid
-        then return $ TokenResponse "mock-jwt-token" 9999999999
-        else throwError err401 { errBody = "Invalid email or password" }
-
-when :: Bool -> Handler () -> Handler ()
-when True action = action
-when False _ = return ()
-`,
-
-    'src/Api/Users.hs': `{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE OverloadedStrings #-}
-
-module Api.Users
-  ( UsersAPI
-  , usersServer
-  ) where
-
-import Servant
-import Data.Text (Text)
-
-import Config (Config)
-import Api.Types
-import Database (getAllUsers, findUserById)
-
-type UsersAPI = "me" :> Header "Authorization" Text :> Get '[JSON] User
-           :<|> Header "Authorization" Text :> Get '[JSON] [User]
-           :<|> Capture "id" Int :> Header "Authorization" Text :> Get '[JSON] User
-
-usersServer :: Config -> Server UsersAPI
-usersServer config = getMeHandler config
-                :<|> listUsersHandler config
-                :<|> getUserHandler config
-
-getMeHandler :: Config -> Maybe Text -> Handler User
-getMeHandler config authHeader = do
-  userId <- requireAuth authHeader
-  userOpt <- liftIO $ findUserById userId
-  case userOpt of
-    Nothing -> throwError err404 { errBody = "User not found" }
-    Just user -> return user
-
-listUsersHandler :: Config -> Maybe Text -> Handler [User]
-listUsersHandler config authHeader = do
-  _ <- requireAuth authHeader
-  liftIO getAllUsers
-
-getUserHandler :: Config -> Int -> Maybe Text -> Handler User
-getUserHandler config uid authHeader = do
-  _ <- requireAuth authHeader
-  userOpt <- liftIO $ findUserById uid
-  case userOpt of
-    Nothing -> throwError err404 { errBody = "User not found" }
-    Just user -> return user
-
-requireAuth :: Maybe Text -> Handler Int
-requireAuth Nothing = throwError err401 { errBody = "Authorization required" }
-requireAuth (Just token) =
-  -- Simple mock authentication - in production, verify JWT properly
-  case parseToken token of
-    Nothing -> throwError err401 { errBody = "Invalid token" }
-    Just userId -> return userId
-
-parseToken :: Text -> Maybe Int
-parseToken token
-  | "Bearer mock-jwt-token" == token = Just 1
-  | otherwise = Nothing
-`,
-
-    'src/Api/Items.hs': `{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE OverloadedStrings #-}
-
-module Api.Items
-  ( ItemsAPI
-  , itemsServer
-  ) where
-
-import Servant
-import Data.Text (Text)
-import qualified Data.Text as T
-
-import Config (Config)
-import Api.Types
-import Database (getItemsByUser, createItem, findItemById, deleteItem)
-
-type ItemsAPI = Header "Authorization" Text :> Get '[JSON] [Item]
-           :<|> Header "Authorization" Text :> ReqBody '[JSON] CreateItemRequest :> Post '[JSON] Item
-           :<|> Capture "id" Int :> Header "Authorization" Text :> Get '[JSON] Item
-           :<|> Capture "id" Int :> Header "Authorization" Text :> Delete '[JSON] NoContent
-
-itemsServer :: Config -> Server ItemsAPI
-itemsServer config = listItemsHandler config
-                :<|> createItemHandler config
-                :<|> getItemHandler config
-                :<|> deleteItemHandler config
-
-listItemsHandler :: Config -> Maybe Text -> Handler [Item]
-listItemsHandler config authHeader = do
-  userId <- requireAuth authHeader
-  liftIO $ getItemsByUser userId
-
-createItemHandler :: Config -> Maybe Text -> CreateItemRequest -> Handler Item
-createItemHandler config authHeader req = do
-  userId <- requireAuth authHeader
-  when (T.null (cirName req)) $
-    throwError err400 { errBody = "Name is required" }
-  let desc = maybe "" id (cirDescription req)
-  liftIO $ createItem (cirName req) desc userId
-
-getItemHandler :: Config -> Int -> Maybe Text -> Handler Item
-getItemHandler config itemId authHeader = do
-  userId <- requireAuth authHeader
-  itemOpt <- liftIO $ findItemById itemId userId
-  case itemOpt of
-    Nothing -> throwError err404 { errBody = "Item not found" }
-    Just item -> return item
-
-deleteItemHandler :: Config -> Int -> Maybe Text -> Handler NoContent
-deleteItemHandler config itemId authHeader = do
-  userId <- requireAuth authHeader
-  success <- liftIO $ deleteItem itemId userId
-  if success
-    then return NoContent
-    else throwError err404 { errBody = "Item not found" }
-
-requireAuth :: Maybe Text -> Handler Int
-requireAuth Nothing = throwError err401 { errBody = "Authorization required" }
-requireAuth (Just token) =
-  case parseToken token of
-    Nothing -> throwError err401 { errBody = "Invalid token" }
-    Just userId -> return userId
-
-parseToken :: Text -> Maybe Int
-parseToken token
-  | "Bearer mock-jwt-token" == token = Just 1
-  | otherwise = Nothing
-
-when :: Bool -> Handler () -> Handler ()
-when True action = action
-when False _ = return ()
-`,
-
-    'src/Api/Graphql.hs': `{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TypeFamilies #-}
-
-module Api.Graphql
-  ( GraphqlAPI
-  , graphqlServer
-  ) where
-
-import Servant
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Aeson (Value(..), object, (.=))
-import Data.ByteString.Lazy.Char8 (unpack)
-import qualified Data.Map as M
-
--- Minimal GraphQL-over-POST endpoint. A full Morpheus interpreter can be
--- plugged in here; the template answers Query { hello, health } directly.
-type GraphqlAPI = ReqBody '[JSON] GraphqlRequest :> Post '[JSON] Value
-
-data GraphqlRequest = GraphqlRequest
-  { gqQuery :: Text
-  , gqVariables :: Maybe Value
-  , gqOperationName :: Maybe Text
-  } deriving (Show, Eq)
-
-instance FromJSON GraphqlRequest where
-  parseJSON = withObject "GraphqlRequest" $ \\o -> GraphqlRequest
-    <$> o .: "query"
-    <*> o .:? "variables"
-    <*> o .:? "operationName"
-
-graphqlServer :: Server GraphqlAPI
-graphqlServer req = return (resolveQuery req)
-
-resolveQuery :: GraphqlRequest -> Value
-resolveQuery req =
-  let q = T.toLower (gqQuery req)
-      fields = M.fromList
-        [ ("hello", String "Hello from {{projectName}} GraphQL!")
-        , ("health", String "healthy")
-        ]
-      present k = T.isInfixOf k q
-      selected = [ (k, v) | (k, v) <- M.toList fields, present k ]
-      -- Default to all fields if the query asks for nothing specific.
-      final = if null selected then M.toList fields else selected
-  in object [ "data" .= object final ]
-`,
-
-    'src/Database.hs': `{-# LANGUAGE OverloadedStrings #-}
-
-module Database
-  ( findUserByEmail
-  , findUserById
-  , createUser
-  , verifyPassword
-  , getAllUsers
-  , getItemsByUser
-  , createItem
-  , findItemById
-  , deleteItem
-  ) where
-
-import Data.Text (Text)
-import Data.Time (getCurrentTime)
-import Data.IORef
-import System.IO.Unsafe (unsafePerformIO)
-
-import Api.Types
-
--- In-memory storage (use proper database in production)
-{-# NOINLINE usersRef #-}
-usersRef :: IORef [User]
-usersRef = unsafePerformIO $ newIORef []
-
-{-# NOINLINE passwordsRef #-}
-passwordsRef :: IORef [(Int, Text)]
-passwordsRef = unsafePerformIO $ newIORef []
-
-{-# NOINLINE itemsRef #-}
-itemsRef :: IORef [Item]
-itemsRef = unsafePerformIO $ newIORef []
-
-{-# NOINLINE userIdRef #-}
-userIdRef :: IORef Int
-userIdRef = unsafePerformIO $ newIORef 0
-
-{-# NOINLINE itemIdRef #-}
-itemIdRef :: IORef Int
-itemIdRef = unsafePerformIO $ newIORef 0
-
--- User operations
-findUserByEmail :: Text -> IO (Maybe User)
-findUserByEmail email = do
-  users <- readIORef usersRef
-  return $ find (\\u -> userEmail u == email) users
-  where
-    find _ [] = Nothing
-    find p (x:xs) = if p x then Just x else find p xs
-
-findUserById :: Int -> IO (Maybe User)
-findUserById uid = do
-  users <- readIORef usersRef
-  return $ find (\\u -> userId u == uid) users
-  where
-    find _ [] = Nothing
-    find p (x:xs) = if p x then Just x else find p xs
-
-createUser :: Text -> Text -> Text -> IO User
-createUser email name password = do
-  newId <- atomicModifyIORef' userIdRef (\\n -> (n + 1, n + 1))
-  now <- getCurrentTime
-  let user = User newId email name now
-  atomicModifyIORef' usersRef (\\users -> (users ++ [user], ()))
-  atomicModifyIORef' passwordsRef (\\ps -> (ps ++ [(newId, password)], ()))
-  return user
-
-verifyPassword :: Int -> Text -> IO Bool
-verifyPassword uid password = do
-  passwords <- readIORef passwordsRef
-  return $ any (\\(u, p) -> u == uid && p == password) passwords
-
-getAllUsers :: IO [User]
-getAllUsers = readIORef usersRef
-
--- Item operations
-getItemsByUser :: Int -> IO [Item]
-getItemsByUser uid = do
-  items <- readIORef itemsRef
-  return $ filter (\\i -> itemUserId i == uid) items
-
-createItem :: Text -> Text -> Int -> IO Item
-createItem name description uid = do
-  newId <- atomicModifyIORef' itemIdRef (\\n -> (n + 1, n + 1))
-  now <- getCurrentTime
-  let item = Item newId name description uid now
-  atomicModifyIORef' itemsRef (\\items -> (items ++ [item], ()))
-  return item
-
-findItemById :: Int -> Int -> IO (Maybe Item)
-findItemById itemId uid = do
-  items <- readIORef itemsRef
-  return $ find (\\i -> itemId == itemId i && itemUserId i == uid) items
-  where
-    find _ [] = Nothing
-    find p (x:xs) = if p x then Just x else find p xs
-
-deleteItem :: Int -> Int -> IO Bool
-deleteItem itemId uid = do
-  items <- readIORef itemsRef
-  let (matching, others) = partition (\\i -> itemId == itemId i && itemUserId i == uid) items
-  if null matching
-    then return False
-    else do
-      writeIORef itemsRef others
-      return True
-  where
-    partition _ [] = ([], [])
-    partition p (x:xs) =
-      let (yes, no) = partition p xs
-      in if p x then (x:yes, no) else (yes, x:no)
-`,
-
-    'src/Middleware.hs': `{-# LANGUAGE OverloadedStrings #-}
-
-module Middleware
-  ( requestLogger
-  ) where
-
-import Network.Wai (Middleware, Request, requestMethod, rawPathInfo)
-import Network.Wai.Middleware.RequestLogger (logStdout)
-import Data.ByteString.Char8 (unpack)
-import System.IO (hPutStrLn, stderr)
-
-requestLogger :: Middleware
-requestLogger = logStdout
+  port <- maybe 8080 id . (>>= readMaybe) <$> lookupEnv "PORT"
+  app <- mkApp
+  hPutStrLn stderr ("{{projectName}} server starting on http://localhost:" ++ show port)
+  run port app
 `,
 
     'test/Spec.hs': `{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
+module Main (main) where
 
-module Main where
-
+import Data.Aeson (Value (..), decode)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Text.Encoding (encodeUtf8)
+import Network.Wai.Test (SResponse (..))
 import Test.Hspec
 import Test.Hspec.Wai
-import Test.Hspec.Wai.JSON
-import Network.Wai (Application)
 
-import Api (app)
-import Config (Config(..))
+import App (mkApp)
 
-testConfig :: Config
-testConfig = Config
-  { configPort = 8080
-  , configJwtSecret = "test-secret"
-  , configDatabaseUrl = "memory"
-  }
+-- | POST a JSON body.
+postJson :: BS.ByteString -> LBS.ByteString -> WaiSession st SResponse
+postJson path = request "POST" path [("Content-Type", "application/json")]
 
-testApp :: Application
-testApp = app testConfig
+-- | The JWT in a login or register response.
+tokenFrom :: SResponse -> Maybe Value
+tokenFrom response = case decode (simpleBody response) of
+  Just (Object o) -> KeyMap.lookup "token" o
+  _ -> Nothing
 
 main :: IO ()
-main = hspec spec
+main = hspec $ with mkApp $ do
+  describe "API" $ do
+    it "responds to the health check" $
+      get "/health" \`shouldRespondWith\` 200
 
-spec :: Spec
-spec = with (return testApp) $ do
-  describe "GET /health" $ do
-    it "returns healthy status" $ do
-      get "/health" \`shouldRespondWith\` [json|{status: "healthy"}|] { matchStatus = 200 }
-
-  describe "GET /" $ do
-    it "returns API info" $ do
+    it "returns the API banner" $
       get "/" \`shouldRespondWith\` 200
 
-  describe "POST /api/auth/register" $ do
-    it "creates a new user" $ do
-      let body = [json|{curEmail: "test@example.com", curName: "Test", curPassword: "password"}|]
-      post "/api/auth/register" body \`shouldRespondWith\` 200
+    it "lists the seeded products" $
+      get "/api/v1/products" \`shouldRespondWith\` 200
 
-  describe "Protected endpoints" $ do
-    it "returns 401 without auth" $ do
-      get "/api/users/me" \`shouldRespondWith\` 401
+    it "rejects bad credentials and unauthenticated requests" $ do
+      postJson "/api/v1/auth/login" "{\\"email\\":\\"admin@example.com\\",\\"password\\":\\"nope\\"}" \`shouldRespondWith\` 401
+      get "/api/v1/auth/me" \`shouldRespondWith\` 401
+
+    it "registers a user, who is not an admin" $ do
+      response <- postJson "/api/v1/auth/register" "{\\"email\\":\\"jane@example.com\\",\\"name\\":\\"Jane\\",\\"password\\":\\"secret123\\"}"
+      case tokenFrom response of
+        Just (String token) -> do
+          let headers = [("Authorization", "Bearer " <> encodeUtf8 token), ("Content-Type", "application/json")]
+          request "GET" "/api/v1/auth/me" headers "" \`shouldRespondWith\` 200
+          request "POST" "/api/v1/products" headers "{\\"name\\":\\"Widget\\",\\"price\\":9.5}" \`shouldRespondWith\` 403
+        _ -> liftIO (expectationFailure "no token in the register response")
+
+    it "logs in the admin, who can then create products" $ do
+      response <- postJson "/api/v1/auth/login" "{\\"email\\":\\"admin@example.com\\",\\"password\\":\\"admin123\\"}"
+      case tokenFrom response of
+        Just (String token) -> do
+          let headers = [("Authorization", "Bearer " <> encodeUtf8 token), ("Content-Type", "application/json")]
+          request "POST" "/api/v1/products" headers "{\\"name\\":\\"Widget\\",\\"price\\":9.5}" \`shouldRespondWith\` 201
+        _ -> liftIO (expectationFailure "no token in the login response")
+
+    it "answers GraphQL" $
+      postJson "/graphql" "{\\"query\\":\\"{ hello health }\\"}" \`shouldRespondWith\` 200
 `,
 
     '.env': `# Environment Configuration
@@ -814,7 +179,6 @@ DATABASE_URL=postgres://localhost/{{projectName}}
     '.env.example': `# Environment Configuration
 PORT=8080
 JWT_SECRET=your-super-secret-key-change-in-production
-DATABASE_URL=postgres://localhost/{{projectName}}
 `,
 
     '.gitignore': `# Stack
@@ -918,7 +282,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \\
     && rm -rf /var/lib/apt/lists/*
 
 # Copy stack.yaml and package.yaml first for better caching
-COPY stack.yaml package.yaml ./
+COPY stack.yaml {{projectName}}.cabal ./
 
 # Initialize stack and install dependencies
 RUN stack setup --install-cabal 3.10.3.0
@@ -1004,7 +368,7 @@ volumes:
 
     'README.md': `# {{projectName}}
 
-{{description}}
+{{projectName}} - A Re-Shell microfrontend project
 
 A Haskell web application built with the Servant framework.
 
@@ -1057,20 +421,20 @@ make lint
 
 ### Public
 
-- \`GET /\` - API info
+- \`GET /\` - API banner
 - \`GET /health\` - Health check
-- \`POST /api/auth/register\` - Register new user
-- \`POST /api/auth/login\` - Login and get JWT token
+- \`POST /api/v1/auth/register\` - Register new user (\`email\`, \`name\`, \`password\`)
+- \`POST /api/v1/auth/login\` - Login and get a JWT
+- \`GET /api/v1/products\`, \`GET /api/v1/products/:id\` - Products
+- \`POST /graphql\` - \`{ hello health }\`
 
-### Protected (requires JWT)
+### Protected (bearer token)
 
-- \`GET /api/users/me\` - Get current user
-- \`GET /api/users\` - List all users
-- \`GET /api/users/:id\` - Get user by ID
-- \`GET /api/items\` - List user's items
-- \`POST /api/items\` - Create new item
-- \`GET /api/items/:id\` - Get item by ID
-- \`DELETE /api/items/:id\` - Delete item
+- \`GET /api/v1/auth/me\` - Current user
+- \`GET /api/v1/users\`, \`GET /api/v1/users/:id\`, \`DELETE /api/v1/users/:id\` - Users (admin only)
+- \`POST /api/v1/products\`, \`PUT /api/v1/products/:id\`, \`DELETE /api/v1/products/:id\` - Products (admin only)
+
+The seeded admin is \`admin@example.com\` / \`admin123\`; set \`JWT_SECRET\` in production.
 
 ## Docker
 
@@ -1135,6 +499,530 @@ All notable changes to this project will be documented in this file.
 - CORS middleware support
 - Docker configuration
 - Test suite with hspec-wai
+`,
+
+    'src/App.hs': `{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeOperators #-}
+module App
+  ( API
+  , api
+  , mkApp
+  ) where
+
+import Control.Monad.IO.Class (liftIO)
+import Data.Aeson (Value, encode, object, (.=))
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Time.Clock (getCurrentTime)
+import Network.Wai.Middleware.Cors (cors, corsMethods, corsRequestHeaders, simpleCorsResourcePolicy)
+import Servant
+
+import Auth
+import Graphql (resolveRequest)
+import Models
+import Store
+
+type Authorized = Header "Authorization" Text
+
+type API =
+  Get '[PlainText] Text
+    :<|> "health" :> Get '[JSON] Value
+    :<|> "api" :> "v1" :> "health" :> Get '[JSON] Value
+    :<|> "graphql" :> ReqBody '[JSON] Value :> Post '[JSON] Value
+    :<|> "api" :> "v1" :> "auth" :> "register" :> ReqBody '[JSON] Register :> PostCreated '[JSON] TokenResponse
+    :<|> "api" :> "v1" :> "auth" :> "login" :> ReqBody '[JSON] Login :> Post '[JSON] TokenResponse
+    :<|> "api" :> "v1" :> "auth" :> "me" :> Authorized :> Get '[JSON] Value
+    :<|> "api" :> "v1" :> "users" :> Authorized :> Get '[JSON] Value
+    :<|> "api" :> "v1" :> "users" :> Authorized :> Capture "id" Text :> Get '[JSON] Value
+    :<|> "api" :> "v1" :> "users" :> Authorized :> Capture "id" Text :> DeleteNoContent
+    :<|> "api" :> "v1" :> "products" :> Get '[JSON] Value
+    :<|> "api" :> "v1" :> "products" :> Capture "id" Int :> Get '[JSON] Value
+    :<|> "api" :> "v1" :> "products" :> Authorized :> ReqBody '[JSON] ProductInput :> PostCreated '[JSON] Value
+    :<|> "api" :> "v1" :> "products" :> Authorized :> Capture "id" Int :> ReqBody '[JSON] ProductPatch :> Put '[JSON] Value
+    :<|> "api" :> "v1" :> "products" :> Authorized :> Capture "id" Int :> DeleteNoContent
+
+api :: Proxy API
+api = Proxy
+
+-- | A JSON error response.
+failWith :: ServerError -> Text -> Handler a
+failWith err message =
+  throwError err {errBody = encode (object ["error" .= message]), errHeaders = [("Content-Type", "application/json")]}
+
+-- | The claims of the bearer token in the Authorization header.
+requireClaims :: Maybe Text -> Handler Claims
+requireClaims header = case header >>= T.stripPrefix "Bearer " of
+  Nothing -> failWith err401 "Unauthorized"
+  Just token -> do
+    verified <- liftIO (verifyToken token)
+    maybe (failWith err401 "Invalid or expired token") pure verified
+
+requireAdmin :: Maybe Text -> Handler Claims
+requireAdmin header = do
+  claims <- requireClaims header
+  if claimsRole claims == "admin" then pure claims else failWith err403 "Admin role required"
+
+session :: User -> Handler TokenResponse
+session user = do
+  token <- liftIO (signToken user)
+  pure (TokenResponse token user)
+
+server :: Store -> Server API
+server store =
+  pure "{{projectName}} API - Running"
+    :<|> health
+    :<|> health
+    :<|> pure . resolveRequest
+    :<|> register
+    :<|> login
+    :<|> me
+    :<|> listAllUsers
+    :<|> getUser
+    :<|> removeUser
+    :<|> listAllProducts
+    :<|> getProduct
+    :<|> createProduct
+    :<|> updateProduct
+    :<|> removeProduct
+  where
+    health = do
+      now <- liftIO getCurrentTime
+      pure (object ["status" .= ("healthy" :: Text), "timestamp" .= now, "version" .= ("1.0.0" :: Text)])
+
+    register (Register email name password)
+      | T.length password < 6 || T.null name || T.null email =
+          failWith err400 "email, name and a password of at least 6 characters are required"
+      | otherwise = do
+          created <- liftIO (addUser store email name password "user")
+          either (failWith err409) session created
+
+    login (Login email password) = do
+      found <- liftIO (findUserByEmail store email)
+      case found of
+        Just user | verifyPassword password (userPasswordHash user) -> session user
+        _ -> failWith err401 "Invalid credentials"
+
+    me header = do
+      claims <- requireClaims header
+      pure (object ["userId" .= claimsSub claims, "email" .= claimsEmail claims, "role" .= claimsRole claims])
+
+    listAllUsers header = do
+      _ <- requireAdmin header
+      users <- liftIO (listUsers store)
+      pure (object ["users" .= users, "count" .= length users])
+
+    getUser header uid = do
+      _ <- requireAdmin header
+      found <- liftIO (findUserById store uid)
+      maybe (failWith err404 "User not found") (\\user -> pure (object ["user" .= user])) found
+
+    removeUser header uid = do
+      _ <- requireAdmin header
+      deleted <- liftIO (deleteUser store uid)
+      if deleted then pure NoContent else failWith err404 "User not found"
+
+    listAllProducts = do
+      products <- liftIO (listProducts store)
+      pure (object ["products" .= products, "count" .= length products])
+
+    getProduct n = do
+      found <- liftIO (findProduct store n)
+      maybe (failWith err404 "Product not found") (\\p -> pure (object ["product" .= p])) found
+
+    createProduct header input = do
+      _ <- requireAdmin header
+      created <- liftIO (addProduct store input)
+      pure (object ["product" .= created])
+
+    updateProduct header n changes = do
+      _ <- requireAdmin header
+      updated <- liftIO (patchProduct store n changes)
+      maybe (failWith err404 "Product not found") (\\p -> pure (object ["product" .= p])) updated
+
+    removeProduct header n = do
+      _ <- requireAdmin header
+      deleted <- liftIO (deleteProduct store n)
+      if deleted then pure NoContent else failWith err404 "Product not found"
+
+-- | The WAI application (a fresh in-memory store per call).
+mkApp :: IO Application
+mkApp = do
+  store <- newStore
+  pure $
+    cors (const (Just policy)) (serve api (server store))
+  where
+    policy =
+      simpleCorsResourcePolicy
+        { corsRequestHeaders = ["Content-Type", "Authorization"]
+        , corsMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        }
+`,
+
+    'src/Auth.hs': `{-# LANGUAGE OverloadedStrings #-}
+module Auth
+  ( Claims (..)
+  , signToken
+  , verifyToken
+  , hashPassword
+  , verifyPassword
+  ) where
+
+import qualified Crypto.KDF.BCrypt as BCrypt
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
+import qualified Data.Map.Strict as Map
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import Data.Time.Clock.POSIX (getPOSIXTime)
+import qualified Web.JWT as JWT
+import System.Environment (lookupEnv)
+
+import Models (User (..))
+
+-- | What a token carries about its owner.
+data Claims = Claims
+  { claimsSub :: Text
+  , claimsEmail :: Text
+  , claimsRole :: Text
+  }
+
+secretText :: IO Text
+secretText = maybe "change-this-secret-in-production" T.pack <$> lookupEnv "JWT_SECRET"
+
+-- | A token valid for seven days.
+signToken :: User -> IO Text
+signToken user = do
+  secret <- secretText
+  now <- getPOSIXTime
+  let claimsSet =
+        mempty
+          { JWT.sub = JWT.stringOrURI (userId user)
+          , JWT.exp = JWT.numericDate (now + 7 * 24 * 3600)
+          , JWT.unregisteredClaims =
+              JWT.ClaimsMap
+                ( Map.fromList
+                    [ ("email", Aeson.String (userEmail user))
+                    , ("role", Aeson.String (userRole user))
+                    ]
+                )
+          }
+  pure (JWT.encodeSigned (JWT.hmacSecret secret) mempty claimsSet)
+
+-- | The claims of a token with a valid signature that has not expired.
+verifyToken :: Text -> IO (Maybe Claims)
+verifyToken token = do
+  secret <- secretText
+  now <- getPOSIXTime
+  pure $ do
+    verified <- JWT.decodeAndVerifySignature (JWT.toVerify (JWT.hmacSecret secret)) token
+    let claimsSet = JWT.claims verified
+    expiry <- JWT.exp claimsSet
+    if JWT.secondsSinceEpoch expiry <= realToFrac now
+      then Nothing
+      else do
+        sub <- JWT.stringOrURIToText <$> JWT.sub claimsSet
+        let extra = JWT.unClaimsMap (JWT.unregisteredClaims claimsSet)
+            textClaim key = case Map.lookup key extra of
+              Just (Aeson.String t) -> t
+              _ -> ""
+        pure (Claims sub (textClaim "email") (textClaim "role"))
+
+-- | bcrypt (cost 10) with a fresh random salt; the result embeds the salt.
+hashPassword :: Text -> IO BS.ByteString
+hashPassword password = BCrypt.hashPassword 10 (TE.encodeUtf8 password)
+
+verifyPassword :: Text -> BS.ByteString -> Bool
+verifyPassword password hashed = BCrypt.validatePassword (TE.encodeUtf8 password) hashed
+`,
+
+    'src/Graphql.hs': `{-# LANGUAGE OverloadedStrings #-}
+-- | The GraphQL surface served at /graphql: @type Query { hello: String!, health: String! }@.
+module Graphql
+  ( resolveRequest
+  , resolveQuery
+  , sdl
+  ) where
+
+import Data.Aeson (Value (..), object, (.=))
+import Data.Aeson.Key (fromText)
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Text (Text)
+import qualified Data.Text as T
+
+-- | Answers a decoded request body (@{"query": "{ hello }"}@).
+resolveRequest :: Value -> Value
+resolveRequest (Object body)
+  | Just (String query) <- KeyMap.lookup "query" body = resolveQuery query
+resolveRequest _ = resolveQuery ""
+
+-- | Answers the fields named in the query text; anything else is an error.
+resolveQuery :: Text -> Value
+resolveQuery query
+  | null selected = object ["errors" .= [object ["message" .= ("Query must select hello and/or health" :: Text)]]]
+  | otherwise = object ["data" .= object selected]
+  where
+    selected = [fromText name .= String value | (name, value) <- fields, name \`T.isInfixOf\` query]
+    fields = [("hello", "Hello from {{projectName}} GraphQL!"), ("health", "healthy")]
+
+-- | The schema in SDL.
+sdl :: Text
+sdl =
+  T.unlines
+    [ "type Query {"
+    , "  hello: String!"
+    , "  health: String!"
+    , "}"
+    ]
+`,
+
+    'src/Models.hs': `{-# LANGUAGE OverloadedStrings #-}
+module Models
+  ( User (..)
+  , Product (..)
+  , Register (..)
+  , Login (..)
+  , ProductInput (..)
+  , ProductPatch (..)
+  , TokenResponse (..)
+  ) where
+
+import Data.Aeson
+import qualified Data.ByteString as BS
+import Data.Text (Text)
+import Data.Time.Clock (UTCTime)
+
+data User = User
+  { userId :: Text
+  , userEmail :: Text
+  , userName :: Text
+  , userRole :: Text -- "user" or "admin"
+  , userPasswordHash :: BS.ByteString
+  , userCreatedAt :: UTCTime
+  }
+
+-- | The password hash is never serialised.
+instance ToJSON User where
+  toJSON u =
+    object
+      [ "id" .= userId u
+      , "email" .= userEmail u
+      , "name" .= userName u
+      , "role" .= userRole u
+      , "createdAt" .= userCreatedAt u
+      ]
+
+data Product = Product
+  { productId :: Int
+  , productName :: Text
+  , productDescription :: Maybe Text
+  , productPrice :: Double
+  , productStock :: Int
+  , productCreatedAt :: UTCTime
+  , productUpdatedAt :: UTCTime
+  }
+
+instance ToJSON Product where
+  toJSON p =
+    object
+      [ "id" .= productId p
+      , "name" .= productName p
+      , "description" .= productDescription p
+      , "price" .= productPrice p
+      , "stock" .= productStock p
+      , "createdAt" .= productCreatedAt p
+      , "updatedAt" .= productUpdatedAt p
+      ]
+
+data Register = Register
+  { registerEmail :: Text
+  , registerName :: Text
+  , registerPassword :: Text
+  }
+
+instance FromJSON Register where
+  parseJSON = withObject "Register" $ \\o ->
+    Register <$> o .: "email" <*> o .: "name" <*> o .: "password"
+
+data Login = Login
+  { loginEmail :: Text
+  , loginPassword :: Text
+  }
+
+instance FromJSON Login where
+  parseJSON = withObject "Login" $ \\o -> Login <$> o .: "email" <*> o .: "password"
+
+data ProductInput = ProductInput
+  { inputName :: Text
+  , inputDescription :: Maybe Text
+  , inputPrice :: Double
+  , inputStock :: Int
+  }
+
+instance FromJSON ProductInput where
+  parseJSON = withObject "ProductInput" $ \\o ->
+    ProductInput
+      <$> o .: "name"
+      <*> o .:? "description"
+      <*> o .: "price"
+      <*> o .:? "stock" .!= 0
+
+-- | A partial update: absent fields keep their value.
+data ProductPatch = ProductPatch
+  { patchName :: Maybe Text
+  , patchDescription :: Maybe Text
+  , patchPrice :: Maybe Double
+  , patchStock :: Maybe Int
+  }
+
+instance FromJSON ProductPatch where
+  parseJSON = withObject "ProductPatch" $ \\o ->
+    ProductPatch
+      <$> o .:? "name"
+      <*> o .:? "description"
+      <*> o .:? "price"
+      <*> o .:? "stock"
+
+data TokenResponse = TokenResponse
+  { tokenValue :: Text
+  , tokenUser :: User
+  }
+
+instance ToJSON TokenResponse where
+  toJSON t = object ["token" .= tokenValue t, "user" .= tokenUser t]
+`,
+
+    'src/Store.hs': `{-# LANGUAGE OverloadedStrings #-}
+-- | In-memory data store (STM). Replace with a real database for production use.
+module Store
+  ( Store
+  , newStore
+  , findUserByEmail
+  , findUserById
+  , listUsers
+  , addUser
+  , deleteUser
+  , listProducts
+  , findProduct
+  , addProduct
+  , patchProduct
+  , deleteProduct
+  ) where
+
+import Control.Concurrent.STM
+import Data.Maybe (fromMaybe)
+import qualified Data.Map.Strict as Map
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Time.Clock (getCurrentTime)
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
+
+import Auth (hashPassword)
+import Models
+
+data Store = Store
+  { storeUsers :: TVar (Map.Map Text User)
+  , storeProducts :: TVar (Map.Map Int Product)
+  , storeNextProductId :: TVar Int
+  }
+
+-- | A store with the default admin (admin@example.com / admin123) and two sample products.
+newStore :: IO Store
+newStore = do
+  now <- getCurrentTime
+  adminHash <- hashPassword "admin123"
+  let admin = User "1" "admin@example.com" "Admin User" "admin" adminHash now
+      sample n name description price stock =
+        Product n name (Just description) price stock now now
+  Store
+    <$> newTVarIO (Map.singleton "1" admin)
+    <*> newTVarIO
+      ( Map.fromList
+          [ (1, sample 1 "Sample Product 1" "This is a sample product" 29.99 100)
+          , (2, sample 2 "Sample Product 2" "Another sample product" 49.99 50)
+          ]
+      )
+    <*> newTVarIO 3
+
+normaliseEmail :: Text -> Text
+normaliseEmail = T.toLower . T.strip
+
+findUserByEmail :: Store -> Text -> IO (Maybe User)
+findUserByEmail store email =
+  find' <$> readTVarIO (storeUsers store)
+  where
+    find' = fmap snd . Map.lookupMin . Map.filter ((== normaliseEmail email) . userEmail)
+
+findUserById :: Store -> Text -> IO (Maybe User)
+findUserById store uid = Map.lookup uid <$> readTVarIO (storeUsers store)
+
+listUsers :: Store -> IO [User]
+listUsers store = Map.elems <$> readTVarIO (storeUsers store)
+
+-- | Creates a user; fails when the email is already registered.
+addUser :: Store -> Text -> Text -> Text -> Text -> IO (Either Text User)
+addUser store email name password role = do
+  now <- getCurrentTime
+  uid <- UUID.toText <$> UUID.nextRandom
+  passwordHash <- hashPassword password
+  let user = User uid (normaliseEmail email) name role passwordHash now
+  atomically $ do
+    users <- readTVar (storeUsers store)
+    if any ((== userEmail user) . userEmail) (Map.elems users)
+      then pure (Left "Email already registered")
+      else do
+        writeTVar (storeUsers store) (Map.insert uid user users)
+        pure (Right user)
+
+deleteUser :: Store -> Text -> IO Bool
+deleteUser store uid = atomically $ do
+  users <- readTVar (storeUsers store)
+  writeTVar (storeUsers store) (Map.delete uid users)
+  pure (Map.member uid users)
+
+listProducts :: Store -> IO [Product]
+listProducts store = Map.elems <$> readTVarIO (storeProducts store)
+
+findProduct :: Store -> Int -> IO (Maybe Product)
+findProduct store n = Map.lookup n <$> readTVarIO (storeProducts store)
+
+addProduct :: Store -> ProductInput -> IO Product
+addProduct store input = do
+  now <- getCurrentTime
+  atomically $ do
+    n <- readTVar (storeNextProductId store)
+    writeTVar (storeNextProductId store) (n + 1)
+    let product' =
+          Product n (inputName input) (inputDescription input) (inputPrice input) (inputStock input) now now
+    modifyTVar' (storeProducts store) (Map.insert n product')
+    pure product'
+
+patchProduct :: Store -> Int -> ProductPatch -> IO (Maybe Product)
+patchProduct store n patch = do
+  now <- getCurrentTime
+  atomically $ do
+    products <- readTVar (storeProducts store)
+    case Map.lookup n products of
+      Nothing -> pure Nothing
+      Just p -> do
+        let updated =
+              p
+                { productName = fromMaybe (productName p) (patchName patch)
+                , productDescription = maybe (productDescription p) Just (patchDescription patch)
+                , productPrice = fromMaybe (productPrice p) (patchPrice patch)
+                , productStock = fromMaybe (productStock p) (patchStock patch)
+                , productUpdatedAt = now
+                }
+        writeTVar (storeProducts store) (Map.insert n updated products)
+        pure (Just updated)
+
+deleteProduct :: Store -> Int -> IO Bool
+deleteProduct store n = atomically $ do
+  products <- readTVar (storeProducts store)
+  writeTVar (storeProducts store) (Map.delete n products)
+  pure (Map.member n products)
 `},
   prompts: [
     {

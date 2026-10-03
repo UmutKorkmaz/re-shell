@@ -14,725 +14,304 @@ export const yesodHsTemplate: BackendTemplate = {
   features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'validation', 'graphql'],
 
   files: {
-    // Package configuration (Cabal)
-    '{{projectNameSnake}}.cabal': `cabal-version: 3.0
-name:                   {{projectNameSnake}}
-version:                0.1.0.0
-synopsis:               REST API built with Yesod
-description:            Type-safe REST API with authentication and CRUD operations
-license:                MIT
-author:                 {{author}}
-maintainer:             {{author}}
-category:               Web
-build-type:             Simple
-
-common shared-properties
-  default-language:     Haskell2010
-  ghc-options:          -Wall -O2
-  default-extensions:   TemplateHaskell
-                        QuasiQuotes
-                        OverloadedStrings
-                        TypeFamilies
-                        MultiParamTypeClasses
-                        FlexibleContexts
-                        FlexibleInstances
-                        UndecidableInstances
-                        DataKinds
-                        GADTs
-                        GeneralizedNewtypeDeriving
-                        DerivingStrategies
-                        ViewPatterns
-                        TupleSections
-
-library
-  import:               shared-properties
-  exposed-modules:      Application
-                        Foundation
-                        Handler.Home
-                        Handler.Health
-                        Handler.Auth
-                        Handler.User
-                        Handler.Product
-                        Handler.Graphql
-                        Model
-                        Settings
-                        Settings.StaticFiles
-                        StaticFiles
-  build-depends:        base >=4.14 && <5
-                      , yesod >=1.6 && <1.7
-                      , yesod-core >=1.6 && <1.7
-                      , yesod-form >=1.7 && <1.8
-                      , yesod-static >=1.6 && <1.7
-                      , persistent >=2.14 && <2.15
-                      , persistent-sqlite >=2.13 && <2.14
-                      , persistent-template >=2.12 && <2.13
-                      , aeson >=2.0 && <2.3
-                      , bytestring >=0.11 && <0.13
-                      , text >=1.2 && <2.1
-                      , containers >=0.6 && <0.8
-                      , time >=1.12 && <1.15
-                      , unordered-containers >=0.2 && <0.3
-                      , jwt >=0.12 && <0.13
-                      , bcrypt >=0.0 && <0.1
-                      , http-types >=0.12 && <0.13
-                      , wai >=3.2 && <3.3
-                      , wai-extra >=3.1 && <3.2
-                      , warp >=3.3 && <3.4
-                      , fast-logger >=3.2 && <3.3
-                      , monad-logger >=0.3 && <0.4
-                      , resource-pool >=0.2 && <0.3
-                      , morpheus-graphql >=0.27 && <0.28
-  hs-source-dirs:       src
-
-executable {{projectNameSnake}}
-  import:               shared-properties
-  main-is:              main.hs
-  build-depends:        {{projectNameSnake}}
-  hs-source-dirs:       app
-`,
 
     // Stack configuration
     'stack.yaml': `resolver: lts-21.25
 
 packages:
 - .
-
-extra-deps:
-- persistent-2.14.6.0
-- persistent-sqlite-2.13.2.0
-- persistent-template-2.12.0.0
-- jwt-0.12.1
-- bcrypt-0.0.1
-`,
-
-    // Main entry point
-    'app/main.hs': `module Main (main) where
-
-import IO (runTCPServer)
-import Network.Wai.Handler.Warp (run)
-import Settings (parseAppSettings, warpSettings)
-import Application (makeApplication)
-
-main :: IO ()
-main = do
-    settings <- parseAppSettings
-    app <- makeApplication settings
-    runSettings (warpSettings settings) app
-`,
-
-    // Settings module
-    'src/Settings.hs': `module Settings
-    ( parseAppSettings
-    , warpSettings
-    , AppSettings(..)
-    ) where
-
-import Data.Yaml.Config (loadYamlSettings)
-import Network.Wai.Handler.Warp (defaultSettings, setHost, setPort)
-import System.Environment (lookupEnv)
-
-data AppSettings = AppSettings
-    { appPort :: Int
-    , appJwtSecret :: String
-    , appDatabase :: String
-    }
-
-parseAppSettings :: IO AppSettings
-parseAppSettings = do
-    portStr <- lookupEnv "PORT" >>= \\case
-        Nothing -> return "3000"
-        Just p -> return p
-    jwtSecret <- lookupEnv "JWT_SECRET" >>= \\case
-        Nothing -> return "change-this-secret"
-        Just s -> return s
-    dbPath <- lookupEnv "DATABASE_PATH" >>= \\case
-        Nothing -> return "{{projectNameSnake}}.sqlite3"
-        Just p -> return p
-    return AppSettings
-        { appPort = read portStr
-        , appJwtSecret = jwtSecret
-        , appDatabase = dbPath
-        }
-
-warpSettings :: AppSettings -> Settings
-warpSettings app = setPort (appPort app) $
-                  setHost "*" $
-                  defaultSettings
 `,
 
     // Foundation module
-    'src/Foundation.hs': `module Foundation
-    ( Handler
-    , Widget
-    , Route(..)
-    , resources {{projectNamePascal}}
-    , AuthResult(..)
-    ) where
+    'src/Foundation.hs': `{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
+module Foundation
+  ( App (..)
+  , Route (..)
+  , Handler
+  , resourcesApp
+  , requireClaims
+  , requireAdmin
+  , failWith
+  ) where
 
+import Data.Aeson (object, (.=))
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import Network.HTTP.Types.Status (Status, status401, status403)
 import Yesod.Core
-import Yesod.Form
-import Yesod.Static
-import Yesod.Persist
-import Database.Persist.Sql
-import Model
-import Text.Jwt (Jwt(..))
-import Data.Time.Clock (UTCTime)
 
-data {{projectNamePascal}} = {{projectNamePascal}}
-    { getStatic :: Static
-    , appSettings :: AppSettings
-    }
+import Auth
+import Store (Store)
 
-mkYesodData "{{projectNamePascal}}" routesFunction
+newtype App = App
+  { appStore :: Store
+  }
 
-mkMessage "{{projectNamePascal}}" "messages" "en"
+mkYesodData "App" $(parseRoutesFile "config/routes")
 
-type Form x = Html -> MForm (HandlerFor {{projectNamePascal}}) (FormResult x, Widget)
+instance Yesod App where
+  -- The API is stateless (JWT), so no client session cookie or key file is needed.
+  makeSessionBackend _ = return Nothing
 
-instance RenderMessage {{projectNamePascal}} FormMessage where
-    renderMessage _ _ = defaultFormMessage
+-- | Responds with a JSON error and stops the request.
+failWith :: Status -> Text -> Handler a
+failWith code message = sendStatusJSON code (object ["error" .= message])
 
-data AuthResult
-    = AuthSuccess UserId
-    | AuthFailed String
+-- | The claims of the bearer token in the Authorization header.
+requireClaims :: Handler Claims
+requireClaims = do
+  authorization <- lookupHeader "Authorization"
+  case authorization >>= T.stripPrefix "Bearer " . TE.decodeUtf8 of
+    Nothing -> failWith status401 "Unauthorized"
+    Just token -> do
+      verified <- liftIO (verifyToken token)
+      maybe (failWith status401 "Invalid or expired token") return verified
+
+requireAdmin :: Handler Claims
+requireAdmin = do
+  claims <- requireClaims
+  if claimsRole claims == "admin"
+    then return claims
+    else failWith status403 "Admin role required"
 `,
 
     // Application module
-    'src/Application.hs': `{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE OverloadedStrings #-}
-module Application
-    ( makeApplication
-    , routesFunction
-    ) where
-
-import Yesod.Core
-import Yesod.Auth
-import Yesod.Persist
-import Settings
-import Foundation
-import Handler.Home
-import Handler.Health
-import Handler.Auth
-import Handler.User
-import Handler.Product
-
-routesFunction :: Route {{projectNamePascal}} -> String
-routesFunction = const ""
-
-makeApplication :: AppSettings -> IO Application
-makeApplication settings = do
-    static <- static "static"
-    return $ {{projectNamePascal}} static settings
-
-instance Yesod {{projectNamePascal}} where
-    authRoute _ = Just $ AuthR LoginR
-
-    isAuthorized (AuthR _) _ = return Authorized
-    isAuthorized _ _ = return Authorized
-
-    defaultLayout widget = do
-        pc <- widgetToPageContent widget
-        withUrlRenderer [hamlet|
-            <!doctype html>
-            <html>
-                <head>
-                    <title>#{pageTitle pc}
-                    <meta charset=utf-8>
-                    <meta name=viewport content="width=device-width,initial-scale=1">
-                <body>
-                    ^{pageBody pc}
-        |]
-
-instance YesodPersist {{projectNamePascal}} where
-    type YesodPersistBackend {{projectNamePascal}} = SqlBackend
-
-    runDB action = do
-        {{projectNamePascal}} settings <- getYesod
-        let dbPath = appDatabase settings
-        runSqlPool action $ appConnPool settings
-
-instance YesodAuth {{projectNamePascal}} where
-    type AuthId {{projectNamePascal}} = UserId
-
-    loginHandler = do
-        defaultLayout $ do
-            [whamlet|
-                <h1>Login
-                <form method=post action=@{AuthR LoginR}>
-                    <input type=email name=email placeholder=Email required>
-                    <input type=password name=password placeholder=Password required>
-                    <button type=submit>Login
-            |]
-`,
-
-    // Models
-    'src/Model.hs': `{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TemplateHaskell #-}
+    'src/Application.hs': `{-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE DeriveGeneric #-}
-module Model
-    ( migrateAll
-    , User(..)
-    , Product(..)
-    , UserId
-    , ProductId
-    ) where
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
+module Application (makeApplication) where
 
-import Database.Persist.Sql
-import Database.Persist.TH
-import Data.Time.Clock (UTCTime)
-import GHC.Generics (Generic)
+import Network.Wai.Middleware.Cors
+import Yesod.Core
 
-share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
-User
-    email String
-    password String
-    name String
-    role String -- "user" or "admin"
-    createdAt UTCTime
-    updatedAt UTCTime
-    deriving Show Generic
+import Foundation
+import Handler.Auth
+import Handler.Graphql
+import Handler.Health
+import Handler.Product
+import Handler.User
+import Store (newStore)
 
-Product
-    name String
-    description String Maybe
-    price Double
-    stock Int
-    createdAt UTCTime
-    updatedAt UTCTime
-    deriving Show Generic
-|]
+mkYesodDispatch "App" resourcesApp
+
+-- | The WAI application (a fresh in-memory store per call).
+makeApplication :: IO Application
+makeApplication = do
+  store <- newStore
+  app <- toWaiApp (App store)
+  return $
+    cors
+      ( const . Just $
+          simpleCorsResourcePolicy
+            { corsMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+            , corsRequestHeaders = ["Content-Type", "Authorization"]
+            }
+      )
+      app
 `,
 
     // Handler - Health
     'src/Handler/Health.hs': `{-# LANGUAGE OverloadedStrings #-}
-module Handler.Health (getHealthR) where
+module Handler.Health
+  ( getHomeR
+  , getHealthR
+  ) where
 
-import Import
-import Data.Aeson (ToJSON(..), object, (.=))
+import Data.Aeson (Value, object, (.=))
+import Data.Text (Text)
 import Data.Time.Clock (getCurrentTime)
+import Yesod.Core
+
+import Foundation
+
+getHomeR :: Handler Text
+getHomeR = return "{{projectName}} API - Running"
 
 getHealthR :: Handler Value
 getHealthR = do
-    now <- liftIO getCurrentTime
-    return $ object
-        [ "status" .= ("healthy" :: String)
-        , "timestamp" .= now
-        , "version" .= ("1.0.0" :: String)
-        ]
+  now <- liftIO getCurrentTime
+  returnJson $
+    object
+      [ "status" .= ("healthy" :: Text)
+      , "timestamp" .= now
+      , "version" .= ("1.0.0" :: Text)
+      ]
 `,
 
     // Handler - GraphQL (Morpheus schema + resolver)
     'src/Handler/Graphql.hs': `{-# LANGUAGE OverloadedStrings #-}
 module Handler.Graphql (postGraphqlR) where
 
-import Import
-import Data.Aeson (Value(..), object, (.=), (.:?), (.!=))
-import qualified Data.Text as T
-import qualified Data.Map as M
+import Yesod.Core
 
--- Minimal GraphQL-over-POST handler for Query { hello: String!, health: String! }.
--- A full Morpheus interpreter can replace resolveQuery here; the template
--- answers the small schema directly so it stays runnable without codegen.
-data GraphqlRequest = GraphqlRequest
-    { gqlQuery :: T.Text
-    , gqlOperationName :: Maybe T.Text
-    }
-
-instance FromJSON GraphqlRequest where
-    parseJSON = withObject "GraphqlRequest" $ \\o -> GraphqlRequest
-        <$> o .: "query"
-        <*> o .:? "operationName"
+import Foundation
+import Graphql (resolveRequest)
 
 postGraphqlR :: Handler Value
 postGraphqlR = do
-    body <- requireCheckJsonBody <|> return (GraphqlRequest "" Nothing)
-    return $ resolveQuery body
-
-resolveQuery :: GraphqlRequest -> Value
-resolveQuery req =
-    let q = T.toLower (gqlQuery req)
-        fields = M.fromList
-            [ ("hello", String "Hello from {{projectName}} GraphQL!")
-            , ("health", String "healthy")
-            ]
-        present k = T.isInfixOf k q
-        selected = [ (k, v) | (k, v) <- M.toList fields, present k ]
-        final = if null selected then M.toList fields else selected
-    in object [ "data" .= object final ]
-`,
-
-    // Handler - Home
-    'src/Handler/Home.hs': `{-# LANGUAGE OverloadedStrings #-}
-module Handler.Home (getHomeR) where
-
-import Import
-
-getHomeR :: Handler Html
-getHomeR = defaultLayout $ do
-    [whamlet|
-        <h1>Welcome to {{projectName}}
-        <p>A REST API built with Yesod and Haskell
-        <h2>API Endpoints
-        <ul>
-            <li><a href=@{HealthR}>GET /health - Health check
-            <li>POST /api/auth/register - Register user
-            <li>POST /api/auth/login - Login user
-            <li>GET /api/products - List products
-            <li>GET /api/products/#ProductId - Get product
-    |]
+  request <- requireCheckJsonBody :: Handler Value
+  returnJson (resolveRequest request)
 `,
 
     // Handler - Auth
     'src/Handler/Auth.hs': `{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
 module Handler.Auth
-    ( postAuthRegisterR
-    , postAuthLoginR
-    , postAuthMeR
-    ) where
+  ( postRegisterR
+  , postLoginR
+  , getMeR
+  ) where
 
-import Import
+import Data.Aeson (Value, object, (.=))
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
-import Crypto.Bcrypt (hashPassword, validatePassword)
-import Data.Time.Clock (getCurrentTime)
-import qualified Data.ByteString.Char8 as BS
-import Web.JWT (secret, encodeSigned, defJWT, alg, claims, secret, HMAC512)
+import Network.HTTP.Types.Status (Status, status200, status201, status400, status401, status409)
+import Yesod.Core
 
-data Register = Register
-    { registerEmail :: Text
-    , registerPassword :: Text
-    , registerName :: Text
-    }
+import Auth
+import Foundation
+import Models
+import Store
 
-data Login = Login
-    { loginEmail :: Text
-    , loginPassword :: Text
-    }
+session :: Status -> User -> Handler a
+session code user = do
+  token <- liftIO (signToken user)
+  sendStatusJSON code (TokenResponse token user)
 
-instance FromJSON Register where
-    parseJSON = withObject "Register" $ \\o -> Register
-        <$> o .: "email"
-        <*> o .: "password"
-        <*> o .: "name"
+postRegisterR :: Handler Value
+postRegisterR = do
+  Register email name password <- requireCheckJsonBody
+  if T.length password < 6 || T.null name || T.null email
+    then failWith status400 "email, name and a password of at least 6 characters are required"
+    else do
+      store <- getsYesod appStore
+      created <- liftIO (addUser store email name password "user")
+      either (failWith status409) (session status201) created
 
-instance FromJSON Login where
-    parseJSON = withObject "Login" $ \\o -> Login
-        <$> o .: "email"
-        <*> o .: "password"
+postLoginR :: Handler Value
+postLoginR = do
+  Login email password <- requireCheckJsonBody
+  store <- getsYesod appStore
+  found <- liftIO (findUserByEmail store email)
+  case found of
+    Just user | verifyPassword password (userPasswordHash user) -> session status200 user
+    _ -> failWith status401 "Invalid credentials"
 
-postAuthRegisterR :: Handler Value
-postAuthRegisterR = do
-    register <- requireCheckJsonBody
-    now <- liftIO getCurrentTime
-
-    -- Check if user exists
-    existing <- runDB $ getBy $ UniqueUser $ registerEmail register
-    case existing of
-        Just _ -> sendStatusJSON 409 $ object ["error" .= ("Email already registered" :: Text)]
-        Nothing -> do
-            -- Hash password
-            let hashed = hashPassword 12 $ TE.encodeUtf8 $ registerPassword register
-
-            -- Create user
-            userId <- runDB $ insert $ User
-                { userEmail = registerEmail register
-                , userPassword = TE.decodeUtf8 $ hashed
-                , userName = registerName register
-                , userRole = "user"
-                , userCreatedAt = now
-                , userUpdatedAt = now
-                }
-
-            -- Generate JWT
-            app <- getYesod
-            let jwtSecret = appJwtSecret $ appSettings app
-            let token = encodeSigned HMAC512 (secret jwtSecret) $ defJWT
-                    & claims .~ unClaims ["sub" .= unUserId userId, "email" .= registerEmail register, "role" .= ("user" :: Text)]
-
-            sendStatusJSON 201 $ object
-                [ "token" .= token
-                , "user" .= object
-                    [ "id" .= unUserId userId
-                    , "email" .= registerEmail register
-                    , "name" .= registerName register
-                    , "role" .= ("user" :: Text)
-                    ]
-                ]
-
-postAuthLoginR :: Handler Value
-postAuthLoginR = do
-    login <- requireCheckJsonBody
-
-    -- Find user
-    muser <- runDB $ getBy $ UniqueUser $ loginEmail login
-    case muser of
-        Nothing -> sendStatusJSON 401 $ object ["error" .= ("Invalid credentials" :: Text)]
-        Just (Entity uid user) -> do
-            -- Verify password
-            let valid = validatePassword (TE.encodeUtf8 $ userPassword user) (TE.encodeUtf8 $ loginPassword login)
-            if not valid
-                then sendStatusJSON 401 $ object ["error" .= ("Invalid credentials" :: Text)]
-                else do
-                    -- Generate JWT
-                    app <- getYesod
-                    let jwtSecret = appJwtSecret $ appSettings app
-                    let token = encodeSigned HMAC512 (secret jwtSecret) $ defJWT
-                            & claims .~ unClaims ["sub" .= unUserId uid, "email" .= loginEmail login, "role" .= userRole user]
-
-                    return $ object
-                        [ "token" .= token
-                        , "user" .= object
-                            [ "id" .= unUserId uid
-                            , "email" .= userEmail user
-                            , "name" .= userName user
-                            , "role" .= userRole user
-                            ]
-                        ]
-
-postAuthMeR :: Handler Value
-postAuthMeR = do
-    -- Get user from JWT (simplified - in production, verify JWT properly)
-    (uid, _, _) <- requireAuthPayload
-
-    muser <- runDB $ get uid
-    case muser of
-        Nothing -> sendStatusJSON 404 $ object ["error" .= ("User not found" :: Text)]
-        Just user -> return $ object ["user" .= object
-            [ "id" .= unUserId uid
-            , "email" .= userEmail user
-            , "name" .= userName user
-            , "role" .= userRole user
-            ]]
-
--- Helper functions
-requireAuthPayload :: Handler (UserId, Text, Text)
-requireAuthPayload = do
-    mAuthHeader <- lookupHeader "Authorization"
-    case mAuthHeader of
-        Nothing -> sendStatusJSON 401 $ object ["error" .= ("Missing Authorization header" :: Text)]
-        Just authHeader ->
-            if "Bearer " \`T.isPrefixOf\` authHeader
-                then do
-                    let token = T.drop 7 authHeader
-                    -- In production: verify JWT and extract claims
-                    -- For now, return dummy user
-                    return (toSqlKey 1, "user@example.com", "user")
-                else sendStatusJSON 401 $ object ["error" .= ("Invalid Authorization header" :: Text)]
-
-toSqlKey :: Int64 -> UserId
-toSqlKey = SqlBackendKey . fromIntegral
+getMeR :: Handler Value
+getMeR = do
+  claims <- requireClaims
+  returnJson (object ["userId" .= claimsSub claims, "email" .= claimsEmail claims, "role" .= claimsRole claims])
 `,
 
     // Handler - User
     'src/Handler/User.hs': `{-# LANGUAGE OverloadedStrings #-}
 module Handler.User
-    ( getUsersR
-    , getUserR
-    , deleteUserR
-    ) where
+  ( getUsersR
+  , getUserR
+  , deleteUserR
+  ) where
 
-import Import
+import Data.Aeson (Value, object, (.=))
+import Data.Text (Text)
+import Network.HTTP.Types.Status (status204, status404)
+import Yesod.Core
+
+import Foundation
+import Store
 
 getUsersR :: Handler Value
 getUsersR = do
-    -- Require admin
-    (_, _, role) <- requireAuthPayload
-    if role /= "admin"
-        then sendStatusJSON 403 $ object ["error" .= ("Forbidden" :: Text)]
-        else do
-            users <- runDB $ selectList [] []
-            let usersJson = map (\\(Entity uid u) -> object
-                    [ "id" .= unUserId uid
-                    , "email" .= userEmail u
-                    , "name" .= userName u
-                    , "role" .= userRole u
-                    ]) users
-            return $ object ["users" .= usersJson, "count" .= length users]
+  _ <- requireAdmin
+  store <- getsYesod appStore
+  users <- liftIO (listUsers store)
+  returnJson (object ["users" .= users, "count" .= length users])
 
-getUserR :: UserId -> Handler Value
+getUserR :: Text -> Handler Value
 getUserR uid = do
-    muser <- runDB $ get uid
-    case muser of
-        Nothing -> sendStatusJSON 404 $ object ["error" .= ("User not found" :: Text)]
-        Just user -> return $ object ["user" .= object
-            [ "id" .= unUserId uid
-            , "email" .= userEmail user
-            , "name" .= userName user
-            , "role" .= userRole user
-            ]]
+  _ <- requireAdmin
+  store <- getsYesod appStore
+  found <- liftIO (findUserById store uid)
+  maybe (failWith status404 "User not found") (\\user -> returnJson (object ["user" .= user])) found
 
-deleteUserR :: UserId -> Handler Value
+deleteUserR :: Text -> Handler ()
 deleteUserR uid = do
-    -- Require admin
-    (_, _, role) <- requireAuthPayload
-    if role /= "admin"
-        then sendStatusJSON 403 $ object ["error" .= ("Forbidden" :: Text)]
-        else do
-            deleted <- runDB $ delete uid
-            if deleted
-                then sendStatusJSON 204 ()
-                else sendStatusJSON 404 $ object ["error" .= ("User not found" :: Text)]
+  _ <- requireAdmin
+  store <- getsYesod appStore
+  deleted <- liftIO (deleteUser store uid)
+  if deleted then sendResponseStatus status204 () else failWith status404 "User not found"
 `,
 
     // Handler - Product
     'src/Handler/Product.hs': `{-# LANGUAGE OverloadedStrings #-}
 module Handler.Product
-    ( getProductsR
-    , getProductR
-    , postProductsR
-    , putProductR
-    , deleteProductR
-    ) where
+  ( getProductsR
+  , postProductsR
+  , getProductR
+  , putProductR
+  , deleteProductR
+  ) where
 
-import Import
-import Data.Time.Clock (getCurrentTime)
-import qualified Data.Text as T
+import Data.Aeson (Value, object, (.=))
+import Network.HTTP.Types.Status (status201, status204, status404)
+import Yesod.Core
 
-data CreateProduct = CreateProduct
-    { cpName :: Text
-    , cpDescription :: Maybe Text
-    , cpPrice :: Double
-    , cpStock :: Int
-    }
-
-data UpdateProduct = UpdateProduct
-    { upName :: Maybe Text
-    , upDescription :: Maybe Text
-    , upPrice :: Maybe Double
-    , upStock :: Maybe Int
-    }
-
-instance FromJSON CreateProduct where
-    parseJSON = withObject "CreateProduct" $ \\o -> CreateProduct
-        <$> o .: "name"
-        <*> o .:? "description"
-        <*> o .: "price"
-        <*> o .: "stock"
-
-instance FromJSON UpdateProduct where
-    parseJSON = withObject "UpdateProduct" $ \\o -> UpdateProduct
-        <$> o .:? "name"
-        <*> o .:? "description"
-        <*> o .:? "price"
-        <*> o .:? "stock"
+import Foundation
+import Store
 
 getProductsR :: Handler Value
 getProductsR = do
-    products <- runDB $ selectList [] [Asc ProductName]
-    let productsJson = map (\\(Entity pid p) -> object
-            [ "id" .= unProductId pid
-            , "name" .= productName p
-            , "description" .= productDescription p
-            , "price" .= productPrice p
-            , "stock" .= productStock p
-            ]) products
-    return $ object ["products" .= productsJson, "count" .= length products]
-
-getProductR :: ProductId -> Handler Value
-getProductR pid = do
-    mproduct <- runDB $ get pid
-    case mproduct of
-        Nothing -> sendStatusJSON 404 $ object ["error" .= ("Product not found" :: Text)]
-        Just product -> return $ object ["product" .= object
-            [ "id" .= unProductId pid
-            , "name" .= productName product
-            , "description" .= productDescription product
-            , "price" .= productPrice product
-            , "stock" .= productStock product
-            ]]
+  store <- getsYesod appStore
+  products <- liftIO (listProducts store)
+  returnJson (object ["products" .= products, "count" .= length products])
 
 postProductsR :: Handler Value
 postProductsR = do
-    -- Require admin
-    (_, _, role) <- requireAuthPayload
-    if role /= "admin"
-        then sendStatusJSON 403 $ object ["error" .= ("Forbidden" :: Text)]
-        else do
-            cp <- requireCheckJsonBody
-            now <- liftIO getCurrentTime
+  _ <- requireAdmin
+  input <- requireCheckJsonBody
+  store <- getsYesod appStore
+  created <- liftIO (addProduct store input)
+  sendStatusJSON status201 (object ["product" .= created])
 
-            pid <- runDB $ insert $ Product
-                { productName = cpName cp
-                , productDescription = cpDescription cp
-                , productPrice = cpPrice cp
-                , productStock = cpStock cp
-                , productCreatedAt = now
-                , productUpdatedAt = now
-                }
+getProductR :: Int -> Handler Value
+getProductR n = do
+  store <- getsYesod appStore
+  found <- liftIO (findProduct store n)
+  maybe (failWith status404 "Product not found") (\\p -> returnJson (object ["product" .= p])) found
 
-            product <- runDB $ get pid
-            case product of
-                Nothing -> sendStatusJSON 500 $ object ["error" .= ("Failed to create product" :: Text)]
-                Just p -> sendStatusJSON 201 $ object ["product" .= object
-                    [ "id" .= unProductId pid
-                    , "name" .= productName p
-                    , "description" .= productDescription p
-                    , "price" .= productPrice p
-                    , "stock" .= productStock p
-                    ]]
+putProductR :: Int -> Handler Value
+putProductR n = do
+  _ <- requireAdmin
+  changes <- requireCheckJsonBody
+  store <- getsYesod appStore
+  updated <- liftIO (patchProduct store n changes)
+  maybe (failWith status404 "Product not found") (\\p -> returnJson (object ["product" .= p])) updated
 
-putProductR :: ProductId -> Handler Value
-putProductR pid = do
-    -- Require admin
-    (_, _, role) <- requireAuthPayload
-    if role /= "admin"
-        then sendStatusJSON 403 $ object ["error" .= ("Forbidden" :: Text)]
-        else do
-            up <- requireCheckJsonBody
-            mproduct <- runDB $ get pid
-            case mproduct of
-                Nothing -> sendStatusJSON 404 $ object ["error" .= ("Product not found" :: Text)]
-                Just product -> do
-                    now <- liftIO getCurrentTime
-                    let updated = product
-                            { productName = maybe (productName product) id $ upName up
-                            , productDescription = upDescription up <|> productDescription product
-                            , productPrice = maybe (productPrice product) id $ upPrice up
-                            , productStock = maybe (productStock product) id $ upStock up
-                            , productUpdatedAt = now
-                            }
-                    runDB $ replace pid updated
-                    return $ object ["product" .= object
-                        [ "id" .= unProductId pid
-                        , "name" .= productName updated
-                        , "description" .= productDescription updated
-                        , "price" .= productPrice updated
-                        , "stock" .= productStock updated
-                        ]]
-
-deleteProductR :: ProductId -> Handler Value
-deleteProductR pid = do
-    -- Require admin
-    (_, _, role) <- requireAuthPayload
-    if role /= "admin"
-        then sendStatusJSON 403 $ object ["error" .= ("Forbidden" :: Text)]
-        else do
-            deleted <- runDB $ delete pid
-            if deleted
-                then sendStatusJSON 204 ()
-                else sendStatusJSON 404 $ object ["error" .= ("Product not found" :: Text)]
+deleteProductR :: Int -> Handler ()
+deleteProductR n = do
+  _ <- requireAdmin
+  store <- getsYesod appStore
+  deleted <- liftIO (deleteProduct store n)
+  if deleted then sendResponseStatus status204 () else failWith status404 "Product not found"
 `,
 
     // Routes
-    'config/routes': `#
-# This file defines all application routes
-#
-
-/ HealthR GET
+    'config/routes': `/ HomeR GET
+/health HealthR GET
 /graphql GraphqlR POST
-/api/auth/register AuthR RegisterR POST
-/api/auth/login AuthR LoginR POST
-/api/auth/me AuthR MeR POST
-/api/users UserR:
-    / UserR GET
-    /#UserId UserR GET DELETE
-/api/products ProductR:
-    / ProductR GET POST
-    /#ProductId ProductR GET PUT DELETE
+/api/auth/register RegisterR POST
+/api/auth/login LoginR POST
+/api/auth/me MeR GET
+/api/users UsersR GET
+/api/users/#Text UserR GET DELETE
+/api/products ProductsR GET POST
+/api/products/#Int ProductR GET PUT DELETE
 `,
 
     // Environment file
@@ -742,8 +321,6 @@ PORT=3000
 # JWT Secret (change in production!)
 JWT_SECRET=change-this-secret-in-production
 
-# Database
-DATABASE_PATH={{projectNameSnake}}.sqlite3
 `,
 
     // Dockerfile - Multi-stage optimized build
@@ -762,7 +339,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \\
     && rm -rf /var/lib/apt/lists/*
 
 # Copy stack.yaml and package.yaml first for better caching
-COPY stack.yaml package.yaml ./
+COPY stack.yaml {{projectName}}.cabal ./
 
 # Initialize stack and install dependencies
 RUN stack setup --install-cabal 3.10.3.0
@@ -792,8 +369,7 @@ RUN useradd -m -u 1000 appuser
 WORKDIR /app
 
 # Copy binaries and static files from builder
-COPY --from=builder /app/.stack-work/install/x86_64-linux-tinfo6/*/bin/{{projectNameSnake}}-exe /app/{{projectNameSnake}}-exe
-COPY --from=builder /app/static /app/static
+COPY --from=builder /app/.stack-work/install/x86_64-linux-tinfo6/*/bin/{{projectName}} /app/{{projectName}}
 COPY --from=builder /app/config /app/config
 
 # Create data directory
@@ -810,7 +386,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
     CMD curl -f http://localhost:3000/health || exit 1
 
 # Run application
-CMD ["./{{projectNameSnake}}-exe"]
+CMD ["./{{projectName}}"]
 `,
 
     // Docker Compose
@@ -833,14 +409,52 @@ services:
     'test/Spec.hs': `{-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
+import Data.Aeson (Value (..), decode)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Text.Encoding (encodeUtf8)
+import Network.Wai.Test (SResponse (..))
 import Test.Hspec
 import Test.Hspec.Wai
 
+import Application (makeApplication)
+
+-- | POST a JSON body.
+postJson :: BS.ByteString -> LBS.ByteString -> WaiSession st SResponse
+postJson path = request "POST" path [("Content-Type", "application/json")]
+
+-- | The JWT in a login or register response.
+tokenFrom :: SResponse -> Maybe Value
+tokenFrom response = case decode (simpleBody response) of
+  Just (Object o) -> KeyMap.lookup "token" o
+  _ -> Nothing
+
 main :: IO ()
-main = hspec $ do
-    describe "{{projectName}} API" $ do
-        it "responds to health check" $ do
-            get "/health" \`shouldRespondWith\` 200
+main = do
+  hspec $ with makeApplication $ do
+    describe "API" $ do
+      it "responds to the health check" $
+        get "/health" \`shouldRespondWith\` 200
+
+      it "lists the seeded products" $
+        get "/api/products" \`shouldRespondWith\` 200
+
+      it "rejects bad credentials and unauthenticated requests" $ do
+        postJson "/api/auth/login" "{\\"email\\":\\"admin@example.com\\",\\"password\\":\\"nope\\"}" \`shouldRespondWith\` 401
+        get "/api/auth/me" \`shouldRespondWith\` 401
+
+      it "logs in the admin, who can then create products" $ do
+        response <- postJson "/api/auth/login" "{\\"email\\":\\"admin@example.com\\",\\"password\\":\\"admin123\\"}"
+        case tokenFrom response of
+          Just (String token) -> do
+            let headers = [("Authorization", "Bearer " <> encodeUtf8 token), ("Content-Type", "application/json")]
+            request "POST" "/api/products" headers "{\\"name\\":\\"Widget\\",\\"price\\":9.5}" \`shouldRespondWith\` 201
+            request "GET" "/api/auth/me" headers "" \`shouldRespondWith\` 200
+          _ -> liftIO (expectationFailure "no token in the login response")
+
+      it "answers GraphQL" $
+        postJson "/graphql" "{\\"query\\":\\"{ hello health }\\"}" \`shouldRespondWith\` 200
 `,
 
     // README
@@ -851,15 +465,13 @@ A type-safe REST API built with Yesod web framework for Haskell.
 ## Features
 
 - **Yesod Framework**: Type-safe web framework with compile-time guarantees
-- **Persistent ORM**: Type-safe database operations
 - **JWT Authentication**: Secure token-based authentication
-- **SQLite Database**: Embedded database (switchable to PostgreSQL)
+- **In-memory store**: STM-backed data (swap in a database for production)
 - **Template Haskell**: Meta-programming for reduced boilerplate
-- **Hamlet**: Type-safe HTML templates
 
 ## Requirements
 
-- GHC 9.6+
+- GHC 9.4+
 - Stack 2.11+
 
 ## Quick Start
@@ -871,7 +483,7 @@ A type-safe REST API built with Yesod web framework for Haskell.
 
 2. Run in development:
    \`\`\`bash
-   stack exec {{projectNameSnake}}-exe
+   stack exec {{projectName}}
    \`\`\`
 
 3. Or use stack run:
@@ -887,7 +499,7 @@ A type-safe REST API built with Yesod web framework for Haskell.
 ### Authentication
 - \`POST /api/auth/register\` - Register new user
 - \`POST /api/auth/login\` - Login user
-- \`POST /api/auth/me\` - Get current user
+- \`GET /api/auth/me\` - Get current user (bearer token required)
 
 ### Products
 - \`GET /api/products\` - List all products
@@ -899,18 +511,17 @@ A type-safe REST API built with Yesod web framework for Haskell.
 ## Project Structure
 
 \`\`\`
-├── app/
-│   └── main.hs              # Entry point
+├── app/Main.hs              # Entry point (PORT, default 3000)
 ├── src/
-│   ├── Application.hs       # Yesod application
-│   ├── Foundation.hs        # Core types
-│   ├── Settings.hs          # Configuration
-│   ├── Model.hs             # Database models
+│   ├── Application.hs       # Dispatch and the WAI application
+│   ├── Foundation.hs        # App type, routes, auth helpers
+│   ├── Models.hs            # Data models and JSON
+│   ├── Store.hs             # In-memory data store (STM)
+│   ├── Auth.hs              # JWT (jwt) and bcrypt (crypton)
+│   ├── Graphql.hs           # GraphQL surface (POST /graphql)
 │   └── Handler/             # Request handlers
-├── config/
-│   └── routes               # Route definitions
-├── static/                  # Static assets
-├── test/                    # Tests
+├── config/routes            # Route definitions
+├── test/Spec.hs             # hspec-wai tests
 └── stack.yaml               # Stack configuration
 \`\`\`
 
@@ -921,7 +532,7 @@ A type-safe REST API built with Yesod web framework for Haskell.
 stack build --only-dependencies
 
 # Run with auto-reload
-stack exec {{projectNameSnake}}-exe
+stack exec {{projectName}}
 
 # Run tests
 stack test
@@ -942,7 +553,6 @@ docker run -p 3000:3000 {{projectName}}
 ## Yesod Features
 
 - **Type Safety**: Compile-time guarantees for routes and forms
-- **Persistent**: Type-safe database ORM with automatic migrations
 - **Widgets**: Composable UI components
 - **Subsites**: Modular application architecture
 - **Auth**: Built-in authentication system
@@ -951,6 +561,458 @@ docker run -p 3000:3000 {{projectName}}
 ## License
 
 MIT
+`,
+
+    'app/Main.hs': `module Main (main) where
+
+import Network.Wai.Handler.Warp (run)
+import System.Environment (lookupEnv)
+import Text.Read (readMaybe)
+
+import Application (makeApplication)
+
+main :: IO ()
+main = do
+  port <- maybe 3000 id . (>>= readMaybe) <$> lookupEnv "PORT"
+  app <- makeApplication
+  putStrLn ("Server running at http://localhost:" ++ show port)
+  run port app
+`,
+
+    'src/Auth.hs': `{-# LANGUAGE OverloadedStrings #-}
+module Auth
+  ( Claims (..)
+  , signToken
+  , verifyToken
+  , hashPassword
+  , verifyPassword
+  ) where
+
+import qualified Crypto.KDF.BCrypt as BCrypt
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
+import qualified Data.Map.Strict as Map
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import Data.Time.Clock.POSIX (getPOSIXTime)
+import qualified Web.JWT as JWT
+import System.Environment (lookupEnv)
+
+import Models (User (..))
+
+-- | What a token carries about its owner.
+data Claims = Claims
+  { claimsSub :: Text
+  , claimsEmail :: Text
+  , claimsRole :: Text
+  }
+
+secretText :: IO Text
+secretText = maybe "change-this-secret-in-production" T.pack <$> lookupEnv "JWT_SECRET"
+
+-- | A token valid for seven days.
+signToken :: User -> IO Text
+signToken user = do
+  secret <- secretText
+  now <- getPOSIXTime
+  let claimsSet =
+        mempty
+          { JWT.sub = JWT.stringOrURI (userId user)
+          , JWT.exp = JWT.numericDate (now + 7 * 24 * 3600)
+          , JWT.unregisteredClaims =
+              JWT.ClaimsMap
+                ( Map.fromList
+                    [ ("email", Aeson.String (userEmail user))
+                    , ("role", Aeson.String (userRole user))
+                    ]
+                )
+          }
+  pure (JWT.encodeSigned (JWT.hmacSecret secret) mempty claimsSet)
+
+-- | The claims of a token with a valid signature that has not expired.
+verifyToken :: Text -> IO (Maybe Claims)
+verifyToken token = do
+  secret <- secretText
+  now <- getPOSIXTime
+  pure $ do
+    verified <- JWT.decodeAndVerifySignature (JWT.toVerify (JWT.hmacSecret secret)) token
+    let claimsSet = JWT.claims verified
+    expiry <- JWT.exp claimsSet
+    if JWT.secondsSinceEpoch expiry <= realToFrac now
+      then Nothing
+      else do
+        sub <- JWT.stringOrURIToText <$> JWT.sub claimsSet
+        let extra = JWT.unClaimsMap (JWT.unregisteredClaims claimsSet)
+            textClaim key = case Map.lookup key extra of
+              Just (Aeson.String t) -> t
+              _ -> ""
+        pure (Claims sub (textClaim "email") (textClaim "role"))
+
+-- | bcrypt (cost 10) with a fresh random salt; the result embeds the salt.
+hashPassword :: Text -> IO BS.ByteString
+hashPassword password = BCrypt.hashPassword 10 (TE.encodeUtf8 password)
+
+verifyPassword :: Text -> BS.ByteString -> Bool
+verifyPassword password hashed = BCrypt.validatePassword (TE.encodeUtf8 password) hashed
+`,
+
+    'src/Graphql.hs': `{-# LANGUAGE OverloadedStrings #-}
+-- | The GraphQL surface served at /graphql: @type Query { hello: String!, health: String! }@.
+module Graphql
+  ( resolveRequest
+  , resolveQuery
+  , sdl
+  ) where
+
+import Data.Aeson (Value (..), object, (.=))
+import Data.Aeson.Key (fromText)
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Text (Text)
+import qualified Data.Text as T
+
+-- | Answers a decoded request body (@{"query": "{ hello }"}@).
+resolveRequest :: Value -> Value
+resolveRequest (Object body)
+  | Just (String query) <- KeyMap.lookup "query" body = resolveQuery query
+resolveRequest _ = resolveQuery ""
+
+-- | Answers the fields named in the query text; anything else is an error.
+resolveQuery :: Text -> Value
+resolveQuery query
+  | null selected = object ["errors" .= [object ["message" .= ("Query must select hello and/or health" :: Text)]]]
+  | otherwise = object ["data" .= object selected]
+  where
+    selected = [fromText name .= String value | (name, value) <- fields, name \`T.isInfixOf\` query]
+    fields = [("hello", "Hello from {{projectName}} GraphQL!"), ("health", "healthy")]
+
+-- | The schema in SDL.
+sdl :: Text
+sdl =
+  T.unlines
+    [ "type Query {"
+    , "  hello: String!"
+    , "  health: String!"
+    , "}"
+    ]
+`,
+
+    'src/Models.hs': `{-# LANGUAGE OverloadedStrings #-}
+module Models
+  ( User (..)
+  , Product (..)
+  , Register (..)
+  , Login (..)
+  , ProductInput (..)
+  , ProductPatch (..)
+  , TokenResponse (..)
+  ) where
+
+import Data.Aeson
+import qualified Data.ByteString as BS
+import Data.Text (Text)
+import Data.Time.Clock (UTCTime)
+
+data User = User
+  { userId :: Text
+  , userEmail :: Text
+  , userName :: Text
+  , userRole :: Text -- "user" or "admin"
+  , userPasswordHash :: BS.ByteString
+  , userCreatedAt :: UTCTime
+  }
+
+-- | The password hash is never serialised.
+instance ToJSON User where
+  toJSON u =
+    object
+      [ "id" .= userId u
+      , "email" .= userEmail u
+      , "name" .= userName u
+      , "role" .= userRole u
+      , "createdAt" .= userCreatedAt u
+      ]
+
+data Product = Product
+  { productId :: Int
+  , productName :: Text
+  , productDescription :: Maybe Text
+  , productPrice :: Double
+  , productStock :: Int
+  , productCreatedAt :: UTCTime
+  , productUpdatedAt :: UTCTime
+  }
+
+instance ToJSON Product where
+  toJSON p =
+    object
+      [ "id" .= productId p
+      , "name" .= productName p
+      , "description" .= productDescription p
+      , "price" .= productPrice p
+      , "stock" .= productStock p
+      , "createdAt" .= productCreatedAt p
+      , "updatedAt" .= productUpdatedAt p
+      ]
+
+data Register = Register
+  { registerEmail :: Text
+  , registerName :: Text
+  , registerPassword :: Text
+  }
+
+instance FromJSON Register where
+  parseJSON = withObject "Register" $ \\o ->
+    Register <$> o .: "email" <*> o .: "name" <*> o .: "password"
+
+data Login = Login
+  { loginEmail :: Text
+  , loginPassword :: Text
+  }
+
+instance FromJSON Login where
+  parseJSON = withObject "Login" $ \\o -> Login <$> o .: "email" <*> o .: "password"
+
+data ProductInput = ProductInput
+  { inputName :: Text
+  , inputDescription :: Maybe Text
+  , inputPrice :: Double
+  , inputStock :: Int
+  }
+
+instance FromJSON ProductInput where
+  parseJSON = withObject "ProductInput" $ \\o ->
+    ProductInput
+      <$> o .: "name"
+      <*> o .:? "description"
+      <*> o .: "price"
+      <*> o .:? "stock" .!= 0
+
+-- | A partial update: absent fields keep their value.
+data ProductPatch = ProductPatch
+  { patchName :: Maybe Text
+  , patchDescription :: Maybe Text
+  , patchPrice :: Maybe Double
+  , patchStock :: Maybe Int
+  }
+
+instance FromJSON ProductPatch where
+  parseJSON = withObject "ProductPatch" $ \\o ->
+    ProductPatch
+      <$> o .:? "name"
+      <*> o .:? "description"
+      <*> o .:? "price"
+      <*> o .:? "stock"
+
+data TokenResponse = TokenResponse
+  { tokenValue :: Text
+  , tokenUser :: User
+  }
+
+instance ToJSON TokenResponse where
+  toJSON t = object ["token" .= tokenValue t, "user" .= tokenUser t]
+`,
+
+    'src/Store.hs': `{-# LANGUAGE OverloadedStrings #-}
+-- | In-memory data store (STM). Replace with a real database for production use.
+module Store
+  ( Store
+  , newStore
+  , findUserByEmail
+  , findUserById
+  , listUsers
+  , addUser
+  , deleteUser
+  , listProducts
+  , findProduct
+  , addProduct
+  , patchProduct
+  , deleteProduct
+  ) where
+
+import Control.Concurrent.STM
+import Data.Maybe (fromMaybe)
+import qualified Data.Map.Strict as Map
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Time.Clock (getCurrentTime)
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
+
+import Auth (hashPassword)
+import Models
+
+data Store = Store
+  { storeUsers :: TVar (Map.Map Text User)
+  , storeProducts :: TVar (Map.Map Int Product)
+  , storeNextProductId :: TVar Int
+  }
+
+-- | A store with the default admin (admin@example.com / admin123) and two sample products.
+newStore :: IO Store
+newStore = do
+  now <- getCurrentTime
+  adminHash <- hashPassword "admin123"
+  let admin = User "1" "admin@example.com" "Admin User" "admin" adminHash now
+      sample n name description price stock =
+        Product n name (Just description) price stock now now
+  Store
+    <$> newTVarIO (Map.singleton "1" admin)
+    <*> newTVarIO
+      ( Map.fromList
+          [ (1, sample 1 "Sample Product 1" "This is a sample product" 29.99 100)
+          , (2, sample 2 "Sample Product 2" "Another sample product" 49.99 50)
+          ]
+      )
+    <*> newTVarIO 3
+
+normaliseEmail :: Text -> Text
+normaliseEmail = T.toLower . T.strip
+
+findUserByEmail :: Store -> Text -> IO (Maybe User)
+findUserByEmail store email =
+  find' <$> readTVarIO (storeUsers store)
+  where
+    find' = fmap snd . Map.lookupMin . Map.filter ((== normaliseEmail email) . userEmail)
+
+findUserById :: Store -> Text -> IO (Maybe User)
+findUserById store uid = Map.lookup uid <$> readTVarIO (storeUsers store)
+
+listUsers :: Store -> IO [User]
+listUsers store = Map.elems <$> readTVarIO (storeUsers store)
+
+-- | Creates a user; fails when the email is already registered.
+addUser :: Store -> Text -> Text -> Text -> Text -> IO (Either Text User)
+addUser store email name password role = do
+  now <- getCurrentTime
+  uid <- UUID.toText <$> UUID.nextRandom
+  passwordHash <- hashPassword password
+  let user = User uid (normaliseEmail email) name role passwordHash now
+  atomically $ do
+    users <- readTVar (storeUsers store)
+    if any ((== userEmail user) . userEmail) (Map.elems users)
+      then pure (Left "Email already registered")
+      else do
+        writeTVar (storeUsers store) (Map.insert uid user users)
+        pure (Right user)
+
+deleteUser :: Store -> Text -> IO Bool
+deleteUser store uid = atomically $ do
+  users <- readTVar (storeUsers store)
+  writeTVar (storeUsers store) (Map.delete uid users)
+  pure (Map.member uid users)
+
+listProducts :: Store -> IO [Product]
+listProducts store = Map.elems <$> readTVarIO (storeProducts store)
+
+findProduct :: Store -> Int -> IO (Maybe Product)
+findProduct store n = Map.lookup n <$> readTVarIO (storeProducts store)
+
+addProduct :: Store -> ProductInput -> IO Product
+addProduct store input = do
+  now <- getCurrentTime
+  atomically $ do
+    n <- readTVar (storeNextProductId store)
+    writeTVar (storeNextProductId store) (n + 1)
+    let product' =
+          Product n (inputName input) (inputDescription input) (inputPrice input) (inputStock input) now now
+    modifyTVar' (storeProducts store) (Map.insert n product')
+    pure product'
+
+patchProduct :: Store -> Int -> ProductPatch -> IO (Maybe Product)
+patchProduct store n patch = do
+  now <- getCurrentTime
+  atomically $ do
+    products <- readTVar (storeProducts store)
+    case Map.lookup n products of
+      Nothing -> pure Nothing
+      Just p -> do
+        let updated =
+              p
+                { productName = fromMaybe (productName p) (patchName patch)
+                , productDescription = maybe (productDescription p) Just (patchDescription patch)
+                , productPrice = fromMaybe (productPrice p) (patchPrice patch)
+                , productStock = fromMaybe (productStock p) (patchStock patch)
+                , productUpdatedAt = now
+                }
+        writeTVar (storeProducts store) (Map.insert n updated products)
+        pure (Just updated)
+
+deleteProduct :: Store -> Int -> IO Bool
+deleteProduct store n = atomically $ do
+  products <- readTVar (storeProducts store)
+  writeTVar (storeProducts store) (Map.delete n products)
+  pure (Map.member n products)
+`,
+
+    '{{projectName}}.cabal': `cabal-version:       2.4
+name:                {{projectName}}
+version:             0.1.0.0
+synopsis:            REST API built with Yesod
+description:         Type-safe REST API with authentication and CRUD operations
+license:             MIT
+author:              re-shell
+maintainer:          re-shell
+category:            Web
+build-type:          Simple
+extra-source-files:  config/routes
+
+common shared
+  default-language:   Haskell2010
+  default-extensions: OverloadedStrings
+  ghc-options:        -Wall
+
+library
+  import:             shared
+  hs-source-dirs:     src
+  exposed-modules:    Application
+                      Auth
+                      Foundation
+                      Graphql
+                      Handler.Auth
+                      Handler.Graphql
+                      Handler.Health
+                      Handler.Product
+                      Handler.User
+                      Models
+                      Store
+  build-depends:      base >=4.14 && <5
+                    , aeson >=2.0 && <2.3
+                    , bytestring >=0.11 && <0.13
+                    , containers >=0.6 && <0.8
+                    , crypton >=0.33 && <1.1
+                    , http-types >=0.12 && <0.13
+                    , jwt >=0.11 && <0.12
+                    , stm >=2.5 && <2.6
+                    , text >=1.2 && <2.2
+                    , time >=1.12 && <1.15
+                    , uuid >=1.3 && <1.4
+                    , wai >=3.2 && <3.3
+                    , wai-cors >=0.2 && <0.3
+                    , yesod-core >=1.6 && <1.7
+
+executable {{projectName}}
+  import:             shared
+  main-is:            Main.hs
+  hs-source-dirs:     app
+  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
+  build-depends:      base >=4.14 && <5
+                    , {{projectName}}
+                    , warp >=3.3 && <3.5
+
+test-suite {{projectName}}-test
+  import:             shared
+  type:               exitcode-stdio-1.0
+  main-is:            Spec.hs
+  hs-source-dirs:     test
+  build-depends:      base >=4.14 && <5
+                    , aeson >=2.0 && <2.3
+                    , bytestring >=0.11 && <0.13
+                    , {{projectName}}
+                    , hspec >=2.9 && <3
+                    , hspec-wai >=0.11 && <0.12
+                    , wai-extra >=3.1 && <3.2
+                    , text >=1.2 && <2.2
 `
   }
 };

@@ -26,6 +26,7 @@
 #                             JavaScript must parse and resolve its imports, then the
 #                             app's own tests (npm test)
 #   Dart                      dart pub get, dart analyze (errors and warnings fail)
+#   Haskell (Cabal)           cabal build all (tests included), cabal test
 #   Configuration-only        every YAML file must parse (scripts/check-yaml.mjs)
 #
 # A template is only SKIPped when its language toolchain is genuinely missing
@@ -35,7 +36,7 @@
 # configuration templates: syntax only) prints a NOTE saying so.
 #
 # Usage: bash scripts/scaffold-test-templates.sh [template ...]
-#        bash scripts/scaffold-test-templates.sh --group core|jvm|dotnet|native|node|config ...
+#        bash scripts/scaffold-test-templates.sh --group core|jvm|dotnet|native|node|config|haskell ...
 # Runs from the repo root after `pnpm -r build`.
 
 set -euo pipefail
@@ -108,6 +109,12 @@ GROUP_NODE=(
   rescript-express rescript-fastify rescript-react-server rescript-graphql
 )
 
+# Haskell: needs GHC and cabal-install (the dependency trees are large, so these
+# build in their own CI job).
+GROUP_HASKELL=(
+  servant scotty-hs spock-hs yesod-hs
+)
+
 # Configuration-only templates: no toolchain, YAML syntax is checked (see
 # verify_config); the TypeScript snippets some of them ship are not compiled.
 GROUP_CONFIG=(
@@ -121,7 +128,7 @@ GROUP_CONFIG=(
 
 TEMPLATES=()
 if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
-  # --group core|jvm|dotnet|native|node|config [...]: run whole groups
+  # --group core|jvm|dotnet|native|node|config|haskell [...]: run whole groups
   shift
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -131,6 +138,7 @@ if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
       native) TEMPLATES+=("${GROUP_NATIVE[@]}") ;;
       node) TEMPLATES+=("${GROUP_NODE[@]}") ;;
       config) TEMPLATES+=("${GROUP_CONFIG[@]}") ;;
+      haskell) TEMPLATES+=("${GROUP_HASKELL[@]}") ;;
       *) echo "unknown group: $1 (core|jvm|dotnet|native|node|config)" >&2; exit 2 ;;
     esac
     shift
@@ -138,7 +146,7 @@ if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
 elif [ "$#" -gt 0 ]; then
   TEMPLATES=("$@")
 else
-  TEMPLATES=("${GROUP_CORE[@]}" "${GROUP_JVM[@]}" "${GROUP_DOTNET[@]}" "${GROUP_NATIVE[@]}" "${GROUP_NODE[@]}" "${GROUP_CONFIG[@]}")
+  TEMPLATES=("${GROUP_CORE[@]}" "${GROUP_JVM[@]}" "${GROUP_DOTNET[@]}" "${GROUP_NATIVE[@]}" "${GROUP_NODE[@]}" "${GROUP_CONFIG[@]}" "${GROUP_HASKELL[@]}")
 fi
 
 PASS=0
@@ -384,6 +392,14 @@ verify_zig() {
   step build zig build || return 1
 }
 
+# Haskell (Servant, Scotty, Spock, Yesod): build the library, executable and test suite, then run the tests.
+verify_haskell() {
+  have ghc || { NATIVE_REASON="ghc is not installed"; return 2; }
+  have cabal || { NATIVE_REASON="cabal (cabal-install) is not installed"; return 2; }
+  step build cabal build all --enable-tests || return 1
+  step test cabal test all || return 1
+}
+
 # Dart (shelf, Angel3, Conduit): resolve the packages and type-check every library, bin and test.
 verify_dart() {
   have dart || { NATIVE_REASON="dart is not installed"; return 2; }
@@ -414,6 +430,8 @@ verify_native() {
     verify_gradle
   elif [ -f build.sbt ]; then
     verify_sbt
+  elif compgen -G "*.cabal" >/dev/null; then
+    verify_haskell
   elif compgen -G "*.csproj" >/dev/null || compgen -G "*.fsproj" >/dev/null; then
     verify_dotnet
   elif [ -f cpanfile ] || [ -f Makefile.PL ]; then
@@ -436,7 +454,7 @@ verify_native() {
     verify_config
   else
     echo "  ✗ no recognised build manifest in the generated app"
-    NATIVE_REASON="no recognised build manifest (package.json, go.mod, Cargo.toml, pubspec.yaml, pom.xml, build.gradle(.kts), build.sbt, *.csproj, *.fsproj, composer.json, Gemfile, requirements.txt, cpanfile, CMakeLists.txt, build.zig, mix.exs, Package.swift, *.lua, *.yaml)"
+    NATIVE_REASON="no recognised build manifest (package.json, go.mod, Cargo.toml, pubspec.yaml, pom.xml, build.gradle(.kts), build.sbt, *.cabal, *.csproj, *.fsproj, composer.json, Gemfile, requirements.txt, cpanfile, CMakeLists.txt, build.zig, mix.exs, Package.swift, *.lua, *.yaml)"
     return 1
   fi
 }
