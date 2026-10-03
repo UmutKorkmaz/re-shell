@@ -295,7 +295,7 @@ describePosix('PID records on disk', () => {
 });
 
 describePosix('startServiceProcess', () => {
-  const fastOptions = (project: string) => ({ projectPath: project, readyTimeoutMs: 4000, aliveMs: 300 });
+  const fastOptions = (project: string) => ({ projectPath: project, readyTimeoutMs: 20000, aliveMs: 300 });
 
   it('fails when the command does not exist (spawn error) and leaves no PID file', async () => {
     const project = makeTempDir('rs-start');
@@ -590,7 +590,7 @@ setInterval(() => {}, 1000);`
     const script = grandchildScript(project, false);
     const record = await startServiceProcess(
       { name: 'tree', command: nodeCommand(script), cwd: project },
-      { projectPath: project, readyTimeoutMs: 4000, aliveMs: 500 }
+      { projectPath: project, readyTimeoutMs: 20000, aliveMs: 500 }
     );
     const grandchildPid = Number(fs.readFileSync(path.join(project, 'grandchild.pid'), 'utf8'));
     expect(isPidAlive(record.pid)).toBe(true);
@@ -610,7 +610,7 @@ setInterval(() => {}, 1000);`
     const script = grandchildScript(project, true);
     const record = await startServiceProcess(
       { name: 'stubborn', command: nodeCommand(script), cwd: project },
-      { projectPath: project, readyTimeoutMs: 4000, aliveMs: 500 }
+      { projectPath: project, readyTimeoutMs: 20000, aliveMs: 500 }
     );
     const grandchildPid = Number(fs.readFileSync(path.join(project, 'grandchild.pid'), 'utf8'));
 

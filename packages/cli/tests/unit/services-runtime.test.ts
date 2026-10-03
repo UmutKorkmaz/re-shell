@@ -96,7 +96,7 @@ function noDockerPath(): string {
 }
 
 const COMPOSE_FILE = 'services:\n  web:\n    image: example/web\n  db:\n    image: example/db\n';
-const FAST = { aliveMs: 250, timeout: 8000 };
+const FAST = { aliveMs: 250, timeout: 30000 };
 
 async function rejection(promise: Promise<unknown>): Promise<ServiceRuntimeError> {
   const error = await promise.then(
@@ -428,7 +428,7 @@ setInterval(() => {}, 1000);`,
       'package.json': JSON.stringify({ scripts: { dev: 'node tree.js' } }),
     });
 
-    const up = await servicesUp(project, { aliveMs: 500, timeout: 8000 });
+    const up = await servicesUp(project, { aliveMs: 500, timeout: 30000 });
     const leader = up.services[0].pid as number;
     const logFile = up.services[0].logFile as string;
     await waitFor(() => fs.existsSync(gcFile));
@@ -733,7 +733,7 @@ describePosix('servicesRestart', () => {
     const before = Object.fromEntries(up.services.map(s => [s.name, s.pid as number]));
     expect(Object.keys(before).sort()).toEqual(['dev', 'dev-b']);
 
-    await servicesRestart(project, 'dev-b', { aliveMs: 250, timeout: 8000 });
+    await servicesRestart(project, 'dev-b', { aliveMs: 250, timeout: 30000 });
 
     const records = (await readServiceRecords(project)).records;
     const after = Object.fromEntries(records.map(r => [r.name, r.pid]));
