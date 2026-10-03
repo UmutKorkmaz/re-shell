@@ -249,3 +249,6 @@ export type {
 // HubServerConfig are now authored as zod schemas in ./schemas and re-exported
 // above, so the hub (emit side) and browser clients (consume side) validate
 // against one source of truth via `safeParse`.
+
+// Workstream R-1a: pkg / debug / refactor / cloud iac contracts.
+export * from './platform.js';
