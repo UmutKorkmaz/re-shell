@@ -80,9 +80,11 @@ re-shell service unlink web catalog --remove-client
 
 ## `service bridge generate`
 
-Generates the artifacts for **one** service and **one** protocol: pass exactly one
-of `--rest`, `--grpc` or `--graphql` (without one the command fails with
-`BRIDGE_GENERATE_ERROR`).
+Generates the artifacts for **one** service. When the service has a spec (or you pass
+`--spec`), the spec decides the protocol and no protocol flag is needed. Without a
+spec, pick exactly one of `--rest`, `--grpc` or `--graphql` to generate from the
+default contract; with neither, the command fails with `BRIDGE_GENERATE_ERROR` and
+says which of the two to provide.
 
 ```bash
 re-shell service bridge generate --service catalog --rest --dry-run --json

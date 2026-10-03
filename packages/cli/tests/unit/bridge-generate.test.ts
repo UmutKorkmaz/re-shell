@@ -290,6 +290,9 @@ describe('bridge-generate: command layer (envelopes + exit codes)', () => {
     }>(() => runBridgeGenerate({ json: true, cwd: tmpDir }));
     expect(env.ok).toBe(false);
     expect(env.error.code).toBe('BRIDGE_GENERATE_ERROR');
+    // The message says how to recover instead of reporting an empty protocol.
+    expect(env.error.message).toMatch(/--spec <file>/);
+    expect(env.error.message).toMatch(/--rest, --grpc or --graphql/);
     expect(process.exitCode).toBe(1);
   });
 
