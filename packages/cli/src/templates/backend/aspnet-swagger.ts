@@ -23,7 +23,6 @@ export const aspnetSwaggerTemplate: BackendTemplate = {
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Enable XML documentation generation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <DocumentationFile>$(OutputPath)$(AssemblyName).xml</DocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn> <!-- Disable missing XML comment warnings -->
     <IncludeOpenAPIAnalyzers>true</IncludeOpenAPIAnalyzers>
   </PropertyGroup>
@@ -41,6 +40,7 @@ export const aspnetSwaggerTemplate: BackendTemplate = {
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <!-- Comprehensive Swagger/OpenAPI Packages -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore.ReDoc" Version="6.5.0" />
     <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.5.0" />
     <PackageReference Include="Swashbuckle.AspNetCore.Filters" Version="7.0.12" />
     <PackageReference Include="Asp.Versioning.Mvc" Version="8.0.0" />
@@ -51,19 +51,13 @@ export const aspnetSwaggerTemplate: BackendTemplate = {
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
     <!-- Additional documentation and analysis tools -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.0" />
-    <PackageReference Include="NSwag.AspNetCore" Version="14.0.0" />
-    <PackageReference Include="NSwag.MSBuild" Version="14.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="8.0.0" />
   </ItemGroup>
 
   <!-- XML Documentation files to include -->
   <ItemGroup>
     <Content Include="docs/**/*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-
-  <!-- NSwag configuration for code generation -->
-  <Target Name="NSwag" AfterTargets="PostBuildEvent" Condition="'$(Configuration)' == 'Debug'">
-    <Exec Command="$(NSwagExe_Net80) run nswag.json" />
-  </Target>
 
 </Project>`,
 
@@ -82,8 +76,9 @@ using Serilog;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Asp.Versioning;
+using Asp.Versioning.ApiExplorer;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Swashbuckle.AspNetCore.Annotations;
 using Swashbuckle.AspNetCore.Filters;
 using System.Text;
@@ -112,6 +107,7 @@ builder.Services.AddControllers(options =>
     // Configure JSON serialization for Swagger
     options.SerializerSettings.ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore;
     options.SerializerSettings.NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore;
+    options.SerializerSettings.Converters.Add(new {{projectNamePascal}}.Infrastructure.DateOnlyJsonConverter());
 });
 
 // API versioning
@@ -125,9 +121,9 @@ builder.Services.AddApiVersioning(opt =>
         new HeaderApiVersionReader("X-Version"),
         new MediaTypeApiVersionReader("ver")
     );
-});
-
-builder.Services.AddVersionedApiExplorer(setup =>
+})
+.AddMvc()
+.AddApiExplorer(setup =>
 {
     setup.GroupNameFormat = "'v'VVV";
     setup.SubstituteApiVersionInUrl = true;
@@ -161,7 +157,7 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 
 // Authentication
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "YourSecretKeyHere";
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "change-this-development-key-before-deploying-1234567890";
 var key = Encoding.ASCII.GetBytes(jwtKey);
 
 builder.Services.AddAuthentication(x =>
@@ -189,14 +185,14 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Version = "v1",
-        Title = "{{serviceName}} API",
+        Title = "{{projectName}} API",
         Description = "A comprehensive .NET API with full OpenAPI documentation",
-        TermsOfService = new Uri("https://{{serviceName}}.com/terms"),
+        TermsOfService = new Uri("https://{{projectName}}.com/terms"),
         Contact = new OpenApiContact
         {
-            Name = "{{serviceName}} Support",
-            Email = "support@{{serviceName}}.com",
-            Url = new Uri("https://{{serviceName}}.com/contact")
+            Name = "{{projectName}} Support",
+            Email = "support@{{projectName}}.com",
+            Url = new Uri("https://{{projectName}}.com/contact")
         },
         License = new OpenApiLicense
         {
@@ -208,14 +204,14 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v2", new OpenApiInfo
     {
         Version = "v2",
-        Title = "{{serviceName}} API v2",
-        Description = "Version 2 of the {{serviceName}} API with enhanced features",
-        TermsOfService = new Uri("https://{{serviceName}}.com/terms"),
+        Title = "{{projectName}} API v2",
+        Description = "Version 2 of the {{projectName}} API with enhanced features",
+        TermsOfService = new Uri("https://{{projectName}}.com/terms"),
         Contact = new OpenApiContact
         {
-            Name = "{{serviceName}} Support",
-            Email = "support@{{serviceName}}.com",
-            Url = new Uri("https://{{serviceName}}.com/contact")
+            Name = "{{projectName}} Support",
+            Email = "support@{{projectName}}.com",
+            Url = new Uri("https://{{projectName}}.com/contact")
         },
         License = new OpenApiLicense
         {
@@ -306,7 +302,7 @@ builder.Services.AddSwaggerGen(c =>
     // Custom operation filters
     c.OperationFilter<SwaggerDefaultValues>();
     c.OperationFilter<AuthorizeCheckOperationFilter>();
-    c.OperationFilter<AddResponseHeadersFilter>();
+    c.OperationFilter<{{projectNamePascal}}.Infrastructure.Swagger.AddResponseHeadersFilter>();
 
     // Custom schema filters
     c.SchemaFilter<RequiredNotNullableSchemaFilter>();
@@ -335,14 +331,25 @@ builder.Services.AddSwaggerGen(c =>
 // Add example filters
 builder.Services.AddSwaggerExamplesFromAssemblyOf<UserCreateExample>();
 
-// Add Swagger annotations
-builder.Services.AddSwaggerAnnotations();
-
 // Health checks
 builder.Services.AddHealthChecks()
-    .AddDbContext<ApplicationDbContext>();
+    .AddDbContextCheck<ApplicationDbContext>();
 
 var app = builder.Build();
+
+// Create the schema for the in-memory test database and local development databases.
+if (app.Environment.IsEnvironment("Testing") || app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    try
+    {
+        scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.EnsureCreated();
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Could not create the database; check the DefaultConnection connection string");
+    }
+}
 
 var apiVersionDescriptionProvider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
 
@@ -368,12 +375,12 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
         {
             c.SwaggerEndpoint(
                 $"/swagger/{description.GroupName}/swagger.json",
-                $"{{serviceName}} API {description.GroupName.ToUpperInvariant()}"
+                $"{{projectName}} API {description.GroupName.ToUpperInvariant()}"
             );
         }
 
         // Customize Swagger UI
-        c.RoutePrefix = string.Empty; // Serve at root
+        c.RoutePrefix = "swagger";
         c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.List);
         c.DefaultModelExpandDepth(2);
         c.DefaultModelRendering(Swashbuckle.AspNetCore.SwaggerUI.ModelRendering.Example);
@@ -391,7 +398,7 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 
         // OAuth configuration (if needed)
         c.OAuthClientId("swagger-ui");
-        c.OAuthAppName("{{serviceName}} API");
+        c.OAuthAppName("{{projectName}} API");
         c.OAuthUsePkce();
 
         // Additional configuration
@@ -408,7 +415,7 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
     {
         c.RoutePrefix = "redoc";
         c.SpecUrl("/swagger/v1/swagger.json");
-        c.DocumentTitle = "{{serviceName}} API Documentation";
+        c.DocumentTitle = "{{projectName}} API Documentation";
         c.EnableUntrustedSpec();
         c.ScrollYOffset(10);
         c.HideHostname();
@@ -447,14 +454,19 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 app.MapGet("/docs", () => Results.Redirect("/swagger"));
 app.MapGet("/api-docs", () => Results.Redirect("/swagger"));
 
-app.Run();`,
+app.Run();
+
+public partial class Program { }
+`,
 
     // Enhanced user controller with comprehensive documentation
-    'Controllers/UsersController.cs': `using Microsoft.AspNetCore.Mvc;
+    'Controllers/UsersController.cs': `using Asp.Versioning;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using {{projectNamePascal}}.Services;
 using {{projectNamePascal}}.DTOs;
 using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Infrastructure.Swagger;
 using AutoMapper;
 using FluentValidation;
 using Swashbuckle.AspNetCore.Annotations;
@@ -475,7 +487,7 @@ namespace {{projectNamePascal}}.Controllers;
 [ApiVersion("2.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 [Produces("application/json")]
-[SwaggerTag("User Management", "Operations related to user accounts and profiles")]
+[SwaggerTag("Operations related to user accounts and profiles")]
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
@@ -821,7 +833,8 @@ public class UsersController : ControllerBase
 }`,
 
     // Swagger configuration and filters
-    'Infrastructure/Swagger/SwaggerDefaultValues.cs': `using Microsoft.AspNetCore.Mvc.ApiExplorer;
+    'Infrastructure/Swagger/SwaggerDefaultValues.cs': `using Asp.Versioning;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -884,8 +897,8 @@ public class AuthorizeCheckOperationFilter : IOperationFilter
 
         if (hasAuthorize)
         {
-            operation.Responses.Add("401", new OpenApiResponse { Description = "Unauthorized" });
-            operation.Responses.Add("403", new OpenApiResponse { Description = "Forbidden" });
+            operation.Responses.TryAdd("401", new OpenApiResponse { Description = "Unauthorized" });
+            operation.Responses.TryAdd("403", new OpenApiResponse { Description = "Forbidden" });
 
             operation.Security = new List<OpenApiSecurityRequirement>
             {
@@ -931,7 +944,8 @@ public class RequiredNotNullableSchemaFilter : ISchemaFilter
     }
 }`,
 
-    'Infrastructure/Swagger/EnumSchemaFilter.cs': `using Microsoft.OpenApi.Models;
+    'Infrastructure/Swagger/EnumSchemaFilter.cs': `using Microsoft.OpenApi.Any;
+using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.ComponentModel;
 
@@ -951,22 +965,16 @@ public class EnumSchemaFilter : ISchemaFilter
                     .Cast<DescriptionAttribute>()
                     .FirstOrDefault()?.Description;
 
-                schema.Enum.Add(new Microsoft.OpenApi.Any.OpenApiString(enumValue.ToString()));
+                schema.Enum.Add(new OpenApiString(enumValue.ToString()));
                 
                 if (description != null)
                 {
-                    if (schema.Extensions.ContainsKey("x-enum-descriptions"))
+                    if (!schema.Extensions.TryGetValue("x-enum-descriptions", out var existing) || existing is not OpenApiObject descriptions)
                     {
-                        var descriptions = (Dictionary<string, object>)schema.Extensions["x-enum-descriptions"];
-                        descriptions[enumValue.ToString()!] = description;
+                        descriptions = new OpenApiObject();
+                        schema.Extensions["x-enum-descriptions"] = descriptions;
                     }
-                    else
-                    {
-                        schema.Extensions.Add("x-enum-descriptions", new Dictionary<string, object>
-                        {
-                            [enumValue.ToString()!] = description
-                        });
-                    }
+                    descriptions[enumValue.ToString()!] = new OpenApiString(description);
                 }
             }
         }
@@ -1021,23 +1029,23 @@ public class AddResponseHeadersFilter : IOperationFilter
         {
             response.Value.Headers ??= new Dictionary<string, OpenApiHeader>();
 
-            response.Value.Headers.Add("X-Correlation-ID", new OpenApiHeader
+            response.Value.Headers["X-Correlation-ID"] = new OpenApiHeader
             {
                 Description = "Unique request correlation identifier",
                 Schema = new OpenApiSchema { Type = "string" }
-            });
+            };
 
-            response.Value.Headers.Add("X-Request-ID", new OpenApiHeader
+            response.Value.Headers["X-Request-ID"] = new OpenApiHeader
             {
                 Description = "Unique request identifier",
                 Schema = new OpenApiSchema { Type = "string" }
-            });
+            };
 
-            response.Value.Headers.Add("X-RateLimit-Remaining", new OpenApiHeader
+            response.Value.Headers["X-RateLimit-Remaining"] = new OpenApiHeader
             {
                 Description = "Number of requests remaining in current time window",
                 Schema = new OpenApiSchema { Type = "integer" }
-            });
+            };
         }
     }
 }`,
@@ -1557,6 +1565,669 @@ Add XML comments to controllers and models for enhanced documentation.
 4. **Handle errors**: Provide meaningful error messages
 5. **Secure endpoints**: Require authentication where appropriate
 6. **Test thoroughly**: Use the interactive documentation for testing
+`,
+
+    'DTOs/CommonDtos.cs': `namespace {{projectNamePascal}}.DTOs;
+
+public class PagedResult<T>
+{
+    public List<T> Items { get; set; } = new();
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public int TotalPages => PageSize > 0 ? (int)Math.Ceiling(TotalCount / (double)PageSize) : 0;
+}
+
+public class SearchRequest
+{
+    public string? Query { get; set; }
+    public string? City { get; set; }
+    public string? Country { get; set; }
+    public bool? IsActive { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 10;
+}
+
+public class SearchResult<T>
+{
+    public List<T> Items { get; set; } = new();
+    public int TotalCount { get; set; }
+    public string? Query { get; set; }
+}
+
+public class ErrorResponse
+{
+    public string Message { get; set; } = string.Empty;
+    public string? Details { get; set; }
+}
+
+public class ValidationErrorResponse
+{
+    public string Message { get; set; } = "One or more validation errors occurred";
+    public Dictionary<string, string> Errors { get; set; } = new();
+}
+`,
+
+    'DTOs/UserDtos.cs': `using System.ComponentModel.DataAnnotations;
+
+namespace {{projectNamePascal}}.DTOs;
+
+/// <summary>Postal address supplied when creating or updating a user.</summary>
+public class AddressRequest
+{
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+}
+
+/// <summary>Postal address returned for a user.</summary>
+public class AddressResponse
+{
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+}
+
+/// <summary>Payload for creating a user.</summary>
+public class CreateUserRequest
+{
+    [Required]
+    public string FirstName { get; set; } = string.Empty;
+
+    [Required]
+    public string LastName { get; set; } = string.Empty;
+
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    [Required]
+    public string Password { get; set; } = string.Empty;
+
+    public string? PhoneNumber { get; set; }
+
+    public DateOnly? DateOfBirth { get; set; }
+
+    public AddressRequest? Address { get; set; }
+}
+
+/// <summary>Payload for updating a user. Omitted (null) fields are left unchanged.</summary>
+public class UpdateUserRequest
+{
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? PhoneNumber { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
+    public AddressRequest? Address { get; set; }
+    public bool? IsActive { get; set; }
+}
+
+/// <summary>A user as returned by the API.</summary>
+public class UserResponse
+{
+    public int Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? PhoneNumber { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
+    public AddressResponse? Address { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}
+`,
+
+    'Data/ApplicationDbContext.cs': `using Microsoft.EntityFrameworkCore;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Data;
+
+public class ApplicationDbContext : DbContext
+{
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+    {
+    }
+
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<User>(e =>
+        {
+            e.HasIndex(u => u.Email).IsUnique();
+            e.Property(u => u.Email).HasMaxLength(256);
+            e.OwnsOne(u => u.Address);
+            // Soft delete: deleted users are hidden from every query.
+            e.HasQueryFilter(u => !u.IsDeleted);
+        });
+
+        modelBuilder.Entity<Product>(e =>
+        {
+            e.Property(p => p.Price).HasPrecision(18, 2);
+        });
+    }
+}
+`,
+
+    'Infrastructure/DateOnlyJsonConverter.cs': `using Newtonsoft.Json;
+
+namespace {{projectNamePascal}}.Infrastructure;
+
+/// <summary>Newtonsoft.Json has no built-in DateOnly support; read and write it as yyyy-MM-dd.</summary>
+public class DateOnlyJsonConverter : JsonConverter<DateOnly>
+{
+    private const string Format = "yyyy-MM-dd";
+
+    public override DateOnly ReadJson(JsonReader reader, Type objectType, DateOnly existingValue, bool hasExistingValue, JsonSerializer serializer)
+    {
+        var value = reader.Value?.ToString();
+        if (value is null) return default;
+        return DateOnly.ParseExact(value[..Math.Min(value.Length, Format.Length)], Format);
+    }
+
+    public override void WriteJson(JsonWriter writer, DateOnly value, JsonSerializer serializer)
+    {
+        writer.WriteValue(value.ToString(Format));
+    }
+}
+`,
+
+    'Infrastructure/Swagger/Examples/NotFoundErrorExample.cs': `using Swashbuckle.AspNetCore.Filters;
+using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
+
+public class NotFoundErrorExample : IExamplesProvider<ErrorResponse>
+{
+    public ErrorResponse GetExamples() => new() { Message = "User with ID 42 not found" };
+}
+`,
+
+    'Infrastructure/Swagger/Examples/UserCreatedExample.cs': `using Swashbuckle.AspNetCore.Filters;
+using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
+
+public class UserCreatedExample : IExamplesProvider<UserResponse>
+{
+    public UserResponse GetExamples() => new()
+    {
+        Id = 42,
+        FirstName = "John",
+        LastName = "Doe",
+        Email = "john.doe@example.com",
+        PhoneNumber = "+1-555-123-4567",
+        DateOfBirth = new DateOnly(1990, 5, 15),
+        CreatedAt = DateTime.UtcNow,
+        IsActive = true,
+        Address = new AddressResponse
+            {
+                Street = "123 Main St",
+                City = "Springfield",
+                State = "IL",
+                PostalCode = "62701",
+                Country = "United States"
+            }
+    };
+}
+`,
+
+    'Infrastructure/Swagger/Examples/UserListExample.cs': `using Swashbuckle.AspNetCore.Filters;
+using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
+
+public class UserListExample : IExamplesProvider<PagedResult<UserResponse>>
+{
+    public PagedResult<UserResponse> GetExamples() => new()
+    {
+        Items = new List<UserResponse>
+        {
+            new UserResponseExample().GetExamples()
+        },
+        Page = 1,
+        PageSize = 10,
+        TotalCount = 1
+    };
+}
+`,
+
+    'Infrastructure/Swagger/Examples/UserUpdateExample.cs': `using Swashbuckle.AspNetCore.Filters;
+using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
+
+public class UserUpdateExample : IExamplesProvider<UpdateUserRequest>
+{
+    public UpdateUserRequest GetExamples() => new()
+    {
+        FirstName = "Jonathan",
+        LastName = "Doe",
+        PhoneNumber = "+1-555-987-6543",
+        IsActive = true
+    };
+}
+`,
+
+    'Infrastructure/Swagger/Examples/UserUpdatedExample.cs': `using Swashbuckle.AspNetCore.Filters;
+using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
+
+public class UserUpdatedExample : IExamplesProvider<UserResponse>
+{
+    public UserResponse GetExamples() => new()
+    {
+        Id = 1,
+        FirstName = "Jonathan",
+        LastName = "Doe",
+        Email = "john.doe@example.com",
+        PhoneNumber = "+1-555-987-6543",
+        DateOfBirth = new DateOnly(1990, 5, 15),
+        CreatedAt = DateTime.UtcNow.AddDays(-30),
+        UpdatedAt = DateTime.UtcNow,
+        IsActive = true,
+        Address = new AddressResponse
+            {
+                Street = "123 Main St",
+                City = "Springfield",
+                State = "IL",
+                PostalCode = "62701",
+                Country = "United States"
+            }
+    };
+}
+`,
+
+    'Infrastructure/Swagger/Examples/ValidationErrorExample.cs': `using Swashbuckle.AspNetCore.Filters;
+using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
+
+public class ValidationErrorExample : IExamplesProvider<ValidationErrorResponse>
+{
+    public ValidationErrorResponse GetExamples() => new()
+    {
+        Errors = new Dictionary<string, string>
+        {
+            ["Email"] = "'Email' is not a valid email address.",
+            ["Password"] = "Password must be at least 8 characters long"
+        }
+    };
+}
+`,
+
+    'Models/AuditLog.cs': `namespace {{projectNamePascal}}.Models;
+
+public class AuditLog
+{
+    public int Id { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string EntityName { get; set; } = string.Empty;
+    public string? EntityId { get; set; }
+    public string? Details { get; set; }
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+}
+`,
+
+    'Models/Product.cs': `namespace {{projectNamePascal}}.Models;
+
+public class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public decimal Price { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+`,
+
+    'Models/User.cs': `namespace {{projectNamePascal}}.Models;
+
+public class User
+{
+    public int Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public string? PhoneNumber { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
+    public UserAddress? Address { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool IsDeleted { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
+}
+
+public class UserAddress
+{
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+}
+`,
+
+    'Profiles/UserProfile.cs': `using AutoMapper;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Profiles;
+
+public class UserProfile : Profile
+{
+    public UserProfile()
+    {
+        CreateMap<UserAddress, AddressResponse>();
+        CreateMap<AddressRequest, UserAddress>();
+
+        CreateMap<User, UserResponse>();
+
+        CreateMap<CreateUserRequest, User>()
+            .ForMember(d => d.PasswordHash, o => o.MapFrom(s => BCrypt.Net.BCrypt.HashPassword(s.Password)))
+            .ForMember(d => d.Id, o => o.Ignore())
+            .ForMember(d => d.IsActive, o => o.Ignore())
+            .ForMember(d => d.IsDeleted, o => o.Ignore())
+            .ForMember(d => d.CreatedAt, o => o.Ignore())
+            .ForMember(d => d.UpdatedAt, o => o.Ignore());
+
+        // Only fields present in the request are applied to the existing user.
+        CreateMap<UpdateUserRequest, User>()
+            .ForAllMembers(o => o.Condition((src, dest, srcMember) => srcMember != null));
+
+        CreateMap(typeof(PagedResult<>), typeof(PagedResult<>));
+        CreateMap(typeof(SearchResult<>), typeof(SearchResult<>));
+    }
+}
+`,
+
+    'Services/AuditService.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public class AuditService : IAuditService
+{
+    private readonly ApplicationDbContext _db;
+
+    public AuditService(ApplicationDbContext db)
+    {
+        _db = db;
+    }
+
+    public async Task LogAsync(string action, string entityName, string? entityId = null, string? details = null)
+    {
+        _db.AuditLogs.Add(new AuditLog
+        {
+            Action = action,
+            EntityName = entityName,
+            EntityId = entityId,
+            Details = details,
+        });
+        await _db.SaveChangesAsync();
+    }
+}
+`,
+
+    'Services/IAuditService.cs': `namespace {{projectNamePascal}}.Services;
+
+public interface IAuditService
+{
+    Task LogAsync(string action, string entityName, string? entityId = null, string? details = null);
+}
+`,
+
+    'Services/IProductService.cs': `using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public interface IProductService
+{
+    Task<List<Product>> GetProductsAsync();
+    Task<Product?> GetProductByIdAsync(int id);
+    Task<Product> CreateProductAsync(Product product);
+}
+`,
+
+    'Services/IUserService.cs': `using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public interface IUserService
+{
+    Task<PagedResult<User>> GetUsersAsync(string? search, int page, int pageSize, string sortBy, string sortOrder);
+    Task<User?> GetUserByIdAsync(int id);
+    Task<User> CreateUserAsync(User user);
+    Task<User> UpdateUserAsync(User user);
+    Task DeleteUserAsync(int id);
+    Task<SearchResult<User>> SearchUsersAsync(SearchRequest request);
+}
+`,
+
+    'Services/ProductService.cs': `using Microsoft.EntityFrameworkCore;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public class ProductService : IProductService
+{
+    private readonly ApplicationDbContext _db;
+    private readonly IAuditService _audit;
+
+    public ProductService(ApplicationDbContext db, IAuditService audit)
+    {
+        _db = db;
+        _audit = audit;
+    }
+
+    public Task<List<Product>> GetProductsAsync() => _db.Products.AsNoTracking().OrderBy(p => p.Name).ToListAsync();
+
+    public Task<Product?> GetProductByIdAsync(int id) => _db.Products.FirstOrDefaultAsync(p => p.Id == id);
+
+    public async Task<Product> CreateProductAsync(Product product)
+    {
+        _db.Products.Add(product);
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("create", nameof(Product), product.Id.ToString());
+        return product;
+    }
+}
+`,
+
+    'Services/UserService.cs': `using Microsoft.EntityFrameworkCore;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public class UserService : IUserService
+{
+    private readonly ApplicationDbContext _db;
+    private readonly IAuditService _audit;
+
+    public UserService(ApplicationDbContext db, IAuditService audit)
+    {
+        _db = db;
+        _audit = audit;
+    }
+
+    public async Task<PagedResult<User>> GetUsersAsync(string? search, int page, int pageSize, string sortBy, string sortOrder)
+    {
+        var query = _db.Users.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(u =>
+                u.FirstName.ToLower().Contains(term) ||
+                u.LastName.ToLower().Contains(term) ||
+                u.Email.ToLower().Contains(term));
+        }
+
+        var descending = string.Equals(sortOrder, "desc", StringComparison.OrdinalIgnoreCase);
+        query = (sortBy ?? "createdAt").ToLowerInvariant() switch
+        {
+            "name" => descending ? query.OrderByDescending(u => u.LastName).ThenByDescending(u => u.FirstName)
+                                 : query.OrderBy(u => u.LastName).ThenBy(u => u.FirstName),
+            "email" => descending ? query.OrderByDescending(u => u.Email) : query.OrderBy(u => u.Email),
+            "createdat" => descending ? query.OrderByDescending(u => u.CreatedAt) : query.OrderBy(u => u.CreatedAt),
+            _ => throw new ArgumentException($"Unsupported sort field '{sortBy}'. Use name, email or createdAt."),
+        };
+
+        var total = await query.CountAsync();
+        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+        return new PagedResult<User> { Items = items, Page = page, PageSize = pageSize, TotalCount = total };
+    }
+
+    public Task<User?> GetUserByIdAsync(int id) => _db.Users.FirstOrDefaultAsync(u => u.Id == id);
+
+    public async Task<User> CreateUserAsync(User user)
+    {
+        var email = user.Email.Trim().ToLowerInvariant();
+        if (await _db.Users.AnyAsync(u => u.Email == email))
+        {
+            throw new InvalidOperationException("A user with this email already exists");
+        }
+
+        user.Email = email;
+        user.CreatedAt = DateTime.UtcNow;
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("create", nameof(User), user.Id.ToString());
+        return user;
+    }
+
+    public async Task<User> UpdateUserAsync(User user)
+    {
+        user.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("update", nameof(User), user.Id.ToString());
+        return user;
+    }
+
+    public async Task DeleteUserAsync(int id)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null) return;
+
+        user.IsDeleted = true;
+        user.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("delete", nameof(User), id.ToString());
+    }
+
+    public async Task<SearchResult<User>> SearchUsersAsync(SearchRequest request)
+    {
+        var query = _db.Users.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(request.Query))
+        {
+            var term = request.Query.Trim().ToLower();
+            query = query.Where(u =>
+                u.FirstName.ToLower().Contains(term) ||
+                u.LastName.ToLower().Contains(term) ||
+                u.Email.ToLower().Contains(term));
+        }
+        if (!string.IsNullOrWhiteSpace(request.City))
+            query = query.Where(u => u.Address != null && u.Address.City == request.City);
+        if (!string.IsNullOrWhiteSpace(request.Country))
+            query = query.Where(u => u.Address != null && u.Address.Country == request.Country);
+        if (request.IsActive.HasValue)
+            query = query.Where(u => u.IsActive == request.IsActive.Value);
+
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var total = await query.CountAsync();
+        var items = await query.OrderBy(u => u.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+        return new SearchResult<User> { Items = items, TotalCount = total, Query = request.Query };
+    }
+}
+`,
+
+    'Validators/UserValidators.cs': `using FluentValidation;
+using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Validators;
+
+public class AddressRequestValidator : AbstractValidator<AddressRequest>
+{
+    public AddressRequestValidator()
+    {
+        RuleFor(a => a.Street).NotEmpty().MaximumLength(200);
+        RuleFor(a => a.City).NotEmpty().MaximumLength(100);
+        RuleFor(a => a.PostalCode).NotEmpty().MaximumLength(20);
+        RuleFor(a => a.Country).NotEmpty().MaximumLength(100);
+    }
+}
+
+public class CreateUserValidator : AbstractValidator<CreateUserRequest>
+{
+    public CreateUserValidator()
+    {
+        RuleFor(u => u.FirstName).NotEmpty().MaximumLength(100);
+        RuleFor(u => u.LastName).NotEmpty().MaximumLength(100);
+        RuleFor(u => u.Email).NotEmpty().EmailAddress().MaximumLength(256);
+        RuleFor(u => u.Password)
+            .NotEmpty()
+            .MinimumLength(8).WithMessage("Password must be at least 8 characters long")
+            .Matches("[A-Z]").WithMessage("Password must contain an uppercase letter")
+            .Matches("[a-z]").WithMessage("Password must contain a lowercase letter")
+            .Matches("[0-9]").WithMessage("Password must contain a digit");
+        RuleFor(u => u.PhoneNumber).MaximumLength(30);
+        RuleFor(u => u.DateOfBirth)
+            .Must(d => d is null || d.Value <= DateOnly.FromDateTime(DateTime.UtcNow))
+            .WithMessage("Date of birth cannot be in the future");
+        RuleFor(u => u.Address!).SetValidator(new AddressRequestValidator()).When(u => u.Address != null);
+    }
+}
+
+public class UpdateUserValidator : AbstractValidator<UpdateUserRequest>
+{
+    public UpdateUserValidator()
+    {
+        RuleFor(u => u.FirstName).MaximumLength(100);
+        RuleFor(u => u.LastName).MaximumLength(100);
+        RuleFor(u => u.PhoneNumber).MaximumLength(30);
+        RuleFor(u => u.DateOfBirth)
+            .Must(d => d is null || d.Value <= DateOnly.FromDateTime(DateTime.UtcNow))
+            .WithMessage("Date of birth cannot be in the future");
+        RuleFor(u => u.Address!).SetValidator(new AddressRequestValidator()).When(u => u.Address != null);
+    }
+}
+`,
+
+    'appsettings.json': `{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=(localdb)\\\\mssqllocaldb;Database={{projectNamePascal}};Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
+  },
+  "Jwt": {
+    "Key": "change-this-development-key-before-deploying-1234567890"
+  },
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft": "Warning",
+        "Microsoft.EntityFrameworkCore": "Warning",
+        "System": "Warning"
+      }
+    }
+  },
+  "AllowedHosts": "*"
+}
 `
   }
 };
