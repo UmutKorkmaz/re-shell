@@ -35,7 +35,7 @@
  */
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, createWriteStream } from 'node:fs';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -111,30 +111,39 @@ const PLANS = {
       },
     ],
   },
-  // Bun-native templates added alongside the five above.
+  // Bun-native templates: the same checks, run through bun instead of node.
   'elysia-bun': {
     runtime: 'bun',
-    build: null,
+    build: ['run', 'build'],
     startScript: 'start',
     probes: [GRAPHQL_TYPENAME],
   },
   'bun-serve': {
     runtime: 'bun',
-    build: null,
+    build: ['run', 'build'],
     startScript: 'start',
     probes: [
       {
+        method: 'POST',
+        path: '/api/v1/auth/register',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'boot@example.com', password: 'correct horse' }),
+        expectStatus: 201,
+        expectJson: (json) => json && typeof json.token === 'string' && json.user && json.user.email === 'boot@example.com',
+        describe: 'POST /api/v1/auth/register -> 201 with a token',
+      },
+      {
         method: 'GET',
         path: '/api/v1/todos',
-        expectStatus: 200,
-        expectJson: (json) => json && Array.isArray(json.data),
-        describe: 'GET /api/v1/todos -> { data: [] }',
+        expectStatus: 401,
+        expectJson: (json) => json && typeof json.error === 'string',
+        describe: 'GET /api/v1/todos without a token -> 401',
       },
     ],
   },
   'trpc-bun': {
     runtime: 'bun',
-    build: null,
+    build: ['run', 'build'],
     startScript: 'start',
     probes: [
       {
@@ -148,7 +157,7 @@ const PLANS = {
   },
 };
 
-const DEFAULT_TEMPLATES = ['express', 'fastify', 'koa', 'hono', 'nestjs'];
+const DEFAULT_TEMPLATES = ['express', 'fastify', 'koa', 'hono', 'nestjs', 'elysia-bun', 'bun-serve', 'trpc-bun'];
 
 // TEST-NET-1 (RFC 5737) is reserved and never routed: connecting to it hangs or
 // is rejected, but never succeeds. Every backing-service setting the templates
@@ -301,7 +310,6 @@ async function bootTemplate(tpl, workRoot, opts) {
   const dir = join(workRoot, tpl);
   const logDir = join(workRoot, 'logs');
   const log = (name) => join(logDir, `${tpl}-${name}.log`);
-  const { mkdirSync } = await import('node:fs');
   mkdirSync(dir, { recursive: true });
   mkdirSync(logDir, { recursive: true });
   const baseEnv = { ...process.env };
