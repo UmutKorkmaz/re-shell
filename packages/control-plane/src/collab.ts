@@ -53,6 +53,12 @@ export const MAX_RELAY_BYTES = 4 * 1024;
 // ---------------------------------------------------------------------------
 
 const sessionIdSchema = z.uuid();
+
+/** Human-facing text (titles) is shown in terminals and UIs: no control characters. */
+// eslint-disable-next-line no-control-regex
+const NO_CONTROL = /^[^\u0000-\u001f\u007f-\u009f]*$/;
+const displayText = (max: number) =>
+  z.string().trim().min(1).max(max).regex(NO_CONTROL, 'must not contain control characters');
 const base = { token: z.string(), tenantId: idSchema };
 const inSession = { ...base, sessionId: sessionIdSchema };
 
@@ -60,7 +66,7 @@ export const createSessionRequestSchema = z
   .object({
     ...base,
     workspaceId: idSchema,
-    title: z.string().trim().min(1).max(200).optional(),
+    title: displayText(200).optional(),
   })
   .strict();
 
@@ -86,14 +92,14 @@ export const runRequestSchema = z
 export const handoverRequestSchema = z.object({ ...inSession, toUserId: userIdSchema }).strict();
 
 export const endRequestSchema = z
-  .object({ ...inSession, reason: z.string().trim().min(1).max(200).optional() })
+  .object({ ...inSession, reason: displayText(200).optional() })
   .strict();
 
 export const eventsRequestSchema = z
   .object({
     ...inSession,
     afterSeq: z.number().int().min(0).default(0),
-    limit: z.number().int().min(1).max(1000).default(200),
+    limit: z.number().int().min(1).max(500).default(200),
   })
   .strict();
 
@@ -103,7 +109,7 @@ export const createDocRequestSchema = z
   .object({
     ...inSession,
     docId: docIdSchema,
-    title: z.string().trim().min(1).max(200),
+    title: displayText(200),
     kind: z.enum(['notes', 'yaml-draft', 'text']).default('text'),
     content: z.string().max(32 * 1024).default(''),
   })
@@ -127,7 +133,7 @@ export const docOpsRequestSchema = z
     ...inSession,
     docId: docIdSchema,
     afterRev: z.number().int().min(0).default(0),
-    limit: z.number().int().min(1).max(1000).default(200),
+    limit: z.number().int().min(1).max(500).default(200),
   })
   .strict();
 

@@ -9,6 +9,7 @@ import {
   collabEventSchema,
   foldCollabEvents,
   type CollabConnection,
+  type CollabEvent,
   type CollabSnapshot,
 } from '@re-shell/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -126,7 +127,12 @@ describe('concurrent editing converges', () => {
       expect(doc.dirty).toBe(false);
     }
     // The persisted log folds to exactly the same content.
-    const { events } = await clientFor('bob').events('acme', id, 0, 1000);
+    const events: CollabEvent[] = [];
+    for (;;) {
+      const page = await clientFor('bob').events('acme', id, events.length, 500);
+      events.push(...page.events);
+      if (page.events.length < 500) break;
+    }
     const folded = foldCollabEvents(events.map((e) => collabEventSchema.parse(e)));
     expect(folded.docs.find((d) => d.id === 'notes')).toMatchObject({ content: server.content, rev: server.rev });
     for (const { doc } of editors) doc.destroy();
@@ -295,7 +301,7 @@ describe('persistence', () => {
       expect(stale.rev).toBe(4);
       expect((await clientFor('bob').getDoc('acme', id, 'notes')).content).toBe('> one two three');
       // And the log still folds to the live state, with seq numbers continuing where they stopped.
-      const { events, seq } = await clientFor('alice').events('acme', id, 0, 1000);
+      const { events, seq } = await clientFor('alice').events('acme', id, 0, 500);
       expect(seq).toBe(before.seq + 1);
       const folded: CollabSnapshot = foldCollabEvents(events);
       expect(folded.docs.find((d) => d.id === 'notes')?.content).toBe('> one two three');

@@ -154,24 +154,25 @@ function indent(text: string, by = '    '): string {
 export function renderSnapshot(s: CollabSnapshot, now: number = Date.now()): string {
   const lines: string[] = [];
   const info = s.session;
-  lines.push(`Session ${info.id} [${info.status}]  ${info.title}`);
-  lines.push(`  workspace ${info.workspaceId}   owner ${info.ownerId}   driver ${info.driverId ?? '(nobody)'}   started ${age(now - info.createdAt)} ago`);
+  const safe = sanitizeForTerminal;
+  lines.push(`Session ${info.id} [${info.status}]  ${safe(info.title)}`);
+  lines.push(`  workspace ${info.workspaceId}   owner ${safe(info.ownerId)}   driver ${safe(info.driverId ?? '(nobody)')}   started ${age(now - info.createdAt)} ago`);
   lines.push('Participants');
   for (const p of s.participants) {
-    lines.push(`  ${p.userId}  ${p.role}${s.online.includes(p.userId) ? '  online' : ''}`);
+    lines.push(`  ${safe(p.userId)}  ${p.role}${s.online.includes(p.userId) ? '  online' : ''}`);
   }
   if (s.participants.length === 0) lines.push('  (none)');
   lines.push('Console');
   if (s.runs.length === 0) lines.push('  (no commands run yet)');
   s.runs.forEach((run, index) => {
-    lines.push(`  #${index + 1} ${runLine(run)}`);
+    lines.push(`  #${index + 1} ${safe(runLine(run))}`);
     const text = sanitizeForTerminal(run.output.map((c) => c.data).join(''));
     if (run.outputDropped) lines.push('    [earlier output omitted from this snapshot]');
     if (text.trim() !== '') lines.push(indent(text.replace(/\n$/, '')));
   });
   lines.push('Documents');
   for (const d of s.docs) {
-    lines.push(`  ${d.id}  (${d.kind}, rev ${d.rev}, ${d.content.length} chars)`);
+    lines.push(`  ${safe(d.id)}  (${d.kind}, rev ${d.rev}, ${d.content.length} chars)`);
   }
   return lines.join('\n');
 }
@@ -251,7 +252,9 @@ export async function sessionList(
         : sessions
             .map(
               (s) =>
-                `${s.id}  ${s.status.padEnd(6)}  ${s.workspaceId}  owner ${s.ownerId}  driver ${s.driverId ?? '-'}  ${s.participantCount} participant(s), ${s.onlineCount} online, ${s.runCount} run(s)  ${age(now - s.createdAt)} ago  ${s.title}`
+                sanitizeForTerminal(
+                  `${s.id}  ${s.status.padEnd(6)}  ${s.workspaceId}  owner ${s.ownerId}  driver ${s.driverId ?? '-'}  ${s.participantCount} participant(s), ${s.onlineCount} online, ${s.runCount} run(s)  ${age(now - s.createdAt)} ago  ${s.title}`
+                )
             )
             .join('\n');
     return { ok: true, data: { tenantId: c.tenant, sessions }, warnings: c.warnings, human };

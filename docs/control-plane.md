@@ -23,7 +23,7 @@ and trusts the loopback boundary. The control plane generalizes that model to a
 | Tenancy            | One implicit workspace root    | Many tenants, each owning many workspaces and members      |
 | Command allow-list | `command-registry` (static)    | Same registry ∩ tenant ceiling ∩ workspace grant (live)    |
 | Execution          | Spawns the CLI in-process      | Authorizes, queues a job, a **worker** spawns the CLI      |
-| Collaboration      | None                           | Shared workspaces, roles, live team-policy sync (SSE)      |
+| Collaboration      | None                           | Shared workspaces, roles, live team-policy sync (SSE); **shared terminal sessions, OT editing, WebRTC pairing, team analytics (§14)** |
 | Trust boundary     | localhost                      | Network: authn + authz + rate limits + audit on every call |
 
 **The allow-list discipline is preserved end to end.** There is exactly one
@@ -70,10 +70,11 @@ plane never builds argv and never spawns anything itself.
 | `api.ts`                    | `listWorkspaces`, `proxyCommand` / `authorizeProxyCommand` (pure handlers)         |
 | `admin.ts`                  | Tenants, workspaces, grants, members, team policy, audit query                     |
 | `jobs.ts`                   | Job submit/read/cancel, worker claim/output/exit, claim-time re-authorization      |
+| `collab.ts`, `collab-hub.ts` | Collaboration handlers (sessions, console, documents, signaling, analytics); live fan-out, presence and the job→console bridge (§14) |
 | `policy.ts`, `events.ts`    | `PolicySnapshot`; in-process tenant event bus                                      |
 | `audit.ts`                  | Append-only audit contract + in-memory log                                         |
 | `jwt.ts`, `identity.ts`     | Strict HS256 JWT, key ring, `JwtSessionResolver`, worker token verifier            |
-| `db/*`                      | `node:sqlite` helpers, migrations, SQLite stores (tenants, audit, jobs)            |
+| `db/*`                      | `node:sqlite` helpers, migrations, SQLite stores (tenants, audit, jobs, collaboration) |
 | `http/*`                    | `node:http` server, router, rate limiter + body reader, SSE                        |
 | `worker/*`                  | Worker loop, job runner, filesystem containment, HTTP client                       |
 | `config.ts`, `runtime.ts`, `cli.ts`, `bin.ts` | Env config, wiring, `re-shell-control-plane` command line         |
@@ -200,6 +201,9 @@ CLI and control-plane responses with one parser.
 | `POST /worker/jobs/:id/output`                     | worker token (job owner)      | 200     | output chunks / heartbeat → `{ cancelRequested }` |
 | `POST /worker/jobs/:id/exit`                       | worker token (job owner)      | 200     | final result |
 
+The collaboration routes (`/tenants/:t/sessions…`, `/tenants/:t/analytics`) are
+listed in §14.2.
+
 Edge protections, all exercised by `http/server.test.ts`:
 
 - **Rate limits** (token bucket, per process): per principal for authenticated
@@ -324,6 +328,8 @@ failures (with no user). Behaviour worth knowing:
 | `CONTROL_PLANE_CORS_ORIGINS`            | Exact allowed browser origins (no wildcard)                 | none |
 | `CONTROL_PLANE_TRUST_PROXY`, `CONTROL_PLANE_HSTS` | `1` behind a reverse proxy you control / behind TLS | off |
 | `CONTROL_PLANE_RATE_LIMIT_PER_MINUTE`, `…_BODY_LIMIT_BYTES`, `…_MAX_QUEUED_PER_TENANT`, `…_LEASE_MS` | Tuning | 120, 65536, 100, 60000 |
+| `CONTROL_PLANE_MAX_ACTIVE_SESSIONS`     | Active shared sessions per tenant (§14)                     | 50 |
+| `CONTROL_PLANE_ICE_SERVERS`             | JSON array of WebRTC STUN/TURN servers handed to session participants (§14.4) | none = host candidates only |
 | Worker: `CONTROL_PLANE_URL`, `CONTROL_PLANE_TENANT`, `CONTROL_PLANE_WORKSPACE_ROOT`, `CONTROL_PLANE_WORKER_TOKEN` or `_TOKEN_FILE`, `RE_SHELL_CLI_BIN`, `CONTROL_PLANE_WORKER_CONCURRENCY` | Worker config (flags `--tenant --workspace-root --url --token-file --cli-bin --concurrency` override) | — |
 
 A bad or missing setting exits non-zero with `{"ok":false,"error":{"code":"CONFIG_ERROR",…}}`.
@@ -406,6 +412,8 @@ suites need the built CLI):
   → `worker` → job → graceful stop → restart with persisted data.
 - **Audit:** every decision recorded, admin-only, tenant-scoped, no write route,
   database rejects UPDATE/DELETE, fails closed.
+- **Collaboration:** sessions, the shared console, OT documents, signaling and
+  analytics — see §14.9.
 
 ## 11. Persistence
 
@@ -454,7 +462,283 @@ Be honest about these before exposing it:
   change (queued jobs are re-checked at claim time).
 - **`policyPack` is a reference only**; the control plane does not fetch or
   evaluate packs.
-- **No dashboard UI here.** The multi-user dashboard is a separate workstream
-  that consumes this HTTP/SSE API.
+- **The dashboard covers collaboration only.** The Collaboration screen (§14.8)
+  consumes the session and analytics API; tenant/policy/member administration
+  and the audit log still have no UI (use the API or the CLI).
 - **Not externally reviewed or load-tested.** The security properties above are
   covered by tests in this repository, not by an independent audit.
+
+## 14. Collaboration (P9-N)
+
+Real-time pair programming on top of the control plane: **shared terminal
+sessions**, **shared editing**, **WebRTC pairing links** and **team analytics**.
+All of it is multi-user, authenticated with the same bearer tokens, tenant-scoped
+like everything else, and audited. Clients are `re-shell collab session ...`
+(§14.7), the dashboard's **Collaboration** screen (§14.8) and any HTTP client.
+
+### 14.1 The session model
+
+A **session** belongs to one `(tenant, workspace)`. It has an **owner** (the
+creator), a **driver** (initially the owner) and **participants**. Participants
+are `driver` (exactly one, or nobody) or `viewer`.
+
+| Who                         | Can                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| tenant `viewer`             | nothing here (console output is job output, which already needs `operator`)               |
+| tenant `operator`+          | create, list, read, join, leave sessions; edit documents; signal/relay to participants    |
+| the **driver**              | run allow-listed commands, cancel the running command, hand control to a participant      |
+| the **owner**               | everything the driver can, at any time (the escape hatch for a driver who went away); end |
+| a tenant `admin`            | end any session, cancel the running command                                                |
+
+Control moves with `POST …/handover {toUserId}`. The target must have **joined**
+and must still hold the `operator` role in the tenant (read live, so a demoted
+user cannot be handed the keyboard). A driver who leaves hands control back to
+the owner if the owner is present, otherwise to nobody (the owner can reassign).
+A session ends with `POST …/end` (owner or admin) and is then read-only history;
+ending is refused (`SESSION_BUSY`) while a command is queued or running.
+
+### 14.2 Shared terminal sessions
+
+**The shared state is the session's command console**: the ordered history of
+runs with their streamed output, the currently queued/running run, the
+participants and who drives. It is **the fold of an append-only, sequence-numbered
+event log** (`collab_events`, one total order per session):
+
+```
+snapshot(seq N)  ==  fold(events 1..N)          (tested at every step)
+```
+
+Events: `session.started`, `participant.joined|left`, `control.handover`,
+`command.queued|started|output|finished`, `doc.created`, `doc.op`, `session.ended`.
+`@re-shell/contracts` ships the one reducer (`applyCollabEvent`) used by the
+server tests, the CLI and the dashboard.
+
+**Execution goes through the existing job and worker path — nothing new can run
+anything.** `POST …/run {commandId, params}` is one authorization chain (tenant
+role, session, *is the caller the driver*, nothing already running), audited as
+`session.run`; the command is then handed to the ordinary job submit
+(`command.authorize` audit entry, registry validation, tenant-ceiling ∩
+workspace-grant allow-list, queue limits). A worker claims it (re-authorizing at
+claim time, as in §6), runs the real CLI, and streams output. A small bridge
+inside the server follows the job (wake-ups from the event bus plus a 500 ms
+safety poll) and logs `command.started`, every output chunk (numbered like the
+job's own chunks) and `command.finished` — in **one transaction per pump**, so
+every participant sees the same events in the same order. The run's state lives
+in `collab_runs` and mirrors what has been *logged*, never the raw job row. A
+run that is in flight when the server stops is picked back up on the next start.
+Only one command is queued/running per session.
+
+**Sync protocol** — `GET /tenants/:t/sessions/:s/stream` (SSE; the bearer token
+travels in the `Authorization` header, so browsers use `fetch` streaming):
+
+| Event (SSE `event:`)      | `id:`  | Meaning                                                                           |
+| ------------------------- | ------ | --------------------------------------------------------------------------------- |
+| `snapshot`                | seq    | full state; sent on a fresh connect, or when a resume is impossible               |
+| *a logged event type*     | seq    | `{seq,type,ts,actor,data}`, strictly consecutive                                  |
+| `ready`                   | —      | `{seq}`: the catch-up is complete; live events follow                             |
+| `presence`                | —      | `{online:[…]}`, the full roster of users with a live stream (ephemeral, resent on every connect) |
+| `signal` / `relay`        | —      | WebRTC signaling / relayed peer message **addressed to this user** (ephemeral)    |
+| `revoked`, `expired`      | —      | access removed / token expired; the stream ends                                   |
+
+A late joiner gets a `snapshot` (output budget 2 MiB, newest runs win; trimmed
+runs carry `outputDropped`) and then increments. A reconnecting client resumes
+with `?afterSeq=N` (or `Last-Event-ID`) and receives exactly the missed events —
+no snapshot, no gaps, no duplicates — because the snapshot (or replay) is taken
+and the listener is registered in one synchronous step. If the cursor is in the
+future or more than 20 000 events behind, the server sends a fresh `snapshot`.
+`GET …/events?afterSeq=&limit=` (≤ 500 per page) serves the same log over plain HTTP.
+An ended session's stream delivers its snapshot (or replay) and closes.
+
+| Method & path (all under `/tenants/:t`)               | Needs               | Notes |
+| ----------------------------------------------------- | ------------------- | ----- |
+| `POST /sessions`                                      | operator            | `{workspaceId, title?}` → 201 snapshot; the caller owns and drives |
+| `GET /sessions[?status&workspaceId&limit]`            | operator            | summaries with participant / online / run counts |
+| `GET /sessions/:s`                                    | operator            | snapshot (reading does not join) |
+| `POST /sessions/:s/join` · `/leave`                   | operator            | idempotent; a new participant is a `viewer` |
+| `POST /sessions/:s/run`                               | driver              | **202**, `{commandId, params?}` → queued job; `403 NOT_SESSION_DRIVER`, `409 SESSION_BUSY` |
+| `POST /sessions/:s/cancel`                            | driver, owner, admin | cancels the current run |
+| `POST /sessions/:s/handover`                          | driver or owner     | `{toUserId}` |
+| `POST /sessions/:s/end`                               | owner or admin      | `{reason?}` |
+| `GET /sessions/:s/stream` · `/events`                 | operator            | SSE / log pages |
+| `GET\|POST /sessions/:s/docs`, `GET /docs/:d`         | operator (+ seat to create) | §14.3 |
+| `POST /sessions/:s/docs/:d/ops` · `GET …/ops?afterRev=` | operator + seat   | §14.3 |
+| `POST /sessions/:s/signal` · `/relay`                 | operator + seat     | §14.4 |
+| `GET /analytics[?from&to&workspaceId]`                | operator            | §14.5 |
+
+New error codes (also members of the shared `errorCodeSchema`): `SESSION_NOT_FOUND`
+(404, identical for "another tenant's"), `SESSION_ENDED` (409), `SESSION_BUSY`
+(409), `NOT_SESSION_DRIVER` (403), `PARTICIPANT_NOT_FOUND` (404),
+`DOCUMENT_NOT_FOUND` (404).
+
+### 14.3 Shared editing (operational transformation)
+
+Each session has a `notes` document and may hold up to 8 text documents in all (one
+can be a **workspace YAML draft**, `kind: "yaml-draft"`). Documents are text only: nothing
+ever writes a draft to a workspace or applies it.
+
+**Why OT and not Yjs.** The control plane is a single-node, server-ordered
+service whose every other resource is a sequence-numbered log. Server-ordered OT
+fits that exactly: the server validates every operation (size, base length,
+well-formed UTF-16) before it is persisted, needs no binary update format and no
+new dependency in the server, CLI or browser, and a document is just
+`(content, rev)` plus a readable JSON op log in the same session log. A CRDT
+earns its keep when peers must converge *without* a central orderer; here there
+always is one. The cost — transform functions — is paid once in
+`@re-shell/contracts` (`ot.ts`) and covered by randomized tests.
+
+* An operation is a list of components: positive int = retain, negative int =
+  delete, string = insert (UTF-16 code units). The server transforms a client op
+  `(baseRev, ops)` over every op committed since `baseRev` (committed ops win
+  ties), applies it, assigns revision `rev + 1`, and logs `doc.op` — **one
+  transaction**, so the doc row, the revision and the broadcast agree.
+* The **author learns its edit was accepted from the committed op arriving on the
+  stream**, so a lost HTTP response is harmless; resending the same
+  `(clientId, clientSeq)` is applied once (`duplicate: true`).
+* The client (`SharedDocSync`) keeps at most one op in flight and composes the rest
+  (the Jupiter protocol), so typing is never blocked on the network.
+* Refused: ops spanning more than the document at `baseRev` (`400`), a result with
+  a split surrogate pair (it would not survive UTF-8 storage), `baseRev` from the
+  future, more than 10 000 revisions behind (`409`, reload), > 256 KiB documents
+  (`413`), > 64 K inserted characters per op (the request body is capped at 64 KiB).
+* Documents survive a server restart (they are in SQLite); a client holding a
+  pre-restart revision can still commit.
+
+### 14.4 WebRTC pairing links and the relay fallback
+
+`POST …/signal {to, kind: offer|answer|candidate|bye, connectionId, payload}`
+relays one signaling message to **one other participant**, over the authenticated
+channel. The server stamps `from` itself (a body that names `from` is rejected),
+delivers only to the addressee's authenticated streams, never stores it, and
+both ends must be **joined participants of that session** — sessions are looked up
+tenant-first, so a message can never cross tenants (tested). Payloads are capped
+at 16 KiB. The response says whether the peer had a live stream.
+
+The dashboard opens an `RTCPeerConnection` **data channel** between each pair of
+online participants (smaller user id offers, so there is no glare) and uses it
+for presence cursors and pairing pings. **Host candidates only by default**: with
+no ICE servers configured none are used. STUN/TURN are configurable:
+`CONTROL_PLANE_ICE_SERVERS='[{"urls":"stun:stun.example.org:3478"}]'` is handed
+to every participant in the session snapshot (`rtc.iceServers`); a user can also
+override it in the dashboard's connection settings. TURN entries must carry
+credentials. **These values are visible to every participant — use short-lived
+TURN credentials, not a long-lived secret.**
+
+**Fallback.** If the channel does not open in 8 s, ICE fails, the channel closes
+or the browser has no WebRTC, the link switches to `POST …/relay {to?, channel:
+ping|cursor|presence, payload}`: the same messages, relayed through the server to
+one participant or to all others (ephemeral, 4 KiB cap). The panel shows which
+transport each peer link uses (`p2p` / `relay`) and why it fell back.
+
+### 14.5 Team analytics
+
+`GET /tenants/:t/analytics?from=&to=&workspaceId=` (operator; default window the
+last 7 days, max 366 days) returns per-tenant aggregates:
+
+* **commands** (from `jobs`): total / succeeded / failed / canceled / active,
+  success rate (`succeeded / (succeeded + failed)`; `null` when nothing finished),
+  and the same counts **per user, per workspace and per command**;
+* **sessions** (from the session tables): started / active / ended, total / average /
+  max duration (active sessions count until *now*), distinct and average
+  participants, commands run from sessions, per workspace;
+* **audit** (from `audit_log`): allowed / denied decisions, auth failures, denials
+  by code;
+* **timeline**: commands, failures and session starts per bucket (1 min … 1 day,
+  chosen so a window has ≤ 120 buckets).
+
+Everything is tenant-scoped in SQL (`tenant_id = ?` first); another tenant's
+activity never appears (tested).
+
+### 14.6 Audit
+
+Every collaboration decision is recorded before it is acted on, like §8:
+`session.create|list|read|join|leave|end|run|cancel|handover|stream`,
+`doc.create|read|edit`, `signal.send`, `relay.send`, `analytics.read`. A viewer's
+refused `run` is `deny / NOT_SESSION_DRIVER` in the admin's audit view, followed
+(when allowed) by the ordinary `command.authorize` entry from the job path.
+**High-frequency traffic is sampled:** every *denial* of `doc.edit`, `signal.send`
+and `relay.send` is audited, but an *allow* only the first time a user does that
+action in a session (per process) — individual document ops are in the session log
+itself with their author, and auditing every keystroke would swamp the append-only
+log. (An allow that cannot be recorded still fails closed.) Collaboration writes
+have their own, higher, per-principal rate budget (1 200/min, burst 200).
+
+### 14.7 CLI
+
+```
+re-shell collab session start    --workspace <id> [--title <t>]
+re-shell collab session list     [--status active|ended] [--workspace <id>] [--limit n]
+re-shell collab session join     <sessionId>         # TTY: live shared console · piped / --json: snapshot
+re-shell collab session run      <sessionId> <commandId> [--param k=v]… [--params-json '{}'] [--no-wait] [--timeout s]
+re-shell collab session handover <sessionId> <userId>
+re-shell collab session cancel   <sessionId>
+re-shell collab session end      <sessionId> [--reason <text>]
+```
+
+Every command accepts `--json` (the standard envelope; failures carry the
+control plane's error code and exit non-zero; a command that *ran and failed* is
+`ok:false` with the run in `error.details`). Connection settings come from, in
+order: flags (`--url`, `--token-file`, `--token`, `--tenant`), the environment
+(`RE_SHELL_CONTROL_PLANE_URL`, `_TOKEN`, `_TOKEN_FILE`, `_TENANT`; the worker's
+`CONTROL_PLANE_URL` / `_TENANT` are honoured too), then
+`~/.re-shell/control-plane.json` (`{url, tenant, token?, tokenFile?}`, or
+`RE_SHELL_CONTROL_PLANE_CONFIG`). A token with one tenant needs no `--tenant`.
+`--token` and an `http://` non-loopback URL produce warnings; a config file
+holding a token that others can read does too. Remote command output is stripped
+of terminal escape sequences before it reaches your terminal. The older
+`collab webrtc-sharing | terminal-broadcasting | operational-transform | …`
+commands remain as **code generators** (they write starter code and talk to no
+server) and are labelled as such in `--help`.
+
+### 14.8 Dashboard
+
+**Collaboration** (sidebar → Team) has: control-plane connection settings (URL,
+tenant, token — the token lives in `sessionStorage` unless "remember" is ticked —
+and an optional ICE override), the sessions list with a start form, the shared
+console (run form for the driver, cancel, hand over, take control), presence with
+the WebRTC link state per peer, the shared editor with remote cursors, and the
+analytics panel. The control plane must list the dashboard's origin in
+`CONTROL_PLANE_CORS_ORIGINS`.
+
+### 14.9 What is tested
+
+* **OT** (`contracts/src/ot.test.ts`): TP1 and compose properties over thousands of
+  seeded random op pairs; multi-client convergence with arbitrary delivery order
+  (3 and 5 clients, many seeds); surrogate-pair safety; the client state machine.
+* **Server, real HTTP + SQLite + JWT** (`collab.test.ts`, `collab-docs.test.ts`):
+  lifecycle, authorization and audit (a viewer's run is refused and recorded),
+  streams (late-join snapshot, resume, presence, ordered identical events),
+  tenant isolation incl. signaling, document validation, retried ops, **four
+  clients (one user on two devices) typing concurrently end with identical text**,
+  persistence **across a server restart**, analytics.
+* **Acceptance** (`e2e/collab.e2e.test.ts`): two authenticated users join one
+  session; the driver's command is executed by a **real worker with the real built
+  CLI**; both clients receive the identical ordered output and final state; the
+  viewer cannot run; control hands over; a late joiner gets the history; a run
+  queued before a restart completes after it.
+* **CLI** (`cli/tests/integration/collab-session-cli.test.ts`): the built CLI as
+  separate processes against the built control-plane bin and worker.
+* **Dashboard**: component and screen tests (jsdom), the WebRTC `PeerLink` against
+  an RTCPeerConnection fake, and `apps/web/e2e/collab.spec.ts` — **Playwright
+  with two browser contexts (two users) against the real control plane**: a real
+  data channel opens (host candidates), a ping travels over it, the console, the
+  editor and analytics work, and with WebRTC disabled in one browser the relay
+  fallback carries the messages.
+
+### 14.10 Limits
+
+* **Single node.** Fan-out, presence and the run bridge are in-process (like the
+  event bus); a second server process on one database would not see the other's
+  streams. Presence is recomputed from live connections, never stored.
+* **No end-to-end encryption.** Console output and documents are visible to the
+  server and its operators and are stored in SQLite (the event log is append-only
+  but is **not** compacted or expired: a session is capped at 200 000 events, a
+  job at 4 MiB of output). Do not run commands whose output must not be retained.
+* **WebRTC is a mesh** (one link per peer, at most 8). Behind symmetric NATs a
+  direct link needs a TURN server, which this repository does not ship or deploy;
+  the relay fallback covers that case at server cost. Remote cursors are shared
+  as raw offsets and are not transformed against later edits.
+* **Plain text only.** No rich text, no per-document ACLs (any operator in the
+  session may edit), no presence typing indicators.
+* **Output in a snapshot is bounded** (2 MiB); older output is available through
+  `GET …/events`.
+* Sessions are never expired automatically; end them (owner/admin).

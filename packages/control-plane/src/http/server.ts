@@ -785,6 +785,10 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
       stream.close();
       return;
     }
+    if (session.status === 'ended') {
+      // History only: deliver the snapshot / replay and finish; there is nothing more to stream.
+      stream.close();
+    }
     const unsubscribe = events.subscribe(session.tenantId, (event: TenantEvent) => {
       if (event.type === 'member.changed' && event.userId === principal.userId) {
         if (event.role === null || !roleSatisfies(event.role, 'operator')) {

@@ -123,7 +123,7 @@ describe('session lifecycle', () => {
     });
     await post('bob', `/tenants/acme/sessions/${id}/docs`, { docId: 'draft', title: 'Draft', kind: 'yaml-draft', content: 'a: 1\n' });
     await post('bob', `/tenants/acme/sessions/${id}/leave`);
-    const events = (await get('alice', `/tenants/acme/sessions/${id}/events?afterSeq=0&limit=1000`)).json.data.events;
+    const events = (await get('alice', `/tenants/acme/sessions/${id}/events?afterSeq=0&limit=500`)).json.data.events;
     const parsed = events.map((e: unknown) => collabEventSchema.parse(e)) as CollabEvent[];
     expect(parsed.map((e) => e.seq)).toEqual(parsed.map((_, i) => i + 1));
     const folded = foldCollabEvents(parsed);
@@ -384,6 +384,51 @@ describe('streaming: snapshot, incremental events, resume, presence', () => {
     expect((await EventTap.refused(`${h.url}/tenants/acme/sessions/00000000-0000-4000-8000-000000000000/stream`, as('bob'))).status).toBe(404);
     expect((await EventTap.refused(`${h.url}/tenants/acme/sessions/not-a-uuid/stream`, as('bob'))).status).toBe(400);
     expect((await EventTap.refused(url, 'garbage')).status).toBe(401);
+  });
+});
+
+describe('stream lifecycle', () => {
+  it('serves an ended session as history: snapshot, then the stream closes', async () => {
+    const s = await startSession('alice');
+    await post('alice', `/tenants/acme/sessions/${s.session.id}/end`);
+    const tap = await EventTap.open(`${h.url}/tenants/acme/sessions/${s.session.id}/stream`, as('bob'));
+    await tap.waitForEvent('ready');
+    expect(tap.json('snapshot')[0].session.status).toBe('ended');
+    await tap.waitForEnd();
+    // Resuming past the end replays session.ended and then also closes.
+    const resumed = await EventTap.open(`${h.url}/tenants/acme/sessions/${s.session.id}/stream?afterSeq=${s.seq}`, as('bob'));
+    await resumed.waitForEvent('session.ended');
+    await resumed.waitForEnd();
+  });
+
+  it('ends a user stream the moment their membership is removed or they are demoted below operator', async () => {
+    const s = await startSession('alice');
+    const id = s.session.id;
+    const bob = await EventTap.open(`${h.url}/tenants/acme/sessions/${id}/stream`, as('bob'));
+    const carol = await EventTap.open(`${h.url}/tenants/acme/sessions/${id}/stream`, as('carol'));
+    await bob.waitForEvent('ready');
+    await carol.waitForEvent('ready');
+    expect((await h.request('DELETE', '/tenants/acme/members/bob', { token: as('alice') })).status).toBe(200);
+    await bob.waitForEvent('revoked');
+    await bob.waitForEnd();
+    expect((await h.request('PUT', '/tenants/acme/members/carol', { token: as('alice'), body: { role: 'viewer' } })).status).toBe(200);
+    await carol.waitForEvent('revoked');
+    await carol.waitForEnd();
+    // ...and they cannot come back.
+    expect((await EventTap.refused(`${h.url}/tenants/acme/sessions/${id}/stream`, as('bob'))).status).toBe(403);
+  });
+});
+
+describe('input hygiene', () => {
+  it('rejects control characters in titles, reasons and document names', async () => {
+    const bad = await post('alice', '/tenants/acme/sessions', { workspaceId: 'main', title: 'evil\u001b]0;pwned\u0007' });
+    expect(bad.status).toBe(400);
+    const s = await startSession('alice');
+    expect((await post('alice', `/tenants/acme/sessions/${s.session.id}/docs`, { docId: 'd', title: 'x\u001b[2J' })).status).toBe(400);
+    expect((await post('alice', `/tenants/acme/sessions/${s.session.id}/end`, { reason: 'bell\u0007' })).status).toBe(400);
+    // Pages are bounded.
+    expect((await get('alice', `/tenants/acme/sessions/${s.session.id}/events?limit=501`)).status).toBe(400);
+    expect((await get('alice', `/tenants/acme/sessions/${s.session.id}/docs/notes/ops?limit=501`)).status).toBe(400);
   });
 });
 
