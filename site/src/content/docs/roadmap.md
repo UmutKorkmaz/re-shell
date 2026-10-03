@@ -46,7 +46,7 @@ workflow exists but no hosted run has executed it yet.
 | `cloud iac generate\|validate`, `cloud deploy` | DONE (env-limited: `cloud deploy` needs real credentials and was never run against an account; Terraform validation runs in CI) |
 | `fix --ci` | DONE (env-limited: no live LLM call) |
 | Backend template registry: 208 templates, every placeholder substituted (including in file paths), at least 3 templates per emerging runtime (Deno, Bun, Kotlin, Scala, Crystal, Zig, Elixir, Nim) | DONE+tested |
-| Generated projects install, build and boot | PARTIAL: representative sets are built with each toolchain (25 templates) and booted (8 Node/Bun templates) by scripts that CI runs on every push; the catalog-wide count is not claimed yet |
+| Generated projects install, build and boot | Done for 170 of the 208 templates, built with each one's own toolchain (172 in CI), plus 8 Node/Bun templates booted; the other 36 need a registry or toolchain that was not available, and are listed on the [catalog page](/re-shell/templates/catalog/#verification) |
 | `create` non-interactive in every mode, honest skeletons, dry-run diffs | DONE+tested |
 
 ## UI / dashboard
@@ -93,7 +93,7 @@ Everything left depends on something outside the development environment:
 - Public hosting of the control plane (a deployment target, TLS, a security review).
 - WebRTC across symmetric NATs (a TURN server).
 - The first hosted run of the new CI workflows.
-- Catalog-wide template verification counts.
+- Building the 36 templates whose registry or toolchain was unavailable (hex, Clojars, nimble, shards, opam, deno.land, Swift, Julia, V, Gleam and others; see the [catalog page](/re-shell/templates/catalog/#verification)).
 
 ## Explicitly dropped
 

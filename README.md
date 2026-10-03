@@ -80,7 +80,7 @@ Helper scripts in [`scripts/`](./scripts) (run from the root after `pnpm -r buil
 | `node scripts/check-doc-commands.mjs` | Checks every `re-shell ...` command written in the docs against the built CLI's catalog. |
 | `node scripts/perf-budget.mjs` | Enforces gzip budgets on built assets (used by the `budget` scripts of `@re-shell/ui` and `@re-shell/dashboard`). |
 | `node scripts/boot-test-templates.mjs` | Scaffolds, installs, builds, boots and probes generated Node/Bun backends. |
-| `bash scripts/scaffold-test-templates.sh` | Scaffolds representative templates and builds each with its own language toolchain. |
+| `bash scripts/scaffold-test-templates.sh` | Scaffolds the 172 buildable templates (in `--group`s) and builds each with its own language toolchain. |
 | `bash scripts/k8s-live-check.sh` | Validates the Kubernetes generators against a real cluster (`KUBECONFIG`). |
 | `node scripts/bench-startup.mjs` | Measures CLI startup (median and p90 per command). |
 
@@ -94,7 +94,7 @@ where the environment allowed (see [`docs/STABILITY.md`](./docs/STABILITY.md)).
 |----------|---------|-------|
 | `ci.yml` | push and PR to `main`/`master`/`develop` | build, performance budgets, typecheck, unit/integration/conformance suites for every package (control plane with an 80% coverage gate), generated `docs/CLI-CONTRACTS.md` drift check, coverage, interactive and end-to-end CLI tests, guard greps; **Playwright e2e** (chromium flow and the 2001-node graph scale spec); **Storybook** (stories, a11y, visual, `re-shell ui test`); **pack-smoke** (clean install of the packed tarballs) |
 | `accessibility.yml` | every push and PR | axe-core WCAG 2.1 AA audit of the dashboard (Playwright `a11y` project) |
-| `template-health.yml` | every push and PR | scaffold-and-build representative templates with each language toolchain; boot-check generated Node/Bun backends |
+| `template-health.yml` | every push and PR | scaffold-and-build 172 templates, one job per toolchain group; boot-check generated Node/Bun backends |
 | `vscode-extension.yml` | push/PR touching the extension, CLI, contracts or hub | build, unit and real-hub tests, the VS Code **host** test under Xvfb, `.vsix` package |
 | `desktop.yml` | `desktop-v*` tags, PRs touching the desktop inputs, manual | Rust tests, Tauri bundles for Linux, macOS and Windows (signed only when signing secrets exist) |
 | `k8s-live.yml` | push and PR touching the Kubernetes generators, the workspace schema or the live-check script, or manual | kubeconform, Helm lint, apply to a kind cluster, rollback, CRD, operator, Flux sync |

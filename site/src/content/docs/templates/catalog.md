@@ -167,21 +167,47 @@ A template existing in the registry is not proof that its generated project
 works. Two scripts check that, and the `template-health` workflow runs both on
 every push and pull request (pending its first hosted run):
 
-- `bash scripts/scaffold-test-templates.sh` scaffolds 25 representative templates
-  and builds each with its own toolchain (`tsc`, `go build`, `cargo check`,
-  `mvn package`, `zig build`, `php -l` + composer, `ruby -c` + bundle, Python
-  compile and import, ...). A template whose toolchain is not installed is
-  reported as **SKIP** with the reason, never as a pass.
+- `bash scripts/scaffold-test-templates.sh` scaffolds templates with the built CLI
+  and builds each with its own toolchain (`tsc`, `go build`, `cargo check`, Maven,
+  Gradle, sbt, `dotnet build`, CMake, `zig build`, `cabal build` + `cabal test`,
+  `deno check` + `deno test`, `dart analyze`, `rescript build`, `php -l` + composer,
+  `ruby -c` + bundle, Python compile and import, ...). It runs in groups
+  (`--group core|jvm|dotnet|native|node|haskell|deno|config`), one CI job each. A
+  template whose toolchain is not installed is reported as **SKIP** with the reason,
+  never as a pass.
 - `node scripts/boot-test-templates.mjs` scaffolds eight Node and Bun backends
   (Express, Fastify, Koa, Hono, NestJS, `elysia-bun`, `bun-serve`, `trpc-bun`),
   installs them, builds, starts each on a free port with no database or Redis
   reachable, waits for `/health`, probes a functional route and requires a clean
   exit on SIGTERM.
 
-The other templates are registered, scaffoldable and covered by registry and
-placeholder tests, but have **not** each been built and booted.
+**Where the catalog stands (0.31.0):** the build script lists **172 of the 208**
+templates, and **170** of them were built successfully during development; `vapor`
+(Swift) and `phoenix` (needs the hex registry) are built only in CI. Lua templates are
+checked for syntax only, Dart templates are analyzed but their tests are not run, and
+the 18 configuration templates (service mesh, proxies, compose and similar) get a YAML
+syntax check, not a deployment.
 
-<!-- TODO(coordinator): fill in the catalog-wide verification counts once the catalog sweep finishes (how many of the 208 templates were scaffolded, built and booted, and how many were skipped or failed). -->
+The other **36** templates are registered, scaffoldable and covered by the registry and
+placeholder tests, but have **not** been built, because their package registry or
+toolchain was not available:
+
+| Needs | Templates |
+| --- | --- |
+| hex | `plug-ex`, `nerves-ex` |
+| Clojars | `compojure`, `luminus-clj`, `reitit-clj`, `pedestal-clj` |
+| nimble | `jester`, `prologue-nim`, `happyx-nim` |
+| shards (GitHub) | `kemal`, `lucky-cr`, `amber-cr` |
+| opam | `dream-ocaml`, `opium-ocaml` |
+| sources on GitHub | `zap-zig`, `crow` |
+| deno.land/x | `aleph-deno` |
+| Swift | `perfect`, `kitura`, `hummingbird` |
+| Julia | `genie-jl`, `oxygen-jl` |
+| V | `vweb`, `vex-v` |
+| Gleam | `wisp` |
+| Odin, Pony, Red, Grain, Mojo, Roc, Ballerina, Unison, Carbon, Vale | `odin-http`, `jennet-pony`, `red-http`, `grain`, `mojo`, `mojo-fastapi`, `roc`, `ballerina`, `unison`, `carbon`, `vale` |
+
+Treat these as starting points to review, not as projects known to build.
 
 ## See also
 
