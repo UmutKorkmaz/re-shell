@@ -23,6 +23,12 @@ const ANALYTICS_RETENTION_DAYS = 90;
 export interface ProfileAnalytics {
   /** Schema version of the analytics document. */
   version: string;
+  /**
+   * Chronological activation history (bounded). Every real activation,
+   * deactivation and failed activation recorded by the profile system appends
+   * an event here; insights are computed from it.
+   */
+  events?: ProfileEvent[];
   /** Map of profile name to its usage data. */
   profiles: Record<string, ProfileUsageData>;
   /** Aggregate analytics computed across all profiles. */
@@ -30,6 +36,34 @@ export interface ProfileAnalytics {
   /** ISO timestamp of the most recent analytics write. */
   lastUpdated: string;
 }
+
+/** One recorded step in a profile's life. */
+export interface ProfileEvent {
+  type: 'activate' | 'deactivate' | 'activation-failed';
+  profile: string;
+  /** ISO timestamp. */
+  at: string;
+  environment?: string;
+  framework?: string;
+  /** Measured time the activation took (activate / activation-failed). */
+  activationMs?: number;
+  /** Length of the session that just ended (deactivate). */
+  sessionMs?: number;
+  /** Failure description (activation-failed). */
+  error?: string;
+}
+
+/** Where insights come from and how much recorded data backs them. */
+export interface ProfileDataSource {
+  file: string;
+  events: number;
+  profilesTracked: number;
+  /** No history has been recorded yet; insights are limited to configuration checks. */
+  empty: boolean;
+}
+
+/** Most events kept in the analytics file (oldest are dropped first). */
+export const MAX_PROFILE_EVENTS = 2000;
 
 /**
  * Per-profile usage and health data tracked over time.
@@ -115,6 +149,8 @@ export interface PerformanceMetrics {
   slowestActivation: { time: number; date: string };
   /** Number of activation attempts that failed. */
   failedActivations: number;
+  /** How many activations had a measured duration (the divisor of the average). */
+  timedActivations?: number;
 }
 
 /**
@@ -133,6 +169,8 @@ export interface ProfileInsight {
   recommendation?: string;
   /** Optional description of the potential impact of acting on the insight. */
   impact?: string;
+  /** The recorded data points the insight was computed from. */
+  evidence?: string[];
 }
 
 /**
@@ -182,10 +220,70 @@ export async function trackProfileActivation(
       (analytics.global.frameworkUsage[metadata.framework] || 0) + 1;
   }
 
+  if (typeof metadata?.activationTime === 'number' && metadata.activationTime >= 0) {
+    const pm = profile.performanceMetrics;
+    const timed = pm.timedActivations ?? 0;
+    pm.averageActivationTime = (pm.averageActivationTime * timed + metadata.activationTime) / (timed + 1);
+    pm.timedActivations = timed + 1;
+    if (metadata.activationTime > pm.slowestActivation.time) {
+      pm.slowestActivation = { time: metadata.activationTime, date: now };
+    }
+  }
+
   analytics.global.totalActivations++;
   updateMostUsedProfile(analytics);
+  pushEvent(analytics, {
+    type: 'activate',
+    profile: profileName,
+    at: now,
+    ...(metadata?.environment ? { environment: metadata.environment } : {}),
+    ...(metadata?.framework ? { framework: metadata.framework } : {}),
+    ...(typeof metadata?.activationTime === 'number' ? { activationMs: metadata.activationTime } : {}),
+  });
 
   await saveAnalytics(analytics);
+}
+
+/**
+ * Record a failed activation attempt: bumps the failure counter, appends an
+ * unresolved error and an `activation-failed` history event. The profile is
+ * added to the analytics when this is its first appearance.
+ *
+ * @param profileName - Profile that failed to activate.
+ * @param error - Why it failed.
+ * @param metadata - Optional measured time spent before failing.
+ * @returns Resolves when the updated analytics have been persisted.
+ */
+export async function trackProfileActivationFailure(
+  profileName: string,
+  error: string,
+  metadata?: { activationTime?: number; environment?: string; framework?: string }
+): Promise<void> {
+  const analytics = await loadAnalytics();
+  const now = new Date().toISOString();
+  if (!analytics.profiles[profileName]) {
+    analytics.profiles[profileName] = createEmptyProfileData(profileName);
+    analytics.global.profilesCreated++;
+  }
+  const profile = analytics.profiles[profileName];
+  profile.performanceMetrics.failedActivations++;
+  profile.errors.push({ timestamp: now, error, context: 'activate', resolved: false });
+  pushEvent(analytics, {
+    type: 'activation-failed',
+    profile: profileName,
+    at: now,
+    error,
+    ...(metadata?.environment ? { environment: metadata.environment } : {}),
+    ...(metadata?.framework ? { framework: metadata.framework } : {}),
+    ...(typeof metadata?.activationTime === 'number' ? { activationMs: metadata.activationTime } : {}),
+  });
+  await saveAnalytics(analytics);
+}
+
+function pushEvent(analytics: ProfileAnalytics, event: ProfileEvent): void {
+  const events = analytics.events ?? (analytics.events = []);
+  events.push(event);
+  if (events.length > MAX_PROFILE_EVENTS) events.splice(0, events.length - MAX_PROFILE_EVENTS);
 }
 
 /**
@@ -223,6 +321,14 @@ export async function trackProfileDeactivation(
     if (sessionDuration > (analytics.global.longestSession?.duration || 0)) {
       analytics.global.longestSession = { profile: profileName, duration: sessionDuration };
     }
+
+    pushEvent(analytics, {
+      type: 'deactivate',
+      profile: profileName,
+      at: new Date().toISOString(),
+      sessionMs: sessionDuration,
+      ...(typeof metadata?.deactivationTime === 'number' ? { activationMs: metadata.deactivationTime } : {}),
+    });
   }
 
   await saveAnalytics(analytics);
@@ -447,7 +553,201 @@ export async function generateProfileInsights(profileName?: string): Promise<Pro
     }
   }
 
+  // Insights derived from the recorded activation history and the profile
+  // definitions themselves (not just the running counters above).
+  insights.push(...(await deriveHistoryInsights(analytics, profileName)));
+
   return insights;
+}
+
+const DAY_MS = 86_400_000;
+const STALE_AFTER_DAYS = 60;
+const SLOW_ACTIVATION_MS = 1500;
+
+/** Best-effort read of the profile definitions; analytics must work without them. */
+async function readProfileDefinitions(): Promise<Record<string, EnvironmentProfile>> {
+  try {
+    return (await loadProfileConfig()).profiles ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/** How many profiles `extends` transitively (cycle-safe). */
+function inheritanceDepth(name: string, profiles: Record<string, EnvironmentProfile>, seen = new Set<string>()): number {
+  if (seen.has(name)) return 0;
+  seen.add(name);
+  const parents = profiles[name]?.extends ?? [];
+  return parents.length === 0 ? 0 : 1 + Math.max(...parents.map(p => inheritanceDepth(p, profiles, new Set(seen))));
+}
+
+async function deriveHistoryInsights(analytics: ProfileAnalytics, profileName?: string): Promise<ProfileInsight[]> {
+  const out: ProfileInsight[] = [];
+  const events = analytics.events ?? [];
+  const now = Date.now();
+  const definitions = await readProfileDefinitions();
+
+  if (profileName) {
+    const data = analytics.profiles[profileName];
+    const mine = events.filter(e => e.profile === profileName);
+    const definition = definitions[profileName];
+
+    // Stale: used before, but not recently.
+    if (data && data.usageCount > 0 && data.lastUsed) {
+      const idleDays = Math.floor((now - new Date(data.lastUsed).getTime()) / DAY_MS);
+      if (idleDays >= STALE_AFTER_DAYS) {
+        out.push({
+          type: 'usage',
+          severity: 'suggestion',
+          title: 'Stale Profile',
+          description: `Profile "${profileName}" was last activated ${idleDays} days ago (${data.lastUsed.slice(0, 10)})`,
+          recommendation: 'Delete or archive the profile if it is no longer needed, or re-validate it before the next use',
+          impact: 'Low - Fewer profiles to maintain',
+          evidence: [`lastUsed=${data.lastUsed}`, `usageCount=${data.usageCount}`],
+        });
+      }
+    }
+
+    // Unreliable activation: a high failure rate across real attempts.
+    const activations = mine.filter(e => e.type === 'activate').length;
+    const failures = mine.filter(e => e.type === 'activation-failed');
+    const attempts = activations + failures.length;
+    if (attempts >= 4 && failures.length / attempts >= 0.25) {
+      const lastErrors = failures.slice(-3).map(f => f.error ?? 'unknown error');
+      out.push({
+        type: 'performance',
+        severity: 'warning',
+        title: 'Unreliable Activation',
+        description: `${failures.length} of ${attempts} recorded activation attempts failed (${Math.round((failures.length / attempts) * 100)}%)`,
+        recommendation: 'Run "re-shell config profile validate" and fix the errors listed below before relying on this profile',
+        impact: 'High - Profile switches are likely to fail',
+        evidence: lastErrors.map(e => `error: ${e}`),
+      });
+    }
+
+    // Slow activation measured from real timings, cross-referenced with the definition.
+    const pm = data?.performanceMetrics;
+    if (pm && (pm.timedActivations ?? 0) >= 3 && pm.averageActivationTime > SLOW_ACTIVATION_MS) {
+      const causes: string[] = [];
+      const evidence = [
+        `averageActivationTime=${Math.round(pm.averageActivationTime)}ms over ${pm.timedActivations} timed activations`,
+        `slowestActivation=${pm.slowestActivation.time}ms`,
+      ];
+      if (definition) {
+        const depth = inheritanceDepth(profileName, definitions);
+        const envCount = Object.keys(definition.config.env ?? {}).length;
+        evidence.push(`inheritanceDepth=${depth}`, `envVariables=${envCount}`);
+        if (depth >= 2) causes.push(`flatten the ${depth}-level inheritance chain`);
+        if (envCount > 50) causes.push(`reduce the ${envCount} environment variables written on activation`);
+      }
+      out.push({
+        type: 'performance',
+        severity: 'suggestion',
+        title: 'Slow Activation',
+        description: `Activating "${profileName}" takes ${Math.round(pm.averageActivationTime)}ms on average (slowest ${pm.slowestActivation.time}ms)`,
+        recommendation: causes.length > 0 ? `Speed it up: ${causes.join(', ')}` : 'Inspect what the profile applies on activation (workspace snapshot size, env file writes)',
+        impact: 'Medium - Delays every profile switch',
+        evidence,
+      });
+    }
+
+    // Flapping: many activations in one day.
+    const dayAgo = now - DAY_MS;
+    const lastDay = mine.filter(e => e.type === 'activate' && new Date(e.at).getTime() >= dayAgo).length;
+    if (lastDay >= 10) {
+      out.push({
+        type: 'usage',
+        severity: 'suggestion',
+        title: 'Frequent Profile Switching',
+        description: `"${profileName}" was activated ${lastDay} times in the last 24 hours`,
+        recommendation: 'Consider composing profiles or scripting the switch instead of toggling manually',
+        evidence: [`activations(last24h)=${lastDay}`],
+      });
+    }
+    return out;
+  }
+
+  // Global: definitions vs. recorded usage.
+  const defined = Object.keys(definitions);
+  if (defined.length > 0) {
+    const neverActivated = defined.filter(n => !(analytics.profiles[n]?.activationCount > 0));
+    if (neverActivated.length > 0) {
+      out.push({
+        type: 'usage',
+        severity: 'suggestion',
+        title: 'Profiles Never Activated',
+        description: `${neverActivated.length} of ${defined.length} defined profile(s) have never been activated: ${neverActivated.slice(0, 8).join(', ')}${neverActivated.length > 8 ? ', ...' : ''}`,
+        recommendation: 'Remove profiles nobody uses, or activate them to confirm they still work',
+        impact: 'Low - Less configuration to maintain',
+        evidence: neverActivated.map(n => `defined, no recorded activation: ${n}`).slice(0, 10),
+      });
+    }
+  }
+
+  const total = analytics.global.totalActivations;
+  const tracked = Object.keys(analytics.profiles).length;
+  if (tracked >= 2 && total >= 10) {
+    const top = Object.values(analytics.profiles).sort((a, b) => b.activationCount - a.activationCount)[0];
+    if (top && top.activationCount / total >= 0.8) {
+      out.push({
+        type: 'usage',
+        severity: 'info',
+        title: 'Usage Dominated By One Profile',
+        description: `"${top.profileName}" accounts for ${top.activationCount} of ${total} activations (${Math.round((top.activationCount / total) * 100)}%)`,
+        recommendation: 'Make it the default and consider folding rarely used profiles into it',
+        evidence: [`activations(${top.profileName})=${top.activationCount}`, `activations(total)=${total}`],
+      });
+    }
+  }
+
+  const activateEvents = events.filter(e => e.type === 'activate');
+  if (activateEvents.length > 0) {
+    const last = new Date(activateEvents[activateEvents.length - 1].at).getTime();
+    const idleDays = Math.floor((now - last) / DAY_MS);
+    if (idleDays >= 30) {
+      out.push({
+        type: 'usage',
+        severity: 'info',
+        title: 'No Recent Profile Activity',
+        description: `The last profile activation was ${idleDays} days ago`,
+        recommendation: 'If profiles are no longer part of your workflow, consider cleaning them up',
+        evidence: [`lastActivation=${activateEvents[activateEvents.length - 1].at}`],
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Where profile insights come from: the analytics file and how much recorded
+ * history backs them. `empty` is true until a profile has actually been
+ * activated through the profile system.
+ */
+export async function getProfileDataSource(): Promise<ProfileDataSource> {
+  const analytics = await loadAnalytics();
+  const events = analytics.events?.length ?? 0;
+  const profilesTracked = Object.keys(analytics.profiles).length;
+  return {
+    file: ANALYTICS_FILE,
+    events,
+    profilesTracked,
+    empty: events === 0 && analytics.global.totalActivations === 0,
+  };
+}
+
+/** Machine-readable insights (`config profile insights --json`). */
+export async function buildProfileInsightsReport(profileName?: string): Promise<{
+  profile: string | null;
+  generatedAt: string;
+  dataSource: ProfileDataSource;
+  insights: ProfileInsight[];
+}> {
+  return {
+    profile: profileName ?? null,
+    generatedAt: new Date().toISOString(),
+    dataSource: await getProfileDataSource(),
+    insights: await generateProfileInsights(profileName),
+  };
 }
 
 /**
@@ -607,6 +907,12 @@ export async function cleanAnalyticsData(daysToKeep: number = ANALYTICS_RETENTIO
     }
   }
 
+  if (analytics.events) {
+    const before = analytics.events.length;
+    analytics.events = analytics.events.filter(e => new Date(e.at) >= cutoffDate);
+    cleaned += before - analytics.events.length;
+  }
+
   await saveAnalytics(analytics);
 
   if (cleaned > 0) {
@@ -620,28 +926,31 @@ export async function cleanAnalyticsData(daysToKeep: number = ANALYTICS_RETENTIO
  * Internal helper functions.
  */
 
+function emptyAnalytics(): ProfileAnalytics {
+  return {
+    version: '1.0.0',
+    profiles: {},
+    global: {
+      totalActivations: 0,
+      totalSessionTime: 0,
+      mostUsedProfile: '',
+      longestSession: { profile: '', duration: 0 },
+      averageSessionDuration: 0,
+      profilesCreated: 0,
+      profilesDeleted: 0,
+      frameworkUsage: {},
+      environmentUsage: {},
+    },
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+/** Read the analytics store. Reading never writes: a missing file is an empty store. */
 async function loadAnalytics(): Promise<ProfileAnalytics> {
   const analyticsPath = path.join(process.cwd(), ANALYTICS_FILE);
 
   if (!(await fs.pathExists(analyticsPath))) {
-    const emptyAnalytics: ProfileAnalytics = {
-      version: '1.0.0',
-      profiles: {},
-      global: {
-        totalActivations: 0,
-        totalSessionTime: 0,
-        mostUsedProfile: '',
-        longestSession: { profile: '', duration: 0 },
-        averageSessionDuration: 0,
-        profilesCreated: 0,
-        profilesDeleted: 0,
-        frameworkUsage: {},
-        environmentUsage: {},
-      },
-      lastUpdated: new Date().toISOString(),
-    };
-    await fs.writeFile(analyticsPath, JSON.stringify(emptyAnalytics, null, 2), 'utf8');
-    return emptyAnalytics;
+    return emptyAnalytics();
   }
 
   const content = await fs.readFile(analyticsPath, 'utf8');
@@ -651,6 +960,7 @@ async function loadAnalytics(): Promise<ProfileAnalytics> {
 async function saveAnalytics(analytics: ProfileAnalytics): Promise<void> {
   analytics.lastUpdated = new Date().toISOString();
   const analyticsPath = path.join(process.cwd(), ANALYTICS_FILE);
+  await fs.ensureDir(path.dirname(analyticsPath));
   await fs.writeFile(analyticsPath, JSON.stringify(analytics, null, 2), 'utf8');
 }
 

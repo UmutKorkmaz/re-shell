@@ -3,7 +3,7 @@
 import chalk from 'chalk';
 import prompts from 'prompts';
 import { EnvironmentProfile, loadProfileConfig, saveProfileConfig } from './profile';
-import { generateProfileInsights } from './profile-analytics';
+import { generateProfileInsights, getProfileDataSource, type ProfileDataSource } from './profile-analytics';
 
 /**
  * Profile optimization recommendations
@@ -32,7 +32,10 @@ export interface OptimizationRecommendation {
   recommendation: string;
   /** Suggested configuration changes as a code snippet. */
   code?: string;
-  /** Estimated performance or storage savings from applying the recommendation. */
+  /**
+   * Savings measured from recorded data (never a generic guess). Only set by
+   * recommendations that can quantify themselves from analytics.
+   */
   estimatedSavings?: string;
 }
 
@@ -298,7 +301,6 @@ function analyzePerformanceOptimizations(profile: EnvironmentProfile): Optimizat
         effort: 'easy',
         recommendation: 'Set build.optimize to true in production',
         code: 'build:\n  optimize: true',
-        estimatedSavings: '20-40% bundle size reduction',
       });
     }
 
@@ -313,7 +315,6 @@ function analyzePerformanceOptimizations(profile: EnvironmentProfile): Optimizat
         effort: 'easy',
         recommendation: 'Set build.minify to false in development',
         code: 'build:\n  minify: false',
-        estimatedSavings: '30-50% faster rebuilds',
       });
     }
 
@@ -345,7 +346,6 @@ function analyzePerformanceOptimizations(profile: EnvironmentProfile): Optimizat
         effort: 'easy',
         recommendation: 'Set dev.hmr to true',
         code: 'dev:\n  hmr: true',
-        estimatedSavings: '2-5x faster updates',
       });
     }
   }
@@ -428,7 +428,6 @@ function analyzeMaintainabilityOptimizations(profile: EnvironmentProfile): Optim
       impact: 'Maintenance complexity',
       effort: 'medium',
       recommendation: 'Consider moving scripts to package.json or separate files',
-      estimatedSavings: 'Cleaner profile structure',
     });
   }
 
@@ -460,7 +459,8 @@ async function analyzeUsageOptimizations(
     const insights = await generateProfileInsights(profileName);
 
     for (const insight of insights) {
-      if (insight.type === 'usage' && insight.recommendation) {
+      // 'warning' insights are advisory about missing data ("Profile Not Found"), not about the profile.
+      if ((insight.type === 'usage' || insight.type === 'performance' || insight.type === 'optimization') && insight.recommendation) {
         let severity: OptimizationRecommendation['severity'] = 'low';
         if (insight.severity === 'critical') severity = 'critical';
         else if (insight.severity === 'warning') severity = 'high';
@@ -468,10 +468,10 @@ async function analyzeUsageOptimizations(
 
         recommendations.push({
           id: `usage-${profileName}-${insight.title.toLowerCase().replace(/\s+/g, '-')}`,
-          category: 'usage',
+          category: insight.type === 'usage' ? 'usage' : 'performance',
           severity,
           title: insight.title,
-          description: insight.description,
+          description: insight.evidence && insight.evidence.length > 0 ? `${insight.description} [${insight.evidence.join('; ')}]` : insight.description,
           impact: insight.impact || 'Better resource utilization',
           effort: 'medium',
           recommendation: insight.recommendation,
@@ -647,4 +647,15 @@ function getCategoryIcon(category: string): string {
     configuration: '⚙️',
   };
   return icons[category as keyof typeof icons] || '•';
+}
+
+
+/**
+ * Machine-readable optimization report (`config profile optimize --json`):
+ * the recommendations plus the data source they were computed from, so a
+ * consumer can tell "nothing to optimize" from "nothing recorded yet".
+ */
+export async function buildOptimizationResponse(profileName: string): Promise<OptimizationReport & { dataSource: ProfileDataSource }> {
+  const report = await generateOptimizations(profileName);
+  return { ...report, dataSource: await getProfileDataSource() };
 }
