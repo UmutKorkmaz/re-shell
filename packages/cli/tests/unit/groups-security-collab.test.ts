@@ -6,7 +6,7 @@ import { Command } from 'commander';
 //     resolves cloud providers from --enable-* flags, builds a typed config,
 //     calls display*(config) then write*(config, output, language) and prints
 //     a per-generator file listing.
-//   - collab.group.ts — 28 subcommands with the identical generator shape.
+//   - collab.group.ts — 27 generator subcommands with the identical shape, plus the real `session` client.
 // The per-generator utils are mocked via their dynamic-import specifiers
 // (../utils/X.js), so each test asserts provider resolution, option parsing
 // (int coercion), config forwarding, and the success rendering — without
@@ -2707,11 +2707,16 @@ describe('groups — security + collab registration groups', () => {
   });
 
   describe('collab group', () => {
-    it('registers all 27 collab subcommands', () => {
+    it('registers the real `session` client first, plus all 27 code-generator subcommands', () => {
       const program = programWith();
       const collab = program.commands.find(command => command.name() === 'collab');
       const names = collab?.commands.map(command => command.name());
-      expect(names).toHaveLength(27);
+      expect(names).toHaveLength(28);
+      expect(names?.[0]).toBe('session');
+      const session = collab?.commands.find(command => command.name() === 'session');
+      expect(session?.commands.map(command => command.name())).toEqual([
+        'start', 'list', 'join', 'end', 'run', 'handover', 'cancel',
+      ]);
       for (const expected of [
         'webrtc-sharing', 'terminal-broadcasting', 'operational-transform',
         'session-recording', 'voice-video-integration', 'collaborative-debugging',
