@@ -114,6 +114,15 @@ export const errorCodeSchema = z.enum([
   'CONFIG_ERROR',
   'INTERNAL_ERROR',
   'SERVICE_UNAVAILABLE',
+  // Codes introduced by the S-C service-process-hardening / dev --profile workstream
+  'SERVICES_NOT_FOUND',
+  'SERVICES_COMPOSE_UNAVAILABLE',
+  'SERVICES_COMPOSE_FAILED',
+  'SERVICES_START_FAILED',
+  'SERVICES_STOP_FAILED',
+  'SERVICES_UNHEALTHY',
+  'SERVICES_ERROR',
+  'DEV_PROFILE_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
