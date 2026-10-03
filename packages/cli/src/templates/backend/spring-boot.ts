@@ -47,10 +47,10 @@ export const springBootTemplate: BackendTemplate = {
         <version>3.2.0</version>
         <relativePath/>
     </parent>
-    <groupId>{{packageName}}</groupId>
-    <artifactId>{{serviceName}}</artifactId>
+    <groupId>com.example.app</groupId>
+    <artifactId>{{projectName}}</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>{{serviceName}}</name>
+    <name>{{projectName}}</name>
     <description>{{description}}</description>
     <properties>
         <java.version>17</java.version>
@@ -259,7 +259,7 @@ export const springBootTemplate: BackendTemplate = {
     </build>
 </project>
 `,
-    'src/main/java/{{packagePath}}/{{className}}Application.java': `package {{packageName}};
+    'src/main/java/com/example/app/Application.java': `package com.example.app;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -273,17 +273,17 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableCaching
 @EnableAsync
 @EnableScheduling
-public class {{className}}Application {
+public class Application {
 
     public static void main(String[] args) {
-        SpringApplication.run({{className}}Application.class, args);
+        SpringApplication.run(Application.class, args);
     }
 }
 `,
-    'src/main/java/{{packagePath}}/config/SecurityConfig.java': `package {{packageName}}.config;
+    'src/main/java/com/example/app/config/SecurityConfig.java': `package com.example.app.config;
 
-import {{packageName}}.security.JwtAuthenticationEntryPoint;
-import {{packageName}}.security.JwtAuthenticationFilter;
+import com.example.app.security.JwtAuthenticationEntryPoint;
+import com.example.app.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -372,7 +372,7 @@ public class SecurityConfig {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/config/AsyncConfig.java': `package {{packageName}}.config;
+    'src/main/java/com/example/app/config/AsyncConfig.java': `package com.example.app.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -392,14 +392,14 @@ public class AsyncConfig {
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(5);
         executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("{{serviceName}}-async-");
+        executor.setThreadNamePrefix("{{projectName}}-async-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;
     }
 }
 `,
-    'src/main/java/{{packagePath}}/config/CacheConfig.java': `package {{packageName}}.config;
+    'src/main/java/com/example/app/config/CacheConfig.java': `package com.example.app.config;
 
 import org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;
 import org.springframework.cache.annotation.EnableCaching;
@@ -431,7 +431,7 @@ public class CacheConfig {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/graphql/QueryController.java': `package {{packageName}}.graphql;
+    'src/main/java/com/example/app/graphql/QueryController.java': `package com.example.app.graphql;
 
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
@@ -445,7 +445,7 @@ public class QueryController {
 
     @QueryMapping
     public String hello() {
-        return "Hello from {{serviceName}} GraphQL!";
+        return "Hello from {{projectName}} GraphQL!";
     }
 
     @QueryMapping
@@ -457,7 +457,7 @@ public class QueryController {
     public Map<String, Object> health() {
         return Map.of(
             "status", "UP",
-            "service", "{{serviceName}}",
+            "service", "{{projectName}}",
             "timestamp", Instant.now().toString()
         );
     }
@@ -475,7 +475,7 @@ type HealthStatus {
     timestamp: String!
 }
 `,
-    'src/main/java/{{packagePath}}/config/OpenApiConfig.java': `package {{packageName}}.config;
+    'src/main/java/com/example/app/config/OpenApiConfig.java': `package com.example.app.config;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -495,7 +495,7 @@ public class OpenApiConfig {
         final String securitySchemeName = "bearer-key";
         return new OpenAPI()
             .info(new Info()
-                .title("{{serviceName}} API")
+                .title("{{projectName}} API")
                 .version("1.0")
                 .description("{{description}}")
                 .contact(new Contact()
@@ -516,11 +516,13 @@ public class OpenApiConfig {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/entity/BaseEntity.java': `package {{packageName}}.entity;
+    'src/main/java/com/example/app/entity/BaseEntity.java': `package com.example.app.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -530,6 +532,8 @@ import java.time.LocalDateTime;
 @MappedSuperclass
 @Getter
 @Setter
+@SuperBuilder
+@NoArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
 public abstract class BaseEntity {
 
@@ -549,10 +553,11 @@ public abstract class BaseEntity {
     private Long version;
 }
 `,
-    'src/main/java/{{packagePath}}/entity/User.java': `package {{packageName}}.entity;
+    'src/main/java/com/example/app/entity/User.java': `package com.example.app.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -565,7 +570,7 @@ import java.util.stream.Collectors;
 @Table(name = "users")
 @Getter
 @Setter
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public class User extends BaseEntity implements UserDetails {
@@ -592,15 +597,19 @@ public class User extends BaseEntity implements UserDetails {
     private Set<Role> roles;
 
     @Column(nullable = false)
+    @Builder.Default
     private boolean enabled = true;
 
     @Column(name = "account_non_expired")
+    @Builder.Default
     private boolean accountNonExpired = true;
 
     @Column(name = "account_non_locked")
+    @Builder.Default
     private boolean accountNonLocked = true;
 
     @Column(name = "credentials_non_expired")
+    @Builder.Default
     private boolean credentialsNonExpired = true;
 
     @Override
@@ -635,9 +644,9 @@ public class User extends BaseEntity implements UserDetails {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/repository/UserRepository.java': `package {{packageName}}.repository;
+    'src/main/java/com/example/app/repository/UserRepository.java': `package com.example.app.repository;
 
-import {{packageName}}.entity.User;
+import com.example.app.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -659,13 +668,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsernameOrEmail(String usernameOrEmail);
 }
 `,
-    'src/main/java/{{packagePath}}/service/UserService.java': `package {{packageName}}.service;
+    'src/main/java/com/example/app/service/UserService.java': `package com.example.app.service;
 
-import {{packageName}}.dto.UserDto;
-import {{packageName}}.entity.User;
-import {{packageName}}.exception.ResourceNotFoundException;
-import {{packageName}}.mapper.UserMapper;
-import {{packageName}}.repository.UserRepository;
+import com.example.app.dto.UserDto;
+import com.example.app.entity.User;
+import com.example.app.exception.ResourceNotFoundException;
+import com.example.app.mapper.UserMapper;
+import com.example.app.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -748,10 +757,10 @@ public class UserService implements UserDetailsService {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/controller/UserController.java': `package {{packageName}}.controller;
+    'src/main/java/com/example/app/controller/UserController.java': `package com.example.app.controller;
 
-import {{packageName}}.dto.UserDto;
-import {{packageName}}.service.UserService;
+import com.example.app.dto.UserDto;
+import com.example.app.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -849,13 +858,13 @@ public class UserController {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/controller/AuthController.java': `package {{packageName}}.controller;
+    'src/main/java/com/example/app/controller/AuthController.java': `package com.example.app.controller;
 
-import {{packageName}}.dto.AuthRequest;
-import {{packageName}}.dto.AuthResponse;
-import {{packageName}}.dto.RegisterRequest;
-import {{packageName}}.security.JwtService;
-import {{packageName}}.service.AuthService;
+import com.example.app.dto.AuthRequest;
+import com.example.app.dto.AuthResponse;
+import com.example.app.dto.RegisterRequest;
+import com.example.app.security.JwtService;
+import com.example.app.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -908,7 +917,7 @@ public class AuthController {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/dto/UserDto.java': `package {{packageName}}.dto;
+    'src/main/java/com/example/app/dto/UserDto.java': `package com.example.app.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Email;
@@ -955,7 +964,7 @@ public class UserDto {
     private LocalDateTime updatedAt;
 }
 `,
-    'src/main/java/{{packagePath}}/dto/AuthRequest.java': `package {{packageName}}.dto;
+    'src/main/java/com/example/app/dto/AuthRequest.java': `package com.example.app.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -976,7 +985,7 @@ public class AuthRequest {
     private String password;
 }
 `,
-    'src/main/java/{{packagePath}}/dto/AuthResponse.java': `package {{packageName}}.dto;
+    'src/main/java/com/example/app/dto/AuthResponse.java': `package com.example.app.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -996,7 +1005,7 @@ public class AuthResponse {
     private UserDto user;
 }
 `,
-    'src/main/java/{{packagePath}}/dto/RegisterRequest.java': `package {{packageName}}.dto;
+    'src/main/java/com/example/app/dto/RegisterRequest.java': `package com.example.app.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -1029,10 +1038,10 @@ public class RegisterRequest {
     private String lastName;
 }
 `,
-    'src/main/java/{{packagePath}}/mapper/UserMapper.java': `package {{packageName}}.mapper;
+    'src/main/java/com/example/app/mapper/UserMapper.java': `package com.example.app.mapper;
 
-import {{packageName}}.dto.UserDto;
-import {{packageName}}.entity.User;
+import com.example.app.dto.UserDto;
+import com.example.app.entity.User;
 import org.mapstruct.*;
 
 @Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
@@ -1051,7 +1060,7 @@ public interface UserMapper {
     void updateEntityFromDto(UserDto dto, @MappingTarget User entity);
 }
 `,
-    'src/main/java/{{packagePath}}/exception/ResourceNotFoundException.java': `package {{packageName}}.exception;
+    'src/main/java/com/example/app/exception/ResourceNotFoundException.java': `package com.example.app.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -1064,7 +1073,7 @@ public class ResourceNotFoundException extends RuntimeException {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/exception/GlobalExceptionHandler.java': `package {{packageName}}.exception;
+    'src/main/java/com/example/app/exception/GlobalExceptionHandler.java': `package com.example.app.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -1170,18 +1179,17 @@ public class GlobalExceptionHandler {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/security/JwtService.java': `package {{packageName}}.security;
+    'src/main/java/com/example/app/security/JwtService.java': `package com.example.app.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -1227,11 +1235,11 @@ public class JwtService {
     ) {
         return Jwts
                 .builder()
-                .setClaims(extraClaims)
-                .setSubject(userDetails.getUsername())
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
+                .claims(extraClaims)
+                .subject(userDetails.getUsername())
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSignInKey())
                 .compact();
     }
 
@@ -1250,14 +1258,14 @@ public class JwtService {
 
     private Claims extractAllClaims(String token) {
         return Jwts
-                .parserBuilder()
-                .setSigningKey(getSignInKey())
+                .parser()
+                .verifyWith(getSignInKey())
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
-    private Key getSignInKey() {
+    private SecretKey getSignInKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }
@@ -1267,7 +1275,7 @@ public class JwtService {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/security/JwtAuthenticationFilter.java': `package {{packageName}}.security;
+    'src/main/java/com/example/app/security/JwtAuthenticationFilter.java': `package com.example.app.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -1334,7 +1342,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/security/JwtAuthenticationEntryPoint.java': `package {{packageName}}.security;
+    'src/main/java/com/example/app/security/JwtAuthenticationEntryPoint.java': `package com.example.app.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
@@ -1370,13 +1378,13 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
     }
 }
 `,
-    'src/main/java/{{packagePath}}/service/AuthService.java': `package {{packageName}}.service;
+    'src/main/java/com/example/app/service/AuthService.java': `package com.example.app.service;
 
-import {{packageName}}.dto.*;
-import {{packageName}}.entity.User;
-import {{packageName}}.mapper.UserMapper;
-import {{packageName}}.repository.UserRepository;
-import {{packageName}}.security.JwtService;
+import com.example.app.dto.*;
+import com.example.app.entity.User;
+import com.example.app.mapper.UserMapper;
+import com.example.app.repository.UserRepository;
+import com.example.app.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -1474,10 +1482,10 @@ public class AuthService {
 `,
     'src/main/resources/application.yml': `spring:
   application:
-    name: {{serviceName}}
+    name: {{projectName}}
   
   datasource:
-    url: jdbc:postgresql://localhost:5432/{{serviceName}}_db
+    url: jdbc:postgresql://localhost:5432/{{projectName}}_db
     username: \${DB_USERNAME:postgres}
     password: \${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
@@ -1568,14 +1576,14 @@ graphql:
 logging:
   level:
     root: INFO
-    {{packageName}}: DEBUG
+    com.example.app: DEBUG
     org.springframework.web: DEBUG
     org.hibernate.SQL: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
-    name: logs/{{serviceName}}.log
+    name: logs/{{projectName}}.log
 `,
     'src/main/resources/application-dev.yml': `spring:
   jpa:
@@ -1593,7 +1601,7 @@ logging:
 
 logging:
   level:
-    {{packageName}}: DEBUG
+    com.example.app: DEBUG
     org.springframework.web: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
@@ -1673,7 +1681,7 @@ logging:
 
 </databaseChangeLog>
 `,
-    'src/test/java/{{packagePath}}/{{className}}ApplicationTests.java': `package {{packageName}};
+    'src/test/java/com/example/app/ApplicationTests.java': `package com.example.app;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -1681,7 +1689,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
 @ActiveProfiles("test")
-class {{className}}ApplicationTests {
+class ApplicationTests {
 
     @Test
     void contextLoads() {
@@ -1689,10 +1697,10 @@ class {{className}}ApplicationTests {
 
 }
 `,
-    'src/test/java/{{packagePath}}/controller/UserControllerTest.java': `package {{packageName}}.controller;
+    'src/test/java/com/example/app/controller/UserControllerTest.java': `package com.example.app.controller;
 
-import {{packageName}}.dto.UserDto;
-import {{packageName}}.service.UserService;
+import com.example.app.dto.UserDto;
+import com.example.app.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -1804,13 +1812,13 @@ class UserControllerTest {
     }
 }
 `,
-    'src/test/java/{{packagePath}}/service/UserServiceTest.java': `package {{packageName}}.service;
+    'src/test/java/com/example/app/service/UserServiceTest.java': `package com.example.app.service;
 
-import {{packageName}}.dto.UserDto;
-import {{packageName}}.entity.User;
-import {{packageName}}.exception.ResourceNotFoundException;
-import {{packageName}}.mapper.UserMapper;
-import {{packageName}}.repository.UserRepository;
+import com.example.app.dto.UserDto;
+import com.example.app.entity.User;
+import com.example.app.exception.ResourceNotFoundException;
+import com.example.app.mapper.UserMapper;
+import com.example.app.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1970,10 +1978,10 @@ class UserServiceTest {
     }
 }
 `,
-    'src/test/java/{{packagePath}}/integration/AuthIntegrationTest.java': `package {{packageName}}.integration;
+    'src/test/java/com/example/app/integration/AuthIntegrationTest.java': `package com.example.app.integration;
 
-import {{packageName}}.dto.AuthRequest;
-import {{packageName}}.dto.RegisterRequest;
+import com.example.app.dto.AuthRequest;
+import com.example.app.dto.RegisterRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -2098,7 +2106,7 @@ class AuthIntegrationTest {
 logging:
   level:
     root: WARN
-    {{packageName}}: INFO
+    com.example.app: INFO
 `,
     '.gitignore': `HELP.md
 target/
@@ -2179,7 +2187,7 @@ services:
       - SPRING_PROFILES_ACTIVE=docker
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME={{serviceName}}_db
+      - DB_NAME={{projectName}}_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=postgres
       - REDIS_HOST=redis
@@ -2195,7 +2203,7 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB={{serviceName}}_db
+      - POSTGRES_DB={{projectName}}_db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
@@ -2229,7 +2237,7 @@ networks:
   app-network:
     driver: bridge
 `,
-    'README.md': `# {{serviceName}}
+    'README.md': `# {{projectName}}
 
 {{description}}
 
