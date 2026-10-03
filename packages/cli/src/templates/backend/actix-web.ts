@@ -66,22 +66,21 @@ export const actixWebTemplate: BackendTemplate = {
   },
   files: {
     'Cargo.toml': `[package]
-name = "{{serviceName}}"
+name = "{{projectName}}"
 version = "0.1.0"
 edition = "2021"
 description = "Actix-Web API server with async handlers and middleware"
 license = "MIT"
-authors = ["{{author}}"]
+authors = ["re-shell"]
 
 [dependencies]
 actix-web = "4.4"
 actix-cors = "0.6"
-actix-web-middleware-redirect-scheme = "4.0"
 tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-uuid = { version = "1.6", features = ["v4"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 bcrypt = "0.15"
 jsonwebtoken = "9.1"
@@ -106,10 +105,9 @@ async-graphql-actix-web = "7.0"
 
 [dev-dependencies]
 actix-rt = "2.9"
-actix-web-test = "4.0"
 
 [[bin]]
-name = "{{serviceName}}"
+name = "{{projectName}}"
 path = "src/main.rs"
 
 [profile.release]
@@ -125,7 +123,7 @@ RUST_LOG=info
 RUST_BACKTRACE=1
 
 # Database Configuration
-DATABASE_URL=postgresql://username:password@localhost/{{serviceName}}
+DATABASE_URL=postgresql://username:password@localhost/{{projectName}}
 DATABASE_MAX_CONNECTIONS=10
 
 # Redis Configuration
@@ -200,16 +198,29 @@ async fn main() -> std::io::Result<()> {
     // Configure rate limiting
     let governor_conf = GovernorConfigBuilder::default()
         .per_second(config.rate_limit_requests)
-        .burst_size(config.rate_limit_requests * 2)
+        .burst_size((config.rate_limit_requests * 2) as u32)
         .finish()
         .unwrap();
 
+    let bind_address = (config.host.clone(), config.port);
+
     HttpServer::new(move || {
+        let allowed_origins = config.cors_allowed_origins.clone();
         let cors = Cors::default()
-            .allowed_origin_fn(|origin, _req_head| {
-                config.cors_allowed_origins.contains(&origin.to_string())
+            .allowed_origin_fn(move |origin, _req_head| {
+                allowed_origins.iter().any(|allowed| allowed == "*")
+                    || origin
+                        .to_str()
+                        .map(|origin| allowed_origins.iter().any(|allowed| allowed == origin))
+                        .unwrap_or(false)
             })
-            .allowed_methods(config.cors_allowed_methods.clone())
+            .allowed_methods(
+                config
+                    .cors_allowed_methods
+                    .iter()
+                    .filter_map(|method| method.parse::<actix_web::http::Method>().ok())
+                    .collect::<Vec<_>>(),
+            )
             .allowed_headers(config.cors_allowed_headers.clone())
             .max_age(3600);
 
@@ -246,7 +257,7 @@ async fn main() -> std::io::Result<()> {
                     )
             )
     })
-    .bind((config.host.clone(), config.port))?
+    .bind(bind_address)?
     .run()
     .await
 }`,
@@ -447,7 +458,7 @@ pub async fn health_check() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(json!({
         "status": "healthy",
         "timestamp": chrono::Utc::now(),
-        "service": "{{serviceName}}",
+        "service": "{{projectName}}",
         "version": env!("CARGO_PKG_VERSION")
     })))
 }`,
@@ -470,7 +481,9 @@ pub async fn register(
     req.validate()?;
 
     // Check if user already exists
-    let existing_user = sqlx::query!("SELECT id FROM users WHERE email = $1 OR username = $2", req.email, req.username)
+    let existing_user = sqlx::query("SELECT id FROM users WHERE email = $1 OR username = $2")
+        .bind(&req.email)
+        .bind(&req.username)
         .fetch_optional(pool.get_ref())
         .await?;
 
@@ -485,25 +498,26 @@ pub async fn register(
     let user_id = uuid::Uuid::new_v4();
     let now = chrono::Utc::now();
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO users (id, email, username, password_hash, first_name, last_name, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         "#,
-        user_id,
-        req.email,
-        req.username,
-        password_hash,
-        req.first_name,
-        req.last_name,
-        now,
-        now
     )
+    .bind(user_id)
+    .bind(&req.email)
+    .bind(&req.username)
+    .bind(&password_hash)
+    .bind(&req.first_name)
+    .bind(&req.last_name)
+    .bind(now)
+    .bind(now)
     .execute(pool.get_ref())
     .await?;
 
     // Fetch created user
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", user_id)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(user_id)
         .fetch_one(pool.get_ref())
         .await?;
 
@@ -519,7 +533,8 @@ pub async fn login(
     req.validate()?;
 
     // Find user by email
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE email = $1", req.email)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
+        .bind(&req.email)
         .fetch_optional(pool.get_ref())
         .await?;
 
@@ -537,11 +552,11 @@ pub async fn login(
 
     // Generate tokens
     let access_token = generate_token(&user.id.to_string(), &user.email, "access", &config.jwt_secret, config.jwt_expiration)?;
-    let refresh_token = generate_token(&user.id.to_string(), &user.email, "refresh", &config.jwt_secret, config.jwt_expiration * 24)?;
+    let refresh_jwt = generate_token(&user.id.to_string(), &user.email, "refresh", &config.jwt_secret, config.jwt_expiration * 24)?;
 
     let response = LoginResponse {
         access_token,
-        refresh_token,
+        refresh_token: refresh_jwt,
         token_type: "Bearer".to_string(),
         expires_in: config.jwt_expiration};
 
@@ -581,7 +596,7 @@ pub async fn logout() -> Result<HttpResponse, AppError> {
     })))
 }`,
 
-    'src/handlers/users.rs': `use actix_web::{get, put, delete, web, HttpResponse, Result, HttpRequest};
+    'src/handlers/users.rs': `use actix_web::{get, put, delete, web, HttpMessage, HttpResponse, Result, HttpRequest};
 use sqlx::PgPool;
 use validator::Validate;
 use uuid::Uuid;
@@ -594,10 +609,11 @@ pub async fn get_profile(
     pool: web::Data<PgPool>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
-    let user_id = req.extensions().get::<Uuid>()
+    let user_id = *req.extensions().get::<Uuid>()
         .ok_or_else(|| AppError::Unauthorized("User not authenticated".to_string()))?;
 
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", user_id)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(user_id)
         .fetch_optional(pool.get_ref())
         .await?;
 
@@ -614,12 +630,14 @@ pub async fn update_profile(
 ) -> Result<HttpResponse, AppError> {
     update_req.validate()?;
 
-    let user_id = req.extensions().get::<Uuid>()
+    let user_id = *req.extensions().get::<Uuid>()
         .ok_or_else(|| AppError::Unauthorized("User not authenticated".to_string()))?;
 
     // Check if username is already taken
     if let Some(username) = &update_req.username {
-        let existing_user = sqlx::query!("SELECT id FROM users WHERE username = $1 AND id != $2", username, user_id)
+        let existing_user = sqlx::query("SELECT id FROM users WHERE username = $1 AND id != $2")
+            .bind(username)
+            .bind(user_id)
             .fetch_optional(pool.get_ref())
             .await?;
 
@@ -630,8 +648,7 @@ pub async fn update_profile(
 
     // Update user
     let now = chrono::Utc::now();
-    let user = sqlx::query_as!(
-        User,
+    let user = sqlx::query_as::<_, User>(
         r#"
         UPDATE users 
         SET 
@@ -642,12 +659,12 @@ pub async fn update_profile(
         WHERE id = $1
         RETURNING *
         "#,
-        user_id,
-        update_req.username,
-        update_req.first_name,
-        update_req.last_name,
-        now
     )
+    .bind(user_id)
+    .bind(&update_req.username)
+    .bind(&update_req.first_name)
+    .bind(&update_req.last_name)
+    .bind(now)
     .fetch_one(pool.get_ref())
     .await?;
 
@@ -659,10 +676,11 @@ pub async fn delete_account(
     pool: web::Data<PgPool>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AppError> {
-    let user_id = req.extensions().get::<Uuid>()
+    let user_id = *req.extensions().get::<Uuid>()
         .ok_or_else(|| AppError::Unauthorized("User not authenticated".to_string()))?;
 
-    sqlx::query!("DELETE FROM users WHERE id = $1", user_id)
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(user_id)
         .execute(pool.get_ref())
         .await?;
 
@@ -677,9 +695,10 @@ pub mod security;`,
     'src/middleware/auth.rs': `use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpMessage};
-use futures::future::{ready, Ready};
+use futures::future::{ready, LocalBoxFuture, Ready};
+use std::rc::Rc;
 use std::{
-    future::{self, LocalBoxFuture},
+    future,
     pin::Pin,
     task::{Context, Poll}};
 use uuid::Uuid;
@@ -702,7 +721,7 @@ impl AuthMiddleware {
 
 impl<S, B> Transform<S, ServiceRequest> for AuthMiddleware
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -714,18 +733,18 @@ where
 
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(AuthMiddlewareService {
-            service,
+            service: Rc::new(service),
             required: self.required}))
     }
 }
 
 pub struct AuthMiddlewareService<S> {
-    service: S,
+    service: Rc<S>,
     required: bool}
 
 impl<S, B> Service<ServiceRequest> for AuthMiddlewareService<S>
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -737,19 +756,20 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let required = self.required;
+        let service = Rc::clone(&self.service);
         
         Box::pin(async move {
             match extract_user_from_request(&req).await {
                 Ok(user_id) => {
                     req.extensions_mut().insert(user_id);
-                    let fut = self.service.call(req);
+                    let fut = service.call(req);
                     fut.await
                 }
                 Err(err) if required => {
                     Err(actix_web::error::ErrorUnauthorized(err))
                 }
                 Err(_) => {
-                    let fut = self.service.call(req);
+                    let fut = service.call(req);
                     fut.await
                 }
             }
@@ -760,9 +780,10 @@ where
     'src/middleware/security.rs': `use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpResponse};
-use futures::future::{ready, Ready};
+use futures::future::{ready, LocalBoxFuture, Ready};
+use std::rc::Rc;
 use std::{
-    future::{self, LocalBoxFuture},
+    future,
     pin::Pin,
     task::{Context, Poll}};
 
@@ -776,7 +797,7 @@ impl Default for SecurityMiddleware {
 
 impl<S, B> Transform<S, ServiceRequest> for SecurityMiddleware
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -787,16 +808,16 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(SecurityMiddlewareService { service }))
+        ready(Ok(SecurityMiddlewareService { service: Rc::new(service) }))
     }
 }
 
 pub struct SecurityMiddlewareService<S> {
-    service: S}
+    service: Rc<S>}
 
 impl<S, B> Service<ServiceRequest> for SecurityMiddlewareService<S>
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -807,30 +828,31 @@ where
     forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
+        let service = Rc::clone(&self.service);
         Box::pin(async move {
-            let mut res = self.service.call(req).await?;
+            let mut res = service.call(req).await?;
             
             // Add security headers
             let headers = res.headers_mut();
             headers.insert(
                 actix_web::http::header::HeaderName::from_static("x-content-type-options"),
-                actix_web::http::HeaderValue::from_static("nosniff"),
+                actix_web::http::header::HeaderValue::from_static("nosniff"),
             );
             headers.insert(
                 actix_web::http::header::HeaderName::from_static("x-frame-options"),
-                actix_web::http::HeaderValue::from_static("DENY"),
+                actix_web::http::header::HeaderValue::from_static("DENY"),
             );
             headers.insert(
                 actix_web::http::header::HeaderName::from_static("x-xss-protection"),
-                actix_web::http::HeaderValue::from_static("1; mode=block"),
+                actix_web::http::header::HeaderValue::from_static("1; mode=block"),
             );
             headers.insert(
                 actix_web::http::header::HeaderName::from_static("strict-transport-security"),
-                actix_web::http::HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+                actix_web::http::header::HeaderValue::from_static("max-age=31536000; includeSubDomains"),
             );
             headers.insert(
                 actix_web::http::header::HeaderName::from_static("referrer-policy"),
-                actix_web::http::HeaderValue::from_static("strict-origin-when-cross-origin"),
+                actix_web::http::header::HeaderValue::from_static("strict-origin-when-cross-origin"),
             );
 
             Ok(res)
@@ -1065,7 +1087,7 @@ pub fn build_schema() -> AppSchema {
 #[post("")]
 pub async fn index(schema: web::Data<AppSchema>, req: GraphQLRequest) -> Result<GraphQLResponse> {
     let resp = schema.execute(req.into_inner()).await;
-    Ok(GraphQLResponse(resp))
+    Ok(resp.into())
 }
 
 /// GET /graphql — convenience endpoint for simple queries.
@@ -1141,7 +1163,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/{{serviceName}}
+      - DATABASE_URL=postgresql://postgres:password@db:5432/{{projectName}}
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
       - RUST_LOG=info
@@ -1155,7 +1177,7 @@ services:
   db:
     image: postgres:15
     environment:
-      - POSTGRES_DB={{serviceName}}
+      - POSTGRES_DB={{projectName}}
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
     ports:
@@ -1206,7 +1228,7 @@ RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/{{serviceName}} /app/{{serviceName}}
+COPY --from=builder /app/target/release/{{projectName}} /app/{{projectName}}
 COPY --from=builder /app/migrations /app/migrations
 
 # Set ownership
@@ -1221,7 +1243,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \\
     CMD curl -f http://localhost:8080/health || exit 1
 
-CMD ["./{{serviceName}}"]`,
+CMD ["./{{projectName}}"]`,
 
     '.dockerignore': `target/
 .env
@@ -1232,7 +1254,7 @@ README.md
 docker-compose.yml
 Dockerfile`,
 
-    'README.md': `# {{serviceName}}
+    'README.md': `# {{projectName}}
 
 A high-performance Actix-Web API server with async handlers, middleware, authentication, and PostgreSQL integration.
 
@@ -1261,19 +1283,19 @@ A high-performance Actix-Web API server with async handlers, middleware, authent
 
 1. **Clone and setup**:
    \`\`\`bash
-   cd {{serviceName}}
+   cd {{projectName}}
    cp .env.example .env
    \`\`\`
 
 2. **Update environment variables** in \`.env\`:
    \`\`\`env
-   DATABASE_URL=postgresql://username:password@localhost/{{serviceName}}
+   DATABASE_URL=postgresql://username:password@localhost/{{projectName}}
    JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
    \`\`\`
 
 3. **Setup database**:
    \`\`\`bash
-   createdb {{serviceName}}
+   createdb {{projectName}}
    sqlx migrate run
    \`\`\`
 
@@ -1356,14 +1378,14 @@ All configuration is handled through environment variables. See \`.env.example\`
 
 ### Docker
 \`\`\`bash
-docker build -t {{serviceName}} .
-docker run -p 8080:8080 --env-file .env {{serviceName}}
+docker build -t {{projectName}} .
+docker run -p 8080:8080 --env-file .env {{projectName}}
 \`\`\`
 
 ### Binary
 \`\`\`bash
 cargo build --release
-./target/release/{{serviceName}}
+./target/release/{{projectName}}
 \`\`\`
 
 ## Security Considerations
@@ -1438,7 +1460,7 @@ docker-down:
 	docker-compose down
 
 docker-build:
-	docker build -t {{serviceName}} .
+	docker build -t {{projectName}} .
 
 # Cleanup
 clean:
@@ -1449,7 +1471,7 @@ clean:
 # Production
 release:
 	cargo build --release
-	strip target/release/{{serviceName}}
+	strip target/release/{{projectName}}
 
 # Install tools
 install-tools:
