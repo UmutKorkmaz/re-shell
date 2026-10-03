@@ -40,14 +40,13 @@ export const sailsjsTemplate: BackendTemplate = {
     "passport-local": "^1.0.0",
     "nodemailer": "^6.9.13",
     "skipper": "^0.9.0",
-    "skipper-disk": "^0.5.14",
+    "skipper-disk": "^0.5.12",
     "skipper-s3": "^0.6.0",
     "moment": "^2.30.1",
     "validator": "^13.12.0",
-    : "^3.2.5",
     "machinepack-passwords": "^2.3.0",
-    "machinepack-jwt": "^1.0.0",
-    "machinepack-mailgun": "^0.6.1",
+    "machinepack-jwt": "^0.1.14",
+    "machinepack-mailgun": "^0.7.0",
     "sails-hook-apianalytics": "^2.0.5",
     "sails-hook-cron": "^3.1.1",
     "sails-hook-winston": "^1.0.1",
@@ -60,8 +59,8 @@ export const sailsjsTemplate: BackendTemplate = {
     "graphql": "^16.8.1",
     "graphql-http": "^1.22.1",
     "@graphql-tools/schema": "^10.0.2",
-    "sails-hook-graphql": "^3.0.0",
-    "sails-graphql": "^1.1.0"
+    "sails-hook-graphql": "^0.2.55",
+    "sails-graphql": "^0.0.4"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

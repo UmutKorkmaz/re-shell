@@ -98,7 +98,7 @@ bytes = "1.5"
 headers = "0.3"
 hyper = "0.14"
 tower = "0.4"
-tower-http = { version = "0.4", features = ["cors", "compression", "trace"] }
+tower-http = { version = "0.4", features = ["cors", "compression-gzip", "trace"] }
 async-graphql = "7.0"
 async-graphql-warp = "7.0"
 

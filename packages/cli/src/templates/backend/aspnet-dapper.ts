@@ -26,13 +26,14 @@ export const aspnetDapperTemplate: BackendTemplate = {
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.24" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="Dapper.Contrib" Version="2.0.78" />
     <PackageReference Include="System.Data.SqlClient" Version="4.8.5" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.1.1" />
     <PackageReference Include="Npgsql" Version="8.0.0" />
     <PackageReference Include="MySql.Data" Version="8.2.0" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.SqlServer" Version="8.0.0" />
+    <PackageReference Include="AspNetCore.HealthChecks.SqlServer" Version="8.0.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
@@ -43,17 +44,18 @@ export const aspnetDapperTemplate: BackendTemplate = {
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="StackExchange.Redis" Version="2.7.10" />
     <PackageReference Include="Polly" Version="8.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.0" />
     <PackageReference Include="Polly.Extensions.Http" Version="3.0.0" />
   </ItemGroup>
 
 </Project>`,
 
     // Program.cs
-    'Program.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Services;
-using {{serviceName}}.Models;
-using {{serviceName}}.Repositories;
-using {{serviceName}}.Configuration;
+    'Program.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Repositories;
 using Microsoft.Data.SqlClient;
 using System.Data;
 using Serilog;
@@ -252,8 +254,9 @@ static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
     // Models
     'Models/User.cs': `using System.ComponentModel.DataAnnotations;
 using Dapper.Contrib.Extensions;
+using KeyAttribute = Dapper.Contrib.Extensions.KeyAttribute;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Table("Users")]
 public class User
@@ -293,8 +296,9 @@ public class User
 
     'Models/Product.cs': `using System.ComponentModel.DataAnnotations;
 using Dapper.Contrib.Extensions;
+using KeyAttribute = Dapper.Contrib.Extensions.KeyAttribute;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Table("Products")]
 public class Product
@@ -329,8 +333,9 @@ public class Product
 
     'Models/Order.cs': `using System.ComponentModel.DataAnnotations;
 using Dapper.Contrib.Extensions;
+using KeyAttribute = Dapper.Contrib.Extensions.KeyAttribute;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Table("Orders")]
 public class Order
@@ -375,8 +380,9 @@ public class Order
 
     'Models/OrderItem.cs': `using System.ComponentModel.DataAnnotations;
 using Dapper.Contrib.Extensions;
+using KeyAttribute = Dapper.Contrib.Extensions.KeyAttribute;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Table("OrderItems")]
 public class OrderItem
@@ -401,7 +407,7 @@ public class OrderItem
 }`,
 
     // DTOs
-    'DTOs/UserDto.cs': `namespace {{serviceName}}.DTOs;
+    'DTOs/UserDto.cs': `namespace {{projectNamePascal}}.DTOs;
 
 public class UserDto
 {
@@ -433,7 +439,7 @@ public class UpdateUserDto
     public bool IsActive { get; set; }
 }`,
 
-    'DTOs/ProductDto.cs': `namespace {{serviceName}}.DTOs;
+    'DTOs/ProductDto.cs': `namespace {{projectNamePascal}}.DTOs;
 
 public class ProductDto
 {
@@ -469,7 +475,7 @@ public class UpdateProductDto
     public bool IsActive { get; set; }
 }`,
 
-    'DTOs/OrderDto.cs': `namespace {{serviceName}}.DTOs;
+    'DTOs/OrderDto.cs': `namespace {{projectNamePascal}}.DTOs;
 
 public class OrderDto
 {
@@ -511,7 +517,7 @@ public class CreateOrderItemDto
     public int Quantity { get; set; }
 }`,
 
-    'DTOs/AuthDto.cs': `namespace {{serviceName}}.DTOs;
+    'DTOs/AuthDto.cs': `namespace {{projectNamePascal}}.DTOs;
 
 public class LoginDto
 {
@@ -527,9 +533,9 @@ public class AuthResponseDto
 }`,
 
     // Repositories
-    'Repositories/IUserRepository.cs': `using {{serviceName}}.Models;
+    'Repositories/IUserRepository.cs': `using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Repositories;
+namespace {{projectNamePascal}}.Repositories;
 
 public interface IUserRepository
 {
@@ -545,13 +551,14 @@ public interface IUserRepository
     Task<bool> EmailExistsAsync(string email, int? excludeId = null);
 }`,
 
-    'Repositories/UserRepository.cs': `using {{serviceName}}.Models;
-using {{serviceName}}.Repositories;
+    'Repositories/UserRepository.cs': `using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Repositories;
 using Dapper;
 using Dapper.Contrib.Extensions;
+using KeyAttribute = Dapper.Contrib.Extensions.KeyAttribute;
 using System.Data;
 
-namespace {{serviceName}}.Repositories;
+namespace {{projectNamePascal}}.Repositories;
 
 public class UserRepository : IUserRepository
 {
@@ -725,7 +732,7 @@ public class UserRepository : IUserRepository
         try
         {
             var sql = "SELECT COUNT(*) FROM Users WHERE Email = @Email AND IsActive = 1";
-            var parameters = new { Email = email };
+            object parameters = new { Email = email };
             
             if (excludeId.HasValue)
             {
@@ -744,9 +751,9 @@ public class UserRepository : IUserRepository
     }
 }`,
 
-    'Repositories/IProductRepository.cs': `using {{serviceName}}.Models;
+    'Repositories/IProductRepository.cs': `using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Repositories;
+namespace {{projectNamePascal}}.Repositories;
 
 public interface IProductRepository
 {
@@ -763,13 +770,13 @@ public interface IProductRepository
     Task<bool> ExistsAsync(int id);
 }`,
 
-    'Repositories/ProductRepository.cs': `using {{serviceName}}.Models;
-using {{serviceName}}.Repositories;
+    'Repositories/ProductRepository.cs': `using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Repositories;
 using Dapper;
 using System.Data;
 using System.Text;
 
-namespace {{serviceName}}.Repositories;
+namespace {{projectNamePascal}}.Repositories;
 
 public class ProductRepository : IProductRepository
 {
@@ -1011,9 +1018,9 @@ public class ProductRepository : IProductRepository
     }
 }`,
 
-    'Repositories/IOrderRepository.cs': `using {{serviceName}}.Models;
+    'Repositories/IOrderRepository.cs': `using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Repositories;
+namespace {{projectNamePascal}}.Repositories;
 
 public interface IOrderRepository
 {
@@ -1030,13 +1037,13 @@ public interface IOrderRepository
     Task<int> CreateOrderItemAsync(OrderItem orderItem);
 }`,
 
-    'Repositories/OrderRepository.cs': `using {{serviceName}}.Models;
-using {{serviceName}}.Repositories;
+    'Repositories/OrderRepository.cs': `using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Repositories;
 using Dapper;
 using System.Data;
 using System.Text;
 
-namespace {{serviceName}}.Repositories;
+namespace {{projectNamePascal}}.Repositories;
 
 public class OrderRepository : IOrderRepository
 {
@@ -1333,9 +1340,9 @@ public class OrderRepository : IOrderRepository
 }`,
 
     // Services
-    'Services/IUserService.cs': `using {{serviceName}}.DTOs;
+    'Services/IUserService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IUserService
 {
@@ -1349,13 +1356,13 @@ public interface IUserService
     Task<bool> ExistsAsync(int id);
 }`,
 
-    'Services/UserService.cs': `using {{serviceName}}.DTOs;
-using {{serviceName}}.Models;
-using {{serviceName}}.Repositories;
+    'Services/UserService.cs': `using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Repositories;
 using AutoMapper;
 using BCrypt.Net;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class UserService : IUserService
 {
@@ -1456,9 +1463,9 @@ public class UserService : IUserService
     }
 }`,
 
-    'Services/IProductService.cs': `using {{serviceName}}.DTOs;
+    'Services/IProductService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IProductService
 {
@@ -1474,12 +1481,12 @@ public interface IProductService
     Task<bool> ExistsAsync(int id);
 }`,
 
-    'Services/ProductService.cs': `using {{serviceName}}.DTOs;
-using {{serviceName}}.Models;
-using {{serviceName}}.Repositories;
+    'Services/ProductService.cs': `using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Repositories;
 using AutoMapper;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class ProductService : IProductService
 {
@@ -1604,9 +1611,9 @@ public class ProductService : IProductService
     }
 }`,
 
-    'Services/IOrderService.cs': `using {{serviceName}}.DTOs;
+    'Services/IOrderService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IOrderService
 {
@@ -1619,12 +1626,12 @@ public interface IOrderService
     Task<bool> DeleteAsync(int id);
 }`,
 
-    'Services/OrderService.cs': `using {{serviceName}}.DTOs;
-using {{serviceName}}.Models;
-using {{serviceName}}.Repositories;
+    'Services/OrderService.cs': `using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Repositories;
 using AutoMapper;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class OrderService : IOrderService
 {
@@ -1804,9 +1811,9 @@ public class OrderService : IOrderService
     }
 }`,
 
-    'Services/IAuthService.cs': `using {{serviceName}}.DTOs;
+    'Services/IAuthService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IAuthService
 {
@@ -1816,15 +1823,15 @@ public interface IAuthService
     Task<bool> ValidatePasswordAsync(string email, string password);
 }`,
 
-    'Services/AuthService.cs': `using {{serviceName}}.DTOs;
-using {{serviceName}}.Repositories;
+    'Services/AuthService.cs': `using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Repositories;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using BCrypt.Net;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class AuthService : IAuthService
 {
@@ -1928,10 +1935,10 @@ public class AuthService : IAuthService
     // Controllers
     'Controllers/UsersController.cs': `using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Services;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Services;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// User management endpoints
@@ -2089,10 +2096,10 @@ public class UsersController : ControllerBase
 
     'Controllers/ProductsController.cs': `using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Services;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Services;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Product management endpoints
@@ -2299,10 +2306,10 @@ public class ProductsController : ControllerBase
 
     'Controllers/OrdersController.cs': `using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Services;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Services;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Order management endpoints
@@ -2483,10 +2490,10 @@ public class OrdersController : ControllerBase
 }`,
 
     'Controllers/AuthController.cs': `using Microsoft.AspNetCore.Mvc;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Services;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Services;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Authentication endpoints
@@ -2556,10 +2563,10 @@ public class AuthController : ControllerBase
 
     // AutoMapper Profile
     'Mappings/MappingProfile.cs': `using AutoMapper;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Mappings;
+namespace {{projectNamePascal}}.Mappings;
 
 public class MappingProfile : Profile
 {
@@ -2616,7 +2623,7 @@ public class MappingProfile : Profile
 }`,
 
     // Database Initialization
-    'Data/IDatabaseInitializer.cs': `namespace {{serviceName}}.Data;
+    'Data/IDatabaseInitializer.cs': `namespace {{projectNamePascal}}.Data;
 
 public interface IDatabaseInitializer
 {
@@ -2624,14 +2631,14 @@ public interface IDatabaseInitializer
     Task SeedDataAsync();
 }`,
 
-    'Data/DatabaseInitializer.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Models;
-using {{serviceName}}.Repositories;
+    'Data/DatabaseInitializer.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Repositories;
 using Dapper;
 using System.Data;
 using BCrypt.Net;
 
-namespace {{serviceName}}.Data;
+namespace {{projectNamePascal}}.Data;
 
 public class DatabaseInitializer : IDatabaseInitializer
 {
@@ -2780,7 +2787,7 @@ public class DatabaseInitializer : IDatabaseInitializer
                 LastName = "User",
                 Email = "admin@{{serviceName}}.com",
                 Phone = "+1-555-0001",
-                PasswordHash = BCrypt.HashPassword("Admin123!"),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
                 IsActive = true
             },
             new User
@@ -2789,7 +2796,7 @@ public class DatabaseInitializer : IDatabaseInitializer
                 LastName = "Doe",
                 Email = "john.doe@example.com",
                 Phone = "+1-555-0002",
-                PasswordHash = BCrypt.HashPassword("User123!"),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("User123!"),
                 IsActive = true
             },
             new User
@@ -2798,7 +2805,7 @@ public class DatabaseInitializer : IDatabaseInitializer
                 LastName = "Smith",
                 Email = "jane.smith@example.com",
                 Phone = "+1-555-0003",
-                PasswordHash = BCrypt.HashPassword("User123!"),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("User123!"),
                 IsActive = true
             }
         };

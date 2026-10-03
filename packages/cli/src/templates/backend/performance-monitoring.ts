@@ -39,7 +39,7 @@ export const performanceMonitoringTemplate: BackendTemplate = {
     "prom-client": "^15.0.0",
     "chalk": "^4.1.2",
     "cli-table3": "^0.6.3",
-    "v8": "^0.58.0",
+    "v8": "^0.1.0",
     "node:perf_hooks": "^1.0.0",
     "eventemitter3": "^5.0.1"
   },

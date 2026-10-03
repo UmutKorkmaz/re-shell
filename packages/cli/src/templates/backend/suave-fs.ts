@@ -26,13 +26,13 @@ export const suaveFsTemplate: BackendTemplate = {
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Models.fs" />
-    <Compile Include="Database.fs" />
-    <Compile Include="Auth.fs" />
+    <Compile Include="Models/Models.fs" />
+    <Compile Include="Database/Database.fs" />
+    <Compile Include="Auth/Auth.fs" />
     <Compile Include="GraphQL/Schema.fs" />
     <Compile Include="GraphQL/Resolver.fs" />
-    <Compile Include="Handlers.fs" />
-    <Compile Include="Program.fs" />
+    <Compile Include="Handlers/Handlers.fs" />
+    <Compile Include="Program/Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -168,7 +168,7 @@ type Database() =
     member _.FindUserById(id: string) : User option =
         match users.TryGetValue(id) with
         | true, user -> Some { user with Password = "" }
-        | false, None
+        | false, _ -> None
 
     member _.GetUsers() : User list =
         users.Values |> Seq.map (fun u -> { u with Password = "" }) |> List.ofSeq
@@ -182,7 +182,7 @@ type Database() =
     member _.FindProductById(id: string) : Product option =
         match products.TryGetValue(id) with
         | true, product -> Some product
-        | false, None
+        | false, _ -> None
 
     member _.GetProducts() : Product list =
         products.Values |> List.ofSeq
@@ -203,7 +203,7 @@ type Database() =
             }
             products.[id] <- updated
             Some updated
-        | false, None
+        | false, _ -> None
 
     member _.DeleteProduct(id: string) : bool =
         products.Remove(id)

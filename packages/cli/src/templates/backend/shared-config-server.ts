@@ -688,6 +688,7 @@ export { configSchema } from './schema';
     "@types/ws": "^8.5.10",
     "@types/node": "^20.11.0",
     "@types/express": "^4.17.21",
+    "@types/fs-extra": "^11.0.4",
     "@types/cors": "^2.8.17",
     "typescript": "^5.3.3",
     "tsx": "^4.7.0",

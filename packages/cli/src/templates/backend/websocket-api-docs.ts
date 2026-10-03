@@ -42,7 +42,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
-const WS_PORT = process.env.WS_PORT || 3001;
+const WS_PORT = Number(process.env.WS_PORT) || 3001;
 
 // Express app for HTTP endpoints
 const app = express();
@@ -775,20 +775,21 @@ export class WebSocketClient {
       try {
         // Use WebSocket constructor (works in both browser and Node.js with ws package)
         const WS = typeof window !== 'undefined' ? window.WebSocket : (require('ws') as typeof WebSocket);
-        this.ws = new WS(this.url);
+        const ws = new WS(this.url);
+        this.ws = ws;
 
-        this.ws.onopen = () => {
+        ws.onopen = () => {
           console.log('Connected to WebSocket server');
           this.reconnectAttempts = 0;
           this.startHeartbeat();
           resolve();
         };
 
-        this.ws.onmessage = (event: MessageEvent) => {
+        ws.onmessage = (event: MessageEvent) => {
           this.handleMessage(event.data);
         };
 
-        this.ws.onclose = (event: CloseEvent) => {
+        ws.onclose = (event: CloseEvent) => {
           console.log('Disconnected from WebSocket server', event.code, event.reason);
           this.stopHeartbeat();
 
@@ -799,7 +800,7 @@ export class WebSocketClient {
           }
         };
 
-        this.ws.onerror = (error: Event) => {
+        ws.onerror = (error: Event) => {
           console.error('WebSocket error:', error);
           reject(error);
         };
@@ -1012,20 +1013,21 @@ export class WebSocketClient {
     return new Promise((resolve, reject) => {
       try {
         const WS = typeof window !== 'undefined' ? window.WebSocket : require('ws');
-        this.ws = new WS(this.url);
+        const ws = new WS(this.url);
+        this.ws = ws;
 
-        this.ws.onopen = () => {
+        ws.onopen = () => {
           console.log('Connected to WebSocket server');
           this.reconnectAttempts = 0;
           this.startHeartbeat();
           resolve();
         };
 
-        this.ws.onmessage = (event) => {
+        ws.onmessage = (event) => {
           this.handleMessage(event.data);
         };
 
-        this.ws.onclose = (event) => {
+        ws.onclose = (event) => {
           console.log('Disconnected from WebSocket server', event.code, event.reason);
           this.stopHeartbeat();
 
@@ -1036,7 +1038,7 @@ export class WebSocketClient {
           }
         };
 
-        this.ws.onerror = (error) => {
+        ws.onerror = (error) => {
           console.error('WebSocket error:', error);
           reject(error);
         };
@@ -1383,22 +1385,23 @@ function generateConnectionMethods(): string {
   return \`  connect() {
     return new Promise((resolve, reject) => {
       const WS = typeof window !== 'undefined' ? window.WebSocket : require('ws');
-      this.ws = new WS(this.url);
+      const ws = new WS(this.url);
+        this.ws = ws;
 
-      this.ws.onopen = () => {
+      ws.onopen = () => {
         console.log('Connected to WebSocket server');
         resolve();
       };
 
-      this.ws.onmessage = (event) => {
+      ws.onmessage = (event) => {
         this.handleMessage(event.data);
       };
 
-      this.ws.onclose = () => {
+      ws.onclose = () => {
         console.log('Disconnected from WebSocket server');
       };
 
-      this.ws.onerror = (error) => {
+      ws.onerror = (error) => {
         console.error('WebSocket error:', error);
         reject(error);
       };
@@ -1444,22 +1447,23 @@ function generateConnectionMethodsTS(): string {
   return \`  connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const WS = typeof window !== 'undefined' ? window.WebSocket : (require('ws') as typeof WebSocket);
-      this.ws = new WS(this.url);
+      const ws = new WS(this.url);
+        this.ws = ws;
 
-      this.ws.onopen = () => {
+      ws.onopen = () => {
         console.log('Connected to WebSocket server');
         resolve();
       };
 
-      this.ws.onmessage = (event: MessageEvent) => {
+      ws.onmessage = (event: MessageEvent) => {
         this.handleMessage(event.data);
       };
 
-      this.ws.onclose = () => {
+      ws.onclose = () => {
         console.log('Disconnected from WebSocket server');
       };
 
-      this.ws.onerror = (error: Event) => {
+      ws.onerror = (error: Event) => {
         console.error('WebSocket error:', error);
         reject(error);
       };
@@ -2247,7 +2251,7 @@ main().catch(console.error);
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "node",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -2257,7 +2261,7 @@ main().catch(console.error);
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*", "scripts/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
 `,

@@ -14,7 +14,6 @@ export const tornadoTemplate: BackendTemplate = {
     tornado: '^6.4',
     'motor': '^3.3.2',
     'aiopg': '^1.4.0',
-    'aioredis': '^2.0.1',
     'pyjwt': '^2.8.0',
     'bcrypt': '^4.1.2',
     'python-dotenv': '^1.0.0',
@@ -22,7 +21,7 @@ export const tornadoTemplate: BackendTemplate = {
     'marshmallow-sqlalchemy': '^0.29.0',
     'sqlalchemy': '^2.0.23',
     'alembic': '^1.13.0',
-    'psycopg2': '^2.9.9',
+    'psycopg2-binary': '^2.9.9',
     'celery': '^5.3.4',
     'redis': '^5.0.1',
     'strawberry-graphql': '^0.215.0'
@@ -43,7 +42,6 @@ export const tornadoTemplate: BackendTemplate = {
 motor==3.3.2
 aiopg==1.4.0
 psutil==5.9.8
-aioredis==2.0.1
 pyjwt==2.8.0
 bcrypt==4.1.2
 python-dotenv==1.0.0
@@ -51,7 +49,7 @@ marshmallow==3.20.1
 marshmallow-sqlalchemy==0.29.0
 sqlalchemy==2.0.23
 alembic==1.13.0
-psycopg2==2.9.9
+psycopg2-binary==2.9.9
 celery==5.3.4
 redis==5.0.1
 strawberry-graphql==0.215.0`,
@@ -313,7 +311,7 @@ async def close_database():
     'app/core/redis_client.py': `"""
 Redis Client Configuration
 """
-import aioredis
+import redis.asyncio as aioredis
 from typing import Optional
 from app.core.config import settings
 
@@ -324,7 +322,7 @@ async def init_redis():
     """Initialize Redis connection."""
     global _redis_client
     
-    _redis_client = await aioredis.from_url(
+    _redis_client = aioredis.from_url(
         settings.REDIS_URL,
         encoding="utf-8",
         decode_responses=True,
@@ -345,7 +343,7 @@ async def close_redis():
     """Close Redis connection."""
     global _redis_client
     if _redis_client:
-        await _redis_client.close()
+        await _redis_client.aclose()
         _redis_client = None
         print("🔴 Redis connection closed")`,
 

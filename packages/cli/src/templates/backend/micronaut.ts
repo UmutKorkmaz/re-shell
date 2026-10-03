@@ -57,7 +57,6 @@ export const micronautTemplate: BackendTemplate = {
     <release.version>17</release.version>
     <micronaut.version>4.2.0</micronaut.version>
     <micronaut.runtime>netty</micronaut.runtime>
-    <micronaut.data.version>4.2.0</micronaut.data.version>
     <exec.mainClass>{{packageName}}.Application</exec.mainClass>
   </properties>
   
@@ -168,6 +167,20 @@ export const micronautTemplate: BackendTemplate = {
       <artifactId>micronaut-serde-jackson</artifactId>
     </dependency>
     
+    <!-- Password hashing -->
+    <dependency>
+      <groupId>org.mindrot</groupId>
+      <artifactId>jbcrypt</artifactId>
+      <version>0.4</version>
+    </dependency>
+
+    <!-- YAML configuration (application.yml) needs SnakeYAML at runtime -->
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
     <!-- Logging -->
     <dependency>
       <groupId>ch.qos.logback</groupId>
@@ -294,7 +307,7 @@ import io.micronaut.core.annotation.Introspected;
 import io.micronaut.data.annotation.*;
 import io.micronaut.serde.annotation.Serdeable;
 
-import javax.validation.constraints.*;
+import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
 import java.util.Set;
 
@@ -443,11 +456,12 @@ import {{packageName}}.dto.UserDto;
 import {{packageName}}.entity.User;
 import {{packageName}}.exception.ResourceNotFoundException;
 import {{packageName}}.repository.UserRepository;
+import {{packageName}}.security.PasswordEncoder;
 import io.micronaut.cache.annotation.*;
 import io.micronaut.data.model.Page;
 import io.micronaut.data.model.Pageable;
 import io.micronaut.security.authentication.Authentication;
-import io.micronaut.transaction.annotation.TransactionalAdvice;
+import io.micronaut.transaction.annotation.Transactional;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -456,7 +470,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Singleton
-@TransactionalAdvice
+@Transactional
 public class UserService {
     
     private static final Logger LOG = LoggerFactory.getLogger(UserService.class);
@@ -575,7 +589,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 
 @Validated
 @Controller("/api/users")
@@ -657,7 +671,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 
 @Validated
 @Controller("/api/auth")
@@ -709,10 +723,11 @@ import {{packageName}}.entity.User;
 import {{packageName}}.security.AuthenticationProviderUserPassword;
 import io.micronaut.security.authentication.UsernamePasswordCredentials;
 import io.micronaut.security.token.jwt.generator.JwtTokenGenerator;
-import io.micronaut.security.token.jwt.render.AccessRefreshToken;
+import io.micronaut.security.token.render.AccessRefreshToken;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -768,7 +783,7 @@ public class AuthService {
     
     public AuthResponse authenticate(LoginRequest request) {
         var credentials = new UsernamePasswordCredentials(request.getUsername(), request.getPassword());
-        var authResponse = authProvider.authenticate(null, credentials);
+        var authResponse = Mono.from(authProvider.authenticate(null, credentials)).block();
         
         if (authResponse.isAuthenticated()) {
             UserDto user = userService.findByUsername(authResponse.getAuthentication().get().getName());
@@ -811,7 +826,10 @@ public class AuthService {
 import {{packageName}}.service.UserService;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpRequest;
-import io.micronaut.security.authentication.*;
+import io.micronaut.security.authentication.AuthenticationFailureReason;
+import io.micronaut.security.authentication.AuthenticationProvider;
+import io.micronaut.security.authentication.AuthenticationRequest;
+import io.micronaut.security.authentication.AuthenticationResponse;
 import jakarta.inject.Singleton;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
@@ -819,31 +837,30 @@ import reactor.core.publisher.Mono;
 import java.util.Collections;
 
 @Singleton
-public class AuthenticationProviderUserPassword implements AuthenticationProvider {
-    
+public class AuthenticationProviderUserPassword implements AuthenticationProvider<HttpRequest<?>> {
+
     private final UserService userService;
-    
+
     public AuthenticationProviderUserPassword(UserService userService) {
         this.userService = userService;
     }
-    
+
     @Override
     public Publisher<AuthenticationResponse> authenticate(@Nullable HttpRequest<?> httpRequest,
-                                                         AuthenticationRequest<?, ?> authenticationRequest) {
-        String username = authenticationRequest.getIdentity().toString();
-        String password = authenticationRequest.getSecret().toString();
-        
-        return Mono.create(emitter -> {
+                                                          AuthenticationRequest<?, ?> authenticationRequest) {
+        String username = String.valueOf(authenticationRequest.getIdentity());
+        String password = String.valueOf(authenticationRequest.getSecret());
+
+        return Mono.fromCallable(() -> {
             if (userService.checkPassword(username, password)) {
                 var userDto = userService.findByUsername(username);
-                emitter.success(AuthenticationResponse.success(
+                return AuthenticationResponse.success(
                     username,
                     userDto.getRoles(),
                     Collections.singletonMap("email", userDto.getEmail())
-                ));
-            } else {
-                emitter.error(AuthenticationResponse.exception());
+                );
             }
+            return AuthenticationResponse.failure(AuthenticationFailureReason.CREDENTIALS_DO_NOT_MATCH);
         });
     }
 }
@@ -872,7 +889,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.micronaut.core.annotation.Introspected;
 import io.micronaut.serde.annotation.Serdeable;
 
-import javax.validation.constraints.*;
+import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
 import java.util.Set;
 
@@ -1008,7 +1025,7 @@ public class UserDto {
 import io.micronaut.core.annotation.Introspected;
 import io.micronaut.serde.annotation.Serdeable;
 
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotBlank;
 
 @Serdeable
 @Introspected
@@ -1043,7 +1060,7 @@ public class LoginRequest {
 import io.micronaut.core.annotation.Introspected;
 import io.micronaut.serde.annotation.Serdeable;
 
-import javax.validation.constraints.*;
+import jakarta.validation.constraints.*;
 
 @Serdeable
 @Introspected
@@ -1197,7 +1214,7 @@ import io.micronaut.http.server.exceptions.response.ErrorContext;
 import io.micronaut.http.server.exceptions.response.ErrorResponseProcessor;
 import jakarta.inject.Singleton;
 
-import javax.validation.ConstraintViolationException;
+import jakarta.validation.ConstraintViolationException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -1509,7 +1526,7 @@ import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.security.authentication.UsernamePasswordCredentials;
-import io.micronaut.security.token.jwt.render.BearerAccessRefreshToken;
+import io.micronaut.security.token.render.BearerAccessRefreshToken;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;

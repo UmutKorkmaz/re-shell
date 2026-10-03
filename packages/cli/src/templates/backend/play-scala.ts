@@ -25,13 +25,11 @@ lazy val root = (project in file("."))
     scalaVersion := "2.13.12",
     scalacOptions ++= Seq(
       "-feature",
-      "-deprecation",
-      "-Xfatal-warnings"
+      "-deprecation"
     ),
     libraryDependencies ++= Seq(
       guice,
       ws,
-      "org.playframework" %% "play-json" % "2.10.0",
       "com.typesafe.play" %% "play-slick" % "5.1.0",
       "com.typesafe.slick" %% "slick" % "3.4.1",
       "com.typesafe.slick" %% "slick-hikaricp" % "3.4.1",
@@ -41,20 +39,14 @@ lazy val root = (project in file("."))
       "org.sangria-graphql" %% "sangria" % "4.0.1",
       "org.sangria-graphql" %% "sangria-play-json" % "2.0.2",
       "com.typesafe.akka" %% "akka-testkit" % "2.8.5" % Test,
-      specs2 % Test,
+      "org.scalatestplus.play" %% "scalatestplus-play" % "7.0.0" % Test,
     ),
   )
-
-// Add SbtWeb settings for asset compilation
-pipelineStages := Seq(scalaJsBundler)
 `,
 
     // Project plugins
     'project/plugins.sbt': `// The Play plugin
 addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.9.0")
-
-// Scala.js plugin (for optional frontend)
-addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.13.2")
 `,
 
     // Project build properties
@@ -107,7 +99,6 @@ GET     /assets/*file               controllers.Assets.versioned(path="/public",
 play.http.secret.key = "change-this-secret-in-production"
 
 # Application configuration
-play.application.loader = "{{projectNamePascal}}Loader"
 
 # Database configuration
 # ~~~~~
@@ -180,38 +171,6 @@ play.mailer {
 `,
 
     // Main application loader
-    'app/{{projectNameSnake}}Loader.scala': `import play.api.ApplicationLoader
-import play.api.Configuration
-import play.api.inject._
-import play.api.routing.Router
-import router.Routes
-
-class {{projectNamePascal}}Loader extends ApplicationLoader {
-  def load(context: ApplicationLoader.Context) = {
-    new {{projectNamePascal}}AppComponents(context).application
-  }
-}
-
-class {{projectNamePascal}}AppComponents(context: ApplicationLoader.Context)
-  extends BuiltInComponentsFromContext(context)
-  with play.filters.HttpFiltersComponents
-  with play.api.i18n.I18nComponents
-  with play.api.mvc.EssentialFilter {
-
-  lazy val router: Router = new Routes(httpErrorHandler, homeController, healthController, graphqlController, authController, userController, productController, assets)
-
-  lazy val homeController = new controllers.HomeController(controllerComponents)
-  lazy val healthController = new controllers.HealthController(controllerComponents)
-  lazy val graphqlController = new controllers.GraphQLController(controllerComponents)
-  lazy val authController = new controllers.AuthController(controllerComponents)
-  lazy val userController = new controllers.UserController(controllerComponents)
-  lazy val productController = new controllers.ProductController(controllerComponents)
-
-  lazy val assets = new controllers.Assets(httpErrorHandler)
-
-  override lazy val httpFilters = Seq(corsFilter)
-}
-`,
 
     // Health controller
     'app/controllers/HealthController.scala': `package controllers
@@ -256,9 +215,7 @@ class HomeController @Inject()(val controllerComponents: ControllerComponents)
 import javax.inject._
 import play.api.mvc._
 import play.api.libs.json._
-import sangria.ast.Document
 import sangria.execution.Executor
-import sangria.macros.derive._
 import sangria.marshalling.playJson._
 import sangria.schema._
 
@@ -272,44 +229,39 @@ case class GraphqlContext()
 class GraphQLController @Inject()(val controllerComponents: ControllerComponents)(implicit ec: ExecutionContext)
   extends BaseController {
 
+  private def errorResponse(message: String): Result =
+    BadRequest(Json.obj("errors" -> Json.arr(Json.obj("message" -> message))))
+
   def graphql() = Action.async(parse.json) { implicit request: Request[JsValue] =>
-    val query = (request.body \\ "query").headOption.flatMap(_.asOpt[String]).getOrElse("")
-    val operation = (request.body \\ "operationName").headOption.flatMap(_.asOpt[String])
-    val variables = (request.body \\ "variables").headOption
-      .flatMap(_.asOpt[JsObject])
-      .getOrElse(Json.obj())
+    val query = (request.body \\ "query").asOpt[String].getOrElse("")
+    val operation = (request.body \\ "operationName").asOpt[String]
+    val variables = (request.body \\ "variables").asOpt[JsObject].getOrElse(Json.obj())
 
-    val variablesInput = variables.value.map { case (k, v) => k -> v }.toMap
-
-    Executor.execute(
-      schema = GraphQLController.schema,
-      queryAst = sangria.parser.QueryParser.parse(query) match {
-        case Success(doc) => doc
-        case Failure(err) => Document(stale = true)
-      },
-      variables = variablesInput,
-      userContext = GraphqlContext()
-    ).map { result =>
-      Ok(Json.obj("data" -> result))
-    }.recover {
-      case err: Exception =>
-        BadRequest(Json.obj("errors" -> Json.arr(Json.obj("message" -> err.getMessage))))
+    sangria.parser.QueryParser.parse(query) match {
+      case Success(document) =>
+        Executor.execute(
+          schema = GraphQLController.schema,
+          queryAst = document,
+          userContext = GraphqlContext(),
+          operationName = operation,
+          variables = variables
+        ).map { result =>
+          Ok(result)
+        }.recover {
+          case err: Exception => errorResponse(err.getMessage)
+        }
+      case Failure(err) =>
+        Future.successful(errorResponse(err.getMessage))
     }
   }
 }
 
 object GraphQLController {
-  val helloResolver: ResolveField[GraphqlContext, String] =
-    _ => Action(value = "Hello from {{projectName}} GraphQL!")
-
-  val healthResolver: ResolveField[GraphqlContext, String] =
-    _ => Action(value = "healthy")
-
   val QueryType: ObjectType[GraphqlContext, Unit] = ObjectType(
     name = "Query",
     fields = fields[GraphqlContext, Unit](
-      Field("hello", StringType, resolve = helloResolver),
-      Field("health", StringType, resolve = healthResolver)
+      Field("hello", StringType, resolve = _ => "Hello from {{projectName}} GraphQL!"),
+      Field("health", StringType, resolve = _ => "healthy")
     )
   )
 
@@ -651,8 +603,8 @@ class AuthenticatedRequest[A](
 @Singleton
 class AuthenticatedAction @Inject()(
   authService: AuthService,
-  parser: BodyParsers.Default
-)(implicit ec: ExecutionContext) extends ActionBuilderImpl[AuthenticatedRequest, AnyContent](parser) {
+  val parser: BodyParsers.Default
+)(implicit val executionContext: ExecutionContext) extends ActionBuilder[AuthenticatedRequest, AnyContent] {
 
   override def invokeBlock[A](request: Request[A], block: AuthenticatedRequest[A] => Future[Result]): Future[Result] = {
     request.headers.get("Authorization") match {
@@ -661,8 +613,9 @@ class AuthenticatedAction @Inject()(
         authService.validateToken(token) match {
           case Some(claim) =>
             val userId = claim.subject.getOrElse("")
-            val email = claim.toJson.as[JsObject].value.get("email").map(_.as[String]).getOrElse("")
-            val role = claim.toJson.as[JsObject].value.get("role").map(_.as[String]).getOrElse("user")
+            val claims = Json.parse(claim.toJson).as[JsObject]
+            val email = claims.value.get("email").map(_.as[String]).getOrElse("")
+            val role = claims.value.get("role").map(_.as[String]).getOrElse("user")
             block(new AuthenticatedRequest(userId, email, role, request))
 
           case None =>
@@ -677,12 +630,13 @@ class AuthenticatedAction @Inject()(
 
 @Singleton
 class AdminAction @Inject()(
-  authenticatedAction: AuthenticatedAction,
-  parser: BodyParsers.Default
-)(implicit ec: ExecutionContext) extends ActionBuilderImpl[AuthenticatedRequest, AnyContent](parser) {
+  authenticatedAction: AuthenticatedAction
+)(implicit val executionContext: ExecutionContext) extends ActionBuilder[AuthenticatedRequest, AnyContent] {
+
+  override def parser: BodyParser[AnyContent] = authenticatedAction.parser
 
   override def invokeBlock[A](request: Request[A], block: AuthenticatedRequest[A] => Future[Result]): Future[Result] = {
-    authenticatedAction.invokeBlock(request, { req =>
+    authenticatedAction.invokeBlock(request, { (req: AuthenticatedRequest[A]) =>
       if (req.userRole == "admin") {
         block(req)
       } else {
@@ -740,7 +694,7 @@ class AuthController @Inject()(
     )
   }
 
-  def me() = authenticatedAction.async { implicit request =>
+  def me() = authenticatedAction { implicit request =>
     Ok(Json.obj(
       "userId" -> request.userId,
       "email" -> request.userEmail,
@@ -892,7 +846,7 @@ class ProductController @Inject()(
     <div class="endpoint">DELETE /api/v1/products/:id - Delete product (admin)</div>
 
     <h2>Default Credentials</h2>
-    <p>Email: admin@example.com</p>
+    <p>Email: admin@@example.com</p>
     <p>Password: admin123</p>
 </body>
 </html>
@@ -962,6 +916,8 @@ import play.api.libs.json._
 
 class AuthControllerSpec extends PlaySpec with GuiceOneAppPerTest with Injecting {
 
+  implicit lazy val materializer: akka.stream.Materializer = app.materializer
+
   "AuthController" should {
 
     "register a new user" in {
@@ -977,8 +933,8 @@ class AuthControllerSpec extends PlaySpec with GuiceOneAppPerTest with Injecting
 
       status(result) mustBe CREATED
       val json = contentAsJson(result)
-      (json  "token").asOpt[String] mustBe defined
-      (json  "user"  "email").as[String] mustBe "test@example.com"
+      (json \\ "token").asOpt[String] mustBe defined
+      (json \\ "user" \\ "email").as[String] mustBe "test@example.com"
     }
 
     "login with valid credentials" in {
@@ -993,7 +949,7 @@ class AuthControllerSpec extends PlaySpec with GuiceOneAppPerTest with Injecting
 
       status(result) mustBe OK
       val json = contentAsJson(result)
-      (json  "token").asOpt[String] mustBe defined
+      (json \\ "token").asOpt[String] mustBe defined
     }
   }
 }

@@ -1093,12 +1093,12 @@ GraphQL Schema and Resolvers (Ariadne)
 from ariadne import QueryType, make_executable_schema
 
 # Minimal GraphQL type definitions
-type_defs = \`
+type_defs = """
     type Query {
         hello: String!
         health: String!
     }
-\`
+"""
 
 # Query resolver root
 query = QueryType()
@@ -1372,7 +1372,7 @@ def add_logging_middleware(app):
     'app/models/user.py': `"""
 User Models and Schemas
 """
-from marshmallow import Schema, fields, validate
+from marshmallow import EXCLUDE, Schema, fields, validate
 from typing import Dict, Any
 
 class UserCreateSchema(Schema):
@@ -1389,7 +1389,7 @@ class UserCreateSchema(Schema):
     )
     
     class Meta:
-        unknown = 'EXCLUDE'
+        unknown = EXCLUDE
 
 class UserLoginSchema(Schema):
     """Schema for user login."""
@@ -1398,7 +1398,7 @@ class UserLoginSchema(Schema):
     password = fields.Str(required=True)
     
     class Meta:
-        unknown = 'EXCLUDE'
+        unknown = EXCLUDE
 
 class UserUpdateSchema(Schema):
     """Schema for user updates."""
@@ -1410,7 +1410,7 @@ class UserUpdateSchema(Schema):
     website = fields.Url()
     
     class Meta:
-        unknown = 'EXCLUDE'
+        unknown = EXCLUDE
 
 class User:
     """User model (simplified for template)."""

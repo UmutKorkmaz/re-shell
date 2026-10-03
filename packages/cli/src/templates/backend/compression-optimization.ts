@@ -35,7 +35,7 @@ export const compressionOptimizationTemplate: BackendTemplate = {
     "compression": "^1.7.4",
     "brotli": "^1.3.3",
     "pako": "^2.1.0",
-    "iltorb": "^2.5.1",
+    "iltorb": "^2.4.5",
     "minify": "^10.5.2",
     "html-minifier-terser": "^7.2.0",
     "clean-css": "^5.3.2",

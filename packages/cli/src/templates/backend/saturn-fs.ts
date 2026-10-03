@@ -39,10 +39,9 @@ export const saturnFsTemplate: BackendTemplate = {
 
   <ItemGroup>
     <PackageReference Include="Saturn" Version="0.15.0" />
-    <PackageReference Include="Saturn.Azure.Functions" Version="0.15.0" />
     <PackageReference Include="Giraffe" Version="6.0.0" />
     <PackageReference Include="Thoth.Json.Giraffe" Version="6.0.0" />
-    <PackageReference Include="JWT" Version="10.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="TaskBuilder.fs" Version="2.1.0" />
     <PackageReference Include="FSharp.Data.GraphQL.Server" Version="0.0.16" />
@@ -461,8 +460,8 @@ type UpdateProductInput = {
     'Services/Services.fs': `namespace Services
 
 open System
-open JWT.Algorithms
-open JWT.Builder
+open System.IdentityModel.Tokens.Jwt
+open System.Security.Claims
 open Microsoft.IdentityModel.Tokens
 
 type IAuthService =
@@ -475,17 +474,21 @@ type AuthService() =
             let key = SymmetricSecurityKey(Text.Encoding.UTF8.GetBytes(secret))
             let credentials = SigningCredentials(key, SecurityAlgorithms.HmacSha256)
 
-            let token = JwtBuilder()
-                .WithSubject(user.Id)
-                .WithClaim("email", user.Email)
-                .WithClaim("role", user.Role)
-                .WithExpiresAt(DateTime.UtcNow.AddDays(7.0))
-                .WithIssuer("{{projectName}}")
-                .WithAudience("{{projectName}}")
-                .WithSigningCredentials(credentials)
-                .Encode()
+            let claims =
+                [ Claim(JwtRegisteredClaimNames.Sub, user.Id)
+                  Claim("email", user.Email)
+                  Claim("role", user.Role) ]
 
-            token
+            let token =
+                JwtSecurityToken(
+                    issuer = "{{projectName}}",
+                    audience = "{{projectName}}",
+                    claims = claims,
+                    expires = Nullable(DateTime.UtcNow.AddDays(7.0)),
+                    signingCredentials = credentials
+                )
+
+            JwtSecurityTokenHandler().WriteToken(token)
 
 type IDatabase =
     abstract member FindUserByEmail: string -> User option
@@ -600,7 +603,7 @@ open Giraffe
 module Views =
     // View helpers can be added here if needed
     // For now, we're using JSON API responses only
-    let ()
+    let apiOnly = true
 `,
 
     // Configuration

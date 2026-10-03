@@ -48,7 +48,7 @@ export const aspnetSwaggerTemplate: BackendTemplate = {
     <PackageReference Include="Microsoft.OpenApi" Version="1.6.14" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
     <!-- Additional documentation and analysis tools -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.0" />
     <PackageReference Include="NSwag.AspNetCore" Version="13.20.0" />
@@ -68,13 +68,13 @@ export const aspnetSwaggerTemplate: BackendTemplate = {
 </Project>`,
 
     // Program.cs with comprehensive Swagger configuration
-    'Program.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Services;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Profiles;
-using {{serviceName}}.Validators;
-using {{serviceName}}.Infrastructure.Swagger;
+    'Program.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Profiles;
+using {{projectNamePascal}}.Validators;
+using {{projectNamePascal}}.Infrastructure.Swagger;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 using FluentValidation;
@@ -452,16 +452,16 @@ app.Run();`,
     // Enhanced user controller with comprehensive documentation
     'Controllers/UsersController.cs': `using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using {{serviceName}}.Services;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
 using AutoMapper;
 using FluentValidation;
 using Swashbuckle.AspNetCore.Annotations;
 using Swashbuckle.AspNetCore.Filters;
 using System.Net;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Manages user operations including registration, authentication, and profile management
@@ -825,7 +825,7 @@ public class UsersController : ControllerBase
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace {{serviceName}}.Infrastructure.Swagger;
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
 
 public class SwaggerDefaultValues : IOperationFilter
 {
@@ -871,7 +871,7 @@ public class SwaggerDefaultValues : IOperationFilter
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace {{serviceName}}.Infrastructure.Swagger;
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
 
 public class AuthorizeCheckOperationFilter : IOperationFilter
 {
@@ -910,7 +910,7 @@ public class AuthorizeCheckOperationFilter : IOperationFilter
     'Infrastructure/Swagger/RequiredNotNullableSchemaFilter.cs': `using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace {{serviceName}}.Infrastructure.Swagger;
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
 
 public class RequiredNotNullableSchemaFilter : ISchemaFilter
 {
@@ -935,7 +935,7 @@ public class RequiredNotNullableSchemaFilter : ISchemaFilter
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.ComponentModel;
 
-namespace {{serviceName}}.Infrastructure.Swagger;
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
 
 public class EnumSchemaFilter : ISchemaFilter
 {
@@ -976,7 +976,7 @@ public class EnumSchemaFilter : ISchemaFilter
     'Infrastructure/Swagger/TagDescriptionsDocumentFilter.cs': `using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace {{serviceName}}.Infrastructure.Swagger;
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
 
 public class TagDescriptionsDocumentFilter : IDocumentFilter
 {
@@ -1011,7 +1011,7 @@ public class TagDescriptionsDocumentFilter : IDocumentFilter
     'Infrastructure/Swagger/AddResponseHeadersFilter.cs': `using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace {{serviceName}}.Infrastructure.Swagger;
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
 
 public class AddResponseHeadersFilter : IOperationFilter
 {
@@ -1044,9 +1044,9 @@ public class AddResponseHeadersFilter : IOperationFilter
 
     // Swagger example providers
     'Infrastructure/Swagger/Examples/UserCreateExample.cs': `using Swashbuckle.AspNetCore.Filters;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Infrastructure.Swagger;
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
 
 public class UserCreateExample : IExamplesProvider<CreateUserRequest>
 {
@@ -1073,9 +1073,9 @@ public class UserCreateExample : IExamplesProvider<CreateUserRequest>
 }`,
 
     'Infrastructure/Swagger/Examples/UserResponseExample.cs': `using Swashbuckle.AspNetCore.Filters;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Infrastructure.Swagger;
+namespace {{projectNamePascal}}.Infrastructure.Swagger;
 
 public class UserResponseExample : IExamplesProvider<UserResponse>
 {
@@ -1279,7 +1279,7 @@ window.addEventListener('DOMContentLoaded', function() {
       "wrapResponseMethods": [],
       "generateResponseClasses": true,
       "responseClass": "SwaggerResponse",
-      "namespace": "{{serviceName}}.ApiClient",
+      "namespace": "{{projectNamePascal}}.ApiClient",
       "requiredPropertiesMustBeDefined": true,
       "dateType": "System.DateTimeOffset",
       "jsonConverters": null,

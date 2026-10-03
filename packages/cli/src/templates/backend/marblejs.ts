@@ -41,7 +41,7 @@ export const marblejsTemplate: BackendTemplate = {
     "@marblejs/middleware-body": "^4.1.0",
     "@marblejs/middleware-cors": "^4.1.0",
     "@marblejs/middleware-io": "^4.1.0",
-    "@marblejs/middleware-jwt": "^4.1.0",
+    "@marblejs/middleware-jwt": "^3.5.2",
     "@marblejs/middleware-logger": "^4.1.0",
     "@marblejs/middleware-multipart": "^4.1.0",
     "@marblejs/messaging": "^4.1.0",

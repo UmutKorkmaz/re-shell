@@ -21,6 +21,7 @@ export const blazorServerTemplate: BackendTemplate = {
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>{{projectNamePascal}}</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -37,21 +38,23 @@ export const blazorServerTemplate: BackendTemplate = {
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
     <PackageReference Include="MediatR" Version="12.2.0" />
     <PackageReference Include="StackExchange.Redis" Version="2.7.10" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.0" />
   </ItemGroup>
 
 </Project>`,
 
     // Program.cs
-    'Program.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Services;
-using {{serviceName}}.Models;
+    'Program.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using AutoMapper;
 using FluentValidation;
 using MediatR;
-using {{serviceName}}.Hubs;
+using {{projectNamePascal}}.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -155,7 +158,7 @@ app.Run();`,
     'Models/ApplicationUser.cs': `using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class ApplicationUser : IdentityUser
 {
@@ -174,7 +177,7 @@ public class ApplicationUser : IdentityUser
 
     'Models/TodoItem.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class TodoItem
 {
@@ -202,9 +205,9 @@ public class TodoItem
     // Data
     'Data/ApplicationDbContext.cs': `using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data;
+namespace {{projectNamePascal}}.Data;
 
 public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
@@ -240,9 +243,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     'Data/DbInitializer.cs': `using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data;
+namespace {{projectNamePascal}}.Data;
 
 public static class DbInitializer
 {
@@ -315,9 +318,9 @@ public static class DbInitializer
 }`,
 
     // Services
-    'Services/IUserService.cs': `using {{serviceName}}.Models;
+    'Services/IUserService.cs': `using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IUserService
 {
@@ -330,10 +333,10 @@ public interface IUserService
 
     'Services/UserService.cs': `using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class UserService : IUserService
 {
@@ -429,9 +432,9 @@ public class UserService : IUserService
     }
 }`,
 
-    'Services/IDataService.cs': `using {{serviceName}}.Models;
+    'Services/IDataService.cs': `using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IDataService
 {
@@ -446,10 +449,10 @@ public interface IDataService
 }`,
 
     'Services/DataService.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class DataService : IDataService
 {
@@ -596,7 +599,7 @@ public class DataService : IDataService
     }
 }`,
 
-    'Services/INotificationService.cs': `namespace {{serviceName}}.Services;
+    'Services/INotificationService.cs': `namespace {{projectNamePascal}}.Services;
 
 public interface INotificationService
 {
@@ -606,9 +609,9 @@ public interface INotificationService
 }`,
 
     'Services/NotificationService.cs': `using Microsoft.AspNetCore.SignalR;
-using {{serviceName}}.Hubs;
+using {{projectNamePascal}}.Hubs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class NotificationService : INotificationService
 {
@@ -662,7 +665,7 @@ public class NotificationService : INotificationService
     'Hubs/NotificationHub.cs': `using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
-namespace {{serviceName}}.Hubs;
+namespace {{projectNamePascal}}.Hubs;
 
 [Authorize]
 public class NotificationHub : Hub
@@ -711,11 +714,28 @@ public class NotificationHub : Hub
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @using Microsoft.JSInterop
-@using {{serviceName}}
-@using {{serviceName}}.Data
-@using {{serviceName}}.Models
-@using {{serviceName}}.Services
+@using {{projectNamePascal}}
+@using {{projectNamePascal}}.Data
+@using {{projectNamePascal}}.Models
+@using {{projectNamePascal}}.Services
+@namespace {{projectNamePascal}}.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers`,
+
+    // Razor component imports (component namespaces are not picked up from Pages/_ViewImports.cshtml)
+    '_Imports.razor': `@using System.Net.Http
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.JSInterop
+@using {{projectNamePascal}}
+@using {{projectNamePascal}}.Data
+@using {{projectNamePascal}}.Models
+@using {{projectNamePascal}}.Services
+@using {{projectNamePascal}}.Shared
+`,
 
     'Pages/Shared/_Layout.cshtml': `<!DOCTYPE html>
 <html lang="en">
@@ -750,7 +770,7 @@ public class NotificationHub : Hub
 </html>`,
 
     'Pages/_Host.cshtml': `@page "/"
-@namespace {{serviceName}}.Pages
+@namespace {{projectNamePascal}}.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @{
     Layout = "_Layout";
@@ -789,7 +809,7 @@ public class NotificationHub : Hub
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics;
 
-namespace {{serviceName}}.Pages;
+namespace {{projectNamePascal}}.Pages;
 
 [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
 [IgnoreAntiforgeryToken]
@@ -839,7 +859,7 @@ public class ErrorModel : PageModel
     </Router>
 </CascadingAuthenticationState>`,
 
-    'Shared/MainLayout.razor': `@inherits LayoutViewBase
+    'Shared/MainLayout.razor': `@inherits LayoutComponentBase
 
 <div class="page">
     <div class="sidebar">
@@ -1075,7 +1095,7 @@ public class ErrorModel : PageModel
                             Created: @todo.CreatedAt.ToString("MMM dd, yyyy")
                             @if (todo.CompletedAt.HasValue)
                             {
-                                <br />Completed: @todo.CompletedAt.Value.ToString("MMM dd, yyyy")
+                                <br /><span>Completed: @(todo.CompletedAt.Value.ToString("MMM dd, yyyy"))</span>
                             }
                         </small>
                         <div class="mt-2">

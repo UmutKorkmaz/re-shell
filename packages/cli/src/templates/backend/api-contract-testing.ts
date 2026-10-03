@@ -73,6 +73,7 @@ export const apiContractTestingTemplate: BackendTemplate = {
     "jest": "^29.6.0",
     "supertest": "^6.3.0",
     "@pact-foundation/pact": "^12.0.0",
+    "@pact-foundation/pact-core": "^13.7.0",
     "axios": "^1.5.0",
     "zod": "^3.22.4",
     "openapi-types": "^12.1.0"
@@ -106,8 +107,7 @@ export const apiContractTestingTemplate: BackendTemplate = {
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": false,
     "sourceMap": true
   },
   "include": ["src/**/*"],
@@ -189,7 +189,7 @@ app.get('/api-spec.json', (req, res) => {
 });
 
 // Contract validation middleware
-const contractValidator = new ContractValidator(swaggerSpec);
+const contractValidator = new ContractValidator(swaggerSpec as ConstructorParameters<typeof ContractValidator>[0]);
 app.use(contractValidator.validate());
 
 // API Routes
@@ -212,7 +212,8 @@ app.post('/contract/test', async (req, res) => {
   try {
     const result = await contractValidator.testEndpoint(endpoint, method, payload);
     res.json(result);
-  } catch (error: unknown) {
+  } catch (caught: unknown) {
+    const error = caught as Error;
     res.status(400).json({ error: error.message });
   }
 });
@@ -484,7 +485,8 @@ export class ContractValidator {
         violations,
         response: response.data,
       };
-    } catch (error: unknown) {
+    } catch (caught: unknown) {
+      const error = caught as Error;
       return {
         endpoint,
         method,
@@ -513,7 +515,8 @@ export class ContractValidator {
     'src/contract/pact-publisher.ts': `// Pact Publisher
 // Publishes and verifies Pact contracts
 
-import { Publisher, Verifier } from '@pact-foundation/pact';
+import { Verifier } from '@pact-foundation/pact';
+import pactCore from '@pact-foundation/pact-core';
 
 export class PactPublisher {
   private pactBrokerUrl: string;
@@ -525,13 +528,12 @@ export class PactPublisher {
   }
 
   async publish(contracts: any[]): Promise<void> {
-    const publisher = new Publisher({
-      pactBrokerUrl: this.pactBrokerUrl,
-      providerVersion: this.providerVersion,
-    });
-
     try {
-      await publisher.publish(contracts);
+      await pactCore.publishPacts({
+        pactFilesOrDirs: contracts,
+        pactBroker: this.pactBrokerUrl,
+        consumerVersion: this.providerVersion,
+      });
       console.log(\`✅ Published \${contracts.length} Pact contracts to \${this.pactBrokerUrl}\`);
     } catch (error) {
       console.error('❌ Failed to publish Pact contracts:', error);
@@ -546,7 +548,7 @@ export class PactPublisher {
       providerVersion: this.providerVersion,
       pactBrokerUrl: this.pactBrokerUrl,
       consumerVersionSelectors: consumerVersion
-        ? [{ latest: true, version: consumerVersion }]
+        ? [{ latest: true, tag: consumerVersion }]
         : undefined,
     });
 
@@ -1377,7 +1379,8 @@ export class FrontendContractValidator {
         responseErrors: responseValidation.errors,
         response: response.data,
       };
-    } catch (error: unknown) {
+    } catch (caught: unknown) {
+      const error = caught as Error;
       return {
         valid: false,
         requestErrors: [],
