@@ -9,6 +9,7 @@ import {
 } from '../utils/change-detector';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok } from '../utils/json-output';
 
 /**
  * Options for the change detector command.
@@ -140,7 +141,7 @@ async function scanForChanges(options: ChangeDetectorCommandOptions, spinner?: P
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -226,11 +227,11 @@ async function showDetectorStatus(options: ChangeDetectorCommandOptions, spinner
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({
+      ok({
         path: targetPath,
         cacheEnabled: options.enableCache ?? true,
         stats
-      }, null, 2));
+      });
       return;
     }
 
@@ -282,10 +283,10 @@ async function showDetectorStats(options: ChangeDetectorCommandOptions, spinner?
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({
+      ok({
         cacheStats: stats,
         lastScan: result
-      }, null, 2));
+      });
       return;
     }
 
@@ -347,12 +348,12 @@ async function checkFileChanges(options: ChangeDetectorCommandOptions, spinner?:
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({
+      ok({
         file: filePath,
         hasChanged,
         changes,
         currentHash: fileHash
-      }, null, 2));
+      });
       return;
     }
 
@@ -502,14 +503,14 @@ async function compareChanges(options: ChangeDetectorCommandOptions, spinner?: P
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({
+      ok({
         firstScan,
         secondScan,
         comparison: {
           changesInSecondScan: secondScan.totalChanges,
           timeWindow: '2 seconds'
         }
-      }, null, 2));
+      });
       return;
     }
 

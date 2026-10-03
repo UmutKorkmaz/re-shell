@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { manageProjectConfig } from '../../src/commands/project-config';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/project-config.ts — the `project-config` command. It
 // dispatches on options (init/get/set/interactive/show) and delegates to the
 // configManager + prompts. We mock configManager (utils/config) and prompts, and
@@ -150,7 +151,7 @@ describe('project-config — get', () => {
 
   it('emits JSON when --json is set', async () => {
     await manageProjectConfig({ get: 'name', json: true });
-    const parsed = JSON.parse(logged());
+    const parsed = jsonData();
     expect(parsed).toEqual({ name: 'my-project' });
   });
 });
@@ -200,7 +201,7 @@ describe('project-config — show (default)', () => {
 
   it('emits JSON when --json is set', async () => {
     await manageProjectConfig({ json: true });
-    const parsed = JSON.parse(logged());
+    const parsed = jsonData();
     expect(parsed.project).toEqual(PROJECT);
     expect(parsed.merged).toEqual(MERGED);
     expect(parsed.inheritedFrom).toEqual({

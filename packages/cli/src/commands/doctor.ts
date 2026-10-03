@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { execSync } from 'child_process';
 import { globSync } from 'glob';
 import { findMonorepoRoot } from '../utils/monorepo';
-import { jsonSuccess, enableJsonMode } from '../utils/json-output';
+import { jsonSuccess, fail, enableJsonMode } from '../utils/json-output';
 import {
   buildSuggestions,
   buildFixPlan,
@@ -54,6 +54,19 @@ interface DoctorOptions {
  * state, build configuration, performance, and file system health. When the
  * `fix` option is set, a remediation plan is composed (and optionally applied).
  *
+ * Exit-code and envelope contract (CI-gate semantics, same convention as
+ * `scorecard` and `boundaries`):
+ *
+ *  - Any check with status `error` sets `process.exitCode = 1`, in human and
+ *    `--json` mode alike. Warnings never do.
+ *  - With `--json` a completed run is `{ ok: true, data: { checks, summary, healthy }, warnings }`
+ *    even when it exits 1: the command ran and the findings are the payload
+ *    (consumers such as the dashboard and MCP keep the full check list). Read
+ *    `data.healthy` / the exit code for pass-fail.
+ *  - If the doctor itself fails (an exception, not a failing check) the envelope
+ *    is `{ ok: false, error: { code: "DOCTOR_ERROR", message, details: { checks } } }`
+ *    and the exit code is 1.
+ *
  * @param options - Optional configuration flags controlling output format, verbosity, and fix behavior.
  * @returns A Promise that resolves once all checks have run and results have been displayed or emitted.
  */
@@ -74,33 +87,7 @@ export async function runDoctorCheck(options: DoctorOptions = {}) {
       return displayResults(checks, process.cwd(), options);
     }
 
-    if (options.spinner) {
-      options.spinner.text = 'Checking monorepo structure...';
-    }
-
-    // Check 1: Package.json structure
-    checks.push(await checkPackageJsonStructure(monorepoRoot));
-
-    // Check 2: Dependencies health
-    checks.push(...(await checkDependenciesHealth(monorepoRoot)));
-
-    // Check 3: Security vulnerabilities
-    checks.push(await checkSecurityVulnerabilities(monorepoRoot));
-
-    // Check 4: Workspace configuration
-    checks.push(await checkWorkspaceConfiguration(monorepoRoot));
-
-    // Check 5: Git configuration
-    checks.push(await checkGitConfiguration(monorepoRoot));
-
-    // Check 6: Build configuration
-    checks.push(...(await checkBuildConfiguration(monorepoRoot)));
-
-    // Check 7: Performance issues
-    checks.push(...(await checkPerformanceIssues(monorepoRoot)));
-
-    // Check 8: File system health
-    checks.push(...(await checkFileSystemHealth(monorepoRoot)));
+    await collectChecks(monorepoRoot, checks, options.spinner);
 
     // --fix: compose (and optionally apply) a remediation plan.
     if (options.fix) {
@@ -110,15 +97,86 @@ export async function runDoctorCheck(options: DoctorOptions = {}) {
     return displayResults(checks, monorepoRoot, options);
 
   } catch (error) {
+    const message = `Doctor check failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
     checks.push({
       name: 'doctor-execution',
       status: 'error',
-      message: `Doctor check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      message,
       suggestion: 'Try running with --verbose for more details'
     });
+    if (options.json) {
+      // The doctor itself failed (not a failing check): an honest error envelope
+      // that still carries whatever checks completed, and a non-zero exit.
+      if (options.spinner) {
+        options.spinner.stop();
+      }
+      fail('DOCTOR_ERROR', message, { checks, summary: summarizeChecks(checks) });
+      return;
+    }
     return displayResults(checks, process.cwd(), options);
   } finally {
     restoreJson();
+  }
+}
+
+/**
+ * Run every doctor check against `monorepoRoot`, appending results to `checks`
+ * as they complete (so a failure part-way still reports what finished).
+ */
+async function collectChecks(
+  monorepoRoot: string,
+  checks: HealthCheck[],
+  spinner?: ora.Ora
+): Promise<void> {
+  if (spinner) {
+    spinner.text = 'Checking monorepo structure...';
+  }
+
+  // Check 1: Package.json structure
+  checks.push(await checkPackageJsonStructure(monorepoRoot));
+
+  // Check 2: Dependencies health
+  checks.push(...(await checkDependenciesHealth(monorepoRoot)));
+
+  // Check 3: Security vulnerabilities
+  checks.push(await checkSecurityVulnerabilities(monorepoRoot));
+
+  // Check 4: Workspace configuration
+  checks.push(await checkWorkspaceConfiguration(monorepoRoot));
+
+  // Check 5: Git configuration
+  checks.push(await checkGitConfiguration(monorepoRoot));
+
+  // Check 6: Build configuration
+  checks.push(...(await checkBuildConfiguration(monorepoRoot)));
+
+  // Check 7: Performance issues
+  checks.push(...(await checkPerformanceIssues(monorepoRoot)));
+
+  // Check 8: File system health
+  checks.push(...(await checkFileSystemHealth(monorepoRoot)));
+}
+
+/**
+ * Tally checks by status. `healthy` is false when any check has status `error`
+ * (warnings are advisory and do not make a monorepo unhealthy).
+ */
+function summarizeChecks(checks: HealthCheck[]): {
+  passed: number;
+  warnings: number;
+  errors: number;
+  healthy: boolean;
+} {
+  const passed = checks.filter(c => c.status === 'success').length;
+  const warnings = checks.filter(c => c.status === 'warning').length;
+  const errors = checks.filter(c => c.status === 'error').length;
+  return { passed, warnings, errors, healthy: errors === 0 };
+}
+
+/** Set the process exit code to 1 when any check is error-level. */
+function applyExitCode(checks: HealthCheck[]): void {
+  if (checks.some(c => c.status === 'error')) {
+    process.exitCode = 1;
   }
 }
 
@@ -655,7 +713,8 @@ async function runFixPlan(
   const plan: FixPlan = buildFixPlan(suggestions, false);
 
   if (!shouldApply) {
-    return emitFixPlan(plan, suggestions, options, /* applied */ false);
+    // Nothing was changed, so the original findings still stand.
+    return emitFixPlan(plan, suggestions, checks, options, /* applied */ false);
   }
 
   // Apply only allow-listed commands. Anything else stays a documented manual
@@ -682,17 +741,35 @@ async function runFixPlan(
   );
 
   const appliedPlan: FixPlan = { applied: true, steps: appliedSteps };
-  return emitFixPlan(appliedPlan, suggestions, options, /* applied */ true);
+
+  // Applying fixes does not prove they worked: when anything ran, re-check so the
+  // exit code reflects the state after the fixes rather than the state before.
+  let finalChecks = checks;
+  if (appliedSteps.some(step => step.applied)) {
+    finalChecks = [];
+    await collectChecks(monorepoRoot, finalChecks);
+  }
+  return emitFixPlan(appliedPlan, suggestions, finalChecks, options, /* applied */ true);
 }
 
 function emitFixPlan(
   plan: FixPlan,
   suggestions: Suggestion[],
+  checks: HealthCheck[],
   options: DoctorOptions,
   applied: boolean
 ) {
+  applyExitCode(checks);
+
   if (options.json) {
-    jsonSuccess({ plan, suggestions });
+    const { passed, warnings, errors, healthy } = summarizeChecks(checks);
+    jsonSuccess({
+      plan,
+      suggestions,
+      checks,
+      summary: { passed, warnings, errors },
+      healthy,
+    });
     return;
   }
 
@@ -796,9 +873,13 @@ function displayResults(checks: HealthCheck[], monorepoRoot: string, options: Do
     ? buildSuggestions(toRemediableChecks(checks), packageManager)
     : [];
 
+  applyExitCode(checks);
+
   if (options.json) {
     const warnings = checks.filter(c => c.status === 'warning').map(c => c.message);
-    const payload = options.explain ? { checks, suggestions } : { checks };
+    const { passed, warnings: warningCount, errors, healthy } = summarizeChecks(checks);
+    const base = { checks, summary: { passed, warnings: warningCount, errors }, healthy };
+    const payload = options.explain ? { ...base, suggestions } : base;
     jsonSuccess(payload, warnings);
     return;
   }

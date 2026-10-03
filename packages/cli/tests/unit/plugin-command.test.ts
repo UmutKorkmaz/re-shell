@@ -12,6 +12,7 @@ import { ValidationError } from '../../src/utils/error-handler';
 import type { PluginCommandDefinition } from '../../src/utils/plugin-command-registry';
 import type { PluginRegistration } from '../../src/utils/plugin-system';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/plugin-command.ts — the plugin command management
 // surface (list / conflicts / resolve / stats / register / unregister / info).
 // The plugin registry (plugin-system) and the command registry
@@ -181,7 +182,7 @@ describe('plugin-command — command', () => {
     it('emits JSON when requested', async () => {
       mocks.commandRegistry.getCommands.mockReturnValue([makeCommand()]);
       await listPluginCommands({ json: true });
-      const payload = JSON.parse(output());
+      const payload = jsonData();
       expect(payload).toHaveLength(1);
       expect(payload[0].id).toBe('demo-plugin:build');
     });
@@ -228,7 +229,7 @@ describe('plugin-command — command', () => {
         new Map([['build', ['a:build', 'b:build']]])
       );
       await showCommandConflicts({ json: true });
-      expect(JSON.parse(output())).toEqual({ build: ['a:build', 'b:build'] });
+      expect(jsonData()).toEqual({ build: ['a:build', 'b:build'] });
     });
 
     it('wraps failures in ValidationError', async () => {
@@ -330,7 +331,7 @@ describe('plugin-command — command', () => {
     it('emits stats as JSON', async () => {
       mocks.commandRegistry.getStats.mockReturnValue({ totalCommands: 1 });
       await showCommandStats({ json: true });
-      expect(JSON.parse(output())).toEqual({ totalCommands: 1 });
+      expect(jsonData()).toEqual({ totalCommands: 1 });
     });
 
     it('wraps failures in ValidationError', async () => {
@@ -498,7 +499,7 @@ describe('plugin-command — command', () => {
     it('emits the command as JSON', async () => {
       mocks.commandRegistry.getCommand.mockReturnValueOnce(makeCommand());
       await showCommandInfo('demo-plugin:build', { json: true });
-      expect(JSON.parse(output()).id).toBe('demo-plugin:build');
+      expect(jsonData().id).toBe('demo-plugin:build');
     });
 
     it('wraps failures in ValidationError', async () => {

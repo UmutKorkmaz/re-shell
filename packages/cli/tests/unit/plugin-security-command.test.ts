@@ -10,6 +10,7 @@ import * as pluginSystem from '../../src/utils/plugin-system';
 import * as pluginSecurity from '../../src/utils/plugin-security';
 import * as spinnerMod from '../../src/utils/spinner';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/plugin-security.ts (503 lines) — the four
 // `plugin security` subcommand entry points (scan / policy / report / fix).
 // The plugin registry and security validator engines have their own suites;
@@ -189,7 +190,7 @@ describe('scanPluginSecurity', () => {
 
     await scanPluginSecurity(undefined, { json: true });
 
-    const parsed = JSON.parse(out());
+    const parsed = jsonData();
     expect(Array.isArray(parsed)).toBe(true);
     expect(parsed[0].plugin).toBe('alpha');
   });
@@ -272,7 +273,7 @@ describe('checkSecurityPolicy', () => {
 
     await checkSecurityPolicy({ json: true });
 
-    const parsed = JSON.parse(out());
+    const parsed = jsonData();
     expect(parsed.policy).toMatchObject({ allowNetworkAccess: false });
     expect(parsed.results[0]).toMatchObject({ plugin: 'alpha', compliant: true });
   });
@@ -359,7 +360,7 @@ describe('generateSecurityReport', () => {
 
     await generateSecurityReport({ json: true });
 
-    const parsed = JSON.parse(out());
+    const parsed = jsonData();
     expect(parsed).toHaveProperty('summary');
     expect(parsed).toHaveProperty('results');
     expect(typeof parsed.timestamp).toBe('string');

@@ -3,6 +3,7 @@ import { manageBackups } from '../../src/commands/backup';
 import { ValidationError } from '../../src/utils/error-handler';
 import type { BackupData, BackupMetadata, BackupStats } from '../../src/utils/config-backup';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/backup.ts — the `backup` command group (753 lines):
 // create (full/selective/interactive), restore, list, delete, export,
 // import, cleanup, stats, interactive, default status. The
@@ -267,9 +268,7 @@ describe('backup — command', () => {
 
     it('emits the raw metadata array in JSON mode', async () => {
       await manageBackups({ list: true, json: true });
-      const payload = JSON.parse(
-        logSpy.mock.calls[logSpy.mock.calls.length - 1][0]
-      );
+      const payload = jsonData();
       expect(payload).toEqual([expect.objectContaining({ id: 'bak-1' })]);
     });
 
@@ -378,9 +377,7 @@ describe('backup — command', () => {
 
     it('emits raw stats in JSON mode', async () => {
       await manageBackups({ stats: true, json: true });
-      const payload = JSON.parse(
-        logSpy.mock.calls[logSpy.mock.calls.length - 1][0]
-      );
+      const payload = jsonData();
       expect(payload.totalBackups).toBe(2);
     });
   });

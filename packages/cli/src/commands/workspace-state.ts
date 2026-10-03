@@ -9,6 +9,7 @@ import {
 } from '../utils/workspace-state';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok } from '../utils/json-output';
 
 /**
  * Options for the workspace state command, including status display, clearing,
@@ -109,10 +110,10 @@ async function showStateStatus(options: WorkspaceStateCommandOptions, spinner?: 
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify({
+      ok({
         state: stateStats,
         cache: cacheStats
-      }, null, 2));
+      });
       return;
     }
 
@@ -234,7 +235,7 @@ async function manageCacheOperations(options: WorkspaceStateCommandOptions, spin
     const stats = cacheManager.getCacheStatistics();
     
     if (options.json) {
-      console.log(JSON.stringify(stats, null, 2));
+      ok(stats);
       return;
     }
 
@@ -262,7 +263,7 @@ async function optimizeWorkspaceStorage(options: WorkspaceStateCommandOptions, s
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 

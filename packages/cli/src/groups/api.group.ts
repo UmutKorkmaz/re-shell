@@ -9,6 +9,7 @@ import type { GatewayType, AuthConfig } from '../utils/api-gateway';
 import type { AnalyticsProvider, BackendFramework } from '../utils/api-analytics';
 import type { TestType } from '../utils/api-testing';
 import type { ValidationMode } from '../utils/validation-middleware';
+import { ok } from '../utils/json-output';
 
 function toCamelCase(str: string): string {
   return str
@@ -281,7 +282,7 @@ export function registerApiGroup(program: Command): void {
           spinner.stop();
 
           if (options.json) {
-            console.log(JSON.stringify(routes, null, 2));
+            ok(routes);
           } else {
             console.log(chalk.cyan(`\n🔍 Discovered ${routes.length} routes in ${name}\n`));
 

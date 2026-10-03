@@ -5,6 +5,7 @@ import * as os from 'os';
 import { EventEmitter } from 'events';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { clearStdout, jsonData } from '../utils/stdout-json';
 // Covers src/commands/file-watcher.ts — the `file-watcher` command group
 // (start / stop / status / stats / rules / add-rule / remove-rule /
 // interactive). startWorkspaceWatcher is mocked to return controllable fake
@@ -128,7 +129,7 @@ describe('file-watcher — command', () => {
 
     it('emits a JSON envelope with stats', async () => {
       await manageFileWatcher({ start: true, json: true, workspaceFile });
-      const payload = JSON.parse(output());
+      const payload = jsonData();
       expect(payload.status).toBe('started');
       expect(payload.stats.totalEvents).toBe(12);
     });
@@ -206,7 +207,7 @@ describe('file-watcher — command', () => {
       await manageFileWatcher({ start: true, workspaceFile });
       logSpy.mockClear();
       await manageFileWatcher({ stop: true, json: true });
-      const payload = JSON.parse(output());
+      const payload = jsonData();
       expect(payload.status).toBe('stopped');
       expect(payload.finalStats.totalEvents).toBe(12);
     });
@@ -235,12 +236,13 @@ describe('file-watcher — command', () => {
       // NOTE: `globalWatcher && ...` short-circuits to null (not false) when
       // no watcher has ever been started — documented quirk of the status
       // payload.
-      expect(JSON.parse(output()).active).toBeFalsy();
+      expect(jsonData().active).toBeFalsy();
 
       await manageFileWatcher({ start: true, json: true, workspaceFile });
       logSpy.mockClear();
+      clearStdout();
       await manageFileWatcher({ status: true, json: true });
-      expect(JSON.parse(output()).active).toBe(true);
+      expect(jsonData().active).toBe(true);
     });
   });
 
@@ -270,7 +272,7 @@ describe('file-watcher — command', () => {
       await manageFileWatcher({ start: true, workspaceFile });
       logSpy.mockClear();
       await manageFileWatcher({ stats: true, json: true });
-      expect(JSON.parse(output()).totalEvents).toBe(12);
+      expect(jsonData().totalEvents).toBe(12);
     });
   });
 

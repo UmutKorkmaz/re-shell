@@ -530,7 +530,7 @@ export function registerProfileGroup(config: Command): void {
     .option('--json', 'Output as JSON')
     .action(async (profile, options) => {
       const { showAnalyticsDashboard } = await import('../../commands/profile-analytics');
-      await showAnalyticsDashboard(profile);
+      await showAnalyticsDashboard(profile, { json: options.json });
     });
 
   profileGroup

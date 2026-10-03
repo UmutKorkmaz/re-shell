@@ -1,5 +1,6 @@
 // Common error types and utilities
 import chalk from 'chalk';
+import { failFromError, getEmittedEnvelopeCount, isJsonModeActive } from './json-output';
 
 export class ValidationError extends Error {
   field?: string;
@@ -72,6 +73,13 @@ export function createAsyncCommand<T extends unknown[]>(fn: (...args: T) => Prom
         console.error(chalk.red(`Validation Error: ${error.message}`));
       } else {
         console.error(chalk.red(`Error: ${(error as Error)?.message || 'Unknown error'}`));
+      }
+      // Under --json the consumer reads stdout, so the failure must be an
+      // envelope there too (exit code 1 is set by `failFromError`), not just a
+      // line on stderr. A command that already emitted its envelope before
+      // throwing keeps that single document.
+      if (isJsonModeActive() && getEmittedEnvelopeCount() === 0) {
+        failFromError(error);
       }
       process.exit(1);
     }

@@ -9,6 +9,7 @@ import {
   DependencyNode
 } from '../utils/plugin-dependency';
 import { createPluginRegistry } from '../utils/plugin-system';
+import { ok } from '../utils/json-output';
 
 /** Options for the plugin dependency management commands. */
 interface DependencyCommandOptions {
@@ -76,7 +77,7 @@ export async function resolveDependencies(
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -130,7 +131,7 @@ export async function showDependencyTree(
         resolved: node.resolved,
         depth: node.depth
       }));
-      console.log(JSON.stringify(graphData, null, 2));
+      ok(graphData);
       return;
     }
 
@@ -216,11 +217,11 @@ export async function checkConflicts(options: DependencyCommandOptions = {}): Pr
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify({
+      ok({
         conflicts,
         totalPlugins: allPlugins.length,
         pluginsWithConflicts: resolutions.filter(r => r.conflicts.length > 0).length
-      }, null, 2));
+      });
       return;
     }
 
@@ -333,7 +334,7 @@ export async function validateVersions(options: DependencyCommandOptions = {}): 
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify(validationResults, null, 2));
+      ok(validationResults);
       return;
     }
 

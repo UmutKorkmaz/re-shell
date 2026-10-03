@@ -9,10 +9,16 @@ import {
   BuildOrder,
   WorkspaceCycle
 } from '../utils/workspace-graph';
+import {
+  derivedDefinitionNote,
+  resolveWorkspaceDefinition,
+  workspaceDefinitionErrorCode
+} from '../utils/workspace-definition-adapter';
 import { loadWorkspaceDefinition } from '../utils/workspace-schema';
+import type { WorkspaceDefinition } from '../utils/workspace-schema';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
-import { jsonSuccess, jsonError, enableJsonMode } from '../utils/json-output';
+import { jsonSuccess, jsonError, enableJsonMode, failFromError } from '../utils/json-output';
 
 /**
  * Options for the workspace dependency graph command, including analysis,
@@ -42,6 +48,70 @@ export interface WorkspaceGraphCommandOptions {
 }
 
 const DEFAULT_WORKSPACE_FILE = 're-shell.workspaces.yaml';
+
+/** A definition ready for the graph engine, plus provenance for display. */
+interface ResolvedGraphDefinition {
+  definition: WorkspaceDefinition;
+  /** Label shown to the user: the yaml path, or a note that it was derived. */
+  inputFile: string;
+  /** Set when the definition was derived from detected workspaces (no yaml). */
+  note?: string;
+}
+
+/**
+ * Report that no workspace definition could be loaded or derived. JSON mode is an
+ * error envelope; human mode keeps the hint and, because the command could not do
+ * its job, exits non-zero.
+ */
+function reportDefinitionFailure(
+  error: unknown,
+  options: WorkspaceGraphCommandOptions,
+  inputFile: string,
+  spinner?: ProgressSpinner
+): void {
+  if (spinner) spinner.stop();
+  const message = error instanceof Error ? error.message : String(error);
+  if (options.json) {
+    jsonError(workspaceDefinitionErrorCode(error), message);
+    return;
+  }
+  console.log(chalk.yellow(`\n⚠️  ${message}`));
+  console.log(chalk.gray(`Expected: ${inputFile}`));
+  console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
+  process.exitCode = 1;
+}
+
+/**
+ * Resolve the definition to analyze: the yaml file when it exists, otherwise one
+ * derived from the detected workspaces so the engine works on a plain npm/yarn/pnpm
+ * monorepo. Reports and returns `undefined` when neither is available.
+ */
+async function resolveDefinition(
+  options: WorkspaceGraphCommandOptions,
+  spinner?: ProgressSpinner
+): Promise<ResolvedGraphDefinition | undefined> {
+  const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
+  const inputPath = path.resolve(inputFile);
+
+  // An existing file is loaded as before: a broken definition is a real error and
+  // propagates to the command's error handling, it is never papered over by a
+  // derived one.
+  if (await fs.pathExists(inputPath)) {
+    return { definition: await loadWorkspaceDefinition(inputPath), inputFile };
+  }
+
+  try {
+    const resolved = await resolveWorkspaceDefinition({ file: options.file });
+    return {
+      definition: resolved.definition,
+      inputFile: 'derived from detected workspaces',
+      note: derivedDefinitionNote(resolved)
+    };
+  } catch (error) {
+    reportDefinitionFailure(error, options, inputFile, spinner);
+    return undefined;
+  }
+}
 
 /**
  * Visualization data returned by {@link WorkspaceDependencyGraph.getVisualizationData}.
@@ -97,6 +167,13 @@ export async function manageWorkspaceGraph(options: WorkspaceGraphCommandOptions
     await showGraphSummary(options, spinner);
 
   } catch (error) {
+    if (options.json) {
+      // Under --json a failure is an error envelope (and exit code 1), never
+      // human text.
+      if (spinner) spinner.stop();
+      failFromError(error, error instanceof ValidationError ? 'WORKSPACE_DEFINITION_ERROR' : 'COMMAND_ERROR');
+      return;
+    }
     if (error instanceof ValidationError) {
       if (spinner) spinner.stop();
       console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
@@ -118,24 +195,13 @@ async function analyzeWorkspaceGraph(options: WorkspaceGraphCommandOptions, spin
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {
     const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-    const inputPath = path.resolve(inputFile);
-
-    if (!(await fs.pathExists(inputPath))) {
-      if (spinner) spinner.stop();
-      if (options.json) {
-        jsonError('WORKSPACE_NOT_FOUND', `No workspace definition found at ${inputPath}`);
-      } else {
-        console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-        console.log(chalk.gray(`Expected: ${inputFile}`));
-        console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
-      }
-      return;
-    }
 
     if (spinner) spinner.setText(`Analyzing workspace dependency graph: ${inputFile}`);
 
     try {
-      const definition = await loadWorkspaceDefinition(inputPath);
+      const resolved = await resolveDefinition(options, spinner);
+      if (!resolved) return;
+      const { definition, note } = resolved;
       const graph = createWorkspaceDependencyGraph(definition);
       const analysis = graph.analyzeGraph();
 
@@ -145,11 +211,12 @@ async function analyzeWorkspaceGraph(options: WorkspaceGraphCommandOptions, spin
         const warnings = analysis.cycles.hasCycles 
           ? [`${analysis.cycles.cycles.length} dependency cycles detected`] 
           : [];
-        jsonSuccess(analysis, warnings);
+        jsonSuccess(analysis, note ? [note, ...warnings] : warnings);
         return;
       }
 
-      displayGraphAnalysis(analysis, inputFile, options.detailed || false);
+      if (note) console.log(chalk.gray(note));
+      displayGraphAnalysis(analysis, resolved.inputFile, options.detailed || false);
 
     } catch (error) {
       if (spinner) spinner.fail(chalk.red('Graph analysis failed'));
@@ -164,35 +231,25 @@ async function detectWorkspaceCycles(options: WorkspaceGraphCommandOptions, spin
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {
     const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-    const inputPath = path.resolve(inputFile);
-
-    if (!(await fs.pathExists(inputPath))) {
-      if (spinner) spinner.stop();
-      if (options.json) {
-        jsonError('WORKSPACE_NOT_FOUND', `No workspace definition found at ${inputPath}`);
-      } else {
-        console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-        console.log(chalk.gray(`Expected: ${inputFile}`));
-        console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
-      }
-      return;
-    }
 
     if (spinner) spinner.setText(`Detecting dependency cycles: ${inputFile}`);
 
     try {
-      const definition = await loadWorkspaceDefinition(inputPath);
+      const resolved = await resolveDefinition(options, spinner);
+      if (!resolved) return;
+      const { definition, note } = resolved;
       const graph = createWorkspaceDependencyGraph(definition);
       const cycles = graph.detectCycles();
 
       if (spinner) spinner.stop();
 
       if (options.json) {
-        jsonSuccess(cycles, []);
+        jsonSuccess(cycles, note ? [note] : []);
         return;
       }
 
-      displayCycleDetection(cycles, inputFile, options.detailed || false);
+      if (note) console.log(chalk.gray(note));
+      displayCycleDetection(cycles, resolved.inputFile, options.detailed || false);
 
     } catch (error) {
       if (spinner) spinner.fail(chalk.red('Cycle detection failed'));
@@ -207,24 +264,13 @@ async function generateBuildOrder(options: WorkspaceGraphCommandOptions, spinner
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {
     const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-    const inputPath = path.resolve(inputFile);
-
-    if (!(await fs.pathExists(inputPath))) {
-      if (spinner) spinner.stop();
-      if (options.json) {
-        jsonError('WORKSPACE_NOT_FOUND', `No workspace definition found at ${inputPath}`);
-      } else {
-        console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-        console.log(chalk.gray(`Expected: ${inputFile}`));
-        console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
-      }
-      return;
-    }
 
     if (spinner) spinner.setText(`Generating build order: ${inputFile}`);
 
     try {
-      const definition = await loadWorkspaceDefinition(inputPath);
+      const resolved = await resolveDefinition(options, spinner);
+      if (!resolved) return;
+      const { definition, note } = resolved;
       const graph = createWorkspaceDependencyGraph(definition);
       const buildOrder = graph.generateBuildOrder();
 
@@ -235,11 +281,12 @@ async function generateBuildOrder(options: WorkspaceGraphCommandOptions, spinner
           ...buildOrder,
           dependencies: Object.fromEntries(buildOrder.dependencies)
         };
-        jsonSuccess(output, []);
+        jsonSuccess(output, note ? [note] : []);
         return;
       }
 
-      displayBuildOrder(buildOrder, inputFile, options.detailed || false);
+      if (note) console.log(chalk.gray(note));
+      displayBuildOrder(buildOrder, resolved.inputFile, options.detailed || false);
 
     } catch (error) {
       if (spinner) spinner.fail(chalk.red('Build order generation failed'));
@@ -254,35 +301,25 @@ async function findCriticalPath(options: WorkspaceGraphCommandOptions, spinner?:
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {
     const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-    const inputPath = path.resolve(inputFile);
-
-    if (!(await fs.pathExists(inputPath))) {
-      if (spinner) spinner.stop();
-      if (options.json) {
-        jsonError('WORKSPACE_NOT_FOUND', `No workspace definition found at ${inputPath}`);
-      } else {
-        console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-        console.log(chalk.gray(`Expected: ${inputFile}`));
-        console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
-      }
-      return;
-    }
 
     if (spinner) spinner.setText(`Finding critical path: ${inputFile}`);
 
     try {
-      const definition = await loadWorkspaceDefinition(inputPath);
+      const resolved = await resolveDefinition(options, spinner);
+      if (!resolved) return;
+      const { definition, note } = resolved;
       const graph = createWorkspaceDependencyGraph(definition);
       const criticalPath = graph.findCriticalPath();
 
       if (spinner) spinner.stop();
 
       if (options.json) {
-        jsonSuccess({ criticalPath }, []);
+        jsonSuccess({ criticalPath }, note ? [note] : []);
         return;
       }
 
-      displayCriticalPath(criticalPath, inputFile);
+      if (note) console.log(chalk.gray(note));
+      displayCriticalPath(criticalPath, resolved.inputFile);
 
     } catch (error) {
       if (spinner) spinner.fail(chalk.red('Critical path analysis failed'));
@@ -297,24 +334,13 @@ async function visualizeWorkspaceGraph(options: WorkspaceGraphCommandOptions, sp
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {
     const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-    const inputPath = path.resolve(inputFile);
-
-    if (!(await fs.pathExists(inputPath))) {
-      if (spinner) spinner.stop();
-      if (options.json) {
-        jsonError('WORKSPACE_NOT_FOUND', `No workspace definition found at ${inputPath}`);
-      } else {
-        console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-        console.log(chalk.gray(`Expected: ${inputFile}`));
-        console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
-      }
-      return;
-    }
 
     if (spinner) spinner.setText(`Generating graph visualization: ${inputFile}`);
 
     try {
-      const definition = await loadWorkspaceDefinition(inputPath);
+      const resolved = await resolveDefinition(options, spinner);
+      if (!resolved) return;
+      const { definition, note } = resolved;
       const graph = createWorkspaceDependencyGraph(definition);
       const vizData = graph.getVisualizationData();
 
@@ -328,10 +354,11 @@ async function visualizeWorkspaceGraph(options: WorkspaceGraphCommandOptions, sp
           console.log(chalk.green(`Visualization data saved to: ${options.output}`));
         }
       } else if (options.json) {
-        jsonSuccess(vizData, []);
+        jsonSuccess(vizData, note ? [note] : []);
       } else {
         // Display text-based visualization
-        displayTextVisualization(vizData, inputFile);
+        if (note) console.log(chalk.gray(note));
+        displayTextVisualization(vizData, resolved.inputFile);
       }
 
     } catch (error) {
@@ -347,26 +374,13 @@ async function showGraphSummary(options: WorkspaceGraphCommandOptions, spinner?:
   const restoreJson = options.json ? enableJsonMode() : () => {};
   try {
     const inputFile = options.file || DEFAULT_WORKSPACE_FILE;
-    const inputPath = path.resolve(inputFile);
 
     if (spinner) spinner.setText('Loading workspace dependency graph...');
 
     try {
-      if (!(await fs.pathExists(inputPath))) {
-        if (spinner) spinner.stop();
-        
-        if (options.json) {
-          jsonError('WORKSPACE_NOT_FOUND', `No workspace definition found at ${inputPath}`);
-        } else {
-          console.log(chalk.yellow('\\n⚠️  No workspace definition found'));
-          console.log(chalk.gray(`Expected: ${inputFile}`));
-          console.log(chalk.cyan('\\n🚀 Quick start:'));
-          console.log('  re-shell workspace-def init');
-        }
-        return;
-      }
-
-      const definition = await loadWorkspaceDefinition(inputPath);
+      const resolved = await resolveDefinition(options, spinner);
+      if (!resolved) return;
+      const { definition, note } = resolved;
       const graph = createWorkspaceDependencyGraph(definition);
       const analysis = graph.analyzeGraph();
 
@@ -374,7 +388,7 @@ async function showGraphSummary(options: WorkspaceGraphCommandOptions, spinner?:
 
       if (options.json) {
         const summary = {
-          file: inputFile,
+          file: resolved.inputFile,
           workspaces: analysis.nodeCount,
           dependencies: analysis.edgeCount,
           hasCycles: analysis.cycles.hasCycles,
@@ -385,14 +399,15 @@ async function showGraphSummary(options: WorkspaceGraphCommandOptions, spinner?:
         const warnings = analysis.cycles.hasCycles 
           ? [`${analysis.cycles.cycles.length} dependency cycles detected`] 
           : [];
-        jsonSuccess(summary, warnings);
+        jsonSuccess(summary, note ? [note, ...warnings] : warnings);
         return;
       }
 
       console.log(chalk.cyan('\\n📊 Workspace Dependency Graph Summary'));
       console.log(chalk.gray('═'.repeat(60)));
 
-      console.log(`\\nFile: ${chalk.cyan(inputFile)}`);
+      if (note) console.log(chalk.gray(note));
+      console.log(`\\nFile: ${chalk.cyan(resolved.inputFile)}`);
       console.log(`Workspaces: ${chalk.yellow(analysis.nodeCount)}`);
       console.log(`Dependencies: ${chalk.yellow(analysis.edgeCount)}`);
 

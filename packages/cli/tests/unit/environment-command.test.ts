@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { manageEnvironment } from '../../src/commands/environment';
 
+import { jsonData } from '../utils/stdout-json';
 // UNIT coverage for src/commands/environment.ts — the `environment` command
 // (NOT the utils/environment EnvironmentManager, which is covered by the open
 // environment.test.ts). Named environment-command.test.ts to avoid colliding
@@ -69,7 +70,7 @@ describe('environment — list', () => {
   it('emits environments as JSON in json mode', async () => {
     mocks.listEnvironments.mockResolvedValue([env({ name: 'dev', active: true })]);
     await manageEnvironment({ list: true, json: true });
-    const json = JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(s => s.trim().startsWith('['))!);
+    const json = jsonData();
     expect(json).toHaveLength(1);
     expect(json[0].name).toBe('dev');
   });
@@ -127,7 +128,7 @@ describe('environment — active', () => {
   it('emits the active environment as JSON in json mode', async () => {
     mocks.getActiveEnvironment.mockResolvedValue(env({ name: 'prod' }));
     await manageEnvironment({ active: true, json: true });
-    const json = JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(s => s.trim().startsWith('{'))!);
+    const json = jsonData();
     expect(json.name).toBe('prod');
   });
 });
@@ -207,7 +208,7 @@ describe('environment — compare', () => {
       deployment: {},
     });
     await manageEnvironment({ compare: ['a', 'b'], json: true });
-    const json = JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(s => s.trim().startsWith('{'))!);
+    const json = jsonData();
     expect(json.variables.added).toEqual(['X']);
   });
 });
@@ -235,7 +236,7 @@ describe('environment — default status', () => {
     mocks.getActiveEnvironment.mockResolvedValue(env({ name: 'prod' }));
     mocks.listEnvironments.mockResolvedValue([env()]);
     await manageEnvironment({ json: true });
-    const json = JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(s => s.trim().startsWith('{'))!);
+    const json = jsonData();
     expect(json.active.name).toBe('prod');
     expect(json.environments).toHaveLength(1);
   });

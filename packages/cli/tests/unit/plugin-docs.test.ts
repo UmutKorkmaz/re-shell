@@ -18,6 +18,7 @@ import {
 } from '../../src/utils/plugin-command-docs';
 import type { RegisteredCommand } from '../../src/utils/plugin-command-registry';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/plugin-docs.ts — the plugin documentation & help surface
 // (generate / help / list / search / stats / configure / templates). The
 // command registry is mocked to serve scripted RegisteredCommand fixtures;
@@ -137,13 +138,13 @@ describe('plugin-docs — command', () => {
 
     it('emits the docs array as JSON', async () => {
       await generatePluginDocumentation([], { json: true });
-      const payload = JSON.parse(output());
+      const payload = jsonData();
       expect(payload).toHaveLength(3);
     });
 
     it('documents only the named commands when given', async () => {
       await generatePluginDocumentation(['build'], { json: true });
-      expect(JSON.parse(output())).toHaveLength(1);
+      expect(jsonData()).toHaveLength(1);
     });
 
     it('wraps generator failures in ValidationError', async () => {
@@ -170,7 +171,7 @@ describe('plugin-docs — command', () => {
 
     it('emits structured help data as JSON', async () => {
       await showCommandHelp('build', { json: true });
-      const payload = JSON.parse(output());
+      const payload = jsonData();
       expect(payload.command).toBe('build');
       expect(payload.plugin).toBe('demo-plugin');
       expect(payload.aliases).toEqual(['b']);
@@ -235,7 +236,7 @@ describe('plugin-docs — command', () => {
 
     it('emits JSON', async () => {
       await listDocumentedCommands({ json: true });
-      const payload = JSON.parse(output());
+      const payload = jsonData();
       expect(payload).toHaveLength(3);
       expect(payload[0].name).toBe('build');
     });
@@ -269,7 +270,7 @@ describe('plugin-docs — command', () => {
 
     it('emits raw results as JSON', async () => {
       await searchDocumentation('builds', { json: true });
-      const payload = JSON.parse(output());
+      const payload = jsonData();
       expect(payload.length).toBeGreaterThan(0);
       expect(payload[0].command).toBe('build');
     });
@@ -300,7 +301,7 @@ describe('plugin-docs — command', () => {
 
     it('emits stats as JSON', async () => {
       await showDocumentationStats({ json: true });
-      const payload = JSON.parse(output());
+      const payload = jsonData();
       expect(payload.totalCommands).toBe(3);
     });
   });
@@ -364,7 +365,7 @@ describe('plugin-docs — command', () => {
 
     it('emits templates as JSON', async () => {
       await showDocumentationTemplates({ json: true });
-      const payload = JSON.parse(output());
+      const payload = jsonData();
       expect(Array.isArray(payload)).toBe(true);
       expect(payload.length).toBeGreaterThan(0);
     });

@@ -1515,7 +1515,7 @@ export async function validateWorkspaceConfig(options: WorkspaceValidateOptions 
 
     if (json) {
       console.log(chalk.bold('JSON Output:\n'));
-      console.log(JSON.stringify({ validation: result, topology: topologyResult }, null, 2));
+      ok({ validation: result, topology: topologyResult });
     }
 
   } catch (error: unknown) {
@@ -2576,7 +2576,7 @@ export async function optimizeWorkspace(options: WorkspaceOptimizeOptions = {}):
 
     // Output JSON if requested
     if (json) {
-      console.log(JSON.stringify(filteredReport, null, 2));
+      ok(filteredReport);
       return;
     }
 
@@ -2705,7 +2705,7 @@ export async function manageWorkspaceTemplates(options: WorkspaceTemplateOptions
         await listTemplates(templatesDir, spinner, json);
         break;
       case 'show':
-        await showTemplate(templatesDir, templateId, spinner);
+        await showTemplate(templatesDir, templateId, spinner, json);
         break;
       case 'create':
         await createTemplateInteractively(templatesDir, spinner);
@@ -2714,7 +2714,7 @@ export async function manageWorkspaceTemplates(options: WorkspaceTemplateOptions
         await validateTemplate(templatesDir, templateId, spinner);
         break;
       case 'export':
-        await exportTemplateCmd(templatesDir, templateId, output, spinner);
+        await exportTemplateCmd(templatesDir, templateId, output, spinner, json);
         break;
       case 'import':
         await importTemplateCmd(filePath, templatesDir, spinner);
@@ -2814,14 +2814,20 @@ async function listTemplates(templatesDir: string, spinner?: ProgressSpinner, js
 /**
  * Show template details
  */
-async function showTemplate(templatesDir: string, templateId: string, spinner?: ProgressSpinner): Promise<void> {
+async function showTemplate(templatesDir: string, templateId: string, spinner?: ProgressSpinner, json = false): Promise<void> {
   if (!templateId) {
+    if (json) {
+      fail('USAGE_ERROR', 'Template ID is required');
+      return;
+    }
     console.log(chalk.red('✗ Template ID is required'));
     console.log(chalk.gray('Usage: re-shell workspace template show --id <template-id>\n'));
     return;
   }
 
-  console.log(chalk.cyan.bold('\n📄 Template Details: ' + templateId + '\n'));
+  if (!json) {
+    console.log(chalk.cyan.bold('\n📄 Template Details: ' + templateId + '\n'));
+  }
 
   if (spinner) spinner.setText('Loading template...');
 
@@ -2831,7 +2837,16 @@ async function showTemplate(templatesDir: string, templateId: string, spinner?: 
   if (spinner) spinner.stop();
 
   if (!template) {
+    if (json) {
+      fail('TEMPLATE_NOT_FOUND', 'Template not found: ' + templateId, { template: templateId });
+      return;
+    }
     console.log(chalk.red('✗ Template not found: ' + templateId + '\n'));
+    return;
+  }
+
+  if (json) {
+    ok(template);
     return;
   }
 
@@ -2981,14 +2996,20 @@ async function validateTemplate(templatesDir: string, templateId: string, spinne
 /**
  * Export template
  */
-async function exportTemplateCmd(templatesDir: string, templateId: string, outputPath: string, spinner?: ProgressSpinner): Promise<void> {
+async function exportTemplateCmd(templatesDir: string, templateId: string, outputPath: string, spinner?: ProgressSpinner, json = false): Promise<void> {
   if (!templateId) {
+    if (json) {
+      fail('USAGE_ERROR', 'Template ID is required');
+      return;
+    }
     console.log(chalk.red('✗ Template ID is required'));
     console.log(chalk.gray('Usage: re-shell workspace template export --id <template-id> --output <path>\n'));
     return;
   }
 
-  console.log(chalk.cyan.bold('\n📤 Exporting Template: ' + templateId + '\n'));
+  if (!json) {
+    console.log(chalk.cyan.bold('\n📤 Exporting Template: ' + templateId + '\n'));
+  }
 
   if (spinner) spinner.setText('Exporting template...');
 
@@ -2999,6 +3020,11 @@ async function exportTemplateCmd(templatesDir: string, templateId: string, outpu
   await workspaceTemplateManager.exportTemplate(templateId, output);
 
   if (spinner) spinner.stop();
+
+  if (json) {
+    ok({ id: templateId, output });
+    return;
+  }
 
   console.log(chalk.green('✓ Template exported successfully!'));
   console.log(chalk.gray('Output: ' + output));

@@ -8,6 +8,7 @@ import {
   PluginCommandDefinition
 } from '../utils/plugin-command-registry';
 import { createPluginRegistry } from '../utils/plugin-system';
+import { fail, ok } from '../utils/json-output';
 
 /** Options for the plugin command management commands. */
 interface CommandCommandOptions {
@@ -63,7 +64,7 @@ export async function listPluginCommands(
     }
 
     if (json) {
-      console.log(JSON.stringify(commands, null, 2));
+      ok(commands);
       return;
     }
 
@@ -165,7 +166,7 @@ export async function showCommandConflicts(
 
     if (json) {
       const conflictData = Object.fromEntries(conflicts);
-      console.log(JSON.stringify(conflictData, null, 2));
+      ok(conflictData);
       return;
     }
 
@@ -286,7 +287,7 @@ export async function showCommandStats(
     const stats = commandRegistry.getStats();
 
     if (json) {
-      console.log(JSON.stringify(stats, null, 2));
+      ok(stats);
       return;
     }
 
@@ -493,12 +494,16 @@ export async function showCommandInfo(
 
     const command = commandRegistry.getCommand(commandId);
     if (!command) {
+      if (json) {
+        fail('NOT_FOUND', `Command '${commandId}' not found`, { commandId });
+        return;
+      }
       console.log(chalk.red(`Command '${commandId}' not found`));
       return;
     }
 
     if (json) {
-      console.log(JSON.stringify(command, null, 2));
+      ok(command);
       return;
     }
 

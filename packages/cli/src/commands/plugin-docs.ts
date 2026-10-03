@@ -13,6 +13,7 @@ import {
   formatDocumentationSize
 } from '../utils/plugin-command-docs';
 import { createPluginCommandRegistry } from '../utils/plugin-command-registry';
+import { ok } from '../utils/json-output';
 
 /** Options for the plugin documentation and help commands. */
 interface DocsCommandOptions {
@@ -87,7 +88,7 @@ export async function generatePluginDocumentation(
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify(docs, null, 2));
+      ok(docs);
       return;
     }
 
@@ -196,7 +197,7 @@ export async function showCommandHelp(
         deprecated: command.definition.deprecated,
         hidden: command.definition.hidden
       };
-      console.log(JSON.stringify(helpData, null, 2));
+      ok(helpData);
       return;
     }
 
@@ -260,7 +261,7 @@ export async function listDocumentedCommands(
         registeredAt: cmd.registeredAt,
         usageCount: cmd.usageCount
       }));
-      console.log(JSON.stringify(commandData, null, 2));
+      ok(commandData);
       return;
     }
 
@@ -347,7 +348,7 @@ export async function searchDocumentation(
     const results = documentationGenerator.searchDocumentation(query, filters);
 
     if (json) {
-      console.log(JSON.stringify(results, null, 2));
+      ok(results);
       return;
     }
 
@@ -421,7 +422,7 @@ export async function showDocumentationStats(
     const stats = documentationGenerator.getDocumentationStats();
 
     if (json) {
-      console.log(JSON.stringify(stats, null, 2));
+      ok(stats);
       return;
     }
 
@@ -565,7 +566,7 @@ export async function showDocumentationTemplates(
     const templates = documentationGenerator.getAvailableTemplates();
 
     if (json) {
-      console.log(JSON.stringify(templates, null, 2));
+      ok(templates);
       return;
     }
 

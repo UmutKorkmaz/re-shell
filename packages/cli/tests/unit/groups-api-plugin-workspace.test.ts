@@ -409,7 +409,7 @@ describe('groups — api / plugin / workspace registration', () => {
       const program = programWith(registerApiGroup);
 
       await program.parseAsync(['node', 're-shell', 'api', 'openapi', 'discover', tempRoot, '--json']);
-      expect(JSON.parse(logSpy.mock.calls.at(-1)![0] as string)).toHaveLength(1);
+      expect(JSON.parse(jsonChunks()[0]).data).toHaveLength(1);
 
       await programWith(registerApiGroup).parseAsync([
         'node', 're-shell', 'api', 'openapi', 'discover', tempRoot,
