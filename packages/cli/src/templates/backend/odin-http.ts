@@ -48,7 +48,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \\
 
 RUN git clone --depth 1 --branch \${ODIN_VERSION} https://github.com/odin-lang/Odin /opt/odin \\
     && cd /opt/odin \\
-    && sh build_odin.sh release
+    && LLVM_CONFIG=llvm-config-18 sh build_odin.sh release
 
 ENV PATH="/opt/odin:\${PATH}" ODIN_ROOT="/opt/odin"
 
@@ -286,6 +286,17 @@ test_token_rejections :: proc(t: ^testing.T) {
 
 	_, ok = verify_token_at("secret", "garbage", 2_000)
 	testing.expect(t, !ok)
+}
+
+@(test)
+test_content_length_validation :: proc(t: ^testing.T) {
+	testing.expect(t, content_length_ok("0"))
+	testing.expect(t, content_length_ok("1048576"))
+	testing.expect(t, !content_length_ok(""))
+	testing.expect(t, !content_length_ok("-1"), "a negative length must be rejected")
+	testing.expect(t, !content_length_ok("+5"))
+	testing.expect(t, !content_length_ok("12abc"))
+	testing.expect(t, !content_length_ok(" 5"))
 }
 
 // The store is a global, so its tests live in one procedure (tests run on several threads).
@@ -538,7 +549,24 @@ product_id_from_url :: proc(req: ^http.Request) -> (id: int, ok: bool) {
 	return strconv.parse_int(req.url_params[0], 10)
 }
 
-// Application-wide middleware: CORS headers, answers preflight requests.
+// content_length_ok reports whether a Content-Length header value is a plain, non-negative
+// decimal number. odin-http asserts on a negative length when it reads (or, after the
+// response, drains) a body, which stops the whole server, so such requests are answered
+// before any handler runs and the connection is closed without touching the body.
+content_length_ok :: proc(value: string) -> bool {
+	if len(value) == 0 {
+		return false
+	}
+	for c in value {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// Application-wide middleware: CORS headers, answers preflight requests and rejects
+// malformed Content-Length headers.
 cors_middleware :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
 	http.headers_set(&res.headers, "access-control-allow-origin", "*")
 	http.headers_set(&res.headers, "access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -546,6 +574,12 @@ cors_middleware :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.R
 
 	if line, ok := req.line.(http.Requestline); ok && line.method == .Options {
 		http.respond(res, http.Status.No_Content)
+		return
+	}
+
+	if length, has_length := http.headers_get(req.headers, "content-length"); has_length && !content_length_ok(length) {
+		http.headers_set_close(&res.headers)
+		fail(res, .Bad_Request, "Invalid Content-Length header")
 		return
 	}
 
