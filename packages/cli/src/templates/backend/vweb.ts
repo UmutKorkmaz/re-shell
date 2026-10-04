@@ -607,16 +607,31 @@ pub fn (mut app App) delete_item(mut ctx Context, id string) veb.Result {
 	return ctx.no_content()
 }
 
+// not_found answers requests that match no route (veb calls it instead of its plain-text 404).
+pub fn (mut ctx Context) not_found() veb.Result {
+	return ctx.fail(.not_found, 'not_found', 'Route not found')
+}
+
+// cors adds the CORS headers to every response and answers preflight (OPTIONS) requests.
+// veb.cors is not used: when allowed_headers is set it rejects every cross-origin request
+// that carries any other header, and browsers always send Host, Accept, User-Agent, ...
+fn cors(mut ctx Context) bool {
+	ctx.set_header(.access_control_allow_origin, '*')
+	ctx.set_header(.access_control_allow_methods, 'GET, POST, PUT, DELETE, OPTIONS')
+	ctx.set_header(.access_control_allow_headers, 'Content-Type, Authorization')
+	if ctx.req.method == .options {
+		ctx.no_content()
+		return false
+	}
+	return true
+}
+
 // new_app builds the application with CORS enabled for every route (including preflight requests).
 fn new_app(jwt_secret string) &App {
 	mut app := &App{
 		jwt_secret: jwt_secret
 	}
-	app.use(veb.cors[Context](veb.CorsOptions{
-		origins:         ['*']
-		allowed_methods: [.get, .post, .put, .delete, .options]
-		allowed_headers: ['Content-Type', 'Authorization']
-	}))
+	app.use(handler: cors)
 	return app
 }
 
@@ -743,17 +758,44 @@ fn test_items_crud() {
 	assert missing.status_code == 404
 }
 
+fn test_unknown_route_is_a_json_404() {
+	resp := http.get('\${base_url}/nope')!
+	assert resp.status_code == 404
+	assert resp.body.contains('"error":"not_found"')
+}
+
 fn test_cors_preflight() {
 	resp := http.fetch(
 		method: .options
 		url:    '\${base_url}/api/items'
 		header: http.new_header_from_map({
-			.origin:                        'https://example.com'
-			.access_control_request_method: 'POST'
+			.origin:                         'https://example.com'
+			.access_control_request_method:  'POST'
+			.access_control_request_headers: 'authorization,content-type'
+		})
+	)!
+	assert resp.status_code == 204
+	assert resp.header.get(.access_control_allow_origin) or { '' } == '*'
+	assert (resp.header.get(.access_control_allow_headers) or { '' }).contains('Authorization')
+}
+
+// A browser sends Origin, Host, Accept, User-Agent and more on a cross-origin request.
+fn test_cross_origin_request() {
+	token := register_and_login('cors@example.com')!
+	resp := http.fetch(
+		method: .get
+		url:    '\${base_url}/api/users/me'
+		header: http.new_header_from_map({
+			.origin:          'https://example.com'
+			.accept:          'application/json'
+			.user_agent:      'Mozilla/5.0'
+			.accept_language: 'en'
+			.authorization:   'Bearer \${token}'
 		})
 	)!
 	assert resp.status_code == 200
-	assert (resp.header.get(.access_control_allow_origin) or { '' }) in ['*', 'https://example.com']
+	assert resp.header.get(.access_control_allow_origin) or { '' } == '*'
+	assert resp.body.contains('"email":"cors@example.com"')
 }
 `,
 
