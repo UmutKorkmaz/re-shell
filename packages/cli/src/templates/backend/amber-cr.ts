@@ -45,6 +45,14 @@ watch:
       - ./spec/**/*.cr
 `,
 
+    // Keeps host builds (bin/, lib/) out of the image: the Dockerfile installs and builds its own.
+    '.dockerignore': `/bin/
+/lib/
+/.shards/
+/tmp/
+.env
+`,
+
     '.gitignore': `/doc/
 /lib/
 /.crystal/
@@ -398,6 +406,12 @@ Amber::Server.configure do |settings|
   #
   settings.secret_key_base = ENV["SECRET_KEY_BASE"] if ENV["SECRET_KEY_BASE"]?
   #
+  # config/environments/production.yml holds no secret, so production refuses to
+  # start without SECRET_KEY_BASE: a known key would let anyone forge a session.
+  if Amber.env.production? && ENV["SECRET_KEY_BASE"]?.presence.nil?
+    abort "Set SECRET_KEY_BASE before starting with AMBER_ENV=production (for example: openssl rand -hex 32)"
+  end
+  #
   #
   # Host: is the application server host address or ip address. Useful for when
   # deploying Amber to a PAAS and likely the assigned server IP is either
@@ -505,11 +519,17 @@ DROP TABLE IF EXISTS users;
 #
 # To run seeds execute \`amber db seed\`
 
-# Example:
-# User.create(name: "example", email: "ex@mple.com")
-# Test user for auth
-
-User.create(email: "admin@example.com", password: "password")
+# A demo account for development (admin@example.com / password). It is never
+# created in production, where a well-known password would let anyone in.
+if Amber.env.production?
+  puts "Skipping the demo user (AMBER_ENV=production)"
+elsif User.find_by(email: "admin@example.com").nil?
+  # \`password\` is not a column: it has to go through \`User#password=\`, which stores
+  # the bcrypt hash. \`User.create(password: ...)\` would silently drop it.
+  admin = User.new(email: "admin@example.com")
+  admin.password = "password"
+  admin.save!
+end
 `,
 
     'docker-compose.yml': `services:
@@ -517,14 +537,15 @@ User.create(email: "admin@example.com", password: "password")
     build: .
     environment:
       AMBER_ENV: production
-      SECRET_KEY_BASE: \${SECRET_KEY_BASE:-change-me-before-deploying}
+      # Required: production refuses to start without it (for example: openssl rand -hex 32).
+      SECRET_KEY_BASE: \${SECRET_KEY_BASE:?set SECRET_KEY_BASE to a long random string}
       DATABASE_URL: postgres://postgres:postgres@db:5432/{{projectNameSnake}}_production
     ports:
       - "3000:3000"
     depends_on:
       - db
 
-  # One-off: docker compose run --rm app bin/amber db migrate seed
+  # One-off, once the database is up: docker compose run --rm app bin/amber db migrate
   db:
     image: postgres:17-alpine
     environment:
@@ -541,6 +562,12 @@ volumes:
 `,
 
     'Dockerfile': `FROM crystallang/crystal:1.21.1
+
+# bin/amber (the Amber CLI target in shard.yml) links the sqlite3 shard, and the
+# crystal image ships no libsqlite3-dev.
+RUN apt-get update \\
+  && apt-get install -y --no-install-recommends libsqlite3-dev \\
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -949,7 +976,7 @@ so the Amber guides and generators apply.
 \`\`\`bash
 shards install
 shards build                      # builds bin/{{projectName}} and bin/amber
-bin/amber db create migrate seed  # seeds admin@example.com / password
+bin/amber db create migrate seed  # seeds the demo user admin@example.com / password
 bin/amber watch                   # http://localhost:3000
 \`\`\`
 
@@ -957,7 +984,8 @@ Without \`bin/amber watch\` you can run \`crystal run src/server.cr\`.
 
 Environment variables override the YAML settings: \`PORT\`, \`HOST\`, \`DATABASE_URL\`, \`REDIS_URL\`,
 \`SECRET_KEY_BASE\` (see \`config/settings.cr\`). Set \`SECRET_KEY_BASE\` and \`DATABASE_URL\` when
-running with \`AMBER_ENV=production\`.
+running with \`AMBER_ENV=production\`: production refuses to start without \`SECRET_KEY_BASE\`, and
+the seeds skip the demo user there.
 
 ## API
 
@@ -968,6 +996,9 @@ running with \`AMBER_ENV=production\`.
 | GET | \`/products/:id\` |
 | PUT/PATCH | \`/products/:id\` |
 | DELETE | \`/products/:id\` |
+
+The \`:api\` pipeline (as \`amber generate api\` sets it up) has no authentication: add a pipe to
+it in \`config/routes.cr\` before exposing the write endpoints.
 
 ## Tests
 
@@ -981,8 +1012,10 @@ crystal spec
 
 ## Docker
 
-\`docker compose up\` runs the app in production mode next to PostgreSQL; set \`SECRET_KEY_BASE\`
-first and run \`docker compose run --rm app bin/amber db migrate seed\` once.
+\`docker compose up\` runs the app in production mode next to PostgreSQL. Compose needs
+\`SECRET_KEY_BASE\`: put \`SECRET_KEY_BASE=<output of openssl rand -hex 32>\` in a \`.env\` file next
+to \`docker-compose.yml\` (Compose reads it automatically; \`.gitignore\` already excludes it). Run
+\`docker compose run --rm app bin/amber db migrate\` once the database is up.
 
 ## License
 
