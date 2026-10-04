@@ -674,6 +674,9 @@ include("api_tests.jl")
 # Registers every route, exactly as \`julia app.jl\` does.
 include(joinpath(@__DIR__, "..", "app.jl"))
 
+# Every request is bounded, so a stuck server fails the test run instead of hanging it.
+const REQUEST_OPTIONS = (status_exception = false, retry = false, connect_timeout = 10, readtimeout = 60)
+
 @testset "Genie server" begin
     {{projectNamePascal}}.Models.seed!()
     port = 8099
@@ -682,39 +685,40 @@ include(joinpath(@__DIR__, "..", "app.jl"))
     up(port, "127.0.0.1"; async = true)
     try
         ready = false
-        for _ in 1:100
+        # The first request compiles the whole request path, so allow it several seconds.
+        for _ in 1:120
             try
-                HTTP.get(string(base, "/api/v1/health"); retry = false, readtimeout = 2)
+                HTTP.get(string(base, "/api/v1/health"); retry = false, connect_timeout = 5, readtimeout = 5)
                 ready = true
                 break
             catch
-                sleep(0.25)
+                sleep(0.5)
             end
         end
         @test ready
 
-        health = HTTP.get(string(base, "/api/v1/health"); status_exception = false)
+        health = HTTP.get(string(base, "/api/v1/health"); REQUEST_OPTIONS...)
         @test health.status == 200
         @test JSON3.read(String(health.body), Dict{String,Any})["status"] == "healthy"
 
-        product = HTTP.get(string(base, "/api/v1/products/1"); status_exception = false)
+        product = HTTP.get(string(base, "/api/v1/products/1"); REQUEST_OPTIONS...)
         @test product.status == 200
         @test JSON3.read(String(product.body), Dict{String,Any})["product"]["id"] == 1
-        @test HTTP.get(string(base, "/api/v1/products/999"); status_exception = false).status == 404
+        @test HTTP.get(string(base, "/api/v1/products/999"); REQUEST_OPTIONS...).status == 404
 
         created = HTTP.post(string(base, "/api/v1/products"), json_headers,
-                            JSON3.write(Dict("name" => "Gadget", "price" => 19.99)); status_exception = false)
+                            JSON3.write(Dict("name" => "Gadget", "price" => 19.99)); REQUEST_OPTIONS...)
         @test created.status == 201
 
         login = HTTP.post(string(base, "/api/v1/auth/login"), json_headers,
-                          JSON3.write(Dict("email" => "admin@example.com", "password" => "admin123")); status_exception = false)
+                          JSON3.write(Dict("email" => "admin@example.com", "password" => "admin123")); REQUEST_OPTIONS...)
         @test login.status == 200
         token = JSON3.read(String(login.body), Dict{String,Any})["token"]
-        me = HTTP.get(string(base, "/api/v1/auth/me"), ["Authorization" => string("Bearer ", token)]; status_exception = false)
+        me = HTTP.get(string(base, "/api/v1/auth/me"), ["Authorization" => string("Bearer ", token)]; REQUEST_OPTIONS...)
         @test me.status == 200
 
         graphql = HTTP.post(string(base, "/graphql"), json_headers,
-                            JSON3.write(Dict("query" => "{ hello }")); status_exception = false)
+                            JSON3.write(Dict("query" => "{ hello }")); REQUEST_OPTIONS...)
         @test graphql.status == 200
         @test JSON3.read(String(graphql.body), Dict{String,Any})["data"]["hello"] == "Hello from {{projectName}} GraphQL!"
     finally
