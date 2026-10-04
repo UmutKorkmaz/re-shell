@@ -417,7 +417,7 @@ echo 'Starting lucky dev server...'
 exec lucky dev
 `,
 
-    'docker/development.dockerfile': `FROM crystallang/crystal:1.18.2
+    'docker/development.dockerfile': `FROM crystallang/crystal:1.21.1
 
 # Install utilities required to make this Dockerfile run
 RUN apt-get update && \\
@@ -722,9 +722,13 @@ crystal run src/start_server.cr           # http://localhost:3000
 \`\`\`
 
 With the Lucky CLI installed, \`crystal script/setup.cr\` does the same and \`lucky dev\` starts
-a watching server. Set \`SECRET_KEY_BASE\` (\`lucky gen.secret_key\`) and \`DATABASE_URL\` in production.
+a watching server.
 
-Or use Docker: \`docker compose up\` (see \`docker-compose.yml\`).
+With \`LUCKY_ENV=production\` the server refuses to start until these are set: \`SECRET_KEY_BASE\`
+(\`lucky gen.secret_key\`), \`DATABASE_URL\`, \`PORT\`, \`APP_DOMAIN\` (e.g. \`https://api.example.com\`)
+and \`SEND_GRID_KEY\` (\`unused\` when the app sends no email, see \`config/email.cr\`).
+
+Or develop in Docker: \`docker compose up\` (see \`docker-compose.yml\`).
 
 ## API
 
