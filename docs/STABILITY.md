@@ -175,10 +175,11 @@ tests; that is not repeated by the script.
 UUID written from memory), the Clojure group (Clojars versions and the
 `DeLaGuardo/setup-clojure@13.4` tag are unverified), the BEAM group (`setup-beam` with
 `gleam-version: '1'`; Nerves C ports), `red-http` (Red/System syntax; the download URL was
-scraped), `grain`, `ballerina` and `unison` (release URLs written from memory), the systems
-group (the `ponyup` install from Cloudsmith is untried), and `zap-zig` (its dependency hash, taken
-from the green CI run, is now pinned in the template). A red job there is an
-expected outcome, not a regression of the 172.
+scraped), `grain`, `ballerina` and `unison` (release URLs written from memory), and the
+systems group (the `ponyup` install from Cloudsmith is untried). A red job there is an
+expected outcome, not a regression of the 172. `zap-zig` built and passed its tests in the
+`core` job of run 37235796540 with a hash computed during the run; that hash is now pinned
+in the template.
 
 **Four templates are infeasible** and are deliberately kept out of the script, with their
 source unchanged. They are registered, scaffoldable and covered by the registry and
