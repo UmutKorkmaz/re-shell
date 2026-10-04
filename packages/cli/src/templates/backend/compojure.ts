@@ -10,7 +10,7 @@ export const compojureTemplate: BackendTemplate = {
   language: 'clojure',
   port: 3000,
   tags: ['clojure', 'compojure', 'ring', 'web', 'api', 'rest', 'functional', 'jvm'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation', 'graphql'],
+  features: ['routing', 'middleware', 'rest-api', 'authentication', 'logging', 'cors', 'validation', 'graphql'],
   dependencies: {},
   devDependencies: {},
   files: {
