@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import { resolve, join } from 'path';
 import { spawnSync } from 'child_process';
 import { nestjsTemplate } from '../../src/templates/backend/nestjs';
+import { backendTemplates } from '../../src/templates/backend';
 
 const temporaryDirectories: string[] = [];
 const healthScript = readFileSync(resolve(__dirname, '../../../../scripts/scaffold-test-templates.sh'), 'utf8');
@@ -521,6 +522,41 @@ describe('native verification of the toolchain groups (swift, julia, nim, crysta
     expect(result.stdout).toContain('NOTE: the specs need PostgreSQL');
   });
 
+  it('fails a type-checked Crystal run when PostgreSQL is required but not running', () => {
+    const result = runHealthFixture('non-node', 'lucky-cr', {
+      kinds: { 'lucky-cr': 'crystal-db' },
+      tools: ['node', 'pnpm', 'npx', 'crystal', 'shards'],
+      env: { TEMPLATE_HEALTH_REQUIRE_POSTGRES: '1' },
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('RESULTS: 0 passed, 1 failed, 0 skipped');
+    expect(result.stdout).toContain('TEMPLATE_HEALTH_REQUIRE_POSTGRES=1');
+    expect(result.shimLog).not.toContain('crystal spec');
+    expect(result.shimLog).not.toContain('.spec_typecheck.cr');
+  });
+
+  it('exits 1 on a SKIP only when TEMPLATE_HEALTH_FAIL_ON_SKIP=1', () => {
+    const options = { kinds: { jester: 'nim' }, tools: ['node', 'pnpm', 'npx'] };
+    const lenient = runHealthFixture('non-node', 'jester', options);
+    expect(lenient.status).toBe(0);
+    expect(lenient.stdout).toContain('RESULTS: 0 passed, 0 failed, 1 skipped');
+    const strict = runHealthFixture('non-node', 'jester', { ...options, env: { TEMPLATE_HEALTH_FAIL_ON_SKIP: '1' } });
+    expect(strict.status).toBe(1);
+    expect(strict.stdout).toContain('RESULTS: 0 passed, 0 failed, 1 skipped');
+    expect(strict.stdout).toContain('SKIPs are not allowed here (TEMPLATE_HEALTH_FAIL_ON_SKIP=1)');
+    expect(strict.stdout).not.toContain('ALL TEMPLATES PASSED');
+  });
+
+  it('keeps a passing strict run green', () => {
+    const result = runHealthFixture('non-node', 'jester', {
+      kinds: { jester: 'nim' },
+      tools: ['node', 'pnpm', 'npx', 'nim', 'nimble'],
+      env: { TEMPLATE_HEALTH_FAIL_ON_SKIP: '1' },
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('RESULTS: 1 passed, 0 failed, 0 skipped');
+  });
+
   it('pins an unhashed Zig URL dependency from zig fetch, then builds and tests', () => {
     const result = runHealthFixture('non-node', 'zap-zig', {
       kinds: { 'zap-zig': 'zig-url' },
@@ -584,3 +620,76 @@ describe('ReScript template verification', () => {
   });
 });
 
+
+describe('template health wiring', () => {
+  const INFEASIBLE = ['perfect', 'roc', 'carbon', 'vale'];
+  const workflow = readFileSync(resolve(__dirname, '../../../../.github/workflows/template-health.yml'), 'utf8');
+
+  const groups: Record<string, string[]> = {};
+  for (const match of healthScript.matchAll(/^GROUP_([A-Z]+)=\(\n([\s\S]*?)\n\)/gm)) {
+    groups[match[1].toLowerCase()] = match[2]
+      .split('\n')
+      .map((line) => line.replace(/#.*/, ''))
+      .join(' ')
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+  const wired = Object.values(groups).flat();
+
+  it('parses every group array of the script', () => {
+    expect(Object.keys(groups).sort()).toEqual(
+      ['core', 'jvm', 'dotnet', 'native', 'node', 'config', 'haskell', 'deno', 'swift', 'julia', 'nim', 'crystal', 'ocaml', 'clojure', 'beam', 'systems', 'exotic', 'exoticb'].sort(),
+    );
+  });
+
+  it('wires every registered backend template exactly once, except the infeasible ones', () => {
+    expect(wired.filter((id, index) => wired.indexOf(id) !== index)).toEqual([]);
+    const expected = Object.keys(backendTemplates).filter((id) => !INFEASIBLE.includes(id));
+    expect([...wired].sort()).toEqual([...expected].sort());
+  });
+
+  it.each(INFEASIBLE)('registers %s but keeps it out of every group', (id) => {
+    expect(Object.keys(backendTemplates)).toContain(id);
+    expect(wired).not.toContain(id);
+  });
+
+  it('places the newly wired templates in their groups', () => {
+    expect(groups.swift).toEqual(['hummingbird', 'kitura']);
+    expect(groups.julia).toEqual(['genie-jl', 'oxygen-jl']);
+    expect(groups.nim).toEqual(['jester', 'prologue-nim', 'happyx-nim']);
+    expect(groups.crystal).toEqual(['kemal', 'lucky-cr', 'amber-cr']);
+    expect(groups.ocaml).toEqual(['dream-ocaml', 'opium-ocaml']);
+    expect(groups.clojure).toEqual(['compojure', 'luminus-clj', 'reitit-clj', 'pedestal-clj']);
+    expect(groups.beam).toEqual(['plug-ex', 'nerves-ex', 'wisp']);
+    expect(groups.systems).toEqual(['vweb', 'vex-v', 'odin-http', 'jennet-pony']);
+    expect(groups.exotic).toEqual(['grain', 'ballerina', 'unison']);
+    expect(groups.exoticb).toEqual(['mojo', 'mojo-fastapi', 'red-http']);
+    expect(groups.core).toContain('zap-zig');
+    expect(groups.core).toContain('laravel');
+    expect(groups.native).toContain('crow');
+    expect(groups.deno).toContain('aleph-deno');
+  });
+
+  it('runs a workflow matrix job for exactly the groups the script defines', () => {
+    const matrix = /group: \[([^\]]+)\]/.exec(workflow);
+    expect(matrix).not.toBeNull();
+    const jobs = matrix![1].split(',').map((name) => name.trim());
+    expect(jobs.sort()).toEqual(Object.keys(groups).sort());
+  });
+
+  it('selects every group with a --group case arm', () => {
+    for (const name of Object.keys(groups)) {
+      expect(healthScript, name).toMatch(new RegExp(`^\\s+${name}\\) TEMPLATES\\+=\\("\\$\\{GROUP_${name.toUpperCase()}\\[@\\]\\}"\\)`, 'm'));
+      expect(healthScript, name).toContain(`"\${GROUP_${name.toUpperCase()}[@]}"`);
+    }
+  });
+
+  it('fails the toolchain-installing groups on a SKIP and requires PostgreSQL for Crystal', () => {
+    const strict = /TEMPLATE_HEALTH_FAIL_ON_SKIP: \$\{\{ contains\(fromJSON\('(\[[^']*\])'\), matrix\.group\)/.exec(workflow);
+    expect(strict).not.toBeNull();
+    const strictGroups = JSON.parse(strict![1]) as string[];
+    expect(strictGroups.sort()).toEqual(['swift', 'julia', 'nim', 'crystal', 'ocaml', 'clojure', 'beam', 'systems', 'exotic', 'exoticb'].sort());
+    for (const name of strictGroups) expect(Object.keys(groups)).toContain(name);
+    expect(workflow).toMatch(/TEMPLATE_HEALTH_REQUIRE_POSTGRES: \$\{\{ matrix\.group == 'crystal'/);
+  });
+});

@@ -23,7 +23,9 @@ jobs:
   # A template whose toolchain is not installed is reported as SKIP with the
   # reason; a template that fails to build fails the job.
   scaffold-and-build:
-    runs-on: ubuntu-latest
+    # Pinned: several toolchain installs (Swift, Odin's LLVM 18, Red's i386 libcurl,
+    # ponyc, PostgreSQL) assume the Ubuntu 24.04 image. Move it deliberately.
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -343,7 +345,14 @@ jobs:
           echo "$HOME/red-bin" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
+      # The groups whose toolchain is installed by this workflow must not skip a template: a
+      # skip there means the install step left the toolchain off PATH, so it fails the job
+      # instead of passing with nothing built. Crystal also requires its PostgreSQL service so
+      # the Lucky and Amber specs run rather than being type-checked.
       - name: Scaffold and build the ${{ matrix.group }} templates
+        env:
+          TEMPLATE_HEALTH_FAIL_ON_SKIP: ${{ contains(fromJSON('["swift","julia","nim","crystal","ocaml","clojure","beam","systems","exotic","exoticb"]'), matrix.group) && '1' || '0' }}
+          TEMPLATE_HEALTH_REQUIRE_POSTGRES: ${{ matrix.group == 'crystal' && '1' || '0' }}
         run: bash scripts/scaffold-test-templates.sh --group ${{ matrix.group }}
 
   # Scaffolds each Node/Bun backend, installs it from the repo root, builds it,

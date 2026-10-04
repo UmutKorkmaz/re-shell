@@ -652,6 +652,9 @@ verify_crystal() {
         step db-create bash -c 'AMBER_ENV=test bin/amber db drop >/dev/null 2>&1; AMBER_ENV=test bin/amber db create' || return 1
       fi
       step spec crystal spec || return 1
+    elif [ "${TEMPLATE_HEALTH_REQUIRE_POSTGRES:-0}" = 1 ]; then
+      echo "  PostgreSQL (postgres/postgres on localhost) is required here (TEMPLATE_HEALTH_REQUIRE_POSTGRES=1) but does not answer"
+      return 1
     else
       # `crystal spec` has no type-check-only mode: compile every spec file without code generation.
       printf 'require "./spec/**"\n' >.spec_typecheck.cr
@@ -1161,6 +1164,14 @@ if [ "$FAIL" -gt 0 ]; then
   for ft in "${FAILED_TEMPLATES[@]}"; do
     echo "  ✗ $ft"
   done
+  exit 1
+fi
+# Strict mode for CI groups whose toolchain install must work: a template that is
+# skipped there means the install step did not put its toolchain on PATH, which
+# must not look like a green run with nothing built.
+if [ "${TEMPLATE_HEALTH_FAIL_ON_SKIP:-0}" = 1 ] && [ "$SKIP" -gt 0 ]; then
+  echo ""
+  echo "SKIPs are not allowed here (TEMPLATE_HEALTH_FAIL_ON_SKIP=1): $SKIP template(s) were not verified"
   exit 1
 fi
 if [ "$SKIP" -eq 0 ]; then
