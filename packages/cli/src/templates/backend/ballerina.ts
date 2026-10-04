@@ -167,7 +167,7 @@ service /graphql on new graphql:Listener(graphqlPort) {
 }
 `,
 
-    // Unit tests (bal test, also run by bal build)
+    // Unit tests (bal test)
     'tests/validation_test.bal': `import ballerina/test;
 
 @test:Config {}

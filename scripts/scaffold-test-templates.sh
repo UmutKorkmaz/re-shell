@@ -46,7 +46,7 @@
 #   V (veb, vex)              v fmt -verify, v build, v test
 #   Odin (odin-http)          odin build, odin test
 #   Pony (Jennet)             corral fetch, ponyc (app and tests), run the tests
-#   Ballerina                 bal build (runs the package tests)
+#   Ballerina                 bal build, bal test
 #   Grain                     grain compile + run, then the compiled test program
 #   Unison                    ucm transcript: typecheck, add, run the self-test
 #   Mojo                      mojo build, the Mojo test programs, boot the server; FastAPI +
@@ -778,9 +778,11 @@ verify_systems() {
 verify_exotic() {
   if [ -f Ballerina.toml ]; then
     have bal || { NATIVE_REASON="bal (Ballerina) is not installed"; return 2; }
-    # Resolves ballerina/http, graphql, log and test (Ballerina Central), compiles the package,
-    # runs its unit tests (which start the module's listeners on 8080 and 9090) and builds the jar.
+    # Resolves ballerina/http, graphql and log (Ballerina Central), compiles the package and builds
+    # the jar. bal build does not run the tests, so bal test runs them; they start the module's
+    # listeners on 8080 and 9090.
     step build bal build || return 1
+    step test bal test || return 1
   elif [ -f src/main.gr ]; then
     have grain || { NATIVE_REASON="grain (the Grain compiler) is not installed"; return 2; }
     mkdir -p build
@@ -800,7 +802,12 @@ verify_exotic() {
       cat main.u
       printf '%s\n' '```' '' '```ucm' 'scratch/main> add' 'scratch/main> run selfTest' 'scratch/main> run appMain' '```'
     } >"$transcript"
-    step transcript ucm transcript "$transcript" || return 1
+    if ! step transcript ucm transcript "$transcript"; then
+      # step shows only the last 15 lines, which cut off the start of a type error (the failing
+      # line and the type ucm expected), so print the error again from its beginning.
+      sed -n '/The transcript failed/,$p' "$TMP_DIR/$TPL-transcript.txt" | head -n 80 | sed 's/^/    | /' || true
+      return 1
+    fi
     output="${transcript%.md}.output.md"
     if [ -f "$output" ] && grep -qE 'unhandled exception|💥' "$output"; then
       echo "  ✗ the transcript reported a failed run"
