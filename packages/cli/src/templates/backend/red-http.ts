@@ -420,11 +420,12 @@ bin/
     'Dockerfile': `FROM ubuntu:24.04
 
 # The Red toolchain and the executables it builds are 32-bit x86 programs, so a
-# 64-bit system needs the 32-bit C library and libcurl (used by Red's runtime).
+# 64-bit system needs the 32-bit C library, libcurl and gdk-pixbuf (Red's runtime
+# links both libraries; gdk-pixbuf backs the image! datatype).
 ARG RED_URL=https://static.red-lang.org/dl/linux/red-toolchain-066
 RUN dpkg --add-architecture i386 \\
     && apt-get update \\
-    && apt-get install -y --no-install-recommends ca-certificates curl libc6:i386 libcurl4t64:i386 \\
+    && apt-get install -y --no-install-recommends ca-certificates curl libc6:i386 libcurl4t64:i386 libgdk-pixbuf-2.0-0:i386 \\
     && rm -rf /var/lib/apt/lists/* \\
     && curl -fsSL "$RED_URL" -o /usr/local/bin/red \\
     && chmod +x /usr/local/bin/red
@@ -457,12 +458,14 @@ The Red toolchain (stable 0.6.x, file \`red-toolchain-066\`). The \`red-cli\` an
 \`red-view\` downloads are consoles (interpreters) and cannot compile.
 
 On 64-bit Linux the toolchain and the executables it produces are 32-bit
-programs, so install the 32-bit libraries first (Debian/Ubuntu):
+programs, so install the 32-bit libraries first (Debian/Ubuntu). Every compiled
+Red program links libcurl and gdk-pixbuf (used by the \`image!\` datatype), so
+it does not start without them:
 
 \`\`\`bash
 sudo dpkg --add-architecture i386
 sudo apt-get update
-sudo apt-get install libc6:i386 libcurl4t64:i386   # libcurl4:i386 on releases before Ubuntu 24.04
+sudo apt-get install libc6:i386 libcurl4t64:i386 libgdk-pixbuf-2.0-0:i386   # libcurl4:i386 on releases before Ubuntu 24.04
 \`\`\`
 
 Download the toolchain for your platform from
