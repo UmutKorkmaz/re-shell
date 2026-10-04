@@ -12,7 +12,7 @@ instead of being trusted. Source and full README:
 > **Not on the Marketplace.** The package is `re-shell` version `0.3.0`, private, and is
 > installed from a `.vsix`. **The VS Code host test was not run in the environment this
 > was developed in** (it downloads VS Code from `update.code.visualstudio.com`, which
-> was blocked); it runs in the `VS Code Extension` workflow, pending its first hosted run.
+> was blocked); it runs in the `VS Code Extension` workflow, which passes on GitHub (PR #395, commit `3207b9f`), host test included.
 > The unit and real-hub integration suites (built CLI and hub, no editor) do run
 > without VS Code.
 

@@ -98,7 +98,7 @@ re-shell templates matrix --json
 📊 Template compatibility matrix (208)
 
 Languages: ballerina, clojure, cpp, crystal, csharp, dart, ... typescript, unison, v, zig
-Frameworks: 174
+Frameworks: 173
 Databases: couchbase, couchdb, elasticsearch, generic-sql, ... sqlite
 Caches: in-memory, memcached, redis
 Deployment: ci-cd, docker, kubernetes, serverless

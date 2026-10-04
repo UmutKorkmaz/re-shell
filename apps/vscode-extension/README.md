@@ -15,7 +15,7 @@ comes from the CLI's `--json` commands, validated against the shared
 > no editor) and the `.vsix` packaging check run without VS Code. The **VS Code host test**
 > (`@vscode/test-electron`, inside a real editor) was **not run in the environment this
 > was developed in**: it downloads VS Code from `update.code.visualstudio.com`, which was
-> blocked. It runs in the `VS Code Extension` GitHub workflow (pending its first run).
+> blocked. It runs in the `VS Code Extension` GitHub workflow, which passes on PR #395 (commit `3207b9f`), host test included.
 
 ## What it does
 

@@ -42,7 +42,7 @@ Options: `--gate <pillars>` (comma-separated pillars that gate CI; default `a11y
 It cannot pass by doing nothing: **no Storybook found, an empty run, or an invalid gate
 configuration is `UI_TEST_ERROR`**, never a pass. The repository's own CI runs it as
 `re-shell ui test --storybook packages/ui --static-dir packages/ui/storybook-static --ci --json`
-(the `storybook` job, pending its first hosted run).
+(the `storybook` job, which passes on GitHub, PR #395; its visual baselines are rendered in CI's own Chromium, the Playwright 1.61.1 image).
 
 ## `ui component new`
 

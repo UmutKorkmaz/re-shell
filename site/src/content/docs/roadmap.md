@@ -17,12 +17,14 @@ release gates are in
 | CLI | `0.31.0` in the tree; **`0.30.1` is the last published version** |
 | Other packages | contracts `0.3.0` (published `0.2.0`), mcp `0.2.0` (published `0.1.0`), ui `0.6.0` (published `0.5.0`) |
 | Commands | **585** command paths in **46** top-level commands (`re-shell commands list --json`) |
-| Backend templates | **208** across **36** languages (`re-shell templates list --json`) |
+| Backend templates | **208** across **36** languages and **173** frameworks (`re-shell templates list --json`) |
 | Dashboard | **11** screens |
 | Startup | Lazy command loading: `--version` about 45 ms, `--help` about 100 ms (median of 10 runs on the development VM; `--help` took about 2.6 s before). Measured, machine-dependent. The older "under 100 ms, about 43 ms" claim was true only for `--version`. |
 
-Nothing has been published or deployed by this work. "Pending first CI run" means a
-workflow exists but no hosted run has executed it yet.
+Nothing has been published or deployed by this work. Every workflow (`ci.yml`, VS Code
+extension, k8s-live, IaC validation, desktop, template health, accessibility) has run and
+passed on GitHub on pull request #395 (commit `3207b9f`). "Pending first hosted run" now
+applies only to the 32 templates wired into template health afterwards.
 
 ## Status legend
 
@@ -46,7 +48,7 @@ workflow exists but no hosted run has executed it yet.
 | `cloud iac generate\|validate`, `cloud deploy` | DONE (env-limited: `cloud deploy` needs real credentials and was never run against an account; Terraform validation runs in CI) |
 | `fix --ci` | DONE (env-limited: no live LLM call) |
 | Backend template registry: 208 templates, every placeholder substituted (including in file paths), at least 3 templates per emerging runtime (Deno, Bun, Kotlin, Scala, Crystal, Zig, Elixir, Nim) | DONE+tested |
-| Generated projects install, build and boot | Done: 172 of the 208 templates build with their own toolchain in hosted CI, and 8 Node/Bun templates boot; the other 36 need a registry or toolchain that was not available, and are listed on the [catalog page](/re-shell/templates/catalog/#verification) |
+| Generated projects install, build and boot | 172 of the 208 templates build with their own toolchain in hosted CI, and 8 Node/Bun templates boot. 32 more are wired into template health (**204 of 208 wired**) and are pending their first hosted run: 14 were built locally with their real toolchain, 18 are ci-only and not claimed to pass. 4 are infeasible (`perfect`, `roc`, `carbon`, `vale`). See the [catalog page](/re-shell/templates/catalog/#verification) |
 | `create` non-interactive in every mode, honest skeletons, dry-run diffs | DONE+tested |
 
 ## UI / dashboard
@@ -57,7 +59,7 @@ workflow exists but no hosted run has executed it yet.
 | `re-shell ui` fails if the hub is unhealthy; hub URL pinned to loopback | DONE+tested |
 | WCAG 2.1 AA work (skip link, focus management, live regions, contrast in both themes) | DONE+tested (axe audit passes in hosted CI; automated checks are not a manual audit) |
 | Code splitting with enforced gzip budgets | DONE+tested |
-| Storybook 9 and a real `ui test` runner (interaction, a11y, visual; an empty run is an error) | DONE+tested (CI job pending first run) |
+| Storybook 9 and a real `ui test` runner (interaction, a11y, visual; an empty run is an error) | DONE+tested (the CI job passes on PR #395) |
 | `ui component new`, `ui generate`, `ui theme ...`, white-label (`re-shell.whitelabel.json`, `RE_SHELL_BRAND_*`) | DONE+tested (theme search on the live npm registry not exercised) |
 | Polymorphic `Box`/`Text`/`Stack`, branded CSS units | DONE+tested (the earlier "shipped" claim was premature; it is true now) |
 
@@ -92,8 +94,9 @@ Everything left depends on something outside the development environment:
 - Broker round-trip tests (Docker).
 - Public hosting of the control plane (a deployment target, TLS, a security review).
 - WebRTC across symmetric NATs (a TURN server).
-- The first hosted run of the workflows that run only on `main` and pull requests (`ci.yml`, VS Code extension, k8s-live, IaC validation, desktop); `template-health` and `accessibility` already pass on GitHub.
-- Building the 36 templates whose registry or toolchain was unavailable (hex, Clojars, nimble, shards, opam, deno.land, Swift, Julia, V, Gleam and others; see the [catalog page](/re-shell/templates/catalog/#verification)).
+- Hosted runs of those workflows on `main` after the merge; they already pass on pull request #395.
+- The first hosted run of the 32 newly wired templates, 18 of which are ci-only (Swift, Julia, OCaml, Clojure, BEAM, `zap-zig`, `red-http`, Grain, Ballerina, Unison; see the [catalog page](/re-shell/templates/catalog/#verification)).
+- The 4 infeasible templates (`perfect`, `roc`, `carbon`, `vale`), which need a usable toolchain first.
 
 ## Explicitly dropped
 

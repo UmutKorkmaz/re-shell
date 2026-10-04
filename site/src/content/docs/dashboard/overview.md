@@ -138,7 +138,7 @@ problems; this is not a substitute for a manual audit.)
 The **Workspace Graph** screen scales to **2000+ nodes** (it is virtualized; a
 Playwright spec generates a 2001-workspace repository and checks render, search,
 filter, path, diff and export budgets, and passed locally when it was merged; it
-runs in CI, pending the first hosted run).
+runs in CI and passes there, PR #395).
 
 - **Search and facet filters**: text search over name and path, and language, framework, type and status facets. They live in the URL,
   so a filtered view is shareable.

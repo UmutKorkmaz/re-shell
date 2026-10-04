@@ -12,8 +12,9 @@ below: [`docs/desktop.md`](https://github.com/UmutKorkmaz/re-shell/blob/main/doc
 > **Verification status.** Linux `.deb`, `.rpm` and `.AppImage` bundles were built and
 > the `.deb` and release binary were smoke-tested under Xvfb in the development
 > environment. **macOS and Windows bundles are produced only by the `desktop` GitHub
-> workflow and were not built or run here**, the workflow has not had its first hosted
-> run, and **signed builds were never verified with real certificates**: signing
+> workflow and were not built or run here**. The workflow has run on GitHub and
+> passes on PR #395 (commit `3207b9f`): it builds the Linux, macOS and Windows bundles and
+> runs the Rust tests, but nobody has launched the macOS or Windows app, and **signed builds were never verified with real certificates**: signing
 > happens only when you add the signing secrets to the repository, and without them
 > the workflow builds **unsigned** bundles and says so in its log. The app is not
 > distributed anywhere.
@@ -74,7 +75,7 @@ Xvfb (hub on loopback only, token enforced, the webview reaches the hub, the hub
 port are gone after `SIGTERM`, `SIGKILL` and closing the window, and the failure page on
 a missing Node), and the AppImage starting its hub.
 
-Not verified: any macOS or Windows build, any signed or notarized build, the in-app
+Not verified locally: any macOS or Windows build (the hosted `desktop` workflow builds them), any signed or notarized build, the in-app
 auto-update (there is none; updater signatures are produced only when a key exists),
 and the `.rpm` was built but not installed.
 

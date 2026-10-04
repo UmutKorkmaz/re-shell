@@ -242,12 +242,16 @@ desktops do not need them.
 ## 6. Not done, and known limitations
 
 - **macOS and Windows** bundles are built only by CI; they were not built or run
-  here. The loopback ATS exception in `src-tauri/Info.plist` and the Windows
+  here. The `desktop` workflow builds the Linux, macOS and Windows bundles and runs the
+  Rust tests, and passes on PR #395 (commit `3207b9f`); nobody has launched the macOS
+  or Windows app. The loopback ATS exception in `src-tauri/Info.plist` and the Windows
   thumbprint flow follow Tauri's documented mechanisms but are unexercised. The
   signing and notarization path has not been run with real certificates, so no
   claim of a signed build is made until a workflow run with the secrets succeeds.
-- **The GitHub workflow itself has not run** (it needs GitHub); it was linted
-  with `actionlint`.
+- **The GitHub workflow** was linted with `actionlint` and has now run on GitHub:
+  it passes on PR #395 (commit `3207b9f`), unsigned. Its first hosted runs caught a
+  free-port race in the desktop test and `node-pty` moving to 1.1.0 (N-API, prebuilt on
+  Windows); both are fixed.
 - No bundled Node runtime and no in-app workspace picker (use `--workspace` /
   `RE_SHELL_WORKSPACE`).
 - No in-app auto-update (updater signatures are produced when the key exists).

@@ -111,7 +111,7 @@ commands used to be are still available behind `--legacy <project-name>`.
   ran against a local k3s cluster during development.
 - **Not run locally:** the Flux (and Argo CD) sync step. It needs registry egress that
   the development environment blocks. It runs in the `k8s-live` workflow against a
-  `kind` cluster (pending that workflow's first hosted run); Argo CD is not installed
+  `kind` cluster (the workflow passes on GitHub, PR #395); Argo CD is not installed
   there, so the Argo `Application` manifest is validated against its CRD schema with
   `kubeconform` only.
 

@@ -48,7 +48,7 @@ validate` (in a temporary copy unless `--in-place`) and **fails unless all three
 really ran and passed**: a missing `terraform` binary is a failure, not a skip.
 The `iac-validate` workflow runs this for AWS, Azure and GCP output on every change to
 the generator (it downloads providers from the registry; it does not use cloud
-credentials, and its first hosted run is pending). Generating Terraform is verified
+credentials, and the workflow passes on GitHub, PR #395). Generating Terraform is verified
 by unit tests and that workflow; **nothing here has been applied to a real cloud
 account.**
 

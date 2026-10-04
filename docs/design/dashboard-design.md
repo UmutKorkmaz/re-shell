@@ -453,7 +453,7 @@ strength of a screenshot.
 - [ ] Dense scan-friendly tables (compact rows, eyebrow headers); copy-CLI affordance styled as a terminal chip. (The `cli-chip` class exists and is used in the top bar and graph toolbar; table density was not audited.)
 - [x] Refined light companion (cool paper + ink + darkened lime), intentional — NOT pastel. (A full light theme exists with its own hex fallback; contrast is verified for both themes. "Not pastel" is a design judgement.)
 - [ ] Looks like a real product screenshot (Vercel/Linear/Grafana-grade), typed, no `any`. (Subjective. For the "typed" part: no `any` occurs in non-test, non-story source under `packages/ui/src` and `apps/web/src`.)
-- [ ] Data flow, hub hooks, transport, and command logic UNCHANGED — presentation only; existing tests stay GREEN. (A constraint of the original restyle task, not a property that can be re-checked now. The suites run in CI, pending first CI run.)
+- [ ] Data flow, hub hooks, transport, and command logic UNCHANGED — presentation only; existing tests stay GREEN. (A constraint of the original restyle task, not a property that can be re-checked now. The suites run in CI and pass on PR #395.)
 
 ---
 

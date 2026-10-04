@@ -17,7 +17,7 @@ re-shell templates matrix --json
 📊 Template compatibility matrix (208)
 
 Languages: ballerina, clojure, cpp, crystal, csharp, dart, ... typescript, unison, v, zig
-Frameworks: 174
+Frameworks: 173
 Databases: couchbase, couchdb, elasticsearch, generic-sql, ... sqlite
 Caches: in-memory, memcached, redis
 Deployment: ci-cd, docker, kubernetes, serverless
@@ -41,9 +41,9 @@ haskell, java, javascript, julia, kotlin, lua, mojo, nim, ocaml, odin, perl, php
 pony, python, red, rescript, roc, ruby, rust, scala, swift, typescript, unison,
 v, zig.
 
-### Frameworks (174)
+### Frameworks (173)
 
-174 frameworks across web, RPC, messaging, and infrastructure — from Express,
+173 frameworks across web, RPC, messaging, and infrastructure — from Express,
 FastAPI, Spring Boot, Actix-Web, Gin, Phoenix, and Laravel to gRPC, GraphQL,
 Kubernetes, Nginx, Istio, Kong, and Vault. Run `re-shell templates matrix` for the
 complete current list, or see the [catalog](/re-shell/templates/catalog/).
@@ -95,7 +95,7 @@ re-shell templates matrix --json > matrix.json
     ],
     "facets": {
       "languages": ["...36..."],
-      "frameworks": ["...174..."],
+      "frameworks": ["...173..."],
       "databases": ["...11..."],
       "caches": ["in-memory", "memcached", "redis"],
       "deploymentTargets": ["ci-cd", "docker", "kubernetes", "serverless"],

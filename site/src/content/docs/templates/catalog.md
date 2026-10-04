@@ -1,10 +1,10 @@
 ---
 title: "Template Catalog"
-description: "The full catalog of 208 backend templates across 36 languages and 174 frameworks, grouped by language with the real per-language counts."
+description: "The full catalog of 208 backend templates across 36 languages and 173 frameworks, grouped by language with the real per-language counts."
 ---
 
 Re-Shell ships **208 backend templates** spanning **36 languages** and
-**174 frameworks**. Every template is a scaffoldable service with sensible
+**173 frameworks**. Every template is a scaffoldable service with sensible
 defaults (routing, validation, Docker, testing, and more). How much of the
 catalog has been built and booted is stated in
 [Verification](#verification) below. Browse and preview
@@ -68,7 +68,7 @@ re-shell templates apply express --name billing   # dry-run preview
 
 ## Frameworks (selected)
 
-174 frameworks are represented. A sampling across ecosystems:
+173 frameworks are represented. A sampling across ecosystems:
 
 - **TypeScript / JavaScript** — Express, Fastify, NestJS, Koa, Hono, Elysia,
   AdonisJS, FeathersJS, LoopBack, Restify, Sails.js, Ts.ED, Middy, Moleculer,
@@ -80,11 +80,17 @@ re-shell templates apply express --name billing   # dry-run preview
   http4k, Play, Akka HTTP, http4s.
 - **C# / .NET** — ASP.NET Core (Minimal, Web API, EF Core, Dapper, JWT, Swagger,
   Serilog, xUnit), Blazor Server.
-- **Elixir** — Phoenix, Plug.
+- **Elixir / Gleam** — Phoenix, Plug, Nerves, Wisp.
 - **Ruby** — Rails, Sinatra, Grape.
-- **PHP** — Laravel, Symfony, Slim, CodeIgniter.
+- **PHP** — Laravel 13, Symfony, Slim, CodeIgniter.
 - **Haskell / OCaml / F#** — Yesod, Servant, Scotty, Spock, Dream, Opium,
   Giraffe, Suave, Saturn.
+- **Swift / Julia / Clojure** — Vapor, Hummingbird 2, Kitura 3, Perfect; Genie,
+  Oxygen; Compojure, Luminus, Reitit, Pedestal.
+- **Nim / Crystal** — Jester, Prologue, HappyX; Kemal, Lucky, Amber.
+- **Systems and emerging** — Zap (Zig), Crow (C++), `veb` and Vex (V), Odin, Jennet
+  (Pony), Red, Mojo (and Mojo + FastAPI), Grain, Ballerina, Unison, Roc.
+- **Deno** — Oak, Fresh, and a Hono + React server-rendered app (`aleph-deno`).
 - **Infrastructure** — Docker, Docker Compose, Kubernetes, Nginx, Traefik,
   HAProxy, Envoy, Istio, Linkerd, Consul, Vault, Kong, Redis, PostgreSQL,
   MongoDB, MySQL, Elasticsearch, Neo4j, InfluxDB.
@@ -161,54 +167,84 @@ templates (a unit test pins this):
 | Elixir | `phoenix`, `plug-ex`, `nerves-ex` |
 | Nim | `jester`, `prologue-nim`, `happyx-nim` |
 
+Two descriptions changed with the template work: `aleph-deno` is now a **Hono + React**
+server-rendered app on Deno 2 (framework `hono`; the Aleph.js template it replaces was
+retired), and `vweb` runs on **veb**, V's renamed web module (framework `veb`).
+
 ## Verification
 
 A template existing in the registry is not proof that its generated project
 works. Two scripts check that, and the `template-health` workflow runs both on
-every push and pull request, and passes on hosted CI:
+every push and pull request:
 
 - `bash scripts/scaffold-test-templates.sh` scaffolds templates with the built CLI
   and builds each with its own toolchain (`tsc`, `go build`, `cargo check`, Maven,
   Gradle, sbt, `dotnet build`, CMake, `zig build`, `cabal build` + `cabal test`,
   `deno check` + `deno test`, `dart analyze`, `rescript build`, `php -l` + composer,
-  `ruby -c` + bundle, Python compile and import, ...). It runs in groups
-  (`--group core|jvm|dotnet|native|node|haskell|deno|config`), one CI job each. A
-  template whose toolchain is not installed is reported as **SKIP** with the reason,
-  never as a pass.
+  `ruby -c` + bundle, Python compile and import, SwiftPM, Julia `Pkg`, `nimble`,
+  `shards`, `dune`, Leiningen, `mix`, `gleam`, `v`, `odin`, `ponyc`, `bal`, `grain`,
+  `mojo`, `red`, ...). It runs in groups
+  (`--group core|jvm|dotnet|native|node|config|haskell|deno|swift|julia|nim|crystal|ocaml|clojure|beam|systems|exotic|exoticb`),
+  one CI job each. A template whose toolchain is not installed is reported as **SKIP**
+  with the reason, never as a pass.
 - `node scripts/boot-test-templates.mjs` scaffolds eight Node and Bun backends
   (Express, Fastify, Koa, Hono, NestJS, `elysia-bun`, `bun-serve`, `trpc-bun`),
   installs them, builds, starts each on a free port with no database or Redis
   reachable, waits for `/health`, probes a functional route and requires a clean
   exit on SIGTERM.
 
-**Where the catalog stands (0.31.0):** the build script lists **172 of the 208**
-templates, and all of them build in the hosted `template-health` run (170 were also built
-during development; `vapor` and `phoenix` need a Swift toolchain and the hex registry, so
-only CI builds them). Lua templates are
-checked for syntax only, Dart templates are analyzed but their tests are not run, and
-the 18 configuration templates (service mesh, proxies, compose and similar) get a YAML
-syntax check, not a deployment.
+**Where the catalog stands (0.31.0):** the build script lists **204 of the 208**
+templates, in three tiers of evidence:
 
-The other **36** templates are registered, scaffoldable and covered by the registry and
-placeholder tests, but have **not** been built, because their package registry or
-toolchain was not available:
+- **172 pass in the hosted `template-health` run** (PR #395, commit `3207b9f`); 170 of
+  them were also built during development, while `vapor` and `phoenix` need a Swift
+  toolchain and the hex registry, so only CI builds them.
+- **32 are newly wired and have not had their first hosted run.** 14 of them were
+  built locally with their real toolchain; 18 are **ci-only**, because their toolchain
+  could not be downloaded here, so their first real build is the CI run on this branch.
+  None of the 32 is claimed to pass yet.
+- **4 are infeasible** and are left out of the script (below).
 
-| Needs | Templates |
+Lua templates are checked for syntax only, Dart templates are analyzed but their tests
+are not run, and the 18 configuration templates (service mesh, proxies, compose and
+similar) get a YAML syntax check, not a deployment.
+
+The 32 newly wired templates:
+
+| Group | Templates | Status |
+| --- | --- | --- |
+| Crystal (`shards`) | `kemal`, `lucky-cr`, `amber-cr` | built locally with the real toolchain |
+| V (`veb`, Vex), Odin, Pony | `vweb`, `vex-v`, `odin-http`, `jennet-pony` | built locally with the real toolchains |
+| Mojo | `mojo`, `mojo-fastapi` | built locally with the real toolchain |
+| Nim 2.0.x (`nimble`) | `jester`, `prologue-nim`, `happyx-nim` | built locally with Nim 2.0.16 |
+| C++ (CMake) | `crow` | built locally (Crow v1.2.0 fetched from GitHub; `libasio-dev` added to CI) |
+| Deno | `aleph-deno` | built locally (`deno check`, `deno test`) |
+| Swift (SwiftPM) | `hummingbird`, `kitura` | ci-only |
+| Julia (`Pkg`) | `genie-jl`, `oxygen-jl` | ci-only |
+| OCaml (`dune`, opam) | `dream-ocaml`, `opium-ocaml` | ci-only |
+| Clojure (Leiningen) | `compojure`, `luminus-clj`, `reitit-clj`, `pedestal-clj` | ci-only |
+| Elixir, Gleam (`mix`, `gleam`) | `plug-ex`, `nerves-ex`, `wisp` | ci-only |
+| Zig | `zap-zig` | ci-only (CI prints the hash of the fetched dependency; it must be pinned afterwards) |
+| Red | `red-http` | ci-only (Red/System, 32-bit toolchain) |
+| Grain, Ballerina, Unison | `grain`, `ballerina`, `unison` | ci-only |
+
+The Nim group runs **Nim 2.0.x** because `happyx` does not resolve with Nim 2.2.12 and
+nimble 0.24.1. `laravel` is now **Laravel 13**; its template-health check boots the app
+(`php artisan route:list`) and runs its PHPUnit suite (`php artisan test`).
+
+### Infeasible templates
+
+These four are registered, scaffoldable and covered by the registry and placeholder
+tests, but no build is attempted, and they are **not** counted as built:
+
+| Template | Why it cannot be built |
 | --- | --- |
-| hex | `plug-ex`, `nerves-ex` |
-| Clojars | `compojure`, `luminus-clj`, `reitit-clj`, `pedestal-clj` |
-| nimble | `jester`, `prologue-nim`, `happyx-nim` |
-| shards (GitHub) | `kemal`, `lucky-cr`, `amber-cr` |
-| opam | `dream-ocaml`, `opium-ocaml` |
-| sources on GitHub | `zap-zig`, `crow` |
-| deno.land/x | `aleph-deno` |
-| Swift | `perfect`, `kitura`, `hummingbird` |
-| Julia | `genie-jl`, `oxygen-jl` |
-| V | `vweb`, `vex-v` |
-| Gleam | `wisp` |
-| Odin, Pony, Red, Grain, Mojo, Roc, Ballerina, Unison, Carbon, Vale | `odin-http`, `jennet-pony`, `red-http`, `grain`, `mojo`, `mojo-fastapi`, `roc`, `ballerina`, `unison`, `carbon`, `vale` |
+| `perfect` (Swift) | PerfectNet calls `SSL_get_peer_certificate`, which is only a function-like macro in OpenSSL 3 that Swift's Clang importer cannot import; Perfect-Net has been unmaintained since 2020. |
+| `roc` | Roc has no stable release, and its platform must be pinned by a content-hash URL that could not be verified. |
+| `carbon` | There is no released version (only experimental nightlies) and no networking. |
+| `vale` | The project is archived, the last compiler is a 2022 alpha, and there is no networking. |
 
-Treat these as starting points to review, not as projects known to build.
+Treat these four as starting points to review, not as projects known to build.
 
 ## See also
 
