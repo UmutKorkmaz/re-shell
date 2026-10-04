@@ -34,9 +34,14 @@ Thumbs.db
 *.log
 `,
 
-    'Dockerfile': `# The official ponyc image carries ponyc, corral and the OpenSSL development files.
-# (The ponylang/ponyc image on Docker Hub is no longer updated, use the GitHub registry.)
-FROM ghcr.io/ponylang/ponyc:release
+    'Dockerfile': `# The official ponyc image (Alpine) carries ponyc, corral, clang and git. It is pinned to
+# ponyc 0.61.0: Jennet and http_server are built on the pre-0.72 \`net\` package, and from
+# 0.61.1 on the standard library's own \`json\` package shadows the json dependency
+# (see README.md). The ponylang/ponyc image on Docker Hub is no longer updated.
+FROM ghcr.io/ponylang/ponyc:0.61.0
+
+# the ssl package links against OpenSSL (libssl, libcrypto)
+RUN apk add --no-cache openssl-dev
 
 WORKDIR /app
 
@@ -68,9 +73,16 @@ endif
 
 SOURCES := $(shell find app main.pony -name '*.pony')
 
-.PHONY: all deps build run test clean docker-build docker-run
+# The compiler release this project builds with (see README.md)
+PONYC_VERSION := 0.61.0
+
+.PHONY: all check-ponyc deps build run test clean docker-build docker-run
 
 all: build
+
+check-ponyc:
+	@ponyc --version | head -n 1 | grep -q '^$(PONYC_VERSION)' || { \\
+	  echo "This project needs ponyc $(PONYC_VERSION): ponyup update ponyc release $(PONYC_VERSION)" >&2; exit 1; }
 
 # Fetch the dependencies into _corral/ (once)
 deps: _corral
@@ -80,14 +92,14 @@ _corral: corral.json
 
 build: build/{{projectName}}
 
-build/{{projectName}}: _corral $(SOURCES)
+build/{{projectName}}: _corral $(SOURCES) | check-ponyc
 	mkdir -p build
 	corral run -- ponyc $(PONYC_FLAGS) --bin-name={{projectName}} .
 
 run: build
 	./build/{{projectName}}
 
-test: _corral $(SOURCES) $(shell find test -name '*.pony')
+test: check-ponyc _corral $(SOURCES) $(shell find test -name '*.pony')
 	mkdir -p build
 	corral run -- ponyc $(PONYC_FLAGS) --bin-name={{projectName}}-test test
 	./build/{{projectName}}-test
@@ -116,7 +128,14 @@ HTTP API written in [Pony](https://www.ponylang.io) with the [Jennet](https://gi
 
 ## Requirements
 
-- ponyc and corral, installed with [ponyup](https://github.com/ponylang/ponyup) (\`ponyup update ponyc release\`, \`ponyup update corral release\`)
+- ponyc **0.61.0** and corral, installed with [ponyup](https://github.com/ponylang/ponyup):
+
+  \`\`\`bash
+  ponyup update ponyc release 0.61.0
+  ponyup update corral release
+  \`\`\`
+
+  Newer compilers do not build this project. Jennet (its latest commit) and its \`http_server\` dependency use the \`net\` package that ponyc 0.72.0 replaced, and from ponyc 0.61.1 on the standard library ships its own \`json\` package, which takes precedence over the \`ponylang/json\` dependency used here. ponyc 0.61.0 is the newest release with neither change. (\`http_server\` itself is deprecated in favour of [stallion](https://github.com/ponylang/stallion); Jennet has not moved yet.)
 - OpenSSL development headers (\`libssl-dev\` on Debian and Ubuntu), \`OpenSSL 3.0.x\` is assumed, use \`make ssl=1.1.x\` for OpenSSL 1.1
 - git and network access, for \`corral fetch\`
 
