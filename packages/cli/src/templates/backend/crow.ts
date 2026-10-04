@@ -181,6 +181,19 @@ std::optional<json> parseObject(const std::string& body) {
   return parsed;
 }
 
+// Optional fields are valid when absent or of the expected JSON type.
+bool optionalString(const json& body, const char* key) {
+  return !body.contains(key) || body.at(key).is_string();
+}
+
+bool optionalNumber(const json& body, const char* key) {
+  return !body.contains(key) || body.at(key).is_number();
+}
+
+bool optionalInteger(const json& body, const char* key) {
+  return !body.contains(key) || body.at(key).is_number_integer();
+}
+
 // The caller's claims from the Authorization header, if the token is valid.
 std::optional<auth::Claims> authenticate(const crow::request& req, const std::string& secret) {
   auto token = auth::bearerToken(req.get_header_value("Authorization"));
@@ -237,7 +250,8 @@ void registerRoutes(App& app, Store& store, const std::string& jwtSecret) {
       .methods(crow::HTTPMethod::Post)([&store, &jwtSecret](const crow::request& req) {
         auto body = parseObject(req.body);
         if (!body || !body->contains("email") || !(*body)["email"].is_string() ||
-            !body->contains("password") || !(*body)["password"].is_string()) {
+            !body->contains("password") || !(*body)["password"].is_string() ||
+            !optionalString(*body, "name")) {
           return errorResponse(400, "expected JSON with email, password and optional name");
         }
         const std::string email = (*body)["email"].get<std::string>();
@@ -269,7 +283,7 @@ void registerRoutes(App& app, Store& store, const std::string& jwtSecret) {
   CROW_ROUTE(app, "/api/v1/products")
       .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post)(
           [&store, &jwtSecret](const crow::request& req) {
-            if (req.method == crow::HTTPMethod::Get) {
+            if (req.method != crow::HTTPMethod::Post) {  // GET (and HEAD)
               json products = json::array();
               for (const auto& product : store.listProducts()) products.push_back(toJson(product));
               return jsonResponse(200, {{"products", products}, {"count", products.size()}});
@@ -278,23 +292,27 @@ void registerRoutes(App& app, Store& store, const std::string& jwtSecret) {
             if (!authenticate(req, jwtSecret)) return errorResponse(401, "a valid bearer token is required");
             auto body = parseObject(req.body);
             if (!body || !body->contains("name") || !(*body)["name"].is_string() ||
-                !body->contains("price") || !(*body)["price"].is_number()) {
+                !body->contains("price") || !(*body)["price"].is_number() ||
+                !optionalString(*body, "description") || !optionalInteger(*body, "stock")) {
               return errorResponse(400, "expected JSON with name, price and optional description, stock");
             }
             const std::string name = (*body)["name"].get<std::string>();
             const double price = (*body)["price"].get<double>();
-            if (name.empty() || price < 0) return errorResponse(400, "name is required and price must not be negative");
+            const int stock = body->value("stock", 0);
+            if (name.empty() || price < 0 || stock < 0) {
+              return errorResponse(400, "name is required; price and stock must not be negative");
+            }
 
-            Product product = store.addProduct(name, body->value("description", std::string()), price,
-                                               body->value("stock", 0));
+            Product product =
+                store.addProduct(name, body->value("description", std::string()), price, stock);
             return jsonResponse(201, {{"product", toJson(product)}});
           });
 
   CROW_ROUTE(app, "/api/v1/products/<int>")
       .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Put, crow::HTTPMethod::Delete)(
           [&store, &jwtSecret](const crow::request& req, int id) {
-            if (req.method == crow::HTTPMethod::Get) {
-              auto product = store.getProduct(id);
+            if (req.method != crow::HTTPMethod::Put && req.method != crow::HTTPMethod::Delete) {
+              auto product = store.getProduct(id);  // GET (and HEAD)
               if (!product) return errorResponse(404, "product not found");
               return jsonResponse(200, {{"product", toJson(*product)}});
             }
@@ -309,15 +327,19 @@ void registerRoutes(App& app, Store& store, const std::string& jwtSecret) {
             }
 
             auto body = parseObject(req.body);
-            if (!body) return errorResponse(400, "expected a JSON object with the fields to change");
-            ProductPatch patch;
-            if (body->contains("name") && (*body)["name"].is_string()) patch.name = (*body)["name"].get<std::string>();
-            if (body->contains("description") && (*body)["description"].is_string()) {
-              patch.description = (*body)["description"].get<std::string>();
+            if (!body || !optionalString(*body, "name") || !optionalString(*body, "description") ||
+                !optionalNumber(*body, "price") || !optionalInteger(*body, "stock")) {
+              return errorResponse(400, "expected a JSON object with the fields to change");
             }
-            if (body->contains("price") && (*body)["price"].is_number()) patch.price = (*body)["price"].get<double>();
-            if (body->contains("stock") && (*body)["stock"].is_number_integer()) patch.stock = (*body)["stock"].get<int>();
-            if (patch.price && *patch.price < 0) return errorResponse(400, "price must not be negative");
+            ProductPatch patch;
+            if (body->contains("name")) patch.name = body->at("name").get<std::string>();
+            if (body->contains("description")) patch.description = body->at("description").get<std::string>();
+            if (body->contains("price")) patch.price = body->at("price").get<double>();
+            if (body->contains("stock")) patch.stock = body->at("stock").get<int>();
+            if (patch.name && patch.name->empty()) return errorResponse(400, "name must not be empty");
+            if ((patch.price && *patch.price < 0) || (patch.stock && *patch.stock < 0)) {
+              return errorResponse(400, "price and stock must not be negative");
+            }
 
             auto product = store.updateProduct(id, patch);
             if (!product) return errorResponse(404, "product not found");
@@ -859,6 +881,12 @@ CMD ["/app/{{serviceName}}"]
 cmake-build-*/
 .cache/
 compile_commands.json
+`,
+
+    // Keeps a local build tree (whose CMakeCache.txt names host paths) out of the image.
+    '.dockerignore': `build/
+cmake-build-*/
+.cache/
 `,
 
     'README.md': `# {{serviceName}}

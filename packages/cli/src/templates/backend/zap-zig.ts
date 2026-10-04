@@ -794,14 +794,12 @@ WORKDIR /app
 COPY build.zig build.zig.zon ./
 COPY src ./src
 
-# Pin Zap's hash when build.zig.zon only names its URL (same as \`zig fetch\`, see README).
-RUN if ! grep -q '^ *\\.hash = ' build.zig.zon; then \\
-      url="$(sed -n 's/^ *\\.url = "\\([^"]*\\)".*/\\1/p' build.zig.zon | head -n 1)"; \\
-      hash="$(zig fetch "$url")"; \\
-      sed -i "s|^\\( *\\)\\.url = \\(\\"[^\\"]*\\"\\),|&\\n\\1.hash = \\"$hash\\",|" build.zig.zon; \\
-    fi
+# Record Zap's hash in build.zig.zon if it is not pinned yet (see README).
+RUN grep -q '\\.hash = ' build.zig.zon \\
+    || zig fetch --save=zap https://github.com/zigzap/zap/archive/refs/tags/v0.8.0.tar.gz
 
-RUN zig build -Doptimize=ReleaseSafe
+# Baseline CPU features, so the image runs on hosts other than the one that built it.
+RUN zig build -Doptimize=ReleaseSafe -Dcpu=baseline
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -853,15 +851,16 @@ HTTP API built with [Zig](https://ziglang.org) 0.13 and the [Zap](https://github
 
 ## Pin the Zap hash (once)
 
-\`build.zig.zon\` names Zap by URL (release v0.8.0). Zig verifies downloads against a
-content hash, so compute it once and add it next to the URL:
+\`build.zig.zon\` names Zap by URL (release v0.8.0) but does not ship its content hash, which
+Zig needs before it builds. Download Zap once and let Zig record the hash:
 
 \`\`\`bash
-zig fetch https://github.com/zigzap/zap/archive/refs/tags/v0.8.0.tar.gz
-# prints 1220...; add it to build.zig.zon as:  .hash = "1220...",
+zig fetch --save=zap https://github.com/zigzap/zap/archive/refs/tags/v0.8.0.tar.gz
 \`\`\`
 
-The Dockerfile does this automatically when the hash is missing.
+This adds \`.hash = "1220..."\` next to the URL in \`build.zig.zon\`; commit it. Until then
+\`zig build\` stops with "dependency is missing hash field". The Dockerfile runs the same
+command when the hash is missing.
 
 ## Quick start
 

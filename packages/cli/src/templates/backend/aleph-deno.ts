@@ -133,7 +133,7 @@ app.onError((err, c) => {
 export const config = {
   port: Number(Deno.env.get('PORT') ?? '3000'),
   jwtSecret: Deno.env.get('JWT_SECRET') ?? 'dev-secret-change-me',
-  /** Log every request (the Hono logger); off by default under test. */
+  /** Log every request (the Hono logger); set LOG_REQUESTS=false to turn it off. */
   logRequests: Deno.env.get('LOG_REQUESTS') !== 'false',
 };
 `,
@@ -687,6 +687,10 @@ LOG_REQUESTS=true
 .env
 `,
 
+    '.dockerignore': `.env
+dist/
+`,
+
     'Dockerfile': `ARG DENO_VERSION=2.9.6
 FROM denoland/deno:\${DENO_VERSION}
 
@@ -713,11 +717,11 @@ CMD ["task", "start"]
   app:
     build: .
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
-      PORT: "3000"
+      PORT: '3000'
       JWT_SECRET: \${JWT_SECRET:?set JWT_SECRET}
-      LOG_REQUESTS: "true"
+      LOG_REQUESTS: 'true'
     restart: unless-stopped
 `,
 
@@ -726,10 +730,9 @@ CMD ["task", "start"]
 React application on Deno 2: server-side rendered pages, static pre-rendering, a JSON API and
 GraphQL, built with [Hono](https://hono.dev) and React.
 
-> This template replaces the former Aleph.js template. Aleph.js targets Deno 1.x and is no
-> longer actively developed, so the same idea (React SSR/SSG, API routes, Deno) is built on
-> maintained packages instead. For a file-system-routed framework on Deno see the
-> Fresh template.
+> This template replaces the former Aleph.js template. Aleph.js targets Deno 1.x and is no longer
+> actively developed, so the same idea (React SSR/SSG, API routes, Deno) is built on maintained
+> packages instead. For a file-system-routed framework on Deno see the Fresh template.
 
 ## Features
 
@@ -753,8 +756,8 @@ deno task build    # pre-render / and /about into dist/
 deno task test     # unit tests
 \`\`\`
 
-Set \`JWT_SECRET\` before running anywhere but your laptop (see \`.env.example\`). A development
-admin is seeded at start-up (\`admin@example.com\` / \`admin123\`); remove it in \`src/store.ts\`.
+Set \`JWT_SECRET\` before running anywhere but your laptop (see \`.env.example\`). A development admin
+is seeded at start-up (\`admin@example.com\` / \`admin123\`); remove it in \`src/store.ts\`.
 
 ## Routes
 
