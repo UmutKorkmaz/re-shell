@@ -330,11 +330,13 @@ jobs:
         run: |
           # red-http: the toolchain and the programs it builds are 32-bit x86 and need the i386 C
           # library and libcurl (the runner's azure.archive.ubuntu.com mirror carries noble i386).
+          # Every Red binary, View or not, links libgdk_pixbuf-2.0.so.0 for the image! datatype
+          # (runtime/platform/image-gdk.reds), so the i386 gdk-pixbuf is required to even start one.
           # The stable Linux toolchain is the dl/linux/red-toolchain-NNN file linked from the download
           # page (red-toolchain-066 when this was written); red-cli/red-view are consoles that cannot compile.
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libc6:i386 libcurl4t64:i386
+          sudo apt-get install -y --no-install-recommends libc6:i386 libcurl4t64:i386 libgdk-pixbuf-2.0-0:i386
           red_file=$(curl -fsSL https://static.red-lang.org/download.html | grep -oE 'dl/linux/red-toolchain-[0-9]{3}\b' | head -n 1 || true)
           red_file=${red_file:-dl/linux/red-toolchain-066}
           echo "Red toolchain: https://static.red-lang.org/$red_file"

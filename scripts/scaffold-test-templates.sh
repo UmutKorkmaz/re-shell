@@ -879,8 +879,10 @@ verify_mojo() {
   boot_check 18080 /api/v1/products/1 '"Sample Product 1"' ./bin/server || return $?
 }
 
-# Red (red-http): the toolchain and the programs it builds are 32-bit x86. main.red has
-# Red/System routines, so everything is compiled in release mode (-r), not with libRedRT (-c).
+# Red (red-http): the toolchain and the programs it builds are 32-bit x86 and link the i386
+# libc, libcurl and libgdk_pixbuf (the image! datatype), so a binary that cannot load fails with a
+# shared-library error before its first test. main.red has Red/System routines, so everything is
+# compiled in release mode (-r), not with libRedRT (-c).
 verify_red() {
   have red || { NATIVE_REASON="red (the 32-bit Red toolchain, red-toolchain-NNN) is not installed"; return 2; }
   mkdir -p bin
