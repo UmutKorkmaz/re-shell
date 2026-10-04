@@ -401,7 +401,17 @@ describePosix('startServiceProcess', () => {
     if (!fs.existsSync('/proc/self/fd')) return;
     const project = makeTempDir('rs-fd');
     const script = writeScript(project, 'fd.js', 'setInterval(() => {}, 1000);');
-    const countFds = (): number => fs.readdirSync('/proc/self/fd').length;
+    // Test files share this process (worker threads), so count only descriptors that
+    // point into this project: a leaked service log is one of them, other tests' are not.
+    const projectRoot = fs.realpathSync(project);
+    const countFds = (): number =>
+      fs.readdirSync('/proc/self/fd').filter((fd) => {
+        try {
+          return fs.readlinkSync(`/proc/self/fd/${fd}`).startsWith(projectRoot);
+        } catch {
+          return false; // closed between readdir and readlink
+        }
+      }).length;
 
     // Warm up lazily-opened handles before measuring.
     const warm = await startServiceProcess(
