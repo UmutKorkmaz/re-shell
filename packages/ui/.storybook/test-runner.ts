@@ -20,6 +20,10 @@
  * Without RE_SHELL_UI_TEST_OUT (plain `pnpm test-storybook`) an a11y violation or a
  * visual diff throws, failing that story. Baselines are written on first run and
  * refreshed with `pnpm test-storybook -u`; under CI (`--ci`) a missing baseline fails.
+ *
+ * Baselines must come from CI's renderer: Playwright 1.61.1's Chromium on Ubuntu 24.04.
+ * Other Chromium builds shift glyphs enough (~1% of a text-heavy story) to fail, so
+ * refresh them in mcr.microsoft.com/playwright:v1.61.1-noble, with Node 22 on PATH as in CI.
  */
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
