@@ -653,6 +653,8 @@ use Toolshed
 FROM elixir:1.17
 ENV MIX_TARGET=host MIX_ENV=dev
 WORKDIR /app
+# nerves_uevent (via nerves_runtime) is a C port that needs the libmnl headers
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libmnl-dev && rm -rf /var/lib/apt/lists/*
 RUN mix local.hex --force && mix local.rebar --force && mix archive.install hex nerves_bootstrap --force
 COPY . .
 RUN mix deps.get && mix compile

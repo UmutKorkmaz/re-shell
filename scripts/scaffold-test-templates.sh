@@ -699,7 +699,8 @@ verify_clojure() {
 #   Elixir  the Nerves bootstrap archive when mix.exs requires it, deps.get, compile,
 #           then the app's tests unless they need a database (Ecto: Phoenix).
 #           Nerves projects build for the host (MIX_TARGET=host): no board system
-#           or cross-compiler is downloaded.
+#           or cross-compiler is downloaded, but nerves_uevent (a C port pulled in by
+#           nerves_runtime) still compiles on the host and needs libmnl-dev installed.
 verify_beam() {
   if [ -f gleam.toml ]; then
     have gleam || { NATIVE_REASON="gleam is not installed"; return 2; }

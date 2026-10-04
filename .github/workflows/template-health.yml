@@ -236,6 +236,12 @@ jobs:
       # - Gleam 1.x: gleam_stdlib 1.0.5 needs Gleam >= 1.14.
       # - rebar3 on PATH: Gleam compiles Mist's hpack_erl dependency with it.
       #   install-rebar (the default) only gives Mix a rebar; it does not put rebar3 on PATH.
+      # - libmnl-dev: nerves_runtime pulls in nerves_uevent, a C port that includes
+      #   <libmnl/libmnl.h> and is compiled for the host too (ubuntu-24.04 does not ship it).
+      - if: matrix.group == 'beam'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libmnl-dev
       - if: matrix.group == 'beam'
         uses: erlef/setup-beam@v1
         with:
