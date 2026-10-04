@@ -15,7 +15,9 @@ jobs:
   # Scaffolds every verified template with the built CLI and builds it with that
   # language's own toolchain (pip/compileall, go build, cargo check, php -l +
   # composer, ruby -c + bundle, mvn package, gradle build, sbt Test/compile,
-  # dotnet build, perl -c, luac -p, pnpm + tsc, rescript build, dart analyze, cabal build, zig build, deno check, ...). The templates
+  # dotnet build, perl -c, luac -p, pnpm + tsc, rescript build, dart analyze, cabal build, zig build, deno check,
+  # swift build/test, Pkg.test, nimble test, crystal spec, dune runtest, lein test, mix/gleam test, v/odin/ponyc,
+  # bal build, grain, ucm, mojo, red, ...). The templates
   # are split into groups (see scripts/scaffold-test-templates.sh) so each job
   # installs only the toolchains it needs and the groups run in parallel.
   # A template whose toolchain is not installed is reported as SKIP with the
@@ -26,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [core, jvm, dotnet, native, node, config, haskell, deno]
+        group: [core, jvm, dotnet, native, node, config, haskell, deno, swift, julia, nim, crystal, ocaml, clojure, beam, systems, exotic, exoticb]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -102,7 +104,8 @@ jobs:
       # Perl templates are checked with perl -c against the distribution
       # packages (CPAN is not reachable from every runner network); Lua with
       # luac -p (syntax only); the C++ templates (Drogon, cpp-httplib, Boost.Beast,
-      # Pistache) build against the distribution's -dev packages, never FetchContent.
+      # Pistache) build against the distribution's -dev packages, never FetchContent (Crow, which has
+      # no distribution package, is fetched by CMake at a pinned tag and needs the Asio headers).
       # Ubuntu's DrogonConfig.cmake find_dependency()s every backend Drogon was built
       # with (MariaDB, Hiredis, yaml-cpp, Brotli, c-ares via Trantor) even when a
       # template does not use them; drogon_ctl (package drogon) generates the CSP views.
@@ -118,7 +121,223 @@ jobs:
             libconfig-general-perl libgraphql-perl libjson-maybexs-perl libjson-perl \
             libplack-middleware-crossorigin-perl libtest-www-mechanize-catalyst-perl libyaml-perl \
             cmake build-essential pkg-config drogon libdrogon-dev libpq-dev libmariadb-dev libsqlite3-dev libhiredis-dev libyaml-cpp-dev libbrotli-dev libc-ares-dev libgtest-dev libjsoncpp-dev uuid-dev \
-            libcpp-httplib-dev libboost-dev libpistache-dev libssl-dev zlib1g-dev nlohmann-json3-dev libspdlog-dev
+            libcpp-httplib-dev libboost-dev libpistache-dev libssl-dev zlib1g-dev nlohmann-json3-dev libspdlog-dev \
+            libasio-dev
+      # Swift (hummingbird, kitura): Hummingbird 2 needs Swift 6.2 or newer; Kitura links the system
+      # OpenSSL 3 and zlib, and compress-nio/swift-nio-extras link zlib. The ubuntu-24.04 image ships a
+      # current Swift (6.4 in image 20260927); the ubuntu-26.04 image ships none, so when swift is
+      # missing or older than 6.2 the latest release is installed with swiftly, swift.org's installer.
+      - if: matrix.group == 'swift'
+        name: Install the system libraries the Swift templates link
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libssl-dev zlib1g-dev libcurl4-openssl-dev libxml2-dev
+      - if: matrix.group == 'swift'
+        name: Set up Swift 6.2 or newer
+        run: |
+          set -eo pipefail
+          current=""
+          if command -v swift >/dev/null 2>&1; then
+            current=$(swift --version 2>&1 | sed -n 's/.*Swift version \([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1)
+          fi
+          if [ -n "$current" ] && [ "$(printf '%s\n' 6.2 "$current" | sort -V | head -n 1)" = "6.2" ]; then
+            echo "Using the preinstalled Swift $current"
+          else
+            echo "Installing the latest Swift release with swiftly (found: ${current:-no swift})"
+            cd "$RUNNER_TEMP"
+            curl -fsSLO "https://download.swift.org/swiftly/linux/swiftly-$(uname -m).tar.gz"
+            tar zxf "swiftly-$(uname -m).tar.gz"
+            ./swiftly init --quiet-shell-followup --assume-yes --skip-install
+            swiftly_home="${SWIFTLY_HOME_DIR:-$HOME/.local/share/swiftly}"
+            if [ -f "$swiftly_home/env.sh" ]; then . "$swiftly_home/env.sh"; fi
+            swiftly_bin="${SWIFTLY_BIN_DIR:-$swiftly_home/bin}"
+            export PATH="$swiftly_bin:$PATH"
+            swiftly install --use --assume-yes --post-install-file "$RUNNER_TEMP/swift-post-install.sh" latest
+            if [ -s "$RUNNER_TEMP/swift-post-install.sh" ]; then
+              sudo bash "$RUNNER_TEMP/swift-post-install.sh"
+            fi
+            echo "SWIFTLY_HOME_DIR=$swiftly_home" >> "$GITHUB_ENV"
+            echo "SWIFTLY_BIN_DIR=$swiftly_bin" >> "$GITHUB_ENV"
+            echo "$swiftly_bin" >> "$GITHUB_PATH"
+          fi
+          swift --version
+      # Julia (genie-jl, oxygen-jl): packages come from the General registry.
+      - if: matrix.group == 'julia'
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+      # Jester, Prologue and HappyX: Nim 2.2 with nimble, which fetches the packages
+      # from the Nim package index and GitHub. Nim goes to runner.temp, not into the checkout.
+      - if: matrix.group == 'nim'
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.x'
+          parent-nim-install-directory: ${{ runner.temp }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # Crystal (Kemal, Lucky, Amber): the templates are verified on Crystal 1.21.1 (Amber 1.5 needs
+      # >= 1.20; the ameba 1.7 development dependency needs >= 1.19). install-crystal ships shards and
+      # apt-installs libevent, gmp, ssl, xml2, yaml and pcre2 development packages itself.
+      - if: matrix.group == 'crystal'
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: 1.21.1
+      # libsqlite3-dev: Amber's CLI target (bin/amber) links the sqlite3 shard. The rest repeat what
+      # install-crystal installs, plus zlib for Crystal's HTTP compression.
+      - if: matrix.group == 'crystal'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libsqlite3-dev libyaml-dev libssl-dev libgmp-dev libxml2-dev zlib1g-dev libpcre2-dev libevent-dev
+      # Lucky (Avram) and Amber (Granite) specs run against the runner's preinstalled PostgreSQL,
+      # with the postgres/postgres credentials both templates default to.
+      - if: matrix.group == 'crystal'
+        run: |
+          sudo systemctl start postgresql.service
+          pg_isready -h localhost -t 30
+          sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres'"
+      # OCaml (Dream, Opium): setup-ocaml installs opam and an OCaml 4.14 switch; the
+      # frameworks and their dependency trees come from the opam repository. The switch
+      # is created inside the workspace, and opam does not select it from the scaffolded
+      # projects under $TMPDIR, so it is exported as OPAMSWITCH. libev, OpenSSL, GMP and
+      # pkg-config back conf-libev, conf-libssl, conf-gmp and conf-pkg-config;
+      # OPAMCONFIRMLEVEL lets opam install any other system package itself.
+      - if: matrix.group == 'ocaml'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libev-dev libssl-dev libgmp-dev pkg-config
+      - if: matrix.group == 'ocaml'
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: '4.14'
+      - if: matrix.group == 'ocaml'
+        run: |
+          switch=$(opam switch show)
+          echo "OPAMSWITCH=$switch" >> "$GITHUB_ENV"
+          echo "OPAMCONFIRMLEVEL=unsafe-yes" >> "$GITHUB_ENV"
+      # Clojure (Leiningen): Java 21 without the Maven cache (these apps have no pom.xml);
+      # the libraries come from Maven Central and Clojars.
+      - if: matrix.group == 'clojure'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - if: matrix.group == 'clojure'
+        uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          lein: 2.11.2
+      # BEAM (plug-ex, nerves-ex, wisp):
+      # - Erlang/OTP 27: gleam_json 3 uses the OTP 27 json module.
+      # - Elixir 1.17 with Hex: Absinthe 1.12 and the Nerves rpi 2.x systems need it.
+      # - Gleam 1.x: gleam_stdlib 1.0.5 needs Gleam >= 1.14.
+      # - rebar3 on PATH: Gleam compiles Mist's hpack_erl dependency with it.
+      #   install-rebar (the default) only gives Mix a rebar; it does not put rebar3 on PATH.
+      - if: matrix.group == 'beam'
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: '27'
+          elixir-version: '1.17'
+          gleam-version: '1'
+          rebar3-version: '3'
+      # systems group (vweb, vex-v: V; odin-http: Odin; jennet-pony: Pony); every toolchain is pinned
+      - name: Install V 0.5.2 (release tag plus its matching bootstrap C file and TCC/GC bundle, pinned)
+        if: matrix.group == 'systems'
+        run: |
+          git clone --depth 1 --branch 0.5.2 https://github.com/vlang/v "$HOME/v"
+          git init -q "$HOME/v/vc"
+          git -C "$HOME/v/vc" fetch -q --depth 1 https://github.com/vlang/vc 7eb8c54a3843e5107d5af06d7a8c3e928f322475
+          git -C "$HOME/v/vc" checkout -q FETCH_HEAD
+          git init -q "$HOME/v/thirdparty/tcc"
+          git -C "$HOME/v/thirdparty/tcc" fetch -q --depth 1 https://github.com/vlang/tccbin d6e7ac1b1bcc98aed734a6ecbfa8509f24606c74
+          git -C "$HOME/v/thirdparty/tcc" checkout -q FETCH_HEAD
+          cd "$HOME/v"
+          cc -std=c99 -w -DCUSTOM_DEFINE_v1_fallback -o v1 vc/v.c -lm -lpthread
+          ./v1 -no-parallel -o v2 -gc none cmd/v
+          ./v2 -nocache -o v -gc none cmd/v
+          rm -f v1 v2
+          ./v version
+          echo "$HOME/v" >> "$GITHUB_PATH"
+      - name: Install Odin dev-2026-09 (built from the release tag with LLVM 18)
+        if: matrix.group == 'systems'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm-18-dev
+          git clone --depth 1 --branch dev-2026-09 https://github.com/odin-lang/Odin "$HOME/odin"
+          (cd "$HOME/odin" && LLVM_CONFIG=llvm-config-18 sh build_odin.sh release)
+          "$HOME/odin/odin" version
+          echo "$HOME/odin" >> "$GITHUB_PATH"
+      # ponyc is pinned to 0.61.0: Jennet and http_server use the net package that ponyc 0.72.0
+      # replaced, and from 0.61.1 the stdlib json package shadows the ponylang/json dependency.
+      - name: Install Pony (ponyc 0.61.0 and corral with ponyup)
+        if: matrix.group == 'systems'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libssl-dev
+          sh -c "$(curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/ponylang/ponyup/latest-release/ponyup-init.sh)"
+          export PATH="$HOME/.local/share/ponyup/bin:$PATH"
+          ponyup update ponyc release 0.61.0
+          ponyup update corral release
+          ponyc --version
+          corral version
+          echo "$HOME/.local/share/ponyup/bin" >> "$GITHUB_PATH"
+      # Grain, Ballerina and Unison (exotic group): each comes from its project's own release downloads.
+      - if: matrix.group == 'exotic'
+        name: Install Grain
+        run: |
+          sudo curl -fsSL -o /usr/local/bin/grain \
+            https://github.com/grain-lang/grain/releases/download/grain-v0.7.2/grain-linux-x64
+          sudo chmod +x /usr/local/bin/grain
+          grain --version
+      - if: matrix.group == 'exotic'
+        name: Install Ballerina
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/ballerina.deb" \
+            https://dist.ballerina.io/downloads/2201.13.6/ballerina-2201.13.6-swan-lake-linux-x64.deb
+          sudo dpkg -i "$RUNNER_TEMP/ballerina.deb"
+          bal version
+      - if: matrix.group == 'exotic'
+        name: Install Unison (ucm)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Older releases ship ucm-linux.tar.gz, newer ones ucm-linux-x64.tar.gz: take whichever the latest release has.
+          asset="$(gh release view --repo unisonweb/unison --json assets --jq '.assets[].name' | grep -E '^ucm-linux(-x64)?\.tar\.gz$' | head -n 1)"
+          if [ -z "$asset" ]; then echo "no Linux x64 ucm archive in the latest unisonweb/unison release" >&2; exit 1; fi
+          gh release download --repo unisonweb/unison --pattern "$asset" --dir "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/ucm"
+          tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP/ucm"
+          ucm_bin="$(find "$RUNNER_TEMP/ucm" -name ucm \( -type f -o -type l \) | head -n 1)"
+          if [ -z "$ucm_bin" ]; then echo "no ucm executable in $asset" >&2; exit 1; fi
+          dirname "$ucm_bin" >> "$GITHUB_PATH"
+          "$ucm_bin" version
+      - name: Install Mojo
+        if: matrix.group == 'exoticb'
+        run: |
+          # mojo, mojo-fastapi: the compiler is the PyPI package mojo, in a venv whose bin goes on
+          # PATH (python3 then resolves to that venv). Compiled Mojo programs load libpython at run time.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-venv libpython3-dev
+          python3 -m venv "$HOME/mojo-venv"
+          "$HOME/mojo-venv/bin/pip" install --quiet --disable-pip-version-check mojo==1.1.0
+          echo "$HOME/mojo-venv/bin" >> "$GITHUB_PATH"
+          "$HOME/mojo-venv/bin/mojo" --version
+      - name: Install the Red toolchain
+        if: matrix.group == 'exoticb'
+        run: |
+          # red-http: the toolchain and the programs it builds are 32-bit x86 and need the i386 C
+          # library and libcurl (the runner's azure.archive.ubuntu.com mirror carries noble i386).
+          # The stable Linux toolchain is the dl/linux/red-toolchain-NNN file linked from the download
+          # page (red-toolchain-066 when this was written); red-cli/red-view are consoles that cannot compile.
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libc6:i386 libcurl4t64:i386
+          red_file=$(curl -fsSL https://static.red-lang.org/download.html | grep -oE 'dl/linux/red-toolchain-[0-9]{3}\b' | head -n 1 || true)
+          red_file=${red_file:-dl/linux/red-toolchain-066}
+          echo "Red toolchain: https://static.red-lang.org/$red_file"
+          mkdir -p "$HOME/red-bin"
+          curl -fsSL "https://static.red-lang.org/$red_file" -o "$HOME/red-bin/red"
+          head -c 4 "$HOME/red-bin/red" | grep -q ELF
+          chmod +x "$HOME/red-bin/red"
+          echo "$HOME/red-bin" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
       - name: Scaffold and build the ${{ matrix.group }} templates

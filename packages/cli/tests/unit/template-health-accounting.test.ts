@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { resolve, join } from 'path';
 import { spawnSync } from 'child_process';
@@ -25,14 +25,16 @@ interface FixtureOptions {
   env?: Record<string, string>;
 }
 
-const CORE_UTILITIES = ['bash', 'sh', 'dirname', 'mktemp', 'rm', 'grep', 'head', 'tail', 'wc', 'tr', 'sed', 'find', 'env', 'cat', 'mkdir', 'basename', 'sort', 'cut', 'cp', 'chmod'];
+const CORE_UTILITIES = ['bash', 'sh', 'dirname', 'mktemp', 'rm', 'grep', 'head', 'tail', 'wc', 'tr', 'sed', 'find', 'env', 'cat', 'mkdir', 'basename', 'sort', 'cut', 'cp', 'chmod', 'touch'];
 
-// One shim stands in for every language toolchain: it records the invocation and
-// fails when FAIL_ON matches. `python3 -m venv DIR` creates DIR/bin/python.
+// One shim stands in for every language toolchain: it records the invocation, prints
+// SHIM_PRINT when SHIM_PRINT_ON matches and fails when FAIL_ON matches.
+// `python3 -m venv DIR` creates DIR/bin/python.
 const TOOL_SHIM = `#!/bin/bash
 name=$(basename "$0")
 echo "$name $*" >> "$SHIM_LOG"
 if [ "$name" = python3 ] && [ "$1" = -m ] && [ "$2" = venv ]; then mkdir -p "$3/bin"; cp "$0" "$3/bin/python"; exit 0; fi
+if [ -n "\${SHIM_PRINT_ON:-}" ] && [[ "$name $*" == *"$SHIM_PRINT_ON"* ]]; then printf '%s\\n' "$SHIM_PRINT"; fi
 if [ -n "\${FAIL_ON:-}" ] && [[ "$name $*" == *"$FAIL_ON"* ]]; then echo "shim failure: $name $*" >&2; exit 1; fi
 exit 0
 `;
@@ -72,6 +74,28 @@ case "$kind" in
   haskell) printf 'name: x\n' > x.cabal ;;
   deno) printf '{}' > deno.json ;;
   deno-build) printf '{"tasks":{"build":"deno run -A dev.ts build"}}' > deno.json ;;
+  laravel) printf '{}' > composer.json; printf '<?php\n' > index.php; printf '#!/usr/bin/env php\n' > artisan; printf '<phpunit/>' > phpunit.xml; printf 'APP_KEY=\n' > .env.example ;;
+  elixir-ecto) printf '{:ecto_sql, "~> 3.12"}\n' > mix.exs ;;
+  nerves) printf '{:nerves_bootstrap, "~> 1.13"}\n' > mix.exs ;;
+  gleam) printf 'name = "x"\n' > gleam.toml ;;
+  julia) printf 'name = "X"\n' > Project.toml ;;
+  nim) printf 'version = "0.1.0"\n' > x.nimble ;;
+  crystal) printf 'name: x\n' > shard.yml; mkdir spec ;;
+  crystal-db) printf 'name: x\ndependencies:\n  avram:\n    github: luckyframework/avram\n' > shard.yml; mkdir spec ;;
+  ocaml) printf '(lang dune 3.0)\n' > dune-project ;;
+  clojure) printf '(defproject x "0.1.0")\n' > project.clj ;;
+  crow) printf 'GIT_REPOSITORY https://github.com/CrowCpp/Crow.git\n' > CMakeLists.txt ;;
+  zig-test) printf 'const tests = b.step("test", "Run the tests");\n' > build.zig ;;
+  zig-url) printf 'const tests = b.step("test", "Run the tests");\n' > build.zig; printf '.{\n    .dependencies = .{\n        .zap = .{\n            .url = "https://example.invalid/zap.tar.gz",\n        },\n    },\n}\n' > build.zig.zon ;;
+  v) printf 'Module {}\n' > v.mod; mkdir src; touch src/main.v src/main_test.v ;;
+  odin) printf '{}' > ols.json; mkdir scripts; printf 'exit 0\n' > scripts/setup-deps.sh ;;
+  pony) printf '{}' > corral.json ;;
+  ballerina) printf '[package]\n' > Ballerina.toml ;;
+  grain) mkdir src; touch src/main.gr ;;
+  unison) printf 'selfTest = ()\n' > main.u ;;
+  mojo) printf '' > pixi.toml ;;
+  mojo-fastapi) printf '' > pixi.toml; printf '' > mojo_bindings.mojo; printf 'fastapi\n' > requirements.txt ;;
+  red) printf '' > main.red ;;
 esac
 if [ "$SCENARIO" != non-node ] && [ "$SCENARIO" != missing-package ]; then printf '{}' > package.json; fi
 if [ "$SCENARIO" = malformed-package ]; then printf '{"name":}' > package.json; fi
@@ -293,6 +317,241 @@ describe('native (non-Node) template verification', () => {
     expect(result.shimLog).toContain('composer update --dry-run');
     expect(result.shimLog).not.toContain('composer install');
     expect(result.stdout).toContain('NOTE: composer dependencies were resolved but not downloaded');
+  });
+});
+
+describe('native verification of the toolchain groups (swift, julia, nim, crystal, ocaml, clojure, beam, systems, exotic, exoticb)', () => {
+  const ZAP_HASH = `1220${'0123456789abcdef'.repeat(4)}`;
+  // A directory holding asio.hpp, named through CMAKE_INCLUDE_PATH (Crow needs the Asio headers).
+  const asioInclude = () => {
+    const directory = mkdtempSync(join(tmpdir(), 'template-health-asio-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'asio.hpp'), '');
+    return { CMAKE_INCLUDE_PATH: directory };
+  };
+
+  // template, manifest kind, tools on PATH, command that fails, failure reason, command that must run
+  const GROUP_TOOLCHAINS: Array<[string, string, string[], string, string, string]> = [
+    ['hummingbird', 'swift', ['swift'], 'swift test', 'test failed', 'swift build --build-tests'],
+    ['genie-jl', 'julia', ['julia'], 'Pkg.precompile', 'precompile failed', 'julia --startup-file=no --project=. -e using Pkg; Pkg.test()'],
+    ['jester', 'nim', ['nim', 'nimble'], 'nimble build', 'build failed', 'nimble test -y'],
+    ['kemal', 'crystal', ['crystal', 'shards'], 'crystal spec', 'spec failed', 'shards build'],
+    ['dream-ocaml', 'ocaml', ['opam'], 'dune build', 'build failed', 'opam exec -- dune runtest --root .'],
+    ['compojure', 'clojure', ['lein', 'java'], 'lein test', 'test failed', 'lein check'],
+    ['plug-ex', 'elixir', ['mix'], 'mix test', 'test failed', 'mix compile'],
+    ['nerves-ex', 'nerves', ['mix'], 'mix archive.install', 'bootstrap failed', 'mix archive.install hex nerves_bootstrap --force'],
+    ['wisp', 'gleam', ['gleam', 'erl', 'rebar3'], 'gleam build', 'build failed', 'gleam test'],
+    ['zig-http', 'zig-test', ['zig'], 'zig build test', 'test failed', 'zig build test'],
+    ['crow', 'crow', ['cmake', 'g++', 'git', 'ctest'], 'ctest', 'test failed', 'ctest --test-dir build --output-on-failure'],
+    ['vweb', 'v', ['v', 'gcc'], 'v fmt', 'fmt failed', 'v -cc gcc test src/main_test.v'],
+    ['odin-http', 'odin', ['odin', 'git'], 'odin test', 'test failed', 'odin build src -collection:deps=./deps'],
+    ['ballerina', 'ballerina', ['bal'], 'bal build', 'build failed', 'bal build'],
+    ['grain', 'grain', ['grain'], 'grain run build/router_test.wasm', 'test failed', 'grain compile tests/router_test.gr'],
+    ['unison', 'unison', ['ucm'], 'ucm transcript', 'transcript failed', 'ucm transcript'],
+    ['laravel', 'laravel', ['php', 'composer'], 'artisan test', 'phpunit failed', 'php artisan route:list'],
+  ];
+
+  it.each(GROUP_TOOLCHAINS)('%s: verified with its own toolchain', (template, kind, tools, _failOn, _reason, ran) => {
+    const result = runHealthFixture('non-node', template, {
+      kinds: { [template]: kind },
+      tools: ['node', 'pnpm', 'npx', ...tools],
+      env: asioInclude(),
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.stdout).toContain('RESULTS: 1 passed, 0 failed, 0 skipped');
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Native build verified');
+    expect(result.stdout).not.toContain('unexpected-install');
+    expect(result.shimLog).toContain(ran);
+  });
+
+  it.each(GROUP_TOOLCHAINS)('%s: fails (never passes) when the toolchain step fails', (template, kind, tools, failOn, reason) => {
+    const result = runHealthFixture('non-node', template, {
+      kinds: { [template]: kind },
+      tools: ['node', 'pnpm', 'npx', ...tools],
+      failOn,
+      env: asioInclude(),
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('RESULTS: 0 passed, 1 failed, 0 skipped');
+    expect(result.stdout).toContain(`native build: ${reason}`);
+    expect(result.stdout).not.toContain('ALL TEMPLATES PASSED');
+  });
+
+  // Paths that cannot pass under the shims (they run a program the build produced, or boot a
+  // server), so only their failures are checked: template, kind, tools, command that fails, reason.
+  it.each<[string, string, string[], string, string]>([
+    ['jennet-pony', 'pony', ['ponyc', 'corral'], '', 'ponyc-version failed'],
+    ['mojo', 'mojo', ['mojo'], 'mojo build main.mojo', 'build failed'],
+    ['mojo-fastapi', 'mojo-fastapi', ['mojo', 'python3'], 'mojo build mojo_bindings.mojo', 'build-extension failed'],
+    ['red-http', 'red', ['red'], 'red -r -o bin/test-app', 'build-tests failed'],
+    ['zap-zig', 'zig-url', ['zig'], 'zig fetch', 'fetch failed'],
+    ['zap-zig', 'zig-url', ['zig'], '', 'zig fetch printed no package hash for https://example.invalid/zap.tar.gz'],
+  ])('%s (%s, case %#): a failing step fails the template', (template, kind, tools, failOn, reason) => {
+    const result = runHealthFixture('non-node', template, {
+      kinds: { [template]: kind },
+      tools: ['node', 'pnpm', 'npx', ...tools],
+      ...(failOn ? { failOn } : {}),
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('RESULTS: 0 passed, 1 failed, 0 skipped');
+    expect(result.stdout).toContain(`native build: ${reason}`);
+  });
+
+  it.each<[string, string, string[], string]>([
+    ['hummingbird', 'swift', [], 'swift is not installed'],
+    ['genie-jl', 'julia', [], 'julia is not installed'],
+    ['jester', 'nim', [], 'nim is not installed'],
+    ['jester', 'nim', ['nim'], 'nimble is not installed'],
+    ['kemal', 'crystal', [], 'crystal is not installed'],
+    ['kemal', 'crystal', ['crystal'], 'shards is not installed'],
+    ['dream-ocaml', 'ocaml', [], 'opam (OCaml package manager) is not installed'],
+    ['compojure', 'clojure', [], 'lein (Leiningen) is not installed'],
+    ['compojure', 'clojure', ['lein'], 'java is not installed'],
+    ['plug-ex', 'elixir', [], 'elixir (mix) is not installed'],
+    ['wisp', 'gleam', [], 'gleam is not installed'],
+    ['wisp', 'gleam', ['gleam'], 'erlang (erl) is not installed'],
+    ['wisp', 'gleam', ['gleam', 'erl'], 'rebar3 is not installed (gleam needs it for Erlang dependencies)'],
+    ['zap-zig', 'zig-url', [], 'zig is not installed'],
+    ['crow', 'crow', [], 'cmake is not installed'],
+    ['crow', 'crow', ['cmake', 'g++'], 'git is not installed (CMake fetches Crow from GitHub)'],
+    ['vweb', 'v', [], 'v (the V compiler) is not installed'],
+    ['vweb', 'v', ['v'], 'gcc is not installed (V compiles to C, built here with -cc gcc)'],
+    ['odin-http', 'odin', [], 'odin (the Odin compiler) is not installed'],
+    ['jennet-pony', 'pony', [], 'ponyc (the Pony compiler) is not installed'],
+    ['jennet-pony', 'pony', ['ponyc'], 'corral (the Pony dependency manager) is not installed'],
+    ['ballerina', 'ballerina', [], 'bal (Ballerina) is not installed'],
+    ['grain', 'grain', [], 'grain (the Grain compiler) is not installed'],
+    ['unison', 'unison', [], 'ucm (Unison Codebase Manager) is not installed'],
+    ['mojo', 'mojo', [], 'mojo is not installed (pip install mojo)'],
+    // mojo-fastapi also ships requirements.txt: it must still reach the Mojo verifier.
+    ['mojo-fastapi', 'mojo-fastapi', [], 'mojo is not installed (pip install mojo)'],
+    ['mojo-fastapi', 'mojo-fastapi', ['mojo'], 'python3 is not installed'],
+    ['red-http', 'red', [], 'red (the 32-bit Red toolchain, red-toolchain-NNN) is not installed'],
+  ])('%s (%s, with %j): SKIP names the missing toolchain', (template, kind, tools, reason) => {
+    const result = runHealthFixture('non-node', template, {
+      kinds: { [template]: kind },
+      tools: ['node', 'pnpm', 'npx', ...tools],
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('RESULTS: 0 passed, 0 failed, 1 skipped');
+    expect(result.stdout).toContain(`${template} (toolchain missing: ${reason})`);
+    expect(result.stdout).not.toContain('ALL TEMPLATES PASSED');
+  });
+
+  it('skips an OCaml template when opam has no switch selected', () => {
+    const result = runHealthFixture('non-node', 'dream-ocaml', {
+      kinds: { 'dream-ocaml': 'ocaml' },
+      tools: ['node', 'pnpm', 'npx', 'opam'],
+      failOn: 'opam switch show',
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('dream-ocaml (toolchain missing: opam has no switch selected (create one, or set OPAMSWITCH))');
+    expect(result.shimLog).not.toContain('opam install');
+  });
+
+  it('skips Crow when the Asio headers are not on any include path CMake searches', () => {
+    const empty = mkdtempSync(join(tmpdir(), 'template-health-no-asio-'));
+    temporaryDirectories.push(empty);
+    const asioOnSystem = ['/usr/include/asio.hpp', '/usr/local/include/asio.hpp'].some((file) => existsSync(file));
+    const result = runHealthFixture('non-node', 'crow', {
+      kinds: { crow: 'crow' },
+      tools: ['node', 'pnpm', 'npx', 'cmake', 'g++', 'git', 'ctest'],
+      env: { CMAKE_INCLUDE_PATH: empty },
+    });
+    if (asioOnSystem) {
+      // The system headers satisfy the check; nothing to skip on this machine.
+      expect(result.stdout).toContain('RESULTS: 1 passed, 0 failed, 0 skipped');
+    } else {
+      expect(result.stdout).toContain('crow (toolchain missing: Asio headers are not installed (apt install libasio-dev))');
+      expect(result.shimLog).not.toContain('cmake -S');
+    }
+  });
+
+  it('runs the steps of each verifier in order', () => {
+    const cases: Array<[string, string, string[], string[]]> = [
+      ['hummingbird', 'swift', ['swift'], ['swift build --build-tests', 'swift test --skip-build']],
+      ['genie-jl', 'julia', ['julia'], ['Pkg.instantiate()', 'Pkg.precompile()', 'Pkg.test()']],
+      ['jester', 'nim', ['nim', 'nimble'], ['nimble install -y --depsOnly', 'nimble build -y', 'nimble test -y']],
+      ['dream-ocaml', 'ocaml', ['opam'], ['opam install --yes --deps-only .', 'dune build --root .', 'dune runtest --root .']],
+      ['compojure', 'clojure', ['lein', 'java'], ['lein deps', 'lein check', 'lein test']],
+      ['nerves-ex', 'nerves', ['mix'], ['mix archive.install hex nerves_bootstrap', 'mix deps.get', 'mix compile', 'mix test']],
+      ['wisp', 'gleam', ['gleam', 'erl', 'rebar3'], ['gleam deps download', 'gleam build', 'gleam test']],
+      ['crow', 'crow', ['cmake', 'g++', 'git', 'ctest'], ['cmake -S . -B build', 'cmake --build build', 'ctest --test-dir build']],
+      ['vweb', 'v', ['v', 'gcc'], ['v fmt -verify', 'v -cc gcc -o', 'v -cc gcc test']],
+      ['grain', 'grain', ['grain'], ['grain compile src/main.gr', 'grain run build/main.wasm', 'grain compile tests/router_test.gr', 'grain run build/router_test.wasm']],
+      ['laravel', 'laravel', ['php', 'composer'], ['php -l', 'composer install', 'php artisan route:list', 'php artisan test']],
+    ];
+    for (const [template, kind, tools, steps] of cases) {
+      const result = runHealthFixture('non-node', template, { kinds: { [template]: kind }, tools: ['node', 'pnpm', 'npx', ...tools], env: asioInclude() });
+      expect(result.status, template).toBe(0);
+      const log = result.shimLog.split('\n');
+      const order = steps.map((fragment) => log.findIndex((line) => line.includes(fragment)));
+      expect(order.every((index) => index >= 0), `${template}: ${JSON.stringify(order)}`).toBe(true);
+      expect([...order].sort((a, b) => a - b), template).toEqual(order);
+    }
+  });
+
+  it('keeps Vapor on swift build and says its tests were not built', () => {
+    const result = runHealthFixture('non-node', 'vapor', { kinds: { vapor: 'swift' }, tools: ['node', 'pnpm', 'npx', 'swift'] });
+    expect(result.status).toBe(0);
+    expect(result.shimLog).toContain('swift build');
+    expect(result.shimLog).not.toContain('--build-tests');
+    expect(result.shimLog).not.toContain('swift test');
+    expect(result.stdout).toContain('NOTE: swift build only: the XCTVapor test target is neither built nor run');
+  });
+
+  it('compiles an Ecto app (Phoenix) without running its database tests, and says so', () => {
+    const result = runHealthFixture('non-node', 'phoenix', { kinds: { phoenix: 'elixir-ecto' }, tools: ['node', 'pnpm', 'npx', 'mix'] });
+    expect(result.status).toBe(0);
+    expect(result.shimLog).toContain('mix compile');
+    expect(result.shimLog).not.toContain('mix test');
+    expect(result.shimLog).not.toContain('nerves_bootstrap');
+    expect(result.stdout).toContain("NOTE: compiled only: the app's tests need a database (Ecto)");
+  });
+
+  it('type-checks database-backed Crystal specs when no PostgreSQL is running, and says so', () => {
+    const result = runHealthFixture('non-node', 'lucky-cr', { kinds: { 'lucky-cr': 'crystal-db' }, tools: ['node', 'pnpm', 'npx', 'crystal', 'shards'] });
+    expect(result.status).toBe(0);
+    expect(result.shimLog).toContain('crystal build --no-codegen .spec_typecheck.cr');
+    expect(result.shimLog).not.toContain('crystal spec');
+    expect(result.stdout).toContain('NOTE: the specs need PostgreSQL');
+  });
+
+  it('pins an unhashed Zig URL dependency from zig fetch, then builds and tests', () => {
+    const result = runHealthFixture('non-node', 'zap-zig', {
+      kinds: { 'zap-zig': 'zig-url' },
+      tools: ['node', 'pnpm', 'npx', 'zig'],
+      env: { SHIM_PRINT_ON: 'zig fetch', SHIM_PRINT: ZAP_HASH },
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(`hash: ${ZAP_HASH} (https://example.invalid/zap.tar.gz)`);
+    expect(result.stdout).toContain('NOTE: dependency hash computed during the run');
+    const log = result.shimLog.split('\n');
+    const order = ['zig fetch https://example.invalid/zap.tar.gz', 'zig build', 'zig build test'].map((command) => log.indexOf(command));
+    expect(order.every((index) => index >= 0), JSON.stringify(log)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('reports a Unison transcript run without a separate compile step', () => {
+    const result = runHealthFixture('non-node', 'unison', { kinds: { unison: 'unison' }, tools: ['node', 'pnpm', 'npx', 'ucm'] });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('NOTE: Unison has no separate compile step');
+  });
+
+  it('fails Jennet when ponyc is not the 0.61.0 release it needs', () => {
+    const result = runHealthFixture('non-node', 'jennet-pony', {
+      kinds: { 'jennet-pony': 'pony' },
+      tools: ['node', 'pnpm', 'npx', 'ponyc', 'corral'],
+      env: { SHIM_PRINT_ON: 'ponyc --version', SHIM_PRINT: '0.74.0-8e04579 [release]' },
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('found ponyc 0.74.0-8e04579 [release], jennet-pony needs 0.61.0');
+    expect(result.stdout).toContain('native build: ponyc-version failed');
+    expect(result.shimLog).not.toContain('corral fetch');
   });
 });
 

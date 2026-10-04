@@ -8,7 +8,8 @@
 #   Python                    venv, pip install, compileall, import the app
 #   Go                        go mod tidy, go build ./...
 #   Rust                      cargo check
-#   PHP                       php -l on every file, composer install
+#   PHP                       php -l on every file, composer install; Laravel apps also
+#                             boot (artisan route:list) and run their PHPUnit suite
 #   Ruby                      ruby -c on every file, bundle install
 #   Java (Maven)              mvn -DskipTests package
 #   Kotlin / Java (Gradle)    gradle build -x test
@@ -19,7 +20,9 @@
 #                             reachable from every CI network, so dependencies are
 #                             not resolved)
 #   C++ (CMake)               cmake configure + build
-#   Zig                       zig build
+#   C++ (Crow)                cmake configure (fetches Crow) + build + ctest
+#   Zig                       zig build, plus zig build test when build.zig has a test
+#                             step; an unpinned URL dependency is fetched and hashed first
 #   Plain JavaScript          pnpm install, node --check, and every import/require
 #                             must resolve (scripts/check-js-imports.mjs)
 #   ReScript                  pnpm install, rescript build, the generated and hand-written
@@ -27,8 +30,28 @@
 #                             app's own tests (npm test)
 #   Dart                      dart pub get, dart analyze (errors and warnings fail)
 #   Haskell (Cabal)           cabal build all (tests included), cabal test
-#   Deno (Oak, Fresh)         deno check on every module, deno task build when the app has
-#                             one (Fresh), deno test; dependencies come from JSR and npm
+#   Deno (Oak, Fresh, Aleph)  deno check on every module, deno task build when the app has
+#                             one, deno test; dependencies come from JSR and npm
+#   Elixir (Plug, Nerves,     mix deps.get, mix compile, mix test (Phoenix: compile only,
+#     Phoenix)                its tests need a database); Nerves builds for the host
+#   Gleam (Wisp)              gleam deps download, gleam build, gleam test
+#   Swift (SwiftPM)           swift build --build-tests, swift test (Vapor: swift build)
+#   Julia (Genie, Oxygen)     Pkg.instantiate, Pkg.precompile, Pkg.test
+#   Nim (Jester, Prologue,    nimble install --depsOnly, nimble build, nimble test
+#     HappyX)
+#   Crystal (Kemal, Lucky,    shards install, shards build, crystal spec (type-checked only
+#     Amber)                  when the specs need PostgreSQL and none is running)
+#   OCaml (Dream, Opium)      opam install --deps-only, dune build, dune runtest
+#   Clojure (Leiningen)       lein deps, lein check, lein test
+#   V (veb, vex)              v fmt -verify, v build, v test
+#   Odin (odin-http)          odin build, odin test
+#   Pony (Jennet)             corral fetch, ponyc (app and tests), run the tests
+#   Ballerina                 bal build (runs the package tests)
+#   Grain                     grain compile + run, then the compiled test program
+#   Unison                    ucm transcript: typecheck, add, run the self-test
+#   Mojo                      mojo build, the Mojo test programs, boot the server; FastAPI +
+#                             Mojo: build the extension module, pytest, boot the server
+#   Red                       red -r (tests and server), run the tests, boot the server
 #   Configuration-only        every YAML file must parse (scripts/check-yaml.mjs)
 #
 # A template is only SKIPped when its language toolchain is genuinely missing
@@ -38,7 +61,7 @@
 # configuration templates: syntax only) prints a NOTE saying so.
 #
 # Usage: bash scripts/scaffold-test-templates.sh [template ...]
-#        bash scripts/scaffold-test-templates.sh --group core|jvm|dotnet|native|node|config|haskell|deno ...
+#        bash scripts/scaffold-test-templates.sh --group core|jvm|dotnet|native|node|config|haskell|deno|swift|julia|nim|crystal|ocaml|clojure|beam|systems|exotic|exoticb ...
 # Runs from the repo root after `pnpm -r build`.
 
 set -euo pipefail
@@ -63,7 +86,7 @@ GROUP_CORE=(
   laravel rails-api
   phoenix vapor
   elysia-bun bun-serve trpc-bun
-  zig-http std-http-zig
+  zig-http std-http-zig zap-zig
 )
 # JVM: Maven, Gradle (Kotlin) and sbt (Scala)
 GROUP_JVM=(
@@ -77,7 +100,8 @@ GROUP_DOTNET=(
   aspnet-dapper aspnet-automapper aspnet-xunit aspnet-efcore aspnet-hotreload
   giraffe aspnet-jwt aspnet-swagger aspnet-serilog saturn-fs suave-fs
 )
-# Go, Rust, Python, Ruby, PHP, Perl, Lua, C++ (CMake; Drogon, cpp-httplib, Boost.Beast and Pistache from the distribution packages), Dart
+# Go, Rust, Python, Ruby, PHP, Perl, Lua, C++ (CMake; Drogon, cpp-httplib, Boost.Beast and Pistache from the distribution packages;
+# Crow fetched from GitHub at a pinned tag), Dart
 GROUP_NATIVE=(
   chi go-sqlx grpc-go
   shelf angel3 conduit
@@ -87,7 +111,7 @@ GROUP_NATIVE=(
   slim symfony codeigniter
   mojolicious dancer2 catalyst
   openresty lapis lua-http kong-plugin
-  drogon cpp-httplib beast pistache
+  drogon cpp-httplib beast pistache crow
 )
 # Node / TypeScript / plain JavaScript / ReScript (pnpm install + tsc, node --check, or rescript build)
 GROUP_NODE=(
@@ -121,7 +145,61 @@ GROUP_HASKELL=(
 # deno.land/x and esm.sh registries are not used, so these build wherever
 # jsr.io and registry.npmjs.org are reachable).
 GROUP_DENO=(
-  oak-deno fresh-deno
+  oak-deno fresh-deno aleph-deno
+)
+
+# Swift (SwiftPM, Swift 6.2 or newer): Hummingbird 2 and Kitura 3. Vapor builds in
+# core. Perfect is not listed: its network layer does not compile against OpenSSL 3.
+GROUP_SWIFT=(
+  hummingbird kitura
+)
+
+# Julia: packages come from the General registry.
+GROUP_JULIA=(
+  genie-jl oxygen-jl
+)
+
+# Nim 2.x with nimble (packages from the Nim package index and GitHub).
+GROUP_NIM=(
+  jester prologue-nim happyx-nim
+)
+
+# Crystal with shards; the Lucky and Amber specs use a local PostgreSQL.
+GROUP_CRYSTAL=(
+  kemal lucky-cr amber-cr
+)
+
+# OCaml (opam switch with dune); the frameworks come from the opam repository.
+GROUP_OCAML=(
+  dream-ocaml opium-ocaml
+)
+
+# Clojure (Leiningen); the libraries come from Maven Central and Clojars.
+GROUP_CLOJURE=(
+  compojure luminus-clj reitit-clj pedestal-clj
+)
+
+# BEAM: Elixir (Plug, Nerves built for the host) and Gleam (Wisp). Phoenix builds in core.
+GROUP_BEAM=(
+  plug-ex nerves-ex wisp
+)
+
+# Systems languages: V (veb, vex), Odin (odin-http) and Pony (Jennet), each with a
+# pinned compiler.
+GROUP_SYSTEMS=(
+  vweb vex-v odin-http jennet-pony
+)
+
+# Grain, Ballerina and Unison. Roc is not listed: it has no stable release and its
+# platform must be pinned by a content hash that cannot be verified here.
+GROUP_EXOTIC=(
+  grain ballerina unison
+)
+
+# Mojo (compiler from PyPI) and Red (32-bit toolchain). Carbon and Vale are not
+# listed: neither has a released toolchain that can build an HTTP server.
+GROUP_EXOTICB=(
+  mojo mojo-fastapi red-http
 )
 
 # Configuration-only templates: no toolchain, YAML syntax is checked (see
@@ -137,7 +215,7 @@ GROUP_CONFIG=(
 
 TEMPLATES=()
 if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
-  # --group core|jvm|dotnet|native|node|config|haskell|deno [...]: run whole groups
+  # --group core|jvm|dotnet|native|node|config|haskell|deno|swift|julia|nim|crystal|ocaml|clojure|beam|systems|exotic|exoticb [...]: run whole groups
   shift
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -149,14 +227,26 @@ if [ "$#" -gt 0 ] && [ "$1" = "--group" ]; then
       config) TEMPLATES+=("${GROUP_CONFIG[@]}") ;;
       haskell) TEMPLATES+=("${GROUP_HASKELL[@]}") ;;
       deno) TEMPLATES+=("${GROUP_DENO[@]}") ;;
-      *) echo "unknown group: $1 (core|jvm|dotnet|native|node|config|haskell|deno)" >&2; exit 2 ;;
+      swift) TEMPLATES+=("${GROUP_SWIFT[@]}") ;;
+      julia) TEMPLATES+=("${GROUP_JULIA[@]}") ;;
+      nim) TEMPLATES+=("${GROUP_NIM[@]}") ;;
+      crystal) TEMPLATES+=("${GROUP_CRYSTAL[@]}") ;;
+      ocaml) TEMPLATES+=("${GROUP_OCAML[@]}") ;;
+      clojure) TEMPLATES+=("${GROUP_CLOJURE[@]}") ;;
+      beam) TEMPLATES+=("${GROUP_BEAM[@]}") ;;
+      systems) TEMPLATES+=("${GROUP_SYSTEMS[@]}") ;;
+      exotic) TEMPLATES+=("${GROUP_EXOTIC[@]}") ;;
+      exoticb) TEMPLATES+=("${GROUP_EXOTICB[@]}") ;;
+      *) echo "unknown group: $1 (core|jvm|dotnet|native|node|config|haskell|deno|swift|julia|nim|crystal|ocaml|clojure|beam|systems|exotic|exoticb)" >&2; exit 2 ;;
     esac
     shift
   done
 elif [ "$#" -gt 0 ]; then
   TEMPLATES=("$@")
 else
-  TEMPLATES=("${GROUP_CORE[@]}" "${GROUP_JVM[@]}" "${GROUP_DOTNET[@]}" "${GROUP_NATIVE[@]}" "${GROUP_NODE[@]}" "${GROUP_CONFIG[@]}" "${GROUP_HASKELL[@]}" "${GROUP_DENO[@]}")
+  TEMPLATES=("${GROUP_CORE[@]}" "${GROUP_JVM[@]}" "${GROUP_DOTNET[@]}" "${GROUP_NATIVE[@]}" "${GROUP_NODE[@]}" "${GROUP_CONFIG[@]}" "${GROUP_HASKELL[@]}" "${GROUP_DENO[@]}"
+    "${GROUP_SWIFT[@]}" "${GROUP_JULIA[@]}" "${GROUP_NIM[@]}" "${GROUP_CRYSTAL[@]}" "${GROUP_OCAML[@]}" "${GROUP_CLOJURE[@]}"
+    "${GROUP_BEAM[@]}" "${GROUP_SYSTEMS[@]}" "${GROUP_EXOTIC[@]}" "${GROUP_EXOTICB[@]}")
 fi
 
 PASS=0
@@ -310,6 +400,14 @@ verify_php() {
       NATIVE_NOTE="composer dependencies were resolved but not downloaded (TEMPLATE_HEALTH_COMPOSER_RESOLVE_ONLY=1)"
     else
       step composer-install composer install --no-interaction --no-progress --no-scripts || return 1
+      # Laravel apps: boot the application (every route must resolve to a controller)
+      # and run its own PHPUnit suite (phpunit.xml supplies APP_KEY, JWT_SECRET and
+      # in-memory SQLite, so no database or Redis is needed).
+      if [ -f artisan ] && [ -f phpunit.xml ]; then
+        if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi
+        step artisan-routes php artisan route:list || return 1
+        step phpunit php artisan test || return 1
+      fi
     fi
   else
     NATIVE_NOTE="syntax only: composer is not installed, dependencies were not installed"
@@ -402,6 +500,28 @@ verify_cmake() {
   step build cmake --build build -j "$(nproc 2>/dev/null || echo 2)" || return 1
 }
 
+# True when asio.hpp is in a directory CMake searches: CMAKE_INCLUDE_PATH, then the system ones.
+asio_installed() {
+  local dir dirs=()
+  IFS=: read -r -a dirs <<<"${CMAKE_INCLUDE_PATH:-}"
+  for dir in "${dirs[@]}" /usr/include /usr/local/include; do
+    [ -n "$dir" ] && [ -f "$dir/asio.hpp" ] && return 0
+  done
+  return 1
+}
+
+# C++ (Crow): configure (CMake fetches Crow v1.2.0 from GitHub), build every target, run the
+# GoogleTest suites. Crow needs the standalone Asio headers (libasio-dev).
+verify_crow() {
+  have cmake || { NATIVE_REASON="cmake is not installed"; return 2; }
+  have g++ || have c++ || have clang++ || { NATIVE_REASON="no C++ compiler is installed"; return 2; }
+  have git || { NATIVE_REASON="git is not installed (CMake fetches Crow from GitHub)"; return 2; }
+  asio_installed || { NATIVE_REASON="Asio headers are not installed (apt install libasio-dev)"; return 2; }
+  step configure cmake -S . -B build -DCMAKE_BUILD_TYPE=Release || return 1
+  step build cmake --build build -j "$(nproc 2>/dev/null || echo 2)" || return 1
+  step test ctest --test-dir build --output-on-failure || return 1
+}
+
 # Configuration-only templates (service meshes, proxies, compose bundles, ...)
 # have nothing to compile: every YAML file must at least parse.
 verify_config() {
@@ -410,9 +530,38 @@ verify_config() {
   NATIVE_NOTE="configuration template: YAML syntax only (other config formats and any TypeScript snippets are not compiled)"
 }
 
+# Zig: build, then run the unit tests when build.zig defines a test step. A dependency
+# that build.zig.zon names by URL but ships without a .hash (zap-zig: the hash cannot be
+# known without downloading the release) is fetched first and its hash written in, as
+# `zig fetch --save` would do; the hash is printed so it can be pinned in the template.
 verify_zig() {
   have zig || { NATIVE_REASON="zig is not installed"; return 2; }
+  if [ -f build.zig.zon ] && grep -q '^ *\.url = ' build.zig.zon && ! grep -q '^ *\.hash = ' build.zig.zon; then
+    local url hash fetched=""
+    while IFS= read -r url; do
+      step fetch zig fetch "$url" || return 1
+      # Zig 0.13 prints the package hash (1220 + 64 hex digits) on its own line.
+      hash="$(grep -E '^1220[0-9a-f]{64}$' "$TMP_DIR/$TPL-fetch.txt" | tail -n 1)"
+      if [ -z "$hash" ]; then
+        echo "  ✗ zig fetch printed no package hash for $url"
+        NATIVE_REASON="zig fetch printed no package hash for $url"
+        return 1
+      fi
+      sed -i "s|^\( *\)\(\.url = \"$url\",\)\$|\1\2\n\1.hash = \"$hash\",|" build.zig.zon
+      echo "    hash: $hash ($url)"
+      fetched="$fetched $url=$hash"
+    done < <(sed -n 's/^ *\.url = "\([^"]*\)",$/\1/p' build.zig.zon)
+    if grep -q '^ *\.url = ' build.zig.zon && ! grep -q '^ *\.hash = ' build.zig.zon; then
+      echo "  ✗ could not write the fetched hash into build.zig.zon"
+      NATIVE_REASON="could not write the fetched hash into build.zig.zon"
+      return 1
+    fi
+    NATIVE_NOTE="dependency hash computed during the run, not pinned in the template:$fetched"
+  fi
   step build zig build || return 1
+  if grep -q 'b\.step("test"' build.zig; then
+    step test zig build test || return 1
+  fi
 }
 
 # Haskell (Servant, Scotty, Spock, Yesod): build the library, executable and test suite, then run the tests.
@@ -445,12 +594,302 @@ verify_dart() {
   NATIVE_NOTE="static analysis only (dart analyze): the app's tests were not run"
 }
 
+# Swift (SwiftPM: Hummingbird, Kitura): resolve the packages, build the app together with its test
+# target, then run the tests. Hummingbird 2 needs Swift 6.2 or newer (an older toolchain fails
+# dependency resolution, which is reported as a failure); Kitura links the system OpenSSL 3 and zlib
+# (libssl-dev, zlib1g-dev). Vapor is built without its tests (see verify_native).
+verify_swift() {
+  have swift || { NATIVE_REASON="swift is not installed"; return 2; }
+  step build swift build --build-tests || return 1
+  step test swift test --skip-build || return 1
+}
+
+# Julia (Genie, Oxygen): resolve the Project.toml dependencies from the General registry,
+# precompile them and the app package, then run the app's test suite (handler unit tests
+# plus a live server on a local port; its requests carry their own timeouts). Precompilation
+# is kept out of instantiate so a compile error is reported by the precompile step.
+verify_julia() {
+  have julia || { NATIVE_REASON="julia is not installed"; return 2; }
+  step instantiate env JULIA_PKG_PRECOMPILE_AUTO=0 julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate()' || return 1
+  step precompile julia --startup-file=no --project=. -e 'using Pkg; Pkg.precompile()' || return 1
+  step test julia --startup-file=no --project=. -e 'using Pkg; Pkg.test()' || return 1
+}
+
+# Nim (Jester, Prologue, HappyX): nimble resolves the dependencies from the Nim
+# package index and GitHub, builds the server binary and runs the unit tests
+# (tests/t*.nim).
+verify_nim() {
+  have nim || { NATIVE_REASON="nim is not installed"; return 2; }
+  have nimble || { NATIVE_REASON="nimble is not installed"; return 2; }
+  step deps nimble install -y --depsOnly || return 1
+  step build nimble build -y || return 1
+  step test nimble test -y || return 1
+}
+
+# True when a local PostgreSQL accepts postgres/postgres (what Lucky's and Amber's test settings use).
+postgres_ready() {
+  have psql || return 1
+  PGPASSWORD=postgres psql -h localhost -U postgres -tAc 'select 1' >/dev/null 2>&1
+}
+
+# Crystal (Kemal, Lucky, Amber): install the shards, build every target, then run the specs.
+# Lucky (Avram) and Amber (Granite) specs need PostgreSQL: they run when a server answers on
+# localhost with postgres/postgres, otherwise they are only type-checked.
+verify_crystal() {
+  have crystal || { NATIVE_REASON="crystal is not installed"; return 2; }
+  have shards || { NATIVE_REASON="shards is not installed"; return 2; }
+  step install shards install || return 1
+  step build shards build || return 1
+  if [ -f tasks.cr ]; then
+    # Lucky's task runner (db.migrate, db.seed.*, ...)
+    step tasks crystal build --no-codegen tasks.cr || return 1
+  fi
+  [ -d spec ] || return 0
+  if grep -qE '^[[:space:]]+(avram|granite):' shard.yml; then
+    if postgres_ready; then
+      if [ -f .amber.yml ]; then
+        # A fresh test database each run (the drop is allowed to fail when none exists yet).
+        step db-create bash -c 'AMBER_ENV=test bin/amber db drop >/dev/null 2>&1; AMBER_ENV=test bin/amber db create' || return 1
+      fi
+      step spec crystal spec || return 1
+    else
+      # `crystal spec` has no type-check-only mode: compile every spec file without code generation.
+      printf 'require "./spec/**"\n' >.spec_typecheck.cr
+      local rc=0
+      step spec-typecheck crystal build --no-codegen .spec_typecheck.cr || rc=1
+      rm -f .spec_typecheck.cr
+      [ "$rc" -eq 0 ] || return 1
+      NATIVE_NOTE="the specs need PostgreSQL (postgres/postgres on localhost); they were type-checked, not run"
+    fi
+  else
+    step spec crystal spec || return 1
+  fi
+}
+
+# OCaml (Dream, Opium): install the dependencies declared in <name>.opam (the web
+# framework included) from the opam repository into the selected switch, then build
+# every target (library, server, tests) and run the Alcotest suite.
+verify_ocaml() {
+  have opam || { NATIVE_REASON="opam (OCaml package manager) is not installed"; return 2; }
+  opam switch show >/dev/null 2>&1 || { NATIVE_REASON="opam has no switch selected (create one, or set OPAMSWITCH)"; return 2; }
+  step deps opam install --yes --deps-only . || return 1
+  step build opam exec -- dune build --root . || return 1
+  step test opam exec -- dune runtest --root . || return 1
+}
+
+# Clojure (Compojure, Luminus, Reitit, Pedestal): Leiningen resolves the dependencies from
+# Maven Central and Clojars, loads every namespace, then runs the app's clojure.test suite.
+verify_clojure() {
+  have lein || { NATIVE_REASON="lein (Leiningen) is not installed"; return 2; }
+  have java || { NATIVE_REASON="java is not installed"; return 2; }
+  export LEIN_ROOT=1
+  step deps lein deps || return 1
+  # Loads every namespace on the source paths (plus the dev profile's user.clj),
+  # so unresolved vars, missing namespaces and malformed forms fail here.
+  step check lein check || return 1
+  step test lein test || return 1
+}
+
+# BEAM: Elixir (Plug, Nerves, Phoenix) and Gleam (Wisp).
+#   Gleam   download the packages, build, run the gleeunit tests (Gleam compiles
+#           the Erlang dependencies, e.g. Mist's hpack_erl, with rebar3).
+#   Elixir  the Nerves bootstrap archive when mix.exs requires it, deps.get, compile,
+#           then the app's tests unless they need a database (Ecto: Phoenix).
+#           Nerves projects build for the host (MIX_TARGET=host): no board system
+#           or cross-compiler is downloaded.
+verify_beam() {
+  if [ -f gleam.toml ]; then
+    have gleam || { NATIVE_REASON="gleam is not installed"; return 2; }
+    have erl || { NATIVE_REASON="erlang (erl) is not installed"; return 2; }
+    have rebar3 || { NATIVE_REASON="rebar3 is not installed (gleam needs it for Erlang dependencies)"; return 2; }
+    step deps gleam deps download || return 1
+    step build gleam build || return 1
+    step test gleam test || return 1
+  else
+    have mix || { NATIVE_REASON="elixir (mix) is not installed"; return 2; }
+    export MIX_TARGET=host
+    if grep -q 'nerves_bootstrap' mix.exs; then
+      step bootstrap mix archive.install hex nerves_bootstrap --force || return 1
+    fi
+    step deps mix deps.get || return 1
+    step compile mix compile || return 1
+    if grep -q ':ecto_sql' mix.exs; then
+      NATIVE_NOTE="compiled only: the app's tests need a database (Ecto)"
+    else
+      step test mix test || return 1
+    fi
+  fi
+}
+
+# V (veb, vex): format check, build, tests. The tests start their own server on a loopback port.
+# vex-v fetches vex from GitHub with git at a pinned commit.
+verify_v() {
+  have v || { NATIVE_REASON="v (the V compiler) is not installed"; return 2; }
+  have gcc || { NATIVE_REASON="gcc is not installed (V compiles to C, built here with -cc gcc)"; return 2; }
+  if [ -f scripts/setup-vex.sh ]; then
+    have git || { NATIVE_REASON="git is not installed (it fetches vex)"; return 2; }
+    step vex-deps sh scripts/setup-vex.sh || return 1
+  fi
+  step fmt v fmt -verify src/*.v || return 1
+  step build v -cc gcc -o "$TMP_DIR/$TPL-bin" src || return 1
+  step test v -cc gcc test src/*_test.v || return 1
+}
+
+# Odin (odin-http): the library is fetched into deps/ with git; build and run `odin test`.
+verify_odin() {
+  have odin || { NATIVE_REASON="odin (the Odin compiler) is not installed"; return 2; }
+  have git || { NATIVE_REASON="git is not installed (it fetches odin-http)"; return 2; }
+  step deps sh scripts/setup-deps.sh || return 1
+  step build odin build src -collection:deps=./deps -out:"$TMP_DIR/$TPL-bin" || return 1
+  step test odin test src -collection:deps=./deps -out:"$TMP_DIR/$TPL-test" || return 1
+}
+
+# Pony (Jennet): needs ponyc 0.61.0 (Jennet and http_server use the `net` package replaced in
+# ponyc 0.72.0, and from 0.61.1 the stdlib `json` shadows the json dependency). corral fetches
+# the packages, ponyc builds the app and the test program, which is then run.
+verify_pony() {
+  have ponyc || { NATIVE_REASON="ponyc (the Pony compiler) is not installed"; return 2; }
+  have corral || { NATIVE_REASON="corral (the Pony dependency manager) is not installed"; return 2; }
+  local out="$TMP_DIR/$TPL-build"
+  mkdir -p "$out"
+  # shellcheck disable=SC2016 # the version is read by the inner shell
+  step ponyc-version sh -c 'v=$(ponyc --version | head -n 1); echo "found ponyc $v, jennet-pony needs 0.61.0"; case "$v" in 0.61.0*) exit 0 ;; esac; exit 1' || return 1
+  step fetch corral fetch || return 1
+  step build corral run -- ponyc -V1 -Dopenssl_3.0.x -o "$out" --bin-name=app . || return 1
+  step test-build corral run -- ponyc -V1 -Dopenssl_3.0.x -o "$out" --bin-name=app-test test || return 1
+  step test "$out/app-test" || return 1
+}
+
+# Systems languages (vweb and vex-v: V; odin-http: Odin; jennet-pony: Pony), told apart by manifest.
+verify_systems() {
+  if [ -f v.mod ]; then
+    verify_v
+  elif [ -f ols.json ]; then
+    verify_odin
+  else
+    verify_pony
+  fi
+}
+
+# Grain, Ballerina and Unison: each is built with its own toolchain, told apart by its manifest.
+verify_exotic() {
+  if [ -f Ballerina.toml ]; then
+    have bal || { NATIVE_REASON="bal (Ballerina) is not installed"; return 2; }
+    # Resolves ballerina/http, graphql, log and test (Ballerina Central), compiles the package,
+    # runs its unit tests (which start the module's listeners on 8080 and 9090) and builds the jar.
+    step build bal build || return 1
+  elif [ -f src/main.gr ]; then
+    have grain || { NATIVE_REASON="grain (the Grain compiler) is not installed"; return 2; }
+    mkdir -p build
+    step compile grain compile src/main.gr -o build/main.wasm || return 1
+    step run grain run build/main.wasm || return 1
+    # A failed assert throws AssertionError, which makes grain run exit non-zero.
+    step compile-tests grain compile tests/router_test.gr -o build/router_test.wasm || return 1
+    step test grain run build/router_test.wasm || return 1
+  else
+    have ucm || { NATIVE_REASON="ucm (Unison Codebase Manager) is not installed"; return 2; }
+    # Unison has no source build: main.u is typechecked against @unison/base, added to a fresh
+    # codebase and run (selfTest, then appMain) by a UCM transcript, which exits non-zero when a
+    # stanza fails (a type error, or a bug/exception raised by run).
+    local transcript="$TMP_DIR/$TPL-transcript.md" output
+    {
+      printf '%s\n' '```ucm' 'scratch/main> lib.install @unison/base' '```' '' '```unison'
+      cat main.u
+      printf '%s\n' '```' '' '```ucm' 'scratch/main> add' 'scratch/main> run selfTest' 'scratch/main> run appMain' '```'
+    } >"$transcript"
+    step transcript ucm transcript "$transcript" || return 1
+    output="${transcript%.md}.output.md"
+    if [ -f "$output" ] && grep -qE 'unhandled exception|💥' "$output"; then
+      echo "  ✗ the transcript reported a failed run"
+      grep -E 'unhandled exception|💥' "$output" | head -n 5 | sed 's/^/    | /'
+      NATIVE_REASON="the Unison self-test run failed"
+      return 1
+    fi
+    NATIVE_NOTE="Unison has no separate compile step: main.u was typechecked, added and run (selfTest, appMain) in a ucm transcript"
+  fi
+}
+
+# boot_check <port> <path> <expected text> <command...>: start the server command with
+# PORT=<port>, wait up to 20 s for GET <path> to answer with <expected text>, then stop it.
+boot_check() {
+  have curl || { NATIVE_REASON="curl is not installed (needed for the boot check)"; return 2; }
+  local port="$1" path="$2" expect="$3" pid ok=1 tries=0
+  shift 3
+  local log="$TMP_DIR/$TPL-server.txt" body="$TMP_DIR/$TPL-boot.txt"
+  PORT="$port" "$@" >"$log" 2>&1 &
+  pid=$!
+  while [ "$tries" -lt 20 ]; do
+    if curl -fsS "http://127.0.0.1:$port$path" >"$body" 2>&1 && grep -qF -- "$expect" "$body"; then
+      ok=0
+      break
+    fi
+    kill -0 "$pid" 2>/dev/null || break
+    tries=$((tries + 1))
+    sleep 1
+  done
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  if [ "$ok" -ne 0 ]; then
+    echo "  ✗ boot failed (GET $path)"
+    tail -n 15 "$log" | sed 's/^/    | /'
+    tail -n 3 "$body" 2>/dev/null | awk '{ print "    | " $0 }'
+    NATIVE_REASON="boot failed (GET $path did not answer with $expect)"
+    return 1
+  fi
+  echo "  ✓ boot (GET $path)"
+}
+
+# Mojo (mojo, mojo-fastapi): compile with the Mojo compiler, run the tests, then boot the app.
+verify_mojo() {
+  have mojo || { NATIVE_REASON="mojo is not installed (pip install mojo)"; return 2; }
+  export MODULAR_CRASH_REPORTING_ENABLED=false
+  local f name
+  if [ -f mojo_bindings.mojo ]; then
+    # FastAPI + Mojo: build the Mojo kernels as a Python extension module, then run the
+    # tests and the server against it (the pure-Python fallback must not be the one used).
+    have python3 || { NATIVE_REASON="python3 is not installed"; return 2; }
+    step build-extension mojo build mojo_bindings.mojo --emit shared-lib -o mojo_bindings.so || return 1
+    step venv python3 -m venv .venv || return 1
+    local py="$PWD/.venv/bin/python"
+    step install "$py" -m pip install --quiet --disable-pip-version-check -r requirements-test.txt || return 1
+    step engine "$py" -c 'import engine; assert engine.engine_name() == "mojo", "mojo_bindings was not loaded"' || return 1
+    step tests "$py" -m pytest -q -p no:cacheprovider || return 1
+    boot_check 18080 /api/v1/health '"engine":"mojo"' "$py" fastapi_app.py || return $?
+    return 0
+  fi
+  mkdir -p bin
+  step build mojo build main.mojo -I . -o bin/server || return 1
+  for f in tests/*.mojo; do
+    name="${f##*/}"
+    step "test-${name%.mojo}" mojo run -I . "$f" || return 1
+  done
+  step examples mojo run -I . examples/simd_examples.mojo || return 1
+  step benchmark-build mojo build benchmarks/bench_simd.mojo -I . -o bin/bench || return 1
+  # The socket transport is Python interop, only exercised at run time: boot the server.
+  boot_check 18080 /api/v1/products/1 '"Sample Product 1"' ./bin/server || return $?
+}
+
+# Red (red-http): the toolchain and the programs it builds are 32-bit x86. main.red has
+# Red/System routines, so everything is compiled in release mode (-r), not with libRedRT (-c).
+verify_red() {
+  have red || { NATIVE_REASON="red (the 32-bit Red toolchain, red-toolchain-NNN) is not installed"; return 2; }
+  mkdir -p bin
+  step build-tests red -r -o bin/test-app tests/test-app.red || return 1
+  step tests ./bin/test-app || return 1
+  step build red -r -o bin/server main.red || return 1
+  boot_check 18081 /api/v1/products/1 '"Sample Product 1"' ./bin/server || return $?
+}
+
 verify_native() {
   local tpl="$1" dir="$2"
   NATIVE_REASON=""
   NATIVE_NOTE=""
   cd "$dir"
-  if [ -f manage.py ] || [ -f requirements.txt ] || [ -f pyproject.toml ]; then
+  # Mojo first: mojo-fastapi also ships requirements.txt, which would send it to verify_python
+  # (that path never builds the Mojo extension module).
+  if [ -f pixi.toml ]; then
+    verify_mojo
+  elif [ -f manage.py ] || [ -f requirements.txt ] || [ -f pyproject.toml ]; then
     verify_python
   elif [ -f go.mod ]; then
     verify_go
@@ -478,12 +917,37 @@ verify_native() {
     verify_zig
   elif [ -f pubspec.yaml ]; then
     verify_dart
-  elif [ -f mix.exs ]; then
-    have mix || { NATIVE_REASON="elixir (mix) is not installed"; return 2; }
-    step deps mix deps.get && step compile mix compile
+  elif [ -f mix.exs ] || [ -f gleam.toml ]; then
+    verify_beam
   elif [ -f Package.swift ]; then
-    have swift || { NATIVE_REASON="swift is not installed"; return 2; }
-    step build swift build
+    if [ "$tpl" = vapor ]; then
+      # Vapor (core group) is built without its XCTVapor test target, which CI has not compiled yet.
+      have swift || { NATIVE_REASON="swift is not installed"; return 2; }
+      step build swift build || return 1
+      NATIVE_NOTE="swift build only: the XCTVapor test target is neither built nor run"
+    else
+      verify_swift
+    fi
+  elif [ -f Project.toml ]; then
+    verify_julia
+  elif compgen -G "*.nimble" >/dev/null; then
+    verify_nim
+  elif [ -f shard.yml ]; then
+    verify_crystal
+  elif [ -f dune-project ]; then
+    verify_ocaml
+  elif [ -f project.clj ]; then
+    verify_clojure
+  elif [ -f v.mod ] || [ -f ols.json ] || [ -f corral.json ]; then
+    verify_systems
+  elif [ -f Ballerina.toml ] || [ -f src/main.gr ] || [ -f main.u ]; then
+    verify_exotic
+  elif [ -f main.red ]; then
+    verify_red
+  # Before the generic CMake branch, and before the *.lua and YAML fallbacks below (most of these
+  # apps also ship a docker-compose.yml).
+  elif [ -f CMakeLists.txt ] && grep -q 'CrowCpp/Crow' CMakeLists.txt; then
+    verify_crow
   elif [ -n "$(find . -type f -name '*.lua' -print -quit)" ]; then
     verify_lua
   elif [ -f CMakeLists.txt ]; then
@@ -492,7 +956,7 @@ verify_native() {
     verify_config
   else
     echo "  ✗ no recognised build manifest in the generated app"
-    NATIVE_REASON="no recognised build manifest (package.json, go.mod, Cargo.toml, deno.json, pubspec.yaml, pom.xml, build.gradle(.kts), build.sbt, *.cabal, *.csproj, *.fsproj, composer.json, Gemfile, requirements.txt, cpanfile, CMakeLists.txt, build.zig, mix.exs, Package.swift, *.lua, *.yaml)"
+    NATIVE_REASON="no recognised build manifest (package.json, go.mod, Cargo.toml, deno.json, pubspec.yaml, pom.xml, build.gradle(.kts), build.sbt, *.cabal, *.csproj, *.fsproj, composer.json, Gemfile, requirements.txt, cpanfile, CMakeLists.txt, build.zig, mix.exs, gleam.toml, Package.swift, Project.toml, *.nimble, shard.yml, dune-project, project.clj, v.mod, ols.json, corral.json, Ballerina.toml, src/main.gr, main.u, pixi.toml, main.red, *.lua, *.yaml)"
     return 1
   fi
 }
