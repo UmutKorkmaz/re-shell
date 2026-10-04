@@ -12,7 +12,10 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import redis
+try:
+    import redis
+except ImportError:  # only this transport needs redis-py; the in-memory bus must import without it
+    redis = None  # type: ignore[assignment]
 
 from .core import TransportMessage
 
@@ -55,6 +58,8 @@ class RedisStreamsTransport:
         consumer_name: Optional[str] = None,
         on_error: Optional[Callable[[BaseException], None]] = None,
     ) -> None:
+        if redis is None:
+            raise ImportError("RedisStreamsTransport needs redis-py: pip install redis")
         self._client: "redis.Redis" = client or redis.Redis.from_url(url, decode_responses=True)
         self._max_len = max_len
         self._block_ms = block_ms
