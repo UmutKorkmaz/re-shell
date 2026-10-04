@@ -147,9 +147,9 @@ A small server-side Swift API built with [Kitura](https://github.com/Kitura/Kitu
 >
 > Kitura and KituraContracts as released do not compile with Swift 6 on Linux (Foundation made
 > \`.formatted(DateFormatter)\` a static function, so \`case .formatted(let formatter)\` patterns are rejected).
-> Patched copies of both packages live in \`Vendor/\` and \`Package.swift\` depends on them by path; the only
-> changes are \`#if canImport(Darwin)\` guards around those patterns. Their default welcome page resources are not
-> included.
+> Patched copies of both packages live in \`Vendor/\` and \`Package.swift\` depends on them by path. The changes are
+> confined to the date-strategy switches that match \`.formatted\` (now guarded with \`#if canImport(Darwin)\`), and
+> each patched file starts with a notice saying so. Their tests and default welcome page resources are not included.
 
 ## What is included
 
