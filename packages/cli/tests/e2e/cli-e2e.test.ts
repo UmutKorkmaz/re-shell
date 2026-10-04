@@ -58,9 +58,9 @@ describe.skipIf(!process.env.RUN_E2E)('CLI End-to-End Tests', () => {
     it('should create a complete project and add microfrontends', () => {
       const projectDir = path.join(testBaseDir, testProjectName);
       
-      // Step 1: Create a new project
+      // Step 1: Create a new, empty project
       const createResult = runCliCommand(
-        `node ${cliPath} create ${testProjectName} --package-manager npm`,
+        `node ${cliPath} create ${testProjectName} --template blank --package-manager npm`,
         testBaseDir
       );
       
@@ -73,13 +73,14 @@ describe.skipIf(!process.env.RUN_E2E)('CLI End-to-End Tests', () => {
       expect(projectStructure.hasPackageJson).toBe(true);
       expect(projectStructure.hasAppsDir).toBe(true);
       expect(projectStructure.hasPackagesDir).toBe(true);
-      // A plain `create` scaffolds an empty workspace (apps/ + packages/); the
-      // shell/remotes layout only exists for `create --microfrontend`. The root
-      // package.json must declare both directories as workspaces.
+      // `--template blank` scaffolds an empty workspace (apps/ + packages/; a plain
+      // `create` adds a react-ts app); the shell/remotes layout only exists for
+      // `create --microfrontend`. The root package.json declares the standard
+      // workspace globs, including services/* where `generate backend` writes.
       expect(projectStructure.hasShellApp).toBe(false);
       const rootPackageJson = fs.readJsonSync(path.join(projectDir, 'package.json'));
       expect(rootPackageJson.name).toBe(testProjectName);
-      expect(rootPackageJson.workspaces).toEqual(['apps/*', 'packages/*']);
+      expect(rootPackageJson.workspaces).toEqual(['apps/*', 'packages/*', 'libs/*', 'tools/*', 'services/*']);
       
       // Step 2: Add a microfrontend
       const addResult = runCliCommand(
