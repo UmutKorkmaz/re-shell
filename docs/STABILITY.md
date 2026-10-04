@@ -154,7 +154,7 @@ and runs its PHPUnit suite (`php artisan test`).
 | `node` | 72 | `pnpm install` + `tsc`, or `node --check` plus an import-resolution check for plain JavaScript, or `rescript build` |
 | `haskell` | 4 | `cabal build all --enable-tests` + `cabal test` (GHC 9.4.7); the shipped `stack.yaml` files are not exercised |
 | `deno` | 3 | `deno check` + `deno test` (Deno 2; dependencies from JSR and npm), `deno task build` for the Hono + React app `aleph-deno` |
-| `swift` | 2 | `swift build --build-tests` + `swift test` (Hummingbird 2, Kitura 3); first hosted run pending |
+| `swift` | 2 | `swift build --build-tests` + `swift test` (Hummingbird 2, Kitura 3). Hummingbird built and passed its tests on the first hosted run. Kitura needs patched copies of Kitura and KituraContracts under `Vendor/` (Foundation in Swift 6 made `.formatted(DateFormatter)` a static function, so upstream's `case .formatted(let x)` patterns do not compile); built and tested locally with Swift 6.4, hosted re-run pending |
 | `julia` | 2 | `Pkg.instantiate`, `Pkg.precompile`, `Pkg.test`; first hosted run pending |
 | `nim` | 3 | `nimble install --depsOnly`, `nimble build`, `nimble test` on **Nim 2.0.x** (pinned because `happyx` does not resolve with Nim 2.2.12 and nimble 0.24.1) |
 | `crystal` | 3 | `shards install`, `shards build`, `crystal spec` (type-checked only when the Lucky and Amber specs need PostgreSQL and none is running); first hosted run pending |
@@ -171,7 +171,7 @@ and the agents that repaired templates ran many of them as servers or against th
 tests; that is not repeated by the script.
 
 **Known first-run risks** for the templates that have not run on GitHub yet: `kitura`
-(Kitura-NIO under Swift 6.x), `hummingbird` (the WebSocket test), `oxygen-jl` (a package
+(vendored, patched Kitura sources; see the `swift` row), `oxygen-jl` (a package
 UUID written from memory), the Clojure group (Clojars versions and the
 `DeLaGuardo/setup-clojure@13.4` tag are unverified), the BEAM group (`setup-beam` with
 `gleam-version: '1'`; Nerves C ports), `red-http` (Red/System syntax; the download URL was

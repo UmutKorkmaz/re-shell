@@ -1,4 +1,5 @@
 import { BackendTemplate } from '../types';
+import { kituraVendorFiles } from './kitura-vendor';
 
 export const kituraTemplate: BackendTemplate = {
   id: 'kitura',
@@ -19,9 +20,15 @@ export const kituraTemplate: BackendTemplate = {
   features: ['authentication', 'middleware', 'logging', 'cors', 'rest-api', 'testing', 'docker'],
 
   files: {
+    // Patched Kitura and KituraContracts as local packages (neither compiles with Swift 6 on Linux upstream).
+    ...kituraVendorFiles,
+
     'Package.swift': `// swift-tools-version:5.5
 // Kitura 3.0.x is the last Kitura release (October 2022). It runs on SwiftNIO through Kitura-NIO and
 // needs OpenSSL 3 and zlib development headers on Linux (libssl-dev, zlib1g-dev).
+// Kitura and KituraContracts do not compile with Swift 6 on Linux as released (Foundation turned
+// \`.formatted(DateFormatter)\` into a static function, so the \`case .formatted(let x)\` patterns fail), so
+// patched copies live in Vendor/ and are used by path. See Vendor/Kitura/Package.swift.
 import PackageDescription
 
 let package = Package(
@@ -31,7 +38,7 @@ let package = Package(
         .executable(name: "{{projectName}}", targets: ["Run"])
     ],
     dependencies: [
-        .package(url: "https://github.com/Kitura/Kitura.git", from: "3.0.1"),
+        .package(path: "Vendor/Kitura"),
         .package(url: "https://github.com/Kitura/HeliumLogger.git", from: "2.0.0"),
         .package(url: "https://github.com/Kitura/LoggerAPI.git", from: "2.0.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"5.0.0"),
@@ -105,6 +112,7 @@ RUN apt-get update \\
 
 WORKDIR /build
 COPY Package.swift ./
+COPY Vendor ./Vendor
 COPY Sources ./Sources
 COPY Tests ./Tests
 
@@ -136,6 +144,12 @@ A small server-side Swift API built with [Kitura](https://github.com/Kitura/Kitu
 > Kitura is no longer actively developed: the last release (3.0.1) dates from October 2022. It still runs on
 > current Swift toolchains through Kitura-NIO and SwiftNIO, but for new long-lived services consider
 > [Hummingbird](https://github.com/hummingbird-project/hummingbird) or Vapor, which have templates in Re-Shell too.
+>
+> Kitura and KituraContracts as released do not compile with Swift 6 on Linux (Foundation made
+> \`.formatted(DateFormatter)\` a static function, so \`case .formatted(let formatter)\` patterns are rejected).
+> Patched copies of both packages live in \`Vendor/\` and \`Package.swift\` depends on them by path. The changes are
+> confined to the date-strategy switches that match \`.formatted\` (now guarded with \`#if canImport(Darwin)\`), and
+> each patched file starts with a notice saying so. Their tests and default welcome page resources are not included.
 
 ## What is included
 
