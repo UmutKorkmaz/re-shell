@@ -151,7 +151,7 @@ stores with a database before production use.
 
 ## Requirements
 
-- Swift 6.2 (CI uses 6.2 on Ubuntu 24.04) or another recent toolchain
+- Swift 6.2 or newer
 - macOS 10.15+ or Linux
 - Linux packages: \`libssl-dev\` (OpenSSL 3) and \`zlib1g-dev\`
 
@@ -176,7 +176,7 @@ The server listens on \`http://localhost:{{PORT}}\`.
 | GET    | \`/health\`            | no     | Health check                 |
 | POST   | \`/api/auth/register\` | no     | \`{ "username", "password" }\` |
 | POST   | \`/api/auth/login\`    | no     | Returns \`{ "token" }\`        |
-| POST   | \`/api/auth/logout\`   | bearer | Revokes the token            |
+| POST   | \`/api/auth/logout\`   | bearer | Revokes the token sent (204) |
 | GET    | \`/api/todos\`         | bearer | \`{ "todos": [...] }\`         |
 | POST   | \`/api/todos\`         | bearer | \`{ "title" }\`                |
 | GET    | \`/api/todos/:id\`     | bearer | Read one todo                |
@@ -475,17 +475,17 @@ func buildRouter(users: UserStore, todos: TodoStore, sessions: SessionStore, all
     router.all(middleware: CORSMiddleware(allowedOrigin: allowedOrigin))
 
     // Public routes
-    router.get("/") { _, response, next in
+    router.get("/") { (_: RouterRequest, response: RouterResponse, next: @escaping () -> Void) in
         response.json(InfoResponse(name: "{{projectName}}", framework: "Kitura 3", status: "running"))
         next()
     }
-    router.get("/health") { _, response, next in
+    router.get("/health") { (_: RouterRequest, response: RouterResponse, next: @escaping () -> Void) in
         response.json(HealthResponse(status: "ok"))
         next()
     }
 
     // Authentication
-    router.post("/api/auth/register") { request, response, next in
+    router.post("/api/auth/register") { (request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) in
         guard let credentials = request.decodeJSON(Credentials.self) else {
             response.fail(.badRequest, "Expected a JSON body with username and password")
             return next()
@@ -512,7 +512,7 @@ func buildRouter(users: UserStore, todos: TodoStore, sessions: SessionStore, all
         }
     }
 
-    router.post("/api/auth/login") { request, response, next in
+    router.post("/api/auth/login") { (request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) in
         guard let credentials = request.decodeJSON(Credentials.self) else {
             response.fail(.badRequest, "Expected a JSON body with username and password")
             return next()
@@ -532,7 +532,7 @@ func buildRouter(users: UserStore, todos: TodoStore, sessions: SessionStore, all
         }
     }
 
-    router.post("/api/auth/logout") { request, response, next in
+    router.post("/api/auth/logout") { (request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) in
         if let token = request.bearerToken {
             sessions.revoke(token: token)
         }
@@ -543,7 +543,7 @@ func buildRouter(users: UserStore, todos: TodoStore, sessions: SessionStore, all
     // Everything below /api/todos requires a bearer token
     router.all("/api/todos", middleware: BearerAuthMiddleware(sessions: sessions))
 
-    router.get("/api/todos") { request, response, next in
+    router.get("/api/todos") { (request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) in
         guard let owner = request.authenticatedUserID else {
             response.fail(.unauthorized, "Authentication required")
             return next()
@@ -552,7 +552,7 @@ func buildRouter(users: UserStore, todos: TodoStore, sessions: SessionStore, all
         next()
     }
 
-    router.post("/api/todos") { request, response, next in
+    router.post("/api/todos") { (request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) in
         guard let owner = request.authenticatedUserID else {
             response.fail(.unauthorized, "Authentication required")
             return next()
@@ -570,7 +570,7 @@ func buildRouter(users: UserStore, todos: TodoStore, sessions: SessionStore, all
         next()
     }
 
-    router.get("/api/todos/:id") { request, response, next in
+    router.get("/api/todos/:id") { (request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) in
         guard let owner = request.authenticatedUserID else {
             response.fail(.unauthorized, "Authentication required")
             return next()
@@ -585,7 +585,7 @@ func buildRouter(users: UserStore, todos: TodoStore, sessions: SessionStore, all
         next()
     }
 
-    router.patch("/api/todos/:id") { request, response, next in
+    router.patch("/api/todos/:id") { (request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) in
         guard let owner = request.authenticatedUserID else {
             response.fail(.unauthorized, "Authentication required")
             return next()
@@ -610,7 +610,7 @@ func buildRouter(users: UserStore, todos: TodoStore, sessions: SessionStore, all
         next()
     }
 
-    router.delete("/api/todos/:id") { request, response, next in
+    router.delete("/api/todos/:id") { (request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) in
         guard let owner = request.authenticatedUserID else {
             response.fail(.unauthorized, "Authentication required")
             return next()

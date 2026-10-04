@@ -15,7 +15,9 @@ export const hummingbirdTemplate: BackendTemplate = {
     'hummingbird-auth': '^2.0.0',
     'hummingbird-compression': '^2.0.0',
     'hummingbird-websocket': '^2.5.0',
-    'jwt-kit': '^5.0.0'
+    'jwt-kit': '^5.0.0',
+    'swift-log': '^1.6.0',
+    'swift-nio': '^2.80.0'
   },
   features: ['authentication', 'middleware', 'logging', 'cors', 'compression', 'websockets', 'rest-api', 'testing', 'docker'],
 
@@ -37,6 +39,8 @@ let package = Package(
         .package(url: "https://github.com/hummingbird-project/hummingbird-compression.git", from: "2.0.0"),
         .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", from: "2.5.0"),
         .package(url: "https://github.com/vapor/jwt-kit.git", from: "5.0.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.6.0"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
     ],
     targets: [
         .executableTarget(
@@ -47,13 +51,17 @@ let package = Package(
                 .product(name: "HummingbirdCompression", package: "hummingbird-compression"),
                 .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket"),
                 .product(name: "JWTKit", package: "jwt-kit"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOPosix", package: "swift-nio"),
             ]
         ),
         .testTarget(
             name: "AppTests",
             dependencies: [
                 .byName(name: "App"),
+                .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
+                .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket"),
                 .product(name: "HummingbirdWSTesting", package: "hummingbird-websocket"),
             ]
         ),
@@ -150,7 +158,7 @@ two store actors with a database (for example PostgresNIO or Fluent) before putt
 ## Requirements
 
 - Swift 6.2 or newer (the current Hummingbird 2 releases require it)
-- macOS 14+ or Linux (Ubuntu 24.04 is used in CI)
+- macOS 14+ or Linux (for example Ubuntu 24.04)
 
 ## Run
 
@@ -322,8 +330,6 @@ func buildWebSocketRouter() -> Router<BasicWebSocketRequestContext> {
                 try await outbound.write(.text(text))
             case .binary(let buffer):
                 try await outbound.write(.binary(buffer))
-            default:
-                break
             }
         }
     }
