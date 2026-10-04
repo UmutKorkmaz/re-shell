@@ -770,6 +770,9 @@ adding their \`nerves_system_*\` dependency.
 ## Requirements
 
 - Elixir 1.17+ and Erlang/OTP 26+ on the host (\`mix test\`, \`iex -S mix\`)
+- On a Linux host, a C compiler and the libmnl headers (\`apt install build-essential libmnl-dev\`
+  on Debian and Ubuntu): \`nerves_runtime\` depends on \`nerves_uevent\`, whose C port is
+  compiled for the host too
 - For firmware: the Erlang/OTP major version of the Nerves system you build for
   (see the system's release notes), the host tools from the
   [Nerves installation guide](https://nerves.hexdocs.pm/installation.html) and an
