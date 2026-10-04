@@ -3,525 +3,751 @@ import { BackendTemplate } from '../types';
 export const jesterTemplate: BackendTemplate = {
   id: 'jester',
   name: 'Jester',
-  description: 'Nim web framework inspired by Sinatra with async support',
+  description: 'Sinatra-like Nim web framework: JWT authentication, per-user items and CORS over an in-memory store',
   version: '1.0.0',
   framework: 'jester',
   displayName: 'Jester (Nim)',
   language: 'nim',
   port: 5000,
-  tags: ['nim', 'jester', 'web', 'api', 'rest'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation', 'graphql'],
+  tags: ['nim', 'jester', 'web', 'api', 'rest', 'jwt'],
+  features: ['routing', 'rest-api', 'authentication', 'validation', 'cors'],
   dependencies: {},
   devDependencies: {},
   files: {
-    '{{projectName}}.nimble': `# Package
+    '{{projectNameSnake}}.nimble': `# Package
 
 version       = "0.1.0"
 author        = "{{author}}"
-description   = "{{description}}"
+description   = "REST API built with Jester"
 license       = "MIT"
 srcDir        = "src"
-bin           = @["{{projectName}}"]
+bin           = @["{{projectNameSnake}}"]
 
 # Dependencies
 
 requires "nim >= 2.0.0"
 requires "jester >= 0.6.0"
-requires "jwt >= 0.2.0"
-requires "norm >= 2.6.0"
-requires "dotenv >= 1.0.0"
-requires "chronicles >= 0.10.0"
-requires "argon2_nim >= 0.5.0"
-requires "karax >= 1.3.0"
 `,
 
-    'src/{{projectName}}.nim': `import std/[json, strutils, times, options, tables, sequtils]
+    'src/{{projectNameSnake}}.nim': `import std/[asyncdispatch, json, os, strutils]
 import jester
-import jwt
-import chronicles
-import karax / [graphql]
+import {{projectNameSnake}}/api
 
-import {{projectName}} / [graphql_schema, graphql_handler]
+## HTTP layer: Jester routes only translate requests and responses. The
+## business logic lives in {{projectNameSnake}}/api so it can be unit tested
+## without a running server (see tests/).
 
-# Configuration
-const
-  APP_NAME = "{{projectName}}"
-  APP_VERSION = "1.0.0"
-  JWT_SECRET = "your-secret-key-change-in-production"
+const corsHeaders = [
+  ("Access-Control-Allow-Origin", "*"),
+  ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"),
+  ("Access-Control-Allow-Headers", "Content-Type, Authorization")]
 
-type
-  User = object
-    id: int
-    email: string
-    name: string
-    createdAt: DateTime
+const jsonHeaders = [
+  ("Content-Type", "application/json"),
+  ("Access-Control-Allow-Origin", "*"),
+  ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"),
+  ("Access-Control-Allow-Headers", "Content-Type, Authorization")]
 
-  CreateUserRequest = object
-    email: string
-    name: string
-    password: string
+proc authorization(request: Request): string =
+  ## The raw Authorization header, or "" when the request has none.
+  if request.headers.hasKey("Authorization"):
+    let value: string = request.headers["Authorization"]
+    result = value
 
-  LoginRequest = object
-    email: string
-    password: string
+proc payload(r: ApiResult): string =
+  $r.body
 
-  Item = object
-    id: int
-    name: string
-    description: string
-    userId: int
-    createdAt: DateTime
-
-  CreateItemRequest = object
-    name: string
-    description: string
-
-  TokenResponse = object
-    token: string
-    expiresAt: int64
-
-  ErrorResponse = object
-    error: string
-    message: string
-
-# In-memory storage
-var
-  users: seq[User] = @[]
-  passwords: Table[int, string] = initTable[int, string]()
-  items: seq[Item] = @[]
-  userIdCounter = 0
-  itemIdCounter = 0
-
-# JSON serialization helpers
-proc toJson(user: User): JsonNode =
-  %*{
-    "id": user.id,
-    "email": user.email,
-    "name": user.name,
-    "created_at": user.createdAt.format("yyyy-MM-dd'T'HH:mm:ss'Z'")
-  }
-
-proc toJson(item: Item): JsonNode =
-  %*{
-    "id": item.id,
-    "name": item.name,
-    "description": item.description,
-    "user_id": item.userId,
-    "created_at": item.createdAt.format("yyyy-MM-dd'T'HH:mm:ss'Z'")
-  }
-
-proc toJson(token: TokenResponse): JsonNode =
-  %*{
-    "token": token.token,
-    "expires_at": token.expiresAt
-  }
-
-proc toJson(err: ErrorResponse): JsonNode =
-  %*{
-    "error": err.error,
-    "message": err.message
-  }
-
-# Database helpers
-proc findUserByEmail(email: string): Option[User] =
-  for user in users:
-    if user.email == email:
-      return some(user)
-  return none(User)
-
-proc findUserById(id: int): Option[User] =
-  for user in users:
-    if user.id == id:
-      return some(user)
-  return none(User)
-
-proc createUser(email, name, password: string): User =
-  inc userIdCounter
-  result = User(
-    id: userIdCounter,
-    email: email,
-    name: name,
-    createdAt: now().utc
-  )
-  users.add(result)
-  passwords[result.id] = password
-
-proc verifyPassword(userId: int, password: string): bool =
-  if passwords.hasKey(userId):
-    return passwords[userId] == password
-  return false
-
-# JWT helpers
-proc generateToken(userId: int): TokenResponse =
-  let
-    expiresAt = now().utc + 24.hours
-    payload = %*{
-      "user_id": userId,
-      "exp": expiresAt.toTime.toUnix,
-      "iat": now().utc.toTime.toUnix
-    }
-
-  var token = toJWT(payload)
-  token.sign(JWT_SECRET)
-
-  result = TokenResponse(
-    token: $token,
-    expiresAt: expiresAt.toTime.toUnix
-  )
-
-proc verifyToken(token: string): Option[int] =
+proc parseId(raw: string): int =
+  ## Path ids are positive integers; anything else maps to 0 (never found).
   try:
-    var jwtToken = token.toJWT()
-    if jwtToken.verify(JWT_SECRET):
-      let payload = jwtToken.claims
-      if payload.hasKey("user_id"):
-        return some(payload["user_id"].getInt)
-  except:
-    discard
-  return none(int)
+    result = parseInt(raw)
+  except ValueError:
+    result = 0
 
-proc getAuthUser(request: Request): Option[User] =
-  let authHeader = request.headers.getOrDefault("Authorization")
-  if authHeader.len > 0 and authHeader.startsWith("Bearer "):
-    let token = authHeader[7..^1]
-    let userId = verifyToken(token)
-    if userId.isSome:
-      return findUserById(userId.get)
-  return none(User)
+router appRouter:
+  # CORS preflight: answer OPTIONS requests before any route is matched.
+  before:
+    if request.reqMethod == HttpOptions:
+      resp Http204, corsHeaders, ""
 
-# Error responses
-proc errorResponse(error, message: string): string =
-  $ErrorResponse(error: error, message: message).toJson
-
-# Routes
-router myrouter:
-  # Health check
-  get "/health":
-    resp Http200, %*{"status": "healthy", "timestamp": $now().utc}, "application/json"
-
-  # GraphQL endpoint (karax/graphql)
-  post "/graphql":
-    try:
-      let body = parseJson(request.body)
-      let queryStr = body.getOrDefault("query").getStr("{ hello }")
-      let result = executeQuery(queryStr)
-      resp Http200, result, "application/json"
-    except JsonParsingError:
-      resp Http400, errorResponse("parse_error", "Invalid JSON body"), "application/json"
-
-  # API info
   get "/":
-    resp Http200, %*{
-      "name": APP_NAME,
-      "version": APP_VERSION,
-      "framework": "Jester",
-      "language": "Nim",
-      "description": "{{description}}"
-    }, "application/json"
+    let r = api.info()
+    resp HttpCode(r.code), jsonHeaders, payload(r)
 
-  # Register
+  get "/health":
+    let r = api.health()
+    resp HttpCode(r.code), jsonHeaders, payload(r)
+
   post "/api/auth/register":
-    try:
-      let body = parseJson(request.body)
-      let email = body["email"].getStr
-      let name = body["name"].getStr
-      let password = body["password"].getStr
+    let r = api.register(request.body)
+    resp HttpCode(r.code), jsonHeaders, payload(r)
 
-      if email.len == 0 or name.len == 0 or password.len == 0:
-        resp Http400, errorResponse("validation_error", "Email, name and password are required"), "application/json"
-
-      if findUserByEmail(email).isSome:
-        resp Http409, errorResponse("conflict", "User with this email already exists"), "application/json"
-
-      let user = createUser(email, name, password)
-      resp Http201, user.toJson, "application/json"
-    except JsonParsingError:
-      resp Http400, errorResponse("parse_error", "Invalid JSON body"), "application/json"
-
-  # Login
   post "/api/auth/login":
-    try:
-      let body = parseJson(request.body)
-      let email = body["email"].getStr
-      let password = body["password"].getStr
+    let r = api.login(request.body)
+    resp HttpCode(r.code), jsonHeaders, payload(r)
 
-      let userOpt = findUserByEmail(email)
-      if userOpt.isNone:
-        resp Http401, errorResponse("unauthorized", "Invalid email or password"), "application/json"
-
-      let user = userOpt.get
-      if not verifyPassword(user.id, password):
-        resp Http401, errorResponse("unauthorized", "Invalid email or password"), "application/json"
-
-      let tokenResponse = generateToken(user.id)
-      resp Http200, tokenResponse.toJson, "application/json"
-    except JsonParsingError:
-      resp Http400, errorResponse("parse_error", "Invalid JSON body"), "application/json"
-
-  # Get current user
   get "/api/users/me":
-    let userOpt = getAuthUser(request)
-    if userOpt.isNone:
-      resp Http401, errorResponse("unauthorized", "Authentication required"), "application/json"
-    resp Http200, userOpt.get.toJson, "application/json"
+    let r = api.currentUser(authorization(request))
+    resp HttpCode(r.code), jsonHeaders, payload(r)
 
-  # List users
   get "/api/users":
-    let userOpt = getAuthUser(request)
-    if userOpt.isNone:
-      resp Http401, errorResponse("unauthorized", "Authentication required"), "application/json"
+    let r = api.listUsers(authorization(request))
+    resp HttpCode(r.code), jsonHeaders, payload(r)
 
-    let usersJson = users.map(proc(u: User): JsonNode = u.toJson)
-    resp Http200, %usersJson, "application/json"
-
-  # Get user by ID
   get "/api/users/@id":
-    let userOpt = getAuthUser(request)
-    if userOpt.isNone:
-      resp Http401, errorResponse("unauthorized", "Authentication required"), "application/json"
+    let r = api.getUser(authorization(request), parseId(@"id"))
+    resp HttpCode(r.code), jsonHeaders, payload(r)
 
-    try:
-      let id = parseInt(@"id")
-      let targetUser = findUserById(id)
-      if targetUser.isNone:
-        resp Http404, errorResponse("not_found", "User not found"), "application/json"
-      resp Http200, targetUser.get.toJson, "application/json"
-    except ValueError:
-      resp Http400, errorResponse("bad_request", "Invalid user ID"), "application/json"
-
-  # List items
   get "/api/items":
-    let userOpt = getAuthUser(request)
-    if userOpt.isNone:
-      resp Http401, errorResponse("unauthorized", "Authentication required"), "application/json"
+    let r = api.listItems(authorization(request))
+    resp HttpCode(r.code), jsonHeaders, payload(r)
 
-    let user = userOpt.get
-    let userItems = items.filter(proc(i: Item): bool = i.userId == user.id)
-    let itemsJson = userItems.map(proc(i: Item): JsonNode = i.toJson)
-    resp Http200, %itemsJson, "application/json"
-
-  # Create item
   post "/api/items":
-    let userOpt = getAuthUser(request)
-    if userOpt.isNone:
-      resp Http401, errorResponse("unauthorized", "Authentication required"), "application/json"
+    let r = api.createItem(authorization(request), request.body)
+    resp HttpCode(r.code), jsonHeaders, payload(r)
 
-    try:
-      let user = userOpt.get
-      let body = parseJson(request.body)
-      let name = body["name"].getStr
-      let description = body.getOrDefault("description").getStr("")
-
-      if name.len == 0:
-        resp Http400, errorResponse("validation_error", "Name is required"), "application/json"
-
-      inc itemIdCounter
-      let item = Item(
-        id: itemIdCounter,
-        name: name,
-        description: description,
-        userId: user.id,
-        createdAt: now().utc
-      )
-      items.add(item)
-
-      resp Http201, item.toJson, "application/json"
-    except JsonParsingError:
-      resp Http400, errorResponse("parse_error", "Invalid JSON body"), "application/json"
-
-  # Get item by ID
   get "/api/items/@id":
-    let userOpt = getAuthUser(request)
-    if userOpt.isNone:
-      resp Http401, errorResponse("unauthorized", "Authentication required"), "application/json"
+    let r = api.getItem(authorization(request), parseId(@"id"))
+    resp HttpCode(r.code), jsonHeaders, payload(r)
 
-    try:
-      let user = userOpt.get
-      let id = parseInt(@"id")
-
-      var found = false
-      for item in items:
-        if item.id == id and item.userId == user.id:
-          resp Http200, item.toJson, "application/json"
-          found = true
-          break
-
-      if not found:
-        resp Http404, errorResponse("not_found", "Item not found"), "application/json"
-    except ValueError:
-      resp Http400, errorResponse("bad_request", "Invalid item ID"), "application/json"
-
-  # Delete item
   delete "/api/items/@id":
-    let userOpt = getAuthUser(request)
-    if userOpt.isNone:
-      resp Http401, errorResponse("unauthorized", "Authentication required"), "application/json"
+    let r = api.deleteItem(authorization(request), parseId(@"id"))
+    resp HttpCode(r.code), jsonHeaders, payload(r)
 
-    try:
-      let user = userOpt.get
-      let id = parseInt(@"id")
-
-      var deleted = false
-      for i in 0..<items.len:
-        if items[i].id == id and items[i].userId == user.id:
-          items.delete(i)
-          deleted = true
-          break
-
-      if deleted:
-        resp Http204, "", "application/json"
-      else:
-        resp Http404, errorResponse("not_found", "Item not found"), "application/json"
-    except ValueError:
-      resp Http400, errorResponse("bad_request", "Invalid item ID"), "application/json"
-
-# CORS middleware
-proc corsMiddleware(): proc(request: Request, response: ResponseData): void =
-  return proc(request: Request, response: ResponseData): void =
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-
-# Main
 proc main() =
   let port = Port(parseInt(getEnv("PORT", "5000")))
-
-  info "Starting server", app = APP_NAME, version = APP_VERSION
-  echo "🚀 " & APP_NAME & " server starting on http://localhost:" & $port.int
-
+  # src/config.nims selects Nim's asynchttpserver (-d:useStdLib), so requests
+  # are served by a single-threaded event loop.
   let settings = newSettings(port = port, bindAddr = "0.0.0.0")
-  var jester = initJester(myrouter, settings = settings)
-  jester.serve()
+  var server = initJester(appRouter, settings = settings)
+  echo "Listening on http://localhost:" & $port.int
+  server.serve()
 
 when isMainModule:
   main()
 `,
 
-    'src/{{projectName}}/graphql_schema.nim': `import json
-import karax / [graphql]
+    'src/config.nims': `# Compiler settings for the server (read by nim when it compiles
+# src/{{projectNameSnake}}.nim, so they apply to \`nimble build\` and \`nimble run\`).
 
-## Minimal GraphQL schema: Query { hello: String!, health: String! }
+# Serve with Nim's own asynchttpserver instead of httpbeast. Jester picks
+# httpbeast by default on Linux, and httpbeast's multi-threaded event loop is
+# known to crash under ORC, the default memory manager of Nim 2
+# (dom96/httpbeast#80, dom96/jester#333).
+switch("define", "useStdLib")
+`,
+
+    'src/{{projectNameSnake}}/api.nim': `## Transport independent API layer: every handler takes plain strings and
+## returns an HTTP status code with a JSON body, so the web framework only has
+## to translate requests and responses (see the main module).
 ##
-## Built with the karax/graphql helpers.
+## State is kept in memory behind a lock; swap \`users\` and \`items\` for a
+## database (for example db_connector or norm) when you need persistence.
+
+import std/[json, locks, options, os, strutils, times]
+import ./security
 
 type
-  QueryObj = object
-    hello: string
-    health: string
+  ApiResult* = tuple[code: int, body: JsonNode]
 
-proc defaultQuery(): QueryObj =
-  QueryObj(hello: "Hello from GraphQL!", health: "healthy")
+  User = object
+    id: int
+    email: string
+    name: string
+    passwordHash: string
+    createdAt: string
 
-let queryType = graphql Type(
-  name: "Query",
-  fields: @[
-    graphqlField(name: "hello", fieldType: "String!",
-      resolve: proc(): JsonNode = %defaultQuery().hello),
-    graphqlField(name: "health", fieldType: "String!",
-      resolve: proc(): JsonNode = %defaultQuery().health),
-  ]
-)
+  Item = object
+    id: int
+    userId: int
+    name: string
+    description: string
+    createdAt: string
 
-let schema* = graphqlSchema(queryTypes: @[queryType])
+var
+  storeLock: Lock
+  users: seq[User]
+  items: seq[Item]
+  nextUserId = 1
+  nextItemId = 1
+
+initLock(storeLock)
+
+template locked(body: untyped) =
+  {.cast(gcsafe).}:
+    withLock storeLock:
+      body
+
+proc timestamp(): string =
+  now().utc.format("yyyy-MM-dd'T'HH:mm:ss'Z'")
+
+proc jwtSecret(): string =
+  getEnv("JWT_SECRET", "change-me-in-production")
+
+proc failure(code: int, error, message: string): ApiResult =
+  (code, %*{"error": error, "message": message})
+
+proc parseObject(body: string): Option[JsonNode] =
+  try:
+    let node = parseJson(body)
+    if node.kind == JObject:
+      return some(node)
+  except CatchableError:
+    discard
+  none(JsonNode)
+
+proc publicUser(user: User): JsonNode =
+  %*{"id": user.id, "email": user.email, "name": user.name,
+     "createdAt": user.createdAt}
+
+proc toJson(item: Item): JsonNode =
+  %*{"id": item.id, "name": item.name, "description": item.description,
+     "userId": item.userId, "createdAt": item.createdAt}
+
+proc bearerToken(authorization: string): string =
+  const prefix = "Bearer "
+  if authorization.len > prefix.len and
+      authorization[0 ..< prefix.len].toLowerAscii() == "bearer ":
+    result = authorization[prefix.len .. ^1].strip()
+
+proc authenticatedUserId(authorization: string): int =
+  ## Returns the id of the user the Authorization header belongs to, or 0.
+  let token = bearerToken(authorization)
+  if token.len == 0:
+    return 0
+  let id = verifyToken(jwtSecret(), token)
+  if id == 0:
+    return 0
+  locked:
+    for user in users:
+      if user.id == id:
+        return id
+  0
+
+proc unauthorized(): ApiResult =
+  failure(401, "unauthorized", "A valid bearer token is required")
+
+# --- Health -------------------------------------------------------------------
+
+proc health*(): ApiResult =
+  (200, %*{"status": "healthy", "timestamp": timestamp(), "version": "1.0.0"})
+
+# --- Authentication -----------------------------------------------------------
+
+proc register*(body: string): ApiResult =
+  let parsed = parseObject(body)
+  if parsed.isNone:
+    return failure(400, "parse_error", "Request body must be a JSON object")
+  let node = parsed.get
+  let email = node{"email"}.getStr().strip().toLowerAscii()
+  let name = node{"name"}.getStr().strip()
+  let password = node{"password"}.getStr()
+  if '@' notin email or name.len == 0:
+    return failure(400, "validation_error", "A valid email and a name are required")
+  if password.len < 8:
+    return failure(400, "validation_error", "Password must be at least 8 characters")
+
+  let passwordHash = hashPassword(password)
+  locked:
+    for user in users:
+      if user.email == email:
+        return failure(409, "conflict", "A user with this email already exists")
+    let user = User(id: nextUserId, email: email, name: name,
+                    passwordHash: passwordHash, createdAt: timestamp())
+    inc nextUserId
+    users.add user
+    return (201, %*{"user": publicUser(user)})
+
+proc login*(body: string): ApiResult =
+  let parsed = parseObject(body)
+  if parsed.isNone:
+    return failure(400, "parse_error", "Request body must be a JSON object")
+  let node = parsed.get
+  let email = node{"email"}.getStr().strip().toLowerAscii()
+  let password = node{"password"}.getStr()
+
+  var found = false
+  var user: User
+  locked:
+    for candidate in users:
+      if candidate.email == email:
+        user = candidate
+        found = true
+        break
+  if not found or not verifyPassword(password, user.passwordHash):
+    return failure(401, "unauthorized", "Invalid email or password")
+  (200, %*{"token": signToken(jwtSecret(), user.id), "user": publicUser(user)})
+
+proc currentUser*(authorization: string): ApiResult =
+  let id = authenticatedUserId(authorization)
+  if id == 0:
+    return unauthorized()
+  locked:
+    for user in users:
+      if user.id == id:
+        return (200, %*{"user": publicUser(user)})
+  unauthorized()
+
+proc info*(): ApiResult =
+  (200, %*{"name": "{{projectName}}", "version": "1.0.0",
+           "framework": "Jester", "language": "Nim"})
+
+# --- Users ----------------------------------------------------------------------
+
+proc listUsers*(authorization: string): ApiResult =
+  if authenticatedUserId(authorization) == 0:
+    return unauthorized()
+  var list = newJArray()
+  locked:
+    for user in users:
+      list.add publicUser(user)
+  (200, %*{"users": list, "count": list.len})
+
+proc getUser*(authorization: string, id: int): ApiResult =
+  if authenticatedUserId(authorization) == 0:
+    return unauthorized()
+  locked:
+    for user in users:
+      if user.id == id:
+        return (200, %*{"user": publicUser(user)})
+  failure(404, "not_found", "User not found")
+
+# --- Items (each item belongs to the user who created it) ------------------------
+
+proc listItems*(authorization: string): ApiResult =
+  let owner = authenticatedUserId(authorization)
+  if owner == 0:
+    return unauthorized()
+  var list = newJArray()
+  locked:
+    for item in items:
+      if item.userId == owner:
+        list.add item.toJson
+  (200, %*{"items": list, "count": list.len})
+
+proc getItem*(authorization: string, id: int): ApiResult =
+  let owner = authenticatedUserId(authorization)
+  if owner == 0:
+    return unauthorized()
+  locked:
+    for item in items:
+      if item.id == id and item.userId == owner:
+        return (200, %*{"item": item.toJson})
+  failure(404, "not_found", "Item not found")
+
+proc createItem*(authorization, body: string): ApiResult =
+  let owner = authenticatedUserId(authorization)
+  if owner == 0:
+    return unauthorized()
+  let parsed = parseObject(body)
+  if parsed.isNone:
+    return failure(400, "parse_error", "Request body must be a JSON object")
+  let node = parsed.get
+  let name = node{"name"}.getStr().strip()
+  if name.len == 0:
+    return failure(400, "validation_error", "name is required")
+
+  locked:
+    let item = Item(id: nextItemId, userId: owner, name: name,
+                    description: node{"description"}.getStr(),
+                    createdAt: timestamp())
+    inc nextItemId
+    items.add item
+    return (201, %*{"item": item.toJson})
+
+proc deleteItem*(authorization: string, id: int): ApiResult =
+  let owner = authenticatedUserId(authorization)
+  if owner == 0:
+    return unauthorized()
+  locked:
+    for index in 0 ..< items.len:
+      if items[index].id == id and items[index].userId == owner:
+        items.delete(index)
+        return (200, %*{"deleted": true, "id": id})
+  failure(404, "not_found", "Item not found")
 `,
 
-    'src/{{projectName}}/graphql_handler.nim': `import json
-import karax / [graphql]
+    'src/{{projectNameSnake}}/security.nim': `## Dependency-free security helpers built on the Nim standard library only:
+## HS256 JSON Web Tokens and salted PBKDF2-HMAC-SHA256 password hashing.
+##
+## SHA-256 and HMAC are implemented here (FIPS 180-4 / RFC 2104) so the
+## template builds without extra packages. For a production service swap this
+## module for an audited library such as nimcrypto.
 
-import {{projectName}} / graphql_schema
+import std/[base64, json, strutils, times, sysrand]
 
-## Executes a GraphQL query string against the schema and returns JSON.
+const
+  Sha256Size = 32
+  BlockSize = 64
+  PasswordIterations = 10_000
 
-proc executeQuery*(queryStr: string): string =
-  let result = graphqlExecute(schema, queryStr)
-  $result
+  K256: array[64, uint32] = [
+    0x428a2f98'u32, 0x71374491'u32, 0xb5c0fbcf'u32, 0xe9b5dba5'u32,
+    0x3956c25b'u32, 0x59f111f1'u32, 0x923f82a4'u32, 0xab1c5ed5'u32,
+    0xd807aa98'u32, 0x12835b01'u32, 0x243185be'u32, 0x550c7dc3'u32,
+    0x72be5d74'u32, 0x80deb1fe'u32, 0x9bdc06a7'u32, 0xc19bf174'u32,
+    0xe49b69c1'u32, 0xefbe4786'u32, 0x0fc19dc6'u32, 0x240ca1cc'u32,
+    0x2de92c6f'u32, 0x4a7484aa'u32, 0x5cb0a9dc'u32, 0x76f988da'u32,
+    0x983e5152'u32, 0xa831c66d'u32, 0xb00327c8'u32, 0xbf597fc7'u32,
+    0xc6e00bf3'u32, 0xd5a79147'u32, 0x06ca6351'u32, 0x14292967'u32,
+    0x27b70a85'u32, 0x2e1b2138'u32, 0x4d2c6dfc'u32, 0x53380d13'u32,
+    0x650a7354'u32, 0x766a0abb'u32, 0x81c2c92e'u32, 0x92722c85'u32,
+    0xa2bfe8a1'u32, 0xa81a664b'u32, 0xc24b8b70'u32, 0xc76c51a3'u32,
+    0xd192e819'u32, 0xd6990624'u32, 0xf40e3585'u32, 0x106aa070'u32,
+    0x19a4c116'u32, 0x1e376c08'u32, 0x2748774c'u32, 0x34b0bcb5'u32,
+    0x391c0cb3'u32, 0x4ed8aa4a'u32, 0x5b9cca4f'u32, 0x682e6ff3'u32,
+    0x748f82ee'u32, 0x78a5636f'u32, 0x84c87814'u32, 0x8cc70208'u32,
+    0x90befffa'u32, 0xa4506ceb'u32, 0xbef9a3f7'u32, 0xc67178f2'u32]
+
+type
+  Digest = array[Sha256Size, byte]
+
+func rotr(x: uint32, n: int): uint32 {.inline.} =
+  (x shr n) or (x shl (32 - n))
+
+proc sha256(data: openArray[byte]): Digest =
+  var h: array[8, uint32] = [
+    0x6a09e667'u32, 0xbb67ae85'u32, 0x3c6ef372'u32, 0xa54ff53a'u32,
+    0x510e527f'u32, 0x9b05688c'u32, 0x1f83d9ab'u32, 0x5be0cd19'u32]
+
+  # Pad: 0x80, zeros, then the bit length as a 64-bit big-endian integer.
+  var msg = newSeq[byte](data.len)
+  for i in 0 ..< data.len:
+    msg[i] = data[i]
+  msg.add 0x80'u8
+  while msg.len mod BlockSize != 56:
+    msg.add 0'u8
+  let bitLen = uint64(data.len) * 8'u64
+  for i in countdown(7, 0):
+    msg.add byte((bitLen shr (i * 8)) and 0xff'u64)
+
+  var w: array[64, uint32]
+  for chunk in 0 ..< msg.len div BlockSize:
+    let base = chunk * BlockSize
+    for i in 0 ..< 16:
+      w[i] = (uint32(msg[base + i * 4]) shl 24) or
+             (uint32(msg[base + i * 4 + 1]) shl 16) or
+             (uint32(msg[base + i * 4 + 2]) shl 8) or
+             uint32(msg[base + i * 4 + 3])
+    for i in 16 ..< 64:
+      let s0 = rotr(w[i - 15], 7) xor rotr(w[i - 15], 18) xor (w[i - 15] shr 3)
+      let s1 = rotr(w[i - 2], 17) xor rotr(w[i - 2], 19) xor (w[i - 2] shr 10)
+      w[i] = w[i - 16] + s0 + w[i - 7] + s1
+
+    var a = h[0]
+    var b = h[1]
+    var c = h[2]
+    var d = h[3]
+    var e = h[4]
+    var f = h[5]
+    var g = h[6]
+    var hh = h[7]
+    for i in 0 ..< 64:
+      let s1 = rotr(e, 6) xor rotr(e, 11) xor rotr(e, 25)
+      let ch = (e and f) xor ((not e) and g)
+      let t1 = hh + s1 + ch + K256[i] + w[i]
+      let s0 = rotr(a, 2) xor rotr(a, 13) xor rotr(a, 22)
+      let maj = (a and b) xor (a and c) xor (b and c)
+      let t2 = s0 + maj
+      hh = g
+      g = f
+      f = e
+      e = d + t1
+      d = c
+      c = b
+      b = a
+      a = t1 + t2
+    h[0] += a
+    h[1] += b
+    h[2] += c
+    h[3] += d
+    h[4] += e
+    h[5] += f
+    h[6] += g
+    h[7] += hh
+
+  for i in 0 ..< 8:
+    for j in 0 ..< 4:
+      result[i * 4 + j] = byte((h[i] shr (24 - j * 8)) and 0xff'u32)
+
+proc toBytes(s: string): seq[byte] =
+  result = newSeq[byte](s.len)
+  for i, c in s:
+    result[i] = byte(c)
+
+proc bytesToString(d: openArray[byte]): string =
+  result = newString(d.len)
+  for i in 0 ..< d.len:
+    result[i] = char(d[i])
+
+proc toHex(d: openArray[byte]): string =
+  const hexChars = "0123456789abcdef"
+  result = newStringOfCap(d.len * 2)
+  for b in d:
+    result.add hexChars[int(b shr 4)]
+    result.add hexChars[int(b and 0x0f)]
+
+proc hmacSha256(key, message: openArray[byte]): Digest =
+  var k = newSeq[byte](BlockSize)
+  if key.len > BlockSize:
+    let hashed = sha256(key)
+    for i in 0 ..< Sha256Size:
+      k[i] = hashed[i]
+  else:
+    for i in 0 ..< key.len:
+      k[i] = key[i]
+
+  var inner = newSeq[byte](BlockSize)
+  var outer = newSeq[byte](BlockSize)
+  for i in 0 ..< BlockSize:
+    inner[i] = k[i] xor 0x36'u8
+    outer[i] = k[i] xor 0x5c'u8
+  inner.add message
+  let innerHash = sha256(inner)
+  for b in innerHash:
+    outer.add b
+  sha256(outer)
+
+proc sha256Hex*(s: string): string =
+  ## Hex encoded SHA-256 digest of \`s\`.
+  toHex(sha256(toBytes(s)))
+
+proc hmacSha256Hex*(key, message: string): string =
+  ## Hex encoded HMAC-SHA256 of \`message\`.
+  toHex(hmacSha256(toBytes(key), toBytes(message)))
+
+proc pbkdf2Sha256(password, salt: string, iterations: int): Digest =
+  ## PBKDF2 (RFC 8018) with HMAC-SHA256 and a single 32 byte output block.
+  let pw = toBytes(password)
+  var saltBlock = toBytes(salt)
+  saltBlock.add [0'u8, 0'u8, 0'u8, 1'u8]
+  var u = hmacSha256(pw, saltBlock)
+  result = u
+  for _ in 2 .. iterations:
+    u = hmacSha256(pw, u)
+    for i in 0 ..< Sha256Size:
+      result[i] = result[i] xor u[i]
+
+proc constantTimeEquals*(a, b: string): bool =
+  ## Compare two strings without leaking where they differ.
+  if a.len != b.len:
+    return false
+  var diff = 0'u8
+  for i in 0 ..< a.len:
+    diff = diff or (byte(a[i]) xor byte(b[i]))
+  diff == 0'u8
+
+# --- Passwords ---------------------------------------------------------------
+
+proc hashPassword*(password: string): string =
+  ## Returns "pbkdf2-sha256$<iterations>$<salt hex>$<hash hex>".
+  let salt = toHex(urandom(16))
+  let digest = pbkdf2Sha256(password, salt, PasswordIterations)
+  "pbkdf2-sha256$" & $PasswordIterations & "$" & salt & "$" & toHex(digest)
+
+proc verifyPassword*(password, stored: string): bool =
+  let parts = stored.split('$')
+  if parts.len != 4 or parts[0] != "pbkdf2-sha256":
+    return false
+  try:
+    let digest = pbkdf2Sha256(password, parts[2], parseInt(parts[1]))
+    constantTimeEquals(toHex(digest), parts[3])
+  except ValueError:
+    false
+
+# --- JSON Web Tokens (HS256) ------------------------------------------------
+
+proc b64url(s: string): string =
+  encode(s, safe = true).strip(leading = false, chars = {'='})
+
+proc b64urlDecode(s: string): string =
+  var padded = s
+  while padded.len mod 4 != 0:
+    padded.add '='
+  decode(padded)
+
+proc signToken*(secret: string, userId: int, ttlSeconds = 86_400): string =
+  ## Issues a signed JWT whose claims are \`sub\` (the user id), \`iat\` and \`exp\`.
+  let issuedAt = getTime().toUnix()
+  let header = b64url($(%*{"alg": "HS256", "typ": "JWT"}))
+  let claims = b64url($(%*{
+    "sub": userId,
+    "iat": issuedAt,
+    "exp": issuedAt + int64(ttlSeconds)
+  }))
+  let signingInput = header & "." & claims
+  let signature = b64url(
+    bytesToString(hmacSha256(toBytes(secret), toBytes(signingInput))))
+  signingInput & "." & signature
+
+proc verifyToken*(secret, token: string): int =
+  ## Returns the user id the token was issued for, or 0 when the token is
+  ## malformed, forged or expired.
+  let parts = token.split('.')
+  if parts.len != 3:
+    return 0
+  let signingInput = parts[0] & "." & parts[1]
+  let expected = b64url(
+    bytesToString(hmacSha256(toBytes(secret), toBytes(signingInput))))
+  if not constantTimeEquals(expected, parts[2]):
+    return 0
+  try:
+    let header = parseJson(b64urlDecode(parts[0]))
+    if header{"alg"}.getStr() != "HS256":
+      return 0
+    let claims = parseJson(b64urlDecode(parts[1]))
+    if claims{"exp"}.getBiggestInt() < getTime().toUnix():
+      return 0
+    result = claims{"sub"}.getInt()
+  except CatchableError:
+    result = 0
 `,
 
-    'tests/test_app.nim': `import std/[unittest, json, httpclient, strutils]
-
-suite "{{projectName}} API Tests":
-  const BASE_URL = "http://localhost:5000"
-
-  test "Health check returns OK":
-    let client = newHttpClient()
-    defer: client.close()
-
-    let response = client.get(BASE_URL & "/health")
-    check response.code == Http200
-
-    let body = parseJson(response.body)
-    check body["status"].getStr == "healthy"
-
-  test "Root endpoint returns API info":
-    let client = newHttpClient()
-    defer: client.close()
-
-    let response = client.get(BASE_URL & "/")
-    check response.code == Http200
-
-    let body = parseJson(response.body)
-    check body["framework"].getStr == "Jester"
-    check body["language"].getStr == "Nim"
-
-  test "Register user":
-    let client = newHttpClient()
-    defer: client.close()
-    client.headers = newHttpHeaders({"Content-Type": "application/json"})
-
-    let response = client.post(BASE_URL & "/api/auth/register", body = $(%*{
-      "email": "test@example.com",
-      "name": "Test User",
-      "password": "password123"
-    }))
-
-    check response.code == Http201
-
-    let body = parseJson(response.body)
-    check body["email"].getStr == "test@example.com"
-    check body["name"].getStr == "Test User"
-
-  test "Login returns token":
-    let client = newHttpClient()
-    defer: client.close()
-    client.headers = newHttpHeaders({"Content-Type": "application/json"})
-
-    # First register
-    discard client.post(BASE_URL & "/api/auth/register", body = $(%*{
-      "email": "login@example.com",
-      "name": "Login User",
-      "password": "password123"
-    }))
-
-    # Then login
-    let response = client.post(BASE_URL & "/api/auth/login", body = $(%*{
-      "email": "login@example.com",
-      "password": "password123"
-    }))
-
-    check response.code == Http200
-
-    let body = parseJson(response.body)
-    check body.hasKey("token")
-    check body.hasKey("expires_at")
-
-  test "Protected endpoint requires auth":
-    let client = newHttpClient()
-    defer: client.close()
-
-    let response = client.get(BASE_URL & "/api/users/me")
-    check response.code == Http401
+    'tests/nim.cfg': `--path:"../src"
 `,
 
-    '.env': `# Environment Configuration
+    'tests/tapi.nim': `import std/[unittest, json]
+import {{projectNameSnake}}/api
+
+proc bearer(token: string): string =
+  "Bearer " & token
+
+proc signIn(email: string): string =
+  discard register("{\\"email\\": \\"" & email & "\\", \\"name\\": \\"Tester\\", \\"password\\": \\"correct horse\\"}")
+  login("{\\"email\\": \\"" & email & "\\", \\"password\\": \\"correct horse\\"}").body["token"].getStr
+
+suite "api":
+  test "info and health are public":
+    check info().body["framework"].getStr == "Jester"
+    check health().body["status"].getStr == "healthy"
+
+  test "register validates input and rejects duplicates":
+    check register("not json").code == 400
+    check register("""{"email": "nope", "name": "A", "password": "longenough"}""").code == 400
+    check register("""{"email": "a@example.com", "name": "A", "password": "short"}""").code == 400
+    check register("""{"email": "dup@example.com", "name": "D", "password": "longenough"}""").code == 201
+    check register("""{"email": "DUP@example.com", "name": "D", "password": "longenough"}""").code == 409
+
+  test "login checks the password":
+    discard register("""{"email": "login@example.com", "name": "L", "password": "correct horse"}""")
+    check login("""{"email": "login@example.com", "password": "nope nope"}""").code == 401
+    check login("""{"email": "missing@example.com", "password": "correct horse"}""").code == 401
+    let ok = login("""{"email": "login@example.com", "password": "correct horse"}""")
+    check ok.code == 200
+    check ok.body["token"].getStr.len > 0
+
+  test "protected endpoints need a bearer token":
+    check currentUser("").code == 401
+    check currentUser("Bearer nonsense").code == 401
+    check listUsers("").code == 401
+    check listItems("").code == 401
+    let token = signIn("me@example.com")
+    check currentUser(bearer(token)).body["user"]["email"].getStr == "me@example.com"
+    check listUsers(bearer(token)).body["count"].getInt >= 1
+    check getUser(bearer(token), 99999).code == 404
+
+  test "items belong to their owner":
+    let alice = bearer(signIn("alice@example.com"))
+    let bob = bearer(signIn("bob@example.com"))
+
+    check createItem(alice, """{"description": "no name"}""").code == 400
+    let created = createItem(alice, """{"name": "Notebook", "description": "A5"}""")
+    check created.code == 201
+    let id = created.body["item"]["id"].getInt
+
+    check getItem(alice, id).body["item"]["name"].getStr == "Notebook"
+    check listItems(alice).body["count"].getInt == 1
+    check getItem(bob, id).code == 404
+    check listItems(bob).body["count"].getInt == 0
+    check deleteItem(bob, id).code == 404
+
+    check deleteItem(alice, id).code == 200
+    check getItem(alice, id).code == 404
+`,
+
+    'tests/tsecurity.nim': `import std/[unittest, strutils]
+import {{projectNameSnake}}/security
+
+suite "security":
+  test "sha256 matches the FIPS 180-4 vectors":
+    check sha256Hex("") == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    check sha256Hex("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    check sha256Hex("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq") ==
+      "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
+
+  test "hmac-sha256 matches RFC 4231 / known vectors":
+    check hmacSha256Hex("key", "The quick brown fox jumps over the lazy dog") ==
+      "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+    # Key longer than the block size is hashed first.
+    check hmacSha256Hex("\\xaa".repeat(131), "Test Using Larger Than Block-Size Key - Hash Key First") ==
+      "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"
+
+  test "password hashing is salted and verifiable":
+    let a = hashPassword("s3cret-pass")
+    let b = hashPassword("s3cret-pass")
+    check a != b
+    check verifyPassword("s3cret-pass", a)
+    check not verifyPassword("wrong", a)
+    check not verifyPassword("s3cret-pass", "not-a-hash")
+
+  test "tokens round-trip and reject tampering":
+    let token = signToken("secret", 42)
+    check token.count('.') == 2
+    check verifyToken("secret", token) == 42
+    check verifyToken("other-secret", token) == 0
+    let parts = token.split('.')
+    check verifyToken("secret", parts[0] & "." & parts[1] & "x." & parts[2]) == 0
+    check verifyToken("secret", "garbage") == 0
+    check verifyToken("secret", "") == 0
+
+  test "expired tokens are rejected":
+    check verifyToken("secret", signToken("secret", 7, ttlSeconds = -10)) == 0
+`,
+
+    'Dockerfile': `# Build stage
+FROM nimlang/nim:2.2.4-alpine AS builder
+
+WORKDIR /app
+
+# Resolve dependencies first for better layer caching
+COPY {{projectNameSnake}}.nimble ./
+RUN nimble install -y --depsOnly
+
+# Copy the sources and build
+COPY src ./src
+RUN nimble build -y -d:release
+
+# Runtime stage
+FROM alpine:3.20
+
+# Jester uses std/re, which loads the PCRE library when the server starts.
+RUN apk add --no-cache libgcc pcre \\
+    && adduser -D -g '' appuser
+
+WORKDIR /app
+COPY --from=builder /app/{{projectNameSnake}} ./{{projectNameSnake}}
+USER appuser
+
+ENV PORT=5000
+EXPOSE 5000
+
+CMD ["./{{projectNameSnake}}"]
+`,
+
+    'docker-compose.yml': `services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - JWT_SECRET=\${JWT_SECRET:-development-secret-change-me}
+    restart: unless-stopped
+`,
+
+    '.env.example': `# Environment configuration (export these before running the server)
 PORT=5000
-JWT_SECRET=your-super-secret-key-change-in-production
-DATABASE_URL=sqlite:///{{projectName}}.db
-`,
-
-    '.env.example': `# Environment Configuration
-PORT=5000
-JWT_SECRET=your-super-secret-key-change-in-production
-DATABASE_URL=sqlite:///{{projectName}}.db
+JWT_SECRET=change-me-in-production
 `,
 
     '.gitignore': `# Nim artifacts
@@ -530,10 +756,13 @@ nimcache/
 *.dll
 *.so
 *.dylib
-{{projectName}}
+/{{projectNameSnake}}
+/tests/t*
+!/tests/t*.nim
+!/tests/nim.cfg
 
 # Dependencies
-nimble/
+nimbledeps/
 
 # IDE
 .idea/
@@ -550,202 +779,117 @@ Thumbs.db
 
 # Logs
 *.log
-logs/
-
-# Database
-*.db
-*.db-journal
 `,
 
     'Makefile': `# {{projectName}} Makefile
 
-.PHONY: all build run test clean deps release
+.PHONY: all deps build release run test clean docker-build docker-run
 
 all: build
 
-# Install dependencies
 deps:
-	nimble install -y
+	nimble install -y --depsOnly
 
-# Build the project
 build: deps
-	nimble build
+	nimble build -y
 
-# Build release version
 release: deps
-	nimble build -d:release
+	nimble build -y -d:release
 
-# Run the server
-run:
-	nimble run
+run: build
+	./{{projectNameSnake}}
 
-# Run tests
 test:
-	nimble test
+	nimble test -y
 
-# Clean build artifacts
 clean:
 	rm -rf nimcache/
-	rm -f {{projectName}}
+	rm -f {{projectNameSnake}}
 
-# Docker commands
 docker-build:
 	docker build -t {{projectName}} .
 
 docker-run:
-	docker run -p 5000:5000 --env-file .env {{projectName}}
-`,
-
-    'Dockerfile': `# Build stage
-FROM nimlang/nim:2.0.0-alpine AS builder
-
-WORKDIR /app
-
-# Install dependencies
-COPY {{projectName}}.nimble ./
-RUN nimble install -y -d
-
-# Copy source and build
-COPY . .
-RUN nimble build -d:release
-
-# Runtime stage
-FROM alpine:3.18
-
-WORKDIR /app
-
-# Install runtime dependencies
-RUN apk add --no-cache libgcc
-
-# Copy binary
-COPY --from=builder /app/{{projectName}} ./{{projectName}}
-
-# Create non-root user
-RUN adduser -D -g '' appuser
-USER appuser
-
-EXPOSE 5000
-
-ENV PORT=5000
-
-CMD ["./{{projectName}}"]
-`,
-
-    'docker-compose.yml': `version: '3.8'
-
-services:
-  app:
-    build: .
-    ports:
-      - "5000:5000"
-    environment:
-      - PORT=5000
-      - JWT_SECRET=\${JWT_SECRET:-development-secret}
-    restart: unless-stopped
-
-volumes:
-  app_data:
+	docker run -p 5000:5000 -e JWT_SECRET=change-me {{projectName}}
 `,
 
     'README.md': `# {{projectName}}
 
-{{description}}
-
-A Nim web application built with the Jester framework.
+REST API built with [Jester](https://github.com/dom96/jester), the Sinatra-like web framework for Nim.
 
 ## Features
 
-- 🚀 Fast and efficient Nim web server
-- 🔐 JWT authentication
-- 📝 Full REST API with CRUD operations
-- 🧪 Test suite included
-- 🐳 Docker support
-- 📊 Async support
+- JWT (HS256) authentication with salted PBKDF2 password hashing
+- Per-user items with create, read and delete
+- CORS headers and preflight handling
+- In-memory store behind a lock (swap \`src/{{projectNameSnake}}/api.nim\` for a database)
+- Unit tests that run without a server
 
 ## Requirements
 
-- Nim >= 2.0.0
-- Nimble (Nim package manager)
+- Nim 2.0 or newer (with Nimble)
 
-## Installation
-
-\`\`\`bash
-# Install dependencies
-nimble install -y
-
-# Build the project
-nimble build
-
-# Run the server
-nimble run
-\`\`\`
-
-## Development
+## Quick start
 
 \`\`\`bash
-# Run in development mode
-make run
-
-# Run tests
-make test
-
-# Build release version
-make release
+nimble install -y --depsOnly   # install Jester
+nimble build -y                # build ./{{projectNameSnake}}
+./{{projectNameSnake}}         # listens on http://localhost:5000 (PORT overrides it)
+nimble test -y                 # run the unit tests
 \`\`\`
 
-## API Endpoints
+Set \`JWT_SECRET\` in production; the built-in default is only for local development.
 
-### Public
+## Layout
+
+- \`src/{{projectNameSnake}}.nim\` - Jester routes (HTTP only)
+- \`src/config.nims\` - compiler settings: Jester serves with Nim's asynchttpserver (\`-d:useStdLib\`) rather than httpbeast
+- \`src/{{projectNameSnake}}/api.nim\` - request handling and in-memory state
+- \`src/{{projectNameSnake}}/security.nim\` - JWT and password hashing (standard library only)
+- \`tests/\` - unit tests for the API layer and the security helpers
+
+## API
+
+Public:
 
 - \`GET /\` - API info
-- \`GET /health\` - Health check
-- \`POST /api/auth/register\` - Register new user
-- \`POST /api/auth/login\` - Login and get JWT token
+- \`GET /health\` - health check
+- \`POST /api/auth/register\` - body \`{"email", "name", "password"}\` (password: 8+ characters)
+- \`POST /api/auth/login\` - body \`{"email", "password"}\`, returns \`{"token", "user"}\`
 
-### Protected (requires JWT)
+Protected (send \`Authorization: Bearer <token>\`):
 
-- \`GET /api/users/me\` - Get current user
-- \`GET /api/users\` - List all users
-- \`GET /api/users/:id\` - Get user by ID
-- \`GET /api/items\` - List user's items
-- \`POST /api/items\` - Create new item
-- \`GET /api/items/:id\` - Get item by ID
-- \`DELETE /api/items/:id\` - Delete item
+- \`GET /api/users/me\`, \`GET /api/users\`, \`GET /api/users/:id\`
+- \`GET /api/items\`, \`POST /api/items\`, \`GET /api/items/:id\`, \`DELETE /api/items/:id\`
 
 ## Docker
 
 \`\`\`bash
-# Build image
 docker build -t {{projectName}} .
-
-# Run container
-docker run -p 5000:5000 {{projectName}}
-
-# Or use docker-compose
-docker-compose up -d
+docker run -p 5000:5000 -e JWT_SECRET=change-me {{projectName}}
 \`\`\`
 
 ## License
 
 MIT
-`},
+`
+  },
   prompts: [
     {
       type: 'input',
       name: 'projectName',
       message: 'Project name:',
-      default: 'my-jester-app'},
-    {
-      type: 'input',
-      name: 'description',
-      message: 'Project description:',
-      default: 'A Nim web application built with Jester'},
+      default: 'my-jester-app'
+    },
     {
       type: 'input',
       name: 'author',
       message: 'Author:',
-      default: 'Developer'}],
+      default: 'Developer'
+    }
+  ],
   postInstall: [
-    'nimble install -y',
-    'echo "✨ {{projectName}} is ready!"',
-    'echo "Run: nimble run"']};
+    'nimble install -y --depsOnly',
+    'echo "{{projectName}} is ready. Build with: nimble build -y"'
+  ]
+};
