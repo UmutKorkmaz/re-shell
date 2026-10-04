@@ -80,17 +80,20 @@ appMain : '{IO, Exception} ()
 appMain = do
   printResponses [("GET", "/health"), ("GET", "/products"), ("GET", "/products/2"), ("GET", "/products/42"), ("POST", "/products")]
 
-expectThat : Text -> Boolean -> ()
-expectThat label ok = if ok then () else bug ("self-test failed: " ++ label)
+-- A (Nat, Text) pair has no == of its own, so the status and the body are compared separately.
+expectResponse : Text -> (Nat, Text) -> Nat -> Text -> ()
+expectResponse label actual status body = match actual with
+  (actualStatus, actualBody) ->
+    if actualStatus == status then (if actualBody == body then () else bug ("self-test failed (body): " ++ label)) else bug ("self-test failed (status): " ++ label)
 
 -- Halts the run with an error when the router misbehaves.
 selfTest : '{IO, Exception} ()
 selfTest = do
-  expectThat "health" (routeRequest "GET" "/health" == (200, "{\\"status\\":\\"healthy\\"}"))
-  expectThat "list" (routeRequest "GET" "/products" == (200, productsJson productCatalog))
-  expectThat "one" (routeRequest "GET" "/products/2" == (200, "{\\"id\\":2,\\"name\\":\\"Mouse\\",\\"price\\":30}"))
-  expectThat "missing" (routeRequest "GET" "/products/42" == (404, "{\\"error\\":\\"not found\\"}"))
-  expectThat "method" (routeRequest "POST" "/products" == (405, "{\\"error\\":\\"method not allowed\\"}"))
+  expectResponse "health" (routeRequest "GET" "/health") 200 "{\\"status\\":\\"healthy\\"}"
+  expectResponse "list" (routeRequest "GET" "/products") 200 (productsJson productCatalog)
+  expectResponse "one" (routeRequest "GET" "/products/2") 200 "{\\"id\\":2,\\"name\\":\\"Mouse\\",\\"price\\":30}"
+  expectResponse "missing" (routeRequest "GET" "/products/42") 404 "{\\"error\\":\\"not found\\"}"
+  expectResponse "method" (routeRequest "POST" "/products") 405 "{\\"error\\":\\"method not allowed\\"}"
   printLine "self-test passed"
 `,
 

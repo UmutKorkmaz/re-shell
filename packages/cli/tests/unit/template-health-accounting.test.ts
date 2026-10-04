@@ -347,6 +347,7 @@ describe('native verification of the toolchain groups (swift, julia, nim, crysta
     ['vweb', 'v', ['v', 'gcc'], 'v fmt', 'fmt failed', 'v -cc gcc test src/main_test.v'],
     ['odin-http', 'odin', ['odin', 'git'], 'odin test', 'test failed', 'odin build src -collection:deps=./deps'],
     ['ballerina', 'ballerina', ['bal'], 'bal build', 'build failed', 'bal build'],
+    ['ballerina', 'ballerina', ['bal'], 'bal test', 'test failed', 'bal test'],
     ['grain', 'grain', ['grain'], 'grain run build/router_test.wasm', 'test failed', 'grain compile tests/router_test.gr'],
     ['unison', 'unison', ['ucm'], 'ucm transcript', 'transcript failed', 'ucm transcript'],
     ['laravel', 'laravel', ['php', 'composer'], 'artisan test', 'phpunit failed', 'php artisan route:list'],
@@ -483,6 +484,7 @@ describe('native verification of the toolchain groups (swift, julia, nim, crysta
       ['wisp', 'gleam', ['gleam', 'erl', 'rebar3'], ['gleam deps download', 'gleam build', 'gleam test']],
       ['crow', 'crow', ['cmake', 'g++', 'git', 'ctest'], ['cmake -S . -B build', 'cmake --build build', 'ctest --test-dir build']],
       ['vweb', 'v', ['v', 'gcc'], ['v fmt -verify', 'v -cc gcc -o', 'v -cc gcc test']],
+      ['ballerina', 'ballerina', ['bal'], ['bal build', 'bal test']],
       ['grain', 'grain', ['grain'], ['grain compile src/main.gr', 'grain run build/main.wasm', 'grain compile tests/router_test.gr', 'grain run build/router_test.wasm']],
       ['laravel', 'laravel', ['php', 'composer'], ['php -l', 'composer install', 'php artisan route:list', 'php artisan test']],
     ];
@@ -576,6 +578,22 @@ describe('native verification of the toolchain groups (swift, julia, nim, crysta
     const result = runHealthFixture('non-node', 'unison', { kinds: { unison: 'unison' }, tools: ['node', 'pnpm', 'npx', 'ucm'] });
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('NOTE: Unison has no separate compile step');
+  });
+
+  it('prints a failed Unison transcript error from its start, not only its last lines', () => {
+    const candidates = Array.from({ length: 20 }, (_, index) => `(T${index}.==) : T${index} -> T${index} -> Boolean`);
+    const result = runHealthFixture('non-node', 'unison', {
+      kinds: { unison: 'unison' },
+      tools: ['node', 'pnpm', 'npx', 'ucm'],
+      failOn: 'ucm transcript',
+      env: {
+        SHIM_PRINT_ON: 'ucm transcript',
+        SHIM_PRINT: ['The transcript failed due to an error in the stanza above. The error is:', "I couldn't figure out what == refers to here:", ...candidates].join('\n'),
+      },
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('native build: transcript failed');
+    expect(result.stdout).toContain("| I couldn't figure out what == refers to here:");
   });
 
   it('fails Jennet when ponyc is not the 0.61.0 release it needs', () => {

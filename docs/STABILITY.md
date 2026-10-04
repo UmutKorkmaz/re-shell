@@ -162,7 +162,7 @@ and runs its PHPUnit suite (`php artisan test`).
 | `clojure` | 4 | `lein deps`, `lein check`, `lein test`; first hosted run pending |
 | `beam` | 3 | `mix deps.get`, `mix compile`, `mix test` for Plug and Nerves (built for the host); `gleam build` and `gleam test` for Wisp; first hosted run pending |
 | `systems` | 4 | V (`v fmt -verify`, `v build`, `v test` for `vweb`, now on `veb`, and `vex-v`), Odin (`odin build`, `odin test`), Pony (`corral fetch`, `ponyc`, run the tests), each with a pinned compiler; first hosted run pending |
-| `exotic` | 3 | Grain (`grain compile` + run, then the compiled test program), Ballerina (`bal build`, which runs the package tests), Unison (a `ucm` transcript: typecheck, add, run the self-test); first hosted run pending |
+| `exotic` | 3 | Grain (`grain compile` + run, then the compiled test program), Ballerina (`bal build`, then `bal test` for the package tests), Unison (a `ucm` transcript: typecheck, add, run the self-test); first hosted run pending |
 | `exoticb` | 3 | Mojo (`mojo build`, the Mojo test programs, boot the server), Mojo + FastAPI (build the extension module, pytest, boot the server), Red (`red -r`, run the tests, boot the server); first hosted run pending |
 | `config` | 18 | YAML syntax only (configuration templates; their TypeScript snippets are not compiled) |
 

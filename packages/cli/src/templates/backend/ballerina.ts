@@ -80,7 +80,7 @@ service /api on apiListener {
 
     # Liveness probe.
     resource function get health() returns json {
-        return {status: "healthy", service: "{{projectName}}"};
+        return {status: "healthy", 'service: "{{projectName}}"};
     }
 
     # Lists every product.
@@ -167,7 +167,7 @@ service /graphql on new graphql:Listener(graphqlPort) {
 }
 `,
 
-    // Unit tests (bal test, also run by bal build)
+    // Unit tests (bal test)
     'tests/validation_test.bal': `import ballerina/test;
 
 @test:Config {}
