@@ -312,6 +312,8 @@ python = ">=3.10,<3.14"
 pip = "*"
 
 [tasks]
+# The Mojo compiler comes from the conda channel above, so only the Python
+# packages are installed with pip (requirements-mojo.txt is for pip-only setups).
 install = "pip install -r requirements-test.txt"
 build = "mojo build mojo_bindings.mojo --emit shared-lib -o mojo_bindings.so"
 start = "python fastapi_app.py"
@@ -328,15 +330,17 @@ pytest==9.1.1
 httpx==0.28.1
 `,
 
+    'requirements-mojo.txt': `# The Mojo compiler from PyPI, for setups without pixi. It is needed to build
+# mojo_bindings.so, and the built module loads its runtime libraries from this
+# package; without it the API falls back to pure Python.
+mojo==1.1.0
+`,
+
     'requirements.txt': `# {{projectName}} Python dependencies
 fastapi==0.142.2
 uvicorn[standard]==0.54.0
 pydantic==2.13.5
 strawberry-graphql[fastapi]==0.330.2
-
-# The Mojo compiler (needed only to build mojo_bindings.so; the API falls back
-# to pure Python without it)
-mojo==1.1.0
 `,
 
     'tests/__init__.py': `"""{{projectName}} tests."""
@@ -500,8 +504,8 @@ RUN apt-get update \\
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements-mojo.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-mojo.txt
 
 COPY . .
 RUN mojo build mojo_bindings.mojo --emit shared-lib -o mojo_bindings.so
@@ -538,7 +542,8 @@ Python 3.10 or newer.
 
 \`\`\`bash
 python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements-test.txt      # includes the Mojo compiler (PyPI package \`mojo\`)
+pip install -r requirements-test.txt      # API and test dependencies
+pip install -r requirements-mojo.txt      # the Mojo compiler (PyPI package \`mojo\`)
 \`\`\`
 
 Build the extension module (optional; without it the Python fallback is used):
@@ -550,7 +555,8 @@ mojo build mojo_bindings.mojo --emit shared-lib -o mojo_bindings.so
 The compiled module loads its runtime libraries from the installed \`mojo\`
 package, so keep that package installed next to it.
 
-With [pixi](https://pixi.sh) instead of pip: \`pixi install\`, then
+With [pixi](https://pixi.sh) instead of pip: \`pixi install\` (the Mojo compiler
+comes from Modular's conda channel, so skip \`requirements-mojo.txt\`), then
 \`pixi run install\`, \`pixi run build\`, \`pixi run start\` and \`pixi run test\`.
 
 ## Run and test

@@ -355,6 +355,8 @@ platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
 
 [dependencies]
 mojo = ">=1.0.0,<2"
+# The server uses Python's socket and json modules through Python interop.
+python = ">=3.10,<3.14"
 
 [tasks]
 build = "mkdir -p bin && mojo build main.mojo -I . -o bin/server"
@@ -692,7 +694,7 @@ __pycache__/
 RUN apt-get update \\
     && apt-get install -y --no-install-recommends build-essential \\
     && rm -rf /var/lib/apt/lists/* \\
-    && pip install --no-cache-dir mojo
+    && pip install --no-cache-dir mojo==1.1.0
 
 WORKDIR /app
 COPY . .
@@ -728,8 +730,11 @@ or from PyPI into a virtual environment:
 
 \`\`\`bash
 python3 -m venv .venv && . .venv/bin/activate
-pip install mojo
+pip install "mojo>=1.0,<2"
 \`\`\`
+
+The compiled server loads its runtime libraries from the installed \`mojo\`
+package and Python's shared library at run time, so keep both installed.
 
 ## Commands
 
