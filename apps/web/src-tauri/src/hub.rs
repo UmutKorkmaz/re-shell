@@ -797,9 +797,19 @@ mod tests {
 
     #[test]
     fn free_port_is_bindable_and_nonzero() {
-        let port = pick_free_port().unwrap();
-        assert!(port > 0);
-        TcpListener::bind((Ipv4Addr::LOCALHOST, port)).expect("port should be free again");
+        // The port is released before it is returned, so a parallel test's socket can
+        // take it in between (the race Hub::start retries on). A port the function
+        // still held would fail every attempt; a released one binds within a few.
+        let mut last_err = None;
+        for _ in 0..5 {
+            let port = pick_free_port().unwrap();
+            assert!(port > 0);
+            match TcpListener::bind((Ipv4Addr::LOCALHOST, port)) {
+                Ok(_) => return,
+                Err(err) => last_err = Some(err),
+            }
+        }
+        panic!("no picked port was free again: {last_err:?}");
     }
 
     #[test]
