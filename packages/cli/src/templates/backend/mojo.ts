@@ -4,1431 +4,793 @@ export const mojoTemplate: BackendTemplate = {
   id: 'mojo',
   name: 'mojo',
   displayName: 'Mojo (Python Interop)',
-  description: 'High-performance AI/ML language with Python interoperability and SIMD optimizations',
+  description: 'Mojo HTTP service with SIMD vector kernels and Python interop (Mojo 1.x, pixi or pip)',
   language: 'mojo',
   framework: 'mojo',
   version: '1.0.0',
   tags: ['mojo', 'python', 'ai', 'ml', 'simd', 'performance', 'interop'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'testing', 'simd', 'performance'],
+  features: ['rest-api', 'validation', 'logging', 'cors', 'documentation', 'testing', 'simd', 'performance', 'python-interop', 'docker'],
 
   files: {
-    // Main Mojo file
-    'main.mojo': `# {{projectName}} - Mojo Web Server with Python Interop
-from python import Python
-from python.http.server import HTTPServer, SimpleHTTPRequestHandler
+    'benchmarks/bench_simd.mojo': `# {{projectName}} - SIMD benchmark: vectorised vs scalar dot product
+from std.time import perf_counter_ns
 
-# User struct
-struct User:
-    var id: Int
-    var email: String
-    var name: String
-    var password: String
-    var role: String
+from src.simd_ops import WIDTH, dot, dot_scalar
 
-    fn __init__(inout self, id: Int, email: String, password: String, name: String, role: String):
-        self.id = id
-        self.email = email
-        self.password = password
-        self.name = name
-        self.role = role
 
-# Product struct
-struct Product:
+def main() raises:
+    var n = 1_000_000
+    var a = List[Float64](length=n, fill=1.5)
+    var b = List[Float64](length=n, fill=2.0)
+    var repeats = 50
+
+    print("elements:", n, "repeats:", repeats, "simd width (f64):", WIDTH)
+
+    var sink: Float64 = 0
+    var start = perf_counter_ns()
+    for _ in range(repeats):
+        sink += dot_scalar(a, b)
+    var scalar_ns = perf_counter_ns() - start
+
+    start = perf_counter_ns()
+    for _ in range(repeats):
+        sink += dot(a, b)
+    var simd_ns = perf_counter_ns() - start
+
+    print("scalar dot:", scalar_ns // repeats, "ns per call")
+    print("simd dot:  ", simd_ns // repeats, "ns per call")
+    if simd_ns > 0:
+        print("speedup:   ", Float64(scalar_ns) / Float64(simd_ns), "x")
+    print("checksum:  ", sink)
+`,
+
+    'examples/simd_examples.mojo': `# {{projectName}} - SIMD usage examples
+from std.math import sqrt
+
+from src.simd_ops import WIDTH, add, dot, norm, scale, sum_all
+
+
+def show(label: String, values: List[Float64]):
+    var text = String(label, ": [")
+    for i in range(len(values)):
+        if i > 0:
+            text += ", "
+        text += String(values[i])
+    print(text + "]")
+
+
+def main() raises:
+    print("native SIMD width for Float64:", WIDTH, "lanes")
+
+    # Fixed-width SIMD values behave like scalars that operate on every lane.
+    var lanes = SIMD[DType.float64, 4](1.0, 2.0, 3.0, 4.0)
+    print("lanes * 2 =", lanes * 2.0)
+    print("sqrt(lanes) =", sqrt(lanes))
+    print("sum of lanes =", lanes.reduce_add())
+
+    # Vector kernels from src/simd_ops.mojo work on lists of any length.
+    var a = List[Float64]()
+    var b = List[Float64]()
+    for i in range(10):
+        a.append(Float64(i))
+        b.append(Float64(i) * 0.5)
+
+    show("a + b", add(a, b))
+    show("a * 3", scale(a, 3.0))
+    print("a . b =", dot(a, b))
+    print("sum(a) =", sum_all(a))
+    print("|a| =", norm(a))
+`,
+
+    'main.mojo': `# {{projectName}} - Mojo HTTP service
+#
+# The HTTP transport is Python's \`socket\` module driven from Mojo (Mojo's
+# standard library has no networking yet); request parsing, routing, the data
+# store and the SIMD kernels are all Mojo.
+from std.os import getenv
+from std.python import Python, PythonObject
+from std.time import perf_counter_ns
+
+from src.http import (
+    Request,
+    Response,
+    parse_request,
+    content_length,
+    format_response,
+)
+from src.simd_ops import WIDTH, dot, norm, sum_all
+
+comptime VERSION = "1.0.0"
+comptime JSON = "application/json"
+
+
+struct Product(Copyable, Movable):
     var id: Int
     var name: String
     var description: String
     var price: Float64
     var stock: Int
 
-    fn __init__(inout self, id: Int, name: String, description: String, price: Float64, stock: Int):
+    def __init__(
+        out self,
+        id: Int,
+        name: String,
+        description: String,
+        price: Float64,
+        stock: Int,
+    ):
         self.id = id
         self.name = name
         self.description = description
         self.price = price
         self.stock = stock
 
-# In-memory database
-var users = DynamicVector[User]()
-users.push_back(User(1, "admin@example.com", hash_password("admin123"), "Admin User", "admin"))
-users.push_back(User(2, "user@example.com", hash_password("user123"), "Test User", "user"))
 
-var products = DynamicVector[Product]()
-products.push_back(Product(1, "Sample Product 1", "This is a sample product", 29.99, 100))
-products.push_back(Product(2, "Sample Product 2", "Another sample product", 49.99, 50))
+struct Store(Movable):
+    """In-memory product catalogue."""
 
-var user_id_counter = 3
-var product_id_counter = 3
+    var products: List[Product]
+    var next_id: Int
 
-# Hash password (simplified - in production use proper crypto)
-fn hash_password(password: String) -> String:
-    # In production, use proper SHA256
-    return password
+    def __init__(out self):
+        self.products = List[Product]()
+        self.next_id = 1
+        _ = self.add("Sample Product 1", "This is a sample product", 29.99, 100)
+        _ = self.add("Sample Product 2", "Another sample product", 49.99, 50)
 
-# Generate JWT token (simplified)
-fn generate_token(user: User) -> String:
-    # In production, use proper JWT library via Python interop
-    return "jwt-token-placeholder"
+    def add(mut self, name: String, description: String, price: Float64, stock: Int) -> Int:
+        var id = self.next_id
+        self.next_id += 1
+        self.products.append(Product(id, name, description, price, stock))
+        return id
 
-# Find user by email
-fn find_user_by_email(email: String) -> Optional[User]:
-    for i in range(len(users)):
-        if users[i].email == email:
-            return users[i]
-    return None
+    def find(self, id: Int) -> Int:
+        """Index of the product with this id, or -1."""
+        for i in range(len(self.products)):
+            if self.products[i].id == id:
+                return i
+        return -1
 
-# Health handler
-fn health_handler(request: PythonObject) -> String:
-    let response = "{"status": "healthy", "timestamp": "" + str(__get_time_as_float()) + "", "version": "1.0.0"}"
-    return response
 
-# Home handler
-fn home_handler(request: PythonObject) -> String:
-    let html = """
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>{{projectName}}</title>
-    <style>
-      body { font-family: Arial, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-      h1 { color: #333; }
-    </style>
-  </head>
-  <body>
-    <h1>Welcome to {{projectName}}</h1>
-    <p>High-performance server built with Mojo language</p>
-    <p>Python interoperability for AI/ML workflows</p>
-    <p>SIMD optimizations for data processing</p>
-    <p>API available at: <a href="/api/v1/health">/api/v1/health</a></p>
-  </body>
-</html>
-    """
-    return html
+def product_json(p: Product) raises -> PythonObject:
+    var d = Python.dict()
+    d["id"] = p.id
+    d["name"] = p.name
+    d["description"] = p.description
+    d["price"] = p.price
+    d["stock"] = p.stock
+    return d
 
-# Register handler
-fn register_handler(request: PythonObject) -> String:
-    # In production, parse JSON body from request
-    let email = "user@example.com"
-    let password = "password123"
-    let name = "New User"
 
-    # Check if user exists
-    if let _existing_user = find_user_by_email(email):
-        let response = "{"error": "Email already registered"}"
-        return response
+def json_response(status: Int, payload: PythonObject) raises -> Response:
+    var json = Python.import_module("json")
+    return Response(status, JSON, String(json.dumps(payload)))
 
-    # Create new user
-    let new_user = User(user_id_counter, email, hash_password(password), name, "user")
-    user_id_counter += 1
-    users.push_back(new_user)
 
-    let token = generate_token(new_user)
-    let response = "{"token": "" + token + "", "user": {"id": "" + str(new_user.id) + "", "email": "" + new_user.email + "", "name": "" + new_user.name + "", "role": "" + new_user.role + ""}}"
-    return response
+def error_response(status: Int, message: String) raises -> Response:
+    var d = Python.dict()
+    d["error"] = message
+    return json_response(status, d)
 
-# Login handler
-fn login_handler(request: PythonObject) -> String:
-    let email = "admin@example.com"
-    let password = "admin123"
 
-    # Find user
-    if let user = find_user_by_email(email):
-        if user.password == hash_password(password):
-            let token = generate_token(user)
-            let response = "{"token": "" + token + "", "user": {"id": "" + str(user.id) + "", "email": "" + user.email + "", "name": "" + user.name + "", "role": "" + user.role + ""}}"
-            return response
-        else:
-            let response = "{"error": "Invalid credentials"}"
-            return response
-    else:
-        let response = "{"error": "Invalid credentials"}"
-        return response
+def floats(values: PythonObject) raises -> List[Float64]:
+    var out = List[Float64]()
+    for v in values:
+        out.append(Float64(py=v))
+    return out^
 
-# List products handler
-fn list_products_handler(request: PythonObject) -> String:
-    let response = "{"products": ["
-    for i in range(len(products)):
-        let p = products[i]
-        if i > 0:
-            response += ","
-        response += "{"id": " + str(p.id) + ", "name": "" + p.name + "", "description": "" + p.description + "", "price": " + str(p.price) + ", "stock": " + str(p.stock) + "}"
-    response += "], "count": " + str(len(products)) + "}"
-    return response
 
-# Get product handler
-fn get_product_handler(request: PythonObject, product_id: Int) -> String:
-    for i in range(len(products)):
-        if products[i].id == product_id:
-            let p = products[i]
-            let response = "{"product": {"id": " + str(p.id) + ", "name": "" + p.name + "", "description": "" + p.description + "", "price": " + str(p.price) + ", "stock": " + str(p.stock) + "}}"
-            return response
+def home() -> Response:
+    var html = String(
+        "<!DOCTYPE html><html><head><title>{{projectName}}</title></head><body>"
+        "<h1>{{projectName}}</h1><p>Mojo HTTP service with SIMD kernels.</p>"
+        '<p>Try <a href="/api/v1/health">/api/v1/health</a> or'
+        ' <a href="/api/v1/products">/api/v1/products</a>.</p></body></html>'
+    )
+    return Response(200, "text/html; charset=utf-8", html)
 
-    let response = "{"error": "Product not found"}"
-    return response
 
-# Create product handler
-fn create_product_handler(request: PythonObject) -> String:
-    # In production, parse JSON body from request
-    let name = "New Product"
-    let description = ""
-    let price = 29.99
-    let stock = 100
+def health(started_ns: Int) raises -> Response:
+    var d = Python.dict()
+    d["status"] = "healthy"
+    d["version"] = VERSION
+    d["simd_width_f64"] = WIDTH
+    d["uptime_ms"] = Int((perf_counter_ns() - started_ns) // 1_000_000)
+    return json_response(200, d)
 
-    let new_product = Product(product_id_counter, name, description, price, stock)
-    product_id_counter += 1
-    products.push_back(new_product)
 
-    let response = "{"product": {"id": " + str(new_product.id) + ", "name": "" + new_product.name + ""}}"
-    return response
+def list_products(store: Store) raises -> Response:
+    var items = Python.list()
+    for i in range(len(store.products)):
+        items.append(product_json(store.products[i]))
+    var d = Python.dict()
+    d["products"] = items
+    d["count"] = len(store.products)
+    return json_response(200, d)
 
-# Update product handler
-fn update_product_handler(request: PythonObject, product_id: Int) -> String:
-    for i in range(len(products)):
-        if products[i].id == product_id:
-            # In production, parse JSON body from request and update
-            let response = "{"product": {"id": " + str(products[i].id) + ", "name": "Updated Product"}}"
-            return response
 
-    let response = "{"error": "Product not found"}"
-    return response
+def create_product(mut store: Store, body: String) raises -> Response:
+    var json = Python.import_module("json")
+    var data = json.loads(body)
+    if not Bool(py=data.__contains__("name")) or not Bool(py=data.__contains__("price")):
+        return error_response(400, "name and price are required")
+    var name = String(data["name"])
+    var price = Float64(py=data["price"])
+    if name.byte_length() == 0 or price < 0:
+        return error_response(400, "name must not be empty and price must not be negative")
+    var description = String("")
+    if Bool(py=data.__contains__("description")):
+        description = String(data["description"])
+    var stock = 0
+    if Bool(py=data.__contains__("stock")):
+        stock = Int(py=data["stock"])
+    var id = store.add(name, description, price, stock)
+    var d = Python.dict()
+    d["product"] = product_json(store.products[store.find(id)])
+    return json_response(201, d)
 
-# Delete product handler
-fn delete_product_handler(request: PythonObject, product_id: Int) -> String:
-    for i in range(len(products)):
-        if products[i].id == product_id:
-            # Remove product (simplified)
-            let response = ""
-            return response
 
-    let response = "{"error": "Product not found"}"
-    return response
+def simd_dot(body: String) raises -> Response:
+    var json = Python.import_module("json")
+    var data = json.loads(body)
+    var a = floats(data["a"])
+    var b = floats(data["b"])
+    if len(a) != len(b):
+        return error_response(400, "a and b must have the same length")
+    var start = perf_counter_ns()
+    var result = dot(a, b)
+    var elapsed_ns = perf_counter_ns() - start
+    var d = Python.dict()
+    d["dot"] = result
+    d["length"] = len(a)
+    d["norm_a"] = norm(a)
+    d["sum_a"] = sum_all(a)
+    d["elapsed_ns"] = Int(elapsed_ns)
+    return json_response(200, d)
 
-# Main request router
-fn route_request(path: String, method: String, request: PythonObject) -> tuple[String, int, dict]:
-    var status = 200
-    var headers = {"Content-Type": "application/json"}
-    var body = ""
 
+def route(request: Request, mut store: Store, started_ns: Int) raises -> Response:
+    var path = request.path
+    var method = request.method
+    if method == "OPTIONS":
+        return Response(204, JSON, "")
     if path == "/":
-        body = home_handler(request)
-        headers["Content-Type"] = "text/html"
-    elif path == "/api/v1/health":
-        body = health_handler(request)
-    elif path == "/api/v1/auth/register" and method == "POST":
-        body = register_handler(request)
-        status = 201
-    elif path == "/api/v1/auth/login" and method == "POST":
-        body = login_handler(request)
-    elif path == "/api/v1/products" and method == "GET":
-        body = list_products_handler(request)
-    elif path.startswith("/api/v1/products/") and method == "GET":
-        # Extract product ID (simplified)
-        let parts = path.split("/")
-        if len(parts) >= 4:
-            let product_id = int(parts[3])
-            body = get_product_handler(request, product_id)
-    elif path == "/api/v1/products" and method == "POST":
-        body = create_product_handler(request)
-        status = 201
-    else:
-        body = "{"error": "Not found"}"
-        status = 404
+        return home()
+    if path == "/api/v1/health" or path == "/health":
+        return health(started_ns)
+    if path == "/api/v1/products":
+        if method == "GET":
+            return list_products(store)
+        if method == "POST":
+            return create_product(store, request.body)
+        return error_response(405, "method not allowed")
+    if path.startswith("/api/v1/products/"):
+        var id: Int
+        try:
+            id = Int(String(path[byte=17:]))
+        except:
+            return error_response(400, "invalid product id")
+        var idx = store.find(id)
+        if idx < 0:
+            return error_response(404, "product not found")
+        if method == "GET":
+            var d = Python.dict()
+            d["product"] = product_json(store.products[idx])
+            return json_response(200, d)
+        if method == "DELETE":
+            _ = store.products.pop(idx)
+            return Response(204, JSON, "")
+        return error_response(405, "method not allowed")
+    if path == "/api/v1/simd/dot":
+        if method == "POST":
+            return simd_dot(request.body)
+        return error_response(405, "method not allowed")
+    return error_response(404, "not found")
 
-    return (body, status, headers)
 
-# Start server
-fn main():
-    print("🚀 Server starting at http://localhost:8080")
-    print("📚 API docs: http://localhost:8080/api/v1/health")
-    print("👤 Default admin: admin@example.com / admin123")
+def read_request(conn: PythonObject) raises -> String:
+    """Read one complete HTTP request (headers plus Content-Length bytes)."""
+    var data = Python.evaluate("b''")
+    while True:
+        var chunk = conn.recv(65536)
+        if Int(py=len(chunk)) == 0:
+            break
+        data = data + chunk
+        var text = String(data.decode("utf-8", "replace"))
+        var end = text.find("\\r\\n\\r\\n")
+        if end >= 0:
+            var want = content_length(String(text[byte=:end]))
+            if Int(py=len(data)) >= end + 4 + want:
+                break
+        if Int(py=len(data)) > 1_048_576:
+            break
+    return String(data.decode("utf-8", "replace"))
 
-    # Use Python's HTTP server via interop
-    # In production, use native Mojo HTTP server when available
-    let server = HTTPServer(("localhost", 8080), SimpleHTTPRequestHandler)
-    print("Server ready!")
-    # server.serve_forever()
 
-main()
+def serve(conn: PythonObject, mut store: Store, started_ns: Int) raises:
+    var response: Response
+    try:
+        var request = parse_request(read_request(conn))
+        print(request.method, request.path)
+        response = route(request, store, started_ns)
+    except e:
+        response = error_response(400, String(e))
+    var wire = PythonObject(format_response(response))
+    conn.sendall(wire.encode("utf-8"))
+
+
+def main() raises:
+    var port = 8080
+    var configured = getenv("PORT")
+    if configured.byte_length() > 0:
+        port = Int(configured)
+
+    var socket = Python.import_module("socket")
+    var server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(Python.tuple("0.0.0.0", port))
+    server.listen(64)
+
+    var store = Store()
+    var started_ns = perf_counter_ns()
+    print("{{projectName}} listening on http://localhost:" + String(port))
+    while True:
+        var accepted = server.accept()
+        var conn = accepted[0]
+        try:
+            serve(conn, store, started_ns)
+        except e:
+            print("request failed:", e)
+        conn.close()
 `,
 
-    // SIMD data processing module
-    'src/simd.mojo': `# {{projectName}} - SIMD Optimized Data Processing
-from math import sqrt
-from algorithm import sum
-from time import now
-
-# SIMD Vector types for efficient data processing
-alias float64x4 = SIMD[float64, 4]
-alias float64x8 = SIMD[float64, 8]
-alias int32x4 = SIMD[int32, 4]
-alias int32x8 = SIMD[int32, 8]
-
-# Vectorized math operations
-struct SimdOps:
-    """SIMD-optimized mathematical operations"""
-
-    @staticmethod
-    fn add_vectors(a: DTypePointer[float64], b: DTypePointer[float64], result: DTypePointer[float64], size: Int) -> None:
-        """Vectorized addition using SIMD"""
-        for i in range(0, size, 4):
-            if i + 4 <= size:
-                let va = float64x4.load(a, i)
-                let vb = float64x4.load(b, i)
-                let vr = va + vb
-                vr.store(result, i)
-            else:
-                # Handle remaining elements
-                for j in range(i, size):
-                    result[j] = a[j] + b[j]
-
-    @staticmethod
-    fn mul_vectors(a: DTypePointer[float64], b: DTypePointer[float64], result: DTypePointer[float64], size: Int) -> None:
-        """Vectorized multiplication using SIMD"""
-        for i in range(0, size, 4):
-            if i + 4 <= size:
-                let va = float64x4.load(a, i)
-                let vb = float64x4.load(b, i)
-                let vr = va * vb
-                vr.store(result, i)
-            else:
-                for j in range(i, size):
-                    result[j] = a[j] * b[j]
-
-    @staticmethod
-    fn scale_vector(data: DTypePointer[float64], scalar: Float64, result: DTypePointer[float64], size: Int) -> None:
-        """Vectorized scalar multiplication"""
-        let s = float64x4.splat(scalar)
-        for i in range(0, size, 4):
-            if i + 4 <= size:
-                let v = float64x4.load(data, i)
-                let vr = v * s
-                vr.store(result, i)
-            else:
-                for j in range(i, size):
-                    result[j] = data[j] * scalar
-
-    @staticmethod
-    fn dot_product(a: DTypePointer[float64], b: DTypePointer[float64], size: Int) -> Float64:
-        """SIMD-optimized dot product"""
-        var acc = float64x4.splat(0.0)
-        var count = 0
-
-        for i in range(0, size, 4):
-            if i + 4 <= size:
-                let va = float64x4.load(a, i)
-                let vb = float64x4.load(b, i)
-                acc = acc + va * vb
-                count += 1
-            else:
-                # Handle tail elements
-                var tail_sum = 0.0
-                for j in range(i, size):
-                    tail_sum += a[j] * b[j]
-                return acc.reduce_add() + tail_sum
-
-        return acc.reduce_add()
-
-    @staticmethod
-    fn vector_sum(data: DTypePointer[float64], size: Int) -> Float64:
-        """SIMD-optimized sum reduction"""
-        var acc = float64x4.splat(0.0)
-
-        for i in range(0, size, 4):
-            if i + 4 <= size:
-                let v = float64x4.load(data, i)
-                acc = acc + v
-            else:
-                var tail_sum = 0.0
-                for j in range(i, size):
-                    tail_sum += data[j]
-                return acc.reduce_add() + tail_sum
-
-        return acc.reduce_add()
-
-    @staticmethod
-    fn vector_mean(data: DTypePointer[float64], size: Int) -> Float64:
-        """SIMD-optimized mean calculation"""
-        return SimdOps.vector_sum(data, size) / Float64(size)
-
-    @staticmethod
-    fn vector_min(data: DTypePointer[float64], size: Int) -> Float64:
-        """SIMD-optimized minimum finding"""
-        var min_val = float64x4.splat(Float64.inf())
-
-        for i in range(0, size, 4):
-            if i + 4 <= size:
-                let v = float64x4.load(data, i)
-                min_val = min_val.min(v)
-            else:
-                var tail_min = data[i]
-                for j in range(i + 1, size):
-                    if data[j] < tail_min:
-                        tail_min = data[j]
-                return min(min_val.reduce_min(), tail_min)
-
-        return min_val.reduce_min()
-
-    @staticmethod
-    fn vector_max(data: DTypePointer[float64], size: Int) -> Float64:
-        """SIMD-optimized maximum finding"""
-        var max_val = float64x4.splat(-Float64.inf())
-
-        for i in range(0, size, 4):
-            if i + 4 <= size:
-                let v = float64x4.load(data, i)
-                max_val = max_val.max(v)
-            else:
-                var tail_max = data[i]
-                for j in range(i + 1, size):
-                    if data[j] > tail_max:
-                        tail_max = data[j]
-                return max(max_val.reduce_max(), tail_max)
-
-        return max_val.reduce_max()
-
-# Batch processing for large datasets
-struct BatchProcessor:
-    """Process data in batches for cache efficiency"""
-
-    var batch_size: Int
-
-    fn __init__(inout self, batch_size: Int = 1024):
-        self.batch_size = batch_size
-
-    fn process_batch[self](
-        data: DTypePointer[float64],
-        size: Int,
-        operation: fn(DTypePointer[float64], Int) -> Float64
-    ) -> Float64:
-        """Process data in batches and accumulate results"""
-        var total = 0.0
-        var offset = 0
-
-        while offset < size:
-            let current_batch = min(self.batch_size, size - offset)
-            total += operation(data + offset, current_batch)
-            offset += current_batch
-
-        return total
-
-    fn transform_batch[self](
-        input: DTypePointer[float64],
-        output: DTypePointer[float64],
-        size: Int,
-        operation: fn(DTypePointer[float64], DTypePointer[float64], Int) -> None
-    ) -> None:
-        """Transform data in batches"""
-        var offset = 0
-
-        while offset < size:
-            let current_batch = min(self.batch_size, size - offset)
-            operation(input + offset, output + offset, current_batch)
-            offset += current_batch
-
-# Statistics with SIMD acceleration
-struct SimdStatistics:
-    """Fast statistical operations using SIMD"""
-
-    @staticmethod
-    fn variance(data: DTypePointer[float64], size: Int) -> Float64:
-        """Calculate variance using SIMD"""
-        let mean = SimdOps.vector_mean(data, size)
-        var sum_sq_diff = 0.0
-
-        # Use SIMD for squared differences
-        for i in range(0, size, 4):
-            if i + 4 <= size:
-                let v = float64x4.load(data, i)
-                let diff = v - float64x4.splat(mean)
-                let sq_diff = diff * diff
-                sum_sq_diff += sq_diff.reduce_add()
-            else:
-                for j in range(i, size):
-                    let diff = data[j] - mean
-                    sum_sq_diff += diff * diff
-
-        return sum_sq_diff / Float64(size)
-
-    @staticmethod
-    fn std_deviation(data: DTypePointer[float64], size: Int) -> Float64:
-        """Calculate standard deviation"""
-        return sqrt(SimdStatistics.variance(data, size))
-
-    @staticmethod
-    fn normalize(data: DTypePointer[float64], result: DTypePointer[float64], size: Int) -> None:
-        """Normalize data to zero mean, unit variance"""
-        let mean = SimdOps.vector_mean(data, size)
-        let std = SimdStatistics.std_deviation(data, size)
-        let inv_std = 1.0 / std
-
-        # SIMD: (data - mean) / std
-        for i in range(0, size, 4):
-            if i + 4 <= size:
-                let v = float64x4.load(data, i)
-                let normalized = (v - float64x4.splat(mean)) * float64x4.splat(inv_std)
-                normalized.store(result, i)
-            else:
-                for j in range(i, size):
-                    result[j] = (data[j] - mean) / std
-
-    @staticmethod
-    fn z_score(data: DTypePointer[float64], result: DTypePointer[float64], size: Int) -> None:
-        """Calculate z-scores for all elements"""
-        SimdStatistics.normalize(data, result, size)
-
-    @staticmethod
-    fn correlation(a: DTypePointer[float64], b: DTypePointer[float64], size: Int) -> Float64:
-        """Calculate Pearson correlation coefficient"""
-        let mean_a = SimdOps.vector_mean(a, size)
-        let mean_b = SimdOps.vector_mean(b, size)
-
-        var numerator = 0.0
-        var sum_sq_a = 0.0
-        var sum_sq_b = 0.0
-
-        for i in range(0, size, 4):
-            if i + 4 <= size:
-                let va = float64x4.load(a, i)
-                let vb = float64x4.load(b, i)
-                let diff_a = va - float64x4.splat(mean_a)
-                let diff_b = vb - float64x4.splat(mean_b)
-                numerator += (diff_a * diff_b).reduce_add()
-                sum_sq_a += (diff_a * diff_a).reduce_add()
-                sum_sq_b += (diff_b * diff_b).reduce_add()
-            else:
-                for j in range(i, size):
-                    let diff_a = a[j] - mean_a
-                    let diff_b = b[j] - mean_b
-                    numerator += diff_a * diff_b
-                    sum_sq_a += diff_a * diff_a
-                    sum_sq_b += diff_b * diff_b
-
-        let denominator = sqrt(sum_sq_a * sum_sq_b)
-        if denominator == 0:
-            return 0.0
-        return numerator / denominator
-
-# Performance benchmark
-struct SimdBenchmark:
-    """Benchmark SIMD operations"""
-
-    @staticmethod
-    fn benchmark_array_add(size: Int) -> tuple[Float64, Float64]:
-        """Compare scalar vs SIMD array addition"""
-        # Allocate arrays
-        var a = HeapBuffer[float64](size)
-        var b = HeapBuffer[float64](size)
-        var result_scalar = HeapBuffer[float64](size)
-        var result_simd = HeapBuffer[float64](size)
-
-        # Initialize with test data
-        for i in range(size):
-            a[i] = Float64(i)
-            b[i] = Float64(i * 2)
-
-        # Benchmark scalar version
-        let start_scalar = now()
-        for i in range(size):
-            result_scalar[i] = a[i] + b[i]
-        let scalar_time = now() - start_scalar
-
-        # Benchmark SIMD version
-        let start_simd = now()
-        SimdOps.add_vectors(a.pointer, b.pointer, result_simd.pointer, size)
-        let simd_time = now() - start_simd
-
-        return (scalar_time, simd_time)
-
-    @staticmethod
-    fn benchmark_dot_product(size: Int) -> tuple[Float64, Float64]:
-        """Compare scalar vs SIMD dot product"""
-        var a = HeapBuffer[float64](size)
-        var b = HeapBuffer[float64](size)
-
-        for i in range(size):
-            a[i] = Float64(i) * 0.1
-            b[i] = Float64(i) * 0.2
-
-        # Scalar version
-        let start_scalar = now()
-        var scalar_result = 0.0
-        for i in range(size):
-            scalar_result += a[i] * b[i]
-        let scalar_time = now() - start_scalar
-
-        # SIMD version
-        let start_simd = now()
-        let simd_result = SimdOps.dot_product(a.pointer, b.pointer, size)
-        let simd_time = now() - start_simd
-
-        return (scalar_time, simd_time)
-
-# Data processing pipeline
-struct DataPipeline:
-    """Chain SIMD operations for data processing"""
-
-    @staticmethod
-    fn moving_average(data: DTypePointer[float64], result: DTypePointer[float64], size: Int, window: Int) -> None:
-        """Calculate moving average with SIMD reduction"""
-        for i in range(size):
-            let start = max(0, i - window // 2)
-            let end = min(size, i + window // 2 + 1)
-            result[i] = SimdOps.vector_sum(data + start, end - start) / Float64(end - start)
-
-    @staticmethod
-    fn exponential_smoothing(data: DTypePointer[float64], result: DTypePointer[float64], size: Int, alpha: Float64) -> None:
-        """Exponential smoothing for time series"""
-        result[0] = data[0]
-        for i in range(1, size):
-            result[i] = alpha * data[i] + (1.0 - alpha) * result[i - 1]
-
-    @staticmethod
-    fn difference(data: DTypePointer[float64], result: DTypePointer[float64], size: Int) -> None:
-        """Calculate first-order difference"""
-        result[0] = 0.0
-        for i in range(1, size):
-            result[i] = data[i] - data[i - 1]
-
-    @staticmethod
-    fn cumulative_sum(data: DTypePointer[float64], result: DTypePointer[float64], size: Int) -> None:
-        """Calculate cumulative sum"""
-        var total = 0.0
-        for i in range(size):
-            total += data[i]
-            result[i] = total
-
-fn process_dataset_simd(data: DTypePointer[float64], size: Int) -> HeapBuffer[float64]:
-    """Process a dataset with SIMD operations"""
-    var result = HeapBuffer[float64](size)
-
-    # Example pipeline: normalize -> smooth -> difference
-    var temp1 = HeapBuffer[float64](size)
-    var temp2 = HeapBuffer[float64](size)
-
-    SimdStatistics.normalize(data, temp1.pointer, size)
-    DataPipeline.moving_average(temp1.pointer, temp2.pointer, size, 5)
-    DataPipeline.difference(temp2.pointer, result.pointer, size)
-
-    return result
-`,
-
-    // SIMD benchmark script
-    'src/benchmark.mojo': `# {{projectName}} - SIMD Performance Benchmarks
-from src.simd import SimdOps, SimdStatistics, SimdBenchmark, DataPipeline
-from time import now
-
-fn print_separator():
-    let sep = "============================================================"
-    print(sep)
-
-fn print_header(title: String):
-    print_separator()
-    print(title)
-    print_separator()
-
-fn run_basic_benchmarks():
-    """Run basic SIMD operation benchmarks"""
-    print_header("Basic SIMD Benchmarks")
-
-    let sizes = [1000, 10000, 100000]
-
-    for size in sizes:
-        print("\\nArray size: " + str(size))
-
-        let (scalar_time, simd_time) = SimdBenchmark.benchmark_array_add(size)
-        let speedup = scalar_time / simd_time
-        print("  Array Add:")
-        print("    Scalar: " + str(scalar_time) + " ms")
-        print("    SIMD: " + str(simd_time) + " ms")
-        print("    Speedup: " + str(speedup) + "x")
-
-        let (scalar_dot, simd_dot) = SimdBenchmark.benchmark_dot_product(size)
-        let dot_speedup = scalar_dot / simd_dot
-        print("  Dot Product:")
-        print("    Scalar: " + str(scalar_dot) + " ms")
-        print("    SIMD: " + str(simd_dot) + " ms")
-        print("    Speedup: " + str(dot_speedup) + "x")
-
-fn run_statistics_benchmarks():
-    """Run statistics operation benchmarks"""
-    print_header("Statistics Benchmarks")
-
-    let size = 100000
-    var data = HeapBuffer[float64](size)
-
-    # Initialize with test data
-    for i in range(size):
-        data[i] = Float64(i % 1000) * 0.1
-
-    print("\\nDataset size: " + str(size))
-
-    # Mean
-    let start = now()
-    let mean = SimdOps.vector_mean(data.pointer, size)
-    let mean_time = now() - start
-    print("  Mean: " + str(mean) + " (" + str(mean_time) + " ms)")
-
-    # Std deviation
-    let start_std = now()
-    let std = SimdStatistics.std_deviation(data.pointer, size)
-    let std_time = now() - start_std
-    print("  Std Deviation: " + str(std) + " (" + str(std_time) + " ms)")
-
-    # Min/Max
-    let start_min = now()
-    let min_val = SimdOps.vector_min(data.pointer, size)
-    let min_time = now() - start_min
-    print("  Min: " + str(min_val) + " (" + str(min_time) + " ms)")
-
-    let start_max = now()
-    let max_val = SimdOps.vector_max(data.pointer, size)
-    let max_time = now() - start_max
-    print("  Max: " + str(max_val) + " (" + str(max_time) + " ms)")
-
-fn main():
-    """Run all benchmarks"""
-    print("\\n🚀 {{projectName}} SIMD Benchmarks")
-    print("Testing performance of SIMD-optimized operations\\n")
-
-    run_basic_benchmarks()
-    run_statistics_benchmarks()
-
-    print_separator()
-    print("✅ Benchmarks complete!")
-    print_separator()
-
-main()
-`,
-
-    // SIMD usage examples
-    'examples/simd_examples.mojo': `# {{projectName}} - SIMD Usage Examples
-from src.simd import SimdOps, SimdStatistics, DataPipeline
-
-fn example_basic_operations():
-    """Basic SIMD vector operations"""
-    print("\\n=== Basic Operations ===")
-
-    let size = 8
-    var a = HeapBuffer[float64](size)
-    var b = HeapBuffer[float64](size)
-    var result = HeapBuffer[float64](size)
-
-    # Initialize data
-    for i in range(size):
-        a[i] = Float64(i + 1)
-        b[i] = Float64((i + 1) * 2)
-
-    print("Input A: [1, 2, 3, 4, 5, 6, 7, 8]")
-    print("Input B: [2, 4, 6, 8, 10, 12, 14, 16]")
-
-    # Add vectors
-    SimdOps.add_vectors(a.pointer, b.pointer, result.pointer, size)
-    print("A + B computed with SIMD")
-
-    # Multiply vectors
-    SimdOps.mul_vectors(a.pointer, b.pointer, result.pointer, size)
-    print("A * B computed with SIMD")
-
-fn example_statistics():
-    """Statistical operations with SIMD"""
-    print("\\n=== Statistics ===")
-
-    let size = 10
-    var data = HeapBuffer[float64](size)
-
-    for i in range(size):
-        data[i] = Float64((i - 5) * 2)
-
-    print("Data size: " + str(size))
-    print("Sum: " + str(SimdOps.vector_sum(data.pointer, size)))
-    print("Mean: " + str(SimdOps.vector_mean(data.pointer, size)))
-    print("Min: " + str(SimdOps.vector_min(data.pointer, size)))
-    print("Max: " + str(SimdOps.vector_max(data.pointer, size)))
-    print("Std Dev: " + str(SimdStatistics.std_deviation(data.pointer, size)))
-
-fn example_normalization():
-    """Data normalization with SIMD"""
-    print("\\n=== Normalization ===")
-
-    let size = 5
-    var data = HeapBuffer[float64](size)
-    var normalized = HeapBuffer[float64](size)
-
-    data[0] = 100.0
-    data[1] = 200.0
-    data[2] = 300.0
-    data[3] = 400.0
-    data[4] = 500.0
-
-    print("Original data normalized with SIMD")
-    SimdStatistics.normalize(data.pointer, normalized.pointer, size)
-
-fn example_correlation():
-    """Calculate correlation between two datasets"""
-    print("\\n=== Correlation ===")
-
-    let size = 6
-    var x = HeapBuffer[float64](size)
-    var y = HeapBuffer[float64](size)
-
-    for i in range(size):
-        x[i] = Float64(i)
-        y[i] = Float64(i * 2 + 1)
-
-    let corr = SimdStatistics.correlation(x.pointer, y.pointer, size)
-    print("Correlation: " + str(corr))
-
-fn main():
-    """Run all examples"""
-    print("\\n🧪 {{projectName}} SIMD Examples")
-    print("Demonstrating SIMD-optimized operations\\n")
-
-    example_basic_operations()
-    example_statistics()
-    example_normalization()
-    example_correlation()
-
-    print("\\n✅ Examples complete!")
-
-main()
-`,
-
-    // Configuration file
-    'mojo.config': `# {{projectName}} Configuration
-
-[project]
+    'pixi.toml': `[workspace]
 name = "{{projectName}}"
 version = "1.0.0"
+description = "Mojo HTTP service with SIMD kernels"
+channels = ["https://conda.modular.com/max", "conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
 
 [dependencies]
-python = "*"
+mojo = ">=1.0.0,<2"
 
-[build]
-target = "wasm"
-optimize = true
-
-[simd]
-enable = true
-avx2 = true
+[tasks]
+build = "mkdir -p bin && mojo build main.mojo -I . -o bin/server"
+start = "mojo run -I . main.mojo"
+test = "mojo run -I . tests/test_simd_ops.mojo && mojo run -I . tests/test_http.mojo"
+examples = "mojo run -I . examples/simd_examples.mojo"
+bench = "mojo run -I . benchmarks/bench_simd.mojo"
 `,
 
-    // Environment file
-    '.env': `# Server Configuration
-PORT=8080
-ENV=development
-
-# JWT Secret (change in production!)
-JWT_SECRET=change-this-secret-in-production
-
-# Python Interop
-PYTHON_PATH=/usr/bin/python3
-
-# SIMD Configuration
-SIMD_ENABLED=true
-AVX2_ENABLED=true
-
-# Logging
-LOG_LEVEL=info
+    'src/__init__.mojo': `"""{{projectName}} application package."""
 `,
 
-    // .gitignore
+    'src/http.mojo': `"""Minimal HTTP/1.1 request parsing and response formatting."""
+
+
+struct Request(Copyable, Movable):
+    var method: String
+    var path: String
+    var body: String
+
+    def __init__(out self, method: String, path: String, body: String):
+        self.method = method
+        self.path = path
+        self.body = body
+
+
+struct Response(Copyable, Movable):
+    var status: Int
+    var content_type: String
+    var body: String
+
+    def __init__(out self, status: Int, content_type: String, body: String):
+        self.status = status
+        self.content_type = content_type
+        self.body = body
+
+
+def reason_phrase(status: Int) -> String:
+    if status == 200:
+        return "OK"
+    if status == 201:
+        return "Created"
+    if status == 204:
+        return "No Content"
+    if status == 400:
+        return "Bad Request"
+    if status == 404:
+        return "Not Found"
+    if status == 405:
+        return "Method Not Allowed"
+    return "Internal Server Error"
+
+
+def parse_request(raw: String) raises -> Request:
+    """Parse a raw HTTP request (request line, headers, optional body)."""
+    var split_at = raw.find("\\r\\n\\r\\n")
+    var head = raw
+    var body = String("")
+    if split_at >= 0:
+        head = String(raw[byte=:split_at])
+        body = String(raw[byte = split_at + 4 :])
+    var first_line = head
+    var eol = head.find("\\r\\n")
+    if eol >= 0:
+        first_line = String(head[byte=:eol])
+    var parts = first_line.split(" ")
+    if len(parts) < 2:
+        raise Error("malformed request line")
+    var full_target = String(parts[1])
+    var target = full_target
+    var q = full_target.find("?")
+    if q >= 0:
+        target = String(full_target[byte=:q])
+    return Request(String(parts[0]), target, body)
+
+
+def content_length(raw_head: String) -> Int:
+    """Value of the Content-Length header, or 0 when it is absent."""
+    for line in raw_head.split("\\r\\n"):
+        var lower = String(line).lower()
+        if lower.startswith("content-length:"):
+            try:
+                return Int(String(String(line)[byte=15:]).strip())
+            except:
+                return 0
+    return 0
+
+
+def format_response(response: Response) -> String:
+    """Serialise a response, with permissive CORS headers."""
+    var out = String("HTTP/1.1 ", response.status, " ", reason_phrase(response.status), "\\r\\n")
+    out += String("Content-Type: ", response.content_type, "\\r\\n")
+    out += String("Content-Length: ", len(response.body.as_bytes()), "\\r\\n")
+    out += "Access-Control-Allow-Origin: *\\r\\n"
+    out += "Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS\\r\\n"
+    out += "Access-Control-Allow-Headers: Content-Type\\r\\n"
+    out += "Connection: close\\r\\n\\r\\n"
+    out += response.body
+    return out^
+`,
+
+    'src/simd_ops.mojo': `"""SIMD vector kernels for {{projectName}}.
+
+Every kernel processes \`WIDTH\` lanes per iteration, where WIDTH is the native
+SIMD width of the machine for the element type, and finishes the tail with a
+scalar loop.
+"""
+
+from std.math import sqrt
+from std.sys import simd_width_of
+
+comptime DT = DType.float64
+comptime WIDTH = simd_width_of[DT]()
+
+
+def add(a: List[Float64], b: List[Float64]) raises -> List[Float64]:
+    """Element-wise sum of two equally sized vectors."""
+    if len(a) != len(b):
+        raise Error("vectors must have the same length")
+    var n = len(a)
+    var out = List[Float64](length=n, fill=0.0)
+    var pa = a.unsafe_ptr()
+    var pb = b.unsafe_ptr()
+    var po = out.unsafe_ptr()
+    var i = 0
+    while i + WIDTH <= n:
+        po.unsafe_store(i, pa.unsafe_load[width=WIDTH](i) + pb.unsafe_load[width=WIDTH](i))
+        i += WIDTH
+    while i < n:
+        out[i] = a[i] + b[i]
+        i += 1
+    return out^
+
+
+def scale(a: List[Float64], factor: Float64) -> List[Float64]:
+    """Multiply every element of a vector by a scalar."""
+    var n = len(a)
+    var out = List[Float64](length=n, fill=0.0)
+    var pa = a.unsafe_ptr()
+    var po = out.unsafe_ptr()
+    var i = 0
+    while i + WIDTH <= n:
+        po.unsafe_store(i, pa.unsafe_load[width=WIDTH](i) * factor)
+        i += WIDTH
+    while i < n:
+        out[i] = a[i] * factor
+        i += 1
+    return out^
+
+
+def dot(a: List[Float64], b: List[Float64]) raises -> Float64:
+    """Dot product of two equally sized vectors."""
+    if len(a) != len(b):
+        raise Error("vectors must have the same length")
+    var n = len(a)
+    var pa = a.unsafe_ptr()
+    var pb = b.unsafe_ptr()
+    var acc = SIMD[DT, WIDTH](0)
+    var i = 0
+    while i + WIDTH <= n:
+        acc += pa.unsafe_load[width=WIDTH](i) * pb.unsafe_load[width=WIDTH](i)
+        i += WIDTH
+    var total = acc.reduce_add()
+    while i < n:
+        total += a[i] * b[i]
+        i += 1
+    return total
+
+
+def sum_all(a: List[Float64]) -> Float64:
+    """Sum of all elements."""
+    var n = len(a)
+    var pa = a.unsafe_ptr()
+    var acc = SIMD[DT, WIDTH](0)
+    var i = 0
+    while i + WIDTH <= n:
+        acc += pa.unsafe_load[width=WIDTH](i)
+        i += WIDTH
+    var total = acc.reduce_add()
+    while i < n:
+        total += a[i]
+        i += 1
+    return total
+
+
+def norm(a: List[Float64]) raises -> Float64:
+    """Euclidean (L2) norm."""
+    return sqrt(dot(a, a))
+
+
+def dot_scalar(a: List[Float64], b: List[Float64]) raises -> Float64:
+    """Reference scalar dot product (used by the tests and the benchmark)."""
+    if len(a) != len(b):
+        raise Error("vectors must have the same length")
+    var total: Float64 = 0
+    for i in range(len(a)):
+        total += a[i] * b[i]
+    return total
+`,
+
+    'tests/test_http.mojo': `from std.testing import assert_equal, assert_true
+
+from src.http import Response, parse_request, format_response, content_length
+
+
+def test_parse_get() raises:
+    var req = parse_request("GET /api/v1/products?limit=2 HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n")
+    assert_equal(req.method, "GET")
+    assert_equal(req.path, "/api/v1/products")
+    assert_equal(req.body, "")
+
+
+def test_parse_post_body() raises:
+    var req = parse_request(
+        'POST /api/v1/simd/dot HTTP/1.1\\r\\nContent-Length: 7\\r\\n\\r\\n{"a":1}'
+    )
+    assert_equal(req.method, "POST")
+    assert_equal(req.body, '{"a":1}')
+
+
+def test_content_length() raises:
+    assert_equal(content_length("POST / HTTP/1.1\\r\\ncontent-length: 42\\r\\nHost: x"), 42)
+    assert_equal(content_length("GET / HTTP/1.1\\r\\nHost: x"), 0)
+
+
+def test_format_response() raises:
+    var text = format_response(Response(200, "application/json", '{"ok":true}'))
+    assert_true(text.startswith("HTTP/1.1 200 OK\\r\\n"))
+    assert_true("Content-Length: 11\\r\\n" in text)
+    assert_true(text.endswith('{"ok":true}'))
+
+
+def main() raises:
+    test_parse_get()
+    test_parse_post_body()
+    test_content_length()
+    test_format_response()
+    print("http: all tests passed")
+`,
+
+    'tests/test_simd_ops.mojo': `from std.testing import assert_equal, assert_raises
+
+from src.simd_ops import add, scale, dot, dot_scalar, sum_all, norm
+
+
+def make(n: Int, step: Float64) -> List[Float64]:
+    var v = List[Float64](capacity=n)
+    for i in range(n):
+        v.append(Float64(i) * step)
+    return v^
+
+
+def test_add() raises:
+    var out = add(make(11, 1.0), make(11, 2.0))
+    for i in range(11):
+        assert_equal(out[i], Float64(i) * 3.0)
+
+
+def test_scale() raises:
+    var out = scale(make(13, 1.0), 0.5)
+    for i in range(13):
+        assert_equal(out[i], Float64(i) * 0.5)
+
+
+def test_dot_matches_scalar_reference() raises:
+    # 37 is not a multiple of any SIMD width, so the tail loop is exercised.
+    var a = make(37, 1.0)
+    var b = make(37, 0.5)
+    assert_equal(dot(a, b), dot_scalar(a, b))
+
+
+def test_sum_and_norm() raises:
+    var v = List[Float64]()
+    v.append(3.0)
+    v.append(4.0)
+    assert_equal(sum_all(v), 7.0)
+    assert_equal(norm(v), 5.0)
+
+
+def test_length_mismatch_raises() raises:
+    with assert_raises():
+        _ = dot(make(3, 1.0), make(4, 1.0))
+
+
+def main() raises:
+    test_add()
+    test_scale()
+    test_dot_matches_scalar_reference()
+    test_sum_and_norm()
+    test_length_mismatch_raises()
+    print("simd_ops: all tests passed")
+`,
+
     '.gitignore': `# Build output
-*.mojo
-*.wasm
-.mjs
+bin/
 build/
 dist/
+*.so
+*.o
 
-# Dependencies
-.python/
+# Pixi / Python environments
+.pixi/
+.venv/
+__pycache__/
 
 # Environment
 .env
 .env.local
-.env.*.local
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
 
 # Logs
-logs
 *.log
 
 # OS
 .DS_Store
-Thumbs.db
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
 `,
 
-    // Dockerfile
-    'Dockerfile': `FROM modular/mojo:latest
-
-WORKDIR /app
-
-# Install Python dependencies
-RUN apt-get update && apt-get install -y \\
-    python3 \\
-    python3-pip \\
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy source files
-COPY . .
-
-# Build Mojo project
-RUN mojo build main.mojo
-
-# Expose port
-EXPOSE 8080
-
-# Run with Python interop
-CMD ["mojo", "run", "main.mojo"]
-`,
-
-    // Docker Compose
-    'docker-compose.yml': `version: '3.8'
-
-services:
+    'docker-compose.yml': `services:
   app:
     build: .
     ports:
       - "8080:8080"
     environment:
-      - ENV=production
       - PORT=8080
-      - JWT_SECRET=change-this-secret
-      - SIMD_ENABLED=true
     restart: unless-stopped
 `,
 
-    // README
+    'Dockerfile': `FROM python:3.12-slim
+
+# The Mojo compiler is published on PyPI; build-essential provides the system
+# linker libraries that \`mojo build\` needs to produce a native executable.
+RUN apt-get update \\
+    && apt-get install -y --no-install-recommends build-essential \\
+    && rm -rf /var/lib/apt/lists/* \\
+    && pip install --no-cache-dir mojo
+
+WORKDIR /app
+COPY . .
+RUN mkdir -p bin && mojo build main.mojo -I . -o bin/server
+
+ENV PORT=8080
+EXPOSE 8080
+
+CMD ["./bin/server"]
+`,
+
     'README.md': `# {{projectName}}
 
-High-performance web server built with Mojo language and Python interoperability.
+A small HTTP service written in [Mojo](https://www.modular.com/mojo) 1.x with
+SIMD vector kernels.
 
-## Features
-
-- **Mojo**: New language for AI/ML with Python interoperability
-- **SIMD**: Single Instruction Multiple Data optimizations
-- **Fast**: Performance comparable to C++ with Python ease of use
-- **Python Interop**: Seamless integration with Python ecosystem
-- **Type-Safe**: Strong typing with compile-time guarantees
-- **Memory Safe**: No manual memory management
-- **Modern Syntax**: Clean, expressive syntax
+Mojo's standard library has no networking yet, so the transport is Python's
+\`socket\` module driven from Mojo through Python interop. Request parsing,
+routing, the in-memory store and the SIMD kernels are Mojo.
 
 ## Requirements
 
-- Mojo compiler (latest)
-- Python 3.8+
+- Mojo 1.x (\`mojo\` 1.0 or newer) and a Python 3 interpreter
+- Linux (x86-64 or arm64) or macOS (Apple silicon)
 
-## Installation
-
-\`\`\`bash
-# Install Mojo (follow https://www.modular.com/mojo)
-# Install Mojo CLI
-modular mojo install
-
-# Build
-mojo build main.mojo
-
-# Run
-mojo run main.mojo
-\`\`\`
-
-## Quick Start
-
-### Development Mode
-\`\`\`bash
-# Watch mode (if available)
-mojo watch main.mojo
-
-# Build and run
-mojo build main.mojo
-mojo run main.mojo
-\`\`\`
-
-### Production Mode
-\`\`\`bash
-mojo build main.mojo --release
-mojo run main.mojo
-\`\`\`
-
-Visit http://localhost:8080
-
-## API Endpoints
-
-### Health
-- \`GET /api/v1/health\` - Health check
-
-### Authentication
-- \`POST /api/v1/auth/register\` - Register new user
-- \`POST /api/v1/auth/login\` - Login user
-
-### Products
-- \`GET /api/v1/products\` - List all products
-- \`GET /api/v1/products/:id\` - Get product by ID
-- \`POST /api/v1/products\` - Create product
-- \`PUT /api/v1/products/:id\` - Update product
-- \`DELETE /api/v1/products/:id\` - Delete product
-
-## Default Credentials
-
-- Email: \`admin@example.com\`
-- Password: \`admin123\`
-
-## Project Structure
-
-\`\`\`
-main.mojo          # Main server and routes
-mojo.config        # Mojo configuration
-.env               # Environment variables
-src/               # Source modules
-  ├── simd.mojo       # SIMD data processing library
-  └── benchmark.mojo  # Performance benchmarks
-examples/          # Usage examples
-  └── simd_examples.mojo  # SIMD usage demonstrations
-\`\`\`
-
-## Mojo Features
-
-- **Python Interop**: Use any Python library from Mojo
-- **SIMD**: Automatic vectorization for data processing
-- **Performance**: C++-level performance with Python simplicity
-- **Type System**: Strong typing with type inference
-- **Ownership**: Memory safety without garbage collection
-- **Parallelism**: Built-in support for concurrent programming
-- **AI/ML**: Designed for machine learning workloads
-
-## Python Interop Example
-
-\`\`\`mojo
-from python import Python
-from python.numpy import array
-
-# Use NumPy from Mojo
-let data = array([1, 2, 3, 4, 5])
-let result = Python.evaluate("np.mean(data)", data=data)
-\`\`\`
-
-## SIMD Optimizations
-
-This template includes comprehensive SIMD (Single Instruction, Multiple Data) optimizations for high-performance data processing.
-
-### SIMD Module Features
-
-The \`src/simd.mojo\` module provides:
-
-- **Vector Operations**: Add, multiply, scale vectors with SIMD
-- **Reductions**: Sum, mean, min, max with parallel processing
-- **Statistics**: Variance, standard deviation, correlation, normalization
-- **Data Pipelines**: Moving average, exponential smoothing, cumulative sum
-- **Batch Processing**: Process large datasets in cache-friendly batches
-
-### SIMD Types
-
-\`\`\`mojo
-alias float64x4 = SIMD[float64, 4]  # 4 doubles at once
-alias float64x8 = SIMD[float64, 8]  # 8 doubles at once
-alias int32x4 = SIMD[int32, 4]      # 4 integers at once
-\`\`\`
-
-### Basic SIMD Operations
-
-\`\`\`mojo
-from src.simd import SimdOps
-
-# Vector addition
-SimdOps.add_vectors(a.pointer, b.pointer, result.pointer, size)
-
-# Vector multiplication
-SimdOps.mul_vectors(a.pointer, b.pointer, result.pointer, size)
-
-# Scalar multiplication
-SimdOps.scale_vector(data.pointer, 2.5, result.pointer, size)
-
-# Dot product
-let dot = SimdOps.dot_product(a.pointer, b.pointer, size)
-\`\`\`
-
-### SIMD Statistics
-
-\`\`\`mojo
-from src.simd import SimdOps, SimdStatistics
-
-# Basic statistics
-let sum = SimdOps.vector_sum(data.pointer, size)
-let mean = SimdOps.vector_mean(data.pointer, size)
-let min = SimdOps.vector_min(data.pointer, size)
-let max = SimdOps.vector_max(data.pointer, size)
-
-# Advanced statistics
-let variance = SimdStatistics.variance(data.pointer, size)
-let std = SimdStatistics.std_deviation(data.pointer, size)
-let corr = SimdStatistics.correlation(a.pointer, b.pointer, size)
-
-# Normalization (z-score)
-SimdStatistics.normalize(data.pointer, result.pointer, size)
-\`\`\`
-
-### Data Pipelines
-
-\`\`\`mojo
-from src.simd import DataPipeline
-
-# Moving average
-DataPipeline.moving_average(data.pointer, result.pointer, size, window=5)
-
-# Exponential smoothing
-DataPipeline.exponential_smoothing(data.pointer, result.pointer, size, alpha=0.3)
-
-# First-order difference
-DataPipeline.difference(data.pointer, result.pointer, size)
-
-# Cumulative sum
-DataPipeline.cumulative_sum(data.pointer, result.pointer, size)
-\`\`\`
-
-### Batch Processing
-
-\`\`\`mojo
-from src.simd import BatchProcessor
-
-let processor = BatchProcessor(batch_size=1024)
-
-# Process large datasets in cache-friendly batches
-let total = processor.process_batch(
-    data.pointer,
-    size,
-    fn(ptr: DTypePointer[float64], sz: Int) -> Float64:
-        return SimdOps.vector_sum(ptr, sz)
-)
-\`\`\`
-
-### Running Benchmarks
+Install the compiler with [pixi](https://pixi.sh) (recommended):
 
 \`\`\`bash
-# Run SIMD benchmarks
-mojo run src/benchmark.mojo
-
-# Run examples
-mojo run examples/simd_examples.mojo
+pixi install
 \`\`\`
 
-### Performance
-
-Typical SIMD speedups (AVX2):
-
-| Operation | Dataset Size | Scalar | SIMD | Speedup |
-|-----------|-------------|--------|------|---------|
-| Vector Add | 100K | 5.2ms | 1.3ms | 4.0x |
-| Dot Product | 100K | 8.1ms | 2.0ms | 4.1x |
-| Mean | 100K | 4.8ms | 1.2ms | 4.0x |
-| Std Dev | 100K | 15.3ms | 4.2ms | 3.6x |
-
-### SIMD in Action
-
-\`\`\`mojo
-# Financial time series processing
-var prices = HeapBuffer[float64](10000)
-# ... load prices ...
-
-# Calculate volatility
-let volatility = SimdStatistics.std_deviation(prices.pointer, 10000)
-
-# Smooth with moving average
-var smoothed = HeapBuffer[float64](10000)
-DataPipeline.moving_average(prices.pointer, smoothed.pointer, 10000, 20)
-
-# Calculate daily returns
-var returns = HeapBuffer[float64](10000)
-DataPipeline.difference(prices.pointer, returns.pointer, 10000)
-\`\`\`
-
-## Development
+or from PyPI into a virtual environment:
 
 \`\`\`bash
-# Build
-mojo build main.mojo
+python3 -m venv .venv && . .venv/bin/activate
+pip install mojo
+\`\`\`
 
-# Run
-mojo run main.mojo
+## Commands
 
-# Format (if available)
-mojo fmt main.mojo
+With pixi the same commands are available as tasks (\`pixi run build\`, ...):
+
+\`\`\`bash
+mkdir -p bin && mojo build main.mojo -I . -o bin/server   # compile
+./bin/server                                              # run (PORT defaults to 8080)
+mojo run -I . main.mojo                                   # or run without compiling
+
+mojo run -I . tests/test_simd_ops.mojo                    # tests
+mojo run -I . tests/test_http.mojo
+mojo run -I . examples/simd_examples.mojo                 # examples
+mojo run -I . benchmarks/bench_simd.mojo                  # SIMD vs scalar benchmark
+\`\`\`
+
+\`-I .\` makes the local \`src\` package importable.
+
+## API
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | \`/\` | HTML landing page |
+| GET | \`/api/v1/health\` | Status, version, SIMD width and uptime |
+| GET | \`/api/v1/products\` | List products |
+| POST | \`/api/v1/products\` | Create a product (\`name\`, \`price\`, optional \`description\`, \`stock\`) |
+| GET | \`/api/v1/products/:id\` | Get one product |
+| DELETE | \`/api/v1/products/:id\` | Delete a product |
+| POST | \`/api/v1/simd/dot\` | Dot product of two vectors: \`{"a": [...], "b": [...]}\` |
+
+\`\`\`bash
+curl http://localhost:8080/api/v1/health
+curl -X POST http://localhost:8080/api/v1/simd/dot \\
+  -H 'Content-Type: application/json' -d '{"a": [1, 2, 3], "b": [4, 5, 6]}'
+\`\`\`
+
+The product store is held in memory and resets when the server restarts. The
+server handles one connection at a time.
+
+## Project structure
+
+\`\`\`
+main.mojo                  # server, routes and in-memory store
+src/http.mojo              # request parsing and response formatting
+src/simd_ops.mojo          # SIMD kernels (add, scale, dot, sum, norm)
+tests/                     # test programs (std.testing)
+examples/simd_examples.mojo
+benchmarks/bench_simd.mojo
+pixi.toml                  # Mojo toolchain and tasks
+Dockerfile
 \`\`\`
 
 ## Docker
 
 \`\`\`bash
-docker build -t {{projectName}} .
-docker run -p 8080:8080 {{projectName}}
+docker compose up --build
 \`\`\`
-
-Or with Docker Compose:
-
-\`\`\`bash
-docker-compose up
-\`\`\`
-
-## AI/ML Model Serving
-
-This template includes examples of serving AI/ML models with Mojo optimizations.
-
-### Neural Network Inference
-
-\`\`\`mojo
-from src.simd import SimdOps
-
-# Simple neural network layer with SIMD
-struct DenseLayer:
-    var weights: HeapBuffer[float64]
-    var biases: HeapBuffer[float64]
-    var input_size: Int
-    var output_size: Int
-
-    fn __init__(inout self, input_size: Int, output_size: Int):
-        self.input_size = input_size
-        self.output_size = output_size
-        self.weights = HeapBuffer[float64](input_size * output_size)
-        self.biases = HeapBuffer[float64](output_size)
-
-    fn forward[self](self, input: DTypePointer[float64], output: DTypePointer[float64]) -> None:
-        """Forward pass with SIMD-optimized matrix multiplication"""
-        for i in range(self.output_size):
-            var sum = self.biases[i]
-            let weight_offset = i * self.input_size
-
-            # SIMD-optimized dot product
-            for j in range(0, self.input_size, 4):
-                if j + 4 <= self.input_size:
-                    let w = float64x4.load(self.weights.pointer, weight_offset + j)
-                    let inp = float64x4.load(input, j)
-                    sum += (w * inp).reduce_add()
-                else:
-                    for k in range(j, min(j + 4, self.input_size)):
-                        sum += self.weights[weight_offset + k] * input[k]
-
-            output[i] = sum
-\`\`\`
-
-### Activation Functions
-
-\`\`\`mojo
-# SIMD-optimized activation functions
-fn sigmoid_simd(x: DTypePointer[float64], result: DTypePointer[float64], size: Int) -> None:
-    """Sigmoid activation with SIMD"""
-    let ones = float64x4.splat(1.0)
-    for i in range(0, size, 4):
-        if i + 4 <= size:
-            let xv = float64x4.load(x, i)
-            let exp_neg_x = float64x4.splat(1.0) / exp(xv)
-            let sv = ones / (ones + exp_neg_x)
-            float64x4.store(result, i, sv)
-
-fn relu_simd(x: DTypePointer[float64], result: DTypePointer[float64], size: Int) -> None:
-    """ReLU activation with SIMD"""
-    let zeros = float64x4.splat(0.0)
-    for i in range(0, size, 4):
-        if i + 4 <= size:
-            let xv = float64x4.load(x, i)
-            let maxv = xv.max(zeros)
-            float64x4.store(result, i, maxv)
-\`\`\`
-
-### Model Loading
-
-\`\`\`mojo
-struct ModelLoader:
-    """Load and manage ML models"""
-
-    @staticmethod
-    fn load_weights(path: String, size: Int) -> HeapBuffer[float64]:
-        """Load weights from file"""
-        var weights = HeapBuffer[float64](size)
-        # In production, read from file
-        # For now, initialize with random values
-        for i in range(size):
-            weights[i] = Float64(i) * 0.01
-        return weights
-
-    @staticmethod
-    fn load_model(model_path: String) -> Model:
-        """Load complete model from disk"""
-        return Model(
-            input_size=784,
-            hidden_size=128,
-            output_size=10
-        )
-\`\`\`
-
-### Batch Inference
-
-\`\`\`mojo
-fn batch_predict[model: Model](
-    inputs: DTypePointer[DTypePointer[float64]],
-    outputs: DTypePointer[DTypePointer[float64]],
-    batch_size: Int
-) -> None:
-    """Process multiple inputs in parallel"""
-    for i in range(batch_size):
-        model.forward(inputs[i], outputs[i])
-\`\`\`
-
-### Model Serving API
-
-\`\`\`mojo
-struct ModelServer:
-    var model: Model
-    var port: Int
-
-    fn __init__(inout self, model: Model, port: Int = 8080):
-        self.model = model
-        self.port = port
-
-    fn serve(self):
-        """Start model serving HTTP server"""
-        print("🤖 Model server starting on port " + str(self.port))
-        # HTTP server implementation here
-\`\`\`
-
-### Model Examples
-
-#### Image Classification (MNIST)
-
-\`\`\`mojo
-# MNIST digit classifier
-struct MNISTClassifier:
-    var model: Model
-
-    fn __init__(inout self):
-        self.model = Model(784, 128, 10)
-
-    fn predict(self, image: DTypePointer[float64]) -> Int:
-        """Predict digit from 28x28 image"""
-        var output = HeapBuffer[float64](10)
-        self.model.forward(image, output.pointer)
-
-        # Find max probability
-        var max_idx = 0
-        var max_val = output[0]
-        for i in range(1, 10):
-            if output[i] > max_val:
-                max_val = output[i]
-                max_idx = i
-        return max_idx
-\`\`\`
-
-#### Sentiment Analysis
-
-\`\`\`mojo
-# Simple sentiment classifier
-struct SentimentAnalyzer:
-    var embeddings: HeapBuffer[float64]
-    var vocab_size: Int
-    var embedding_dim: Int
-
-    fn __init__(inout self, vocab_size: Int, embedding_dim: Int):
-        self.vocab_size = vocab_size
-        self.embedding_dim = embedding_dim
-        self.embeddings = HeapBuffer[float64](vocab_size * embedding_dim)
-
-    fn analyze(self, tokens: List[Int]) -> Float64:
-        """Return sentiment score from -1 (negative) to 1 (positive)"""
-        var embedding_sum = HeapBuffer[float64](self.embedding_dim)
-
-        # Sum embeddings
-        for token in tokens:
-            let offset = token * self.embedding_dim
-            for i in range(self.embedding_dim):
-                embedding_sum[i] += self.embeddings[offset + i]
-
-        # Normalize and classify
-        var sum_val = 0.0
-        for i in range(self.embedding_dim):
-            sum_val += embedding_sum[i]
-
-        return sum_val / Float64(len(tokens))  # Simplified
-\`\`\`
-
-#### Recommendation System
-
-\`\`\`mojo
-# Collaborative filtering recommendation
-struct Recommender:
-    var user_factors: HeapBuffer[float64]
-    var item_factors: HeapBuffer[float64]
-    var num_users: Int
-    var num_items: Int
-    var num_factors: Int
-
-    fn predict(self, user_id: Int, item_id: Int) -> Float64:
-        """Predict user-item rating"""
-        var dot_product = 0.0
-        let user_offset = user_id * self.num_factors
-        let item_offset = item_id * self.num_factors
-
-        # SIMD-optimized dot product
-        for i in range(0, self.num_factors, 4):
-            if i + 4 <= self.num_factors:
-                let u = float64x4.load(self.user_factors.pointer, user_offset + i)
-                let v = float64x4.load(self.item_factors.pointer, item_offset + i)
-                dot_product += (u * v).reduce_add()
-
-        return dot_product
-
-    fn recommend[self](self, user_id: Int, top_k: Int) -> List[Int]:
-        """Get top K recommendations for user"""
-        var scores = HeapBuffer[float64](self.num_items)
-
-        for item_id in range(self.num_items):
-            scores[item_id] = self.predict(user_id, item_id)
-
-        # Find top K
-        var recommended = List[Int]()
-        # ... top-k selection logic
-        return recommended
-\`\`\`
-
-### Model Performance
-
-Typical inference performance with SIMD:
-
-| Model | Input Size | Python | Mojo SIMD | Speedup |
-|-------|-----------|--------|-----------|---------|
-| Dense Layer | 784x128 | 2.1ms | 0.3ms | 7.0x |
-| Embedding Lookup | 50Kx256 | 5.8ms | 0.7ms | 8.3x |
-| Matrix Multiply | 1024x1024 | 45ms | 5.2ms | 8.7x |
-
-## Why Mojo?
-
-- **Performance**: C++ speed without the complexity
-- **Python Interop**: Use the entire Python ecosystem
-- **SIMD**: Automatic vectorization for data processing
-- **Type Safe**: Catch errors at compile time
-- **Memory Safe**: No null pointer exceptions or data races
-- **AI/ML**: Designed specifically for machine learning
-- **Modern**: Latest language features and best practices
-
-## Status
-
-⚠️ **Experimental**: Mojo is in early development
-- Language is still evolving
-- Tooling is immature
-- Limited documentation
-- Not yet production-ready for most use cases
-
-This template is provided for experimental and learning purposes.
 
 ## License
 
 MIT
-`}
+`
+  }
 };
