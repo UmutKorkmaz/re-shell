@@ -123,8 +123,11 @@ describe('Re-Shell extension in a real VS Code host', () => {
 
   describe('palette: build a spec and run it through the local hub', () => {
     it('builds a contract-shaped spec for a catalog command without running it', async () => {
+      // Ready-made params (here: none) skip the option prompts; a bare path is what a
+      // tree click sends and prompts, which nothing answers in a headless host.
       const outcome = (await vscode.commands.executeCommand('reShell.buildCommand', {
         path: 'workspace health',
+        params: {},
       })) as BuildCommandOutcome;
       assert.equal(outcome.ok, true);
       if (!outcome.ok) return;
