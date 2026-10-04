@@ -17,8 +17,8 @@ export const luminusCljTemplate: BackendTemplate = {
     // Project configuration (the Luminus stack: Mount, Cprop, Selmer, Reitit, Muuntaja, Ring defaults)
     'project.clj': `(defproject {{projectName}} "0.1.0-SNAPSHOT"
   :description "Luminus-style Clojure web application"
-  :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
-            :url "https://www.eclipse.org/legal/epl-2.0/"}
+  :license {:name "MIT"
+            :url "https://opensource.org/licenses/MIT"}
   :min-lein-version "2.9.0"
 
   :dependencies [[org.clojure/clojure "1.12.0"]
@@ -52,6 +52,8 @@ export const luminusCljTemplate: BackendTemplate = {
 `,
 
     // Entry point: starts every Mount state (config, database, handler, HTTP server)
+    // Mount's default (clj) mode replaces each state's var with the started value,
+    // so states are used directly (env is the config map), never dereferenced.
     'src/clj/{{projectNameSnake}}/core.clj': `(ns {{projectNameSnake}}.core
   (:require [clojure.tools.logging :as log]
             [mount.core :as mount :refer [defstate]]
@@ -62,16 +64,15 @@ export const luminusCljTemplate: BackendTemplate = {
   (:import (org.eclipse.jetty.server Server))
   (:gen-class))
 
-(defonce ^:private jetty-server (atom nil))
+(defn- port []
+  (let [value (or (:port env) {{port}})]
+    (if (number? value) (int value) (Integer/parseInt (str value)))))
 
 (defstate ^{:on-reload :noop} http-server
-  :start (reset! jetty-server
-                 (jetty/run-jetty (fn [request] ((deref handler/app) request))
-                                  {:port (some-> (:port (deref env)) str Integer/parseInt)
-                                   :join? false}))
-  :stop (when-let [^Server server @jetty-server]
-          (.stop server)
-          (reset! jetty-server nil)))
+  :start (jetty/run-jetty (handler/app)
+                          {:port (port)
+                           :join? false})
+  :stop (.stop ^Server http-server))
 
 (defn stop-app []
   (doseq [component (:stopped (mount/stop))]
@@ -114,7 +115,8 @@ export const luminusCljTemplate: BackendTemplate = {
       (response/content-type "text/html; charset=utf-8")))
 `,
 
-    // Ring + Reitit handler (a Mount state, so it starts after the configuration)
+    // Ring + Reitit handler. As in Luminus, the routes are a Mount state and app
+    // wraps the state's var, so a restarted state is picked up without a new server.
     'src/clj/{{projectNameSnake}}/handler.clj': `(ns {{projectNameSnake}}.handler
   (:require [mount.core :as mount]
             [muuntaja.core :as m]
@@ -125,19 +127,21 @@ export const luminusCljTemplate: BackendTemplate = {
             [{{projectNameSnake}}.routes.home :as home]
             [{{projectNameSnake}}.routes.services :as services]))
 
-(defn- build-handler []
-  (ring/ring-handler
-    (ring/router
-      (into [] cat [(home/routes) (services/routes)])
-      {:data {:muuntaja m/instance
-              :middleware [muuntaja/format-negotiate-middleware
-                           muuntaja/format-response-middleware
-                           exception/exception-middleware
-                           muuntaja/format-request-middleware]}})
-    (ring/create-default-handler)))
+(mount/defstate app-routes
+  :start (ring/ring-handler
+           (ring/router
+             (into (home/routes) (services/routes))
+             {:data {:muuntaja m/instance
+                     :middleware [muuntaja/format-negotiate-middleware
+                                  muuntaja/format-response-middleware
+                                  exception/exception-middleware
+                                  muuntaja/format-request-middleware]}})
+           (ring/create-default-handler)))
 
-(mount/defstate app
-  :start (middleware/wrap-base (build-handler)))
+(defn app
+  "The Ring handler: every request goes through the base middleware, then the routes."
+  []
+  (middleware/wrap-base #'app-routes))
 `,
 
     // Middleware
@@ -197,7 +201,7 @@ export const luminusCljTemplate: BackendTemplate = {
 (def ^:private token-ttl-seconds (* 7 24 60 60))
 
 (defn- jwt-secret []
-  (str (or (:jwt-secret (deref env)) "dev-secret-change-me")))
+  (str (or (:jwt-secret env) "dev-secret-change-me")))
 
 (defn- now-seconds []
   (quot (System/currentTimeMillis) 1000))
@@ -578,11 +582,14 @@ code {
             [{{projectNameSnake}}.db.core :as db]
             [{{projectNameSnake}}.handler :as handler]))
 
+;; Starts only the configuration and the routes (no HTTP server, no seed data).
 (use-fixtures :once
   (fn [run-tests]
-    (mount/start #'config/env #'handler/app)
-    (run-tests)
-    (mount/stop #'handler/app #'config/env)))
+    (mount/start #'config/env #'handler/app-routes)
+    (try
+      (run-tests)
+      (finally
+        (mount/stop #'handler/app-routes #'config/env)))))
 
 (use-fixtures :each
   (fn [run-test]
@@ -590,7 +597,7 @@ code {
     (run-test)))
 
 (defn- app [request]
-  ((deref handler/app) request))
+  ((handler/app) request))
 
 (defn- decode [response]
   (when (:body response)

@@ -17,8 +17,8 @@ export const reititCljTemplate: BackendTemplate = {
     // Project configuration
     'project.clj': `(defproject {{projectName}} "0.1.0-SNAPSHOT"
   :description "REST API built with Reitit"
-  :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
-            :url "https://www.eclipse.org/legal/epl-2.0/"}
+  :license {:name "MIT"
+            :url "https://opensource.org/licenses/MIT"}
   :min-lein-version "2.9.0"
 
   :dependencies [[org.clojure/clojure "1.12.0"]
@@ -182,7 +182,7 @@ export const reititCljTemplate: BackendTemplate = {
             {:not-found (fn [_request]
                           {:status 404
                            :headers {"Content-Type" "application/json"}
-                           :body (m/encode "application/json"
+                           :body (m/encode m/instance "application/json"
                                            {:error "not_found"
                                             :message "Resource not found"})})})))
       (wrap-cors :access-control-allow-origin [#".*"]
@@ -581,10 +581,13 @@ export const reititCljTemplate: BackendTemplate = {
     (is (= "healthy" (get-in body [:data :health])))))
 
 (deftest swagger-document
-  (let [response (app (mock/request :get "/swagger.json"))]
+  ;; Muuntaja encodes bodies to an InputStream, so a response is decoded once.
+  (let [response (app (mock/request :get "/swagger.json"))
+        body (decode response)]
     (is (= 200 (:status response)))
-    (is (= "2.0" (:swagger (decode response))))
-    (is (= "{{projectName}} API" (get-in (decode response) [:info :title])))))
+    (is (= "2.0" (:swagger body)))
+    (is (= "{{projectName}} API" (get-in body [:info :title])))
+    (is (contains? (:paths body) (keyword "/api/v1/products")))))
 `,
 
     '.gitignore': `# Leiningen

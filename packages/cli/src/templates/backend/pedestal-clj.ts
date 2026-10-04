@@ -17,8 +17,8 @@ export const pedestalCljTemplate: BackendTemplate = {
     // Project configuration
     'project.clj': `(defproject {{projectName}} "0.1.0-SNAPSHOT"
   :description "REST API built with Pedestal"
-  :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
-            :url "https://www.eclipse.org/legal/epl-2.0/"}
+  :license {:name "MIT"
+            :url "https://opensource.org/licenses/MIT"}
   :min-lein-version "2.9.0"
 
   :dependencies [[org.clojure/clojure "1.12.0"]
@@ -434,6 +434,23 @@ export const pedestalCljTemplate: BackendTemplate = {
     (is (= "healthy" (get-in body [:data :health])))))
 `,
 
+    // Logback configuration (Pedestal logs through SLF4J; without a file Logback logs everything at DEBUG)
+    'resources/logback.xml': `<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="org.eclipse.jetty" level="WARN"/>
+  <logger name="io.pedestal" level="INFO"/>
+
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>
+`,
+
     '.gitignore': `# Leiningen
 /target
 /classes
@@ -476,8 +493,9 @@ COPY project.clj ./
 # Download dependencies
 RUN lein deps
 
-# Copy source code and build the uberjar
+# Copy source code and resources (logback.xml), then build the uberjar
 COPY src ./src
+COPY resources ./resources
 RUN lein uberjar
 
 # =============================================================================
