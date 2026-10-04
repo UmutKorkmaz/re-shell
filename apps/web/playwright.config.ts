@@ -49,7 +49,9 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: '**/accessibility.spec.ts',
+      // A project-level testIgnore replaces the top-level one, so repeat graph-scale
+      // here: it needs its own 2001-node stack (playwright.graph.config.ts).
+      testIgnore: ['**/accessibility.spec.ts', '**/graph-scale.spec.ts'],
       use: { ...devices['Desktop Chrome'] },
     },
     {

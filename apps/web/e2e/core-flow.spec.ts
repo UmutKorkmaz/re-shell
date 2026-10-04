@@ -119,9 +119,9 @@ test.describe('dashboard <-> hub core flow (secure transport)', () => {
     await expect(page.getByTestId('graph-stat-services')).toHaveText(/^2\s*services$/);
     await expect(page.getByTestId('graph-stat-dependencies')).toHaveText(/^3\s*dependencies$/);
 
-    // Inspect a node: the drawer lists its internal dependency on ui-kit.
+    // Inspect a node: the (non-modal) details panel lists its internal dependency on ui-kit.
     await canvas.getByRole('button', { name: /@fixture\/store-front/ }).click();
-    const drawer = page.getByRole('dialog');
+    const drawer = page.getByRole('complementary', { name: 'Details for @fixture/store-front' });
     await expect(drawer.getByText('@fixture/store-front')).toBeVisible();
     await expect(drawer.getByRole('heading', { name: 'Depends on', exact: true })).toBeVisible();
     await expect(drawer.getByText('@fixture/ui-kit')).toBeVisible();
