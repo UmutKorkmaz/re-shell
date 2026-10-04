@@ -28,7 +28,7 @@ requires "nim >= 2.0.0"
 requires "happyx >= 4.0.0"
 `,
 
-    'src/{{projectNameSnake}}.nim': `import std/json
+    'src/{{projectNameSnake}}.nim': `import std/[httpcore, json, options]
 import happyx
 import {{projectNameSnake}}/api
 
@@ -40,11 +40,27 @@ const
   host {.strdefine.} = "0.0.0.0"
   port {.intdefine.} = 5000
 
-proc bearerHeader(req: Request): string =
+# HappyX's request type depends on the server backend: the built-in server
+# (the default) and httpx return Option values for the headers and the body,
+# asynchttpserver (-d:stdserver) plain values. These helpers accept both.
+
+proc bearerHeader[R](req: R): string =
   ## The raw Authorization header, or "" when the request has none.
-  if req.headers.hasKey("Authorization"):
-    let value: string = req.headers["Authorization"]
+  let headers =
+    when typeof(req.headers) is Option[HttpHeaders]:
+      req.headers.get(newHttpHeaders())
+    else:
+      req.headers
+  if headers.hasKey("Authorization"):
+    let value: string = headers["Authorization"]
     result = value
+
+proc requestBody[R](req: R): string =
+  ## The raw request body, or "" when the request has none.
+  when typeof(req.body) is Option[string]:
+    req.body.get("")
+  else:
+    req.body
 
 regCORS:
   origins: "*"
@@ -59,12 +75,12 @@ serve host, port:
     return r.body
 
   post "/api/v1/auth/register":
-    let r = api.register(req.body)
+    let r = api.register(requestBody(req))
     statusCode = r.code
     return r.body
 
   post "/api/v1/auth/login":
-    let r = api.login(req.body)
+    let r = api.login(requestBody(req))
     statusCode = r.code
     return r.body
 
@@ -79,7 +95,7 @@ serve host, port:
     return r.body
 
   post "/api/v1/products":
-    let r = api.createProduct(bearerHeader(req), req.body)
+    let r = api.createProduct(bearerHeader(req), requestBody(req))
     statusCode = r.code
     return r.body
 
@@ -89,7 +105,7 @@ serve host, port:
     return r.body
 
   put "/api/v1/products/{id:int}":
-    let r = api.updateProduct(bearerHeader(req), id, req.body)
+    let r = api.updateProduct(bearerHeader(req), id, requestBody(req))
     statusCode = r.code
     return r.body
 
@@ -712,7 +728,7 @@ WORKDIR /app
 COPY --from=builder /app/{{projectNameSnake}} ./{{projectNameSnake}}
 USER appuser
 
-ENV PORT=5000
+# The port is fixed at compile time (-d:port=..., default 5000).
 EXPOSE 5000
 
 CMD ["./{{projectNameSnake}}"]
@@ -724,7 +740,6 @@ CMD ["./{{projectNameSnake}}"]
     ports:
       - "5000:5000"
     environment:
-      - PORT=5000
       - JWT_SECRET=\${JWT_SECRET:-development-secret-change-me}
     restart: unless-stopped
 `,
@@ -791,6 +806,7 @@ nimble test -y                 # run the unit tests
 \`\`\`
 
 The host and port are compile-time settings: \`nimble build -y -d:port=8081 -d:host=127.0.0.1\`.
+HappyX serves with its built-in multi-threaded server; \`-d:stdserver\`, \`-d:httpx\` or \`-d:micro\` select another backend.
 Set \`JWT_SECRET\` in production; the built-in default is only for local development.
 
 ## Layout

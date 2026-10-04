@@ -116,14 +116,25 @@ router appRouter:
 
 proc main() =
   let port = Port(parseInt(getEnv("PORT", "5000")))
-  # The in-memory store is shared by every request, so serve from one thread.
-  let settings = newSettings(port = port, bindAddr = "0.0.0.0", numThreads = 1)
+  # src/config.nims selects Nim's asynchttpserver (-d:useStdLib), so requests
+  # are served by a single-threaded event loop.
+  let settings = newSettings(port = port, bindAddr = "0.0.0.0")
   var server = initJester(appRouter, settings = settings)
   echo "Listening on http://localhost:" & $port.int
   server.serve()
 
 when isMainModule:
   main()
+`,
+
+    'src/config.nims': `# Compiler settings for the server (read by nim when it compiles
+# src/{{projectNameSnake}}.nim, so they apply to \`nimble build\` and \`nimble run\`).
+
+# Serve with Nim's own asynchttpserver instead of httpbeast. Jester picks
+# httpbeast by default on Linux, and httpbeast's multi-threaded event loop is
+# known to crash under ORC, the default memory manager of Nim 2
+# (dom96/httpbeast#80, dom96/jester#333).
+switch("define", "useStdLib")
 `,
 
     'src/{{projectNameSnake}}/api.nim': `## Transport independent API layer: every handler takes plain strings and
@@ -709,7 +720,8 @@ RUN nimble build -y -d:release
 # Runtime stage
 FROM alpine:3.20
 
-RUN apk add --no-cache libgcc \\
+# Jester uses std/re, which loads the PCRE library when the server starts.
+RUN apk add --no-cache libgcc pcre \\
     && adduser -D -g '' appuser
 
 WORKDIR /app
@@ -831,6 +843,7 @@ Set \`JWT_SECRET\` in production; the built-in default is only for local develop
 ## Layout
 
 - \`src/{{projectNameSnake}}.nim\` - Jester routes (HTTP only)
+- \`src/config.nims\` - compiler settings: Jester serves with Nim's asynchttpserver (\`-d:useStdLib\`) rather than httpbeast
 - \`src/{{projectNameSnake}}/api.nim\` - request handling and in-memory state
 - \`src/{{projectNameSnake}}/security.nim\` - JWT and password hashing (standard library only)
 - \`tests/\` - unit tests for the API layer and the security helpers
