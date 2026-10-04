@@ -772,6 +772,22 @@ setTimeout(() => process.exit(0), 200);`,
   });
 });
 
+/** Listen on a fresh loopback port and return it with a closer. */
+async function listenOnFreePort(): Promise<{ port: number; close: () => Promise<void> }> {
+  const server = net.createServer();
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = (server.address() as net.AddressInfo).port;
+  return {
+    port,
+    close: () => (server.listening ? new Promise<void>(resolve => server.close(() => resolve())) : Promise.resolve()),
+  };
+}
+
+// A released ephemeral port can be handed straight to a parallel test (or a probe can
+// self-connect to it), so "closed" checks retry on a fresh port. A probe that wrongly
+// reported every closed port as open would still fail all attempts.
+const CLOSED_PORT_ATTEMPTS = 5;
+
 describe('probes', () => {
   it('probePort / probeUrl see a live listener and a closed port', async () => {
     const { probePort, probeUrl } = await import('../../src/utils/service-process');
@@ -789,20 +805,32 @@ describe('probes', () => {
     } finally {
       await new Promise<void>(resolve => server.close(() => resolve()));
     }
-    expect(await probePort(port)).toBe(false);
+
+    let sawClosed = false;
+    for (let attempt = 0; attempt < CLOSED_PORT_ATTEMPTS && !sawClosed; attempt += 1) {
+      const fresh = await listenOnFreePort();
+      await fresh.close();
+      sawClosed = !(await probePort(fresh.port));
+    }
+    expect(sawClosed).toBe(true);
   });
 
   it('waitForPortRelease waits for a closing listener and times out on a held one', async () => {
     const { waitForPortRelease } = await import('../../src/utils/service-process');
-    const server = net.createServer();
-    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
-    const port = (server.address() as net.AddressInfo).port;
+    const held = await listenOnFreePort();
     try {
-      expect(await waitForPortRelease(port, 150, 20)).toBe(false);
-      setTimeout(() => server.close(), 100);
-      expect(await waitForPortRelease(port, 5000, 20)).toBe(true);
+      expect(await waitForPortRelease(held.port, 150, 20)).toBe(false);
     } finally {
-      if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
+      await held.close();
     }
+
+    let released = false;
+    for (let attempt = 0; attempt < CLOSED_PORT_ATTEMPTS && !released; attempt += 1) {
+      const closing = await listenOnFreePort();
+      setTimeout(() => void closing.close(), 100);
+      released = await waitForPortRelease(closing.port, 2000, 20);
+      await closing.close();
+    }
+    expect(released).toBe(true);
   });
 });
