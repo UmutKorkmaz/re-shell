@@ -34,6 +34,7 @@ import {
   runCompose,
   startServiceProcess,
   stopServiceProcess,
+  waitForPortRelease,
   type ComposeCommand,
   type ComposeContainer,
   type ServiceProcessRecord,
@@ -1276,6 +1277,10 @@ export async function servicesRestart(
       );
     }
     await removeServiceState(projectPath, service);
+    // The group can be reported gone while its exiting threads still hold the
+    // listening socket; give the port a moment so the start-time "port in use"
+    // check does not race the old process. A port that stays taken still fails there.
+    if (svcConfig.port !== undefined) await waitForPortRelease(svcConfig.port, Math.min(timeout, 5000));
   }
 
   const record = await startServiceProcess(

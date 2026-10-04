@@ -791,4 +791,18 @@ describe('probes', () => {
     }
     expect(await probePort(port)).toBe(false);
   });
+
+  it('waitForPortRelease waits for a closing listener and times out on a held one', async () => {
+    const { waitForPortRelease } = await import('../../src/utils/service-process');
+    const server = net.createServer();
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as net.AddressInfo).port;
+    try {
+      expect(await waitForPortRelease(port, 150, 20)).toBe(false);
+      setTimeout(() => server.close(), 100);
+      expect(await waitForPortRelease(port, 5000, 20)).toBe(true);
+    } finally {
+      if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+  });
 });

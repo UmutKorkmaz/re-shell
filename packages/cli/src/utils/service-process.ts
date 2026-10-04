@@ -538,6 +538,19 @@ export async function probePort(
   return false;
 }
 
+/**
+ * Wait until nothing accepts connections on `port`, polling every `pollMs` for at
+ * most `timeoutMs`. Resolves `true` once the port is released, `false` on timeout.
+ */
+export async function waitForPortRelease(port: number, timeoutMs: number, pollMs = 50): Promise<boolean> {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  while (await probePort(port)) {
+    if (Date.now() >= deadline) return false;
+    await sleep(Math.min(pollMs, Math.max(1, deadline - Date.now())));
+  }
+  return true;
+}
+
 /** True when a GET on `url` answers with a 2xx/3xx status. */
 export function probeUrl(url: string, timeoutMs = 2000): Promise<boolean> {
   return new Promise(resolve => {
