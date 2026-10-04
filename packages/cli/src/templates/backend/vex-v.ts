@@ -131,7 +131,7 @@ REST API written in [V](https://vlang.io) on the [vex](https://github.com/nedpal
 
 ## About vex
 
-vex is an Express-like router for V. It is not published as a release and its last commit (December 2023) predates V 0.5, so on current V two statements in \`ctx/ctx.v\` do not compile and one call is deprecated. \`scripts/setup-vex.sh\` fetches the pinned commit into \`src/modules/nedpals/vex\` and applies those three one-line fixes; run it once (\`make deps\` does that). The app uses vex's router, middleware and \`Req\`/\`Resp\` types. vex's own server is single-threaded and IPv6-only, so \`src/serve.v\` runs a small threaded HTTP/1.1 server around the router instead.
+vex is an Express-like router for V. It is not published as a release and its last commit (December 2023) predates V 0.5, so on current V two statements in \`ctx/ctx.v\` do not compile and one call is deprecated. \`scripts/setup-vex.sh\` fetches the pinned commit into \`src/modules/nedpals/vex\` and applies those three one-line fixes; run it once (\`make deps\` does that). The app uses vex's router, middleware and \`Req\`/\`Resp\` types. vex's own server is single-threaded and IPv6-only, so \`src/serve.v\` runs a small threaded HTTP/1.1 server around the router instead. It rejects malformed \`Content-Length\` headers (400) and oversized bodies (413), and answers unknown routes with a JSON 404 (vex's router would echo the request headers back as response headers).
 
 If you want a framework that ships with V and is maintained, see the \`vweb\` template (veb).
 
@@ -255,6 +255,7 @@ echo "vex $VEX_COMMIT installed in src/modules/nedpals/vex"
     'src/app_test.v': `module main
 
 import json
+import net
 import net.http
 import time
 
@@ -287,6 +288,19 @@ fn authed(method http.Method, path string, token string, data string) !http.Resp
 	)
 }
 
+// raw_request sends a hand-written HTTP request and returns the raw response.
+fn raw_request(text string) !string {
+	mut conn := net.dial_tcp('127.0.0.1:\${test_port}')!
+	defer {
+		conn.close() or {}
+	}
+	conn.set_read_timeout(2 * time.second)
+	conn.write_string(text)!
+	mut buf := []u8{len: 4096}
+	n := conn.read(mut buf)!
+	return buf[..n].bytestr()
+}
+
 fn register(email string) !AuthResponse {
 	body := '{"email":"\${email}","name":"Test User","password":"password123"}'
 	resp := http.post_json('\${base_url}/api/v1/auth/register', body)!
@@ -309,6 +323,22 @@ fn test_unknown_route_is_404_and_does_not_echo_headers() {
 	)!
 	assert resp.status_code == 404
 	assert !resp.header.contains(.authorization)
+	assert resp.body.contains('"error":"Not Found"')
+	// not even when the request carries the names of vex's own default headers
+	raw :=
+		raw_request('GET /nope HTTP/1.1\\r\\nHost: x\\r\\nX-Powered-By: x\\r\\nX-Evil: injected\\r\\n\\r\\n')!
+	assert raw.starts_with('HTTP/1.1 404')
+	assert !raw.contains('X-Evil')
+}
+
+fn test_malformed_content_length_is_rejected() {
+	for length in ['-1', 'abc', '99999999999'] {
+		raw :=
+			raw_request('POST /graphql HTTP/1.1\\r\\nHost: x\\r\\nContent-Length: \${length}\\r\\n\\r\\n')!
+		assert raw.starts_with('HTTP/1.1 400') || raw.starts_with('HTTP/1.1 413'), raw
+	}
+	// the server is still running
+	assert http.get('\${base_url}/api/v1/health')!.status_code == 200
 }
 
 fn test_graphql() {
@@ -795,7 +825,6 @@ import nedpals.vex.router
 
 const crlf = '\\r\\n'
 const max_body_bytes = 1 << 20
-const fallback_headers = '\${crlf}Content-Type: text/plain; charset=UTF-8'.bytes()
 
 // serve runs a small threaded HTTP/1.1 server around a vex router. vex ships its own
 // server, but it is single-threaded, only binds to IPv6 and waits for the connection to
@@ -823,7 +852,7 @@ fn handle_connection(r &router.Router, conn &net.TcpConn) {
 	request_line := reader.read_line() or { return }
 	parts := request_line.split(' ')
 	if parts.len < 2 {
-		write_response(mut c, 400, fallback_headers, 'Bad Request'.bytes())
+		write_error(mut c, 400)
 		return
 	}
 	mut raw_headers := []string{}
@@ -834,12 +863,15 @@ fn handle_connection(r &router.Router, conn &net.TcpConn) {
 			break
 		}
 		if line.to_lower().starts_with('content-length:') {
-			content_length = line.all_after(':').trim_space().int()
+			content_length = parse_content_length(line.all_after(':')) or {
+				write_error(mut c, 400)
+				return
+			}
 		}
 		raw_headers << line
 	}
 	if content_length > max_body_bytes {
-		write_response(mut c, 413, fallback_headers, 'Payload Too Large'.bytes())
+		write_error(mut c, 413)
 		return
 	}
 	mut body := []u8{len: content_length}
@@ -854,20 +886,46 @@ fn handle_connection(r &router.Router, conn &net.TcpConn) {
 	method := parts[0]
 	if method == 'OPTIONS' {
 		// CORS preflight: answered for every path, no route needed
-		mut headers := ''
-		for name, value in cors_headers {
-			headers += '\${crlf}\${name}: \${value}'
-		}
-		write_response(mut c, 204, headers.bytes(), []u8{})
+		write_response(mut c, 204, cors_header_lines().bytes(), []u8{})
 		return
 	}
 	status, headers, response_body := r.receive(method, parts[1], raw_headers, body)
-	if !headers.bytestr().contains('X-Powered-By') {
-		// the router answers unknown routes with the raw request headers; never echo them back
-		write_response(mut c, status, fallback_headers, response_body)
+	if headers.bytestr() == crlf + raw_headers.join(crlf) {
+		// vex answers unknown routes (and unparsable URLs) with the raw request headers as
+		// the response headers: never send those back, answer with a JSON error instead
+		write_error(mut c, status)
 		return
 	}
 	write_response(mut c, status, headers, response_body)
+}
+
+// parse_content_length accepts only a plain decimal number. Anything else (a negative
+// value in particular, which would make the body buffer panic and stop the whole server)
+// is a bad request.
+fn parse_content_length(value string) ?int {
+	digits := value.trim_space()
+	if digits.len == 0 || !digits.bytes().all(it.is_digit()) {
+		return none
+	}
+	if digits.len > 9 {
+		// too large anyway, and it would not fit an int
+		return max_body_bytes + 1
+	}
+	return digits.int()
+}
+
+fn cors_header_lines() string {
+	mut lines := ''
+	for name, value in cors_headers {
+		lines += '\${crlf}\${name}: \${value}'
+	}
+	return lines
+}
+
+// write_error sends a JSON error response that carries the CORS headers.
+fn write_error(mut c net.TcpConn, status int) {
+	headers := '\${crlf}Content-Type: application/json\${cors_header_lines()}'
+	write_response(mut c, status, headers.bytes(), '{"error":"\${status_text(status)}"}'.bytes())
 }
 
 fn write_response(mut c net.TcpConn, status int, headers []u8, body []u8) {
@@ -889,6 +947,7 @@ fn status_text(status int) string {
 		400 { 'Bad Request' }
 		401 { 'Unauthorized' }
 		404 { 'Not Found' }
+		405 { 'Method Not Allowed' }
 		409 { 'Conflict' }
 		413 { 'Payload Too Large' }
 		else { 'Internal Server Error' }
