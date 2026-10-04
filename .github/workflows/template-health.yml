@@ -166,12 +166,15 @@ jobs:
         uses: julia-actions/setup-julia@v2
         with:
           version: '1.11'
-      # Jester, Prologue and HappyX: Nim 2.2 with nimble, which fetches the packages
+      # Jester, Prologue and HappyX: Nim 2.0 with nimble, which fetches the packages
       # from the Nim package index and GitHub. Nim goes to runner.temp, not into the checkout.
+      # Pinned to 2.0.x: the nimble bundled with Nim 2.2 (0.24, SAT solver) finds no solution
+      # for happyx 4.7.4 even on its own, while Nim 2.0.16's nimble 0.16.4 resolves it; all three
+      # templates build and pass their tests with Nim 2.0.16 (jester and prologue also with 2.2.12).
       - if: matrix.group == 'nim'
         uses: jiro4989/setup-nim-action@v2
         with:
-          nim-version: '2.2.x'
+          nim-version: '2.0.x'
           parent-nim-install-directory: ${{ runner.temp }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       # Crystal (Kemal, Lucky, Amber): the templates are verified on Crystal 1.21.1 (Amber 1.5 needs
