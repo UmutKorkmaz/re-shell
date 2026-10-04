@@ -210,17 +210,19 @@ observabilityIncluded = false
 graphqlPort = 9090
 `,
 
-    // Dockerfile
-    'Dockerfile': `FROM ballerina/ballerina:latest AS build
+    // Dockerfile. Multi-stage: bal build in the Ballerina image (as root, so bal can write target/ next to the
+    // root-owned sources; the image's default user is a non-root "ballerina"), then run the jar on a JRE.
+    'Dockerfile': `FROM ballerina/ballerina:2201.13.6 AS build
 
-WORKDIR /home/ballerina/src
-COPY --chown=ballerina:ballerina . .
+USER root
+WORKDIR /src
+COPY . .
 RUN bal build
 
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
-COPY --from=build /home/ballerina/src/target/bin/{{projectNameSnake}}.jar app.jar
+COPY --from=build /src/target/bin/{{projectNameSnake}}.jar app.jar
 
 ENV BAL_CONFIG_VAR_PORT=8080
 ENV BAL_CONFIG_VAR_GRAPHQLPORT=9090

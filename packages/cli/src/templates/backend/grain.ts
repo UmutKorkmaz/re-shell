@@ -77,7 +77,7 @@ provide let handle = (method: String, path: String) => {
     'src/main.gr': `module Main
 
 from "list" include List
-from "./router" include Router
+from "./router.gr" include Router
 
 // {{projectName}}: Grain compiles to WebAssembly (WASI). Grain's standard library
 // has no sockets, so this program routes sample requests in-process; embed
@@ -97,30 +97,32 @@ List.forEach((request) => {
 }, requests)
 `,
 
-    // Tests: assertions trap (non-zero exit) when they fail
+    // Tests: a failed assert throws an AssertionError, which ends the run with a non-zero exit
     'tests/router_test.gr': `module RouterTest
 
-from "../src/router" include Router
+from "../src/router.gr" include Router
 
-let (healthStatus, healthBody) = Router.handle("GET", "/health")
-assert (healthStatus == 200)
-assert (healthBody == "{\\"status\\":\\"healthy\\"}")
+// Prints the actual response on a mismatch, then fails the run.
+let check = (method: String, path: String, status: Number, body: String) => {
+  let (actualStatus, actualBody) = Router.handle(method, path)
+  if (actualStatus != status || actualBody != body) {
+    print(
+      "FAIL " ++ method ++ " " ++ path ++ ": got " ++ toString(actualStatus) ++ " " ++ actualBody
+    )
+  }
+  assert (actualStatus == status && actualBody == body)
+}
 
-let (listStatus, listBody) = Router.handle("GET", "/products")
-assert (listStatus == 200)
-assert (listBody == "[{\\"id\\":1,\\"name\\":\\"Keyboard\\",\\"price\\":80},{\\"id\\":2,\\"name\\":\\"Mouse\\",\\"price\\":30},{\\"id\\":3,\\"name\\":\\"Monitor\\",\\"price\\":200}]")
-
-let (oneStatus, oneBody) = Router.handle("GET", "/products/2")
-assert (oneStatus == 200)
-assert (oneBody == "{\\"id\\":2,\\"name\\":\\"Mouse\\",\\"price\\":30}")
-
-let (missingStatus, missingBody) = Router.handle("GET", "/products/42")
-assert (missingStatus == 404)
-assert (missingBody == "{\\"error\\":\\"not found\\"}")
-
-let (postStatus, postBody) = Router.handle("POST", "/products")
-assert (postStatus == 405)
-assert (postBody == "{\\"error\\":\\"method not allowed\\"}")
+check("GET", "/health", 200, "{\\"status\\":\\"healthy\\"}")
+check(
+  "GET",
+  "/products",
+  200,
+  "[{\\"id\\":1,\\"name\\":\\"Keyboard\\",\\"price\\":80},{\\"id\\":2,\\"name\\":\\"Mouse\\",\\"price\\":30},{\\"id\\":3,\\"name\\":\\"Monitor\\",\\"price\\":200}]"
+)
+check("GET", "/products/2", 200, "{\\"id\\":2,\\"name\\":\\"Mouse\\",\\"price\\":30}")
+check("GET", "/products/42", 404, "{\\"error\\":\\"not found\\"}")
+check("POST", "/products", 405, "{\\"error\\":\\"method not allowed\\"}")
 
 print("router tests passed")
 `,
@@ -129,7 +131,7 @@ print("router tests passed")
     '.gitignore': `# Build output
 build/
 *.wasm
-*.gr.wasm
+*.gro
 
 # IDE
 .vscode/
@@ -152,7 +154,7 @@ Grain's standard library does not include sockets, so \`src/main.gr\` routes a f
 
 ## Requirements
 
-- The Grain toolchain (https://grain-lang.org/docs/getting_grain), which provides the \`grain\` command
+- Grain 0.6 or newer (https://grain-lang.org/docs/getting_grain), which provides the \`grain\` command
 
 ## Build and run
 
@@ -164,7 +166,7 @@ grain run build/main.wasm
 
 ## Test
 
-The tests use \`assert\`, which traps (non-zero exit) on failure.
+The tests use \`assert\`: a failed assertion throws an \`AssertionError\` and the run exits with a non-zero status.
 
 \`\`\`bash
 grain compile tests/router_test.gr -o build/router_test.wasm

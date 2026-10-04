@@ -28,7 +28,8 @@ export const unisonTemplate: BackendTemplate = {
 type Product = { productId : Nat, name : Text, price : Nat }
 
 productCatalog : [Product]
-productCatalog = [Product 1 "Keyboard" 80, Product 2 "Mouse" 30, Product 3 "Monitor" 200]
+productCatalog =
+  [Product.Product 1 "Keyboard" 80, Product.Product 2 "Mouse" 30, Product.Product 3 "Monitor" 200]
 
 productJson : Product -> Text
 productJson p =
@@ -64,7 +65,7 @@ routeGet path =
 -- Routes one request to a (status code, JSON body) pair.
 routeRequest : Text -> Text -> (Nat, Text)
 routeRequest method path =
-  if method != "GET" then (405, errorJson "method not allowed") else routeGet path
+  if method == "GET" then routeGet path else (405, errorJson "method not allowed")
 
 printResponses : [(Text, Text)] ->{IO, Exception} ()
 printResponses requests = match requests with
