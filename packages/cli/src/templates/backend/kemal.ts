@@ -17,7 +17,9 @@ export const kemalTemplate: BackendTemplate = {
     '.env.example': `# Copy to .env and export before running (the app reads the process environment)
 PORT=3000
 HOST=0.0.0.0
-JWT_SECRET=change-me-in-production
+KEMAL_ENV=development
+# Required when KEMAL_ENV=production, for example the output of: openssl rand -hex 32
+JWT_SECRET=
 `,
 
     '.gitignore': `/lib/
@@ -41,17 +43,20 @@ JWT_SECRET=change-me-in-production
       - "3000:3000"
     environment:
       PORT: "3000"
-      JWT_SECRET: \${JWT_SECRET:-development-secret}
+      # Required: the image runs with KEMAL_ENV=production, which refuses the development secret.
+      JWT_SECRET: \${JWT_SECRET:?set JWT_SECRET to a long random string}
     restart: unless-stopped
 `,
 
     'Dockerfile': `# Build stage
-FROM crystallang/crystal:1.18.2-alpine AS builder
+FROM crystallang/crystal:1.21.1-alpine AS builder
 
 WORKDIR /app
 
+# shard.lock is written by the first \`shards install\`; commit it to pin the versions.
+# Without one, the newest versions shard.yml allows are installed.
 COPY shard.yml shard.lock* ./
-RUN shards install --production
+RUN if [ -f shard.lock ]; then shards install --production; else shards install --without-development; fi
 
 COPY src ./src
 RUN shards build --production --release --static --no-debug
@@ -65,6 +70,7 @@ USER appuser
 WORKDIR /app
 COPY --from=builder /app/bin/{{projectName}} ./{{projectName}}
 
+ENV KEMAL_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 
@@ -111,7 +117,7 @@ items resource, and specs written with spec-kemal.
 
 ## Requirements
 
-- Crystal >= 1.12 and \`shards\`
+- Crystal >= 1.19 and \`shards\` (the ameba development dependency needs 1.19)
 
 ## Getting started
 
@@ -120,8 +126,9 @@ shards install
 crystal run src/server.cr      # http://localhost:3000
 \`\`\`
 
-Configuration comes from environment variables (see \`.env.example\`): \`PORT\`, \`HOST\`
-and \`JWT_SECRET\`. Set a strong \`JWT_SECRET\` outside development.
+Configuration comes from environment variables (see \`.env.example\`): \`PORT\`, \`HOST\`,
+\`KEMAL_ENV\` and \`JWT_SECRET\`. With \`KEMAL_ENV=production\` the server refuses to start
+until \`JWT_SECRET\` is set (other environments fall back to a development secret).
 
 ## Development
 
@@ -157,8 +164,12 @@ Send \`Authorization: Bearer <token>\` to:
 
 \`\`\`bash
 docker build -t {{projectName}} .
-docker run -p 3000:3000 -e JWT_SECRET=change-me {{projectName}}
+docker run -p 3000:3000 -e JWT_SECRET="$(openssl rand -hex 32)" {{projectName}}
 \`\`\`
+
+The image runs with \`KEMAL_ENV=production\`. For \`docker compose up\`, put
+\`JWT_SECRET=<output of openssl rand -hex 32>\` in \`.env\` next to \`docker-compose.yml\`
+(Compose reads it automatically; \`.gitignore\` already excludes it).
 
 ## License
 
@@ -175,7 +186,7 @@ targets:
   {{projectName}}:
     main: src/server.cr
 
-crystal: ">= 1.12.0"
+crystal: ">= 1.19.0"
 
 license: MIT
 
@@ -217,6 +228,37 @@ describe "{{projectName}}" do
     get "/nope"
     response.status_code.should eq 404
     JSON.parse(response.body)["error"].should eq "not_found"
+  end
+
+  it "answers an unsupported method with a JSON 405" do
+    put "/api/items/1"
+    response.status_code.should eq 405
+    JSON.parse(response.body)["error"].should eq "method_not_allowed"
+  end
+
+  it "answers CORS preflight requests" do
+    options "/api/items", headers: HTTP::Headers{"Origin" => "http://localhost:5173", "Access-Control-Request-Method" => "POST"}
+    response.status_code.should eq 204
+    response.headers["Access-Control-Allow-Origin"].should eq "*"
+  end
+
+  describe "Token.configuration_error" do
+    it "refuses the development secret only in production" do
+      previous = ENV["JWT_SECRET"]?
+      begin
+        ENV.delete("JWT_SECRET")
+        Token.configuration_error.should be_nil
+
+        Kemal.config.env = "production"
+        Token.configuration_error.should_not be_nil
+
+        ENV["JWT_SECRET"] = "a-long-random-production-secret"
+        Token.configuration_error.should be_nil
+      ensure
+        Kemal.config.env = "test"
+        previous ? (ENV["JWT_SECRET"] = previous) : ENV.delete("JWT_SECRET")
+      end
+    end
   end
 
   describe "POST /api/auth/register" do
@@ -350,7 +392,7 @@ require "./token"
 before_all do |env|
   env.response.content_type = "application/json"
   env.response.headers["Access-Control-Allow-Origin"] = "*"
-  env.response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+  env.response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
   env.response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
 
   # Answer CORS preflight requests without needing a route per path.
@@ -359,6 +401,10 @@ end
 
 error 404 do
   ErrorResponse.new("not_found", "Resource not found").to_json
+end
+
+error 405 do
+  ErrorResponse.new("method_not_allowed", "Method not allowed").to_json
 end
 
 error 500 do
@@ -596,6 +642,10 @@ end
 
     'src/server.cr': `require "./app"
 
+if error = Token.configuration_error
+  abort error
+end
+
 port = ENV.fetch("PORT", "3000").to_i
 Kemal.config.host_binding = ENV.fetch("HOST", "0.0.0.0")
 
@@ -672,7 +722,8 @@ module Store
 end
 `,
 
-    'src/token.cr': `require "jwt"
+    'src/token.cr': `require "kemal"
+require "jwt"
 require "./models"
 
 # Issues and verifies HS256 JSON Web Tokens.
@@ -680,8 +731,18 @@ module Token
   ALGORITHM = JWT::Algorithm::HS256
   TTL       = 24.hours
 
+  # Used when JWT_SECRET is unset; refused when KEMAL_ENV=production.
+  DEVELOPMENT_SECRET = "development-secret-do-not-use-in-production"
+
   def self.secret : String
-    ENV.fetch("JWT_SECRET", "change-me-in-production")
+    ENV["JWT_SECRET"]?.presence || DEVELOPMENT_SECRET
+  end
+
+  # Why the server must not start, or nil when the configuration is usable.
+  def self.configuration_error : String?
+    if Kemal.config.env == "production" && secret == DEVELOPMENT_SECRET
+      "JWT_SECRET must be set when KEMAL_ENV=production (for example: openssl rand -hex 32)"
+    end
   end
 
   def self.issue(user_id : Int32) : TokenResponse
