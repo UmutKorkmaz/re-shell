@@ -80,7 +80,7 @@ service /api on apiListener {
 
     # Liveness probe.
     resource function get health() returns json {
-        return {status: "healthy", service: "{{projectName}}"};
+        return {status: "healthy", 'service: "{{projectName}}"};
     }
 
     # Lists every product.
