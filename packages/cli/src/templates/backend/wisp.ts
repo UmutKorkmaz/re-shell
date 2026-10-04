@@ -12,7 +12,7 @@ export const wispTemplate: BackendTemplate = {
   tags: ['gleam', 'wisp', 'web', 'api', 'rest', 'beam', 'erlang', 'functional'],
   features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation'],
   dependencies: {
-    gleam_stdlib: '>= 0.60.0 and < 2.0.0',
+    gleam_stdlib: '>= 1.0.0 and < 2.0.0',
     gleam_http: '>= 4.0.0 and < 5.0.0',
     gleam_json: '>= 3.0.0 and < 4.0.0',
     gleam_crypto: '>= 1.5.0 and < 2.0.0',
@@ -28,10 +28,11 @@ export const wispTemplate: BackendTemplate = {
 version = "0.1.0"
 description = "{{description}}"
 target = "erlang"
-gleam = ">= 1.11.0"
+# The current gleam_stdlib, gleam_json and gleeunit releases need Gleam 1.14 or later.
+gleam = ">= 1.14.0"
 
 [dependencies]
-gleam_stdlib = ">= 0.60.0 and < 2.0.0"
+gleam_stdlib = ">= 1.0.0 and < 2.0.0"
 gleam_http = ">= 4.0.0 and < 5.0.0"
 gleam_json = ">= 3.0.0 and < 4.0.0"
 gleam_crypto = ">= 1.5.0 and < 2.0.0"
@@ -115,8 +116,6 @@ now_seconds() ->
 `,
 
     'src/{{projectNameSnake}}.gleam': `import gleam/erlang/process
-import gleam/int
-import gleam/io
 import mist
 import wisp
 import wisp/wisp_mist
@@ -129,15 +128,14 @@ pub fn main() -> Nil {
   wisp.configure_logger()
   store.init()
 
-  let port = config.port()
-
+  // Mist listens on localhost unless told otherwise; bind every interface so
+  // the server is reachable from outside a container. Mist logs the address.
   let assert Ok(_) =
     wisp_mist.handler(router.handle_request, config.secret_key_base())
     |> mist.new
-    |> mist.port(port)
+    |> mist.bind("0.0.0.0")
+    |> mist.port(config.port())
     |> mist.start
-
-  io.println("{{projectName}} listening on http://localhost:" <> int.to_string(port))
 
   process.sleep_forever()
 }
@@ -930,15 +928,19 @@ Thumbs.db
 logs/
 `,
 
-    'Dockerfile': `# Build stage
-FROM ghcr.io/gleam-lang/gleam:v1.13.0-erlang-alpine AS builder
+    'Dockerfile': `# The runtime stage uses the same image as the build stage so the Erlang/OTP
+# release that compiled the BEAM files is the one that runs them.
+ARG GLEAM_IMAGE=ghcr.io/gleam-lang/gleam:v1.14.0-erlang-alpine
+
+# Build stage
+FROM \${GLEAM_IMAGE} AS builder
 
 WORKDIR /app
 COPY . .
 RUN gleam export erlang-shipment
 
 # Runtime stage
-FROM erlang:27-alpine
+FROM \${GLEAM_IMAGE}
 
 WORKDIR /app
 COPY --from=builder /app/build/erlang-shipment ./
@@ -981,8 +983,9 @@ A Gleam web application built with the Wisp framework (served by Mist), running 
 
 ## Requirements
 
-- Gleam >= 1.11
-- Erlang/OTP 26+
+- Gleam >= 1.14
+- Erlang/OTP 27+ (\`gleam_json\` uses the \`json\` module added in OTP 27)
+- rebar3 (Gleam uses it to compile the Erlang dependencies)
 
 ## Getting started
 

@@ -30,7 +30,8 @@ export const plugExTemplate: BackendTemplate = {
     [
       app: :{{projectNameSnake}},
       version: "0.1.0",
-      elixir: "~> 1.15",
+      # Absinthe 1.12 needs Elixir 1.17 or later
+      elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -565,7 +566,11 @@ end
 `,
 
     // Dockerfile
-    'Dockerfile': `FROM elixir:1.17-alpine AS build
+    'Dockerfile': `# The release bundles the Erlang runtime, which is linked against the build
+# image's system libraries (OpenSSL, ncurses, musl), so it runs on the same image.
+ARG ELIXIR_IMAGE=elixir:1.17-alpine
+
+FROM \${ELIXIR_IMAGE} AS build
 ENV MIX_ENV=prod
 WORKDIR /app
 RUN mix local.hex --force && mix local.rebar --force
@@ -575,8 +580,7 @@ RUN mix deps.get --only prod && mix deps.compile
 COPY lib lib
 RUN mix release
 
-FROM alpine:3.20
-RUN apk add --no-cache libstdc++ openssl ncurses-libs
+FROM \${ELIXIR_IMAGE}
 WORKDIR /app
 COPY --from=build /app/_build/prod/rel/{{projectNameSnake}} ./
 ENV PORT=4000
@@ -700,7 +704,7 @@ Composable REST + GraphQL API built with Plug for Elixir.
 
 ## Requirements
 
-- Elixir 1.15+
+- Elixir 1.17+ (required by Absinthe 1.12)
 - Erlang/OTP 26+
 
 ## Quick Start

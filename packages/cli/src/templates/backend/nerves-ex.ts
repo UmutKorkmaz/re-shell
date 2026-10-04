@@ -11,11 +11,13 @@ export const nervesExTemplate: BackendTemplate = {
   tags: ['elixir', 'nerves', 'iot', 'microservices', 'firmware', 'hardware'],
   port: 4000,
   dependencies: {
-    'nerves': '~> 1.11',
-    'shoehorn': '~> 0.9',
-    'ring_logger': '~> 0.11',
-    'nerves_runtime': '~> 0.13',
-    'nerves_pack': '~> 0.7',
+    'nerves': '~> 1.13',
+    'shoehorn': '~> 0.9.1',
+    'logger_backends': '~> 1.0',
+    'ring_logger': '~> 0.11.0',
+    'toolshed': '~> 0.5.0',
+    'nerves_runtime': '~> 0.13.12',
+    'nerves_pack': '~> 0.7.1',
     'plug': '~> 1.16',
     'plug_cowboy': '~> 2.7',
     'plug_crypto': '~> 2.0',
@@ -38,19 +40,13 @@ export const nervesExTemplate: BackendTemplate = {
     [
       app: @app,
       version: @version,
-      elixir: "~> 1.15",
+      # The Nerves systems (and Absinthe) need Elixir 1.17 or later
+      elixir: "~> 1.17",
       archives: [nerves_bootstrap: "~> 1.13"],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      releases: [{@app, release()}],
-      aliases: [loadconfig: [&bootstrap/1]]
+      releases: [{@app, release()}]
     ]
-  end
-
-  # Starting nerves_bootstrap adds the required Nerves hooks to Mix
-  defp bootstrap(args) do
-    Application.start(:nerves_bootstrap)
-    Mix.Task.run("loadconfig", args)
   end
 
   def application do
@@ -60,22 +56,31 @@ export const nervesExTemplate: BackendTemplate = {
     ]
   end
 
+  # \`mix run\` and \`mix test\` always use the host, even when MIX_TARGET names a board.
+  def cli do
+    [preferred_targets: [run: :host, test: :host]]
+  end
+
   defp deps do
     [
       # Dependencies for all targets
-      {:nerves, "~> 1.11", runtime: false},
-      {:shoehorn, "~> 0.9"},
-      {:ring_logger, "~> 0.11"},
+      {:nerves, "~> 1.13", runtime: false},
+      {:shoehorn, "~> 0.9.1"},
+      {:logger_backends, "~> 1.0"},
+      {:ring_logger, "~> 0.11.0"},
+      {:toolshed, "~> 0.5.0"},
 
-      # Allows Nerves.Runtime to run on the host for development, testing and CI
-      {:nerves_runtime, "~> 0.13"},
+      # Allows Nerves.Runtime on the host for development, testing and CI.
+      # See config/host.exs for usage.
+      {:nerves_runtime, "~> 0.13.12"},
 
       # Dependencies for all targets except :host
-      {:nerves_pack, "~> 0.7", targets: @all_targets},
+      {:nerves_pack, "~> 0.7.1", targets: @all_targets},
 
-      # Nerves systems (one per board)
-      {:nerves_system_rpi0, "~> 2.1", runtime: false, targets: :rpi0},
-      {:nerves_system_rpi4, "~> 2.1", runtime: false, targets: :rpi4},
+      # Nerves systems (one per board). Each ships its own Linux kernel and
+      # Erlang/OTP release; review their release notes when updating.
+      {:nerves_system_rpi0, "~> 2.0", runtime: false, targets: :rpi0},
+      {:nerves_system_rpi4, "~> 2.0", runtime: false, targets: :rpi4},
 
       # HTTP API
       {:plug, "~> 1.16"},
@@ -91,7 +96,7 @@ export const nervesExTemplate: BackendTemplate = {
     [
       overwrite: true,
       # Erlang distribution is not started automatically.
-      # See https://hexdocs.pm/nerves_pack/readme.html#erlang-distribution
+      # See https://nerves-pack.hexdocs.pm/readme.html#erlang-distribution
       cookie: "#{@app}_cookie",
       include_erts: &Nerves.Release.erts/0,
       steps: [&Nerves.Release.init/1, :assemble],
@@ -102,13 +107,15 @@ end
 `,
 
     '.formatter.exs': `[
-  inputs: ["*.{ex,exs}", "{config,lib,test}/**/*.{ex,exs}"]
+  inputs: ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}", "rootfs_overlay/etc/iex.exs"]
 ]
 `,
 
     '.gitignore': `/_build/
+/cover/
 /deps/
 /doc/
+/tmp/
 /.fetch
 erl_crash.dump
 *.ez
@@ -443,19 +450,23 @@ end
 # dependencies. It is loaded for every MIX_TARGET (host and boards).
 import Config
 
+# Enable the Nerves integration with Mix
+Application.start(:nerves_bootstrap)
+
 config :{{projectNameSnake}},
   target: Mix.target(),
   port: 4000,
   seed_admin: nil
 
 # Customize non-Elixir parts of the firmware. See
-# https://hexdocs.pm/nerves/advanced-configuration.html for details.
+# https://nerves.hexdocs.pm/advanced-configuration.html for details.
 config :nerves, :firmware, rootfs_overlay: "rootfs_overlay"
 
 # Set the SOURCE_DATE_EPOCH date for reproducible builds.
 # See https://reproducible-builds.org/docs/source-date-epoch/ for more information
 config :nerves, source_date_epoch: "1700000000"
 
+# Development and test only: a fixed signing secret and the demo admin account.
 if config_env() == :dev do
   config :{{projectNameSnake}},
     secret_key_base: "dev-only-secret-key-base-change-me-0123456789abcdef",
@@ -479,29 +490,161 @@ end
     'config/host.exs': `import Config
 
 # Configuration that is only needed when running on the host (MIX_TARGET=host).
-# The development secret and demo admin are set in config/config.exs.
+
+config :nerves_runtime,
+  kv_backend:
+    {Nerves.Runtime.KVBackend.InMemory,
+     contents: %{
+       # On a device the KV store is read from the U-Boot environment; on the
+       # host a pre-populated in-memory store stands in for it.
+       # https://nerves-runtime.hexdocs.pm/readme.html#using-nerves_runtime-in-tests
+       "nerves_fw_active" => "a",
+       "a.nerves_fw_architecture" => "generic",
+       "a.nerves_fw_description" => "N/A",
+       "a.nerves_fw_platform" => "host",
+       "a.nerves_fw_version" => "0.0.0"
+     }}
+`,
+
+    'config/runtime.exs': `import Config
+
+# Log to RingLogger, an in-memory log (on the device: RingLogger.attach/0 or RingLogger.next/0).
+Application.ensure_all_started(:logger_backends)
+LoggerBackends.add(RingLogger)
 `,
 
     'config/target.exs': `import Config
 
 # Configuration that is only applied when building firmware for a board.
 
-# Shoehorn starts these applications first and keeps the device usable if the
-# application crashes. See https://hexdocs.pm/shoehorn/readme.html
-config :shoehorn,
-  init: [:nerves_runtime, :nerves_pack],
-  app: Mix.Project.config()[:app]
+# Use shoehorn to start the main application. See the shoehorn
+# library documentation for more control in ordering how OTP
+# applications are started and handling failures.
+config :shoehorn, init: [:nerves_runtime, :nerves_pack]
 
-# Use RingLogger as the logger backend and remove :console.
-# See https://hexdocs.pm/ring_logger/readme.html
-config :logger, backends: [RingLogger]
+# Enable the system startup guard to check that all OTP applications
+# started. If they didn't and you're on a Nerves system that supports
+# test runs of new firmware, the firmware automatically rolls back to the
+# previous version.
+config :nerves_runtime, startup_guard_enabled: true
 
-# Production firmware must set a real :secret_key_base; read it from
-# config/secrets.exs (git-ignored) or provision it with your own mechanism.
-if File.exists?(Path.join(__DIR__, "secrets.exs")), do: import_config("secrets.exs")
+# Advance the system clock on devices without a real-time clock.
+config :nerves, :erlinit, update_clock: true
+
+# The console logger is not started on the device; see config/runtime.exs.
+config :logger, :default_handler, false
+
+# SSH access (IEx prompt, and firmware updates over the network with \`mix upload\`).
+# See https://nerves-ssh.hexdocs.pm/readme.html
+keys =
+  System.user_home!()
+  |> Path.join(".ssh/id_{rsa,ecdsa,ed25519}.pub")
+  |> Path.wildcard()
+
+if keys == [],
+  do:
+    Mix.raise("""
+    No SSH public keys found in ~/.ssh. An ssh authorized key is needed to
+    log into the Nerves device and update firmware on it using ssh.
+    See your project's config/target.exs for this error message.
+    """)
+
+config :nerves_ssh,
+  authorized_keys: Enum.map(keys, &File.read!/1)
+
+# Networking with vintage_net. Set regulatory_domain to your 2-letter country
+# code (for example "US") to enable every WiFi channel allowed there.
+# See https://vintage-net.hexdocs.pm/readme.html
+config :vintage_net,
+  regulatory_domain: "00",
+  config: [
+    {"usb0", %{type: VintageNetDirect}},
+    {"eth0", %{type: VintageNetEthernet, ipv4: %{method: :dhcp}}},
+    {"wlan0", %{type: VintageNetWiFi}}
+  ]
+
+# Advertise the device as <hostname>.local and nerves.local over mDNS, together
+# with its SSH and HTTP API services.
+config :mdns_lite,
+  hosts: [:hostname, "nerves"],
+  ttl: 120,
+  services: [
+    %{protocol: "ssh", transport: "tcp", port: 22},
+    %{protocol: "sftp-ssh", transport: "tcp", port: 22},
+    %{protocol: "epmd", transport: "tcp", port: 4369},
+    %{protocol: "http", transport: "tcp", port: 4000}
+  ]
+
+# Firmware secrets live in config/secrets.exs (git-ignored), for example:
+#
+#     import Config
+#     config :{{projectNameSnake}}, secret_key_base: "<64+ random characters>"
+#
+# Development firmware falls back to the dev secret and demo admin from
+# config/config.exs; production firmware (MIX_ENV=prod) refuses to build without it.
+if File.exists?(Path.join(__DIR__, "secrets.exs")) do
+  import_config "secrets.exs"
+else
+  if config_env() == :prod do
+    Mix.raise("Production firmware needs config/secrets.exs with :secret_key_base (see config/target.exs)")
+  end
+end
 `,
 
-    'rootfs_overlay/etc/{{projectNameSnake}}-release': `{{projectName}}
+    // Copied into the firmware's root filesystem (IEx start-up script on the device)
+    'rootfs_overlay/etc/iex.exs': `NervesMOTD.print()
+
+# Add Toolshed helpers to the IEx session
+use Toolshed
+`,
+
+    // Erlang VM flags for the firmware release
+    'rel/vm.args.eex': `## Customize flags given to the VM: https://www.erlang.org/doc/apps/erts/erl_cmd.html
+
+## Do not set -name or -sname here. Prefer configuring them at runtime
+## Configure -setcookie in the mix.exs release section or at runtime
+
+## Use Ctrl-C to interrupt the current shell rather than invoking the emulator's
+## break handler and possibly exiting the VM.
++Bc
+
+## Require an initialization handshake within 10 minutes from the startup guard
+-env HEART_INIT_TIMEOUT 600
+
+# Allow time warps so that the Erlang system time can more closely match the
+# OS system time.
++C multi_time_warp
+
+# Load code as per the boot script since not using archives
+-code_path_choice strict
+
+## Disable scheduler busy wait to reduce idle CPU usage and avoid delaying
+## other OS processes.
++sbwt none
++sbwtdcpu none
++sbwtdio none
+
+## Save the shell history between reboots
+-kernel shell_history enabled
+
+## Enable heartbeat monitoring of the Erlang runtime system
+-heart -env HEART_BEAT_TIMEOUT 30
+
+## Start the Elixir shell
+-noshell
+-user elixir
+-run elixir start_cli
+
+## Enable colors in the shell
+-elixir ansi_enabled true
+
+## Options added after -extra are interpreted as plain arguments and can be
+## retrieved using :init.get_plain_arguments(). Options before the "--" are
+## interpreted by Elixir and anything afterwards is left around for other IEx
+## and user applications.
+-extra --no-halt
+--
+--dot-iex /etc/iex.exs
 `,
 
     // Host simulation image (firmware itself is built with \`mix firmware\` for a board target)
@@ -624,9 +767,11 @@ adding their \`nerves_system_*\` dependency.
 
 ## Requirements
 
-- Elixir 1.15+ and Erlang/OTP 26+
-- The Nerves bootstrap archive and the host tools it needs, see the
-  [Nerves installation guide](https://hexdocs.pm/nerves/installation.html)
+- Elixir 1.17+ and Erlang/OTP 26+ on the host (\`mix test\`, \`iex -S mix\`)
+- For firmware: the Erlang/OTP major version of the Nerves system you build for
+  (see the system's release notes), the host tools from the
+  [Nerves installation guide](https://nerves.hexdocs.pm/installation.html) and an
+  SSH public key in \`~/.ssh\` (\`config/target.exs\` installs it on the device)
 
 ## Quick Start (host)
 
@@ -648,13 +793,16 @@ mix firmware
 mix burn     # write to an SD card (or: mix upload for over-the-network updates)
 \`\`\`
 
-Set a real \`:secret_key_base\` for firmware builds in \`config/secrets.exs\` (git-ignored)
-and add \`:nerves_ssh\` / networking configuration for your device.
+Firmware built in the default \`dev\` environment uses the development secret and demo
+admin account. For production firmware (\`MIX_ENV=prod mix firmware\`) put a real
+\`:secret_key_base\` in \`config/secrets.exs\` (git-ignored; see \`config/target.exs\`).
+Networking (Ethernet with DHCP, USB gadget, WiFi), SSH and mDNS are configured in
+\`config/target.exs\`; the API is then reachable at \`http://nerves.local:4000\`.
 
 ## API Endpoints
 
 - \`GET /api/v1/health\` - Health check
-- \`POST /api/v1/auth/login\` - Login (the demo admin \`admin@nerves.local\` / \`admin123\` exists on the host in dev and test)
+- \`POST /api/v1/auth/login\` - Login (the demo admin \`admin@nerves.local\` / \`admin123\` is seeded in the dev and test environments)
 - \`GET /api/v1/sensors\` - List sensors
 - \`POST /api/v1/sensors/:id/read\` - Take a reading (bearer token required)
 - \`POST /graphql\` - GraphQL (\`hello\`, \`health\`, \`sensors\`)
