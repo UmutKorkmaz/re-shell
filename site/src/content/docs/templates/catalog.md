@@ -224,7 +224,7 @@ The 32 newly wired templates:
 | OCaml (`dune`, opam) | `dream-ocaml`, `opium-ocaml` | ci-only |
 | Clojure (Leiningen) | `compojure`, `luminus-clj`, `reitit-clj`, `pedestal-clj` | ci-only |
 | Elixir, Gleam (`mix`, `gleam`) | `plug-ex`, `nerves-ex`, `wisp` | ci-only |
-| Zig | `zap-zig` | ci-only (CI prints the hash of the fetched dependency; it must be pinned afterwards) |
+| Zig | `zap-zig` | ci-only (Zig 0.13.0; the Zap v0.8.0 dependency hash is pinned in `build.zig.zon`) |
 | Red | `red-http` | ci-only (Red/System, 32-bit toolchain) |
 | Grain, Ballerina, Unison | `grain`, `ballerina`, `unison` | ci-only |
 

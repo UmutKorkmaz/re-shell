@@ -22,7 +22,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Zap is fetched from build.zig.zon (see the README for pinning its hash).
+    // Zap is fetched from build.zig.zon, which pins its release URL and content hash.
     const zap = b.dependency("zap", .{
         .target = target,
         .optimize = optimize,
@@ -64,6 +64,7 @@ pub fn build(b: *std.Build) void {
     .dependencies = .{
         .zap = .{
             .url = "https://github.com/zigzap/zap/archive/refs/tags/v0.8.0.tar.gz",
+            .hash = "12209936c3333b53b53edcf453b1670babb9ae8c2197b1ca627c01e72670e20c1a21",
         },
     },
     .paths = .{
@@ -794,7 +795,7 @@ WORKDIR /app
 COPY build.zig build.zig.zon ./
 COPY src ./src
 
-# Record Zap's hash in build.zig.zon if it is not pinned yet (see README).
+# build.zig.zon pins Zap's hash; only record it if an edit removed the pin (see README).
 RUN grep -q '\\.hash = ' build.zig.zon \\
     || zig fetch --save=zap https://github.com/zigzap/zap/archive/refs/tags/v0.8.0.tar.gz
 
@@ -849,18 +850,18 @@ HTTP API built with [Zig](https://ziglang.org) 0.13 and the [Zap](https://github
 
 - Zig 0.13.0 (Zap v0.8.0 targets this release)
 
-## Pin the Zap hash (once)
+## Zap dependency pin
 
-\`build.zig.zon\` names Zap by URL (release v0.8.0) but does not ship its content hash, which
-Zig needs before it builds. Download Zap once and let Zig record the hash:
+\`build.zig.zon\` pins Zap by URL (release v0.8.0) and by content hash, so \`zig build\` fetches
+exactly that archive. To move to another Zap release, replace the URL and let Zig record the
+new hash:
 
 \`\`\`bash
-zig fetch --save=zap https://github.com/zigzap/zap/archive/refs/tags/v0.8.0.tar.gz
+zig fetch --save=zap https://github.com/zigzap/zap/archive/refs/tags/<tag>.tar.gz
 \`\`\`
 
-This adds \`.hash = "1220..."\` next to the URL in \`build.zig.zon\`; commit it. Until then
-\`zig build\` stops with "dependency is missing hash field". The Dockerfile runs the same
-command when the hash is missing.
+If the \`.hash\` line is ever removed, \`zig build\` stops with "dependency is missing hash
+field"; the same command restores it. The Dockerfile runs it when the hash is missing.
 
 ## Quick start
 

@@ -147,7 +147,7 @@ and runs its PHPUnit suite (`php artisan test`).
 
 | Group (`--group`) | Templates | Check |
 |---|---|---|
-| `core` | 26 | `tsc`, `go build`, `cargo check`, `mvn package`, `zig build` (Zig 0.13.0; `zap-zig` fetches its URL dependency, which the script hashes first), Python compile and import, `php -l` + composer (Laravel also `artisan route:list` and `php artisan test`), `ruby -c` + bundle; `mix compile` and `swift build` (Vapor) in CI only |
+| `core` | 26 | `tsc`, `go build`, `cargo check`, `mvn package`, `zig build` (Zig 0.13.0; `zap-zig` pins its dependency hash; the script hashes a URL dependency only if the pin is missing), Python compile and import, `php -l` + composer (Laravel also `artisan route:list` and `php artisan test`), `ruby -c` + bundle; `mix compile` and `swift build` (Vapor) in CI only |
 | `jvm` | 9 | Maven, Gradle (Kotlin), sbt (Scala) |
 | `dotnet` | 15 | `dotnet build` of every C# and F# project |
 | `native` | 28 | Go, Rust, Python, Ruby, PHP, Perl (`perl -c`), Lua (`luac -p`, syntax only), C++ with CMake against distribution packages (`drogon`, `cpp-httplib`, `beast`, `pistache`) and `crow` (Crow v1.2.0 fetched from GitHub, `ctest`), Dart (`dart pub get` + `dart analyze`, no test run) |
@@ -175,10 +175,11 @@ tests; that is not repeated by the script.
 UUID written from memory), the Clojure group (Clojars versions and the
 `DeLaGuardo/setup-clojure@13.4` tag are unverified), the BEAM group (`setup-beam` with
 `gleam-version: '1'`; Nerves C ports), `red-http` (Red/System syntax; the download URL was
-scraped), `grain`, `ballerina` and `unison` (release URLs written from memory), the systems
-group (the `ponyup` install from Cloudsmith is untried), and `zap-zig` (CI prints the hash of
-the fetched dependency; it must be pinned in the template afterwards). A red job there is an
-expected outcome, not a regression of the 172.
+scraped), `grain`, `ballerina` and `unison` (release URLs written from memory), and the
+systems group (the `ponyup` install from Cloudsmith is untried). A red job there is an
+expected outcome, not a regression of the 172. `zap-zig` built and passed its tests in the
+`core` job of run 37235796540 with a hash computed during the run; that hash is now pinned
+in the template.
 
 **Four templates are infeasible** and are deliberately kept out of the script, with their
 source unchanged. They are registered, scaffoldable and covered by the registry and

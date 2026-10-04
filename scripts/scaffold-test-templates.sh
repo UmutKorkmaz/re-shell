@@ -530,10 +530,10 @@ verify_config() {
   NATIVE_NOTE="configuration template: YAML syntax only (other config formats and any TypeScript snippets are not compiled)"
 }
 
-# Zig: build, then run the unit tests when build.zig defines a test step. A dependency
-# that build.zig.zon names by URL but ships without a .hash (zap-zig: the hash cannot be
-# known without downloading the release) is fetched first and its hash written in, as
-# `zig fetch --save` would do; the hash is printed so it can be pinned in the template.
+# Zig: build, then run the unit tests when build.zig defines a test step. Templates pin
+# their URL dependencies' hashes in build.zig.zon (zap-zig does). A URL dependency that
+# ships without a .hash is fetched first and its hash written in, as `zig fetch --save`
+# would do; the hash is printed so it can be pinned in the template.
 verify_zig() {
   have zig || { NATIVE_REASON="zig is not installed"; return 2; }
   if [ -f build.zig.zon ] && grep -q '^ *\.url = ' build.zig.zon && ! grep -q '^ *\.hash = ' build.zig.zon; then
