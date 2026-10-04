@@ -390,6 +390,7 @@ either find results false [
     quit/return 1
 ][
     print "all tests passed"
+    quit/return 0
 ]
 `,
 
