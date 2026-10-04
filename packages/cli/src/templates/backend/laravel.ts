@@ -4,10 +4,10 @@ export const laravelTemplate: BackendTemplate = {
   id: 'laravel',
   name: 'laravel',
   displayName: 'Laravel Framework',
-  description: 'JSON API on Laravel 12 with JWT auth, Spatie roles and permissions, Eloquent, queued jobs and GraphQL',
+  description: 'JSON API on Laravel 13 with JWT auth, Spatie roles and permissions, Eloquent, queued jobs and GraphQL',
   language: 'php',
   framework: 'laravel',
-  version: '12.x',
+  version: '13.x',
   tags: ['php', 'laravel', 'eloquent', 'mvc', 'api', 'jwt', 'graphql'],
   port: 8000,
   dependencies: {},
@@ -21,21 +21,21 @@ export const laravelTemplate: BackendTemplate = {
   "keywords": ["laravel", "api", "microservice"],
   "license": "MIT",
   "require": {
-    "php": "^8.2",
-    "laravel/framework": "^12.0",
-    "laravel/tinker": "^2.10",
-    "predis/predis": "^2.0",
-    "rebing/graphql-laravel": "^9.0",
-    "spatie/laravel-activitylog": "^4.9",
-    "spatie/laravel-permission": "^6.0",
-    "tymon/jwt-auth": "^2.0"
+    "php": "^8.3",
+    "laravel/framework": "^13.0",
+    "laravel/tinker": "^3.0",
+    "predis/predis": "^3.0",
+    "rebing/graphql-laravel": "^10.0",
+    "spatie/laravel-activitylog": "^4.12",
+    "spatie/laravel-permission": "^8.0",
+    "tymon/jwt-auth": "^2.3"
   },
   "require-dev": {
     "fakerphp/faker": "^1.23",
-    "laravel/pint": "^1.13",
+    "laravel/pint": "^1.27",
     "mockery/mockery": "^1.6",
-    "nunomaduro/collision": "^8.0",
-    "phpunit/phpunit": "^11.5"
+    "nunomaduro/collision": "^8.6",
+    "phpunit/phpunit": "^12.5"
   },
   "autoload": {
     "psr-4": {
@@ -160,6 +160,9 @@ MAIL_FROM_NAME="\${APP_NAME}"
 JWT_SECRET=
 JWT_TTL=60
 JWT_REFRESH_TTL=20160
+
+# Schema introspection is off unless this is false (keep it off in production)
+GRAPHQL_DISABLE_INTROSPECTION=false
 `,
 
     '.gitignore': `/vendor
@@ -426,7 +429,7 @@ class OrderController extends Controller
             ->with('items')
             ->when(! $user->can('manage-orders'), fn ($query) => $query->where('user_id', $user->id))
             ->latest('id')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
+            ->paginate($this->perPage($request));
     }
 
     public function show(Order $order): Order
@@ -456,7 +459,7 @@ class OrderController extends Controller
     {
         $this->authorizeOrder($order);
 
-        return $this->orders->cancel($order->load('items'));
+        return $this->orders->cancel($order)->load('items');
     }
 
     /**
@@ -513,7 +516,7 @@ class ProductController extends Controller
             ->when($request->boolean('featured'), fn ($query) => $query->featured())
             ->when($request->boolean('in_stock'), fn ($query) => $query->inStock())
             ->orderBy('id')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
+            ->paginate($this->perPage($request));
     }
 
     public function show(Product $product): Product
@@ -618,7 +621,7 @@ class UserController extends Controller
             })
             ->when($request->boolean('only_trashed'), fn ($query) => $query->onlyTrashed())
             ->orderBy('id')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
+            ->paginate($this->perPage($request));
 
         return UserResource::collection($users);
     }
@@ -692,9 +695,17 @@ class UserController extends Controller
 
 namespace App\\Http\\Controllers;
 
+use Illuminate\\Http\\Request;
+
 abstract class Controller
 {
-    //
+    /**
+     * Page size from the per_page query parameter, clamped to 1..100 (default 15).
+     */
+    protected function perPage(Request $request): int
+    {
+        return max(1, min($request->integer('per_page', 15), 100));
+    }
 }
 `,
 
@@ -755,11 +766,12 @@ class RegisterRequest extends FormRequest
 
 namespace App\\Http\\Resources;
 
+use App\\Models\\User;
 use Illuminate\\Http\\Request;
 use Illuminate\\Http\\Resources\\Json\\JsonResource;
 
 /**
- * @mixin \\App\\Models\\User
+ * @mixin User
  */
 class UserResource extends JsonResource
 {
@@ -812,14 +824,20 @@ class ProcessOrderJob implements ShouldQueue
     {
         Log::info('Processing order', ['order_id' => $this->order->id]);
 
-        $orderService->processPayment($this->order);
-        $orderService->updateInventory($this->order);
-        $orderService->sendConfirmationEmail($this->order);
+        // Payment, stock and status change commit together, and only for a pending
+        // order: a retry, a duplicate delivery or an order cancelled in the meantime
+        // is skipped instead of charging and taking the stock twice.
+        if (! $orderService->process($this->order)) {
+            Log::info('Order is no longer pending, skipped', [
+                'order_id' => $this->order->id,
+                'status' => $this->order->status,
+            ]);
 
-        $this->order->update([
-            'status' => Order::STATUS_PROCESSING,
-            'processed_at' => now(),
-        ]);
+            return;
+        }
+
+        // The order is processed and committed; a mail failure is reported, not retried.
+        rescue(fn () => $orderService->sendConfirmationEmail($this->order));
 
         Log::info('Order processed', ['order_id' => $this->order->id]);
     }
@@ -831,11 +849,14 @@ class ProcessOrderJob implements ShouldQueue
             'error' => $exception->getMessage(),
         ]);
 
-        $this->order->update([
-            'status' => Order::STATUS_FAILED,
-            'failed_at' => now(),
-            'failure_reason' => $exception->getMessage(),
-        ]);
+        // Only a still-pending order is marked failed (never one cancelled meanwhile).
+        Order::whereKey($this->order->id)
+            ->where('status', Order::STATUS_PENDING)
+            ->update([
+                'status' => Order::STATUS_FAILED,
+                'failed_at' => now(),
+                'failure_reason' => $exception->getMessage(),
+            ]);
     }
 }
 `,
@@ -887,9 +908,13 @@ class Order extends Model
     use HasFactory;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_PROCESSING = 'processing';
+
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [
@@ -1017,6 +1042,7 @@ class Product extends Model
         return LogOptions::defaults()
             ->logOnly(['name', 'price', 'quantity', 'is_active'])
             ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
             ->useLogName('products');
     }
 
@@ -1136,6 +1162,7 @@ class User extends Authenticatable implements JWTSubject
         return LogOptions::defaults()
             ->logOnly(['name', 'email', 'is_active'])
             ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
             ->useLogName('users');
     }
 
@@ -1181,6 +1208,9 @@ class User extends Authenticatable implements JWTSubject
 namespace App\\Providers;
 
 use Illuminate\\Auth\\Notifications\\ResetPassword;
+use Illuminate\\Cache\\RateLimiting\\Limit;
+use Illuminate\\Http\\Request;
+use Illuminate\\Support\\Facades\\RateLimiter;
 use Illuminate\\Support\\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -1192,6 +1222,17 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // General API traffic: per user when a valid token is sent, per IP otherwise.
+        RateLimiter::for('api', function (Request $request) {
+            return Limit::perMinute(60)->by($request->user()?->getAuthIdentifier() ?: $request->ip());
+        });
+
+        // Login, registration and password reset: guessing credentials or tokens and
+        // mail flooding are slowed down per IP.
+        RateLimiter::for('auth', function (Request $request) {
+            return Limit::perMinute(10)->by($request->ip());
+        });
+
         // There is no password.reset web route in an API: the reset mail links
         // to the frontend, which posts the token to /api/v1/auth/reset-password.
         ResetPassword::createUrlUsing(function ($user, string $token): string {
@@ -1313,6 +1354,38 @@ class OrderService
     }
 
     /**
+     * Capture the payment and take the stock for a pending order, in one transaction.
+     *
+     * Returns false (and changes nothing) when the order is no longer pending: it was
+     * cancelled before a worker picked it up, or an earlier attempt already processed
+     * it. That makes the queued job safe to retry or to deliver twice.
+     */
+    public function process(Order $order): bool
+    {
+        $processed = DB::transaction(function () use ($order) {
+            $locked = Order::query()->with('items')->lockForUpdate()->find($order->id);
+
+            if ($locked === null || $locked->status !== Order::STATUS_PENDING) {
+                return false;
+            }
+
+            $this->processPayment($locked);
+            $this->updateInventory($locked);
+
+            $locked->update([
+                'status' => Order::STATUS_PROCESSING,
+                'processed_at' => now(),
+            ]);
+
+            return true;
+        });
+
+        $order->refresh();
+
+        return $processed;
+    }
+
+    /**
      * Capture the payment. This is a placeholder: call your payment provider here.
      */
     public function processPayment(Order $order): void
@@ -1350,19 +1423,22 @@ class OrderService
 
     public function cancel(Order $order): Order
     {
-        if (! in_array($order->status, [Order::STATUS_PENDING, Order::STATUS_PROCESSING], true)) {
-            throw ValidationException::withMessages(['status' => ['Only pending or processing orders can be cancelled.']]);
-        }
-
         DB::transaction(function () use ($order) {
+            // Lock the row so a worker processing the order at the same time waits for us.
+            $locked = Order::query()->with('items')->lockForUpdate()->findOrFail($order->id);
+
+            if (! in_array($locked->status, [Order::STATUS_PENDING, Order::STATUS_PROCESSING], true)) {
+                throw ValidationException::withMessages(['status' => ['Only pending or processing orders can be cancelled.']]);
+            }
+
             // Stock was only taken once the order had been processed.
-            if ($order->processed_at !== null) {
-                foreach ($order->items as $item) {
-                    Product::whereKey($item->product_id)->increment('quantity', $item->quantity);
+            if ($locked->processed_at !== null) {
+                foreach ($locked->items as $item) {
+                    Product::withTrashed()->whereKey($item->product_id)->increment('quantity', $item->quantity);
                 }
             }
 
-            $order->update(['status' => Order::STATUS_CANCELLED]);
+            $locked->update(['status' => Order::STATUS_CANCELLED]);
         });
 
         return $order->refresh();
@@ -1370,11 +1446,13 @@ class OrderService
 
     public function complete(Order $order): Order
     {
-        if ($order->status !== Order::STATUS_PROCESSING) {
+        $updated = Order::whereKey($order->id)
+            ->where('status', Order::STATUS_PROCESSING)
+            ->update(['status' => Order::STATUS_COMPLETED]);
+
+        if ($updated === 0) {
             throw ValidationException::withMessages(['status' => ['Only processing orders can be completed.']]);
         }
-
-        $order->update(['status' => Order::STATUS_COMPLETED]);
 
         return $order->refresh();
     }
@@ -1410,6 +1488,7 @@ use Illuminate\\Http\\Request;
 use Spatie\\Permission\\Middleware\\PermissionMiddleware;
 use Spatie\\Permission\\Middleware\\RoleMiddleware;
 use Spatie\\Permission\\Middleware\\RoleOrPermissionMiddleware;
+use Tymon\\JWTAuth\\Exceptions\\JWTException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -1427,6 +1506,14 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         // This is a JSON API: always answer errors (401, 403, 404, 422...) as JSON.
         $exceptions->shouldRenderJsonWhen(fn (Request $request, Throwable $e) => true);
+
+        // A missing, malformed, expired or blacklisted token (e.g. on /auth/refresh)
+        // is an authentication failure, not a server error.
+        $exceptions->dontReport(JWTException::class);
+        $exceptions->render(fn (JWTException $e, Request $request) => response()->json([
+            'message' => 'Unauthenticated.',
+            'error' => $e->getMessage(),
+        ], 401));
     })->create();
 `,
 
@@ -1436,8 +1523,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
     'bootstrap/providers.php': `<?php
 
+use App\\Providers\\AppServiceProvider;
+
 return [
-    App\\Providers\\AppServiceProvider::class,
+    AppServiceProvider::class,
 ];
 `,
 
@@ -1502,14 +1591,14 @@ use Rebing\\GraphQL\\GraphQL;
 use Rebing\\GraphQL\\GraphQLController;
 
 // Settings that are not listed here fall back to the defaults shipped by
-// rebing/graphql-laravel (see vendor/rebing/graphql-laravel/config/config.php).
-// The endpoint is GET|POST /graphql.
+// rebing/graphql-laravel 10 (see vendor/rebing/graphql-laravel/config/config.php):
+// batching off, automatic persisted queries off. The endpoint is POST /graphql.
 return [
 
     'route' => [
         'prefix' => 'graphql',
         'controller' => GraphQLController::class.'@query',
-        'middleware' => ['throttle:60,1'],
+        'middleware' => ['throttle:api'],
         'group_attributes' => [],
     ],
 
@@ -1524,7 +1613,9 @@ return [
             'mutation' => [],
             'types' => [],
             'middleware' => null,
-            'method' => ['GET', 'POST'],
+            // POST only (the package default since v10). To allow GET, also add
+            // ReadOnlyOperationMiddleware to the execution middleware so GET cannot run mutations.
+            'method' => ['POST'],
             'execution_middleware' => null,
             'route_attributes' => [],
         ],
@@ -1537,9 +1628,10 @@ return [
     'errors_handler' => [GraphQL::class, 'handleErrors'],
 
     'security' => [
-        'query_max_complexity' => 1000,
-        'query_max_depth' => 20,
-        'disable_introspection' => env('GRAPHQL_DISABLE_INTROSPECTION', false),
+        'query_max_complexity' => 500,
+        'query_max_depth' => 13,
+        // Off unless GRAPHQL_DISABLE_INTROSPECTION=false (.env.example enables it for local development).
+        'disable_introspection' => env('GRAPHQL_DISABLE_INTROSPECTION', true),
     ],
 
 ];
@@ -2088,10 +2180,16 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($accounts as $account) {
-            $user = User::firstOrCreate(
-                ['email' => $account['email']],
-                ['name' => $account['name'], 'password' => 'password', 'email_verified_at' => now()],
-            );
+            $user = User::firstOrNew(['email' => $account['email']]);
+
+            if (! $user->exists) {
+                // email_verified_at is not mass assignable, so set the attributes directly.
+                $user->forceFill([
+                    'name' => $account['name'],
+                    'password' => 'password',
+                    'email_verified_at' => now(),
+                ])->save();
+            }
 
             $user->syncRoles([$account['role']]);
         }
@@ -2121,6 +2219,9 @@ class UserSeeder extends Seeder
       REDIS_HOST: redis
       CACHE_STORE: redis
       QUEUE_CONNECTION: redis
+      # Log to the container output: the bind-mounted storage/ is owned by the host user,
+      # not by www-data, so the containers could not write storage/logs.
+      LOG_CHANNEL: stderr
     volumes:
       - ./:/var/www
       - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
@@ -2145,7 +2246,7 @@ class UserSeeder extends Seeder
       - {{projectName}}-network
 
   db:
-    image: mysql:8.0
+    image: mysql:8.4
     container_name: {{projectName}}-db
     restart: unless-stopped
     ports:
@@ -2289,9 +2390,11 @@ CMD ["php-fpm"]
         <env name="APP_KEY" value="base64:dGVzdC1rZXktZm9yLXBocHVuaXQtb25seS0zMmJ5dGU="/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
+        <env name="DB_URL" value=""/>
         <env name="JWT_SECRET" value="phpunit-only-jwt-secret-with-at-least-32-bytes"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
@@ -2321,11 +2424,11 @@ require __DIR__.'/../vendor/autoload.php';
 
     'README.md': `# {{projectName}} - Laravel API Service
 
-JSON API built with Laravel 12: JWT authentication, role and permission based access control, Eloquent models and migrations, queued order processing, activity logging and a small GraphQL endpoint.
+JSON API built with Laravel 13: JWT authentication, role and permission based access control, Eloquent models and migrations, queued order processing, activity logging and a small GraphQL endpoint.
 
 ## Stack
 
-- Laravel 12 on PHP 8.2+
+- Laravel 13 on PHP 8.3+
 - \`tymon/jwt-auth\` for stateless bearer-token authentication (guard \`api\`)
 - \`spatie/laravel-permission\` for roles and permissions
 - \`spatie/laravel-activitylog\` for audit trails (users and products)
@@ -2334,6 +2437,10 @@ JSON API built with Laravel 12: JWT authentication, role and permission based ac
 - PHPUnit tests that run against in-memory SQLite
 
 ## Quick start
+
+\`.env.example\` expects MySQL on 127.0.0.1:3306 and Redis on 127.0.0.1:6379 (cache and
+queue); start them first or point the \`DB_*\`, \`CACHE_STORE\` and \`QUEUE_CONNECTION\` settings
+elsewhere (the Docker setup below runs all of it in containers).
 
 \`\`\`bash
 composer install
@@ -2353,6 +2460,10 @@ accounts (\`admin@example.com\`, \`manager@example.com\`, \`user@example.com\`, 
 
 ### Docker
 
+The compose file mounts the project into the containers for development, so run
+\`composer install\` on the host first (the commands below need it too). The containers log
+to their output (\`docker compose logs -f app queue\`).
+
 \`\`\`bash
 export APP_KEY=$(php artisan key:generate --show)
 export JWT_SECRET=$(php artisan jwt:secret --show)
@@ -2362,12 +2473,15 @@ docker compose exec app php artisan migrate --seed
 
 ## API
 
-All routes are under \`/api/v1\`. Authenticated routes expect \`Authorization: Bearer <access_token>\`.
+All routes are under \`/api/v1\`. Authenticated routes expect \`Authorization: Bearer <access_token>\`;
+a missing, invalid or expired token answers 401. Requests are rate limited to 60 per minute
+(per user, or per IP without a token) and the login, register and password reset routes to 10
+per minute per IP (429 when exceeded); the limits are defined in \`AppServiceProvider\`.
 
 ### Authentication
 - \`POST /auth/register\` - register (assigns the \`user\` role)
 - \`POST /auth/login\` - log in, returns an access token
-- \`POST /auth/refresh\` - refresh an access token
+- \`POST /auth/refresh\` - exchange the current (possibly expired) token for a new one
 - \`POST /auth/forgot-password\`, \`POST /auth/reset-password\` - password reset (the mail links to \`APP_FRONTEND_URL\`)
 - \`POST /auth/logout\`, \`GET /auth/me\`, \`POST /auth/change-password\` (authenticated)
 
@@ -2377,7 +2491,9 @@ All routes are under \`/api/v1\`. Authenticated routes expect \`Authorization: B
 
 ### Orders (authenticated)
 - \`GET /orders\`, \`GET /orders/{id}\` - own orders (everyone's with \`manage-orders\`)
-- \`POST /orders\` - body \`{"items": [{"product_id": 1, "quantity": 2}]}\`; the order is then processed by a queued job
+- \`POST /orders\` - body \`{"items": [{"product_id": 1, "quantity": 2}]}\`; the order is then processed by a
+  queued job (payment and stock in one transaction; a retried job or an order cancelled before the
+  worker reached it is skipped)
 - \`POST /orders/{id}/cancel\` - cancel a pending or processing order (stock is restored)
 - \`POST /orders/{id}/complete\` - needs the \`manage-orders\` permission
 
@@ -2388,7 +2504,8 @@ All routes are under \`/api/v1\`. Authenticated routes expect \`Authorization: B
 ### GraphQL
 
 \`POST /graphql\` with \`{"query": "{ hello(name: \\"World\\") health }"}\`. Add queries and types in
-\`app/GraphQL\` and register them in \`config/graphql.php\`.
+\`app/GraphQL\` and register them in \`config/graphql.php\`. Schema introspection is disabled unless
+\`GRAPHQL_DISABLE_INTROSPECTION=false\` (set in \`.env.example\` for local development).
 
 ## Queues and scheduler
 
@@ -2434,6 +2551,7 @@ use Illuminate\\Support\\Facades\\Route;
 | API Routes (served under /api)
 |--------------------------------------------------------------------------
 | GraphQL is served separately at /graphql (see config/graphql.php).
+| The "api" and "auth" rate limiters are defined in AppServiceProvider.
 */
 
 Route::get('/health', function () {
@@ -2446,19 +2564,23 @@ Route::get('/health', function () {
 });
 
 // Public routes
-Route::prefix('v1')->group(function () {
-    Route::post('/auth/register', [AuthController::class, 'register']);
-    Route::post('/auth/login', [AuthController::class, 'login']);
+Route::prefix('v1')->middleware('throttle:api')->group(function () {
+    Route::middleware('throttle:auth')->group(function () {
+        Route::post('/auth/register', [AuthController::class, 'register']);
+        Route::post('/auth/login', [AuthController::class, 'login']);
+        Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+        Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
+    });
+
+    // Takes the current (possibly expired) token from the Authorization header.
     Route::post('/auth/refresh', [AuthController::class, 'refresh']);
-    Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
 });
 
 // Authenticated routes (JWT bearer token)
-Route::prefix('v1')->middleware(['auth:api', 'throttle:60,1'])->group(function () {
+Route::prefix('v1')->middleware(['auth:api', 'throttle:api'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/change-password', [AuthController::class, 'changePassword']);
@@ -2601,6 +2723,9 @@ class AuthTest extends TestCase
             'password' => 'password123',
         ])->assertStatus(200)
             ->assertJsonStructure(['message', 'user', 'access_token', 'token_type', 'expires_in']);
+
+        // Only last_login_at changed: nothing the activity log tracks, so no empty entry.
+        $this->assertDatabaseMissing('activity_log', ['subject_id' => $user->id, 'event' => 'updated']);
     }
 
     public function test_user_cannot_login_with_invalid_credentials(): void
@@ -2649,6 +2774,40 @@ class AuthTest extends TestCase
             ->postJson('/api/v1/auth/logout')
             ->assertStatus(200)
             ->assertJson(['message' => 'Successfully logged out']);
+    }
+
+    public function test_token_can_be_refreshed(): void
+    {
+        $user = User::factory()->create();
+        $token = JWTAuth::fromUser($user);
+
+        $refreshed = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/auth/refresh')
+            ->assertStatus(200)
+            ->assertJsonStructure(['access_token', 'token_type', 'expires_in'])
+            ->json('access_token');
+
+        $this->assertNotSame($token, $refreshed);
+    }
+
+    public function test_refresh_without_a_valid_token_is_unauthenticated(): void
+    {
+        $this->postJson('/api/v1/auth/refresh')->assertStatus(401);
+
+        $this->withHeaders(['Authorization' => 'Bearer not.a.jwt'])
+            ->postJson('/api/v1/auth/refresh')
+            ->assertStatus(401);
+    }
+
+    public function test_login_attempts_are_rate_limited(): void
+    {
+        for ($attempt = 1; $attempt <= 10; $attempt++) {
+            $this->postJson('/api/v1/auth/login', ['email' => 'nobody@example.com', 'password' => 'wrong'])
+                ->assertStatus(401);
+        }
+
+        $this->postJson('/api/v1/auth/login', ['email' => 'nobody@example.com', 'password' => 'wrong'])
+            ->assertStatus(429);
     }
 
     public function test_user_can_change_password(): void
@@ -2722,6 +2881,11 @@ class HealthAndGraphQLTest extends TestCase
             ->assertStatus(200)
             ->assertJsonPath('data.health', true);
     }
+
+    public function test_graphql_only_accepts_post(): void
+    {
+        $this->getJson('/graphql?query='.urlencode('{ health }'))->assertStatus(405);
+    }
 }
 `,
 
@@ -2729,9 +2893,11 @@ class HealthAndGraphQLTest extends TestCase
 
 namespace Tests\\Feature;
 
+use App\\Jobs\\ProcessOrderJob;
 use App\\Models\\Order;
 use App\\Models\\Product;
 use App\\Models\\User;
+use App\\Services\\OrderService;
 use Database\\Seeders\\RolePermissionSeeder;
 use Illuminate\\Foundation\\Testing\\RefreshDatabase;
 use Tests\\TestCase;
@@ -2830,6 +2996,38 @@ class OrderTest extends TestCase
         $this->postJson("/api/v1/orders/{$orderId}/complete", [], $this->bearer($manager))
             ->assertStatus(200)
             ->assertJsonPath('status', Order::STATUS_COMPLETED);
+    }
+
+    public function test_a_retried_job_does_not_take_the_stock_twice(): void
+    {
+        $user = $this->userWithRole('user');
+        $product = Product::factory()->create(['quantity' => 5]);
+
+        $orderId = $this->postJson('/api/v1/orders', [
+            'items' => [['product_id' => $product->id, 'quantity' => 2]],
+        ], $this->bearer($user))->json('id');
+
+        // A second delivery of the same job (retry, duplicate) finds the order processed.
+        ProcessOrderJob::dispatchSync(Order::findOrFail($orderId));
+
+        $this->assertSame(3, $product->refresh()->quantity);
+    }
+
+    public function test_an_order_cancelled_before_processing_is_not_processed(): void
+    {
+        $user = $this->userWithRole('user');
+        $product = Product::factory()->create(['quantity' => 5]);
+
+        $orders = app(OrderService::class);
+        $order = $orders->create($user, [['product_id' => $product->id, 'quantity' => 2]]);
+        $orders->cancel($order);
+
+        // The worker picks the job up after the cancellation.
+        ProcessOrderJob::dispatchSync($order);
+
+        $this->assertSame(Order::STATUS_CANCELLED, $order->refresh()->status);
+        $this->assertNull($order->processed_at);
+        $this->assertSame(5, $product->refresh()->quantity);
     }
 }
 `,
@@ -2936,6 +3134,41 @@ class ProductTest extends TestCase
     public function test_customers_cannot_list_users(): void
     {
         $this->getJson('/api/v1/users', $this->actingAsRole('user'))->assertStatus(403);
+    }
+}
+`,
+
+    'tests/Feature/SeederTest.php': `<?php
+
+namespace Tests\\Feature;
+
+use App\\Models\\Category;
+use App\\Models\\Product;
+use App\\Models\\User;
+use Illuminate\\Foundation\\Testing\\RefreshDatabase;
+use Tests\\TestCase;
+
+class SeederTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_database_seeder_creates_roles_accounts_and_catalog(): void
+    {
+        $this->seed();
+
+        $admin = User::where('email', 'admin@example.com')->firstOrFail();
+        $this->assertTrue($admin->hasRole('admin'));
+        $this->assertNotNull($admin->email_verified_at);
+        $this->assertTrue(User::where('email', 'manager@example.com')->firstOrFail()->can('manage-orders'));
+        $this->assertFalse(User::where('email', 'user@example.com')->firstOrFail()->can('manage-products'));
+
+        $this->assertSame(4, Category::count());
+        $this->assertSame(24, Product::count());
+
+        // Seeding again changes nothing.
+        $this->seed();
+        $this->assertSame(3, User::count());
+        $this->assertSame(24, Product::count());
     }
 }
 `,
