@@ -105,7 +105,7 @@ jobs:
       # Pistache) build against the distribution's -dev packages, never FetchContent.
       # Ubuntu's DrogonConfig.cmake find_dependency()s every backend Drogon was built
       # with (MariaDB, Hiredis, yaml-cpp, Brotli, c-ares via Trantor) even when a
-      # template does not use them.
+      # template does not use them; drogon_ctl (package drogon) generates the CSP views.
       - if: matrix.group == 'native'
         run: |
           sudo apt-get update
@@ -117,7 +117,7 @@ jobs:
             libcatalyst-plugin-session-store-file-perl libcatalyst-plugin-static-simple-perl \
             libconfig-general-perl libgraphql-perl libjson-maybexs-perl libjson-perl \
             libplack-middleware-crossorigin-perl libtest-www-mechanize-catalyst-perl libyaml-perl \
-            cmake build-essential pkg-config libdrogon-dev libpq-dev libmariadb-dev libsqlite3-dev libhiredis-dev libyaml-cpp-dev libbrotli-dev libc-ares-dev libgtest-dev libjsoncpp-dev uuid-dev \
+            cmake build-essential pkg-config drogon libdrogon-dev libpq-dev libmariadb-dev libsqlite3-dev libhiredis-dev libyaml-cpp-dev libbrotli-dev libc-ares-dev libgtest-dev libjsoncpp-dev uuid-dev \
             libcpp-httplib-dev libboost-dev libpistache-dev libssl-dev zlib1g-dev nlohmann-json3-dev libspdlog-dev
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
