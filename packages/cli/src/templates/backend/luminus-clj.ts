@@ -8,512 +8,700 @@ export const luminusCljTemplate: BackendTemplate = {
   language: 'clojure',
   framework: 'luminus',
   version: '1.0.0',
-  tags: ['clojure', 'luminus', 'full-stack', 'reagent', 'selmer', 'sql', 'websockets'],
+  tags: ['clojure', 'luminus', 'full-stack', 'selmer', 'reitit', 'mount', 'ring'],
   port: 3000,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'websockets', 'graphql'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'graphql'],
 
   files: {
-    // Project configuration
-    'project.clj': `(defproject {{projectNameSnake}} "0.1.0-SNAPSHOT"
-  :description "FIXME: write description"
-  :url "http://example.com/FIXME"
-  :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
-            :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :min-lein-version "2.0.0"
+    // Project configuration (the Luminus stack: Mount, Cprop, Selmer, Reitit, Muuntaja, Ring defaults)
+    'project.clj': `(defproject {{projectName}} "0.1.0-SNAPSHOT"
+  :description "Luminus-style Clojure web application"
+  :license {:name "MIT"
+            :url "https://opensource.org/licenses/MIT"}
+  :min-lein-version "2.9.0"
 
-  :dependencies [[org.clojure/clojure "1.11.1"]
-                 [org.clojure/core.async "1.6.681"]
-                 [compojure "1.7.0"]
-                 [ring/ring-defaults "0.3.4"]
-                 [ring/ring-json "0.5.1"]
-                 [ring.middleware.cors "0.1.1"]
-                 [reagent "1.1.1"]
-                 [re-frame "1.3.0"]
-                 [selmer "1.12.59"]
-                 [buddy "2.4.0"]
-                 [buddy-auth "3.0.1"]
-                 [conman "0.9.2"]
-                 [luminus-transit "0.1.2"]
-                 [luminus-immutant "0.2.4"]
-                 [luminus-nrepl "0.1.5"]
-                 [markdown-clj "1.11.4"]
-                 [luminus-migrations "0.7.0"]
-                 [conman "0.9.2"]
+  :dependencies [[org.clojure/clojure "1.12.0"]
+                 [org.clojure/tools.logging "1.3.0"]
+                 [ch.qos.logback/logback-classic "1.5.12"]
+                 [cprop "0.1.19"]
                  [mount "0.1.17"]
-                 [luminus-http-server "0.1.6"]
-                 [luminus-util "0.3.4"]
-                 [crypto-password "0.3.0"]
-                 [buddy/buddy-auth "3.0.0"]
-                 [buddy/buddy-hashers "3.0.0"]
-                 [clj-time "0.15.2"]
-                 [com.walmartlabs/lacinia "1.2.2"]
-                 [com.walmartlabs/lacinia-pedestal "1.2"]
-                 [io.pedestal/pedestal.service "0.7.0"]]
+                 [selmer "1.12.59"]
+                 [metosin/reitit-ring "0.7.2"]
+                 [metosin/reitit-middleware "0.7.2"]
+                 [metosin/muuntaja "0.6.10"]
+                 [ring/ring-core "1.12.2"]
+                 [ring/ring-defaults "0.5.0"]
+                 [ring/ring-jetty-adapter "1.12.2"]
+                 [ring-cors "0.1.13"]
+                 [buddy/buddy-sign "3.5.351"]
+                 [buddy/buddy-hashers "2.0.167"]
+                 [com.walmartlabs/lacinia "1.2.1"]]
 
-  :plugins [[lein-cljfmt "0.6.4"]
-            [lein-immutant "0.2.4"]
-            [lein-midje "3.2.1"]]
+  :source-paths ["src/clj"]
+  :resource-paths ["resources"]
+  :test-paths ["test/clj"]
+  :target-path "target/%s/"
+  :main ^:skip-aot {{projectNameSnake}}.core
 
-  :middleware [leiningen.v2.deps-dependency-inject/deps-dependency-inject
-              leiningen.v2.deps-dependency-inject/plugin/deps-dependency-inject]
-
-  :profiles {:dev {:dependencies [[binaryage/devtools "1.0.6"]
-                                  [pjstadig/humane-test-output "0.11.0"]
-                                  [com.h2database/h2 "2.2.224"]
-                                  [org.clojure/tools.nrepl "1.0.9"]
-                                  [org.clojure/test.check "1.1.1"]
-                                  [prismatic/schema "1.4.1"]]
+  :profiles {:dev {:dependencies [[ring/ring-mock "0.4.0"]]
                    :source-paths ["env/dev/clj"]
-                   :repl-options {:init-ns user}
-                   :injections [(require 'pjstadig.humane-test-output)
-                                 (pjstadig.humane-test-output/activate!)]}
-             :test {:dependencies [[luminus-test "0.1.3"]]}
-             :uberjar {:aot :all}}
-
-  :main ^:skip-aot
-  :cljs {:builds {:app {:target :browser
-                       :output-dir "target/cljsbuild/public/app"
-                       :asset-path "/js/app"
-                       :modules {:app {:init-fn {{projectNameSnake}}.app/init
-                                        :preloads [devtools.preload]
-                                        :outputs {:up {:id "up"}}}}}}}
-         :devtools {:http-root "target/cljsbuild/public"
-                    :preloads [devtools.preload]
-                    :watch-dir "src/cljs"}
-         :figwheel {:http-root "resources/public"
-                    :css-dirs ["resources/public/css"]}
-         :sass {:source-paths ["src/sass"]
-                :target-path "resources/public/css"}
-         :test-commands {"test" ["do" "phantomjs" "once" "test"]}
-         :test-fixtures {"test" {"phantomjs-env "test/env cljs/test/env.js"}}}
-  :test-selectors {:default (constantly)
-                  :integration (complement :integration)})
+                   :repl-options {:init-ns user}}
+             :uberjar {:aot :all
+                       :uberjar-name "{{projectNameSnake}}-standalone.jar"}})
 `,
 
-    // Handler - Main
+    // Entry point: starts every Mount state (config, database, handler, HTTP server)
+    // Mount's default (clj) mode replaces each state's var with the started value,
+    // so states are used directly (env is the config map), never dereferenced.
+    'src/clj/{{projectNameSnake}}/core.clj': `(ns {{projectNameSnake}}.core
+  (:require [clojure.tools.logging :as log]
+            [mount.core :as mount :refer [defstate]]
+            [ring.adapter.jetty :as jetty]
+            [{{projectNameSnake}}.config :refer [env]]
+            [{{projectNameSnake}}.db.core]
+            [{{projectNameSnake}}.handler :as handler])
+  (:import (org.eclipse.jetty.server Server))
+  (:gen-class))
+
+(defn- port []
+  (let [value (or (:port env) {{port}})]
+    (if (number? value) (int value) (Integer/parseInt (str value)))))
+
+(defstate ^{:on-reload :noop} http-server
+  :start (jetty/run-jetty (handler/app)
+                          {:port (port)
+                           :join? false})
+  :stop (.stop ^Server http-server))
+
+(defn stop-app []
+  (doseq [component (:stopped (mount/stop))]
+    (log/info component "stopped"))
+  (shutdown-agents))
+
+(defn start-app []
+  (doseq [component (:started (mount/start))]
+    (log/info component "started"))
+  (.addShutdownHook (Runtime/getRuntime) (Thread. ^Runnable stop-app)))
+
+(defn -main [& _args]
+  (start-app))
+`,
+
+    // Configuration (Cprop: resources/config.edn, overridden by system properties and environment variables)
+    'src/clj/{{projectNameSnake}}/config.clj': `(ns {{projectNameSnake}}.config
+  (:require [cprop.core :refer [load-config]]
+            [cprop.source :as source]
+            [mount.core :refer [args defstate]]))
+
+(defstate env
+  :start (load-config
+           :merge
+           [(args)
+            (source/from-system-props)
+            (source/from-env)]))
+`,
+
+    // Selmer layout
+    'src/clj/{{projectNameSnake}}/layout.clj': `(ns {{projectNameSnake}}.layout
+  (:require [ring.util.response :as response]
+            [selmer.parser :as parser]))
+
+(defn render
+  "Renders a Selmer template from the classpath as an HTML response."
+  [template & [params]]
+  (-> (parser/render-file template (or params {}))
+      response/response
+      (response/content-type "text/html; charset=utf-8")))
+`,
+
+    // Ring + Reitit handler. As in Luminus, the routes are a Mount state and app
+    // wraps the state's var, so a restarted state is picked up without a new server.
     'src/clj/{{projectNameSnake}}/handler.clj': `(ns {{projectNameSnake}}.handler
-  (:require
-   [{{projectNameSnake}}.routes.home :refer [all-routes]]
-   [{{projectNameSnake}}.middleware.formats :refer [wrap-json-params-middleware]]
-   [reitit.ring :as ring]
-   [ring.middleware.content-type :refer [wrap-content-type]]
-   [ring.middleware.params :refer [wrap-params]]
-   [ring.middleware.cors :refer [wrap-cors]]
-   [ring.middleware.session :refer [wrap-session]]
-   [ring.middleware.flash :refer [wrap-flash]]
-   [ring.middleware.defaults :refer [site-defaults wrap-defaults]]
-   [ring.util.response :refer [response content-type]]
-   [clojure.tools.logging :as log]))
+  (:require [mount.core :as mount]
+            [muuntaja.core :as m]
+            [reitit.ring :as ring]
+            [reitit.ring.middleware.exception :as exception]
+            [reitit.ring.middleware.muuntaja :as muuntaja]
+            [{{projectNameSnake}}.middleware :as middleware]
+            [{{projectNameSnake}}.routes.home :as home]
+            [{{projectNameSnake}}.routes.services :as services]))
 
-(defn- wrap-base [handler]
+(mount/defstate app-routes
+  :start (ring/ring-handler
+           (ring/router
+             (into (home/routes) (services/routes))
+             {:data {:muuntaja m/instance
+                     :middleware [muuntaja/format-negotiate-middleware
+                                  muuntaja/format-response-middleware
+                                  exception/exception-middleware
+                                  muuntaja/format-request-middleware]}})
+           (ring/create-default-handler)))
+
+(defn app
+  "The Ring handler: every request goes through the base middleware, then the routes."
+  []
+  (middleware/wrap-base #'app-routes))
+`,
+
+    // Middleware
+    'src/clj/{{projectNameSnake}}/middleware.clj': `(ns {{projectNameSnake}}.middleware
+  (:require [clojure.string :as str]
+            [clojure.tools.logging :as log]
+            [ring.middleware.cors :refer [wrap-cors]]
+            [ring.middleware.defaults :refer [site-defaults wrap-defaults]]
+            [{{projectNameSnake}}.auth :as auth]))
+
+(defn wrap-logging [handler]
+  (fn [request]
+    (let [start (System/nanoTime)
+          response (handler request)
+          elapsed-ms (quot (- (System/nanoTime) start) 1000000)]
+      (log/info (str/upper-case (name (:request-method request)))
+                (:uri request)
+                (:status response)
+                (str elapsed-ms "ms"))
+      response)))
+
+(defn wrap-base
+  "The middleware every request passes through: logging, Ring defaults (params,
+  sessions, static files from resources/public, security headers) and CORS.
+  Anti-forgery tokens are off because the JSON API authenticates with JWTs."
+  [handler]
   (-> handler
-      wrap-content-type
-      wrap-form-params-middleware
-      wrap-json-params-middleware
-      wrap-session
-      wrap-flash
+      (wrap-defaults (assoc-in site-defaults [:security :anti-forgery] false))
+      wrap-logging
       (wrap-cors :access-control-allow-origin [#".*"]
-                  :access-control-allow-methods [:get :post :put :delete :options]
-                  :access-control-allow-headers ["Content-Type" "Authorization"])
-      (wrap-defaults)))
+                 :access-control-allow-methods [:get :post :put :delete :options]
+                 :access-control-allow-headers ["Content-Type" "Authorization"])))
 
-(defn- wrap-internal-error [handler]
+(defn- unauthorized [message]
+  {:status 401
+   :body {:error "unauthorized"
+          :message message}})
+
+(defn wrap-auth
+  "Requires a valid 'Authorization: Bearer <jwt>' header and adds :user-id to the request."
+  [handler]
+  (fn [request]
+    (let [header (get-in request [:headers "authorization"])]
+      (if (and header (str/starts-with? header "Bearer "))
+        (if-let [user-id (auth/verify-token (subs header 7))]
+          (handler (assoc request :user-id user-id))
+          (unauthorized "Invalid or expired token"))
+        (unauthorized "Authentication required")))))
+`,
+
+    // Passwords and JWTs
+    'src/clj/{{projectNameSnake}}/auth.clj': `(ns {{projectNameSnake}}.auth
+  (:require [buddy.hashers :as hashers]
+            [buddy.sign.jwt :as jwt]
+            [{{projectNameSnake}}.config :refer [env]]))
+
+(def ^:private token-ttl-seconds (* 7 24 60 60))
+
+(defn- jwt-secret []
+  (str (or (:jwt-secret env) "dev-secret-change-me")))
+
+(defn- now-seconds []
+  (quot (System/currentTimeMillis) 1000))
+
+(defn hash-password [password]
+  (hashers/derive password))
+
+(defn valid-password? [password password-hash]
+  (let [result (hashers/verify password password-hash)]
+    (if (map? result)
+      (boolean (:valid result))
+      (boolean result))))
+
+(defn generate-token [user-id]
+  (jwt/sign {:user-id user-id
+             :exp (+ (now-seconds) token-ttl-seconds)}
+            (jwt-secret)
+            {:alg :hs256}))
+
+(defn verify-token
+  "Returns the user id carried by a valid token, or nil."
+  [token]
   (try
-    (handler)
-    (catch Throwable t
-      (log/error t "Unhandled error")
-      (response {:status 500 :body {:error "Internal server error"}}))))
-
-(defn app []
-  (ring/ring-handler
-    (all-routes)
-    (ring/routes
-      (ring/create-resource-handler {:root "/"})
-      (ring/create-resource-handler {:path "/api/v1" :methods [:options] :response (constantly {:status 200})})
-      (ring/create-default-handler {:not-found (constantly {:status 404 :body {:error "Not found"}})}))
-    {:middleware [wrap-base wrap-internal-error]}))
+    (:user-id (jwt/unsign token (jwt-secret) {:alg :hs256}))
+    (catch Exception _
+      nil)))
 `,
 
-    // Routes - Home
+    // Routes - HTML pages
     'src/clj/{{projectNameSnake}}/routes/home.clj': `(ns {{projectNameSnake}}.routes.home
-  (:require
-   [{{projectNameSnake}}.controllers.health :refer [health-routes]]
-   [{{projectNameSnake}}.controllers.auth :refer [auth-routes]]
-   [{{projectNameSnake}}.controllers.user :refer [user-routes]]
-   [{{projectNameSnake}}.controllers.product :refer [product-routes]]
-   [{{projectNameSnake}}.graphql.schema :refer [graphql-handler]]
-   [reitit.ring :as ring]))
+  (:require [{{projectNameSnake}}.layout :as layout]))
 
-(def graphql-routes
-  [["/graphql" {:post graphql-handler
-                :get  graphql-handler}]])
+(def ^:private endpoints
+  ["GET /health"
+   "POST /api/v1/auth/register"
+   "POST /api/v1/auth/login"
+   "GET /api/v1/auth/me"
+   "GET /api/v1/products"
+   "POST /api/v1/products"
+   "POST /graphql"])
 
-(defn all-routes []
-  (ring/router
-    (conj
-      health-routes
-      auth-routes
-      user-routes
-      product-routes
-      graphql-routes)))
+(defn home-page [_request]
+  (layout/render "templates/home.html"
+                 {:page-title "{{projectName}}"
+                  :endpoints endpoints}))
+
+(defn health [_request]
+  {:status 200
+   :body {:status "healthy"
+          :timestamp (str (java.time.Instant/now))
+          :version "0.1.0"}})
+
+(defn routes []
+  [["/" {:get {:no-doc true
+               :handler home-page}}]
+   ["/health" {:get {:handler health}}]])
 `,
 
-    // Controllers - Health
-    'src/clj/{{projectNameSnake}}/controllers/health.clj': `(ns {{projectNameSnake}}.controllers.health
-  (:require [reitit.ring :refer [router GET]]
-            [ring.util.response :refer [response content-type]]
-            [clj-time.core :as t]))
+    // Routes - JSON API
+    'src/clj/{{projectNameSnake}}/routes/services.clj': `(ns {{projectNameSnake}}.routes.services
+  (:require [{{projectNameSnake}}.auth :as auth]
+            [{{projectNameSnake}}.db.core :as db]
+            [{{projectNameSnake}}.graphql :as graphql]
+            [{{projectNameSnake}}.middleware :as middleware]
+            [{{projectNameSnake}}.routes.home :as home]))
 
-(defn health-handler [request]
-  (response {:status "healthy"
-              :timestamp (str (t/now))
-              :version "1.0.0"}))
+(defn- public-user [user]
+  (dissoc user :password-hash))
 
-(def health-routes
-  (router
-    ["/api/v1"
-     ["/health" {:get health-handler}]]))
-`,
+(defn- blank-string? [value]
+  (or (not (string? value)) (empty? value)))
 
-    // Controllers - Auth
-    'src/clj/{{projectNameSnake}}/controllers/auth.clj': `(ns {{projectNameSnake}}.controllers.auth
-  (:require
-   [reitit.ring :refer [router POST]]
-   [ring.util.response :refer [response content-type]]
-   [buddy.sign.jwt :as jwt]
-   [buddy.hashers :as hashers]
-   [clj-time.core :as t]
-   [{{projectNameSnake}}.db.core :as db]))
+(defn- bad-request [message]
+  {:status 400 :body {:error message}})
 
-(defn generate-token [user]
-  (jwt/sign (assoc user :exp (t/plus (t/now) (t/days 7)))
-            "change-this-secret-in-production"))
+(defn- body-of [request]
+  (let [body (:body-params request)]
+    (if (map? body) body {})))
 
-(defn register-handler [request]
-  (let [params (:params request)
-        email (:email params)
-        password (:password params)
-        name (:name params)]
-    (if (db/user-exists? email)
-      (response {:status 409 :body {:error "Email already registered"}})
-      (let [hashed-password (hashers/derive password {:algorithm :pbkdf2+sha256})
-            user {:id (str (random-uuid))
-                   :email email
-                   :password hashed-password
-                   :name name
-                   :role "user"
-                   :created-at (t/now)
-                   :updated-at (t/now)}
-            _ (db/create-user! user)
-            token (generate-token user)
-            user-response {:id (:id user) :email email :name name :role "user"}]
-        (response {:status 201 :body {:token token :user user-response}})))))
+;; Auth
+(defn register [request]
+  (let [{:keys [email name password]} (body-of request)]
+    (cond
+      (or (blank-string? email) (blank-string? name) (blank-string? password))
+      (bad-request "email, name and password are required")
 
-(defn login-handler [request]
-  (let [params (:params request)
-        email (:email params)
-        password (:password params)]
-    (if-let [user (db/find-user-by-email email)]
-      (if (hashers/verify password (:password user))
-        (let [token (generate-token user)
-              user-response {:id (:id user) :email (:email user) :name (:name user) :role (:role user)}]
-          (response {:status 200 :body {:token token :user user-response}}))
-        (response {:status 401 :body {:error "Invalid credentials"}}))
-      (response {:status 401 :body {:error "Invalid credentials"}}))))
+      (db/find-user-by-email email)
+      {:status 409 :body {:error "Email already registered"}}
 
-(defn me-handler [request]
-  (let [token (get-in request [:headers "authorization"])
-        user-id (get-in request [:session :user-id])]
-    (if-let [user (db/find-user-by-id user-id)]
-      (response {:status 200 :body {:user {:id (:id user) :email (:email user) :name (:name user) :role (:role user)}}})
-      (response {:status 404 :body {:error "User not found"}}))))
+      :else
+      (let [user (db/create-user! {:email email
+                                   :name name
+                                   :role "user"
+                                   :password-hash (auth/hash-password password)})]
+        {:status 201
+         :body {:token (auth/generate-token (:id user))
+                :user (public-user user)}}))))
 
-(def auth-routes
-  (router
-    ["/api/v1/auth"
-     ["/register" {:post register-handler}]
-     ["/login" {:post login-handler}]
-     ["/me" {:post me-handler}]]))
-`,
+(defn login [request]
+  (let [{:keys [email password]} (body-of request)
+        user (when-not (blank-string? email) (db/find-user-by-email email))]
+    (if (and user
+             (not (blank-string? password))
+             (auth/valid-password? password (:password-hash user)))
+      {:status 200
+       :body {:token (auth/generate-token (:id user))
+              :user (public-user user)}}
+      {:status 401 :body {:error "Invalid credentials"}})))
 
-    // Controllers - User
-    'src/clj/{{projectNameSnake}}/controllers/user.clj': `(ns {{projectNameSnake}}.controllers.user
-  (:require
-   [reitit.ring :refer [router GET DELETE]]
-   [ring.util.response :refer [response]]
-   [{{projectNameSnake}}.db.core :as db]))
+(defn me [request]
+  (if-let [user (db/find-user-by-id (:user-id request))]
+    {:status 200 :body {:user (public-user user)}}
+    {:status 404 :body {:error "User not found"}}))
 
-(defn list-users-handler [request]
-  (let [users (db/get-all-users)]
-    (response {:status 200 :body {:users (map #(dissoc % :password) users) :count (count users)}})))
+;; Users
+(defn list-users [_request]
+  (let [users (map public-user (db/get-all-users))]
+    {:status 200 :body {:users users :count (count users)}}))
 
-(defn get-user-handler [request]
-  (let [id (get-in request [:path-params :id])]
-    (if-let [user (db/find-user-by-id id)]
-      (response {:status 200 :body {:user (dissoc user :password)}})
-      (response {:status 404 :body {:error "User not found"}}))))
+(defn get-user [request]
+  (if-let [user (db/find-user-by-id (get-in request [:path-params :id]))]
+    {:status 200 :body {:user (public-user user)}}
+    {:status 404 :body {:error "User not found"}}))
 
-(defn delete-user-handler [request]
-  (let [id (get-in request [:path-params :id])]
-    (if (db/delete-user! id)
-      (response {:status 204 :body nil})
-      (response {:status 404 :body {:error "User not found"}}))))
-
-(def user-routes
-  (router
-    ["/api/v1/users"
-     [""] {:get list-users-handler}
-     ["/:id" {:get get-user-handler
-              :delete delete-user-handler}]]))
-`,
-
-    // Controllers - Product
-    'src/clj/{{projectNameSnake}}/controllers/product.clj': `(ns {{projectNameSnake}}.controllers.product
-  (:require
-   [reitit.ring :refer [router GET POST PUT DELETE]]
-   [ring.util.response :refer [response]]
-   [clj-time.core :as t]
-   [{{projectNameSnake}}.db.core :as db]))
-
-(defn list-products-handler [request]
+;; Products
+(defn list-products [_request]
   (let [products (db/get-all-products)]
-    (response {:status 200 :body {:products products :count (count products)}})))
+    {:status 200 :body {:products products :count (count products)}}))
 
-(defn get-product-handler [request]
-  (let [id (get-in request [:path-params :id])]
-    (if-let [product (db/find-product-by-id id)]
-      (response {:status 200 :body {:product product}})
-      (response {:status 404 :body {:error "Product not found"}}))))
+(defn get-product [request]
+  (if-let [product (db/find-product-by-id (get-in request [:path-params :id]))]
+    {:status 200 :body {:product product}}
+    {:status 404 :body {:error "Product not found"}}))
 
-(defn create-product-handler [request]
-  (let [params (:params request)
-        product {:id (str (random-uuid))
-                 :name (:name params)
-                 :description (:description params)
-                 :price (:price params)
-                 :stock (:stock params)
-                 :created-at (t/now)
-                 :updated-at (t/now)}]
-    (db/create-product! product)
-    (response {:status 201 :body {:product product}})))
+(defn create-product [request]
+  (let [{:keys [name description price stock]} (body-of request)]
+    (if (or (blank-string? name) (not (number? price)))
+      (bad-request "name and a numeric price are required")
+      {:status 201
+       :body {:product (db/create-product! {:name name
+                                            :description (if (string? description) description "")
+                                            :price price
+                                            :stock (if (integer? stock) stock 0)})}})))
 
-(defn update-product-handler [request]
+(defn update-product [request]
   (let [id (get-in request [:path-params :id])
-        params (:params request)]
-    (if-let [product (db/update-product! id params)]
-      (response {:status 200 :body {:product product}})
-      (response {:status 404 :body {:error "Product not found"}}))))
+        updates (select-keys (body-of request) [:name :description :price :stock])]
+    (if-let [product (db/update-product! id updates)]
+      {:status 200 :body {:product product}}
+      {:status 404 :body {:error "Product not found"}})))
 
-(defn delete-product-handler [request]
-  (let [id (get-in request [:path-params :id])]
-    (if (db/delete-product! id)
-      (response {:status 204 :body nil})
-      (response {:status 404 :body {:error "Product not found"}}))))
+(defn delete-product [request]
+  (if (db/delete-product! (get-in request [:path-params :id]))
+    {:status 204}
+    {:status 404 :body {:error "Product not found"}}))
 
-(def product-routes
-  (router
-    ["/api/v1/products"
-     [""] {:get list-products-handler
-           :post create-product-handler}
-     ["/:id" {:get get-product-handler
-              :put update-product-handler
-              :delete delete-product-handler}]]))
+(defn routes []
+  [["/graphql" {:post {:handler graphql/graphql-handler}}]
+   ["/api/v1"
+    ["/health" {:get {:handler home/health}}]
+    ["/auth"
+     ["/register" {:post {:handler register}}]
+     ["/login" {:post {:handler login}}]
+     ["/me" {:get {:middleware [middleware/wrap-auth]
+                   :handler me}}]]
+    ["/users" {:middleware [middleware/wrap-auth]}
+     ["" {:get {:handler list-users}}]
+     ["/:id" {:get {:handler get-user}}]]
+    ["/products"
+     ["" {:get {:handler list-products}
+          :post {:middleware [middleware/wrap-auth]
+                 :handler create-product}}]
+     ["/:id" {:get {:handler get-product}
+              :put {:middleware [middleware/wrap-auth]
+                    :handler update-product}
+              :delete {:middleware [middleware/wrap-auth]
+                       :handler delete-product}}]]]])
 `,
 
-    // Database core
+    // GraphQL schema + resolvers (Lacinia)
+    'src/clj/{{projectNameSnake}}/graphql.clj': `(ns {{projectNameSnake}}.graphql
+  "GraphQL endpoint built with Lacinia."
+  (:require [com.walmartlabs.lacinia :as lacinia]
+            [com.walmartlabs.lacinia.schema :as schema]))
+
+(def compiled-schema
+  (schema/compile
+    {:queries
+     {:hello {:type 'String
+              :resolve (fn [_context _args _value] "Hello from Luminus + Lacinia GraphQL!")}
+      :health {:type 'String
+               :resolve (fn [_context _args _value] "healthy")}}}))
+
+(defn graphql-handler
+  "POST /graphql. Expects a JSON body with a query string and optional variables."
+  [request]
+  (let [body (if (map? (:body-params request)) (:body-params request) {})
+        query (:query body)]
+    (if (string? query)
+      {:status 200
+       :body (lacinia/execute compiled-schema query (:variables body) nil)}
+      {:status 400
+       :body {:errors [{:message "A GraphQL query string is required"}]}})))
+`,
+
+    // Database (in memory; a Mount state seeds it on start)
     'src/clj/{{projectNameSnake}}/db/core.clj': `(ns {{projectNameSnake}}.db.core
-  (:require [clojure.string :as str]))
+  "In-memory storage. Swap this namespace for Conman/HugSQL or next.jdbc
+  (as the full Luminus template does) before going to production."
+  (:require [mount.core :refer [defstate]]
+            [{{projectNameSnake}}.auth :as auth]))
 
-(def ^:private users (atom {}))
-(def ^:private products (atom {}))
+(defonce ^:private users (atom {}))
+(defonce ^:private products (atom {}))
 
-(defn init-db! []
-  ;; Create admin user
-  (let [admin-password "$2a$12$dummy" ;; Use BCrypt in production
-        admin {:id "1"
-               :email "admin@example.com"
-               :password admin-password
-               :name "Admin User"
-               :role "admin"
-               :created-at (java.util.Date.)
-               :updated-at (java.util.Date.)}]
-    (swap! users assoc "1" admin))
+(defn- now []
+  (str (java.time.Instant/now)))
 
-  ;; Create sample products
-  (let [now (java.util.Date.)
-        product1 {:id "1"
-                   :name "Sample Product 1"
-                   :description "This is a sample product"
-                   :price 29.99
-                   :stock 100
-                   :created-at now
-                   :updated-at now}
-        product2 {:id "2"
-                   :name "Sample Product 2"
-                   :description "Another sample product"
-                   :price 49.99
-                   :stock 50
-                   :created-at now
-                   :updated-at now}]
-    (swap! products assoc "1" product1)
-    (swap! products assoc "2" product2))
+(defn- new-id []
+  (str (random-uuid)))
 
-  (println "📦 Database initialized")
-  (println "👤 Default admin user: admin@example.com / admin123")
-  (println "📦 Sample products created"))
+(defn reset-db!
+  "Empties the store. Used by the tests."
+  []
+  (reset! users {})
+  (reset! products {}))
 
-(defn user-exists? [email]
-  (some #(= email (:email %)) (vals @users)))
-
+;; Users
 (defn find-user-by-email [email]
   (first (filter #(= email (:email %)) (vals @users))))
 
 (defn find-user-by-id [id]
   (get @users id))
 
-(defn create-user! [user]
-  (swap! users assoc (:id user) user))
-
-(defn delete-user! [id]
-  (swap! users dissoc id))
-
 (defn get-all-users []
-  (vals @users))
+  (sort-by :created-at (vals @users)))
 
+(defn create-user! [attrs]
+  (let [id (new-id)
+        user (assoc attrs :id id :created-at (now) :updated-at (now))]
+    (swap! users assoc id user)
+    user))
+
+;; Products
 (defn find-product-by-id [id]
   (get @products id))
 
 (defn get-all-products []
-  (vals @products))
+  (sort-by :created-at (vals @products)))
 
-(defn create-product! [product]
-  (swap! products assoc (:id product) product))
+(defn create-product! [attrs]
+  (let [id (new-id)
+        product (assoc attrs :id id :created-at (now) :updated-at (now))]
+    (swap! products assoc id product)
+    product))
 
-(defn update-product! [id updates]
-  (if (get @products id)
-    (swap! products update id #(merge % updates))
-    nil))
+(defn update-product!
+  "Merges the updates into the product and returns it, or nil when it does not exist."
+  [id updates]
+  (when (contains? @products id)
+    (get (swap! products update id merge updates {:updated-at (now)}) id)))
 
-(defn delete-product! [id]
-  (swap! products dissoc id))
-`,
+(defn delete-product!
+  "Returns true when a product was removed."
+  [id]
+  (let [[before after] (swap-vals! products dissoc id)]
+    (not= (count before) (count after))))
 
-    // Middleware formats
-    'src/clj/{{projectNameSnake}}/middleware/formats.clj': `(ns {{projectNameSnake}}.middleware.formats
-  (:require [ring.middleware.json :refer [wrap-json-response]]
-            [ring.middleware.format :refer [wrap-restful-format]]))
-
-(defn wrap-json-params-middleware
-  "Middleware that parses JSON request bodies and adds them to the request map."
-  [handler]
-  (fn [request]
-    (let [json-body? (:json-params request)]
-      (handler (assoc request :params (merge (:params request) json-body?))))))
-
-(defn wrap-api-format [handler]
-  (-> handler
-      wrap-json-response
-      (wrap-restful-format :formats [:json-kw :transit-json :edn])))
-`,
-
-    // GraphQL schema + resolvers (Lacinia)
-    'src/clj/{{projectNameSnake}}/graphql/schema.clj': `(ns {{projectNameSnake}}.graphql.schema
-  (:require
-   [com.walmartlabs.lacinia.schema :as schema]
-   [com.walmartlabs.lacinia.util :as util]
-   [com.walmartlabs.lacinia :as lacinia]
-   [clojure.data.json :as json]
-   [ring.util.response :refer [response content-type]]
-   [{{projectNameSnake}}.controllers.health :refer [health-handler]]
-   [clojure.edn :as edn]))
-
-(defn resolve-hello
-  "Resolver for the Query.hello field."
-  [context args value]
-  "Hello from Luminus + Lacinia GraphQL!")
-
-(defn resolve-health
-  "Resolver for the Query.health field. Delegates to the REST health handler
-  to avoid duplicating status logic."
-  [context args value]
-  (let [resp (health-handler {})]
-    (get-in resp [:body])))
-
-(defn build-schema
-  "Compile the Lacinia schema from EDN. Minimal schema exposing Query.hello
-  and Query.health."
+(defn seed!
+  "Seeds an admin user and two sample products."
   []
-  (-> {:objects
-       {:Query
-        {:fields
-         {:hello  {:type   'String
-                   :resolve resolve-hello}
-          :health {:type   'String
-                   :resolve resolve-health}}}}}
-      (schema/compile)))
+  (reset-db!)
+  (create-user! {:email "admin@example.com"
+                 :name "Admin User"
+                 :role "admin"
+                 :password-hash (auth/hash-password "admin123")})
+  (create-product! {:name "Sample Product 1"
+                    :description "This is a sample product"
+                    :price 29.99
+                    :stock 100})
+  (create-product! {:name "Sample Product 2"
+                    :description "Another sample product"
+                    :price 49.99
+                    :stock 50}))
 
-(def ^:private compiled-schema
-  "Compile once at load time; safe because the schema is static."
-  (delay (build-schema)))
-
-(defn- extract-query
-  "Pull the GraphQL query string out of either a JSON POST body (:json-params
-  or parsed body) or a query-string parameter."
-  [request]
-  (let [body (:body request)]
-    (cond
-      (string? body)
-      (try
-        (let [parsed (json/read-str body :key-fn keyword)]
-          {:query     (:query parsed)
-           :variables (:variables parsed)
-           :operation (:operationName parsed)})
-        (catch Throwable _
-          {:query (get-in request [:params :query] body)}))
-
-      (map? body)
-      {:query     (:query body)
-       :variables (:variables body)
-       :operation (:operationName body)}
-
-      :else
-      {:query (get-in request [:params :query])})))
-
-(defn graphql-handler
-  "Ring handler that executes a GraphQL query against the compiled Lacinia
-  schema and returns a JSON response."
-  [request]
-  (let [{:keys [query variables operation]} (extract-query request)
-        result (if query
-                 (lacinia/execute @compiled-schema
-                                  query
-                                  (or variables {})
-                                  nil)
-                 {:errors [{:message "No query provided"}]})
-        status (if (seq (:errors result)) 400 200)]
-    (-> (response result)
-        (content-type "application/json")
-        (assoc :status status))))
+(defstate store
+  :start (seed!)
+  :stop (reset-db!))
 `,
 
-    // Environment
-    'profiles.clj': `(defproject profiles
-  :dependencies [[org.clojure/tools.profile "0.6.1"]])
+    // Development helpers (only on the classpath in the dev profile)
+    'env/dev/clj/user.clj': `(ns user
+  "REPL helpers: (start), (stop) and (restart)."
+  (:require [mount.core :as mount]
+            [{{projectNameSnake}}.core]))
+
+(defn start []
+  (mount/start))
+
+(defn stop []
+  (mount/stop))
+
+(defn restart []
+  (stop)
+  (start))
 `,
 
-    // Development profile
-    'profiles/dev/clj/user.clj': `(ns user
-  (:require [{{projectNameSnake}}.db.core :as db]
-            [{{projectNameSnake}}.handler :refer [app]]
-            [luminus.http-server :as server]
-            [luminus-nrepl.server :as nrepl]))
+    // Configuration and static resources
+    'resources/config.edn': `{:port {{port}}
+ :jwt-secret "dev-secret-change-me"}
+`,
 
-(defn -main []
-  (db/init-db!)
-  (println "🚀 Server running at http://localhost:3000")
-  (println "📚 API docs: http://localhost:3000/api/v1/health")
-  (server/start (app) {:port 3000}))
+    'resources/templates/home.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{page-title}}</title>
+  <link rel="stylesheet" href="/css/screen.css">
+</head>
+<body>
+  <main>
+    <h1>{{page-title}}</h1>
+    <p>Your Luminus-style application is running.</p>
+    <h2>Endpoints</h2>
+    <ul>
+      {% for endpoint in endpoints %}<li><code>{{endpoint}}</code></li>
+      {% endfor %}
+    </ul>
+  </main>
+</body>
+</html>
+`,
+
+    'resources/public/css/screen.css': `body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  margin: 0;
+  background: #f7f7f9;
+  color: #1f2430;
+}
+
+main {
+  max-width: 40rem;
+  margin: 3rem auto;
+  padding: 0 1rem;
+}
+
+code {
+  background: #e8eaf0;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+`,
+
+    'resources/logback.xml': `<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="org.eclipse.jetty" level="WARN"/>
+
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>
+`,
+
+    // Tests
+    'test/clj/{{projectNameSnake}}/handler_test.clj': `(ns {{projectNameSnake}}.handler-test
+  (:require [clojure.string :as str]
+            [clojure.test :refer [deftest is testing use-fixtures]]
+            [mount.core :as mount]
+            [muuntaja.core :as m]
+            [ring.mock.request :as mock]
+            [{{projectNameSnake}}.config :as config]
+            [{{projectNameSnake}}.db.core :as db]
+            [{{projectNameSnake}}.handler :as handler]))
+
+;; Starts only the configuration and the routes (no HTTP server, no seed data).
+(use-fixtures :once
+  (fn [run-tests]
+    (mount/start #'config/env #'handler/app-routes)
+    (try
+      (run-tests)
+      (finally
+        (mount/stop #'handler/app-routes #'config/env)))))
+
+(use-fixtures :each
+  (fn [run-test]
+    (db/reset-db!)
+    (run-test)))
+
+(defn- app [request]
+  ((handler/app) request))
+
+(defn- decode [response]
+  (when (:body response)
+    (m/decode m/instance "application/json" (:body response))))
+
+(defn- json-request
+  ([method uri payload]
+   (json-request method uri payload nil))
+  ([method uri payload token]
+   (cond-> (-> (mock/request method uri)
+               (mock/content-type "application/json")
+               (mock/body (slurp (m/encode m/instance "application/json" payload))))
+     token (mock/header "Authorization" (str "Bearer " token)))))
+
+(defn- authed-request [method uri token]
+  (mock/header (mock/request method uri) "Authorization" (str "Bearer " token)))
+
+(defn- register! [email]
+  (app (json-request :post "/api/v1/auth/register"
+                     {:email email :name "Test User" :password "password123"})))
+
+(deftest home-page-is-rendered
+  (let [response (app (mock/request :get "/"))]
+    (is (= 200 (:status response)))
+    (is (str/includes? (:body response) "<h1>"))))
+
+(deftest health-endpoints
+  (doseq [uri ["/health" "/api/v1/health"]]
+    (let [response (app (mock/request :get uri))]
+      (is (= 200 (:status response)))
+      (is (= "healthy" (:status (decode response)))))))
+
+(deftest unknown-route-is-404
+  (is (= 404 (:status (app (mock/request :get "/nope"))))))
+
+(deftest register-and-login
+  (testing "registering returns a token and hides the password hash"
+    (let [response (register! "test@example.com")
+          body (decode response)]
+      (is (= 201 (:status response)))
+      (is (string? (:token body)))
+      (is (not (contains? (:user body) :password-hash)))))
+  (testing "the same email cannot register twice"
+    (is (= 409 (:status (register! "test@example.com")))))
+  (testing "login works with the right password only"
+    (is (= 200 (:status (app (json-request :post "/api/v1/auth/login"
+                                           {:email "test@example.com" :password "password123"})))))
+    (is (= 401 (:status (app (json-request :post "/api/v1/auth/login"
+                                           {:email "test@example.com" :password "nope"})))))))
+
+(deftest registration-is-validated
+  (is (= 400 (:status (app (json-request :post "/api/v1/auth/register" {:email "a@b.c"}))))))
+
+(deftest protected-routes-need-a-token
+  (is (= 401 (:status (app (mock/request :get "/api/v1/users")))))
+  (is (= 401 (:status (app (mock/request :get "/api/v1/auth/me")))))
+  (is (= 401 (:status (app (json-request :post "/api/v1/products" {:name "Widget" :price 5}))))))
+
+(deftest product-lifecycle
+  (let [token (-> (register! "shop@example.com") decode :token)
+        created (app (json-request :post "/api/v1/products"
+                                   {:name "Widget" :price 9.5 :stock 3}
+                                   token))
+        product-id (get-in (decode created) [:product :id])]
+    (is (= 201 (:status created)))
+    (is (= 200 (:status (app (authed-request :get "/api/v1/auth/me" token)))))
+    (is (= 1 (:count (decode (app (mock/request :get "/api/v1/products"))))))
+    (is (= 200 (:status (app (json-request :put (str "/api/v1/products/" product-id)
+                                           {:stock 7}
+                                           token)))))
+    (is (= 204 (:status (app (authed-request :delete (str "/api/v1/products/" product-id) token)))))
+    (is (= 404 (:status (app (mock/request :get (str "/api/v1/products/" product-id))))))))
+
+(deftest graphql-query
+  (let [response (app (json-request :post "/graphql" {:query "{ hello health }"}))
+        body (decode response)]
+    (is (= 200 (:status response)))
+    (is (= "healthy" (get-in body [:data :health])))))
+`,
+
+    '.gitignore': `# Leiningen
+/target
+/classes
+/checkouts
+pom.xml
+pom.xml.asc
+*.jar
+*.class
+.lein-*
+.nrepl-port
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+profiles.clj
 `,
 
     // Dockerfile - Multi-stage optimized build
@@ -522,30 +710,25 @@ export const luminusCljTemplate: BackendTemplate = {
 # =============================================================================
 
 # Stage 1: Builder
-FROM clojure:lein AS builder
+FROM clojure:temurin-21-lein AS builder
 
 WORKDIR /app
 
-# Copy project files first for better dependency caching
-COPY project.clj profiles.clj ./
+# Copy project file first for better dependency caching
+COPY project.clj ./
 
-# Copy profiles directory if it exists
-COPY profiles/ ./profiles/ 2>/dev/null || true
-
-# Download dependencies (for better layer caching)
+# Download dependencies
 RUN lein deps
 
-# Copy source code
-COPY src/ ./src/
-
-# Build uberjar
-RUN lein clean
+# Copy source code and resources, then build the uberjar
+COPY src ./src
+COPY resources ./resources
 RUN lein uberjar
 
 # =============================================================================
 # Stage 2: Runtime - Minimal image
 # =============================================================================
-FROM eclipse-temurin:17-jre-jammy AS runtime
+FROM eclipse-temurin:21-jre-jammy AS runtime
 
 WORKDIR /app
 
@@ -557,150 +740,105 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \\
 COPY --from=builder /app/target/uberjar/{{projectNameSnake}}-standalone.jar ./app.jar
 
 # Create non-root user
-RUN useradd -m -u 1000 appuser
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 
-# Create data directory
-RUN mkdir -p /app/data && chown -R appuser:appuser /app
-
-# Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 3000
+EXPOSE {{port}}
 
-ENV PORT=3000
+ENV PORT={{port}}
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
-    CMD curl -f http://localhost:3000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \\
+    CMD curl -f http://localhost:{{port}}/health || exit 1
 
 CMD ["java", "-jar", "app.jar"]
 `,
 
     // Docker Compose
-    'docker-compose.yml': `version: '3.8'
-
-services:
+    'docker-compose.yml': `services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "{{port}}:{{port}}"
+    environment:
+      - PORT={{port}}
+      - JWT_SECRET=\${JWT_SECRET:-development-secret}
     restart: unless-stopped
-`,
-
-    // Tests
-    'test/{{projectNameSnake}}/core_test.clj': `(ns {{projectNameSnake}}.core-test
-  (:require [clojure.test :refer :all]
-            [{{projectNameSnake}}.routes.home :refer [all-routes]]
-            [ring.mock.request :as mock]
-            [{{projectNameSnake}}.db.core :as db]))
-
-(deftest test-database-initialization
-  (testing "Database initializes with admin user"
-    (db/init-db!)
-    (is (some? (db/find-user-by-email "admin@example.com")))))
-
-(deftest test-health-endpoint
-  (testing "Health check returns healthy status"
-    (let [response ((all-routes) (mock/request :get "/api/v1/health"))]
-      (is (= 200 (:status response))))))
 `,
 
     // README
     'README.md': `# {{projectName}}
 
-A full-stack REST API built with Luminus web framework for Clojure.
+A Clojure web application in the style of the Luminus framework: Mount for application state, Cprop for configuration, Selmer for HTML templates, Reitit and Muuntaja for routing and JSON, and Ring defaults on Jetty.
 
 ## Features
 
-- **Luminus**: Batteries-included Clojure web framework
-- **Reagent**: ClojureScript wrapper for React
-- **Re-frame**: Functional state management
-- **Selmer**: Django/Jinja-like templating
-- **Buddy**: Authentication and security
-- **Conman**: Database connections and migrations
-- **Compojure**: Routing library
+- **Mount**: application state (configuration, seed data, handler, HTTP server) with a clear start and stop order
+- **Cprop**: configuration from \`resources/config.edn\`, overridden by system properties and environment variables (\`PORT\`, \`JWT_SECRET\`)
+- **Selmer**: server-side HTML templates (\`resources/templates\`) and static files (\`resources/public\`)
+- **Reitit and Muuntaja**: data-driven routes with JSON content negotiation
+- **Buddy**: JWT authentication and hashed passwords
+- **Lacinia**: a GraphQL endpoint at \`POST /graphql\`
+- **Logging**: \`clojure.tools.logging\` with Logback (\`resources/logback.xml\`)
+- **CORS** and Ring defaults (sessions, security headers)
+
+Data is kept in memory (see \`src/clj/{{projectNameSnake}}/db/core.clj\`). For SQL, Conman or next.jdbc, and ClojureScript front ends, generate a full app with \`lein new luminus\`.
 
 ## Requirements
 
-- Clojure 1.11+
-- Leiningen 2.x
+- Java 17+
+- Leiningen 2.9+
 
 ## Quick Start
 
-1. Install dependencies:
-   \`\`\`bash
-   lein deps
-   \`\`\`
+\`\`\`bash
+lein deps
+lein check
+lein test
+lein run
+\`\`\`
 
-2. Run in development:
-   \`\`\`bash
-   lein run
-   \`\`\`
+Open http://localhost:{{port}}. Set \`JWT_SECRET\` in production.
 
 ## API Endpoints
 
-### Health
-- \`GET /api/v1/health\` - Health check
+- \`GET /\` - HTML home page
+- \`GET /health\`, \`GET /api/v1/health\` - Health check
+- \`POST /api/v1/auth/register\` - Register (\`email\`, \`name\`, \`password\`)
+- \`POST /api/v1/auth/login\` - Login, returns a JWT
+- \`GET /api/v1/auth/me\` - Current user (bearer token)
+- \`GET /api/v1/users\`, \`GET /api/v1/users/:id\` - Users (bearer token)
+- \`GET /api/v1/products\`, \`GET /api/v1/products/:id\` - Read products
+- \`POST /api/v1/products\`, \`PUT|DELETE /api/v1/products/:id\` - Change products (bearer token)
+- \`POST /graphql\` - GraphQL (\`{"query": "{ hello health }"}\`)
 
-### Authentication
-- \`POST /api/v1/auth/register\` - Register new user
-- \`POST /api/v1/auth/login\` - Login user
-- \`POST /api/v1/auth/me\` - Get current user
-
-### Products
-- \`GET /api/v1/products\` - List all products
-- \`GET /api/v1/products/:id\` - Get product by ID
-- \`POST /api/v1/products\` - Create product
-- \`PUT /api/v1/products/:id\` - Update product
-- \`DELETE /api/v1/products/:id\` - Delete product
+On start-up the app seeds \`admin@example.com\` / \`admin123\` and two sample products.
 
 ## Project Structure
 
 \`\`\`
-├── src/
-│   └── clj/{{projectNameSnake}}/
-│       ├── handler.clj           # Entry point
-│       ├── routes/               # Route definitions
-│       ├── controllers/          # Request handlers
-│       ├── db/                   # Database layer
-│       └── middleware/           # Middleware
-├── test/                         # Tests
-├── profiles/                     # Environment profiles
-└── project.clj                   # Leiningen config
+├── src/clj/{{projectNameSnake}}/
+│   ├── core.clj          # Entry point, HTTP server state
+│   ├── config.clj        # Cprop configuration state
+│   ├── handler.clj       # Reitit router and Ring handler state
+│   ├── middleware.clj    # Logging, Ring defaults, CORS, JWT auth
+│   ├── layout.clj        # Selmer rendering
+│   ├── auth.clj          # Password hashing and JWTs
+│   ├── graphql.clj       # Lacinia schema and handler
+│   ├── routes/           # HTML and JSON routes
+│   └── db/core.clj       # In-memory store
+├── env/dev/clj/user.clj  # REPL helpers (dev profile)
+├── resources/            # config.edn, templates, static files, logback.xml
+├── test/clj/             # Tests
+└── project.clj
 \`\`\`
-
-## Development
-
-\`\`\`bash
-# Start REPL with nREPL
-lein repl
-
-# Run with hot-reload
-lein run
-
-# Run tests
-lein test
-
-# Build uberjar
-lein uberjar
-\`\`\`
-
-## Luminus Features
-
-- **Full-Stack**: Frontend and backend
-- **Database**: SQL and NoSQL support
-- **WebSockets**: Real-time communication
-- **Auth**: Built-in authentication
-- **Migrations**: Database migrations
-- **Logging**: Structured logging
-- **Testing**: Midje and test.check
 
 ## Docker
 
 \`\`\`bash
 docker build -t {{projectName}} .
-docker run -p 3000:3000 {{projectName}}
+docker run -p {{port}}:{{port}} -e JWT_SECRET=change-me {{projectName}}
 \`\`\`
 
 ## License

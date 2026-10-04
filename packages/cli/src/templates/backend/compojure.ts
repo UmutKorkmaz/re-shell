@@ -10,100 +10,74 @@ export const compojureTemplate: BackendTemplate = {
   language: 'clojure',
   port: 3000,
   tags: ['clojure', 'compojure', 'ring', 'web', 'api', 'rest', 'functional', 'jvm'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation', 'graphql'],
+  features: ['routing', 'middleware', 'rest-api', 'authentication', 'logging', 'cors', 'validation', 'graphql'],
   dependencies: {},
   devDependencies: {},
   files: {
     'project.clj': `(defproject {{projectName}} "0.1.0-SNAPSHOT"
-  :description "{{description}}"
-  :url "https://github.com/{{author}}/{{projectName}}"
+  :description "REST API built with Compojure and Ring"
   :license {:name "MIT"
             :url "https://opensource.org/licenses/MIT"}
+  :min-lein-version "2.9.0"
 
-  :dependencies [[org.clojure/clojure "1.11.1"]
-                 [ring/ring-core "1.10.0"]
-                 [ring/ring-jetty-adapter "1.10.0"]
+  :dependencies [[org.clojure/clojure "1.12.0"]
+                 [ring/ring-core "1.12.2"]
+                 [ring/ring-jetty-adapter "1.12.2"]
                  [ring/ring-json "0.5.1"]
                  [ring-cors "0.1.13"]
-                 [compojure "1.7.0"]
-                 [com.walmartlabs/lacinia "1.2.2"]
+                 [compojure "1.7.1"]
+                 [com.walmartlabs/lacinia "1.2.1"]
                  [buddy/buddy-sign "3.5.351"]
                  [buddy/buddy-hashers "2.0.167"]
-                 [environ "1.2.0"]
-                 [cheshire "5.12.0"]
-                 [clj-time "0.15.2"]]
+                 [cheshire "5.13.0"]]
 
-  :plugins [[lein-ring "0.12.6"]
-            [lein-environ "1.2.0"]]
-
-  :ring {:handler {{projectName}}.core/app
-         :init {{projectName}}.core/init
-         :port 3000}
-
-  :main ^:skip-aot {{projectName}}.core
+  :main ^:skip-aot {{projectNameSnake}}.core
 
   :target-path "target/%s"
 
-  :profiles {:dev {:dependencies [[ring/ring-mock "0.4.0"]
-                                  [kerodon "0.9.1"]]
-                   :env {:port "3000"
-                         :jwt-secret "dev-secret"}}
-
-             :test {:env {:port "3001"
-                          :jwt-secret "test-secret"}}
-
+  :profiles {:dev {:dependencies [[ring/ring-mock "0.4.0"]]}
              :uberjar {:aot :all
+                       :uberjar-name "{{projectNameSnake}}-standalone.jar"
                        :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
 `,
 
-    'src/{{projectName}}/core.clj': `(ns {{projectName}}.core
-  (:require [compojure.core :refer :all]
-            [compojure.route :as route]
-            [ring.middleware.json :refer [wrap-json-response wrap-json-body]]
-            [ring.middleware.cors :refer [wrap-cors]]
-            [ring.middleware.keyword-params :refer [wrap-keyword-params]]
-            [ring.middleware.params :refer [wrap-params]]
+    'src/{{projectNameSnake}}/core.clj': `(ns {{projectNameSnake}}.core
+  (:require [compojure.core :refer [defroutes routes wrap-routes GET POST DELETE ANY]]
             [ring.adapter.jetty :refer [run-jetty]]
-            [environ.core :refer [env]]
-            [{{projectName}}.handlers :as handlers]
-            [{{projectName}}.middleware :as mw]
-            [{{projectName}}.graphql :as graphql])
+            [ring.middleware.cors :refer [wrap-cors]]
+            [ring.middleware.json :refer [wrap-json-body wrap-json-response]]
+            [{{projectNameSnake}}.db :as db]
+            [{{projectNameSnake}}.graphql :as graphql]
+            [{{projectNameSnake}}.handlers :as handlers]
+            [{{projectNameSnake}}.middleware :as mw])
   (:gen-class))
 
-(defroutes api-routes
-  ;; Health check
-  (GET "/health" [] handlers/health-handler)
+(defroutes public-routes
+  (GET "/" request (handlers/root-handler request))
+  (GET "/health" request (handlers/health-handler request))
+  (POST "/graphql" request (graphql/graphql-handler request))
+  (POST "/api/auth/register" request (handlers/register-handler request))
+  (POST "/api/auth/login" request (handlers/login-handler request)))
 
-  ;; Root endpoint
-  (GET "/" [] handlers/root-handler)
+;; Every route in here runs behind mw/wrap-auth (JWT bearer token).
+(defroutes protected-routes
+  (GET "/api/users/me" request (handlers/get-me-handler request))
+  (GET "/api/users" request (handlers/list-users-handler request))
+  (GET "/api/users/:id" [id] (handlers/get-user-handler id))
+  (GET "/api/items" request (handlers/list-items-handler request))
+  (POST "/api/items" request (handlers/create-item-handler request))
+  (GET "/api/items/:id" [id :as request] (handlers/get-item-handler id request))
+  (DELETE "/api/items/:id" [id :as request] (handlers/delete-item-handler id request)))
 
-  ;; GraphQL endpoint
-  (POST "/graphql" [] graphql/graphql-handler)
-
-  ;; Auth routes
-  (POST "/api/auth/register" [] handlers/register-handler)
-  (POST "/api/auth/login" [] handlers/login-handler)
-
-  ;; Protected user routes
-  (GET "/api/users/me" [] (mw/wrap-auth handlers/get-me-handler))
-  (GET "/api/users" [] (mw/wrap-auth handlers/list-users-handler))
-  (GET "/api/users/:id" [id] (mw/wrap-auth (partial handlers/get-user-handler id)))
-
-  ;; Protected item routes
-  (GET "/api/items" [] (mw/wrap-auth handlers/list-items-handler))
-  (POST "/api/items" [] (mw/wrap-auth handlers/create-item-handler))
-  (GET "/api/items/:id" [id] (mw/wrap-auth (partial handlers/get-item-handler id)))
-  (DELETE "/api/items/:id" [id] (mw/wrap-auth (partial handlers/delete-item-handler id)))
-
-  ;; Not found
-  (route/not-found {:status 404
-                    :body {:error "not_found"
-                           :message "Resource not found"}}))
+(defroutes not-found-routes
+  (ANY "*" [] {:status 404
+               :body {:error "not_found"
+                      :message "Resource not found"}}))
 
 (def app
-  (-> api-routes
-      wrap-keyword-params
-      wrap-params
+  (-> (routes public-routes
+              (wrap-routes protected-routes mw/wrap-auth)
+              not-found-routes)
       (wrap-json-body {:keywords? true})
       wrap-json-response
       (wrap-cors :access-control-allow-origin [#".*"]
@@ -111,380 +85,391 @@ export const compojureTemplate: BackendTemplate = {
                  :access-control-allow-headers ["Content-Type" "Authorization"])
       mw/wrap-logging))
 
-(defn init []
-  (println "Initializing {{projectName}}..."))
-
-(defn -main [& args]
-  (let [port (Integer/parseInt (or (env :port) "3000"))]
-    (println (str "🚀 {{projectName}} server starting on http://localhost:" port))
+(defn -main [& _args]
+  (let [port (Integer/parseInt (or (System/getenv "PORT") "{{port}}"))]
+    (db/init!)
+    (println (str "{{projectName}} listening on http://localhost:" port))
     (run-jetty app {:port port :join? true})))
 `,
 
-    'src/{{projectName}}/handlers.clj': `(ns {{projectName}}.handlers
-  (:require [{{projectName}}.db :as db]
-            [{{projectName}}.auth :as auth]
-            [clojure.string :as str]))
+    'src/{{projectNameSnake}}/handlers.clj': `(ns {{projectNameSnake}}.handlers
+  (:require [clojure.string :as str]
+            [{{projectNameSnake}}.auth :as auth]
+            [{{projectNameSnake}}.db :as db]))
 
-;; Health check
-(defn health-handler [request]
+(defn- json-body
+  "The parsed JSON body of the request, or an empty map when there is none."
+  [request]
+  (let [body (:body request)]
+    (if (map? body) body {})))
+
+(defn- error [status code message]
+  {:status status
+   :body {:error code
+          :message message}})
+
+(defn- parse-id [value]
+  (try
+    (Long/parseLong (str value))
+    (catch NumberFormatException _ nil)))
+
+(defn- public-user [user]
+  (dissoc user :password-hash))
+
+;; Health and info
+(defn health-handler [_request]
   {:status 200
    :body {:status "healthy"
           :timestamp (str (java.time.Instant/now))}})
 
-;; Root endpoint
-(defn root-handler [request]
+(defn root-handler [_request]
   {:status 200
    :body {:name "{{projectName}}"
-          :version "1.0.0"
+          :version "0.1.0"
           :framework "Compojure"
-          :language "Clojure"
-          :description "{{description}}"}})
+          :language "Clojure"}})
 
-;; Auth handlers
+;; Auth
 (defn register-handler [request]
-  (let [{:keys [email name password]} (:body request)]
+  (let [{:keys [email name password]} (json-body request)]
     (cond
-      (or (str/blank? email) (str/blank? name) (str/blank? password))
-      {:status 400
-       :body {:error "validation_error"
-              :message "Email, name and password are required"}}
+      (or (not (string? email)) (str/blank? email)
+          (not (string? name)) (str/blank? name)
+          (not (string? password)) (str/blank? password))
+      (error 400 "validation_error" "Email, name and password are required")
 
       (db/find-user-by-email email)
-      {:status 409
-       :body {:error "conflict"
-              :message "User with this email already exists"}}
+      (error 409 "conflict" "User with this email already exists")
 
       :else
-      (let [user (db/create-user! email name password)]
+      (let [user (db/create-user! email name (auth/hash-password password))]
         {:status 201
-         :body (dissoc user :password)}))))
+         :body (public-user user)}))))
 
 (defn login-handler [request]
-  (let [{:keys [email password]} (:body request)
-        user (db/find-user-by-email email)]
-    (if (and user (db/verify-password (:id user) password))
+  (let [{:keys [email password]} (json-body request)
+        user (when (string? email) (db/find-user-by-email email))]
+    (if (and user
+             (string? password)
+             (auth/valid-password? password (:password-hash user)))
       {:status 200
        :body (auth/generate-token (:id user))}
-      {:status 401
-       :body {:error "unauthorized"
-              :message "Invalid email or password"}})))
+      (error 401 "unauthorized" "Invalid email or password"))))
 
-;; User handlers
+;; Users
 (defn get-me-handler [request]
-  (let [user-id (:user-id request)
-        user (db/find-user-by-id user-id)]
-    (if user
-      {:status 200
-       :body (dissoc user :password)}
-      {:status 404
-       :body {:error "not_found"
-              :message "User not found"}})))
-
-(defn list-users-handler [request]
-  {:status 200
-   :body (map #(dissoc % :password) (db/get-all-users))})
-
-(defn get-user-handler [id request]
-  (let [user-id (Integer/parseInt id)
-        user (db/find-user-by-id user-id)]
-    (if user
-      {:status 200
-       :body (dissoc user :password)}
-      {:status 404
-       :body {:error "not_found"
-              :message "User not found"}})))
-
-;; Item handlers
-(defn list-items-handler [request]
-  (let [user-id (:user-id request)
-        items (db/get-items-by-user user-id)]
+  (if-let [user (db/find-user-by-id (:user-id request))]
     {:status 200
-     :body items}))
+     :body (public-user user)}
+    (error 404 "not_found" "User not found")))
+
+(defn list-users-handler [_request]
+  {:status 200
+   :body (map public-user (db/get-all-users))})
+
+(defn get-user-handler [id]
+  (if-let [user (some-> (parse-id id) db/find-user-by-id)]
+    {:status 200
+     :body (public-user user)}
+    (error 404 "not_found" "User not found")))
+
+;; Items
+(defn list-items-handler [request]
+  {:status 200
+   :body (db/get-items-by-user (:user-id request))})
 
 (defn create-item-handler [request]
-  (let [user-id (:user-id request)
-        {:keys [name description]} (:body request)]
-    (if (str/blank? name)
-      {:status 400
-       :body {:error "validation_error"
-              :message "Name is required"}}
-      (let [item (db/create-item! name (or description "") user-id)]
-        {:status 201
-         :body item}))))
+  (let [{:keys [name description]} (json-body request)]
+    (if (or (not (string? name)) (str/blank? name))
+      (error 400 "validation_error" "Name is required")
+      {:status 201
+       :body (db/create-item! name
+                              (if (string? description) description "")
+                              (:user-id request))})))
 
 (defn get-item-handler [id request]
-  (let [user-id (:user-id request)
-        item-id (Integer/parseInt id)
-        item (db/find-item-by-id item-id user-id)]
-    (if item
-      {:status 200
-       :body item}
-      {:status 404
-       :body {:error "not_found"
-              :message "Item not found"}})))
+  (if-let [item (some-> (parse-id id) (db/find-item-by-id (:user-id request)))]
+    {:status 200
+     :body item}
+    (error 404 "not_found" "Item not found")))
 
 (defn delete-item-handler [id request]
-  (let [user-id (:user-id request)
-        item-id (Integer/parseInt id)]
-    (if (db/delete-item! item-id user-id)
-      {:status 204
-       :body nil}
-      {:status 404
-       :body {:error "not_found"
-              :message "Item not found"}})))
+  (if (some-> (parse-id id) (db/delete-item! (:user-id request)))
+    {:status 204}
+    (error 404 "not_found" "Item not found")))
 `,
 
-    'src/{{projectName}}/db.clj': `(ns {{projectName}}.db
-  (:require [buddy.hashers :as hashers]))
+    'src/{{projectNameSnake}}/db.clj': `(ns {{projectNameSnake}}.db
+  "In-memory storage. Swap this namespace for a real database (next.jdbc,
+  HoneySQL, ...) before going to production.")
 
-;; In-memory storage (use proper database in production)
-(def ^:private users (atom []))
-(def ^:private passwords (atom {}))
-(def ^:private items (atom []))
-(def ^:private user-id-counter (atom 0))
-(def ^:private item-id-counter (atom 0))
+(defonce ^:private users (atom {}))
+(defonce ^:private items (atom {}))
+(defonce ^:private user-ids (atom 0))
+(defonce ^:private item-ids (atom 0))
 
-;; User operations
+(defn- now []
+  (str (java.time.Instant/now)))
+
+(defn init!
+  "Hook for start-up work (seed data, connection pools). Nothing to do for the in-memory store."
+  []
+  nil)
+
+(defn reset-db!
+  "Empties the store. Used by the tests."
+  []
+  (reset! users {})
+  (reset! items {})
+  (reset! user-ids 0)
+  (reset! item-ids 0))
+
+;; Users
 (defn find-user-by-email [email]
-  (first (filter #(= (:email %) email) @users)))
+  (first (filter #(= (:email %) email) (vals @users))))
 
 (defn find-user-by-id [id]
-  (first (filter #(= (:id %) id) @users)))
+  (get @users id))
 
-(defn create-user! [email name password]
-  (let [id (swap! user-id-counter inc)
+(defn get-all-users []
+  (sort-by :id (vals @users)))
+
+(defn create-user! [email name password-hash]
+  (let [id (swap! user-ids inc)
         user {:id id
               :email email
               :name name
-              :created-at (str (java.time.Instant/now))}]
-    (swap! users conj user)
-    (swap! passwords assoc id password)
+              :password-hash password-hash
+              :created-at (now)}]
+    (swap! users assoc id user)
     user))
 
-(defn verify-password [user-id password]
-  (= (get @passwords user-id) password))
-
-(defn get-all-users []
-  @users)
-
-;; Item operations
+;; Items
 (defn get-items-by-user [user-id]
-  (filter #(= (:user-id %) user-id) @items))
+  (sort-by :id (filter #(= (:user-id %) user-id) (vals @items))))
+
+(defn find-item-by-id [item-id user-id]
+  (let [item (get @items item-id)]
+    (when (and item (= (:user-id item) user-id))
+      item)))
 
 (defn create-item! [name description user-id]
-  (let [id (swap! item-id-counter inc)
+  (let [id (swap! item-ids inc)
         item {:id id
               :name name
               :description description
               :user-id user-id
-              :created-at (str (java.time.Instant/now))}]
-    (swap! items conj item)
+              :created-at (now)}]
+    (swap! items assoc id item)
     item))
 
-(defn find-item-by-id [item-id user-id]
-  (first (filter #(and (= (:id %) item-id)
-                       (= (:user-id %) user-id))
-                 @items)))
-
-(defn delete-item! [item-id user-id]
-  (let [original-count (count @items)]
-    (swap! items (fn [items]
-                   (remove #(and (= (:id %) item-id)
-                                 (= (:user-id %) user-id))
-                           items)))
-    (not= original-count (count @items))))
-
-;; Reset for testing
-(defn reset-db! []
-  (reset! users [])
-  (reset! passwords {})
-  (reset! items [])
-  (reset! user-id-counter 0)
-  (reset! item-id-counter 0))
+(defn delete-item!
+  "Deletes the item when it belongs to the user. Returns true when something was deleted."
+  [item-id user-id]
+  (let [[before after] (swap-vals! items
+                                   (fn [current]
+                                     (let [item (get current item-id)]
+                                       (if (and item (= (:user-id item) user-id))
+                                         (dissoc current item-id)
+                                         current))))]
+    (not= (count before) (count after))))
 `,
 
-    'src/{{projectName}}/auth.clj': `(ns {{projectName}}.auth
-  (:require [buddy.sign.jwt :as jwt]
-            [environ.core :refer [env]]
-            [clj-time.core :as time]
-            [clj-time.coerce :as coerce]))
+    'src/{{projectNameSnake}}/auth.clj': `(ns {{projectNameSnake}}.auth
+  (:require [buddy.hashers :as hashers]
+            [buddy.sign.jwt :as jwt]))
 
-(def ^:private jwt-secret
-  (or (env :jwt-secret) "your-secret-key-change-in-production"))
+(def ^:private token-ttl-seconds (* 24 60 60))
+
+(defn- jwt-secret []
+  (or (System/getenv "JWT_SECRET") "dev-secret-change-me"))
+
+(defn- now-seconds []
+  (quot (System/currentTimeMillis) 1000))
+
+(defn hash-password [password]
+  (hashers/derive password))
+
+(defn valid-password? [password password-hash]
+  (let [result (hashers/verify password password-hash)]
+    (if (map? result)
+      (boolean (:valid result))
+      (boolean result))))
 
 (defn generate-token [user-id]
-  (let [expires-at (time/plus (time/now) (time/hours 24))
-        claims {:user-id user-id
-                :exp (coerce/to-epoch expires-at)}
-        token (jwt/sign claims jwt-secret)]
-    {:token token
-     :expires-at (coerce/to-epoch expires-at)}))
+  (let [expires-at (+ (now-seconds) token-ttl-seconds)]
+    {:token (jwt/sign {:user-id user-id :exp expires-at} (jwt-secret) {:alg :hs256})
+     :expires-at expires-at}))
 
-(defn verify-token [token]
+(defn verify-token
+  "Returns the user id carried by a valid token, or nil."
+  [token]
   (try
-    (let [claims (jwt/unsign token jwt-secret)]
-      (:user-id claims))
-    (catch Exception e
+    (:user-id (jwt/unsign token (jwt-secret) {:alg :hs256}))
+    (catch Exception _
       nil)))
 `,
 
-    'src/{{projectName}}/graphql_schema.clj': `(ns {{projectName}}.graphql-schema
-  "GraphQL schema and resolvers built with Lacinia."
-  (:require [com.walmartlabs.lacinia.schema :as schema]))
-
-;; Resolvers for the Query type
-(defn resolve-hello
-  [context args value]
-  "Hello from GraphQL!")
-
-(defn resolve-health
-  [context args value]
-  "healthy")
-
-;; Minimal schema: Query { hello: String!, health: String! }
-(defn schema
-  "Builds the Lacinia GraphQL schema."
-  []
-  (schema/compile
-    {:objects {}
-     :queries {:hello {:type 'String
-                       :resolve resolve-hello}
-               :health {:type 'String
-                        :resolve resolve-health}}}))
-`,
-
-    'src/{{projectName}}/graphql.clj': `(ns {{projectName}}.graphql
-  "GraphQL HTTP handler wrapping the Lacinia schema."
+    'src/{{projectNameSnake}}/graphql.clj': `(ns {{projectNameSnake}}.graphql
+  "GraphQL endpoint built with Lacinia."
   (:require [com.walmartlabs.lacinia :as lacinia]
-            [com.walmartlabs.lacinia.parser :as parser]
-            [cheshire.core :as json]
-            [{{projectName}}.graphql-schema :as gql-schema]))
+            [com.walmartlabs.lacinia.schema :as schema]))
 
-(defn- execute
-  "Executes a GraphQL query against the compiled schema and returns the result as JSON."
-  [query-string]
-  (let [parsed (parser/parse-query query-string)
-        result (lacinia/execute (gql-schema/schema) query-string nil nil)]
-    (json/generate-string result)))
+(def compiled-schema
+  (schema/compile
+    {:queries
+     {:hello {:type 'String
+              :resolve (fn [_context _args _value] "Hello from GraphQL!")}
+      :health {:type 'String
+               :resolve (fn [_context _args _value] "healthy")}}}))
 
 (defn graphql-handler
-  "Compojure handler for POST /graphql. Expects a JSON body with a \\"query\\" key."
+  "POST /graphql. Expects a JSON body with a query string and optional variables."
   [request]
-  (let [body (:body request)
-        query-string (or (:query body) "{}")
-        result (execute query-string)]
-    {:status 200
-     :headers {"Content-Type" "application/json"}
-     :body result}))
+  (let [body (if (map? (:body request)) (:body request) {})
+        query (:query body)]
+    (if (string? query)
+      {:status 200
+       :body (lacinia/execute compiled-schema query (:variables body) nil)}
+      {:status 400
+       :body {:errors [{:message "A GraphQL query string is required"}]}})))
 `,
 
-    'src/{{projectName}}/middleware.clj': `(ns {{projectName}}.middleware
-  (:require [{{projectName}}.auth :as auth]
-            [clojure.string :as str]))
+    'src/{{projectNameSnake}}/middleware.clj': `(ns {{projectNameSnake}}.middleware
+  (:require [clojure.string :as str]
+            [{{projectNameSnake}}.auth :as auth]))
 
 (defn wrap-logging [handler]
   (fn [request]
-    (let [start (System/currentTimeMillis)
+    (let [start (System/nanoTime)
           response (handler request)
-          duration (- (System/currentTimeMillis) start)]
-      (println (format "[%s] %s - %dms"
-                       (name (:request-method request))
+          elapsed-ms (quot (- (System/nanoTime) start) 1000000)]
+      (println (format "%s %s -> %s (%dms)"
+                       (str/upper-case (name (:request-method request)))
                        (:uri request)
-                       duration))
+                       (:status response)
+                       elapsed-ms))
       response)))
 
-(defn wrap-auth [handler]
+(defn- unauthorized [message]
+  {:status 401
+   :body {:error "unauthorized"
+          :message message}})
+
+(defn wrap-auth
+  "Requires a valid 'Authorization: Bearer <jwt>' header and adds :user-id to the request."
+  [handler]
   (fn [request]
-    (let [auth-header (get-in request [:headers "authorization"])]
-      (if (and auth-header (str/starts-with? auth-header "Bearer "))
-        (let [token (subs auth-header 7)
-              user-id (auth/verify-token token)]
-          (if user-id
-            (handler (assoc request :user-id user-id))
-            {:status 401
-             :body {:error "unauthorized"
-                    :message "Invalid or expired token"}}))
-        {:status 401
-         :body {:error "unauthorized"
-                :message "Authentication required"}}))))
+    (let [header (get-in request [:headers "authorization"])]
+      (if (and header (str/starts-with? header "Bearer "))
+        (if-let [user-id (auth/verify-token (subs header 7))]
+          (handler (assoc request :user-id user-id))
+          (unauthorized "Invalid or expired token"))
+        (unauthorized "Authentication required")))))
 `,
 
-    'test/{{projectName}}/core_test.clj': `(ns {{projectName}}.core-test
-  (:require [clojure.test :refer :all]
+    'test/{{projectNameSnake}}/core_test.clj': `(ns {{projectNameSnake}}.core-test
+  (:require [cheshire.core :as json]
+            [clojure.test :refer [deftest is testing use-fixtures]]
             [ring.mock.request :as mock]
-            [cheshire.core :as json]
-            [{{projectName}}.core :refer [app]]
-            [{{projectName}}.db :as db]))
+            [{{projectNameSnake}}.core :refer [app]]
+            [{{projectNameSnake}}.db :as db]))
 
-(defn parse-body [response]
-  (when (:body response)
-    (json/parse-string (slurp (:body response)) true)))
-
-(use-fixtures :each (fn [f]
+(use-fixtures :each (fn [run-test]
                       (db/reset-db!)
-                      (f)))
+                      (run-test)))
 
-(deftest test-health-endpoint
-  (testing "Health check returns OK"
-    (let [response (app (mock/request :get "/health"))
-          body (parse-body response)]
-      (is (= 200 (:status response)))
-      (is (= "healthy" (:status body))))))
+(defn- parse-body [response]
+  (when (:body response)
+    (json/parse-string (:body response) true)))
 
-(deftest test-root-endpoint
-  (testing "Root returns API info"
-    (let [response (app (mock/request :get "/"))
-          body (parse-body response)]
-      (is (= 200 (:status response)))
-      (is (= "Compojure" (:framework body)))
-      (is (= "Clojure" (:language body))))))
+(defn- json-request
+  ([method uri payload]
+   (json-request method uri payload nil))
+  ([method uri payload token]
+   (cond-> (-> (mock/request method uri)
+               (mock/content-type "application/json")
+               (mock/body (json/generate-string payload)))
+     token (mock/header "Authorization" (str "Bearer " token)))))
 
-(deftest test-register
-  (testing "Register creates user"
-    (let [response (app (-> (mock/request :post "/api/auth/register")
-                            (mock/json-body {:email "test@example.com"
-                                             :name "Test User"
-                                             :password "password123"})))
+(defn- authed-request [method uri token]
+  (mock/header (mock/request method uri) "Authorization" (str "Bearer " token)))
+
+(defn- register! [email]
+  (app (json-request :post "/api/auth/register"
+                     {:email email :name "Test User" :password "password123"})))
+
+(defn- login-token! [email]
+  (-> (app (json-request :post "/api/auth/login" {:email email :password "password123"}))
+      parse-body
+      :token))
+
+(deftest health-endpoint
+  (let [response (app (mock/request :get "/health"))]
+    (is (= 200 (:status response)))
+    (is (= "healthy" (:status (parse-body response))))))
+
+(deftest root-endpoint
+  (let [body (parse-body (app (mock/request :get "/")))]
+    (is (= "Compojure" (:framework body)))
+    (is (= "Clojure" (:language body)))))
+
+(deftest unknown-route-is-json-404
+  (let [response (app (mock/request :get "/nope"))]
+    (is (= 404 (:status response)))
+    (is (= "not_found" (:error (parse-body response))))))
+
+(deftest register-and-login
+  (testing "registering creates a user without exposing the password hash"
+    (let [response (register! "test@example.com")
           body (parse-body response)]
       (is (= 201 (:status response)))
-      (is (= "test@example.com" (:email body))))))
+      (is (= "test@example.com" (:email body)))
+      (is (not (contains? body :password-hash)))))
+  (testing "registering the same email twice conflicts"
+    (is (= 409 (:status (register! "test@example.com")))))
+  (testing "login returns a token for good credentials"
+    (is (string? (login-token! "test@example.com"))))
+  (testing "login rejects a wrong password"
+    (is (= 401 (:status (app (json-request :post "/api/auth/login"
+                                           {:email "test@example.com" :password "wrong"})))))))
 
-(deftest test-login
-  (testing "Login returns token"
-    ;; First register
-    (app (-> (mock/request :post "/api/auth/register")
-             (mock/json-body {:email "login@example.com"
-                              :name "Login User"
-                              :password "password123"})))
-    ;; Then login
-    (let [response (app (-> (mock/request :post "/api/auth/login")
-                            (mock/json-body {:email "login@example.com"
-                                             :password "password123"})))
-          body (parse-body response)]
-      (is (= 200 (:status response)))
-      (is (contains? body :token)))))
+(deftest registration-validation
+  (is (= 400 (:status (app (json-request :post "/api/auth/register" {:email "a@b.c"}))))))
 
-(deftest test-protected-endpoint
-  (testing "Protected endpoint requires auth"
-    (let [response (app (mock/request :get "/api/users/me"))]
-      (is (= 401 (:status response))))))
+(deftest protected-endpoints-require-a-token
+  (is (= 401 (:status (app (mock/request :get "/api/users/me")))))
+  (is (= 401 (:status (app (authed-request :get "/api/users/me" "not-a-token"))))))
+
+(deftest current-user
+  (register! "me@example.com")
+  (let [token (login-token! "me@example.com")
+        response (app (authed-request :get "/api/users/me" token))]
+    (is (= 200 (:status response)))
+    (is (= "me@example.com" (:email (parse-body response))))))
+
+(deftest item-lifecycle
+  (register! "items@example.com")
+  (let [token (login-token! "items@example.com")
+        created (app (json-request :post "/api/items" {:name "First item"} token))
+        item-id (:id (parse-body created))]
+    (is (= 201 (:status created)))
+    (is (= 1 (count (parse-body (app (authed-request :get "/api/items" token))))))
+    (is (= 200 (:status (app (authed-request :get (str "/api/items/" item-id) token)))))
+    (is (= 204 (:status (app (authed-request :delete (str "/api/items/" item-id) token)))))
+    (is (= 404 (:status (app (authed-request :get (str "/api/items/" item-id) token)))))))
+
+(deftest graphql-query
+  (let [response (app (json-request :post "/graphql" {:query "{ hello health }"}))
+        body (parse-body response)]
+    (is (= 200 (:status response)))
+    (is (= "Hello from GraphQL!" (get-in body [:data :hello])))
+    (is (= "healthy" (get-in body [:data :health])))))
 `,
 
-    'resources/config.edn': `{:port 3000
- :jwt-secret "your-secret-key-change-in-production"
- :database-url "jdbc:postgresql://localhost/{{projectName}}"}
-`,
-
-    '.env': `# Environment Configuration
-PORT=3000
-JWT_SECRET=your-super-secret-key-change-in-production
-DATABASE_URL=jdbc:postgresql://localhost/{{projectName}}
-`,
-
-    '.env.example': `# Environment Configuration
-PORT=3000
-JWT_SECRET=your-super-secret-key-change-in-production
-DATABASE_URL=jdbc:postgresql://localhost/{{projectName}}
+    '.env.example': `# Environment configuration (the app reads these from the process environment)
+PORT={{port}}
+JWT_SECRET=change-me-in-production
 `,
 
     '.gitignore': `# Leiningen
@@ -527,17 +512,13 @@ all: build
 deps:
 	lein deps
 
-# Build the project
+# Compile and check the project
 build: deps
-	lein compile
+	lein check
 
 # Run the server
 run:
 	lein run
-
-# Run with Ring
-ring:
-	lein ring server-headless
 
 # Run tests
 test:
@@ -560,7 +541,7 @@ docker-build:
 	docker build -t {{projectName}} .
 
 docker-run:
-	docker run -p 3000:3000 --env-file .env {{projectName}}
+	docker run -p {{port}}:{{port}} {{projectName}}
 `,
 
     'Dockerfile': `# =============================================================================
@@ -568,7 +549,7 @@ docker-run:
 # =============================================================================
 
 # Stage 1: Builder
-FROM clojure:openjdk-17-lein AS builder
+FROM clojure:temurin-21-lein AS builder
 
 WORKDIR /app
 
@@ -576,15 +557,14 @@ WORKDIR /app
 COPY project.clj ./
 RUN lein deps
 
-# Copy source and build uberjar
+# Copy source and build the uberjar
 COPY . .
-RUN lein clean
 RUN lein uberjar
 
 # =============================================================================
 # Stage 2: Runtime - Minimal image
 # =============================================================================
-FROM eclipse-temurin:17-jre-jammy AS runtime
+FROM eclipse-temurin:21-jre-jammy AS runtime
 
 WORKDIR /app
 
@@ -593,57 +573,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \\
     && rm -rf /var/lib/apt/lists/*
 
 # Copy uberjar from builder
-COPY --from=builder /app/target/uberjar/{{projectName}}-*-standalone.jar ./app.jar
+COPY --from=builder /app/target/uberjar/{{projectNameSnake}}-standalone.jar ./app.jar
 
 # Create non-root user
-RUN useradd -m -u 1000 appuser
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 
-# Create data directory
-RUN mkdir -p /app/data && chown -R appuser:appuser /app
-
-# Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 3000
+EXPOSE {{port}}
 
-ENV PORT=3000
+ENV PORT={{port}}
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
-    CMD curl -f http://localhost:3000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \\
+    CMD curl -f http://localhost:{{port}}/health || exit 1
 
 CMD ["java", "-jar", "app.jar"]
 `,
 
-    'docker-compose.yml': `version: '3.8'
-
-services:
+    'docker-compose.yml': `services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "{{port}}:{{port}}"
     environment:
-      - PORT=3000
+      - PORT={{port}}
       - JWT_SECRET=\${JWT_SECRET:-development-secret}
-      - DATABASE_URL=jdbc:postgresql://db:5432/{{projectName}}
-    depends_on:
-      - db
     restart: unless-stopped
-
-  db:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB={{projectName}}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-volumes:
-  postgres_data:
 `,
 
     'README.md': `# {{projectName}}
@@ -654,46 +610,47 @@ A Clojure web application built with Compojure and Ring.
 
 ## Features
 
-- 🚀 Functional web framework on JVM
-- 🔐 JWT authentication with Buddy
-- 📝 Full REST API with CRUD operations
-- 🧪 Test suite with ring-mock
-- 🐳 Docker support
-- ⚡ Ring middleware ecosystem
+- Compojure routing on top of Ring and Jetty
+- JWT authentication (Buddy: signed tokens, hashed passwords)
+- JSON REST API with users and per-user items
+- GraphQL endpoint (Lacinia)
+- CORS and request-logging middleware
+- Test suite with ring-mock
+- Docker support
+
+Data is kept in memory (see \`src/{{projectNameSnake}}/db.clj\`); replace that namespace with a real database before production.
 
 ## Requirements
 
 - Java 17+
-- Leiningen 2.x
-
-## Installation
-
-\`\`\`bash
-# Install dependencies
-lein deps
-
-# Run the server
-lein run
-\`\`\`
+- Leiningen 2.9+
 
 ## Development
 
 \`\`\`bash
-# Run in development mode
+# Fetch dependencies and check that everything compiles
+lein deps
+lein check
+
+# Run the server (PORT defaults to {{port}})
 lein run
 
-# Run with Ring (auto-reload)
-lein ring server-headless
-
-# Run tests
+# Run the tests
 lein test
 
-# Start REPL
+# Start a REPL
 lein repl
 
-# Build uberjar
+# Build the standalone jar
 lein uberjar
 \`\`\`
+
+## Configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| \`PORT\` | \`{{port}}\` | HTTP port |
+| \`JWT_SECRET\` | development secret | HMAC secret for JWT tokens. Always set this in production. |
 
 ## API Endpoints
 
@@ -701,39 +658,29 @@ lein uberjar
 
 - \`GET /\` - API info
 - \`GET /health\` - Health check
-- \`POST /api/auth/register\` - Register new user
-- \`POST /api/auth/login\` - Login and get JWT token
+- \`POST /api/auth/register\` - Register a user (\`email\`, \`name\`, \`password\`)
+- \`POST /api/auth/login\` - Log in and get a JWT (\`email\`, \`password\`)
+- \`POST /graphql\` - GraphQL (\`{"query": "{ hello health }"}\`)
 
-### Protected (requires JWT)
+### Protected (send \`Authorization: Bearer <token>\`)
 
-- \`GET /api/users/me\` - Get current user
-- \`GET /api/users\` - List all users
-- \`GET /api/users/:id\` - Get user by ID
-- \`GET /api/items\` - List user's items
-- \`POST /api/items\` - Create new item
-- \`GET /api/items/:id\` - Get item by ID
-- \`DELETE /api/items/:id\` - Delete item
+- \`GET /api/users/me\` - Current user
+- \`GET /api/users\` - List users
+- \`GET /api/users/:id\` - Get a user
+- \`GET /api/items\` - List your items
+- \`POST /api/items\` - Create an item (\`name\`, optional \`description\`)
+- \`GET /api/items/:id\` - Get one of your items
+- \`DELETE /api/items/:id\` - Delete one of your items
 
 ## Docker
 
 \`\`\`bash
-# Build image
 docker build -t {{projectName}} .
+docker run -p {{port}}:{{port}} -e JWT_SECRET=change-me {{projectName}}
 
-# Run container
-docker run -p 3000:3000 {{projectName}}
-
-# Or use docker-compose
-docker-compose up -d
+# or
+docker compose up -d
 \`\`\`
-
-## Clojure Features
-
-This project demonstrates idiomatic Clojure:
-- Immutable data structures
-- Functional composition
-- REPL-driven development
-- Ring middleware pattern
 
 ## License
 
