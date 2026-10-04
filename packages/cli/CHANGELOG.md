@@ -83,7 +83,7 @@ signing certificate, network access to a download), which the entry names.
 - Not published: `@re-shell/control-plane` 0.1.0 (private, not deployed), the dashboard, the VS Code extension 0.3.0 (`.vsix`), and the Tauri desktop app.
 
 ### Not verified
-- The VS Code host test (VS Code download blocked), signed desktop builds, Flux and Argo CD sync, `cloud deploy` against a real account, any live LLM call, the Redis and Kafka round trips without Docker, WebRTC without a TURN server. None of the new CI workflows has had a hosted run.
+- The VS Code host test (VS Code download blocked), signed desktop builds, Flux and Argo CD sync, `cloud deploy` against a real account, any live LLM call, the Redis and Kafka round trips without Docker, WebRTC without a TURN server. `template-health` and `accessibility` pass on GitHub; `ci.yml` (e2e, Storybook, pack smoke) and the `vscode-extension`, `k8s-live`, `iac-validate` and `desktop` workflows have not run on GitHub yet (they run on `main` and pull requests).
 
 ## [0.30.1] - 2026-06-11
 

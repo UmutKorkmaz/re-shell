@@ -71,7 +71,7 @@ Test counts are deliberately not quoted here; run the suites for current numbers
 | Backend template registry: **208 templates, 36 languages** (Node, Python, Rust, Java, .NET, PHP, Go, Ruby, C++, Swift, Kotlin, Scala, Elixir, Zig, Nim, ...) | DONE+tested (registry shape, placeholder substitution, scaffold) | `templates list --json`; `unit/backend-template-registry.test.ts`, `template-engine.test.ts` |
 | Every placeholder is substituted, including in file paths | DONE+tested | `54af757 fix(cli): substitute every template placeholder, in file paths too` and its tests |
 | Emerging-runtime parity: at least 3 templates each for Deno, Bun, Kotlin, Scala, Crystal, Zig, Elixir, Nim | DONE+tested | `backend-template-registry.test.ts` `PARITY_GROUPS` (3 to 4 each); `bun-serve`, `trpc-bun`, `std-http-zig` were added for parity |
-| Generated projects install, build and boot | DONE locally for 170 of 208 templates; 36 environment-limited (see STABILITY.md) | `scripts/scaffold-test-templates.sh` lists 172 templates in eight toolchain groups and builds each with its own toolchain; 170 were built here (`vapor` and `phoenix` only in CI; skips are explicit, never passes). `scripts/boot-test-templates.mjs` boots 8 Node/Bun templates (express, fastify, koa, hono, nestjs, elysia-bun, bun-serve, trpc-bun) on a free port and checks `/health` and clean SIGTERM. The other 36 templates need a package registry or toolchain this environment could not reach, each listed in STABILITY.md. The `template-health` workflow runs both on every push and PR (pending first CI run). |
+| Generated projects install, build and boot | DONE: 172 of 208 templates build in hosted CI ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37164975331)); 36 environment-limited (see STABILITY.md) | `scripts/scaffold-test-templates.sh` lists 172 templates in eight toolchain groups and builds each with its own toolchain; the `template-health` workflow runs every group plus `scripts/boot-test-templates.mjs` (8 Node/Bun templates booted, `/health` and clean SIGTERM) on every push and passes. The other 36 templates need a package registry or toolchain this environment could not reach, each listed in STABILITY.md. |
 | Docker / compose generation, API contract management (OpenAPI/GraphQL), database templates | DONE+tested | `generate`, `api ...` group tests |
 | `create` is non-interactive for every mode (`--gateway --services --remotes --force --template blank`), a bare `create` is a react-ts frontend, unknown templates fail with `TEMPLATE_NOT_FOUND`, `--type` accepts only `app\|package\|lib\|tool`, `services/*` globs and a `service` workspace type | DONE+tested | `tests/integration/create-headless-*.test.ts`, `unit/create-noninteractive.test.ts` |
 
@@ -204,7 +204,7 @@ environment. None of it is claimed as done.
 | Redis and Kafka round-trip tests | Docker (they start containers and skip without it) |
 | Public hosting of the control plane | A deployment target, TLS and a security review |
 | WebRTC across symmetric NATs | A TURN server |
-| First hosted CI run of the new workflows | A push to GitHub |
+| First hosted run of `ci.yml`, `vscode-extension`, `k8s-live`, `iac-validate`, `desktop` (`template-health` and `accessibility` already pass on GitHub) | A pull request to `main` or a merge |
 | Catalog-wide template verification counts | The catalog sweep (placeholder in `STABILITY.md`) |
 
 ## 7. Packages

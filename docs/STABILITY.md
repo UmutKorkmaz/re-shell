@@ -7,9 +7,40 @@ product's long-term roadmap ([`ROADMAP.md`](./ROADMAP.md)). Changes on a branch 
 not published-release proof.
 
 **The release is not declared ready.** Everything in the Next Batch below is
-implemented, but several of its gates are CI jobs and **none of the new workflows has
-run on GitHub yet** ("pending first CI run"). What was and was not verified locally is
-stated precisely in [Current Verification](#current-verification).
+implemented. Two workflows run on every push and have **run and passed on GitHub** for
+this branch: `template-health` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37164975331): all eight template groups plus the boot
+check) and `accessibility` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37164975319)). Their first hosted runs failed and the causes
+were fixed (see [Hosted CI](#hosted-ci)). The workflows that run only on `main` or on pull
+requests (`ci.yml` with the `e2e`, `storybook` and `pack-smoke` jobs, `vscode-extension`,
+`k8s-live`, `iac-validate`, `desktop`) have **not run on GitHub yet** ("pending first CI
+run"). What was and was not verified locally is stated precisely in
+[Current Verification](#current-verification).
+
+## Hosted CI
+
+The first hosted runs of `template-health` and `accessibility` found problems the
+development environment hid; each was reproduced where possible, fixed, and the runs are
+now green:
+
+- `koa` did not exit within 10 s of SIGTERM: on hosted runners connections to the
+  unreachable test database hang instead of being refused, and shutdown waited on a pending
+  knex connection. Reproduced by dropping that traffic locally; every shutdown step is now
+  time-bounded.
+- Dark-theme graph contrast (axe): React Flow's default `light` class on the canvas matched
+  the design tokens' `.light` selector; the canvas now follows the app theme.
+- `foalts` and `strapi`: pnpm 9 (CI) builds native dependencies that do not compile on
+  Node 22; pnpm 10 here skips those builds. Fixed (`hiredis` dropped, `better-sqlite3` 11).
+- `laravel`, `slim`, `codeigniter`: newer Composer blocks dependencies with security
+  advisories. Moved to Laravel 12, php-jwt 7, graphql-php 15, dompdf 3; `composer audit` is clean.
+- `vapor` (Swift) and `phoenix` (Elixir) had never been built: the Vapor manifest named
+  packages that do not exist and several sources did not compile; CI did not install Elixir.
+  Both build in CI now.
+- `drogon`: Ubuntu's Drogon CMake config needs the MariaDB, Hiredis, yaml-cpp, Brotli and
+  c-ares development packages and `drogon_ctl`; the jvm group's cleanup raced sbt's server.
+
+Local template checks use whatever pnpm and Composer are installed, which can be more
+lenient than CI's (pnpm 10 skips dependency build scripts; Composer 2.8 does not block
+advisories), so the hosted run is the authoritative result.
 
 ## First Batch (carried forward, updated)
 
@@ -104,10 +135,10 @@ None was deleted, and none is counted as verified.
 
 | # | Item | Status | Evidence |
 |---|------|--------|----------|
-| 1 | Repeatable install/build/boot evidence for representative generated projects, fixing the failures the stricter checks surface | **DONE for 170 of 208 templates built here (172 in CI); 36 environment-limited (listed above); pending first CI run** | `scripts/scaffold-test-templates.sh` scaffolds 172 templates and builds each with its own toolchain, in eight groups that CI runs as parallel jobs (counts and checks above); `scripts/boot-test-templates.mjs` installs, builds, boots on a free port with no DB or Redis, probes `/health` and a route, and requires a clean SIGTERM for express, fastify, koa, hono, nestjs, elysia-bun, bun-serve and trpc-bun. Failures found were fixed while the list grew from 25 to 172 (hyphenated project names used as identifiers, nonexistent dependency versions and APIs, files referenced but never shipped, ESM/CommonJS mismatches, YAML errors; some, such as `angel3`, `beast`, `fresh-deno` (ported to Fresh 2), the ReScript and the Haskell templates, were largely rewritten), plus placeholders in file paths and slow start and shutdown. The `template-health` workflow runs both on every push and PR (pending first CI run). |
+| 1 | Repeatable install/build/boot evidence for representative generated projects, fixing the failures the stricter checks surface | **DONE: 172 of 208 templates build with their own toolchain on hosted CI ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37164975331)); 36 environment-limited (listed above)** | `scripts/scaffold-test-templates.sh` scaffolds 172 templates and builds each with its own toolchain, in eight groups that CI runs as parallel jobs (counts and checks above); `scripts/boot-test-templates.mjs` installs, builds, boots on a free port with no DB or Redis, probes `/health` and a route, and requires a clean SIGTERM for express, fastify, koa, hono, nestjs, elysia-bun, bun-serve and trpc-bun. Failures found were fixed while the list grew from 25 to 172 (hyphenated project names used as identifiers, nonexistent dependency versions and APIs, files referenced but never shipped, ESM/CommonJS mismatches, YAML errors; some, such as `angel3`, `beast`, `fresh-deno` (ported to Fresh 2), the ReScript and the Haskell templates, were largely rewritten), plus placeholders in file paths and slow start and shutdown. The `template-health` workflow runs both on every push and PR (pending first CI run). |
 | 2 | Frontend-only/backend/fullstack creation and non-TTY microfrontend `--yes` behavior; skeletons distinct from runnable apps | **DONE** | `create` never prompts under `--yes`/`--json`/`--dry-run`/non-TTY for every mode; `--gateway --services --remotes --force --template blank`; `TEMPLATE_NOT_FOUND`; `--type` limited to `app\|package\|lib\|tool`; `create --dry-run --json` returns the exact files and diffs. Tests: `tests/integration/create-headless-*.test.ts`, `tests/unit/create-noninteractive.test.ts`. Skeletons are labelled: `generate backend` writes a small starter, `create` the full template, and neither claims the project runs. |
 | 3 | Harden service spawn failures, immediate exits, PID/log cleanup and stopping | **DONE** | `service run`: `SERVICES_*` error codes, `--alive-ms`, JSON pid files, `re-shell.services.<script>` metadata, graceful SIGTERM then SIGKILL, `health` exits non-zero when nothing runs. `tests/unit/service-process.test.ts`, `services-runtime.test.ts`, `tests/integration/service-run-cli.test.ts`. |
-| 4 | Real browser flows against the hub, as an executable release gate | **DONE as CI jobs; pending first CI run** | `ci.yml` job `e2e` (Playwright `chromium` flow and the graph-scale spec) and `accessibility.yml` (axe) run on every push and PR. Both passed locally when merged (see above). |
+| 4 | Real browser flows against the hub, as an executable release gate | **DONE; `accessibility` passes on hosted CI ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37164975319)); the `ci.yml` `e2e` job is pending its first run (main/PRs only)** | `ci.yml` job `e2e` (Playwright `chromium` flow and the graph-scale spec) and `accessibility.yml` (axe) run on every push and PR. Both passed locally when merged (see above). |
 | 5 | Verify packed CLI/dashboard/MCP artifacts from a clean install outside the monorepo | **DONE locally; pending first CI run** | `scripts/pack-smoke.mjs` (CI job `pack-smoke`): packs contracts, cli and mcp (the cli `prepack` bundles the dashboard), installs the tarballs in a temp dir outside the repo, checks `--version` equals the package version, `--help`, `templates list --json`, `ui --dry-run --json` and an MCP handshake. Ran in this pass: passes 10/10 checks (packed contracts 0.3.0, cli 0.31.0, mcp 0.2.0; `--version` printed `0.31.0`; `templates list --json` returned 208; the MCP handshake exposed 9 tools). The first run failed 9/10 because the script still read the `ui --dry-run --json` plan as a bare object while the CLI now wraps it in the standard envelope; the script was fixed to accept the envelope and the rerun passed. |
 | 6 | Reconcile public claims, versions, paths and examples with actual behavior | **DONE** | Every `re-shell ...` command in the site, READMEs and `docs/` is checked against the built CLI by `scripts/check-doc-commands.mjs`; every internal site link by `scripts/check-site-links.mjs`. Versions, command and template counts are taken from the CLI and `package.json`. The unmaintained `packages/cli/EXAMPLES.md`, which described commands that do not exist, was removed and is no longer published to npm. |
 
@@ -117,8 +148,8 @@ None was deleted, and none is counted as verified.
 |------|--------|--------------|
 | Build, typecheck and focused plus relevant broad/interactive suites pass on the exact candidate | **PARTIAL** | Build and the suites listed in Current Verification passed here (see the table). The interactive suite did not run on this machine; no hosted CI run has executed on the candidate. |
 | Unsupported commands cannot return verified-success claims | **Met for the commands that were unsupported** | `fix --ci`, `ui test`, `plugin update`, `plugin validate` are now real; the stricter `UI_TEST_ERROR`/`FIX_CI_ERROR` failure paths remain. Gates (`doctor`, `analyze --fail-on`, `security audit verify`, `service validate`) exit non-zero on failure. `cloud deploy` never fakes a deployment. This is not an exhaustive audit of the 585 command paths: many generator commands write starter files and say nothing about running. |
-| Required generated-project install/build/boot checks pass; skips and external prerequisites stay explicit | **Met locally; pending first CI run** | 170 of 208 templates build with their own toolchain here (172 in CI) and eight Node/Bun backends boot (Next Batch item 1); the 36 others are listed with the registry or toolchain each lacks, never reported as passing. The hosted `template-health` run is pending. |
-| Dashboard browser checks and clean-package smoke pass before a release is declared ready; a passing build or CI run alone is insufficient | **PARTIAL** | Browser checks passed locally and clean-package smoke passed in this pass; the CI jobs (`e2e`, `accessibility`, `storybook`, `pack-smoke`) are **pending first CI run**. |
+| Required generated-project install/build/boot checks pass; skips and external prerequisites stay explicit | **Met on hosted CI** ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37164975331)) | 172 of 208 templates build with their own toolchain in CI (170 of them also here) and eight Node/Bun backends boot (Next Batch item 1); the 36 others are listed with the registry or toolchain each lacks, never reported as passing. The hosted `template-health` run is pending. |
+| Dashboard browser checks and clean-package smoke pass before a release is declared ready; a passing build or CI run alone is insufficient | **PARTIAL** | Browser checks passed locally and clean-package smoke passed in this pass; the `accessibility` job passes on hosted CI ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37164975319)); the `ci.yml` jobs (`e2e`, `storybook`, `pack-smoke`) are **pending first CI run** (they run on `main` and pull requests only). |
 | Reviewed commits, version changes and release notes describe the work only; publication, deployment and optional scaffold promotion are separate actions | **Met, nothing published** | Versions bumped (cli 0.31.0, contracts 0.3.0, mcp 0.2.0, ui 0.6.0); the CHANGELOG has an `Unreleased` section; nothing was published or deployed. |
 
 ## What remains, and why it is external
@@ -134,7 +165,7 @@ Everything left needs something outside the repository or its development enviro
 | Live LLM calls (`ai`, `ui generate`, `fix --ci`) | An API key or a local OpenAI-compatible server (`tests/live` skips without one) |
 | Public hosting of the control plane | A deployment target, TLS termination and an external security review; see [`control-plane.md`](./control-plane.md) |
 | WebRTC across symmetric NATs | A TURN server (none is shipped or deployed) |
-| First hosted CI run of the new workflows | A push to GitHub |
+| First hosted run of `ci.yml` (`e2e`, `storybook`, `pack-smoke`), `vscode-extension`, `k8s-live`, `iac-validate`, `desktop` | A pull request to `main` or a merge (these workflows are not triggered by pushes to other branches, and GitHub only allows dispatching workflows that exist on the default branch) |
 | Building `vapor` and `phoenix` locally, and the 36 environment-limited templates | Their package registries (hex, Clojars, nimble, shards, opam, deno.land, GitHub sources) or toolchains (Swift, Julia, V, Gleam, Odin, Pony, Red, Grain, Mojo, Roc, Ballerina, Unison, Carbon, Vale) |
 
 ## Scope notes

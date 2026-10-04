@@ -83,8 +83,9 @@ CI (`.github/workflows`) builds, typechecks and tests every package, enforces si
 budgets, checks that `docs/CLI-CONTRACTS.md` matches the CLI, runs Playwright end-to-end
 and axe accessibility audits, runs a Storybook test gate, smoke-tests the packed
 tarballs in a clean install, and (separately) builds 172 of the 208 templates with their
-own toolchains. These workflows were added in this wave and are pending their first
-hosted run; see [Roadmap](/re-shell/roadmap/) for what was verified locally.
+own toolchains. The template and accessibility workflows run on every push and pass on
+GitHub; the others run on `main` and pull requests and have not run yet. See
+[Roadmap](/re-shell/roadmap/) for details.
 
 ## See also
 

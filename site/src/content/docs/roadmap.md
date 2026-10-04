@@ -46,7 +46,7 @@ workflow exists but no hosted run has executed it yet.
 | `cloud iac generate\|validate`, `cloud deploy` | DONE (env-limited: `cloud deploy` needs real credentials and was never run against an account; Terraform validation runs in CI) |
 | `fix --ci` | DONE (env-limited: no live LLM call) |
 | Backend template registry: 208 templates, every placeholder substituted (including in file paths), at least 3 templates per emerging runtime (Deno, Bun, Kotlin, Scala, Crystal, Zig, Elixir, Nim) | DONE+tested |
-| Generated projects install, build and boot | Done for 170 of the 208 templates, built with each one's own toolchain (172 in CI), plus 8 Node/Bun templates booted; the other 36 need a registry or toolchain that was not available, and are listed on the [catalog page](/re-shell/templates/catalog/#verification) |
+| Generated projects install, build and boot | Done: 172 of the 208 templates build with their own toolchain in hosted CI, and 8 Node/Bun templates boot; the other 36 need a registry or toolchain that was not available, and are listed on the [catalog page](/re-shell/templates/catalog/#verification) |
 | `create` non-interactive in every mode, honest skeletons, dry-run diffs | DONE+tested |
 
 ## UI / dashboard
@@ -55,7 +55,7 @@ workflow exists but no hosted run has executed it yet.
 | --- | --- |
 | shadcn-React component system, exact wire schemas and adapters, 11-screen dashboard over the token-authed hub | DONE+tested |
 | `re-shell ui` fails if the hub is unhealthy; hub URL pinned to loopback | DONE+tested |
-| WCAG 2.1 AA work (skip link, focus management, live regions, contrast in both themes) | DONE+tested (axe audit passed locally when merged; CI job pending first run; automated checks are not a manual audit) |
+| WCAG 2.1 AA work (skip link, focus management, live regions, contrast in both themes) | DONE+tested (axe audit passes in hosted CI; automated checks are not a manual audit) |
 | Code splitting with enforced gzip budgets | DONE+tested |
 | Storybook 9 and a real `ui test` runner (interaction, a11y, visual; an empty run is an error) | DONE+tested (CI job pending first run) |
 | `ui component new`, `ui generate`, `ui theme ...`, white-label (`re-shell.whitelabel.json`, `RE_SHELL_BRAND_*`) | DONE+tested (theme search on the live npm registry not exercised) |
@@ -92,7 +92,7 @@ Everything left depends on something outside the development environment:
 - Broker round-trip tests (Docker).
 - Public hosting of the control plane (a deployment target, TLS, a security review).
 - WebRTC across symmetric NATs (a TURN server).
-- The first hosted run of the new CI workflows.
+- The first hosted run of the workflows that run only on `main` and pull requests (`ci.yml`, VS Code extension, k8s-live, IaC validation, desktop); `template-health` and `accessibility` already pass on GitHub.
 - Building the 36 templates whose registry or toolchain was unavailable (hex, Clojars, nimble, shards, opam, deno.land, Swift, Julia, V, Gleam and others; see the [catalog page](/re-shell/templates/catalog/#verification)).
 
 ## Explicitly dropped

@@ -86,9 +86,11 @@ Helper scripts in [`scripts/`](./scripts) (run from the root after `pnpm -r buil
 
 ## CI
 
-The workflows live in `.github/workflows/`. None of the jobs below has run on
-GitHub for this tree yet (**pending first CI run**); the checks were run locally
-where the environment allowed (see [`docs/STABILITY.md`](./docs/STABILITY.md)).
+The workflows live in `.github/workflows/`. `template-health.yml` and
+`accessibility.yml` run on every push and pass on GitHub for this tree. The others run
+on `main` and pull requests and have not run for this tree yet (**pending first CI
+run**); their checks were run locally where the environment allowed (see
+[`docs/STABILITY.md`](./docs/STABILITY.md)).
 
 | Workflow | Runs on | Gates |
 |----------|---------|-------|

@@ -165,7 +165,7 @@ templates (a unit test pins this):
 
 A template existing in the registry is not proof that its generated project
 works. Two scripts check that, and the `template-health` workflow runs both on
-every push and pull request (pending its first hosted run):
+every push and pull request, and passes on hosted CI:
 
 - `bash scripts/scaffold-test-templates.sh` scaffolds templates with the built CLI
   and builds each with its own toolchain (`tsc`, `go build`, `cargo check`, Maven,
@@ -182,8 +182,9 @@ every push and pull request (pending its first hosted run):
   exit on SIGTERM.
 
 **Where the catalog stands (0.31.0):** the build script lists **172 of the 208**
-templates, and **170** of them were built successfully during development; `vapor`
-(Swift) and `phoenix` (needs the hex registry) are built only in CI. Lua templates are
+templates, and all of them build in the hosted `template-health` run (170 were also built
+during development; `vapor` and `phoenix` need a Swift toolchain and the hex registry, so
+only CI builds them). Lua templates are
 checked for syntax only, Dart templates are analyzed but their tests are not run, and
 the 18 configuration templates (service mesh, proxies, compose and similar) get a YAML
 syntax check, not a deployment.
