@@ -34,7 +34,7 @@ export const opiumOcamlTemplate: BackendTemplate = {
  (name main)
  (flags
   (:standard -warn-error -a))
- (libraries app_core opium lwt))
+ (libraries app_core opium lwt yojson))
 `,
 
     'bin/main.ml': `module Api = App_core.Api
@@ -95,10 +95,14 @@ let () =
 
 WORKDIR /home/opam/app
 
-COPY --chown=opam:opam . .
+# Let opam install the system libraries its packages need (libev, OpenSSL, GMP, ...)
+ENV OPAMCONFIRMLEVEL=unsafe-yes
 
+# Dependencies first, so this layer is reused until the opam file changes
+COPY --chown=opam:opam {{projectName}}.opam ./
 RUN opam update && opam install --yes --deps-only .
 
+COPY --chown=opam:opam . .
 RUN opam exec -- dune build --release
 
 ENV PORT={{port}}
@@ -156,6 +160,8 @@ Open http://localhost:{{port}}.
 | PUT | \`/api/v1/products/:id\` | bearer | Update any of the product fields |
 | DELETE | \`/api/v1/products/:id\` | admin | Delete a product |
 
+## Authentication
+
 Send the token as \`Authorization: Bearer <token>\`. A seeded administrator exists:
 \`admin@example.com\` / \`admin123\` (change it before deploying).
 
@@ -190,7 +196,7 @@ MIT
 `,
 
     '{{projectName}}.opam': `opam-version: "2.0"
-synopsis: "{{projectName}}: web service built with Opium"
+synopsis: "Web service built with Opium"
 description: "A JSON API with authentication and product CRUD on the Opium web framework."
 maintainer: ["{{author}}"]
 authors: ["{{author}}"]
@@ -199,7 +205,7 @@ depends: [
   "ocaml" {>= "4.14"}
   "dune" {>= "3.0"}
   "opium" {>= "0.20.0"}
-  "lwt"
+  "lwt" {>= "5.3.0"}
   "yojson" {>= "1.7.0"}
   "digestif" {>= "1.1.0"}
   "alcotest"
@@ -215,13 +221,43 @@ build: [
    Use a memory-hard password hash (argon2, scrypt) and a real session or JWT
    layer before putting anything like this in production. *)
 
-let rng = lazy (Random.State.make_self_init ())
+(* Salts and tokens come from the operating system's CSPRNG (/dev/urandom). Where
+   that device does not exist (Windows) the self-seeded stdlib PRNG is used
+   instead, which is not suitable for real session tokens. *)
+let fallback_rng = lazy (Random.State.make_self_init ())
 
-let random_hex bytes =
-  let state = Lazy.force rng in
-  String.init (bytes * 2) (fun _ -> "0123456789abcdef".[Random.State.int state 16])
+let random_bytes n =
+  match open_in_bin "/dev/urandom" with
+  | ic ->
+      Fun.protect
+        ~finally:(fun () -> close_in_noerr ic)
+        (fun () -> really_input_string ic n)
+  | exception Sys_error _ ->
+      let state = Lazy.force fallback_rng in
+      String.init n (fun _ -> Char.chr (Random.State.int state 256))
+
+let hex_of_bytes s =
+  let buf = Buffer.create (2 * String.length s) in
+  String.iter
+    (fun c -> Buffer.add_string buf (Printf.sprintf "%02x" (Char.code c)))
+    s;
+  Buffer.contents buf
+
+let random_hex bytes = hex_of_bytes (random_bytes bytes)
 
 let sha256_hex s = Digestif.SHA256.(to_hex (digest_string s))
+
+(* Compare without stopping at the first difference, so the time taken does not
+   reveal how much of a password hash matched. *)
+let constant_time_equal a b =
+  if String.length a <> String.length b then false
+  else begin
+    let diff = ref 0 in
+    String.iteri
+      (fun i c -> diff := !diff lor (Char.code c lxor Char.code b.[i]))
+      a;
+    !diff = 0
+  end
 
 (* Stored form: "<salt>$<sha256(salt:password)>" *)
 let hash_password ?salt password =
@@ -233,7 +269,7 @@ let verify_password ~stored password =
   | None -> false
   | Some i ->
       let salt = String.sub stored 0 i in
-      String.equal stored (hash_password ~salt password)
+      constant_time_equal stored (hash_password ~salt password)
 
 let new_token () = random_hex 24
 `,
@@ -611,27 +647,34 @@ let update_product ~auth ~id ~body : response =
           match parse_body body with
           | Error r -> r
           | Ok json -> (
-              let apply (p : Store.Product.t) =
-                {
-                  p with
-                  Store.Product.name =
+              match Store.find_product id with
+              | None -> error 404 "Product not found"
+              | Some current -> (
+                  let name =
                     Option.value (string_field "name" json)
-                      ~default:p.Store.Product.name;
-                  description =
+                      ~default:current.Store.Product.name
+                  and description =
                     Option.value
                       (string_field "description" json)
-                      ~default:p.Store.Product.description;
-                  price =
+                      ~default:current.Store.Product.description
+                  and price =
                     Option.value (number_field "price" json)
-                      ~default:p.Store.Product.price;
-                  stock =
+                      ~default:current.Store.Product.price
+                  and stock =
                     Option.value (int_field "stock" json)
-                      ~default:p.Store.Product.stock;
-                }
-              in
-              match Store.update_product id apply with
-              | Some p -> (200, \`Assoc [ ("product", product_json p) ])
-              | None -> error 404 "Product not found"))
+                      ~default:current.Store.Product.stock
+                  in
+                  if name = "" || price < 0. || stock < 0 then
+                    error 400
+                      "name must not be empty, price and stock must not be \\
+                       negative"
+                  else
+                    let apply (p : Store.Product.t) =
+                      { p with Store.Product.name; description; price; stock }
+                    in
+                    match Store.update_product id apply with
+                    | Some p -> (200, \`Assoc [ ("product", product_json p) ])
+                    | None -> error 404 "Product not found")))
 
 let delete_product ~auth ~id : response =
   match require_admin auth with
@@ -750,7 +793,13 @@ let test_validation () =
   let code, _ = Api.create_product ~auth ~body:{|{"name":"No price"}|} in
   Alcotest.(check int) "missing price" 400 code;
   let code, _ = Api.get_product ~id:"abc" in
-  Alcotest.(check int) "bad id" 400 code
+  Alcotest.(check int) "bad id" 400 code;
+  let code, _ = Api.update_product ~auth ~id:"1" ~body:{|{"price":-1}|} in
+  Alcotest.(check int) "negative price" 400 code;
+  let code, _ = Api.update_product ~auth ~id:"1" ~body:{|{"name":""}|} in
+  Alcotest.(check int) "empty name" 400 code;
+  let code, _ = Api.update_product ~auth ~id:"99" ~body:{|{"stock":1}|} in
+  Alcotest.(check int) "unknown product" 404 code
 
 let test_delete_requires_admin () =
   Api.init ();
@@ -793,6 +842,11 @@ let () =
 _opam/
 *.install
 .merlin
+`,
+
+    '.dockerignore': `_build/
+_opam/
+.git/
 `,
   },
 };
