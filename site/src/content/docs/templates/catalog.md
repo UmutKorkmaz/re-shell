@@ -194,15 +194,16 @@ every push and pull request:
   exit on SIGTERM.
 
 **Where the catalog stands (0.31.0):** the build script lists **204 of the 208**
-templates, in three tiers of evidence:
+templates, and **all 204 pass in the hosted `template-health` run** (PR #395, commit
+`3a06508`; [run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171), 19 jobs). They differ in what was also verified locally:
 
-- **172 pass in the hosted `template-health` run** (PR #395, commit `3207b9f`); 170 of
-  them were also built during development, while `vapor` and `phoenix` need a Swift
-  toolchain and the hex registry, so only CI builds them.
-- **32 are newly wired and have not had their first hosted run.** 14 of them were
-  built locally with their real toolchain; 18 are **ci-only**, because their toolchain
-  could not be downloaded here, so their first real build is the CI run on this branch.
-  None of the 32 is claimed to pass yet.
+- **172 were already passing** at commit `3207b9f`; 170 of them were also built during
+  development, while `vapor` and `phoenix` need a Swift toolchain and the hex registry, so
+  only CI builds them.
+- **32 were wired afterwards.** 14 of them were built locally with their real toolchain;
+  18 could not be built locally because their toolchain could not be downloaded here, so
+  their first real build was the hosted run. It found and fixed defects in `ballerina`,
+  `unison`, `red-http`, `kitura` and `nerves-ex`; all 32 pass.
 - **4 are infeasible** and are left out of the script (below).
 
 Lua templates are checked for syntax only, Dart templates are analyzed but their tests
@@ -213,20 +214,20 @@ The 32 newly wired templates:
 
 | Group | Templates | Status |
 | --- | --- | --- |
-| Crystal (`shards`) | `kemal`, `lucky-cr`, `amber-cr` | built locally with the real toolchain |
-| V (`veb`, Vex), Odin, Pony | `vweb`, `vex-v`, `odin-http`, `jennet-pony` | built locally with the real toolchains |
-| Mojo | `mojo`, `mojo-fastapi` | built locally with the real toolchain |
-| Nim 2.0.x (`nimble`) | `jester`, `prologue-nim`, `happyx-nim` | built locally with Nim 2.0.16 |
-| C++ (CMake) | `crow` | built locally (Crow v1.2.0 fetched from GitHub; `libasio-dev` added to CI) |
-| Deno | `aleph-deno` | built locally (`deno check`, `deno test`) |
-| Swift (SwiftPM) | `hummingbird`, `kitura` | ci-only |
-| Julia (`Pkg`) | `genie-jl`, `oxygen-jl` | ci-only |
-| OCaml (`dune`, opam) | `dream-ocaml`, `opium-ocaml` | ci-only |
-| Clojure (Leiningen) | `compojure`, `luminus-clj`, `reitit-clj`, `pedestal-clj` | ci-only |
-| Elixir, Gleam (`mix`, `gleam`) | `plug-ex`, `nerves-ex`, `wisp` | ci-only |
-| Zig | `zap-zig` | ci-only (Zig 0.13.0; the Zap v0.8.0 dependency hash is pinned in `build.zig.zon`) |
-| Red | `red-http` | ci-only (Red/System, 32-bit toolchain) |
-| Grain, Ballerina, Unison | `grain`, `ballerina`, `unison` | ci-only |
+| Crystal (`shards`) | `kemal`, `lucky-cr`, `amber-cr` | built locally with the real toolchain; passes in hosted CI |
+| V (`veb`, Vex), Odin, Pony | `vweb`, `vex-v`, `odin-http`, `jennet-pony` | built locally with the real toolchains; passes in hosted CI |
+| Mojo | `mojo`, `mojo-fastapi` | built locally with the real toolchain; passes in hosted CI |
+| Nim 2.0.x (`nimble`) | `jester`, `prologue-nim`, `happyx-nim` | built locally with Nim 2.0.16; passes in hosted CI |
+| C++ (CMake) | `crow` | built locally (Crow v1.2.0 fetched from GitHub; `libasio-dev` added to CI); passes in hosted CI |
+| Deno | `aleph-deno` | built locally (`deno check`, `deno test`); passes in hosted CI |
+| Swift (SwiftPM) | `hummingbird`, `kitura` | passes in hosted CI (`kitura` ships patched copies of Kitura under `Vendor/`: Swift 6 Foundation on Linux does not compile the upstream `.formatted` pattern) |
+| Julia (`Pkg`) | `genie-jl`, `oxygen-jl` | passes in hosted CI |
+| OCaml (`dune`, opam) | `dream-ocaml`, `opium-ocaml` | passes in hosted CI |
+| Clojure (Leiningen) | `compojure`, `luminus-clj`, `reitit-clj`, `pedestal-clj` | passes in hosted CI |
+| Elixir, Gleam (`mix`, `gleam`) | `plug-ex`, `nerves-ex`, `wisp` | passes in hosted CI (`nerves-ex` needs `libmnl-dev` on the host for its `nerves_uevent` C port) |
+| Zig | `zap-zig` | passes in hosted CI (Zig 0.13.0; the Zap v0.8.0 dependency hash, taken from the CI log, is pinned in `build.zig.zon`) |
+| Red | `red-http` | passes in hosted CI (Red/System, 32-bit toolchain: i386 gdk-pixbuf and glib libraries installed; the test program now quits with a zero return) |
+| Grain, Ballerina, Unison | `grain`, `ballerina`, `unison` | passes in hosted CI (`ballerina`: `service` renamed because it is a reserved keyword, and `bal test` runs the tests; `unison`: the self-test no longer compares tuples with `==`) |
 
 The Nim group runs **Nim 2.0.x** because `happyx` does not resolve with Nim 2.2.12 and
 nimble 0.24.1. `laravel` is now **Laravel 13**; its template-health check boots the app

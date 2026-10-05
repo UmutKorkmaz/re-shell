@@ -83,8 +83,7 @@ CI (`.github/workflows`) builds, typechecks and tests every package, enforces si
 budgets, checks that `docs/CLI-CONTRACTS.md` matches the CLI, runs Playwright end-to-end
 and axe accessibility audits, runs a Storybook test gate, smoke-tests the packed
 tarballs in a clean install, and (separately) builds templates with their own toolchains:
-172 of the 208 pass on GitHub and 32 more are wired and pending their first hosted run
-(204 of 208 wired; 4 infeasible). Every workflow passes on GitHub on pull request #395. See
+204 of the 208 pass on GitHub (4 infeasible). Every workflow passes on GitHub on pull request #395. See
 [Roadmap](/re-shell/roadmap/) for details.
 
 ## See also

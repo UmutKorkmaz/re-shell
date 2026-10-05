@@ -23,8 +23,8 @@ release gates are in
 
 Nothing has been published or deployed by this work. Every workflow (`ci.yml`, VS Code
 extension, k8s-live, IaC validation, desktop, template health, accessibility) has run and
-passed on GitHub on pull request #395 (commit `3207b9f`). "Pending first hosted run" now
-applies only to the 32 templates wired into template health afterwards.
+passed on GitHub on pull request #395 (commit `3a06508`), including all 19 jobs of template
+health ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)).
 
 ## Status legend
 
@@ -48,7 +48,7 @@ applies only to the 32 templates wired into template health afterwards.
 | `cloud iac generate\|validate`, `cloud deploy` | DONE (env-limited: `cloud deploy` needs real credentials and was never run against an account; Terraform validation runs in CI) |
 | `fix --ci` | DONE (env-limited: no live LLM call) |
 | Backend template registry: 208 templates, every placeholder substituted (including in file paths), at least 3 templates per emerging runtime (Deno, Bun, Kotlin, Scala, Crystal, Zig, Elixir, Nim) | DONE+tested |
-| Generated projects install, build and boot | 172 of the 208 templates build with their own toolchain in hosted CI, and 8 Node/Bun templates boot. 32 more are wired into template health (**204 of 208 wired**) and are pending their first hosted run: 14 were built locally with their real toolchain, 18 are ci-only and not claimed to pass. 4 are infeasible (`perfect`, `roc`, `carbon`, `vale`). See the [catalog page](/re-shell/templates/catalog/#verification) |
+| Generated projects install, build and boot | **204 of the 208 templates build with their own toolchain in hosted CI** ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)), and 8 Node/Bun templates boot. Of the 32 added last, 14 were also built locally with their real toolchain and 18 could not be. 4 are infeasible (`perfect`, `roc`, `carbon`, `vale`). See the [catalog page](/re-shell/templates/catalog/#verification) |
 | `create` non-interactive in every mode, honest skeletons, dry-run diffs | DONE+tested |
 
 ## UI / dashboard
@@ -95,7 +95,6 @@ Everything left depends on something outside the development environment:
 - Public hosting of the control plane (a deployment target, TLS, a security review).
 - WebRTC across symmetric NATs (a TURN server).
 - Hosted runs of those workflows on `main` after the merge; they already pass on pull request #395.
-- The first hosted run of the 32 newly wired templates, 18 of which are ci-only (Swift, Julia, OCaml, Clojure, BEAM, `zap-zig`, `red-http`, Grain, Ballerina, Unison; see the [catalog page](/re-shell/templates/catalog/#verification)).
 - The 4 infeasible templates (`perfect`, `roc`, `carbon`, `vale`), which need a usable toolchain first.
 
 ## Explicitly dropped

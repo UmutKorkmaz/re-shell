@@ -88,16 +88,15 @@ Helper scripts in [`scripts/`](./scripts) (run from the root after `pnpm -r buil
 
 The workflows live in `.github/workflows/`. Every workflow (`ci.yml`, `vscode-extension`,
 `k8s-live`, `iac-validate`, `desktop`, `template-health`, `accessibility`) passes on GitHub
-on pull request #395 (run on commit `3207b9f`). The 32 templates wired into
-`template-health` afterwards have not had their first hosted run yet (see
-[`docs/STABILITY.md`](./docs/STABILITY.md)); their toolchain checks were run locally
-where the environment allowed.
+on pull request #395 (run on commit `3a06508`), including all 19 jobs of
+`template-health` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)). 204 of the 208 templates pass there; 18 of them could not
+be built locally (see [`docs/STABILITY.md`](./docs/STABILITY.md)).
 
 | Workflow | Runs on | Gates |
 |----------|---------|-------|
 | `ci.yml` | push and PR to `main`/`master`/`develop` | build, performance budgets, typecheck, unit/integration/conformance suites for every package (control plane with an 80% coverage gate), generated `docs/CLI-CONTRACTS.md` drift check, coverage, interactive and end-to-end CLI tests, guard greps; **Playwright e2e** (chromium flow and the 2001-node graph scale spec); **Storybook** (stories, a11y, visual, `re-shell ui test`); **pack-smoke** (clean install of the packed tarballs) |
 | `accessibility.yml` | every push and PR | axe-core WCAG 2.1 AA audit of the dashboard (Playwright `a11y` project) |
-| `template-health.yml` | every push and PR | scaffold-and-build 204 of the 208 templates, one job per toolchain group (172 passed on GitHub; the 32 newly wired await their first hosted run; 4 are infeasible); boot-check generated Node/Bun backends |
+| `template-health.yml` | every push and PR | scaffold-and-build 204 of the 208 templates, one job per toolchain group (204 pass on GitHub; 4 are infeasible); boot-check generated Node/Bun backends |
 | `vscode-extension.yml` | push/PR touching the extension, CLI, contracts or hub | build, unit and real-hub tests, the VS Code **host** test under Xvfb, `.vsix` package |
 | `desktop.yml` | `desktop-v*` tags, PRs touching the desktop inputs, manual | Rust tests, Tauri bundles for Linux, macOS and Windows (signed only when signing secrets exist) |
 | `k8s-live.yml` | push and PR touching the Kubernetes generators, the workspace schema or the live-check script, or manual | kubeconform, Helm lint, apply to a kind cluster, rollback, CRD, operator, Flux sync |
