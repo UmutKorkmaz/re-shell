@@ -498,22 +498,67 @@ describe('native verification of the toolchain groups (swift, julia, nim, crysta
     }
   });
 
-  it('keeps Vapor on swift build and says its tests were not built', () => {
+  it('builds and runs the Vapor XCTVapor tests like any SwiftPM template', () => {
     const result = runHealthFixture('non-node', 'vapor', { kinds: { vapor: 'swift' }, tools: ['node', 'pnpm', 'npx', 'swift'] });
     expect(result.status).toBe(0);
-    expect(result.shimLog).toContain('swift build');
-    expect(result.shimLog).not.toContain('--build-tests');
-    expect(result.shimLog).not.toContain('swift test');
-    expect(result.stdout).toContain('NOTE: swift build only: the XCTVapor test target is neither built nor run');
+    expect(result.stdout).toContain('RESULTS: 1 passed, 0 failed, 0 skipped');
+    const log = result.shimLog.split('\n');
+    const order = ['swift build --build-tests', 'swift test --skip-build'].map((fragment) => log.findIndex((line) => line.includes(fragment)));
+    expect(order.every((index) => index >= 0), JSON.stringify(order)).toBe(true);
+    expect(order[0]).toBeLessThan(order[1]);
+    expect(result.stdout).not.toContain('NOTE:');
   });
 
-  it('compiles an Ecto app (Phoenix) without running its database tests, and says so', () => {
+  it('fails Vapor when its tests fail', () => {
+    const result = runHealthFixture('non-node', 'vapor', { kinds: { vapor: 'swift' }, tools: ['node', 'pnpm', 'npx', 'swift'], failOn: 'swift test' });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('RESULTS: 0 passed, 1 failed, 0 skipped');
+  });
+
+  it('runs mix test for an Ecto app (Phoenix) when PostgreSQL answers', () => {
+    const result = runHealthFixture('non-node', 'phoenix', { kinds: { phoenix: 'elixir-ecto' }, tools: ['node', 'pnpm', 'npx', 'mix', 'psql'] });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('RESULTS: 1 passed, 0 failed, 0 skipped');
+    expect(result.shimLog).toContain('psql -h localhost -U postgres');
+    const log = result.shimLog.split('\n');
+    const order = ['mix deps.get', 'mix compile', 'mix test'].map((fragment) => log.findIndex((line) => line.includes(fragment)));
+    expect(order.every((index) => index >= 0), JSON.stringify(order)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(result.shimLog).not.toContain('nerves_bootstrap');
+    expect(result.stdout).not.toContain('NOTE:');
+  });
+
+  it('fails Phoenix when mix test fails', () => {
+    const result = runHealthFixture('non-node', 'phoenix', {
+      kinds: { phoenix: 'elixir-ecto' },
+      tools: ['node', 'pnpm', 'npx', 'mix', 'psql'],
+      failOn: 'mix test',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('RESULTS: 0 passed, 1 failed, 0 skipped');
+  });
+
+  it('compiles an Ecto app (Phoenix) without running its tests when no PostgreSQL is available, and says so', () => {
     const result = runHealthFixture('non-node', 'phoenix', { kinds: { phoenix: 'elixir-ecto' }, tools: ['node', 'pnpm', 'npx', 'mix'] });
     expect(result.status).toBe(0);
     expect(result.shimLog).toContain('mix compile');
     expect(result.shimLog).not.toContain('mix test');
     expect(result.shimLog).not.toContain('nerves_bootstrap');
-    expect(result.stdout).toContain("NOTE: compiled only: the app's tests need a database (Ecto)");
+    expect(result.stdout).toContain("NOTE: compiled only: the app's tests need PostgreSQL (postgres/postgres on localhost); mix test was not run");
+  });
+
+  it('fails Phoenix instead of downgrading to compile-only when PostgreSQL is required but not answering', () => {
+    const result = runHealthFixture('non-node', 'phoenix', {
+      kinds: { phoenix: 'elixir-ecto' },
+      tools: ['node', 'pnpm', 'npx', 'mix', 'psql'],
+      failOn: 'psql',
+      env: { TEMPLATE_HEALTH_REQUIRE_POSTGRES: '1' },
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('RESULTS: 0 passed, 1 failed, 0 skipped');
+    expect(result.stdout).toContain('TEMPLATE_HEALTH_REQUIRE_POSTGRES=1');
+    expect(result.shimLog).not.toContain('mix test');
+    expect(result.stdout).not.toContain('NOTE: compiled only');
   });
 
   it('type-checks database-backed Crystal specs when no PostgreSQL is running, and says so', () => {
@@ -702,12 +747,19 @@ describe('template health wiring', () => {
     }
   });
 
-  it('fails the toolchain-installing groups on a SKIP and requires PostgreSQL for Crystal', () => {
+  it('fails the toolchain-installing groups on a SKIP and requires PostgreSQL for Crystal and core (Phoenix)', () => {
     const strict = /TEMPLATE_HEALTH_FAIL_ON_SKIP: \$\{\{ contains\(fromJSON\('(\[[^']*\])'\), matrix\.group\)/.exec(workflow);
     expect(strict).not.toBeNull();
     const strictGroups = JSON.parse(strict![1]) as string[];
     expect(strictGroups.sort()).toEqual(['swift', 'julia', 'nim', 'crystal', 'ocaml', 'clojure', 'beam', 'systems', 'exotic', 'exoticb'].sort());
     for (const name of strictGroups) expect(Object.keys(groups)).toContain(name);
-    expect(workflow).toMatch(/TEMPLATE_HEALTH_REQUIRE_POSTGRES: \$\{\{ matrix\.group == 'crystal'/);
+    const postgres = /TEMPLATE_HEALTH_REQUIRE_POSTGRES: \$\{\{ contains\(fromJSON\('(\[[^']*\])'\), matrix\.group\)/.exec(workflow);
+    expect(postgres).not.toBeNull();
+    expect((JSON.parse(postgres![1]) as string[]).sort()).toEqual(['core', 'crystal']);
+    // The groups that require PostgreSQL start the runner's PostgreSQL service before the script runs.
+    expect(workflow).toMatch(/if: matrix\.group == 'crystal' \|\| matrix\.group == 'core'\n\s+name: Start PostgreSQL[^\n]*\n\s+run: \|\n\s+sudo systemctl start postgresql\.service/);
+    // Phoenix is in core and Vapor's tests need no database server.
+    expect(groups.core).toContain('phoenix');
+    expect(groups.core).toContain('vapor');
   });
 });

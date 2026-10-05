@@ -164,7 +164,7 @@ and runs its PHPUnit suite (`php artisan test`).
 
 | Group (`--group`) | Templates | Check |
 |---|---|---|
-| `core` | 26 | `tsc`, `go build`, `cargo check`, `mvn package`, `zig build` (Zig 0.13.0; `zap-zig` pins its dependency hash, taken from the CI log; the script hashes a URL dependency only if the pin is missing), Python compile and import, `php -l` + composer (Laravel also `artisan route:list` and `php artisan test`), `ruby -c` + bundle; `mix compile` and `swift build` (Vapor) in CI only |
+| `core` | 26 | `tsc`, `go build`, `cargo check`, `mvn package`, `zig build` (Zig 0.13.0; `zap-zig` pins its dependency hash, taken from the CI log; the script hashes a URL dependency only if the pin is missing), Python compile and import, `php -l` + composer (Laravel also `artisan route:list` and `php artisan test`), `ruby -c` + bundle; `vapor`: `swift build --build-tests` + `swift test` (XCTVapor, in-memory SQLite); `phoenix`: `mix compile` + `mix test` against the runner's PostgreSQL (`TEMPLATE_HEALTH_REQUIRE_POSTGRES=1` in this group: a missing PostgreSQL fails instead of downgrading to compile-only). Both run in CI only; the test steps were added without a local Swift or hex toolchain and are not yet confirmed by a hosted run |
 | `jvm` | 9 | Maven, Gradle (Kotlin), sbt (Scala) |
 | `dotnet` | 15 | `dotnet build` of every C# and F# project |
 | `native` | 28 | Go, Rust, Python, Ruby, PHP, Perl (`perl -c`), Lua (`luac -p`, syntax only), C++ with CMake against distribution packages (`drogon`, `cpp-httplib`, `beast`, `pistache`) and `crow` (Crow v1.2.0 fetched from GitHub, `ctest`), Dart (`dart pub get` + `dart analyze`, no test run) |
