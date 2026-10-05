@@ -159,8 +159,11 @@ pub fn error_page_url(title: &str, message: &str) -> Url {
         t = html_escape(title),
         m = html_escape(message),
     );
-    Url::parse(&format!("data:text/html;charset=utf-8,{}", percent_encode(&html)))
-        .expect("a percent-encoded data URL is always valid")
+    Url::parse(&format!(
+        "data:text/html;charset=utf-8,{}",
+        percent_encode(&html)
+    ))
+    .expect("a percent-encoded data URL is always valid")
 }
 
 #[cfg(test)]
@@ -197,7 +200,11 @@ mod tests {
         let origins = webview_origins(None);
         assert_eq!(
             origins,
-            vec!["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"]
+            vec![
+                "tauri://localhost",
+                "http://tauri.localhost",
+                "https://tauri.localhost"
+            ]
         );
         let with_dev = webview_origins(Some(&url("http://localhost:3333/")));
         assert_eq!(with_dev.last().unwrap(), "http://localhost:3333");
@@ -212,7 +219,9 @@ mod tests {
         assert!(pinned.contains("connect-src 'self' http://127.0.0.1:43211 ws://127.0.0.1:43211"));
         assert!(!pinned.contains(":*"));
         // Everything else is untouched.
-        assert!(pinned.starts_with("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';"));
+        assert!(pinned.starts_with(
+            "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';"
+        ));
         // A CSP without the wildcards is left alone.
         assert_eq!(pin_csp("default-src 'self'", 1), "default-src 'self'");
     }
@@ -220,15 +229,27 @@ mod tests {
     #[test]
     fn navigation_allows_only_the_app_origins() {
         assert!(is_allowed_navigation(&url("tauri://localhost/"), None));
-        assert!(is_allowed_navigation(&url("tauri://localhost/index.html"), None));
+        assert!(is_allowed_navigation(
+            &url("tauri://localhost/index.html"),
+            None
+        ));
         assert!(is_allowed_navigation(&url("http://tauri.localhost/"), None));
-        assert!(is_allowed_navigation(&url("https://tauri.localhost/x"), None));
+        assert!(is_allowed_navigation(
+            &url("https://tauri.localhost/x"),
+            None
+        ));
         assert!(!is_allowed_navigation(&url("about:blank"), None));
 
         assert!(!is_allowed_navigation(&url("https://example.com/"), None));
-        assert!(!is_allowed_navigation(&url("http://127.0.0.1:43211/health"), None));
+        assert!(!is_allowed_navigation(
+            &url("http://127.0.0.1:43211/health"),
+            None
+        ));
         assert!(!is_allowed_navigation(&url("tauri://evil/"), None));
-        assert!(!is_allowed_navigation(&url("http://tauri.localhost.evil.com/"), None));
+        assert!(!is_allowed_navigation(
+            &url("http://tauri.localhost.evil.com/"),
+            None
+        ));
         assert!(!is_allowed_navigation(&url("file:///etc/passwd"), None));
         assert!(!is_allowed_navigation(&url("about:srcdoc"), None));
         assert!(!is_allowed_navigation(&url("data:text/html,hi"), None));
@@ -238,9 +259,18 @@ mod tests {
     #[test]
     fn navigation_dev_url_is_exact() {
         let dev = url("http://localhost:3333/");
-        assert!(is_allowed_navigation(&url("http://localhost:3333/some/path"), Some(&dev)));
-        assert!(!is_allowed_navigation(&url("http://localhost:3334/"), Some(&dev)));
-        assert!(!is_allowed_navigation(&url("https://localhost:3333/"), Some(&dev)));
+        assert!(is_allowed_navigation(
+            &url("http://localhost:3333/some/path"),
+            Some(&dev)
+        ));
+        assert!(!is_allowed_navigation(
+            &url("http://localhost:3334/"),
+            Some(&dev)
+        ));
+        assert!(!is_allowed_navigation(
+            &url("https://localhost:3333/"),
+            Some(&dev)
+        ));
         assert!(!is_allowed_navigation(&url("http://localhost:3333/"), None));
     }
 
@@ -256,9 +286,16 @@ mod tests {
 
     #[test]
     fn error_page_is_a_scriptless_data_url_with_escaped_text() {
-        let url = error_page_url("Could not start <hub>", "node: \"missing\" & <script>alert(1)</script>");
+        let url = error_page_url(
+            "Could not start <hub>",
+            "node: \"missing\" & <script>alert(1)</script>",
+        );
         assert_eq!(url.scheme(), "data");
-        let encoded = url.path().strip_prefix("text/html;charset=utf-8,").unwrap().to_string();
+        let encoded = url
+            .path()
+            .strip_prefix("text/html;charset=utf-8,")
+            .unwrap()
+            .to_string();
         let raw = encoded.as_bytes();
         let mut bytes = Vec::new();
         let mut i = 0;

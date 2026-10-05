@@ -14,8 +14,7 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use re_shell_desktop_lib::hub::{
-    generate_token, probe_health, resolve_node, Hub, HubError, HubOptions,
-    NodeSearch,
+    generate_token, probe_health, resolve_node, Hub, HubError, HubOptions, NodeSearch,
 };
 
 const WEBVIEW_ORIGINS: [&str; 3] = [
@@ -41,11 +40,13 @@ fn real_bundle() -> PathBuf {
 }
 
 fn node() -> PathBuf {
-    resolve_node(&NodeSearch::from_env()).unwrap_or_else(|e| panic!("these tests need Node.js: {e}"))
+    resolve_node(&NodeSearch::from_env())
+        .unwrap_or_else(|e| panic!("these tests need Node.js: {e}"))
 }
 
 fn temp_dir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("re-shell-desktop-it-{name}-{}", std::process::id()));
+    let dir =
+        std::env::temp_dir().join(format!("re-shell-desktop-it-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
     dir
@@ -66,8 +67,11 @@ fn options(bundle: PathBuf, workspace: PathBuf) -> HubOptions {
 fn http(port: u16, method: &str, path: &str, headers: &[(&str, &str)]) -> (u16, String) {
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2)).expect("connect");
-    stream.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
-    let mut request = format!("{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    let mut request =
+        format!("{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n");
     for (k, v) in headers {
         request.push_str(&format!("{k}: {v}\r\n"));
     }
@@ -112,7 +116,11 @@ fn starts_the_real_hub_on_loopback_with_a_required_random_token() {
     let workspace = temp_dir("workspace");
     let mut hub = Hub::start(&options(real_bundle(), workspace.clone())).expect("hub should start");
 
-    assert!(hub.url().starts_with("http://127.0.0.1:"), "url was {}", hub.url());
+    assert!(
+        hub.url().starts_with("http://127.0.0.1:"),
+        "url was {}",
+        hub.url()
+    );
     assert_eq!(hub.url(), format!("http://127.0.0.1:{}", hub.port()));
     assert_eq!(hub.token().len(), 64);
 
@@ -120,7 +128,10 @@ fn starts_the_real_hub_on_loopback_with_a_required_random_token() {
     // the live hub, not just assumed).
     assert_eq!(probe_health(hub.port(), Some(hub.token())), Some(200));
     assert_eq!(probe_health(hub.port(), None), Some(401));
-    assert_eq!(probe_health(hub.port(), Some(&generate_token().unwrap())), Some(401));
+    assert_eq!(
+        probe_health(hub.port(), Some(&generate_token().unwrap())),
+        Some(401)
+    );
 
     #[cfg(target_os = "linux")]
     {
@@ -132,22 +143,43 @@ fn starts_the_real_hub_on_loopback_with_a_required_random_token() {
             .skip(1)
             .filter(|line| {
                 let cols: Vec<&str> = line.split_whitespace().collect();
-                cols.get(3) == Some(&"0A") && cols.get(1).map_or(false, |a| a.ends_with(&format!(":{wanted}")))
+                cols.get(3) == Some(&"0A")
+                    && cols
+                        .get(1)
+                        .map_or(false, |a| a.ends_with(&format!(":{wanted}")))
             })
             .collect();
-        assert!(!listeners.is_empty(), "hub port {} is not listening", hub.port());
+        assert!(
+            !listeners.is_empty(),
+            "hub port {} is not listening",
+            hub.port()
+        );
         for line in listeners {
             let local = line.split_whitespace().nth(1).unwrap();
-            assert_eq!(local, format!("0100007F:{wanted}"), "hub must bind loopback only");
+            assert_eq!(
+                local,
+                format!("0100007F:{wanted}"),
+                "hub must bind loopback only"
+            );
         }
     }
 
     let pid = hub.pid();
     hub.stop(Duration::from_secs(5));
-    assert!(hub.exit_status().is_some(), "hub process should have exited");
-    assert_eq!(probe_health(hub.port(), Some(hub.token())), None, "port must be released");
+    assert!(
+        hub.exit_status().is_some(),
+        "hub process should have exited"
+    );
+    assert_eq!(
+        probe_health(hub.port(), Some(hub.token())),
+        None,
+        "port must be released"
+    );
     #[cfg(target_os = "linux")]
-    assert!(!process_running(pid), "hub pid {pid} still running after stop");
+    assert!(
+        !process_running(pid),
+        "hub pid {pid} still running after stop"
+    );
     let _ = pid;
     let _ = fs::remove_dir_all(workspace);
 }
@@ -176,7 +208,12 @@ fn the_hub_accepts_the_webview_origin_through_the_allowlist_env() {
     }
 
     // A foreign origin is not echoed back.
-    let (_, response) = http(hub.port(), "OPTIONS", "/health", &[("Origin", "https://evil.example.com")]);
+    let (_, response) = http(
+        hub.port(),
+        "OPTIONS",
+        "/health",
+        &[("Origin", "https://evil.example.com")],
+    );
     assert!(!response.contains("access-control-allow-origin: https://evil.example.com"));
 
     drop(hub);
@@ -204,7 +241,10 @@ fn dropping_the_hub_stops_the_process() {
     let pid = hub.pid();
     assert_eq!(probe_health(port, Some(hub.token())), Some(200));
     drop(hub);
-    assert!(wait_until(Duration::from_secs(5), || probe_health(port, None).is_none()));
+    assert!(wait_until(Duration::from_secs(5), || probe_health(
+        port, None
+    )
+    .is_none()));
     #[cfg(target_os = "linux")]
     assert!(wait_until(Duration::from_secs(5), || !process_running(pid)));
     let _ = pid;
@@ -232,7 +272,12 @@ fn owner_helper_process() {
 fn a_killed_app_does_not_leave_an_orphaned_hub() {
     let exe = std::env::current_exe().unwrap();
     let mut owner = Command::new(exe)
-        .args(["--exact", "owner_helper_process", "--nocapture", "--test-threads=1"])
+        .args([
+            "--exact",
+            "owner_helper_process",
+            "--nocapture",
+            "--test-threads=1",
+        ])
         .env("RE_SHELL_TEST_OWNER", "1")
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -259,7 +304,10 @@ fn a_killed_app_does_not_leave_an_orphaned_hub() {
         }
     };
     assert!(process_running(hub_pid));
-    assert!(probe_health(port, None).is_some(), "hub should be listening");
+    assert!(
+        probe_health(port, None).is_some(),
+        "hub should be listening"
+    );
 
     // SIGKILL: the owner gets no chance to run any cleanup.
     owner.kill().expect("kill owner");
@@ -269,14 +317,22 @@ fn a_killed_app_does_not_leave_an_orphaned_hub() {
         wait_until(Duration::from_secs(10), || !process_running(hub_pid)),
         "hub pid {hub_pid} outlived its killed owner"
     );
-    assert_eq!(probe_health(port, None), None, "orphaned hub still holds port {port}");
+    assert_eq!(
+        probe_health(port, None),
+        None,
+        "orphaned hub still holds port {port}"
+    );
 }
 
 #[test]
 fn a_hub_that_crashes_on_startup_is_reported_with_its_output() {
     let dir = temp_dir("crash");
     let bundle = dir.join("crash.js");
-    fs::write(&bundle, "console.error('[hub-server] Failed to start: boom'); process.exit(3);").unwrap();
+    fs::write(
+        &bundle,
+        "console.error('[hub-server] Failed to start: boom'); process.exit(3);",
+    )
+    .unwrap();
 
     match Hub::start(&options(bundle, dir.clone())) {
         Err(HubError::ExitedEarly { status, log_tail }) => {
@@ -307,8 +363,15 @@ fn a_hub_that_never_answers_times_out_and_is_not_left_running() {
     }
     #[cfg(target_os = "linux")]
     {
-        let pid: u32 = fs::read_to_string(dir.join("pid")).unwrap().trim().parse().unwrap();
-        assert!(wait_until(Duration::from_secs(5), || !process_running(pid)), "hung hub {pid} was left running");
+        let pid: u32 = fs::read_to_string(dir.join("pid"))
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        assert!(
+            wait_until(Duration::from_secs(5), || !process_running(pid)),
+            "hung hub {pid} was left running"
+        );
     }
     let _ = fs::remove_dir_all(dir);
 }

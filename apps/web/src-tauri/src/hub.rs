@@ -336,7 +336,10 @@ fn build_command(opts: &HubOptions, token: &str, port: u16) -> Command {
         // One path-only line per request (never the query/token): the auditable
         // record that the dashboard connected with the token.
         .env("RE_SHELL_UI_HUB_ACCESS_LOG", "1")
-        .env("RE_SHELL_UI_HUB_ALLOWED_ORIGINS", opts.allowed_origins.join(","))
+        .env(
+            "RE_SHELL_UI_HUB_ALLOWED_ORIGINS",
+            opts.allowed_origins.join(","),
+        )
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -423,8 +426,11 @@ fn forward_lines<R: Read + Send + 'static>(
 /// token `re-shell ui` mints.
 pub fn generate_token() -> Result<String, HubError> {
     let mut bytes = [0u8; TOKEN_BYTES];
-    getrandom::fill(&mut bytes)
-        .map_err(|e| HubError::Io(format!("could not read OS randomness for the hub token: {e}")))?;
+    getrandom::fill(&mut bytes).map_err(|e| {
+        HubError::Io(format!(
+            "could not read OS randomness for the hub token: {e}"
+        ))
+    })?;
     Ok(hex_encode(&bytes))
 }
 
@@ -457,8 +463,12 @@ pub fn pick_free_port() -> Result<u16, HubError> {
 pub fn probe_health(port: u16, token: Option<&str>) -> Option<u16> {
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(300)).ok()?;
-    stream.set_read_timeout(Some(Duration::from_millis(1500))).ok()?;
-    stream.set_write_timeout(Some(Duration::from_millis(1500))).ok()?;
+    stream
+        .set_read_timeout(Some(Duration::from_millis(1500)))
+        .ok()?;
+    stream
+        .set_write_timeout(Some(Duration::from_millis(1500)))
+        .ok()?;
 
     let mut request = format!(
         "GET /health HTTP/1.1\r\nHost: {HUB_HOST}:{port}\r\nAccept: application/json\r\nConnection: close\r\n"
@@ -593,9 +603,14 @@ pub fn default_node_dirs(home: Option<&Path>) -> Vec<PathBuf> {
         }
     } else {
         dirs.extend(
-            ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin", "/usr/bin"]
-                .iter()
-                .map(PathBuf::from),
+            [
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
+                "/opt/local/bin",
+                "/usr/bin",
+            ]
+            .iter()
+            .map(PathBuf::from),
         );
         if let Some(home) = home {
             dirs.push(home.join(".volta").join("bin"));
@@ -630,14 +645,19 @@ pub fn parse_node_version(text: &str) -> Option<(u32, u32, u32)> {
     let major = parts.next()?.parse().ok()?;
     let minor = parts.next()?.parse().ok()?;
     let patch_raw = parts.next()?;
-    let patch_digits: String = patch_raw.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let patch_digits: String = patch_raw
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
     let patch = patch_digits.parse().ok()?;
     Some((major, minor, patch))
 }
 
 fn home_dir() -> Option<PathBuf> {
     let var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
-    std::env::var_os(var).filter(|v| !v.is_empty()).map(PathBuf::from)
+    std::env::var_os(var)
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
 }
 
 /// Run `node --version` and require Node.js >= [`MIN_NODE_MAJOR`]. Returns the
@@ -654,7 +674,10 @@ pub fn check_node_version(node: &Path) -> Result<String, HubError> {
     if !output.status.success() {
         return Err(HubError::NodeUnusable {
             path: node.to_path_buf(),
-            reason: format!("`node --version` failed ({})", describe_status(&output.status)),
+            reason: format!(
+                "`node --version` failed ({})",
+                describe_status(&output.status)
+            ),
         });
     }
     let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -690,7 +713,9 @@ pub fn resolve_bundle(
         return if path.is_file() {
             Ok(simplify_path(&path))
         } else {
-            Err(HubError::BundleMissing { searched: vec![path] })
+            Err(HubError::BundleMissing {
+                searched: vec![path],
+            })
         };
     }
     if let Some(dir) = resource_dir {
@@ -706,7 +731,9 @@ pub fn resolve_bundle(
             return Ok(simplify_path(candidate));
         }
     }
-    Err(HubError::BundleMissing { searched: candidates })
+    Err(HubError::BundleMissing {
+        searched: candidates,
+    })
 }
 
 /// Strip the Windows verbatim prefix (`\\?\C:\...` -> `C:\...`); Node and the
@@ -715,7 +742,10 @@ pub fn simplify_path(path: &Path) -> PathBuf {
     let text = path.to_string_lossy();
     if let Some(rest) = text.strip_prefix(r"\\?\") {
         let bytes = rest.as_bytes();
-        let is_drive = bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] == b'\\';
+        let is_drive = bytes.len() >= 3
+            && bytes[0].is_ascii_alphabetic()
+            && bytes[1] == b':'
+            && bytes[2] == b'\\';
         if is_drive {
             return PathBuf::from(rest);
         }
@@ -785,7 +815,9 @@ mod tests {
         let a = generate_token().unwrap();
         let b = generate_token().unwrap();
         assert_eq!(a.len(), 64);
-        assert!(a.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(a
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
         assert_ne!(a, b);
     }
 
@@ -814,8 +846,14 @@ mod tests {
 
     #[test]
     fn parses_http_status_lines() {
-        assert_eq!(parse_status_code(b"HTTP/1.1 200 OK\r\nA: b\r\n\r\n"), Some(200));
-        assert_eq!(parse_status_code(b"HTTP/1.0 401 Unauthorized\r\n"), Some(401));
+        assert_eq!(
+            parse_status_code(b"HTTP/1.1 200 OK\r\nA: b\r\n\r\n"),
+            Some(200)
+        );
+        assert_eq!(
+            parse_status_code(b"HTTP/1.0 401 Unauthorized\r\n"),
+            Some(401)
+        );
         assert_eq!(parse_status_code(b"HTTP/1.1 204\r\n"), Some(204));
         assert_eq!(parse_status_code(b"SSH-2.0-OpenSSH\r\n"), None);
         assert_eq!(parse_status_code(b""), None);
@@ -861,7 +899,8 @@ mod tests {
     }
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("re-shell-desktop-{name}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("re-shell-desktop-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -894,7 +933,11 @@ mod tests {
         assert_eq!(resolve_node(&search).unwrap(), a.join("node"));
 
         // A non-executable `node` is skipped.
-        fs::set_permissions(a.join("node"), std::os::unix::fs::PermissionsExt::from_mode(0o644)).unwrap();
+        fs::set_permissions(
+            a.join("node"),
+            std::os::unix::fs::PermissionsExt::from_mode(0o644),
+        )
+        .unwrap();
         assert_eq!(resolve_node(&search).unwrap(), b.join("node"));
     }
 
@@ -923,7 +966,10 @@ mod tests {
             path_var: std::env::var_os("PATH"),
             extra_dirs: default_node_dirs(None),
         };
-        assert!(matches!(resolve_node(&search), Err(HubError::NodeUnusable { .. })));
+        assert!(matches!(
+            resolve_node(&search),
+            Err(HubError::NodeUnusable { .. })
+        ));
     }
 
     #[cfg(unix)]
@@ -943,9 +989,18 @@ mod tests {
         let failing = write_script("node-fail", "exit 3");
 
         assert_eq!(check_node_version(&ok).unwrap(), "v22.1.0");
-        assert!(matches!(check_node_version(&old), Err(HubError::NodeTooOld { .. })));
-        assert!(matches!(check_node_version(&junk), Err(HubError::NodeUnusable { .. })));
-        assert!(matches!(check_node_version(&failing), Err(HubError::NodeUnusable { .. })));
+        assert!(matches!(
+            check_node_version(&old),
+            Err(HubError::NodeTooOld { .. })
+        ));
+        assert!(matches!(
+            check_node_version(&junk),
+            Err(HubError::NodeUnusable { .. })
+        ));
+        assert!(matches!(
+            check_node_version(&failing),
+            Err(HubError::NodeUnusable { .. })
+        ));
         assert!(matches!(
             check_node_version(&dir.join("does-not-exist")),
             Err(HubError::NodeUnusable { .. })
@@ -967,11 +1022,17 @@ mod tests {
         }
 
         fs::write(&dev, "//dev").unwrap();
-        assert_eq!(resolve_bundle(None, Some(&resources), Some(&dev)).unwrap(), dev);
+        assert_eq!(
+            resolve_bundle(None, Some(&resources), Some(&dev)).unwrap(),
+            dev
+        );
 
         // The resource directory wins over the dev fallback.
         fs::write(&in_resources, "//res").unwrap();
-        assert_eq!(resolve_bundle(None, Some(&resources), Some(&dev)).unwrap(), in_resources);
+        assert_eq!(
+            resolve_bundle(None, Some(&resources), Some(&dev)).unwrap(),
+            in_resources
+        );
 
         // An explicit override wins, and a bad override is an error, not a fallback.
         let custom = dir.join("custom.js");
@@ -989,9 +1050,18 @@ mod tests {
 
     #[test]
     fn simplify_path_strips_only_windows_verbatim_drive_prefixes() {
-        assert_eq!(simplify_path(Path::new(r"\\?\C:\app\hub.js")), PathBuf::from(r"C:\app\hub.js"));
-        assert_eq!(simplify_path(Path::new(r"\\?\UNC\srv\share")), PathBuf::from(r"\\?\UNC\srv\share"));
-        assert_eq!(simplify_path(Path::new("/usr/lib/hub.js")), PathBuf::from("/usr/lib/hub.js"));
+        assert_eq!(
+            simplify_path(Path::new(r"\\?\C:\app\hub.js")),
+            PathBuf::from(r"C:\app\hub.js")
+        );
+        assert_eq!(
+            simplify_path(Path::new(r"\\?\UNC\srv\share")),
+            PathBuf::from(r"\\?\UNC\srv\share")
+        );
+        assert_eq!(
+            simplify_path(Path::new("/usr/lib/hub.js")),
+            PathBuf::from("/usr/lib/hub.js")
+        );
     }
 
     #[test]
@@ -1002,11 +1072,21 @@ mod tests {
 
         // --workspace (both forms) beats env and cwd.
         assert_eq!(
-            resolve_workspace([os("app"), os("--workspace"), os("/a")], Some(OsStr::new("/e")), Some(&cwd), Some(&home)),
+            resolve_workspace(
+                [os("app"), os("--workspace"), os("/a")],
+                Some(OsStr::new("/e")),
+                Some(&cwd),
+                Some(&home)
+            ),
             PathBuf::from("/a")
         );
         assert_eq!(
-            resolve_workspace([os("--workspace=/b")], Some(OsStr::new("/e")), Some(&cwd), Some(&home)),
+            resolve_workspace(
+                [os("--workspace=/b")],
+                Some(OsStr::new("/e")),
+                Some(&cwd),
+                Some(&home)
+            ),
             PathBuf::from("/b")
         );
         // Env beats cwd.
@@ -1015,14 +1095,20 @@ mod tests {
             PathBuf::from("/e")
         );
         // cwd when nothing else.
-        assert_eq!(resolve_workspace([os("app")], None, Some(&cwd), Some(&home)), cwd);
+        assert_eq!(
+            resolve_workspace([os("app")], None, Some(&cwd), Some(&home)),
+            cwd
+        );
         // A launcher-style cwd of "/" falls back to home.
         assert_eq!(
             resolve_workspace([os("app")], None, Some(Path::new("/")), Some(&home)),
             home
         );
         // A dangling --workspace with no value is ignored.
-        assert_eq!(resolve_workspace([os("--workspace")], None, Some(&cwd), Some(&home)), cwd);
+        assert_eq!(
+            resolve_workspace([os("--workspace")], None, Some(&cwd), Some(&home)),
+            cwd
+        );
     }
 
     #[test]
@@ -1033,7 +1119,11 @@ mod tests {
         let entries: Vec<PathBuf> = std::env::split_paths(&result).collect();
         assert_eq!(
             entries,
-            vec![PathBuf::from("/opt/node/bin"), PathBuf::from("/usr/bin"), PathBuf::from("/bin")]
+            vec![
+                PathBuf::from("/opt/node/bin"),
+                PathBuf::from("/usr/bin"),
+                PathBuf::from("/bin")
+            ]
         );
     }
 
@@ -1062,7 +1152,11 @@ mod tests {
     fn hub_debug_output_never_contains_the_token() {
         // Hub::fmt::Debug is the only formatter the app logs with; guard it.
         let child = Command::new(if cfg!(windows) { "cmd" } else { "sleep" })
-            .args(if cfg!(windows) { vec!["/C", "exit"] } else { vec!["0"] })
+            .args(if cfg!(windows) {
+                vec!["/C", "exit"]
+            } else {
+                vec!["0"]
+            })
             .stdin(Stdio::piped())
             .spawn()
             .unwrap();
