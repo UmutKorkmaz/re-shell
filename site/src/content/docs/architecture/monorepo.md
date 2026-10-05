@@ -51,7 +51,7 @@ npm install -g @re-shell/cli
 That one package contains:
 
 - The full CLI (585 command paths in 46 top-level commands at 0.31.0).
-- The 208-template backend scaffolding registry (plus frontend and architecture templates).
+- The 204-template backend scaffolding registry (plus frontend and architecture templates).
 - The prebuilt dashboard SPA and the static server (`re-shell ui`), placed in the tarball
   by the `prepack` hook.
 - The token-authenticated hub server.
@@ -83,7 +83,7 @@ CI (`.github/workflows`) builds, typechecks and tests every package, enforces si
 budgets, checks that `docs/CLI-CONTRACTS.md` matches the CLI, runs Playwright end-to-end
 and axe accessibility audits, runs a Storybook test gate, smoke-tests the packed
 tarballs in a clean install, and (separately) builds templates with their own toolchains:
-204 of the 208 pass on GitHub (4 infeasible). Every workflow passes on GitHub on pull request #395. See
+all 204 pass on GitHub. Every workflow passes on GitHub on pull request #395. See
 [Roadmap](/re-shell/roadmap/) for details.
 
 ## See also

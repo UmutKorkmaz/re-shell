@@ -147,5 +147,5 @@ generated project installs, builds and boots is a separate question, answered by
 ## See also
 
 - [templates](/re-shell/cli/templates/) — discover what to scaffold.
-- [Template Catalog](/re-shell/templates/catalog/) — all 208 templates.
+- [Template Catalog](/re-shell/templates/catalog/) — all 204 templates.
 - [service & bridge](/re-shell/cli/service-bridge/) — connect polyglot services.

@@ -640,7 +640,6 @@ describe('ReScript template verification', () => {
 
 
 describe('template health wiring', () => {
-  const INFEASIBLE = ['perfect', 'roc', 'carbon', 'vale'];
   const workflow = readFileSync(resolve(__dirname, '../../../../.github/workflows/template-health.yml'), 'utf8');
 
   const groups: Record<string, string[]> = {};
@@ -660,15 +659,9 @@ describe('template health wiring', () => {
     );
   });
 
-  it('wires every registered backend template exactly once, except the infeasible ones', () => {
+  it('wires every registered backend template exactly once', () => {
     expect(wired.filter((id, index) => wired.indexOf(id) !== index)).toEqual([]);
-    const expected = Object.keys(backendTemplates).filter((id) => !INFEASIBLE.includes(id));
-    expect([...wired].sort()).toEqual([...expected].sort());
-  });
-
-  it.each(INFEASIBLE)('registers %s but keeps it out of every group', (id) => {
-    expect(Object.keys(backendTemplates)).toContain(id);
-    expect(wired).not.toContain(id);
+    expect([...wired].sort()).toEqual(Object.keys(backendTemplates).sort());
   });
 
   it('places the newly wired templates in their groups', () => {

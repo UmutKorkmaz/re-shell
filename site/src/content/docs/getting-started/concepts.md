@@ -34,7 +34,7 @@ Re-Shell deliberately spans both halves of the stack from one tool:
 - **Microfrontends** — Module-Federation frontends in React, Vue, Svelte, and
   Angular. Add them with `re-shell add`, list them with `re-shell list`, and
   serve them with `re-shell serve`.
-- **Microservices** — polyglot backends across 36 languages (Node, Python, Go,
+- **Microservices** — polyglot backends across 35 languages (Node, Python, Go,
   Rust, .NET, Java, PHP, Ruby, and many more). Scaffold them from the
   [template catalog](/re-shell/templates/catalog/) or with
   [`generate backend`](/re-shell/cli/generate/).

@@ -25,8 +25,8 @@ failed and the causes were fixed (see [Hosted CI](#hosted-ci)).
 
 The template work after that commit is **also proven on GitHub**: on commit `3a06508` every
 workflow passes on PR #395, including `template-health` with all 19 jobs (18 scaffold-and-build
-groups plus the boot check; [run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)). That is **204 of the 208 backend templates
-passing on hosted CI**; 4 are infeasible (see
+groups plus the boot check; [run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)). That is **all 204 backend templates
+passing on hosted CI**; the 4 templates that could not be built were removed (see
 [Template verification counts](#current-verification)). What was and was not verified locally
 is stated precisely in [Current Verification](#current-verification).
 
@@ -135,8 +135,8 @@ uses `node-pty`, which aborts the worker pool when the checkout path contains `.
 it runs in CI), the VS Code host test (download blocked), Flux/Argo CD sync, any live
 LLM or cloud call, and any hosted GitHub Actions run.
 
-**Template verification counts.** `scripts/scaffold-test-templates.sh` now lists **204 of
-the 208** backend templates, in eighteen toolchain groups that `template-health` runs as
+**Template verification counts.** `scripts/scaffold-test-templates.sh` now lists **all 204**
+backend templates, in eighteen toolchain groups that `template-health` runs as
 parallel jobs. **All 204 pass on hosted CI** (PR #395, commit `3a06508`;
 [run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)). What was verified locally differs by tier:
 
@@ -158,7 +158,7 @@ parallel jobs. **All 204 pass on hosted CI** (PR #395, commit `3a06508`;
    `luminus-clj`, `reitit-clj`, `pedestal-clj`; BEAM `plug-ex`, `nerves-ex`, `wisp`;
    `zap-zig`; `red-http`; `grain`, `ballerina`, `unison`. All 18 pass on hosted CI.
 
-172 plus the 32 newly wired is 204 passing; 4 are infeasible (below). `laravel` was already in the
+172 plus the 32 newly wired is 204 passing, which is every registered template; 4 infeasible templates were removed (below). `laravel` was already in the
 172; it moved to Laravel 13 and its health check now boots the app (`php artisan route:list`)
 and runs its PHPUnit suite (`php artisan test`).
 
@@ -192,9 +192,9 @@ toolchain downloads, registry versions and syntax. Their first hosted runs found
 defects (`ballerina`, `unison`, `red-http`, `kitura`, `nerves-ex`; see [Hosted CI](#hosted-ci)),
 all fixed, and `zap-zig`'s dependency hash is pinned from the CI log. No red job remains.
 
-**Four templates are infeasible** and are deliberately kept out of the script, with their
-source unchanged. They are registered, scaffoldable and covered by the registry and
-placeholder tests, and are not counted as built:
+**Four infeasible templates were removed** because none could produce a working project,
+so every registered template is now wired into `template-health` and passes on hosted CI
+(a test asserts this):
 
 - `perfect` (Swift): PerfectNet calls `SSL_get_peer_certificate`, which is only a
   function-like macro in OpenSSL 3 and cannot be imported by Swift's Clang importer;
@@ -205,13 +205,13 @@ placeholder tests, and are not counted as built:
 - `vale`: the project is archived, the last compiler is a 2022 alpha, and there is no
   networking.
 
-None was deleted, and none is counted as verified.
+The catalog is now 204 templates across 35 languages (Roc has no remaining template).
 
 ## Next Batch (status)
 
 | # | Item | Status | Evidence |
 |---|------|--------|----------|
-| 1 | Repeatable install/build/boot evidence for representative generated projects, fixing the failures the stricter checks surface | **DONE: 204 of 208 templates pass on hosted CI ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171), commit `3a06508`); 4 are infeasible (listed above)** | `scripts/scaffold-test-templates.sh` scaffolds 204 templates and builds each with its own toolchain, in eighteen groups that CI runs as parallel jobs (counts and checks above); `scripts/boot-test-templates.mjs` installs, builds, boots on a free port with no DB or Redis, probes `/health` and a route, and requires a clean SIGTERM for express, fastify, koa, hono, nestjs, elysia-bun, bun-serve and trpc-bun. Failures found were fixed while the list grew from 25 to 172 and then to 204 (hyphenated project names used as identifiers, nonexistent dependency versions and APIs, files referenced but never shipped, ESM/CommonJS mismatches, YAML errors; some, such as `angel3`, `beast`, `fresh-deno` (ported to Fresh 2), `aleph-deno` (now a Hono + React app), the ReScript, the Haskell and several of the newly wired templates, were largely rewritten). Of the 32 newly wired, 14 were built locally with their real toolchain and 18 could not be built locally; all 32 pass on hosted CI after the fixes under Hosted CI. The `template-health` workflow runs both scripts on every push and PR. |
+| 1 | Repeatable install/build/boot evidence for representative generated projects, fixing the failures the stricter checks surface | **DONE: all 204 templates pass on hosted CI ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171), commit `3a06508`); the 4 infeasible templates were removed (listed above)** | `scripts/scaffold-test-templates.sh` scaffolds 204 templates and builds each with its own toolchain, in eighteen groups that CI runs as parallel jobs (counts and checks above); `scripts/boot-test-templates.mjs` installs, builds, boots on a free port with no DB or Redis, probes `/health` and a route, and requires a clean SIGTERM for express, fastify, koa, hono, nestjs, elysia-bun, bun-serve and trpc-bun. Failures found were fixed while the list grew from 25 to 172 and then to 204 (hyphenated project names used as identifiers, nonexistent dependency versions and APIs, files referenced but never shipped, ESM/CommonJS mismatches, YAML errors; some, such as `angel3`, `beast`, `fresh-deno` (ported to Fresh 2), `aleph-deno` (now a Hono + React app), the ReScript, the Haskell and several of the newly wired templates, were largely rewritten). Of the 32 newly wired, 14 were built locally with their real toolchain and 18 could not be built locally; all 32 pass on hosted CI after the fixes under Hosted CI. The `template-health` workflow runs both scripts on every push and PR. |
 | 2 | Frontend-only/backend/fullstack creation and non-TTY microfrontend `--yes` behavior; skeletons distinct from runnable apps | **DONE** | `create` never prompts under `--yes`/`--json`/`--dry-run`/non-TTY for every mode; `--gateway --services --remotes --force --template blank`; `TEMPLATE_NOT_FOUND`; `--type` limited to `app\|package\|lib\|tool`; `create --dry-run --json` returns the exact files and diffs. Tests: `tests/integration/create-headless-*.test.ts`, `tests/unit/create-noninteractive.test.ts`. Skeletons are labelled: `generate backend` writes a small starter, `create` the full template, and neither claims the project runs. |
 | 3 | Harden service spawn failures, immediate exits, PID/log cleanup and stopping | **DONE** | `service run`: `SERVICES_*` error codes, `--alive-ms`, JSON pid files, `re-shell.services.<script>` metadata, graceful SIGTERM then SIGKILL, `health` exits non-zero when nothing runs. `tests/unit/service-process.test.ts`, `services-runtime.test.ts`, `tests/integration/service-run-cli.test.ts`. |
 | 4 | Real browser flows against the hub, as an executable release gate | **DONE; `accessibility` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37205769229)) and the `ci.yml` `e2e` job (including the graph-scale spec; [run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37205769225)) pass on hosted CI (PR #395, commit `3207b9f`)** | `ci.yml` job `e2e` (Playwright `chromium` flow and the graph-scale spec) and `accessibility.yml` (axe) run on every push and PR. Both passed locally when merged (see above). |
@@ -224,7 +224,7 @@ None was deleted, and none is counted as verified.
 |------|--------|--------------|
 | Build, typecheck and focused plus relevant broad/interactive suites pass on the exact candidate | **PARTIAL** | Build and the suites listed in Current Verification passed here (see the table). The interactive suite did not run on this machine; it runs in CI. Every workflow passes on hosted CI at commit `3a06508` (PR #395), including the later template-health changes. |
 | Unsupported commands cannot return verified-success claims | **Met for the commands that were unsupported** | `fix --ci`, `ui test`, `plugin update`, `plugin validate` are now real; the stricter `UI_TEST_ERROR`/`FIX_CI_ERROR` failure paths remain. Gates (`doctor`, `analyze --fail-on`, `security audit verify`, `service validate`) exit non-zero on failure. `cloud deploy` never fakes a deployment. This is not an exhaustive audit of the 585 command paths: many generator commands write starter files and say nothing about running. |
-| Required generated-project install/build/boot checks pass; skips and external prerequisites stay explicit | **Met on hosted CI for 204 of 208 templates** ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171), commit `3a06508`) | 204 of 208 templates build with their own toolchain in CI and eight Node/Bun backends boot (Next Batch item 1). Of the 32 added last, 14 were also built locally with their real toolchain and 18 could not be. The 4 infeasible templates (`perfect`, `roc`, `carbon`, `vale`) are listed with their reasons, never reported as passing. |
+| Required generated-project install/build/boot checks pass; skips and external prerequisites stay explicit | **Met on hosted CI for all 204 templates** ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171), commit `3a06508`) | All 204 templates build with their own toolchain in CI and eight Node/Bun backends boot (Next Batch item 1). Of the 32 added last, 14 were also built locally with their real toolchain and 18 could not be. The 4 infeasible templates (`perfect`, `roc`, `carbon`, `vale`) were removed, with their reasons above. |
 | Dashboard browser checks and clean-package smoke pass before a release is declared ready; a passing build or CI run alone is insufficient | **Met on hosted CI at `3207b9f`** | Browser checks passed locally, clean-package smoke passed in this pass, and on PR #395 the `accessibility` job ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37205769229)) and the `ci.yml` jobs `e2e`, `storybook` and `pack-smoke` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37205769225)) pass. A release is still not declared ready: nothing is published. |
 | Reviewed commits, version changes and release notes describe the work only; publication, deployment and optional scaffold promotion are separate actions | **Met, nothing published** | Versions bumped (cli 0.31.0, contracts 0.3.0, mcp 0.2.0, ui 0.6.0); the CHANGELOG has an `Unreleased` section; nothing was published or deployed. |
 
@@ -243,7 +243,6 @@ Everything left needs something outside the repository or its development enviro
 | WebRTC across symmetric NATs | A TURN server (none is shipped or deployed) |
 | Hosted runs of `ci.yml`, `vscode-extension`, `k8s-live`, `iac-validate` and `desktop` on `main` after the merge | Done on PR #395 at `3207b9f`; these workflows are not triggered by pushes to other branches, so they re-run on the pull request and on the merge |
 | Building `vapor`, `phoenix` and the 18 newly wired templates that could not be built locally | Their toolchains or registries (Swift, Julia, opam, Clojars, hex, Gleam, Zig dependencies from GitHub, Red, Grain, Ballerina, Unison) |
-| The 4 infeasible templates (`perfect`, `roc`, `carbon`, `vale`) | A usable toolchain: OpenSSL 3 support in PerfectNet, a stable Roc release with a verifiable platform, a released Carbon, a maintained Vale; see the reasons above |
 
 ## Scope notes
 
