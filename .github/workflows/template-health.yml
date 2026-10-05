@@ -16,7 +16,7 @@ jobs:
   # language's own toolchain (pip/compileall, go build, cargo check, php -l +
   # composer, ruby -c + bundle, mvn package, gradle build, sbt Test/compile,
   # dotnet build, perl -c, luac -p, pnpm + tsc, rescript build, dart analyze, cabal build, zig build, deno check,
-  # swift build/test, Pkg.test, nimble test, crystal spec, dune runtest, lein test, mix/gleam test, v/odin/ponyc,
+  # swift build/test (Vapor included), Pkg.test, nimble test, crystal spec, dune runtest, lein test, mix/gleam test, v/odin/ponyc,
   # bal build, grain, ucm, mojo, red, ...). The templates
   # are split into groups (see scripts/scaffold-test-templates.sh) so each job
   # installs only the toolchains it needs and the groups run in parallel.
@@ -92,6 +92,9 @@ jobs:
         with:
           deno-version: v2.x
       # Phoenix: Erlang/OTP + Elixir (mix deps.get needs hex.pm, reachable from hosted runners).
+      # Its tests run against the runner's PostgreSQL (started below, with the PostgreSQL step shared
+      # with Crystal). Vapor's XCTVapor tests use in-memory SQLite and the Swift preinstalled on
+      # ubuntu-24.04.
       - if: matrix.group == 'core'
         uses: erlef/setup-beam@v1
         with:
@@ -193,9 +196,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libsqlite3-dev libyaml-dev libssl-dev libgmp-dev libxml2-dev zlib1g-dev libpcre2-dev libevent-dev
-      # Lucky (Avram) and Amber (Granite) specs run against the runner's preinstalled PostgreSQL,
-      # with the postgres/postgres credentials both templates default to.
-      - if: matrix.group == 'crystal'
+      # Lucky (Avram) and Amber (Granite) specs, and Phoenix's mix test (core), run against the
+      # runner's preinstalled PostgreSQL, with the postgres/postgres credentials all three
+      # default to (Phoenix: config/test.exs; `mix test` creates and migrates its database).
+      - if: matrix.group == 'crystal' || matrix.group == 'core'
+        name: Start PostgreSQL (postgres/postgres)
         run: |
           sudo systemctl start postgresql.service
           pg_isready -h localhost -t 30
@@ -355,12 +360,12 @@ jobs:
       - run: pnpm -r build
       # The groups whose toolchain is installed by this workflow must not skip a template: a
       # skip there means the install step left the toolchain off PATH, so it fails the job
-      # instead of passing with nothing built. Crystal also requires its PostgreSQL service so
-      # the Lucky and Amber specs run rather than being type-checked.
+      # instead of passing with nothing built. Crystal and core also require the PostgreSQL service so
+      # the Lucky, Amber and Phoenix tests run rather than being type-checked or only compiled.
       - name: Scaffold and build the ${{ matrix.group }} templates
         env:
           TEMPLATE_HEALTH_FAIL_ON_SKIP: ${{ contains(fromJSON('["swift","julia","nim","crystal","ocaml","clojure","beam","systems","exotic","exoticb"]'), matrix.group) && '1' || '0' }}
-          TEMPLATE_HEALTH_REQUIRE_POSTGRES: ${{ matrix.group == 'crystal' && '1' || '0' }}
+          TEMPLATE_HEALTH_REQUIRE_POSTGRES: ${{ contains(fromJSON('["crystal","core"]'), matrix.group) && '1' || '0' }}
         run: bash scripts/scaffold-test-templates.sh --group ${{ matrix.group }}
 
   # Scaffolds each Node/Bun backend, installs it from the repo root, builds it,

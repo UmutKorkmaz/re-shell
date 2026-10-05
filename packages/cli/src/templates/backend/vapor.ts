@@ -144,7 +144,12 @@ public func configure(_ app: Application) async throws {
         ), as: .mysql)
         
     default:
-        app.databases.use(.sqlite(.file("db.sqlite")), as: .sqlite)
+        // The tests (XCTVapor, Environment.testing) run against a throwaway in-memory SQLite database.
+        if app.environment == .testing {
+            app.databases.use(.sqlite(.memory), as: .sqlite)
+        } else {
+            app.databases.use(.sqlite(.file("db.sqlite")), as: .sqlite)
+        }
     }
     
     // Configure migrations
@@ -992,10 +997,7 @@ final class TodoTests: XCTestCase {
         
         try await app.test(.PUT, "api/v1/todos/\\(todo.id!)", beforeRequest: { req in
             req.headers.bearerAuthorization = BearerAuthorization(token: authToken)
-            try req.content.encode([
-                "title": "Updated Title",
-                "completed": true
-            ])
+            try req.content.encode(Todo.Update(title: "Updated Title", completed: true))
         }, afterResponse: { res in
             XCTAssertEqual(res.status, .ok)
             let updatedTodo = try res.content.decode(TodoResponse.self)

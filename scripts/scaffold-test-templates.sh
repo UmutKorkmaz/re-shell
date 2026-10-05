@@ -32,10 +32,11 @@
 #   Haskell (Cabal)           cabal build all (tests included), cabal test
 #   Deno (Oak, Fresh, Aleph)  deno check on every module, deno task build when the app has
 #                             one, deno test; dependencies come from JSR and npm
-#   Elixir (Plug, Nerves,     mix deps.get, mix compile, mix test (Phoenix: compile only,
-#     Phoenix)                its tests need a database); Nerves builds for the host
+#   Elixir (Plug, Nerves,     mix deps.get, mix compile, mix test (Phoenix needs PostgreSQL:
+#     Phoenix)                compile only when none answers and it is not required);
+#                             Nerves builds for the host
 #   Gleam (Wisp)              gleam deps download, gleam build, gleam test
-#   Swift (SwiftPM)           swift build --build-tests, swift test (Vapor: swift build)
+#   Swift (SwiftPM)           swift build --build-tests, swift test (Vapor: XCTVapor)
 #   Julia (Genie, Oxygen)     Pkg.instantiate, Pkg.precompile, Pkg.test
 #   Nim (Jester, Prologue,    nimble install --depsOnly, nimble build, nimble test
 #     HappyX)
@@ -148,8 +149,8 @@ GROUP_DENO=(
   oak-deno fresh-deno aleph-deno
 )
 
-# Swift (SwiftPM, Swift 6.2 or newer): Hummingbird 2 and Kitura 3. Vapor builds in
-# core.
+# Swift (SwiftPM, Swift 6.2 or newer): Hummingbird 2 and Kitura 3. Vapor (its XCTVapor tests
+# run against in-memory SQLite) is in core.
 GROUP_SWIFT=(
   hummingbird kitura
 )
@@ -179,7 +180,7 @@ GROUP_CLOJURE=(
   compojure luminus-clj reitit-clj pedestal-clj
 )
 
-# BEAM: Elixir (Plug, Nerves built for the host) and Gleam (Wisp). Phoenix builds in core.
+# BEAM: Elixir (Plug, Nerves built for the host) and Gleam (Wisp). Phoenix (needs PostgreSQL) runs in core.
 GROUP_BEAM=(
   plug-ex nerves-ex wisp
 )
@@ -595,7 +596,8 @@ verify_dart() {
 # Swift (SwiftPM: Hummingbird, Kitura): resolve the packages, build the app together with its test
 # target, then run the tests. Hummingbird 2 needs Swift 6.2 or newer (an older toolchain fails
 # dependency resolution, which is reported as a failure); Kitura links the system OpenSSL 3 and zlib
-# (libssl-dev, zlib1g-dev). Vapor is built without its tests (see verify_native).
+# (libssl-dev, zlib1g-dev). Vapor (core group) takes the same path: its XCTVapor tests use an
+# in-memory SQLite database.
 verify_swift() {
   have swift || { NATIVE_REASON="swift is not installed"; return 2; }
   step build swift build --build-tests || return 1
@@ -624,7 +626,7 @@ verify_nim() {
   step test nimble test -y || return 1
 }
 
-# True when a local PostgreSQL accepts postgres/postgres (what Lucky's and Amber's test settings use).
+# True when a local PostgreSQL accepts postgres/postgres (what the Lucky, Amber and Phoenix test settings use).
 postgres_ready() {
   have psql || return 1
   PGPASSWORD=postgres psql -h localhost -U postgres -tAc 'select 1' >/dev/null 2>&1
@@ -695,7 +697,10 @@ verify_clojure() {
 #   Gleam   download the packages, build, run the gleeunit tests (Gleam compiles
 #           the Erlang dependencies, e.g. Mist's hpack_erl, with rebar3).
 #   Elixir  the Nerves bootstrap archive when mix.exs requires it, deps.get, compile,
-#           then the app's tests unless they need a database (Ecto: Phoenix).
+#           then the app's tests. Phoenix (Ecto) needs PostgreSQL (postgres/postgres on
+#           localhost, see postgres_ready): when none answers the tests are not run (compile
+#           only, with a NOTE), or the template fails when TEMPLATE_HEALTH_REQUIRE_POSTGRES=1.
+#           `mix test` creates and migrates the test database itself (the test alias).
 #           Nerves projects build for the host (MIX_TARGET=host): no board system
 #           or cross-compiler is downloaded, but nerves_uevent (a C port pulled in by
 #           nerves_runtime) still compiles on the host and needs libmnl-dev installed.
@@ -716,7 +721,14 @@ verify_beam() {
     step deps mix deps.get || return 1
     step compile mix compile || return 1
     if grep -q ':ecto_sql' mix.exs; then
-      NATIVE_NOTE="compiled only: the app's tests need a database (Ecto)"
+      if postgres_ready; then
+        step test mix test || return 1
+      elif [ "${TEMPLATE_HEALTH_REQUIRE_POSTGRES:-0}" = 1 ]; then
+        echo "  PostgreSQL (postgres/postgres on localhost) is required here (TEMPLATE_HEALTH_REQUIRE_POSTGRES=1) but does not answer"
+        return 1
+      else
+        NATIVE_NOTE="compiled only: the app's tests need PostgreSQL (postgres/postgres on localhost); mix test was not run"
+      fi
     else
       step test mix test || return 1
     fi
@@ -931,14 +943,7 @@ verify_native() {
   elif [ -f mix.exs ] || [ -f gleam.toml ]; then
     verify_beam
   elif [ -f Package.swift ]; then
-    if [ "$tpl" = vapor ]; then
-      # Vapor (core group) is built without its XCTVapor test target, which CI has not compiled yet.
-      have swift || { NATIVE_REASON="swift is not installed"; return 2; }
-      step build swift build || return 1
-      NATIVE_NOTE="swift build only: the XCTVapor test target is neither built nor run"
-    else
-      verify_swift
-    fi
+    verify_swift
   elif [ -f Project.toml ]; then
     verify_julia
   elif compgen -G "*.nimble" >/dev/null; then
