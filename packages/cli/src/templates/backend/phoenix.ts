@@ -972,6 +972,10 @@ config :logger, :console,
 
 config :phoenix, :json_library, Jason
 
+# The app sends no mail. Swoosh's default API client is Hackney, which is not a dependency:
+# without this the swoosh application raises "missing hackney dependency" when it starts.
+config :swoosh, :api_client, false
+
 config :hammer,
   backend: {Hammer.Backend.ETS, [expiry_ms: 60_000 * 60, cleanup_interval_ms: 60_000 * 10]}
 
@@ -1299,11 +1303,14 @@ end
   end
 
   test "the API pipeline answers 429 once a client passes 100 requests a minute", %{conn: conn} do
-    for _ <- 1..100 do
-      assert get(conn, "/health").status == 200
-    end
+    # Hammer counts per wall-clock minute. 201 requests put at least 101 in one window even
+    # when a minute boundary falls between them, so the test does not depend on the clock.
+    responses = for _ <- 1..201, do: get(conn, "/health")
+    assert Enum.all?(Enum.take(responses, 100), &(&1.status == 200))
 
-    assert %{"error" => "Rate limit exceeded"} = json_response(get(conn, "/health"), 429)
+    limited = Enum.find(responses, &(&1.status == 429))
+    assert limited, "no request was rate limited"
+    assert %{"error" => "Rate limit exceeded"} = json_response(limited, 429)
   end
 end
 `,
