@@ -25,7 +25,8 @@ bin           = @["{{projectNameSnake}}"]
 # Dependencies
 
 requires "nim >= 2.0.0"
-requires "happyx >= 4.0.0"
+# 4.7.4 is the version resolved on hosted CI (Nim 2.0.16, nimble 0.16.4); ^= stays within 4.x. Bump deliberately.
+requires "happyx ^= 4.7.4"
 `,
 
     'src/{{projectNameSnake}}.nim': `import std/[httpcore, json, options]
