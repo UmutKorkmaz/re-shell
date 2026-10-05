@@ -826,6 +826,15 @@ end
 end
 `,
 
+    // Error JSON view (the endpoint's render_errors target)
+    'lib/app_web/controllers/error_json.ex': `defmodule AppWeb.ErrorJSON do
+  # Renders errors raised during a request, e.g. 404.json or 500.json.
+  def render(template, _assigns) do
+    %{errors: %{detail: Phoenix.Controller.status_message_from_template(template)}}
+  end
+end
+`,
+
     // Web module
     'lib/app_web.ex': `defmodule AppWeb do
   def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
