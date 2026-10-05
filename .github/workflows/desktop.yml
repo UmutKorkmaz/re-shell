@@ -79,11 +79,17 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
 
       - name: Cache cargo
         uses: swatinem/rust-cache@v2
         with:
           workspaces: apps/web/src-tauri
+
+      - name: cargo fmt --check
+        working-directory: apps/web/src-tauri
+        run: cargo fmt --check
 
       - name: cargo test
         working-directory: apps/web/src-tauri

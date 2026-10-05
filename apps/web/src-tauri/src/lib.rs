@@ -60,7 +60,12 @@ fn start_hub(context: &tauri::Context<tauri::Wry>) -> Result<Hub, HubError> {
             .ok();
     // Debug builds (`tauri dev`) can also use the dashboard build output directly.
     let dev_fallback = if cfg!(debug_assertions) {
-        Some(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("dist").join("hub-server.js"))
+        Some(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("dist")
+                .join("hub-server.js"),
+        )
     } else {
         None
     };
@@ -122,7 +127,9 @@ fn create_main_window(
             WebviewWindowBuilder::from_config(app.handle(), &window_config)?
                 .initialization_script(webview::hub_init_script(url, token))
                 // The webview holds the hub token: keep it on the app's own origin.
-                .on_navigation(move |target| webview::is_allowed_navigation(target, dev_url.as_ref()))
+                .on_navigation(move |target| {
+                    webview::is_allowed_navigation(target, dev_url.as_ref())
+                })
                 .build()?;
         }
         Startup::Failed { message } => {
@@ -208,7 +215,12 @@ pub fn run() {
         }
         Err(err) => {
             eprintln!("[desktop] failed to start the hub: {err}");
-            (Startup::Failed { message: err.to_string() }, None)
+            (
+                Startup::Failed {
+                    message: err.to_string(),
+                },
+                None,
+            )
         }
     };
 
