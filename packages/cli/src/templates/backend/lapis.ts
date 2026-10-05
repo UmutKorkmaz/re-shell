@@ -1306,8 +1306,8 @@ describe("Users", function()
       name = "Verify User"
     })
     
-    assert.true(user:verify_password("secret123"))
-    assert.false(user:verify_password("wrongpassword"))
+    assert.is_true(user:verify_password("secret123"))
+    assert.is_false(user:verify_password("wrongpassword"))
   end)
   
   it("should find by email", function()

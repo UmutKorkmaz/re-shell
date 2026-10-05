@@ -13,6 +13,8 @@ import {
 } from '../utils/workspace-conflict';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { ok, failFromError } from '../utils/json-output';
+import { reportMissingWorkspaceDefinition, workspaceDefinitionErrorCode } from '../utils/workspace-definition-adapter';
 
 /**
  * Options for the workspace conflict command, including detection,
@@ -92,6 +94,13 @@ export async function manageWorkspaceConflict(options: WorkspaceConflictCommandO
     await detectConflicts(options, spinner);
 
   } catch (error) {
+    if (options.json) {
+      // Under --json a failure is an error envelope (and exit code 1), never
+      // human text.
+      if (spinner) spinner.stop();
+      failFromError(error, error instanceof ValidationError ? workspaceDefinitionErrorCode(error) : 'COMMAND_ERROR');
+      return;
+    }
     if (error instanceof ValidationError) {
       if (spinner) spinner.stop();
       console.log(chalk.yellow(`\n⚠️  ${error.message}`));
@@ -117,10 +126,7 @@ async function detectConflicts(options: WorkspaceConflictCommandOptions, spinner
   const workspaceFile = options.workspaceFile || DEFAULT_WORKSPACE_FILE;
 
   if (!(await fs.pathExists(workspaceFile))) {
-    if (spinner) spinner.stop();
-    console.log(chalk.yellow('\n⚠️  No workspace definition found.'));
-    console.log(chalk.gray(`Expected: ${workspaceFile}`));
-    console.log(chalk.cyan('\nRun \'re-shell workspace-def init\' to initialize your workspace.'));
+    reportMissingWorkspaceDefinition({ json: options.json, file: workspaceFile, spinner });
     return;
   }
 
@@ -141,7 +147,7 @@ async function detectConflicts(options: WorkspaceConflictCommandOptions, spinner
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(conflicts, null, 2));
+      ok(conflicts);
       return;
     }
 
@@ -242,7 +248,7 @@ async function resolveConflicts(options: WorkspaceConflictCommandOptions, spinne
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 
@@ -295,7 +301,7 @@ async function previewResolution(options: WorkspaceConflictCommandOptions, spinn
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(preview, null, 2));
+      ok(preview);
       return;
     }
 
@@ -344,7 +350,7 @@ async function autoResolveAllConflicts(options: WorkspaceConflictCommandOptions,
     if (spinner) spinner.stop();
 
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      ok(result);
       return;
     }
 

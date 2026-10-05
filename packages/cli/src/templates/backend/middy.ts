@@ -71,7 +71,6 @@ export const middyTemplate: BackendTemplate = {
     "@aws-sdk/client-secrets-manager": "^3.540.0",
     "@aws-sdk/client-ssm": "^3.540.0",
     "@aws-sdk/client-cloudwatch": "^3.540.0",
-    "docker": "^1.0.7",
     "ajv": "^8.12.0",
     "ajv-formats": "^2.1.1",
     "winston": "^3.13.0",
@@ -82,7 +81,8 @@ export const middyTemplate: BackendTemplate = {
     "http-errors": "^2.0.0",
     "aws-xray-sdk-core": "^3.5.4",
     "graphql-yoga": "^5.3.0",
-    "graphql": "^16.8.1"
+    "graphql": "^16.8.1",
+    "@middy/http-multipart-body-parser": "^5.2.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.136",
@@ -108,7 +108,9 @@ export const middyTemplate: BackendTemplate = {
     "serverless-prune-plugin": "^2.0.2",
     "serverless-plugin-tracing": "^2.0.0",
     "@serverless/typescript": "^3.30.1",
-    "esbuild": "^0.20.2"
+    "esbuild": "^0.20.2",
+    "@types/http-errors": "^2.0.4",
+    "@jest/globals": "^29.7.0"
   }
 }`,
 
@@ -126,12 +128,13 @@ export const middyTemplate: BackendTemplate = {
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "useUnknownInCatchVariables": false,
+    "noUnusedParameters": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": false,
+    "declarationMap": false,
     "sourceMap": true,
     "removeComments": true,
     "allowSyntheticDefaultImports": true
@@ -702,7 +705,7 @@ import httpHeaderNormalizer from '@middy/http-header-normalizer';
 import validator from '@middy/validator';
 import inputOutputLogger from '@middy/input-output-logger';
 import { transpileSchema } from '@middy/validator/transpile';
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'docker';
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { v4 as uuidv4 } from 'uuid';
 import createError from 'http-errors';
 import { logger } from '../utils/logger';
@@ -778,7 +781,7 @@ const createItemHandler = async (
   const item = {
     id,
     userId: event.user.id,
-    ...event.body,
+    ...(event.body as unknown as Record<string, unknown>),
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -846,7 +849,7 @@ const updateItemHandler = async (
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   const { id } = event.pathParameters!;
-  const updates = event.body as Record<string, unknown>;
+  const updates = event.body as unknown as Record<string, unknown>;
 
   try {
     // First, check if item exists and user owns it
@@ -983,7 +986,7 @@ export const create = middy(createItemHandler)
   .use(validator({ eventSchema: transpileSchema(createItemSchema) }))
   .use(cors())
   .use(httpSecurityHeaders())
-  .use(inputOutputLogger({ logger }))
+  .use(inputOutputLogger({ logger: (message: unknown) => logger.info('handler io', { message }) }))
   .use(authMiddleware())
   .use(sanitizer())
   .use(rateLimiter({ maxRequests: 100, windowMs: 60000 }))
@@ -996,7 +999,7 @@ export const get = middy(getItemHandler)
   .use(httpHeaderNormalizer())
   .use(cors())
   .use(httpSecurityHeaders())
-  .use(inputOutputLogger({ logger }))
+  .use(inputOutputLogger({ logger: (message: unknown) => logger.info('handler io', { message }) }))
   .use(authMiddleware())
   .use(cacheMiddleware({ ttl: 300 }))
   .use(metricsMiddleware())
@@ -1010,7 +1013,7 @@ export const update = middy(updateItemHandler)
   .use(validator({ eventSchema: transpileSchema(updateItemSchema) }))
   .use(cors())
   .use(httpSecurityHeaders())
-  .use(inputOutputLogger({ logger }))
+  .use(inputOutputLogger({ logger: (message: unknown) => logger.info('handler io', { message }) }))
   .use(authMiddleware())
   .use(sanitizer())
   .use(rateLimiter({ maxRequests: 50, windowMs: 60000 }))
@@ -1023,7 +1026,7 @@ export const remove = middy(deleteItemHandler)
   .use(httpHeaderNormalizer())
   .use(cors())
   .use(httpSecurityHeaders())
-  .use(inputOutputLogger({ logger }))
+  .use(inputOutputLogger({ logger: (message: unknown) => logger.info('handler io', { message }) }))
   .use(authMiddleware())
   .use(rateLimiter({ maxRequests: 20, windowMs: 60000 }))
   .use(metricsMiddleware())
@@ -1035,7 +1038,7 @@ export const list = middy(listItemsHandler)
   .use(httpHeaderNormalizer())
   .use(cors())
   .use(httpSecurityHeaders())
-  .use(inputOutputLogger({ logger }))
+  .use(inputOutputLogger({ logger: (message: unknown) => logger.info('handler io', { message }) }))
   .use(authMiddleware())
   .use(cacheMiddleware({ ttl: 60 }))
   .use(metricsMiddleware())
@@ -1060,7 +1063,7 @@ export const resolvers = {
 
     // GraphQL Lambda handler using graphql-yoga
     'src/handlers/graphql.ts': `import middy from '@middy/core';
-import { createYoga } from 'graphql-yoga';
+import { createSchema, createYoga } from 'graphql-yoga';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { typeDefs, resolvers } from '../graphql/schema';
 
@@ -1068,7 +1071,7 @@ import { typeDefs, resolvers } from '../graphql/schema';
 const yoga = createYoga<{
   event: APIGatewayProxyEvent;
 }>({
-  schema: { typeDefs, resolvers },
+  schema: createSchema({ typeDefs, resolvers }),
   graphqlEndpoint: '/graphql',
   // Disable landing page in Lambda
   landingPage: false
@@ -1117,7 +1120,7 @@ import httpHeaderNormalizer from '@middy/http-header-normalizer';
 import validator from '@middy/validator';
 import { transpileSchema } from '@middy/validator/transpile';
 import ssm from '@middy/ssm';
-import { APIGatewayProxyEvent, APIGatewayProxyResult, APIGatewayAuthorizerResult, Context } from 'docker';
+import { APIGatewayProxyEvent, APIGatewayProxyResult, APIGatewayAuthorizerResult, Context } from 'aws-lambda';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
@@ -1164,7 +1167,7 @@ const registerHandler = async (
   event: APIGatewayProxyEvent & { secrets?: any },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
-  const { email, password, name } = event.body as { email: string; password: string; name: string };
+  const { email, password, name } = event.body as unknown as { email: string; password: string; name: string };
 
   try {
     // Check if user already exists
@@ -1207,7 +1210,7 @@ const registerHandler = async (
     const token = jwt.sign(
       { id: userId, email },
       event.secrets.jwtSecret || process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as jwt.SignOptions['expiresIn'] }
     );
 
     logger.info('User registered successfully', { userId, email });
@@ -1236,7 +1239,7 @@ const loginHandler = async (
   event: APIGatewayProxyEvent & { secrets?: any },
   context: Context
 ): Promise<APIGatewayProxyResult> => {
-  const { email, password } = event.body as { email: string; password: string };
+  const { email, password } = event.body as unknown as { email: string; password: string };
 
   try {
     // Find user by email
@@ -1270,7 +1273,7 @@ const loginHandler = async (
     const token = jwt.sign(
       { id: user.id, email: user.email },
       event.secrets.jwtSecret || process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as jwt.SignOptions['expiresIn'] }
     );
 
     // Update last login
@@ -1659,8 +1662,8 @@ function sanitizeValue(value: any): any {
   
   // Remove potential XSS patterns
   let sanitized = value
-    .replace(/<script[^>]*>.*?</script>/gi, '')
-    .replace(/<iframe[^>]*>.*?</iframe>/gi, '')
+    .replace(/<script[^>]*>.*?<\\/script>/gi, "")
+    .replace(/<iframe[^>]*>.*?<\\/iframe>/gi, "")
     .replace(/javascript:/gi, '')
     .replace(/onw+s*=/gi, '');
   
@@ -1668,7 +1671,7 @@ function sanitizeValue(value: any): any {
   sanitized = sanitized
     .replace(/(\b(union|select|insert|update|delete|drop|create|alter|exec|execute)\b)/gi, '')
     .replace(/[';]--/g, '')
-    .replace(//*.*?*//g, '');
+    .replace(/\\/\\*.*?\\*\\//g, "");
   
   // Trim whitespace
   return sanitized.trim();
@@ -2092,7 +2095,7 @@ import httpSecurityHeaders from '@middy/http-security-headers';
 import httpEventNormalizer from '@middy/http-event-normalizer';
 import httpHeaderNormalizer from '@middy/http-header-normalizer';
 import httpMultipartBodyParser from '@middy/http-multipart-body-parser';
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'docker';
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { v4 as uuidv4 } from 'uuid';
 import createError from 'http-errors';
 import { logger } from '../utils/logger';
@@ -2103,15 +2106,25 @@ import { errorLogger } from '../middleware/error-logger';
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'text/plain'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+interface UploadedFile {
+  filename: string;
+  mimetype: string;
+  encoding: string;
+  truncated: boolean;
+  content: Buffer;
+}
+
 const uploadHandler = async (
-  event: APIGatewayProxyEvent & { user?: any; files?: any },
-  context: Context
+  event: APIGatewayProxyEvent & { user?: any }
 ): Promise<APIGatewayProxyResult> => {
-  if (!event.files || Object.keys(event.files).length === 0) {
+  // @middy/http-multipart-body-parser puts file parts into the parsed body
+  const parts = (event.body ?? {}) as unknown as Record<string, unknown>;
+  const file = Object.values(parts).find(
+    (part): part is UploadedFile => typeof part === 'object' && part !== null && Buffer.isBuffer((part as UploadedFile).content)
+  );
+  if (!file) {
     throw createError(400, 'No file uploaded');
   }
-
-  const file = Object.values(event.files)[0] as { name: string; data: Buffer; mimetype: string; size: number };
 
   // Validate file type
   if (!ALLOWED_FILE_TYPES.includes(file.mimetype)) {
@@ -2180,7 +2193,7 @@ export const upload = middy(uploadHandler)
   .use(httpErrorHandler());`,
 
     // Event processor handler
-    'src/handlers/events.ts': `import { SQSEvent, Context } from 'docker';
+    'src/handlers/events.ts': `import { SQSEvent, Context } from 'aws-lambda';
 import { logger } from '../utils/logger';
 import { sqsClient } from '../services/sqs';
 
@@ -2253,7 +2266,7 @@ async function handleFileUploaded(data: any) {
 }`,
 
     // Scheduled task handler
-    'src/handlers/scheduled.ts': `import { ScheduledEvent, Context } from 'docker';
+    'src/handlers/scheduled.ts': `import { ScheduledEvent, Context } from 'aws-lambda';
 import { logger } from '../utils/logger';
 import { dynamoClient } from '../services/dynamodb';
 import { s3Client } from '../services/s3';
@@ -2338,7 +2351,7 @@ async function cleanupOrphanedRecords() {
 import httpErrorHandler from '@middy/http-error-handler';
 import cors from '@middy/http-cors';
 import httpSecurityHeaders from '@middy/http-security-headers';
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'docker';
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { dynamoClient } from '../services/dynamodb';
 import { s3Client } from '../services/s3';
 import { sqsClient } from '../services/sqs';
@@ -2395,7 +2408,7 @@ const healthHandler = async (
       service: process.env.SERVICE_NAME,
       stage: process.env.NODE_ENV,
       functionName: context.functionName,
-      requestId: context.requestId,
+      requestId: context.awsRequestId,
       checks
     })
   };
@@ -2463,7 +2476,7 @@ jest.mock('../utils/logger', () => ({
 }));`,
 
     // Unit tests for items handler
-    'src/__tests__/handlers/items.test.ts': `import { APIGatewayProxyEvent, Context } from 'docker';
+    'src/__tests__/handlers/items.test.ts': `import { APIGatewayProxyEvent, Context } from 'aws-lambda';
 import { create, get, update, remove, list } from '../../handlers/items';
 import { dynamoClient } from '../../services/dynamodb';
 

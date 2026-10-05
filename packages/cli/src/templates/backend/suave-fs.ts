@@ -22,24 +22,25 @@ export const suaveFsTemplate: BackendTemplate = {
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);FS3370</NoWarn>
   </PropertyGroup>
 
+  <!-- F# compiles files in the order listed here -->
   <ItemGroup>
-    <Compile Include="Models.fs" />
-    <Compile Include="Database.fs" />
-    <Compile Include="Auth.fs" />
+    <Compile Include="Models/Models.fs" />
+    <Compile Include="Database/Database.fs" />
+    <Compile Include="Auth/Auth.fs" />
     <Compile Include="GraphQL/Schema.fs" />
     <Compile Include="GraphQL/Resolver.fs" />
-    <Compile Include="Handlers.fs" />
-    <Compile Include="Program.fs" />
+    <Compile Include="Handlers/Handlers.fs" />
+    <Compile Include="Program/Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Suave" Version="2.6.2" />
-    <PackageReference Include="Thoth.Json" Version="6.0.0" />
+    <PackageReference Include="FSharp.SystemTextJson" Version="1.3.13" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="FSharp.Data.GraphQL.Server" Version="0.0.16" />
   </ItemGroup>
 
 </Project>
@@ -49,7 +50,6 @@ export const suaveFsTemplate: BackendTemplate = {
     'Models/Models.fs': `module Models
 
 open System
-open Thoth.Json
 
 type User = {
     Id: string
@@ -113,12 +113,13 @@ type TokenResponse = {
     'Database/Database.fs': `module Database
 
 open System
-open Collections.Generic
+open System.Collections.Generic
 open Models
 
 type Database() =
     let users = Dictionary<string, User>()
     let products = Dictionary<string, Product>()
+    let sync = obj ()
 
     do
         // Initialize with admin user
@@ -157,100 +158,137 @@ type Database() =
         products.[product1.Id] <- product1
         products.[product2.Id] <- product2
 
-        printfn "📦 Database initialized"
-        printfn "👤 Default admin user: admin@example.com / admin123"
-        printfn "📦 Sample products created"
+        printfn "Database initialized"
+        printfn "Default admin user: admin@example.com / admin123"
+        printfn "Sample products created"
 
     member _.FindUserByEmail(email: string) : User option =
-        users.Values
-        |> Seq.tryFind (fun u -> u.Email = email)
+        lock sync (fun () ->
+            users.Values
+            |> Seq.tryFind (fun u -> u.Email = email))
 
     member _.FindUserById(id: string) : User option =
-        match users.TryGetValue(id) with
-        | true, user -> Some { user with Password = "" }
-        | false, None
+        lock sync (fun () ->
+            match users.TryGetValue(id) with
+            | true, user -> Some { user with Password = "" }
+            | false, _ -> None)
 
     member _.GetUsers() : User list =
-        users.Values |> Seq.map (fun u -> { u with Password = "" }) |> List.ofSeq
+        lock sync (fun () ->
+            users.Values |> Seq.map (fun u -> { u with Password = "" }) |> List.ofSeq)
 
     member _.CreateUser(user: User) : unit =
-        users.[user.Id] <- user
+        lock sync (fun () ->
+            users.[user.Id] <- user)
 
     member _.DeleteUser(id: string) : bool =
-        users.Remove(id)
+        lock sync (fun () ->
+            users.Remove(id))
 
     member _.FindProductById(id: string) : Product option =
-        match products.TryGetValue(id) with
-        | true, product -> Some product
-        | false, None
+        lock sync (fun () ->
+            match products.TryGetValue(id) with
+            | true, product -> Some product
+            | false, _ -> None)
 
     member _.GetProducts() : Product list =
-        products.Values |> List.ofSeq
+        lock sync (fun () ->
+            products.Values |> List.ofSeq)
 
     member _.CreateProduct(product: Product) : unit =
-        products.[product.Id] <- product
+        lock sync (fun () ->
+            products.[product.Id] <- product)
 
     member _.UpdateProduct(id: string, updateData: UpdateProductInput) : Product option =
-        match products.TryGetValue(id) with
-        | true, existing ->
-            let updated = {
-                existing with
-                    Name = defaultArg updateData.Name existing.Name
-                    Description = defaultArg updateData.Description existing.Description
-                    Price = defaultArg updateData.Price existing.Price
-                    Stock = defaultArg updateData.Stock existing.Stock
-                    UpdatedAt = DateTime.UtcNow
-            }
-            products.[id] <- updated
-            Some updated
-        | false, None
+        lock sync (fun () ->
+            match products.TryGetValue(id) with
+            | true, existing ->
+                let updated = {
+                    existing with
+                        Name = defaultArg updateData.Name existing.Name
+                        Description = (match updateData.Description with Some _ as desc -> desc | None -> existing.Description)
+                        Price = defaultArg updateData.Price existing.Price
+                        Stock = defaultArg updateData.Stock existing.Stock
+                        UpdatedAt = DateTime.UtcNow
+                }
+                products.[id] <- updated
+                Some updated
+            | false, _ -> None)
 
     member _.DeleteProduct(id: string) : bool =
-        products.Remove(id)
+        lock sync (fun () ->
+            products.Remove(id))
 `,
 
     // Auth
     'Auth/Auth.fs': `module Auth
 
 open System
-open JWT.Algorithms
-open JWT.Builder
+open System.IdentityModel.Tokens.Jwt
+open System.Security.Claims
 open Microsoft.IdentityModel.Tokens
 open Models
 
+let private secret =
+    match Environment.GetEnvironmentVariable "JWT_SECRET" with
+    | null | "" -> "change-this-secret-in-production"
+    | value -> value
+
+let private issuer = "{{projectName}}"
+let private audience = "{{projectName}}"
+
+let private signingKey () = SymmetricSecurityKey(Text.Encoding.UTF8.GetBytes(secret))
+
 let generateToken (user: User) : string =
-    let secret = "change-this-secret-in-production"
-    let key = SymmetricSecurityKey(Text.Encoding.UTF8.GetBytes(secret))
-    let credentials = SigningCredentials(key, SecurityAlgorithms.HmacSha256)
+    let credentials = SigningCredentials(signingKey (), SecurityAlgorithms.HmacSha256)
 
-    JwtBuilder()
-        .WithSubject(user.Id)
-        .WithClaim("email", user.Email)
-        .WithClaim("role", user.Role)
-        .WithExpiresAt(DateTime.UtcNow.AddDays(7.0))
-        .WithIssuer("{{projectName}}")
-        .WithAudience("{{projectName}}")
-        .WithSigningCredentials(credentials)
-        .Encode()
+    let claims =
+        [ Claim(JwtRegisteredClaimNames.Sub, user.Id)
+          Claim("email", user.Email)
+          Claim("role", user.Role) ]
 
-let verifyToken (token: string) : bool =
-    // In production: actually verify JWT signature and claims
-    // For now, always return true
-    true
+    let token =
+        JwtSecurityToken(
+            issuer = issuer,
+            audience = audience,
+            claims = claims,
+            expires = Nullable(DateTime.UtcNow.AddDays(7.0)),
+            signingCredentials = credentials
+        )
+
+    JwtSecurityTokenHandler().WriteToken(token)
+
+/// Validates signature, issuer, audience and expiry; returns the caller's identity.
+let verifyToken (token: string) : ClaimsPrincipal option =
+    let parameters =
+        TokenValidationParameters(
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = signingKey (),
+            ValidateIssuer = true,
+            ValidIssuer = issuer,
+            ValidateAudience = true,
+            ValidAudience = audience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1.0)
+        )
+
+    try
+        let mutable validated: SecurityToken = null
+        Some(JwtSecurityTokenHandler().ValidateToken(token, parameters, &validated))
+    with _ ->
+        None
 `,
 
     // GraphQL schema (FSharp.Data.GraphQL)
     'GraphQL/Schema.fs': `module GraphQL.Schema
 
-// GraphQL schema definition: Query { hello: String!, health: String! }
-// In a full implementation this would be defined via FSharp.Data.GraphQL
-// type providers / Define.Query.
-let schema = \"\"\"
+// GraphQL schema served by POST /graphql: Query { hello: String!, health: String! }
+let schema = """
 type Query {
   hello: String!
   health: String!
 }
-\"\"\"
+"""
 `,
 
     // GraphQL resolvers (FSharp.Data.GraphQL)
@@ -269,225 +307,266 @@ let healthResolver () : string =
     // Handlers
     'Handlers/Handlers.fs': `module Handlers
 
+open System
+open System.Security.Claims
+open System.Text.Json
+open System.Text.Json.Serialization
 open Suave
 open Suave.Filters
-open Suave.Successful
-open Suave.ResponseWriter
 open Suave.Operators
-open Thoth.Json
-open System
+open Suave.Successful
 open Models
 open Database
 open Auth
 
-let JSON v =
-    OK
-    >=> setMimeType "application/json; charset=utf-8"
-    >=> Thoth.Json.Net.Encode.toString v
+let private jsonOptions =
+    let options = JsonSerializerOptions(PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true)
+    options.Converters.Add(JsonFSharpConverter(JsonFSharpOptions.Default().WithSkippableOptionFields()))
+    options
 
-let handleError (f: HttpContext -> Async<HttpContext option>) =
+/// Writes \`value\` as JSON with the given status code.
+let jsonStatus (status: HttpCode) (value: 'T) : WebPart =
+    let bytes = JsonSerializer.SerializeToUtf8Bytes(value, jsonOptions)
+    Writers.setMimeType "application/json; charset=utf-8" >=> Response.response status bytes
+
+let JSON (value: 'T) : WebPart = jsonStatus HTTP_200 value
+
+let private errorJson (status: HttpCode) (message: string) : WebPart =
+    jsonStatus status {| error = message |}
+
+/// Parses the request body as JSON.
+let private parseBody<'T> (ctx: HttpContext) : Result<'T, string> =
+    try
+        let value = JsonSerializer.Deserialize<'T>(ctx.request.rawForm, jsonOptions)
+        if isNull (box value) then Error "Request body is required" else Ok value
+    with ex ->
+        Error $"Invalid JSON body: {ex.Message}"
+
+let handleError (f: WebPart) : WebPart =
     fun ctx ->
         async {
             try
                 return! f ctx
             with ex ->
-                return! JSON ({| error = ex.Message |}) ctx
+                return! errorJson HTTP_500 ex.Message ctx
         }
 
 let private db = Database()
 
-// Health handler
-let health (ctx: HttpContext) =
-    async {
-        return! JSON ({| status = "healthy"; timestamp = DateTime.Now.ToString("o"); version = "1.0.0" |}) ctx
-    }
+let private toUserResponse (u: User) : UserResponse =
+    { Id = u.Id; Email = u.Email; Name = u.Name; Role = u.Role }
 
-// GraphQL handler (FSharp.Data.GraphQL)
-// Schema: Query { hello: String!, health: String! }
-let graphql (ctx: HttpContext) =
-    async {
-        let body = {| data = {| hello = GraphQL.Resolver.helloResolver(); health = GraphQL.Resolver.healthResolver() |} |}
-        return! JSON body ctx
-    }
+// Authentication guards ----------------------------------------------------------
 
-// Register handler
-let register (ctx: HttpContext) =
-    async {
-        let! userData = ctx.request.formData |> Task.map (fun f -> f |> Seq.map (fun kv -> kv.Key, kv.Value) |> Map.ofSeq)
+let private bearerToken (ctx: HttpContext) =
+    match ctx.request.header "authorization" with
+    | Choice1Of2 value when value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) -> Some(value.Substring 7)
+    | _ -> None
 
-        // In production: parse JSON from body instead of form data
-        // For now, return success
-        return! JSON ({| error = "JSON parsing required - implement proper body parsing" |}) ctx
-    }
+/// Runs \`next\` with the caller's identity when the bearer token is valid.
+let authenticate (next: ClaimsPrincipal -> WebPart) : WebPart =
+    fun ctx ->
+        match bearerToken ctx |> Option.bind verifyToken with
+        | Some principal -> next principal ctx
+        | None -> errorJson HTTP_401 "Unauthorized" ctx
 
-// Login handler
-let login (ctx: HttpContext) =
-    async {
-        let! loginData = ctx.request.formData |> Task.map (fun f -> f |> Seq.map (fun kv -> kv.Key, kv.Value) |> Map.ofSeq)
+let private isAdmin (principal: ClaimsPrincipal) =
+    principal.IsInRole "admin" || principal.HasClaim("role", "admin")
 
-        // In production: parse JSON and verify credentials
-        match db.FindUserByEmail("admin@example.com") with
-        | Some user ->
-            let token = generateToken user
-            let userResponse = {| Id = user.Id; Email = user.Email; Name = user.Name; Role = user.Role |}
-            return! JSON ({| token = token; user = userResponse |}) ctx
-        | None ->
-            ctx.response.statusCode <- 401
-            return! JSON ({| error = "Invalid credentials" |}) ctx
-    }
+/// Runs \`next\` only for callers whose role claim is "admin".
+let requireAdmin (next: WebPart) : WebPart =
+    authenticate (fun principal ->
+        if isAdmin principal then next else errorJson HTTP_403 "Admin role required")
 
-// Me handler
-let me (ctx: HttpContext) =
-    async {
-        // In production: get user from JWT
-        return! JSON ({| userId = "1"; email = "user@example.com"; role = "user" |}) ctx
-    }
+// Handlers ----------------------------------------------------------------------
 
-// List users handler
-let listUsers (ctx: HttpContext) =
-    async {
-        let users = db.GetUsers()
-        let userResponses = users |> List.map (fun u -> {| Id = u.Id; Email = u.Email; Name = u.Name; Role = u.Role |})
-        return! JSON ({| users = userResponses; count = List.length userResponses |}) ctx
-    }
+let health: WebPart =
+    fun ctx ->
+        JSON {| status = "healthy"; timestamp = DateTime.UtcNow.ToString("o"); version = "1.0.0" |} ctx
 
-// Get user handler
-let getUser (ctx: HttpContext) =
-    async {
-        let id = ctx.request.url "id"
+/// Minimal GraphQL endpoint: Query { hello: String!, health: String! }.
+/// Resolves the top-level fields named in the query text.
+let graphql: WebPart =
+    fun ctx ->
+        let query =
+            try
+                use doc = JsonDocument.Parse(ctx.request.rawForm)
+                match doc.RootElement.TryGetProperty "query" with
+                | true, q -> q.GetString()
+                | _ -> ""
+            with :? JsonException -> ""
+
+        let data = System.Collections.Generic.Dictionary<string, string>()
+        if query.Contains "hello" then data["hello"] <- GraphQL.Resolver.helloResolver ()
+        if query.Contains "health" then data["health"] <- GraphQL.Resolver.healthResolver ()
+
+        if data.Count = 0 then
+            jsonStatus HTTP_400 {| errors = [ {| message = "Query must select hello and/or health" |} ] |} ctx
+        else
+            JSON {| data = data |} ctx
+
+let register: WebPart =
+    fun ctx ->
+        match parseBody<RegisterInput> ctx with
+        | Error message -> errorJson HTTP_400 message ctx
+        | Ok input ->
+            match db.FindUserByEmail(input.Email) with
+            | Some _ -> errorJson HTTP_409 "Email already registered" ctx
+            | None ->
+                let now = DateTime.UtcNow
+
+                let user: User =
+                    { Id = Guid.NewGuid().ToString()
+                      Email = input.Email
+                      Password = BCrypt.Net.BCrypt.HashPassword(input.Password)
+                      Name = input.Name
+                      Role = "user"
+                      CreatedAt = now
+                      UpdatedAt = now }
+
+                db.CreateUser(user)
+                let response: TokenResponse = { Token = generateToken user; User = toUserResponse user }
+                jsonStatus HTTP_201 response ctx
+
+let login: WebPart =
+    fun ctx ->
+        match parseBody<LoginInput> ctx with
+        | Error message -> errorJson HTTP_400 message ctx
+        | Ok input ->
+            match db.FindUserByEmail(input.Email) with
+            | Some user when BCrypt.Net.BCrypt.Verify(input.Password, user.Password) ->
+                let response: TokenResponse = { Token = generateToken user; User = toUserResponse user }
+                JSON response ctx
+            | _ -> errorJson HTTP_401 "Invalid credentials" ctx
+
+/// Returns the identity carried by the bearer token.
+let me: WebPart =
+    authenticate (fun principal ->
+        let value (types: string list) =
+            types
+            |> List.tryPick (fun t -> principal.FindFirst t |> Option.ofObj |> Option.map (fun c -> c.Value))
+            |> Option.defaultValue ""
+
+        JSON
+            {| userId = value [ "sub"; ClaimTypes.NameIdentifier ]
+               email = value [ "email"; ClaimTypes.Email ]
+               role = value [ "role"; ClaimTypes.Role ] |})
+
+let listUsers: WebPart =
+    requireAdmin (fun ctx ->
+        let users = db.GetUsers() |> List.map toUserResponse
+        JSON {| users = users; count = List.length users |} ctx)
+
+let getUser (id: string) : WebPart =
+    requireAdmin (fun ctx ->
         match db.FindUserById(id) with
-        | Some user ->
-            let userResponse = {| Id = user.Id; Email = user.Email; Name = user.Name; Role = user.Role |}
-            return! JSON ({| user = userResponse |}) ctx
-        | None ->
-            ctx.response.statusCode <- 404
-            return! JSON ({| error = "User not found" |}) ctx
-    }
+        | Some user -> JSON {| user = toUserResponse user |} ctx
+        | None -> errorJson HTTP_404 "User not found" ctx)
 
-// Delete user handler
-let deleteUser (ctx: HttpContext) =
-    async {
-        let id = ctx.request.url "id"
-        let deleted = db.DeleteUser(id)
-        if deleted then
-            return! NO_CONTENT ctx
-        else
-            ctx.response.statusCode <- 404
-            return! JSON ({| error = "User not found" |}) ctx
-    }
+let deleteUser (id: string) : WebPart =
+    requireAdmin (fun ctx ->
+        if db.DeleteUser(id) then NO_CONTENT ctx else errorJson HTTP_404 "User not found" ctx)
 
-// List products handler
-let listProducts (ctx: HttpContext) =
-    async {
+let listProducts: WebPart =
+    fun ctx ->
         let products = db.GetProducts()
-        return! JSON ({| products = products; count = List.length products |}) ctx
-    }
+        JSON {| products = products; count = List.length products |} ctx
 
-// Get product handler
-let getProduct (ctx: HttpContext) =
-    async {
-        let id = ctx.request.url "id"
+let getProduct (id: string) : WebPart =
+    fun ctx ->
         match db.FindProductById(id) with
-        | Some product ->
-            return! JSON ({| product = product |}) ctx
-        | None ->
-            ctx.response.statusCode <- 404
-            return! JSON ({| error = "Product not found" |}) ctx
-    }
+        | Some product -> JSON {| product = product |} ctx
+        | None -> errorJson HTTP_404 "Product not found" ctx
 
-// Create product handler
-let createProduct (ctx: HttpContext) =
-    async {
-        let! productData = ctx.request.formData |> Task.map (fun f -> f |> Seq.map (fun kv -> kv.Key, kv.Value) |> Map.ofSeq)
+let createProduct: WebPart =
+    requireAdmin (fun ctx ->
+        match parseBody<CreateProductInput> ctx with
+        | Error message -> errorJson HTTP_400 message ctx
+        | Ok input ->
+            let now = DateTime.UtcNow
 
-        // In production: parse JSON from body
-        let now = DateTime.UtcNow
-        let product = {
-            Product.Id = Guid.NewGuid().ToString()
-            Name = "Sample"
-            Description = Some "Description"
-            Price = 29.99m
-            Stock = 100
-            CreatedAt = now
-            UpdatedAt = now
-        }
+            let product: Product =
+                { Id = Guid.NewGuid().ToString()
+                  Name = input.Name
+                  Description = input.Description
+                  Price = input.Price
+                  Stock = input.Stock
+                  CreatedAt = now
+                  UpdatedAt = now }
 
-        db.CreateProduct(product)
-        ctx.response.statusCode <- 201
-        return! JSON ({| product = product |}) ctx
-    }
+            db.CreateProduct(product)
+            jsonStatus HTTP_201 {| product = product |} ctx)
 
-// Update product handler
-let updateProduct (ctx: HttpContext) =
-    async {
-        let id = ctx.request.url "id"
-        let! updateData = ctx.request.formData |> Task.map (fun f -> f |> Seq.map (fun kv -> kv.Key, kv.Value) |> Map.ofSeq)
+let updateProduct (id: string) : WebPart =
+    requireAdmin (fun ctx ->
+        match parseBody<UpdateProductInput> ctx with
+        | Error message -> errorJson HTTP_400 message ctx
+        | Ok input ->
+            match db.UpdateProduct(id, input) with
+            | Some product -> JSON {| product = product |} ctx
+            | None -> errorJson HTTP_404 "Product not found" ctx)
 
-        // In production: parse JSON and update
-        match db.FindProductById(id) with
-        | Some product ->
-            return! JSON ({| product = product |}) ctx
-        | None ->
-            ctx.response.statusCode <- 404
-            return! JSON ({| error = "Product not found" |}) ctx
-    }
+let deleteProduct (id: string) : WebPart =
+    requireAdmin (fun ctx ->
+        if db.DeleteProduct(id) then NO_CONTENT ctx else errorJson HTTP_404 "Product not found" ctx)
 
-// Delete product handler
-let deleteProduct (ctx: HttpContext) =
-    async {
-        let id = ctx.request.url "id"
-        let deleted = db.DeleteProduct(id)
-        if deleted then
-            return! NO_CONTENT ctx
-        else
-            ctx.response.statusCode <- 404
-            return! JSON ({| error = "Product not found" |}) ctx
-    }
-
-let app =
+let app: WebPart =
     choose
-        [ GET >>= choose
-            [ path "/health" >>= health
-              pathScan "/api/v1/users/%s" (fun id -> getUser)
-              path "/api/v1/users" >>= listUsers
-              pathScan "/api/v1/products/%s" (fun id -> getProduct)
-              path "/api/v1/products" >>= listProducts
-              path "/" >==> OK "{{projectName}} API - Running"
-            ]
-          POST >>= choose
-            [ path "/api/v1/auth/register" >>= handleError register
-              path "/api/v1/auth/login" >>= handleError login
-              path "/api/v1/products" >>= handleError createProduct
-              path "/graphql" >>= graphql
-            ]
-          PUT >>= choose
-            [ pathScan "/api/v1/products/%s" (fun id -> updateProduct) ]
-          DELETE >>= choose
-            [ pathScan "/api/v1/users/%s" (fun id -> deleteUser)
-              pathScan "/api/v1/products/%s" (fun id -> deleteProduct) ]
-          ]
+        [ GET
+          >=> choose
+                  [ path "/" >=> OK "{{projectName}} API - Running"
+                    path "/health" >=> health
+                    path "/api/v1/health" >=> health
+                    path "/api/v1/auth/me" >=> me
+                    path "/api/v1/users" >=> listUsers
+                    pathScan "/api/v1/users/%s" getUser
+                    path "/api/v1/products" >=> listProducts
+                    pathScan "/api/v1/products/%s" getProduct ]
+          POST
+          >=> choose
+                  [ path "/api/v1/auth/register" >=> handleError register
+                    path "/api/v1/auth/login" >=> handleError login
+                    path "/api/v1/auth/me" >=> me
+                    path "/api/v1/products" >=> handleError createProduct
+                    path "/graphql" >=> graphql ]
+          PUT >=> choose [ pathScan "/api/v1/products/%s" (fun id -> handleError (updateProduct id)) ]
+          DELETE
+          >=> choose
+                  [ pathScan "/api/v1/users/%s" deleteUser
+                    pathScan "/api/v1/products/%s" deleteProduct ]
+          RequestErrors.NOT_FOUND "Not Found" ]
 `,
 
     // Program entry point
     'Program/Program.fs': `module Program
 
-open Suave
 open System
+open System.Net
+open Suave
 open Handlers
 
 [<EntryPoint>]
-let main args =
+let main _ =
+    let host =
+        match Environment.GetEnvironmentVariable "HOST" with
+        | null | "" -> "127.0.0.1"
+        | value -> value
+
+    let port =
+        match Int32.TryParse(Environment.GetEnvironmentVariable "PORT") with
+        | true, value -> value
+        | _ -> 8080
+
     let config =
         { defaultConfig with
-            bindings =
-                [ HttpBinding.createSimple HTTP "127.0.0.1" 8080 ]
-        }
+            bindings = [ HttpBinding.createSimple HTTP host port ] }
 
-    printfn "🚀 Server running at http://localhost:8080"
-    printfn "📚 API endpoints:"
+    printfn "Server running at http://%s:%d" host port
+    printfn "API endpoints:"
     printfn "   GET  /health"
     printfn "   POST /api/v1/auth/register"
     printfn "   POST /api/v1/auth/login"
+    printfn "   GET  /api/v1/auth/me"
     printfn "   GET  /api/v1/products"
 
     startWebServer config app
@@ -556,6 +635,7 @@ EXPOSE 8080
 
 ENV ASPNETCORE_URLS=http://+:8080
 ENV PORT=8080
+ENV HOST=0.0.0.0
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
@@ -625,13 +705,14 @@ A lightweight REST API built with Suave web framework for F#.
 ### Authentication
 - \`POST /api/v1/auth/register\` - Register new user
 - \`POST /api/v1/auth/login\` - Login user
+- \`GET /api/v1/auth/me\` - Get current user (bearer token required)
 
 ### Products
 - \`GET /api/v1/products\` - List all products
 - \`GET /api/v1/products/:id\` - Get product by ID
-- \`POST /api/v1/products\` - Create product
-- \`PUT /api/v1/products/:id\` - Update product
-- \`DELETE /api/v1/products/:id\` - Delete product
+- \`POST /api/v1/products\` - Create product (admin only)
+- \`PUT /api/v1/products/:id\` - Update product (admin only)
+- \`DELETE /api/v1/products/:id\` - Delete product (admin only)
 
 ## Project Structure
 

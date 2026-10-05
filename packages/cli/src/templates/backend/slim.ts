@@ -30,12 +30,11 @@ export const slimTemplate: BackendTemplate = {
     "monolog/monolog": "^3.5",
     "vlucas/phpdotenv": "^5.6",
     "respect/validation": "^2.3",
-    "firebase/php-jwt": "^6.10",
+    "firebase/php-jwt": "^7.0",
     "doctrine/dbal": "^3.7",
     "ramsey/uuid": "^4.7",
     "guzzlehttp/guzzle": "^7.8",
     "tuupola/cors-middleware": "^1.4",
-    "tuupola/slim-jwt-auth": "^3.7",
     "selective/basepath": "^2.2",
     "selective/array-reader": "^2.2",
     "cakephp/database": "^5.0",
@@ -99,7 +98,7 @@ DB_CHARSET=utf8mb4
 DB_COLLATION=utf8mb4_unicode_ci
 
 # JWT
-JWT_SECRET=your-secret-key-here
+JWT_SECRET=change-me-to-a-random-string-of-at-least-32-characters
 JWT_LIFETIME=3600
 
 # Logging
@@ -236,7 +235,7 @@ return function (ContainerBuilder $containerBuilder) {
                         // Set default fetch mode to array
                         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]],
                 'jwt' => [
-                    'secret' => $_ENV['JWT_SECRET'] ?? 'change-me',
+                    'secret' => $_ENV['JWT_SECRET'] ?? 'change-me-to-a-random-string-of-at-least-32-characters',
                     'lifetime' => (int) ($_ENV['JWT_LIFETIME'] ?? 3600),
                     'algorithm' => 'HS256'],
                 'cors' => [

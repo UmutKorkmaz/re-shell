@@ -1,8 +1,14 @@
 import * as fs from 'fs-extra';
+import * as fsReal from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
+import * as zlib from 'zlib';
+import fg from 'fast-glob';
 import { execSync } from 'child_process';
 import { findMonorepoRoot } from '../utils/monorepo';
+import { analyzeWorkspace, discoverPackages, ANALYSIS_TYPES, SEVERITY_ORDER, isAnalysisType } from '../analyze';
+import type { AnalysisEngineResult, Finding, Severity } from '../analyze';
+import { findCredentialInLine } from '../analyze/checks';
 import { jsonSuccess, jsonError, enableJsonMode } from '../utils/json-output';
 import { ProgressSpinner } from '../utils/spinner';
 
@@ -14,9 +20,14 @@ interface AnalyzeOptions {
   verbose?: boolean;
   json?: boolean;
   workspace?: string;
-  type?: 'bundle' | 'dependencies' | 'performance' | 'security' | 'all';
+  type?: 'bundle' | 'dependencies' | 'performance' | 'security' | 'scalability' | 'architecture' | 'all';
   output?: string;
+  /** Exit non-zero when a finding at or above this severity exists. */
+  failOn?: Severity;
 }
+
+const LEGACY_TYPES = ['bundle', 'dependencies', 'performance', 'security'] as const;
+const VALID_TYPES = [...new Set<string>([...LEGACY_TYPES, ...ANALYSIS_TYPES, 'all'])];
 
 /**
  * Results of a bundle size analysis for a workspace
@@ -56,11 +67,6 @@ interface PerformanceAnalysis {
   workspace: string;
   buildTime: number;
   bundleSize: string;
-  loadTime: {
-    ttfb: number;
-    fcp: number;
-    lcp: number;
-  };
   suggestions: string[];
 }
 
@@ -82,6 +88,23 @@ export async function runProjectAnalysis(options: AnalyzeOptions = {}) {
       throw new Error('Not in a Re-Shell monorepo. Run this command from within a monorepo.');
     }
 
+    if (options.type && !VALID_TYPES.includes(options.type)) {
+      const message = `Unknown analysis type "${options.type}". Supported: ${VALID_TYPES.join(', ')}.`;
+      if (options.json) {
+        jsonError('ANALYZE_ERROR', message);
+        return;
+      }
+      throw new Error(message);
+    }
+    if (options.failOn && !(options.failOn in SEVERITY_ORDER)) {
+      const message = `Unknown --fail-on severity "${options.failOn}". Supported: ${Object.keys(SEVERITY_ORDER).join(', ')}.`;
+      if (options.json) {
+        jsonError('ANALYZE_ERROR', message);
+        return;
+      }
+      throw new Error(message);
+    }
+
     if (options.spinner) {
       options.spinner.setText('Starting analysis...');
     }
@@ -94,7 +117,15 @@ export async function runProjectAnalysis(options: AnalyzeOptions = {}) {
       timestamp: new Date().toISOString(),
       monorepo: path.basename(monorepoRoot),
       workspaces: workspaces.length,
-      analysis: {} as Record<string, Record<string, any>>
+      analysis: {} as Record<string, Record<string, any>>,
+      types: [] as string[],
+      graph: { packages: 0, edges: 0, services: 0 },
+      findings: [] as Finding[],
+      summary: {
+        total: 0,
+        bySeverity: { critical: 0, high: 0, medium: 0, low: 0, info: 0 } as Record<string, number>,
+        byType: { security: 0, performance: 0, scalability: 0, architecture: 0 } as Record<string, number>,
+      },
     };
 
     // Run different types of analysis based on options
@@ -137,13 +168,30 @@ export async function runProjectAnalysis(options: AnalyzeOptions = {}) {
       }
     }
 
+    // Workspace-graph / file heuristics (cycles, layering, hotspots, secrets, services, ...).
+    // Runs for the four finding-based types, and for the default `all`.
+    const requested = !options.type || options.type === 'all' ? [...ANALYSIS_TYPES] : isAnalysisType(options.type) ? [options.type] : [];
+    if (requested.length > 0) {
+      if (options.spinner) options.spinner.setText(`Analyzing workspace graph (${requested.join(', ')})...`);
+      const engine: AnalysisEngineResult = analyzeWorkspace(monorepoRoot, { types: requested, workspace: options.workspace });
+      results.types = engine.types;
+      results.graph = engine.graph;
+      results.findings = engine.findings;
+      results.summary = engine.summary;
+    }
+
     // Save results if output specified
     if (options.output) {
       await fs.writeJson(options.output, results, { spaces: 2 });
       console.log(chalk.green(`Analysis results saved to: ${options.output}`));
     }
 
-    return displayAnalysisResults(results, options);
+    const shown = displayAnalysisResults(results, options);
+    if (options.failOn) {
+      const threshold = SEVERITY_ORDER[options.failOn];
+      if (results.findings.some(f => SEVERITY_ORDER[f.severity] <= threshold)) process.exitCode = 1;
+    }
+    return shown;
 
   } catch (error) {
     if (options.json) {
@@ -221,7 +269,7 @@ async function analyzeBundleSize(workspacePath: string, workspace: string, optio
       workspace,
       size: {
         total: formatBytes(totalSize),
-        gzipped: formatBytes(Math.floor(totalSize * 0.3)), // Estimate
+        gzipped: formatBytes(await measureGzipBytes(outputPath, assets)),
         assets
       },
       chunks,
@@ -290,7 +338,7 @@ async function analyzeDependencies(workspacePath: string, workspace: string, opt
     }
 
     // Analyze licenses (simplified)
-    const licenses = await analyzeLicenses(deps, devDeps);
+    const licenses = await analyzeLicenses(deps, devDeps, workspacePath);
 
     // Find duplicates (simplified check)
     const duplicates = findDuplicateDependencies(packageJson);
@@ -342,24 +390,22 @@ async function analyzePerformance(workspacePath: string, workspace: string, opti
     const buildPath = path.join(workspacePath, 'build');
     let bundleSize = 'N/A';
 
+    let bundleBytes = 0;
     if (await fs.pathExists(distPath)) {
-      bundleSize = await getDirectorySize(distPath);
+      bundleBytes = await getDirectoryBytes(distPath);
+      bundleSize = formatBytes(bundleBytes);
     } else if (await fs.pathExists(buildPath)) {
-      bundleSize = await getDirectorySize(buildPath);
+      bundleBytes = await getDirectoryBytes(buildPath);
+      bundleSize = formatBytes(bundleBytes);
     }
 
     // Performance suggestions based on analysis
-    const suggestions = generatePerformanceSuggestions(packageJson, bundleSize, buildTime);
+    const suggestions = generatePerformanceSuggestions(packageJson, bundleBytes, buildTime);
 
     return {
       workspace,
       buildTime,
       bundleSize,
-      loadTime: {
-        ttfb: 0, // Would need actual measurement
-        fcp: 0,
-        lcp: 0
-      },
       suggestions
     };
 
@@ -368,7 +414,6 @@ async function analyzePerformance(workspacePath: string, workspace: string, opti
       workspace,
       buildTime: -1,
       bundleSize: 'Error',
-      loadTime: { ttfb: 0, fcp: 0, lcp: 0 },
       suggestions: [`Performance analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`]
     };
   }
@@ -402,7 +447,7 @@ async function analyzeSecurityIssues(workspacePath: string, workspace: string, o
       audit: auditResults,
       sensitiveFiles,
       secretPatterns,
-      recommendations: generateSecurityRecommendations(auditResults, sensitiveFiles, secretPatterns)
+      recommendations: generateSecurityRecommendations(auditResults, sensitiveFiles, secretPatterns, workspacePath)
     };
 
   } catch (error) {
@@ -420,22 +465,16 @@ async function analyzeSecurityIssues(workspacePath: string, workspace: string, o
 
 async function getWorkspaces(monorepoRoot: string): Promise<string[]> {
   try {
-    const packageJsonPath = path.join(monorepoRoot, 'package.json');
-    const packageJson = await fs.readJson(packageJsonPath);
-    
-    if (packageJson.workspaces) {
-      if (Array.isArray(packageJson.workspaces)) {
-        return packageJson.workspaces;
-      } else if (packageJson.workspaces.packages) {
-        return packageJson.workspaces.packages;
-      }
-    }
-    
+    // Declared workspace globs (package.json `workspaces`, pnpm-workspace.yaml) or the
+    // conventional apps/ packages/ libs/ services/ tools/ layout, expanded to real packages.
+    const discovered = discoverPackages(monorepoRoot).map(p => p.rel);
+    if (discovered.length > 0) return discovered;
+
     // Fallback: scan for package.json files
     const workspaces: string[] = [];
     const scanDir = async (dir: string, depth = 0) => {
       if (depth > 2) return;
-      
+
       const items = await fs.readdir(dir, { withFileTypes: true });
       for (const item of items) {
         if (item.isDirectory() && !item.name.startsWith('.') && item.name !== 'node_modules') {
@@ -448,7 +487,7 @@ async function getWorkspaces(monorepoRoot: string): Promise<string[]> {
         }
       }
     };
-    
+
     await scanDir(monorepoRoot);
     return workspaces;
   } catch (error) {
@@ -523,46 +562,105 @@ function extractTreeshakingInfo(stats: Record<string, unknown>): { unusedExports
   }
 }
 
-async function analyzeLicenses(deps: Record<string, unknown>, devDeps: Record<string, unknown>): Promise<{ license: string; packages: string[] }[]> {
-  // Simplified license analysis - would need actual package resolution
-  const commonLicenses = ['MIT', 'Apache-2.0', 'BSD-3-Clause', 'ISC', 'GPL-3.0'];
-  return commonLicenses.map(license => ({
-    license,
-    packages: []
-  }));
+async function analyzeLicenses(
+  deps: Record<string, unknown>,
+  devDeps: Record<string, unknown>,
+  workspacePath?: string
+): Promise<{ license: string; packages: string[] }[]> {
+  // Read the license each declared dependency actually ships with from its installed
+  // package.json (node_modules in the workspace or any ancestor). Packages that are not
+  // installed are reported under "UNKNOWN (not installed)" instead of being guessed.
+  const byLicense = new Map<string, string[]>();
+  const names = [...new Set([...Object.keys(deps), ...Object.keys(devDeps)])].sort();
+  for (const name of names) {
+    let license = 'UNKNOWN (not installed)';
+    if (workspacePath) {
+      let dir = path.resolve(workspacePath);
+      for (let depth = 0; depth < 8; depth++) {
+        const manifest = path.join(dir, 'node_modules', name, 'package.json');
+        if (await fs.pathExists(manifest)) {
+          try {
+            const pkg = await fs.readJson(manifest);
+            const raw = pkg.license ?? (Array.isArray(pkg.licenses) ? pkg.licenses.map((l: { type?: string }) => l.type).join(' OR ') : undefined);
+            license = typeof raw === 'string' ? raw : raw && typeof raw === 'object' && raw.type ? String(raw.type) : 'UNKNOWN (no license field)';
+          } catch {
+            license = 'UNKNOWN (unreadable package.json)';
+          }
+          break;
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+      }
+    }
+    byLicense.set(license, [...(byLicense.get(license) ?? []), name]);
+  }
+  return [...byLicense.entries()]
+    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    .map(([license, packages]) => ({ license, packages }));
 }
 
 function findDuplicateDependencies(packageJson: Record<string, unknown>): { name: string; versions: string[]; locations: string[] }[] {
-  // Simplified duplicate detection
-  return [];
+  // A dependency declared in several sections of the same package.json at different ranges.
+  const sections = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
+  const seen = new Map<string, { versions: Set<string>; locations: string[] }>();
+  for (const section of sections) {
+    const block = (packageJson[section] ?? {}) as Record<string, string>;
+    for (const [name, range] of Object.entries(block)) {
+      const entry = seen.get(name) ?? { versions: new Set<string>(), locations: [] };
+      entry.versions.add(String(range));
+      entry.locations.push(section);
+      seen.set(name, entry);
+    }
+  }
+  return [...seen.entries()]
+    .filter(([, e]) => e.locations.length > 1 && e.versions.size > 1)
+    .map(([name, e]) => ({ name, versions: [...e.versions], locations: e.locations }));
 }
 
-async function getDirectorySize(dirPath: string): Promise<string> {
+/** Real gzip size of the build output (top-level files, capped at 20 files / 5MB each for speed). */
+async function measureGzipBytes(outputPath: string, assets: { name: string; rawBytes: number }[]): Promise<number> {
+  let total = 0;
+  for (const asset of assets.slice(0, 20)) {
+    if (asset.rawBytes > 5 * 1024 * 1024) {
+      total += asset.rawBytes; // too large to compress synchronously here; count it uncompressed
+      continue;
+    }
+    try {
+      total += zlib.gzipSync(await fs.readFile(path.join(outputPath, asset.name))).length;
+    } catch {
+      total += asset.rawBytes;
+    }
+  }
+  return total;
+}
+
+async function getDirectoryBytes(dirPath: string): Promise<number> {
   try {
     let totalSize = 0;
     const items = await fs.readdir(dirPath, { withFileTypes: true });
-    
+
     for (const item of items.slice(0, 20)) { // Limit for performance
       if (item.isFile()) {
         const stats = await fs.stat(path.join(dirPath, item.name));
         totalSize += stats.size;
       }
     }
-    
-    return formatBytes(totalSize);
+
+    return totalSize;
   } catch (error) {
-    return 'Unknown';
+    return 0;
   }
 }
 
-function generatePerformanceSuggestions(packageJson: Record<string, unknown>, bundleSize: string, buildTime: number): string[] {
+function generatePerformanceSuggestions(packageJson: Record<string, unknown>, bundleBytes: number, buildTime: number): string[] {
   const suggestions = [];
   
   if (buildTime > 30000) {
     suggestions.push('Consider using faster build tools like esbuild or swc');
   }
   
-  if (bundleSize && parseInt(bundleSize) > 1000000) {
+  if (bundleBytes > 1000000) {
     suggestions.push('Bundle size is large, consider code splitting');
   }
   
@@ -593,48 +691,93 @@ async function checkSensitiveFiles(workspacePath: string): Promise<string[]> {
 }
 
 async function scanForSecrets(workspacePath: string): Promise<string[]> {
-  // Basic secret pattern detection
-  const secretPatterns: string[] = [];
-  const patterns = [
-    /api[_-]?key/i,
-    /secret[_-]?key/i,
-    /password/i,
-    /token/i
-  ];
-  
+  // Real scan: well-known credential formats (cloud keys, tokens, private keys, JWTs)
+  // in the workspace's source and config files. Returns "file:line (masked match)" entries;
+  // the secret itself is never echoed.
+  const found: string[] = [];
   try {
-    const srcPath = path.join(workspacePath, 'src');
-    if (await fs.pathExists(srcPath)) {
-      // This would need more sophisticated scanning in a real implementation
-      // For now, just return empty array
+    const files = await fg(['**/*.{ts,tsx,js,jsx,mjs,cjs,json,yml,yaml,py,go,rb,java,properties,toml,ini,sh,tf}'], {
+      cwd: workspacePath,
+      ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**', '**/coverage/**', '**/*.min.js', '**/package-lock.json', '**/pnpm-lock.yaml'],
+      onlyFiles: true,
+      deep: 8,
+    });
+    for (const file of files.sort().slice(0, 2000)) {
+      const full = path.join(workspacePath, file);
+      const stat = await fs.stat(full);
+      if (stat.size > 300_000) continue;
+      const lines = (await fs.readFile(full, 'utf8')).split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const hit = findCredentialInLine(lines[i]);
+        if (hit) found.push(`${file}:${i + 1} (${hit.slice(0, 4)}${'*'.repeat(8)})`);
+      }
     }
   } catch (error) {
-    // Ignore errors
+    // Unreadable tree: report what was found so far
   }
-  
-  return secretPatterns;
+  return found;
 }
 
-function generateSecurityRecommendations(audit: Record<string, unknown>, sensitiveFiles: string[], secrets: string[]): string[] {
+function generateSecurityRecommendations(audit: Record<string, unknown>, sensitiveFiles: string[], secrets: string[], workspacePath?: string): string[] {
   const recommendations = [];
-  
+
   if (sensitiveFiles.length > 0) {
     recommendations.push('Add sensitive files to .gitignore');
   }
-  
+
   if (secrets.length > 0) {
     recommendations.push('Use environment variables for sensitive data');
   }
-  
+
   const total = (audit.metadata as Record<string, unknown> | undefined)?.vulnerabilities as Record<string, unknown> | undefined;
   if (total && Number(total.total) > 0) {
     recommendations.push('Run npm audit fix to address vulnerabilities');
   }
-  
-  recommendations.push('Enable dependabot for automatic security updates');
-  recommendations.push('Use npm audit in CI/CD pipeline');
-  
+
+  // Only recommend automation that is not already configured in this repository.
+  if (!hasDependencyUpdateAutomation(workspacePath)) {
+    recommendations.push('Enable dependabot for automatic security updates');
+  }
+  if (!hasAuditInCi(workspacePath)) {
+    recommendations.push('Use npm audit in CI/CD pipeline');
+  }
+
   return recommendations;
+}
+
+/** Walk up from the workspace looking for dependabot/renovate configuration. */
+function hasDependencyUpdateAutomation(workspacePath?: string): boolean {
+  return ancestorsOf(workspacePath).some(dir =>
+    ['.github/dependabot.yml', '.github/dependabot.yaml', 'renovate.json', '.renovaterc', '.renovaterc.json', '.github/renovate.json'].some(f => fsReal.existsSync(path.join(dir, f)))
+  );
+}
+
+/** True when a CI workflow in an ancestor directory runs a dependency audit. */
+function hasAuditInCi(workspacePath?: string): boolean {
+  for (const dir of ancestorsOf(workspacePath)) {
+    const workflows = path.join(dir, '.github', 'workflows');
+    try {
+      for (const file of fsReal.readdirSync(workflows)) {
+        if (/\.ya?ml$/.test(file) && /(npm|pnpm|yarn)\s+audit|audit-ci|osv-scanner|snyk\s+test/.test(fsReal.readFileSync(path.join(workflows, file), 'utf8'))) return true;
+      }
+    } catch {
+      /* no workflows here */
+    }
+  }
+  return false;
+}
+
+function ancestorsOf(start?: string): string[] {
+  if (!start) return [];
+  const out: string[] = [];
+  let dir = path.resolve(start);
+  for (let i = 0; i < 6; i++) {
+    out.push(dir);
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return out;
 }
 
 function formatBytes(bytes: number): string {
@@ -715,6 +858,61 @@ function displayAnalysisResults(results: Record<string, unknown>, options: Analy
     console.log();
   }
 
+  renderFindings((results.findings ?? []) as Finding[], (results.summary ?? undefined) as FindingsSummary | undefined, (results.graph ?? undefined) as { packages: number; edges: number; services: number } | undefined, options);
+
   console.log(chalk.dim('Use --verbose for detailed breakdown'));
   console.log(chalk.dim('Use --output <file> to save results'));
+}
+
+interface FindingsSummary {
+  total: number;
+  bySeverity: Record<string, number>;
+  byType: Record<string, number>;
+}
+
+const SEVERITY_COLOR: Record<string, (t: string) => string> = {
+  critical: chalk.red.bold,
+  high: chalk.red,
+  medium: chalk.yellow,
+  low: chalk.blue,
+  info: chalk.gray,
+};
+
+function renderFindings(
+  findings: Finding[],
+  summary: FindingsSummary | undefined,
+  graph: { packages: number; edges: number; services: number } | undefined,
+  options: AnalyzeOptions
+): void {
+  if (!summary) return;
+  if (graph && (graph.packages > 0 || graph.services > 0)) {
+    console.log(chalk.bold('Workspace graph:'));
+    console.log(`  ${graph.packages} package(s), ${graph.edges} internal dependency edge(s), ${graph.services} service(s)`);
+    console.log();
+  }
+  if (findings.length === 0) {
+    if (graph) console.log(chalk.green('No findings from the workspace analysis.\n'));
+    return;
+  }
+
+  const counts = (['critical', 'high', 'medium', 'low', 'info'] as const)
+    .filter(sev => summary.bySeverity[sev] > 0)
+    .map(sev => SEVERITY_COLOR[sev](`${summary.bySeverity[sev]} ${sev}`))
+    .join(', ');
+  console.log(chalk.bold(`Findings (${findings.length}): `) + counts + '\n');
+
+  for (const f of findings) {
+    console.log(`${SEVERITY_COLOR[f.severity](`[${f.severity}]`)} ${chalk.bold(f.title)} ${chalk.dim(`(${f.ruleId})`)}`);
+    if (options.verbose) console.log(`  ${f.message}`);
+    const shown = options.verbose ? f.evidence : f.evidence.slice(0, 2);
+    for (const e of shown) {
+      const where = e.file ? `${e.file}${e.line ? `:${e.line}` : ''}` : e.path ? e.path.join(' -> ') : e.kind;
+      console.log(chalk.dim(`  evidence: ${where}  ${e.detail}`));
+    }
+    if (!options.verbose && f.evidence.length > shown.length) {
+      console.log(chalk.dim(`  ... ${f.evidence.length - shown.length} more evidence item(s) (--verbose)`));
+    }
+    console.log(chalk.cyan(`  -> ${f.recommendation}`));
+    console.log();
+  }
 }

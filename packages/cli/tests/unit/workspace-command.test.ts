@@ -50,6 +50,7 @@ vi.mock('../../src/utils/json-output', async (importOriginal) => {
 
 import prompts from 'prompts';
 
+import { jsonData } from '../utils/stdout-json';
 let tempRoot: string;
 let logSpy: ReturnType<typeof vi.spyOn>;
 let errSpy: ReturnType<typeof vi.spyOn>;
@@ -581,12 +582,26 @@ describe('workspace — command', () => {
       await writeWorkspaceConfig(VALID_CONFIG);
       await fs.writeFile(path.join(tempRoot, 'README.md'), '# test');
       await fs.ensureDir(path.join(tempRoot, '.git'));
-      await fs.writeFile(path.join(tempRoot, 'package-lock.json'), '{}');
       execSyncMock.mockReturnValue('');
 
       await checkWorkspaceHealth({});
 
       expect(output()).toContain('Overall workspace health: GOOD');
+    });
+
+    it('prints the same overall status and score as the --json envelope', async () => {
+      // No README, .git or lockfile: a warnings-only workspace.
+      await writeWorkspaceConfig(VALID_CONFIG);
+      execSyncMock.mockReturnValue('');
+
+      await checkWorkspaceHealth({ json: true });
+      const health = vi.mocked(jsonOutput.jsonSuccess).mock.calls[0][0] as { status: string; score: number };
+      const label = { healthy: 'GOOD', degraded: 'NEEDS ATTENTION' }[health.status] ?? 'CRITICAL';
+
+      logSpy.mockClear();
+      await checkWorkspaceHealth({});
+
+      expect(output()).toContain(`Overall workspace health: ${label} (score ${health.score})`);
     });
 
     it('reports missing config guidance when neither config nor monorepo exists', async () => {
@@ -798,9 +813,7 @@ services:
 
       await optimizeWorkspace({ json: true });
 
-      const payload = JSON.parse(
-        logSpy.mock.calls.map((c) => c.join(' ')).filter((l) => l.trim().startsWith('{')).at(-1)!
-      );
+      const payload = jsonData();
       expect(payload).toHaveProperty('recommendations');
       expect(payload).toHaveProperty('summary');
       expect(payload).toHaveProperty('estimatedImpact');

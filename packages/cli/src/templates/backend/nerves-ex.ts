@@ -11,9 +11,16 @@ export const nervesExTemplate: BackendTemplate = {
   tags: ['elixir', 'nerves', 'iot', 'microservices', 'firmware', 'hardware'],
   port: 4000,
   dependencies: {
-    'nerves': '~> 1.10',
-    'plug': '~> 1.14',
-    'plug_cowboy': '~> 2.6',
+    'nerves': '~> 1.13',
+    'shoehorn': '~> 0.9.1',
+    'logger_backends': '~> 1.0',
+    'ring_logger': '~> 0.11.0',
+    'toolshed': '~> 0.5.0',
+    'nerves_runtime': '~> 0.13.12',
+    'nerves_pack': '~> 0.7.1',
+    'plug': '~> 1.16',
+    'plug_cowboy': '~> 2.7',
+    'plug_crypto': '~> 2.0',
     'jason': '~> 1.4',
     'absinthe': '~> 1.7',
     'absinthe_plug': '~> 1.5'
@@ -21,154 +28,257 @@ export const nervesExTemplate: BackendTemplate = {
   features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'microservices', 'graphql'],
 
   files: {
-    // Mix configuration
+    // Mix configuration (a standard Nerves project: MIX_TARGET=host for development, a board target for firmware)
     'mix.exs': `defmodule {{projectNamePascal}}.MixProject do
   use Mix.Project
 
+  @app :{{projectNameSnake}}
+  @version "0.1.0"
+  @all_targets [:rpi0, :rpi4]
+
   def project do
     [
-      app: :{{projectNameSnake}},
-      version: "0.1.0",
-      elixir: "~> 1.15",
+      app: @app,
+      version: @version,
+      # The Nerves systems (and Absinthe) need Elixir 1.17 or later
+      elixir: "~> 1.17",
       archives: [nerves_bootstrap: "~> 1.13"],
       start_permanent: Mix.env() == :prod,
-      build_embedded: true,
       deps: deps(),
-      releases: [{0, {0, :nerves}}]
+      releases: [{@app, release()}]
     ]
   end
 
   def application do
     [
-      mod: {{ {{projectNamePascal}}.Application, [] },
-      extra_applications: [:logger, :runtime_tools]
+      mod: {{{projectNamePascal}}.Application, []},
+      extra_applications: [:logger, :runtime_tools, :crypto]
     ]
+  end
+
+  # \`mix run\` and \`mix test\` always use the host, even when MIX_TARGET names a board.
+  def cli do
+    [preferred_targets: [run: :host, test: :host]]
   end
 
   defp deps do
     [
-      {:nerves, "~> 1.10", runtime: false},
-      {:shoehorn, "~> 0.9"},
-      {:ring_logger, "~> 0.11"},
-      {:plug, "~> 1.14"},
-      {:plug_cowboy, "~> 2.6"},
+      # Dependencies for all targets
+      {:nerves, "~> 1.13", runtime: false},
+      {:shoehorn, "~> 0.9.1"},
+      {:logger_backends, "~> 1.0"},
+      {:ring_logger, "~> 0.11.0"},
+      {:toolshed, "~> 0.5.0"},
+
+      # Allows Nerves.Runtime on the host for development, testing and CI.
+      # See config/host.exs for usage.
+      {:nerves_runtime, "~> 0.13.12"},
+
+      # Dependencies for all targets except :host
+      {:nerves_pack, "~> 0.7.1", targets: @all_targets},
+
+      # Nerves systems (one per board). Each ships its own Linux kernel and
+      # Erlang/OTP release; review their release notes when updating.
+      {:nerves_system_rpi0, "~> 2.0", runtime: false, targets: :rpi0},
+      {:nerves_system_rpi4, "~> 2.0", runtime: false, targets: :rpi4},
+
+      # HTTP API
+      {:plug, "~> 1.16"},
+      {:plug_cowboy, "~> 2.7"},
+      {:plug_crypto, "~> 2.0"},
       {:jason, "~> 1.4"},
-      {:nerves_runtime, "~> 0.13"},
-      {:nerves_pack, "~> 0.7"},
       {:absinthe, "~> 1.7"},
       {:absinthe_plug, "~> 1.5"}
+    ]
+  end
+
+  def release do
+    [
+      overwrite: true,
+      # Erlang distribution is not started automatically.
+      # See https://nerves-pack.hexdocs.pm/readme.html#erlang-distribution
+      cookie: "#{@app}_cookie",
+      include_erts: &Nerves.Release.erts/0,
+      steps: [&Nerves.Release.init/1, :assemble],
+      strip_beams: Mix.env() == :prod or [keep: ["Docs"]]
     ]
   end
 end
 `,
 
-    // Application
-    'lib/{{projectNameSnake}}_application.ex': `defmodule {{projectNamePascal}}.Application do
+    '.formatter.exs': `[
+  inputs: ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}", "rootfs_overlay/etc/iex.exs"]
+]
+`,
+
+    '.gitignore': `/_build/
+/cover/
+/deps/
+/doc/
+/tmp/
+/.fetch
+erl_crash.dump
+*.ez
+*.beam
+/config/secrets.exs
+.elixir_ls/
+# Firmware images
+/*.fw
+/*.img
+`,
+
+    // Application: the HTTP API runs on the host and on the device
+    'lib/{{projectNameSnake}}/application.ex': `defmodule {{projectNamePascal}}.Application do
   @moduledoc false
 
   use Application
 
+  require Logger
+
+  @impl true
   def start(_type, _args) do
-    # Initialize database
-    {{projectNamePascal}}.Repo.init()
+    port = Application.get_env(:{{projectNameSnake}}, :port, 4000)
 
     children = [
-      {Plug.Cowboy, scheme: :http, plug: {{projectNamePascal}}.Router, options: [port: 4000]},
-      {{projectNamePascal}}.Repo
+      {{projectNamePascal}}.Repo,
+      {Plug.Cowboy, scheme: :http, plug: {{projectNamePascal}}.Router, options: [port: port]}
     ]
 
+    Logger.info("{{projectName}} listening on port #{port} (target: #{inspect(Application.get_env(:{{projectNameSnake}}, :target))})")
+
     opts = [strategy: :one_for_one, name: {{projectNamePascal}}.Supervisor]
-
-    Logger.info("🚀 {{projectName}} starting on port 4000")
-    Logger.info("📚 API: http://localhost:4000/api/v1/health")
-
     Supervisor.start_link(children, opts)
   end
 end
 `,
 
+    // CORS plug
+    'lib/{{projectNameSnake}}/cors.ex': `defmodule {{projectNamePascal}}.CORS do
+  @moduledoc """
+  Minimal CORS plug. Adds the CORS headers to every response and answers
+  pre-flight (OPTIONS) requests directly.
+  """
+
+  @behaviour Plug
+
+  import Plug.Conn
+
+  @impl true
+  def init(opts), do: opts
+
+  @impl true
+  def call(conn, _opts) do
+    conn =
+      conn
+      |> put_resp_header("access-control-allow-origin", "*")
+      |> put_resp_header("access-control-allow-methods", "GET, POST, OPTIONS")
+      |> put_resp_header("access-control-allow-headers", "content-type, authorization")
+
+    if conn.method == "OPTIONS" do
+      conn |> send_resp(204, "") |> halt()
+    else
+      conn
+    end
+  end
+end
+`,
+
     // Router
-    'lib/{{projectNameSnake}}_router.ex': `defmodule {{projectNamePascal}}.Router do
+    'lib/{{projectNameSnake}}/router.ex': `defmodule {{projectNamePascal}}.Router do
   use Plug.Router
 
+  alias {{projectNamePascal}}.{Auth, Sensors}
+
   plug Plug.Logger
+  plug {{projectNamePascal}}.CORS
   plug :match
-  plug Plug.Parsers, parsers: [:json], json_decoder: Jason
+
+  plug Plug.Parsers,
+    parsers: [:json],
+    pass: ["*/*"],
+    json_decoder: Jason
+
   plug :dispatch
 
   get "/api/v1/health" do
-    send_resp(conn, 200, Jason.encode!(%{
+    json(conn, 200, %{
       status: "healthy",
       timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
       version: "1.0.0",
-      platform: "Nerves"
-    }))
+      platform: "Nerves",
+      target: inspect(Application.get_env(:{{projectNameSnake}}, :target))
+    })
+  end
+
+  post "/api/v1/auth/login" do
+    case conn.body_params do
+      %{"email" => email, "password" => password} when is_binary(email) and is_binary(password) ->
+        case Auth.login(email, password) do
+          {:ok, user} ->
+            json(conn, 200, %{token: Auth.generate_token(user), user: Auth.public_user(user)})
+
+          {:error, :unauthorized} ->
+            json(conn, 401, %{error: "Invalid credentials"})
+        end
+
+      _ ->
+        json(conn, 400, %{error: "Invalid request"})
+    end
+  end
+
+  get "/api/v1/sensors" do
+    json(conn, 200, %{sensors: Sensors.list()})
+  end
+
+  # Taking a reading changes device state, so it needs a bearer token.
+  post "/api/v1/sensors/:id/read" do
+    case authenticate(conn) do
+      {:ok, _user} ->
+        case Sensors.read(id) do
+          {:ok, reading} -> json(conn, 200, %{reading: reading})
+          {:error, :not_found} -> json(conn, 404, %{error: "Sensor not found"})
+        end
+
+      :error ->
+        json(conn, 401, %{error: "Authentication required"})
+    end
   end
 
   forward "/graphql",
     to: Absinthe.Plug,
     init_opts: [schema: {{projectNamePascal}}.Schema]
 
-  post "/api/v1/auth/login" do
-    {:ok, body, conn} = Plug.Conn.read_body(conn)
-
-    case Jason.decode(body) do
-      {:ok, %{"email" => email, "password" => password}} ->
-        case {{projectNamePascal}}.Auth.login(email, password) do
-          {:ok, user} ->
-            token = {{projectNamePascal}}.Auth.generate_token(user)
-
-            conn
-            |> put_resp_content_type("application/json")
-            |> send_resp(200, Jason.encode!(%{
-              token: token,
-              user: %{id: user.id, email: user.email, name: user.name, role: user.role}
-            }))
-
-          {:error, :unauthorized} ->
-            conn
-            |> put_resp_content_type("application/json")
-            |> send_resp(401, Jason.encode!(%{error: "Invalid credentials"}))
-        end
-
-      _error ->
-        send_resp(conn, 400, Jason.encode!(%{error: "Invalid request"}))
-    end
+  match _ do
+    json(conn, 404, %{error: "Not found"})
   end
 
-  get "/api/v1/sensors" do
-    sensors = {{projectNamePascal}}.Sensors.list()
-
+  defp json(conn, status, body) do
     conn
     |> put_resp_content_type("application/json")
-    |> send_resp(200, Jason.encode!(%{sensors: sensors}))
+    |> send_resp(status, Jason.encode!(body))
   end
 
-  post "/api/v1/sensors/:id/read" do
-    sensor_id = conn.params["id"]
-
-    case {{projectNamePascal}}.Sensors.read(sensor_id) do
-      {:ok, reading} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(200, Jason.encode!(%{reading: reading}))
-
-      {:error, :not_found} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(404, Jason.encode!(%{error: "Sensor not found"}))
+  defp authenticate(conn) do
+    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
+         {:ok, user} <- Auth.verify_token(token) do
+      {:ok, user}
+    else
+      _ -> :error
     end
-  end
-
-  match _ do
-    send_resp(conn, 404, Jason.encode!(%{error: "Not found"}))
   end
 end
 `,
 
     // GraphQL schema (Absinthe)
-    'lib/{{projectNameSnake}}_schema.ex': `defmodule {{projectNamePascal}}.Schema do
+    'lib/{{projectNameSnake}}/schema.ex': `defmodule {{projectNamePascal}}.Schema do
   use Absinthe.Schema
+
+  object :sensor do
+    field :id, non_null(:id)
+    field :name, non_null(:string)
+    field :type, non_null(:string)
+    field :value, non_null(:float)
+  end
 
   query do
     field :hello, non_null(:string) do
@@ -182,243 +292,525 @@ end
         {:ok, "healthy"}
       end
     end
+
+    field :sensors, non_null(list_of(non_null(:sensor))) do
+      resolve fn _parent, _args, _resolution ->
+        {:ok, {{projectNamePascal}}.Sensors.list()}
+      end
+    end
   end
 end
 `,
 
-    // Repo
+    // In-memory state (an Agent)
     'lib/{{projectNameSnake}}/repo.ex': `defmodule {{projectNamePascal}}.Repo do
+  @moduledoc """
+  In-memory device state (users and sensors) held by an Agent. Everything goes
+  through \`transaction/1\`, so updates are atomic.
+  """
+
   use Agent
 
+  alias {{projectNamePascal}}.Auth
+
   def start_link(_opts) do
-    Agent.start_link(fn -> %{} end, name: __MODULE__)
+    Agent.start_link(&initial_state/0, name: __MODULE__)
   end
 
-  def init do
-    Logger.info("📦 Database initialized")
+  def get_state, do: Agent.get(__MODULE__, & &1)
 
-    state = %{
-      users: %{
-        1 => %{
-          id: 1,
-          email: "admin@nerves.local",
-          password: :crypto.hash(:sha256, "admin123") |> Base.encode16(),
-          name: "Admin User",
-          role: "admin"
-        }
-      },
+  @doc "Runs \`fun\` against the state; it must return \`{result, new_state}\`."
+  def transaction(fun) when is_function(fun, 1) do
+    Agent.get_and_update(__MODULE__, fun)
+  end
+
+  defp initial_state do
+    %{
+      users: seed_users(),
       sensors: %{
         "temperature" => %{id: "temperature", name: "Temperature Sensor", type: "analog", value: 20.5},
         "humidity" => %{id: "humidity", name: "Humidity Sensor", type: "digital", value: 45.0}
       }
     }
-
-    Agent.update(__MODULE__, fn _ -> state end)
-
-    Logger.info("👤 Default admin: admin@nerves.local / admin123")
   end
 
-  def get(key) do
-    Agent.get(__MODULE__, fn state -> Map.get(state, key) end)
-  end
+  # The demo admin account only exists when config provides :seed_admin.
+  defp seed_users do
+    case Application.get_env(:{{projectNameSnake}}, :seed_admin) do
+      %{email: email, password: password} ->
+        %{1 => Auth.build_user(1, email, "Admin User", "admin", password)}
 
-  def update(key, value) do
-    Agent.update(__MODULE__, fn state -> Map.put(state, key, value) end)
+      _ ->
+        %{}
+    end
   end
 end
 `,
 
     // Auth
     'lib/{{projectNameSnake}}/auth.ex': `defmodule {{projectNamePascal}}.Auth do
+  @moduledoc """
+  Login and signed bearer tokens. Passwords are hashed with PBKDF2 from
+  Erlang's :crypto, so the firmware needs no native password-hashing library.
+  """
+
   alias {{projectNamePascal}}.Repo
 
+  @token_salt "device auth"
+  @token_max_age 86_400
+  @iterations 10_000
+
+  def build_user(id, email, name, role, password) do
+    salt = :crypto.strong_rand_bytes(16)
+
+    %{
+      id: id,
+      email: email,
+      name: name,
+      role: role,
+      salt: salt,
+      password_hash: hash_password(password, salt)
+    }
+  end
+
   def login(email, password) do
-    users = Repo.get(:users)
+    user =
+      Repo.get_state().users
+      |> Map.values()
+      |> Enum.find(&(&1.email == email))
 
-    user = Enum.find(users, fn {_, u} ->
-      u.email == email && u.password == :crypto.hash(:sha256, password) |> Base.encode16()
-    end)
-
-    case user do
-      {_, user} -> {:ok, user}
-      nil -> {:error, :unauthorized}
+    if user && Plug.Crypto.secure_compare(user.password_hash, hash_password(password, user.salt)) do
+      {:ok, user}
+    else
+      {:error, :unauthorized}
     end
   end
 
   def generate_token(user) do
-    "nerves-jwt-#{user.id}"
+    Plug.Crypto.sign(secret_key_base(), @token_salt, user.id)
+  end
+
+  def verify_token(token) do
+    with {:ok, user_id} <- Plug.Crypto.verify(secret_key_base(), @token_salt, token, max_age: @token_max_age),
+         %{} = user <- Map.get(Repo.get_state().users, user_id) do
+      {:ok, user}
+    else
+      _ -> :error
+    end
+  end
+
+  def public_user(user), do: Map.take(user, [:id, :email, :name, :role])
+
+  defp hash_password(password, salt) do
+    :crypto.pbkdf2_hmac(:sha256, password, salt, @iterations, 32)
+  end
+
+  defp secret_key_base do
+    Application.fetch_env!(:{{projectNameSnake}}, :secret_key_base)
   end
 end
 `,
 
     // Sensors
     'lib/{{projectNameSnake}}/sensors.ex': `defmodule {{projectNamePascal}}.Sensors do
+  @moduledoc """
+  Simulated sensors. Replace \`sample/1\` with real hardware access (for example
+  with the Circuits.GPIO / Circuits.I2C libraries) when running on a device.
+  """
+
   alias {{projectNamePascal}}.Repo
 
   def list do
-    sensors = Repo.get(:sensors)
-    Map.values(sensors)
+    Repo.get_state().sensors |> Map.values() |> Enum.sort_by(& &1.id)
   end
 
+  @doc "Takes a new reading, stores it and returns the updated sensor."
   def read(sensor_id) do
-    sensors = Repo.get(:sensors)
+    Repo.transaction(fn state ->
+      case Map.get(state.sensors, sensor_id) do
+        nil ->
+          {{:error, :not_found}, state}
 
-    case Map.get(sensors, sensor_id) do
-      nil -> {:error, :not_found}
-      sensor -> {:ok, read_sensor_value(sensor)}
-    end
+        sensor ->
+          updated = %{sensor | value: sample(sensor)}
+          {{:ok, updated}, %{state | sensors: Map.put(state.sensors, sensor_id, updated)}}
+      end
+    end)
   end
 
-  defp read_sensor_value(sensor) do
-    # Simulate sensor reading
-    value =
-      case sensor.type do
-        "analog" ->
-          # Simulate analog sensor with random fluctuation
-          base = sensor.value || 0
-          base + (:rand.uniform() * 2 - 1)
-
-        "digital" ->
-          # Simulate digital sensor
-          base = sensor.value || 0
-          base + :rand.uniform() - 0.5
-
-        _ ->
-          0
-      end
-
-    %{sensor | value: Float.round(value, 2)}
+  # Random walk around the previous value
+  defp sample(%{value: value}) do
+    Float.round(value + (:rand.uniform() - 0.5) * 2, 2)
   end
 end
 `,
 
-    // Firmware configuration
-    'config/target.exs': `import Config
+    // Configuration
+    'config/config.exs': `# This file is responsible for configuring your application and its
+# dependencies. It is loaded for every MIX_TARGET (host and boards).
+import Config
 
-config :shoehorn,
-  init: [:nerves_runtime, :nerves_pack],
-  overlay: [
-    ["/usr/share/iex/lib/iex.ex", "/usr/lib/iex/lib/iex.ex"]
-  ]
+# Enable the Nerves integration with Mix
+Application.start(:nerves_bootstrap)
+
+config :{{projectNameSnake}},
+  target: Mix.target(),
+  port: 4000,
+  seed_admin: nil
+
+# Customize non-Elixir parts of the firmware. See
+# https://nerves.hexdocs.pm/advanced-configuration.html for details.
+config :nerves, :firmware, rootfs_overlay: "rootfs_overlay"
+
+# Set the SOURCE_DATE_EPOCH date for reproducible builds.
+# See https://reproducible-builds.org/docs/source-date-epoch/ for more information
+config :nerves, source_date_epoch: "1700000000"
+
+# Development and test only: a fixed signing secret and the demo admin account.
+if config_env() == :dev do
+  config :{{projectNameSnake}},
+    secret_key_base: "dev-only-secret-key-base-change-me-0123456789abcdef",
+    seed_admin: %{email: "admin@nerves.local", password: "admin123"}
+end
+
+if config_env() == :test do
+  config :{{projectNameSnake}},
+    port: 4002,
+    secret_key_base: "test-only-secret-key-base-0123456789abcdef0123456789abcdef",
+    seed_admin: %{email: "admin@nerves.local", password: "admin123"}
+end
+
+if Mix.target() == :host do
+  import_config "host.exs"
+else
+  import_config "target.exs"
+end
+`,
+
+    'config/host.exs': `import Config
+
+# Configuration that is only needed when running on the host (MIX_TARGET=host).
 
 config :nerves_runtime,
-  kernel: [init: ["/usr/lib/iex/bin/iex", "--", "/usr/lib/iex/bin/iex", "--", "erl.init"]]
-
-config :logger, backends: [RingLogger]
+  kv_backend:
+    {Nerves.Runtime.KVBackend.InMemory,
+     contents: %{
+       # On a device the KV store is read from the U-Boot environment; on the
+       # host a pre-populated in-memory store stands in for it.
+       # https://nerves-runtime.hexdocs.pm/readme.html#using-nerves_runtime-in-tests
+       "nerves_fw_active" => "a",
+       "a.nerves_fw_architecture" => "generic",
+       "a.nerves_fw_description" => "N/A",
+       "a.nerves_fw_platform" => "host",
+       "a.nerves_fw_version" => "0.0.0"
+     }}
 `,
 
-    'config/config.exs': `import Config
+    'config/runtime.exs': `import Config
 
-config :logger, level: :debug
-
-config :{{projectNameSnake}},
-  target: Mix.Project.config()[:target]
-
-import_config "#{config_target()}.exs"
+# Log to RingLogger, an in-memory log (on the device: RingLogger.attach/0 or RingLogger.next/0).
+Application.ensure_all_started(:logger_backends)
+LoggerBackends.add(RingLogger)
 `,
 
-    'config/rpi0.exs': `import Config
+    'config/target.exs': `import Config
 
-config :{{projectNameSnake}}, :leds, [:green]
+# Configuration that is only applied when building firmware for a board.
 
-import_config "target.exs"
-`,
+# Use shoehorn to start the main application. See the shoehorn
+# library documentation for more control in ordering how OTP
+# applications are started and handling failures.
+config :shoehorn, init: [:nerves_runtime, :nerves_pack]
 
-    // Firmware build configuration
-    'rel/config.exs': `import Config
+# Enable the system startup guard to check that all OTP applications
+# started. If they didn't and you're on a Nerves system that supports
+# test runs of new firmware, the firmware automatically rolls back to the
+# previous version.
+config :nerves_runtime, startup_guard_enabled: true
 
-config :{{projectNameSnake}},
-  devs: [
-    {"rpi0", "bbb"}
+# Advance the system clock on devices without a real-time clock.
+config :nerves, :erlinit, update_clock: true
+
+# The console logger is not started on the device; see config/runtime.exs.
+config :logger, :default_handler, false
+
+# SSH access (IEx prompt, and firmware updates over the network with \`mix upload\`).
+# See https://nerves-ssh.hexdocs.pm/readme.html
+keys =
+  System.user_home!()
+  |> Path.join(".ssh/id_{rsa,ecdsa,ed25519}.pub")
+  |> Path.wildcard()
+
+if keys == [],
+  do:
+    Mix.raise("""
+    No SSH public keys found in ~/.ssh. An ssh authorized key is needed to
+    log into the Nerves device and update firmware on it using ssh.
+    See your project's config/target.exs for this error message.
+    """)
+
+config :nerves_ssh,
+  authorized_keys: Enum.map(keys, &File.read!/1)
+
+# Networking with vintage_net. Set regulatory_domain to your 2-letter country
+# code (for example "US") to enable every WiFi channel allowed there.
+# See https://vintage-net.hexdocs.pm/readme.html
+config :vintage_net,
+  regulatory_domain: "00",
+  config: [
+    {"usb0", %{type: VintageNetDirect}},
+    {"eth0", %{type: VintageNetEthernet, ipv4: %{method: :dhcp}}},
+    {"wlan0", %{type: VintageNetWiFi}}
   ]
+
+# Advertise the device as <hostname>.local and nerves.local over mDNS, together
+# with its SSH and HTTP API services.
+config :mdns_lite,
+  hosts: [:hostname, "nerves"],
+  ttl: 120,
+  services: [
+    %{protocol: "ssh", transport: "tcp", port: 22},
+    %{protocol: "sftp-ssh", transport: "tcp", port: 22},
+    %{protocol: "epmd", transport: "tcp", port: 4369},
+    %{protocol: "http", transport: "tcp", port: 4000}
+  ]
+
+# Firmware secrets live in config/secrets.exs (git-ignored), for example:
+#
+#     import Config
+#     config :{{projectNameSnake}}, secret_key_base: "<64+ random characters>"
+#
+# Development firmware falls back to the dev secret and demo admin from
+# config/config.exs; production firmware (MIX_ENV=prod) refuses to build without it.
+if File.exists?(Path.join(__DIR__, "secrets.exs")) do
+  import_config "secrets.exs"
+else
+  if config_env() == :prod do
+    Mix.raise("Production firmware needs config/secrets.exs with :secret_key_base (see config/target.exs)")
+  end
+end
 `,
 
-    'rel/vm.args.eex': `## Name of the node
--name {{projectNameSnake}}@127.0.0.1
+    // Copied into the firmware's root filesystem (IEx start-up script on the device)
+    'rootfs_overlay/etc/iex.exs': `NervesMOTD.print()
 
-## Cookie for distributed erlang
--setcookie {{projectNameSnake}}
+# Add Toolshed helpers to the IEx session
+use Toolshed
 `,
 
-    // Dockerfile
-    'Dockerfile': `FROM elixir:1.15-alpine
+    // Erlang VM flags for the firmware release
+    'rel/vm.args.eex': `## Customize flags given to the VM: https://www.erlang.org/doc/apps/erts/erl_cmd.html
+
+## Do not set -name or -sname here. Prefer configuring them at runtime
+## Configure -setcookie in the mix.exs release section or at runtime
+
+## Use Ctrl-C to interrupt the current shell rather than invoking the emulator's
+## break handler and possibly exiting the VM.
++Bc
+
+## Require an initialization handshake within 10 minutes from the startup guard
+-env HEART_INIT_TIMEOUT 600
+
+# Allow time warps so that the Erlang system time can more closely match the
+# OS system time.
++C multi_time_warp
+
+# Load code as per the boot script since not using archives
+-code_path_choice strict
+
+## Disable scheduler busy wait to reduce idle CPU usage and avoid delaying
+## other OS processes.
++sbwt none
++sbwtdcpu none
++sbwtdio none
+
+## Save the shell history between reboots
+-kernel shell_history enabled
+
+## Enable heartbeat monitoring of the Erlang runtime system
+-heart -env HEART_BEAT_TIMEOUT 30
+
+## Start the Elixir shell
+-noshell
+-user elixir
+-run elixir start_cli
+
+## Enable colors in the shell
+-elixir ansi_enabled true
+
+## Options added after -extra are interpreted as plain arguments and can be
+## retrieved using :init.get_plain_arguments(). Options before the "--" are
+## interpreted by Elixir and anything afterwards is left around for other IEx
+## and user applications.
+-extra --no-halt
+--
+--dot-iex /etc/iex.exs
+`,
+
+    // Host simulation image (firmware itself is built with \`mix firmware\` for a board target)
+    'Dockerfile': `# Runs the HTTP API with MIX_TARGET=host (no hardware). Firmware images are
+# built with \`mix firmware\` for a board target, see README.md.
+FROM elixir:1.17
+ENV MIX_TARGET=host MIX_ENV=dev
 WORKDIR /app
-COPY mix.exs mix.lock ./
-RUN mix local.hex --force && mix local.rebar --force
-RUN mix deps.get
-COPY ./
-RUN mix firmware
+# nerves_uevent (via nerves_runtime) is a C port that needs the libmnl headers
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libmnl-dev && rm -rf /var/lib/apt/lists/*
+RUN mix local.hex --force && mix local.rebar --force && mix archive.install hex nerves_bootstrap --force
+COPY . .
+RUN mix deps.get && mix compile
 EXPOSE 4000
+CMD ["mix", "run", "--no-halt"]
 `,
 
-    // Docker Compose
-    'docker-compose.yml': `version: '3.8'
-services:
+    'docker-compose.yml': `services:
   app:
     build: .
     ports:
       - "4000:4000"
-    privileged: true
     restart: unless-stopped
 `,
 
-    // Tests
-    'test/{{projectNameSnake}}_test.exs': `defmodule {{projectNamePascal}}Test do
-  use ExUnit.Case
-
-  test "auth login" do
-    assert {{projectNamePascal}}.Auth.login("admin@nerves.local", "admin123") != {:error, :unauthorized}
-  end
-end
+    // Tests (run on the host: MIX_TARGET=host mix test)
+    'test/test_helper.exs': `ExUnit.start()
 `,
 
-    'test/test_helper.exs': `ExUnit.start()
+    'test/{{projectNameSnake}}_test.exs': `defmodule {{projectNamePascal}}.RouterTest do
+  use ExUnit.Case, async: true
+
+  import Plug.Conn
+  import Plug.Test
+
+  alias {{projectNamePascal}}.{Auth, Router}
+
+  @opts Router.init([])
+
+  defp request(method, path, body \\\\ nil, token \\\\ nil) do
+    conn =
+      case body do
+        nil -> conn(method, path)
+        body -> conn(method, path, Jason.encode!(body)) |> put_req_header("content-type", "application/json")
+      end
+
+    conn = if token, do: put_req_header(conn, "authorization", "Bearer " <> token), else: conn
+    Router.call(conn, @opts)
+  end
+
+  defp decode(conn), do: Jason.decode!(conn.resp_body)
+
+  defp login_token do
+    conn = request(:post, "/api/v1/auth/login", %{"email" => "admin@nerves.local", "password" => "admin123"})
+    assert conn.status == 200
+    decode(conn)["token"]
+  end
+
+  test "auth login" do
+    assert {:ok, %{email: "admin@nerves.local"}} = Auth.login("admin@nerves.local", "admin123")
+    assert {:error, :unauthorized} = Auth.login("admin@nerves.local", "wrong")
+    assert {:error, :unauthorized} = Auth.login("nobody@nerves.local", "admin123")
+  end
+
+  test "health check" do
+    conn = request(:get, "/api/v1/health")
+    assert conn.status == 200
+    assert %{"status" => "healthy", "platform" => "Nerves"} = decode(conn)
+  end
+
+  test "lists sensors" do
+    conn = request(:get, "/api/v1/sensors")
+    assert conn.status == 200
+    assert %{"sensors" => [_ | _]} = decode(conn)
+  end
+
+  test "reading a sensor requires a token" do
+    assert request(:post, "/api/v1/sensors/temperature/read").status == 401
+
+    conn = request(:post, "/api/v1/sensors/temperature/read", nil, login_token())
+    assert conn.status == 200
+    assert %{"reading" => %{"id" => "temperature", "value" => value}} = decode(conn)
+    assert is_float(value)
+
+    assert request(:post, "/api/v1/sensors/missing/read", nil, login_token()).status == 404
+  end
+
+  test "rejects bad credentials" do
+    assert request(:post, "/api/v1/auth/login", %{"email" => "admin@nerves.local", "password" => "nope"}).status == 401
+  end
+
+  test "graphql answers queries" do
+    conn =
+      conn(:post, "/graphql", Jason.encode!(%{"query" => "{ hello }"}))
+      |> put_req_header("content-type", "application/json")
+      |> Router.call(@opts)
+
+    assert conn.status == 200
+    assert %{"data" => %{"hello" => "Hello, GraphQL!"}} = decode(conn)
+  end
+end
 `,
 
     // README
     'README.md': `# {{projectName}}
 
-Nerves firmware for embedded devices with REST API.
+Nerves firmware for embedded devices with a REST + GraphQL API.
 
 ## Features
 
-- **Nerves**: Embedded Elixir framework
-- **Shoehorn**: Minimal init system
-- **Plug**: HTTP server on device
-- **RingLogger**: System logging
-- **Sensors**: Hardware sensor integration
-- **Firmware**: OTA updates
+- **Nerves**: embedded Elixir framework (firmware for Raspberry Pi and other boards)
+- **Shoehorn**: keeps the device reachable if the application crashes
+- **Plug + Cowboy**: HTTP API running on the device
+- **RingLogger**: in-memory logging on the device
+- **Absinthe**: GraphQL endpoint at \`/graphql\`
+- **Signed bearer tokens** for protected routes
+- **Simulated sensors**: replace \`{{projectNamePascal}}.Sensors.sample/1\` with real hardware access
+
+The project runs on your computer with \`MIX_TARGET=host\` (the default) and builds
+firmware for the boards listed in \`mix.exs\` (\`:rpi0\`, \`:rpi4\`); add more targets by
+adding their \`nerves_system_*\` dependency.
 
 ## Requirements
 
-- Nerves system (Raspberry Pi, BeagleBone, etc.)
-- Elixir 1.15+
-- Erlang/OTP 26+
+- Elixir 1.17+ and Erlang/OTP 26+ on the host (\`mix test\`, \`iex -S mix\`)
+- On a Linux host, a C compiler and the libmnl headers (\`apt install build-essential libmnl-dev\`
+  on Debian and Ubuntu): \`nerves_runtime\` depends on \`nerves_uevent\`, whose C port is
+  compiled for the host too
+- For firmware: the Erlang/OTP major version of the Nerves system you build for
+  (see the system's release notes), the host tools from the
+  [Nerves installation guide](https://nerves.hexdocs.pm/installation.html) and an
+  SSH public key in \`~/.ssh\` (\`config/target.exs\` installs it on the device)
 
-## Quick Start
+## Quick Start (host)
 
 \`\`\`bash
-# Install Nerves
 mix local.hex --force
 mix archive.install hex nerves_bootstrap --force
 
-# Setup environment
-export MIX_TARGET=rpi0
 mix deps.get
-
-# Build firmware
-mix firmware
-
-# Burn to SD card
-mix firmware.burn
+mix test
+iex -S mix   # serves http://localhost:4000
 \`\`\`
+
+## Build firmware
+
+\`\`\`bash
+export MIX_TARGET=rpi0   # or rpi4
+mix deps.get
+mix firmware
+mix burn     # write to an SD card (or: mix upload for over-the-network updates)
+\`\`\`
+
+Firmware built in the default \`dev\` environment uses the development secret and demo
+admin account. For production firmware (\`MIX_ENV=prod mix firmware\`) put a real
+\`:secret_key_base\` in \`config/secrets.exs\` (git-ignored; see \`config/target.exs\`).
+Networking (Ethernet with DHCP, USB gadget, WiFi), SSH and mDNS are configured in
+\`config/target.exs\`; the API is then reachable at \`http://nerves.local:4000\`.
 
 ## API Endpoints
 
 - \`GET /api/v1/health\` - Health check
-- \`POST /api/v1/auth/login\` - Login
+- \`POST /api/v1/auth/login\` - Login (the demo admin \`admin@nerves.local\` / \`admin123\` is seeded in the dev and test environments)
 - \`GET /api/v1/sensors\` - List sensors
-- \`POST /api/v1/sensors/:id/read\` - Read sensor
+- \`POST /api/v1/sensors/:id/read\` - Take a reading (bearer token required)
+- \`POST /graphql\` - GraphQL (\`hello\`, \`health\`, \`sensors\`)
 
 ## License
 

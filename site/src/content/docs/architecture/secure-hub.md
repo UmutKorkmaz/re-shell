@@ -69,18 +69,39 @@ re-shell ui --json
 
 ```json
 {
-  "mode": "static",
-  "url": "http://127.0.0.1:3333",
-  "hubUrl": "http://127.0.0.1:3334",
-  "workspace": "/abs/path/to/monorepo",
-  "open": true
+  "ok": true,
+  "data": {
+    "mode": "static",
+    "workspace": "/abs/path/to/monorepo",
+    "url": "http://127.0.0.1:3333",
+    "hubUrl": "http://127.0.0.1:3334",
+    "hubPort": "3334",
+    "hubToken": "<redacted>",
+    "open": true
+  },
+  "warnings": []
 }
 ```
 
-The dashboard origin (`url`) and the hub (`hubUrl`) are distinct ports, both on
-`127.0.0.1`. The hub receives the dashboard origin so it can build its
-exact-origin allow-list, and it reads its port + per-launch token from the
-environment.
+(Abbreviated.) The dashboard origin (`url`) and the hub (`hubUrl`) are distinct ports,
+both on `127.0.0.1`; the hub URL is pinned to loopback. The hub receives the dashboard
+origin so it can build its exact-origin allow-list, and it reads its port and
+per-launch token from the environment. A printed plan shows the token (and the
+environment variables that carry it) as `<redacted>`: the plan is not launched, and a
+real launch mints a fresh token, so the output is safe to share.
+
+`re-shell ui` waits for the hub to answer a health check and **exits non-zero if it
+does not**, instead of opening a dashboard that has no hub behind it.
+
+## Who else uses the hub
+
+- The **[desktop app](/re-shell/integrations/desktop/)** owns its hub: it starts it on a
+  free loopback port with a fresh token and a stdin pipe so the hub exits if the app
+  does, and adds the webview origin to the exact-origin allow-list.
+- The **[VS Code extension](/re-shell/integrations/vscode/)** can run allow-listed
+  commands through a hub you started.
+- The [control plane](/re-shell/architecture/control-plane/) is the multi-user,
+  networked generalization, with the same registry and the same no-shell rule.
 
 ## Why this design
 

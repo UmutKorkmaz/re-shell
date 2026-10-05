@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 describe('ui test CLI routing', () => {
-  it('reports a missing runner without selecting the dashboard launcher or writing files', () => {
+  it('reports a missing Storybook as UI_TEST_ERROR without selecting the dashboard launcher or writing files', () => {
     const result = spawnSync(process.execPath, [cliPath, 'ui', 'test', '--json'], {
       cwd: workspace,
       encoding: 'utf8',
@@ -28,7 +28,7 @@ describe('ui test CLI routing', () => {
     expect(result.status).toBe(1);
     expect(JSON.parse(result.stdout)).toMatchObject({
       ok: false,
-      error: { code: 'UI_TEST_ERROR', message: expect.stringMatching(/no Storybook runner/i) },
+      error: { code: 'UI_TEST_ERROR', message: expect.stringMatching(/UI tests not run: no Storybook detected/i) },
     });
     expect(result.stderr).not.toMatch(/dashboard|launch/i);
     expect(readdirSync(workspace)).toEqual([]);

@@ -10,772 +10,900 @@ export const wispTemplate: BackendTemplate = {
   language: 'gleam',
   port: 8000,
   tags: ['gleam', 'wisp', 'web', 'api', 'rest', 'beam', 'erlang', 'functional'],
-  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation', 'graphql'],
-  dependencies: {},
-  devDependencies: {},
+  features: ['routing', 'middleware', 'rest-api', 'logging', 'cors', 'validation'],
+  dependencies: {
+    gleam_stdlib: '>= 1.0.0 and < 2.0.0',
+    gleam_http: '>= 4.0.0 and < 5.0.0',
+    gleam_json: '>= 3.0.0 and < 4.0.0',
+    gleam_crypto: '>= 1.5.0 and < 2.0.0',
+    gleam_erlang: '>= 1.0.0 and < 2.0.0',
+    mist: '>= 6.0.0 and < 7.0.0',
+    wisp: '>= 2.2.0 and < 3.0.0'
+  },
+  devDependencies: {
+    gleeunit: '>= 1.0.0 and < 2.0.0'
+  },
   files: {
-    'gleam.toml': `name = "{{projectName}}"
+    'gleam.toml': `name = "{{projectNameSnake}}"
 version = "0.1.0"
 description = "{{description}}"
+target = "erlang"
+# The current gleam_stdlib, gleam_json and gleeunit releases need Gleam 1.14 or later.
+gleam = ">= 1.14.0"
 
 [dependencies]
-gleam_stdlib = "~> 0.34"
-gleam_http = "~> 3.6"
-gleam_json = "~> 1.0"
-gleam_erlang = "~> 0.25"
-gleam_otp = "~> 0.10"
-wisp = "~> 0.14"
-mist = "~> 1.0"
-gwt = "~> 1.0"
-ocaml_graphql_server = "~> 0.14"
+gleam_stdlib = ">= 1.0.0 and < 2.0.0"
+gleam_http = ">= 4.0.0 and < 5.0.0"
+gleam_json = ">= 3.0.0 and < 4.0.0"
+gleam_crypto = ">= 1.5.0 and < 2.0.0"
+gleam_erlang = ">= 1.0.0 and < 2.0.0"
+mist = ">= 6.0.0 and < 7.0.0"
+wisp = ">= 2.2.0 and < 3.0.0"
 
 [dev-dependencies]
-gleeunit = "~> 1.0"
+gleeunit = ">= 1.0.0 and < 2.0.0"
 `,
 
-    'src/{{projectName}}.gleam': `import gleam/erlang/process
-import gleam/io
-import gleam/int
-import gleam/result
-import gleam/option.{type Option, None, Some}
+    // Erlang FFI: ETS tables for the in-memory data, environment variables and the clock
+    'src/{{projectNameSnake}}_ffi.erl': `-module({{projectNameSnake}}_ffi).
+-export([init/0, insert/3, insert_new/3, lookup/2, values/1, delete/2, next_id/1, getenv/1, now_seconds/0]).
+
+-define(TABLES, [users, emails, items, counters]).
+
+%% Creates the ETS tables in a long-lived owner process (a table is deleted
+%% when the process that created it exits). Safe to call more than once.
+init() ->
+    case ets:whereis(users) of
+        undefined ->
+            Parent = self(),
+            Ref = make_ref(),
+            spawn(fun() ->
+                lists:foreach(
+                    fun(Table) ->
+                        try
+                            ets:new(Table, [named_table, public, set])
+                        catch
+                            error:badarg -> ok
+                        end
+                    end,
+                    ?TABLES
+                ),
+                Parent ! {Ref, ready},
+                receive
+                    stop -> ok
+                end
+            end),
+            receive
+                {Ref, ready} -> nil
+            end;
+        _ ->
+            nil
+    end.
+
+table(Name) -> binary_to_existing_atom(Name, utf8).
+
+insert(Table, Key, Value) ->
+    ets:insert(table(Table), {Key, Value}),
+    nil.
+
+insert_new(Table, Key, Value) ->
+    ets:insert_new(table(Table), {Key, Value}).
+
+lookup(Table, Key) ->
+    case ets:lookup(table(Table), Key) of
+        [{_, Value}] -> {ok, Value};
+        [] -> {error, nil}
+    end.
+
+values(Table) ->
+    [Value || {_, Value} <- ets:tab2list(table(Table))].
+
+delete(Table, Key) ->
+    ets:delete(table(Table), Key),
+    nil.
+
+next_id(Name) ->
+    ets:update_counter(counters, Name, 1, {Name, 0}).
+
+getenv(Name) ->
+    case os:getenv(binary_to_list(Name)) of
+        false -> {error, nil};
+        Value -> {ok, unicode:characters_to_binary(Value)}
+    end.
+
+now_seconds() ->
+    erlang:system_time(second).
+`,
+
+    'src/{{projectNameSnake}}.gleam': `import gleam/erlang/process
 import mist
-import wisp.{type Request, type Response}
+import wisp
 import wisp/wisp_mist
 
-import {{projectName}}/router
-import {{projectName}}/config
+import {{projectNameSnake}}/config
+import {{projectNameSnake}}/router
+import {{projectNameSnake}}/store
 
-pub fn main() {
+pub fn main() -> Nil {
   wisp.configure_logger()
+  store.init()
 
-  let secret_key_base = config.get_secret_key()
-  let port = config.get_port()
-
+  // Mist listens on localhost unless told otherwise; bind every interface so
+  // the server is reachable from outside a container. Mist logs the address.
   let assert Ok(_) =
-    wisp_mist.handler(router.handle_request, secret_key_base)
+    wisp_mist.handler(router.handle_request, config.secret_key_base())
     |> mist.new
-    |> mist.port(port)
-    |> mist.start_http
-
-  io.println("🚀 {{projectName}} server starting on http://localhost:" <> int.to_string(port))
+    |> mist.bind("0.0.0.0")
+    |> mist.port(config.port())
+    |> mist.start
 
   process.sleep_forever()
 }
 `,
 
-    'src/{{projectName}}/config.gleam': `import gleam/erlang/os
-import gleam/int
+    'src/{{projectNameSnake}}/config.gleam': `import gleam/int
 import gleam/result
 
-pub fn get_port() -> Int {
-  os.get_env("PORT")
-  |> result.then(int.parse)
+@external(erlang, "{{projectNameSnake}}_ffi", "getenv")
+fn getenv(name: String) -> Result(String, Nil)
+
+pub fn port() -> Int {
+  getenv("PORT")
+  |> result.try(int.parse)
   |> result.unwrap(8000)
 }
 
-pub fn get_secret_key() -> String {
-  os.get_env("SECRET_KEY_BASE")
-  |> result.unwrap("super-secret-key-change-in-production-must-be-at-least-64-characters-long")
-}
-
-pub fn get_jwt_secret() -> String {
-  os.get_env("JWT_SECRET")
-  |> result.unwrap("jwt-secret-key-change-in-production")
+/// Signs cookies and bearer tokens. Set SECRET_KEY_BASE in production; the
+/// fallback is a development-only value.
+pub fn secret_key_base() -> String {
+  getenv("SECRET_KEY_BASE")
+  |> result.unwrap(
+    "development-only-secret-key-base-change-me-in-production-0123456789abcdef",
+  )
 }
 `,
 
-    'src/{{projectName}}/router.gleam': `import gleam/http.{Get, Post, Delete, Options}
-import gleam/string_builder
-import gleam/json.{type Json}
-import gleam/int
-import gleam/option.{type Option, None, Some}
+    'src/{{projectNameSnake}}/router.gleam': `import gleam/http.{Get}
+import gleam/json
 import wisp.{type Request, type Response}
 
-import {{projectName}}/handlers/health
-import {{projectName}}/handlers/auth
-import {{projectName}}/handlers/users
-import {{projectName}}/handlers/items
-import {{projectName}}/handlers/graphql
-import {{projectName}}/middleware
+import {{projectNameSnake}}/handlers/auth
+import {{projectNameSnake}}/handlers/health
+import {{projectNameSnake}}/handlers/items
+import {{projectNameSnake}}/handlers/users
+import {{projectNameSnake}}/middleware
+import {{projectNameSnake}}/web
 
 pub fn handle_request(req: Request) -> Response {
-  use req <- middleware.cors(req)
-  use req <- middleware.log_request(req)
+  use req <- middleware.apply(req)
 
   case wisp.path_segments(req) {
-    // GraphQL endpoint
-    ["graphql"] -> graphql.handle(req)
-
-    // Health check
+    [] -> root(req)
     ["health"] -> health.handle(req)
 
-    // API info
-    [] -> handle_root(req)
-
-    // Auth endpoints
     ["api", "auth", "register"] -> auth.register(req)
     ["api", "auth", "login"] -> auth.login(req)
 
-    // User endpoints
-    ["api", "users", "me"] -> users.get_me(req)
-    ["api", "users"] -> users.list_users(req)
-    ["api", "users", id] -> users.get_user(req, id)
+    ["api", "users", "me"] -> users.me(req)
+    ["api", "users"] -> users.index(req)
+    ["api", "users", id] -> users.show(req, id)
 
-    // Item endpoints
-    ["api", "items"] -> items.handle_items(req)
-    ["api", "items", id] -> items.handle_item(req, id)
+    ["api", "items"] -> items.collection(req)
+    ["api", "items", id] -> items.member(req, id)
 
-    // Not found
-    _ -> wisp.not_found()
+    _ -> web.error(404, "not_found", "Not found")
   }
 }
 
-fn handle_root(req: Request) -> Response {
+fn root(req: Request) -> Response {
   case req.method {
-    Get -> {
-      let body =
+    Get ->
+      web.json_response(
         json.object([
           #("name", json.string("{{projectName}}")),
-          #("version", json.string("1.0.0")),
+          #("version", json.string("0.1.0")),
           #("framework", json.string("Wisp")),
           #("language", json.string("Gleam")),
-          #("description", json.string("{{description}}"))])
-        |> json.to_string_builder
-
-      wisp.json_response(body, 200)
-    }
-    Options -> wisp.response(204)
-    _ -> wisp.method_not_allowed([Get, Options])
+        ]),
+        200,
+      )
+    _ -> wisp.method_not_allowed([Get])
   }
 }
 `,
 
-    'src/{{projectName}}/middleware.gleam': `import gleam/http.{Options}
-import gleam/io
+    'src/{{projectNameSnake}}/middleware.gleam': `import gleam/http.{Options}
+import gleam/http/response
 import wisp.{type Request, type Response}
 
-pub fn cors(
-  req: Request,
-  handler: fn(Request) -> Response,
-) -> Response {
-  let response = handler(req)
+/// Request logging, crash recovery and CORS, applied to every request.
+pub fn apply(req: Request, next: fn(Request) -> Response) -> Response {
+  use <- wisp.log_request(req)
+  use <- wisp.rescue_crashes
 
-  response
-  |> wisp.set_header("Access-Control-Allow-Origin", "*")
-  |> wisp.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-  |> wisp.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-}
-
-pub fn log_request(
-  req: Request,
-  handler: fn(Request) -> Response,
-) -> Response {
-  let method = http_method_to_string(req.method)
-  let path = wisp.path_segments(req) |> string_join("/")
-  io.println("[" <> method <> "] /" <> path)
-  handler(req)
-}
-
-fn http_method_to_string(method: http.Method) -> String {
-  case method {
-    http.Get -> "GET"
-    http.Post -> "POST"
-    http.Put -> "PUT"
-    http.Delete -> "DELETE"
-    http.Patch -> "PATCH"
-    http.Options -> "OPTIONS"
-    http.Head -> "HEAD"
-    http.Connect -> "CONNECT"
-    http.Trace -> "TRACE"
-    http.Other(s) -> s
+  let resp = case req.method {
+    // Answer CORS pre-flight requests directly.
+    Options -> wisp.response(204)
+    _ -> next(req)
   }
+
+  cors(resp)
 }
 
-fn string_join(list: List(String), separator: String) -> String {
-  case list {
-    [] -> ""
-    [first, ..rest] ->
-      case rest {
-        [] -> first
-        _ -> first <> separator <> string_join(rest, separator)
-      }
-  }
+fn cors(resp: Response) -> Response {
+  resp
+  |> response.set_header("access-control-allow-origin", "*")
+  |> response.set_header(
+    "access-control-allow-methods",
+    "GET, POST, DELETE, OPTIONS",
+  )
+  |> response.set_header(
+    "access-control-allow-headers",
+    "content-type, authorization",
+  )
 }
 `,
 
-    'src/{{projectName}}/handlers/health.gleam': `import gleam/http.{Get, Options}
-import gleam/json
+    'src/{{projectNameSnake}}/web.gleam': `import gleam/http/request
+import gleam/http/response
+import gleam/json.{type Json}
+import gleam/result
 import wisp.{type Request, type Response}
 
-pub fn handle(req: Request) -> Response {
-  case req.method {
-    Get -> {
-      let body =
-        json.object([
-          #("status", json.string("healthy")),
-          #("timestamp", json.string("now"))])
-        |> json.to_string_builder
+import {{projectNameSnake}}/accounts
+import {{projectNameSnake}}/auth_token
+import {{projectNameSnake}}/config
+import {{projectNameSnake}}/store.{type Item, type User}
 
-      wisp.json_response(body, 200)
-    }
-    Options -> wisp.response(204)
-    _ -> wisp.method_not_allowed([Get, Options])
-  }
-}
-`,
-
-    'src/{{projectName}}/graphql_schema.gleam': `import gleam/json
-
-// Minimal GraphQL schema definition: Query { hello: String!, health: String! }
-// ocaml-graphql-server is exposed via the BEAM FFI; the schema is described as
-// a data structure here and executed through the graphql handler.
-
-pub const schema_sdl = "
-type Query {
-  hello: String!
-  health: String!
-}
-"
-
-pub fn resolve_hello() -> String {
-  "Hello from GraphQL!"
+pub fn json_response(body: Json, status: Int) -> Response {
+  wisp.response(status)
+  |> response.set_header("content-type", "application/json; charset=utf-8")
+  |> wisp.string_body(json.to_string(body))
 }
 
-pub fn resolve_health() -> String {
-  "healthy"
+pub fn error(status: Int, code: String, message: String) -> Response {
+  json_response(
+    json.object([
+      #("error", json.string(code)),
+      #("message", json.string(message)),
+    ]),
+    status,
+  )
 }
 
-pub fn schema_json() -> String {
+pub fn unauthorized() -> Response {
+  error(401, "unauthorized", "Authentication required")
+}
+
+pub fn user_json(user: User) -> Json {
   json.object([
-    #("hello", json.string(resolve_hello())),
-    #("health", json.string(resolve_health())),
+    #("id", json.int(user.id)),
+    #("email", json.string(user.email)),
+    #("name", json.string(user.name)),
   ])
-  |> json.to_string
+}
+
+pub fn item_json(item: Item) -> Json {
+  json.object([
+    #("id", json.int(item.id)),
+    #("name", json.string(item.name)),
+    #("description", json.string(item.description)),
+    #("user_id", json.int(item.user_id)),
+  ])
+}
+
+/// The user a request's "Authorization: Bearer <token>" header belongs to.
+pub fn current_user(req: Request) -> Result(User, Nil) {
+  use header <- result.try(request.get_header(req, "authorization"))
+  case header {
+    "Bearer " <> bearer -> {
+      use user_id <- result.try(auth_token.verify(
+        bearer,
+        config.secret_key_base(),
+      ))
+      accounts.find_user(user_id)
+    }
+    _ -> Error(Nil)
+  }
 }
 `,
 
-    'src/{{projectName}}/handlers/graphql.gleam': `import gleam/http.{Post, Options}
-import gleam/json
-import wisp.{type Request, type Response}
-
-import {{projectName}}/graphql_schema
-
-pub fn handle(req: Request) -> Response {
-  case req.method {
-    Post -> handle_query(req)
-    Options -> wisp.response(204)
-    _ -> wisp.method_not_allowed([Post, Options])
-  }
-}
-
-fn handle_query(req: Request) -> Response {
-  use _body <- wisp.require_json(req)
-
-  // Execute the minimal schema (hello, health) and return the result.
-  let body =
-    json.object([
-      #("data", json.decode(graphql_schema.schema_json())
-        |> result.unwrap(json.null())),
-    ])
-    |> json.to_string_builder
-
-  wisp.json_response(body, 200)
-}
-
+    'src/{{projectNameSnake}}/store.gleam': `import gleam/int
+import gleam/list
 import gleam/result
-`,
 
-    'src/{{projectName}}/handlers/auth.gleam': `import gleam/http.{Post, Options}
-import gleam/json
-import gleam/dynamic
-import gleam/result
-import gleam/option.{type Option, None, Some}
-import wisp.{type Request, type Response}
-
-import {{projectName}}/db
-import {{projectName}}/jwt
-
-pub fn register(req: Request) -> Response {
-  case req.method {
-    Post -> handle_register(req)
-    Options -> wisp.response(204)
-    _ -> wisp.method_not_allowed([Post, Options])
-  }
-}
-
-pub fn login(req: Request) -> Response {
-  case req.method {
-    Post -> handle_login(req)
-    Options -> wisp.response(204)
-    _ -> wisp.method_not_allowed([Post, Options])
-  }
-}
-
-fn handle_register(req: Request) -> Response {
-  use body <- wisp.require_json(req)
-
-  let decoder =
-    dynamic.decode3(
-      fn(email, name, password) { #(email, name, password) },
-      dynamic.field("email", dynamic.string),
-      dynamic.field("name", dynamic.string),
-      dynamic.field("password", dynamic.string),
-    )
-
-  case decoder(body) {
-    Ok(#(email, name, password)) -> {
-      case db.find_user_by_email(email) {
-        Some(_) -> {
-          error_response("conflict", "User with this email already exists", 409)
-        }
-        None -> {
-          let user = db.create_user(email, name, password)
-          let response_body =
-            json.object([
-              #("id", json.int(user.id)),
-              #("email", json.string(user.email)),
-              #("name", json.string(user.name))])
-            |> json.to_string_builder
-
-          wisp.json_response(response_body, 201)
-        }
-      }
-    }
-    Error(_) -> {
-      error_response("validation_error", "Email, name and password are required", 400)
-    }
-  }
-}
-
-fn handle_login(req: Request) -> Response {
-  use body <- wisp.require_json(req)
-
-  let decoder =
-    dynamic.decode2(
-      fn(email, password) { #(email, password) },
-      dynamic.field("email", dynamic.string),
-      dynamic.field("password", dynamic.string),
-    )
-
-  case decoder(body) {
-    Ok(#(email, password)) -> {
-      case db.find_user_by_email(email) {
-        Some(user) -> {
-          case db.verify_password(user.id, password) {
-            True -> {
-              let token_response = jwt.generate_token(user.id)
-              let response_body =
-                json.object([
-                  #("token", json.string(token_response.token)),
-                  #("expires_at", json.int(token_response.expires_at))])
-                |> json.to_string_builder
-
-              wisp.json_response(response_body, 200)
-            }
-            False -> {
-              error_response("unauthorized", "Invalid email or password", 401)
-            }
-          }
-        }
-        None -> {
-          error_response("unauthorized", "Invalid email or password", 401)
-        }
-      }
-    }
-    Error(_) -> {
-      error_response("parse_error", "Invalid JSON body", 400)
-    }
-  }
-}
-
-pub fn error_response(error: String, message: String, status: Int) -> Response {
-  let body =
-    json.object([
-      #("error", json.string(error)),
-      #("message", json.string(message))])
-    |> json.to_string_builder
-
-  wisp.json_response(body, status)
-}
-`,
-
-    'src/{{projectName}}/handlers/users.gleam': `import gleam/http.{Get, Options}
-import gleam/json
-import gleam/int
-import gleam/option.{type Option, None, Some}
-import gleam/list
-import wisp.{type Request, type Response}
-
-import {{projectName}}/db
-import {{projectName}}/jwt
-import {{projectName}}/handlers/auth
-
-pub fn get_me(req: Request) -> Response {
-  case req.method {
-    Get -> {
-      case get_auth_user(req) {
-        Some(user) -> {
-          let body =
-            json.object([
-              #("id", json.int(user.id)),
-              #("email", json.string(user.email)),
-              #("name", json.string(user.name))])
-            |> json.to_string_builder
-
-          wisp.json_response(body, 200)
-        }
-        None -> auth.error_response("unauthorized", "Authentication required", 401)
-      }
-    }
-    Options -> wisp.response(204)
-    _ -> wisp.method_not_allowed([Get, Options])
-  }
-}
-
-pub fn list_users(req: Request) -> Response {
-  case req.method {
-    Get -> {
-      case get_auth_user(req) {
-        Some(_) -> {
-          let users = db.get_all_users()
-          let users_json =
-            list.map(users, fn(user) {
-              json.object([
-                #("id", json.int(user.id)),
-                #("email", json.string(user.email)),
-                #("name", json.string(user.name))])
-            })
-
-          let body = json.array(users_json, fn(x) { x }) |> json.to_string_builder
-          wisp.json_response(body, 200)
-        }
-        None -> auth.error_response("unauthorized", "Authentication required", 401)
-      }
-    }
-    Options -> wisp.response(204)
-    _ -> wisp.method_not_allowed([Get, Options])
-  }
-}
-
-pub fn get_user(req: Request, id: String) -> Response {
-  case req.method {
-    Get -> {
-      case get_auth_user(req) {
-        Some(_) -> {
-          case int.parse(id) {
-            Ok(user_id) -> {
-              case db.find_user_by_id(user_id) {
-                Some(user) -> {
-                  let body =
-                    json.object([
-                      #("id", json.int(user.id)),
-                      #("email", json.string(user.email)),
-                      #("name", json.string(user.name))])
-                    |> json.to_string_builder
-
-                  wisp.json_response(body, 200)
-                }
-                None -> auth.error_response("not_found", "User not found", 404)
-              }
-            }
-            Error(_) -> auth.error_response("bad_request", "Invalid user ID", 400)
-          }
-        }
-        None -> auth.error_response("unauthorized", "Authentication required", 401)
-      }
-    }
-    Options -> wisp.response(204)
-    _ -> wisp.method_not_allowed([Get, Options])
-  }
-}
-
-pub fn get_auth_user(req: Request) -> Option(db.User) {
-  case wisp.get_header(req, "authorization") {
-    Some(header) -> {
-      case header {
-        "Bearer " <> token -> {
-          case jwt.verify_token(token) {
-            Some(user_id) -> db.find_user_by_id(user_id)
-            None -> None
-          }
-        }
-        _ -> None
-      }
-    }
-    None -> None
-  }
-}
-`,
-
-    'src/{{projectName}}/handlers/items.gleam': `import gleam/http.{Get, Post, Delete, Options}
-import gleam/json
-import gleam/dynamic
-import gleam/int
-import gleam/option.{type Option, None, Some}
-import gleam/list
-import wisp.{type Request, type Response}
-
-import {{projectName}}/db
-import {{projectName}}/handlers/auth
-import {{projectName}}/handlers/users
-
-pub fn handle_items(req: Request) -> Response {
-  case req.method {
-    Get -> list_items(req)
-    Post -> create_item(req)
-    Options -> wisp.response(204)
-    _ -> wisp.method_not_allowed([Get, Post, Options])
-  }
-}
-
-pub fn handle_item(req: Request, id: String) -> Response {
-  case req.method {
-    Get -> get_item(req, id)
-    Delete -> delete_item(req, id)
-    Options -> wisp.response(204)
-    _ -> wisp.method_not_allowed([Get, Delete, Options])
-  }
-}
-
-fn list_items(req: Request) -> Response {
-  case users.get_auth_user(req) {
-    Some(user) -> {
-      let items = db.get_items_by_user(user.id)
-      let items_json =
-        list.map(items, fn(item) {
-          json.object([
-            #("id", json.int(item.id)),
-            #("name", json.string(item.name)),
-            #("description", json.string(item.description)),
-            #("user_id", json.int(item.user_id))])
-        })
-
-      let body = json.array(items_json, fn(x) { x }) |> json.to_string_builder
-      wisp.json_response(body, 200)
-    }
-    None -> auth.error_response("unauthorized", "Authentication required", 401)
-  }
-}
-
-fn create_item(req: Request) -> Response {
-  case users.get_auth_user(req) {
-    Some(user) -> {
-      use body <- wisp.require_json(req)
-
-      let decoder =
-        dynamic.decode2(
-          fn(name, description) { #(name, description) },
-          dynamic.field("name", dynamic.string),
-          dynamic.optional_field("description", dynamic.string),
-        )
-
-      case decoder(body) {
-        Ok(#(name, description)) -> {
-          let desc = case description {
-            Some(d) -> d
-            None -> ""
-          }
-          let item = db.create_item(name, desc, user.id)
-          let response_body =
-            json.object([
-              #("id", json.int(item.id)),
-              #("name", json.string(item.name)),
-              #("description", json.string(item.description)),
-              #("user_id", json.int(item.user_id))])
-            |> json.to_string_builder
-
-          wisp.json_response(response_body, 201)
-        }
-        Error(_) -> {
-          auth.error_response("validation_error", "Name is required", 400)
-        }
-      }
-    }
-    None -> auth.error_response("unauthorized", "Authentication required", 401)
-  }
-}
-
-fn get_item(req: Request, id: String) -> Response {
-  case users.get_auth_user(req) {
-    Some(user) -> {
-      case int.parse(id) {
-        Ok(item_id) -> {
-          case db.find_item_by_id(item_id, user.id) {
-            Some(item) -> {
-              let body =
-                json.object([
-                  #("id", json.int(item.id)),
-                  #("name", json.string(item.name)),
-                  #("description", json.string(item.description)),
-                  #("user_id", json.int(item.user_id))])
-                |> json.to_string_builder
-
-              wisp.json_response(body, 200)
-            }
-            None -> auth.error_response("not_found", "Item not found", 404)
-          }
-        }
-        Error(_) -> auth.error_response("bad_request", "Invalid item ID", 400)
-      }
-    }
-    None -> auth.error_response("unauthorized", "Authentication required", 401)
-  }
-}
-
-fn delete_item(req: Request, id: String) -> Response {
-  case users.get_auth_user(req) {
-    Some(user) -> {
-      case int.parse(id) {
-        Ok(item_id) -> {
-          case db.delete_item(item_id, user.id) {
-            True -> wisp.response(204)
-            False -> auth.error_response("not_found", "Item not found", 404)
-          }
-        }
-        Error(_) -> auth.error_response("bad_request", "Invalid item ID", 400)
-      }
-    }
-    None -> auth.error_response("unauthorized", "Authentication required", 401)
-  }
-}
-`,
-
-    'src/{{projectName}}/db.gleam': `import gleam/option.{type Option, None, Some}
-import gleam/list
-import gleam/dict.{type Dict}
-
-// Types
+/// An account. The password is stored as a salted, iterated SHA-256 digest.
 pub type User {
-  User(id: Int, email: String, name: String)
+  User(
+    id: Int,
+    email: String,
+    name: String,
+    salt: BitArray,
+    password_hash: BitArray,
+  )
 }
 
 pub type Item {
   Item(id: Int, name: String, description: String, user_id: Int)
 }
 
-// In-memory storage (use process dictionary or ETS in real apps)
-// For simplicity, using module-level state simulation
+// The data lives in ETS tables created by the Erlang FFI module, so it is
+// shared by every request process. Swap this module for a database client
+// (for example pog + PostgreSQL) in a real application.
 
-pub fn create_user(email: String, name: String, _password: String) -> User {
-  // In a real app, you'd store this properly and hash the password
-  let id = next_user_id()
-  User(id: id, email: email, name: name)
+@external(erlang, "{{projectNameSnake}}_ffi", "init")
+pub fn init() -> Nil
+
+@external(erlang, "{{projectNameSnake}}_ffi", "now_seconds")
+pub fn now_seconds() -> Int
+
+@external(erlang, "{{projectNameSnake}}_ffi", "insert")
+fn insert(table: String, key: k, value: v) -> Nil
+
+@external(erlang, "{{projectNameSnake}}_ffi", "insert_new")
+fn insert_new(table: String, key: k, value: v) -> Bool
+
+@external(erlang, "{{projectNameSnake}}_ffi", "lookup")
+fn lookup(table: String, key: k) -> Result(v, Nil)
+
+@external(erlang, "{{projectNameSnake}}_ffi", "values")
+fn values(table: String) -> List(v)
+
+@external(erlang, "{{projectNameSnake}}_ffi", "delete")
+fn delete(table: String, key: k) -> Nil
+
+@external(erlang, "{{projectNameSnake}}_ffi", "next_id")
+fn next_id(name: String) -> Int
+
+// Users
+
+pub fn new_user_id() -> Int {
+  next_id("users")
 }
 
-pub fn find_user_by_email(email: String) -> Option(User) {
-  // Mock implementation - in real app, query database
-  None
+/// Claims an email address for a user id; False when it is already taken.
+pub fn reserve_email(email: String, user_id: Int) -> Bool {
+  insert_new("emails", email, user_id)
 }
 
-pub fn find_user_by_id(id: Int) -> Option(User) {
-  // Mock implementation - in real app, query database
-  None
+pub fn insert_user(user: User) -> Nil {
+  insert("users", user.id, user)
 }
 
-pub fn verify_password(_user_id: Int, _password: String) -> Bool {
-  // Mock implementation - in real app, verify hashed password
-  True
+pub fn get_user(id: Int) -> Result(User, Nil) {
+  lookup("users", id)
 }
 
-pub fn get_all_users() -> List(User) {
-  // Mock implementation
-  []
+pub fn get_user_by_email(email: String) -> Result(User, Nil) {
+  use id <- result.try(lookup("emails", email))
+  get_user(id)
 }
+
+pub fn all_users() -> List(User) {
+  values("users")
+  |> list.sort(fn(a: User, b: User) { int.compare(a.id, b.id) })
+}
+
+// Items
 
 pub fn create_item(name: String, description: String, user_id: Int) -> Item {
-  let id = next_item_id()
-  Item(id: id, name: name, description: description, user_id: user_id)
+  let item =
+    Item(
+      id: next_id("items"),
+      name: name,
+      description: description,
+      user_id: user_id,
+    )
+  insert("items", item.id, item)
+  item
 }
 
-pub fn get_items_by_user(user_id: Int) -> List(Item) {
-  // Mock implementation
-  []
+pub fn get_item(id: Int) -> Result(Item, Nil) {
+  lookup("items", id)
 }
 
-pub fn find_item_by_id(item_id: Int, user_id: Int) -> Option(Item) {
-  // Mock implementation
-  None
+pub fn items_for_user(user_id: Int) -> List(Item) {
+  values("items")
+  |> list.filter(fn(item: Item) { item.user_id == user_id })
+  |> list.sort(fn(a: Item, b: Item) { int.compare(a.id, b.id) })
 }
 
-pub fn delete_item(item_id: Int, user_id: Int) -> Bool {
-  // Mock implementation
-  False
-}
-
-// Helper functions for ID generation
-fn next_user_id() -> Int {
-  // In a real app, use proper ID generation
-  1
-}
-
-fn next_item_id() -> Int {
-  // In a real app, use proper ID generation
-  1
+pub fn delete_item(id: Int) -> Nil {
+  delete("items", id)
 }
 `,
 
-    'src/{{projectName}}/jwt.gleam': `import gleam/option.{type Option, None, Some}
-import gleam/int
+    'src/{{projectNameSnake}}/accounts.gleam': `import gleam/bit_array
+import gleam/crypto
 import gleam/string
 
-import {{projectName}}/config
+import {{projectNameSnake}}/store.{type User, User}
 
-pub type TokenResponse {
-  TokenResponse(token: String, expires_at: Int)
+pub type RegisterError {
+  EmailTaken
+  InvalidInput
 }
 
-pub fn generate_token(user_id: Int) -> TokenResponse {
-  // In a real app, use the gwt library properly
-  let token = "mock_token_for_user_" <> int.to_string(user_id)
-  let expires_at = 9999999999  // Far future timestamp
+const hash_rounds = 20_000
 
-  TokenResponse(token: token, expires_at: expires_at)
-}
-
-pub fn verify_token(token: String) -> Option(Int) {
-  // Mock implementation - in real app, properly verify JWT
-  case string.starts_with(token, "mock_token_for_user_") {
+pub fn register(
+  email: String,
+  name: String,
+  password: String,
+) -> Result(User, RegisterError) {
+  let email = normalize(email)
+  case valid_input(email, name, password) {
+    False -> Error(InvalidInput)
     True -> {
-      let user_id_str = string.drop_left(token, 20)
-      case int.parse(user_id_str) {
-        Ok(id) -> Some(id)
-        Error(_) -> None
+      let id = store.new_user_id()
+      case store.reserve_email(email, id) {
+        False -> Error(EmailTaken)
+        True -> {
+          let salt = crypto.strong_random_bytes(16)
+          let user =
+            User(
+              id: id,
+              email: email,
+              name: string.trim(name),
+              salt: salt,
+              password_hash: hash_password(password, salt),
+            )
+          store.insert_user(user)
+          Ok(user)
+        }
       }
     }
-    False -> None
+  }
+}
+
+/// Checks an email and password; the same error for an unknown email and a
+/// wrong password.
+pub fn authenticate(email: String, password: String) -> Result(User, Nil) {
+  case store.get_user_by_email(normalize(email)) {
+    Ok(user) ->
+      case
+        crypto.secure_compare(
+          user.password_hash,
+          hash_password(password, user.salt),
+        )
+      {
+        True -> Ok(user)
+        False -> Error(Nil)
+      }
+    Error(Nil) -> Error(Nil)
+  }
+}
+
+pub fn find_user(id: Int) -> Result(User, Nil) {
+  store.get_user(id)
+}
+
+fn normalize(email: String) -> String {
+  email |> string.trim |> string.lowercase
+}
+
+fn valid_input(email: String, name: String, password: String) -> Bool {
+  string.contains(email, "@")
+  && string.trim(name) != ""
+  && string.length(password) >= 8
+}
+
+// Salted and iterated SHA-256. Fine for a template; use a memory-hard
+// function such as argon2id (via an Erlang/Elixir library) in production.
+fn hash_password(password: String, salt: BitArray) -> BitArray {
+  stretch(bit_array.from_string(password), salt, hash_rounds)
+}
+
+fn stretch(digest: BitArray, salt: BitArray, remaining: Int) -> BitArray {
+  case remaining <= 0 {
+    True -> digest
+    False ->
+      stretch(
+        crypto.hash(crypto.Sha256, bit_array.concat([salt, digest])),
+        salt,
+        remaining - 1,
+      )
   }
 }
 `,
 
-    'test/{{projectName}}_test.gleam': `import gleeunit
-import gleeunit/should
+    'src/{{projectNameSnake}}/auth_token.gleam': `import gleam/bit_array
+import gleam/crypto
+import gleam/int
+import gleam/result
+import gleam/string
 
-pub fn main() {
+import {{projectNameSnake}}/store
+
+// Tokens are valid for one day.
+const lifetime_seconds = 86_400
+
+/// A signed bearer token "<user id>:<expiry>" and its expiry (unix seconds).
+pub fn issue(user_id: Int, secret: String) -> #(String, Int) {
+  let expires_at = store.now_seconds() + lifetime_seconds
+  let payload = int.to_string(user_id) <> ":" <> int.to_string(expires_at)
+  let token =
+    crypto.sign_message(
+      bit_array.from_string(payload),
+      bit_array.from_string(secret),
+      crypto.Sha256,
+    )
+  #(token, expires_at)
+}
+
+/// The user id inside a token, if the signature is valid and it has not expired.
+pub fn verify(token: String, secret: String) -> Result(Int, Nil) {
+  use signed <- result.try(crypto.verify_signed_message(
+    token,
+    bit_array.from_string(secret),
+  ))
+  use payload <- result.try(bit_array.to_string(signed))
+  case string.split(payload, ":") {
+    [user_id, expires_at] -> {
+      use user_id <- result.try(int.parse(user_id))
+      use expires_at <- result.try(int.parse(expires_at))
+      case expires_at > store.now_seconds() {
+        True -> Ok(user_id)
+        False -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
+  }
+}
+`,
+
+    'src/{{projectNameSnake}}/handlers/health.gleam': `import gleam/http.{Get}
+import gleam/json
+import wisp.{type Request, type Response}
+
+import {{projectNameSnake}}/store
+import {{projectNameSnake}}/web
+
+pub fn handle(req: Request) -> Response {
+  case req.method {
+    Get ->
+      web.json_response(
+        json.object([
+          #("status", json.string("healthy")),
+          #("timestamp", json.int(store.now_seconds())),
+        ]),
+        200,
+      )
+    _ -> wisp.method_not_allowed([Get])
+  }
+}
+`,
+
+    'src/{{projectNameSnake}}/handlers/auth.gleam': `import gleam/dynamic/decode
+import gleam/http.{Post}
+import gleam/json
+import wisp.{type Request, type Response}
+
+import {{projectNameSnake}}/accounts
+import {{projectNameSnake}}/auth_token
+import {{projectNameSnake}}/config
+import {{projectNameSnake}}/store.{type User}
+import {{projectNameSnake}}/web
+
+pub fn register(req: Request) -> Response {
+  case req.method {
+    Post -> handle_register(req)
+    _ -> wisp.method_not_allowed([Post])
+  }
+}
+
+pub fn login(req: Request) -> Response {
+  case req.method {
+    Post -> handle_login(req)
+    _ -> wisp.method_not_allowed([Post])
+  }
+}
+
+type Registration {
+  Registration(email: String, name: String, password: String)
+}
+
+type Credentials {
+  Credentials(email: String, password: String)
+}
+
+fn handle_register(req: Request) -> Response {
+  use body <- wisp.require_json(req)
+
+  let decoder = {
+    use email <- decode.field("email", decode.string)
+    use name <- decode.field("name", decode.string)
+    use password <- decode.field("password", decode.string)
+    decode.success(Registration(email: email, name: name, password: password))
+  }
+
+  case decode.run(body, decoder) {
+    Error(_) ->
+      web.error(
+        400,
+        "validation_error",
+        "email, name and password are required",
+      )
+    Ok(registration) ->
+      case
+        accounts.register(
+          registration.email,
+          registration.name,
+          registration.password,
+        )
+      {
+        Ok(user) -> token_response(user, 201)
+        Error(accounts.EmailTaken) ->
+          web.error(409, "conflict", "A user with this email already exists")
+        Error(accounts.InvalidInput) ->
+          web.error(
+            422,
+            "validation_error",
+            "A valid email, a name and a password of at least 8 characters are required",
+          )
+      }
+  }
+}
+
+fn handle_login(req: Request) -> Response {
+  use body <- wisp.require_json(req)
+
+  let decoder = {
+    use email <- decode.field("email", decode.string)
+    use password <- decode.field("password", decode.string)
+    decode.success(Credentials(email: email, password: password))
+  }
+
+  case decode.run(body, decoder) {
+    Error(_) ->
+      web.error(400, "validation_error", "email and password are required")
+    Ok(credentials) ->
+      case accounts.authenticate(credentials.email, credentials.password) {
+        Ok(user) -> token_response(user, 200)
+        Error(_) ->
+          web.error(401, "unauthorized", "Invalid email or password")
+      }
+  }
+}
+
+fn token_response(user: User, status: Int) -> Response {
+  let #(token, expires_at) = auth_token.issue(user.id, config.secret_key_base())
+  web.json_response(
+    json.object([
+      #("token", json.string(token)),
+      #("expires_at", json.int(expires_at)),
+      #("user", web.user_json(user)),
+    ]),
+    status,
+  )
+}
+`,
+
+    'src/{{projectNameSnake}}/handlers/users.gleam': `import gleam/http.{Get}
+import gleam/int
+import gleam/json
+import wisp.{type Request, type Response}
+
+import {{projectNameSnake}}/accounts
+import {{projectNameSnake}}/store
+import {{projectNameSnake}}/web
+
+pub fn me(req: Request) -> Response {
+  case req.method {
+    Get ->
+      case web.current_user(req) {
+        Ok(user) -> web.json_response(web.user_json(user), 200)
+        Error(_) -> web.unauthorized()
+      }
+    _ -> wisp.method_not_allowed([Get])
+  }
+}
+
+pub fn index(req: Request) -> Response {
+  case req.method {
+    Get ->
+      case web.current_user(req) {
+        Ok(_) ->
+          web.json_response(
+            json.array(store.all_users(), web.user_json),
+            200,
+          )
+        Error(_) -> web.unauthorized()
+      }
+    _ -> wisp.method_not_allowed([Get])
+  }
+}
+
+pub fn show(req: Request, id: String) -> Response {
+  case req.method {
+    Get ->
+      case web.current_user(req) {
+        Error(_) -> web.unauthorized()
+        Ok(_) ->
+          case int.parse(id) {
+            Error(_) -> web.error(400, "bad_request", "Invalid user id")
+            Ok(user_id) ->
+              case accounts.find_user(user_id) {
+                Ok(user) -> web.json_response(web.user_json(user), 200)
+                Error(_) -> web.error(404, "not_found", "User not found")
+              }
+          }
+      }
+    _ -> wisp.method_not_allowed([Get])
+  }
+}
+`,
+
+    'src/{{projectNameSnake}}/handlers/items.gleam': `import gleam/dynamic/decode
+import gleam/http.{Delete, Get, Post}
+import gleam/int
+import gleam/json
+import wisp.{type Request, type Response}
+
+import {{projectNameSnake}}/store.{type User}
+import {{projectNameSnake}}/web
+
+/// /api/items
+pub fn collection(req: Request) -> Response {
+  case req.method {
+    Get -> with_user(req, list_items)
+    Post -> with_user(req, fn(user) { create_item(req, user) })
+    _ -> wisp.method_not_allowed([Get, Post])
+  }
+}
+
+/// /api/items/:id
+pub fn member(req: Request, id: String) -> Response {
+  case req.method {
+    Get -> with_user(req, fn(user) { with_item(id, user, show_item) })
+    Delete -> with_user(req, fn(user) { with_item(id, user, delete_item) })
+    _ -> wisp.method_not_allowed([Get, Delete])
+  }
+}
+
+fn with_user(req: Request, next: fn(User) -> Response) -> Response {
+  case web.current_user(req) {
+    Ok(user) -> next(user)
+    Error(_) -> web.unauthorized()
+  }
+}
+
+// Looks an item up by its path segment; items are private to their owner, so
+// someone else's item is reported as not found.
+fn with_item(
+  id: String,
+  user: User,
+  next: fn(store.Item) -> Response,
+) -> Response {
+  case int.parse(id) {
+    Error(_) -> web.error(400, "bad_request", "Invalid item id")
+    Ok(item_id) ->
+      case store.get_item(item_id) {
+        Ok(item) ->
+          case item.user_id == user.id {
+            True -> next(item)
+            False -> web.error(404, "not_found", "Item not found")
+          }
+        Error(_) -> web.error(404, "not_found", "Item not found")
+      }
+  }
+}
+
+fn list_items(user: User) -> Response {
+  web.json_response(json.array(store.items_for_user(user.id), web.item_json), 200)
+}
+
+fn create_item(req: Request, user: User) -> Response {
+  use body <- wisp.require_json(req)
+
+  let decoder = {
+    use name <- decode.field("name", decode.string)
+    use description <- decode.optional_field("description", "", decode.string)
+    decode.success(#(name, description))
+  }
+
+  case decode.run(body, decoder) {
+    Ok(#(name, description)) ->
+      case name {
+        "" -> web.error(422, "validation_error", "name must not be empty")
+        _ -> {
+          let item = store.create_item(name, description, user.id)
+          web.json_response(web.item_json(item), 201)
+        }
+      }
+    Error(_) -> web.error(400, "validation_error", "name is required")
+  }
+}
+
+fn show_item(item: store.Item) -> Response {
+  web.json_response(web.item_json(item), 200)
+}
+
+fn delete_item(item: store.Item) -> Response {
+  store.delete_item(item.id)
+  wisp.response(204)
+}
+`,
+
+    'test/{{projectNameSnake}}_test.gleam': `import gleam/http
+import gleam/http/request
+import gleeunit
+import wisp/simulate
+
+import {{projectNameSnake}}/accounts
+import {{projectNameSnake}}/auth_token
+import {{projectNameSnake}}/config
+import {{projectNameSnake}}/router
+import {{projectNameSnake}}/store
+
+pub fn main() -> Nil {
+  store.init()
   gleeunit.main()
 }
 
-pub fn hello_world_test() {
-  1
-  |> should.equal(1)
+pub fn health_test() {
+  let response = router.handle_request(simulate.request(http.Get, "/health"))
+  assert response.status == 200
 }
 
-pub fn health_endpoint_test() {
-  // Add proper HTTP testing
-  True
-  |> should.be_true
+pub fn unknown_route_test() {
+  let response = router.handle_request(simulate.request(http.Get, "/nope"))
+  assert response.status == 404
+}
+
+pub fn protected_route_requires_a_token_test() {
+  let response =
+    router.handle_request(simulate.request(http.Get, "/api/users/me"))
+  assert response.status == 401
+}
+
+pub fn register_and_authenticate_test() {
+  let assert Ok(user) =
+    accounts.register("ann@example.com", "Ann", "correct horse")
+  assert user.email == "ann@example.com"
+
+  assert accounts.register("Ann@Example.com", "Ann", "correct horse")
+    == Error(accounts.EmailTaken)
+  assert accounts.register("short@example.com", "Shorty", "short")
+    == Error(accounts.InvalidInput)
+
+  let assert Ok(found) = accounts.authenticate("ann@example.com", "correct horse")
+  assert found.id == user.id
+  assert accounts.authenticate("ann@example.com", "wrong password") == Error(Nil)
+  assert accounts.authenticate("nobody@example.com", "correct horse") == Error(Nil)
+}
+
+pub fn token_round_trip_test() {
+  let #(token, _expires_at) = auth_token.issue(42, "secret")
+  assert auth_token.verify(token, "secret") == Ok(42)
+  assert auth_token.verify(token, "another secret") == Error(Nil)
+  assert auth_token.verify("not a token", "secret") == Error(Nil)
+}
+
+pub fn bearer_token_grants_access_test() {
+  let assert Ok(user) =
+    accounts.register("bob@example.com", "Bob", "battery staple")
+  let #(token, _expires_at) =
+    auth_token.issue(user.id, config.secret_key_base())
+
+  let response =
+    simulate.request(http.Get, "/api/users/me")
+    |> request.set_header("authorization", "Bearer " <> token)
+    |> router.handle_request
+  assert response.status == 200
+
+  let _item = store.create_item("Notebook", "", user.id)
+  let response =
+    simulate.request(http.Get, "/api/items")
+    |> request.set_header("authorization", "Bearer " <> token)
+    |> router.handle_request
+  assert response.status == 200
 }
 `,
 
-    '.env': `# Environment Configuration
+    '.env.example': `# Environment configuration (the app reads these from the process environment)
 PORT=8000
-SECRET_KEY_BASE=super-secret-key-change-in-production-must-be-at-least-64-characters-long
-JWT_SECRET=jwt-secret-key-change-in-production
-`,
-
-    '.env.example': `# Environment Configuration
-PORT=8000
-SECRET_KEY_BASE=super-secret-key-change-in-production-must-be-at-least-64-characters-long
-JWT_SECRET=jwt-secret-key-change-in-production
+SECRET_KEY_BASE=replace-with-a-long-random-string-of-at-least-64-characters
 `,
 
     '.gitignore': `# Gleam build artifacts
@@ -800,90 +928,41 @@ Thumbs.db
 logs/
 `,
 
-    'Makefile': `# {{projectName}} Makefile
+    'Dockerfile': `# The runtime stage uses the same image as the build stage so the Erlang/OTP
+# release that compiled the BEAM files is the one that runs them.
+ARG GLEAM_IMAGE=ghcr.io/gleam-lang/gleam:v1.14.0-erlang-alpine
 
-.PHONY: all build run test clean deps
-
-all: build
-
-# Install dependencies
-deps:
-	gleam deps download
-
-# Build the project
-build: deps
-	gleam build
-
-# Run the server
-run:
-	gleam run
-
-# Run tests
-test:
-	gleam test
-
-# Clean build artifacts
-clean:
-	rm -rf build/
-
-# Format code
-fmt:
-	gleam format
-
-# Check formatting
-check-fmt:
-	gleam format --check
-
-# Docker commands
-docker-build:
-	docker build -t {{projectName}} .
-
-docker-run:
-	docker run -p 8000:8000 --env-file .env {{projectName}}
-`,
-
-    'Dockerfile': `# Build stage
-FROM ghcr.io/gleam-lang/gleam:v1.0.0-erlang-alpine AS builder
+# Build stage
+FROM \${GLEAM_IMAGE} AS builder
 
 WORKDIR /app
-
-# Copy project files
 COPY . .
-
-# Build release
 RUN gleam export erlang-shipment
 
 # Runtime stage
-FROM erlang:26-alpine
+FROM \${GLEAM_IMAGE}
 
 WORKDIR /app
-
-# Copy built application
 COPY --from=builder /app/build/erlang-shipment ./
 
-# Create non-root user
 RUN adduser -D -g '' appuser
 USER appuser
 
 EXPOSE 8000
-
 ENV PORT=8000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["run"]
 `,
 
-    'docker-compose.yml': `version: '3.8'
-
-services:
+    'docker-compose.yml': `services:
   app:
     build: .
     ports:
       - "8000:8000"
     environment:
       - PORT=8000
-      - SECRET_KEY_BASE=\${SECRET_KEY_BASE:-super-secret-key-change-in-production-must-be-at-least-64-characters-long}
-      - JWT_SECRET=\${JWT_SECRET:-development-secret}
+      - SECRET_KEY_BASE=\${SECRET_KEY_BASE:?set SECRET_KEY_BASE}
     restart: unless-stopped
 `,
 
@@ -891,47 +970,33 @@ services:
 
 {{description}}
 
-A Gleam web application built with the Wisp framework, running on the BEAM.
+A Gleam web application built with the Wisp framework (served by Mist), running on the BEAM.
 
 ## Features
 
-- 🚀 Type-safe web server on the BEAM
-- 🔐 JWT authentication
-- 📝 Full REST API with CRUD operations
-- 🧪 Test suite included
-- 🐳 Docker support
-- ⚡ Erlang/OTP fault tolerance
+- Type-safe routing, request logging, crash recovery and CORS
+- Signed bearer-token authentication (expires after 24 hours)
+- REST API with JSON validation (\`gleam/dynamic/decode\`)
+- In-memory data in ETS tables (replace \`store.gleam\` with a database client)
+- Tests with gleeunit and \`wisp/simulate\`
+- Docker support
 
 ## Requirements
 
-- Gleam >= 1.0.0
-- Erlang >= 26
+- Gleam >= 1.14
+- Erlang/OTP 27+ (\`gleam_json\` uses the \`json\` module added in OTP 27)
+- rebar3 (Gleam uses it to compile the Erlang dependencies)
 
-## Installation
+## Getting started
 
 \`\`\`bash
-# Install dependencies
 gleam deps download
-
-# Build the project
-gleam build
-
-# Run the server
-gleam run
+gleam test
+gleam run   # http://localhost:8000
 \`\`\`
 
-## Development
-
-\`\`\`bash
-# Run in development mode
-make run
-
-# Run tests
-make test
-
-# Format code
-make fmt
-\`\`\`
+Set \`SECRET_KEY_BASE\` (64+ random characters) and optionally \`PORT\` in the environment.
+Without \`SECRET_KEY_BASE\` a development-only key is used.
 
 ## API Endpoints
 
@@ -939,48 +1004,48 @@ make fmt
 
 - \`GET /\` - API info
 - \`GET /health\` - Health check
-- \`POST /api/auth/register\` - Register new user
-- \`POST /api/auth/login\` - Login and get JWT token
+- \`POST /api/auth/register\` - Register (\`email\`, \`name\`, \`password\` of 8+ characters); returns a token
+- \`POST /api/auth/login\` - Login (\`email\`, \`password\`); returns a token
 
-### Protected (requires JWT)
+### Protected (\`Authorization: Bearer <token>\`)
 
-- \`GET /api/users/me\` - Get current user
-- \`GET /api/users\` - List all users
-- \`GET /api/users/:id\` - Get user by ID
-- \`GET /api/items\` - List user's items
-- \`POST /api/items\` - Create new item
-- \`GET /api/items/:id\` - Get item by ID
-- \`DELETE /api/items/:id\` - Delete item
+- \`GET /api/users/me\` - Current user
+- \`GET /api/users\` - List users
+- \`GET /api/users/:id\` - Get a user
+- \`GET /api/items\` - List your items
+- \`POST /api/items\` - Create an item (\`name\`, optional \`description\`)
+- \`GET /api/items/:id\` - Get one of your items
+- \`DELETE /api/items/:id\` - Delete one of your items
 
 ## Docker
 
 \`\`\`bash
-# Build image
 docker build -t {{projectName}} .
-
-# Run container
-docker run -p 8000:8000 {{projectName}}
-
-# Or use docker-compose
-docker-compose up -d
+docker run -p 8000:8000 -e SECRET_KEY_BASE=change-me {{projectName}}
 \`\`\`
 
 ## License
 
 MIT
-`},
+`
+  },
   prompts: [
     {
       type: 'input',
       name: 'projectName',
       message: 'Project name:',
-      default: 'my-wisp-app'},
+      default: 'my-wisp-app'
+    },
     {
       type: 'input',
       name: 'description',
       message: 'Project description:',
-      default: 'A Gleam web application built with Wisp'}],
+      default: 'A Gleam web application built with Wisp'
+    }
+  ],
   postInstall: [
     'gleam deps download',
-    'echo "✨ {{projectName}} is ready!"',
-    'echo "Run: gleam run"']};
+    'echo "{{projectName}} is ready!"',
+    'echo "Run: gleam run"'
+  ]
+};

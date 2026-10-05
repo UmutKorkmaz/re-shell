@@ -1,0 +1,590 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`command tree > matches the committed command-path snapshot 1`] = `
+"add
+agents check
+agents init
+agents sync
+ai
+ai cache clear
+ai cache stats
+ai config get
+ai config set
+ai config show
+ai config unset
+ai create
+ai session clear
+ai session list
+ai session show
+ai suggest
+analyze
+api analytics docker-compose
+api analytics generate
+api analytics list-frameworks
+api analytics list-providers
+api analytics template
+api client generate
+api client list
+api client sdk
+api client types
+api client validate
+api docs generate
+api docs preview
+api docs serve
+api docs themes
+api gateway docker-compose
+api gateway generate
+api gateway list
+api gateway template
+api openapi annotate
+api openapi discover
+api openapi generate
+api openapi list-frameworks
+api swagger generate
+api swagger list-services
+api swagger multi-service
+api swagger themes
+api test config
+api test contract
+api test generate
+api test integration
+api test list-frameworks
+api test load
+api test mock
+api test unit
+api validation generate
+api validation list-frameworks
+api validation schema
+api validation template
+api verify
+api versioning compare
+api versioning init
+api versioning list-strategies
+api versioning middleware
+api versioning migrate
+api versioning template
+boundaries
+build
+cache clean
+cache stats
+catalog
+catalog sync
+cloud aws
+cloud azure
+cloud cost
+cloud db
+cloud deploy
+cloud dr
+cloud gcp
+cloud hybrid
+cloud iac generate
+cloud iac scaffold
+cloud iac validate
+cloud multi
+cloud network
+cloud resources
+cloud serverless
+cloud storage
+collab architecture-design
+collab burnout-detection
+collab code-quality-trends
+collab code-review-workflow
+collab collaboration
+collab collaborative-debugging
+collab collaborative-testing
+collab communication-analysis
+collab custom-analytics
+collab developer-productivity
+collab feature-flag
+collab incident-response
+collab knowledge-sharing
+collab knowledge-sharing-automation
+collab operational-transform
+collab performance-monitoring-collab
+collab project-mgmt
+collab session cancel
+collab session end
+collab session handover
+collab session join
+collab session list
+collab session run
+collab session start
+collab session-recording
+collab skills-assessment
+collab team-coding-sessions
+collab team-performance-optimization
+collab terminal-broadcasting
+collab velocity-tracking
+collab voice-video-integration
+collab webrtc-sharing
+collab workload-balancing
+collab workspace-sync
+commands list
+completion
+config backup
+config backup-mgr cleanup
+config backup-mgr create
+config backup-mgr delete
+config backup-mgr export
+config backup-mgr import
+config backup-mgr interactive
+config backup-mgr list
+config backup-mgr restore
+config backup-mgr stats
+config diff apply
+config diff diff
+config diff interactive
+config diff merge
+config diff status
+config env active
+config env compare
+config env create
+config env delete
+config env generate
+config env interactive
+config env list
+config env set
+config get
+config interactive
+config migrate auto
+config migrate check
+config migrate global
+config migrate history
+config migrate interactive
+config migrate project
+config migrate rollback
+config preset
+config profile activate
+config profile analytics
+config profile clean-analytics
+config profile cleanup-versions
+config profile clone
+config profile create
+config profile customize
+config profile deactivate
+config profile delete
+config profile diff
+config profile env add
+config profile env export
+config profile env list
+config profile env migrate
+config profile env remove
+config profile env validate
+config profile export
+config profile export-profiles
+config profile history
+config profile import
+config profile insights
+config profile list
+config profile optimize
+config profile resolve-conflicts
+config profile rollback
+config profile show
+config profile snapshot
+config profile stats
+config profile status
+config profile sync
+config profile sync-status
+config profile template apply
+config profile template list
+config profile template search
+config profile template show
+config profile tree
+config profile validate
+config profile validate-all
+config project get
+config project init
+config project interactive
+config project set
+config project show
+config restore
+config schema generate
+config schema publish
+config schema validate
+config set
+config show
+config template apply
+config template create
+config template delete
+config template interactive
+config template list
+config template show
+config unified export
+config unified get
+config unified import
+config unified layers
+config unified list-snapshots
+config unified restore
+config unified set
+config unified snapshot
+config unified sync
+config unified validate
+config validate all
+config validate file
+config validate global
+config validate interactive
+config validate project
+config workspace get
+config workspace init
+config workspace interactive
+config workspace set
+config workspace show
+create
+data cache
+data compress
+data convert
+data encrypt
+data format
+data lineage
+data schema
+data serialize
+debug config
+dev
+doctor
+env init
+env verify
+federation check
+find
+fix
+generate backend
+generate component
+generate docs
+generate feature
+generate hook
+generate service
+generate test
+init
+k8s cicd
+k8s cluster
+k8s crd
+k8s generate
+k8s gitops
+k8s gitops generate
+k8s helm
+k8s helm generate
+k8s hpa
+k8s ingress
+k8s manifests
+k8s mesh
+k8s multi-cluster
+k8s multi-tenant
+k8s network-policy
+k8s operator
+k8s pod-security
+k8s rollback
+learn best-practices
+learn code-quality-coaching
+learn interactive-tutorials
+learn mentorship
+learn skill-assessment
+learn technical-docs
+list
+migrate
+observe alerts
+observe anomaly
+observe apm
+observe business
+observe logs
+observe metrics
+observe scale
+observe trace
+pkg add
+pkg install
+pkg list
+pkg outdated
+pkg remove
+plugin auto-resolve
+plugin cache-stats
+plugin categories
+plugin clear-cache
+plugin clear-command-cache
+plugin clear-marketplace-cache
+plugin clear-middleware-cache
+plugin command-conflicts
+plugin command-info
+plugin command-stats
+plugin commands
+plugin configure-cache
+plugin configure-help
+plugin conflict-stats
+plugin conflict-strategies
+plugin conflicts
+plugin create
+plugin create-schema
+plugin deps
+plugin disable
+plugin discover
+plugin docs-stats
+plugin docs-templates
+plugin enable
+plugin execute-hook
+plugin featured
+plugin generate-docs
+plugin generate-template
+plugin hook-types
+plugin hooks
+plugin info
+plugin install
+plugin install-marketplace
+plugin list
+plugin list-cached
+plugin list-conflicts
+plugin list-docs
+plugin marketplace-stats
+plugin middleware
+plugin middleware-chain
+plugin middleware-example
+plugin middleware-stats
+plugin optimize-cache
+plugin pin
+plugin popular
+plugin register-command
+plugin reload
+plugin resolution-history
+plugin resolve
+plugin resolve-conflict
+plugin resolve-conflicts
+plugin review add
+plugin review list
+plugin search
+plugin search-docs
+plugin security-fix
+plugin security-policy
+plugin security-report
+plugin security-scan
+plugin set-priority
+plugin show
+plugin show-schema
+plugin stats
+plugin test-cache
+plugin test-middleware
+plugin test-validation
+plugin transformations
+plugin uninstall
+plugin unpin
+plugin unregister-command
+plugin update
+plugin update-deps
+plugin validate
+plugin validate-publish
+plugin validate-versions
+plugin validation-rules
+plugin validation-stats
+quality intellisense emacs-config
+quality intellisense extensions
+quality intellisense list-languages
+quality intellisense setup
+quality intellisense vim-config
+quality test frameworks
+quality test info
+quality test list
+quality test run
+refactor rename-service
+release
+remove
+run
+scorecard
+security audit
+security audit verify
+security bcp
+security code-security
+security compliance report
+security compliance-reporting
+security container-security
+security custom-policy
+security governance
+security incident-management
+security infrastructure-security
+security penetration-testing
+security privacy
+security rbac
+security regulatory
+security risk
+security secret-detection
+security security-policy
+security security-training
+security supply-chain-security
+security threat-detection
+security vendor
+security vulnerability-scan
+security zero-trust
+serve
+service bridge async
+service bridge diff
+service bridge gateway
+service bridge generate
+service bridge mock
+service bridge transform
+service link
+service polyglot build-all
+service polyglot deploy
+service polyglot generate-deployment
+service polyglot list
+service run down
+service run exec
+service run health
+service run inspect
+service run logs
+service run migrate
+service run optimize
+service run restart
+service run scale
+service run up
+service unlink
+service validate
+templates apply
+templates list
+templates matrix
+templates recommend
+templates show
+tools cicd deploy
+tools cicd generate
+tools cleanup-snapshots
+tools debug generate
+tools debug list
+tools detect
+tools dev interactive
+tools dev restart
+tools dev start
+tools dev status
+tools dev stop
+tools devenv detect
+tools devenv ports
+tools devenv setup
+tools di-analyze
+tools di-generate
+tools dry-run
+tools hotreload detect
+tools hotreload list
+tools hotreload start
+tools migrate backup
+tools migrate export
+tools migrate import
+tools migrate restore
+tools recover
+tools rollback
+tools snapshots
+tools submodule add
+tools submodule init
+tools submodule manage
+tools submodule remove
+tools submodule status
+tools submodule update
+tui
+ui
+ui component new
+ui generate
+ui test
+ui theme install
+ui theme list
+ui theme remove
+ui theme search
+workspace backup cleanup
+workspace backup compare
+workspace backup create
+workspace backup delete
+workspace backup export
+workspace backup import
+workspace backup interactive
+workspace backup list
+workspace backup restore
+workspace backup show
+workspace changes check
+workspace changes clear
+workspace changes compare
+workspace changes interactive
+workspace changes scan
+workspace changes stats
+workspace changes status
+workspace changes watch
+workspace conflict auto-resolve
+workspace conflict detect
+workspace conflict interactive
+workspace conflict preview
+workspace conflict resolve
+workspace def auto-detect
+workspace def fix
+workspace def init
+workspace def interactive
+workspace def structure
+workspace def validate
+workspace diagnostics check
+workspace diagnostics fix
+workspace diagnostics interactive
+workspace diagnostics quick
+workspace diagnostics topology
+workspace diagnostics watch
+workspace diff
+workspace docs
+workspace drift
+workspace explore
+workspace graph
+workspace graph diff
+workspace graph-analysis analyze
+workspace graph-analysis critical
+workspace graph-analysis cycles
+workspace graph-analysis interactive
+workspace graph-analysis order
+workspace graph-analysis visualize
+workspace health
+workspace ibuild build
+workspace ibuild clear-cache
+workspace ibuild plan
+workspace ibuild stats
+workspace impact analyze
+workspace impact graph
+workspace impact workspace
+workspace import
+workspace init
+workspace list
+workspace migrate
+workspace migrate-monorepo
+workspace migration check
+workspace migration history
+workspace migration interactive
+workspace migration plan
+workspace migration rollback
+workspace migration upgrade
+workspace migration validate
+workspace optimize
+workspace policy check
+workspace policy install
+workspace policy list
+workspace policy remove
+workspace policy search
+workspace state backup
+workspace state cache
+workspace state clear
+workspace state interactive
+workspace state optimize
+workspace state restore
+workspace state status
+workspace status
+workspace summary
+workspace template chain
+workspace template create
+workspace template delete
+workspace template export
+workspace template import
+workspace template list
+workspace template show
+workspace template validate
+workspace tpl apply
+workspace tpl create
+workspace tpl delete
+workspace tpl export
+workspace tpl interactive
+workspace tpl list
+workspace tpl show
+workspace update
+workspace validate
+workspace watch add-rule
+workspace watch interactive
+workspace watch remove-rule
+workspace watch rules
+workspace watch start
+workspace watch stats
+workspace watch status
+workspace watch stop
+"
+`;

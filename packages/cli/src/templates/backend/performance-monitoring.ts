@@ -39,8 +39,6 @@ export const performanceMonitoringTemplate: BackendTemplate = {
     "prom-client": "^15.0.0",
     "chalk": "^4.1.2",
     "cli-table3": "^0.6.3",
-    "v8": "^0.58.0",
-    "node:perf_hooks": "^1.0.0",
     "eventemitter3": "^5.0.1"
   },
   "devDependencies": {
@@ -62,6 +60,7 @@ export const performanceMonitoringTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -70,9 +69,9 @@ export const performanceMonitoringTemplate: BackendTemplate = {
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*"],
@@ -131,6 +130,7 @@ app.listen(PORT, () => {
 import EventEmitter from 'eventemitter3';
 import pidusage from 'pidusage';
 import si from 'systeminformation';
+import os from 'os';
 import { performance } from 'perf_hooks';
 
 export interface PerformanceMetrics {
@@ -510,6 +510,7 @@ export class MetricsCollector {
 // CPU and memory profiling capabilities
 
 import { writeFileSync } from 'fs';
+import v8 from 'v8';
 import { join } from 'path';
 import EventEmitter from 'eventemitter3';
 
@@ -645,18 +646,7 @@ export class Profiler extends EventEmitter {
     return process.memoryUsage();
   }
 
-  getHeapStatistics(): {
-    totalHeapSize: number;
-    totalHeapSizeExecutable: number;
-    totalPhysicalSize: number;
-    totalAvailableSize: number;
-    usedHeapSize: number;
-    heapSizeLimit: number;
-    mallocedMemory: number;
-    peakMallocedMemory: number;
-    numberOfNativeContexts: number;
-    numberOfDetachedContexts: number;
-  } {
+  getHeapStatistics(): v8.HeapInfo {
     return v8.getHeapStatistics();
   }
 
@@ -1035,8 +1025,8 @@ export function profilingRoutes(profiler: Profiler): Router {
           filePath,
         },
       });
-    } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1061,8 +1051,8 @@ export function profilingRoutes(profiler: Profiler): Router {
           filePath,
         },
       });
-    } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 

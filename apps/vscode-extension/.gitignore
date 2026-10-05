@@ -1,0 +1,6 @@
+# Packaged extension (build artifact; produced by `pnpm run package`)
+*.vsix
+
+# Host-test build output and the VS Code build downloaded by @vscode/test-electron
+dist-test/
+.vscode-test/

@@ -10,8 +10,18 @@ import { ProgressSpinner } from '../utils/spinner';
 import { jsonSuccess, jsonError, enableJsonMode, ok, fail } from '../utils/json-output';
 import { normalizeHealth, CanonicalHealth } from '../utils/health-normalizer';
 import { buildSuggestions } from '../utils/doctor-remediation';
-import type { Suggestion } from '@re-shell/contracts';
+import type { Suggestion, GraphModel } from '@re-shell/contracts';
+import { toMermaid, toD3Json } from '@re-shell/contracts';
 import type { ValidationResult, ValidationError } from '../parsers/workspace-parser';
+import { docsUrl } from '../constants/brand';
+import {
+  SCHEMA_NAME_HINT,
+  SCHEMA_NAME_PATTERN,
+  WORKSPACE_CONFIG_VERSION,
+  dumpWorkspaceYaml,
+  toSchemaName,
+  uniqueKey,
+} from '../utils/workspace-yaml';
 
 const execAsync = promisify(exec);
 
@@ -144,7 +154,7 @@ interface WorkspaceTemplateOptions {
 }
 
 /** Represents a detected service during project structure scanning. */
-interface ServiceDetection {
+export interface ServiceDetection {
   /** Service name (typically the directory name). */
   name: string;
   /** Relative path from the monorepo root. */
@@ -168,7 +178,7 @@ interface ServiceTypeInfo {
 }
 
 /** Result of scanning the project root for languages, frameworks, and services. */
-interface ProjectDetection {
+export interface ProjectDetection {
   /** Whether a package.json file was found. */
   hasPackageJson: boolean;
   /** Whether Python project files were found. */
@@ -188,7 +198,7 @@ interface ProjectDetection {
 }
 
 /** User responses collected during the interactive setup wizard. */
-interface SetupResponses {
+export interface SetupResponses {
   /** Workspace name entered by the user. */
   name: string;
   /** Optional workspace description. */
@@ -593,6 +603,10 @@ interface ContractGraphNode {
   framework: string | null;
   /** Internal workspace-to-workspace dependency names. */
   dependencies: string[];
+  /** Workspace category (app, package, lib, tool). Additive, optional for consumers. */
+  type?: string;
+  /** Primary language (typescript, javascript, go, rust, python, java). Additive, optional for consumers. */
+  language?: string | null;
 }
 
 /** Consumer-facing graph shape split into apps and services. */
@@ -626,6 +640,8 @@ function buildContractGraph(
     path: ws.path,
     framework: ws.framework ?? null,
     dependencies: Array.from(internalDepsByName.get(ws.name) ?? []),
+    type: ws.type,
+    language: ws.language ?? null,
   });
 
   const apps: ContractGraphNode[] = [];
@@ -695,37 +711,22 @@ function displayTextGraph(graph: DependencyGraph): void {
   }
 }
 
-function generateMermaidGraph(graph: DependencyGraph): string {
-  let mermaid = 'graph TD\n';
-
-  // Add nodes
-  for (const node of graph.nodes) {
-    const shape = getNodeShape(node.type);
-    mermaid += `  ${node.id}${shape}\n`;
-  }
-
-  // Add edges
-  for (const edge of graph.edges) {
-    const style = edge.type === 'dependency' ? '-->' : '-..->';
-    mermaid += `  ${edge.from} ${style} ${edge.to}\n`;
-  }
-
-  return mermaid;
+/** Adapt the CLI's internal graph to the shared model used by the converters. */
+function toGraphModel(graph: DependencyGraph): GraphModel {
+  return {
+    nodes: graph.nodes.map((node) => ({
+      id: node.id,
+      type: node.type,
+      framework: node.framework ?? null,
+      path: node.path,
+    })),
+    edges: graph.edges.map((edge) => ({ from: edge.from, to: edge.to, type: edge.type })),
+  };
 }
 
-function getNodeShape(type: string): string {
-  switch (type) {
-    case 'app':
-      return '[App]';
-    case 'package':
-      return '(Package)';
-    case 'lib':
-      return '{Library}';
-    case 'tool':
-      return '[[Tool]]';
-    default:
-      return '[Unknown]';
-  }
+/** Mermaid text via the converter shared with the dashboard export. */
+function generateMermaidGraph(graph: DependencyGraph): string {
+  return toMermaid(toGraphModel(graph));
 }
 
 /**
@@ -867,25 +868,10 @@ function calculateNodePositions(nodes: GraphNode[], edges: GraphEdge[]): Record<
 }
 
 /**
- * Generate D3.js compatible JSON
+ * Generate D3.js compatible JSON (converter shared with the dashboard export).
  */
 function generateD3Graph(graph: DependencyGraph): string {
-  // Convert to D3 force graph format
-  const d3Graph = {
-    nodes: graph.nodes.map((node) => ({
-      id: node.id,
-      group: node.type,
-      type: node.type,
-      framework: node.framework,
-    })),
-    links: graph.edges.map((edge) => ({
-      source: edge.from,
-      target: edge.to,
-      type: edge.type,
-    })),
-  };
-
-  return JSON.stringify(d3Graph, null, 2);
+  return toD3Json(toGraphModel(graph));
 }
 
 async function detectPackageManager(rootPath: string): Promise<'npm' | 'yarn' | 'pnpm'> {
@@ -1233,7 +1219,7 @@ async function runSetupWizard(detection: ProjectDetection, skipPrompts: boolean)
   if (skipPrompts) {
     return {
       name: 'my-workspace',
-      version: '2.0.0',
+      version: WORKSPACE_CONFIG_VERSION,
       description: 'Auto-generated workspace',
       includeServices: detection.services.length > 0,
     };
@@ -1243,9 +1229,9 @@ async function runSetupWizard(detection: ProjectDetection, skipPrompts: boolean)
   const nameResponse = await prompts({
     type: 'text',
     name: 'name',
-    message: 'Workspace name',
-    initial: path.basename(process.cwd()),
-    validate: (value: string) => value.length > 0 || 'Name is required',
+    message: 'Workspace name (lowercase letters, digits and hyphens)',
+    initial: toSchemaName(path.basename(process.cwd()), 'my-workspace'),
+    validate: (value: string) => SCHEMA_NAME_PATTERN.test(value) || SCHEMA_NAME_HINT,
   });
 
   if (!nameResponse.name) {
@@ -1258,21 +1244,12 @@ async function runSetupWizard(detection: ProjectDetection, skipPrompts: boolean)
     message: 'Description (optional)',
   });
 
-  const versionResponse = await prompts({
-    type: 'select',
-    name: 'version',
-    message: 'Configuration version',
-    choices: [
-      { title: '2.0.0 (Latest)', value: '2.0.0' },
-      { title: '1.0.0 (Legacy)', value: '1.0.0' },
-    ],
-    initial: 0,
-  });
-
+  // The generated file is validated against the v2 schema, which only accepts
+  // 2.0.x, so the version is not a choice.
   const responses: SetupResponses = {
     name: nameResponse.name,
     description: descResponse.description,
-    version: versionResponse.version,
+    version: WORKSPACE_CONFIG_VERSION,
   };
 
   // Ask about detected services
@@ -1302,15 +1279,27 @@ async function runSetupWizard(detection: ProjectDetection, skipPrompts: boolean)
 }
 
 /**
- * Generate workspace configuration YAML
+ * Generate workspace configuration YAML.
+ *
+ * The document is built as an object and serialised with js-yaml so it always
+ * conforms to the v2 JSON Schema: scalars are quoted when needed, an empty
+ * `services` map is written as `services: {}` (never null), and every service
+ * key/name is a schema-valid kebab-case name.
+ *
+ * @param responses - Wizard (or `--yes` default) answers.
+ * @param detection - Result of scanning the project root.
+ * @returns The workspace YAML, starting with the `$schema` modeline.
+ * @internal Exported for tests.
  */
-function generateWorkspaceConfig(responses: SetupResponses, detection: ProjectDetection): string {
-  const services: Record<string, ServiceDetection> = {};
+export function generateWorkspaceConfig(responses: SetupResponses, detection: ProjectDetection): string {
+  const services: Record<string, Record<string, string>> = {};
+  const usedKeys = new Set<string>();
 
   if (responses.includeServices && detection.services.length > 0) {
     for (const service of detection.services) {
-      services[service.name] = {
-        name: service.name,
+      const key = uniqueKey(toSchemaName(service.name), usedKeys);
+      services[key] = {
+        name: key,
         type: service.type,
         language: service.language,
         framework: service.framework,
@@ -1319,34 +1308,16 @@ function generateWorkspaceConfig(responses: SetupResponses, detection: ProjectDe
     }
   }
 
-  const config = {
+  const doc: Record<string, unknown> = {
     name: responses.name,
     version: responses.version,
-    description: responses.description,
-    services,
   };
-
-  // Convert to YAML (simple implementation)
-  let yaml = 'name: ' + config.name + '\n';
-  yaml += 'version: ' + config.version + '\n';
-  if (config.description) {
-    yaml += 'description: ' + config.description + '\n';
+  if (responses.description) {
+    doc.description = responses.description;
   }
-  yaml += '\nservices:\n';
+  doc.services = services;
 
-  for (const [id, s] of Object.entries(services)) {
-    yaml += '  ' + id + ':\n';
-    yaml += '    name: ' + s.name + '\n';
-    yaml += '    type: ' + s.type + '\n';
-    yaml += '    language: ' + s.language + '\n';
-    yaml += '    framework: ' + s.framework + '\n';
-    if (s.path) {
-      yaml += '    path: ' + s.path + '\n';
-    }
-    yaml += '\n';
-  }
-
-  return yaml;
+  return dumpWorkspaceYaml(doc);
 }
 
 /**
@@ -1458,7 +1429,7 @@ export async function validateWorkspaceConfig(options: WorkspaceValidateOptions 
       if (fix) {
         console.log(chalk.gray('  3. Or run: re-shell workspace validate --fix'));
       }
-      console.log(chalk.gray('  4. Check documentation: https://re-shell.dev/docs/workspace-config\n'));
+      console.log(chalk.gray(`  4. Check documentation: ${docsUrl('cli/workspace')}\n`));
 
       // Show warnings
       if (result.warnings.length > 0) {
@@ -1521,7 +1492,7 @@ export async function validateWorkspaceConfig(options: WorkspaceValidateOptions 
 
     if (json) {
       console.log(chalk.bold('JSON Output:\n'));
-      console.log(JSON.stringify({ validation: result, topology: topologyResult }, null, 2));
+      ok({ validation: result, topology: topologyResult });
     }
 
   } catch (error: unknown) {
@@ -1765,18 +1736,16 @@ export async function checkWorkspaceHealth(options: WorkspaceHealthOptions = {})
     // Display results
     displayHealthResults(healthChecks, json, verbose, explain, suggestions);
 
-    // Overall health status
+    // Overall health status: the same normalized score/status the --json
+    // envelope reports, so the human summary can never disagree with it.
     if (!json) {
-      const allHealthy = healthChecks.every(check => check.status === 'healthy' || check.status === 'warning');
-      if (allHealthy) {
-        console.log(chalk.green('\n✓ Overall workspace health: GOOD\n'));
+      const health = normalizeHealth({ checks: healthChecks, overall: legacyOverall(healthChecks) });
+      if (health.status === 'healthy') {
+        console.log(chalk.green(`\n✓ Overall workspace health: GOOD (score ${health.score})\n`));
+      } else if (health.status === 'degraded') {
+        console.log(chalk.yellow(`\n⚠ Overall workspace health: NEEDS ATTENTION (score ${health.score})\n`));
       } else {
-        const hasCritical = healthChecks.some(check => check.status === 'critical');
-        if (hasCritical) {
-          console.log(chalk.red('\n✗ Overall workspace health: CRITICAL ISSUES\n'));
-        } else {
-          console.log(chalk.yellow('\n⚠ Overall workspace health: NEEDS ATTENTION\n'));
-        }
+        console.log(chalk.red(`\n✗ Overall workspace health: CRITICAL (score ${health.score})\n`));
       }
     }
 
@@ -2174,6 +2143,15 @@ async function checkPackageManagerHealth(configPath: string): Promise<HealthChec
   };
 }
 
+/** The per-check verdict passed to {@link normalizeHealth} alongside the checks. */
+function legacyOverall(checks: HealthCheck[]): 'healthy' | 'degraded' | 'critical' {
+  return checks.every(c => c.status === 'healthy' || c.status === 'warning')
+    ? 'healthy'
+    : checks.some(c => c.status === 'critical')
+      ? 'critical'
+      : 'degraded';
+}
+
 /**
  * Display health results
  */
@@ -2186,12 +2164,7 @@ function displayHealthResults(
 ): void {
   if (json) {
     const warnings = checks.filter(c => c.status === 'warning').map(c => c.message);
-    const overall = checks.every(c => c.status === 'healthy' || c.status === 'warning')
-      ? 'healthy'
-      : checks.some(c => c.status === 'critical')
-        ? 'critical'
-        : 'degraded';
-    const health = normalizeHealth({ checks, overall });
+    const health = normalizeHealth({ checks, overall: legacyOverall(checks) });
     // Explain adds a structured suggestions array alongside the normalized health
     // shape so consumers opting into --explain get remediation without changing
     // the default health envelope.
@@ -2384,11 +2357,13 @@ async function performMigration(
     if (migratedConfig.workspaces && Array.isArray(migratedConfig.workspaces)) {
       const oldWorkspaces = migratedConfig.workspaces;
       migratedConfig.services = {};
+      const usedServiceIds = new Set<string>();
 
-      for (const ws of oldWorkspaces) {
-        const serviceId = ws.name || 'service-' + Math.random().toString(36).substring(7);
+      for (const [index, ws] of oldWorkspaces.entries()) {
+        // v2 service keys/names must be kebab-case (schema pattern).
+        const serviceId = uniqueKey(toSchemaName(String(ws.name ?? ''), 'service-' + (index + 1)), usedServiceIds);
         migratedConfig.services[serviceId] = {
-          name: ws.name || serviceId,
+          name: serviceId,
           displayName: ws.displayName,
           description: ws.description,
           port: ws.port,
@@ -2402,7 +2377,8 @@ async function performMigration(
         } else if (ws.framework) {
           migratedConfig.services[serviceId].type = 'backend';
         } else {
-          migratedConfig.services[serviceId].type = 'service';
+          // 'service' is not a valid v2 type; plain workspaces map to 'worker'.
+          migratedConfig.services[serviceId].type = 'worker';
         }
 
         // Add default language
@@ -2440,7 +2416,7 @@ async function performMigration(
           } else if (s.framework) {
             s.type = 'backend';
           } else {
-            s.type = 'service';
+            s.type = 'worker';
           }
           changes.push('Set type for service: ' + serviceId);
         }
@@ -2450,6 +2426,13 @@ async function performMigration(
           s.language = 'typescript';
           changes.push('Added language to service: ' + serviceId);
           warnings.push('Verify language for service: ' + serviceId);
+        }
+
+        // `framework` is required by the v2 schema.
+        if (!s.framework) {
+          s.framework = 'vanilla';
+          changes.push('Added framework to service: ' + serviceId);
+          warnings.push('Verify framework for service: ' + serviceId);
         }
       }
     }
@@ -2464,123 +2447,33 @@ async function performMigration(
     }
   }
 
-  // Convert to YAML
-  let yaml = 'name: ' + migratedConfig.name + '\n';
-  yaml += 'version: ' + migratedConfig.version + '\n';
-
-  if (migratedConfig.description) {
-    yaml += 'description: ' + migratedConfig.description + '\n';
+  // v2 requires `services` (an empty map is valid; null is not).
+  if (migratedConfig.version === '2.0.0' && !migratedConfig.services) {
+    migratedConfig.services = {};
   }
 
-  if (migratedConfig.metadata) {
-    yaml += 'metadata:\n';
-    for (const [key, value] of Object.entries(migratedConfig.metadata)) {
-      yaml += '  ' + key + ': ' + JSON.stringify(value) + '\n';
+  // Serialise through the shared writer so the output is real, schema-conformant
+  // YAML. (The former hand-rolled emitter wrote `services:` as null, dropped
+  // fields it did not know about and emitted an invalid `type: service`.)
+  const { name, version, description, ...rest } = migratedConfig;
+  const migratedDoc: Record<string, unknown> = { name, version };
+  if (description) migratedDoc.description = description;
+  Object.assign(migratedDoc, rest);
+
+  if (migratedConfig.version === '2.0.0') {
+    const { validateWorkspaceDocument } = await import('../utils/schema-generator');
+    for (const err of validateWorkspaceDocument(migratedDoc)) {
+      warnings.push('Result does not satisfy the v2 schema at ' + (err.instancePath || '(root)') + ': ' + err.message);
     }
   }
 
-  if (migratedConfig.variables) {
-    yaml += 'variables:\n';
-    for (const [key, value] of Object.entries(migratedConfig.variables)) {
-      yaml += '  ' + key + ': ' + JSON.stringify(value) + '\n';
-    }
-  }
+  // Only v2 documents get the v2 `$schema` modeline.
+  const migratedYaml =
+    migratedConfig.version === '2.0.0'
+      ? dumpWorkspaceYaml(migratedDoc)
+      : yaml.dump(migratedDoc, { lineWidth: 120, noRefs: true, skipInvalid: true });
 
-  yaml += '\nservices:\n';
-
-  if (migratedConfig.services) {
-    for (const [id, service] of Object.entries(migratedConfig.services)) {
-      const s = service as Record<string, any>;
-      yaml += '  ' + id + ':\n';
-      yaml += '    name: ' + s.name + '\n';
-
-      if (s.displayName) {
-        yaml += '    displayName: ' + s.displayName + '\n';
-      }
-
-      if (s.description) {
-        yaml += '    description: ' + s.description + '\n';
-      }
-
-      if (s.type) {
-        yaml += '    type: ' + s.type + '\n';
-      }
-
-      yaml += '    language: ' + s.language + '\n';
-
-      if (typeof s.framework === 'string') {
-        yaml += '    framework: ' + s.framework + '\n';
-      } else if (typeof s.framework === 'object') {
-        yaml += '    framework:\n';
-        yaml += '      name: ' + s.framework.name + '\n';
-        if (s.framework.version) {
-          yaml += '      version: ' + s.framework.version + '\n';
-        }
-        if (s.framework.config) {
-          yaml += '      config: ' + JSON.stringify(s.framework.config) + '\n';
-        }
-      }
-
-      if (s.path) {
-        yaml += '    path: ' + s.path + '\n';
-      }
-
-      if (s.port) {
-        yaml += '    port: ' + s.port + '\n';
-      }
-
-      if (s.env && Object.keys(s.env).length > 0) {
-        yaml += '    env:\n';
-        for (const [key, value] of Object.entries(s.env)) {
-          yaml += '      ' + key + ': ' + JSON.stringify(value) + '\n';
-        }
-      }
-
-      if (s.dependencies) {
-        if (s.dependencies.production && Object.keys(s.dependencies.production).length > 0) {
-          yaml += '    dependencies:\n';
-          yaml += '      production:\n';
-          for (const [dep, version] of Object.entries(s.dependencies.production)) {
-            yaml += '        ' + dep + ': ' + JSON.stringify(version) + '\n';
-          }
-        }
-      }
-
-      if (s.routes && s.routes.length > 0) {
-        yaml += '    routes:\n';
-        for (const route of s.routes) {
-          yaml += '      - path: ' + route.path + '\n';
-          if (route.method) yaml += '        method: ' + route.method + '\n';
-          if (route.target) yaml += '        target: ' + route.target + '\n';
-        }
-      }
-
-      yaml += '\n';
-    }
-  }
-
-  if (migratedConfig.dependencies) {
-    yaml += 'dependencies:\n';
-    
-    if (migratedConfig.dependencies.databases && migratedConfig.dependencies.databases.length > 0) {
-      yaml += '  databases:\n';
-      for (const db of migratedConfig.dependencies.databases) {
-        yaml += '    - name: ' + db.name + '\n';
-        if (db.type) yaml += '      type: ' + db.type + '\n';
-        if (db.version) yaml += '      version: ' + db.version + '\n';
-      }
-    }
-
-    if (migratedConfig.dependencies.caches && migratedConfig.dependencies.caches.length > 0) {
-      yaml += '  caches:\n';
-      for (const cache of migratedConfig.dependencies.caches) {
-        yaml += '    - name: ' + cache.name + '\n';
-        if (cache.type) yaml += '      type: ' + cache.type + '\n';
-      }
-    }
-  }
-
-  return { config: yaml, changes, warnings };
+  return { config: migratedYaml, changes, warnings };
 }
 
 /**
@@ -2662,7 +2555,7 @@ export async function optimizeWorkspace(options: WorkspaceOptimizeOptions = {}):
 
     // Output JSON if requested
     if (json) {
-      console.log(JSON.stringify(filteredReport, null, 2));
+      ok(filteredReport);
       return;
     }
 
@@ -2791,7 +2684,7 @@ export async function manageWorkspaceTemplates(options: WorkspaceTemplateOptions
         await listTemplates(templatesDir, spinner, json);
         break;
       case 'show':
-        await showTemplate(templatesDir, templateId, spinner);
+        await showTemplate(templatesDir, templateId, spinner, json);
         break;
       case 'create':
         await createTemplateInteractively(templatesDir, spinner);
@@ -2800,7 +2693,7 @@ export async function manageWorkspaceTemplates(options: WorkspaceTemplateOptions
         await validateTemplate(templatesDir, templateId, spinner);
         break;
       case 'export':
-        await exportTemplateCmd(templatesDir, templateId, output, spinner);
+        await exportTemplateCmd(templatesDir, templateId, output, spinner, json);
         break;
       case 'import':
         await importTemplateCmd(filePath, templatesDir, spinner);
@@ -2900,14 +2793,20 @@ async function listTemplates(templatesDir: string, spinner?: ProgressSpinner, js
 /**
  * Show template details
  */
-async function showTemplate(templatesDir: string, templateId: string, spinner?: ProgressSpinner): Promise<void> {
+async function showTemplate(templatesDir: string, templateId: string, spinner?: ProgressSpinner, json = false): Promise<void> {
   if (!templateId) {
+    if (json) {
+      fail('USAGE_ERROR', 'Template ID is required');
+      return;
+    }
     console.log(chalk.red('✗ Template ID is required'));
     console.log(chalk.gray('Usage: re-shell workspace template show --id <template-id>\n'));
     return;
   }
 
-  console.log(chalk.cyan.bold('\n📄 Template Details: ' + templateId + '\n'));
+  if (!json) {
+    console.log(chalk.cyan.bold('\n📄 Template Details: ' + templateId + '\n'));
+  }
 
   if (spinner) spinner.setText('Loading template...');
 
@@ -2917,7 +2816,16 @@ async function showTemplate(templatesDir: string, templateId: string, spinner?: 
   if (spinner) spinner.stop();
 
   if (!template) {
+    if (json) {
+      fail('TEMPLATE_NOT_FOUND', 'Template not found: ' + templateId, { template: templateId });
+      return;
+    }
     console.log(chalk.red('✗ Template not found: ' + templateId + '\n'));
+    return;
+  }
+
+  if (json) {
+    ok(template);
     return;
   }
 
@@ -3067,14 +2975,20 @@ async function validateTemplate(templatesDir: string, templateId: string, spinne
 /**
  * Export template
  */
-async function exportTemplateCmd(templatesDir: string, templateId: string, outputPath: string, spinner?: ProgressSpinner): Promise<void> {
+async function exportTemplateCmd(templatesDir: string, templateId: string, outputPath: string, spinner?: ProgressSpinner, json = false): Promise<void> {
   if (!templateId) {
+    if (json) {
+      fail('USAGE_ERROR', 'Template ID is required');
+      return;
+    }
     console.log(chalk.red('✗ Template ID is required'));
     console.log(chalk.gray('Usage: re-shell workspace template export --id <template-id> --output <path>\n'));
     return;
   }
 
-  console.log(chalk.cyan.bold('\n📤 Exporting Template: ' + templateId + '\n'));
+  if (!json) {
+    console.log(chalk.cyan.bold('\n📤 Exporting Template: ' + templateId + '\n'));
+  }
 
   if (spinner) spinner.setText('Exporting template...');
 
@@ -3085,6 +2999,11 @@ async function exportTemplateCmd(templatesDir: string, templateId: string, outpu
   await workspaceTemplateManager.exportTemplate(templateId, output);
 
   if (spinner) spinner.stop();
+
+  if (json) {
+    ok({ id: templateId, output });
+    return;
+  }
 
   console.log(chalk.green('✓ Template exported successfully!'));
   console.log(chalk.gray('Output: ' + output));

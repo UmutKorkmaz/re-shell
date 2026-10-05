@@ -3,7 +3,7 @@ import { Command } from 'commander';
 import { EventEmitter } from 'events';
 
 // Covers the last-but-two slice of src/groups/*.group.ts:
-//  - ai.group.ts (422 lines) — `ai <prompt>` offline intent resolver +
+//  - ai.group.ts — `ai <prompt>` intent resolver (provider-backed, vetted) +
 //    `ai create` dry-run-by-default scaffold planner. Prompt text is DATA:
 //    execution only happens via the vetted argv spawned WITHOUT a shell after
 //    an explicit confirmation.
@@ -19,10 +19,20 @@ import { EventEmitter } from 'events';
 // the success rendering.
 
 // --- ai.group collaborators (statically imported by the group) -----------
-vi.mock('../../src/utils/ai-intent', () => ({
-  createOfflineBackend: vi.fn(),
-  explainCandidate: vi.fn(),
-}));
+// The prompt resolver (providers, cache, sessions, workspace context) is covered
+// by tests/unit/ai/*; the group is tested here against a scripted resolver.
+vi.mock('../../src/ai/resolver', () => {
+  class AiResolveError extends Error {
+    constructor(
+      public readonly code: string,
+      message: string,
+      public readonly details?: Record<string, unknown>
+    ) {
+      super(message);
+    }
+  }
+  return { resolveIntent: vi.fn(), AiResolveError, MAX_PROMPT_LENGTH: 4000 };
+});
 vi.mock('../../src/utils/ai-plan', () => ({
   planScaffold: vi.fn(),
   sanitizeProposedIntent: vi.fn(),
@@ -132,7 +142,7 @@ const { registerAiGroup } = await import('../../src/groups/ai.group');
 const { registerCloudGroup } = await import('../../src/groups/cloud.group');
 const { registerLearnGroup } = await import('../../src/groups/learn.group');
 
-const aiIntent = await import('../../src/utils/ai-intent');
+const aiResolver = await import('../../src/ai/resolver');
 const aiPlan = await import('../../src/utils/ai-plan');
 const prompts = (await import('prompts')).default;
 const { spawn } = await import('child_process');
@@ -259,54 +269,125 @@ describe('groups — ai / cloud / learn registration', () => {
   // ai.group.ts
   // ========================================================================
   describe('ai group', () => {
-    function backendWith(parseResult: unknown, entry: unknown = undefined) {
-      const backend = {
-        parse:
-          parseResult instanceof Error
-            ? vi.fn(() => { throw parseResult; })
-            : vi.fn().mockReturnValue(parseResult),
-        entryFor: vi.fn().mockReturnValue(entry),
+    /** The resolver is the unit under test elsewhere (tests/unit/ai); here it is scripted. */
+    function resolverReturns(result: unknown, meta: Record<string, unknown> = {}) {
+      const output = {
+        result,
+        meta: {
+          provider: 'offline',
+          requestedProvider: 'offline',
+          source: 'offline',
+          cached: false,
+          lowConfidence: false,
+          warnings: [],
+          workspace: { root: '/ws', inWorkspace: true, nodes: 0, fingerprint: 'fp' },
+          ...meta,
+        },
       };
-      vi.mocked(aiIntent.createOfflineBackend).mockReturnValue(backend as never);
-      return backend;
+      vi.mocked(aiResolver.resolveIntent).mockResolvedValue(output as never);
+      return output;
     }
 
-    it('registers `ai` with the `create` subcommand', () => {
+    function resolved(cand: unknown, extra: Record<string, unknown> = {}) {
+      return { needsClarification: false, candidate: cand, alternatives: [], explanation: 'Lists templates', ...extra };
+    }
+
+    /** A program where the group sits next to the commands the --run flow may target. */
+    function programForRun(): Command {
+      const program = programWith(registerAiGroup);
+      const templates = program.command('templates');
+      templates.command('list').option('--json').action(() => undefined);
+      const workspace = program.command('workspace');
+      workspace.command('remove').argument('<name>').action(() => undefined);
+      return program;
+    }
+
+    function withTty(isTTY: boolean): () => void {
+      const original = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+      Object.defineProperty(process.stdin, 'isTTY', { value: isTTY, configurable: true });
+      return () => {
+        if (original) Object.defineProperty(process.stdin, 'isTTY', original);
+        else delete (process.stdin as { isTTY?: boolean }).isTTY;
+      };
+    }
+
+    it('registers `ai` with the `create` subcommand and the companion subcommands', () => {
       const program = programWith(registerAiGroup);
       const ai = program.commands.find(c => c.name() === 'ai');
       expect(ai).toBeDefined();
       expect(ai?.description()).toContain('offline, never auto-runs');
-      expect(ai?.commands.map(c => c.name())).toEqual(['create']);
+      expect(ai?.commands.map(c => c.name()).sort()).toEqual(
+        ['cache', 'config', 'create', 'session', 'suggest']
+      );
     });
 
     it('joins multi-word prompts and resolves to the vetted command (dry, never runs)', async () => {
-      const backend = backendWith({
-        needsClarification: false,
-        candidate: candidate(),
-        alternatives: [],
-        explanation: 'Lists templates',
-      });
+      resolverReturns(resolved(candidate()));
       const program = programWith(registerAiGroup);
       await program.parseAsync(['node', 're-shell', 'ai', 'show', 'me', 'templates']);
 
-      expect(backend.parse).toHaveBeenCalledWith('show me templates');
+      expect(aiResolver.resolveIntent).toHaveBeenCalledWith('show me templates', expect.anything());
       expect(output()).toContain('🧠 Resolved command');
       expect(output()).toContain('re-shell templates list');
       expect(output()).toContain('72%');
       expect(output()).toContain('List workspace templates');
+      expect(output()).toContain('via: offline parser');
       expect(output()).toContain('Not executed. Re-run with');
       expect(spawn).not.toHaveBeenCalled();
     });
 
+    it('forwards session / provider / cache / fallback options to the resolver', async () => {
+      resolverReturns(resolved(candidate()));
+      const program = programWith(registerAiGroup);
+      await program.parseAsync([
+        'node', 're-shell', 'ai', 'list templates',
+        '--session', 'demo', '--offline', '--no-cache', '--no-fallback',
+      ]);
+      expect(aiResolver.resolveIntent).toHaveBeenCalledWith(
+        'list templates',
+        expect.objectContaining({
+          session: { id: 'demo', continue: false },
+          overrides: { provider: 'offline' },
+          useCache: false,
+          fallback: false,
+        })
+      );
+    });
+
+    it('shows provenance, targeted workspace nodes, warnings and a low-confidence note', async () => {
+      resolverReturns(
+        resolved(
+          candidate({
+            nodes: [{ name: '@acme/api', path: 'packages/api', kind: 'package' }],
+            missingArgs: ['id'],
+          })
+        ),
+        {
+          provider: 'anthropic',
+          model: 'claude-opus-5-5',
+          source: 'llm',
+          lowConfidence: true,
+          warnings: ['something degraded'],
+        }
+      );
+      const program = programWith(registerAiGroup);
+      await program.parseAsync(['node', 're-shell', 'ai', 'list templates']);
+
+      expect(output()).toContain('via: anthropic (claude-opus-5-5)');
+      expect(output()).toContain('targets: @acme/api (packages/api)');
+      expect(output()).toContain('missing required argument(s): id');
+      expect(output()).toContain('low confidence');
+      expect(output()).toContain('something degraded');
+    });
+
     it('lists ranked alternatives with a destructive badge', async () => {
-      backendWith({
-        needsClarification: false,
-        candidate: candidate(),
-        alternatives: [
-          candidate({ argv: ['workspace', 'remove', 'old'], path: 'workspace remove', destructive: true, confidence: 0.4 }),
-        ],
-        explanation: '',
-      });
+      resolverReturns(
+        resolved(candidate(), {
+          alternatives: [
+            candidate({ argv: ['workspace', 'remove', 'old'], path: 'workspace remove', destructive: true, confidence: 0.4 }),
+          ],
+        })
+      );
       const program = programWith(registerAiGroup);
       await program.parseAsync(['node', 're-shell', 'ai', 'remove a workspace']);
 
@@ -316,61 +397,40 @@ describe('groups — ai / cloud / learn registration', () => {
       expect(output()).toContain('40%');
     });
 
-    it('explains via the catalogue entry with --explain', async () => {
-      const entry = { name: 'templates list' };
-      vi.mocked(aiIntent.explainCandidate).mockReturnValue(
-        'Lists every template in the registry with metadata'
-      );
-      const backend = backendWith(
-        { needsClarification: false, candidate: candidate(), alternatives: [], explanation: 'fallback' },
-        entry
-      );
+    it('prints the explanation with --explain', async () => {
+      resolverReturns(resolved(candidate(), { explanation: 'Lists every template in the registry with metadata' }));
       const program = programWith(registerAiGroup);
       await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--explain']);
 
-      expect(backend.entryFor).toHaveBeenCalledWith('templates list');
-      expect(aiIntent.explainCandidate).toHaveBeenCalledWith(expect.anything(), entry);
       expect(output()).toContain('Explanation:');
       expect(output()).toContain('Lists every template in the registry');
     });
 
-    it('falls back to the parser explanation when the catalogue entry is missing', async () => {
-      vi.mocked(aiIntent.explainCandidate).mockReturnValue('never called');
-      backendWith(
-        { needsClarification: false, candidate: candidate(), alternatives: [], explanation: 'parser-side explanation' },
-        undefined
-      );
-      const program = programWith(registerAiGroup);
-      await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--explain']);
-
-      expect(aiIntent.explainCandidate).not.toHaveBeenCalled();
-      expect(output()).toContain('parser-side explanation');
-    });
-
     it('asks for clarification instead of guessing (never executes)', async () => {
-      backendWith({
-        needsClarification: true,
-        reason: 'ambiguous',
-        question: 'Did you mean list or apply?',
-        candidates: [candidate(), candidate({ argv: ['templates', 'apply'], path: 'templates apply' })],
-      });
+      resolverReturns(
+        {
+          needsClarification: true,
+          reason: 'ambiguous',
+          question: 'Did you mean list or apply?',
+          candidates: [candidate(), candidate({ argv: ['templates', 'apply'], path: 'templates apply' })],
+        },
+        { session: { id: 's-1', turn: 1, pending: true } }
+      );
       const program = programWith(registerAiGroup);
       await program.parseAsync(['node', 're-shell', 'ai', 'templates', '--run']);
 
       expect(output()).toContain('🤔 Need clarification');
       expect(output()).toContain('Did you mean list or apply?');
-      expect(output()).toContain('re-shell templates apply');
+      expect(output()).toContain('1. re-shell templates list');
+      expect(output()).toContain('2. re-shell templates apply');
+      expect(output()).toContain('re-shell ai --session s-1');
       // Clarification must never execute, even with --run.
       expect(spawn).not.toHaveBeenCalled();
+      expect(prompts).not.toHaveBeenCalled();
     });
 
     it('emits the resolved JSON envelope with executed: false', async () => {
-      backendWith({
-        needsClarification: false,
-        candidate: candidate({ confidence: 0.9 }),
-        alternatives: [],
-        explanation: 'Lists templates',
-      });
+      resolverReturns(resolved(candidate({ confidence: 0.9 })), { source: 'cache', cached: true });
       const program = programWith(registerAiGroup);
       await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--json']);
 
@@ -380,15 +440,12 @@ describe('groups — ai / cloud / learn registration', () => {
       expect(payload.data.resolved.argv).toEqual(['templates', 'list']);
       expect(payload.data.confidence).toBe(0.9);
       expect(payload.data.executed).toBe(false);
+      expect(payload.data.cached).toBe(true);
       expect(payload.data.explanation).toBeUndefined();
     });
 
     it('includes the explanation in --json --explain', async () => {
-      vi.mocked(aiIntent.explainCandidate).mockReturnValue('entry-based explanation');
-      backendWith(
-        { needsClarification: false, candidate: candidate(), alternatives: [], explanation: 'fallback' },
-        { name: 'templates list' }
-      );
+      resolverReturns(resolved(candidate(), { explanation: 'entry-based explanation' }));
       const program = programWith(registerAiGroup);
       await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--json', '--explain']);
 
@@ -396,7 +453,7 @@ describe('groups — ai / cloud / learn registration', () => {
     });
 
     it('emits a clarification envelope in --json', async () => {
-      backendWith({
+      resolverReturns({
         needsClarification: true,
         reason: 'ambiguous',
         question: 'Which one?',
@@ -411,8 +468,21 @@ describe('groups — ai / cloud / learn registration', () => {
       expect(payload.data.candidates).toHaveLength(1);
     });
 
-    it('wraps parser failures in AI_INTENT_ERROR and exits 1', async () => {
-      backendWith(new Error('parser exploded'));
+    it('surfaces provider fallback warnings in the JSON envelope', async () => {
+      resolverReturns(resolved(candidate()), {
+        warnings: ['AI provider "anthropic" failed (timeout: slow); used the offline parser instead.'],
+        fallback: { from: 'anthropic', kind: 'timeout', message: 'slow' },
+        requestedProvider: 'anthropic',
+      });
+      const program = programWith(registerAiGroup);
+      await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--json']);
+      const payload = jsonPayload();
+      expect(payload.warnings[0]).toContain('used the offline parser instead');
+      expect(payload.data.fallback.kind).toBe('timeout');
+    });
+
+    it('wraps resolver failures in AI_INTENT_ERROR and exits 1', async () => {
+      vi.mocked(aiResolver.resolveIntent).mockRejectedValue(new Error('parser exploded'));
       const program = programWith(registerAiGroup);
       await program.parseAsync(['node', 're-shell', 'ai', 'gibberish', '--json']);
 
@@ -423,16 +493,62 @@ describe('groups — ai / cloud / learn registration', () => {
       expect(process.exitCode).toBe(1);
     });
 
+    it('reports provider/session errors with their own codes', async () => {
+      const { AiResolveError } = aiResolver;
+      vi.mocked(aiResolver.resolveIntent).mockRejectedValue(
+        new AiResolveError('AI_PROVIDER_ERROR', 'bad key', { provider: 'anthropic', kind: 'auth' })
+      );
+      const program = programWith(registerAiGroup);
+      await program.parseAsync(['node', 're-shell', 'ai', 'x y', '--json', '--no-fallback']);
+      const payload = jsonPayload();
+      expect(payload.error.code).toBe('AI_PROVIDER_ERROR');
+      expect(payload.error.details).toEqual({ provider: 'anthropic', kind: 'auth' });
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('rejects an unknown provider and conflicting session flags before resolving', async () => {
+      let program = programWith(registerAiGroup);
+      await program.parseAsync(['node', 're-shell', 'ai', 'x y', '--provider', 'gpt', '--json']);
+      expect(jsonPayload().error.code).toBe('AI_CONFIG_ERROR');
+
+      process.exitCode = undefined;
+      stdoutSpy.mockClear();
+      program = programWith(registerAiGroup);
+      await program.parseAsync(['node', 're-shell', 'ai', 'x y', '--session', 'a', '--continue', '--json']);
+      expect(jsonPayload().error.code).toBe('AI_SESSION_ERROR');
+      expect(aiResolver.resolveIntent).not.toHaveBeenCalled();
+    });
+
+    it('prints a readable error (not JSON) on failure in human mode', async () => {
+      vi.mocked(aiResolver.resolveIntent).mockRejectedValue(new Error('boom'));
+      const program = programWith(registerAiGroup);
+      await program.parseAsync(['node', 're-shell', 'ai', 'gibberish']);
+      expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('boom'));
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('says --run is ignored with --json and executes nothing', async () => {
+      resolverReturns(resolved(candidate()));
+      const program = programForRun();
+      await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--json', '--run']);
+      const payload = jsonPayload();
+      expect(payload.warnings.join(' ')).toContain('--run is ignored with --json');
+      expect(payload.data.executed).toBe(false);
+      expect(spawn).not.toHaveBeenCalled();
+      expect(prompts).not.toHaveBeenCalled();
+    });
+
     describe('--run confirmation flow', () => {
+      let restoreTty: () => void;
+      beforeEach(() => {
+        restoreTty = withTty(true);
+      });
+      afterEach(() => restoreTty());
+
       it('aborts without spawning when the confirmation is declined', async () => {
-        backendWith({
-          needsClarification: false,
-          candidate: candidate(),
-          alternatives: [],
-          explanation: '',
-        });
+        resolverReturns(resolved(candidate()));
         vi.mocked(prompts).mockResolvedValue({ confirmed: false } as never);
-        const program = programWith(registerAiGroup);
+        const program = programForRun();
         await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--run']);
 
         expect(prompts).toHaveBeenCalled();
@@ -441,15 +557,10 @@ describe('groups — ai / cloud / learn registration', () => {
       });
 
       it('spawns the vetted argv without a shell after confirmation', async () => {
-        backendWith({
-          needsClarification: false,
-          candidate: candidate({ argv: ['templates', 'list', '--json'] }),
-          alternatives: [],
-          explanation: '',
-        });
+        resolverReturns(resolved(candidate({ argv: ['templates', 'list', '--json'] })));
         vi.mocked(prompts).mockResolvedValue({ confirmed: true } as never);
         spawnExitCodes([0]);
-        const program = programWith(registerAiGroup);
+        const program = programForRun();
         await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--run']);
 
         expect(spawn).toHaveBeenCalledWith(
@@ -459,15 +570,22 @@ describe('groups — ai / cloud / learn registration', () => {
         );
       });
 
+      it('re-vets the argv and refuses to run anything that is not a real catalogue command', async () => {
+        resolverReturns(resolved(candidate({ argv: ['rm', '-rf', '/'] })));
+        vi.mocked(prompts).mockResolvedValue({ confirmed: true } as never);
+        const program = programForRun();
+        await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--run']);
+
+        expect(output()).toContain('Refusing to run');
+        expect(prompts).not.toHaveBeenCalled();
+        expect(spawn).not.toHaveBeenCalled();
+        expect(process.exitCode).toBe(1);
+      });
+
       it('warns before confirming a destructive candidate', async () => {
-        backendWith({
-          needsClarification: false,
-          candidate: candidate({ argv: ['workspace', 'remove', 'old'], destructive: true }),
-          alternatives: [],
-          explanation: '',
-        });
+        resolverReturns(resolved(candidate({ argv: ['workspace', 'remove', 'old'], destructive: true })));
         vi.mocked(prompts).mockResolvedValue({ confirmed: false } as never);
-        const program = programWith(registerAiGroup);
+        const program = programForRun();
         await program.parseAsync(['node', 're-shell', 'ai', 'nuke it', '--run']);
 
         expect(output()).toContain('destructive');
@@ -475,18 +593,26 @@ describe('groups — ai / cloud / learn registration', () => {
       });
 
       it('surfaces spawn failures on stderr and exits 1', async () => {
-        backendWith({
-          needsClarification: false,
-          candidate: candidate(),
-          alternatives: [],
-          explanation: '',
-        });
+        resolverReturns(resolved(candidate()));
         vi.mocked(prompts).mockResolvedValue({ confirmed: true } as never);
         spawnErrors();
-        const program = programWith(registerAiGroup);
+        const program = programForRun();
         await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--run']);
 
         expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to execute'));
+        expect(process.exitCode).toBe(1);
+      });
+
+      it('refuses to run without an interactive terminal', async () => {
+        restoreTty();
+        restoreTty = withTty(false);
+        resolverReturns(resolved(candidate()));
+        const program = programForRun();
+        await program.parseAsync(['node', 're-shell', 'ai', 'list templates', '--run']);
+
+        expect(output()).toContain('needs an interactive terminal');
+        expect(prompts).not.toHaveBeenCalled();
+        expect(spawn).not.toHaveBeenCalled();
         expect(process.exitCode).toBe(1);
       });
     });
@@ -630,7 +756,7 @@ describe('groups — ai / cloud / learn registration', () => {
       const cloud = program.commands.find(c => c.name() === 'cloud');
       expect(cloud?.commands.map(c => c.name())).toEqual([
         'aws', 'azure', 'gcp', 'multi', 'db', 'serverless', 'storage',
-        'iac', 'dr', 'cost', 'hybrid', 'resources', 'network',
+        'iac', 'dr', 'cost', 'hybrid', 'resources', 'network', 'deploy',
       ]);
     });
 

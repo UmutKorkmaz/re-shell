@@ -150,7 +150,10 @@ const orchestrator = new MicrofrontendOrchestrator({
 });
 
 // Initialize orchestrator
-await orchestrator.initialize();
+orchestrator.initialize().catch((err) => {
+  console.error("Failed to initialize orchestrator", err);
+  process.exit(1);
+});
 
 // Routes
 app.use('/api/orchestrator', orchestratorRoutes(orchestrator));
@@ -1356,7 +1359,7 @@ export function serviceRoutes(backendIntegration: BackendServiceIntegration): Ro
   // Fetch data from service
   router.get('/:id/fetch/*', async (req, res, next) => {
     try {
-      const endpoint = req.params[0] || '/';
+      const endpoint = (req.params as Record<string, string>)[0] || '/';
       const data = await backendIntegration.fetchData(req.params.id, endpoint);
       res.json(data);
     } catch (error) {
@@ -1367,7 +1370,7 @@ export function serviceRoutes(backendIntegration: BackendServiceIntegration): Ro
   // Send data to service
   router.post('/:id/send/*', async (req, res, next) => {
     try {
-      const endpoint = req.params[0] || '/';
+      const endpoint = (req.params as Record<string, string>)[0] || '/';
       const data = await backendIntegration.sendData(req.params.id, endpoint, req.body);
       res.json(data);
     } catch (error) {
@@ -1946,10 +1949,12 @@ npm run dev
 
 ### Frontend SDK
 
+The SDK is generated into this project's \`client-sdk/\` folder (it is not published to npm). The imports below are relative to the project root; adjust them to wherever you copy the folder, or expose it as a workspace package.
+
 #### React
 
 \`\`\`typescript
-import { useMicrofrontend } from '@re-shell/microfrontend-client/react';
+import { useMicrofrontend } from './client-sdk/react/useMicrofrontend';
 
 function MyComponent() {
   const { isConnected, state, loadComponent, setState, fetchFromBackend } = useMicrofrontend({
@@ -1977,7 +1982,7 @@ function MyComponent() {
 #### Vue
 
 \`\`\`typescript
-import { useMicrofrontend } from '@re-shell/microfrontend-client/vue';
+import { useMicrofrontend } from './client-sdk/vue/useMicrofrontend';
 
 const { isConnected, state, loadComponent, setState, fetchFromBackend } = useMicrofrontend({
   orchestratorURL: 'http://localhost:3000',
@@ -1988,7 +1993,7 @@ const { isConnected, state, loadComponent, setState, fetchFromBackend } = useMic
 #### Angular
 
 \`\`\`typescript
-import { MicrofrontendService } from '@re-shell/microfrontend-client/angular';
+import { MicrofrontendService } from './client-sdk/angular/Microfrontend.service';
 
 constructor(private microfrontend: MicrofrontendService) {
   const data = await this.microfrontend.fetchFromBackend('api-service', '/users');
@@ -1999,7 +2004,7 @@ constructor(private microfrontend: MicrofrontendService) {
 
 \`\`\`svelte
 <script>
-  import { createMicrofrontendStore } from '@re-shell/microfrontend-client/svelte';
+  import { createMicrofrontendStore } from './client-sdk/svelte/useMicrofrontend';
 
   const { isConnected, state, loadComponent, setState, fetchFromBackend } = createMicrofrontendStore({
     orchestratorURL: 'http://localhost:3000',

@@ -175,7 +175,7 @@ export class MetricsCollector {
 
     const metric: MetricData = {
       timestamp: new Date().toISOString(),
-      cpu: cpu.currentload,
+      cpu: cpu.currentLoad,
       memory: {
         total: mem.total,
         used: mem.active,
@@ -738,7 +738,7 @@ export function apiRoutes(
       const sla = slaTracker.calculateSLA(req.params.id);
       res.json(sla);
     } catch (error: unknown) {
-      res.status(404).json({ error: error.message });
+      res.status(404).json({ error: (error as Error).message });
     }
   });
 

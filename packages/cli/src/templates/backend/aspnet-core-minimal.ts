@@ -13,14 +13,14 @@ export const aspnetCoreMinimalTemplate: BackendTemplate = {
   
   files: {
     // Project file optimized for minimal API
-    [`\${projectName}.csproj`]: `<Project Sdk="Microsoft.NET.Sdk.Web">
+    [`{{projectNamePascal}}.csproj`]: `<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <DocumentationFile>bin\\Debug\\net8.0\\\${projectName}.xml</DocumentationFile>
+    <DocumentationFile>bin\\Debug\\net8.0\\{{projectNamePascal}}.xml</DocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
@@ -42,8 +42,7 @@ export const aspnetCoreMinimalTemplate: BackendTemplate = {
     <PackageReference Include="FluentValidation" Version="11.8.0" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
     <PackageReference Include="StackExchange.Redis" Version="2.7.10" />
-    <PackageReference Include="Microsoft.AspNetCore.RateLimiting" Version="8.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.OutputCaching" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.0" />
     <PackageReference Include="GraphQL" Version="7.8.0" />
     <PackageReference Include="GraphQL.SystemTextJson" Version="7.8.0" />
   </ItemGroup>
@@ -65,9 +64,11 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
-using \${projectName}.Data;
-using \${projectName}.Models;
-using \${projectName}.Services;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.GraphQL;
+using GraphQL.SystemTextJson;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -143,7 +144,6 @@ try
 
     // GraphQL
     builder.Services.AddSingleton<GraphQLSchema>();
-    builder.Services.AddSingleton<GraphQLEntityResolver>();
 
     // Swagger/OpenAPI
     builder.Services.AddEndpointsApiExplorer();
@@ -151,7 +151,7 @@ try
     {
         c.SwaggerDoc("v1", new OpenApiInfo 
         { 
-            Title = "\${projectName} Minimal API", 
+            Title = "{{projectNamePascal}} Minimal API", 
             Version = "v1",
             Description = "High-performance ASP.NET Core Minimal API with functional endpoints"
         });
@@ -197,7 +197,7 @@ try
         app.UseSwagger();
         app.UseSwaggerUI(c =>
         {
-            c.SwaggerEndpoint("/swagger/v1/swagger.json", "\${projectName} Minimal API V1");
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "{{projectNamePascal}} Minimal API V1");
             c.RoutePrefix = string.Empty;
         });
     }
@@ -213,11 +213,13 @@ try
     app.MapPost("/graphql", async (HttpContext context, GraphQLSchema schema) =>
     {
         var request = await context.Request.ReadFromJsonAsync<GraphQLRequest>();
-        var result = await new DocumentExecuter().ExecuteAsync(options =>
+        var result = await new global::GraphQL.DocumentExecuter().ExecuteAsync(new global::GraphQL.ExecutionOptions
         {
-            options.Schema = schema;
-            options.Query = request?.Query;
-            options.Inputs = request?.Variables;
+            Schema = schema,
+            Query = request?.Query,
+            Variables = request?.Variables,
+            RequestServices = context.RequestServices,
+            CancellationToken = context.RequestAborted
         });
 
         var writer = new GraphQLSerializer();
@@ -410,9 +412,9 @@ public record UpdateProductRequest(
 
     // Database context - simplified for minimal API
     'Data/AppDbContext.cs': `using Microsoft.EntityFrameworkCore;
-using \${projectName}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Data;
+namespace {{projectNamePascal}}.Data;
 
 public class AppDbContext : DbContext
 {
@@ -498,7 +500,7 @@ public class AppDbContext : DbContext
 }`,
 
     // Models - simplified for minimal API
-    'Models/User.cs': `namespace \${projectName}.Models;
+    'Models/User.cs': `namespace {{projectNamePascal}}.Models;
 
 public class User
 {
@@ -512,7 +514,7 @@ public class User
     public DateTime? LastLoginAt { get; set; }
 }`,
 
-    'Models/Product.cs': `namespace \${projectName}.Models;
+    'Models/Product.cs': `namespace {{projectNamePascal}}.Models;
 
 public class Product
 {
@@ -528,7 +530,7 @@ public class Product
     public DateTime? UpdatedAt { get; set; }
 }`,
 
-    'Models/Category.cs': `namespace \${projectName}.Models;
+    'Models/Category.cs': `namespace {{projectNamePascal}}.Models;
 
 public class Category
 {
@@ -543,9 +545,9 @@ public class Category
 }`,
 
     // Services for business logic
-    'Services/IAuthService.cs': `using \${projectName}.Models;
+    'Services/IAuthService.cs': `using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IAuthService
 {
@@ -568,10 +570,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using \${projectName}.Data;
-using \${projectName}.Models;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class AuthService : IAuthService
 {
@@ -711,9 +713,9 @@ public class AuthService : IAuthService
     }
 }`,
 
-    'Services/IProductService.cs': `using \${projectName}.Models;
+    'Services/IProductService.cs': `using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IProductService
 {
@@ -728,10 +730,10 @@ public interface IProductService
     'Services/ProductService.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
-using \${projectName}.Data;
-using \${projectName}.Models;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
 
-namespace \${projectName}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class ProductService : IProductService
 {
@@ -936,13 +938,13 @@ public class ProductService : IProductService
     'GraphQL/GraphQLSchema.cs': `using GraphQL;
 using GraphQL.Types;
 
-namespace \${projectName}.GraphQL;
+namespace {{projectNamePascal}}.GraphQL;
 
 public class GraphQLSchema : Schema
 {
-    public GraphQLSchema(GraphQLEntityResolver resolver) : base(resolver)
+    public GraphQLSchema() : base(new GraphQLEntityResolver())
     {
-        Query = resolver.Resolve<RootQuery>();
+        Query = new RootQuery();
     }
 }
 
@@ -966,16 +968,8 @@ public class GraphQLRequest
 
 public class GraphQLEntityResolver : IServiceProvider
 {
-    private readonly Dictionary<Type, object> _services = new();
-
-    public void Add<T>(T service) where T : notnull
-        => _services[typeof(T)] = service;
-
-    public T Resolve<T>() where T : notnull
-        => (T)_services[typeof(T)];
-
     public object? GetService(Type serviceType)
-        => _services.TryGetValue(serviceType, out var service) ? service : null;
+        => serviceType == typeof(RootQuery) ? new RootQuery() : null;
 }`,
 
 
@@ -988,7 +982,7 @@ public class GraphQLEntityResolver : IServiceProvider
     }
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\\\mssqllocaldb;Database=\${projectName}MinimalDevDb;Trusted_Connection=true;MultipleActiveResultSets=true",
+    "DefaultConnection": "Server=(localdb)\\\\mssqllocaldb;Database={{projectNamePascal}}MinimalDevDb;Trusted_Connection=true;MultipleActiveResultSets=true",
     "Redis": "localhost:6379"
   }
 }`,
@@ -1007,16 +1001,16 @@ EXPOSE 8080
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["\${projectName}.csproj", "."]
-RUN dotnet restore "./\${projectName}.csproj"
+COPY ["{{projectNamePascal}}.csproj", "."]
+RUN dotnet restore "./{{projectNamePascal}}.csproj"
 COPY . .
 WORKDIR "/src/."
-RUN dotnet build "./\${projectName}.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./{{projectNamePascal}}.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # Stage 3: Publish
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./\${projectName}.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false /p:PublishAot=true
+RUN dotnet publish "./{{projectNamePascal}}.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false /p:PublishAot=true
 
 # =============================================================================
 # Stage 4: Final runtime image
@@ -1039,7 +1033,7 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \\
     CMD curl -f http://localhost:8080/health || exit 1
 
-ENTRYPOINT ["dotnet", "\${projectName}.dll"]`,
+ENTRYPOINT ["dotnet", "{{projectNamePascal}}.dll"]`,
 
     '.dockerignore': `**/.dockerignore
 **/.env
@@ -1074,7 +1068,7 @@ README.md`,
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
-      "applicationUrl": "http://localhost:\${port || 5000}",
+      "applicationUrl": "http://localhost:{{port}}",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
@@ -1083,7 +1077,7 @@ README.md`,
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
-      "applicationUrl": "https://localhost:\${(port ? parseInt(port) + 1 : 5001)};http://localhost:\${port || 5000}",
+      "applicationUrl": "https://localhost:5001;http://localhost:{{port}}",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
@@ -1092,7 +1086,7 @@ README.md`,
 }`,
 
     // README
-    'README.md': `# \${projectName} - ASP.NET Core Minimal API
+    'README.md': `# {{projectNamePascal}} - ASP.NET Core Minimal API
 
 High-performance ASP.NET Core Minimal API with functional endpoints, JWT authentication, output caching, rate limiting, and comprehensive features.
 
@@ -1148,8 +1142,8 @@ dotnet watch run
 
 Build and run with Docker (AOT optimized):
 \`\`\`bash
-docker build -t \${projectName.toLowerCase()}-minimal-api .
-docker run -p 8080:8080 \${projectName.toLowerCase()}-minimal-api
+docker build -t {{projectName}}-minimal-api .
+docker run -p 8080:8080 {{projectName}}-minimal-api
 \`\`\`
 
 ## API Endpoints
@@ -1232,7 +1226,7 @@ Configure Redis connection:
 ## Project Structure
 
 \`\`\`
-\${projectName}/
+{{projectNamePascal}}/
 ├── Data/                # Database context
 ├── Models/              # Domain models
 ├── Services/            # Business logic services

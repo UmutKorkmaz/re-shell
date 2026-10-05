@@ -19,6 +19,10 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      '@re-shell/contracts/command-registry': resolve(
+        packageRoot,
+        '../../packages/contracts/src/command-registry.ts'
+      ),
       '@re-shell/contracts': resolve(
         packageRoot,
         '../../packages/contracts/src/index.ts'

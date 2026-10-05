@@ -62,7 +62,7 @@ export const hyperExpressTemplate: BackendTemplate = {
     "bull": "^4.12.2",
     "bullmq": "^5.7.1",
     "node-cron": "^3.0.3",
-    "axios": "^1.6.8",
+    "axios": "^1.20.0",
     "lodash": "^4.17.21",
     "@types/lodash": "^4.17.0",
     "compression": "^1.7.4",
@@ -151,16 +151,12 @@ import { gracefulShutdown } from './utils/shutdown';
 import { createGraphQLServer } from './graphql';
 
 const app = new HyperExpress.Server({
-  // Enable HTTP/2 support
-  http2: true,
   // Trust proxy headers
   trust_proxy: true,
   // Maximum request body size (10MB)
-  max_body_size: 10 * 1024 * 1024,
+  max_body_length: 10 * 1024 * 1024,
   // Fast buffers for better performance
   fast_buffers: true,
-  // Maximum headers count
-  max_headers_count: 100
 });
 
 async function bootstrap() {
@@ -177,9 +173,15 @@ async function bootstrap() {
     // GraphQL endpoint (GraphQL Yoga mounted on /graphql)
     const graphQLServer = createGraphQLServer();
     app.any('/graphql', async (request, response) => {
-      const incomingMessage = request as unknown as import('http').IncomingMessage;
-      const serverResponse = response as unknown as import('http').ServerResponse;
-      await graphQLServer.handleIncomingMessage(incomingMessage, serverResponse);
+      const hasBody = !['GET', 'HEAD'].includes(request.method);
+      const result = await graphQLServer.fetch(\`http://\${request.headers.host ?? 'localhost'}\${request.url}\`, {
+        method: request.method,
+        headers: request.headers as Record<string, string>,
+        body: hasBody ? await request.buffer() : undefined
+      });
+      response.status(result.status);
+      result.headers.forEach((value, key) => response.header(key, value));
+      response.send(await result.text());
     });
 
     // Error handler
@@ -210,8 +212,7 @@ async function bootstrap() {
     logger.info({
       port: config.port,
       host: config.host,
-      environment: config.env,
-      http2: true
+      environment: config.env
     }, '🚀 Hyper-Express server started');
     
     // Setup graceful shutdown
@@ -485,7 +486,7 @@ export const loggingMiddleware: HyperExpress.MiddlewareHandler = (request, respo
   const requestId = nanoid();
   
   // Add request ID to request object
-  (request as Request & { id: string }).id = requestId;
+  request.locals.id = requestId;
   
   // Log request
   logger.info({
@@ -506,7 +507,7 @@ export const loggingMiddleware: HyperExpress.MiddlewareHandler = (request, respo
       requestId,
       method: request.method,
       path: request.path,
-      statusCode: response.status_code,
+      statusCode: response.statusCode,
       duration
     }, 'Request completed');
     
@@ -540,16 +541,17 @@ export const rateLimitMiddleware: HyperExpress.MiddlewareHandler = async (reques
   } catch (error) {
     if (error instanceof Error && 'remainingPoints' in error) {
       const rateLimiterRes = error as Error & { remainingPoints?: number; msBeforeNext?: number };
+      const msBeforeNext = rateLimiterRes.msBeforeNext ?? 60000;
       
-      response.header('Retry-After', String(Math.round(rateLimiterRes.msBeforeNext / 1000) || 60));
+      response.header('Retry-After', String(Math.round(msBeforeNext / 1000) || 60));
       response.header('X-RateLimit-Limit', String(config.rateLimit.max));
       response.header('X-RateLimit-Remaining', String(rateLimiterRes.remainingPoints || 0));
-      response.header('X-RateLimit-Reset', new Date(Date.now() + rateLimiterRes.msBeforeNext).toISOString());
+      response.header('X-RateLimit-Reset', new Date(Date.now() + msBeforeNext).toISOString());
       
       return response.status(429).json({
         success: false,
         message: 'Too many requests',
-        retryAfter: Math.round(rateLimiterRes.msBeforeNext / 1000)
+        retryAfter: Math.round(msBeforeNext / 1000)
       });
     }
     
@@ -766,10 +768,10 @@ const clients = new Map<HyperExpress.Websocket, WSClient>();
 export function wsRoutes(app: HyperExpress.Server) {
   // WebSocket endpoint
   app.ws('/ws', {
-    compression: true,
-    maxPayloadLength: config.ws.maxPayload,
-    idleTimeout: 120,
-    maxBackpressure: 1024 * 1024 // 1MB
+    compression: 1, // uWS.SHARED_COMPRESSOR,
+    max_payload_length: config.ws.maxPayload,
+    idle_timeout: 120,
+    max_backpressure: 1024 * 1024 // 1MB
   }, (ws) => {
     const clientId = generateClientId();
     const client: WSClient = {
@@ -1107,12 +1109,29 @@ import { logger } from '../utils/logger';
 import { config } from '../config/config';
 import path from 'path';
 import fs from 'fs/promises';
+import { createWriteStream } from 'fs';
+import { UploadedFile } from '../services/upload.service';
+
+/** Collect every file part of a multipart request into memory. */
+async function collectFiles(request: HyperExpress.Request): Promise<UploadedFile[]> {
+  const files: UploadedFile[] = [];
+  await request.multipart(async (field) => {
+    if (!field.file) return;
+    const chunks: Buffer[] = [];
+    for await (const chunk of field.file.stream) {
+      chunks.push(chunk as Buffer);
+    }
+    const data = Buffer.concat(chunks);
+    files.push({ name: field.file.name, mimeType: field.mime_type, size: data.length, data });
+  });
+  return files;
+}
 
 export function uploadRoutes(router: HyperExpress.Router) {
   // Single file upload
   router.post('/upload/single', authenticate, async (request, response) => {
     try {
-      const files = await request.files();
+      const files = await collectFiles(request);
       
       if (!files || files.length === 0) {
         return response.status(400).json({
@@ -1124,7 +1143,7 @@ export function uploadRoutes(router: HyperExpress.Router) {
       const file = files[0];
       
       // Validate file size
-      if (file.size > config.upload.maxFileSize) {
+      if ((file.size ?? 0) > config.upload.maxFileSize) {
         return response.status(400).json({
           success: false,
           message: 'File too large'
@@ -1149,7 +1168,7 @@ export function uploadRoutes(router: HyperExpress.Router) {
   // Multiple file upload
   router.post('/upload/multiple', authenticate, async (request, response) => {
     try {
-      const files = await request.files();
+      const files = await collectFiles(request);
       
       if (!files || files.length === 0) {
         return response.status(400).json({
@@ -1191,7 +1210,7 @@ export function uploadRoutes(router: HyperExpress.Router) {
       const uploadPath = path.join(config.upload.dir, \`\${Date.now()}-\${filename}\`);
       await fs.mkdir(path.dirname(uploadPath), { recursive: true });
       
-      const writeStream = fs.createWriteStream(uploadPath);
+      const writeStream = createWriteStream(uploadPath);
       let bytesReceived = 0;
       
       request.on('data', (chunk) => {
@@ -1305,7 +1324,7 @@ export function validateRequest<T extends z.ZodType>(schema: T): HyperExpress.Mi
       const validated = await schema.parseAsync(data);
       
       // Attach validated data to request
-      (request as Request & { validated?: { body?: unknown; params?: unknown } }).validated = validated;
+      request.locals.validated = validated;
       
       next();
     } catch (error) {
@@ -1343,7 +1362,7 @@ import { generateTokens, verifyRefreshToken } from '../utils/jwt';
 export const authController = {
   async register(request: HyperExpress.Request, response: HyperExpress.Response) {
     try {
-      const { body } = (request as Request & { validated?: { body?: unknown } }).validated!;
+      const { body } = request.locals.validated as { body: Record<string, any> };
       const { email, password, name } = body;
       
       // Check if user exists
@@ -1382,11 +1401,10 @@ export const authController = {
       });
       
       // Set refresh token in cookie
-      response.cookie('refreshToken', tokens.refreshToken, {
+      response.cookie('refreshToken', tokens.refreshToken, 7 * 24 * 60 * 60 * 1000, {
         httpOnly: true,
         secure: config.env === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        sameSite: 'lax'
       });
       
       response.status(201).json({
@@ -1413,7 +1431,7 @@ export const authController = {
   
   async login(request: HyperExpress.Request, response: HyperExpress.Response) {
     try {
-      const { body } = (request as Request & { validated?: { body?: unknown } }).validated!;
+      const { body } = request.locals.validated as { body: Record<string, any> };
       const { email, password } = body;
       
       // Find user
@@ -1449,11 +1467,10 @@ export const authController = {
       });
       
       // Set refresh token in cookie
-      response.cookie('refreshToken', tokens.refreshToken, {
+      response.cookie('refreshToken', tokens.refreshToken, 7 * 24 * 60 * 60 * 1000, {
         httpOnly: true,
         secure: config.env === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000
+        sameSite: 'lax'
       });
       
       response.json({
@@ -1480,7 +1497,7 @@ export const authController = {
   
   async refreshToken(request: HyperExpress.Request, response: HyperExpress.Response) {
     try {
-      const { body } = (request as Request & { validated?: { body?: unknown } }).validated!;
+      const { body } = request.locals.validated as { body: Record<string, any> };
       const refreshToken = body.refreshToken || request.cookies.refreshToken;
       
       if (!refreshToken) {
@@ -1509,7 +1526,7 @@ export const authController = {
           role: payload.role
         },
         config.jwt.secret,
-        { expiresIn: config.jwt.expiresIn }
+        { expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'] }
       );
       
       response.json({
@@ -1555,7 +1572,7 @@ export const authController = {
   
   async forgotPassword(request: HyperExpress.Request, response: HyperExpress.Response) {
     try {
-      const { body } = (request as Request & { validated?: { body?: unknown } }).validated!;
+      const { body } = request.locals.validated as { body: Record<string, any> };
       const { email } = body;
       
       const user = await prisma.user.findUnique({
@@ -1600,7 +1617,7 @@ export const authController = {
   
   async resetPassword(request: HyperExpress.Request, response: HyperExpress.Response) {
     try {
-      const { body, params } = (request as Request & { validated?: { body?: unknown; params?: unknown } }).validated!;
+      const { body, params } = request.locals.validated as { body: Record<string, any>; params: Record<string, any> };
       const { password } = body;
       const { token } = params;
       
@@ -1869,7 +1886,7 @@ export const cacheService = {
   
   async del(key: string | string[]): Promise<void> {
     try {
-      await redis.del(key);
+      await redis.del(...(Array.isArray(key) ? key : [key]));
     } catch (error) {
       logger.error({ error, key }, 'Cache delete error');
     }
@@ -1913,11 +1930,11 @@ import { JWTPayload } from '../middleware/auth';
 
 export function generateTokens(payload: JWTPayload) {
   const accessToken = jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.expiresIn
+    expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn']
   });
   
   const refreshToken = jwt.sign(payload, config.jwt.refreshSecret, {
-    expiresIn: config.jwt.refreshExpiresIn
+    expiresIn: config.jwt.refreshExpiresIn as jwt.SignOptions['expiresIn']
   });
   
   return { accessToken, refreshToken };
@@ -2946,16 +2963,16 @@ export function todoRoutes(router: HyperExpress.Router) {
 
     // GraphQL server factory. Wraps graphql-yoga so src/index.ts can mount it
     // on the /graphql Hyper-Express route.
-    'src/graphql/index.ts': `import { createYoga } from 'graphql-yoga';
+    'src/graphql/index.ts': `import { createSchema, createYoga } from 'graphql-yoga';
 import { typeDefs } from './schema';
 import { resolvers } from './resolver';
 
 export function createGraphQLServer() {
   return createYoga({
-    schema: {
+    schema: createSchema({
       typeDefs,
       resolvers
-    },
+    }),
     graphqlEndpoint: '/graphql',
     logging: 'info'
   });

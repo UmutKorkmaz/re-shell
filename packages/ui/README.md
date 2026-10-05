@@ -4,8 +4,9 @@ Shadcn-first React component library for Re-Shell interfaces. This is the **sing
 UI system** for the monorepo — `apps/web` consumes it instead of building a parallel
 component layer. There is no Web Components surface.
 
-> Part of the [Re-Shell monorepo](https://github.com/umutkorkmaz/re-shell-cli). See
-> [`/docs`](../../docs) for the documentation index.
+> Part of the [Re-Shell monorepo](https://github.com/UmutKorkmaz/re-shell). See
+> [`/docs`](../../docs) for the documentation index. Version in this tree: **0.6.0**
+> (published: 0.5.0).
 
 ## Install
 
@@ -19,67 +20,140 @@ hub data hooks (`useHubQuery`, `useJob`).
 
 ## Usage
 
-Import components from the package root and the stylesheet from `./styles.css`:
+Import components from the package root (or a deep path), the fonts once, and the
+stylesheet:
 
 ```tsx
 import { WorkspaceSummaryPanel, Button, HealthStatus } from '@re-shell/ui';
-import '@re-shell/ui/styles.css';
+import '@re-shell/ui/fonts.css'; // Latin-only self-hosted fonts (real woff2 files, not inlined)
+import '@re-shell/ui/styles.css'; // tokens + utilities (~8 kB gzip)
+```
+
+Deep imports resolve to real per-module files, so they are tree-shakeable and cheap:
+
+```tsx
+import { Button } from '@re-shell/ui/components/ui/button';
+import { Box, Stack, Text } from '@re-shell/ui/components/primitives';
+import { px, rem } from '@re-shell/ui/lib';
 ```
 
 ## Exports
 
-Everything is re-exported from the package root (`@re-shell/ui`). Subpath entry
-points exist for type discovery, but their runtime resolves to the same bundle.
+### shadcn primitives - `./components/ui`
 
-### shadcn primitives — `./components/ui`
+`Alert`, `Badge`, `Button`, `Card`, `Dialog`, `Input`, `Label`, `ScrollArea`,
+`Separator`, `Sheet`, `Tabs`, `Toast` (`ToastProvider`, `useToast`), `Tooltip`. Built on Radix
+primitives, `class-variance-authority`, and `cn()`.
 
-`Badge`, `Button`, `Card`, `Input`, `Label`, `ScrollArea`, `Separator`, `Sheet`,
-`Tabs`, `Tooltip`. Built on Radix primitives, `class-variance-authority`, and `cn()`.
+### Layout / a11y primitives - `./components/primitives`
 
-### Re-Shell domain components — `./components/re-shell`
+`Box`, `Text`, `Stack` (polymorphic, see below), `SkipLink`, `LiveRegion`,
+`VisuallyHidden`.
+
+### Re-Shell domain components - `./components/re-shell`
 
 `CommandPreview`, `HealthStatus`, `JobLogPanel`, `TemplateCatalogCard`,
-`TopologyNodeCard`, `WorkspaceSummaryPanel`. These compose the shadcn primitives —
+`TopologyNodeCard`, `WorkspaceSummaryPanel`. These compose the shadcn primitives -
 they do not introduce a parallel UI pattern.
 
-### Hooks — `./hooks`
+### Hooks - `./hooks`
 
 Hub connection + data hooks: `resolveHubToken`, `resolveHubBaseUrl`,
 `buildEventsUrl`, `buildJobsUrl`, `redactSecrets`, `fetchHubJson`, `useHubStream`,
-`useHubQuery`, `useJob` (plus their option/result types).
+`useHubQuery`, `useJob`, plus `useChangeFlash` (the `log-flash` highlight).
 
-### Utilities — `./lib`
+### Utilities - `./lib`
 
-`cn()` and the command helpers from `lib/command`.
+`cn()`, the command helpers, the branded CSS unit helpers and the polymorphic
+component types.
 
-### Contracts re-export — `./contracts`
+### Contracts re-export - `./contracts`
 
 Type-only re-export of [`@re-shell/contracts`](../contracts) so consumers can
 import the shared wire types from one place.
 
-### Styles — `./styles.css`
+### Styles - `./styles.css`, `./fonts.css`
 
-Compiled Tailwind + shadcn CSS variables (light + dark tokens).
+Compiled Tailwind + design tokens (OKLCH, light + dark, hex fallback) and the
+Latin-only font faces.
+
+## Type system
+
+- **Polymorphic `as`** - `Box`, `Text`, `Stack` and `CardTitle` take `as`; the other
+  props are exactly those of the target element and `ref` is typed for it
+  (`<Box as="a" href="/x" />` compiles, `<Box as="div" href="/x" />` does not).
+  `forwardPolymorphic` builds new ones.
+- **Branded CSS units** - `Px`, `Rem`, `Percent` (`px(4)`, `rem(1.5)`, `percent(50)`,
+  `pxToRem`, `addLength`, `parseLength`, ...). A bare `"12px"` or a number is a
+  compile error, units never mix, and spacing props reject percentages.
+- **Discriminated variant props** - `Stack` (`wrap` only on `direction="row"`),
+  `Text` (`lines` only with `truncate`), `Alert` (`dismissible` requires `onDismiss`).
+
+The typings are covered by `src/types/*.test-d.tsx` (`expectTypeOf` +
+`@ts-expect-error`), which run under `vitest run` and `tsc`.
+
+## Accessibility
+
+Every component has a `vitest-axe` test plus keyboard/focus assertions
+(`src/components/a11y.test.tsx`). Contrast of the status colours, the signal
+accent, the focus ring and control borders is verified in BOTH themes from the
+real tokens (`src/styles/tokens.test.ts`), and Storybook re-checks every story in a
+real browser (axe incl. contrast) in both themes. Scrollable regions are
+keyboard-focusable only when they overflow; toasts and log output are live regions;
+`prefers-reduced-motion` disables all animation.
+
+## Storybook
+
+Storybook 9 (`@storybook/react-vite`) documents every component, each with `play`
+interaction tests and the a11y addon.
+
+```bash
+pnpm --filter @re-shell/ui storybook         # dev server on :6006 (theme switch in the toolbar)
+pnpm --filter @re-shell/ui build-storybook   # static site in storybook-static/
+pnpm --filter @re-shell/ui test-storybook    # test runner: interaction + a11y + visual, both themes
+pnpm --filter @re-shell/ui test-storybook -u # refresh the visual baselines
+```
+
+`test-storybook` serves the static build on an ephemeral port and runs
+`@storybook/test-runner` (Chromium; set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use
+an existing browser). Per story and per theme it runs axe and compares a screenshot
+with the committed baseline in `__image_snapshots__/`. `re-shell ui test` drives the
+same runner and reports the three pillars.
+
+CI builds the static Storybook and uploads it as the `storybook-static` build artifact
+(the `storybook` job in `.github/workflows/ci.yml`); it is **not** published to the docs
+site. Component scaffolding: `re-shell ui component new <name>` creates the component,
+its story and its vitest + axe test; `re-shell ui generate --prompt "..."` generates a
+typechecked component from a description (AI provider if configured, offline template
+otherwise).
+
+## Theme packs and white-label
+
+The dashboard can be re-skinned without touching this package: `re-shell ui theme
+install|list|search|remove` manages theme packs (npm keyword `reshell-theme`; a pack
+whose colours fail the OKLCH contrast floor is rejected), and the white-label config
+(`re-shell.whitelabel.json`, or `RE_SHELL_BRAND_NAME`, `_TAGLINE`, `_LOGO`, `_FAVICON`,
+`_ACCENT`) sets the product name, logo, favicon and accent colour at dashboard build
+time and at `re-shell ui` serve time. The schemas and contrast helpers live in
+[`@re-shell/contracts`](../contracts) (`ui-theme.ts`, `brand-html.ts`).
 
 ## Build outputs
 
-`vite build` (library mode) + `vite-plugin-dts` emit into `dist/`:
+`vite build` (library mode, `preserveModules`) emits real per-module files:
 
 ```text
-dist/index.js        # ESM bundle (module entry)
-dist/index.cjs       # CommonJS bundle (require entry)
-dist/index.d.ts      # root type declarations
-dist/index.css       # compiled stylesheet (exported as ./styles.css)
-dist/components/     # per-entry .d.ts (ui/, re-shell/)
-dist/hooks/          # hook .d.ts
-dist/lib/            # util .d.ts
-dist/contracts/      # contracts re-export .d.ts
-dist/hub/            # hub client .d.ts (sse-client, ws-client, json-reassembler)
+dist/index.js, dist/<dir>/<module>.js   # ESM, one file per module (tree-shakeable)
+dist/cjs/**/*.cjs                       # CommonJS, same layout
+dist/**/*.d.ts                          # types
+dist/index.css                          # compiled stylesheet  (./styles.css)
+dist/fonts.css                          # Latin font faces     (./fonts.css)
 ```
 
-The `package.json` `exports` map points ESM at `dist/index.js`, CJS at
-`dist/index.cjs`, types at the matching `dist/**/*.d.ts`, and `./styles.css` at
-`dist/index.css`.
+`sideEffects` is `["**/*.css"]`: no JS module has load-time effects, and the
+stylesheet is never imported from JS. `pnpm --filter @re-shell/ui budget` enforces
+gzip budgets (stylesheet, whole ES graph, each module) and tree-shaking probes
+(esbuild bundles of a single import must stay tiny and must not pull in unrelated
+components). It runs in CI.
 
 ## shadcn requirement
 
@@ -97,6 +171,8 @@ shadcn/ui is mandatory from bottom to top:
 pnpm --filter @re-shell/ui build
 pnpm --filter @re-shell/ui typecheck
 pnpm --filter @re-shell/ui dev        # vite build --watch
-pnpm --filter @re-shell/ui test
+pnpm --filter @re-shell/ui test       # unit + a11y + type-level tests
+pnpm --filter @re-shell/ui budget     # size budgets + tree-shake probes (after build)
+pnpm --filter @re-shell/ui tokens:fallback  # regenerate the OKLCH-less hex fallback
 pnpm --filter @re-shell/ui shadcn     # shadcn CLI
 ```

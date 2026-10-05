@@ -1,6 +1,6 @@
 {
   "name": "@re-shell/ui",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Shadcn-first React component library for Re-Shell interfaces.",
   "license": "MIT",
   "author": "Umut Korkmaz",
@@ -18,47 +18,69 @@
     "dist",
     "README.md"
   ],
-  "main": "./dist/index.cjs",
+  "main": "./dist/cjs/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "require": "./dist/cjs/index.cjs"
     },
     "./components/ui": {
       "types": "./dist/components/ui/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/components/ui/index.js",
+      "require": "./dist/cjs/components/ui/index.cjs"
+    },
+    "./components/ui/*": {
+      "types": "./dist/components/ui/*.d.ts",
+      "import": "./dist/components/ui/*.js",
+      "require": "./dist/cjs/components/ui/*.cjs"
+    },
+    "./components/primitives": {
+      "types": "./dist/components/primitives/index.d.ts",
+      "import": "./dist/components/primitives/index.js",
+      "require": "./dist/cjs/components/primitives/index.cjs"
+    },
+    "./components/primitives/*": {
+      "types": "./dist/components/primitives/*.d.ts",
+      "import": "./dist/components/primitives/*.js",
+      "require": "./dist/cjs/components/primitives/*.cjs"
     },
     "./components/re-shell": {
       "types": "./dist/components/re-shell/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/components/re-shell/index.js",
+      "require": "./dist/cjs/components/re-shell/index.cjs"
+    },
+    "./components/re-shell/*": {
+      "types": "./dist/components/re-shell/*.d.ts",
+      "import": "./dist/components/re-shell/*.js",
+      "require": "./dist/cjs/components/re-shell/*.cjs"
     },
     "./contracts": {
       "types": "./dist/contracts/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/contracts/index.js",
+      "require": "./dist/cjs/contracts/index.cjs"
     },
     "./hooks": {
       "types": "./dist/hooks/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/hooks/index.js",
+      "require": "./dist/cjs/hooks/index.cjs"
     },
     "./lib": {
       "types": "./dist/lib/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/lib/index.js",
+      "require": "./dist/cjs/lib/index.cjs"
     },
-    "./styles.css": "./dist/index.css"
+    "./styles.css": "./dist/index.css",
+    "./fonts.css": "./dist/fonts.css",
+    "./package.json": "./package.json"
   },
   "imports": {
     "#/*": "./src/*"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit && vite build",
+    "build": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit && vite build && pnpm run build:css",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "dev": "vite build --watch",
     "test": "vitest run",
@@ -66,7 +88,13 @@
     "test:watch": "vitest",
     "clean": "rm -rf dist",
     "shadcn": "shadcn",
-    "prepack": "pnpm run build"
+    "prepack": "pnpm run build",
+    "build:css": "node scripts/build-css.mjs",
+    "budget": "node scripts/check-budgets.mjs",
+    "tokens:fallback": "node scripts/hex-fallback.mjs --write",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o storybook-static",
+    "test-storybook": "node scripts/test-storybook.mjs"
   },
   "keywords": [
     "re-shell",
@@ -106,27 +134,40 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@storybook/addon-a11y": "^9.1.20",
+    "@storybook/react-vite": "^9.1.20",
+    "@storybook/test-runner": "0.23.0",
     "@tanstack/react-query": "^5.0.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/jest": "^30.0.0",
+    "@types/jest-image-snapshot": "^6.4.2",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.7.0",
     "@vitest/coverage-v8": "^2.1.0",
     "autoprefixer": "^10.4.0",
+    "axe-core": "^4.13.0",
+    "axe-playwright": "^2.2.2",
+    "esbuild": "^0.21.5",
+    "jest-image-snapshot": "^6.5.2",
     "jsdom": "^25.0.0",
+    "playwright": "1.61.1",
     "postcss": "^8.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "shadcn": "^4.7.0",
+    "storybook": "^9.1.20",
     "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.0.0",
     "vite": "^5.4.21",
     "vite-plugin-dts": "^4.5.4",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "vitest-axe": "^0.1.0"
   },
   "engines": {
     "node": ">=18.0.0"

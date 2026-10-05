@@ -18,6 +18,7 @@ vi.mock('child_process', () => ({
 }));
 vi.mock('../../src/utils/json-output', () => ({
   jsonSuccess: vi.fn(),
+  fail: vi.fn(),
   enableJsonMode: () => () => {},
 }));
 
@@ -75,6 +76,7 @@ function routeExec(routes: Record<string, { stdout?: string; throwWith?: string;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.exitCode = undefined;
   tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'reshell-doctor-'));
   logs = [];
   vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
@@ -116,6 +118,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  process.exitCode = undefined;
   fs.rmSync(tempRoot, { recursive: true, force: true });
 });
 
@@ -429,7 +432,84 @@ describe('doctor — command', () => {
     });
   });
 
+  describe('exit codes (error-level checks fail honestly)', () => {
+    it('exits non-zero in human mode when not inside a monorepo', async () => {
+      const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reshell-empty-'));
+      vi.mocked(process.cwd).mockReturnValue(emptyDir);
+      try {
+        await runDoctorCheck();
+        expect(process.exitCode).toBe(1);
+      } finally {
+        vi.mocked(process.cwd).mockReturnValue(tempRoot);
+        fs.rmSync(emptyDir, { recursive: true, force: true });
+      }
+    });
+
+    it('--json keeps the checks in an ok envelope but still exits non-zero on an error check', async () => {
+      const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reshell-empty-'));
+      vi.mocked(process.cwd).mockReturnValue(emptyDir);
+      try {
+        await runDoctorCheck({ json: true });
+        const { jsonSuccess } = await import('../../src/utils/json-output');
+        expect(jsonSuccess).toHaveBeenCalledTimes(1);
+        const [payload] = vi.mocked(jsonSuccess).mock.calls[0];
+        expect(payload).toMatchObject({
+          healthy: false,
+          summary: { errors: 1 },
+          checks: [{ name: 'monorepo-detection', status: 'error' }],
+        });
+        expect(process.exitCode).toBe(1);
+      } finally {
+        vi.mocked(process.cwd).mockReturnValue(tempRoot);
+        fs.rmSync(emptyDir, { recursive: true, force: true });
+      }
+    });
+
+    it('warnings alone do not change the exit code', async () => {
+      fs.rmSync(path.join(tempRoot, '.git'), { recursive: true, force: true });
+      await runDoctorCheck({ json: true });
+      const { jsonSuccess } = await import('../../src/utils/json-output');
+      const [payload] = vi.mocked(jsonSuccess).mock.calls[0];
+      expect((payload as { checks: Array<{ status: string }> }).checks.some(c => c.status === 'warning')).toBe(true);
+      expect(payload).toMatchObject({ healthy: true });
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it('a healthy run exits 0', async () => {
+      await runDoctorCheck();
+      expect(process.exitCode).toBeUndefined();
+    });
+  });
+
   describe('doctor-execution error wrapper', () => {
+    it('--json: an exception is an explicit DOCTOR_ERROR (never ok:true) with the checks in details', async () => {
+      const monorepo = await import('../../src/utils/monorepo');
+      const spy = vi.spyOn(monorepo, 'findMonorepoRoot').mockRejectedValueOnce(new Error('boom'));
+      try {
+        await runDoctorCheck({ json: true });
+        const { fail, jsonSuccess } = await import('../../src/utils/json-output');
+        expect(jsonSuccess).not.toHaveBeenCalled();
+        expect(fail).toHaveBeenCalledTimes(1);
+        const [code, message, details] = vi.mocked(fail).mock.calls[0];
+        expect(code).toBe('DOCTOR_ERROR');
+        expect(message).toContain('Doctor check failed: boom');
+        expect(details).toMatchObject({ checks: [{ name: 'doctor-execution', status: 'error' }] });
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('human mode: an exception exits non-zero', async () => {
+      const monorepo = await import('../../src/utils/monorepo');
+      const spy = vi.spyOn(monorepo, 'findMonorepoRoot').mockRejectedValueOnce(new Error('boom'));
+      try {
+        await runDoctorCheck();
+        expect(process.exitCode).toBe(1);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
     it('surfaces findMonorepoRoot rejections as an error check', async () => {
       const monorepo = await import('../../src/utils/monorepo');
       const spy = vi.spyOn(monorepo, 'findMonorepoRoot').mockRejectedValueOnce(new Error('boom'));

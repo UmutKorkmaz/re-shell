@@ -258,6 +258,15 @@ app.setErrorHandler((error, request, reply) => {
   });
 });
 
+// Liveness probe at the root path (containers and orchestrators expect
+// /health). The richer readiness check lives at /api/v1/health/ready.
+app.get('/health', { schema: { hide: true } }, async () => ({
+  status: 'healthy',
+  timestamp: new Date().toISOString(),
+  uptime: process.uptime(),
+  environment: config.env
+}));
+
 // Not found handler
 app.setNotFoundHandler((request, reply) => {
   reply.status(404).send({
@@ -273,13 +282,21 @@ import { z } from 'zod';
 
 dotenvConfig();
 
+// Development defaults let a fresh scaffold boot with nothing but PORT set.
+// In production the database URL and both JWT secrets must be provided
+// explicitly (checked below), so these values can never reach a deployment.
+const DEV_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/{{projectName}}';
+const DEV_JWT_SECRET = 'dev-only-jwt-secret-change-me';
+const DEV_JWT_REFRESH_SECRET = 'dev-only-jwt-refresh-secret-change-me';
+const REQUIRED_IN_PRODUCTION = ['DATABASE_URL', 'JWT_SECRET', 'JWT_REFRESH_SECRET'] as const;
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.string().default('3000').transform(Number),
   HOST: z.string().default('0.0.0.0'),
   
   // Database
-  DATABASE_URL: z.string(),
+  DATABASE_URL: z.string().default(DEV_DATABASE_URL),
   
   // Redis
   REDIS_HOST: z.string().default('localhost'),
@@ -287,9 +304,9 @@ const envSchema = z.object({
   REDIS_PASSWORD: z.string().optional(),
   
   // JWT
-  JWT_SECRET: z.string(),
+  JWT_SECRET: z.string().default(DEV_JWT_SECRET),
   JWT_EXPIRES_IN: z.string().default('1h'),
-  JWT_REFRESH_SECRET: z.string(),
+  JWT_REFRESH_SECRET: z.string().default(DEV_JWT_REFRESH_SECRET),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   
   // CORS
@@ -319,6 +336,14 @@ const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
   console.error('❌ Invalid environment variables:', parsed.error.format());
   process.exit(1);
+}
+
+if (parsed.data.NODE_ENV === 'production') {
+  const missing = REQUIRED_IN_PRODUCTION.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    console.error(\`❌ Missing required environment variables in production: \${missing.join(', ')}\`);
+    process.exit(1);
+  }
 }
 
 const env = parsed.data;
@@ -616,10 +641,26 @@ const redisPlugin: FastifyPluginAsync = async (fastify) => {
     password: config.redis.password,
     family: 4,
     lazyConnect: true,
-    maxRetriesPerRequest: 1
+    // Fail commands immediately while disconnected instead of queueing them:
+    // an unreachable Redis must never add latency to requests (the rate limiter
+    // runs with skipOnError and simply lets them through).
+    enableOfflineQueue: false,
+    maxRetriesPerRequest: 1,
+    connectTimeout: 2000,
+    retryStrategy: (times) => Math.min(times * 500, 10000)
   });
+
+  // Log the first failure and the recovery, not every reconnect attempt.
+  let redisDown = false;
   redis.on('error', (err) => {
-    fastify.log.warn(\`Redis connection error: \${err.message}\`);
+    if (!redisDown) {
+      redisDown = true;
+      fastify.log.warn(\`Redis unavailable (\${err.message}) - continuing without it; will keep retrying in the background.\`);
+    }
+  });
+  redis.on('ready', () => {
+    if (redisDown) fastify.log.info('Redis connection restored');
+    redisDown = false;
   });
   redis.connect().catch(() => undefined);
 
@@ -854,6 +895,13 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
             database: Type.String(),
             redis: Type.String()
           })
+        }),
+        503: Type.Object({
+          status: Type.String(),
+          services: Type.Object({
+            database: Type.String(),
+            redis: Type.String()
+          })
         })
       }
     }
@@ -875,12 +923,13 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
       services.redis = 'unhealthy';
     }
 
-    const status = Object.values(services).every(s => s === 'healthy') ? 'ready' : 'not ready';
+    const ready = Object.values(services).every(s => s === 'healthy');
 
-    return {
-      status,
+    // Readiness must report failure to the orchestrator, not just in the body.
+    return reply.status(ready ? 200 : 503).send({
+      status: ready ? 'ready' : 'not ready',
       services
-    };
+    });
   });
 };
 

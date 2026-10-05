@@ -62,15 +62,15 @@ export const rocketTemplate: BackendTemplate = {
   },
   files: {
     'Cargo.toml': `[package]
-name = "{{serviceName}}"
+name = "{{projectName}}"
 version = "0.1.0"
 edition = "2021"
 description = "Rocket web framework with type-safe routing and guards"
 license = "MIT"
-authors = ["{{author}}"]
+authors = ["re-shell"]
 
 [dependencies]
-rocket = { version = "0.5", features = ["json", "secrets", "testing", "uuid"] }
+rocket = { version = "0.5", features = ["json", "secrets", "uuid"] }
 rocket_db_pools = { version = "0.1", features = ["sqlx_postgres"] }
 rocket_cors = "0.6"
 tokio = { version = "1.35", features = ["full"] }
@@ -94,13 +94,13 @@ reqwest = { version = "0.11", features = ["json"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 juniper = "0.16"
-juniper-rocket = "0.16"
+juniper_rocket = "0.9"
 
 [dev-dependencies]
-rocket = { version = "0.5", features = ["testing"] }
+rocket = "0.5"
 
 [[bin]]
-name = "{{serviceName}}"
+name = "{{projectName}}"
 path = "src/main.rs"
 
 [profile.release]
@@ -128,7 +128,7 @@ log_level = "critical"
 workers = 8
 
 [global.databases.main]
-url = "postgresql://username:password@localhost/{{serviceName}}"
+url = "postgresql://username:password@localhost/{{projectName}}"
 pool_size = 10
 timeout = 30
 
@@ -142,8 +142,8 @@ ROCKET_LOG_LEVEL=debug
 ROCKET_WORKERS=4
 
 # Database Configuration
-DATABASE_URL=postgresql://username:password@localhost/{{serviceName}}
-ROCKET_DATABASES={main={url="postgresql://username:password@localhost/{{serviceName}}",pool_size=10}}
+DATABASE_URL=postgresql://username:password@localhost/{{projectName}}
+ROCKET_DATABASES={main={url="postgresql://username:password@localhost/{{projectName}}",pool_size=10}}
 
 # Redis Configuration
 REDIS_URL=redis://127.0.0.1:6379
@@ -444,7 +444,7 @@ pub fn health_check() -> Json<Value> {
     Json(json!({
         "status": "healthy",
         "timestamp": chrono::Utc::now(),
-        "service": "{{serviceName}}",
+        "service": "{{projectName}}",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }`,
@@ -468,7 +468,9 @@ pub async fn register(
     request.validate()?;
 
     // Check if user already exists
-    let existing_user = sqlx::query!("SELECT id FROM users WHERE email = $1 OR username = $2", request.email, request.username)
+    let existing_user = sqlx::query("SELECT id FROM users WHERE email = $1 OR username = $2")
+        .bind(&request.email)
+        .bind(&request.username)
         .fetch_optional(&mut **db)
         .await?;
 
@@ -483,25 +485,26 @@ pub async fn register(
     let user_id = Uuid::new_v4();
     let now = chrono::Utc::now();
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO users (id, email, username, password_hash, first_name, last_name, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         "#,
-        user_id,
-        request.email,
-        request.username,
-        password_hash,
-        request.first_name,
-        request.last_name,
-        now,
-        now
     )
+    .bind(user_id)
+    .bind(&request.email)
+    .bind(&request.username)
+    .bind(&password_hash)
+    .bind(&request.first_name)
+    .bind(&request.last_name)
+    .bind(now)
+    .bind(now)
     .execute(&mut **db)
     .await?;
 
     // Fetch created user
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", user_id)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(user_id)
         .fetch_one(&mut **db)
         .await?;
 
@@ -517,7 +520,8 @@ pub async fn login(
     request.validate()?;
 
     // Find user by email
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE email = $1", request.email)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
+        .bind(&request.email)
         .fetch_optional(&mut **db)
         .await?;
 
@@ -608,7 +612,8 @@ pub async fn get_profile(
     mut db: Connection<Db>,
     auth: AuthGuard,
 ) -> ApiResult<Json<UserProfile>> {
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", auth.user_id)
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(auth.user_id)
         .fetch_optional(&mut **db)
         .await?;
 
@@ -627,7 +632,9 @@ pub async fn update_profile(
 
     // Check if username is already taken
     if let Some(username) = &request.username {
-        let existing_user = sqlx::query!("SELECT id FROM users WHERE username = $1 AND id != $2", username, auth.user_id)
+        let existing_user = sqlx::query("SELECT id FROM users WHERE username = $1 AND id != $2")
+            .bind(username)
+            .bind(auth.user_id)
             .fetch_optional(&mut **db)
             .await?;
 
@@ -638,8 +645,7 @@ pub async fn update_profile(
 
     // Update user
     let now = chrono::Utc::now();
-    let user = sqlx::query_as!(
-        User,
+    let user = sqlx::query_as::<_, User>(
         r#"
         UPDATE users 
         SET 
@@ -650,12 +656,12 @@ pub async fn update_profile(
         WHERE id = $1
         RETURNING *
         "#,
-        auth.user_id,
-        request.username,
-        request.first_name,
-        request.last_name,
-        now
     )
+    .bind(auth.user_id)
+    .bind(&request.username)
+    .bind(&request.first_name)
+    .bind(&request.last_name)
+    .bind(now)
     .fetch_one(&mut **db)
     .await?;
 
@@ -667,7 +673,8 @@ pub async fn delete_account(
     mut db: Connection<Db>,
     auth: AuthGuard,
 ) -> ApiResult<Json<serde_json::Value>> {
-    sqlx::query!("DELETE FROM users WHERE id = $1", auth.user_id)
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(auth.user_id)
         .execute(&mut **db)
         .await?;
 
@@ -694,14 +701,14 @@ impl<'r> FromRequest<'r> for AuthGuard {
     async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         let config = match req.guard::<&State<AppConfig>>().await {
             request::Outcome::Success(config) => config,
-            _ => return request::Outcome::Failure((Status::InternalServerError, ApiError::InternalServerError))};
+            _ => return request::Outcome::Error((Status::InternalServerError, ApiError::InternalServerError))};
 
         let auth_header = match req.headers().get_one("Authorization") {
             Some(header) => header,
-            None => return request::Outcome::Failure((Status::Unauthorized, ApiError::Unauthorized("Missing authorization header".to_string())))};
+            None => return request::Outcome::Error((Status::Unauthorized, ApiError::Unauthorized("Missing authorization header".to_string())))};
 
         if !auth_header.starts_with("Bearer ") {
-            return request::Outcome::Failure((Status::Unauthorized, ApiError::Unauthorized("Invalid authorization header format".to_string())));
+            return request::Outcome::Error((Status::Unauthorized, ApiError::Unauthorized("Invalid authorization header format".to_string())));
         }
 
         let token = &auth_header[7..];
@@ -709,16 +716,16 @@ impl<'r> FromRequest<'r> for AuthGuard {
         match verify_token(token, &config.jwt_secret) {
             Ok(claims) => {
                 if claims.token_type != "access" {
-                    return request::Outcome::Failure((Status::Unauthorized, ApiError::Unauthorized("Invalid token type".to_string())));
+                    return request::Outcome::Error((Status::Unauthorized, ApiError::Unauthorized("Invalid token type".to_string())));
                 }
 
                 match Uuid::parse_str(&claims.sub) {
                     Ok(user_id) => request::Outcome::Success(AuthGuard {
                         user_id,
                         email: claims.email}),
-                    Err(_) => request::Outcome::Failure((Status::Unauthorized, ApiError::Unauthorized("Invalid user ID in token".to_string())))}
+                    Err(_) => request::Outcome::Error((Status::Unauthorized, ApiError::Unauthorized("Invalid user ID in token".to_string())))}
             }
-            Err(err) => request::Outcome::Failure((Status::Unauthorized, err))}
+            Err(err) => request::Outcome::Error((Status::Unauthorized, err))}
     }
 }
 
@@ -734,7 +741,7 @@ impl<'r> FromRequest<'r> for AdminGuard {
         // First check if user is authenticated
         let auth = match AuthGuard::from_request(req).await {
             request::Outcome::Success(auth) => auth,
-            request::Outcome::Failure(failure) => return request::Outcome::Failure(failure),
+            request::Outcome::Error(failure) => return request::Outcome::Error(failure),
             request::Outcome::Forward(forward) => return request::Outcome::Forward(forward)};
 
         // TODO: Add admin role check here
@@ -764,6 +771,7 @@ pub fn cors_fairing() -> rocket_cors::Cors {
             rocket::http::Method::Delete,
             rocket::http::Method::Options]
         .into_iter()
+        .map(rocket_cors::Method::from)
         .collect(),
         allowed_headers: rocket_cors::AllowedHeaders::some(&[
             "Authorization",
@@ -963,7 +971,34 @@ pub fn internal_server_error() -> Json<Value> {
         "error": "Internal Server Error",
         "message": "An internal server error occurred"
     }))
-}`,
+}
+
+impl ApiError {
+    fn message(&self) -> String {
+        match self {
+            ApiError::BadRequest(message)
+            | ApiError::Unauthorized(message)
+            | ApiError::Forbidden(message)
+            | ApiError::NotFound(message) => message.clone(),
+            ApiError::ValidationError(errors) => errors.to_string(),
+            // Never leak driver details to clients.
+            ApiError::DatabaseError(_) | ApiError::InternalServerError => "Internal server error".to_string(),
+        }
+    }
+}
+
+impl<'r> rocket::response::Responder<'r, 'static> for ApiError {
+    fn respond_to(self, request: &'r rocket::Request<'_>) -> rocket::response::Result<'static> {
+        let message = self.message();
+        let status: Status = self.into();
+        status::Custom(
+            status,
+            Json(json!({ "error": message, "status": status.code })),
+        )
+        .respond_to(request)
+    }
+}
+`,
 
     'src/utils.rs': `use rocket::serde::{Deserialize, Serialize};
 
@@ -1028,42 +1063,42 @@ pub mod route_helpers {
     'src/graphql/mod.rs': `pub mod schema;
 
 use rocket::{get, post, State, response::content::RawHtml};
-use juniper::RootNode;
+use juniper::{EmptySubscription, RootNode};
 use juniper_rocket::{GraphQLRequest, GraphQLResponse};
 
 use crate::graphql::schema::{Query, Mutation};
 
-pub type Schema = RootNode<'static, Query, Mutation>;
+pub type Schema = RootNode<'static, Query, Mutation, EmptySubscription<GraphQLContext>>;
 
 pub struct GraphQLContext;
 
 impl juniper::Context for GraphQLContext {}
 
 pub fn create_schema() -> Schema {
-    Schema::new(Query, Mutation)
+    Schema::new(Query, Mutation, EmptySubscription::new())
 }
 
 #[get("/graphql")]
 pub fn graphiql() -> RawHtml<String> {
-    juniper_rocket::graphiql_source("/graphql")
+    juniper_rocket::graphiql_source("/graphql", None)
 }
 
 #[get("/graphql?<request>")]
 pub async fn get_graphql_handler(
-    context: State<GraphQLContext>,
+    context: &State<GraphQLContext>,
     request: GraphQLRequest,
-    schema: State<Schema>,
+    schema: &State<Schema>,
 ) -> GraphQLResponse {
-    request.execute(&schema, &context).await
+    request.execute(schema.inner(), context.inner()).await
 }
 
 #[post("/graphql", data = "<request>")]
 pub async fn post_graphql_handler(
-    context: State<GraphQLContext>,
+    context: &State<GraphQLContext>,
     request: GraphQLRequest,
-    schema: State<Schema>,
+    schema: &State<Schema>,
 ) -> GraphQLResponse {
-    request.execute(&schema, &context).await
+    request.execute(schema.inner(), context.inner()).await
 }`,
 
     'src/graphql/schema.rs': `use juniper::{graphql_object, FieldResult};
@@ -1137,7 +1172,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - ROCKET_DATABASES={main={url="postgresql://postgres:password@db:5432/{{serviceName}}",pool_size=10}}
+      - ROCKET_DATABASES={main={url="postgresql://postgres:password@db:5432/{{projectName}}",pool_size=10}}
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
       - ROCKET_SECRET_KEY=your-super-secret-key-change-this-in-production
@@ -1152,7 +1187,7 @@ services:
   db:
     image: postgres:15
     environment:
-      - POSTGRES_DB={{serviceName}}
+      - POSTGRES_DB={{projectName}}
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
     ports:
@@ -1203,7 +1238,7 @@ RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/{{serviceName}} /app/{{serviceName}}
+COPY --from=builder /app/target/release/{{projectName}} /app/{{projectName}}
 COPY --from=builder /app/migrations /app/migrations
 
 # Set ownership
@@ -1218,7 +1253,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \\
     CMD curl -f http://localhost:8080/health || exit 1
 
-CMD ["./{{serviceName}}"]`,
+CMD ["./{{projectName}}"]`,
 
     '.dockerignore': `target/
 .env
@@ -1229,7 +1264,7 @@ README.md
 docker-compose.yml
 Dockerfile`,
 
-    'README.md': `# {{serviceName}}
+    'README.md': `# {{projectName}}
 
 A type-safe Rocket web framework with guards, fairings, and compile-time route verification.
 
@@ -1259,20 +1294,20 @@ A type-safe Rocket web framework with guards, fairings, and compile-time route v
 
 1. **Clone and setup**:
    \`\`\`bash
-   cd {{serviceName}}
+   cd {{projectName}}
    cp .env.example .env
    \`\`\`
 
 2. **Update environment variables** in \`.env\`:
    \`\`\`env
-   ROCKET_DATABASES={main={url="postgresql://username:password@localhost/{{serviceName}}",pool_size=10}}
+   ROCKET_DATABASES={main={url="postgresql://username:password@localhost/{{projectName}}",pool_size=10}}
    JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
    ROCKET_SECRET_KEY=your-super-secret-key-change-this-in-production
    \`\`\`
 
 3. **Setup database**:
    \`\`\`bash
-   createdb {{serviceName}}
+   createdb {{projectName}}
    sqlx migrate run
    \`\`\`
 
@@ -1404,7 +1439,7 @@ port = 8080
 workers = 4
 
 [global.databases.main]
-url = "postgresql://username:password@localhost/{{serviceName}}"
+url = "postgresql://username:password@localhost/{{projectName}}"
 pool_size = 10
 \`\`\`
 
@@ -1420,14 +1455,14 @@ All configuration can be overridden with environment variables:
 
 ### Docker
 \`\`\`bash
-docker build -t {{serviceName}} .
-docker run -p 8080:8080 --env-file .env {{serviceName}}
+docker build -t {{projectName}} .
+docker run -p 8080:8080 --env-file .env {{projectName}}
 \`\`\`
 
 ### Binary
 \`\`\`bash
 cargo build --release
-./target/release/{{serviceName}}
+./target/release/{{projectName}}
 \`\`\`
 
 ## Security Features
@@ -1522,7 +1557,7 @@ docker-down:
 	docker-compose down
 
 docker-build:
-	docker build -t {{serviceName}} .
+	docker build -t {{projectName}} .
 
 # Cleanup
 clean:
@@ -1533,7 +1568,7 @@ clean:
 # Production
 release:
 	cargo build --release
-	strip target/release/{{serviceName}}
+	strip target/release/{{projectName}}
 
 # Install tools
 install-tools:

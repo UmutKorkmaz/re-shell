@@ -8,6 +8,7 @@ import { templateEngine, TemplateHelpers } from '../../src/utils/template-engine
 import { configManager } from '../../src/utils/config';
 import type { ConfigTemplate } from '../../src/utils/template-engine';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/template.ts (875 lines) via its single export
 // manageTemplates: list/create/delete/apply/show dispatch, five create-source
 // flows (file/project/workspace/builtin/custom), interactive management, and
@@ -134,8 +135,8 @@ describe('template — command', () => {
     it('emits the raw array in JSON mode', async () => {
       engine.listTemplates.mockResolvedValue([tpl()]);
       await manageTemplates({ list: true, json: true });
-      expect(JSON.parse(output())).toHaveLength(1);
-      expect(JSON.parse(output())[0].name).toBe('demo-template');
+      expect(jsonData()).toHaveLength(1);
+      expect(jsonData()[0].name).toBe('demo-template');
     });
   });
 
@@ -265,7 +266,7 @@ describe('template — command', () => {
       });
       // Header lines print before the payload — parse the final log entry.
       const lines = logSpy.mock.calls.map(c => c.map(String).join(' '));
-      expect(JSON.parse(lines[lines.length - 1])).toEqual({ name: 'json-app' });
+      expect(jsonData()).toEqual({ name: 'json-app' });
     });
   });
 
@@ -301,7 +302,7 @@ describe('template — command', () => {
     it('emits the template as raw JSON', async () => {
       engine.getTemplate.mockResolvedValue(tpl());
       await manageTemplates({ show: true, template: 'demo-template', json: true });
-      expect(JSON.parse(output()).name).toBe('demo-template');
+      expect(jsonData().name).toBe('demo-template');
     });
   });
 

@@ -1,0 +1,44 @@
+{
+  "name": "@re-shell/control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hosted multi-tenant control plane for Re-Shell: authenticated HTTP/SSE API, SQLite persistence, signed-token identity, append-only audit, team policy sync and remote execution workers that run the allow-listed Re-Shell CLI.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "re-shell-control-plane": "dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/bin.js serve",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "echo 'control-plane: no linter configured'"
+  },
+  "dependencies": {
+    "@re-shell/contracts": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}

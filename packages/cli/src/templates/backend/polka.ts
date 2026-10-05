@@ -20,7 +20,6 @@ export const polkaTemplate: BackendTemplate = {
   "version": "1.0.0",
   "description": "High-performance micro web server built with Polka and TypeScript",
   "main": "dist/index.js",
-  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -31,11 +30,11 @@ export const polkaTemplate: BackendTemplate = {
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "docker:build": "docker build -t {{projectName}} .",
-    "docker:run": "docker run -p 3000:3000 {{projectName}}"
+    "docker:run": "docker run -p 3000:3000 {{projectName}}",
+    "prisma:generate": "prisma generate"
   },
   "dependencies": {
     "polka": "^1.0.0-next.23",
-    "@polka/send-type": "^1.0.0-next.12",
     "@polka/redirect": "^1.0.0-next.12",
     "@polka/compression": "^1.0.0-next.12",
     "@polka/url": "^1.0.0-next.23",
@@ -54,14 +53,12 @@ export const polkaTemplate: BackendTemplate = {
     "jsonwebtoken": "^9.0.2",
     "ioredis": "^5.3.2",
     "ws": "^8.17.0",
-    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.43.0",
     "pino": "^9.0.0",
     "pino-pretty": "^11.0.0",
     "@prisma/client": "^5.13.0",
     "@apollo/server": "^4.10.4",
     "graphql": "^16.8.2",
-    "zod": "^3.23.5",
-    "nanoid": "^5.0.7"
+    "zod": "^3.23.5"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
@@ -82,7 +79,8 @@ export const polkaTemplate: BackendTemplate = {
     "uvu": "^0.5.6",
     "c8": "^9.1.0",
     "httpie": "^1.1.2",
-    "superstruct": "^1.0.4"
+    "superstruct": "^1.0.4",
+    "prisma": "^5.13.0"
   }
 }`,
 
@@ -90,9 +88,9 @@ export const polkaTemplate: BackendTemplate = {
     'tsconfig.json': `{
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
+    "module": "CommonJS",
     "lib": ["ES2022"],
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -131,8 +129,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from '@polka/compression';
 import { config } from 'dotenv';
-import { ApolloServer } from '@apollo/server';
-import { expressMiddleware } from '@apollo/server/express4';
 import { logger, httpLogger } from './utils/logger';
 import { errorHandler } from './middlewares/error.middleware';
 import { notFound } from './middlewares/notFound.middleware';
@@ -140,9 +136,9 @@ import { rateLimiter } from './middlewares/rateLimit.middleware';
 import { connectDatabase } from './config/database';
 import { redis } from './config/redis';
 import { initWebSocketServer } from './config/websocket';
-import { typeDefs } from './graphql/schema';
-import { resolvers } from './graphql/resolver';
+import { apolloServer, graphqlHandler } from './graphql/handler';
 import routes from './routes';
+import { connect } from './utils/compat';
 
 // Load environment variables
 config();
@@ -159,22 +155,18 @@ const app = polka({
 // Initialize WebSocket server
 const wss = initWebSocketServer();
 
-// Initialize Apollo Server (GraphQL)
-const apolloServer = new ApolloServer({ typeDefs, resolvers });
-await apolloServer.start();
-
 // Global middlewares
 app
-  .use(compression())
-  .use(helmet())
-  .use(cors({
+  .use(connect(compression()))
+  .use(connect(helmet()))
+  .use(connect(cors({
     origin: process.env.CORS_ORIGIN?.split(',') || '*',
     credentials: true
-  }))
-  .use(json({ limit: '10mb' }))
-  .use(urlencoded({ extended: true, limit: '10mb' }))
-  .use(cookieParser())
-  .use(httpLogger)
+  })))
+  .use(connect(json({ limit: '10mb' })))
+  .use(connect(urlencoded({ extended: true, limit: '10mb' })))
+  .use(connect(cookieParser()))
+  .use(connect(httpLogger))
   .use('/api', rateLimiter);
 
 // Serve static files (if any)
@@ -200,15 +192,9 @@ app.get('/health', (req, res) => {
   }));
 });
 
-// GraphQL endpoint (Apollo Server via polka middleware)
-app.use(
-  '/graphql',
-  cors({ origin: process.env.CORS_ORIGIN?.split(',') || '*', credentials: true }),
-  json({ limit: '10mb' }),
-  expressMiddleware(apolloServer, {
-    context: async () => ({ message: 'GraphQL context ready' })
-  })
-);
+// GraphQL endpoint (Apollo Server executes the HTTP request directly)
+app.post('/graphql', graphqlHandler);
+app.get('/graphql', graphqlHandler);
 
 // API info endpoint
 app.get('/api', (req, res) => {
@@ -254,6 +240,9 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 // Start server
 const start = async () => {
   try {
+    // Start GraphQL
+    await apolloServer.start();
+
     // Connect to database
     await connectDatabase();
     
@@ -464,7 +453,7 @@ export default router;`,
 
     // Authentication handler
     'src/handlers/auth.handler.ts': `import type { Request, Response } from 'polka';
-import { sendJSON } from '@polka/send-type';
+import { sendJSON } from '../utils/send';
 import { AuthService } from '../services/auth.service';
 import { EmailService } from '../services/email.service';
 import { logger } from '../utils/logger';
@@ -604,7 +593,7 @@ export class AuthHandler {
 
     // User handler
     'src/handlers/user.handler.ts': `import type { Request, Response } from 'polka';
-import { sendJSON } from '@polka/send-type';
+import { sendJSON } from '../utils/send';
 import { UserService } from '../services/user.service';
 import { asyncHandler } from '../utils/asyncHandler';
 
@@ -710,7 +699,7 @@ export class UserHandler {
 
     // Todo handler
     'src/handlers/todo.handler.ts': `import type { Request, Response } from 'polka';
-import { sendJSON } from '@polka/send-type';
+import { sendJSON } from '../utils/send';
 import { TodoService } from '../services/todo.service';
 import { asyncHandler } from '../utils/asyncHandler';
 
@@ -723,12 +712,12 @@ export class TodoHandler {
 
   getAllTodos = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const { page, limit, status, priority } = req.query as { page?: number; limit?: number; status?: string; priority?: string };
+    const { page = '1', limit = '10', status, priority } = req.query as { page?: string; limit?: string; status?: string; priority?: string };
 
     const result = await this.todoService.getAllTodos({
       userId,
-      page,
-      limit,
+      page: Number(page),
+      limit: Number(limit),
       status,
       priority
     });
@@ -832,9 +821,9 @@ export class TodoHandler {
 }`,
 
     // Authentication middleware
-    'src/middlewares/auth.middleware.ts': `import type { Request, Response, NextFunction } from 'polka';
+    'src/middlewares/auth.middleware.ts': `import type { Request, Response, NextHandler as NextFunction } from 'polka';
 import jwt from 'jsonwebtoken';
-import { sendJSON } from '@polka/send-type';
+import { sendJSON } from '../utils/send';
 import { UserService } from '../services/user.service';
 
 interface JwtPayload {
@@ -921,7 +910,7 @@ export const authorize = (...roles: string[]) => {
 
     // Error handling middleware
     'src/middlewares/error.middleware.ts': `import type { Request, Response } from 'polka';
-import { sendJSON } from '@polka/send-type';
+import { sendJSON } from '../utils/send';
 import { logger } from '../utils/logger';
 
 interface ErrorWithStatus extends Error {
@@ -929,7 +918,8 @@ interface ErrorWithStatus extends Error {
   code?: string;
 }
 
-export const errorHandler = (err: ErrorWithStatus, req: Request, res: Response, next?: Function) => {
+export const errorHandler = (error: string | Error, req: Request, res: Response) => {
+  const err: ErrorWithStatus = typeof error === 'string' ? new Error(error) : error;
   let status = err.status || 500;
   let message = err.message || 'Internal Server Error';
 
@@ -977,7 +967,7 @@ export const errorHandler = (err: ErrorWithStatus, req: Request, res: Response, 
 
     // Not found middleware
     'src/middlewares/notFound.middleware.ts': `import type { Request, Response } from 'polka';
-import { sendJSON } from '@polka/send-type';
+import { sendJSON } from '../utils/send';
 
 export const notFound = (req: Request, res: Response) => {
   sendJSON(res, 404, {
@@ -991,8 +981,8 @@ export const notFound = (req: Request, res: Response) => {
 };`,
 
     // Validation middleware
-    'src/middlewares/validate.middleware.ts': `import type { Request, Response, NextFunction } from 'polka';
-import { sendJSON } from '@polka/send-type';
+    'src/middlewares/validate.middleware.ts': `import type { Request, Response, NextHandler as NextFunction } from 'polka';
+import { sendJSON } from '../utils/send';
 import { ZodSchema, ZodError } from 'zod';
 
 export const validate = (schema: ZodSchema) => {
@@ -1021,15 +1011,15 @@ export const validate = (schema: ZodSchema) => {
           }
         });
       } else {
-        next(error);
+        next(error as Error);
       }
     }
   };
 };`,
 
     // Rate limiting middleware
-    'src/middlewares/rateLimit.middleware.ts': `import type { Request, Response, NextFunction } from 'polka';
-import { sendJSON } from '@polka/send-type';
+    'src/middlewares/rateLimit.middleware.ts': `import type { Request, Response, NextHandler as NextFunction } from 'polka';
+import { sendJSON } from '../utils/send';
 import { redis } from '../config/redis';
 import { logger } from '../utils/logger';
 
@@ -1179,11 +1169,11 @@ redis.on('reconnecting', () => {
 });`,
 
     // WebSocket configuration (using uWebSockets.js)
-    'src/config/websocket.ts': `import { WebSocketServer } from 'ws';
+    'src/config/websocket.ts': `import { WebSocket, WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
 
-interface ExtendedWebSocket {
+interface ExtendedWebSocket extends WebSocket {
   userId?: string;
   isAlive?: boolean;
 }
@@ -1336,7 +1326,7 @@ export const broadcastToUser = (wss: WebSocketServer, userId: string, type: stri
 
 const isDev = process.env.NODE_ENV !== 'production';
 
-export const logger = pino({
+const baseLogger = pino({
   level: process.env.LOG_LEVEL || (isDev ? 'debug' : 'info'),
   transport: isDev ? {
     target: 'pino-pretty',
@@ -1359,6 +1349,41 @@ export const logger = pino({
   }
 });
 
+type LogMethod = (message: unknown, ...args: unknown[]) => void;
+
+export interface AppLogger {
+  trace: LogMethod;
+  debug: LogMethod;
+  info: LogMethod;
+  warn: LogMethod;
+  error: LogMethod;
+  fatal: LogMethod;
+}
+
+/**
+ * Accepts both \`logger.error('message', err)\` and pino's native
+ * \`logger.error({ err }, 'message')\`; extra arguments are logged as structured data.
+ */
+const method = (level: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'): LogMethod =>
+  (message, ...args) => {
+    const log = baseLogger[level].bind(baseLogger) as (...parts: unknown[]) => void;
+    if (typeof message === 'string' && args.length > 0 && typeof args[0] === 'object' && args[0] !== null) {
+      const [extra, ...rest] = args;
+      log({ [extra instanceof Error ? 'err' : 'data']: extra }, message, ...rest);
+    } else {
+      log(message, ...args);
+    }
+  };
+
+export const logger: AppLogger = {
+  trace: method('trace'),
+  debug: method('debug'),
+  info: method('info'),
+  warn: method('warn'),
+  error: method('error'),
+  fatal: method('fatal')
+};
+
 // HTTP request logger middleware
 export const httpLogger = (req: any, res: any, next: any) => {
   const start = Date.now();
@@ -1379,7 +1404,7 @@ export const httpLogger = (req: any, res: any, next: any) => {
 };`,
 
     // Async handler utility
-    'src/utils/asyncHandler.ts': `import type { Request, Response, NextFunction } from 'polka';
+    'src/utils/asyncHandler.ts': `import type { Request, Response, NextHandler as NextFunction } from 'polka';
 
 type AsyncRequestHandler = (
   req: Request,
@@ -1396,7 +1421,7 @@ export const asyncHandler = (fn: AsyncRequestHandler) => {
     // Auth service
     'src/services/auth.service.ts': `import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { nanoid } from 'nanoid';
+import { randomUUID } from 'crypto';
 import { prisma } from '../config/database';
 import { redis } from '../config/redis';
 import { logger } from '../utils/logger';
@@ -1421,7 +1446,7 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create verification token
-    const verificationToken = nanoid();
+    const verificationToken = randomUUID();
 
     // Create user
     const user = await prisma.user.create({
@@ -1562,7 +1587,7 @@ export class AuthService {
       throw new Error('User not found');
     }
 
-    const resetToken = nanoid();
+    const resetToken = randomUUID();
     const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
 
     await prisma.user.update({
@@ -1932,58 +1957,38 @@ datasource db {
 }
 
 model User {
-  id                String    @id @default(cuid())
-  email             String    @unique
-  password          String
-  name              String
-  role              Role      @default(USER)
-  avatar            String?
-  isEmailVerified   Boolean   @default(false)
-  verificationToken String?
-  resetToken        String?
-  resetTokenExpiry  DateTime?
-  refreshTokens     String[]
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
-  todos             Todo[]
-  
-  @@index([email])
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  password           String
+  name               String
+  role               String    @default("user")
+  avatar             String?
+  isEmailVerified    Boolean   @default(false)
+  verificationToken  String?
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  refreshTokens      String[]
+  todos              Todo[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 model Todo {
-  id          String       @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
   description String?
-  status      TodoStatus   @default(PENDING)
-  priority    TodoPriority @default(MEDIUM)
+  status      String    @default("pending")
+  priority    String    @default("medium")
   dueDate     DateTime?
   userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
   @@index([userId])
   @@index([status])
-  @@index([priority])
 }
-
-enum Role {
-  USER
-  ADMIN
-}
-
-enum TodoStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-}
-
-enum TodoPriority {
-  LOW
-  MEDIUM
-  HIGH
-}`,
+`,
 
     // Environment variables
     '.env.example': `# Application
@@ -2359,5 +2364,73 @@ src/
 ## License
 
 MIT
+`,
+
+    'src/graphql/handler.ts': `import { ApolloServer, HeaderMap } from '@apollo/server';
+import type { Middleware } from 'polka';
+import { resolvers } from './resolver';
+import { typeDefs } from './schema';
+
+export const apolloServer = new ApolloServer({ typeDefs, resolvers });
+
+/** Polka middleware that executes GraphQL over HTTP (POST body or GET query string). */
+export const graphqlHandler: Middleware = async (req, res, next) => {
+  try {
+    const headers = new HeaderMap();
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (value !== undefined) {
+        headers.set(key, Array.isArray(value) ? value.join(', ') : String(value));
+      }
+    }
+
+    const result = await apolloServer.executeHTTPGraphQLRequest({
+      httpGraphQLRequest: {
+        method: req.method.toUpperCase(),
+        headers,
+        search: req.search ?? '',
+        body: req.body
+      },
+      context: async () => ({ req })
+    });
+
+    for (const [key, value] of result.headers) {
+      res.setHeader(key, value);
+    }
+    res.statusCode = result.status ?? 200;
+
+    if (result.body.kind === 'complete') {
+      res.end(result.body.string);
+    } else {
+      for await (const chunk of result.body.asyncIterator) {
+        res.write(chunk);
+      }
+      res.end();
+    }
+  } catch (error) {
+    next(error as Error);
+  }
+};
+`,
+
+    'src/utils/compat.ts': `import type { Middleware } from 'polka';
+
+/**
+ * Polka runs Connect-style middleware, but packages such as cors, helmet and
+ * body-parser are typed against Express. They only rely on (req, res, next), so
+ * this adapts the type without changing behavior.
+ */
+export const connect = (middleware: unknown): Middleware => middleware as Middleware;
+`,
+
+    'src/utils/send.ts': `import type { Response } from 'polka';
+
+/** Send a JSON body with the given status code. */
+export function sendJSON(res: Response, status: number, body: unknown): void {
+  const payload = JSON.stringify(body);
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Length', Buffer.byteLength(payload));
+  res.end(payload);
+}
 `  }
 };

@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as fs from 'fs-extra';
+import * as os from 'os';
+import * as path from 'path';
 import {
   managePlugins,
   discoverPlugins,
@@ -26,6 +29,7 @@ import {
   installPluginFromIdentifier,
   PluginInstallError,
 } from '../../src/utils/plugin-installer';
+import { uninstallPluginFromWorkspace, PluginUninstallError } from '../../src/utils/plugin-uninstaller';
 import { HookType } from '../../src/utils/plugin-hooks';
 
 // Covers src/commands/plugin.ts — the `re-shell plugin` command group (1029
@@ -43,17 +47,25 @@ vi.mock('../../src/utils/plugin-system', async importOriginal => {
     createPluginRegistry: vi.fn(),
   };
 });
-vi.mock('../../src/utils/plugin-installer', () => ({
-  installPluginFromIdentifier: vi.fn(),
-  PluginInstallError: class PluginInstallError extends Error {
-    details?: unknown;
-    constructor(message: string, details?: unknown) {
-      super(message);
-      this.name = 'PluginInstallError';
-      this.details = details;
-    }
-  },
-}));
+vi.mock('../../src/utils/plugin-installer', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('../../src/utils/plugin-installer')>();
+  return {
+    ...actual,
+    installPluginFromIdentifier: vi.fn(),
+  };
+});
+// The real uninstaller is exercised against a real workspace in
+// plugin-uninstaller.test.ts / plugin-lifecycle-commands.test.ts; here only the
+// command layer is under test, so the filesystem work is replaced by a spy.
+vi.mock('../../src/utils/plugin-uninstaller', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('../../src/utils/plugin-uninstaller')>();
+  return {
+    ...actual,
+    uninstallPluginFromWorkspace: vi.fn(),
+  };
+});
 const spinnerMessages: string[] = [];
 vi.mock('../../src/utils/spinner', () => ({
   createSpinner: () => ({
@@ -97,6 +109,7 @@ const registryMock = {
   getHookStats: vi.fn(),
   getHookSystem: vi.fn(),
   executeHooks: vi.fn(),
+  removePlugin: vi.fn(),
 };
 
 /** A minimal-but-shape-complete managed plugin registration. */
@@ -161,6 +174,21 @@ afterEach(() => {
   writeSpy.mockRestore();
 });
 
+const tempDirs: string[] = [];
+
+/** A real, empty temp workspace for tests that exercise the on-disk registry. */
+async function mkWorkspace(): Promise<string> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'reshell-group-ws-'));
+  tempDirs.push(dir);
+  return dir;
+}
+
+afterEach(async () => {
+  while (tempDirs.length > 0) {
+    await fs.remove(tempDirs.pop() as string);
+  }
+});
+
 describe('plugin — command group', () => {
   describe('managePlugins (list)', () => {
     it('prints the empty hint when no plugins are managed', async () => {
@@ -195,20 +223,36 @@ describe('plugin — command group', () => {
       expect(output()).toContain('Usage: 9 times');
     });
 
-    it('emits a JSON array envelope in json mode', async () => {
+    it('emits the standard JSON envelope in json mode (not a bare array, and never nothing)', async () => {
       registryMock.getManagedPlugins.mockReturnValue([fakePlugin({ isLoaded: true })]);
 
       await managePlugins({ json: true });
 
       const raw = writeSpy.mock.calls.map(c => String(c[0])).join('');
       const parsed = JSON.parse(raw);
-      expect(parsed[0]).toMatchObject({
+      expect(parsed.ok).toBe(true);
+      expect(parsed.warnings).toEqual([]);
+      expect(parsed.data.total).toBe(1);
+      expect(parsed.data.plugins[0]).toMatchObject({
         name: 'my-plugin',
         version: '1.2.3',
         isLoaded: true,
         isActive: false,
         state: 'unloaded',
+        managed: false,
+        pin: null,
+        reviews: { count: 0, average: null },
       });
+    });
+
+    it('emits a PLUGIN_LIST_ERROR envelope (exit 1) when the registry fails in json mode', async () => {
+      registryMock.initialize.mockRejectedValue(new Error('disk exploded'));
+
+      await managePlugins({ json: true });
+
+      const parsed = JSON.parse(writeSpy.mock.calls.map(c => String(c[0])).join(''));
+      expect(parsed).toMatchObject({ ok: false, error: { code: 'PLUGIN_LIST_ERROR', message: 'disk exploded' } });
+      expect(process.exitCode).toBe(1);
     });
 
     it('wraps a registry failure as ValidationError', async () => {
@@ -375,50 +419,129 @@ describe('plugin — command group', () => {
   });
 
   describe('uninstallPlugin', () => {
-    it('rejects an unknown plugin name before touching the registry', async () => {
+    const result = (over: Record<string, unknown> = {}) => ({
+      name: 'my-plugin',
+      version: '1.2.3',
+      dryRun: false,
+      removed: { paths: ['/ws/.re-shell/plugins/my-plugin'], registryEntry: true },
+      kept: [],
+      deregistered: { unloaded: true, hooks: 2, commands: 1 },
+      warnings: [],
+      ...over,
+    });
+
+    it('rejects an unknown plugin before touching the filesystem', async () => {
       registryMock.getManagedPlugin.mockReturnValue(undefined);
 
-      await expect(uninstallPlugin('ghost')).rejects.toThrow(
+      await expect(uninstallPlugin('ghost', { cwd: '/nonexistent-ws' })).rejects.toThrow(
         "Plugin 'ghost' is not installed"
       );
-      expect(registryMock.unloadPlugin).not.toHaveBeenCalled();
+      expect(uninstallPluginFromWorkspace).not.toHaveBeenCalled();
     });
 
-    it('prompts for confirmation without --force', async () => {
-      registryMock.getManagedPlugin.mockReturnValue(fakePlugin());
+    it('reports an unknown plugin as a PLUGIN_NOT_FOUND envelope with a non-zero exit in json mode', async () => {
+      registryMock.getManagedPlugin.mockReturnValue(undefined);
 
-      await uninstallPlugin('my-plugin');
+      await uninstallPlugin('ghost', { json: true, cwd: '/nonexistent-ws' });
 
-      expect(output()).toContain("Are you sure you want to uninstall 'my-plugin'?");
-      expect(registryMock.unloadPlugin).toHaveBeenCalledWith('my-plugin');
+      const parsed = JSON.parse(writeSpy.mock.calls.map(c => String(c[0])).join(''));
+      expect(parsed).toMatchObject({ ok: false, error: { code: 'PLUGIN_NOT_FOUND', details: { name: 'ghost' } } });
+      expect(process.exitCode).toBe(1);
     });
 
-    it('skips the confirmation prompt with --force', async () => {
+    it('delegates to the real uninstaller with the live registry and flags, and lists what was removed', async () => {
       registryMock.getManagedPlugin.mockReturnValue(fakePlugin());
+      vi.mocked(uninstallPluginFromWorkspace).mockResolvedValue(result() as never);
 
-      await uninstallPlugin('my-plugin', { force: true });
+      await uninstallPlugin('my-plugin', { force: true, purge: true, cwd: '/nonexistent-ws' });
 
-      expect(output()).not.toContain('Are you sure');
-      expect(output()).toContain('uninstalled successfully');
-    });
-
-    it('unloads then unregisters in order', async () => {
-      registryMock.getManagedPlugin.mockReturnValue(fakePlugin());
-
-      await uninstallPlugin('my-plugin', { force: true });
-
-      const unloadOrder = registryMock.unloadPlugin.mock.invocationCallOrder[0];
-      const unregisterOrder = registryMock.unregisterPlugin.mock.invocationCallOrder[0];
-      expect(unloadOrder).toBeLessThan(unregisterOrder);
-    });
-
-    it('fails when unregisterPlugin returns false', async () => {
-      registryMock.getManagedPlugin.mockReturnValue(fakePlugin());
-      registryMock.unregisterPlugin.mockResolvedValue(false);
-
-      await expect(uninstallPlugin('my-plugin', { force: true })).rejects.toThrow(
-        'Plugin uninstallation failed'
+      expect(uninstallPluginFromWorkspace).toHaveBeenCalledWith(
+        'my-plugin',
+        expect.objectContaining({
+          workspaceRoot: '/nonexistent-ws',
+          registry: registryMock,
+          force: true,
+          purgeData: true,
+          dryRun: false,
+        })
       );
+      const out = output();
+      expect(out).toContain('uninstalled successfully');
+      expect(out).toContain('Removed: /ws/.re-shell/plugins/my-plugin');
+      expect(out).toContain('Removed: plugins.json entry for my-plugin');
+      expect(out).toContain('Deregistered: 2 hook(s), 1 command(s), plugin unloaded');
+      // No simulated work: nothing is awaited on a timer.
+      expect(out).not.toContain('Are you sure');
+    });
+
+    it('dry-run says what would be removed and does not claim it was', async () => {
+      registryMock.getManagedPlugin.mockReturnValue(fakePlugin());
+      vi.mocked(uninstallPluginFromWorkspace).mockResolvedValue(
+        result({ dryRun: true, kept: ['/ws/.re-shell/data/my-plugin'] }) as never
+      );
+
+      await uninstallPlugin('my-plugin', { dryRun: true, cwd: '/nonexistent-ws' });
+
+      expect(vi.mocked(uninstallPluginFromWorkspace).mock.calls[0][1]).toMatchObject({ dryRun: true });
+      expect(output()).toContain('would be uninstalled (dry run)');
+      expect(output()).toContain('Would remove: /ws/.re-shell/plugins/my-plugin');
+      expect(output()).toContain('Kept: /ws/.re-shell/data/my-plugin (use --purge to delete)');
+    });
+
+    it('emits the removed/kept/deregistered report as the json data, with warnings in the envelope', async () => {
+      registryMock.getManagedPlugin.mockReturnValue(fakePlugin());
+      vi.mocked(uninstallPluginFromWorkspace).mockResolvedValue(
+        result({ warnings: ["Plugin 'my-plugin' failed to unload cleanly: boom"] }) as never
+      );
+
+      await uninstallPlugin('my-plugin', { json: true, cwd: '/nonexistent-ws' });
+
+      const parsed = JSON.parse(writeSpy.mock.calls.map(c => String(c[0])).join(''));
+      expect(parsed.ok).toBe(true);
+      expect(parsed.warnings).toEqual(["Plugin 'my-plugin' failed to unload cleanly: boom"]);
+      expect(parsed.data).toEqual({
+        name: 'my-plugin',
+        version: '1.2.3',
+        dryRun: false,
+        removed: { paths: ['/ws/.re-shell/plugins/my-plugin'], registryEntry: true },
+        kept: [],
+        deregistered: { unloaded: true, hooks: 2, commands: 1 },
+      });
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it.each([
+      ['not-found', 'PLUGIN_NOT_FOUND'],
+      ['not-managed', 'PLUGIN_UNINSTALL_ERROR'],
+      ['has-dependents', 'PLUGIN_UNINSTALL_ERROR'],
+      ['io-error', 'PLUGIN_UNINSTALL_ERROR'],
+    ] as const)('maps an uninstaller %s refusal to %s (json) and a ValidationError (human)', async (reason, code) => {
+      registryMock.getManagedPlugin.mockReturnValue(fakePlugin());
+      vi.mocked(uninstallPluginFromWorkspace).mockRejectedValue(
+        new PluginUninstallError(reason, `refused: ${reason}`, { name: 'my-plugin' })
+      );
+
+      await uninstallPlugin('my-plugin', { json: true, cwd: '/nonexistent-ws' });
+      const parsed = JSON.parse(writeSpy.mock.calls.map(c => String(c[0])).join(''));
+      expect(parsed).toMatchObject({
+        ok: false,
+        error: { code, message: `refused: ${reason}`, details: { reason, name: 'my-plugin' } },
+      });
+      expect(process.exitCode).toBe(1);
+
+      await expect(uninstallPlugin('my-plugin', { cwd: '/nonexistent-ws' })).rejects.toThrow(
+        `Plugin uninstallation failed: refused: ${reason}`
+      );
+    });
+
+    it('wraps unexpected failures instead of reporting success', async () => {
+      registryMock.getManagedPlugin.mockReturnValue(fakePlugin());
+      vi.mocked(uninstallPluginFromWorkspace).mockRejectedValue(new Error('EPERM'));
+
+      await expect(uninstallPlugin('my-plugin', { cwd: '/nonexistent-ws' })).rejects.toThrow(
+        'Plugin uninstallation failed: EPERM'
+      );
+      expect(output()).not.toContain('uninstalled successfully');
     });
   });
 
@@ -481,16 +604,37 @@ describe('plugin — command group', () => {
       expect(output()).toContain('Engines:');
     });
 
-    it('emits the full JSON dump in json mode', async () => {
+    it('emits the info envelope in json mode', async () => {
       registryMock.getManagedPlugin.mockReturnValue(fakePlugin());
 
-      await showPluginInfo('my-plugin', { json: true });
+      await showPluginInfo('my-plugin', { json: true, offline: true });
 
-      // json branch prints via console.log(JSON.stringify(...)).
-      const raw = logs.join('');
-      const parsed = JSON.parse(raw);
-      expect(parsed.manifest.name).toBe('my-plugin');
-      expect(parsed.state).toBe('unloaded');
+      const parsed = JSON.parse(writeSpy.mock.calls.map(c => String(c[0])).join(''));
+      expect(parsed.ok).toBe(true);
+      expect(parsed.data).toMatchObject({
+        name: 'my-plugin',
+        version: '1.2.3',
+        state: 'unloaded',
+        manifest: { name: 'my-plugin', main: 'dist/index.js' },
+        install: null,
+        // Not installed by the CLI and not from node_modules: there is no registry to ask,
+        // so quality is null (not applicable) rather than an invented number.
+        origin: 'global',
+        quality: null,
+        reviews: { count: 0, average: null },
+        lifecycle: { loadMs: 5, initMs: 3, activationMs: 7, errors: [] },
+      });
+      expect(parsed.warnings).toEqual([]);
+    });
+
+    it('reports an unknown plugin as PLUGIN_NOT_FOUND in json mode', async () => {
+      registryMock.getManagedPlugin.mockReturnValue(undefined);
+
+      await showPluginInfo('ghost', { json: true });
+
+      const parsed = JSON.parse(writeSpy.mock.calls.map(c => String(c[0])).join(''));
+      expect(parsed).toMatchObject({ ok: false, error: { code: 'PLUGIN_NOT_FOUND' } });
+      expect(process.exitCode).toBe(1);
     });
   });
 
@@ -570,27 +714,37 @@ describe('plugin — command group', () => {
   });
 
   describe('updatePlugins / validatePlugin / clearPluginCache', () => {
-    it('update reports not implemented even for an empty registry', async () => {
-      registryMock.getPlugins.mockReturnValue([]);
+    it('update on an empty workspace says so instead of claiming everything is up to date', async () => {
+      const ws = await mkWorkspace();
+      await updatePlugins(undefined, { cwd: ws, check: true });
 
-      await expect(updatePlugins()).rejects.toThrow('Plugin update is not implemented');
-      expect(registryMock.initialize).not.toHaveBeenCalled();
-    });
-
-    it('update never claims present plugins are up to date', async () => {
-      registryMock.getPlugins.mockReturnValue([fakePlugin()]);
-
-      await expect(updatePlugins()).rejects.toThrow('No update checks or changes were performed');
+      expect(output()).toContain('No plugins installed.');
       expect(output()).not.toContain('All plugins are up to date');
     });
 
-    it('validate reports not implemented without a pass banner', async () => {
-      await expect(validatePlugin('/plugins/my-plugin')).rejects.toThrow('not implemented');
-      await expect(validatePlugin('/plugins/my-plugin', { verbose: true })).rejects.toThrow(
-        'No validation checks were performed'
+    it('update of an unknown plugin fails (human: ValidationError, json: PLUGIN_NOT_FOUND)', async () => {
+      const ws = await mkWorkspace();
+      await expect(updatePlugins('ghost', { cwd: ws })).rejects.toThrow("Plugin 'ghost' is not installed");
+
+      await updatePlugins('ghost', { cwd: ws, json: true });
+      const parsed = JSON.parse(writeSpy.mock.calls.map(c => String(c[0])).join(''));
+      expect(parsed).toMatchObject({ ok: false, error: { code: 'PLUGIN_NOT_FOUND', details: { name: 'ghost' } } });
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('validate of a missing path fails with PLUGIN_VALIDATE_ERROR and never prints a pass banner', async () => {
+      await expect(validatePlugin('/definitely/missing/plugin')).rejects.toThrow(
+        'Plugin validation failed: Plugin path does not exist'
       );
-      expect(output()).not.toContain('Plugin validation passed');
-      expect(output()).not.toContain('All checks completed successfully');
+      expect(output()).not.toContain('Plugin is valid');
+
+      await validatePlugin('/definitely/missing/plugin', { json: true });
+      const parsed = JSON.parse(writeSpy.mock.calls.map(c => String(c[0])).join(''));
+      expect(parsed).toMatchObject({
+        ok: false,
+        error: { code: 'PLUGIN_VALIDATE_ERROR', details: { reason: 'not-found' } },
+      });
+      expect(process.exitCode).toBe(1);
     });
 
     it('clearCache delegates to the registry and confirms', async () => {
@@ -634,8 +788,8 @@ describe('plugin — command group', () => {
 
       await showPluginStats({ json: true });
 
-      const raw = logs.join('');
-      expect(JSON.parse(raw).total).toBe(0);
+      const raw = writeSpy.mock.calls.map(c => String(c[0])).join('');
+      expect(JSON.parse(raw).data.total).toBe(0);
     });
 
     it('verbose lists plugins with errors', async () => {
@@ -837,8 +991,8 @@ describe('plugin — command group', () => {
     it('emits the flat hook-type array in json mode', async () => {
       await listHookTypes({ json: true });
 
-      const raw = logs.join('');
-      const parsed = JSON.parse(raw);
+      const raw = writeSpy.mock.calls.map(c => String(c[0])).join('');
+      const parsed = JSON.parse(raw).data;
       expect(parsed).toEqual(expect.arrayContaining([HookType.CLI_INIT]));
     });
   });

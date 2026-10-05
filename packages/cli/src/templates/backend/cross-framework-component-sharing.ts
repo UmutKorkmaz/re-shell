@@ -64,6 +64,8 @@ export const crossFrameworkComponentSharingTemplate: BackendTemplate = {
   },
   "devDependencies": {
     "@types/express": "^4.17.17",
+    "@types/cors": "^2.8.17",
+    "@types/compression": "^1.7.5",
     "@types/node": "^20.5.0",
     "typescript": "^5.1.6",
     "ts-node": "^10.9.1",
@@ -992,6 +994,8 @@ This generates:
 
 ## Usage
 
+The framework wrappers are generated into this project's \`components/\` folder (they are not published to npm). The imports below are relative to the project root; adjust them to wherever you copy the folder, or expose it as a workspace package.
+
 ### Web Components (Vanilla JS)
 
 \`\`\`html
@@ -1005,7 +1009,7 @@ This generates:
 ### React
 
 \`\`\`tsx
-import { Button, Card, Modal } from '@re-shell/shared-components/react';
+import { Button, Card, Modal } from './components/react';
 
 function App() {
   return (
@@ -1032,14 +1036,14 @@ function App() {
 </template>
 
 <script setup>
-import { Button, Card, Modal } from '@re-shell/shared-components/vue';
+import { Button, Card, Modal } from './components/vue';
 </script>
 \`\`\`
 
 ### Angular
 
 \`\`\`typescript
-import { ButtonModule, CardModule, ModalModule } from '@re-shell/shared-components/angular';
+import { ButtonModule, CardModule, ModalModule } from './components/angular';
 
 @NgModule({
   imports: [ButtonModule, CardModule, ModalModule],
@@ -1056,7 +1060,9 @@ export class AppModule {}
 
 \`\`\`svelte
 <script>
-  import { Button, Card, Modal } from '@re-shell/shared-components/svelte';
+  import Button from './components/svelte/Button.svelte';
+  import Card from './components/svelte/Card.svelte';
+  import Modal from './components/svelte/Modal.svelte';
 </script>
 
 <Button label="Click me" variant="primary" on:click={handleClick} />

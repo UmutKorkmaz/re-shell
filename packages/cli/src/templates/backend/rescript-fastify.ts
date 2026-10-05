@@ -20,41 +20,39 @@ export const rescriptFastifyTemplate: BackendTemplate = {
   "version": "1.0.0",
   "description": "ReScript + Fastify API server with type safety and high performance",
   "scripts": {
-    "dev": "rescript clean && rescript dev -w",
+    "dev": "rescript build -w",
     "build": "rescript build",
-    "start": "node dist/js/src/Server.bs.js",
-    "server": "nodemon -x 'rescript build && node dist/js/src/Server.bs.js'",
-    "test": "jest",
-    "test:watch": "jest --watch",
+    "start": "node src/Main.bs.js",
+    "server": "nodemon --watch src -e js --exec \\"node src/Main.bs.js\\"",
+    "test": "rescript build && node --test src/__tests__/ApiTest.bs.js",
     "clean": "rescript clean",
     "format": "rescript format"
   },
   "dependencies": {
-    "@rescript/core": "^1.3.0",
-    "rescript-fastify": "^0.2.0",
-    "rescript-json-combinators": "^2.3.0",
-    "fastify": "^4.26.2",
     "@fastify/cors": "^8.5.0",
     "@fastify/helmet": "^11.1.1",
     "@fastify/jwt": "^7.2.4",
-    "@fastify/swagger": "^8.13.0",
-    "@fastify/swagger-ui": "^2.1.0",
-    "@fastify/env": "^4.3.0",
-    "@fastify/sensible": "^5.5.0",
-    "mercurius": "^13.4.0",
+    "@rescript/core": "^1.3.0",
+    "bcryptjs": "^2.4.3",
+    "fastify": "^4.26.2",
     "graphql": "^16.8.1",
-    "bcryptjs": "^2.4.3"
+    "mercurius": "^13.4.0"
   },
   "devDependencies": {
-    "rescript": "^11.1.0",
-    "rescript-nodejs": "^16.1.0",
-    "jest": "^29.7.0",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "rescript": "^11.1.0"
   },
-  "keywords": ["rescript", "fastify", "api", "rest", "type-safe"],
-  "author": "{{author}}",
+  "keywords": [
+    "rescript",
+    "fastify",
+    "api",
+    "rest",
+    "type-safe"
+  ],
+  "author": "re-shell",
   "license": "MIT"
-}`,
+}
+`,
 
     // ReScript configuration
     'rescript.json': `{
@@ -72,40 +70,59 @@ export const rescriptFastifyTemplate: BackendTemplate = {
   },
   "suffix": ".bs.js",
   "bs-dependencies": [
-    "@rescript/core",
-    "rescript-fastify",
-    "rescript-nodejs",
-    "rescript-json-combinators"
+    "@rescript/core"
   ],
-  "warnings": {
-    "error": true
-  },
   "bsc-flags": [
-    "-bs-gentype",
     "-open RescriptCore"
   ]
-}`,
+}
+`,
 
     // Main server file
-    'src/Server.res': `open RescriptCore
-open RescriptFastify
-open Node
+    'src/Server.res': `let publicUser = (u: Types.user) => {"id": u.id, "email": u.email, "name": u.name, "role": u.role}
+
+let jsonError = (reply: Fastify.reply, status: int, message: string): Fastify.reply =>
+  reply->Fastify.code(status)->Fastify.send({"error": message})
+
+// Authentication hooks (preHandler): the reply is only sent when the token is rejected.
+let requireUser: Fastify.hook = (request, reply, done) =>
+  request
+  ->Fastify.jwtVerify
+  ->Promise.thenResolve(_claims => done())
+  ->Promise.catch(_ => {
+    let _ = jsonError(reply, 401, "Unauthorized")
+    Promise.resolve()
+  })
+  ->ignore
+
+let requireAdmin: Fastify.hook = (request, reply, done) =>
+  request
+  ->Fastify.jwtVerify
+  ->Promise.thenResolve((claims: Types.claims) =>
+    if claims.role == "admin" {
+      done()
+    } else {
+      let _ = jsonError(reply, 403, "Admin role required")
+    }
+  )
+  ->Promise.catch(_ => {
+    let _ = jsonError(reply, 401, "Unauthorized")
+    Promise.resolve()
+  })
+  ->ignore
 
 // Routes
-module AppRoutes = {
-  @send
-  let healthGet = async (req, reply) => {
-    let response = {
+module Routes = {
+  let health: Fastify.handler = async (_request, reply) =>
+    reply->Fastify.send({
       "status": "healthy",
-      "timestamp": Js.Date.now(),
-      "version": "1.0.0"}
-    reply->Reply.send(response)->resolve
-  }
+      "timestamp": Date.now(),
+      "version": "1.0.0",
+    })
 
-  @send
-  let homeGet = async (req, reply) => {
-    let html = \`
-<!DOCTYPE html>
+  let home: Fastify.handler = async (_request, reply) => {
+    let _ = reply->Fastify.header("Content-Type", "text/html")
+    reply->Fastify.send(\`<!DOCTYPE html>
 <html>
   <head>
     <title>{{projectName}}</title>
@@ -117,253 +134,169 @@ module AppRoutes = {
   <body>
     <h1>Welcome to {{projectName}}</h1>
     <p>Type-safe API built with ReScript and Fastify</p>
-    <p>High-performance with schema validation</p>
     <p>API available at: <a href="/api/v1/health">/api/v1/health</a></p>
   </body>
-</html>
-    \`
-    reply->Reply.type("text/html")->ignore
-    reply->Reply.send(html)->resolve
+</html>\`)
   }
 
-  @send
-  let registerPost = async (req, reply) => {
-    // In production, parse JSON body and validate
-    let email = "user@example.com"
-    let password = "password123"
-    let name = "New User"
+  let session = async (reply: Fastify.reply, status: int, user: Types.user) => {
+    let token = await reply->Fastify.jwtSign(Auth.claimsOf(user), {"expiresIn": "7d"})
+    reply->Fastify.code(status)->Fastify.send({"token": token, "user": publicUser(user)})
+  }
 
-    // Check if user exists (simplified)
-    if (email == "admin@example.com") {
-      let response = { "error": "Email already registered" }
-      reply->Reply.statusCode(409)->ignore
-      reply->Reply.send(response)->resolve
-    } else {
-      // Create user
-      let user = {
-        "id": Js.Date.now()->Int.toFloat->Js.String.toString,
-        "email": email,
-        "name": name,
-        "role": "user"}
-
-      // Generate token (simplified)
-      let token = "jwt-token-placeholder"
-
-      let response = { "token": token, "user": user }
-      reply->Reply.statusCode(201)->ignore
-      reply->Reply.send(response)->resolve
+  let register: Fastify.handler = async (request, reply) => {
+    let body = Fastify.body(request)
+    switch (Json.string(body, "email"), Json.string(body, "name"), Json.string(body, "password")) {
+    | (Some(email), Some(name), Some(password)) if String.length(password) >= 6 =>
+      switch Store.findUserByEmail(email) {
+      | Some(_) => jsonError(reply, 409, "Email already registered")
+      | None => await session(reply, 201, Store.addUser(~email, ~name, ~password, ~role="user"))
+      }
+    | _ => jsonError(reply, 400, "email, name and a password of at least 6 characters are required")
     }
   }
 
-  @send
-  let loginPost = async (req, reply) => {
-    let email = "admin@example.com"
-    let password = "admin123"
-
-    // Validate credentials (simplified)
-    if (email == "admin@example.com" && password == "admin123") {
-      let token = "jwt-token-placeholder"
-      let user = {
-        "id": "1",
-        "email": "admin@example.com",
-        "name": "Admin User",
-        "role": "admin"}
-
-      let response = { "token": token, "user": user }
-      reply->Reply.send(response)->resolve
-    } else {
-      let response = { "error": "Invalid credentials" }
-      reply->Reply.statusCode(401)->ignore
-      reply->Reply.send(response)->resolve
+  let login: Fastify.handler = async (request, reply) => {
+    let body = Fastify.body(request)
+    switch (Json.string(body, "email"), Json.string(body, "password")) {
+    | (Some(email), Some(password)) =>
+      switch Store.findUserByEmail(email) {
+      | Some(user) if Auth.verifyPassword(password, user.passwordHash) =>
+        await session(reply, 200, user)
+      | _ => jsonError(reply, 401, "Invalid credentials")
+      }
+    | _ => jsonError(reply, 400, "email and password are required")
     }
   }
 
-  @send
-  let listProductsGet = async (req, reply) => {
-    let products = [%raw([
-      {"id": 1, "name": "Sample Product 1", "description": "This is a sample product", "price": 29.99, "stock": 100},
-      {"id": 2, "name": "Sample Product 2", "description": "Another sample product", "price": 49.99, "stock": 50}
-    ])]
+  let me: Fastify.handler = async (request, reply) =>
+    switch await request->Fastify.jwtVerify {
+    | claims => reply->Fastify.send({"userId": claims.sub, "email": claims.email, "role": claims.role})
+    | exception _ => jsonError(reply, 401, "Unauthorized")
+    }
 
-    let response = { "products": products, "count": Array.length(products) }
-    reply->Reply.send(response)->resolve
+  let listProducts: Fastify.handler = async (_request, reply) =>
+    reply->Fastify.send({"products": Store.products, "count": Array.length(Store.products)})
+
+  let withProductId = (request: Fastify.request, reply: Fastify.reply, found: Types.product => Fastify.reply) =>
+    switch request->Fastify.params->Dict.get("id")->Option.flatMap(id => Int.fromString(id)) {
+    | None => jsonError(reply, 400, "Invalid product id")
+    | Some(id) =>
+      switch Store.findProduct(id) {
+      | Some(product) => found(product)
+      | None => jsonError(reply, 404, "Product not found")
+      }
+    }
+
+  let getProduct: Fastify.handler = async (request, reply) =>
+    withProductId(request, reply, product => reply->Fastify.send({"product": product}))
+
+  let createProduct: Fastify.handler = async (request, reply) => {
+    let body = Fastify.body(request)
+    switch (Json.string(body, "name"), Json.float(body, "price")) {
+    | (Some(name), Some(price)) => {
+        let product = Store.addProduct(
+          ~name,
+          ~description=Json.string(body, "description")->Option.getOr(""),
+          ~price,
+          ~stock=Json.float(body, "stock")->Option.map(Float.toInt)->Option.getOr(0),
+        )
+        reply->Fastify.code(201)->Fastify.send({"product": product})
+      }
+    | _ => jsonError(reply, 400, "name and price are required")
+    }
   }
 
-  @send
-  let getProductGet = async (req, reply) => {
-    let id = req->Params.getParam("id")->Belt.Option.getOr("")
-
-    let products = [%raw([
-      {"id": 1, "name": "Sample Product 1", "description": "This is a sample product", "price": 29.99, "stock": 100},
-      {"id": 2, "name": "Sample Product 2", "description": "Another sample product", "price": 49.99, "stock": 50}
-    ])]
-
-    let product = products->Js.Array.find(p => {
-      let p = p->Js.Dictionary.unsafeGet("id")
-      let idNum = p->Js.Int.toFloat
-      let reqId = id->Js.Int.parse->Belt.Option.getOr(0)
-      idNum == reqId
+  let updateProduct: Fastify.handler = async (request, reply) =>
+    withProductId(request, reply, existing => {
+      let body = Fastify.body(request)
+      let updated = Store.updateProduct(existing.id, p => {
+        ...p,
+        name: Json.string(body, "name")->Option.getOr(p.name),
+        description: Json.string(body, "description")->Option.getOr(p.description),
+        price: Json.float(body, "price")->Option.getOr(p.price),
+        stock: Json.float(body, "stock")->Option.map(Float.toInt)->Option.getOr(p.stock),
+      })
+      reply->Fastify.send({"product": updated})
     })
 
-    switch (product) {
-    | Some(p) => reply->Reply.send({ "product": p })->resolve
-    | None =>
-      reply->Reply.statusCode(404)->ignore
-      reply->Reply.send({ "error": "Product not found" })->resolve
-    }
-  }
-
-  @send
-  let createProductPost = async (req, reply) => {
-    // In production, parse JSON body and validate schema
-    let product = {
-      "id": Js.Date.now()->Int.toFloat,
-      "name": "New Product",
-      "description": "",
-      "price": 29.99,
-      "stock": 100}
-
-    let response = { "product": product }
-    reply->Reply.statusCode(201)->ignore
-    reply->Reply.send(response)->resolve
-  }
-
-  @send
-  let updateProductPut = async (req, reply) => {
-    let id = req->Params.getParam("id")->Belt.Option.getOr("")
-
-    // In production, parse JSON body and validate schema
-    let product = {
-      "id": Js.Date.now()->Int.toFloat,
-      "name": "Updated Product"}
-
-    let response = { "product": product }
-    reply->Reply.send(response)->resolve
-  }
-
-  @send
-  let deleteProductDelete = async (req, reply) => {
-    // In production, delete product from database
-    reply->Reply.statusCode(204)->ignore
-    reply->Reply.send()->resolve
-  }
+  let deleteProduct: Fastify.handler = async (request, reply) =>
+    withProductId(request, reply, product => {
+      let _ = Store.removeProduct(product.id)
+      reply->Fastify.code(204)->Fastify.send()
+    })
 }
 
-// Main app setup
-@send
-let setup = () => {
-  let fastify = Fastify.make({
-    "logger": true})
+@module external graphqlPlugin: 'plugin = "./graphqlPlugin.js"
 
-  // Register plugins
-  fastify->Fastify.registerCORS()->ignore
-  fastify->Fastify.registerHelmet()->ignore
-  fastify->Fastify.registerJWT({ "secret": "change-this-secret" })->ignore
+/** Builds the Fastify application (does not listen). */
+let make = async (): Fastify.app => {
+  let app = Fastify.make({"logger": Env.get("NODE_ENV") != Some("test")})
 
-  // GraphQL (Mercurius) - registers /graphql endpoint
-  GraphQL.registerGraphQL(fastify)->ignore
+  await app->Fastify.register(Fastify.cors)
+  await app->Fastify.registerWith(Fastify.helmet, {"contentSecurityPolicy": false})
+  await app->Fastify.registerWith(Fastify.jwt, {"secret": Auth.secret()})
 
-  // Home route
-  fastify->Fastify.get("/", AppRoutes.homeGet)->ignore
+  app->Fastify.get("/", Routes.home)
 
-  // Health check
-  fastify->Fastify.get("/api/v1/health", AppRoutes.healthGet)->ignore
+  // API routes
+  app->Fastify.get("/api/v1/health", Routes.health)
+  app->Fastify.post("/api/v1/auth/register", Routes.register)
+  app->Fastify.post("/api/v1/auth/login", Routes.login)
+  app->Fastify.get("/api/v1/auth/me", Routes.me)
+  app->Fastify.get("/api/v1/products", Routes.listProducts)
+  app->Fastify.get("/api/v1/products/:id", Routes.getProduct)
+  app->Fastify.postWith("/api/v1/products", {"preHandler": requireAdmin}, Routes.createProduct)
+  app->Fastify.putWith("/api/v1/products/:id", {"preHandler": requireAdmin}, Routes.updateProduct)
+  app->Fastify.deleteWith("/api/v1/products/:id", {"preHandler": requireAdmin}, Routes.deleteProduct)
 
-  // Auth routes
-  fastify->Fastify.post("/api/v1/auth/register", AppRoutes.registerPost)->ignore
-  fastify->Fastify.post("/api/v1/auth/login", AppRoutes.loginPost)->ignore
+  // GraphQL endpoint (Mercurius)
+  await app->Fastify.register(graphqlPlugin)
 
-  // Product routes
-  fastify->Fastify.get("/api/v1/products", AppRoutes.listProductsGet)->ignore
-  fastify->Fastify.get("/api/v1/products/:id", AppRoutes.getProductGet)->ignore
-  fastify->Fastify.post("/api/v1/products", AppRoutes.createProductPost)->ignore
-  fastify->Fastify.put("/api/v1/products/:id", AppRoutes.updateProductPut)->ignore
-  fastify->Fastify.delete("/api/v1/products/:id", AppRoutes.deleteProductDelete)->ignore
+  app->Fastify.setNotFoundHandler(async (_request, reply) => jsonError(reply, 404, "Not found"))
 
-  fastify
+  await app->Fastify.ready
+  app
 }
-
-@send
-let start = async () => {
-  let port = Node.Process.env->Js.Dict.get("PORT")->Belt.Option.mapOr("3000", x => x)
-  let fastify = setup()
-
-  try {
-    let address = await fastify->Fastify.listen({
-      "port": port->Js.Int.parse->Belt.Option.getOr(3000),
-      "host": "0.0.0.0"})
-
-    Js.log3("🚀 Server listening at", address, "")
-    Js.log("📚 API docs: http://localhost:" ++ port ++ "/api/v1/health")
-  } catch {
-  | error => {
-    Js.log2("Error starting server:", error)
-    process->Process.exit(1)->ignore
-  }
-}
-
-// Start server when file is run directly
-if (Node.Process.argv->Js.Array2.get(1) == Some("dist/js/src/Server.bs.js")) {
-  start()->ignore
-}`,
+`,
 
     // Types file
-    'src/Types.res': `open RescriptCore
-
-type user = {
+    'src/Types.res': `type user = {
   id: string,
   email: string,
   name: string,
-  role: string}
+  role: string,
+  passwordHash: string,
+}
 
 type product = {
-  id: float,
+  id: int,
   name: string,
   description: string,
   price: float,
-  stock: int}
+  stock: int,
+}
 
-type authResponse = {
-  token: string,
-  user: user}
-
-type errorResponse = {
-  error: string}
-
-type healthResponse = {
-  status: string,
-  timestamp: float,
-  version: string}`,
+/** What is stored in (and read back from) the JWT. */
+type claims = {
+  sub: string,
+  email: string,
+  role: string,
+}
+`,
 
     // Auth utilities
-    'src/Auth.res': `open RescriptCore
-open Src.Types
+    'src/Auth.res': `@module("bcryptjs") external hashSync: (string, int) => string = "hashSync"
+@module("bcryptjs") external compareSync: (string, string) => bool = "compareSync"
 
-// SHA256 hash (simplified - in production use proper crypto)
-let hashPassword = (password: string): string => {
-  // Simplified - use proper SHA256 in production
-  password
-}
+let secret = (): string => Env.get("JWT_SECRET")->Option.getOr("change-this-secret-in-production")
 
-// Generate JWT token (simplified)
-let generateToken = (user: user): string => {
-  // Simplified - use proper JWT library
-  "jwt-token-placeholder"
-}
+let hashPassword = (password: string): string => hashSync(password, 10)
 
-// Verify JWT token (simplified)
-let verifyToken = (token: string): option<user> => {
-  // Simplified - use proper JWT verification
-  if (token == "jwt-token-placeholder") {
-    Some({
-      id: "1",
-      email: "admin@example.com",
-      name: "Admin User",
-      role: "admin"})
-  } else {
-    None
-  }
-}`,
+let verifyPassword = (password: string, hash: string): bool => compareSync(password, hash)
+
+let claimsOf = (user: Types.user): Types.claims => {sub: user.id, email: user.email, role: user.role}
+`,
 
     // GraphQL schema and resolvers (Mercurius)
     'src/graphqlSchema.js': `const schema = \`
@@ -397,14 +330,6 @@ const plugin = async (fastify) => {
 };
 
 module.exports = plugin;
-`,
-
-    // ReScript binding for the Mercurius plugin
-    'src/GraphQL.res': `open RescriptCore
-
-// Register the Mercurius GraphQL plugin on a Fastify instance
-@module("./graphqlPlugin.js")
-external registerGraphQL: RescriptFastify.t => Js.Promise.t<unit> = "default"
 `,
 
     // Environment file
@@ -530,7 +455,7 @@ Type-safe, high-performance API server built with ReScript and Fastify.
 - **Fast**: 20% faster than Express with efficient routing
 - **Type Safety**: Compile-time type checking eliminates runtime errors
 - **Functional**: Immutable data structures and pure functions
-- **Plugins**: Rich plugin ecosystem (CORS, Helmet, JWT, Swagger)
+- **Plugins**: CORS, Helmet and JWT (\`@fastify/*\`), GraphQL via Mercurius
 - **Logging**: Structured logging with Pino logger
 
 ## Requirements
@@ -544,7 +469,7 @@ Type-safe, high-performance API server built with ReScript and Fastify.
 # Install dependencies
 npm install
 
-# Build ReScript
+# Build ReScript (compiles in place to src/*.bs.js)
 npm run build
 \`\`\`
 
@@ -576,15 +501,19 @@ Visit http://localhost:3000
 - \`GET /api/v1/health\` - Health check
 
 ### Authentication
-- \`POST /api/v1/auth/register\` - Register new user
-- \`POST /api/v1/auth/login\` - Login user
+- \`POST /api/v1/auth/register\` - Register new user (\`email\`, \`name\`, \`password\`)
+- \`POST /api/v1/auth/login\` - Login user, returns a JWT
+- \`GET /api/v1/auth/me\` - Current user (bearer token required)
 
 ### Products
 - \`GET /api/v1/products\` - List all products
 - \`GET /api/v1/products/:id\` - Get product by ID
-- \`POST /api/v1/products\` - Create product
-- \`PUT /api/v1/products/:id\` - Update product
-- \`DELETE /api/v1/products/:id\` - Delete product
+- \`POST /api/v1/products\` - Create product (admin only)
+- \`PUT /api/v1/products/:id\` - Update product (admin only)
+- \`DELETE /api/v1/products/:id\` - Delete product (admin only)
+
+### GraphQL
+- \`POST /graphql\` - \`{ hello health }\` (Mercurius; GraphiQL at \`/graphiql\`)
 
 ## Default Credentials
 
@@ -595,9 +524,14 @@ Visit http://localhost:3000
 
 \`\`\`
 src/
-  Server.res         # Main server and routes
+  Main.res           # Entry point (npm start runs src/Main.bs.js)
+  Server.res         # Fastify app and routes
+  Fastify.res        # Fastify bindings
+  Auth.res           # Password hashing (bcryptjs)
+  Store.res          # In-memory data store
   Types.res          # Type definitions
-  Auth.res           # Authentication utilities
+  graphqlPlugin.js   # GraphQL endpoint (Mercurius)
+  __tests__/         # ReScript tests
 rescript.json        # ReScript configuration
 package.json         # Dependencies and scripts
 \`\`\`
@@ -630,12 +564,10 @@ npm run format
 
 ## Testing
 
-\`\`\`bash
-# Run tests
-npm test
+Tests are written in ReScript (\`src/__tests__/ApiTest.res\`), use Fastify's \`inject\` and run with Node's built-in test runner:
 
-# Watch mode
-npm run test:watch
+\`\`\`bash
+npm test
 \`\`\`
 
 ## Docker
@@ -675,5 +607,284 @@ Fastify provides:
 ## License
 
 MIT
+`,
+
+    'src/Env.res': `// Environment variables
+@val external env: Dict.t<string> = "process.env"
+
+let get = (key: string): option<string> => env->Dict.get(key)
+`,
+
+    'src/Fastify.res': `// Minimal Fastify bindings
+type app
+type request
+type reply
+type handler = (request, reply) => promise<reply>
+type hook = (request, reply, unit => unit) => unit
+
+@module external make: {"logger": bool} => app = "fastify"
+
+// Plugins
+@module external cors: 'plugin = "@fastify/cors"
+@module external helmet: 'plugin = "@fastify/helmet"
+@module external jwt: 'plugin = "@fastify/jwt"
+
+@send external register: (app, 'plugin) => promise<unit> = "register"
+@send external registerWith: (app, 'plugin, 'options) => promise<unit> = "register"
+
+// Routes
+@send external get: (app, string, handler) => unit = "get"
+@send external getWith: (app, string, {"preHandler": hook}, handler) => unit = "get"
+@send external post: (app, string, handler) => unit = "post"
+@send external postWith: (app, string, {"preHandler": hook}, handler) => unit = "post"
+@send external put: (app, string, handler) => unit = "put"
+@send external putWith: (app, string, {"preHandler": hook}, handler) => unit = "put"
+@send external delete: (app, string, handler) => unit = "delete"
+@send external deleteWith: (app, string, {"preHandler": hook}, handler) => unit = "delete"
+@send external setNotFoundHandler: (app, handler) => unit = "setNotFoundHandler"
+
+@send external ready: app => promise<unit> = "ready"
+@send external close: app => promise<unit> = "close"
+@send external listen: (app, {"port": int, "host": string}) => promise<string> = "listen"
+
+// Requests
+@get external body: request => JSON.t = "body"
+@get external params: request => Dict.t<string> = "params"
+@send external jwtVerify: request => promise<Types.claims> = "jwtVerify"
+
+// Replies
+@send external code: (reply, int) => reply = "code"
+@send external send: (reply, 'a) => reply = "send"
+@send external header: (reply, string, string) => reply = "header"
+@send external jwtSign: (reply, Types.claims, {"expiresIn": string}) => promise<string> = "jwtSign"
+
+// Testing without a socket (light-my-request)
+type injected
+@send
+external inject: (
+  app,
+  {"method": string, "url": string, "headers": Dict.t<string>, "payload": option<JSON.t>},
+) => promise<injected> = "inject"
+@get external statusCode: injected => int = "statusCode"
+@get external payload: injected => string = "payload"
+`,
+
+    'src/Json.res': `// Helpers for reading values out of a parsed JSON request body
+let field = (json: JSON.t, key: string): option<JSON.t> =>
+  json->JSON.Decode.object->Option.flatMap(fields => fields->Dict.get(key))
+
+let string = (json: JSON.t, key: string): option<string> =>
+  field(json, key)->Option.flatMap(JSON.Decode.string)
+
+let float = (json: JSON.t, key: string): option<float> =>
+  field(json, key)->Option.flatMap(JSON.Decode.float)
+`,
+
+    'src/Main.res': `let port = Env.get("PORT")->Option.flatMap(value => Int.fromString(value))->Option.getOr(3000)
+let host = Env.get("HOST")->Option.getOr("0.0.0.0")
+
+let start = async () => {
+  let app = await Server.make()
+  let _ = await app->Fastify.listen({"port": port, "host": host})
+}
+
+start()
+->Promise.catch(error => {
+  Console.error2("Failed to start server:", error)
+  Promise.resolve()
+})
+->ignore
+`,
+
+    'src/Store.res': `// In-memory data store: replace with a real database for production use.
+open Types
+
+let users: array<user> = [
+  {
+    id: "1",
+    email: "admin@example.com",
+    name: "Admin User",
+    role: "admin",
+    passwordHash: Auth.hashPassword("admin123"),
+  },
+]
+
+let products: array<product> = [
+  {id: 1, name: "Sample Product 1", description: "This is a sample product", price: 29.99, stock: 100},
+  {id: 2, name: "Sample Product 2", description: "Another sample product", price: 49.99, stock: 50},
+]
+
+let nextUserId = ref(2)
+let nextProductId = ref(3)
+
+let findUserByEmail = (email: string): option<user> => users->Array.find(u => u.email == email)
+
+let addUser = (~email: string, ~name: string, ~password: string, ~role: string): user => {
+  let user = {
+    id: Int.toString(nextUserId.contents),
+    email,
+    name,
+    role,
+    passwordHash: Auth.hashPassword(password),
+  }
+  nextUserId := nextUserId.contents + 1
+  users->Array.push(user)
+  user
+}
+
+let findProduct = (id: int): option<product> => products->Array.find(p => p.id == id)
+
+let addProduct = (~name: string, ~description: string, ~price: float, ~stock: int): product => {
+  let product = {id: nextProductId.contents, name, description, price, stock}
+  nextProductId := nextProductId.contents + 1
+  products->Array.push(product)
+  product
+}
+
+let updateProduct = (id: int, update: product => product): option<product> =>
+  switch products->Array.findIndex(p => p.id == id) {
+  | -1 => None
+  | index => {
+      let updated = update(products->Array.getUnsafe(index))
+      products->Array.setUnsafe(index, updated)
+      Some(updated)
+    }
+  }
+
+let removeProduct = (id: int): bool =>
+  switch products->Array.findIndex(p => p.id == id) {
+  | -1 => false
+  | index => {
+      products->Array.splice(~start=index, ~remove=1, ~insert=[])
+      true
+    }
+  }
+`,
+
+    'src/__tests__/ApiTest.res': `// Run with: npm test (node's built-in test runner)
+@module("node:test") external test: (string, unit => promise<unit>) => unit = "test"
+@module("node:assert/strict") external equal: ('a, 'a) => unit = "equal"
+@module("node:assert/strict") external ok: bool => unit = "ok"
+
+let request = async (
+  app: Fastify.app,
+  url: string,
+  ~method="GET",
+  ~body: option<JSON.t>=?,
+  ~token: option<string>=?,
+): (int, JSON.t) => {
+  let headers = Dict.make()
+  switch token {
+  | Some(t) => headers->Dict.set("authorization", "Bearer " ++ t)
+  | None => ()
+  }
+  let response = await app->Fastify.inject({
+    "method": method,
+    "url": url,
+    "headers": headers,
+    "payload": body,
+  })
+  let text = response->Fastify.payload
+  (response->Fastify.statusCode, text == "" ? JSON.Encode.null : JSON.parseExn(text))
+}
+
+let string = (json: JSON.t, key: string) => Json.string(json, key)->Option.getOr("")
+
+let credentials = (email: string, password: string) =>
+  JSON.Encode.object(
+    Dict.fromArray([("email", JSON.Encode.string(email)), ("password", JSON.Encode.string(password))]),
+  )
+
+test("API", async () => {
+  Dict.set(Env.env, "NODE_ENV", "test")
+  let app = await Server.make()
+
+  // health
+  let (code, health) = await request(app, "/api/v1/health")
+  equal(code, 200)
+  equal(string(health, "status"), "healthy")
+
+  // login with the seeded admin
+  let (code, login) = await request(
+    app,
+    "/api/v1/auth/login",
+    ~method="POST",
+    ~body=credentials("admin@example.com", "admin123"),
+  )
+  equal(code, 200)
+  let adminToken = string(login, "token")
+  ok(String.length(adminToken) > 20)
+
+  // wrong password
+  let (code, _) = await request(
+    app,
+    "/api/v1/auth/login",
+    ~method="POST",
+    ~body=credentials("admin@example.com", "wrong"),
+  )
+  equal(code, 401)
+
+  // register a regular user
+  let (code, registered) = await request(
+    app,
+    "/api/v1/auth/register",
+    ~method="POST",
+    ~body=JSON.Encode.object(
+      Dict.fromArray([
+        ("email", JSON.Encode.string("user@example.com")),
+        ("name", JSON.Encode.string("User")),
+        ("password", JSON.Encode.string("secret123")),
+      ]),
+    ),
+  )
+  equal(code, 201)
+  let userToken = string(registered, "token")
+
+  // protected routes
+  let (code, _) = await request(app, "/api/v1/auth/me")
+  equal(code, 401)
+  let (code, me) = await request(app, "/api/v1/auth/me", ~token=userToken)
+  equal(code, 200)
+  equal(string(me, "role"), "user")
+
+  // products: anyone reads, admins write
+  let (code, _) = await request(app, "/api/v1/products/1")
+  equal(code, 200)
+  let newProduct = JSON.Encode.object(
+    Dict.fromArray([("name", JSON.Encode.string("Widget")), ("price", JSON.Encode.float(9.5))]),
+  )
+  let (code, _) = await request(
+    app,
+    "/api/v1/products",
+    ~method="POST",
+    ~body=newProduct,
+    ~token=userToken,
+  )
+  equal(code, 403)
+  let (code, _) = await request(
+    app,
+    "/api/v1/products",
+    ~method="POST",
+    ~body=newProduct,
+    ~token=adminToken,
+  )
+  equal(code, 201)
+  let (code, _) = await request(app, "/api/v1/products/999")
+  equal(code, 404)
+  let (code, _) = await request(app, "/api/v1/products/3", ~method="DELETE", ~token=adminToken)
+  equal(code, 204)
+
+  // graphql
+  let (code, gql) = await request(
+    app,
+    "/graphql",
+    ~method="POST",
+    ~body=JSON.Encode.object(Dict.fromArray([("query", JSON.Encode.string("{ hello health }"))])),
+  )
+  equal(code, 200)
+  equal(gql->Json.field("data")->Option.flatMap(data => Json.string(data, "health")), Some("healthy"))
+
+  await app->Fastify.close
+})
 `}
 };

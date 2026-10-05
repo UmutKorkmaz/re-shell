@@ -48,67 +48,44 @@ export const eggjsTemplate: BackendTemplate = {
   },
   "dependencies": {
     "egg": "^3.17.5",
-    "egg-scripts": "^2.19.0",
-    "egg-sequelize": "^6.0.0",
-    "egg-redis": "^2.4.0",
-    "egg-session-redis": "^2.1.0",
-    "egg-validate": "^2.0.2",
-    "egg-cors": "^2.2.3",
-    "egg-jwt": "^3.1.7",
     "egg-bcrypt": "^1.1.0",
-    "egg-socket.io": "^4.1.6",
-    "egg-view-nunjucks": "^2.3.0",
-    "egg-multipart": "^3.3.0",
-    "egg-oss": "^3.2.0",
-    "egg-static": "^2.3.1",
-    "egg-logrotator": "^3.2.0",
-    "egg-schedule": "^3.7.0",
+    "egg-cors": "^2.2.3",
     "egg-i18n": "^2.1.0",
+    "egg-jwt": "^3.1.7",
+    "egg-multipart": "^3.3.0",
+    "egg-redis": "^2.4.0",
+    "egg-schedule": "^3.7.0",
+    "egg-scripts": "^2.17.0",
     "egg-security": "^2.10.0",
-    "egg-jsonp": "^2.0.0",
-    "egg-swagger-doc": "^2.3.2",
-    "egg-bull": "^1.3.0",
-    "egg-grpc": "^1.0.6",
-    "egg-kafka": "^2.0.3",
-    "egg-amqp": "^0.2.0",
-    "egg-mongoose": "^3.3.1",
-    "egg-elasticsearch": "^1.0.0",
-    "egg-graphql": "^3.0.0",
-    "mysql2": "^3.9.7",
-    "pg": "^8.11.5",
-    "ioredis": "^5.3.2",
+    "egg-sequelize": "^6.0.0",
+    "egg-socket.io": "^4.1.6",
+    "egg-static": "^2.3.1",
+    "egg-validate": "^2.0.2",
+    "egg-view-nunjucks": "^2.3.0",
+    "graphql": "^16.8.1",
     "jsonwebtoken": "^9.0.2",
-    "uuid": "^9.0.1",
-    "dayjs": "^1.11.10",
-    "lodash": "^4.17.21",
-    "class-validator": "^0.14.1",
-    "class-transformer": "^0.5.1",
     "nodemailer": "^6.9.13",
-    "qrcode": "^1.5.3",
-    "sharp": "^0.33.3",
-    "xlsx": "^0.18.5",
-    "csv-parser": "^3.0.0",
-    "sanitize-html": "^2.13.0"
+    "pg": "^8.11.5",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.3",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.12.7",
     "@types/supertest": "^6.0.2",
-    "@types/lodash": "^4.17.0",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/nodemailer": "^6.4.14",
-    "@types/qrcode": "^1.5.5",
     "egg-bin": "^6.5.2",
     "typescript": "^5.4.5",
     "eslint": "^8.57.0",
     "eslint-config-egg": "^13.0.0",
     "@typescript-eslint/eslint-plugin": "^7.7.1",
     "@typescript-eslint/parser": "^7.7.1",
-    "autod": "^3.1.2",
-    "autod-egg": "^1.1.0",
     "egg-mock": "^5.12.2",
-    "factory-girl": "^5.0.4",
-    "supertest": "^7.0.0"
+    "supertest": "^7.0.0",
+    "egg-ts-helper": "^2.1.0",
+    "@types/uuid": "^9.0.8"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -128,13 +105,11 @@ export const eggjsTemplate: BackendTemplate = {
     "noImplicitAny": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "charset": "utf8",
     "allowJs": false,
-    "pretty": true,
     "lib": ["ES2020"],
     "noEmitOnError": false,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
     "skipLibCheck": true,
@@ -172,6 +147,9 @@ export const eggjsTemplate: BackendTemplate = {
     // Egg configuration
     'config/config.default.ts': `import { EggAppConfig, EggAppInfo, PowerPartial } from 'egg';
 
+// egg-ts-helper derives EggAppConfig from this function's return type while the body
+// reads EggAppConfig, which is circular by design (TS7024 under noImplicitAny).
+// @ts-ignore
 export default (appInfo: EggAppInfo) => {
   const config = {} as PowerPartial<EggAppConfig>;
 
@@ -179,7 +157,7 @@ export default (appInfo: EggAppInfo) => {
   config.keys = appInfo.name + '_{{projectName}}_1234567890';
 
   // add your egg config in here
-  config.middleware = ['errorHandler', 'notfoundHandler', 'gzip', 'requestLog'];
+  config.middleware = ['errorHandler'];
 
   // cluster
   config.cluster = {
@@ -264,12 +242,26 @@ export default (appInfo: EggAppInfo) => {
   // jwt
   config.jwt = {
     secret: process.env.JWT_SECRET || 'your-secret-key',
-    expiresIn: '1h',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret',
-    refreshExpiresIn: '7d'};
+    sign: {
+      expiresIn: '1h'}};
+
+  // socket.io: every connection is authenticated, /admin additionally requires the admin role
+  config.io = {
+    init: {},
+    namespace: {
+      '/': {
+        connectionMiddleware: ['auth'],
+        packetMiddleware: []},
+      '/admin': {
+        connectionMiddleware: ['auth', 'admin'],
+        packetMiddleware: []}}};
 
   // add your special config in here
   const bizConfig = {
+    // refresh tokens use their own secret and lifetime
+    jwtRefresh: {
+      secret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret',
+      expiresIn: '7d'},
     sourceUrl: \`https://github.com/eggjs/examples/tree/master/\${appInfo.name}\`};
 
   // the return config will combines to EggAppConfig
@@ -306,13 +298,6 @@ export default () => {
       host: process.env.REDIS_HOST || 'localhost',
       password: process.env.REDIS_PASSWORD || '',
       db: 0}};
-
-  // Session
-  config.sessionRedis = {
-    key: 'EGG_SESSION',
-    maxAge: 24 * 3600 * 1000, // 1 day
-    httpOnly: true,
-    encrypt: true};
 
   return config;
 };`,
@@ -370,7 +355,6 @@ export default () => {
 const plugin: EggPlugin = {
   // built-in plugins
   static: true,
-  jsonp: true,
   view: true,
   nunjucks: {
     enable: true,
@@ -385,10 +369,6 @@ const plugin: EggPlugin = {
   redis: {
     enable: true,
     package: 'egg-redis'},
-
-  sessionRedis: {
-    enable: true,
-    package: 'egg-session-redis'},
 
   // validation
   validate: {
@@ -420,11 +400,6 @@ const plugin: EggPlugin = {
     enable: true,
     package: 'egg-multipart'},
 
-  // object storage
-  oss: {
-    enable: false,
-    package: 'egg-oss'},
-
   // scheduler
   schedule: {
     enable: true,
@@ -435,15 +410,7 @@ const plugin: EggPlugin = {
     enable: true,
     package: 'egg-i18n'},
 
-  // swagger
-  swaggerdoc: {
-    enable: true,
-    package: 'egg-swagger-doc'},
-
-  // queue
-  bull: {
-    enable: true,
-    package: 'egg-bull'}};
+};
 
 export default plugin;`,
 
@@ -504,13 +471,34 @@ export default class AppBootHook implements IBoot {
   }
 }`,
 
+    'typings/index.d.ts': `// Type augmentations contributed by the Egg plugins listed in config/plugin.ts
+// (app.model, app.redis, app.jwt, app.io, ...). egg-ts-helper regenerates the
+// rest of this folder on "npm run dev".
+import 'egg';
+import 'egg-sequelize';
+import 'egg-redis';
+import 'egg-jwt';
+import 'egg-socket.io';
+import type AdminSocketController from '../app/io/controller/admin';
+import type ChatSocketController from '../app/io/controller/chat';
+
+declare module 'egg' {
+  // socket.io controllers (egg-ts-helper does not generate these)
+  interface CustomController {
+    chat: ChatSocketController;
+    admin: AdminSocketController;
+  }
+}
+`,
+
     // Router
     'app/router.ts': `import { Application } from 'egg';
 
 export default (app: Application) => {
   const { controller, router, middleware, io } = app;
-  const { api } = app.config;
-  
+  const { prefix } = app.config.api;
+  const api = (path: string) => \`\${prefix}\${path}\`;
+
   // Middleware
   const auth = middleware.auth();
   const admin = middleware.admin();
@@ -522,68 +510,54 @@ export default (app: Application) => {
   router.get('/health/readiness', controller.health.readiness);
   router.get('/health/liveness', controller.health.liveness);
 
-  // GraphQL endpoint (egg-graphql exposes the POST handler at /graphql)
+  // GraphQL endpoint
   router.get('/graphql', controller.graphql.index);
   router.post('/graphql', controller.graphql.mutate);
 
-  // API routes
-  const apiRouter = router.namespace(api.prefix);
-
   // Public routes
-  apiRouter.post('/auth/register', validate, controller.auth.register);
-  apiRouter.post('/auth/login', validate, controller.auth.login);
-  apiRouter.post('/auth/refresh', controller.auth.refresh);
-  apiRouter.get('/auth/verify/:token', controller.auth.verify);
-  apiRouter.post('/auth/forgot-password', validate, controller.auth.forgotPassword);
-  apiRouter.post('/auth/reset-password', validate, controller.auth.resetPassword);
+  router.post(api('/auth/register'), rateLimit, validate, controller.auth.register);
+  router.post(api('/auth/login'), rateLimit, validate, controller.auth.login);
+  router.post(api('/auth/refresh'), controller.auth.refresh);
+  router.get(api('/auth/verify/:token'), controller.auth.verify);
+  router.post(api('/auth/forgot-password'), rateLimit, validate, controller.auth.forgotPassword);
+  router.post(api('/auth/reset-password'), rateLimit, validate, controller.auth.resetPassword);
 
-  // Protected routes
-  apiRouter.use(auth);
-  
-  // User routes
-  apiRouter.get('/users/me', controller.user.getCurrentUser);
-  apiRouter.put('/users/me', validate, controller.user.updateProfile);
-  apiRouter.post('/users/change-password', validate, controller.user.changePassword);
-  apiRouter.post('/users/avatar', controller.user.uploadAvatar);
-  
+  // User routes (authenticated)
+  router.get(api('/users/me'), auth, controller.user.getCurrentUser);
+  router.put(api('/users/me'), auth, validate, controller.user.updateProfile);
+  router.post(api('/users/change-password'), auth, validate, controller.user.changePassword);
+  router.post(api('/users/avatar'), auth, controller.user.uploadAvatar);
+
   // Admin routes
-  apiRouter.get('/users', admin, controller.user.list);
-  apiRouter.get('/users/:id', admin, controller.user.get);
-  apiRouter.put('/users/:id', admin, validate, controller.user.update);
-  apiRouter.delete('/users/:id', admin, controller.user.delete);
+  router.get(api('/users'), auth, admin, controller.user.list);
+  router.get(api('/users/:id'), auth, admin, controller.user.get);
+  router.put(api('/users/:id'), auth, admin, validate, controller.user.update);
+  router.delete(api('/users/:id'), auth, admin, controller.user.delete);
 
   // Todo routes
-  apiRouter.get('/todos', controller.todo.list);
-  apiRouter.get('/todos/:id', controller.todo.get);
-  apiRouter.post('/todos', validate, controller.todo.create);
-  apiRouter.put('/todos/:id', validate, controller.todo.update);
-  apiRouter.delete('/todos/:id', controller.todo.delete);
-  apiRouter.post('/todos/bulk', controller.todo.bulkOperation);
+  router.get(api('/todos'), auth, controller.todo.list);
+  router.get(api('/todos/:id'), auth, controller.todo.get);
+  router.post(api('/todos'), auth, validate, controller.todo.create);
+  router.put(api('/todos/:id'), auth, validate, controller.todo.update);
+  router.delete(api('/todos/:id'), auth, controller.todo.delete);
+  router.post(api('/todos/bulk'), auth, controller.todo.bulkOperation);
 
   // File routes
-  apiRouter.post('/files/upload', controller.file.upload);
-  apiRouter.get('/files/:id', controller.file.download);
-  apiRouter.delete('/files/:id', controller.file.delete);
+  router.post(api('/files/upload'), auth, controller.file.upload);
+  router.get(api('/files/:id'), auth, controller.file.download);
+  router.delete(api('/files/:id'), auth, controller.file.delete);
 
-  // WebSocket routes
+  // WebSocket routes (authentication runs as a connection middleware, see config.io)
   io.of('/').route('join', io.controller.chat.join);
   io.of('/').route('leave', io.controller.chat.leave);
   io.of('/').route('message', io.controller.chat.message);
   io.of('/').route('typing', io.controller.chat.typing);
 
   // Admin namespace
-  io.of('/admin').use(async (ctx, next) => {
-    // Admin authentication for WebSocket
-    const token = ctx.socket.handshake.auth.token;
-    if (!token) {
-      ctx.socket.disconnect();
-      return;
-    }
-    await next();
-  });
   io.of('/admin').route('stats', io.controller.admin.stats);
   io.of('/admin').route('logs', io.controller.admin.logs);
-};`,
+};
+`,
 
     // Auth Controller
     'app/controller/auth.ts': `import { Controller } from 'egg';
@@ -596,7 +570,7 @@ export default class AuthController extends Controller {
     // Check if user exists
     const existingUser = await service.user.findByEmail(email);
     if (existingUser) {
-      ctx.throw(409, 'User already exists');
+      return ctx.throw(409, 'User already exists');
     }
 
     // Create user
@@ -627,12 +601,12 @@ export default class AuthController extends Controller {
     // Validate credentials
     const user = await service.auth.validateUser(email, password);
     if (!user) {
-      ctx.throw(401, ctx.__('auth.login.invalid'));
+      return ctx.throw(401, ctx.__('auth.login.invalid'));
     }
 
     // Check if user is active
     if (!user.isActive) {
-      ctx.throw(403, ctx.__('auth.login.inactive'));
+      return ctx.throw(403, ctx.__('auth.login.inactive'));
     }
 
     // Update last login
@@ -662,7 +636,7 @@ export default class AuthController extends Controller {
     const refreshToken = ctx.cookies.get('refreshToken') || ctx.request.body.refreshToken;
 
     if (!refreshToken) {
-      ctx.throw(401, 'Refresh token not provided');
+      return ctx.throw(401, 'Refresh token not provided');
     }
 
     const tokens = await service.auth.refreshTokens(refreshToken);
@@ -742,7 +716,7 @@ export default class UserController extends Controller {
 
     const user = await service.user.findById(id);
     if (!user) {
-      ctx.throw(404, 'User not found');
+      return ctx.throw(404, 'User not found');
     }
 
     ctx.body = {
@@ -820,8 +794,7 @@ export default class UserController extends Controller {
     const stream = await ctx.getFileStream();
 
     const avatarUrl = await service.file.uploadImage(stream, {
-      folder: 'avatars',
-      resize: { width: 200, height: 200 }});
+      folder: 'avatars'});
 
     await service.user.update(ctx.state.user.id, { avatarUrl });
 
@@ -860,7 +833,7 @@ export default class TodoController extends Controller {
 
     const todo = await service.todo.findById(id, ctx.state.user.id);
     if (!todo) {
-      ctx.throw(404, 'Todo not found');
+      return ctx.throw(404, 'Todo not found');
     }
 
     ctx.body = {
@@ -922,12 +895,12 @@ export default class TodoController extends Controller {
         result = await service.todo.bulkUpdate(ids, ctx.state.user.id, { status: 'completed' });
         break;
       default:
-        ctx.throw(400, 'Invalid operation');
+        return ctx.throw(400, 'Invalid operation');
     }
 
     ctx.body = {
       success: true,
-      message: ctx.__('todo.bulk.success', { count: result }),
+      message: ctx.__('todo.bulk.success', String(result)),
       data: { affected: result }};
   }
 }`,
@@ -973,12 +946,12 @@ export default class HealthController extends Controller {
 }`,
 
     // GraphQL resolver (hello world + health query)
-    'src/graphql/resolver.ts': `import { Application } from 'egg';
+    'src/graphql/resolver.ts': `import { Context } from 'egg';
 
 export const resolvers = {
   Query: {
     hello: () => 'Hello from {{projectName}} GraphQL!',
-    health: async (_root: unknown, _args: unknown, ctx: Application['context']) => {
+    health: async (_args: unknown, ctx: Context) => {
       const checks = await ctx.service.health.checkLiveness();
       return checks.alive ? 'healthy' : 'unhealthy';
     }
@@ -997,9 +970,14 @@ export const resolvers = {
 
     // GraphQL controller (wires egg-graphql POST handler at /graphql)
     'app/controller/graphql.ts': `import { Controller } from 'egg';
+import { buildSchema, graphql } from 'graphql';
+import { resolvers } from '../../src/graphql/resolver';
+import { typeDefs } from '../../src/graphql/schema';
+
+const schema = buildSchema(typeDefs);
 
 export default class GraphqlController extends Controller {
-  // GET /graphql — convenience probe (POST is the real query path)
+  // GET /graphql: convenience probe (POST is the real query path)
   async index() {
     const { ctx } = this;
     ctx.body = {
@@ -1008,21 +986,39 @@ export default class GraphqlController extends Controller {
     };
   }
 
-  // POST /graphql — execute the GraphQL query/mutation via egg-graphql
+  // POST /graphql: execute the GraphQL query
   async mutate() {
     const { ctx } = this;
-    ctx.body = await ctx.app.graphql.query(ctx);
+    const { query, variables, operationName } = ctx.request.body as {
+      query?: string;
+      variables?: Record<string, unknown>;
+      operationName?: string;
+    };
+
+    if (!query) {
+      return ctx.throw(400, 'Missing GraphQL query');
+    }
+
+    ctx.body = await graphql({
+      schema,
+      source: query,
+      rootValue: resolvers.Query,
+      contextValue: ctx,
+      variableValues: variables,
+      operationName
+    });
   }
 }
 `,
 
     // Auth Service
     'app/service/auth.ts': `import { Service } from 'egg';
+import type { JwtPayload, SignOptions } from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 
 export default class AuthService extends Service {
   generateTokens(user: any) {
-    const { jwt } = this.app.config;
+    const { jwt, jwtRefresh } = this.app.config;
     
     const payload = {
       id: user.id,
@@ -1030,12 +1026,12 @@ export default class AuthService extends Service {
       role: user.role};
 
     const accessToken = this.app.jwt.sign(payload, jwt.secret, {
-      expiresIn: jwt.expiresIn});
+      expiresIn: jwt.sign?.expiresIn});
 
     const refreshToken = this.app.jwt.sign(
       { id: user.id },
-      jwt.refreshSecret,
-      { expiresIn: jwt.refreshExpiresIn }
+      jwtRefresh.secret,
+      { expiresIn: jwtRefresh.expiresIn as SignOptions['expiresIn'] }
     );
 
     return { accessToken, refreshToken };
@@ -1057,11 +1053,11 @@ export default class AuthService extends Service {
 
   async refreshTokens(refreshToken: string) {
     try {
-      const decoded = this.app.jwt.verify(refreshToken, this.app.config.jwt.refreshSecret) as jwt.JwtPayload;
+      const decoded = this.app.jwt.verify(refreshToken, this.app.config.jwtRefresh.secret) as unknown as JwtPayload;
       const user = await this.service.user.findById(decoded.id);
       
       if (!user || !user.isActive) {
-        this.ctx.throw(401, 'Invalid refresh token');
+        return this.ctx.throw(401, 'Invalid refresh token');
       }
 
       return this.generateTokens(user);
@@ -1075,7 +1071,7 @@ export default class AuthService extends Service {
       where: { verificationToken: token }});
 
     if (!user) {
-      this.ctx.throw(400, 'Invalid verification token');
+      return this.ctx.throw(400, 'Invalid verification token');
     }
 
     await user.update({
@@ -1102,7 +1098,7 @@ export default class AuthService extends Service {
       where: { resetToken: token }});
 
     if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
-      this.ctx.throw(400, 'Invalid or expired reset token');
+      return this.ctx.throw(400, 'Invalid or expired reset token');
     }
 
     const hashedPassword = await this.ctx.genHash(password);
@@ -1147,7 +1143,7 @@ export default class UserService extends Service {
   async update(id: string, updates: any) {
     const user = await this.findById(id);
     if (!user) {
-      this.ctx.throw(404, 'User not found');
+      return this.ctx.throw(404, 'User not found');
     }
 
     await user.update(updates);
@@ -1157,7 +1153,7 @@ export default class UserService extends Service {
   async delete(id: string) {
     const user = await this.findById(id);
     if (!user) {
-      this.ctx.throw(404, 'User not found');
+      return this.ctx.throw(404, 'User not found');
     }
 
     // Soft delete
@@ -1169,7 +1165,7 @@ export default class UserService extends Service {
     const { page = 1, limit = 20, search, role, status } = options;
     const offset = (page - 1) * limit;
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string | symbol, unknown> = {};
     
     if (search) {
       where[this.app.Sequelize.Op.or] = [
@@ -1212,12 +1208,12 @@ export default class UserService extends Service {
   async changePassword(id: string, currentPassword: string, newPassword: string) {
     const user = await this.ctx.model.User.findByPk(id);
     if (!user) {
-      this.ctx.throw(404, 'User not found');
+      return this.ctx.throw(404, 'User not found');
     }
 
     const isValid = await this.ctx.compare(currentPassword, user.password);
     if (!isValid) {
-      this.ctx.throw(400, 'Current password is incorrect');
+      return this.ctx.throw(400, 'Current password is incorrect');
     }
 
     const hashedPassword = await this.ctx.genHash(newPassword);
@@ -1245,7 +1241,7 @@ export default class TodoService extends Service {
   async update(id: string, userId: string, updates: any) {
     const todo = await this.findById(id, userId);
     if (!todo) {
-      this.ctx.throw(404, 'Todo not found');
+      return this.ctx.throw(404, 'Todo not found');
     }
 
     await todo.update(updates);
@@ -1255,7 +1251,7 @@ export default class TodoService extends Service {
   async delete(id: string, userId: string) {
     const todo = await this.findById(id, userId);
     if (!todo) {
-      this.ctx.throw(404, 'Todo not found');
+      return this.ctx.throw(404, 'Todo not found');
     }
 
     await todo.destroy();
@@ -1370,13 +1366,13 @@ export default class CacheService extends Service {
 }`,
 
     // Email Service
-    'app/service/email.ts': `import { Service } from 'egg';
+    'app/service/email.ts': `import { Context, Service } from 'egg';
 import * as nodemailer from 'nodemailer';
 
 export default class EmailService extends Service {
   private transporter: nodemailer.Transporter;
 
-  constructor(ctx) {
+  constructor(ctx: Context) {
     super(ctx);
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -1441,9 +1437,10 @@ export default class EmailService extends Service {
 
     // User Model
     'app/model/user.ts': `import { Application } from 'egg';
+import type { UserModel } from '../../lib/model-types';
 
-export default (app: Application) => {
-  const { STRING, INTEGER, DATE, BOOLEAN, ENUM, UUID, UUIDV4, JSON } = app.Sequelize;
+export default (app: Application): UserModel => {
+  const { STRING, DATE, BOOLEAN, ENUM, UUID, UUIDV4, JSON } = app.Sequelize;
 
   const User = app.model.define('user', {
     id: {
@@ -1494,9 +1491,10 @@ export default (app: Application) => {
       allowNull: true}}, {
     timestamps: true,
     underscored: true,
-    tableName: 'users'});
+    tableName: 'users'}) as UserModel;
 
-  User.associate = () => {
+  // egg-sequelize calls associate() after every model is defined
+  ((User as unknown) as { associate: () => void }).associate = () => {
     app.model.User.hasMany(app.model.Todo, { as: 'todos', foreignKey: 'userId' });
   };
 
@@ -1515,9 +1513,10 @@ export default (app: Application) => {
 
     // Todo Model
     'app/model/todo.ts': `import { Application } from 'egg';
+import type { TodoModel } from '../../lib/model-types';
 
-export default (app: Application) => {
-  const { STRING, INTEGER, DATE, BOOLEAN, ENUM, UUID, UUIDV4, TEXT, ARRAY } = app.Sequelize;
+export default (app: Application): TodoModel => {
+  const { STRING, DATE, ENUM, UUID, UUIDV4, TEXT, ARRAY } = app.Sequelize;
 
   const Todo = app.model.define('todo', {
     id: {
@@ -1552,9 +1551,10 @@ export default (app: Application) => {
       { fields: ['user_id'] },
       { fields: ['status'] },
       { fields: ['priority'] },
-      { fields: ['due_date'] }]});
+      { fields: ['due_date'] }]}) as TodoModel;
 
-  Todo.associate = () => {
+  // egg-sequelize calls associate() after every model is defined
+  ((Todo as unknown) as { associate: () => void }).associate = () => {
     app.model.Todo.belongsTo(app.model.User, { as: 'user', foreignKey: 'userId' });
   };
 
@@ -1563,21 +1563,22 @@ export default (app: Application) => {
 
     // Auth Middleware
     'app/middleware/auth.ts': `import { Context, Application } from 'egg';
+import type { JwtPayload } from 'jsonwebtoken';
 
 export default (options?: any, app?: Application) => {
   return async (ctx: Context, next: () => Promise<unknown>) => {
     const token = ctx.headers.authorization?.replace('Bearer ', '') || ctx.query.token;
 
     if (!token) {
-      ctx.throw(401, 'No token provided');
+      return ctx.throw(401, 'No token provided');
     }
 
     try {
-      const decoded = ctx.app.jwt.verify(token, ctx.app.config.jwt.secret) as jwt.JwtPayload;
+      const decoded = ctx.app.jwt.verify(token, ctx.app.config.jwt.secret) as unknown as JwtPayload;
       const user = await ctx.service.user.findById(decoded.id);
 
       if (!user || !user.isActive) {
-        ctx.throw(401, 'Invalid token');
+        return ctx.throw(401, 'Invalid token');
       }
 
       ctx.state.user = user;
@@ -1627,9 +1628,10 @@ export default () => {
   return async (ctx: Context, next: () => Promise<unknown>) => {
     try {
       await next();
-    } catch (err: unknown) {
+    } catch (error) {
+      const err = error as { status?: number; message?: string; code?: string; stack?: string };
       // Emit error event
-      ctx.app.emit('error', err, ctx);
+      ctx.app.emit('error', error, ctx);
 
       // Normalize error
       const status = err.status || 500;
@@ -1643,7 +1645,7 @@ export default () => {
         code: err.code || 'INTERNAL_ERROR',
         ...(ctx.app.config.env === 'local' && {
           stack: err.stack,
-          details: err})};
+          details: error})};
 
       // Log error
       if (status >= 500) {
@@ -2236,6 +2238,541 @@ npm run cov
 ## License
 
 MIT
-`
+`,
+
+    'app/controller/file.ts': `import { Controller } from 'egg';
+import { createReadStream } from 'fs';
+
+export default class FileController extends Controller {
+  async upload() {
+    const { ctx, service } = this;
+    const stream = await ctx.getFileStream();
+    const url = await service.file.save(stream, { folder: \`users/\${ctx.state.user.id}\` });
+
+    ctx.body = {
+      success: true,
+      data: { url }};
+  }
+
+  async download() {
+    const { ctx, service } = this;
+    const path = await service.file.find(\`users/\${ctx.state.user.id}\`, ctx.params.id);
+    if (!path) {
+      return ctx.throw(404, 'File not found');
+    }
+
+    ctx.attachment(ctx.params.id);
+    ctx.body = createReadStream(path);
+  }
+
+  async delete() {
+    const { ctx, service } = this;
+    const removed = await service.file.remove(\`users/\${ctx.state.user.id}\`, ctx.params.id);
+    if (!removed) {
+      return ctx.throw(404, 'File not found');
+    }
+
+    ctx.body = {
+      success: true,
+      message: 'File deleted'};
+  }
+}
+`,
+
+    'app/io/controller/admin.ts': `import { Controller } from 'egg';
+
+export default class AdminController extends Controller {
+  /** Emits process statistics to the requesting admin socket. */
+  async stats() {
+    const { ctx } = this;
+    const socket = (ctx as unknown as { socket: { emit(event: string, payload: unknown): void } }).socket;
+
+    socket.emit('stats', {
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      pid: process.pid,
+      timestamp: new Date().toISOString()});
+  }
+
+  /** Emits the most recent chat messages of a room. */
+  async logs() {
+    const { ctx } = this;
+    const socket = (ctx as unknown as { socket: { emit(event: string, payload: unknown): void } }).socket;
+    const { room = 'general' } = (ctx as unknown as { args: Array<{ room?: string }> }).args[0] ?? {};
+
+    socket.emit('logs', await ctx.service.chat.history(room));
+  }
+}
+`,
+
+    'app/io/middleware/admin.ts': `import { Context } from 'egg';
+
+/** Restricts the /admin namespace to admins (runs after the auth middleware). */
+export default () => {
+  return async (ctx: Context, next: () => Promise<unknown>) => {
+    if (ctx.state.user?.role !== 'admin') {
+      (ctx as unknown as { socket: { disconnect(): void } }).socket.disconnect();
+      return;
+    }
+    await next();
+  };
+};
+`,
+
+    'app/io/middleware/auth.ts': `import { Application, Context } from 'egg';
+import type { JwtPayload } from 'jsonwebtoken';
+
+/** Authenticates a socket.io connection with the JWT sent as ?token= or in handshake.auth. */
+export default (_options: unknown, app: Application) => {
+  return async (ctx: Context, next: () => Promise<unknown>) => {
+    const socket = (ctx as unknown as { socket: { handshake: { query: Record<string, string>; auth?: { token?: string } }; disconnect(): void } }).socket;
+    const token = socket.handshake.auth?.token ?? socket.handshake.query.token;
+
+    try {
+      const decoded = app.jwt.verify(token, app.config.jwt.secret) as unknown as JwtPayload;
+      const user = await ctx.service.user.findById(decoded.id);
+      if (!user || !user.isActive) {
+        throw new Error('Inactive user');
+      }
+      ctx.state.user = user;
+    } catch {
+      socket.disconnect();
+      return;
+    }
+
+    await next();
+  };
+};
+`,
+
+    'app/middleware/admin.ts': `import { Context } from 'egg';
+
+/** Only lets users with the "admin" role through (use after the auth middleware). */
+export default () => {
+  return async (ctx: Context, next: () => Promise<unknown>) => {
+    if (ctx.state.user?.role !== 'admin') {
+      return ctx.throw(403, 'Administrator access required');
+    }
+    await next();
+  };
+};
+`,
+
+    'app/middleware/validate.ts': `import { Context } from 'egg';
+
+type Rules = Record<string, unknown>;
+
+// Request body rules (egg-validate / parameter syntax) keyed by "METHOD routerPath"
+const RULES: Record<string, Rules> = {
+  'POST /api/v1/auth/register': {
+    email: 'email',
+    password: { type: 'string', min: 8 },
+    name: { type: 'string', min: 1 }},
+  'POST /api/v1/auth/login': {
+    email: 'email',
+    password: 'string'},
+  'POST /api/v1/auth/forgot-password': {
+    email: 'email'},
+  'POST /api/v1/auth/reset-password': {
+    token: 'string',
+    password: { type: 'string', min: 8 }},
+  'POST /api/v1/todos': {
+    title: { type: 'string', min: 1, max: 200 },
+    description: { type: 'string', required: false },
+    priority: { type: 'enum', values: ['low', 'medium', 'high'], required: false }},
+  'PUT /api/v1/todos/:id': {
+    title: { type: 'string', min: 1, max: 200, required: false },
+    description: { type: 'string', required: false },
+    status: { type: 'enum', values: ['pending', 'in_progress', 'completed', 'archived'], required: false },
+    priority: { type: 'enum', values: ['low', 'medium', 'high'], required: false }}};
+
+/** Validates the request body against the rules registered for the matched route. */
+export default () => {
+  return async (ctx: Context, next: () => Promise<unknown>) => {
+    const rules = RULES[\`\${ctx.method} \${ctx.routerPath}\`];
+    if (rules) {
+      ctx.validate(rules, ctx.request.body);
+    }
+    await next();
+  };
+};
+`,
+
+    'app/model/message.ts': `import { Application } from 'egg';
+import type { MessageModel } from '../../lib/model-types';
+
+export default (app: Application): MessageModel => {
+  const { STRING, TEXT, UUID, UUIDV4 } = app.Sequelize;
+
+  const Message = app.model.define('message', {
+    id: {
+      type: UUID,
+      defaultValue: UUIDV4,
+      primaryKey: true},
+    room: {
+      type: STRING(100),
+      allowNull: false},
+    userId: {
+      type: UUID,
+      allowNull: false},
+    message: {
+      type: TEXT,
+      allowNull: false}}, {
+    timestamps: true,
+    underscored: true,
+    tableName: 'messages',
+    indexes: [
+      { fields: ['room'] }]}) as MessageModel;
+
+  return Message;
+};
+`,
+
+    'app/service/chat.ts': `import { Service } from 'egg';
+
+export default class ChatService extends Service {
+  async saveMessage(data: { userId: string; room: string; message: string }) {
+    return await this.ctx.model.Message.create(data);
+  }
+
+  async history(room: string, limit = 50) {
+    return await this.ctx.model.Message.findAll({
+      where: { room },
+      order: [['createdAt', 'DESC']],
+      limit});
+  }
+}
+`,
+
+    'app/service/file.ts': `import { Service } from 'egg';
+import { createWriteStream, promises as fs } from 'fs';
+import { extname, join, basename } from 'path';
+import { pipeline } from 'stream/promises';
+import type { Readable } from 'stream';
+import { v4 as uuidv4 } from 'uuid';
+
+/** Local-disk file storage under app/public/uploads (swap for S3/OSS in production). */
+export default class FileService extends Service {
+  private get uploadDir() {
+    return join(this.app.baseDir, 'app/public/uploads');
+  }
+
+  /** Stream an uploaded file to disk and return its public URL. */
+  async save(stream: Readable & { filename: string }, options: { folder?: string } = {}): Promise<string> {
+    const folder = options.folder ?? 'files';
+    const filename = \`\${uuidv4()}\${extname(stream.filename)}\`;
+    const directory = join(this.uploadDir, folder);
+    await fs.mkdir(directory, { recursive: true });
+    await pipeline(stream, createWriteStream(join(directory, filename)));
+    return \`/public/uploads/\${folder}/\${filename}\`;
+  }
+
+  /** Same as save(); avatars and other images share the storage layout. */
+  async uploadImage(stream: Readable & { filename: string }, options: { folder?: string } = {}): Promise<string> {
+    return this.save(stream, options);
+  }
+
+  /** Resolve a stored file by id (the uuid file name) or null when it does not exist. */
+  async find(folder: string, id: string): Promise<string | null> {
+    const path = join(this.uploadDir, basename(folder), basename(id));
+    try {
+      await fs.access(path);
+      return path;
+    } catch {
+      return null;
+    }
+  }
+
+  async remove(folder: string, id: string): Promise<boolean> {
+    const path = await this.find(folder, id);
+    if (!path) return false;
+    await fs.unlink(path);
+    return true;
+  }
+}
+`,
+
+    'app/service/health.ts': `import { Service } from 'egg';
+
+export default class HealthService extends Service {
+  /** The process is up and able to answer. */
+  async checkLiveness() {
+    return {
+      alive: true,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()};
+  }
+
+  /** Dependencies (PostgreSQL, Redis) are reachable. */
+  async checkReadiness() {
+    const checks: Record<string, 'up' | 'down'> = {};
+
+    try {
+      await this.app.model.authenticate();
+      checks.database = 'up';
+    } catch {
+      checks.database = 'down';
+    }
+
+    try {
+      await this.app.redis.ping();
+      checks.redis = 'up';
+    } catch {
+      checks.redis = 'down';
+    }
+
+    return {
+      ready: Object.values(checks).every((state) => state === 'up'),
+      checks,
+      timestamp: new Date().toISOString()};
+  }
+}
+`,
+
+    'config/locale/en-US.ts': `export default {
+  'auth.register.success': 'Registration successful. Please verify your email.',
+  'auth.login.invalid': 'Invalid email or password',
+  'auth.login.inactive': 'This account is inactive',
+  'auth.login.success': 'Login successful',
+  'auth.verify.success': 'Email verified successfully',
+  'auth.forgot.sent': 'If the email exists, a reset link has been sent',
+  'auth.reset.success': 'Password reset successfully',
+  'todo.create.success': 'Todo created successfully',
+  'todo.update.success': 'Todo updated successfully',
+  'todo.delete.success': 'Todo deleted successfully',
+  'todo.bulk.success': '%s todos updated',
+  'user.update.success': 'User updated successfully',
+  'user.delete.success': 'User deleted successfully',
+  'user.password.changed': 'Password changed successfully',
+  'user.avatar.uploaded': 'Avatar uploaded successfully',
+  'email.verification.subject': 'Verify your email address',
+  'email.passwordReset.subject': 'Reset your password',
+  'email.welcome.subject': 'Welcome!'};
+`,
+
+    'lib/model-types.ts': `// Typed views of the Sequelize models defined in app/model/*.ts. egg-sequelize
+// types every model as Model<any, any>; these interfaces give services and
+// controllers real attribute types (instance.isActive, instance.password, ...).
+import { Model, ModelStatic } from 'sequelize';
+
+export interface UserAttributes {
+  id: string;
+  email: string;
+  password: string;
+  name: string;
+  role: 'user' | 'admin';
+  isActive: boolean;
+  isVerified: boolean;
+  verificationToken: string | null;
+  resetToken: string | null;
+  resetTokenExpiry: Date | null;
+  avatarUrl: string | null;
+  phone: string | null;
+  lastLogin: Date | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserInstance extends Model<UserAttributes, Partial<UserAttributes>>, UserAttributes {}
+export type UserModel = ModelStatic<UserInstance>;
+
+export interface TodoAttributes {
+  id: string;
+  title: string;
+  description: string | null;
+  status: 'pending' | 'in_progress' | 'completed' | 'archived';
+  priority: 'low' | 'medium' | 'high';
+  dueDate: Date | null;
+  tags: string[];
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TodoInstance extends Model<TodoAttributes, Partial<TodoAttributes>>, TodoAttributes {}
+export type TodoModel = ModelStatic<TodoInstance>;
+
+export interface MessageAttributes {
+  id: string;
+  room: string;
+  userId: string;
+  message: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MessageInstance extends Model<MessageAttributes, Partial<MessageAttributes>>, MessageAttributes {}
+export type MessageModel = ModelStatic<MessageInstance>;
+`,
+
+    'typings/app/controller/index.d.ts': `// This file is created by egg-ts-helper@2.1.1
+// Do not modify this file!!!!!!!!!
+/* eslint-disable */
+
+import 'egg';
+import ExportAuth from '../../../app/controller/auth';
+import ExportFile from '../../../app/controller/file';
+import ExportGraphql from '../../../app/controller/graphql';
+import ExportHealth from '../../../app/controller/health';
+import ExportTodo from '../../../app/controller/todo';
+import ExportUser from '../../../app/controller/user';
+
+declare module 'egg' {
+  interface IController {
+    auth: ExportAuth;
+    file: ExportFile;
+    graphql: ExportGraphql;
+    health: ExportHealth;
+    todo: ExportTodo;
+    user: ExportUser;
+  }
+}
+`,
+
+    'typings/app/index.d.ts': `// This file is created by egg-ts-helper@2.1.1
+// Do not modify this file!!!!!!!!!
+/* eslint-disable */
+
+import 'egg';
+export * from 'egg';
+export as namespace Egg;
+`,
+
+    'typings/app/middleware/index.d.ts': `// This file is created by egg-ts-helper@2.1.1
+// Do not modify this file!!!!!!!!!
+/* eslint-disable */
+
+import 'egg';
+import ExportAdmin from '../../../app/middleware/admin';
+import ExportAuth from '../../../app/middleware/auth';
+import ExportErrorHandler from '../../../app/middleware/errorHandler';
+import ExportRateLimit from '../../../app/middleware/rateLimit';
+import ExportValidate from '../../../app/middleware/validate';
+
+declare module 'egg' {
+  interface IMiddleware {
+    admin: typeof ExportAdmin;
+    auth: typeof ExportAuth;
+    errorHandler: typeof ExportErrorHandler;
+    rateLimit: typeof ExportRateLimit;
+    validate: typeof ExportValidate;
+  }
+}
+`,
+
+    'typings/app/model/index.d.ts': `// This file is created by egg-ts-helper@2.1.1
+// Do not modify this file!!!!!!!!!
+/* eslint-disable */
+
+import 'egg';
+import ExportMessage from '../../../app/model/message';
+import ExportTodo from '../../../app/model/todo';
+import ExportUser from '../../../app/model/user';
+
+declare module 'egg' {
+  interface IModel {
+    Message: ReturnType<typeof ExportMessage>;
+    Todo: ReturnType<typeof ExportTodo>;
+    User: ReturnType<typeof ExportUser>;
+  }
+}
+`,
+
+    'typings/app/service/index.d.ts': `// This file is created by egg-ts-helper@2.1.1
+// Do not modify this file!!!!!!!!!
+/* eslint-disable */
+
+import 'egg';
+type AnyClass = new (...args: any[]) => any;
+type AnyFunc<T = any> = (...args: any[]) => T;
+type CanExportFunc = AnyFunc<Promise<any>> | AnyFunc<IterableIterator<any>>;
+type AutoInstanceType<T, U = T extends CanExportFunc ? T : T extends AnyFunc ? ReturnType<T> : T> = U extends AnyClass ? InstanceType<U> : U;
+import ExportAuth from '../../../app/service/auth';
+import ExportCache from '../../../app/service/cache';
+import ExportChat from '../../../app/service/chat';
+import ExportEmail from '../../../app/service/email';
+import ExportFile from '../../../app/service/file';
+import ExportHealth from '../../../app/service/health';
+import ExportTodo from '../../../app/service/todo';
+import ExportUser from '../../../app/service/user';
+
+declare module 'egg' {
+  interface IService {
+    auth: AutoInstanceType<typeof ExportAuth>;
+    cache: AutoInstanceType<typeof ExportCache>;
+    chat: AutoInstanceType<typeof ExportChat>;
+    email: AutoInstanceType<typeof ExportEmail>;
+    file: AutoInstanceType<typeof ExportFile>;
+    health: AutoInstanceType<typeof ExportHealth>;
+    todo: AutoInstanceType<typeof ExportTodo>;
+    user: AutoInstanceType<typeof ExportUser>;
+  }
+}
+`,
+
+    'typings/config/index.d.ts': `// This file is created by egg-ts-helper@2.1.1
+// Do not modify this file!!!!!!!!!
+/* eslint-disable */
+
+import 'egg';
+import { EggAppConfig } from 'egg';
+import ExportConfigDefault from '../../config/config.default';
+type ConfigDefault = ReturnType<typeof ExportConfigDefault>;
+type NewEggAppConfig = ConfigDefault;
+declare module 'egg' {
+  interface EggAppConfig extends NewEggAppConfig { }
+}`,
+
+    'typings/config/plugin.d.ts': `// This file is created by egg-ts-helper@2.1.1
+// Do not modify this file!!!!!!!!!
+/* eslint-disable */
+
+import 'egg';
+import 'egg-onerror';
+import 'egg-session';
+import 'egg-i18n';
+import 'egg-watcher';
+import 'egg-multipart';
+import 'egg-security';
+import 'egg-development';
+import 'egg-logrotator';
+import 'egg-schedule';
+import 'egg-static';
+import 'egg-jsonp';
+import 'egg-view';
+import 'egg-view-nunjucks';
+import 'egg-sequelize';
+import 'egg-redis';
+import 'egg-validate';
+import 'egg-cors';
+import 'egg-jwt';
+import 'egg-bcrypt';
+import 'egg-socket.io';
+import { EggPluginItem } from 'egg';
+declare module 'egg' {
+  interface EggPlugin {
+    onerror?: EggPluginItem;
+    session?: EggPluginItem;
+    i18n?: EggPluginItem;
+    watcher?: EggPluginItem;
+    multipart?: EggPluginItem;
+    security?: EggPluginItem;
+    development?: EggPluginItem;
+    logrotator?: EggPluginItem;
+    schedule?: EggPluginItem;
+    static?: EggPluginItem;
+    jsonp?: EggPluginItem;
+    view?: EggPluginItem;
+    nunjucks?: EggPluginItem;
+    sequelize?: EggPluginItem;
+    redis?: EggPluginItem;
+    validate?: EggPluginItem;
+    cors?: EggPluginItem;
+    jwt?: EggPluginItem;
+    bcrypt?: EggPluginItem;
+    io?: EggPluginItem;
+  }
+}`
   }
 };

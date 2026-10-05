@@ -3,6 +3,7 @@ import { createAsyncCommand, processManager } from '../utils/error-handler';
 import { flushOutput } from '../utils/spinner';
 import chalk from 'chalk';
 import * as path from 'path';
+import { ok } from '../utils/json-output';
 
 /**
  * Registers the `quality` command group on the given program, exposing code
@@ -128,7 +129,7 @@ export function registerQualityGroup(program: Command): void {
         const frameworks = getSupportedTestFrameworks();
 
         if (options.json) {
-          console.log(JSON.stringify(frameworks, null, 2));
+          ok(frameworks);
           return;
         }
 
@@ -279,7 +280,7 @@ export function registerQualityGroup(program: Command): void {
         const servers = getAllLanguageServers();
 
         if (options.json) {
-          console.log(JSON.stringify(servers, null, 2));
+          ok(servers);
           return;
         }
 

@@ -321,9 +321,9 @@ export class PluginHookSystem extends EventEmitter {
     let removed = 0;
     
     for (const [hookType, handlers] of this.hooks.entries()) {
-      const initialLength = handlers.length;
-      this.hooks.set(hookType, handlers.filter(h => h.pluginName !== pluginName));
-      removed += initialLength - handlers.length;
+      const remaining = handlers.filter(h => h.pluginName !== pluginName);
+      this.hooks.set(hookType, remaining);
+      removed += handlers.length - remaining.length;
     }
 
     this.emit('plugin-hooks-unregistered', { pluginName, removed });

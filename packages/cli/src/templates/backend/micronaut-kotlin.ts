@@ -34,17 +34,20 @@ repositories {
 
 dependencies {
     kapt("io.micronaut:micronaut-http-validation")
+    kapt("io.micronaut.security:micronaut-security-annotations")
+    kapt("io.micronaut.validation:micronaut-validation-processor")
     kapt("io.micronaut.data:micronaut-data-processor")
     implementation("io.micronaut:micronaut-http-client")
     implementation("io.micronaut:micronaut-http-server-netty")
     implementation("io.micronaut:micronaut-jackson-databind")
-    implementation("io.micronaut:micronaut-security-jwt")
+    implementation("io.micronaut.security:micronaut-security-jwt")
     implementation("io.micronaut.kotlin:micronaut-kotlin-runtime")
-    implementation("io.micronaut.data:micronaut-data-hibernate-jpa")
+    implementation("io.micronaut.data:micronaut-data-jdbc")
     implementation("jakarta.annotation:jakarta.annotation-api")
     implementation("org.jetbrains.kotlin:kotlin-reflect:1.9.21")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.21")
-    implementation("io.micronaut:micronaut-validation")
+    implementation("io.micronaut.validation:micronaut-validation")
+    implementation("io.micronaut.reactor:micronaut-reactor")
     implementation("io.micronaut.graphql:micronaut-graphql")
     runtimeOnly("ch.qos.logback:logback-classic")
     runtimeOnly("com.h2database:h2")
@@ -60,6 +63,10 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    kotlinOptions.jvmTarget = "17"
+}
+
 graalvmNative.toolchainDetection.set(false)
 
 micronaut {
@@ -70,6 +77,10 @@ micronaut {
         annotations("{{projectPackage}}.*")
     }
 }
+`,
+
+    'gradle.properties': `micronautVersion=4.2.0
+kotlin.code.style=official
 `,
 
     // Application configuration
@@ -120,7 +131,7 @@ logger:
 `,
 
     // Main application
-    'src/main/kotlin/{{projectPackage}}/Application.kt': `package {{projectPackage}}
+    'src/main/kotlin/{{packagePath}}/Application.kt': `package {{projectPackage}}
 
 import io.micronaut.runtime.Micronaut
 
@@ -136,7 +147,7 @@ object Application {
 `,
 
     // Configuration
-    'src/main/kotlin/{{projectPackage}}/config/JwtConfig.kt': `package {{projectPackage}}.config
+    'src/main/kotlin/{{packagePath}}/config/JwtConfig.kt': `package {{projectPackage}}.config
 
 import io.micronaut.context.annotation.Value
 import io.micronaut.security.token.config.TokenConfiguration
@@ -144,59 +155,56 @@ import jakarta.inject.Singleton
 
 @Singleton
 class JwtConfig(
-    @Value("\${micronaut.security.jwt.token.signatures.secret.generator.secret}") private val secret: String
+    @Value("\\\${micronaut.security.jwt.token.signatures.secret.generator.secret}") private val secret: String
 ) {
     fun getSecret(): String = secret
 }
 `,
 
     // Security configuration
-    'src/main/kotlin/{{projectPackage}}/config/SecurityConfig.kt': `package {{projectPackage}}.config
+    'src/main/kotlin/{{packagePath}}/config/SecurityConfig.kt': `package {{packageName}}.config
 
-import io.micronaut.context.annotation.Replaces
+import {{packageName}}.repository.UserRepository
+import io.micronaut.core.annotation.Nullable
+import io.micronaut.http.HttpRequest
+import io.micronaut.security.authentication.AuthenticationFailureReason
 import io.micronaut.security.authentication.AuthenticationProvider
 import io.micronaut.security.authentication.AuthenticationRequest
 import io.micronaut.security.authentication.AuthenticationResponse
-import io.micronaut.security.authentication.UserDetails
-import {{projectPackage}}.repository.UserRepository
-import io.reactivex.BackpressureStrategy
-import io.reactivex.Flowable
 import jakarta.inject.Singleton
 import org.reactivestreams.Publisher
+import reactor.core.publisher.Mono
 
 @Singleton
-@Replaces(AuthenticationProvider::class)
 class CustomAuthenticationProvider(
     private val userRepository: UserRepository
-) : AuthenticationProvider {
+) : AuthenticationProvider<HttpRequest<*>> {
 
     override fun authenticate(
-        request: AuthenticationRequest<*, *>
+        @Nullable httpRequest: HttpRequest<*>?,
+        authenticationRequest: AuthenticationRequest<*, *>
     ): Publisher<AuthenticationResponse> {
-        return Flowable.create({ emitter ->
-            val email = request.identity as String
-            val password = request.secret as String
+        return Mono.fromCallable {
+            val email = authenticationRequest.identity as String
+            val password = authenticationRequest.secret as String
 
             val user = userRepository.findByEmail(email)
             if (user != null && user.password == password) {
-                emitter.onNext(
-                    UserDetails(
-                        user.email,
-                        listOf(user.role.name),
-                        mapOf("userId" to user.id.toString())
-                    )
+                AuthenticationResponse.success(
+                    user.email,
+                    listOf(user.role.name),
+                    mapOf<String, Any>("userId" to user.id.toString())
                 )
-                emitter.onComplete()
             } else {
-                emitter.onError(Exception("Invalid credentials"))
+                AuthenticationResponse.failure(AuthenticationFailureReason.CREDENTIALS_DO_NOT_MATCH)
             }
-        }, BackpressureStrategy.ERROR)
+        }
     }
 }
 `,
 
     // Models
-    'src/main/kotlin/{{projectPackage}}/models/User.kt': `package {{projectPackage}}.models
+    'src/main/kotlin/{{packagePath}}/models/User.kt': `package {{projectPackage}}.models
 
 import io.micronaut.core.annotation.Creator
 import io.micronaut.data.annotation.GeneratedValue
@@ -206,9 +214,9 @@ import java.time.Instant
 
 @MappedEntity
 data class User(
-    @Id
-    @GeneratedValue
-    val id: Long? = null,
+    @field:Id
+    @field:GeneratedValue
+    var id: Long? = null,
 
     val email: String,
 
@@ -251,7 +259,7 @@ data class AuthResponse(
 )
 `,
 
-    'src/main/kotlin/{{projectPackage}}/models/Product.kt': `package {{projectPackage}}.models
+    'src/main/kotlin/{{packagePath}}/models/Product.kt': `package {{projectPackage}}.models
 
 import io.micronaut.data.annotation.GeneratedValue
 import io.micronaut.data.annotation.Id
@@ -260,9 +268,9 @@ import java.time.Instant
 
 @MappedEntity
 data class Product(
-    @Id
-    @GeneratedValue
-    val id: Long? = null,
+    @field:Id
+    @field:GeneratedValue
+    var id: Long? = null,
 
     val name: String,
 
@@ -293,7 +301,7 @@ data class UpdateProductRequest(
 `,
 
     // Repositories
-    'src/main/kotlin/{{projectPackage}}/repository/UserRepository.kt': `package {{projectPackage}}.repository
+    'src/main/kotlin/{{packagePath}}/repository/UserRepository.kt': `package {{projectPackage}}.repository
 
 import {{projectPackage}}.models.User
 import {{projectPackage}}.models.Role
@@ -308,7 +316,7 @@ interface UserRepository : CrudRepository<User, Long> {
 }
 `,
 
-    'src/main/kotlin/{{projectPackage}}/repository/ProductRepository.kt': `package {{projectPackage}}.repository
+    'src/main/kotlin/{{packagePath}}/repository/ProductRepository.kt': `package {{projectPackage}}.repository
 
 import {{projectPackage}}.models.Product
 import io.micronaut.data.jdbc.annotation.JdbcRepository
@@ -320,7 +328,7 @@ interface ProductRepository : CrudRepository<Product, Long>
 `,
 
     // Controllers
-    'src/main/kotlin/{{projectPackage}}/controllers/AuthController.kt': `package {{projectPackage}}.controllers
+    'src/main/kotlin/{{packagePath}}/controllers/AuthController.kt': `package {{projectPackage}}.controllers
 
 import {{projectPackage}}.models.*
 import {{projectPackage}}.repository.UserRepository
@@ -364,7 +372,7 @@ class AuthController(
 }
 `,
 
-    'src/main/kotlin/{{projectPackage}}/controllers/ProductController.kt': `package {{projectPackage}}.controllers
+    'src/main/kotlin/{{packagePath}}/controllers/ProductController.kt': `package {{projectPackage}}.controllers
 
 import {{projectPackage}}.models.*
 import {{projectPackage}}.repository.ProductRepository
@@ -375,6 +383,7 @@ import io.micronaut.http.annotation.Get
 import io.micronaut.http.annotation.Post
 import io.micronaut.http.annotation.Put
 import io.micronaut.http.HttpStatus
+import io.micronaut.http.exceptions.HttpStatusException
 import io.micronaut.security.annotation.Secured
 import io.micronaut.security.rules.SecurityRule
 import java.time.Instant
@@ -448,7 +457,7 @@ class ProductController(
 `,
 
     // Services
-    'src/main/kotlin/{{projectPackage}}/services/AuthService.kt': `package {{projectPackage}}.services
+    'src/main/kotlin/{{packagePath}}/services/AuthService.kt': `package {{projectPackage}}.services
 
 import {{projectPackage}}.models.RegisterRequest
 import {{projectPackage}}.models.User
@@ -485,7 +494,7 @@ class AuthService(
 `,
 
     // Health check
-    'src/main/kotlin/{{projectPackage}}/controllers/HealthController.kt': `package {{projectPackage}}.controllers
+    'src/main/kotlin/{{packagePath}}/controllers/HealthController.kt': `package {{projectPackage}}.controllers
 
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
@@ -523,17 +532,16 @@ type HealthStatus {
 `,
 
     // GraphQL query resolver
-    'src/main/kotlin/{{projectPackage}}/graphql/QueryResolver.kt': `package {{projectPackage}}.graphql
+    'src/main/kotlin/{{packagePath}}/graphql/QueryResolver.kt': `package {{projectPackage}}.graphql
 
-import graphql.kickstart.tools.GraphQLQueryResolver
 import jakarta.inject.Singleton
 import java.time.Instant
 
 @Singleton
-class QueryResolver : GraphQLQueryResolver {
+class QueryResolver {
 
     fun hello(name: String = "World"): String {
-        return "Hello, \\$name!"
+        return "Hello, \${name}!"
     }
 
     fun health(): HealthStatus {
@@ -601,7 +609,7 @@ services:
 `,
 
     // Tests
-    'src/test/kotlin/{{projectPackage}}/ApplicationTest.kt': `package {{projectPackage}}
+    'src/test/kotlin/{{packagePath}}/ApplicationTest.kt': `package {{projectPackage}}
 
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest
 import org.junit.jupiter.api.Test

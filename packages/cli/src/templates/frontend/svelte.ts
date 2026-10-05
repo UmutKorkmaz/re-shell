@@ -64,7 +64,7 @@ export class SvelteTemplate extends BaseTemplate {
 
     // HTML file for development
     files.push({
-      path: 'public/index.html',
+      path: 'index.html',
       content: this.generateHtmlFile()
     });
 

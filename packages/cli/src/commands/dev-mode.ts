@@ -6,6 +6,135 @@ import { configWatcher, setupConfigHotReload, HotReloadOptions } from '../utils/
 import { ProgressSpinner, flushOutput } from '../utils/spinner';
 import { processManager } from '../utils/error-handler';
 import { resolveProfile, EnvironmentProfile } from './profile';
+import { ok } from '../utils/json-output';
+
+/** Where users list the available profiles (the real command lives under `config`). */
+export const PROFILE_LIST_HINT = 're-shell config profile list';
+
+/**
+ * Raised when a requested dev profile cannot be used: it does not exist, its
+ * inheritance chain is broken, or it cannot be loaded. Carries the stable JSON
+ * error code so `--json` callers can report `DEV_PROFILE_ERROR`.
+ */
+export class DevProfileError extends Error {
+  readonly code = 'DEV_PROFILE_ERROR' as const;
+  readonly details: Record<string, unknown>;
+
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = 'DevProfileError';
+    this.details = details;
+  }
+}
+
+/** A profile with inheritance and overrides applied, plus the environment it injects. */
+export interface ResolvedDevProfile {
+  name: string;
+  /** The profile exactly as resolved by the config profile system. */
+  profile: EnvironmentProfile;
+  /** Environment variables the dev runtime runs with, keys sorted for determinism. */
+  env: Record<string, string>;
+  /** Services the profile selects (empty when it selects none). */
+  services: string[];
+}
+
+/**
+ * Compute the environment a profile injects into the dev runtime. Pure and
+ * deterministic: the profile's resolved `config.env` (inheritance + overrides
+ * already applied), then the `RE_SHELL_*` variables describing the profile and
+ * its dev settings, with keys sorted so equal profiles always yield equal output.
+ *
+ * @param name - The profile name as requested.
+ * @param profile - The resolved profile.
+ * @returns The environment map to apply.
+ */
+export function buildProfileEnvironment(
+  name: string,
+  profile: EnvironmentProfile
+): Record<string, string> {
+  const env: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(profile.config?.env ?? {})) {
+    env[key] = String(value);
+  }
+
+  env.RE_SHELL_PROFILE = name;
+  if (profile.environment) {
+    env.RE_SHELL_PROFILE_ENV = profile.environment;
+  }
+  const dev = profile.config?.dev;
+  if (dev?.port !== undefined && dev.port !== null) {
+    env.RE_SHELL_DEV_PORT = String(dev.port);
+  }
+  if (dev?.host) {
+    env.RE_SHELL_DEV_HOST = dev.host;
+  }
+
+  return Object.fromEntries(Object.entries(env).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+}
+
+/**
+ * Resolve a named profile through the config profile system (`config profile ...`,
+ * including `extends` inheritance and overrides) and derive the environment it
+ * applies. An unknown or unresolvable profile is an explicit error, never a
+ * silent no-op.
+ *
+ * @param name - Profile name from `re-shell.profiles.yaml`.
+ * @returns The resolved profile and its environment.
+ * @throws DevProfileError when the profile does not exist or cannot be resolved.
+ */
+export async function resolveDevProfile(name: string): Promise<ResolvedDevProfile> {
+  let profile: EnvironmentProfile | null;
+  try {
+    profile = await resolveProfile(name);
+  } catch (error) {
+    throw new DevProfileError(
+      `Profile "${name}" could not be resolved: ${error instanceof Error ? error.message : String(error)}`,
+      { profile: name }
+    );
+  }
+
+  if (!profile) {
+    let available: string[] = [];
+    try {
+      const mod = await import('./profile');
+      available = Object.keys((await mod.loadProfileConfig()).profiles ?? {}).sort();
+    } catch {
+      // the list is only a courtesy for the error message
+    }
+    throw new DevProfileError(
+      `Profile "${name}" not found.` +
+        (available.length > 0 ? ` Available profiles: ${available.join(', ')}.` : ' No profiles are defined.') +
+        ` Run "${PROFILE_LIST_HINT}" to see available profiles.`,
+      { profile: name, available }
+    );
+  }
+
+  return {
+    name,
+    profile,
+    env: buildProfileEnvironment(name, profile),
+    services: Array.isArray(profile.config?.services) ? [...profile.config.services] : [],
+  };
+}
+
+/**
+ * Apply a profile environment onto `target` (the real process environment by
+ * default). Existing keys are overridden; nothing else is touched.
+ *
+ * @returns The keys that were set, in applied order.
+ */
+export function applyProfileEnvironment(
+  env: Record<string, string>,
+  target: NodeJS.ProcessEnv = process.env
+): string[] {
+  const applied: string[] = [];
+  for (const [key, value] of Object.entries(env)) {
+    target[key] = value;
+    applied.push(key);
+  }
+  return applied;
+}
 
 /**
  * Options for the development mode command.
@@ -94,14 +223,10 @@ async function startDevelopmentMode(options: DevModeCommandOptions, spinner?: Pr
     if (spinner) spinner.stop();
     flushOutput();
 
-    // Load and resolve profile
-    activeProfile = await resolveProfile(options.profile);
-
-    if (!activeProfile) {
-      console.log(chalk.red(`\n✗ Profile "${options.profile}" not found\n`));
-      console.log(chalk.gray('Run "re-shell profile list" to see available profiles\n'));
-      return;
-    }
+    // Load and resolve profile (inheritance + overrides). An unknown profile
+    // is an error, not a silent success.
+    const resolved = await resolveDevProfile(options.profile);
+    activeProfile = resolved.profile;
 
     console.log(chalk.cyan.bold(`\n🔧 Using Profile: ${options.profile}\n`));
     console.log(chalk.gray(`Environment: ${activeProfile.environment}`));
@@ -116,7 +241,7 @@ async function startDevelopmentMode(options: DevModeCommandOptions, spinner?: Pr
     const workspaceServices = await getWorkspaceServices();
 
     // Service selection
-    if (options.selectServices || (selectedServices.length === 0 && activeProfile.config.services)) {
+    if (options.selectServices || (selectedServices.length === 0 && activeProfile.config?.services)) {
       if (workspaceServices.length > 0) {
         const { value: services } = await prompts({
           type: 'multiselect',
@@ -136,12 +261,11 @@ async function startDevelopmentMode(options: DevModeCommandOptions, spinner?: Pr
       }
     }
 
-    // Apply profile configuration
-    if (activeProfile.config.env) {
+    // Apply the profile's resolved environment (inheritance + overrides applied)
+    if (Object.keys(resolved.env).length > 0) {
       console.log(chalk.cyan('\n📝 Applying environment variables from profile...'));
-      for (const [key, value] of Object.entries(activeProfile.config.env)) {
-        process.env[key] = value;
-        console.log(chalk.gray(`   ${key}=${value}`));
+      for (const key of applyProfileEnvironment(resolved.env)) {
+        console.log(chalk.gray(`   ${key}=${resolved.env[key]}`));
       }
     }
 
@@ -290,7 +414,7 @@ async function showDevModeStatus(options: DevModeCommandOptions, spinner?: Progr
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(status, null, 2));
+    ok(status);
     return;
   }
 

@@ -85,13 +85,13 @@ export const aspnetHotReloadTemplate: BackendTemplate = {
 </Project>`,
 
     // Program.cs with hot reload optimizations
-    'Program.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Services;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Profiles;
-using {{serviceName}}.Validators;
-using {{serviceName}}.Extensions;
+    'Program.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Profiles;
+using {{projectNamePascal}}.Validators;
+using {{projectNamePascal}}.Extensions;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 using FluentValidation;
@@ -328,7 +328,7 @@ public partial class Program { }`,
     // Hot Reload Middleware
     'Middleware/HotReloadMiddleware.cs': `using System.Diagnostics;
 
-namespace {{serviceName}}.Extensions;
+namespace {{projectNamePascal}}.Extensions;
 
 public class HotReloadMiddleware
 {
@@ -376,7 +376,7 @@ public class HotReloadMiddleware
 }`,
 
     // Hot Reload Service
-    'Services/IHotReloadService.cs': `namespace {{serviceName}}.Services;
+    'Services/IHotReloadService.cs': `namespace {{projectNamePascal}}.Services;
 
 public interface IHotReloadService
 {
@@ -386,9 +386,10 @@ public interface IHotReloadService
     Task ClearCache();
 }`,
 
-    'Services/HotReloadService.cs': `using System.Reflection;
+    'Services/HotReloadService.cs': `using System.Diagnostics;
+using System.Reflection;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class HotReloadService : IHotReloadService
 {
@@ -478,7 +479,7 @@ public class HotReloadService : IHotReloadService
 }`,
 
     // Development Service
-    'Services/IDevelopmentService.cs': `namespace {{serviceName}}.Services;
+    'Services/IDevelopmentService.cs': `namespace {{projectNamePascal}}.Services;
 
 public interface IDevelopmentService
 {
@@ -491,9 +492,9 @@ public interface IDevelopmentService
 
     'Services/DevelopmentService.cs': `using Microsoft.EntityFrameworkCore;
 using System.Reflection;
-using {{serviceName}}.Data;
+using {{projectNamePascal}}.Data;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class DevelopmentService : IDevelopmentService
 {
@@ -668,9 +669,9 @@ public class DevelopmentService : IDevelopmentService
 
     // Enhanced Development Controller
     'Controllers/DevelopmentController.cs': `using Microsoft.AspNetCore.Mvc;
-using {{serviceName}}.Services;
+using {{projectNamePascal}}.Services;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Development utilities and hot reload support
@@ -814,7 +815,7 @@ public class DevelopmentController : ControllerBase
     // Basic entities and services for the template
     'Models/User.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class User
 {
@@ -859,7 +860,7 @@ public class User
     'Models/Product.cs': `using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class Product
 {
@@ -900,7 +901,7 @@ public class Product
     'Models/Order.cs': `using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class Order
 {
@@ -939,7 +940,7 @@ public class Order
     'Models/OrderItem.cs': `using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class OrderItem
 {
@@ -969,9 +970,9 @@ public class OrderItem
 
     // Data/ApplicationDbContext.cs
     'Data/ApplicationDbContext.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data;
+namespace {{projectNamePascal}}.Data;
 
 public class ApplicationDbContext : DbContext
 {
@@ -1091,9 +1092,9 @@ public class ApplicationDbContext : DbContext
 }`,
 
     // Basic service stubs
-    'Services/IUserService.cs': `using {{serviceName}}.DTOs;
+    'Services/IUserService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IUserService
 {
@@ -1103,10 +1104,10 @@ public interface IUserService
 
     'Services/UserService.cs': `using Microsoft.EntityFrameworkCore;
 using AutoMapper;
-using {{serviceName}}.Data;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class UserService : IUserService
 {
@@ -1133,26 +1134,26 @@ public class UserService : IUserService
 }`,
 
     // Stub services
-    'Services/IProductService.cs': `namespace {{serviceName}}.Services;
+    'Services/IProductService.cs': `namespace {{projectNamePascal}}.Services;
 public interface IProductService { }`,
     
-    'Services/ProductService.cs': `namespace {{serviceName}}.Services;
+    'Services/ProductService.cs': `namespace {{projectNamePascal}}.Services;
 public class ProductService : IProductService { }`,
     
-    'Services/IOrderService.cs': `namespace {{serviceName}}.Services;
+    'Services/IOrderService.cs': `namespace {{projectNamePascal}}.Services;
 public interface IOrderService { }`,
     
-    'Services/OrderService.cs': `namespace {{serviceName}}.Services;
+    'Services/OrderService.cs': `namespace {{projectNamePascal}}.Services;
 public class OrderService : IOrderService { }`,
     
-    'Services/IAuthService.cs': `namespace {{serviceName}}.Services;
+    'Services/IAuthService.cs': `namespace {{projectNamePascal}}.Services;
 public interface IAuthService { }`,
     
-    'Services/AuthService.cs': `namespace {{serviceName}}.Services;
+    'Services/AuthService.cs': `namespace {{projectNamePascal}}.Services;
 public class AuthService : IAuthService { }`,
 
     // DTOs
-    'DTOs/UserDtos.cs': `namespace {{serviceName}}.DTOs;
+    'DTOs/UserDtos.cs': `namespace {{projectNamePascal}}.DTOs;
 
 public class UserDto
 {
@@ -1183,10 +1184,10 @@ public class CreateUserDto
 
     // AutoMapper Profiles
     'Profiles/UserProfile.cs': `using AutoMapper;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Profiles;
+namespace {{projectNamePascal}}.Profiles;
 
 public class UserProfile : Profile
 {
@@ -1205,7 +1206,7 @@ public class UserProfile : Profile
 
     'Profiles/ProductProfile.cs': `using AutoMapper;
 
-namespace {{serviceName}}.Profiles;
+namespace {{projectNamePascal}}.Profiles;
 
 public class ProductProfile : Profile
 {
@@ -1217,9 +1218,9 @@ public class ProductProfile : Profile
 
     // Validator
     'Validators/CreateUserDtoValidator.cs': `using FluentValidation;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Validators;
+namespace {{projectNamePascal}}.Validators;
 
 public class CreateUserDtoValidator : AbstractValidator<CreateUserDto>
 {

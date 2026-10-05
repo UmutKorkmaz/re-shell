@@ -1,6 +1,14 @@
 import * as React from 'react';
-import { Button } from '@re-shell/ui';
-import { ShieldAlert, X } from 'lucide-react';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@re-shell/ui';
+import { ShieldAlert } from 'lucide-react';
 
 interface ConfirmModalProps {
   open: boolean;
@@ -14,10 +22,11 @@ interface ConfirmModalProps {
 }
 
 /**
- * Destructive-confirmation gate. Modals are reserved for destructive
- * confirmation only (per the control-surface design direction); detail views use
- * Sheet drawers. Renders nothing when closed, traps the action behind an
- * explicit confirm, and echoes the exact command that will run.
+ * Destructive-confirmation gate. Modals are reserved for destructive confirmation only (per the
+ * control-surface design direction); detail views use Sheet drawers. Built on the shared `Dialog`
+ * (Radix), so it has the full modal contract: focus moves in on open and is TRAPPED inside, Escape
+ * cancels, focus RETURNS to the control that opened it, and the page behind is inert to assistive
+ * technology. Renders nothing when closed and echoes the exact command that will run.
  */
 export function ConfirmModal({
   open,
@@ -27,7 +36,19 @@ export function ConfirmModal({
   confirmLabel = 'Confirm and run',
   onConfirm,
   onCancel,
-}: ConfirmModalProps): React.ReactElement | null {
+}: ConfirmModalProps): React.ReactElement {
+  // Remember what had focus when the modal opened (captured during render, before Radix moves focus
+  // into the dialog) so it can be restored explicitly: the opener is usually a plain button that is
+  // not a Radix trigger, which is the one case Radix cannot restore on its own.
+  const opener = React.useRef<HTMLElement | null>(null);
+  const wasOpen = React.useRef(false);
+  if (open && !wasOpen.current && typeof document !== 'undefined') {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+  wasOpen.current = open;
+
+  // Escape is handled here (one path, and it also works when focus is not inside the dialog),
+  // so Radix's own Escape dismissal is turned off below to avoid cancelling twice.
   React.useEffect(() => {
     if (!open) {
       return;
@@ -41,54 +62,47 @@ export function ConfirmModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onCancel]);
 
-  if (!open) {
-    return null;
-  }
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg-0/80 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-modal-title"
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onCancel();
+      }}
     >
-      <div className="w-full max-w-md rounded-lg border border-critical/50 bg-popover shadow-elev-3 shadow-glow-critical">
-        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
-          <h2
-            id="confirm-modal-title"
-            className="flex items-center gap-2 font-display text-base font-semibold tracking-tight text-critical"
-          >
-            <ShieldAlert className="size-4" />
+      <DialogContent
+        className="border-critical/50 shadow-glow-critical"
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => {
+          const target = opener.current;
+          if (target && target.isConnected && target !== document.body) {
+            event.preventDefault();
+            target.focus();
+          }
+        }}
+        // With no description there is nothing to point at (and Radix would warn): opt out explicitly.
+        {...(description ? {} : { 'aria-describedby': undefined })}
+      >
+        <DialogHeader className="border-b border-border pb-3">
+          <DialogTitle className="flex items-center gap-2 text-critical">
+            <ShieldAlert className="size-4" aria-hidden="true" />
             {title}
-          </h2>
-          <button
-            type="button"
-            aria-label="Close"
-            className="rounded-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:shadow-focus-ring"
-            onClick={onCancel}
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="space-y-3 p-4">
-          {description ? (
-            <p className="text-sm text-muted-foreground">{description}</p>
-          ) : null}
-          {commandText ? (
-            <pre className="re-shell-mono overflow-x-auto rounded-md border border-border bg-bg-0 p-3 pl-7 text-xs text-foreground shadow-elev-1 before:absolute before:left-3 before:select-none before:text-signal before:content-['$'] relative">
-              {commandText}
-            </pre>
-          ) : null}
-        </div>
-        <div className="flex justify-end gap-2 border-t border-border p-4">
+          </DialogTitle>
+        </DialogHeader>
+        {description ? <DialogDescription>{description}</DialogDescription> : null}
+        {commandText ? (
+          <pre className="re-shell-mono relative overflow-x-auto rounded-md border border-border bg-bg-0 p-3 pl-7 text-xs text-foreground shadow-elev-1 before:absolute before:left-3 before:select-none before:text-signal before:content-['$']">
+            {commandText}
+          </pre>
+        ) : null}
+        <DialogFooter className="border-t border-border pt-3">
           <Button type="button" variant="outline" size="sm" onClick={onCancel}>
             Cancel
           </Button>
           <Button type="button" variant="destructive" size="sm" onClick={onConfirm}>
             {confirmLabel}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

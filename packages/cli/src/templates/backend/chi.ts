@@ -169,8 +169,6 @@ func main() {
 	r.Use(httplog.RequestLogger(httplog.NewLogger("{{projectName}}", httplog.Options{
 		JSON:             cfg.Environment == "production",
 		Concise:          cfg.Environment == "production",
-		RequestHeaders:   cfg.Environment == "development",
-		MessageFieldName: "msg",
 		TimeFieldFormat:  time.RFC3339,
 		Tags: map[string]string{
 			"version": "1.0.0",
@@ -282,6 +280,51 @@ func setupLogger(cfg *config.Config) {
 `,
 
     // Configuration
+    // Swagger description served at /swagger. A minimal stand-in for the file
+    // "swag init" generates, so that a fresh checkout builds; "make swagger"
+    // regenerates it from the handler annotations.
+    'docs/docs.go': `// Package docs holds the OpenAPI description served at /swagger.
+//
+// This is a minimal, hand-written stand-in for the file that "swag init"
+// generates, so that a fresh checkout compiles. Run "make swagger" to
+// regenerate it from the annotations in main.go and the route handlers; the
+// generated docs/docs.go replaces this file.
+package docs
+
+import "github.com/swaggo/swag"
+
+const docTemplate = \`{
+    "schemes": {{ marshal .Schemes }},
+    "swagger": "2.0",
+    "info": {
+        "description": "{{escape .Description}}",
+        "title": "{{.Title}}",
+        "version": "{{.Version}}"
+    },
+    "host": "{{.Host}}",
+    "basePath": "{{.BasePath}}",
+    "paths": {}
+}\`
+
+// SwaggerInfo holds exported Swagger Info so clients can modify it.
+var SwaggerInfo = &swag.Spec{
+	Version:          "1.0",
+	Host:             "localhost:8080",
+	BasePath:         "/api/v1",
+	Schemes:          []string{},
+	Title:            "{{projectName}} API",
+	Description:      "API server for {{projectName}}",
+	InfoInstanceName: "swagger",
+	SwaggerTemplate:  docTemplate,
+	LeftDelim:        "{{",
+	RightDelim:       "}}",
+}
+
+func init() {
+	swag.Register(SwaggerInfo.InstanceName(), SwaggerInfo)
+}
+`,
+
     'config/config.go': `package config
 
 import (
@@ -728,7 +771,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/go-playground/validator/v10"
-	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
@@ -785,8 +827,9 @@ type ValidationError struct {
 }
 
 func (h *Handler) respondWithError(w http.ResponseWriter, code int, message string) {
-	render.Status(r, code)
-	render.JSON(w, r, ErrorResponse{Error: message})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(ErrorResponse{Error: message})
 }
 
 func (h *Handler) respondWithValidationError(w http.ResponseWriter, r *http.Request, err error) {
@@ -897,12 +940,12 @@ func (h *Handler) paginate(query *gorm.DB, page, limit int, result interface{}) 
 
 import (
 	"net/http"
-	"time"
 
 	"{{projectName}}/models"
 	"{{projectName}}/utils"
 
 	"github.com/go-chi/render"
+	"github.com/go-playground/validator/v10"
 	"github.com/rs/zerolog/log"
 )
 
@@ -1103,6 +1146,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/go-playground/validator/v10"
 	"github.com/rs/zerolog/log"
 )
 
@@ -1301,6 +1345,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/go-playground/validator/v10"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
@@ -1683,7 +1728,7 @@ func RegisterRoutes(r chi.Router, h *handlers.Handler, cfg *config.Config) {
 			r.With(middleware.RequireRole("admin")).Delete("/{id}", h.DeleteProduct)
 		})
 
-		// Order routes
+	})
 }
 `,
 
@@ -1837,7 +1882,6 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 
 import (
 	"net/http"
-	"time"
 
 	"{{projectName}}/config"
 
@@ -1866,7 +1910,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
@@ -1875,7 +1918,6 @@ type JWTClaims struct {
 	UserID uint   \`json:"user_id"\`
 	Email  string \`json:"email"\`
 	Role   string \`json:"role"\`
-	jwt.RegisteredClaims
 }
 
 func GenerateJWT(userID uint, email, role, secret string, expirationHours int) (string, error) {

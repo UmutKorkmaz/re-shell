@@ -38,19 +38,46 @@ jobs:
       - name: Build all packages
         run: pnpm -r run build
 
+      # ── Performance budgets (enforced, gzip) ───────────────────────────────
+      # Fails the build when a built asset outgrows its budget: the dashboard's
+      # entry / vendor / per-screen chunks, CSS and fonts (apps/web/perf-budgets.json),
+      # and the ui package's per-component modules, CSS and tree-shake probes
+      # (packages/ui/perf-budgets.json). Raise a budget deliberately, in the same PR
+      # that grows the bundle, so the cost is visible in review.
+      - name: Performance budget - packages/ui (dist, tree-shaking)
+        run: pnpm --filter @re-shell/ui run budget
+
+      - name: Performance budget - apps/web (dashboard bundle)
+        run: pnpm --filter @re-shell/dashboard run budget
+
       # ── Typecheck ─────────────────────────────────────────────────────────
       - name: Typecheck all packages
         run: pnpm -r run typecheck
 
       # ── Unit + Integration + Conformance tests ─────────────────────────────
-      - name: Test packages/contracts
-        run: |
-          # contracts has no test script; typecheck covers it
-          echo "contracts: typecheck only (no test suite)"
+      - name: Test packages/contracts (wire schemas, adapters, envelope, shared command registry)
+        working-directory: packages/contracts
+        run: npx vitest run
 
       - name: Test packages/cli (unit + integration + conformance)
         working-directory: packages/cli
         run: npx vitest run
+
+      - name: Docs - docs/CLI-CONTRACTS.md matches the CLI and @re-shell/contracts
+        run: |
+          # The doc is generated: the generator runs the built CLI against a
+          # fixture workspace, validates every real envelope against the wire
+          # schemas, and rewrites the generated regions (command shapes + the
+          # error-code table). On drift the failure message prints the command that
+          # regenerates the file; commit the result.
+          node packages/cli/scripts/gen-cli-contracts.mjs --check
+
+      - name: Docs - every re-shell command and flag written in the docs exists
+        run: |
+          # Parses the `re-shell ...` invocations in the site, the READMEs and
+          # docs/ and checks each against the built CLI's `commands list --json`
+          # catalog (command paths, subcommands and declared flags).
+          node scripts/check-doc-commands.mjs --flags
 
       - name: Test packages/ui
         working-directory: packages/ui
@@ -63,6 +90,13 @@ jobs:
       - name: Test apps/web (hub security + ui render)
         working-directory: apps/web
         run: pnpm run test
+
+      # The control-plane suite includes end-to-end runs that start the server,
+      # a worker and the BUILT re-shell CLI (packages/cli/dist), so it must run
+      # after the build step above. Coverage is gated at 80% by its vitest config.
+      - name: Test + coverage packages/control-plane (isolation, HTTP/SSE, workers, e2e)
+        working-directory: packages/control-plane
+        run: npx vitest run --coverage
 
       # ── Coverage (per-package 80% gate, scoped) ───────────────────────────
       - name: Coverage packages/cli
@@ -81,6 +115,13 @@ jobs:
       - name: Interactive tests packages/cli
         working-directory: packages/cli
         run: npx vitest run tests/interactive
+
+      # ── CLI end-to-end (scaffolds real projects with the built binary) ─────
+      - name: CLI end-to-end tests packages/cli (RUN_E2E=1)
+        working-directory: packages/cli
+        run: npx vitest run tests/e2e
+        env:
+          RUN_E2E: '1'
 
       # ── Smoke the binary ───────────────────────────────────────────────────
       - name: Smoke test - templates list
@@ -160,12 +201,12 @@ jobs:
         run: git diff --exit-code
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Playwright E2E (gated, requires RUN_E2E=true)
+  # Playwright E2E (always runs: dashboard <-> secure hub <-> real CLI)
   # ─────────────────────────────────────────────────────────────────────────────
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
-    if: ${{ vars.RUN_E2E == 'true' || github.event_name == 'workflow_dispatch' }}
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -191,9 +232,19 @@ jobs:
       - name: Build all packages (required for e2e)
         run: pnpm -r run build
 
+      # The `chromium` project is the functional core flow. The axe audit is the
+      # `a11y` project and runs in .github/workflows/accessibility.yml.
       - name: Run Playwright E2E
         working-directory: apps/web
-        run: npx playwright test
+        run: npx playwright test --project=chromium
+        env:
+          CI: true
+
+      # 2000-node graph explorer scale test (own stack: real hub + real CLI over
+      # a generated 2001-workspace git repo; render/filter/path/diff/export budgets).
+      - name: Run Playwright graph-scale E2E
+        working-directory: apps/web
+        run: npx playwright test -c playwright.graph.config.ts
         env:
           CI: true
 
@@ -204,3 +255,106 @@ jobs:
           name: playwright-report
           path: apps/web/test-results/
           retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Storybook: build the static component workshop, run every story's play
+  # function + axe a11y check + visual snapshot (both themes) with the Storybook
+  # test runner, run the same gate through `re-shell ui test`, and publish the
+  # static Storybook as a build artifact (download it from the run page, or serve
+  # the unzipped folder with any static server).
+  # ─────────────────────────────────────────────────────────────────────────────
+  storybook:
+    name: Storybook (stories, a11y, visual)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: packages/ui
+        run: npx playwright install --with-deps chromium
+
+      - name: Build all packages (the CLI drives `re-shell ui test`)
+        run: pnpm -r run build
+
+      - name: Build Storybook
+        run: pnpm --filter @re-shell/ui run build-storybook
+
+      # CI=true makes a missing visual baseline a failure instead of writing it.
+      - name: Test Storybook (play functions, axe, snapshots)
+        run: pnpm --filter @re-shell/ui run test-storybook
+        env:
+          CI: 'true'
+
+      # The user-facing gate: same runner behind `re-shell ui test`. An empty run or a
+      # missing Storybook is a failure (UI_TEST_ERROR), never a pass.
+      - name: re-shell ui test (packages/ui)
+        run: node packages/cli/dist/index.js ui test --storybook packages/ui --static-dir packages/ui/storybook-static --ci --json
+        env:
+          CI: 'true'
+
+      - name: Upload static Storybook
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-static
+          path: packages/ui/storybook-static/
+          retention-days: 14
+
+      - name: Upload Storybook visual diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-visual-diffs
+          path: packages/ui/__image_snapshots__/__diff_output__/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Clean-install smoke: pack contracts + cli + mcp, install the tarballs into a
+  # fresh directory outside the repo, and exercise the installed binaries.
+  # ─────────────────────────────────────────────────────────────────────────────
+  pack-smoke:
+    name: Pack / Clean-install smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Builds contracts/ui/mcp, `pnpm pack`s the three packages (the cli's
+      # prepack hook builds the dashboard into the tarball), `npm install`s the
+      # tarballs into a temp dir outside the repo, then runs: re-shell --version,
+      # --help, templates list --json, ui --dry-run --json, and an MCP
+      # initialize + tools/list handshake against node_modules/.bin/re-shell-mcp.
+      - name: Pack and smoke-test the published packages
+        run: node scripts/pack-smoke.mjs

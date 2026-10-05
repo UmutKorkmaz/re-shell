@@ -15,7 +15,7 @@ export const shelfTemplate: BackendTemplate = {
   
   files: {
     // Dart project configuration
-    'pubspec.yaml': `name: {{projectName}}
+    'pubspec.yaml': `name: {{projectNameSnake}}
 description: A server app using the shelf package and Docker.
 version: 1.0.0
 publish_to: none
@@ -37,7 +37,7 @@ dependencies:
   crypto: ^3.0.3
   jaguar_jwt: ^3.0.0
   uuid: ^4.2.1
-  logger: ^2.0.2
+  logger: ^2.4.0
   collection: ^1.18.0
   http: ^1.1.0
   intl: ^0.18.1
@@ -46,10 +46,8 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.4.0
   build_web_compilers: ^4.0.0
-  http: ^1.1.0
   lints: ^3.0.0
   test: ^1.24.0
-  test_process: ^2.1.0
   coverage: ^1.7.1
   mockito: ^5.4.3
   build_test: ^2.2.1`,
@@ -58,24 +56,23 @@ dev_dependencies:
     'bin/server.dart': `import 'dart:io';
 
 import 'package:args/args.dart';
-import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_hotreload/shelf_hotreload.dart';
-import 'package:{{projectName}}/app.dart';
-import 'package:{{projectName}}/config/config.dart';
-import 'package:{{projectName}}/database/database.dart';
-import 'package:{{projectName}}/utils/logger.dart';
+import 'package:{{projectNameSnake}}/app.dart';
+import 'package:{{projectNameSnake}}/config/config.dart';
+import 'package:{{projectNameSnake}}/database/database.dart';
+import 'package:{{projectNameSnake}}/utils/logger.dart';
 
 void main(List<String> args) async {
   var parser = ArgParser()
-    ..addOption('port', abbr: 'p', defaultsTo: '8080')
-    ..addOption('host', abbr: 'h', defaultsTo: '0.0.0.0')
-    ..addFlag(, abbr: 'r', defaultsTo: true);
+    ..addOption('port', abbr: 'p', defaultsTo: Config.port.toString())
+    ..addOption('host', abbr: 'h', defaultsTo: Config.host)
+    ..addFlag('hot-reload', abbr: 'r', defaultsTo: false);
 
   var result = parser.parse(args);
   var port = int.tryParse(result['port'] as String) ?? 8080;
   var host = result['host'] as String;
-  var hotReload = result[] as bool;
+  var hotReload = result['hot-reload'] as bool;
 
   // Load configuration
   await Config.load();
@@ -104,15 +101,18 @@ void main(List<String> args) async {
 
   if (hotReload && Config.environment == 'development') {
     // Use hot reload in development
-    withHotreload(() => createApp(), onReloaded: () {
-      logger.info('🔥 Hot reload triggered');
-    });
+    withHotreload(
+      () => io.serve(createApp(), host, port),
+      onReloaded: () {
+        logger.info('Hot reload triggered');
+      },
+    );
   } else {
     // Normal server start
-    final handler = await createApp();
+    final handler = createApp();
     final server = await io.serve(handler, host, port);
     
-    logger.info('🚀 Server listening on http://$host:$port');
+    logger.info('Server listening on http://$host:$port');
     
     // Graceful shutdown
     ProcessSignal.sigint.watch().listen((_) async {
@@ -125,7 +125,9 @@ void main(List<String> args) async {
 }`,
 
     // Application setup
-    'lib/app.dart': `import 'package:shelf/shelf.dart';
+    'lib/app.dart': `import 'dart:io';
+
+import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 import 'package:shelf_static/shelf_static.dart';
@@ -134,6 +136,7 @@ import 'controllers/auth_controller.dart';
 import 'controllers/user_controller.dart';
 import 'controllers/todo_controller.dart';
 import 'controllers/graphql_controller.dart';
+import 'database/database.dart';
 import 'middleware/auth_middleware.dart';
 import 'middleware/error_middleware.dart';
 import 'middleware/logging_middleware.dart';
@@ -145,32 +148,32 @@ Handler createApp() {
 
   // API info
   router.get('/', (Request request) {
-    return Response.ok(jsonResponse({
+    return jsonOk({
       'name': '{{projectName}} API',
       'version': '1.0.0',
-      'status': 'running'}));
+      'status': 'running'});
   });
 
   // Health check
   router.get('/health', (Request request) async {
     final health = await _checkHealth();
-    return Response.ok(jsonResponse({
+    return jsonOk({
       'status': health ? 'healthy' : 'unhealthy',
       'timestamp': DateTime.now().toIso8601String(),
-      'database': health}));
+      'database': health});
   });
 
   // GraphQL endpoint
   router.post('/graphql', GraphqlController.handle);
 
   // API routes
-  router.mount('/api/v1/', _apiRouter());
+  router.mount('/api/v1/', _apiRouter().call);
 
-  // Static files
-  final staticHandler = createStaticHandler(
-    'public',
-    defaultDocument: 'index.html',
-  );
+  // Static files (only when a public directory exists)
+  var cascade = Cascade().add(router.call);
+  if (Directory('public').existsSync()) {
+    cascade = cascade.add(createStaticHandler('public', defaultDocument: 'index.html'));
+  }
 
   // Create pipeline with middleware
   final handler = Pipeline()
@@ -178,12 +181,7 @@ Handler createApp() {
       .addMiddleware(logRequests())
       .addMiddleware(loggingMiddleware())
       .addMiddleware(errorMiddleware())
-      .addHandler(
-        Cascade()
-            .add(router)
-            .add(staticHandler)
-            .handler,
-      );
+      .addHandler(cascade.handler);
 
   return handler;
 }
@@ -201,14 +199,14 @@ Router _apiRouter() {
     '/users',
     Pipeline()
         .addMiddleware(authMiddleware())
-        .addHandler(_userRouter()),
+        .addHandler(_userRouter().call),
   );
 
   router.mount(
     '/todos',
     Pipeline()
         .addMiddleware(authMiddleware())
-        .addHandler(_todoRouter()),
+        .addHandler(_todoRouter().call),
   );
 
   return router;
@@ -219,9 +217,11 @@ Router _userRouter() {
 
   router.get('/', UserController.list);
   router.get('/<id>', UserController.get);
-  router.put('/<id>', Pipeline()
-      .addMiddleware(validationMiddleware())
-      .addHandler(UserController.update));
+  router.put(
+    '/<id>',
+    (Request request, String id) =>
+        _jsonOnly((request) => UserController.update(request, id))(request),
+  );
   router.delete('/<id>', UserController.delete);
 
   return router;
@@ -231,17 +231,20 @@ Router _todoRouter() {
   final router = Router();
 
   router.get('/', TodoController.list);
-  router.post('/', Pipeline()
-      .addMiddleware(validationMiddleware())
-      .addHandler(TodoController.create));
+  router.post('/', _jsonOnly(TodoController.create));
   router.get('/<id>', TodoController.get);
-  router.put('/<id>', Pipeline()
-      .addMiddleware(validationMiddleware())
-      .addHandler(TodoController.update));
+  router.put(
+    '/<id>',
+    (Request request, String id) =>
+        _jsonOnly((request) => TodoController.update(request, id))(request),
+  );
   router.delete('/<id>', TodoController.delete);
 
   return router;
 }
+
+/// Rejects POST/PUT requests whose Content-Type is not JSON.
+Handler _jsonOnly(Handler handler) => validationMiddleware()(handler);
 
 Future<bool> _checkHealth() async {
   try {
@@ -259,7 +262,7 @@ Future<bool> _checkHealth() async {
 import 'package:dotenv/dotenv.dart';
 
 class Config {
-  static late DotEnv _env;
+  static DotEnv _env = _create();
   
   static String get environment => _env['ENVIRONMENT'] ?? 'development';
   static String get host => _env['HOST'] ?? '0.0.0.0';
@@ -269,9 +272,10 @@ class Config {
   static String get dbType => _env['DB_TYPE'] ?? 'sqlite';
   static String get dbHost => _env['DB_HOST'] ?? 'localhost';
   static int get dbPort => int.tryParse(_env['DB_PORT'] ?? '') ?? 5432;
-  static String get dbName => _env['DB_NAME'] ?? '{{projectName}}';
+  static String get dbName => _env['DB_NAME'] ?? '{{projectNameSnake}}';
   static String get dbUser => _env['DB_USER'] ?? 'postgres';
   static String get dbPassword => _env['DB_PASSWORD'] ?? '';
+  static bool get dbSsl => (_env['DB_SSL'] ?? 'false').toLowerCase() == 'true';
   static String get dbPath => _env['DB_PATH'] ?? 'database.db';
   
   // Security
@@ -279,31 +283,32 @@ class Config {
   static int get jwtExpiryMinutes => int.tryParse(_env['JWT_EXPIRY_MINUTES'] ?? '') ?? 15;
   static int get refreshTokenDays => int.tryParse(_env['REFRESH_TOKEN_DAYS'] ?? '') ?? 30;
   
-  static Future<void> load() async {
-    _env = DotEnv(includePlatformEnvironment: true);
-    
+  static DotEnv _create() {
+    final env = DotEnv(includePlatformEnvironment: true);
+
     // Load .env file if it exists
-    final envFile = File('.env');
-    if (await envFile.exists()) {
-      _env.load(['.env']);
+    if (File('.env').existsSync()) {
+      env.load(['.env']);
     }
+    return env;
   }
-}`,
+
+  /// Re-reads the environment and the .env file.
+  static Future<void> load() async {
+    _env = _create();
+  }
+}
+`,
 
     // Database setup
     'lib/database/database.dart': `import 'package:postgres/postgres.dart';
 import 'package:mysql_client/mysql_client.dart';
-import 'package:sqlite3/sqlite3.dart';
-import 'package:{{projectName}}/config/config.dart';
-import 'package:{{projectName}}/utils/logger.dart';
-
-export 'package:{{projectName}}/database/database.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite;
+import 'package:{{projectNameSnake}}/config/config.dart';
 
 abstract class Database {
   static Database? _instance;
   static Database get instance => _instance!;
-  
-  static final _logger = AppLogger();
   
   static Future<void> initialize() async {
     switch (Config.dbType) {
@@ -338,6 +343,26 @@ abstract class Database {
 
 class PostgresDatabase extends Database {
   Connection? _connection;
+
+  static final _isoDateTime = RegExp(r'^\\d{4}-\\d{2}-\\d{2}T');
+
+  /// The repositories write \`?\` placeholders; PostgreSQL wants \`$1\`, \`$2\`, ...
+  static String _positional(String sql) {
+    var index = 0;
+    return sql.replaceAllMapped('?', (_) => '\\$\${++index}');
+  }
+
+  /// Timestamps are passed as ISO-8601 strings; PostgreSQL wants DateTime values.
+  static List<Object?> _bind(List<Object?>? params) {
+    return (params ?? const <Object?>[])
+        .map((p) => p is String && _isoDateTime.hasMatch(p) ? DateTime.parse(p) : p)
+        .toList();
+  }
+
+  /// Hands rows to the models the way SQLite does (timestamps as strings).
+  static Map<String, dynamic> _normalize(Map<String, dynamic> row) {
+    return row.map((key, value) => MapEntry(key, value is DateTime ? value.toIso8601String() : value));
+  }
   
   @override
   Future<void> connect() async {
@@ -350,7 +375,7 @@ class PostgresDatabase extends Database {
         password: Config.dbPassword,
       ),
       settings: ConnectionSettings(
-        sslMode: SslMode.prefer,
+        sslMode: Config.dbSsl ? SslMode.require : SslMode.disable,
       ),
     );
   }
@@ -369,18 +394,18 @@ class PostgresDatabase extends Database {
   @override
   Future<List<Map<String, dynamic>>> query(String sql, [List<Object?>? params]) async {
     final result = await _connection!.execute(
-      Sql.named(sql),
-      parameters: params ?? [],
+      _positional(sql),
+      parameters: _bind(params),
     );
     
-    return result.map((row) => row.toColumnMap()).toList();
+    return result.map((row) => _normalize(row.toColumnMap())).toList();
   }
   
   @override
   Future<int> execute(String sql, [List<Object?>? params]) async {
     final result = await _connection!.execute(
-      Sql.named(sql),
-      parameters: params ?? [],
+      _positional(sql),
+      parameters: _bind(params),
     );
     return result.affectedRows;
   }
@@ -406,7 +431,7 @@ class PostgresDatabase extends Database {
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         title VARCHAR(255) NOT NULL,
         description TEXT,
-        completed BOOLEAN DEFAULT FALSE,
+        completed INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -511,11 +536,11 @@ class MySQLDatabase extends Database {
 }
 
 class SQLiteDatabase extends Database {
-  Database? _db;
+  sqlite.Database? _db;
   
   @override
   Future<void> connect() async {
-    _db = sqlite3.open(Config.dbPath);
+    _db = sqlite.sqlite3.open(Config.dbPath);
   }
   
   @override
@@ -592,7 +617,8 @@ class SQLiteDatabase extends Database {
 }`,
 
     // Models
-    'lib/models/user.dart': `import 'package:uuid/uuid.dart';
+    'lib/models/user.dart': `import 'package:{{projectNameSnake}}/utils/convert.dart';
+import 'package:uuid/uuid.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
@@ -620,8 +646,8 @@ class User {
       email: map['email'] as String,
       passwordHash: map['password_hash'] as String,
       name: map['name'] as String,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      createdAt: parseDateTime(map['created_at']),
+      updatedAt: parseDateTime(map['updated_at']),
     );
   }
 
@@ -728,7 +754,8 @@ class UpdateUserRequest {
   }
 }`,
 
-    'lib/models/todo.dart': `import 'package:uuid/uuid.dart';
+    'lib/models/todo.dart': `import 'package:{{projectNameSnake}}/utils/convert.dart';
+import 'package:uuid/uuid.dart';
 
 class Todo {
   final String id;
@@ -756,9 +783,9 @@ class Todo {
       userId: map['user_id'] as String,
       title: map['title'] as String,
       description: map['description'] as String?,
-      completed: (map['completed'] as num) == 1,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      completed: parseBool(map['completed']),
+      createdAt: parseDateTime(map['created_at']),
+      updatedAt: parseDateTime(map['updated_at']),
     );
   }
 
@@ -833,7 +860,8 @@ class UpdateTodoRequest {
   }
 }`,
 
-    'lib/models/token.dart': `import 'package:uuid/uuid.dart';
+    'lib/models/token.dart': `import 'package:{{projectNameSnake}}/utils/convert.dart';
+import 'package:uuid/uuid.dart';
 
 class RefreshToken {
   final String id;
@@ -857,8 +885,8 @@ class RefreshToken {
       id: map['id'] as String,
       userId: map['user_id'] as String,
       token: map['token'] as String,
-      expiresAt: DateTime.parse(map['expires_at'] as String),
-      createdAt: DateTime.parse(map['created_at'] as String),
+      expiresAt: parseDateTime(map['expires_at']),
+      createdAt: parseDateTime(map['created_at']),
     );
   }
 
@@ -875,8 +903,8 @@ class RefreshToken {
 }`,
 
     // Repositories
-    'lib/repositories/user_repository.dart': `import 'package:{{projectName}}/database/database.dart';
-import 'package:{{projectName}}/models/user.dart';
+    'lib/repositories/user_repository.dart': `import 'package:{{projectNameSnake}}/database/database.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
 
 class UserRepository {
   final Database _db = Database.instance;
@@ -946,8 +974,8 @@ class UserRepository {
   }
 }`,
 
-    'lib/repositories/todo_repository.dart': `import 'package:{{projectName}}/database/database.dart';
-import 'package:{{projectName}}/models/todo.dart';
+    'lib/repositories/todo_repository.dart': `import 'package:{{projectNameSnake}}/database/database.dart';
+import 'package:{{projectNameSnake}}/models/todo.dart';
 
 class TodoRepository {
   final Database _db = Database.instance;
@@ -1023,8 +1051,8 @@ class TodoRepository {
   }
 }`,
 
-    'lib/repositories/token_repository.dart': `import 'package:{{projectName}}/database/database.dart';
-import 'package:{{projectName}}/models/token.dart';
+    'lib/repositories/token_repository.dart': `import 'package:{{projectNameSnake}}/database/database.dart';
+import 'package:{{projectNameSnake}}/models/token.dart';
 
 class TokenRepository {
   final Database _db = Database.instance;
@@ -1100,8 +1128,8 @@ class GraphqlResolvers {
 
     'lib/controllers/graphql_controller.dart': `import 'dart:convert';
 import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/graphql/schema.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/graphql/schema.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 class GraphqlController {
   static Future<Response> handle(Request request) async {
@@ -1110,13 +1138,13 @@ class GraphqlController {
       final json = jsonDecode(body) as Map<String, dynamic>;
       final query = json['query'] as String? ?? '';
       final result = GraphqlResolvers.resolve(query);
-      return Response.ok(jsonResponse(result));
+      return jsonOk(result);
     } catch (e) {
-      return Response.ok(jsonResponse({
+      return jsonOk({
         'errors': [
           {'message': e.toString()}
         ]
-      }));
+      });
     }
   }
 }
@@ -1124,12 +1152,12 @@ class GraphqlController {
 
     'lib/controllers/auth_controller.dart': `import 'dart:convert';
 import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/models/user.dart';
-import 'package:{{projectName}}/models/token.dart';
-import 'package:{{projectName}}/repositories/user_repository.dart';
-import 'package:{{projectName}}/repositories/token_repository.dart';
-import 'package:{{projectName}}/services/auth_service.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
+import 'package:{{projectNameSnake}}/models/token.dart';
+import 'package:{{projectNameSnake}}/repositories/user_repository.dart';
+import 'package:{{projectNameSnake}}/repositories/token_repository.dart';
+import 'package:{{projectNameSnake}}/services/auth_service.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 class AuthController {
   static final _userRepo = UserRepository();
@@ -1145,13 +1173,13 @@ class AuthController {
       // Validate request
       final error = createRequest.validate();
       if (error != null) {
-        return Response.badRequest(body: jsonResponse({'error': error}));
+        return jsonStatus(400, {'error': error});
       }
 
       // Check if user exists
       final existingUser = await _userRepo.findByEmail(createRequest.email);
       if (existingUser != null) {
-        return Response(409, body: jsonResponse({'error': 'User already exists'}));
+        return jsonStatus(409, {'error': 'User already exists'});
       }
 
       // Create user
@@ -1168,14 +1196,12 @@ class AuthController {
       final refreshToken = RefreshToken(userId: user.id);
       await _tokenRepo.create(refreshToken);
 
-      return Response.ok(jsonResponse({
+      return jsonOk({
         'user': user.toPublic(),
         'accessToken': accessToken,
-        'refreshToken': refreshToken.token}));
+        'refreshToken': refreshToken.token});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Registration failed'}),
-      );
+      return jsonStatus(500, {'error': 'Registration failed'});
     }
   }
 
@@ -1188,9 +1214,7 @@ class AuthController {
       // Find user
       final user = await _userRepo.findByEmail(loginRequest.email);
       if (user == null || !user.verifyPassword(loginRequest.password)) {
-        return Response.unauthorized(
-          body: jsonResponse({'error': 'Invalid credentials'}),
-        );
+        return jsonStatus(401, {'error': 'Invalid credentials'});
       }
 
       // Generate tokens
@@ -1198,14 +1222,12 @@ class AuthController {
       final refreshToken = RefreshToken(userId: user.id);
       await _tokenRepo.create(refreshToken);
 
-      return Response.ok(jsonResponse({
+      return jsonOk({
         'user': user.toPublic(),
         'accessToken': accessToken,
-        'refreshToken': refreshToken.token}));
+        'refreshToken': refreshToken.token});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Login failed'}),
-      );
+      return jsonStatus(500, {'error': 'Login failed'});
     }
   }
 
@@ -1216,25 +1238,19 @@ class AuthController {
       final refreshTokenValue = json['refreshToken'] as String?;
 
       if (refreshTokenValue == null) {
-        return Response.badRequest(
-          body: jsonResponse({'error': 'Refresh token required'}),
-        );
+        return jsonStatus(400, {'error': 'Refresh token required'});
       }
 
       // Find and validate token
       final token = await _tokenRepo.findByToken(refreshTokenValue);
       if (token == null || !token.isValid) {
-        return Response.unauthorized(
-          body: jsonResponse({'error': 'Invalid refresh token'}),
-        );
+        return jsonStatus(401, {'error': 'Invalid refresh token'});
       }
 
       // Get user
       final user = await _userRepo.findById(token.userId);
       if (user == null) {
-        return Response.unauthorized(
-          body: jsonResponse({'error': 'User not found'}),
-        );
+        return jsonStatus(401, {'error': 'User not found'});
       }
 
       // Delete old token
@@ -1245,22 +1261,20 @@ class AuthController {
       final newRefreshToken = RefreshToken(userId: user.id);
       await _tokenRepo.create(newRefreshToken);
 
-      return Response.ok(jsonResponse({
+      return jsonOk({
         'accessToken': accessToken,
-        'refreshToken': newRefreshToken.token}));
+        'refreshToken': newRefreshToken.token});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Token refresh failed'}),
-      );
+      return jsonStatus(500, {'error': 'Token refresh failed'});
     }
   }
 }`,
 
     'lib/controllers/user_controller.dart': `import 'dart:convert';
 import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/models/user.dart';
-import 'package:{{projectName}}/repositories/user_repository.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
+import 'package:{{projectNameSnake}}/repositories/user_repository.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 class UserController {
   static final _userRepo = UserRepository();
@@ -1270,41 +1284,31 @@ class UserController {
       final users = await _userRepo.findAll();
       final publicUsers = users.map((u) => u.toPublic()).toList();
 
-      return Response.ok(jsonResponse(publicUsers));
+      return jsonOk(publicUsers);
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Failed to fetch users'}),
-      );
+      return jsonStatus(500, {'error': 'Failed to fetch users'});
     }
   }
 
-  static Future<Response> get(Request request) async {
+  static Future<Response> get(Request request, String id) async {
     try {
-      final id = request.params['id'];
-      if (id == null) {
-        return Response.badRequest(body: jsonResponse({'error': 'Invalid user ID'}));
-      }
-
       final user = await _userRepo.findById(id);
       if (user == null) {
-        return Response.notFound(body: jsonResponse({'error': 'User not found'}));
+        return jsonStatus(404, {'error': 'User not found'});
       }
 
-      return Response.ok(jsonResponse(user.toPublic()));
+      return jsonOk(user.toPublic());
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Failed to fetch user'}),
-      );
+      return jsonStatus(500, {'error': 'Failed to fetch user'});
     }
   }
 
-  static Future<Response> update(Request request) async {
+  static Future<Response> update(Request request, String id) async {
     try {
       final currentUser = request.context['user'] as User;
-      final id = request.params['id'];
 
-      if (id == null || id != currentUser.id) {
-        return Response.forbidden(body: jsonResponse({'error': 'Forbidden'}));
+      if (id != currentUser.id) {
+        return jsonStatus(403, {'error': 'Forbidden'});
       }
 
       final body = await request.readAsString();
@@ -1314,14 +1318,14 @@ class UserController {
       // Validate request
       final error = updateRequest.validate();
       if (error != null) {
-        return Response.badRequest(body: jsonResponse({'error': error}));
+        return jsonStatus(400, {'error': error});
       }
 
       // Check if email is taken
       if (updateRequest.email != null && updateRequest.email != currentUser.email) {
         final existingUser = await _userRepo.findByEmail(updateRequest.email!);
         if (existingUser != null) {
-          return Response(409, body: jsonResponse({'error': 'Email already taken'}));
+          return jsonStatus(409, {'error': 'Email already taken'});
         }
       }
 
@@ -1337,40 +1341,35 @@ class UserController {
 
       await _userRepo.update(updatedUser);
 
-      return Response.ok(jsonResponse(updatedUser.toPublic()));
+      return jsonOk(updatedUser.toPublic());
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Failed to update user'}),
-      );
+      return jsonStatus(500, {'error': 'Failed to update user'});
     }
   }
 
-  static Future<Response> delete(Request request) async {
+  static Future<Response> delete(Request request, String id) async {
     try {
       final currentUser = request.context['user'] as User;
-      final id = request.params['id'];
 
-      if (id == null || id != currentUser.id) {
-        return Response.forbidden(body: jsonResponse({'error': 'Forbidden'}));
+      if (id != currentUser.id) {
+        return jsonStatus(403, {'error': 'Forbidden'});
       }
 
       await _userRepo.delete(id);
 
-      return Response.noContent();
+      return Response(204);
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Failed to delete user'}),
-      );
+      return jsonStatus(500, {'error': 'Failed to delete user'});
     }
   }
 }`,
 
     'lib/controllers/todo_controller.dart': `import 'dart:convert';
 import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/models/user.dart';
-import 'package:{{projectName}}/models/todo.dart';
-import 'package:{{projectName}}/repositories/todo_repository.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
+import 'package:{{projectNameSnake}}/models/todo.dart';
+import 'package:{{projectNameSnake}}/repositories/todo_repository.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 class TodoController {
   static final _todoRepo = TodoRepository();
@@ -1380,11 +1379,9 @@ class TodoController {
       final user = request.context['user'] as User;
       final todos = await _todoRepo.findByUserId(user.id);
 
-      return Response.ok(jsonResponse(todos.map((t) => t.toJson()).toList()));
+      return jsonOk(todos.map((t) => t.toJson()).toList());
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Failed to fetch todos'}),
-      );
+      return jsonStatus(500, {'error': 'Failed to fetch todos'});
     }
   }
 
@@ -1398,7 +1395,7 @@ class TodoController {
       // Validate request
       final error = createRequest.validate();
       if (error != null) {
-        return Response.badRequest(body: jsonResponse({'error': error}));
+        return jsonStatus(400, {'error': error});
       }
 
       // Create todo
@@ -1410,51 +1407,34 @@ class TodoController {
 
       await _todoRepo.create(todo);
 
-      return Response.ok(
-        jsonResponse(todo.toJson()),
-        headers: {'status': '201'},
-      );
+      return jsonStatus(201, todo.toJson());
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Failed to create todo'}),
-      );
+      return jsonStatus(500, {'error': 'Failed to create todo'});
     }
   }
 
-  static Future<Response> get(Request request) async {
+  static Future<Response> get(Request request, String id) async {
     try {
       final user = request.context['user'] as User;
-      final id = request.params['id'];
-
-      if (id == null) {
-        return Response.badRequest(body: jsonResponse({'error': 'Invalid todo ID'}));
-      }
 
       final todo = await _todoRepo.findByIdAndUserId(id, user.id);
       if (todo == null) {
-        return Response.notFound(body: jsonResponse({'error': 'Todo not found'}));
+        return jsonStatus(404, {'error': 'Todo not found'});
       }
 
-      return Response.ok(jsonResponse(todo.toJson()));
+      return jsonOk(todo.toJson());
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Failed to fetch todo'}),
-      );
+      return jsonStatus(500, {'error': 'Failed to fetch todo'});
     }
   }
 
-  static Future<Response> update(Request request) async {
+  static Future<Response> update(Request request, String id) async {
     try {
       final user = request.context['user'] as User;
-      final id = request.params['id'];
-
-      if (id == null) {
-        return Response.badRequest(body: jsonResponse({'error': 'Invalid todo ID'}));
-      }
 
       final todo = await _todoRepo.findByIdAndUserId(id, user.id);
       if (todo == null) {
-        return Response.notFound(body: jsonResponse({'error': 'Todo not found'}));
+        return jsonStatus(404, {'error': 'Todo not found'});
       }
 
       final body = await request.readAsString();
@@ -1464,7 +1444,7 @@ class TodoController {
       // Validate request
       final error = updateRequest.validate();
       if (error != null) {
-        return Response.badRequest(body: jsonResponse({'error': error}));
+        return jsonStatus(400, {'error': error});
       }
 
       // Update todo
@@ -1480,43 +1460,34 @@ class TodoController {
 
       await _todoRepo.update(updatedTodo);
 
-      return Response.ok(jsonResponse(updatedTodo.toJson()));
+      return jsonOk(updatedTodo.toJson());
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Failed to update todo'}),
-      );
+      return jsonStatus(500, {'error': 'Failed to update todo'});
     }
   }
 
-  static Future<Response> delete(Request request) async {
+  static Future<Response> delete(Request request, String id) async {
     try {
       final user = request.context['user'] as User;
-      final id = request.params['id'];
-
-      if (id == null) {
-        return Response.badRequest(body: jsonResponse({'error': 'Invalid todo ID'}));
-      }
 
       final todo = await _todoRepo.findByIdAndUserId(id, user.id);
       if (todo == null) {
-        return Response.notFound(body: jsonResponse({'error': 'Todo not found'}));
+        return jsonStatus(404, {'error': 'Todo not found'});
       }
 
       await _todoRepo.delete(id);
 
-      return Response.noContent();
+      return Response(204);
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonResponse({'error': 'Failed to delete todo'}),
-      );
+      return jsonStatus(500, {'error': 'Failed to delete todo'});
     }
   }
 }`,
 
     // Services
     'lib/services/auth_service.dart': `import 'package:jaguar_jwt/jaguar_jwt.dart';
-import 'package:{{projectName}}/config/config.dart';
-import 'package:{{projectName}}/models/user.dart';
+import 'package:{{projectNameSnake}}/config/config.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
 
 class AuthService {
   static const _issuer = '{{projectName}}';
@@ -1555,9 +1526,9 @@ class AuthService {
 
     // Middleware
     'lib/middleware/auth_middleware.dart': `import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/services/auth_service.dart';
-import 'package:{{projectName}}/repositories/user_repository.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/services/auth_service.dart';
+import 'package:{{projectNameSnake}}/repositories/user_repository.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 Middleware authMiddleware() {
   final authService = AuthService();
@@ -1568,9 +1539,7 @@ Middleware authMiddleware() {
       // Extract token from Authorization header
       final authHeader = request.headers['authorization'];
       if (authHeader == null || !authHeader.startsWith('Bearer ')) {
-        return Response.unauthorized(
-          body: jsonResponse({'error': 'Authentication required'}),
-        );
+        return jsonStatus(401, {'error': 'Authentication required'});
       }
 
       final token = authHeader.substring(7); // Remove 'Bearer ' prefix
@@ -1578,17 +1547,13 @@ Middleware authMiddleware() {
       // Verify token
       final userId = authService.getUserIdFromToken(token);
       if (userId == null) {
-        return Response.unauthorized(
-          body: jsonResponse({'error': 'Invalid token'}),
-        );
+        return jsonStatus(401, {'error': 'Invalid token'});
       }
 
       // Get user
       final user = await userRepo.findById(userId);
       if (user == null) {
-        return Response.unauthorized(
-          body: jsonResponse({'error': 'User not found'}),
-        );
+        return jsonStatus(401, {'error': 'User not found'});
       }
 
       // Add user to request context
@@ -1602,8 +1567,8 @@ Middleware authMiddleware() {
 }`,
 
     'lib/middleware/error_middleware.dart': `import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/utils/logger.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/utils/logger.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 Middleware errorMiddleware() {
   final logger = AppLogger();
@@ -1615,18 +1580,16 @@ Middleware errorMiddleware() {
       } catch (e, stackTrace) {
         logger.error('Unhandled error: $e', error: e, stackTrace: stackTrace);
 
-        return Response.internalServerError(
-          body: jsonResponse({
+        return jsonStatus(500, {
             'error': 'Internal server error',
-            'message': e.toString()}),
-        );
+            'message': e.toString()});
       }
     };
   };
 }`,
 
     'lib/middleware/logging_middleware.dart': `import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/utils/logger.dart';
+import 'package:{{projectNameSnake}}/utils/logger.dart';
 
 Middleware loggingMiddleware() {
   final logger = AppLogger();
@@ -1634,30 +1597,31 @@ Middleware loggingMiddleware() {
   return (Handler innerHandler) {
     return (Request request) async {
       final watch = Stopwatch()..start();
-      
+
       try {
         final response = await innerHandler(request);
-        
+
         logger.info(
-          '  '
-          ' ms',
+          '\${request.method} /\${request.url.path} '
+          '\${response.statusCode} \${watch.elapsedMilliseconds} ms',
         );
-        
+
         return response;
       } catch (e) {
         logger.error(
-          '  '
-          'ERROR ms',
+          '\${request.method} /\${request.url.path} '
+          'ERROR \${watch.elapsedMilliseconds} ms',
           error: e,
         );
         rethrow;
       }
     };
   };
-}`,
+}
+`,
 
     'lib/middleware/validation_middleware.dart': `import 'package:shelf/shelf.dart';
-import 'package:{{projectName}}/utils/response.dart';
+import 'package:{{projectNameSnake}}/utils/response.dart';
 
 Middleware validationMiddleware() {
   return (Handler innerHandler) {
@@ -1666,10 +1630,8 @@ Middleware validationMiddleware() {
       if (request.method == 'POST' || request.method == 'PUT') {
         final contentType = request.headers['content-type'];
         if (contentType == null || !contentType.contains('application/json')) {
-          return Response.badRequest(
-            body: jsonResponse({
-              'error': 'Content-Type must be application/json'}),
-          );
+          return jsonStatus(400, {
+              'error': 'Content-Type must be application/json'});
         }
       }
 
@@ -1681,13 +1643,24 @@ Middleware validationMiddleware() {
     // Utilities
     'lib/utils/response.dart': `import 'dart:convert';
 
+import 'package:shelf/shelf.dart';
+
 String jsonResponse(Object? data) {
   return jsonEncode(data);
 }
 
 Map<String, String> jsonHeaders() {
   return {'content-type': 'application/json'};
-}`,
+}
+
+/// 200 response with a JSON body.
+Response jsonOk(Object? data) => jsonStatus(200, data);
+
+/// Response with the given status code and a JSON body.
+Response jsonStatus(int status, Object? data) {
+  return Response(status, body: jsonResponse(data), headers: jsonHeaders());
+}
+`,
 
     'lib/utils/logger.dart': `import 'package:logger/logger.dart';
 
@@ -1701,13 +1674,15 @@ class AppLogger {
 
   AppLogger._internal() {
     _logger = Logger(
+      // The default filter only logs when asserts are enabled (debug mode)
+      filter: ProductionFilter(),
       printer: PrettyPrinter(
         methodCount: 2,
         errorMethodCount: 8,
         lineLength: 120,
         colors: true,
         printEmojis: true,
-        printTime: true,
+        dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart,
       ),
     );
   }
@@ -1720,31 +1695,46 @@ class AppLogger {
 }`,
 
     // Tests
-    'test/server_test.dart': `import 'dart:convert';
+    'test/server_test.dart': `import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:http/http.dart';
 import 'package:test/test.dart';
-import 'package:test_process/test_process.dart';
 
 void main() {
   final port = '8080';
   final host = 'http://localhost:$port';
 
   group('Server Tests', () {
-    late TestProcess process;
+    late Process process;
+    late Directory dataDir;
 
     setUpAll(() async {
-      process = await TestProcess.start(
-        'dart',
+      dataDir = Directory.systemTemp.createTempSync('{{projectNameSnake}}_test');
+      process = await Process.start(
+        Platform.resolvedExecutable,
         ['run', 'bin/server.dart'],
-        environment: {'PORT': port},
+        environment: {
+          'PORT': port,
+          'DB_TYPE': 'sqlite',
+          'DB_PATH': '\${dataDir.path}/test.db',
+        },
       );
-      await process.stdout.stream
-          .map((bytes) => utf8.decode(bytes))
-          .firstWhere((line) => line.contains('Server listening'));
+
+      final ready = Completer<void>();
+      process.stdout.transform(utf8.decoder).listen((chunk) {
+        if (chunk.contains('Server listening') && !ready.isCompleted) {
+          ready.complete();
+        }
+      });
+      process.stderr.drain<void>();
+      await ready.future.timeout(const Duration(seconds: 60));
     });
 
-    tearDownAll(() async {
+    tearDownAll(() {
       process.kill();
+      dataDir.deleteSync(recursive: true);
     });
 
     test('Root endpoint returns API info', () async {
@@ -1773,10 +1763,9 @@ void main() {
   });
 }`,
 
-    'test/auth_test.dart': `import 'dart:convert';
-import 'package:test/test.dart';
-import 'package:{{projectName}}/models/user.dart';
-import 'package:{{projectName}}/services/auth_service.dart';
+    'test/auth_test.dart': `import 'package:test/test.dart';
+import 'package:{{projectNameSnake}}/models/user.dart';
+import 'package:{{projectNameSnake}}/services/auth_service.dart';
 
 void main() {
   group('Auth Tests', () {
@@ -1831,7 +1820,7 @@ PORT=8080
 DB_TYPE=sqlite
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME={{projectName}}
+DB_NAME={{projectNameSnake}}
 DB_USER=postgres
 DB_PASSWORD=
 DB_PATH=database.db
@@ -1910,7 +1899,7 @@ services:
       - DB_TYPE=postgres
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_NAME={{projectName}}
+      - DB_NAME={{projectNameSnake}}
       - DB_USER=shelf
       - DB_PASSWORD=shelf_password
       - JWT_SECRET=your-production-secret-key
@@ -1925,7 +1914,7 @@ services:
     environment:
       - POSTGRES_USER=shelf
       - POSTGRES_PASSWORD=shelf_password
-      - POSTGRES_DB={{projectName}}
+      - POSTGRES_DB={{projectNameSnake}}
     ports:
       - "5432:5432"
     volumes:
@@ -1974,7 +1963,7 @@ A modular web server application built with Dart and the Shelf framework.
    dart run bin/server.dart
    \`\`\`
 
-The server will start on port 8080 with hot reload enabled.
+The server will start on port 8080 (override with \`PORT\` or \`--port\`).
 
 ## Development
 
@@ -2102,4 +2091,31 @@ analyzer:
     - build/**
     - "**/*.g.dart"
   errors:
-    invalid_annotation_target: ignore`}};
+    invalid_annotation_target: ignore`,
+
+    'lib/utils/convert.dart': `/// Database drivers disagree on column types (SQLite returns text and integers,
+/// PostgreSQL returns DateTime and bool); these helpers accept either.
+DateTime parseDateTime(Object? value) {
+  if (value is DateTime) return value;
+  return DateTime.parse(value as String);
+}
+
+bool parseBool(Object? value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  return value == '1' || value == 'true';
+}
+`,
+
+    'public/index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{projectName}}</title>
+</head>
+<body>
+  <h1>{{projectName}} API</h1>
+  <p>See <a href="/health">/health</a>. The API lives under <code>/api/v1</code>.</p>
+</body>
+</html>
+`}};

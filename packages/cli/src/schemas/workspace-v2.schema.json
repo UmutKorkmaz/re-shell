@@ -1,26 +1,29 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://re-shell.dev/schemas/workspace-v2.schema.json",
-  "title": "Re-Shell Workspace Configuration v2.0",
-  "description": "Comprehensive workspace configuration for multi-language, multi-framework microservices projects",
+  "$id": "https://umutkorkmaz.github.io/re-shell/schemas/workspace-v2.json",
+  "title": "Re-Shell Workspace Configuration (re-shell.workspaces.yaml, v2)",
+  "description": "Describes a Re-Shell workspace: the services (microfrontends and polyglot microservices) it contains, their languages and frameworks, runtime settings, external dependencies, deployment and monitoring. Lives at the repository root as re-shell.workspaces.yaml. Required: name, version (2.0.x) and services. Validate with `re-shell config schema validate re-shell.workspaces.yaml`.",
   "type": "object",
   "required": ["name", "version", "services"],
   "properties": {
     "name": {
       "type": "string",
-      "description": "Workspace name",
+      "description": "Workspace name. Lowercase letters, digits and hyphens only (kebab-case), 1-63 characters, starting and ending with a letter or digit.",
+      "examples": ["my-platform"],
       "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
       "minLength": 1,
       "maxLength": 63
     },
     "version": {
       "type": "string",
-      "description": "Configuration version",
+      "description": "Workspace configuration schema version. Must be a 2.0.x release string, for example \"2.0.0\".",
+      "examples": ["2.0.0"],
+      "default": "2.0.0",
       "pattern": "^2\\.0\\.[0-9]+$"
     },
     "description": {
       "type": "string",
-      "description": "Workspace description"
+      "description": "Human-readable summary of what this workspace is for."
     },
     "metadata": {
       "type": "object",
@@ -76,14 +79,14 @@
     },
     "services": {
       "type": "object",
-      "description": "Service definitions",
+      "description": "Services in this workspace, keyed by service name (kebab-case). Each value defines one microfrontend or microservice; `name`, `language` and `framework` are required on each. An empty map (`services: {}`) is valid for a workspace that has no services yet.",
       "additionalProperties": {
         "$ref": "#/definitions/service"
       }
     },
     "dependencies": {
       "type": "object",
-      "description": "External dependencies",
+      "description": "External infrastructure the workspace depends on: databases, caches, message queues and object storage.",
       "properties": {
         "databases": {
           "type": "array",
@@ -109,6 +112,9 @@
     "monitoring": {
       "$ref": "#/definitions/monitoring"
     },
+    "kubernetes": {
+      "$ref": "#/definitions/kubernetesConfig"
+    },
     "tasks": {
       "type": "object",
       "description": "Task graph for the dependency-aware task runner (`re-shell run <task>`). Maps a task name to its dependencies. A dependency is either a sibling task in the same package (e.g. \"build\") or, with a \"^\" prefix, the same task on this package's upstream workspace dependencies (e.g. \"^build\"). When omitted, sensible defaults apply (build -> ^build; test -> build).",
@@ -118,6 +124,144 @@
     }
   },
   "definitions": {
+    "intOrString": {
+      "description": "A Kubernetes int-or-string value (e.g. maxSurge: 1 or maxSurge: \"25%\").",
+      "oneOf": [{ "type": "integer" }, { "type": "string" }],
+      "x-kubernetes-int-or-string": true
+    },
+    "k8sProbe": {
+      "type": "object",
+      "description": "A liveness/readiness/startup probe. An httpGet probe is generated when a health path is known (this block's `path`, `kubernetes.probes.path`, or the service `healthCheck.path`); otherwise a tcpSocket probe on the container port.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "description": "HTTP path to probe (httpGet)." },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 },
+        "successThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "kubernetesConfig": {
+      "type": "object",
+      "description": "Kubernetes deployment settings used by `re-shell k8s generate`, `k8s helm generate`, `k8s gitops generate`, `k8s crd|operator|mesh`. Set at the workspace level for defaults and per service to override. Resolution order: built-in defaults < workspace `deployment` < workspace `kubernetes` < service `resources`/`healthCheck`/`scaling` < service `kubernetes`.",
+      "properties": {
+        "image": {
+          "type": "object",
+          "properties": {
+            "registry": { "type": "string", "description": "Registry prefix (e.g. ghcr.io/acme); prepended to the repository." },
+            "repository": { "type": "string", "description": "Image repository; defaults to the service name." },
+            "tag": { "type": "string", "description": "Image tag; defaults to \"latest\" (CI should override)." },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "replicas": { "type": "integer", "minimum": 1 },
+        "resources": {
+          "type": "object",
+          "description": "Kubernetes-shaped resources; overrides the service `resources` block.",
+          "properties": {
+            "requests": { "type": "object", "additionalProperties": { "type": "string" } },
+            "limits": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Pod and container hardening. Defaults satisfy the Pod Security Standards `restricted` profile.",
+          "properties": {
+            "runAsNonRoot": { "type": "boolean" },
+            "runAsUser": { "type": "integer", "minimum": 0 },
+            "runAsGroup": { "type": "integer", "minimum": 0 },
+            "fsGroup": { "type": "integer", "minimum": 0 },
+            "readOnlyRootFilesystem": { "type": "boolean" },
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "drop": { "type": "array", "items": { "type": "string" } },
+                "add": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "seccompProfile": { "type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"] },
+            "writablePaths": {
+              "type": "array",
+              "description": "Absolute paths mounted as emptyDir volumes so the app can write while the root filesystem is read-only. Defaults to [\"/tmp\"].",
+              "items": { "type": "string", "pattern": "^/" }
+            }
+          }
+        },
+        "automountServiceAccountToken": { "type": "boolean" },
+        "probes": {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string", "description": "Health path used by every probe that does not set its own." },
+            "liveness": { "$ref": "#/definitions/k8sProbe" },
+            "readiness": { "$ref": "#/definitions/k8sProbe" },
+            "startup": { "$ref": "#/definitions/k8sProbe" }
+          }
+        },
+        "strategy": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RollingUpdate", "Recreate"] },
+            "maxSurge": { "$ref": "#/definitions/intOrString" },
+            "maxUnavailable": { "$ref": "#/definitions/intOrString" }
+          }
+        },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0, "description": "ReplicaSets kept for `kubectl rollout undo` / `re-shell k8s rollback`." },
+        "progressDeadlineSeconds": { "type": "integer", "minimum": 1 },
+        "minReadySeconds": { "type": "integer", "minimum": 0 },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+        "pdb": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minAvailable": { "$ref": "#/definitions/intOrString" },
+            "maxUnavailable": { "$ref": "#/definitions/intOrString" }
+          }
+        },
+        "autoscaling": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minReplicas": { "type": "integer", "minimum": 1 },
+            "maxReplicas": { "type": "integer", "minimum": 1 },
+            "cpuUtilization": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "memoryUtilization": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "customMetric": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "name": { "type": "string" },
+                "averageValue": { "type": "string" }
+              }
+            }
+          }
+        },
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "host": { "type": "string" },
+            "path": { "type": "string" },
+            "pathType": { "type": "string", "enum": ["Prefix", "Exact", "ImplementationSpecific"] },
+            "className": { "type": "string" },
+            "clusterIssuer": { "type": "string", "description": "cert-manager ClusterIssuer used for TLS automation." },
+            "tls": { "type": "boolean" }
+          }
+        },
+        "networkPolicy": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "allowFromNamespaces": {
+              "type": "array",
+              "description": "Extra namespaces allowed to reach the service in addition to its own namespace. Defaults to [\"ingress-nginx\"] for nginx-class ingress.",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "taskConfig": {
       "type": "object",
       "description": "Dependencies and cache hints for a single task in the task graph.",
@@ -143,22 +287,60 @@
       },
       "additionalProperties": false
     },
+    "serviceLink": {
+      "type": "object",
+      "description": "A generated typed client of a provider service's own contract.",
+      "required": ["service", "protocol", "spec", "client"],
+      "properties": {
+        "service": {
+          "type": "string",
+          "description": "Provider service name (a key of `services`).",
+          "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+        },
+        "protocol": {
+          "type": "string",
+          "enum": ["rest", "grpc", "graphql"]
+        },
+        "spec": {
+          "type": "string",
+          "description": "Provider spec (OpenAPI / .proto / GraphQL SDL) the client was generated from, relative to the workspace root."
+        },
+        "client": {
+          "type": "string",
+          "description": "Directory of the generated client, relative to the workspace root."
+        },
+        "languages": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["ts", "python", "go"] }
+        },
+        "contractSha256": {
+          "type": "string",
+          "description": "sha256 of the provider spec when the client was generated.",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
     "service": {
       "type": "object",
+      "description": "A single service in the workspace: one microfrontend, API, background worker or function. Requires name, language and framework.",
       "required": ["name", "language", "framework"],
       "properties": {
         "name": {
           "type": "string",
+          "description": "Service name. Kebab-case (lowercase letters, digits, hyphens), 1-63 characters; should match the key it is listed under in `services`.",
           "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
         },
-        "displayName": { "type": "string" },
-        "description": { "type": "string" },
+        "displayName": { "type": "string", "description": "Human-friendly name shown in dashboards and generated docs." },
+        "description": { "type": "string", "description": "What this service does." },
         "type": {
           "type": "string",
+          "description": "Role of the service: frontend (UI / microfrontend), backend (API or server), worker (background or shared library) or function (serverless function).",
           "enum": ["frontend", "backend", "worker", "function"]
         },
         "language": {
           "type": "string",
+          "description": "Primary implementation language (lowercase, e.g. typescript, python, go, rust).",
           "enum": [
             "typescript", "javascript",
             "python", "go", "rust",
@@ -173,6 +355,7 @@
           ]
         },
         "framework": {
+          "description": "Framework the service is built on: either a framework name (e.g. \"react\", \"express\", \"fastapi\") or an object with `name`, `version` and optional `config`. Use \"vanilla\" when no framework applies.",
           "oneOf": [
             { "type": "string" },
             {
@@ -192,6 +375,7 @@
         },
         "port": {
           "type": "integer",
+          "description": "TCP port the service listens on (1024-65535).",
           "minimum": 1024,
           "maximum": 65535
         },
@@ -207,6 +391,11 @@
             "type": "string",
             "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
           }
+        },
+        "links": {
+          "type": "array",
+          "description": "Typed client links from this (consumer) service to provider services, recorded by `re-shell service link` and checked by `re-shell service validate`. Each link implies a `dependsOn` edge.",
+          "items": { "$ref": "#/definitions/serviceLink" }
         },
         "dependencies": {
           "type": "object",
@@ -224,6 +413,7 @@
         },
         "scripts": {
           "type": "object",
+          "description": "Named shell commands for this service (build, start, dev, test, lint, or any custom script).",
           "properties": {
             "build": { "type": "string" },
             "start": { "type": "string" },
@@ -245,12 +435,17 @@
         "healthCheck": {
           "$ref": "#/definitions/healthCheck"
         },
+        "kubernetes": {
+          "$ref": "#/definitions/kubernetesConfig"
+        },
         "routes": {
           "type": "array",
+          "description": "HTTP routes exposed by the service and where they are forwarded.",
           "items": { "$ref": "#/definitions/route" }
         },
         "middleware": {
           "type": "array",
+          "description": "Middleware applied to the service, by name or as { name, config } objects.",
           "items": {
             "oneOf": [
               { "type": "string" },
@@ -267,6 +462,7 @@
         },
         "features": {
           "type": "array",
+          "description": "Capabilities the service is generated with or provides.",
           "items": {
             "type": "string",
             "enum": [
@@ -280,16 +476,19 @@
         },
         "tags": {
           "type": "array",
+          "description": "Free-form labels used for grouping and filtering services.",
           "items": { "type": "string" }
         },
         "metadata": {
           "type": "object",
+          "description": "Free-form string key/value metadata attached to the service.",
           "additionalProperties": { "type": "string" }
         }
       }
     },
     "database": {
       "type": "object",
+      "description": "A database the workspace depends on.",
       "required": ["name", "type"],
       "properties": {
         "name": { "type": "string" },
@@ -308,6 +507,7 @@
     },
     "cache": {
       "type": "object",
+      "description": "A cache the workspace depends on.",
       "required": ["name", "type"],
       "properties": {
         "name": { "type": "string" },
@@ -323,6 +523,7 @@
     },
     "queue": {
       "type": "object",
+      "description": "A message queue or broker the workspace depends on.",
       "required": ["name", "type"],
       "properties": {
         "name": { "type": "string" },
@@ -336,6 +537,7 @@
     },
     "storage": {
       "type": "object",
+      "description": "An object/file storage backend the workspace depends on.",
       "required": ["name", "type"],
       "properties": {
         "name": { "type": "string" },
@@ -349,6 +551,7 @@
     },
     "buildConfig": {
       "type": "object",
+      "description": "How the service is built into an artifact or container image.",
       "properties": {
         "output": { "type": "string" },
         "dockerfile": { "type": "string" },
@@ -365,6 +568,7 @@
     },
     "scalingConfig": {
       "type": "object",
+      "description": "Autoscaling bounds and metrics for the service.",
       "properties": {
         "min": { "type": "integer", "minimum": 0 },
         "max": { "type": "integer", "minimum": 1 },
@@ -381,7 +585,11 @@
               "type": {
                 "enum": ["cpu", "memory", "requests", "custom"]
               },
-              "value": { "type": "number" }
+              "value": { "type": "number" },
+              "name": {
+                "type": "string",
+                "description": "Metric name for type \"custom\" (and \"requests\"); surfaced as a Pods metric on the generated HorizontalPodAutoscaler."
+              }
             }
           }
         }
@@ -389,6 +597,7 @@
     },
     "resourceConfig": {
       "type": "object",
+      "description": "CPU and memory requests/limits (CPU in millicores like \"250m\", memory like \"512Mi\" or \"1Gi\").",
       "properties": {
         "cpu": {
           "type": "object",
@@ -408,6 +617,7 @@
     },
     "healthCheck": {
       "type": "object",
+      "description": "Liveness/readiness probe settings for the service.",
       "properties": {
         "path": { "type": "string" },
         "interval": { "type": "integer", "minimum": 1 },
@@ -417,6 +627,7 @@
     },
     "route": {
       "type": "object",
+      "description": "Maps a request path (and optional HTTP method) to a target service or URL.",
       "required": ["path", "target"],
       "properties": {
         "path": { "type": "string" },
@@ -433,6 +644,7 @@
     },
     "deployment": {
       "type": "object",
+      "description": "Workspace-wide deployment settings: target platform, rollout strategy, replicas and environment.",
       "properties": {
         "platform": {
           "type": "string",
@@ -459,6 +671,7 @@
     },
     "monitoring": {
       "type": "object",
+      "description": "Workspace-wide monitoring: which metrics to collect and which alerts to raise.",
       "properties": {
         "enabled": { "type": "boolean" },
         "metrics": {

@@ -1,6 +1,6 @@
 {
   "name": "@re-shell/contracts",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shared TypeScript contracts for Re-Shell UI and CLI integration.",
   "license": "MIT",
   "author": "Umut Korkmaz",
@@ -17,6 +17,7 @@
     "directory": "packages/contracts"
   },
   "type": "module",
+  "sideEffects": false,
   "files": [
     "dist",
     "README.md"
@@ -27,11 +28,18 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js"
+    },
+    "./command-registry": {
+      "types": "./dist/command-registry.d.ts",
+      "import": "./dist/command-registry.js",
+      "require": "./dist/cjs/command-registry.js"
     }
   },
   "scripts": {
-    "build": "tsc",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json && tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "echo 'contracts: no linter configured'"

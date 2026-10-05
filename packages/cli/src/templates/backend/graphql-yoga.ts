@@ -26,7 +26,7 @@ export const graphqlYogaTemplate: BackendTemplate = {
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-schema.mjs",
     "start": "node dist/index.js",
     "codegen": "graphql-codegen --config codegen.yml",
     "codegen:watch": "graphql-codegen --config codegen.yml --watch",
@@ -37,58 +37,38 @@ export const graphqlYogaTemplate: BackendTemplate = {
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "docker:build": "docker build -t {{projectName}} .",
-    "docker:run": "docker run -p 4000:4000 {{projectName}}"
+    "docker:run": "docker run -p 4000:4000 {{projectName}}",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
-    "graphql-yoga": "^5.3.1",
-    "graphql": "^16.8.1",
-    "@graphql-tools/schema": "^10.0.3",
-    "@graphql-tools/merge": "^9.0.3",
-    "@graphql-tools/utils": "^10.1.2",
-    "@envelop/core": "^5.0.1",
-    "@envelop/disable-introspection": "^6.0.1",
-    "@envelop/rate-limiter": "^6.0.1",
-    "@envelop/response-cache": "^6.1.2",
-    "@envelop/prometheus": "^10.0.0",
-    "@envelop/apollo-tracing": "^6.0.1",
-    "@envelop/depth-limit": "^4.0.1",
-    "@envelop/filter-operation-type": "^6.0.1",
-    "@graphql-yoga/plugin-persisted-operations": "^3.3.1",
-    "@graphql-yoga/plugin-csrf-prevention": "^3.3.1",
-    "@graphql-yoga/plugin-response-cache": "^3.5.0",
-    "@graphql-yoga/plugin-disable-introspection": "^2.3.1",
-    "@graphql-yoga/plugin-jwt": "^2.3.1",
-    "@graphql-yoga/plugin-sofa": "^3.2.0",
-    "graphql-shield": "^7.6.5",
-    : "^2.2.2",
-    "pothos": "^1.12.1",
-    "@pothos/core": "^3.41.0",
-    "@pothos/plugin-prisma": "^3.65.0",
-    "@pothos/plugin-scope-auth": "^3.20.0",
-    "@pothos/plugin-validation": "^3.10.0",
-    "@pothos/plugin-dataloader": "^3.18.0",
-    "@pothos/plugin-errors": "^3.11.1",
-    "@pothos/plugin-relay": "^3.46.0",
-    "ws": "^8.17.0",
-    "graphql-ws": "^5.16.0",
-    "graphql-sse": "^2.5.3",
-    "graphql-upload": "^16.0.2",
-    "@graphql-tools/graphql-file-loader": "^8.0.1",
-    "@graphql-tools/load": "^8.0.2",
-    "@prisma/client": "^5.13.0",
-    "ioredis": "^5.3.2",
-    "dotenv": "^16.4.5",
     "bcryptjs": "^2.4.3",
+    "dataloader": "^2.2.2",
+    "dotenv": "^16.4.5",
+    "graphql": "^16.8.1",
+    "graphql-middleware": "^6.1.35",
+    "graphql-shield": "^7.6.5",
+    "graphql-ws": "^5.16.0",
+    "graphql-yoga": "^5.3.1",
     "jsonwebtoken": "^9.0.2",
-    "node-cron": "^3.0.3",
     "pino": "^9.0.0",
-    "pino-pretty": "^11.0.0"
+    "redis": "^4.6.13",
+    "ws": "^8.17.0",
+    "@envelop/depth-limit": "^4.0.0",
+    "@envelop/disable-introspection": "^6.0.0",
+    "@envelop/rate-limiter": "^6.0.1",
+    "@graphql-tools/load-files": "^7.0.0",
+    "@graphql-tools/merge": "^9.0.3",
+    "@graphql-tools/schema": "^10.0.3",
+    "@graphql-tools/utils": "^10.1.2",
+    "@graphql-yoga/plugin-csrf-prevention": "^3.3.1",
+    "@graphql-yoga/plugin-prometheus": "^2.0.0",
+    "@graphql-yoga/plugin-response-cache": "^3.5.0",
+    "@prisma/client": "^5.13.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.6",
-    "@types/node-cron": "^3.0.11",
     "@graphql-codegen/cli": "^5.0.2",
     "@graphql-codegen/typescript": "^4.0.6",
     "@graphql-codegen/typescript-resolvers": "^4.0.6",
@@ -105,7 +85,10 @@ export const graphqlYogaTemplate: BackendTemplate = {
     "ts-jest": "^29.1.2",
     "@types/jest": "^29.5.12",
     "graphql-request": "^6.1.0",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "@types/ws": "^8.5.10",
+    "prisma": "^5.13.0",
+    "pino-pretty": "^11.0.0"
   }
 }`,
 
@@ -156,30 +139,29 @@ generates:
       - typescript-resolvers
     config:
       useIndexSignature: true
-      contextType: ../types/context#Context
+      contextType: ../context#Context
       mappers:
-        User: ../models/User#UserModel
-        Post: ../models/Post#PostModel
-        Comment: ../models/Comment#CommentModel
+        User: '@prisma/client#User as UserModel'
+        Post: '@prisma/client#Post as PostModel'
+        Comment: '@prisma/client#Comment as CommentModel'
       enumsAsTypes: true
-      avoidOptionals: true
-      strictScalars: true
       scalars:
         DateTime: Date
-        Upload: GraphQLUpload`,
+        Upload: File
+`,
 
     // Main application entry point
     'src/index.ts': `import { createServer } from 'node:http';
-import { createYoga, createSchema, YogaInitialContext } from 'graphql-yoga';
+import { createYoga } from 'graphql-yoga';
 import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/lib/use/ws';
+import dotenv from 'dotenv';
 import { createContext } from './context';
 import { schema } from './schema';
 import { plugins } from './plugins';
 import { logger } from './utils/logger';
 import { connectDatabase } from './services/database';
 import { redisClient } from './services/redis';
-import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
@@ -193,20 +175,24 @@ const yoga = createYoga({
   context: createContext,
   plugins,
   logging: {
-    debug: (...args) => logger.debug(...args),
-    info: (...args) => logger.info(...args),
-    warn: (...args) => logger.warn(...args),
-    error: (...args) => logger.error(...args)},
+    debug: (...args: unknown[]) => logger.debug(args),
+    info: (...args: unknown[]) => logger.info(args),
+    warn: (...args: unknown[]) => logger.warn(args),
+    error: (...args: unknown[]) => logger.error(args)},
   maskedErrors: process.env.NODE_ENV === 'production',
   graphiql: {
     title: '{{projectName}} GraphQL API',
     defaultQuery: \`# Welcome to {{projectName}} GraphQL API
-    
+
 query GetUsers {
   users {
-    id
-    name
-    email
+    edges {
+      node {
+        id
+        name
+        email
+      }
+    }
   }
 }
 
@@ -222,11 +208,10 @@ mutation CreateUser {
   }
 }
 
-subscription OnUserCreated {
-  userCreated {
+subscription OnPostCreated {
+  postCreated {
     id
-    name
-    email
+    title
   }
 }\`},
   cors: {
@@ -234,7 +219,7 @@ subscription OnUserCreated {
     credentials: true},
   batching: true,
   healthCheckEndpoint: '/health',
-  landingPage: process.env.NODE_ENV === 'production' ? false : true});
+  landingPage: process.env.NODE_ENV !== 'production'});
 
 // Create HTTP server
 const httpServer = createServer(yoga);
@@ -244,16 +229,37 @@ const wsServer = new WebSocketServer({
   server: httpServer,
   path: yoga.graphqlEndpoint});
 
-// Setup WebSocket server with GraphQL subscriptions
+// Serve GraphQL subscriptions over graphql-ws with Yoga's envelop pipeline
 useServer(
   {
     execute: (args: any) => args.rootValue.execute(args),
     subscribe: (args: any) => args.rootValue.subscribe(args),
-    context: (ctx) => createContext(ctx),
-    onConnect: async (ctx) => {
+    onSubscribe: async (ctx, message) => {
+      const params = message.payload;
+      const { schema, execute, subscribe, contextFactory, parse, validate } = yoga.getEnveloped({
+        ...ctx,
+        req: ctx.extra.request,
+        socket: ctx.extra.socket,
+        params});
+
+      const args = {
+        schema,
+        operationName: params.operationName,
+        document: parse(params.query),
+        variableValues: params.variables,
+        contextValue: await contextFactory(),
+        rootValue: {
+          execute,
+          subscribe}};
+
+      const errors = validate(args.schema, args.document);
+      if (errors.length) return errors;
+      return args;
+    },
+    onConnect: async () => {
       logger.info('Client connected to WebSocket');
     },
-    onDisconnect: async (ctx) => {
+    onDisconnect: async () => {
       logger.info('Client disconnected from WebSocket');
     }},
   wsServer
@@ -262,15 +268,15 @@ useServer(
 // Graceful shutdown
 const shutdown = async () => {
   logger.info('Shutting down server...');
-  
+
   wsServer.close(() => {
     logger.info('WebSocket server closed');
   });
-  
+
   httpServer.close(() => {
     logger.info('HTTP server closed');
   });
-  
+
   await redisClient.quit();
   process.exit(0);
 };
@@ -283,23 +289,24 @@ const startServer = async () => {
   try {
     // Connect to database
     await connectDatabase();
-    
+
     // Connect to Redis
     await redisClient.connect();
-    
+
     httpServer.listen(PORT, HOST, () => {
-      logger.info(\`🚀 GraphQL Server is running on http://\${HOST}:\${PORT}\${yoga.graphqlEndpoint}\`);
-      logger.info(\`🔧 GraphQL IDE: http://\${HOST}:\${PORT}\${yoga.graphqlEndpoint}\`);
-      logger.info(\`💓 Health check: http://\${HOST}:\${PORT}/health\`);
-      logger.info(\`🌐 WebSocket subscriptions: ws://\${HOST}:\${PORT}\${yoga.graphqlEndpoint}\`);
+      logger.info(\`GraphQL Server is running on http://\${HOST}:\${PORT}\${yoga.graphqlEndpoint}\`);
+      logger.info(\`GraphQL IDE: http://\${HOST}:\${PORT}\${yoga.graphqlEndpoint}\`);
+      logger.info(\`Health check: http://\${HOST}:\${PORT}/health\`);
+      logger.info(\`WebSocket subscriptions: ws://\${HOST}:\${PORT}\${yoga.graphqlEndpoint}\`);
     });
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    logger.error({ err: error }, 'Failed to start server');
     process.exit(1);
   }
 };
 
-startServer();`,
+startServer();
+`,
 
     // Context creation
     'src/context.ts': `import { YogaInitialContext } from 'graphql-yoga';
@@ -337,19 +344,24 @@ export async function createContext(initialContext: YogaInitialContext): Promise
     'src/schema/index.ts': `import { makeExecutableSchema } from '@graphql-tools/schema';
 import { mergeTypeDefs, mergeResolvers } from '@graphql-tools/merge';
 import { loadFilesSync } from '@graphql-tools/load-files';
+import { applyMiddleware } from 'graphql-middleware';
 import path from 'path';
+import { permissions } from '../permissions';
+import { userResolvers } from '../resolvers/user.resolver';
+import { postResolvers } from '../resolvers/post.resolver';
+import { commentResolvers } from '../resolvers/comment.resolver';
 
-// Load all GraphQL type definitions
-const typesArray = loadFilesSync(path.join(__dirname, './**/*.graphql'));
-const typeDefs = mergeTypeDefs(typesArray);
+// Type definitions live next to this file (src/schema in development, dist/schema after \`npm run build\`)
+const typeDefs = mergeTypeDefs(loadFilesSync(path.join(__dirname, './**/*.graphql')));
+const resolvers = mergeResolvers([userResolvers, postResolvers, commentResolvers]);
 
-// Load all resolvers
-const resolversArray = loadFilesSync(path.join(__dirname, '../resolvers/**/*.ts'));
-const resolvers = mergeResolvers(resolversArray);
-
-export const schema = makeExecutableSchema({
+const executableSchema = makeExecutableSchema({
   typeDefs,
-  resolvers});`,
+  resolvers});
+
+// graphql-shield permissions are applied as middleware around every resolver
+export const schema = applyMiddleware(executableSchema, permissions);
+`,
 
     // Base schema
     'src/schema/schema.graphql': `scalar DateTime
@@ -579,11 +591,11 @@ export const userResolvers: Resolvers = {
       const where = args.filter ? {
         AND: [
           args.filter.role ? { role: args.filter.role } : {},
-          args.filter.isEmailVerified !== undefined ? { isEmailVerified: args.filter.isEmailVerified } : {},
+          args.filter.isEmailVerified != null ? { isEmailVerified: args.filter.isEmailVerified } : {},
           args.filter.search ? {
             OR: [
-              { name: { contains: args.filter.search, mode: 'insensitive' } },
-              { email: { contains: args.filter.search, mode: 'insensitive' } }]} : {}]} : {};
+              { name: { contains: args.filter.search, mode: 'insensitive' as const } },
+              { email: { contains: args.filter.search, mode: 'insensitive' as const } }]} : {}]} : {};
 
       const totalCount = await prisma.user.count({ where });
       
@@ -639,7 +651,9 @@ export const userResolvers: Resolvers = {
 
       const user = await prisma.user.create({
         data: {
-          ...input,
+          email: input.email,
+          name: input.name,
+          role: input.role ?? undefined,
           password: hashedPassword}});
 
       await pubsub.publish('USER_CREATED', { userCreated: user });
@@ -656,7 +670,10 @@ export const userResolvers: Resolvers = {
 
       const updatedUser = await prisma.user.update({
         where: { id },
-        data: input});
+        data: {
+          email: input.email ?? undefined,
+          name: input.name ?? undefined,
+          role: input.role ?? undefined}});
 
       await pubsub.publish(\`USER_UPDATED_\${id}\`, { userUpdated: updatedUser });
 
@@ -827,13 +844,13 @@ export const postResolvers: Resolvers = {
     posts: async (_, args, { prisma }) => {
       const where = args.filter ? {
         AND: [
-          args.filter.published !== undefined ? { published: args.filter.published } : {},
+          args.filter.published != null ? { published: args.filter.published } : {},
           args.filter.authorId ? { authorId: args.filter.authorId } : {},
           args.filter.tags?.length ? { tags: { hasSome: args.filter.tags } } : {},
           args.filter.search ? {
             OR: [
-              { title: { contains: args.filter.search, mode: 'insensitive' } },
-              { content: { contains: args.filter.search, mode: 'insensitive' } }]} : {}]} : {};
+              { title: { contains: args.filter.search, mode: 'insensitive' as const } },
+              { content: { contains: args.filter.search, mode: 'insensitive' as const } }]} : {}]} : {};
 
       const totalCount = await prisma.post.count({ where });
       
@@ -870,8 +887,8 @@ export const postResolvers: Resolvers = {
         where: {
           published: true,
           OR: [
-            { title: { contains: query, mode: 'insensitive' } },
-            { content: { contains: query, mode: 'insensitive' } },
+            { title: { contains: query, mode: 'insensitive' as const } },
+            { content: { contains: query, mode: 'insensitive' as const } },
             { tags: { has: query.toLowerCase() } }]},
         include: { author: true },
         orderBy: { createdAt: 'desc' }});
@@ -883,7 +900,11 @@ export const postResolvers: Resolvers = {
 
       const post = await prisma.post.create({
         data: {
-          ...input,
+          title: input.title,
+          content: input.content,
+          excerpt: input.excerpt ?? undefined,
+          tags: input.tags ?? [],
+          published: input.published ?? false,
           authorId: user.id,
           publishedAt: input.published ? new Date() : null},
         include: { author: true }});
@@ -907,7 +928,11 @@ export const postResolvers: Resolvers = {
 
       const post = await prisma.post.update({
         where: { id },
-        data: input,
+        data: {
+          title: input.title ?? undefined,
+          content: input.content ?? undefined,
+          excerpt: input.excerpt ?? undefined,
+          tags: input.tags ?? undefined},
         include: { author: true }});
 
       await pubsub.publish(\`POST_UPDATED_\${id}\`, { postUpdated: post });
@@ -1010,7 +1035,9 @@ export const postResolvers: Resolvers = {
 
   Post: {
     author: async (parent, _, { dataloaders }) => {
-      return dataloaders.userLoader.load(parent.authorId);
+      const author = await dataloaders.userLoader.load(parent.authorId);
+      if (!author) throw new GraphQLError('Author not found');
+      return author;
     },
 
     comments: async (parent, _, { dataloaders }) => {
@@ -1127,15 +1154,19 @@ export const commentResolvers: Resolvers = {
 
   Comment: {
     author: async (parent, _, { dataloaders }) => {
-      return dataloaders.userLoader.load(parent.authorId);
+      const author = await dataloaders.userLoader.load(parent.authorId);
+      if (!author) throw new GraphQLError('Author not found');
+      return author;
     },
 
     post: async (parent, _, { dataloaders }) => {
-      return dataloaders.postLoader.load(parent.postId);
+      const post = await dataloaders.postLoader.load(parent.postId);
+      if (!post) throw new GraphQLError('Post not found');
+      return post;
     }}};`,
 
     // DataLoader setup
-    'src/dataloaders/index.ts': `import DataLoader from 'caching';
+    'src/dataloaders/index.ts': `import DataLoader from 'dataloader';
 import { PrismaClient } from '@prisma/client';
 
 export function createDataLoaders(prisma: PrismaClient) {
@@ -1189,58 +1220,46 @@ export function createDataLoaders(prisma: PrismaClient) {
 }`,
 
     // Plugins index
-    'src/plugins/index.ts': `import { useDepthLimit } from '@envelop/depth-limit';
+    'src/plugins/index.ts': `import { Plugin } from 'graphql-yoga';
+import { useDepthLimit } from '@envelop/depth-limit';
 import { useDisableIntrospection } from '@envelop/disable-introspection';
-import { useFilterAllowedOperations } from '@envelop/filter-operation-type';
 import { useRateLimiter } from '@envelop/rate-limiter';
-import { useResponseCache } from '@envelop/response-cache';
-import { usePrometheus } from '@envelop/prometheus';
-import { useApolloTracing } from '@envelop/apollo-tracing';
-import { usePersistedOperations } from '@graphql-yoga/plugin-persisted-operations';
-import { useCsrfPrevention } from '@graphql-yoga/plugin-csrf-prevention';
-import { useJWT } from '@graphql-yoga/plugin-jwt';
+import { useResponseCache } from '@graphql-yoga/plugin-response-cache';
+import { usePrometheus } from '@graphql-yoga/plugin-prometheus';
+import { useCSRFPrevention } from '@graphql-yoga/plugin-csrf-prevention';
 import { authPlugin } from './auth.plugin';
 import { errorPlugin } from './error.plugin';
 import { loggerPlugin } from './logger.plugin';
-import { shieldPlugin } from './shield.plugin';
-import { redisCache } from '../services/redis';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-export const plugins = [
+// Plugins come from several packages with slightly different context generics
+export const plugins: Array<Plugin<any>> = [
   // Custom plugins
   authPlugin,
   errorPlugin,
   loggerPlugin,
-  shieldPlugin,
-  
+
   // Security plugins
   useDepthLimit({
     maxDepth: 10}),
-  
+
   ...(isProduction ? [
     useDisableIntrospection(),
-    useCsrfPrevention({
+    useCSRFPrevention({
       requestHeaders: ['x-graphql-yoga-csrf']})] : []),
-  
-  // Performance plugins
+
+  // Performance plugins (in-memory response cache keyed by the caller's token)
   useResponseCache({
-    session: (request) => request.headers.get('authorization') || 'public',
+    session: (request) => request.headers.get('authorization'),
     ttl: 1000 * 60 * 5, // 5 minutes
-    cache: redisCache,
     includeExtensionMetadata: !isProduction}),
-  
-  usePersistedOperations({
-    getPersistedOperation: async (key: string) => {
-      // Implement persisted query storage
-      return null;
-    }}),
-  
-  // Rate limiting
+
+  // Rate limiting (the @rateLimit directive in the schema)
   useRateLimiter({
-    identifyFn: (context) => context.request.headers.get('x-forwarded-for') || 'anonymous'}),
-  
-  // Monitoring
+    identifyFn: (context: any) => context.request?.headers.get('x-forwarded-for') || 'anonymous'}),
+
+  // Monitoring: Prometheus metrics at /metrics
   usePrometheus({
     endpoint: '/metrics',
     requestCount: true,
@@ -1250,27 +1269,17 @@ export const plugins = [
     contextBuilding: true,
     execute: true,
     errors: true,
-    deprecatedFields: true,
-    registry: undefined}),
-  
-  // Development tools
-  ...(!isProduction ? [
-    useApolloTracing()] : []),
-  
-  // Operation filtering
-  useFilterAllowedOperations({
-    allowIntrospection: !isProduction})];`,
+    deprecatedFields: true})];
+`,
 
     // Auth plugin
     'src/plugins/auth.plugin.ts': `import { Plugin } from 'graphql-yoga';
 import { GraphQLError } from 'graphql';
 import { getDirective, MapperKind, mapSchema } from '@graphql-tools/utils';
 
+/** Enforces the \`@auth(requires: ROLE)\` schema directive on field definitions. */
 export const authPlugin: Plugin = {
   onSchemaChange({ schema, replaceSchema }) {
-    const authDirective = getDirective(schema, null, 'auth')?.[0];
-    if (!authDirective) return;
-
     const newSchema = mapSchema(schema, {
       [MapperKind.OBJECT_FIELD]: (fieldConfig) => {
         const directive = getDirective(schema, fieldConfig, 'auth')?.[0];
@@ -1297,52 +1306,32 @@ export const authPlugin: Plugin = {
       }});
 
     replaceSchema(newSchema);
-  }};`,
+  }};
+`,
 
     // Error plugin
     'src/plugins/error.plugin.ts': `import { Plugin } from 'graphql-yoga';
 import { GraphQLError } from 'graphql';
 import { logger } from '../utils/logger';
 
+/** Logs every error returned by an operation. Masking is done by Yoga's \`maskedErrors\` option. */
 export const errorPlugin: Plugin = {
   onExecute() {
     return {
       onExecuteDone({ result, args }) {
-        if (result.errors) {
-          result.errors = result.errors.map(error => {
-            // Log the error
+        if ('errors' in result && result.errors) {
+          result.errors.forEach((error: GraphQLError) => {
             logger.error({
               message: error.message,
               path: error.path,
               extensions: error.extensions,
               stack: error.stack,
               operation: args.operationName});
-
-            // Mask errors in production
-            if (process.env.NODE_ENV === 'production' && !isUserFacingError(error)) {
-              return new GraphQLError('Internal server error', {
-                extensions: {
-                  code: 'INTERNAL_SERVER_ERROR',
-                  timestamp: new Date().toISOString()}});
-            }
-
-            return error;
           });
         }
       }};
   }};
-
-function isUserFacingError(error: GraphQLError): boolean {
-  const userFacingCodes = [
-    'BAD_USER_INPUT',
-    'UNAUTHENTICATED',
-    'FORBIDDEN',
-    'NOT_FOUND',
-    'CONFLICT',
-    'VALIDATION_ERROR'];
-  
-  return userFacingCodes.includes(error.extensions?.code as string);
-}`,
+`,
 
     // Logger plugin
     'src/plugins/logger.plugin.ts': `import { Plugin } from 'graphql-yoga';
@@ -1371,77 +1360,8 @@ export const loggerPlugin: Plugin = {
       variables: args.variableValues});
   }};`,
 
-    // Shield plugin
-    'src/plugins/shield.plugin.ts': `import { Plugin } from 'graphql-yoga';
-import { shield, rule, allow, deny } from 'graphql-shield';
-import { GraphQLError } from 'graphql';
-
-// Define rules
-const isAuthenticated = rule({ cache: 'contextual' })(
-  async (parent, args, ctx) => {
-    return ctx.user !== null;
-  }
-);
-
-const isAdmin = rule({ cache: 'contextual' })(
-  async (parent, args, ctx) => {
-    return ctx.user?.role === 'ADMIN';
-  }
-);
-
-const isOwner = rule({ cache: 'strict' })(
-  async (parent, args, ctx) => {
-    return ctx.user?.id === args.id;
-  }
-);
-
-// Define permissions
-const permissions = shield({
-  Query: {
-    '*': allow,
-    users: isAuthenticated,
-    user: isAuthenticated,
-    me: isAuthenticated},
-  Mutation: {
-    '*': deny,
-    createUser: allow,
-    login: allow,
-    refreshToken: allow,
-    forgotPassword: allow,
-    resetPassword: allow,
-    updateUser: isAuthenticated,
-    deleteUser: isAdmin,
-    logout: isAuthenticated,
-    changePassword: isAuthenticated,
-    uploadAvatar: isAuthenticated,
-    createPost: isAuthenticated,
-    updatePost: isAuthenticated,
-    deletePost: isAuthenticated,
-    publishPost: isAuthenticated,
-    unpublishPost: isAuthenticated,
-    likePost: isAuthenticated,
-    unlikePost: isAuthenticated,
-    createComment: isAuthenticated,
-    updateComment: isAuthenticated,
-    deleteComment: isAuthenticated},
-  Subscription: {
-    userCreated: isAdmin,
-    userUpdated: isAuthenticated,
-    postCreated: allow,
-    postUpdated: allow,
-    postLiked: allow,
-    commentCreated: allow}}, {
-  fallbackError: new GraphQLError('Not authorized', {
-    extensions: { code: 'FORBIDDEN' }}),
-  allowExternalErrors: true});
-
-export const shieldPlugin: Plugin = {
-  onSchemaChange({ schema, replaceSchema }) {
-    replaceSchema(permissions.generate(schema));
-  }};`,
-
     // Authentication utilities
-    'src/utils/auth.ts': `import jwt from 'jsonwebtoken';
+    'src/utils/auth.ts': `import jwt, { SignOptions } from 'jsonwebtoken';
 import { prisma } from '../services/database';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -1461,10 +1381,10 @@ export function generateTokens(user: any) {
     role: user.role};
 
   const accessToken = jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN});
+    expiresIn: JWT_EXPIRES_IN as SignOptions['expiresIn']});
 
   const refreshToken = jwt.sign(payload, JWT_SECRET, {
-    expiresIn: REFRESH_TOKEN_EXPIRES_IN});
+    expiresIn: REFRESH_TOKEN_EXPIRES_IN as SignOptions['expiresIn']});
 
   return { accessToken, refreshToken };
 }
@@ -1502,35 +1422,18 @@ export async function authenticateUser(token: string) {
 
     // PubSub utility
     'src/utils/pubsub.ts': `import { createPubSub } from 'graphql-yoga';
-import { redisClient } from '../services/redis';
 
-// Create a Redis-backed PubSub instance for production
-// or in-memory PubSub for development
-export const pubsub = process.env.NODE_ENV === 'production'
-  ? createPubSub({
-      eventTarget: {
-        subscribe: async (topic: string, cb: (data: any) => void) => {
-          const subscriber = redisClient.duplicate();
-          await subscriber.connect();
-          await subscriber.subscribe(topic, (message) => {
-            cb(JSON.parse(message));
-          });
-          return () => {
-            subscriber.unsubscribe(topic);
-            subscriber.disconnect();
-          };
-        },
-        publish: async (topic: string, payload: any) => {
-          await redisClient.publish(topic, JSON.stringify(payload));
-        }}})
-  : createPubSub();`,
+// In-memory PubSub: fine for a single instance. To fan events out across several
+// instances, pass an \`eventTarget\` (for example @graphql-yoga/redis-event-target).
+export const pubsub = createPubSub();
+`,
 
     // Logger utility
     'src/utils/logger.ts': `import pino from 'pino';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-export const logger = pino({
+const baseLogger = pino({
   level: process.env.LOG_LEVEL || 'info',
   transport: !isProduction
     ? {
@@ -1550,7 +1453,31 @@ export const logger = pino({
     err: pino.stdSerializers.err},
   redact: {
     paths: ['req.headers.authorization', 'req.headers.cookie'],
-    censor: '[REDACTED]'}});`,
+    censor: '[REDACTED]'}});
+
+type LogMethod = (message: unknown, ...args: unknown[]) => void;
+
+/**
+ * Accepts both \`logger.error('message', err)\` and pino's native
+ * \`logger.error({ err }, 'message')\`; extra arguments are logged as structured data.
+ */
+const method = (level: 'debug' | 'info' | 'warn' | 'error'): LogMethod =>
+  (message, ...args) => {
+    const log = baseLogger[level].bind(baseLogger) as (...parts: unknown[]) => void;
+    if (typeof message === 'string' && args.length > 0 && typeof args[0] === 'object' && args[0] !== null) {
+      const [extra, ...rest] = args;
+      log({ [extra instanceof Error ? 'err' : 'data']: extra }, message, ...rest);
+    } else {
+      log(message, ...args);
+    }
+  };
+
+export const logger = {
+  debug: method('debug'),
+  info: method('info'),
+  warn: method('warn'),
+  error: method('error')};
+`,
 
     // File upload utility
     'src/utils/upload.ts': `import { GraphQLError } from 'graphql';
@@ -1642,12 +1569,12 @@ export async function connectDatabase() {
 }`,
 
     // Redis service
-    'src/services/redis.ts': `import { createClient } from 'redis';
+    'src/services/redis.ts': `import { createClient, RedisClientType } from 'redis';
 import { logger } from '../utils/logger';
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
-export const redisClient = createClient({
+export const redisClient: RedisClientType = createClient({
   url: redisUrl,
   socket: {
     reconnectStrategy: (retries) => {
@@ -1658,7 +1585,7 @@ export const redisClient = createClient({
       const delay = Math.min(retries * 100, 3000);
       logger.info(\`Redis: Reconnecting in \${delay}ms...\`);
       return delay;
-    }}});
+    }}}) as RedisClientType;
 
 redisClient.on('error', (err) => {
   logger.error('Redis Client Error:', err);
@@ -1671,24 +1598,7 @@ redisClient.on('connect', () => {
 redisClient.on('ready', () => {
   logger.info('Redis Client Ready');
 });
-
-// Create a cache adapter for Envelop plugins
-export const redisCache = {
-  get: async (key: string) => {
-    const value = await redisClient.get(key);
-    return value ? JSON.parse(value) : null;
-  },
-  set: async (key: string, value: any, ttl?: number) => {
-    const serialized = JSON.stringify(value);
-    if (ttl) {
-      await redisClient.setEx(key, ttl, serialized);
-    } else {
-      await redisClient.set(key, serialized);
-    }
-  },
-  delete: async (key: string) => {
-    await redisClient.del(key);
-  }};`,
+`,
 
     // Email service
     'src/services/email.ts': `import crypto from 'crypto';
@@ -2017,29 +1927,31 @@ beforeEach(async () => {
 });`,
 
     // Example test
-    'src/__tests__/user.test.ts': `import { GraphQLClient } from 'graphql-request';
+    'src/__tests__/user.test.ts': `import { createServer, Server } from 'node:http';
+import { AddressInfo } from 'node:net';
+import { GraphQLClient } from 'graphql-request';
 import { createYoga } from 'graphql-yoga';
 import { schema } from '../schema';
 import { createContext } from '../context';
 
 describe('User API', () => {
   let client: GraphQLClient;
-  let server: any;
+  let server: Server;
 
   beforeAll(async () => {
     const yoga = createYoga({
       schema,
       context: createContext});
 
-    server = yoga.createServer();
-    await server.listen(0);
-    
-    const port = server.address().port;
+    server = createServer(yoga);
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+
+    const port = (server.address() as AddressInfo).port;
     client = new GraphQLClient(\`http://localhost:\${port}/graphql\`);
   });
 
   afterAll(async () => {
-    await server.close();
+    await new Promise((resolve) => server.close(resolve));
   });
 
   it('should create a new user', async () => {
@@ -2059,8 +1971,8 @@ describe('User API', () => {
         password: 'password123',
         name: 'Test User'}};
 
-    const response = await client.request(mutation, variables);
-    
+    const response = await client.request<{ createUser: { id: string; email: string; name: string } }>(mutation, variables);
+
     expect(response.createUser).toHaveProperty('id');
     expect(response.createUser.email).toBe('test@example.com');
     expect(response.createUser.name).toBe('Test User');
@@ -2084,13 +1996,16 @@ describe('User API', () => {
       email: 'test@example.com',
       password: 'password123'};
 
-    const response = await client.request(mutation, variables);
-    
+    const response = await client.request<{
+      login: { accessToken: string; refreshToken: string; user: { email: string } };
+    }>(mutation, variables);
+
     expect(response.login).toHaveProperty('accessToken');
     expect(response.login).toHaveProperty('refreshToken');
     expect(response.login.user.email).toBe('test@example.com');
   });
-});`,
+});
+`,
 
     // README
     'README.md': `# {{projectName}}
@@ -2248,5 +2163,763 @@ The application is containerized and ready for deployment:
 ## License
 
 MIT
+`,
+
+    'scripts/copy-schema.mjs': `// tsc does not copy the .graphql schema files; the server loads them from dist/schema at runtime.
+import { cpSync } from 'node:fs';
+
+cpSync('src/schema', 'dist/schema', {
+  recursive: true,
+  filter: (source) => !source.endsWith('.ts')
+});
+`,
+
+    'src/generated/graphql.ts': `import { GraphQLResolveInfo, GraphQLScalarType, GraphQLScalarTypeConfig } from 'graphql';
+import { User as UserModel, Post as PostModel, Comment as CommentModel } from '@prisma/client';
+import { Context } from '../context';
+export type Maybe<T> = T | null;
+export type InputMaybe<T> = Maybe<T>;
+export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
+export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
+export type MakeEmpty<T extends { [key: string]: unknown }, K extends keyof T> = { [_ in K]?: never };
+export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
+export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+export type RequireFields<T, K extends keyof T> = Omit<T, K> & { [P in K]-?: NonNullable<T[P]> };
+/** All built-in and custom scalars, mapped to their actual values */
+export type Scalars = {
+  ID: { input: string; output: string; }
+  String: { input: string; output: string; }
+  Boolean: { input: boolean; output: boolean; }
+  Int: { input: number; output: number; }
+  Float: { input: number; output: number; }
+  DateTime: { input: Date; output: Date; }
+  Upload: { input: File; output: File; }
+};
+
+export type AuthPayload = {
+  __typename?: 'AuthPayload';
+  accessToken: Scalars['String']['output'];
+  refreshToken: Scalars['String']['output'];
+  user: User;
+};
+
+export type Comment = {
+  __typename?: 'Comment';
+  author: User;
+  content: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  post: Post;
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export type CommentConnection = {
+  __typename?: 'CommentConnection';
+  edges: Array<CommentEdge>;
+  pageInfo: PageInfo;
+  totalCount: Scalars['Int']['output'];
+};
+
+export type CommentEdge = {
+  __typename?: 'CommentEdge';
+  cursor: Scalars['String']['output'];
+  node: Comment;
+};
+
+export type CreatePostInput = {
+  content: Scalars['String']['input'];
+  excerpt?: InputMaybe<Scalars['String']['input']>;
+  published?: InputMaybe<Scalars['Boolean']['input']>;
+  tags?: InputMaybe<Array<Scalars['String']['input']>>;
+  title: Scalars['String']['input'];
+};
+
+export type CreateUserInput = {
+  email: Scalars['String']['input'];
+  name: Scalars['String']['input'];
+  password: Scalars['String']['input'];
+  role?: InputMaybe<Role>;
+};
+
+export type Mutation = {
+  __typename?: 'Mutation';
+  _empty?: Maybe<Scalars['String']['output']>;
+  changePassword: Scalars['Boolean']['output'];
+  createComment: Comment;
+  createPost: Post;
+  createUser: User;
+  deleteComment: Scalars['Boolean']['output'];
+  deletePost: Scalars['Boolean']['output'];
+  deleteUser: Scalars['Boolean']['output'];
+  forgotPassword: Scalars['Boolean']['output'];
+  likePost: Post;
+  login: AuthPayload;
+  logout: Scalars['Boolean']['output'];
+  publishPost: Post;
+  refreshToken: AuthPayload;
+  resetPassword: Scalars['Boolean']['output'];
+  unlikePost: Post;
+  unpublishPost: Post;
+  updateComment: Comment;
+  updatePost: Post;
+  updateUser: User;
+  uploadAvatar: User;
+};
+
+
+export type MutationChangePasswordArgs = {
+  currentPassword: Scalars['String']['input'];
+  newPassword: Scalars['String']['input'];
+};
+
+
+export type MutationCreateCommentArgs = {
+  content: Scalars['String']['input'];
+  postId: Scalars['ID']['input'];
+};
+
+
+export type MutationCreatePostArgs = {
+  input: CreatePostInput;
+};
+
+
+export type MutationCreateUserArgs = {
+  input: CreateUserInput;
+};
+
+
+export type MutationDeleteCommentArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeletePostArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteUserArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationForgotPasswordArgs = {
+  email: Scalars['String']['input'];
+};
+
+
+export type MutationLikePostArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationLoginArgs = {
+  email: Scalars['String']['input'];
+  password: Scalars['String']['input'];
+};
+
+
+export type MutationPublishPostArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationRefreshTokenArgs = {
+  token: Scalars['String']['input'];
+};
+
+
+export type MutationResetPasswordArgs = {
+  newPassword: Scalars['String']['input'];
+  token: Scalars['String']['input'];
+};
+
+
+export type MutationUnlikePostArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationUnpublishPostArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationUpdateCommentArgs = {
+  content: Scalars['String']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationUpdatePostArgs = {
+  id: Scalars['ID']['input'];
+  input: UpdatePostInput;
+};
+
+
+export type MutationUpdateUserArgs = {
+  id: Scalars['ID']['input'];
+  input: UpdateUserInput;
+};
+
+
+export type MutationUploadAvatarArgs = {
+  file: Scalars['Upload']['input'];
+};
+
+export type PageInfo = {
+  __typename?: 'PageInfo';
+  endCursor?: Maybe<Scalars['String']['output']>;
+  hasNextPage: Scalars['Boolean']['output'];
+  hasPreviousPage: Scalars['Boolean']['output'];
+  startCursor?: Maybe<Scalars['String']['output']>;
+};
+
+export type Post = {
+  __typename?: 'Post';
+  author: User;
+  comments: Array<Comment>;
+  content: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  excerpt?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  likes: Array<User>;
+  likesCount: Scalars['Int']['output'];
+  published: Scalars['Boolean']['output'];
+  publishedAt?: Maybe<Scalars['DateTime']['output']>;
+  tags: Array<Scalars['String']['output']>;
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export type PostConnection = {
+  __typename?: 'PostConnection';
+  edges: Array<PostEdge>;
+  pageInfo: PageInfo;
+  totalCount: Scalars['Int']['output'];
+};
+
+export type PostEdge = {
+  __typename?: 'PostEdge';
+  cursor: Scalars['String']['output'];
+  node: Post;
+};
+
+export type PostFilter = {
+  authorId?: InputMaybe<Scalars['ID']['input']>;
+  published?: InputMaybe<Scalars['Boolean']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
+  tags?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+export type Query = {
+  __typename?: 'Query';
+  _empty?: Maybe<Scalars['String']['output']>;
+  comment?: Maybe<Comment>;
+  comments: CommentConnection;
+  me?: Maybe<User>;
+  post?: Maybe<Post>;
+  posts: PostConnection;
+  searchPosts: Array<Post>;
+  user?: Maybe<User>;
+  users: UserConnection;
+};
+
+
+export type QueryCommentArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryCommentsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  postId: Scalars['ID']['input'];
+};
+
+
+export type QueryPostArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryPostsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  filter?: InputMaybe<PostFilter>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QuerySearchPostsArgs = {
+  query: Scalars['String']['input'];
+};
+
+
+export type QueryUserArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryUsersArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  filter?: InputMaybe<UserFilter>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type Role =
+  | 'ADMIN'
+  | 'USER';
+
+export type Subscription = {
+  __typename?: 'Subscription';
+  _empty?: Maybe<Scalars['String']['output']>;
+  commentCreated: Comment;
+  postCreated: Post;
+  postLiked: Post;
+  postUpdated: Post;
+  userCreated: User;
+  userUpdated: User;
+};
+
+
+export type SubscriptionCommentCreatedArgs = {
+  postId: Scalars['ID']['input'];
+};
+
+
+export type SubscriptionPostLikedArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type SubscriptionPostUpdatedArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type SubscriptionUserUpdatedArgs = {
+  id: Scalars['ID']['input'];
+};
+
+export type UpdatePostInput = {
+  content?: InputMaybe<Scalars['String']['input']>;
+  excerpt?: InputMaybe<Scalars['String']['input']>;
+  tags?: InputMaybe<Array<Scalars['String']['input']>>;
+  title?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UpdateUserInput = {
+  email?: InputMaybe<Scalars['String']['input']>;
+  name?: InputMaybe<Scalars['String']['input']>;
+  role?: InputMaybe<Role>;
+};
+
+export type User = {
+  __typename?: 'User';
+  avatar?: Maybe<Scalars['String']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  email: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  isEmailVerified: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
+  posts: Array<Post>;
+  role: Role;
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export type UserConnection = {
+  __typename?: 'UserConnection';
+  edges: Array<UserEdge>;
+  pageInfo: PageInfo;
+  totalCount: Scalars['Int']['output'];
+};
+
+export type UserEdge = {
+  __typename?: 'UserEdge';
+  cursor: Scalars['String']['output'];
+  node: User;
+};
+
+export type UserFilter = {
+  isEmailVerified?: InputMaybe<Scalars['Boolean']['input']>;
+  role?: InputMaybe<Role>;
+  search?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type WithIndex<TObject> = TObject & Record<string, any>;
+export type ResolversObject<TObject> = WithIndex<TObject>;
+
+export type ResolverTypeWrapper<T> = Promise<T> | T;
+
+
+export type ResolverWithResolve<TResult, TParent, TContext, TArgs> = {
+  resolve: ResolverFn<TResult, TParent, TContext, TArgs>;
+};
+export type Resolver<TResult, TParent = {}, TContext = {}, TArgs = {}> = ResolverFn<TResult, TParent, TContext, TArgs> | ResolverWithResolve<TResult, TParent, TContext, TArgs>;
+
+export type ResolverFn<TResult, TParent, TContext, TArgs> = (
+  parent: TParent,
+  args: TArgs,
+  context: TContext,
+  info: GraphQLResolveInfo
+) => Promise<TResult> | TResult;
+
+export type SubscriptionSubscribeFn<TResult, TParent, TContext, TArgs> = (
+  parent: TParent,
+  args: TArgs,
+  context: TContext,
+  info: GraphQLResolveInfo
+) => AsyncIterable<TResult> | Promise<AsyncIterable<TResult>>;
+
+export type SubscriptionResolveFn<TResult, TParent, TContext, TArgs> = (
+  parent: TParent,
+  args: TArgs,
+  context: TContext,
+  info: GraphQLResolveInfo
+) => TResult | Promise<TResult>;
+
+export interface SubscriptionSubscriberObject<TResult, TKey extends string, TParent, TContext, TArgs> {
+  subscribe: SubscriptionSubscribeFn<{ [key in TKey]: TResult }, TParent, TContext, TArgs>;
+  resolve?: SubscriptionResolveFn<TResult, { [key in TKey]: TResult }, TContext, TArgs>;
+}
+
+export interface SubscriptionResolverObject<TResult, TParent, TContext, TArgs> {
+  subscribe: SubscriptionSubscribeFn<any, TParent, TContext, TArgs>;
+  resolve: SubscriptionResolveFn<TResult, any, TContext, TArgs>;
+}
+
+export type SubscriptionObject<TResult, TKey extends string, TParent, TContext, TArgs> =
+  | SubscriptionSubscriberObject<TResult, TKey, TParent, TContext, TArgs>
+  | SubscriptionResolverObject<TResult, TParent, TContext, TArgs>;
+
+export type SubscriptionResolver<TResult, TKey extends string, TParent = {}, TContext = {}, TArgs = {}> =
+  | ((...args: any[]) => SubscriptionObject<TResult, TKey, TParent, TContext, TArgs>)
+  | SubscriptionObject<TResult, TKey, TParent, TContext, TArgs>;
+
+export type TypeResolveFn<TTypes, TParent = {}, TContext = {}> = (
+  parent: TParent,
+  context: TContext,
+  info: GraphQLResolveInfo
+) => Maybe<TTypes> | Promise<Maybe<TTypes>>;
+
+export type IsTypeOfResolverFn<T = {}, TContext = {}> = (obj: T, context: TContext, info: GraphQLResolveInfo) => boolean | Promise<boolean>;
+
+export type NextResolverFn<T> = () => Promise<T>;
+
+export type DirectiveResolverFn<TResult = {}, TParent = {}, TContext = {}, TArgs = {}> = (
+  next: NextResolverFn<TResult>,
+  parent: TParent,
+  args: TArgs,
+  context: TContext,
+  info: GraphQLResolveInfo
+) => TResult | Promise<TResult>;
+
+
+
+/** Mapping between all available schema types and the resolvers types */
+export type ResolversTypes = ResolversObject<{
+  AuthPayload: ResolverTypeWrapper<Omit<AuthPayload, 'user'> & { user: ResolversTypes['User'] }>;
+  Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
+  Comment: ResolverTypeWrapper<CommentModel>;
+  CommentConnection: ResolverTypeWrapper<Omit<CommentConnection, 'edges'> & { edges: Array<ResolversTypes['CommentEdge']> }>;
+  CommentEdge: ResolverTypeWrapper<Omit<CommentEdge, 'node'> & { node: ResolversTypes['Comment'] }>;
+  CreatePostInput: CreatePostInput;
+  CreateUserInput: CreateUserInput;
+  DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
+  ID: ResolverTypeWrapper<Scalars['ID']['output']>;
+  Int: ResolverTypeWrapper<Scalars['Int']['output']>;
+  Mutation: ResolverTypeWrapper<{}>;
+  PageInfo: ResolverTypeWrapper<PageInfo>;
+  Post: ResolverTypeWrapper<PostModel>;
+  PostConnection: ResolverTypeWrapper<Omit<PostConnection, 'edges'> & { edges: Array<ResolversTypes['PostEdge']> }>;
+  PostEdge: ResolverTypeWrapper<Omit<PostEdge, 'node'> & { node: ResolversTypes['Post'] }>;
+  PostFilter: PostFilter;
+  Query: ResolverTypeWrapper<{}>;
+  Role: Role;
+  String: ResolverTypeWrapper<Scalars['String']['output']>;
+  Subscription: ResolverTypeWrapper<{}>;
+  UpdatePostInput: UpdatePostInput;
+  UpdateUserInput: UpdateUserInput;
+  Upload: ResolverTypeWrapper<Scalars['Upload']['output']>;
+  User: ResolverTypeWrapper<UserModel>;
+  UserConnection: ResolverTypeWrapper<Omit<UserConnection, 'edges'> & { edges: Array<ResolversTypes['UserEdge']> }>;
+  UserEdge: ResolverTypeWrapper<Omit<UserEdge, 'node'> & { node: ResolversTypes['User'] }>;
+  UserFilter: UserFilter;
+}>;
+
+/** Mapping between all available schema types and the resolvers parents */
+export type ResolversParentTypes = ResolversObject<{
+  AuthPayload: Omit<AuthPayload, 'user'> & { user: ResolversParentTypes['User'] };
+  Boolean: Scalars['Boolean']['output'];
+  Comment: CommentModel;
+  CommentConnection: Omit<CommentConnection, 'edges'> & { edges: Array<ResolversParentTypes['CommentEdge']> };
+  CommentEdge: Omit<CommentEdge, 'node'> & { node: ResolversParentTypes['Comment'] };
+  CreatePostInput: CreatePostInput;
+  CreateUserInput: CreateUserInput;
+  DateTime: Scalars['DateTime']['output'];
+  ID: Scalars['ID']['output'];
+  Int: Scalars['Int']['output'];
+  Mutation: {};
+  PageInfo: PageInfo;
+  Post: PostModel;
+  PostConnection: Omit<PostConnection, 'edges'> & { edges: Array<ResolversParentTypes['PostEdge']> };
+  PostEdge: Omit<PostEdge, 'node'> & { node: ResolversParentTypes['Post'] };
+  PostFilter: PostFilter;
+  Query: {};
+  String: Scalars['String']['output'];
+  Subscription: {};
+  UpdatePostInput: UpdatePostInput;
+  UpdateUserInput: UpdateUserInput;
+  Upload: Scalars['Upload']['output'];
+  User: UserModel;
+  UserConnection: Omit<UserConnection, 'edges'> & { edges: Array<ResolversParentTypes['UserEdge']> };
+  UserEdge: Omit<UserEdge, 'node'> & { node: ResolversParentTypes['User'] };
+  UserFilter: UserFilter;
+}>;
+
+export type AuthDirectiveArgs = {
+  requires?: Maybe<Role>;
+};
+
+export type AuthDirectiveResolver<Result, Parent, ContextType = Context, Args = AuthDirectiveArgs> = DirectiveResolverFn<Result, Parent, ContextType, Args>;
+
+export type RateLimitDirectiveArgs = {
+  max: Scalars['Int']['input'];
+  window: Scalars['String']['input'];
+};
+
+export type RateLimitDirectiveResolver<Result, Parent, ContextType = Context, Args = RateLimitDirectiveArgs> = DirectiveResolverFn<Result, Parent, ContextType, Args>;
+
+export type AuthPayloadResolvers<ContextType = Context, ParentType extends ResolversParentTypes['AuthPayload'] = ResolversParentTypes['AuthPayload']> = ResolversObject<{
+  accessToken?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  refreshToken?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  user?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type CommentResolvers<ContextType = Context, ParentType extends ResolversParentTypes['Comment'] = ResolversParentTypes['Comment']> = ResolversObject<{
+  author?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
+  content?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  post?: Resolver<ResolversTypes['Post'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type CommentConnectionResolvers<ContextType = Context, ParentType extends ResolversParentTypes['CommentConnection'] = ResolversParentTypes['CommentConnection']> = ResolversObject<{
+  edges?: Resolver<Array<ResolversTypes['CommentEdge']>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type CommentEdgeResolvers<ContextType = Context, ParentType extends ResolversParentTypes['CommentEdge'] = ResolversParentTypes['CommentEdge']> = ResolversObject<{
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<ResolversTypes['Comment'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['DateTime'], any> {
+  name: 'DateTime';
+}
+
+export type MutationResolvers<ContextType = Context, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = ResolversObject<{
+  _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  changePassword?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationChangePasswordArgs, 'currentPassword' | 'newPassword'>>;
+  createComment?: Resolver<ResolversTypes['Comment'], ParentType, ContextType, RequireFields<MutationCreateCommentArgs, 'content' | 'postId'>>;
+  createPost?: Resolver<ResolversTypes['Post'], ParentType, ContextType, RequireFields<MutationCreatePostArgs, 'input'>>;
+  createUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationCreateUserArgs, 'input'>>;
+  deleteComment?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationDeleteCommentArgs, 'id'>>;
+  deletePost?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationDeletePostArgs, 'id'>>;
+  deleteUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationDeleteUserArgs, 'id'>>;
+  forgotPassword?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationForgotPasswordArgs, 'email'>>;
+  likePost?: Resolver<ResolversTypes['Post'], ParentType, ContextType, RequireFields<MutationLikePostArgs, 'id'>>;
+  login?: Resolver<ResolversTypes['AuthPayload'], ParentType, ContextType, RequireFields<MutationLoginArgs, 'email' | 'password'>>;
+  logout?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  publishPost?: Resolver<ResolversTypes['Post'], ParentType, ContextType, RequireFields<MutationPublishPostArgs, 'id'>>;
+  refreshToken?: Resolver<ResolversTypes['AuthPayload'], ParentType, ContextType, RequireFields<MutationRefreshTokenArgs, 'token'>>;
+  resetPassword?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationResetPasswordArgs, 'newPassword' | 'token'>>;
+  unlikePost?: Resolver<ResolversTypes['Post'], ParentType, ContextType, RequireFields<MutationUnlikePostArgs, 'id'>>;
+  unpublishPost?: Resolver<ResolversTypes['Post'], ParentType, ContextType, RequireFields<MutationUnpublishPostArgs, 'id'>>;
+  updateComment?: Resolver<ResolversTypes['Comment'], ParentType, ContextType, RequireFields<MutationUpdateCommentArgs, 'content' | 'id'>>;
+  updatePost?: Resolver<ResolversTypes['Post'], ParentType, ContextType, RequireFields<MutationUpdatePostArgs, 'id' | 'input'>>;
+  updateUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationUpdateUserArgs, 'id' | 'input'>>;
+  uploadAvatar?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationUploadAvatarArgs, 'file'>>;
+}>;
+
+export type PageInfoResolvers<ContextType = Context, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = ResolversObject<{
+  endCursor?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  hasNextPage?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  hasPreviousPage?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  startCursor?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type PostResolvers<ContextType = Context, ParentType extends ResolversParentTypes['Post'] = ResolversParentTypes['Post']> = ResolversObject<{
+  author?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
+  comments?: Resolver<Array<ResolversTypes['Comment']>, ParentType, ContextType>;
+  content?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  excerpt?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  likes?: Resolver<Array<ResolversTypes['User']>, ParentType, ContextType>;
+  likesCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  published?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  publishedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  tags?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type PostConnectionResolvers<ContextType = Context, ParentType extends ResolversParentTypes['PostConnection'] = ResolversParentTypes['PostConnection']> = ResolversObject<{
+  edges?: Resolver<Array<ResolversTypes['PostEdge']>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type PostEdgeResolvers<ContextType = Context, ParentType extends ResolversParentTypes['PostEdge'] = ResolversParentTypes['PostEdge']> = ResolversObject<{
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<ResolversTypes['Post'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type QueryResolvers<ContextType = Context, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
+  _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  comment?: Resolver<Maybe<ResolversTypes['Comment']>, ParentType, ContextType, RequireFields<QueryCommentArgs, 'id'>>;
+  comments?: Resolver<ResolversTypes['CommentConnection'], ParentType, ContextType, RequireFields<QueryCommentsArgs, 'postId'>>;
+  me?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  post?: Resolver<Maybe<ResolversTypes['Post']>, ParentType, ContextType, RequireFields<QueryPostArgs, 'id'>>;
+  posts?: Resolver<ResolversTypes['PostConnection'], ParentType, ContextType, Partial<QueryPostsArgs>>;
+  searchPosts?: Resolver<Array<ResolversTypes['Post']>, ParentType, ContextType, RequireFields<QuerySearchPostsArgs, 'query'>>;
+  user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType, RequireFields<QueryUserArgs, 'id'>>;
+  users?: Resolver<ResolversTypes['UserConnection'], ParentType, ContextType, Partial<QueryUsersArgs>>;
+}>;
+
+export type SubscriptionResolvers<ContextType = Context, ParentType extends ResolversParentTypes['Subscription'] = ResolversParentTypes['Subscription']> = ResolversObject<{
+  _empty?: SubscriptionResolver<Maybe<ResolversTypes['String']>, "_empty", ParentType, ContextType>;
+  commentCreated?: SubscriptionResolver<ResolversTypes['Comment'], "commentCreated", ParentType, ContextType, RequireFields<SubscriptionCommentCreatedArgs, 'postId'>>;
+  postCreated?: SubscriptionResolver<ResolversTypes['Post'], "postCreated", ParentType, ContextType>;
+  postLiked?: SubscriptionResolver<ResolversTypes['Post'], "postLiked", ParentType, ContextType, RequireFields<SubscriptionPostLikedArgs, 'id'>>;
+  postUpdated?: SubscriptionResolver<ResolversTypes['Post'], "postUpdated", ParentType, ContextType, RequireFields<SubscriptionPostUpdatedArgs, 'id'>>;
+  userCreated?: SubscriptionResolver<ResolversTypes['User'], "userCreated", ParentType, ContextType>;
+  userUpdated?: SubscriptionResolver<ResolversTypes['User'], "userUpdated", ParentType, ContextType, RequireFields<SubscriptionUserUpdatedArgs, 'id'>>;
+}>;
+
+export interface UploadScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['Upload'], any> {
+  name: 'Upload';
+}
+
+export type UserResolvers<ContextType = Context, ParentType extends ResolversParentTypes['User'] = ResolversParentTypes['User']> = ResolversObject<{
+  avatar?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isEmailVerified?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  posts?: Resolver<Array<ResolversTypes['Post']>, ParentType, ContextType>;
+  role?: Resolver<ResolversTypes['Role'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type UserConnectionResolvers<ContextType = Context, ParentType extends ResolversParentTypes['UserConnection'] = ResolversParentTypes['UserConnection']> = ResolversObject<{
+  edges?: Resolver<Array<ResolversTypes['UserEdge']>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type UserEdgeResolvers<ContextType = Context, ParentType extends ResolversParentTypes['UserEdge'] = ResolversParentTypes['UserEdge']> = ResolversObject<{
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type Resolvers<ContextType = Context> = ResolversObject<{
+  AuthPayload?: AuthPayloadResolvers<ContextType>;
+  Comment?: CommentResolvers<ContextType>;
+  CommentConnection?: CommentConnectionResolvers<ContextType>;
+  CommentEdge?: CommentEdgeResolvers<ContextType>;
+  DateTime?: GraphQLScalarType;
+  Mutation?: MutationResolvers<ContextType>;
+  PageInfo?: PageInfoResolvers<ContextType>;
+  Post?: PostResolvers<ContextType>;
+  PostConnection?: PostConnectionResolvers<ContextType>;
+  PostEdge?: PostEdgeResolvers<ContextType>;
+  Query?: QueryResolvers<ContextType>;
+  Subscription?: SubscriptionResolvers<ContextType>;
+  Upload?: GraphQLScalarType;
+  User?: UserResolvers<ContextType>;
+  UserConnection?: UserConnectionResolvers<ContextType>;
+  UserEdge?: UserEdgeResolvers<ContextType>;
+}>;
+
+export type DirectiveResolvers<ContextType = Context> = ResolversObject<{
+  auth?: AuthDirectiveResolver<any, any, ContextType>;
+  rateLimit?: RateLimitDirectiveResolver<any, any, ContextType>;
+}>;
+`,
+
+    'src/permissions.ts': `import { shield, rule, allow, deny } from 'graphql-shield';
+import { GraphQLError } from 'graphql';
+import type { Context } from './context';
+
+// Define rules
+const isAuthenticated = rule({ cache: 'contextual' })(
+  async (_parent, _args, ctx: Context) => {
+    return ctx.user !== null;
+  }
+);
+
+const isAdmin = rule({ cache: 'contextual' })(
+  async (_parent, _args, ctx: Context) => {
+    return ctx.user?.role === 'ADMIN';
+  }
+);
+
+// Define permissions
+export const permissions = shield({
+  Query: {
+    '*': allow,
+    users: isAuthenticated,
+    user: isAuthenticated,
+    me: isAuthenticated},
+  Mutation: {
+    '*': deny,
+    createUser: allow,
+    login: allow,
+    refreshToken: allow,
+    forgotPassword: allow,
+    resetPassword: allow,
+    updateUser: isAuthenticated,
+    deleteUser: isAdmin,
+    logout: isAuthenticated,
+    changePassword: isAuthenticated,
+    uploadAvatar: isAuthenticated,
+    createPost: isAuthenticated,
+    updatePost: isAuthenticated,
+    deletePost: isAuthenticated,
+    publishPost: isAuthenticated,
+    unpublishPost: isAuthenticated,
+    likePost: isAuthenticated,
+    unlikePost: isAuthenticated,
+    createComment: isAuthenticated,
+    updateComment: isAuthenticated,
+    deleteComment: isAuthenticated},
+  Subscription: {
+    userCreated: isAdmin,
+    userUpdated: isAuthenticated,
+    postCreated: allow,
+    postUpdated: allow,
+    postLiked: allow,
+    commentCreated: allow}}, {
+  fallbackError: new GraphQLError('Not authorized', {
+    extensions: { code: 'FORBIDDEN' }}),
+  allowExternalErrors: true});
 `
   }};

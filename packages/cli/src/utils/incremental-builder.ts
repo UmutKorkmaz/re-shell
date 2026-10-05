@@ -1,3 +1,5 @@
+import { AsyncPool } from './async-pool';
+import type { ResourceGovernor } from '../resources/governor';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { spawn } from 'child_process';
@@ -95,6 +97,11 @@ export interface IncrementalBuildOptions {
   failFast: boolean;
   /** Maximum time in milliseconds a single build script may run before timing out. */
   buildTimeout: number;
+  /**
+   * Optional admission control for starting target builds (start-rate limit and
+   * memory backpressure). Targets within a group start longest-estimated-first.
+   */
+  governor?: ResourceGovernor;
 }
 
 /**
@@ -274,13 +281,30 @@ export class IncrementalBuilder {
       const group = plan.parallelGroups[i];
       console.log(`\n📦 Building group ${i + 1}/${plan.parallelGroups.length} (${group.length} targets)`);
       
-      // Build targets in parallel within the group
-      const groupPromises = group.map(async (targetName) => {
+      // Build targets in parallel within the group, bounded by maxParallelBuilds
+      // and the optional governor (rate limit / memory backpressure). Longest
+      // estimated builds start first so the group finishes sooner.
+      const pool = new AsyncPool(this.options.maxParallelBuilds, {
+        governor: this.options.governor,
+        agingPerSecond: 1,
+      });
+      // (The pool starts the first add on an idle pool immediately, so hand it the
+      // group already sorted: priority then decides everything queued behind it.)
+      const estimateOf = (targetName: string): number => {
         const target = plan.targets.find(t => t.name === targetName)!;
-        return await this.buildTarget(target);
+        const cached = this.buildCache.builds[target.name];
+        return cached ? cached.duration : this.estimateTargetBuildTime(target);
+      };
+      const ordered = [...group].sort((a, b) => estimateOf(b) - estimateOf(a)); // stable
+      const groupPromises = ordered.map(targetName => {
+        const target = plan.targets.find(t => t.name === targetName)!;
+        return pool.add(() => this.buildTarget(target), Math.round(estimateOf(targetName) / 1000));
       });
 
-      const groupResults = await Promise.all(groupPromises);
+      const settled = await Promise.all(groupPromises);
+      // Report results in the plan's group order, not the start order.
+      const byTarget = new Map(ordered.map((name, i) => [name, settled[i]] as const));
+      const groupResults = group.map(name => byTarget.get(name)!);
       results.push(...groupResults);
 
       // Check for failures if fail-fast is enabled

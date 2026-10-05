@@ -266,21 +266,23 @@ function Editor({
 
       {/* Right pane — live assembled preview + run, then streamed output. */}
       <div className="grid auto-rows-min gap-4 xl:sticky xl:top-6 xl:self-start">
-        <CommandPreview
-          spec={{
-            title: 'Assembled command',
-            description: runnable
-              ? 'Run executes through the hub allow-list.'
-              : 'Preview & copy only — run this in a terminal.',
-            command,
-            commandText,
-            destructive: entry.destructive,
-            dryRunSupported: entry.supportsDryRun,
-            requiresConfirmation: entry.destructive && safetyMode,
-          }}
-          onDryRun={entry.supportsDryRun && runnable ? () => onRequestRun(true) : undefined}
-          onRun={runnable ? () => onRequestRun(false) : undefined}
-        />
+        <div data-testid="command-builder-preview">
+          <CommandPreview
+            spec={{
+              title: 'Assembled command',
+              description: runnable
+                ? 'Run executes through the hub allow-list.'
+                : 'Preview & copy only — run this in a terminal.',
+              command,
+              commandText,
+              destructive: entry.destructive,
+              dryRunSupported: entry.supportsDryRun,
+              requiresConfirmation: entry.destructive && safetyMode,
+            }}
+            onDryRun={entry.supportsDryRun && runnable ? () => onRequestRun(true) : undefined}
+            onRun={runnable ? () => onRequestRun(false) : undefined}
+          />
+        </div>
 
         {!runnable ? (
           <div className="surface flex items-start gap-2.5 p-4 text-sm text-muted-foreground">
@@ -335,7 +337,10 @@ function CommandPicker({
   }, [catalog, filter]);
 
   return (
-    <aside className="surface flex max-h-[calc(100vh-7rem)] flex-col lg:sticky lg:top-6 lg:self-start">
+    <aside
+      data-testid="command-picker"
+      className="surface flex max-h-[calc(100vh-7rem)] flex-col lg:sticky lg:top-6 lg:self-start"
+    >
       <div className="grid gap-2.5 border-b border-border px-4 py-3.5">
         <span className="label-eyebrow inline-flex items-center gap-2">
           <ListTree className="size-3.5 text-signal" />

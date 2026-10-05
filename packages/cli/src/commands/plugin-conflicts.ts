@@ -11,6 +11,7 @@ import {
   formatConflictType
 } from '../utils/plugin-command-conflicts';
 import { createPluginCommandRegistry } from '../utils/plugin-command-registry';
+import { ok } from '../utils/json-output';
 
 /** Options for the command conflict resolution commands. */
 interface ConflictCommandOptions {
@@ -67,7 +68,7 @@ export async function listCommandConflicts(
     }
 
     if (json) {
-      console.log(JSON.stringify(conflicts, null, 2));
+      ok(conflicts);
       return;
     }
 
@@ -213,7 +214,7 @@ export async function showConflictStrategies(
   ];
 
   if (json) {
-    console.log(JSON.stringify(strategies, null, 2));
+    ok(strategies);
     return;
   }
 
@@ -444,7 +445,7 @@ export async function showConflictStats(
     const stats = conflictResolver.getStats();
 
     if (json) {
-      console.log(JSON.stringify(stats, null, 2));
+      ok(stats);
       return;
     }
 
@@ -595,7 +596,7 @@ export async function showResolutionHistory(
     const history = conflictResolver.getResolutionHistory();
 
     if (json) {
-      console.log(JSON.stringify(history, null, 2));
+      ok(history);
       return;
     }
 

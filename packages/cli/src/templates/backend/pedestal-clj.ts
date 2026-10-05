@@ -11,279 +11,470 @@ export const pedestalCljTemplate: BackendTemplate = {
   tags: ['clojure', 'pedestal', 'service-oriented', 'interceptors', 'microservices'],
   port: 8080,
   dependencies: {},
-  features: ['authentication', 'validation', 'logging', 'cors', 'documentation', 'graphql'],
+  features: ['authentication', 'validation', 'logging', 'cors', 'graphql'],
 
   files: {
     // Project configuration
-    'project.clj': `(defproject {{projectNameSnake}} "0.1.0-SNAPSHOT"
+    'project.clj': `(defproject {{projectName}} "0.1.0-SNAPSHOT"
   :description "REST API built with Pedestal"
-  :url "http://example.com/FIXME"
-  :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
-            :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :min-lein-version "2.0.0"
+  :license {:name "MIT"
+            :url "https://opensource.org/licenses/MIT"}
+  :min-lein-version "2.9.0"
 
-  :dependencies [[org.clojure/clojure "1.11.1"]
-                 [io.pedestal/pedestal "0.6.0"]
-                 [io.pedestal/pedestal.jetty "0.6.0"]
-                 [io.pedestal/pedestal.route "0.6.0"]
-                 [io.pedestal/pedestal.interceptor "0.6.0"]
-                 [org.slf4j/slf4j-simple "2.0.7"]
-                 [cheshire "5.11.0"]
-                 [buddy/buddy-auth "3.0.0"]
-                 [buddy/buddy-hashers "3.0.0"]
-                 [buddy/buddy-sign "3.4.1"]
-                 [com.walmartlabs/lacinia "1.2.2"]
-                 [clj-time "0.15.2"]]
+  :dependencies [[org.clojure/clojure "1.12.0"]
+                 [io.pedestal/pedestal.service "0.7.2"]
+                 [io.pedestal/pedestal.jetty "0.7.2"]
+                 [ch.qos.logback/logback-classic "1.5.12"]
+                 [buddy/buddy-sign "3.5.351"]
+                 [buddy/buddy-hashers "2.0.167"]
+                 [com.walmartlabs/lacinia "1.2.1"]]
 
-  :main ^:skip-aot)
+  :main ^:skip-aot {{projectNameSnake}}.server
+  :target-path "target/%s"
+
+  :profiles {:dev {:dependencies [[cheshire "5.13.0"]]}
+             :uberjar {:aot :all
+                       :uberjar-name "{{projectNameSnake}}-standalone.jar"}})
 `,
 
     // Server
     'src/{{projectNameSnake}}/server.clj': `(ns {{projectNameSnake}}.server
   (:require [io.pedestal.http :as http]
-            [io.pedestal.jetty :as jetty]
-            [{{projectNameSnake}}.service :as service]
-            [clojure.tools.logging :as log]))
+            [{{projectNameSnake}}.db :as db]
+            [{{projectNameSnake}}.service :as service])
+  (:gen-class))
 
-(defn- jetty-server []
-  (let [server (http/create-server
-                 {::http/routes service/routes
-                  ::http/type :jetty
-                  ::http/port 8080
-                  ::http/join? false})]
-    (log/info "🚀 Server running at http://localhost:8080")
-    (log/info "📚 API docs: http://localhost:8080/api/v1/health")
-    server))
-
-(defn -main []
-  (jetty-server))
+(defn -main [& _args]
+  (let [port (Integer/parseInt (or (System/getenv "PORT") "{{port}}"))]
+    (db/init!)
+    (println (str "{{projectName}} listening on http://localhost:" port))
+    (-> service/service-map
+        (assoc ::http/port port
+               ::http/join? true)
+        http/create-server
+        http/start)))
 `,
 
-    // Service
+    // Service: routes, handlers and the service map
     'src/{{projectNameSnake}}/service.clj': `(ns {{projectNameSnake}}.service
-  (:require
-   [io.pedestal.http :as http]
-   [io.pedestal.http.route :as route]
-   [cheshire.generate :as json]
-   [buddy.sign.jwt :as jwt]
-   [buddy.hashers :as hashers]
-   [clj-time.core :as t]
-   [{{projectNameSnake}}.db :as db]
-   [{{projectNameSnake}}.interceptors :as interceptors]
-   [{{projectNameSnake}}.graphql :as graphql]))
+  (:require [io.pedestal.http :as http]
+            [io.pedestal.http.body-params :as body-params]
+            [io.pedestal.http.route :as route]
+            [{{projectNameSnake}}.auth :as auth]
+            [{{projectNameSnake}}.db :as db]
+            [{{projectNameSnake}}.graphql :as graphql]
+            [{{projectNameSnake}}.interceptors :as interceptors]))
 
-(defn- response [status body]
-  {:status status
-   :headers {"Content-Type" "application/json"}
-   :body (json/generate-string body)})
+(defn- public-user [user]
+  (dissoc user :password-hash))
 
-(defn health [request]
-  (response 200
-    {:status "healthy"
-     :timestamp (str (t/now))
-     :version "1.0.0"}))
+(defn- blank? [value]
+  (or (not (string? value)) (empty? value)))
+
+(defn- bad-request [message]
+  {:status 400 :body {:error message}})
+
+;; Handlers
+(defn health [_request]
+  {:status 200
+   :body {:status "healthy"
+          :timestamp (str (java.time.Instant/now))
+          :version "0.1.0"}})
 
 (defn register [request]
-  (let [params (:json-params request)]
-    (if (db/user-exists? (:email params))
-      (response 409 {:error "Email already registered"})
-      (let [hashed (hashers/derive (:password params) {:algorithm :pbkdf2+sha256})
-            user {:id (str (random-uuid))
-                   :email (:email params)
-                   :password hashed
-                   :name (:name params)
-                   :role "user"
-                   :created-at (t/now)
-                   :updated-at (t/now)}
-            _ (db/create-user! user)
-            token (jwt/sign (assoc user :exp (t/plus (t/now) (t/days 7))) "change-this-secret")]
-        (response 201 {:token token :user (dissoc user :password)})))))
+  (let [{:keys [email name password]} (:json-params request)]
+    (cond
+      (or (blank? email) (blank? name) (blank? password))
+      (bad-request "email, name and password are required")
+
+      (db/find-user-by-email email)
+      {:status 409 :body {:error "Email already registered"}}
+
+      :else
+      (let [user (db/create-user! {:email email
+                                   :name name
+                                   :role "user"
+                                   :password-hash (auth/hash-password password)})]
+        {:status 201
+         :body {:token (auth/generate-token (:id user))
+                :user (public-user user)}}))))
 
 (defn login [request]
-  (let [params (:json-params request)]
-    (if-let [user (db/find-user-by-email (:email params))]
-      (if (hashers/verify (:password params) (:password user))
-        (let [token (jwt/sign (assoc user :exp (t/plus (t/now) (t/days 7))) "change-this-secret")]
-          (response 200 {:token token :user (dissoc user :password)}))
-        (response 401 {:error "Invalid credentials"}))
-      (response 401 {:error "Invalid credentials"}))))
+  (let [{:keys [email password]} (:json-params request)
+        user (when-not (blank? email) (db/find-user-by-email email))]
+    (if (and user
+             (not (blank? password))
+             (auth/valid-password? password (:password-hash user)))
+      {:status 200
+       :body {:token (auth/generate-token (:id user))
+              :user (public-user user)}}
+      {:status 401 :body {:error "Invalid credentials"}})))
 
-(defn list-products [request]
+(defn me [request]
+  (if-let [user (db/find-user-by-id (:user-id request))]
+    {:status 200 :body {:user (public-user user)}}
+    {:status 404 :body {:error "User not found"}}))
+
+(defn list-products [_request]
   (let [products (db/get-all-products)]
-    (response 200 {:products products :count (count products)})))
+    {:status 200 :body {:products products :count (count products)}}))
 
 (defn get-product [request]
-  (let [id (get-in request [:path-params :id])]
-    (if-let [product (db/find-product-by-id id)]
-      (response 200 {:product product})
-      (response 404 {:error "Product not found"}))))
+  (if-let [product (db/find-product-by-id (get-in request [:path-params :id]))]
+    {:status 200 :body {:product product}}
+    {:status 404 :body {:error "Product not found"}}))
 
 (defn create-product [request]
-  (let [params (:json-params request)
-        product {:id (str (random-uuid))
-                 :name (:name params)
-                 :description (:description params)
-                 :price (:price params)
-                 :stock (:stock params)
-                 :created-at (t/now)
-                 :updated-at (t/now)}]
-    (db/create-product! product)
-    (response 201 {:product product})))
+  (let [{:keys [name description price stock]} (:json-params request)]
+    (if (or (blank? name) (not (number? price)))
+      (bad-request "name and a numeric price are required")
+      {:status 201
+       :body {:product (db/create-product! {:name name
+                                            :description (if (string? description) description "")
+                                            :price price
+                                            :stock (if (integer? stock) stock 0)})}})))
 
 (defn update-product [request]
   (let [id (get-in request [:path-params :id])
-        params (:json-params request)]
-    (if-let [product (db/update-product! id params)]
-      (response 200 {:product product})
-      (response 404 {:error "Product not found"}))))
+        updates (select-keys (:json-params request) [:name :description :price :stock])]
+    (if-let [product (db/update-product! id updates)]
+      {:status 200 :body {:product product}}
+      {:status 404 :body {:error "Product not found"}})))
 
 (defn delete-product [request]
-  (let [id (get-in request [:path-params :id])]
-    (if (db/delete-product! id)
-      (response 204 nil)
-      (response 404 {:error "Product not found"}))))
+  (if (db/delete-product! (get-in request [:path-params :id]))
+    {:status 204}
+    {:status 404 :body {:error "Product not found"}}))
+
+;; Interceptor chains. Parse the JSON body, serialise map bodies as JSON,
+;; and (for protected routes) require a bearer token before the handler runs.
+(def ^:private common-interceptors
+  [(body-params/body-params) http/json-body])
+
+(def ^:private protected-interceptors
+  (conj common-interceptors interceptors/require-auth))
+
+(defn- public [handler] (conj common-interceptors handler))
+(defn- protected [handler] (conj protected-interceptors handler))
 
 (def routes
   (route/expand-routes
-    [[["/api/v1/health" :get [health]]
-      ["/graphql" :post [graphql/graphql-handler]]
-      ["/api/v1/auth/register" :post [register]]
-      ["/api/v1/auth/login" :post [login]]
-      ["/api/v1/products" :get [list-products] :post [create-product]]
-      ["/api/v1/products/:id" :get [get-product] :put [update-product] :delete [delete-product]]]]])
+    #{["/health" :get (public health) :route-name :health]
+      ["/api/v1/health" :get (public health) :route-name :api-health]
+      ["/graphql" :post (public graphql/graphql-handler) :route-name :graphql]
+      ["/api/v1/auth/register" :post (public register) :route-name :register]
+      ["/api/v1/auth/login" :post (public login) :route-name :login]
+      ["/api/v1/auth/me" :get (protected me) :route-name :me]
+      ["/api/v1/products" :get (public list-products) :route-name :list-products]
+      ["/api/v1/products" :post (protected create-product) :route-name :create-product]
+      ["/api/v1/products/:id" :get (public get-product) :route-name :get-product]
+      ["/api/v1/products/:id" :put (protected update-product) :route-name :update-product]
+      ["/api/v1/products/:id" :delete (protected delete-product) :route-name :delete-product]}))
+
+(def service-map
+  {::http/routes routes
+   ::http/type :jetty
+   ::http/host "0.0.0.0"
+   ::http/port {{port}}
+   ::http/join? false
+   ::http/allowed-origins {:creds true
+                           :allowed-origins (constantly true)}})
 `,
 
     // GraphQL schema + resolvers (Lacinia)
     'src/{{projectNameSnake}}/graphql.clj': `(ns {{projectNameSnake}}.graphql
-  "GraphQL schema, resolvers, and HTTP handler built with Lacinia."
-  (:require [io.pedestal.interceptor.helpers :as interceptor]
-            [com.walmartlabs.lacinia :as lacinia]
-            [com.walmartlabs.lacinia.parser :as parser]
-            [com.walmartlabs.lacinia.schema :as schema]
-            [cheshire.core :as json]))
+  "GraphQL endpoint built with Lacinia."
+  (:require [com.walmartlabs.lacinia :as lacinia]
+            [com.walmartlabs.lacinia.schema :as schema]))
 
-;; Resolvers for the Query type
-(defn resolve-hello
-  [context args value]
-  "Hello from GraphQL!")
-
-(defn resolve-health
-  [context args value]
-  "healthy")
-
-;; Minimal schema: Query { hello: String!, health: String! }
-(defn compiled-schema
-  "Builds and compiles the Lacinia GraphQL schema."
-  []
+(def compiled-schema
   (schema/compile
-    {:objects {}
-     :queries {:hello {:type 'String
-                       :resolve resolve-hello}
-               :health {:type 'String
-                        :resolve resolve-health}}}))
+    {:queries
+     {:hello {:type 'String
+              :resolve (fn [_context _args _value] "Hello from GraphQL!")}
+      :health {:type 'String
+               :resolve (fn [_context _args _value] "healthy")}}}))
 
-(defn- execute-query
-  "Executes a GraphQL query against the compiled schema."
-  [query-string]
-  (lacinia/execute (compiled-schema) query-string nil nil))
-
-(def graphql-handler
-  "Pedestal interceptor handler for POST /graphql."
-  (interceptor/handler
-    ::graphql-handler
-    (fn [request]
-      (let [body (:json-params request)
-            query-string (or (:query body) "{}")
-            result (execute-query query-string)]
-        {:status 200
-         :headers {"Content-Type" "application/json"}
-         :body (json/generate-string result)}))))
+(defn graphql-handler
+  "POST /graphql. Expects a JSON body with a query string and optional variables."
+  [request]
+  (let [body (if (map? (:json-params request)) (:json-params request) {})
+        query (:query body)]
+    (if (string? query)
+      {:status 200
+       :body (lacinia/execute compiled-schema query (:variables body) nil)}
+      {:status 400
+       :body {:errors [{:message "A GraphQL query string is required"}]}})))
 `,
 
     // Interceptors
     'src/{{projectNameSnake}}/interceptors.clj': `(ns {{projectNameSnake}}.interceptors
-  (:require [io.pedestal.interceptor :as interceptor]
-            [io.pedestal.interceptor.helpers :refer [handler-before]]
-            [cheshire.core :as json]
-            [clojure.tools.logging :as log]))
+  (:require [clojure.string :as str]
+            [io.pedestal.interceptor.chain :as chain]
+            [{{projectNameSnake}}.auth :as auth]))
 
-(defn parse-json
-  "Interceptor that parses JSON request body and adds it to request as :json-params"
-  [handler]
-  (interceptor/after
-    (fn [request]
-      (if-let [body (-> request :request :body slurp not-empty)]
-        (assoc-in request [:json-params] (json/parse-string body))
-        request))
-    handler))
+(def require-auth
+  "Rejects requests without a valid 'Authorization: Bearer <jwt>' header and
+  adds :user-id to the request for the ones that have it."
+  {:name ::require-auth
+   :enter (fn [context]
+            (let [header (get-in context [:request :headers "authorization"])
+                  user-id (when (and header (str/starts-with? header "Bearer "))
+                            (auth/verify-token (subs header 7)))]
+              (if user-id
+                (assoc-in context [:request :user-id] user-id)
+                (chain/terminate
+                  (assoc context :response {:status 401
+                                            :body {:error "unauthorized"
+                                                   :message "A valid bearer token is required"}})))))})
+`,
 
-(defn log-request
-  "Interceptor that logs incoming requests"
-  [handler]
-  (interceptor/before
-    (fn [request]
-      (log/info (str (:request-method request) " " (:uri request)))
-      request)
-    handler))
+    // Passwords and JWTs
+    'src/{{projectNameSnake}}/auth.clj': `(ns {{projectNameSnake}}.auth
+  (:require [buddy.hashers :as hashers]
+            [buddy.sign.jwt :as jwt]))
+
+(def ^:private token-ttl-seconds (* 7 24 60 60))
+
+(defn- jwt-secret []
+  (or (System/getenv "JWT_SECRET") "dev-secret-change-me"))
+
+(defn- now-seconds []
+  (quot (System/currentTimeMillis) 1000))
+
+(defn hash-password [password]
+  (hashers/derive password))
+
+(defn valid-password? [password password-hash]
+  (let [result (hashers/verify password password-hash)]
+    (if (map? result)
+      (boolean (:valid result))
+      (boolean result))))
+
+(defn generate-token [user-id]
+  (jwt/sign {:user-id user-id
+             :exp (+ (now-seconds) token-ttl-seconds)}
+            (jwt-secret)
+            {:alg :hs256}))
+
+(defn verify-token
+  "Returns the user id carried by a valid token, or nil."
+  [token]
+  (try
+    (:user-id (jwt/unsign token (jwt-secret) {:alg :hs256}))
+    (catch Exception _
+      nil)))
 `,
 
     // Database
-    'src/{{projectNameSnake}}/db.clj': `(ns {{projectNameSnake}}.db)
+    'src/{{projectNameSnake}}/db.clj': `(ns {{projectNameSnake}}.db
+  "In-memory storage. Swap this namespace for a real database (next.jdbc,
+  HoneySQL, ...) before going to production."
+  (:require [{{projectNameSnake}}.auth :as auth]))
 
-(def ^:private users (atom {})
-(def ^:private products (atom {}))
+(defonce ^:private users (atom {}))
+(defonce ^:private products (atom {}))
 
-(defn init! []
-  (let [admin {:id "1"
-               :email "admin@example.com"
-               :password "$2a$12$dummy"
-               :name "Admin User"
-               :role "admin"
-               :created-at (java.util.Date.)
-               :updated-at (java.util.Date.)}
-        now (java.util.Date.)
-        prod1 {:id "1" :name "Sample Product 1" :description "This is a sample product" :price 29.99 :stock 100 :created-at now :updated-at now}
-        prod2 {:id "2" :name "Sample Product 2" :description "Another sample product" :price 49.99 :stock 50 :created-at now :updated-at now}]
-    (swap! users assoc "1" admin)
-    (swap! products assoc "1" prod1)
-    (swap! products assoc "2" prod2))
-  (println "📦 Database initialized")
-  (println "👤 Default admin: admin@example.com / admin123"))
+(defn- now []
+  (str (java.time.Instant/now)))
 
-(defn user-exists? [email]
-  (some #(= email (:email %)) (vals @users)))
+(defn- new-id []
+  (str (random-uuid)))
 
+(defn reset-db!
+  "Empties the store. Used by the tests."
+  []
+  (reset! users {})
+  (reset! products {}))
+
+;; Users
 (defn find-user-by-email [email]
   (first (filter #(= email (:email %)) (vals @users))))
 
 (defn find-user-by-id [id]
   (get @users id))
 
-(defn create-user! [user]
-  (swap! users assoc (:id user) user))
+(defn create-user! [attrs]
+  (let [id (new-id)
+        user (assoc attrs :id id :created-at (now) :updated-at (now))]
+    (swap! users assoc id user)
+    user))
 
-(defn delete-user! [id]
-  (swap! users dissoc id))
-
-(defn get-all-users []
-  (vals @users))
-
+;; Products
 (defn find-product-by-id [id]
   (get @products id))
 
 (defn get-all-products []
-  (vals @products))
+  (sort-by :created-at (vals @products)))
 
-(defn create-product! [product]
-  (swap! products assoc (:id product) product))
+(defn create-product! [attrs]
+  (let [id (new-id)
+        product (assoc attrs :id id :created-at (now) :updated-at (now))]
+    (swap! products assoc id product)
+    product))
 
-(defn update-product! [id updates]
-  (if (get @products id)
-    (swap! products update id merge updates)
-    nil))
+(defn update-product!
+  "Merges the updates into the product and returns it, or nil when it does not exist."
+  [id updates]
+  (when (contains? @products id)
+    (get (swap! products update id merge updates {:updated-at (now)}) id)))
 
-(defn delete-product! [id]
-  (swap! products dissoc id))
+(defn delete-product!
+  "Returns true when a product was removed."
+  [id]
+  (let [[before after] (swap-vals! products dissoc id)]
+    (not= (count before) (count after))))
+
+(defn init!
+  "Seeds an admin user and two sample products."
+  []
+  (reset-db!)
+  (create-user! {:email "admin@example.com"
+                 :name "Admin User"
+                 :role "admin"
+                 :password-hash (auth/hash-password "admin123")})
+  (create-product! {:name "Sample Product 1"
+                    :description "This is a sample product"
+                    :price 29.99
+                    :stock 100})
+  (create-product! {:name "Sample Product 2"
+                    :description "Another sample product"
+                    :price 49.99
+                    :stock 50})
+  (println "Seeded admin@example.com / admin123 and two sample products"))
+`,
+
+    // Tests
+    'test/{{projectNameSnake}}/service_test.clj': `(ns {{projectNameSnake}}.service-test
+  (:require [cheshire.core :as json]
+            [clojure.test :refer [deftest is testing use-fixtures]]
+            [io.pedestal.http :as http]
+            [io.pedestal.test :refer [response-for]]
+            [{{projectNameSnake}}.db :as db]
+            [{{projectNameSnake}}.service :as service]))
+
+(def ^:private service-fn
+  (::http/service-fn (http/create-servlet service/service-map)))
+
+(use-fixtures :each (fn [run-test]
+                      (db/reset-db!)
+                      (run-test)))
+
+(def ^:private json-headers {"Content-Type" "application/json"})
+
+(defn- parse [response]
+  (json/parse-string (:body response) true))
+
+(defn- post-json [uri payload & [token]]
+  (response-for service-fn :post uri
+                :headers (cond-> json-headers
+                           token (assoc "Authorization" (str "Bearer " token)))
+                :body (json/generate-string payload)))
+
+(defn- authed [verb uri token & [payload]]
+  (if payload
+    (response-for service-fn verb uri
+                  :headers {"Content-Type" "application/json"
+                            "Authorization" (str "Bearer " token)}
+                  :body (json/generate-string payload))
+    (response-for service-fn verb uri
+                  :headers {"Authorization" (str "Bearer " token)})))
+
+(defn- register! [email]
+  (post-json "/api/v1/auth/register"
+             {:email email :name "Test User" :password "password123"}))
+
+(deftest health-endpoints
+  (doseq [uri ["/health" "/api/v1/health"]]
+    (let [response (response-for service-fn :get uri)]
+      (is (= 200 (:status response)))
+      (is (= "healthy" (:status (parse response)))))))
+
+(deftest register-and-login
+  (testing "registering returns a token and hides the password hash"
+    (let [response (register! "test@example.com")
+          body (parse response)]
+      (is (= 201 (:status response)))
+      (is (string? (:token body)))
+      (is (= "test@example.com" (get-in body [:user :email])))
+      (is (not (contains? (:user body) :password-hash)))))
+  (testing "the same email cannot register twice"
+    (is (= 409 (:status (register! "test@example.com")))))
+  (testing "login works with the right password only"
+    (is (= 200 (:status (post-json "/api/v1/auth/login"
+                                   {:email "test@example.com" :password "password123"}))))
+    (is (= 401 (:status (post-json "/api/v1/auth/login"
+                                   {:email "test@example.com" :password "nope"}))))))
+
+(deftest registration-is-validated
+  (is (= 400 (:status (post-json "/api/v1/auth/register" {:email "a@b.c"})))))
+
+(deftest protected-routes-need-a-token
+  (is (= 401 (:status (response-for service-fn :get "/api/v1/auth/me"))))
+  (is (= 401 (:status (post-json "/api/v1/products" {:name "Widget" :price 5})))))
+
+(deftest product-lifecycle
+  (let [token (:token (parse (register! "shop@example.com")))
+        created (post-json "/api/v1/products" {:name "Widget" :price 9.5 :stock 3} token)
+        product-id (get-in (parse created) [:product :id])]
+    (is (= 201 (:status created)))
+    (is (= 200 (:status (authed :get "/api/v1/auth/me" token))))
+    (is (= 1 (:count (parse (response-for service-fn :get "/api/v1/products")))))
+    (is (= "Widget" (get-in (parse (response-for service-fn :get (str "/api/v1/products/" product-id)))
+                            [:product :name])))
+    (is (= 200 (:status (authed :put (str "/api/v1/products/" product-id) token {:stock 7}))))
+    (is (= 204 (:status (authed :delete (str "/api/v1/products/" product-id) token))))
+    (is (= 404 (:status (response-for service-fn :get (str "/api/v1/products/" product-id)))))))
+
+(deftest graphql-query
+  (let [response (post-json "/graphql" {:query "{ hello health }"})
+        body (parse response)]
+    (is (= 200 (:status response)))
+    (is (= "Hello from GraphQL!" (get-in body [:data :hello])))
+    (is (= "healthy" (get-in body [:data :health])))))
+`,
+
+    // Logback configuration (Pedestal logs through SLF4J; without a file Logback logs everything at DEBUG)
+    'resources/logback.xml': `<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="org.eclipse.jetty" level="WARN"/>
+  <logger name="io.pedestal" level="INFO"/>
+
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>
+`,
+
+    '.gitignore': `# Leiningen
+/target
+/classes
+/checkouts
+pom.xml
+pom.xml.asc
+*.jar
+*.class
+.lein-*
+.nrepl-port
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+profiles.clj
 `,
 
     // Dockerfile - Multi-stage optimized build
@@ -292,7 +483,7 @@ export const pedestalCljTemplate: BackendTemplate = {
 # =============================================================================
 
 # Stage 1: Builder
-FROM clojure:lein AS builder
+FROM clojure:temurin-21-lein AS builder
 
 WORKDIR /app
 
@@ -302,17 +493,15 @@ COPY project.clj ./
 # Download dependencies
 RUN lein deps
 
-# Copy source code
+# Copy source code and resources (logback.xml), then build the uberjar
 COPY src ./src
-
-# Build uberjar
-RUN lein clean
+COPY resources ./resources
 RUN lein uberjar
 
 # =============================================================================
 # Stage 2: Runtime - Minimal image
 # =============================================================================
-FROM eclipse-temurin:17-jre-jammy AS runtime
+FROM eclipse-temurin:21-jre-jammy AS runtime
 
 WORKDIR /app
 
@@ -324,65 +513,82 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \\
 COPY --from=builder /app/target/uberjar/{{projectNameSnake}}-standalone.jar ./app.jar
 
 # Create non-root user
-RUN useradd -m -u 1000 appuser
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 
-# Create data directory
-RUN mkdir -p /app/data && chown -R appuser:appuser /app
-
-# Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 8080
+EXPOSE {{port}}
 
-ENV PORT=8080
+ENV PORT={{port}}
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
-    CMD curl -f http://localhost:8080/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \\
+    CMD curl -f http://localhost:{{port}}/health || exit 1
 
 CMD ["java", "-jar", "app.jar"]
 `,
 
     // Docker Compose
-    'docker-compose.yml': `version: '3.8'
-services:
+    'docker-compose.yml': `services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - "{{port}}:{{port}}"
+    environment:
+      - PORT={{port}}
+      - JWT_SECRET=\${JWT_SECRET:-development-secret}
     restart: unless-stopped
 `,
 
     // README
     'README.md': `# {{projectName}}
 
-A service-oriented REST API built with Pedestal web framework for Clojure.
+A service-oriented REST API built with the Pedestal web framework for Clojure.
 
 ## Features
 
-- **Pedestal**: Service-oriented architecture
-- **Interceptors**: Composable request/response processing
-- **Async**: Asynchronous request handling
-- **Routing**: Data-driven routing
-- **Extensible**: Easy to customize
+- **Pedestal**: routes, interceptors and the Jetty connector from \`pedestal.service\`
+- **Interceptors**: JSON body parsing, JSON responses and bearer-token authentication are interceptors
+- **JWT authentication**: Buddy-signed tokens and hashed passwords
+- **GraphQL**: a Lacinia endpoint at \`POST /graphql\`
+- **CORS** through Pedestal's \`allowed-origins\` option
+
+Data is kept in memory (see \`src/{{projectNameSnake}}/db.clj\`); replace that namespace with a real database before production.
 
 ## Requirements
 
-- Clojure 1.11+
-- Leiningen 2.x
+- Java 17+
+- Leiningen 2.9+
 
 ## Quick Start
 
 \`\`\`bash
+lein deps
+lein check
+lein test
 lein run
 \`\`\`
 
+The server listens on \`PORT\` ({{port}} by default). Set \`JWT_SECRET\` in production.
+
 ## API Endpoints
 
-- \`GET /api/v1/health\` - Health check
-- \`POST /api/v1/auth/login\` - Login
-- \`GET /api/v1/products\` - List products
+- \`GET /health\`, \`GET /api/v1/health\` - Health check
+- \`POST /api/v1/auth/register\` - Register (\`email\`, \`name\`, \`password\`)
+- \`POST /api/v1/auth/login\` - Login, returns a JWT
+- \`GET /api/v1/auth/me\` - Current user (bearer token)
+- \`GET /api/v1/products\`, \`GET /api/v1/products/:id\` - Read products
+- \`POST /api/v1/products\`, \`PUT|DELETE /api/v1/products/:id\` - Change products (bearer token)
+- \`POST /graphql\` - GraphQL (\`{"query": "{ hello health }"}\`)
+
+On start-up the server seeds \`admin@example.com\` / \`admin123\` and two sample products.
+
+## Docker
+
+\`\`\`bash
+docker build -t {{projectName}} .
+docker run -p {{port}}:{{port}} -e JWT_SECRET=change-me {{projectName}}
+\`\`\`
 
 ## License
 

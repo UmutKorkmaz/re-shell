@@ -83,6 +83,7 @@ export const universalStateManagementTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -136,14 +137,12 @@ const stateManager = new StateManager(stateStore);
 const stateSync = new StateSync(io, stateManager);
 const timeTravel = new TimeTravel(stateManager);
 
-// Initialize state manager
-await stateManager.initialize();
-
-// Initialize state sync
-await stateSync.initialize();
-
-// Initialize time travel
-await timeTravel.initialize();
+// Initialize state manager, state sync and time travel (the server starts listening once they are ready)
+const servicesReady = (async () => {
+  await stateManager.initialize();
+  await stateSync.initialize();
+  await timeTravel.initialize();
+})();
 
 // Routes
 app.use('/api/state', stateRoutes(stateManager));
@@ -177,9 +176,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Start server
 const PORT = process.env.PORT || {{port}};
-httpServer.listen(PORT, () => {
+servicesReady.then(() => httpServer.listen(PORT, () => {
   console.log(\`🚀 Universal State Management Server running on port \${PORT}\`);
   console.log(\`📊 State Store: \${stateStore.getStats().keys} keys\`);
+})).catch((err) => {
+  console.error('Failed to initialise services:', err);
+  process.exit(1);
 });
 
 // Graceful shutdown
@@ -619,12 +621,12 @@ export class StateManager extends EventEmitter {
     'src/state/state-sync.ts': `// State Sync
 // Synchronize state between server and clients
 
-import { Server as SocketIOServer } from 'socket.io';
+import { Server } from 'socket.io';
 import { StateManager } from './state-manager';
 import { EventEmitter } from 'events';
 
 export class StateSync extends EventEmitter {
-  private io: Server as SocketIOServer;
+  private io: Server;
   private stateManager: StateManager;
   private subscriptions: Map<string, Set<string>> = new Map(); // key -> socket IDs
   private initialized = false;
@@ -1751,10 +1753,12 @@ npm run dev
 
 ### Client SDK
 
+The SDK is generated into this project's \`client-sdk/\` folder (it is not published to npm). The imports below are relative to the project root; adjust them to wherever you copy the folder, or expose it as a workspace package.
+
 #### React
 
 \`\`\`typescript
-import { useStateManager } from '@re-shell/state-client/react';
+import { useStateManager } from './client-sdk/react/useState';
 
 function MyComponent() {
   const { isConnected, state, get, set, update, subscribe } = useStateManager({
@@ -1778,7 +1782,7 @@ function MyComponent() {
 #### Vue
 
 \`\`\`typescript
-import { useStateManager } from '@re-shell/state-client/vue';
+import { useStateManager } from './client-sdk/vue/useState';
 
 const { isConnected, state, get, set, update, subscribe } = useStateManager({
   serverURL: 'http://localhost:3000',
@@ -1788,7 +1792,7 @@ const { isConnected, state, get, set, update, subscribe } = useStateManager({
 #### Angular
 
 \`\`\`typescript
-import { StateManagerService } from '@re-shell/state-client/angular';
+import { StateManagerService } from './client-sdk/angular/StateManager.service';
 
 constructor(private stateManager: StateManagerService) {
   const user = await this.stateManager.get('user');
@@ -1800,7 +1804,7 @@ constructor(private stateManager: StateManagerService) {
 
 \`\`\`svelte
 <script>
-  import { createStateStore } from '@re-shell/state-client/svelte';
+  import { createStateStore } from './client-sdk/svelte/useState';
 
   const { isConnected, state, get, set, update, subscribe } = createStateStore({
     serverURL: 'http://localhost:3000',

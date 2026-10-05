@@ -85,27 +85,67 @@ re-shell generate docs
 
 ## `create` and related commands
 
-The top-level `create`, `add`, and `init` commands also scaffold, at the project
-and microfrontend level:
+The top-level `create`, `add`, and `init` commands scaffold at the project and
+microfrontend level. `create` is **non-interactive for every mode**: every prompt has
+a default that is used with `--yes`, `--json` or `--dry-run`, or when stdin is not a
+terminal, so it never waits for input. A condition that needs a human decision (an
+incompatible stack, an existing target) fails with a non-zero exit; pass `--force` to
+proceed.
 
 ```bash
-# A new project (full-stack, polyglot, or microfrontend)
-re-shell create acme --fullstack --frontend react-ts --backend express --db prisma
-re-shell create gateway --polyglot
-re-shell create storefront --microfrontend --framework vue-ts
+# A bare create is a react-ts frontend app at apps/web
+re-shell create web
+
+# Backend only, frontend only, full stack
+re-shell create api --backend express
+re-shell create web --frontend react-ts
+re-shell create shop --fullstack --db prisma
+
+# Microfrontend (Module Federation): a shell plus remotes
+re-shell create hub --microfrontend --remotes cart,search:vue
+
+# Polyglot microservices with a gateway
+re-shell create platform --polyglot --gateway traefik --services users:fastapi,orders:express
+
+# An empty workspace skeleton
+re-shell create ws --template blank
 
 # Add a microfrontend to an existing project
 re-shell add checkout --route /checkout --port 5174
-
-# Preview without writing
-re-shell create acme --fullstack --dry-run --json
 ```
 
-`create --dry-run --json` emits the exact file set as a contract envelope — the
-same dry-run discipline as [`templates apply`](/re-shell/cli/templates/).
+| Flag | Purpose |
+| --- | --- |
+| `--template <id>` | A backend template id, a frontend framework, an architecture template, or `blank`. An unknown id is `TEMPLATE_NOT_FOUND`. |
+| `--frontend` / `--framework` / `--backend` / `--db` | Pick the stacks (`templates list` shows the ids). |
+| `--fullstack` / `--microfrontend` / `--polyglot` | Project modes. |
+| `--gateway <fw>` / `--services <list>` | Polyglot gateway (`express`, `fastify`, `nestjs`, `traefik`, `kong`) and `name:framework,...` services. |
+| `--remotes <list>` | Microfrontend remotes as `name[:framework],...`. |
+| `--type <type>` | Workspace type for a monorepo package: only `app`, `package`, `lib` or `tool`. |
+| `--force` | Overwrite files in an existing target and continue past compatibility warnings. |
+| `-y, --yes` | Use defaults and skip prompts (automatic when stdin is not a terminal). |
+| `--dry-run` / `--verbose` / `--json` | Preview; `--dry-run --json` emits the exact file set. |
+
+Workspaces created by `create` use the globs `apps/*`, `packages/*`, `libs/*`, `tools/*` and `services/*`, and
+`service` is a workspace type alongside `app`, `package`, `lib` and `tool`.
+
+`create --dry-run --json` returns the **exact file set** as a contract envelope, with
+per-file sizes, `added/modified/unchanged` status, previews and diffs, and writes
+nothing; the human preview goes to stderr. It is the same dry-run discipline as
+[`templates apply`](/re-shell/cli/templates/).
+
+```bash
+re-shell create api --backend express --dry-run --json | jq '.data.summary'
+```
+
+**Skeletons versus runnable apps.** `create` scaffolds real templates (38 files for
+`--backend express`), while `generate backend` writes a smaller starter (for Express
+only `package.json`, `tsconfig.json` and `src/index.ts`). Whether a given template's
+generated project installs, builds and boots is a separate question, answered by
+[template verification](/re-shell/templates/catalog/#verification).
 
 ## See also
 
 - [templates](/re-shell/cli/templates/) — discover what to scaffold.
-- [Template Catalog](/re-shell/templates/catalog/) — all 205 frameworks.
+- [Template Catalog](/re-shell/templates/catalog/) — all 204 templates.
 - [service & bridge](/re-shell/cli/service-bridge/) — connect polyglot services.

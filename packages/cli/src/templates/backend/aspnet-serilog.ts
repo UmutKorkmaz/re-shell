@@ -47,7 +47,7 @@ export const aspnetSerilogTemplate: BackendTemplate = {
     <PackageReference Include="Serilog.Sinks.RollingFile" Version="3.3.0" />
     <PackageReference Include="Serilog.Sinks.Seq" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.EventLog" Version="3.1.0" />
-    <PackageReference Include="Serilog.Sinks.Email" Version="2.4.0" />
+    <PackageReference Include="Serilog.Sinks.Email" Version="4.1.0" />
     <PackageReference Include="Serilog.Sinks.MSSqlServer" Version="6.3.0" />
     <PackageReference Include="Serilog.Sinks.Elasticsearch" Version="9.0.3" />
     <PackageReference Include="Serilog.Sinks.ApplicationInsights" Version="4.0.0" />
@@ -55,22 +55,23 @@ export const aspnetSerilogTemplate: BackendTemplate = {
     <PackageReference Include="Serilog.Formatting.Compact" Version="2.0.0" />
     <PackageReference Include="Serilog.Formatting.Elasticsearch" Version="9.0.3" />
     <PackageReference Include="Serilog.Filters.Expressions" Version="2.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="8.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
   </ItemGroup>
 
 </Project>`,
 
     // Program.cs with comprehensive Serilog configuration
-    'Program.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Services;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Profiles;
-using {{serviceName}}.Validators;
-using {{serviceName}}.Infrastructure.Logging;
+    'Program.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Profiles;
+using {{projectNamePascal}}.Validators;
+using {{projectNamePascal}}.Infrastructure.Logging;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 using FluentValidation;
@@ -79,6 +80,7 @@ using Serilog.Events;
 using Serilog.Formatting.Compact;
 using Serilog.Formatting.Elasticsearch;
 using Serilog.Filters.Expressions;
+using Serilog.Filters;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -93,7 +95,7 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    Log.Information("Starting up {{serviceName}} application");
+    Log.Information("Starting up {{projectName}} application");
 
     var builder = WebApplication.CreateBuilder(args);
 
@@ -114,8 +116,8 @@ try
             .Enrich.WithThreadId()
             .Enrich.WithCorrelationId()
             .Enrich.WithClientIp()
-            .Enrich.WithUserName()
-            .Enrich.WithProperty("Application", "{{serviceName}}")
+            .Enrich.WithEnvironmentUserName()
+            .Enrich.WithProperty("Application", "{{projectName}}")
             .Enrich.WithProperty("Version", "1.0.0");
 
         // Console sink with different formatting per environment
@@ -132,19 +134,19 @@ try
         // File sinks with rolling policies
         configuration
             .WriteTo.File(
-                path: "logs/{{serviceName}}.log",
+                path: "logs/{{projectName}}.log",
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 7,
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
             .WriteTo.File(
                 new CompactJsonFormatter(),
-                path: "logs/{{serviceName}}-.json",
+                path: "logs/{{projectName}}-.json",
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 7);
 
         // Error-only file sink
         configuration.WriteTo.Logger(lc => lc
-            .Filter.ByIncludingOnly(Matching.FromSource<{{serviceName}}.Controllers>())
+            .Filter.ByIncludingOnly(Matching.FromSource("{{projectNamePascal}}.Controllers"))
             .WriteTo.File(
                 path: "logs/errors-.log",
                 rollingInterval: RollingInterval.Day,
@@ -161,7 +163,7 @@ try
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Message:lj} {Properties:j}{NewLine}"));
 
         // Database sink for structured logging (if SQL Server is available)
-        if (!string.IsNullOrEmpty(config.GetConnectionString("DefaultConnection")))
+        if (!env.IsEnvironment("Testing") && !string.IsNullOrEmpty(config.GetConnectionString("DefaultConnection")))
         {
             configuration.WriteTo.MSSqlServer(
                 connectionString: config.GetConnectionString("DefaultConnection"),
@@ -171,7 +173,7 @@ try
                     SchemaName = "dbo",
                     AutoCreateSqlTable = true,
                     BatchPostingLimit = 1000,
-                    Period = TimeSpan.FromSeconds(10)
+                    BatchPeriod = TimeSpan.FromSeconds(10)
                 },
                 restrictedToMinimumLevel: LogEventLevel.Information);
         }
@@ -189,7 +191,7 @@ try
         {
             configuration.WriteTo.Elasticsearch(new Serilog.Sinks.Elasticsearch.ElasticsearchSinkOptions(new Uri(elasticsearchUrl))
             {
-                IndexFormat = "{{serviceName}}-logs-{0:yyyy.MM.dd}",
+                IndexFormat = "{{projectName}}-logs-{0:yyyy.MM.dd}",
                 AutoRegisterTemplate = true,
                 AutoRegisterTemplateVersion = Serilog.Sinks.Elasticsearch.AutoRegisterTemplateVersion.ESv7,
                 CustomFormatter = new ElasticsearchJsonFormatter(),
@@ -211,20 +213,26 @@ try
         var smtpServer = config.GetValue<string>("Serilog:Email:SmtpServer");
         if (!string.IsNullOrEmpty(smtpServer))
         {
-            configuration.WriteTo.Email(new Serilog.Sinks.Email.EmailSinkOptions
-            {
-                From = config.GetValue<string>("Serilog:Email:From") ?? "noreply@{{serviceName}}.com",
-                To = config.GetValue<string>("Serilog:Email:To") ?? "admin@{{serviceName}}.com",
-                Subject = "{{serviceName}} Critical Error",
-                SmtpServer = smtpServer,
-                Port = config.GetValue<int>("Serilog:Email:Port", 587),
-                EnableSsl = config.GetValue<bool>("Serilog:Email:EnableSsl", true),
-                Username = config.GetValue<string>("Serilog:Email:Username"),
-                Password = config.GetValue<string>("Serilog:Email:Password"),
-                RestrictedToMinimumLevel = LogEventLevel.Fatal,
-                BatchPostingLimit = 5,
-                Period = TimeSpan.FromMinutes(2)
-            });
+            var emailUser = config.GetValue<string>("Serilog:Email:Username");
+            var emailPassword = config.GetValue<string>("Serilog:Email:Password");
+            var enableSsl = config.GetValue<bool>("Serilog:Email:EnableSsl", true);
+
+            configuration.WriteTo.Email(
+                new Serilog.Sinks.Email.EmailSinkOptions
+                {
+                    From = config.GetValue<string>("Serilog:Email:From") ?? "noreply@{{projectName}}.com",
+                    To = new List<string> { config.GetValue<string>("Serilog:Email:To") ?? "admin@{{projectName}}.com" },
+                    Subject = new Serilog.Formatting.Display.MessageTemplateTextFormatter("{{projectName}} Critical Error: {Message}"),
+                    Host = smtpServer,
+                    Port = config.GetValue<int>("Serilog:Email:Port", 587),
+                    ConnectionSecurity = enableSsl
+                        ? MailKit.Security.SecureSocketOptions.StartTls
+                        : MailKit.Security.SecureSocketOptions.Auto,
+                    Credentials = string.IsNullOrEmpty(emailUser)
+                        ? null
+                        : new System.Net.NetworkCredential(emailUser, emailPassword)
+                },
+                restrictedToMinimumLevel: LogEventLevel.Fatal);
         }
 
         // Set minimum log levels based on environment
@@ -244,7 +252,7 @@ try
         else // Production
         {
             configuration.MinimumLevel.Warning()
-                .MinimumLevel.Override("{{serviceName}}", LogEventLevel.Information)
+                .MinimumLevel.Override("{{projectName}}", LogEventLevel.Information)
                 .MinimumLevel.Override("Microsoft", LogEventLevel.Error)
                 .MinimumLevel.Override("System", LogEventLevel.Error);
         }
@@ -322,7 +330,7 @@ try
     {
         c.SwaggerDoc("v1", new OpenApiInfo 
         { 
-            Title = "{{serviceName}} API", 
+            Title = "{{projectName}} API", 
             Version = "v1",
             Description = "Enterprise .NET API with comprehensive Serilog logging"
         });
@@ -361,9 +369,23 @@ try
 
     // Health checks
     builder.Services.AddHealthChecks()
-        .AddDbContext<ApplicationDbContext>();
+        .AddDbContextCheck<ApplicationDbContext>();
 
     var app = builder.Build();
+
+    // Create the schema for the in-memory test database and local development databases.
+    if (app.Environment.IsEnvironment("Testing") || app.Environment.IsDevelopment())
+    {
+        using var scope = app.Services.CreateScope();
+        try
+        {
+            scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.EnsureCreated();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not create the database; check the DefaultConnection connection string");
+        }
+    }
 
     // Request logging middleware
     app.UseSerilogRequestLogging(options =>
@@ -396,7 +418,7 @@ try
         app.UseSwagger();
         app.UseSwaggerUI(c =>
         {
-            c.SwaggerEndpoint("/swagger/v1/swagger.json", "{{serviceName}} API V1");
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "{{projectName}} API V1");
             c.RoutePrefix = string.Empty;
         });
     }
@@ -416,12 +438,12 @@ try
     app.MapHealthChecks("/health");
     app.MapHealthChecks("/health/ready");
 
-    Log.Information("{{serviceName}} application started successfully");
+    Log.Information("{{projectName}} application started successfully");
     app.Run();
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "{{serviceName}} application terminated unexpectedly");
+    Log.Fatal(ex, "{{projectName}} application terminated unexpectedly");
 }
 finally
 {
@@ -596,7 +618,7 @@ finally
     // Logging service interface
     'Services/ILoggingService.cs': `using Serilog;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface ILoggingService
 {
@@ -617,9 +639,10 @@ public interface ILoggingService
 
     // Logging service implementation
     'Services/LoggingService.cs': `using Serilog;
+using ILogger = Serilog.ILogger;
 using Serilog.Context;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class LoggingService : ILoggingService
 {
@@ -738,7 +761,7 @@ public class LoggingService : ILoggingService
 }`,
 
     // Performance monitoring service interface
-    'Services/IPerformanceMonitoringService.cs': `namespace {{serviceName}}.Services;
+    'Services/IPerformanceMonitoringService.cs': `namespace {{projectNamePascal}}.Services;
 
 public interface IPerformanceMonitoringService
 {
@@ -751,9 +774,10 @@ public interface IPerformanceMonitoringService
     // Performance monitoring service implementation
     'Services/PerformanceMonitoringService.cs': `using System.Diagnostics;
 using Serilog;
+using ILogger = Serilog.ILogger;
 using Serilog.Context;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class PerformanceMonitoringService : IPerformanceMonitoringService
 {
@@ -834,9 +858,10 @@ public class PerformanceMonitoringService : IPerformanceMonitoringService
     // Middleware for performance logging
     'Infrastructure/Middleware/PerformanceLoggingMiddleware.cs': `using System.Diagnostics;
 using Serilog;
+using ILogger = Serilog.ILogger;
 using Serilog.Context;
 
-namespace {{serviceName}}.Infrastructure.Logging;
+namespace {{projectNamePascal}}.Infrastructure.Logging;
 
 public class PerformanceLoggingMiddleware
 {
@@ -891,9 +916,10 @@ public class PerformanceLoggingMiddleware
     'Infrastructure/Middleware/ErrorLoggingMiddleware.cs': `using System.Net;
 using System.Text.Json;
 using Serilog;
+using ILogger = Serilog.ILogger;
 using Serilog.Context;
 
-namespace {{serviceName}}.Infrastructure.Logging;
+namespace {{projectNamePascal}}.Infrastructure.Logging;
 
 public class ErrorLoggingMiddleware
 {
@@ -938,7 +964,7 @@ public class ErrorLoggingMiddleware
         var (statusCode, message) = GetErrorResponse(exception);
         response.StatusCode = statusCode;
 
-        var errorResponse = new
+        object errorResponse = new
         {
             error = new
             {
@@ -983,7 +1009,7 @@ public class ErrorLoggingMiddleware
     // Correlation ID middleware
     'Infrastructure/Middleware/CorrelationIdMiddleware.cs': `using Serilog.Context;
 
-namespace {{serviceName}}.Infrastructure.Logging;
+namespace {{projectNamePascal}}.Infrastructure.Logging;
 
 public class CorrelationIdMiddleware
 {
@@ -1225,6 +1251,638 @@ select avg(ElapsedMs) from stream group by time(1h)
 - Failed logins > 10 per minute
 - Disk space < 10% remaining
 \`
-}`
+}`,
+
+    'Controllers/UsersController.cs': `using AutoMapper;
+using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Services;
+
+namespace {{projectNamePascal}}.Controllers;
+
+/// <summary>User management endpoints.</summary>
+[ApiController]
+[Route("api/[controller]")]
+[Produces("application/json")]
+public class UsersController : ControllerBase
+{
+    private readonly IUserService _userService;
+    private readonly IMapper _mapper;
+    private readonly IValidator<CreateUserRequest> _createValidator;
+    private readonly IValidator<UpdateUserRequest> _updateValidator;
+    private readonly ILogger<UsersController> _logger;
+
+    public UsersController(
+        IUserService userService,
+        IMapper mapper,
+        IValidator<CreateUserRequest> createValidator,
+        IValidator<UpdateUserRequest> updateValidator,
+        ILogger<UsersController> logger)
+    {
+        _userService = userService;
+        _mapper = mapper;
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
+        _logger = logger;
+    }
+
+    /// <summary>Lists users with optional search, sorting and pagination.</summary>
+    [HttpGet]
+    public async Task<ActionResult<PagedResult<UserResponse>>> GetUsers(
+        string? search = null, int page = 1, int pageSize = 10, string sortBy = "createdAt", string sortOrder = "desc")
+    {
+        _logger.LogInformation("Listing users (search: {Search}, page: {Page}, pageSize: {PageSize})", search, page, pageSize);
+
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 10;
+
+        try
+        {
+            var users = await _userService.GetUsersAsync(search, page, pageSize, sortBy, sortOrder);
+            return Ok(_mapper.Map<PagedResult<UserResponse>>(users));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid parameters for GetUsers");
+            return BadRequest(new ErrorResponse { Message = ex.Message });
+        }
+    }
+
+    /// <summary>Gets a user by id.</summary>
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<UserResponse>> GetUser(int id)
+    {
+        var user = await _userService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            _logger.LogWarning("User {UserId} not found", id);
+            return NotFound(new ErrorResponse { Message = $"User with ID {id} not found" });
+        }
+
+        return Ok(_mapper.Map<UserResponse>(user));
+    }
+
+    /// <summary>Creates a user.</summary>
+    [HttpPost]
+    public async Task<ActionResult<UserResponse>> CreateUser(CreateUserRequest request)
+    {
+        var validation = await _createValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+        {
+            _logger.LogWarning("Rejected user creation: {ErrorCount} validation errors", validation.Errors.Count);
+            return BadRequest(new ValidationErrorResponse
+            {
+                Errors = validation.Errors.GroupBy(e => e.PropertyName).ToDictionary(g => g.Key, g => g.First().ErrorMessage)
+            });
+        }
+
+        try
+        {
+            var created = await _userService.CreateUserAsync(_mapper.Map<User>(request));
+            _logger.LogInformation("Created user {UserId}", created.Id);
+            return CreatedAtAction(nameof(GetUser), new { id = created.Id }, _mapper.Map<UserResponse>(created));
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "User creation conflict for {Email}", request.Email);
+            return Conflict(new ErrorResponse { Message = ex.Message });
+        }
+    }
+
+    /// <summary>Updates a user. Omitted fields are left unchanged.</summary>
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<UserResponse>> UpdateUser(int id, UpdateUserRequest request)
+    {
+        var validation = await _updateValidator.ValidateAsync(request);
+        if (!validation.IsValid)
+        {
+            return BadRequest(new ValidationErrorResponse
+            {
+                Errors = validation.Errors.GroupBy(e => e.PropertyName).ToDictionary(g => g.Key, g => g.First().ErrorMessage)
+            });
+        }
+
+        var user = await _userService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new ErrorResponse { Message = $"User with ID {id} not found" });
+        }
+
+        _mapper.Map(request, user);
+        var updated = await _userService.UpdateUserAsync(user);
+        return Ok(_mapper.Map<UserResponse>(updated));
+    }
+
+    /// <summary>Soft-deletes a user.</summary>
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteUser(int id)
+    {
+        var user = await _userService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new ErrorResponse { Message = $"User with ID {id} not found" });
+        }
+
+        await _userService.DeleteUserAsync(id);
+        return NoContent();
+    }
+}
+`,
+
+    'DTOs/CommonDtos.cs': `namespace {{projectNamePascal}}.DTOs;
+
+public class PagedResult<T>
+{
+    public List<T> Items { get; set; } = new();
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public int TotalPages => PageSize > 0 ? (int)Math.Ceiling(TotalCount / (double)PageSize) : 0;
+}
+
+public class SearchRequest
+{
+    public string? Query { get; set; }
+    public string? City { get; set; }
+    public string? Country { get; set; }
+    public bool? IsActive { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 10;
+}
+
+public class SearchResult<T>
+{
+    public List<T> Items { get; set; } = new();
+    public int TotalCount { get; set; }
+    public string? Query { get; set; }
+}
+
+public class ErrorResponse
+{
+    public string Message { get; set; } = string.Empty;
+    public string? Details { get; set; }
+}
+
+public class ValidationErrorResponse
+{
+    public string Message { get; set; } = "One or more validation errors occurred";
+    public Dictionary<string, string> Errors { get; set; } = new();
+}
+`,
+
+    'DTOs/UserDtos.cs': `using System.ComponentModel.DataAnnotations;
+
+namespace {{projectNamePascal}}.DTOs;
+
+/// <summary>Postal address supplied when creating or updating a user.</summary>
+public class AddressRequest
+{
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+}
+
+/// <summary>Postal address returned for a user.</summary>
+public class AddressResponse
+{
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+}
+
+/// <summary>Payload for creating a user.</summary>
+public class CreateUserRequest
+{
+    [Required]
+    public string FirstName { get; set; } = string.Empty;
+
+    [Required]
+    public string LastName { get; set; } = string.Empty;
+
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    [Required]
+    public string Password { get; set; } = string.Empty;
+
+    public string? PhoneNumber { get; set; }
+
+    public DateOnly? DateOfBirth { get; set; }
+
+    public AddressRequest? Address { get; set; }
+}
+
+/// <summary>Payload for updating a user. Omitted (null) fields are left unchanged.</summary>
+public class UpdateUserRequest
+{
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? PhoneNumber { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
+    public AddressRequest? Address { get; set; }
+    public bool? IsActive { get; set; }
+}
+
+/// <summary>A user as returned by the API.</summary>
+public class UserResponse
+{
+    public int Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? PhoneNumber { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
+    public AddressResponse? Address { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}
+`,
+
+    'Data/ApplicationDbContext.cs': `using Microsoft.EntityFrameworkCore;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Data;
+
+public class ApplicationDbContext : DbContext
+{
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+    {
+    }
+
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<User>(e =>
+        {
+            e.HasIndex(u => u.Email).IsUnique();
+            e.Property(u => u.Email).HasMaxLength(256);
+            e.OwnsOne(u => u.Address);
+            // Soft delete: deleted users are hidden from every query.
+            e.HasQueryFilter(u => !u.IsDeleted);
+        });
+
+        modelBuilder.Entity<Product>(e =>
+        {
+            e.Property(p => p.Price).HasPrecision(18, 2);
+        });
+    }
+}
+`,
+
+    'Models/AuditLog.cs': `namespace {{projectNamePascal}}.Models;
+
+public class AuditLog
+{
+    public int Id { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string EntityName { get; set; } = string.Empty;
+    public string? EntityId { get; set; }
+    public string? Details { get; set; }
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+}
+`,
+
+    'Models/Product.cs': `namespace {{projectNamePascal}}.Models;
+
+public class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public decimal Price { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+`,
+
+    'Models/User.cs': `namespace {{projectNamePascal}}.Models;
+
+public class User
+{
+    public int Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public string? PhoneNumber { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
+    public UserAddress? Address { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool IsDeleted { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
+}
+
+public class UserAddress
+{
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+}
+`,
+
+    'Profiles/UserProfile.cs': `using AutoMapper;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Profiles;
+
+public class UserProfile : Profile
+{
+    public UserProfile()
+    {
+        CreateMap<UserAddress, AddressResponse>();
+        CreateMap<AddressRequest, UserAddress>();
+
+        CreateMap<User, UserResponse>();
+
+        CreateMap<CreateUserRequest, User>()
+            .ForMember(d => d.PasswordHash, o => o.MapFrom(s => BCrypt.Net.BCrypt.HashPassword(s.Password)))
+            .ForMember(d => d.Id, o => o.Ignore())
+            .ForMember(d => d.IsActive, o => o.Ignore())
+            .ForMember(d => d.IsDeleted, o => o.Ignore())
+            .ForMember(d => d.CreatedAt, o => o.Ignore())
+            .ForMember(d => d.UpdatedAt, o => o.Ignore());
+
+        // Only fields present in the request are applied to the existing user.
+        CreateMap<UpdateUserRequest, User>()
+            .ForAllMembers(o => o.Condition((src, dest, srcMember) => srcMember != null));
+
+        CreateMap(typeof(PagedResult<>), typeof(PagedResult<>));
+        CreateMap(typeof(SearchResult<>), typeof(SearchResult<>));
+    }
+}
+`,
+
+    'Services/AuditService.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public class AuditService : IAuditService
+{
+    private readonly ApplicationDbContext _db;
+
+    public AuditService(ApplicationDbContext db)
+    {
+        _db = db;
+    }
+
+    public async Task LogAsync(string action, string entityName, string? entityId = null, string? details = null)
+    {
+        _db.AuditLogs.Add(new AuditLog
+        {
+            Action = action,
+            EntityName = entityName,
+            EntityId = entityId,
+            Details = details,
+        });
+        await _db.SaveChangesAsync();
+    }
+}
+`,
+
+    'Services/IAuditService.cs': `namespace {{projectNamePascal}}.Services;
+
+public interface IAuditService
+{
+    Task LogAsync(string action, string entityName, string? entityId = null, string? details = null);
+}
+`,
+
+    'Services/IProductService.cs': `using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public interface IProductService
+{
+    Task<List<Product>> GetProductsAsync();
+    Task<Product?> GetProductByIdAsync(int id);
+    Task<Product> CreateProductAsync(Product product);
+}
+`,
+
+    'Services/IUserService.cs': `using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public interface IUserService
+{
+    Task<PagedResult<User>> GetUsersAsync(string? search, int page, int pageSize, string sortBy, string sortOrder);
+    Task<User?> GetUserByIdAsync(int id);
+    Task<User> CreateUserAsync(User user);
+    Task<User> UpdateUserAsync(User user);
+    Task DeleteUserAsync(int id);
+    Task<SearchResult<User>> SearchUsersAsync(SearchRequest request);
+}
+`,
+
+    'Services/ProductService.cs': `using Microsoft.EntityFrameworkCore;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public class ProductService : IProductService
+{
+    private readonly ApplicationDbContext _db;
+    private readonly IAuditService _audit;
+
+    public ProductService(ApplicationDbContext db, IAuditService audit)
+    {
+        _db = db;
+        _audit = audit;
+    }
+
+    public Task<List<Product>> GetProductsAsync() => _db.Products.AsNoTracking().OrderBy(p => p.Name).ToListAsync();
+
+    public Task<Product?> GetProductByIdAsync(int id) => _db.Products.FirstOrDefaultAsync(p => p.Id == id);
+
+    public async Task<Product> CreateProductAsync(Product product)
+    {
+        _db.Products.Add(product);
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("create", nameof(Product), product.Id.ToString());
+        return product;
+    }
+}
+`,
+
+    'Services/UserService.cs': `using Microsoft.EntityFrameworkCore;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Services;
+
+public class UserService : IUserService
+{
+    private readonly ApplicationDbContext _db;
+    private readonly IAuditService _audit;
+
+    public UserService(ApplicationDbContext db, IAuditService audit)
+    {
+        _db = db;
+        _audit = audit;
+    }
+
+    public async Task<PagedResult<User>> GetUsersAsync(string? search, int page, int pageSize, string sortBy, string sortOrder)
+    {
+        var query = _db.Users.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(u =>
+                u.FirstName.ToLower().Contains(term) ||
+                u.LastName.ToLower().Contains(term) ||
+                u.Email.ToLower().Contains(term));
+        }
+
+        var descending = string.Equals(sortOrder, "desc", StringComparison.OrdinalIgnoreCase);
+        query = (sortBy ?? "createdAt").ToLowerInvariant() switch
+        {
+            "name" => descending ? query.OrderByDescending(u => u.LastName).ThenByDescending(u => u.FirstName)
+                                 : query.OrderBy(u => u.LastName).ThenBy(u => u.FirstName),
+            "email" => descending ? query.OrderByDescending(u => u.Email) : query.OrderBy(u => u.Email),
+            "createdat" => descending ? query.OrderByDescending(u => u.CreatedAt) : query.OrderBy(u => u.CreatedAt),
+            _ => throw new ArgumentException($"Unsupported sort field '{sortBy}'. Use name, email or createdAt."),
+        };
+
+        var total = await query.CountAsync();
+        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+        return new PagedResult<User> { Items = items, Page = page, PageSize = pageSize, TotalCount = total };
+    }
+
+    public Task<User?> GetUserByIdAsync(int id) => _db.Users.FirstOrDefaultAsync(u => u.Id == id);
+
+    public async Task<User> CreateUserAsync(User user)
+    {
+        var email = user.Email.Trim().ToLowerInvariant();
+        if (await _db.Users.AnyAsync(u => u.Email == email))
+        {
+            throw new InvalidOperationException("A user with this email already exists");
+        }
+
+        user.Email = email;
+        user.CreatedAt = DateTime.UtcNow;
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("create", nameof(User), user.Id.ToString());
+        return user;
+    }
+
+    public async Task<User> UpdateUserAsync(User user)
+    {
+        user.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("update", nameof(User), user.Id.ToString());
+        return user;
+    }
+
+    public async Task DeleteUserAsync(int id)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null) return;
+
+        user.IsDeleted = true;
+        user.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("delete", nameof(User), id.ToString());
+    }
+
+    public async Task<SearchResult<User>> SearchUsersAsync(SearchRequest request)
+    {
+        var query = _db.Users.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(request.Query))
+        {
+            var term = request.Query.Trim().ToLower();
+            query = query.Where(u =>
+                u.FirstName.ToLower().Contains(term) ||
+                u.LastName.ToLower().Contains(term) ||
+                u.Email.ToLower().Contains(term));
+        }
+        if (!string.IsNullOrWhiteSpace(request.City))
+            query = query.Where(u => u.Address != null && u.Address.City == request.City);
+        if (!string.IsNullOrWhiteSpace(request.Country))
+            query = query.Where(u => u.Address != null && u.Address.Country == request.Country);
+        if (request.IsActive.HasValue)
+            query = query.Where(u => u.IsActive == request.IsActive.Value);
+
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var total = await query.CountAsync();
+        var items = await query.OrderBy(u => u.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+        return new SearchResult<User> { Items = items, TotalCount = total, Query = request.Query };
+    }
+}
+`,
+
+    'Validators/UserValidators.cs': `using FluentValidation;
+using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Validators;
+
+public class AddressRequestValidator : AbstractValidator<AddressRequest>
+{
+    public AddressRequestValidator()
+    {
+        RuleFor(a => a.Street).NotEmpty().MaximumLength(200);
+        RuleFor(a => a.City).NotEmpty().MaximumLength(100);
+        RuleFor(a => a.PostalCode).NotEmpty().MaximumLength(20);
+        RuleFor(a => a.Country).NotEmpty().MaximumLength(100);
+    }
+}
+
+public class CreateUserValidator : AbstractValidator<CreateUserRequest>
+{
+    public CreateUserValidator()
+    {
+        RuleFor(u => u.FirstName).NotEmpty().MaximumLength(100);
+        RuleFor(u => u.LastName).NotEmpty().MaximumLength(100);
+        RuleFor(u => u.Email).NotEmpty().EmailAddress().MaximumLength(256);
+        RuleFor(u => u.Password)
+            .NotEmpty()
+            .MinimumLength(8).WithMessage("Password must be at least 8 characters long")
+            .Matches("[A-Z]").WithMessage("Password must contain an uppercase letter")
+            .Matches("[a-z]").WithMessage("Password must contain a lowercase letter")
+            .Matches("[0-9]").WithMessage("Password must contain a digit");
+        RuleFor(u => u.PhoneNumber).MaximumLength(30);
+        RuleFor(u => u.DateOfBirth)
+            .Must(d => d is null || d.Value <= DateOnly.FromDateTime(DateTime.UtcNow))
+            .WithMessage("Date of birth cannot be in the future");
+        RuleFor(u => u.Address!).SetValidator(new AddressRequestValidator()).When(u => u.Address != null);
+    }
+}
+
+public class UpdateUserValidator : AbstractValidator<UpdateUserRequest>
+{
+    public UpdateUserValidator()
+    {
+        RuleFor(u => u.FirstName).MaximumLength(100);
+        RuleFor(u => u.LastName).MaximumLength(100);
+        RuleFor(u => u.PhoneNumber).MaximumLength(30);
+        RuleFor(u => u.DateOfBirth)
+            .Must(d => d is null || d.Value <= DateOnly.FromDateTime(DateTime.UtcNow))
+            .WithMessage("Date of birth cannot be in the future");
+        RuleFor(u => u.Address!).SetValidator(new AddressRequestValidator()).When(u => u.Address != null);
+    }
+}
+`
   }
 };

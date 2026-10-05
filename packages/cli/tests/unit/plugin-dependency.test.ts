@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { jsonData } from '../utils/stdout-json';
 import type {
   ResolutionResult,
   DependencyConflict,
@@ -125,7 +126,7 @@ function output(): string {
 
 /** JSON emitted via console.log: parse the LAST logged line. */
 function jsonOutput<T>(): T {
-  return JSON.parse(logs[logs.length - 1]) as T;
+  return jsonData() as T;
 }
 
 beforeEach(() => {

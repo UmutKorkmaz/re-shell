@@ -4,1763 +4,951 @@ export const crowTemplate: BackendTemplate = {
   id: 'crow',
   name: 'crow',
   displayName: 'Crow C++ Framework',
-  description: 'Fast and easy to use C++ microframework for building HTTP APIs with modern C++ features',
+  description: 'C++17 HTTP API on the Crow microframework (v1.2.0) with JWT auth, products CRUD, GraphQL and WebSocket echo',
   framework: 'crow',
   language: 'cpp',
   version: '1.0.0',
   tags: ['cpp', 'crow', 'api', 'rest', 'microframework', 'header-only'],
   port: 8080,
-  features: ['routing', 'middleware', 'validation', 'file-upload', 'websockets', 'testing', 'docker', 'cors', 'logging', 'graphql'],
+  features: ['routing', 'validation', 'authentication', 'websockets', 'testing', 'docker', 'cors', 'graphql'],
   dependencies: {
-    'cpp-graphql': 'https://github.com/cpp-graphql/cpp-graphql.git#v4.5.0'
+    Crow: 'https://github.com/CrowCpp/Crow.git#v1.2.0'
   },
   devDependencies: {},
-  
+
   files: {
-    // CMakeLists.txt
-    'CMakeLists.txt': `cmake_minimum_required(VERSION 3.16)
+    'CMakeLists.txt': `cmake_minimum_required(VERSION 3.24)
 project({{serviceName}} VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Enable all warnings
 if(MSVC)
-    add_compile_options(/W4 /WX)
+  add_compile_options(/W4)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+  add_compile_options(-Wall -Wextra)
 endif()
 
-# Find packages
 find_package(Threads REQUIRED)
-find_package(ZLIB REQUIRED)
 find_package(OpenSSL REQUIRED)
 
-# Include FetchContent to download dependencies
 include(FetchContent)
 
-# Fetch Crow
+# Crow: header-only HTTP framework, fetched from its release tag. It needs the
+# standalone Asio headers installed on the system (apt install libasio-dev,
+# brew install asio) or Boost (see https://crowcpp.org/master/getting_started/setup/).
+set(CROW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(CROW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(CROW_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
-    crow
-    GIT_REPOSITORY https://github.com/CrowCpp/Crow.git
-    GIT_TAG v1.0+5
+  Crow
+  GIT_REPOSITORY https://github.com/CrowCpp/Crow.git
+  GIT_TAG v1.2.0
+  GIT_SHALLOW TRUE
 )
-FetchContent_MakeAvailable(crow)
 
-# Fetch nlohmann/json
+# nlohmann/json and GoogleTest: use the system packages when present, otherwise fetch them.
 FetchContent_Declare(
-    json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.11.3
+  nlohmann_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.11.3
+  GIT_SHALLOW TRUE
+  FIND_PACKAGE_ARGS NAMES nlohmann_json
 )
-FetchContent_MakeAvailable(json)
-
-# Fetch spdlog for logging
 FetchContent_Declare(
-    spdlog
-    GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG v1.12.0
+  googletest
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG v1.14.0
+  GIT_SHALLOW TRUE
+  FIND_PACKAGE_ARGS NAMES GTest
 )
-FetchContent_MakeAvailable(spdlog)
+FetchContent_MakeAvailable(Crow nlohmann_json googletest)
 
-# Fetch Google Test
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.14.0
+# Everything except the HTTP layer, shared by the server and the tests.
+add_library(app_core STATIC
+  src/auth.cpp
+  src/store.cpp
 )
-FetchContent_MakeAvailable(googletest)
+target_include_directories(app_core PUBLIC \${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(app_core PUBLIC nlohmann_json::nlohmann_json OpenSSL::Crypto)
 
-# Main executable
 add_executable(\${PROJECT_NAME}
-    src/main.cpp
-    src/controllers/health_controller.cpp
-    src/controllers/user_controller.cpp
-    src/middleware/auth_middleware.cpp
-    src/middleware/cors_middleware.cpp
-    src/middleware/logging_middleware.cpp
-    src/services/user_service.cpp
-    src/graphql/schema.cpp
-    src/graphql/resolver.cpp
-    src/graphql/handler.cpp
-    src/models/user.cpp
-    src/utils/jwt_utils.cpp
-    src/utils/database.cpp
-    src/config/config.cpp
+  src/main.cpp
+  src/routes.cpp
 )
+target_link_libraries(\${PROJECT_NAME} PRIVATE app_core Crow::Crow Threads::Threads)
 
-target_include_directories(\${PROJECT_NAME} PRIVATE
-    \${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(\${PROJECT_NAME}
-    PRIVATE
-        Crow::Crow
-        nlohmann_json::nlohmann_json
-        spdlog::spdlog
-        \${CMAKE_THREAD_LIBS_INIT}
-        \${OPENSSL_LIBRARIES}
-        \${ZLIB_LIBRARIES}
-)
-
-# Test executable
 enable_testing()
-add_executable(tests
-    tests/test_main.cpp
-    tests/test_user_controller.cpp
-    tests/test_auth_middleware.cpp
-    tests/test_user_service.cpp
-    tests/test_jwt_utils.cpp
-    src/controllers/user_controller.cpp
-    src/middleware/auth_middleware.cpp
-    src/services/user_service.cpp
-    src/models/user.cpp
-    src/utils/jwt_utils.cpp
-    src/config/config.cpp
+add_executable(unit_tests
+  tests/test_auth.cpp
+  tests/test_store.cpp
 )
+target_link_libraries(unit_tests PRIVATE app_core GTest::gtest_main)
+add_test(NAME unit_tests COMMAND unit_tests)
 
-target_include_directories(tests PRIVATE
-    \${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(tests
-    PRIVATE
-        Crow::Crow
-        nlohmann_json::nlohmann_json
-        spdlog::spdlog
-        GTest::gtest
-        GTest::gtest_main
-        \${CMAKE_THREAD_LIBS_INIT}
-        \${OPENSSL_LIBRARIES}
-)
-
-add_test(NAME tests COMMAND tests)
-
-# Install rules
 install(TARGETS \${PROJECT_NAME} DESTINATION bin)
-install(DIRECTORY include/ DESTINATION include)
 `,
 
-    // conanfile.txt
-    'conanfile.txt': `[requires]
-openssl/3.2.0
-zlib/1.3.1
-boost/1.84.0
-sqlite3/3.44.2
-redis-plus-plus/1.3.10
-
-[generators]
-CMakeDeps
-CMakeToolchain
-
-[options]
-boost:header_only=True
-
-[imports]
-bin, *.dll -> ./bin
-lib, *.dylib* -> ./bin
-`,
-
-    // Main application
     'src/main.cpp': `#include <crow.h>
-#include <spdlog/spdlog.h>
-#include "config/config.hpp"
-#include "controllers/health_controller.hpp"
-#include "controllers/user_controller.hpp"
-#include "graphql/handler.hpp"
-#include "middleware/auth_middleware.hpp"
-#include "middleware/cors_middleware.hpp"
-#include "middleware/logging_middleware.hpp"
-#include "utils/database.hpp"
 
-int main()
-{
-    // Load configuration
-    auto config = Config::getInstance();
-    config.load("config.json");
-    
-    // Initialize logger
-    spdlog::set_level(spdlog::level::info);
-    spdlog::info("Starting {{serviceName}} server...");
-    
-    // Initialize database
-    Database::getInstance().initialize(config.getDatabaseUrl());
-    
-    // Create Crow application
-    crow::App<LoggingMiddleware, CorsMiddleware> app;
-    
-    // Configure app
-    app.loglevel(crow::LogLevel::Info);
-    
-    // Register health routes
-    HealthController healthController;
-    healthController.registerRoutes(app);
-    
-    // Register user routes
-    UserController userController;
-    userController.registerRoutes(app);
+#include <cstdint>
+#include <cstdlib>
+#include <string>
 
-    // GraphQL endpoint (raw JSON handler)
-    CROW_ROUTE(app, "/graphql")
-    .methods(crow::HTTPMethod::Post)
-    ([](const crow::request& req) {
-        return graphql::handleGraphQL(req);
-    });
-    
-    // Protected routes example
-    CROW_ROUTE(app, "/api/protected")
-    .middlewares<AuthMiddleware>()
-    ([](const crow::request& req) {
-        auto user_id = req.get_header_value("X-User-Id");
-        crow::json::wvalue response;
-        response["message"] = "Access granted";
-        response["user_id"] = user_id;
-        return crow::response(response);
-    });
-    
-    // WebSocket endpoint
-    CROW_ROUTE(app, "/ws")
-    .websocket()
-    .onopen([&](crow::websocket::connection& conn) {
-        spdlog::info("WebSocket connection opened: {}", conn.get_remote_ip());
-    })
-    .onmessage([&](crow::websocket::connection& conn, const std::string& data, bool is_binary) {
-        if (is_binary) {
-            conn.send_binary(data);
-        } else {
-            crow::json::rvalue json = crow::json::load(data);
-            if (json) {
-                crow::json::wvalue response;
-                response["echo"] = json;
-                response["timestamp"] = std::chrono::system_clock::now().time_since_epoch().count();
-                conn.send_text(response.dump());
+#include "auth.hpp"
+#include "routes.hpp"
+#include "store.hpp"
+
+int main() {
+  const char* secretEnv = std::getenv("JWT_SECRET");
+  const std::string jwtSecret = secretEnv != nullptr ? secretEnv : "change-me-in-production";
+  if (secretEnv == nullptr) {
+    CROW_LOG_WARNING << "JWT_SECRET is not set; using the insecure development secret";
+  }
+
+  const char* portEnv = std::getenv("PORT");
+  const int port = portEnv != nullptr ? std::atoi(portEnv) : {{PORT}};
+
+  Store store;
+  // Seed data for local development: change or remove before deploying.
+  store.addUser("admin@example.com", "Admin User", auth::hashPassword("admin123"), true);
+  store.addProduct("Sample Product 1", "This is a sample product", 29.99, 100);
+  store.addProduct("Sample Product 2", "Another sample product", 49.99, 50);
+
+  App app;
+  app.get_middleware<crow::CORSHandler>()
+      .global()
+      .headers("Content-Type", "Authorization")
+      .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Put,
+               crow::HTTPMethod::Delete)
+      .origin("*");
+
+  registerRoutes(app, store, jwtSecret);
+
+  CROW_LOG_INFO << "{{serviceName}} listening on port " << port;
+  app.port(static_cast<std::uint16_t>(port)).multithreaded().run();
+  return 0;
+}
+`,
+
+    'src/routes.cpp': `#include "routes.hpp"
+
+#include <ctime>
+#include <nlohmann/json.hpp>
+#include <optional>
+
+#include "auth.hpp"
+
+namespace {
+
+using json = nlohmann::json;
+
+crow::response jsonResponse(int status, const json& body) {
+  crow::response res(status, body.dump());
+  res.set_header("Content-Type", "application/json");
+  return res;
+}
+
+crow::response errorResponse(int status, const std::string& message) {
+  return jsonResponse(status, {{"error", message}});
+}
+
+json toJson(const Product& product) {
+  return {{"id", product.id},
+          {"name", product.name},
+          {"description", product.description},
+          {"price", product.price},
+          {"stock", product.stock}};
+}
+
+json toJson(const User& user) {
+  return {{"id", user.id},
+          {"email", user.email},
+          {"name", user.name},
+          {"role", user.admin ? "admin" : "user"}};
+}
+
+crow::response sessionResponse(int status, const User& user, const std::string& secret) {
+  const std::string token = auth::issueToken(user.id, user.admin, secret, std::time(nullptr));
+  return jsonResponse(status, {{"token", token}, {"user", toJson(user)}});
+}
+
+// Parses a JSON object body; returns nothing for malformed input.
+std::optional<json> parseObject(const std::string& body) {
+  json parsed = json::parse(body, nullptr, false);
+  if (parsed.is_discarded() || !parsed.is_object()) return std::nullopt;
+  return parsed;
+}
+
+// Optional fields are valid when absent or of the expected JSON type.
+bool optionalString(const json& body, const char* key) {
+  return !body.contains(key) || body.at(key).is_string();
+}
+
+bool optionalNumber(const json& body, const char* key) {
+  return !body.contains(key) || body.at(key).is_number();
+}
+
+bool optionalInteger(const json& body, const char* key) {
+  return !body.contains(key) || body.at(key).is_number_integer();
+}
+
+// The caller's claims from the Authorization header, if the token is valid.
+std::optional<auth::Claims> authenticate(const crow::request& req, const std::string& secret) {
+  auto token = auth::bearerToken(req.get_header_value("Authorization"));
+  if (!token) return std::nullopt;
+  return auth::verifyToken(*token, secret, std::time(nullptr));
+}
+
+// Minimal GraphQL: { hello health products { ... } } queries only.
+crow::response graphql(const crow::request& req, const Store& store) {
+  auto body = parseObject(req.body);
+  if (!body || !body->contains("query") || !(*body)["query"].is_string()) {
+    return jsonResponse(400, {{"errors", json::array({{{"message", "body must be JSON with a query string"}}})}});
+  }
+  const std::string query = (*body)["query"].get<std::string>();
+  const bool wantsHello = query.find("hello") != std::string::npos;
+  const bool wantsHealth = query.find("health") != std::string::npos;
+  const bool wantsProducts = query.find("products") != std::string::npos;
+  if (!wantsHello && !wantsHealth && !wantsProducts) {
+    return jsonResponse(
+        200, {{"errors", json::array({{{"message", "unknown field: use hello, health or products"}}})}});
+  }
+
+  json data = json::object();
+  if (wantsHello) data["hello"] = "Hello from Crow GraphQL!";
+  if (wantsHealth) data["health"] = "healthy";
+  if (wantsProducts) {
+    data["products"] = json::array();
+    for (const auto& product : store.listProducts()) data["products"].push_back(toJson(product));
+  }
+  return jsonResponse(200, {{"data", data}});
+}
+
+}  // namespace
+
+void registerRoutes(App& app, Store& store, const std::string& jwtSecret) {
+  CROW_ROUTE(app, "/")
+  ([]() {
+    crow::response res(200,
+                       "<!DOCTYPE html><html><head><title>{{serviceName}}</title></head><body>"
+                       "<h1>{{serviceName}}</h1><p>HTTP API built with Crow.</p>"
+                       "<p>Try <a href=\\"/api/v1/health\\">/api/v1/health</a>.</p></body></html>");
+    res.set_header("Content-Type", "text/html; charset=utf-8");
+    return res;
+  });
+
+  CROW_ROUTE(app, "/api/v1/health")
+  ([]() {
+    return jsonResponse(200, {{"status", "healthy"},
+                              {"timestamp", static_cast<long long>(std::time(nullptr))},
+                              {"version", "1.0.0"}});
+  });
+
+  CROW_ROUTE(app, "/api/v1/auth/register")
+      .methods(crow::HTTPMethod::Post)([&store, &jwtSecret](const crow::request& req) {
+        auto body = parseObject(req.body);
+        if (!body || !body->contains("email") || !(*body)["email"].is_string() ||
+            !body->contains("password") || !(*body)["password"].is_string() ||
+            !optionalString(*body, "name")) {
+          return errorResponse(400, "expected JSON with email, password and optional name");
+        }
+        const std::string email = (*body)["email"].get<std::string>();
+        const std::string password = (*body)["password"].get<std::string>();
+        const std::string name = body->value("name", std::string("New User"));
+        if (email.find('@') == std::string::npos || password.size() < 8) {
+          return errorResponse(400, "a valid email and a password of at least 8 characters are required");
+        }
+        if (store.findUserByEmail(email)) return errorResponse(409, "email already registered");
+
+        User user = store.addUser(email, name, auth::hashPassword(password), false);
+        return sessionResponse(201, user, jwtSecret);
+      });
+
+  CROW_ROUTE(app, "/api/v1/auth/login")
+      .methods(crow::HTTPMethod::Post)([&store, &jwtSecret](const crow::request& req) {
+        auto body = parseObject(req.body);
+        if (!body || !body->contains("email") || !(*body)["email"].is_string() ||
+            !body->contains("password") || !(*body)["password"].is_string()) {
+          return errorResponse(400, "expected JSON with email and password");
+        }
+        auto user = store.findUserByEmail((*body)["email"].get<std::string>());
+        if (!user || !auth::verifyPassword(user->passwordHash, (*body)["password"].get<std::string>())) {
+          return errorResponse(401, "invalid credentials");
+        }
+        return sessionResponse(200, *user, jwtSecret);
+      });
+
+  CROW_ROUTE(app, "/api/v1/products")
+      .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post)(
+          [&store, &jwtSecret](const crow::request& req) {
+            if (req.method != crow::HTTPMethod::Post) {  // GET (and HEAD)
+              json products = json::array();
+              for (const auto& product : store.listProducts()) products.push_back(toJson(product));
+              return jsonResponse(200, {{"products", products}, {"count", products.size()}});
             }
-        }
-    })
-    .onclose([&](crow::websocket::connection& conn, const std::string& reason) {
-        spdlog::info("WebSocket connection closed: {} - {}", conn.get_remote_ip(), reason);
-    });
-    
-    // Static file serving
-    app.route_dynamic("/static/<path>")
-    ([](const crow::request&, crow::response& res, std::string filename) {
-        res.set_static_file_info("static/" + filename);
-        res.end();
-    });
-    
-    // 404 handler
-    app.route_dynamic("/.*")
-    ([](const crow::request&, crow::response& res) {
-        res.code = 404;
-        crow::json::wvalue response;
-        response["error"] = "Not Found";
-        response["message"] = "The requested resource was not found";
-        res.write(response.dump());
-        res.end();
-    });
-    
-    // Start server
-    auto port = config.getPort();
-    spdlog::info("Server listening on port {}", port);
-    
-    app.port(port)
-       .multithreaded()
-       .run();
-    
-    return 0;
-}
-`,
 
-    // Config
-    'include/config/config.hpp': `#pragma once
-#include <string>
-#include <nlohmann/json.hpp>
-#include <fstream>
-#include <spdlog/spdlog.h>
-
-class Config {
-private:
-    nlohmann::json config_data;
-    static Config instance;
-    
-    Config() = default;
-    
-public:
-    static Config& getInstance() {
-        static Config instance;
-        return instance;
-    }
-    
-    void load(const std::string& filename) {
-        try {
-            std::ifstream file(filename);
-            if (!file.is_open()) {
-                spdlog::warn("Config file not found, using defaults");
-                setDefaults();
-                return;
+            if (!authenticate(req, jwtSecret)) return errorResponse(401, "a valid bearer token is required");
+            auto body = parseObject(req.body);
+            if (!body || !body->contains("name") || !(*body)["name"].is_string() ||
+                !body->contains("price") || !(*body)["price"].is_number() ||
+                !optionalString(*body, "description") || !optionalInteger(*body, "stock")) {
+              return errorResponse(400, "expected JSON with name, price and optional description, stock");
             }
-            file >> config_data;
-        } catch (const std::exception& e) {
-            spdlog::error("Error loading config: {}", e.what());
-            setDefaults();
+            const std::string name = (*body)["name"].get<std::string>();
+            const double price = (*body)["price"].get<double>();
+            const int stock = body->value("stock", 0);
+            if (name.empty() || price < 0 || stock < 0) {
+              return errorResponse(400, "name is required; price and stock must not be negative");
+            }
+
+            Product product =
+                store.addProduct(name, body->value("description", std::string()), price, stock);
+            return jsonResponse(201, {{"product", toJson(product)}});
+          });
+
+  CROW_ROUTE(app, "/api/v1/products/<int>")
+      .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Put, crow::HTTPMethod::Delete)(
+          [&store, &jwtSecret](const crow::request& req, int id) {
+            if (req.method != crow::HTTPMethod::Put && req.method != crow::HTTPMethod::Delete) {
+              auto product = store.getProduct(id);  // GET (and HEAD)
+              if (!product) return errorResponse(404, "product not found");
+              return jsonResponse(200, {{"product", toJson(*product)}});
+            }
+
+            auto claims = authenticate(req, jwtSecret);
+            if (!claims) return errorResponse(401, "a valid bearer token is required");
+
+            if (req.method == crow::HTTPMethod::Delete) {
+              if (!claims->admin) return errorResponse(403, "admin role required");
+              if (!store.deleteProduct(id)) return errorResponse(404, "product not found");
+              return crow::response(204);
+            }
+
+            auto body = parseObject(req.body);
+            if (!body || !optionalString(*body, "name") || !optionalString(*body, "description") ||
+                !optionalNumber(*body, "price") || !optionalInteger(*body, "stock")) {
+              return errorResponse(400, "expected a JSON object with the fields to change");
+            }
+            ProductPatch patch;
+            if (body->contains("name")) patch.name = body->at("name").get<std::string>();
+            if (body->contains("description")) patch.description = body->at("description").get<std::string>();
+            if (body->contains("price")) patch.price = body->at("price").get<double>();
+            if (body->contains("stock")) patch.stock = body->at("stock").get<int>();
+            if (patch.name && patch.name->empty()) return errorResponse(400, "name must not be empty");
+            if ((patch.price && *patch.price < 0) || (patch.stock && *patch.stock < 0)) {
+              return errorResponse(400, "price and stock must not be negative");
+            }
+
+            auto product = store.updateProduct(id, patch);
+            if (!product) return errorResponse(404, "product not found");
+            return jsonResponse(200, {{"product", toJson(*product)}});
+          });
+
+  CROW_ROUTE(app, "/graphql")
+      .methods(crow::HTTPMethod::Post)([&store](const crow::request& req) { return graphql(req, store); });
+
+  // WebSocket echo
+  CROW_WEBSOCKET_ROUTE(app, "/ws")
+      .onopen([](crow::websocket::connection&) { CROW_LOG_INFO << "WebSocket connection opened"; })
+      .onmessage([](crow::websocket::connection& conn, const std::string& data, bool isBinary) {
+        if (isBinary) {
+          conn.send_binary(data);
+        } else {
+          conn.send_text(data);
         }
-    }
-    
-    int getPort() const {
-        return config_data.value("port", 8080);
-    }
-    
-    std::string getDatabaseUrl() const {
-        return config_data.value("database_url", "sqlite://./data.db");
-    }
-    
-    std::string getJwtSecret() const {
-        return config_data.value("jwt_secret", "your-secret-key");
-    }
-    
-    int getJwtExpiry() const {
-        return config_data.value("jwt_expiry_hours", 24);
-    }
-    
-    std::string getLogLevel() const {
-        return config_data.value("log_level", "info");
-    }
-    
-private:
-    void setDefaults() {
-        config_data = {
-            {"port", 8080},
-            {"database_url", "sqlite://./data.db"},
-            {"jwt_secret", "your-secret-key"},
-            {"jwt_expiry_hours", 24},
-            {"log_level", "info"}
-        };
-    }
-};
+      });
+}
 `,
 
-    'src/config/config.cpp': `#include "config/config.hpp"
+    'src/auth.cpp': `#include "auth.hpp"
 
-// Define static member
-Config Config::instance;
-`,
+#include <openssl/crypto.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+#include <openssl/rand.h>
 
-    // GraphQL schema (simple switch on query field)
-    'include/graphql/schema.hpp': `#pragma once
-#include <string>
 #include <nlohmann/json.hpp>
+#include <stdexcept>
+#include <vector>
 
-namespace graphql {
-    // Minimal GraphQL schema: Query { hello: String!, health: String! }
-    extern const char* SCHEMA_SDL;
+namespace auth {
+namespace {
 
-    // Execute a GraphQL query string against the schema and return JSON.
-    nlohmann::json execute(const std::string& query);
+constexpr int kPbkdf2Iterations = 100000;
+constexpr size_t kSaltBytes = 16;
+constexpr size_t kHashBytes = 32;
+
+std::string toHex(const unsigned char* data, size_t length) {
+  static const char digits[] = "0123456789abcdef";
+  std::string out;
+  out.reserve(length * 2);
+  for (size_t i = 0; i < length; ++i) {
+    out.push_back(digits[data[i] >> 4]);
+    out.push_back(digits[data[i] & 0x0f]);
+  }
+  return out;
 }
-`,
 
-    'src/graphql/schema.cpp': `#include "graphql/schema.hpp"
-#include "graphql/resolver.hpp"
+bool fromHex(const std::string& hex, std::vector<unsigned char>& out) {
+  if (hex.size() % 2 != 0) return false;
+  out.clear();
+  auto nibble = [](char c) -> int {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+  };
+  for (size_t i = 0; i < hex.size(); i += 2) {
+    int high = nibble(hex[i]);
+    int low = nibble(hex[i + 1]);
+    if (high < 0 || low < 0) return false;
+    out.push_back(static_cast<unsigned char>(high * 16 + low));
+  }
+  return true;
+}
 
-namespace graphql {
-    const char* SCHEMA_SDL =
-        "type Query {\\n"
-        "  hello: String!\\n"
-        "  health: String!\\n"
-        "}\\n";
+std::string base64UrlEncode(const unsigned char* data, size_t length) {
+  static const char alphabet[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  std::string out;
+  size_t i = 0;
+  for (; i + 2 < length; i += 3) {
+    unsigned int block = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+    out.push_back(alphabet[(block >> 18) & 63]);
+    out.push_back(alphabet[(block >> 12) & 63]);
+    out.push_back(alphabet[(block >> 6) & 63]);
+    out.push_back(alphabet[block & 63]);
+  }
+  if (i + 1 == length) {
+    unsigned int block = data[i] << 16;
+    out.push_back(alphabet[(block >> 18) & 63]);
+    out.push_back(alphabet[(block >> 12) & 63]);
+  } else if (i + 2 == length) {
+    unsigned int block = (data[i] << 16) | (data[i + 1] << 8);
+    out.push_back(alphabet[(block >> 18) & 63]);
+    out.push_back(alphabet[(block >> 12) & 63]);
+    out.push_back(alphabet[(block >> 6) & 63]);
+  }
+  return out;
+}
 
-    nlohmann::json execute(const std::string& query) {
-        // Naive field extraction: switch on the requested query field name.
-        nlohmann::json data;
+std::string base64UrlEncode(const std::string& text) {
+  return base64UrlEncode(reinterpret_cast<const unsigned char*>(text.data()), text.size());
+}
 
-        if (query.find("hello") != std::string::npos) {
-            data["hello"] = resolver::hello();
-        }
-        if (query.find("health") != std::string::npos) {
-            data["health"] = resolver::health();
-        }
-
-        return data;
+std::optional<std::string> base64UrlDecode(const std::string& text) {
+  auto value = [](char c) -> int {
+    if (c >= 'A' && c <= 'Z') return c - 'A';
+    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+    if (c >= '0' && c <= '9') return c - '0' + 52;
+    if (c == '-') return 62;
+    if (c == '_') return 63;
+    return -1;
+  };
+  if (text.size() % 4 == 1) return std::nullopt;
+  std::string out;
+  unsigned int buffer = 0;
+  int bits = 0;
+  for (char c : text) {
+    int v = value(c);
+    if (v < 0) return std::nullopt;
+    buffer = (buffer << 6) | static_cast<unsigned int>(v);
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out.push_back(static_cast<char>((buffer >> bits) & 0xff));
     }
+  }
+  return out;
+}
+
+std::string sign(const std::string& message, const std::string& secret) {
+  unsigned char mac[EVP_MAX_MD_SIZE];
+  unsigned int macLength = 0;
+  HMAC(EVP_sha256(), secret.data(), static_cast<int>(secret.size()),
+       reinterpret_cast<const unsigned char*>(message.data()), message.size(), mac, &macLength);
+  return base64UrlEncode(mac, macLength);
+}
+
+bool constantTimeEquals(const std::string& a, const std::string& b) {
+  return a.size() == b.size() && CRYPTO_memcmp(a.data(), b.data(), a.size()) == 0;
+}
+
+}  // namespace
+
+std::string hashPassword(const std::string& password) {
+  unsigned char salt[kSaltBytes];
+  if (RAND_bytes(salt, static_cast<int>(kSaltBytes)) != 1) {
+    throw std::runtime_error("could not generate a password salt");
+  }
+  unsigned char hash[kHashBytes];
+  if (PKCS5_PBKDF2_HMAC(password.data(), static_cast<int>(password.size()), salt,
+                        static_cast<int>(kSaltBytes), kPbkdf2Iterations, EVP_sha256(),
+                        static_cast<int>(kHashBytes), hash) != 1) {
+    throw std::runtime_error("password hashing failed");
+  }
+  return "pbkdf2$" + std::to_string(kPbkdf2Iterations) + "$" + toHex(salt, kSaltBytes) + "$" +
+         toHex(hash, kHashBytes);
+}
+
+bool verifyPassword(const std::string& stored, const std::string& password) {
+  // pbkdf2$<iterations>$<salt>$<hash>
+  size_t first = stored.find('$');
+  size_t second = first == std::string::npos ? first : stored.find('$', first + 1);
+  size_t third = second == std::string::npos ? second : stored.find('$', second + 1);
+  if (third == std::string::npos || stored.compare(0, first, "pbkdf2") != 0) return false;
+
+  int iterations = 0;
+  try {
+    iterations = std::stoi(stored.substr(first + 1, second - first - 1));
+  } catch (const std::exception&) {
+    return false;
+  }
+  std::vector<unsigned char> salt;
+  std::vector<unsigned char> expected;
+  if (iterations <= 0 || !fromHex(stored.substr(second + 1, third - second - 1), salt) ||
+      !fromHex(stored.substr(third + 1), expected) || expected.empty()) {
+    return false;
+  }
+
+  std::vector<unsigned char> actual(expected.size());
+  if (PKCS5_PBKDF2_HMAC(password.data(), static_cast<int>(password.size()), salt.data(),
+                        static_cast<int>(salt.size()), iterations, EVP_sha256(),
+                        static_cast<int>(actual.size()), actual.data()) != 1) {
+    return false;
+  }
+  return CRYPTO_memcmp(actual.data(), expected.data(), expected.size()) == 0;
+}
+
+std::string issueToken(int userId, bool admin, const std::string& secret, std::time_t now) {
+  nlohmann::json payload = {
+      {"sub", userId},
+      {"admin", admin},
+      {"exp", static_cast<long long>(now) + kTokenTtlSeconds},
+  };
+  std::string signingInput =
+      base64UrlEncode(R"({"alg":"HS256","typ":"JWT"})") + "." + base64UrlEncode(payload.dump());
+  return signingInput + "." + sign(signingInput, secret);
+}
+
+std::optional<Claims> verifyToken(const std::string& token, const std::string& secret,
+                                  std::time_t now) {
+  size_t lastDot = token.rfind('.');
+  size_t firstDot = token.find('.');
+  if (lastDot == std::string::npos || firstDot == lastDot) return std::nullopt;
+
+  std::string signingInput = token.substr(0, lastDot);
+  if (!constantTimeEquals(token.substr(lastDot + 1), sign(signingInput, secret))) {
+    return std::nullopt;
+  }
+
+  auto decoded = base64UrlDecode(token.substr(firstDot + 1, lastDot - firstDot - 1));
+  if (!decoded) return std::nullopt;
+  nlohmann::json payload = nlohmann::json::parse(*decoded, nullptr, false);
+  if (payload.is_discarded() || !payload.is_object() || !payload.contains("sub") ||
+      !payload["sub"].is_number_integer() || !payload.contains("exp") ||
+      !payload["exp"].is_number_integer()) {
+    return std::nullopt;
+  }
+  if (payload["exp"].get<long long>() <= static_cast<long long>(now)) return std::nullopt;
+
+  return Claims{payload["sub"].get<int>(), payload.value("admin", false)};
+}
+
+std::optional<std::string> bearerToken(const std::string& header) {
+  const std::string prefix = "Bearer ";
+  if (header.compare(0, prefix.size(), prefix) != 0 || header.size() == prefix.size()) {
+    return std::nullopt;
+  }
+  return header.substr(prefix.size());
+}
+
+}  // namespace auth
+`,
+
+    'src/store.cpp': `#include "store.hpp"
+
+#include <algorithm>
+#include <cctype>
+
+namespace {
+
+std::string lower(std::string text) {
+  std::transform(text.begin(), text.end(), text.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return text;
+}
+
+}  // namespace
+
+std::optional<User> Store::findUserByEmail(const std::string& email) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  const std::string wanted = lower(email);
+  for (const auto& user : users_) {
+    if (lower(user.email) == wanted) return user;
+  }
+  return std::nullopt;
+}
+
+User Store::addUser(const std::string& email, const std::string& name,
+                    const std::string& passwordHash, bool admin) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  User user;
+  user.id = nextUserId_++;
+  user.email = email;
+  user.name = name;
+  user.passwordHash = passwordHash;
+  user.admin = admin;
+  users_.push_back(user);
+  return user;
+}
+
+std::vector<Product> Store::listProducts() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return products_;
+}
+
+std::optional<Product> Store::getProduct(int id) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (const auto& product : products_) {
+    if (product.id == id) return product;
+  }
+  return std::nullopt;
+}
+
+Product Store::addProduct(const std::string& name, const std::string& description, double price,
+                          int stock) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  Product product;
+  product.id = nextProductId_++;
+  product.name = name;
+  product.description = description;
+  product.price = price;
+  product.stock = stock;
+  products_.push_back(product);
+  return product;
+}
+
+std::optional<Product> Store::updateProduct(int id, const ProductPatch& patch) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (auto& product : products_) {
+    if (product.id != id) continue;
+    if (patch.name) product.name = *patch.name;
+    if (patch.description) product.description = *patch.description;
+    if (patch.price) product.price = *patch.price;
+    if (patch.stock) product.stock = *patch.stock;
+    return product;
+  }
+  return std::nullopt;
+}
+
+bool Store::deleteProduct(int id) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = std::remove_if(products_.begin(), products_.end(),
+                           [id](const Product& product) { return product.id == id; });
+  if (it == products_.end()) return false;
+  products_.erase(it, products_.end());
+  return true;
 }
 `,
 
-    // GraphQL resolver
-    'include/graphql/resolver.hpp': `#pragma once
+    'include/routes.hpp': `#pragma once
+
+#include <crow.h>
+#include <crow/middlewares/cors.h>
+
 #include <string>
 
-namespace graphql {
-    namespace resolver {
-        std::string hello();
-        std::string health();
-    }
-}
+#include "store.hpp"
+
+// CORS is handled by Crow's built-in middleware, configured in main.cpp.
+using App = crow::App<crow::CORSHandler>;
+
+// Registers the pages, REST API, GraphQL endpoint and WebSocket echo on \`app\`.
+// \`store\` and \`jwtSecret\` must outlive the running server.
+void registerRoutes(App& app, Store& store, const std::string& jwtSecret);
 `,
 
-    'src/graphql/resolver.cpp': `#include "graphql/resolver.hpp"
+    'include/auth.hpp': `#pragma once
 
-namespace graphql {
-    namespace resolver {
-        std::string hello() {
-            return "Hello from Crow GraphQL!";
-        }
-
-        std::string health() {
-            return "healthy";
-        }
-    }
-}
-`,
-
-    // GraphQL HTTP handler (raw /graphql POST handler)
-    'include/graphql/handler.hpp': `#pragma once
-#include <crow.h>
-
-namespace graphql {
-    // Accepts a JSON GraphQL POST body and returns a JSON GraphQL response.
-    crow::response handleGraphQL(const crow::request& req);
-}
-`,
-
-    'src/graphql/handler.cpp': `#include "graphql/handler.hpp"
-#include "graphql/schema.hpp"
-#include <nlohmann/json.hpp>
-#include <spdlog/spdlog.h>
-
-namespace graphql {
-    crow::response handleGraphQL(const crow::request& req) {
-        try {
-            auto body = nlohmann::json::parse(req.body);
-            std::string query = body.value("query", std::string());
-
-            nlohmann::json result;
-            result["data"] = execute(query);
-
-            crow::response res(200, result.dump());
-            res.set_header("Content-Type", "application/json");
-            return res;
-        } catch (const std::exception& e) {
-            spdlog::error("GraphQL error: {}", e.what());
-
-            nlohmann::json error;
-            error["errors"] = nlohmann::json::array({
-                nlohmann::json({{"message", e.what()}})
-            });
-
-            crow::response res(400, error.dump());
-            res.set_header("Content-Type", "application/json");
-            return res;
-        }
-    }
-}
-`,
-
-    // Health Controller
-    'include/controllers/health_controller.hpp': `#pragma once
-#include <crow.h>
-#include <chrono>
-
-class HealthController {
-private:
-    std::chrono::steady_clock::time_point start_time;
-    
-public:
-    HealthController() : start_time(std::chrono::steady_clock::now()) {}
-    
-    void registerRoutes(crow::App<LoggingMiddleware, CorsMiddleware>& app);
-    
-private:
-    crow::response health(const crow::request& req);
-    crow::response metrics(const crow::request& req);
-};
-`,
-
-    'src/controllers/health_controller.cpp': `#include "controllers/health_controller.hpp"
-#include "utils/database.hpp"
-#include <spdlog/spdlog.h>
-
-void HealthController::registerRoutes(crow::App<LoggingMiddleware, CorsMiddleware>& app) {
-    CROW_ROUTE(app, "/health")
-    .methods(crow::HTTPMethod::Get)
-    ([this](const crow::request& req) {
-        return health(req);
-    });
-    
-    CROW_ROUTE(app, "/metrics")
-    .methods(crow::HTTPMethod::Get)
-    ([this](const crow::request& req) {
-        return metrics(req);
-    });
-}
-
-crow::response HealthController::health(const crow::request&) {
-    crow::json::wvalue response;
-    response["status"] = "healthy";
-    response["timestamp"] = std::chrono::system_clock::now().time_since_epoch().count();
-    
-    // Check database connection
-    bool db_healthy = Database::getInstance().isHealthy();
-    response["database"] = db_healthy ? "connected" : "disconnected";
-    
-    return crow::response(response);
-}
-
-crow::response HealthController::metrics(const crow::request&) {
-    auto now = std::chrono::steady_clock::now();
-    auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count();
-    
-    crow::json::wvalue response;
-    response["uptime_seconds"] = uptime;
-    response["memory_usage_mb"] = 0; // Placeholder
-    response["active_connections"] = 0; // Placeholder
-    response["total_requests"] = 0; // Placeholder
-    
-    return crow::response(response);
-}
-`,
-
-    // User Controller
-    'include/controllers/user_controller.hpp': `#pragma once
-#include <crow.h>
-#include "services/user_service.hpp"
-
-class UserController {
-private:
-    UserService userService;
-    
-public:
-    void registerRoutes(crow::App<LoggingMiddleware, CorsMiddleware>& app);
-    
-private:
-    crow::response createUser(const crow::request& req);
-    crow::response getUser(const std::string& id);
-    crow::response updateUser(const std::string& id, const crow::request& req);
-    crow::response deleteUser(const std::string& id);
-    crow::response listUsers(const crow::request& req);
-    crow::response login(const crow::request& req);
-};
-`,
-
-    'src/controllers/user_controller.cpp': `#include "controllers/user_controller.hpp"
-#include "utils/jwt_utils.hpp"
-#include <spdlog/spdlog.h>
-
-void UserController::registerRoutes(crow::App<LoggingMiddleware, CorsMiddleware>& app) {
-    // Public routes
-    CROW_ROUTE(app, "/api/users/register")
-    .methods(crow::HTTPMethod::Post)
-    ([this](const crow::request& req) {
-        return createUser(req);
-    });
-    
-    CROW_ROUTE(app, "/api/users/login")
-    .methods(crow::HTTPMethod::Post)
-    ([this](const crow::request& req) {
-        return login(req);
-    });
-    
-    // Protected routes
-    CROW_ROUTE(app, "/api/users")
-    .methods(crow::HTTPMethod::Get)
-    .middlewares<AuthMiddleware>()
-    ([this](const crow::request& req) {
-        return listUsers(req);
-    });
-    
-    CROW_ROUTE(app, "/api/users/<string>")
-    .methods(crow::HTTPMethod::Get)
-    .middlewares<AuthMiddleware>()
-    ([this](const std::string& id) {
-        return getUser(id);
-    });
-    
-    CROW_ROUTE(app, "/api/users/<string>")
-    .methods(crow::HTTPMethod::Put)
-    .middlewares<AuthMiddleware>()
-    ([this](const crow::request& req, const std::string& id) {
-        return updateUser(id, req);
-    });
-    
-    CROW_ROUTE(app, "/api/users/<string>")
-    .methods(crow::HTTPMethod::Delete)
-    .middlewares<AuthMiddleware>()
-    ([this](const std::string& id) {
-        return deleteUser(id);
-    });
-}
-
-crow::response UserController::createUser(const crow::request& req) {
-    try {
-        auto json = crow::json::load(req.body);
-        if (!json) {
-            return crow::response(400, R"({"error": "Invalid JSON"})");
-        }
-        
-        User user;
-        user.email = json["email"].s();
-        user.name = json["name"].s();
-        user.password = json["password"].s();
-        
-        auto result = userService.createUser(user);
-        if (result) {
-            crow::json::wvalue response;
-            response["id"] = result->id;
-            response["email"] = result->email;
-            response["name"] = result->name;
-            return crow::response(201, response);
-        } else {
-            return crow::response(400, R"({"error": "Failed to create user"})");
-        }
-    } catch (const std::exception& e) {
-        spdlog::error("Error creating user: {}", e.what());
-        return crow::response(500, R"({"error": "Internal server error"})");
-    }
-}
-
-crow::response UserController::getUser(const std::string& id) {
-    auto user = userService.getUser(id);
-    if (user) {
-        crow::json::wvalue response;
-        response["id"] = user->id;
-        response["email"] = user->email;
-        response["name"] = user->name;
-        response["created_at"] = user->created_at;
-        return crow::response(response);
-    } else {
-        return crow::response(404, R"({"error": "User not found"})");
-    }
-}
-
-crow::response UserController::updateUser(const std::string& id, const crow::request& req) {
-    try {
-        auto json = crow::json::load(req.body);
-        if (!json) {
-            return crow::response(400, R"({"error": "Invalid JSON"})");
-        }
-        
-        User user;
-        user.id = id;
-        if (json.has("email")) user.email = json["email"].s();
-        if (json.has("name")) user.name = json["name"].s();
-        
-        auto result = userService.updateUser(user);
-        if (result) {
-            crow::json::wvalue response;
-            response["id"] = result->id;
-            response["email"] = result->email;
-            response["name"] = result->name;
-            return crow::response(response);
-        } else {
-            return crow::response(404, R"({"error": "User not found"})");
-        }
-    } catch (const std::exception& e) {
-        spdlog::error("Error updating user: {}", e.what());
-        return crow::response(500, R"({"error": "Internal server error"})");
-    }
-}
-
-crow::response UserController::deleteUser(const std::string& id) {
-    if (userService.deleteUser(id)) {
-        return crow::response(204);
-    } else {
-        return crow::response(404, R"({"error": "User not found"})");
-    }
-}
-
-crow::response UserController::listUsers(const crow::request& req) {
-    int page = 1, limit = 10;
-    
-    auto page_param = req.url_params.get("page");
-    auto limit_param = req.url_params.get("limit");
-    
-    if (page_param) page = std::stoi(page_param);
-    if (limit_param) limit = std::stoi(limit_param);
-    
-    auto users = userService.listUsers(page, limit);
-    
-    crow::json::wvalue response;
-    response["page"] = page;
-    response["limit"] = limit;
-    response["total"] = users.size();
-    
-    std::vector<crow::json::wvalue> user_array;
-    for (const auto& user : users) {
-        crow::json::wvalue u;
-        u["id"] = user.id;
-        u["email"] = user.email;
-        u["name"] = user.name;
-        user_array.push_back(std::move(u));
-    }
-    response["users"] = std::move(user_array);
-    
-    return crow::response(response);
-}
-
-crow::response UserController::login(const crow::request& req) {
-    try {
-        auto json = crow::json::load(req.body);
-        if (!json) {
-            return crow::response(400, R"({"error": "Invalid JSON"})");
-        }
-        
-        std::string email = json["email"].s();
-        std::string password = json["password"].s();
-        
-        auto user = userService.authenticate(email, password);
-        if (user) {
-            auto token = JwtUtils::generateToken(user->id, user->email);
-            
-            crow::json::wvalue response;
-            response["token"] = token;
-            response["user"]["id"] = user->id;
-            response["user"]["email"] = user->email;
-            response["user"]["name"] = user->name;
-            
-            return crow::response(response);
-        } else {
-            return crow::response(401, R"({"error": "Invalid credentials"})");
-        }
-    } catch (const std::exception& e) {
-        spdlog::error("Error during login: {}", e.what());
-        return crow::response(500, R"({"error": "Internal server error"})");
-    }
-}
-`,
-
-    // User Model
-    'include/models/user.hpp': `#pragma once
+#include <ctime>
+#include <optional>
 #include <string>
-#include <chrono>
+
+// Password hashing (PBKDF2-HMAC-SHA256) and HS256 JSON Web Tokens, built on OpenSSL.
+namespace auth {
+
+struct Claims {
+  int userId;
+  bool admin;
+};
+
+constexpr int kTokenTtlSeconds = 24 * 60 * 60;
+
+// Returns "pbkdf2$<iterations>$<salt hex>$<hash hex>".
+std::string hashPassword(const std::string& password);
+bool verifyPassword(const std::string& stored, const std::string& password);
+
+std::string issueToken(int userId, bool admin, const std::string& secret, std::time_t now);
+// Checks signature and expiry; returns the claims, or nothing when the token is not valid.
+std::optional<Claims> verifyToken(const std::string& token, const std::string& secret,
+                                  std::time_t now);
+
+// Extracts <token> from an "Authorization: Bearer <token>" header value.
+std::optional<std::string> bearerToken(const std::string& header);
+
+}  // namespace auth
+`,
+
+    'include/store.hpp': `#pragma once
+
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 struct User {
-    std::string id;
-    std::string email;
-    std::string name;
-    std::string password;
-    std::string created_at;
-    std::string updated_at;
+  int id = 0;
+  std::string email;
+  std::string name;
+  std::string passwordHash;
+  bool admin = false;
+};
+
+struct Product {
+  int id = 0;
+  std::string name;
+  std::string description;
+  double price = 0.0;
+  int stock = 0;
+};
+
+// Fields to change on a product; unset fields are left alone.
+struct ProductPatch {
+  std::optional<std::string> name;
+  std::optional<std::string> description;
+  std::optional<double> price;
+  std::optional<int> stock;
+};
+
+// In-memory users and products. Crow runs handlers on several threads, so every
+// operation takes the lock and returns copies. Replace with a database for production.
+class Store {
+ public:
+  std::optional<User> findUserByEmail(const std::string& email) const;
+  User addUser(const std::string& email, const std::string& name, const std::string& passwordHash,
+               bool admin);
+
+  std::vector<Product> listProducts() const;
+  std::optional<Product> getProduct(int id) const;
+  Product addProduct(const std::string& name, const std::string& description, double price,
+                     int stock);
+  std::optional<Product> updateProduct(int id, const ProductPatch& patch);
+  bool deleteProduct(int id);
+
+ private:
+  mutable std::mutex mutex_;
+  std::vector<User> users_;
+  std::vector<Product> products_;
+  int nextUserId_ = 1;
+  int nextProductId_ = 1;
 };
 `,
 
-    'src/models/user.cpp': `#include "models/user.hpp"
-// Model implementation if needed
-`,
+    'tests/test_auth.cpp': `#include <gtest/gtest.h>
 
-    // User Service
-    'include/services/user_service.hpp': `#pragma once
-#include <optional>
-#include <vector>
-#include "models/user.hpp"
+#include "auth.hpp"
 
-class UserService {
-public:
-    std::optional<User> createUser(const User& user);
-    std::optional<User> getUser(const std::string& id);
-    std::optional<User> updateUser(const User& user);
-    bool deleteUser(const std::string& id);
-    std::vector<User> listUsers(int page, int limit);
-    std::optional<User> authenticate(const std::string& email, const std::string& password);
-    
-private:
-    std::string hashPassword(const std::string& password);
-    bool verifyPassword(const std::string& password, const std::string& hash);
-};
-`,
-
-    'src/services/user_service.cpp': `#include "services/user_service.hpp"
-#include "utils/database.hpp"
-#include <openssl/sha.h>
-#include <iomanip>
-#include <sstream>
-#include <random>
-
-std::optional<User> UserService::createUser(const User& user) {
-    User newUser = user;
-    
-    // Generate unique ID
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(100000, 999999);
-    newUser.id = std::to_string(dis(gen));
-    
-    // Hash password
-    newUser.password = hashPassword(user.password);
-    
-    // Set timestamps
-    auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
-    newUser.created_at = std::ctime(&time_t);
-    newUser.updated_at = newUser.created_at;
-    
-    // Save to database
-    if (Database::getInstance().saveUser(newUser)) {
-        newUser.password = ""; // Don't return password
-        return newUser;
-    }
-    
-    return std::nullopt;
+TEST(Password, VerifiesOnlyTheRightPassword) {
+  const std::string hash = auth::hashPassword("admin123");
+  EXPECT_TRUE(auth::verifyPassword(hash, "admin123"));
+  EXPECT_FALSE(auth::verifyPassword(hash, "wrong"));
+  EXPECT_FALSE(auth::verifyPassword("not-a-hash", "admin123"));
 }
 
-std::optional<User> UserService::getUser(const std::string& id) {
-    return Database::getInstance().getUser(id);
+TEST(Password, HashesAreSalted) {
+  EXPECT_NE(auth::hashPassword("same"), auth::hashPassword("same"));
 }
 
-std::optional<User> UserService::updateUser(const User& user) {
-    auto existing = Database::getInstance().getUser(user.id);
-    if (!existing) {
-        return std::nullopt;
-    }
-    
-    User updated = *existing;
-    if (!user.email.empty()) updated.email = user.email;
-    if (!user.name.empty()) updated.name = user.name;
-    
-    // Update timestamp
-    auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
-    updated.updated_at = std::ctime(&time_t);
-    
-    if (Database::getInstance().updateUser(updated)) {
-        updated.password = ""; // Don't return password
-        return updated;
-    }
-    
-    return std::nullopt;
+TEST(Token, RoundTripsClaims) {
+  const std::string token = auth::issueToken(7, true, "secret", 1000);
+  auto claims = auth::verifyToken(token, "secret", 1001);
+  ASSERT_TRUE(claims.has_value());
+  EXPECT_EQ(claims->userId, 7);
+  EXPECT_TRUE(claims->admin);
 }
 
-bool UserService::deleteUser(const std::string& id) {
-    return Database::getInstance().deleteUser(id);
+TEST(Token, RejectsWrongSecretTamperingAndExpiry) {
+  const std::string token = auth::issueToken(7, false, "secret", 1000);
+  EXPECT_FALSE(auth::verifyToken(token, "other-secret", 1001).has_value());
+  EXPECT_FALSE(auth::verifyToken(token, "secret", 1000 + auth::kTokenTtlSeconds + 1).has_value());
+
+  std::string tampered = token;
+  tampered.back() = tampered.back() == 'A' ? 'B' : 'A';
+  EXPECT_FALSE(auth::verifyToken(tampered, "secret", 1001).has_value());
+  EXPECT_FALSE(auth::verifyToken("not-a-token", "secret", 1001).has_value());
 }
 
-std::vector<User> UserService::listUsers(int page, int limit) {
-    auto users = Database::getInstance().listUsers(page, limit);
-    // Remove passwords from response
-    for (auto& user : users) {
-        user.password = "";
-    }
-    return users;
-}
-
-std::optional<User> UserService::authenticate(const std::string& email, const std::string& password) {
-    auto user = Database::getInstance().getUserByEmail(email);
-    if (user && verifyPassword(password, user->password)) {
-        user->password = ""; // Don't return password
-        return user;
-    }
-    return std::nullopt;
-}
-
-std::string UserService::hashPassword(const std::string& password) {
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256(reinterpret_cast<const unsigned char*>(password.c_str()), password.length(), hash);
-    
-    std::stringstream ss;
-    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-        ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
-    }
-    
-    return ss.str();
-}
-
-bool UserService::verifyPassword(const std::string& password, const std::string& hash) {
-    return hashPassword(password) == hash;
+TEST(Bearer, ParsesTheAuthorizationHeader) {
+  EXPECT_EQ(auth::bearerToken("Bearer abc"), std::optional<std::string>("abc"));
+  EXPECT_FALSE(auth::bearerToken("Basic abc").has_value());
+  EXPECT_FALSE(auth::bearerToken("Bearer ").has_value());
+  EXPECT_FALSE(auth::bearerToken("").has_value());
 }
 `,
 
-    // Auth Middleware
-    'include/middleware/auth_middleware.hpp': `#pragma once
-#include <crow.h>
-#include "utils/jwt_utils.hpp"
+    'tests/test_store.cpp': `#include <gtest/gtest.h>
 
-struct AuthMiddleware : crow::ILocalMiddleware {
-    struct context {};
-    
-    void before_handle(crow::request& req, crow::response& res, context& ctx) {
-        auto auth_header = req.get_header_value("Authorization");
-        
-        if (auth_header.empty()) {
-            res.code = 401;
-            res.write(R"({"error": "Missing authorization header"})");
-            res.end();
-            return;
-        }
-        
-        // Extract token from "Bearer <token>"
-        std::string token;
-        if (auth_header.find("Bearer ") == 0) {
-            token = auth_header.substr(7);
-        } else {
-            res.code = 401;
-            res.write(R"({"error": "Invalid authorization format"})");
-            res.end();
-            return;
-        }
-        
-        // Validate token
-        auto claims = JwtUtils::validateToken(token);
-        if (!claims) {
-            res.code = 401;
-            res.write(R"({"error": "Invalid or expired token"})");
-            res.end();
-            return;
-        }
-        
-        // Add user info to request headers for downstream use
-        req.add_header("X-User-Id", claims->user_id);
-        req.add_header("X-User-Email", claims->email);
-    }
-    
-    void after_handle(crow::request&, crow::response&, context&) {
-        // Nothing to do here
-    }
-};
-`,
+#include "store.hpp"
 
-    'src/middleware/auth_middleware.cpp': `#include "middleware/auth_middleware.hpp"
-// Implementation if needed
-`,
+TEST(Store, ProductsCanBeCreatedUpdatedAndDeleted) {
+  Store store;
+  Product created = store.addProduct("Widget", "A widget", 9.5, 3);
+  EXPECT_EQ(created.id, 1);
 
-    // CORS Middleware
-    'include/middleware/cors_middleware.hpp': `#pragma once
-#include <crow.h>
+  ProductPatch patch;
+  patch.name = "Gadget";
+  patch.stock = 10;
+  auto updated = store.updateProduct(1, patch);
+  ASSERT_TRUE(updated.has_value());
+  EXPECT_EQ(updated->name, "Gadget");
+  EXPECT_EQ(updated->description, "A widget");
+  EXPECT_EQ(updated->stock, 10);
 
-struct CorsMiddleware {
-    struct context {};
-    
-    void before_handle(crow::request& req, crow::response& res, context&) {
-        if (req.method == crow::HTTPMethod::Options) {
-            res.code = 204;
-            res.set_header("Access-Control-Allow-Origin", "*");
-            res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-            res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-            res.set_header("Access-Control-Max-Age", "86400");
-            res.end();
-            return;
-        }
-    }
-    
-    void after_handle(crow::request&, crow::response& res, context&) {
-        res.set_header("Access-Control-Allow-Origin", "*");
-        res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    }
-};
-`,
-
-    'src/middleware/cors_middleware.cpp': `#include "middleware/cors_middleware.hpp"
-// Implementation if needed
-`,
-
-    // Logging Middleware
-    'include/middleware/logging_middleware.hpp': `#pragma once
-#include <crow.h>
-#include <spdlog/spdlog.h>
-#include <chrono>
-
-struct LoggingMiddleware {
-    struct context {
-        std::chrono::steady_clock::time_point start;
-    };
-    
-    void before_handle(crow::request& req, crow::response&, context& ctx) {
-        ctx.start = std::chrono::steady_clock::now();
-        spdlog::info("{} {} from {}", 
-                    crow::method_name(req.method), 
-                    req.url, 
-                    req.get_header_value("X-Forwarded-For").empty() ? 
-                        req.remote_ip_address : req.get_header_value("X-Forwarded-For"));
-    }
-    
-    void after_handle(crow::request& req, crow::response& res, context& ctx) {
-        auto end = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - ctx.start);
-        
-        spdlog::info("{} {} {} - {} μs", 
-                    crow::method_name(req.method), 
-                    req.url, 
-                    res.code,
-                    duration.count());
-    }
-};
-`,
-
-    'src/middleware/logging_middleware.cpp': `#include "middleware/logging_middleware.hpp"
-// Implementation if needed
-`,
-
-    // JWT Utils
-    'include/utils/jwt_utils.hpp': `#pragma once
-#include <string>
-#include <optional>
-
-struct JwtClaims {
-    std::string user_id;
-    std::string email;
-    int64_t exp;
-};
-
-class JwtUtils {
-public:
-    static std::string generateToken(const std::string& user_id, const std::string& email);
-    static std::optional<JwtClaims> validateToken(const std::string& token);
-    
-private:
-    static std::string base64UrlEncode(const std::string& input);
-    static std::string base64UrlDecode(const std::string& input);
-    static std::string createSignature(const std::string& data);
-};
-`,
-
-    'src/utils/jwt_utils.cpp': `#include "utils/jwt_utils.hpp"
-#include "config/config.hpp"
-#include <nlohmann/json.hpp>
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
-#include <chrono>
-#include <sstream>
-#include <algorithm>
-
-std::string JwtUtils::generateToken(const std::string& user_id, const std::string& email) {
-    nlohmann::json header = {
-        {"alg", "HS256"},
-        {"typ", "JWT"}
-    };
-    
-    auto now = std::chrono::system_clock::now();
-    auto exp = now + std::chrono::hours(Config::getInstance().getJwtExpiry());
-    
-    nlohmann::json payload = {
-        {"user_id", user_id},
-        {"email", email},
-        {"iat", std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count()},
-        {"exp", std::chrono::duration_cast<std::chrono::seconds>(exp.time_since_epoch()).count()}
-    };
-    
-    std::string header_encoded = base64UrlEncode(header.dump());
-    std::string payload_encoded = base64UrlEncode(payload.dump());
-    std::string data = header_encoded + "." + payload_encoded;
-    std::string signature = createSignature(data);
-    
-    return data + "." + signature;
+  EXPECT_FALSE(store.updateProduct(99, patch).has_value());
+  EXPECT_TRUE(store.deleteProduct(1));
+  EXPECT_FALSE(store.deleteProduct(1));
+  EXPECT_TRUE(store.listProducts().empty());
 }
 
-std::optional<JwtClaims> JwtUtils::validateToken(const std::string& token) {
-    // Split token into parts
-    std::vector<std::string> parts;
-    std::stringstream ss(token);
-    std::string part;
-    while (std::getline(ss, part, '.')) {
-        parts.push_back(part);
-    }
-    
-    if (parts.size() != 3) {
-        return std::nullopt;
-    }
-    
-    // Verify signature
-    std::string data = parts[0] + "." + parts[1];
-    std::string expected_signature = createSignature(data);
-    if (parts[2] != expected_signature) {
-        return std::nullopt;
-    }
-    
-    // Decode payload
-    std::string payload_json = base64UrlDecode(parts[1]);
-    auto payload = nlohmann::json::parse(payload_json);
-    
-    // Check expiration
-    auto now = std::chrono::system_clock::now();
-    auto now_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-    if (payload["exp"].get<int64_t>() < now_seconds) {
-        return std::nullopt;
-    }
-    
-    JwtClaims claims;
-    claims.user_id = payload["user_id"];
-    claims.email = payload["email"];
-    claims.exp = payload["exp"];
-    
-    return claims;
-}
-
-std::string JwtUtils::base64UrlEncode(const std::string& input) {
-    // Simple base64url encoding implementation
-    static const char* base64_chars = 
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    
-    std::string encoded;
-    int val = 0, valb = -6;
-    
-    for (unsigned char c : input) {
-        val = (val << 8) + c;
-        valb += 8;
-        while (valb >= 0) {
-            encoded.push_back(base64_chars[(val >> valb) & 0x3F]);
-            valb -= 6;
-        }
-    }
-    
-    if (valb > -6) {
-        encoded.push_back(base64_chars[((val << 8) >> (valb + 8)) & 0x3F]);
-    }
-    
-    return encoded;
-}
-
-std::string JwtUtils::base64UrlDecode(const std::string& input) {
-    // Simple base64url decoding implementation
-    std::string decoded;
-    std::vector<int> T(256, -1);
-    
-    for (int i = 0; i < 64; i++) {
-        T["ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"[i]] = i;
-    }
-    
-    int val = 0, valb = -8;
-    for (unsigned char c : input) {
-        if (T[c] == -1) break;
-        val = (val << 6) + T[c];
-        valb += 6;
-        if (valb >= 0) {
-            decoded.push_back(char((val >> valb) & 0xFF));
-            valb -= 8;
-        }
-    }
-    
-    return decoded;
-}
-
-std::string JwtUtils::createSignature(const std::string& data) {
-    std::string secret = Config::getInstance().getJwtSecret();
-    
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int hash_len;
-    
-    HMAC(EVP_sha256(), 
-         secret.c_str(), secret.length(),
-         reinterpret_cast<const unsigned char*>(data.c_str()), data.length(),
-         hash, &hash_len);
-    
-    return base64UrlEncode(std::string(reinterpret_cast<char*>(hash), hash_len));
-}
-`,
-
-    // Database Utils
-    'include/utils/database.hpp': `#pragma once
-#include <string>
-#include <vector>
-#include <optional>
-#include <memory>
-#include "models/user.hpp"
-
-class Database {
-private:
-    static Database instance;
-    std::string connection_string;
-    bool connected = false;
-    
-    Database() = default;
-    
-public:
-    static Database& getInstance() {
-        static Database instance;
-        return instance;
-    }
-    
-    void initialize(const std::string& conn_str);
-    bool isHealthy() const { return connected; }
-    
-    // User operations
-    bool saveUser(const User& user);
-    std::optional<User> getUser(const std::string& id);
-    std::optional<User> getUserByEmail(const std::string& email);
-    bool updateUser(const User& user);
-    bool deleteUser(const std::string& id);
-    std::vector<User> listUsers(int page, int limit);
-};
-`,
-
-    'src/utils/database.cpp': `#include "utils/database.hpp"
-#include <spdlog/spdlog.h>
-#include <unordered_map>
-#include <mutex>
-
-// Simple in-memory implementation for demo
-class InMemoryDatabase {
-private:
-    std::unordered_map<std::string, User> users_by_id;
-    std::unordered_map<std::string, std::string> email_to_id;
-    mutable std::mutex mutex;
-    
-public:
-    bool saveUser(const User& user) {
-        std::lock_guard<std::mutex> lock(mutex);
-        users_by_id[user.id] = user;
-        email_to_id[user.email] = user.id;
-        return true;
-    }
-    
-    std::optional<User> getUser(const std::string& id) {
-        std::lock_guard<std::mutex> lock(mutex);
-        auto it = users_by_id.find(id);
-        if (it != users_by_id.end()) {
-            return it->second;
-        }
-        return std::nullopt;
-    }
-    
-    std::optional<User> getUserByEmail(const std::string& email) {
-        std::lock_guard<std::mutex> lock(mutex);
-        auto it = email_to_id.find(email);
-        if (it != email_to_id.end()) {
-            return getUser(it->second);
-        }
-        return std::nullopt;
-    }
-    
-    bool updateUser(const User& user) {
-        std::lock_guard<std::mutex> lock(mutex);
-        auto it = users_by_id.find(user.id);
-        if (it != users_by_id.end()) {
-            it->second = user;
-            return true;
-        }
-        return false;
-    }
-    
-    bool deleteUser(const std::string& id) {
-        std::lock_guard<std::mutex> lock(mutex);
-        auto it = users_by_id.find(id);
-        if (it != users_by_id.end()) {
-            email_to_id.erase(it->second.email);
-            users_by_id.erase(it);
-            return true;
-        }
-        return false;
-    }
-    
-    std::vector<User> listUsers(int page, int limit) {
-        std::lock_guard<std::mutex> lock(mutex);
-        std::vector<User> result;
-        
-        int skip = (page - 1) * limit;
-        int count = 0;
-        
-        for (const auto& pair : users_by_id) {
-            if (count >= skip && result.size() < static_cast<size_t>(limit)) {
-                result.push_back(pair.second);
-            }
-            count++;
-        }
-        
-        return result;
-    }
-};
-
-static InMemoryDatabase db;
-
-void Database::initialize(const std::string& conn_str) {
-    connection_string = conn_str;
-    // In a real implementation, would connect to actual database
-    connected = true;
-    spdlog::info("Database initialized with connection: {}", conn_str);
-}
-
-bool Database::saveUser(const User& user) {
-    return db.saveUser(user);
-}
-
-std::optional<User> Database::getUser(const std::string& id) {
-    return db.getUser(id);
-}
-
-std::optional<User> Database::getUserByEmail(const std::string& email) {
-    return db.getUserByEmail(email);
-}
-
-bool Database::updateUser(const User& user) {
-    return db.updateUser(user);
-}
-
-bool Database::deleteUser(const std::string& id) {
-    return db.deleteUser(id);
-}
-
-std::vector<User> Database::listUsers(int page, int limit) {
-    return db.listUsers(page, limit);
-}
-`,
-
-    // Tests
-    'tests/test_main.cpp': `#include <gtest/gtest.h>
-
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
-`,
-
-    'tests/test_user_controller.cpp': `#include <gtest/gtest.h>
-#include "controllers/user_controller.hpp"
-#include "services/user_service.hpp"
-
-class UserControllerTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Setup test environment
-    }
-    
-    void TearDown() override {
-        // Cleanup
-    }
-};
-
-TEST_F(UserControllerTest, CreateUserSuccess) {
-    // Test user creation
-    EXPECT_TRUE(true);
-}
-
-TEST_F(UserControllerTest, GetUserNotFound) {
-    // Test getting non-existent user
-    EXPECT_TRUE(true);
-}
-
-TEST_F(UserControllerTest, UpdateUserSuccess) {
-    // Test user update
-    EXPECT_TRUE(true);
-}
-
-TEST_F(UserControllerTest, DeleteUserSuccess) {
-    // Test user deletion
-    EXPECT_TRUE(true);
-}
-`,
-
-    'tests/test_auth_middleware.cpp': `#include <gtest/gtest.h>
-#include "middleware/auth_middleware.hpp"
-#include "utils/jwt_utils.hpp"
-
-TEST(AuthMiddlewareTest, ValidToken) {
-    // Test with valid token
-    auto token = JwtUtils::generateToken("123", "test@example.com");
-    EXPECT_FALSE(token.empty());
-}
-
-TEST(AuthMiddlewareTest, InvalidToken) {
-    // Test with invalid token
-    auto claims = JwtUtils::validateToken("invalid.token.here");
-    EXPECT_FALSE(claims.has_value());
-}
-
-TEST(AuthMiddlewareTest, ExpiredToken) {
-    // Test with expired token
-    // Would need to generate a token with past expiry
-    EXPECT_TRUE(true);
-}
-`,
-
-    'tests/test_user_service.cpp': `#include <gtest/gtest.h>
-#include "services/user_service.hpp"
-
-TEST(UserServiceTest, CreateUser) {
-    UserService service;
-    User user;
-    user.email = "test@example.com";
-    user.name = "Test User";
-    user.password = "password123";
-    
-    auto result = service.createUser(user);
-    EXPECT_TRUE(result.has_value());
-    EXPECT_EQ(result->email, user.email);
-    EXPECT_EQ(result->name, user.name);
-    EXPECT_TRUE(result->password.empty()); // Password should not be returned
-}
-
-TEST(UserServiceTest, AuthenticateSuccess) {
-    UserService service;
-    
-    // First create a user
-    User user;
-    user.email = "auth@example.com";
-    user.name = "Auth User";
-    user.password = "secure123";
-    service.createUser(user);
-    
-    // Try to authenticate
-    auto result = service.authenticate("auth@example.com", "secure123");
-    EXPECT_TRUE(result.has_value());
-    EXPECT_EQ(result->email, "auth@example.com");
-}
-
-TEST(UserServiceTest, AuthenticateFail) {
-    UserService service;
-    auto result = service.authenticate("nonexistent@example.com", "password");
-    EXPECT_FALSE(result.has_value());
-}
-`,
-
-    'tests/test_jwt_utils.cpp': `#include <gtest/gtest.h>
-#include "utils/jwt_utils.hpp"
-#include <thread>
-
-TEST(JwtUtilsTest, GenerateAndValidate) {
-    std::string user_id = "123";
-    std::string email = "test@example.com";
-    
-    auto token = JwtUtils::generateToken(user_id, email);
-    EXPECT_FALSE(token.empty());
-    
-    auto claims = JwtUtils::validateToken(token);
-    EXPECT_TRUE(claims.has_value());
-    EXPECT_EQ(claims->user_id, user_id);
-    EXPECT_EQ(claims->email, email);
-}
-
-TEST(JwtUtilsTest, InvalidSignature) {
-    std::string token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid.signature";
-    auto claims = JwtUtils::validateToken(token);
-    EXPECT_FALSE(claims.has_value());
-}
-
-TEST(JwtUtilsTest, MalformedToken) {
-    std::string token = "not.a.valid.jwt.token";
-    auto claims = JwtUtils::validateToken(token);
-    EXPECT_FALSE(claims.has_value());
-}
-`,
-
-    // Configuration files
-    'config.json': `{
-    "port": 8080,
-    "database_url": "sqlite://./data.db",
-    "jwt_secret": "your-secret-key-change-in-production",
-    "jwt_expiry_hours": 24,
-    "log_level": "info",
-    "cors": {
-        "enabled": true,
-        "origins": ["*"],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "headers": ["Content-Type", "Authorization"]
-    },
-    "rate_limit": {
-        "enabled": true,
-        "window_seconds": 60,
-        "max_requests": 100
-    }
+TEST(Store, UsersAreFoundByEmailIgnoringCase) {
+  Store store;
+  store.addUser("Admin@Example.com", "Admin", "hash", true);
+  auto found = store.findUserByEmail("admin@example.com");
+  ASSERT_TRUE(found.has_value());
+  EXPECT_TRUE(found->admin);
+  EXPECT_FALSE(store.findUserByEmail("other@example.com").has_value());
 }
 `,
 
     'Dockerfile': `# Build stage
-FROM ubuntu:22.04 AS builder
+FROM debian:bookworm-slim AS builder
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \\
-    build-essential \\
-    cmake \\
-    git \\
-    wget \\
-    libssl-dev \\
-    libboost-all-dev \\
-    zlib1g-dev \\
-    python3-pip \\
+RUN apt-get update \\
+    && apt-get install -y --no-install-recommends \\
+       build-essential cmake git ca-certificates libasio-dev libssl-dev nlohmann-json3-dev libgtest-dev \\
     && rm -rf /var/lib/apt/lists/*
 
-# Install Conan
-RUN pip3 install conan==2.0.17
-
-# Set working directory
-WORKDIR /app
-
-# Copy source files
+WORKDIR /src
 COPY . .
-
-# Create build directory
-RUN mkdir build && cd build && \\
-    conan install .. --output-folder=. --build=missing && \\
-    cmake .. -DCMAKE_BUILD_TYPE=Release && \\
-    make -j$(nproc)
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \\
+    && cmake --build build -j"$(nproc)" --target {{serviceName}}
 
 # Runtime stage
-FROM ubuntu:22.04
+FROM debian:bookworm-slim
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \\
-    libssl3 \\
-    zlib1g \\
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \\
+    && apt-get install -y --no-install-recommends libssl3 curl ca-certificates \\
+    && rm -rf /var/lib/apt/lists/* \\
+    && useradd --system --uid 1000 appuser
 
-# Create non-root user
-RUN useradd -m -s /bin/bash appuser
-
-# Copy binary from build stage
-COPY --from=builder /app/build/{{serviceName}} /usr/local/bin/
-COPY --from=builder /app/config.json /etc/{{serviceName}}/
-
-# Set ownership
-RUN chown -R appuser:appuser /etc/{{serviceName}}
-
-# Switch to non-root user
+WORKDIR /app
+COPY --from=builder /src/build/{{serviceName}} /app/{{serviceName}}
 USER appuser
 
-# Expose port
-EXPOSE 8080
+ENV PORT={{PORT}}
+EXPOSE {{PORT}}
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl -fsS http://localhost:{{PORT}}/api/v1/health || exit 1
 
-# Run the application
-CMD ["{{serviceName}}"]
+CMD ["/app/{{serviceName}}"]
 `,
 
-    'docker-compose.yml': `version: '3.8'
-
-services:
+    'docker-compose.yml': `services:
   app:
     build: .
-    container_name: {{serviceName}}
     ports:
-      - "8080:8080"
+      - "{{PORT}}:{{PORT}}"
     environment:
-      - LOG_LEVEL=info
-    volumes:
-      - ./config.json:/etc/{{serviceName}}/config.json:ro
-      - ./data:/app/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      PORT: "{{PORT}}"
+      JWT_SECRET: \${JWT_SECRET:?set JWT_SECRET}
     restart: unless-stopped
-    
-  redis:
-    image: redis:7-alpine
-    container_name: {{serviceName}}-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-    
-  postgres:
-    image: postgres:15-alpine
-    container_name: {{serviceName}}-postgres
-    environment:
-      POSTGRES_USER: myapp
-      POSTGRES_PASSWORD: myapp_password
-      POSTGRES_DB: myapp_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
-
-volumes:
-  redis-data:
-  postgres-data:
 `,
 
-    '.gitignore': `# Build files
-build/
+    '.gitignore': `build/
 cmake-build-*/
-*.o
-*.a
-*.so
-*.dylib
-*.exe
+.cache/
+compile_commands.json
+`,
 
-# CMake
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
-Makefile
-CTestTestfile.cmake
-Testing/
-
-# Conan
-conan.lock
-conanbuild*
-conaninfo.txt
-conanrun*
-graph_info.json
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-
-# Test results
-*.log
-test-results/
-coverage/
-
-# Application data
-data/
-*.db
-*.sqlite
-
-# Environment
-.env
-.env.local
-config.local.json
+    // Keeps a local build tree (whose CMakeCache.txt names host paths) out of the image.
+    '.dockerignore': `build/
+cmake-build-*/
+.cache/
 `,
 
     'README.md': `# {{serviceName}}
 
-A high-performance C++ web service built with the Crow framework.
+HTTP API built with [Crow](https://crowcpp.org), the C++ microframework (release v1.2.0).
 
 ## Features
 
-- 🚀 Fast and lightweight HTTP server
-- 🔐 JWT authentication
-- 🌐 CORS support
-- 📝 Request/response logging
-- 🔄 WebSocket support
-- 🧪 Comprehensive test suite
-- 🐳 Docker support
-- 📊 Health checks and metrics
+- REST API: health check, registration/login, products CRUD
+- PBKDF2-SHA256 password hashes and HS256 JSON Web Tokens (OpenSSL)
+- Bearer-token protection for product writes (delete requires the admin role)
+- CORS through Crow's built-in middleware, a small GraphQL endpoint, a WebSocket echo at \`/ws\`
+- Thread-safe in-memory store, GoogleTest unit tests and a Dockerfile
 
 ## Requirements
 
-- C++17 compiler (GCC 8+, Clang 7+, MSVC 2019+)
-- CMake 3.16+
-- OpenSSL
-- zlib
-- Optional: Conan package manager
+- CMake 3.24 or newer, a C++17 compiler, OpenSSL development files
+- Standalone Asio headers (Crow's network layer): \`apt install libasio-dev\` or \`brew install asio\`
+- Network access on the first configure: CMake fetches Crow from GitHub. nlohmann/json and
+  GoogleTest use the system packages when installed (\`nlohmann-json3-dev\`, \`libgtest-dev\`)
+  and are fetched otherwise.
 
-## Building
-
-### Using CMake directly
+## Build and run
 
 \`\`\`bash
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+./build/{{serviceName}}            # listens on $PORT, default {{PORT}}
+ctest --test-dir build --output-on-failure
 \`\`\`
 
-### Using Conan
+Set \`JWT_SECRET\` before running anywhere but your laptop. A development admin is seeded at
+start-up (\`admin@example.com\` / \`admin123\`); remove it in \`src/main.cpp\`.
+
+## API
+
+- \`GET /\` - home page
+- \`GET /api/v1/health\` - health check
+- \`POST /api/v1/auth/register\` - body \`{"email","password","name"}\`, returns a token
+- \`POST /api/v1/auth/login\` - body \`{"email","password"}\`, returns a token
+- \`GET /api/v1/products\`, \`GET /api/v1/products/<id>\`
+- \`POST /api/v1/products\`, \`PUT /api/v1/products/<id>\` - need \`Authorization: Bearer <token>\`
+- \`DELETE /api/v1/products/<id>\` - admin token required
+- \`POST /graphql\` - body \`{"query":"{ hello health products { name } }"}\`
+- \`GET /ws\` - WebSocket echo
 
 \`\`\`bash
-mkdir build && cd build
-conan install .. --output-folder=. --build=missing
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
+TOKEN=$(curl -s localhost:{{PORT}}/api/v1/auth/login -d '{"email":"admin@example.com","password":"admin123"}' | jq -r .token)
+curl -s localhost:{{PORT}}/api/v1/products -H "Authorization: Bearer $TOKEN" -d '{"name":"Widget","price":9.5}'
 \`\`\`
 
-## Running
-
-\`\`\`bash
-./build/{{serviceName}}
-\`\`\`
-
-The server will start on port 8080 by default.
-
-## API Endpoints
-
-### Health Check
-- \`GET /health\` - Returns service health status
-- \`GET /metrics\` - Returns service metrics
-
-### User Management
-- \`POST /api/users/register\` - Register new user
-- \`POST /api/users/login\` - User login
-- \`GET /api/users\` - List users (protected)
-- \`GET /api/users/{id}\` - Get user by ID (protected)
-- \`PUT /api/users/{id}\` - Update user (protected)
-- \`DELETE /api/users/{id}\` - Delete user (protected)
-
-### WebSocket
-- \`WS /ws\` - WebSocket endpoint
-
-## Testing
-
-Run the test suite:
-
-\`\`\`bash
-cd build
-ctest --verbose
-\`\`\`
-
-## Docker
-
-Build and run with Docker:
-
-\`\`\`bash
-docker build -t {{serviceName}} .
-docker run -p 8080:8080 {{serviceName}}
-\`\`\`
-
-Or use docker-compose:
-
-\`\`\`bash
-docker-compose up
-\`\`\`
-
-## Configuration
-
-Configuration is loaded from \`config.json\`:
-
-\`\`\`json
-{
-    "port": 8080,
-    "database_url": "sqlite://./data.db",
-    "jwt_secret": "your-secret-key",
-    "jwt_expiry_hours": 24,
-    "log_level": "info"
-}
-\`\`\`
-
-## Development
-
-### Project Structure
+## Structure
 
 \`\`\`
-.
-├── CMakeLists.txt
-├── conanfile.txt
-├── include/
-│   ├── config/
-│   ├── controllers/
-│   ├── middleware/
-│   ├── models/
-│   ├── services/
-│   └── utils/
-├── src/
-│   ├── main.cpp
-│   ├── controllers/
-│   ├── middleware/
-│   ├── services/
-│   └── utils/
-├── tests/
-└── config.json
+CMakeLists.txt
+include/            # auth.hpp, store.hpp, routes.hpp
+src/main.cpp        # configuration, seed data, server start
+src/routes.cpp      # Crow routes and handlers
+src/auth.cpp        # password hashing and tokens
+src/store.cpp       # in-memory users and products
+tests/              # GoogleTest suites (auth and store; no Crow needed)
 \`\`\`
-
-### Adding New Endpoints
-
-1. Create a new controller in \`include/controllers/\`
-2. Implement the controller in \`src/controllers/\`
-3. Register routes in \`main.cpp\`
-4. Add tests in \`tests/\`
-
-## Performance
-
-The Crow framework provides excellent performance:
-- Minimal overhead
-- Efficient routing
-- Built-in connection pooling
-- Async request handling
-
-## Security
-
-- JWT-based authentication
-- Password hashing with SHA256
-- CORS protection
-- Rate limiting support
-- Input validation
 
 ## License
 

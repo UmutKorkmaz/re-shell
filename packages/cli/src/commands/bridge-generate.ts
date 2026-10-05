@@ -7,6 +7,12 @@ import {
 } from '../utils/bridge-generate';
 import { ok, fail, enableJsonMode } from '../utils/json-output';
 import type { ProgressSpinner } from '../utils/spinner';
+import {
+  generateFromSpec,
+  resolveSpecForGenerate,
+  type SpecGenerateResult,
+} from '../bridge/spec-generate';
+import { BridgeSpecError } from '../bridge/spec/errors';
 
 /**
  * Options accepted by the `service bridge generate` command.
@@ -32,6 +38,20 @@ export interface BridgeGenerateCommandOptions {
   configPath?: string;
   /** Optional progress spinner to stop before printing results. */
   spinner?: ProgressSpinner;
+  /**
+   * Explicit provider spec (OpenAPI yaml/json, .proto or GraphQL SDL). When
+   * given, or when the service directory contains one, the contract and clients
+   * are derived from it instead of the fixed health/echo/config contract.
+   */
+  spec?: string;
+  /** Comma-separated client languages for spec-driven generation (default: ts,python,go). */
+  lang?: string;
+  /** Run tsc / py_compile / mypy / go build over the generated clients and report each result. */
+  verify?: boolean;
+  /** gRPC: compile protobuf stubs when a protoc is available (default true). */
+  compileStubs?: boolean;
+  /** Go module path of the generated Go client. */
+  goModule?: string;
 }
 
 /**
@@ -50,6 +70,13 @@ export interface TsCheckResult {
 function normalizeProtocol(protocol: string | undefined): BridgeProtocol {
   if (protocol === 'grpc' || protocol === 'rest' || protocol === 'graphql') {
     return protocol;
+  }
+  if (protocol === undefined || protocol === '') {
+    throw new Error(
+      'No provider spec was found for the service and no protocol was chosen: pass --spec <file> ' +
+        '(OpenAPI/.proto/GraphQL SDL), add a spec to the service directory, or pick --rest, --grpc or --graphql ' +
+        'to generate from the default health/echo/config contract'
+    );
   }
   throw new Error(
     `Unknown bridge protocol "${protocol ?? ''}" (expected grpc|rest|graphql)`
@@ -152,12 +179,43 @@ export async function runBridgeGenerate(
       dryRun: options.dryRun,
     });
 
+  /** Spec-driven generation, when a spec was passed or can be discovered. */
+  const specRun = (): SpecGenerateResult | undefined => {
+    const protocol: BridgeProtocol | undefined =
+      options.protocol === 'grpc' || options.protocol === 'rest' || options.protocol === 'graphql'
+        ? options.protocol
+        : undefined;
+    const specOptions = {
+      service: options.service,
+      protocol,
+      spec: options.spec,
+      lang: options.lang,
+      out: options.out,
+      dryRun: options.dryRun,
+      cwd: options.cwd,
+      configPath: options.configPath,
+      verify: options.verify,
+      compileStubs: options.compileStubs,
+      goModule: options.goModule,
+    };
+    const resolved = resolveSpecForGenerate(specOptions);
+    return resolved ? generateFromSpec(specOptions, resolved) : undefined;
+  };
+
   if (options.json) {
     const restore = enableJsonMode();
     try {
+      const fromSpec = specRun();
+      if (fromSpec) {
+        const { warnings: specWarnings, ...data } = fromSpec;
+        ok(data, specWarnings);
+        return;
+      }
       const result = generate();
       const tsCheck = typeCheckTsClient(result);
-      const warnings: string[] = [];
+      const warnings: string[] = [
+        'no spec found for the service: used the default health/echo/config contract (pass --spec <file> or add an OpenAPI/.proto/GraphQL SDL to the service directory)',
+      ];
       if (!tsCheck.ran) {
         warnings.push(`tsc check not run: ${tsCheck.detail ?? 'unavailable'}`);
       } else if (tsCheck.ok === false) {
@@ -167,6 +225,7 @@ export async function runBridgeGenerate(
         {
           protocol: result.protocol,
           service: result.service,
+          contractSource: 'default',
           artifacts: result.artifacts,
           written: result.written,
           tsCheck,
@@ -176,7 +235,7 @@ export async function runBridgeGenerate(
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Unknown bridge generate error';
-      fail('BRIDGE_GENERATE_ERROR', message);
+      fail(error instanceof BridgeSpecError ? 'BRIDGE_SPEC_ERROR' : 'BRIDGE_GENERATE_ERROR', message);
     } finally {
       restore();
     }
@@ -186,14 +245,51 @@ export async function runBridgeGenerate(
   if (options.spinner) options.spinner.stop();
 
   try {
+    const fromSpec = specRun();
+    if (fromSpec) {
+      displaySpecResult(fromSpec, Boolean(options.dryRun));
+      if (fromSpec.verification?.some(v => v.status === 'failed')) process.exitCode = 1;
+      return;
+    }
     const result = generate();
     const tsCheck = typeCheckTsClient(result);
+    console.log(
+      chalk.yellow(
+        'No spec found for the service: using the default health/echo/config contract (pass --spec <file> or add an OpenAPI/.proto/GraphQL SDL to the service directory).'
+      )
+    );
     displayResult(result, tsCheck, Boolean(options.dryRun));
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'Unknown bridge generate error';
     console.error(chalk.red(`Bridge generate failed: ${message}`));
     process.exitCode = 1;
+  }
+}
+
+function displaySpecResult(result: SpecGenerateResult, dryRun: boolean): void {
+  console.log(chalk.cyan(`\n🌉 Service bridge generation (${result.protocol}, from spec)`));
+  console.log(chalk.gray('═'.repeat(50)));
+  console.log(`Service:   ${chalk.bold(result.service)}`);
+  console.log(`Contract:  ${result.spec.path} (${result.spec.operations} operation(s), ${result.spec.models} model(s))`);
+  console.log(`Languages: ${result.languages.join(', ')}`);
+  console.log(`Artifacts: ${chalk.bold(result.artifacts.length)}`);
+  for (const artifact of result.artifacts) {
+    console.log(`  ${chalk.green('•')} ${artifact.path} ${chalk.gray(`(${artifact.kind})`)}`);
+  }
+  if (dryRun) console.log(chalk.yellow('\nDry-run: no files written.'));
+  else if (result.written.length > 0) console.log(chalk.green(`\nWrote ${result.written.length} file(s).`));
+  else console.log(chalk.yellow('\nNo --out directory provided; nothing written.'));
+  for (const s of result.stubs) {
+    console.log(`  stubs ${s.language}: ${s.status} - ${s.detail}`);
+  }
+  if (result.tsCheck.ran) {
+    console.log(`\n${result.tsCheck.ok ? chalk.green('✓') : chalk.red('✖')} tsc client check: ${result.tsCheck.ok ? 'PASS' : 'issues'}`);
+    if (!result.tsCheck.ok && result.tsCheck.detail) console.log(chalk.gray(result.tsCheck.detail));
+  }
+  for (const v of result.verification ?? []) {
+    const icon = v.status === 'passed' ? chalk.green('✓') : v.status === 'failed' ? chalk.red('✖') : chalk.gray('-');
+    console.log(`${icon} ${v.language}: ${v.tool} ${v.status}${v.detail ? ` (${v.detail})` : ''}`);
   }
 }
 

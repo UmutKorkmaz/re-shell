@@ -688,6 +688,7 @@ export { configSchema } from './schema';
     "@types/ws": "^8.5.10",
     "@types/node": "^20.11.0",
     "@types/express": "^4.17.21",
+    "@types/fs-extra": "^11.0.4",
     "@types/cors": "^2.8.17",
     "typescript": "^5.3.3",
     "tsx": "^4.7.0",
@@ -765,37 +766,71 @@ export const configSchema: ConfigSchema = {
 
 ## Client Integration
 
+The server generates no client package: any WebSocket client can talk to it. It listens on the same port as the HTTP API and speaks a small JSON protocol.
+
+| Direction | Message | Meaning |
+|-----------|---------|---------|
+| server to client | \`{ "type": "init", "config": {...} }\` | Sent on connect with the full configuration |
+| server to client | \`{ "type": "change", "event": {...} }\` | A key changed (broadcast to every client) |
+| client to server | \`{ "type": "get" }\` | Reply: \`{ "type": "config", "config": {...} }\` |
+| client to server | \`{ "type": "set", "data": { "key": value } }\` | Update keys; reply: \`{ "type": "success" }\` |
+| client to server | \`{ "type": "validate" }\` | Reply: \`{ "type": "validation", "result": {...} }\` |
+| client to server | \`{ "type": "reset" }\` | Restore defaults; reply: \`{ "type": "success" }\` |
+
 ### JavaScript/TypeScript
 
 \`\`\`typescript
-import { ConfigClient } from '@re-shell/config-client';
+const socket = new WebSocket('ws://localhost:3001');
 
-const client = new ConfigClient('ws://localhost:3001');
-await client.connect();
+socket.addEventListener('message', (message) => {
+  const data = JSON.parse(message.data);
+  if (data.type === 'init' || data.type === 'config') {
+    console.log('Configuration:', data.config);
+  }
+  if (data.type === 'change') {
+    console.log('Config changed:', data.event);
+  }
+});
 
-// Get value
-const apiUrl = client.get('apiUrl');
-
-// Set value
-client.set('theme', 'dark');
-
-// Listen for changes
-client.onChange((event) => {
-  console.log(\`Config changed: \${event.key}\`, event.newValue);
+socket.addEventListener('open', () => {
+  // Update a value; every connected client receives a "change" message
+  socket.send(JSON.stringify({ type: 'set', data: { theme: 'dark' } }));
 });
 \`\`\`
 
 ### React
 
 \`\`\`typescript
-import { useConfig } from '@re-shell/config-react';
+import { useEffect, useState } from 'react';
+
+// A minimal hook over the protocol above (copy it into your app).
+function useConfig(url: string) {
+  const [config, setConfig] = useState<Record<string, unknown>>({});
+  const [socket, setSocket] = useState<WebSocket | null>(null);
+
+  useEffect(() => {
+    const ws = new WebSocket(url);
+    ws.onmessage = (message) => {
+      const data = JSON.parse(message.data);
+      if (data.type === 'init' || data.type === 'config') setConfig(data.config);
+      if (data.type === 'change') ws.send(JSON.stringify({ type: 'get' }));
+    };
+    setSocket(ws);
+    return () => ws.close();
+  }, [url]);
+
+  const set = (key: string, value: unknown) =>
+    socket?.send(JSON.stringify({ type: 'set', data: { [key]: value } }));
+
+  return { config, get: (key: string) => config[key], set };
+}
 
 function App() {
-  const { config, get, set } = useConfig(client);
+  const { get, set } = useConfig('ws://localhost:3001');
 
   return (
     <div>
-      <h1>{get('appName')}</h1>
+      <h1>{String(get('appName'))}</h1>
       <button onClick={() => set('theme', 'dark')}>Dark Mode</button>
     </div>
   );

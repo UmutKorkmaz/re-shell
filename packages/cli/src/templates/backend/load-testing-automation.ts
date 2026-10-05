@@ -29,6 +29,7 @@ export const loadTestingTemplate: BackendTemplate = {
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
+    "eventemitter3": "^5.0.1",
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "helmet": "^7.0.0",
@@ -57,6 +58,7 @@ export const loadTestingTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -65,9 +67,9 @@ export const loadTestingTemplate: BackendTemplate = {
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*"],
@@ -188,7 +190,7 @@ export class LoadTestRunner {
         } else {
           successfulRequests++;
         }
-      } catch (error: unknown) {
+      } catch (error: any) {
         failedRequests++;
         const errorKey = error.code || error.message || 'Unknown error';
         errors.set(errorKey, (errors.get(errorKey) || 0) + 1);
@@ -463,7 +465,7 @@ export function apiRoutes(
       const config = req.body;
       const result = await loadTestRunner.run(config);
       res.json(result);
-    } catch (error: unknown) {
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -474,7 +476,7 @@ export function apiRoutes(
       const config = req.body;
       const result = await stressTestRunner.run(config);
       res.json(result);
-    } catch (error: unknown) {
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });

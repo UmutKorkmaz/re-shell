@@ -13,6 +13,7 @@ import { createPluginCommandRegistry } from '../../src/utils/plugin-command-regi
 import { createConflictResolver } from '../../src/utils/plugin-command-conflicts';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/plugin-conflicts.ts (653 lines) — 7 exports driving the
 // real plugin-command-registry + plugin-command-conflicts engines against an
 // empty (no plugins installed) environment. createSpinner is mocked since the
@@ -49,7 +50,7 @@ function logged(): string {
 
 /** The raw JSON payload logged in json mode. */
 function jsonPayload(): unknown {
-  return JSON.parse(logSpy.mock.calls.map(c => c.map(String).join('')).join(''));
+  return jsonData();
 }
 
 describe('plugin-conflicts — command', () => {

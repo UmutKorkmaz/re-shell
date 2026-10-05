@@ -1,12 +1,51 @@
 // Services Management Commands
-// Provides intelligent service management with dependency resolution
+// Provides intelligent service management with dependency resolution.
+//
+// Two runtimes are supported and selected honestly at run time:
+//  - "compose": the detected Docker Compose implementation (`docker compose`
+//    plugin first, then the standalone `docker-compose`), used for EVERY call;
+//  - "process": package.json dev/start/serve scripts supervised as detached
+//    process groups (see ../utils/service-process).
+// Nothing here reports success it did not verify: external commands must exit 0,
+// spawned services must become ready (port / health URL / still alive), and a
+// stop must actually end the process group.
 
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import { spawn, execSync, ChildProcess } from 'child_process';
+import { execSync, ChildProcess } from 'child_process';
 import chalk from 'chalk';
 import { glob } from 'glob';
 import type { BackendTemplate } from '../templates/backend/index';
+import {
+  ServiceRuntimeError,
+  checkRecordIdentity,
+  composeContainerOk,
+  detectCompose,
+  findComposeFile,
+  isRecordRunning,
+  logDir,
+  logFilePath,
+  parseComposePs,
+  probePort,
+  probeUrl,
+  readServiceRecords,
+  removeServiceState,
+  runCommand,
+  runCompose,
+  startServiceProcess,
+  stopServiceProcess,
+  waitForPortRelease,
+  type ComposeCommand,
+  type ComposeContainer,
+  type ServiceProcessRecord,
+  type StopResult,
+  COMPOSE_FILE_NAMES,
+} from '../utils/service-process';
+
+export { ServiceRuntimeError } from '../utils/service-process';
+
+/** Minimal spinner surface used for progress text. */
+type SpinnerLike = { setText?: (msg?: string) => void; stop?: () => void };
 
 /**
  * Service configuration extracted from a docker-compose.yml file or package.json scripts.
@@ -17,6 +56,10 @@ export interface ServiceConfig {
   build?: string;
   ports?: string[];
   port?: number; // For single port services from npm scripts
+  /** Health URL probed for readiness (process-mode services). */
+  healthUrl?: string;
+  /** Max ms to wait for `port` / `healthUrl` readiness (process-mode services). */
+  readyTimeoutMs?: number;
   depends_on?: string[];
   environment?: Record<string, string>;
   command?: string;
@@ -63,9 +106,12 @@ export interface ServicesUpOptions {
   forceRecreate?: boolean;
   noDeps?: boolean;
   scale?: Record<string, number>;
+  /** Overall startup budget in ms (compose command timeout / process readiness budget). */
   timeout?: number;
+  /** How long a process-mode service with no port or health URL must stay alive. Default 1500. */
+  aliveMs?: number;
   verbose?: boolean;
-  spinner?: { setText?: (msg?: string) => void };
+  spinner?: SpinnerLike;
 }
 
 /**
@@ -74,9 +120,10 @@ export interface ServicesUpOptions {
 export interface ServicesDownOptions {
   volumes?: boolean;
   removeOrphans?: boolean;
+  /** Compose command timeout, and how long a process group gets to exit on SIGTERM before SIGKILL. */
   timeout?: number;
   verbose?: boolean;
-  spinner?: { setText?: (msg?: string) => void };
+  spinner?: SpinnerLike;
 }
 
 /**
@@ -85,36 +132,132 @@ export interface ServicesDownOptions {
 export interface ServicesHealthOptions {
   watch?: boolean;
   interval?: number;
+  /** When true nothing is printed: the caller renders the returned report as JSON. */
   json?: boolean;
   verbose?: boolean;
-  spinner?: { setText?: (msg?: string) => void };
+  /** Called with every report in watch mode (instead of rendering it). */
+  onReport?: (report: ServicesHealthReport) => void;
+  spinner?: SpinnerLike;
 }
+
+/** Which runtime handled a command. */
+export type ServiceRuntimeKind = 'compose' | 'process';
+
+/** One service in a health report. */
+export interface ServiceHealthEntry {
+  name: string;
+  status: 'running' | 'stopped' | 'unhealthy' | 'exited';
+  ok: boolean;
+  pid?: number;
+  /** Compose container state. */
+  state?: string;
+  /** Compose healthcheck status, when the service defines one. */
+  health?: string;
+  exitCode?: number;
+  port?: number;
+  logFile?: string;
+  note?: string;
+}
+
+/** Result of `services health`. */
+export interface ServicesHealthReport {
+  runtime: ServiceRuntimeKind;
+  /** `docker compose` / `docker-compose` when the compose runtime was used. */
+  composeCommand?: string;
+  /** True only when at least one service exists and every service is OK. */
+  healthy: boolean;
+  services: ServiceHealthEntry[];
+}
+
+/** Result of `services up`. */
+export interface ServicesUpResult {
+  runtime: ServiceRuntimeKind;
+  composeCommand?: string;
+  services: Array<{
+    name: string;
+    pid?: number;
+    port?: number;
+    readiness?: string;
+    state?: string;
+    logFile?: string;
+  }>;
+}
+
+/** Result of `services down`. */
+export interface ServicesDownResult {
+  runtime: ServiceRuntimeKind;
+  composeCommand?: string;
+  stopped: Array<{ name: string; pid: number; outcome: string }>;
+}
+
+// ─── Parsing ─────────────────────────────────────────────────────────────────
 
 /**
  * Parse a docker-compose file (or fall back to package.json scripts) to extract service configurations.
  *
  * @param projectPath - Absolute path to the project root directory.
  * @returns Array of parsed service configurations; empty if none found.
+ * @throws ServiceRuntimeError (`SERVICES_ERROR`) when a compose file exists but is not valid YAML.
  */
 export async function parseDockerCompose(projectPath: string): Promise<ServiceConfig[]> {
-  const composeFiles = [
-    'docker-compose.yml',
-    'docker-compose.yaml',
-    'docker-compose.dev.yml',
-  ];
-
-  for (const file of composeFiles) {
+  for (const file of COMPOSE_FILE_NAMES) {
     const filePath = path.join(projectPath, file);
     try {
       await fs.access(filePath);
-      return await parseComposeFile(filePath);
     } catch {
-      // File doesn't exist, try next
+      continue; // File doesn't exist, try next
     }
+    // A compose file that exists but cannot be parsed is an error, never a
+    // silent switch to some other source of services.
+    return await parseComposeFile(filePath);
   }
 
   // No docker-compose file found, try to detect services from package.json
   return await detectServicesFromPackageJson(projectPath);
+}
+
+/** Normalize `depends_on`, which compose allows as a list OR as a map of service -> condition. */
+function normalizeDependsOn(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
+  if (typeof value === 'string') return [value];
+  if (typeof value === 'object') return Object.keys(value as Record<string, unknown>);
+  return [];
+}
+
+/** Normalize `environment`, which compose allows as a map OR as `KEY=value` list entries. */
+function normalizeEnvironment(value: unknown): Record<string, string> | undefined {
+  if (!value) return undefined;
+  const out: Record<string, string> = {};
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry !== 'string') continue;
+      const eq = entry.indexOf('=');
+      if (eq < 0) out[entry] = '';
+      else out[entry.slice(0, eq)] = entry.slice(eq + 1);
+    }
+    return out;
+  }
+  if (typeof value === 'object') {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = v === null || v === undefined ? '' : String(v);
+    }
+    return out;
+  }
+  return undefined;
+}
+
+/** Normalize `ports`, which compose allows as strings, numbers, or long-form objects. */
+function normalizePorts(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.map(entry => {
+    if (typeof entry === 'string' || typeof entry === 'number') return String(entry);
+    const long = entry as Record<string, unknown>;
+    const proto = long.protocol ? `/${String(long.protocol)}` : '';
+    return long.published !== undefined
+      ? `${String(long.published)}:${String(long.target)}${proto}`
+      : `${String(long.target)}${proto}`;
+  });
 }
 
 /**
@@ -123,21 +266,33 @@ export async function parseDockerCompose(projectPath: string): Promise<ServiceCo
 async function parseComposeFile(filePath: string): Promise<ServiceConfig[]> {
   const yaml = (await import('js-yaml')).default;
   const content = await fs.readFile(filePath, 'utf-8');
-  const compose = yaml.load(content) as Record<string, any>;
+
+  let compose: Record<string, any> | undefined;
+  try {
+    compose = yaml.load(content) as Record<string, any> | undefined;
+  } catch (err) {
+    throw new ServiceRuntimeError(
+      'SERVICES_ERROR',
+      `Could not parse ${path.basename(filePath)}: ${err instanceof Error ? err.message : String(err)}`,
+      { file: filePath }
+    );
+  }
 
   const services: ServiceConfig[] = [];
 
-  if (compose.services) {
+  if (compose && compose.services && typeof compose.services === 'object') {
     for (const [name, config] of Object.entries(compose.services)) {
-      const serviceConfig = config as Record<string, any>;
+      const serviceConfig = (config ?? {}) as Record<string, any>;
       services.push({
         name,
         image: serviceConfig.image,
         build: typeof serviceConfig.build === 'string' ? serviceConfig.build : serviceConfig.build?.context,
-        ports: serviceConfig.ports,
-        depends_on: serviceConfig.depends_on ? Object.keys(serviceConfig.depends_on) : [],
-        environment: serviceConfig.environment,
-        command: serviceConfig.command,
+        ports: normalizePorts(serviceConfig.ports),
+        depends_on: normalizeDependsOn(serviceConfig.depends_on),
+        environment: normalizeEnvironment(serviceConfig.environment),
+        command: Array.isArray(serviceConfig.command)
+          ? serviceConfig.command.join(' ')
+          : serviceConfig.command,
         working_dir: serviceConfig.working_dir,
         volumes: serviceConfig.volumes,
         networks: serviceConfig.networks,
@@ -149,8 +304,17 @@ async function parseComposeFile(filePath: string): Promise<ServiceConfig[]> {
   return services;
 }
 
+/** Script names treated as long-running services (`dev`, `start`, `serve`, and `dev:*` style variants). */
+const SERVICE_SCRIPT_NAME = /^(dev|develop|start|serve)([:._-].*)?$/;
+
 /**
- * Detect services from package.json scripts
+ * Detect services from package.json scripts.
+ *
+ * Only scripts that name a long-running service (`dev`, `start`, `serve`, and
+ * their `:`/`-` suffixed variants) are picked; `predev`, `build:dev` and the
+ * like are lifecycle/one-shot scripts and are not services. A `re-shell.services`
+ * block in package.json can attach `port`, `healthUrl` and `readyTimeoutMs` to a
+ * script by name for readiness checks.
  */
 async function detectServicesFromPackageJson(projectPath: string): Promise<ServiceConfig[]> {
   const pkgPath = path.join(projectPath, 'package.json');
@@ -160,26 +324,29 @@ async function detectServicesFromPackageJson(projectPath: string): Promise<Servi
     const pkg = JSON.parse(content);
 
     const services: ServiceConfig[] = [];
+    const meta: Record<string, { port?: number; healthUrl?: string; readyTimeoutMs?: number }> =
+      (pkg['re-shell'] && pkg['re-shell'].services) || {};
 
     // Detect dev/dev-server scripts
     if (pkg.scripts) {
-      const devScripts = Object.entries(pkg.scripts)
-        .filter(([name, script]) =>
-          name.includes('dev') ||
-          name.includes('start') ||
-          name.includes('serve')
-        );
+      const devScripts = Object.entries(pkg.scripts).filter(([name]) => SERVICE_SCRIPT_NAME.test(name));
 
       for (const [name, script] of devScripts) {
         // Extract port from script
         const scriptStr = String(script);
-        const portMatch = scriptStr.match(/-p\s+(\d+)|--port\s+(\d+)|PORT=(\d+)/);
-        const port = portMatch ? parseInt(portMatch[1] || portMatch[2] || portMatch[3]) : undefined;
+        const portMatch = scriptStr.match(/(?:^|\s)-p[=\s]+(\d+)|--port[=\s]+(\d+)|PORT=(\d+)/);
+        const scriptPort = portMatch
+          ? parseInt(portMatch[1] || portMatch[2] || portMatch[3], 10)
+          : undefined;
+        const declared = meta[name] || {};
 
         services.push({
           name: name.replace(/:/g, '-'),
           command: script as string,
-          port,
+          port: typeof declared.port === 'number' ? declared.port : scriptPort,
+          healthUrl: typeof declared.healthUrl === 'string' ? declared.healthUrl : undefined,
+          readyTimeoutMs:
+            typeof declared.readyTimeoutMs === 'number' ? declared.readyTimeoutMs : undefined,
           working_dir: projectPath,
         });
       }
@@ -276,91 +443,168 @@ export function buildDependencyGraph(services: ServiceConfig[]): ServiceDependen
   return { nodes, dependencies, levels };
 }
 
+// ─── Runtime selection ───────────────────────────────────────────────────────
+
+/** A detected compose implementation bound to a project directory. */
+interface ComposeContext {
+  compose: ComposeCommand;
+  /** Arguments placed before the subcommand (`-f <file>` for non-default file names). */
+  baseArgs: string[];
+  cwd: string;
+  file: string;
+}
+
+type SelectedRuntime =
+  | { kind: 'compose'; ctx: ComposeContext }
+  | {
+      kind: 'process';
+      /** A compose file exists but no compose implementation could be detected. */
+      composeFile: string | null;
+    };
+
+/**
+ * Pick the runtime: compose when the project has a compose file AND a working
+ * compose implementation is detected (plugin first, then standalone binary);
+ * otherwise the process runtime. A project with no compose file never touches
+ * Docker.
+ */
+async function selectRuntime(projectPath: string): Promise<SelectedRuntime> {
+  const composeFile = findComposeFile(projectPath);
+  if (!composeFile) {
+    return { kind: 'process', composeFile: null };
+  }
+
+  const compose = await detectCompose();
+  if (!compose) {
+    return { kind: 'process', composeFile };
+  }
+
+  // `docker compose` finds the standard file names itself; anything else needs -f.
+  const standard = new Set(COMPOSE_FILE_NAMES.filter(name => name !== 'docker-compose.dev.yml'));
+  const baseArgs = standard.has(path.basename(composeFile)) ? [] : ['-f', composeFile];
+  return { kind: 'compose', ctx: { compose, baseArgs, cwd: projectPath, file: composeFile } };
+}
+
+function composeUnavailableMessage(composeFile: string, action: string): string {
+  return (
+    `${path.basename(composeFile)} was found but neither \`docker compose\` nor \`docker-compose\` ` +
+    `is available on PATH, so ${action}. Install Docker Compose or remove the compose file.`
+  );
+}
+
+function runInCompose(
+  ctx: ComposeContext,
+  args: string[],
+  options: { timeoutMs?: number; verbose?: boolean; stdio?: 'capture' | 'inherit' } = {}
+) {
+  return runCompose(ctx.compose, [...ctx.baseArgs, ...args], { cwd: ctx.cwd, ...options });
+}
+
+function parsePositiveMs(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+// ─── up ──────────────────────────────────────────────────────────────────────
+
 /**
  * Start services with intelligent dependency resolution, using Docker Compose when available
- * and falling back to npm scripts otherwise.
+ * and falling back to supervised package.json scripts otherwise.
+ *
+ * Fails (throws a {@link ServiceRuntimeError}) instead of reporting success when
+ * compose exits non-zero, a container ends up crashed, a script cannot be spawned,
+ * exits immediately, or never becomes ready.
  *
  * @param projectPath - Absolute path to the project root directory.
  * @param options - Optional configuration for detached mode, build, scale, and more.
- * @returns Resolves when all services have been started.
+ * @returns What was started, once every service is verified up.
  */
 export async function servicesUp(
   projectPath: string,
   options: ServicesUpOptions = {}
-): Promise<void> {
+): Promise<ServicesUpResult> {
   const {
-    detached = true,
     build = false,
     forceRecreate = false,
     noDeps = false,
     scale = {},
-    timeout = 120000,
     verbose = false,
     spinner,
   } = options;
+  const timeout = parsePositiveMs(options.timeout, 120000);
+  const aliveMs = parsePositiveMs(options.aliveMs, 1500);
 
-  // Parse service configurations
-  const services = await parseDockerCompose(projectPath);
+  const runtime = await selectRuntime(projectPath);
+
+  if (runtime.kind === 'compose') {
+    if (verbose) {
+      try {
+        const graph = buildDependencyGraph(await parseComposeFile(runtime.ctx.file));
+        printGraph(graph);
+      } catch (err) {
+        console.warn(chalk.yellow(`Could not build the dependency graph: ${(err as Error).message}`));
+      }
+    }
+    return startWithDockerCompose(runtime.ctx, { build, forceRecreate, noDeps, scale, timeout, verbose, spinner });
+  }
+
+  // Process runtime: package.json scripts only. Compose-file services describe
+  // containers and are not runnable on the host.
+  const services = await detectServicesFromPackageJson(projectPath);
+
+  if (runtime.composeFile) {
+    if (services.length === 0) {
+      throw new ServiceRuntimeError(
+        'SERVICES_COMPOSE_UNAVAILABLE',
+        composeUnavailableMessage(runtime.composeFile, 'its services cannot be started') +
+          ' package.json has no dev/start/serve scripts to fall back to.',
+        { composeFile: runtime.composeFile }
+      );
+    }
+    console.warn(
+      chalk.yellow(
+        `Docker Compose is not available; ignoring ${path.basename(runtime.composeFile)} and ` +
+          'starting package.json dev/start/serve scripts instead.'
+      )
+    );
+  }
 
   if (services.length === 0) {
-    console.log(chalk.yellow('No services found in project.'));
-    console.log(chalk.gray('Add a docker-compose.yml or package.json with dev scripts.'));
-    return;
+    throw new ServiceRuntimeError(
+      'SERVICES_NOT_FOUND',
+      'No services found in project. Add a docker-compose.yml or a package.json with dev/start/serve scripts.',
+      { projectPath }
+    );
   }
 
-  // Build dependency graph
   const graph = buildDependencyGraph(services);
+  if (verbose) printGraph(graph);
 
-  if (verbose) {
-    console.log(chalk.blue('\n📊 Service Dependency Graph:'));
-    for (let i = 0; i < graph.levels.length; i++) {
-      console.log(chalk.gray(`  Level ${i}:`), chalk.cyan(graph.levels[i].join(', ') || '(none)'));
-    }
-    console.log('');
+  return startWithProcesses(projectPath, graph, { timeout, aliveMs, verbose, spinner });
+}
+
+function printGraph(graph: ServiceDependencyGraph): void {
+  console.log(chalk.blue('\n📊 Service Dependency Graph:'));
+  for (let i = 0; i < graph.levels.length; i++) {
+    console.log(chalk.gray(`  Level ${i}:`), chalk.cyan(graph.levels[i].join(', ') || '(none)'));
   }
-
-  // Check if Docker is available
-  const hasDocker = await checkDockerAvailable();
-  const hasDockerCompose = await checkDockerComposeAvailable();
-
-  if (hasDocker && hasDockerCompose) {
-    // Use Docker Compose
-    await startWithDockerCompose(projectPath, {
-      detached,
-      build,
-      forceRecreate,
-      noDeps,
-      scale,
-      timeout,
-      verbose,
-      spinner,
-    });
-  } else {
-    // Use npm scripts fallback
-    await startWithNpmScripts(projectPath, graph, {
-      timeout,
-      verbose,
-      spinner,
-    });
-  }
+  console.log('');
 }
 
 /**
  * Start services using Docker Compose
  */
 async function startWithDockerCompose(
-  projectPath: string,
+  ctx: ComposeContext,
   options: {
-    detached: boolean;
     build: boolean;
     forceRecreate: boolean;
     noDeps: boolean;
     scale: Record<string, number>;
     timeout: number;
     verbose: boolean;
-    spinner?: { setText?: (msg?: string) => void };
+    spinner?: SpinnerLike;
   }
-): Promise<void> {
+): Promise<ServicesUpResult> {
   const args = ['up', '-d'];
 
   if (options.build) {
@@ -376,140 +620,197 @@ async function startWithDockerCompose(
   }
 
   for (const [service, count] of Object.entries(options.scale)) {
-    args.push(`--scale`, `${service}=${count}`);
+    args.push('--scale', `${service}=${count}`);
   }
 
-  if (options.spinner) {
-    options.spinner.setText('Starting Docker services...');
+  options.spinner?.setText?.(`Starting Docker services (${ctx.compose.label})...`);
+
+  // Exit code is enforced by runCompose: a failing `up` throws here.
+  await runInCompose(ctx, args, { timeoutMs: options.timeout, verbose: options.verbose });
+
+  // `up -d` returning 0 only means containers were started; verify none crashed.
+  options.spinner?.setText?.('Verifying container state...');
+  let containers: ComposeContainer[] | null = null;
+  let verifyWarning: string | null = null;
+  try {
+    const ps = await runInCompose(ctx, ['ps', '-a', '--format', 'json'], { timeoutMs: 30000 });
+    containers = parseComposePs(ps.stdout);
+  } catch (err) {
+    verifyWarning = err instanceof Error ? err.message : String(err);
   }
 
-  await runCommand('docker-compose', args, {
-    cwd: projectPath,
-    timeout: options.timeout,
-    verbose: options.verbose,
-  });
+  options.spinner?.stop?.();
 
-  // Show running services
-  await showRunningServices(projectPath);
-}
-
-/**
- * Start services using npm scripts
- */
-async function startWithNpmScripts(
-  projectPath: string,
-  graph: ServiceDependencyGraph,
-  options: {
-    timeout: number;
-    verbose: boolean;
-    spinner?: { setText?: (msg?: string) => void };
-  }
-): Promise<void> {
-  const runningServices: RunningService[] = [];
-  const processes: Map<string, ChildProcess> = new Map();
-
-  // Start services level by level
-  for (let i = 0; i < graph.levels.length; i++) {
-    const levelServices = graph.levels[i];
-
-    if (options.verbose) {
-      console.log(chalk.blue(`Starting level ${i} services:`), chalk.cyan(levelServices.join(', ')));
+  if (containers) {
+    const broken = containers.filter(c => {
+      if (c.state === 'running') return c.health === 'unhealthy';
+      if (c.state === 'exited') return c.exitCode !== 0;
+      return c.state === 'dead' || c.state === 'restarting';
+    });
+    if (broken.length > 0) {
+      const summary = broken
+        .map(c =>
+          `${c.service} (${c.state}${c.exitCode !== undefined && c.state === 'exited' ? ` code ${c.exitCode}` : ''}${
+            c.health ? `, ${c.health}` : ''
+          })`
+        )
+        .join(', ');
+      throw new ServiceRuntimeError(
+        'SERVICES_START_FAILED',
+        `${ctx.compose.label} up finished but ${broken.length} service(s) are not running: ${summary}. ` +
+          'Inspect with `re-shell service run logs <service>`; stop everything with `re-shell service run down`.',
+        { services: broken.map(c => ({ name: c.service, state: c.state, exitCode: c.exitCode })) }
+      );
     }
 
-    for (const serviceName of levelServices) {
-      const service = graph.nodes.get(serviceName);
-      if (!service || !service.command) continue;
-
-      if (options.spinner) {
-        options.spinner.setText(`Starting ${serviceName}...`);
+    console.log(chalk.green('\n✅ Services started:'));
+    for (const c of containers) {
+      const portMatch = (c.ports || '').match(/:(\d+)->/);
+      console.log(chalk.gray('  •'), chalk.cyan(c.service), chalk.gray(`(${c.state})`));
+      if (portMatch) {
+        console.log(chalk.gray(`    Port: ${portMatch[1]}`));
       }
-
-      const runningService = await startServiceProcess(service, projectPath);
-      runningServices.push(runningService);
-      processes.set(serviceName, runningService.process as ChildProcess);
     }
-
-    // Wait a bit for services to be ready
-    await new Promise(resolve => setTimeout(resolve, 2000));
+  } else {
+    console.warn(
+      chalk.yellow(
+        `${ctx.compose.label} up succeeded, but container state could not be verified: ${verifyWarning}`
+      )
+    );
   }
-
-  // Show running services
-  console.log(chalk.green('\n✅ Services started:'));
-  for (const svc of runningServices) {
-    console.log(chalk.gray('  •'), chalk.cyan(svc.name), chalk.gray(`(PID: ${svc.pid})`));
-  }
-}
-
-/**
- * Start a single service as a background process
- */
-async function startServiceProcess(
-  service: ServiceConfig,
-  projectPath: string
-): Promise<RunningService> {
-  const workingDir = service.working_dir || projectPath;
-  const command = service.command || 'npm run dev';
-
-  // Parse command
-  const [cmd, ...args] = command.split(/\s+/);
-
-  // Create log file
-  const logDir = path.join(projectPath, '.re-shell', 'logs');
-  await fs.mkdir(logDir, { recursive: true });
-  const logFile = path.join(logDir, `${service.name}.log`);
-
-  const proc = spawn(cmd, args, {
-    cwd: workingDir,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
-    shell: true,
-  });
-
-  // Redirect output to log file
-  const logStream = await fs.open(logFile, 'w');
-  proc.stdout?.pipe(logStream.createWriteStream());
-  proc.stderr?.pipe(logStream.createWriteStream());
-
-  // Store PID file
-  const pidFile = path.join(projectPath, '.re-shell', 'pids', `${service.name}.pid`);
-  await fs.mkdir(path.dirname(pidFile), { recursive: true });
-  await fs.writeFile(pidFile, proc.pid.toString());
-
-  proc.unref();
 
   return {
-    name: service.name,
-    pid: proc.pid || 0,
-    port: service.port,
-    command,
-    startTime: new Date(),
-    healthStatus: 'unknown',
-    logFile,
+    runtime: 'compose',
+    composeCommand: ctx.compose.label,
+    services: (containers ?? []).map(c => ({ name: c.service, state: c.state })),
   };
 }
 
 /**
- * Stop services with graceful shutdown, using Docker Compose or terminating npm-script processes.
+ * Start services as supervised background process groups, level by level.
+ * Any failure stops every service already started by this call and rethrows.
+ */
+async function startWithProcesses(
+  projectPath: string,
+  graph: ServiceDependencyGraph,
+  options: { timeout: number; aliveMs: number; verbose: boolean; spinner?: SpinnerLike }
+): Promise<ServicesUpResult> {
+  const started: ServiceProcessRecord[] = [];
+  const deadline = Date.now() + options.timeout;
+
+  try {
+    for (let i = 0; i < graph.levels.length; i++) {
+      const levelServices = graph.levels[i];
+
+      if (options.verbose) {
+        console.log(chalk.blue(`Starting level ${i} services:`), chalk.cyan(levelServices.join(', ')));
+      }
+
+      for (const serviceName of levelServices) {
+        const service = graph.nodes.get(serviceName);
+        if (!service || !service.command) continue;
+
+        options.spinner?.setText?.(`Starting ${serviceName}...`);
+
+        const remaining = Math.max(1000, deadline - Date.now());
+        const record = await startServiceProcess(
+          {
+            name: service.name,
+            command: service.command,
+            cwd: service.working_dir || projectPath,
+            env: service.environment,
+            port: service.port,
+            healthUrl: service.healthUrl,
+          },
+          {
+            projectPath,
+            readyTimeoutMs: service.readyTimeoutMs ?? remaining,
+            aliveMs: options.aliveMs,
+          }
+        );
+        started.push(record);
+      }
+
+      // Everything started so far must still be alive before the next level begins.
+      for (const record of started) {
+        if (!isRecordRunning(record)) {
+          throw new ServiceRuntimeError(
+            'SERVICES_START_FAILED',
+            `Service '${record.name}' stopped running while level ${i} was starting. Log: ${record.logFile}`,
+            { service: record.name, logFile: record.logFile }
+          );
+        }
+      }
+    }
+
+    if (started.length === 0) {
+      throw new ServiceRuntimeError(
+        'SERVICES_NOT_FOUND',
+        'No runnable services found: none of the detected services has a command to run.'
+      );
+    }
+  } catch (err) {
+    // Roll back so a failed `up` never leaves a half-started stack behind.
+    for (const record of started.reverse()) {
+      try {
+        await stopServiceProcess(record, { timeoutMs: 5000 });
+      } catch {
+        // best effort; the original failure is what matters
+      }
+      await removeServiceState(projectPath, record.name);
+    }
+    throw err;
+  }
+
+  options.spinner?.stop?.();
+  console.log(chalk.green('\n✅ Services started:'));
+  for (const record of started) {
+    console.log(
+      chalk.gray('  •'),
+      chalk.cyan(record.name),
+      chalk.gray(`(PID: ${record.pid}, ready: ${describeReadiness(record)})`)
+    );
+    console.log(chalk.gray(`    Log: ${record.logFile}`));
+  }
+
+  return {
+    runtime: 'process',
+    services: started.map(r => ({
+      name: r.name,
+      pid: r.pid,
+      port: r.port,
+      readiness: r.readiness,
+      logFile: r.logFile,
+    })),
+  };
+}
+
+function describeReadiness(record: ServiceProcessRecord): string {
+  if (record.readiness === 'url') return `health URL ${record.healthUrl}`;
+  if (record.readiness === 'port') return `port ${record.port}`;
+  return 'still alive after grace period';
+}
+
+// ─── down ────────────────────────────────────────────────────────────────────
+
+/**
+ * Stop services with graceful shutdown, using Docker Compose or terminating
+ * supervised processes (whole process group: SIGTERM, wait, SIGKILL).
  *
  * @param projectPath - Absolute path to the project root directory.
  * @param options - Optional configuration for volume removal, orphan cleanup, and timeouts.
- * @returns Resolves when all services have been stopped.
+ * @returns What was stopped. Throws if compose fails or a process cannot be stopped.
  */
 export async function servicesDown(
   projectPath: string,
   options: ServicesDownOptions = {}
-): Promise<void> {
-  const {
-    volumes = false,
-    removeOrphans = false,
-    timeout = 60000,
-    verbose = false,
-    spinner,
-  } = options;
+): Promise<ServicesDownResult> {
+  const { volumes = false, removeOrphans = false, verbose = false, spinner } = options;
+  const timeout = parsePositiveMs(options.timeout, 60000);
 
-  const hasDockerCompose = await checkDockerComposeAvailable();
+  const runtime = await selectRuntime(projectPath);
 
-  if (hasDockerCompose) {
+  if (runtime.kind === 'compose') {
     // Use Docker Compose
     const args = ['down'];
 
@@ -521,298 +822,336 @@ export async function servicesDown(
       args.push('--remove-orphans');
     }
 
-    if (spinner) {
-      spinner.setText('Stopping Docker services...');
-    }
+    spinner?.setText?.(`Stopping Docker services (${runtime.ctx.compose.label})...`);
 
-    await runCommand('docker-compose', args, {
-      cwd: projectPath,
-      timeout,
-      verbose,
-    });
+    await runInCompose(runtime.ctx, args, { timeoutMs: timeout, verbose });
 
+    spinner?.stop?.();
     console.log(chalk.green('✅ Services stopped.'));
-  } else {
-    // Stop npm script processes
-    await stopNpmProcesses(projectPath, { timeout, verbose, spinner });
+    return { runtime: 'compose', composeCommand: runtime.ctx.compose.label, stopped: [] };
   }
+
+  // Stop supervised processes
+  const stopped = await stopProcessServices(projectPath, {
+    timeout,
+    verbose,
+    spinner,
+    composeFile: runtime.composeFile,
+  });
+  return { runtime: 'process', stopped };
 }
 
 /**
- * Stop npm script processes
+ * Stop every supervised process recorded under `.re-shell/pids`, in parallel.
+ * Each is verified (PID reuse guard), signalled as a process group, escalated
+ * to SIGKILL after `timeout`, and its PID and log files are removed.
  */
-async function stopNpmProcesses(
+async function stopProcessServices(
   projectPath: string,
-  options: { timeout: number; verbose: boolean; spinner?: { setText?: (msg?: string) => void } }
-): Promise<void> {
-  const pidDir = path.join(projectPath, '.re-shell', 'pids');
-
-  try {
-    const files = await fs.readdir(pidDir);
-
-    for (const file of files) {
-      if (!file.endsWith('.pid')) continue;
-
-      const pidPath = path.join(pidDir, file);
-      const pid = parseInt(await fs.readFile(pidPath, 'utf-8'));
-
-      try {
-        process.kill(pid, 'SIGTERM');
-        if (options.verbose) {
-          console.log(chalk.gray(`Stopped ${file.replace('.pid', '')} (PID: ${pid})`));
-        }
-        await fs.unlink(pidPath);
-      } catch (err) {
-        // Process might not be running
-        await fs.unlink(pidPath).catch(() => { /* ignore */ });
-      }
-    }
-
-    console.log(chalk.green('✅ Services stopped.'));
-  } catch {
-    console.log(chalk.yellow('No running services found.'));
+  options: {
+    timeout: number;
+    verbose: boolean;
+    spinner?: SpinnerLike;
+    composeFile: string | null;
   }
+): Promise<Array<{ name: string; pid: number; outcome: string }>> {
+  const { records, legacy, invalid } = await readServiceRecords(projectPath);
+  options.spinner?.stop?.();
+
+  for (const item of legacy) {
+    console.warn(
+      chalk.yellow(
+        `Ignoring legacy PID file for '${item.name}' (pid ${item.pid}): it has no process identity, ` +
+          'so it is not signalled. If that process is still running, stop it manually.'
+      )
+    );
+    await fs.rm(item.file, { force: true });
+  }
+  for (const item of invalid) {
+    console.warn(chalk.yellow(`Removing unreadable PID file ${item.file}: ${item.reason}`));
+    await fs.rm(item.file, { force: true });
+  }
+
+  if (records.length === 0) {
+    if (options.composeFile && legacy.length === 0 && invalid.length === 0) {
+      throw new ServiceRuntimeError(
+        'SERVICES_COMPOSE_UNAVAILABLE',
+        composeUnavailableMessage(options.composeFile, 'its containers cannot be stopped') +
+          ' No supervised processes are recorded either.',
+        { composeFile: options.composeFile }
+      );
+    }
+    console.log(chalk.yellow('No running services found.'));
+    return [];
+  }
+
+  const settled = await Promise.allSettled(
+    records.map(record => stopServiceProcess(record, { timeoutMs: options.timeout }))
+  );
+
+  const results: StopResult[] = [];
+  const failures: string[] = [];
+  const unverifiable: string[] = [];
+
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    const outcome = settled[i];
+    if (outcome.status === 'rejected') {
+      failures.push(outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason));
+      continue; // keep the PID file: the service may still be running
+    }
+    const result = outcome.value;
+    results.push(result);
+    if (result.outcome === 'unverifiable') {
+      unverifiable.push(record.name);
+      continue; // keep the PID file: we could not prove the process is ours
+    }
+    if (result.outcome === 'identity-mismatch') {
+      console.warn(
+        chalk.yellow(
+          `PID ${record.pid} for '${record.name}' now belongs to a different process; ` +
+            'not signalling it. Removed the stale PID file.'
+        )
+      );
+    }
+    await removeServiceState(projectPath, record.name, { logs: true });
+    if (options.verbose) {
+      console.log(chalk.gray(`${record.name} (PID: ${record.pid}): ${result.outcome}`));
+    }
+  }
+
+  if (unverifiable.length > 0) {
+    failures.push(
+      `Could not verify the identity of: ${unverifiable.join(', ')} (no start time was recorded), so they were not signalled`
+    );
+  }
+  if (failures.length > 0) {
+    throw new ServiceRuntimeError(
+      'SERVICES_STOP_FAILED',
+      `Failed to stop all services:\n  - ${failures.join('\n  - ')}`,
+      { failures }
+    );
+  }
+
+  console.log(chalk.green('✅ Services stopped.'));
+  for (const r of results) {
+    const how =
+      r.outcome === 'killed'
+        ? 'killed with SIGKILL after the timeout'
+        : r.outcome === 'terminated'
+          ? 'terminated'
+          : r.outcome === 'not-running'
+            ? 'was already stopped'
+            : 'stale record removed';
+    console.log(chalk.gray('  •'), chalk.cyan(r.name), chalk.gray(`(PID: ${r.pid}) ${how}`));
+  }
+
+  return results.map(r => ({ name: r.name, pid: r.pid, outcome: r.outcome }));
 }
+
+// ─── health ──────────────────────────────────────────────────────────────────
 
 /**
  * Check the health status of running services, optionally in watch mode.
  *
+ * In one-shot mode this throws `SERVICES_UNHEALTHY` (with the full report in the
+ * error details) when no service is running or any service is down, so scripts
+ * can rely on the exit code. Stale PID files of dead processes are removed.
+ *
  * @param projectPath - Absolute path to the project root directory.
  * @param options - Optional configuration for watch mode, interval, and JSON output.
- * @returns Resolves when the health check (or watch session) completes.
+ * @returns The health report (one-shot mode), once every service is healthy.
  */
 export async function servicesHealth(
   projectPath: string,
   options: ServicesHealthOptions = {}
-): Promise<void> {
-  const {
-    watch = false,
-    interval = 5000,
-    json = false,
-    verbose = false,
-  } = options;
+): Promise<ServicesHealthReport> {
+  const { watch = false, json = false, onReport } = options;
+  const interval = parsePositiveMs(options.interval, 5000);
 
-  const hasDockerCompose = await checkDockerComposeAvailable();
+  const runtime = await selectRuntime(projectPath);
+  const collect = async (): Promise<ServicesHealthReport> =>
+    runtime.kind === 'compose'
+      ? collectComposeHealth(runtime.ctx)
+      : collectProcessHealth(projectPath, runtime.composeFile);
 
-  if (hasDockerCompose) {
-    if (watch) {
-      await watchDockerHealth(projectPath, { interval, json, verbose });
-    } else {
-      await checkDockerHealth(projectPath, { json, verbose });
+  if (watch) {
+    if (!json && !onReport) {
+      console.log(chalk.blue('Watching service health...'));
+      console.log(chalk.gray('Press Ctrl+C to stop.\n'));
     }
-  } else {
-    await checkNpmProcessHealth(projectPath, { json, verbose });
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const report = await collect(); // a failing compose command ends the watch with an error
+      if (onReport) {
+        onReport(report);
+      } else if (!json) {
+        if (process.stdout.isTTY) console.clear();
+        console.log(chalk.bold('Service Health Status'));
+        console.log(chalk.gray(`Updated: ${new Date().toLocaleTimeString()}\n`));
+        printHealthReport(report);
+      }
+      await new Promise(resolve => setTimeout(resolve, interval));
+    }
+  }
+
+  const report = await collect();
+  if (!json && report.services.length > 0) {
+    printHealthReport(report);
+  }
+  if (!report.healthy) {
+    const bad = report.services.filter(s => !s.ok);
+    throw new ServiceRuntimeError(
+      'SERVICES_UNHEALTHY',
+      report.services.length === 0
+        ? 'No running services found. Start them with `re-shell service run up`.'
+        : `${bad.length} of ${report.services.length} service(s) are not healthy: ` +
+            bad.map(s => `${s.name} (${s.status}${s.note ? `: ${s.note}` : ''})`).join(', '),
+      { report: report as unknown as Record<string, unknown> }
+    );
+  }
+  return report;
+}
+
+function printHealthReport(report: ServicesHealthReport): void {
+  console.log(chalk.bold(`\nService Health Status (${report.composeCommand ?? 'processes'}):\n`));
+  if (report.services.length === 0) {
+    console.log(chalk.yellow('No running services found.'));
+    return;
+  }
+  for (const svc of report.services) {
+    const icon = svc.ok ? '✅' : '❌';
+    const color = svc.ok ? chalk.green : chalk.red;
+    const detail = [
+      svc.pid !== undefined ? `PID: ${svc.pid}` : undefined,
+      svc.health ? `health: ${svc.health}` : undefined,
+      svc.exitCode !== undefined && svc.status === 'exited' ? `exit code: ${svc.exitCode}` : undefined,
+      svc.note,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    console.log(`${icon} ${chalk.cyan(svc.name)}: ${color(svc.status)}${detail ? ` (${detail})` : ''}`);
   }
 }
 
-/**
- * Check Docker Compose service health
- */
-async function checkDockerHealth(
-  projectPath: string,
-  options: { json: boolean; verbose: boolean }
-): Promise<void> {
-  const result = await runCommand('docker-compose', ['ps'], {
-    cwd: projectPath,
-    capture: true,
+async function collectComposeHealth(ctx: ComposeContext): Promise<ServicesHealthReport> {
+  const ps = await runInCompose(ctx, ['ps', '-a', '--format', 'json'], { timeoutMs: 30000 });
+  let containers: ComposeContainer[];
+  try {
+    containers = parseComposePs(ps.stdout);
+  } catch (err) {
+    throw new ServiceRuntimeError(
+      'SERVICES_COMPOSE_FAILED',
+      `${ctx.compose.label} ps returned output that could not be parsed as JSON ` +
+        `(${err instanceof Error ? err.message : String(err)}); is this compose version too old for --format json?`
+    );
+  }
+
+  const services: ServiceHealthEntry[] = containers.map(c => {
+    const ok = composeContainerOk(c);
+    const status: ServiceHealthEntry['status'] =
+      c.state === 'running' ? (ok ? 'running' : 'unhealthy') : c.state === 'exited' ? 'exited' : 'unhealthy';
+    return {
+      name: c.service,
+      status,
+      ok,
+      state: c.state,
+      health: c.health,
+      exitCode: c.exitCode,
+    };
   });
 
-  console.log(result.stdout);
+  return {
+    runtime: 'compose',
+    composeCommand: ctx.compose.label,
+    healthy: services.length > 0 && services.every(s => s.ok),
+    services,
+  };
 }
 
-/**
- * Watch Docker service health
- */
-async function watchDockerHealth(
+async function collectProcessHealth(
   projectPath: string,
-  options: { interval: number; json: boolean; verbose: boolean }
-): Promise<void> {
-  console.log(chalk.blue('Watching service health...'));
-  console.log(chalk.gray('Press Ctrl+C to stop.\n'));
+  composeFile: string | null
+): Promise<ServicesHealthReport> {
+  const { records, legacy, invalid } = await readServiceRecords(projectPath);
+  const services: ServiceHealthEntry[] = [];
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    // Clear screen
-    console.clear();
-    console.log(chalk.bold('Service Health Status'));
-    console.log(chalk.gray(`Updated: ${new Date().toLocaleTimeString()}\n`));
+  for (const record of records) {
+    const identity = checkRecordIdentity(record);
+    const running = identity.state === 'alive' || identity.state === 'group-orphans';
 
-    await checkDockerHealth(projectPath, options);
-
-    await new Promise(resolve => setTimeout(resolve, options.interval));
-  }
-}
-
-/**
- * Check npm process health
- */
-async function checkNpmProcessHealth(
-  projectPath: string,
-  options: { json: boolean; verbose: boolean }
-): Promise<void> {
-  const pidDir = path.join(projectPath, '.re-shell', 'pids');
-
-  try {
-    const files = await fs.readdir(pidDir);
-    const services: Record<string, unknown>[] = [];
-
-    for (const file of files) {
-      if (!file.endsWith('.pid')) continue;
-
-      const pidPath = path.join(pidDir, file);
-      const pid = parseInt(await fs.readFile(pidPath, 'utf-8'));
-      const serviceName = file.replace('.pid', '');
-
-      // Check if process is running
-      try {
-        process.kill(pid, 0); // Signal 0 just checks if process exists
-        services.push({
-          name: serviceName,
-          pid,
-          status: 'running',
-        });
-      } catch {
-        services.push({
-          name: serviceName,
-          pid,
-          status: 'stopped',
-        });
-      }
-    }
-
-    if (options.json) {
-      console.log(JSON.stringify(services, null, 2));
-    } else {
-      console.log(chalk.bold('\nService Health Status:\n'));
-      for (const svc of services) {
-        const icon = svc.status === 'running' ? '✅' : '❌';
-        const color = svc.status === 'running' ? chalk.green : chalk.red;
-        console.log(`${icon} ${chalk.cyan(svc.name)}: ${color(svc.status)} (PID: ${svc.pid})`);
-      }
-    }
-  } catch {
-    console.log(chalk.yellow('No services found.'));
-  }
-}
-
-/**
- * Check if Docker is available
- */
-async function checkDockerAvailable(): Promise<boolean> {
-  try {
-    await runCommand('docker', ['--version'], { capture: true });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Check if Docker Compose is available
- */
-async function checkDockerComposeAvailable(): Promise<boolean> {
-  try {
-    await runCommand('docker-compose', ['--version'], { capture: true });
-    return true;
-  } catch {
-    try {
-      await runCommand('docker', ['compose', 'version'], { capture: true });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
-
-/**
- * Show running services
- */
-async function showRunningServices(projectPath: string): Promise<void> {
-  try {
-    const result = await runCommand('docker-compose', ['ps', '--format', 'json'], {
-      cwd: projectPath,
-      capture: true,
-      silent: true,
-    });
-
-    const services = JSON.parse(result.stdout);
-
-    console.log(chalk.green('\n✅ Running services:'));
-    for (const svc of services) {
-      const ports = svc.Ports || '';
-      const portMatch = ports.match(/:(\d+)->/);
-      const port = portMatch ? portMatch[1] : '';
-
-      console.log(chalk.gray('  •'), chalk.cyan(svc.Service));
-      if (port) {
-        console.log(chalk.gray(`    Port: ${port}`));
-      }
-    }
-  } catch {
-    console.log(chalk.yellow('No running services.'));
-  }
-}
-
-/**
- * Run a command and return the result
- */
-async function runCommand(
-  command: string,
-  args: string[],
-  options: {
-    cwd?: string;
-    timeout?: number;
-    verbose?: boolean;
-    capture?: boolean;
-    silent?: boolean;
-  } = {}
-): Promise<{ stdout: string; stderr: string; code: number | null }> {
-  const { cwd = process.cwd(), timeout = 30000, verbose = false, capture = false, silent = false } = options;
-
-  return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, {
-      cwd,
-      stdio: capture || silent ? 'pipe' : 'inherit',
-      shell: true,
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    if (capture || proc.stdout) {
-      proc.stdout?.on('data', (data) => {
-        stdout += data.toString();
-        if (verbose && !capture) {
-          process.stdout.write(data);
-        }
+    if (!running) {
+      // Stale PID file: report it once, then clean it up (keep the log for diagnosis).
+      await removeServiceState(projectPath, record.name);
+      services.push({
+        name: record.name,
+        status: 'stopped',
+        ok: false,
+        pid: record.pid,
+        port: record.port,
+        logFile: record.logFile,
+        note:
+          identity.state === 'reused'
+            ? 'process exited (PID was reused); stale PID file removed'
+            : 'process exited; stale PID file removed',
       });
+      continue;
     }
 
-    if (proc.stderr) {
-      proc.stderr.on('data', (data) => {
-        stderr += data.toString();
-        if (verbose) {
-          process.stderr.write(data);
-        }
-      });
+    let ok = true;
+    let note: string | undefined;
+    if (record.healthUrl) {
+      ok = await probeUrl(record.healthUrl);
+      if (!ok) note = `health URL ${record.healthUrl} is not answering 2xx`;
+    } else if (record.port !== undefined) {
+      ok = await probePort(record.port);
+      if (!ok) note = `port ${record.port} is not accepting connections`;
     }
-
-    const timer = setTimeout(() => {
-      proc.kill('SIGKILL');
-      reject(new Error(`Command timed out after ${timeout}ms`));
-    }, timeout);
-
-    proc.on('close', (code) => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr, code });
+    services.push({
+      name: record.name,
+      status: ok ? 'running' : 'unhealthy',
+      ok,
+      pid: record.pid,
+      port: record.port,
+      logFile: record.logFile,
+      note,
     });
+  }
 
-    proc.on('error', (err) => {
-      clearTimeout(timer);
-      reject(err);
+  for (const item of legacy) {
+    services.push({
+      name: item.name,
+      status: 'unhealthy',
+      ok: false,
+      pid: item.pid,
+      note: 'legacy PID file without process identity; cannot verify (run `re-shell service run down`)',
     });
-  });
+  }
+  for (const item of invalid) {
+    services.push({
+      name: path.basename(item.file, '.pid'),
+      status: 'unhealthy',
+      ok: false,
+      note: `unreadable PID file: ${item.reason}`,
+    });
+  }
+
+  if (services.length === 0 && composeFile) {
+    throw new ServiceRuntimeError(
+      'SERVICES_COMPOSE_UNAVAILABLE',
+      composeUnavailableMessage(composeFile, 'container health cannot be checked'),
+      { composeFile }
+    );
+  }
+
+  return {
+    runtime: 'process',
+    healthy: services.length > 0 && services.every(s => s.ok),
+    services,
+  };
 }
+
+// ─── logs / restart / scale / exec ───────────────────────────────────────────
 
 /**
  * Retrieve and display logs for one or all services.
@@ -820,7 +1159,7 @@ async function runCommand(
  * @param projectPath - Absolute path to the project root directory.
  * @param service - Optional name of a specific service to show logs for.
  * @param options - Optional configuration for follow mode, tail line count, and verbosity.
- * @returns Resolves when logs have been retrieved and displayed.
+ * @returns Resolves when logs have been retrieved and displayed; throws if none could be.
  */
 export async function servicesLogs(
   projectPath: string,
@@ -831,99 +1170,135 @@ export async function servicesLogs(
     verbose?: boolean;
   } = {}
 ): Promise<void> {
-  const { follow = false, tail = 100, verbose = false } = options;
+  const { follow = false, tail = 100 } = options;
 
-  const hasDockerCompose = await checkDockerComposeAvailable();
+  const runtime = await selectRuntime(projectPath);
 
-  if (hasDockerCompose) {
-    const args = ['logs', '-f', '--tail', tail.toString()];
+  if (runtime.kind === 'compose') {
+    const args = ['logs'];
+    if (follow) args.push('-f');
+    args.push('--tail', String(tail));
     if (service) {
       args.push(service);
     }
 
-    await runCommand('docker-compose', args, {
-      cwd: projectPath,
-      timeout: follow ? 0 : 30000,
-      verbose: true,
+    await runInCompose(runtime.ctx, args, {
+      timeoutMs: follow ? 0 : 30000, // following logs runs until interrupted
+      stdio: 'inherit',
     });
-  } else {
-    // Show npm script logs
-    const logDir = path.join(projectPath, '.re-shell', 'logs');
+    return;
+  }
 
+  // Show process-mode logs
+  if (follow) {
+    console.warn(
+      chalk.yellow('--follow is only supported with Docker Compose; showing the last lines instead.')
+    );
+  }
+  const dir = logDir(projectPath);
+
+  if (service) {
+    let content: string;
     try {
-      const logFile = service
-        ? path.join(logDir, `${service}.log`)
-        : path.join(logDir, '*.log');
-
-      if (service) {
-        const content = await fs.readFile(logFile, 'utf-8');
-        const lines = content.split('\n');
-        const tailLines = lines.slice(-tail);
-        console.log(tailLines.join('\n'));
-      } else {
-        const files = await fs.readdir(logDir);
-        for (const file of files) {
-          if (file.endsWith('.log')) {
-            console.log(chalk.blue(`\n=== ${file} ===`));
-            const content = await fs.readFile(path.join(logDir, file), 'utf-8');
-            const lines = content.split('\n');
-            const tailLines = lines.slice(-tail);
-            console.log(tailLines.join('\n'));
-          }
-        }
-      }
+      content = await fs.readFile(logFilePath(projectPath, service), 'utf-8');
     } catch {
-      console.log(chalk.yellow('No logs found.'));
+      throw new ServiceRuntimeError('SERVICES_NOT_FOUND', `No logs found for service '${service}'.`, {
+        service,
+      });
     }
+    console.log(content.split('\n').slice(-tail).join('\n'));
+    return;
+  }
+
+  let files: string[] = [];
+  try {
+    files = (await fs.readdir(dir)).filter(f => f.endsWith('.log')).sort();
+  } catch {
+    // no log directory
+  }
+  if (files.length === 0) {
+    throw new ServiceRuntimeError('SERVICES_NOT_FOUND', 'No logs found.', { projectPath });
+  }
+  for (const file of files) {
+    console.log(chalk.blue(`\n=== ${file} ===`));
+    const content = await fs.readFile(path.join(dir, file), 'utf-8');
+    console.log(content.split('\n').slice(-tail).join('\n'));
   }
 }
 
 /**
- * Restart a specific service with zero downtime if possible.
+ * Restart a specific service.
  *
  * @param projectPath - Absolute path to the project root directory.
  * @param service - Name of the service to restart.
  * @param options - Optional configuration for timeout, verbosity, and spinner.
- * @returns Resolves when the service has been restarted.
+ * @returns Resolves once the service has been restarted and is verifiably up.
  */
 export async function servicesRestart(
   projectPath: string,
   service: string,
   options: {
     timeout?: number;
+    aliveMs?: number;
     verbose?: boolean;
-    spinner?: { setText?: (msg?: string) => void };
+    spinner?: SpinnerLike;
   } = {}
 ): Promise<void> {
-  const { timeout = 60000, verbose = false, spinner } = options;
+  const { verbose = false, spinner } = options;
+  const timeout = parsePositiveMs(options.timeout, 60000);
+  const aliveMs = parsePositiveMs(options.aliveMs, 1500);
 
-  const hasDockerCompose = await checkDockerComposeAvailable();
+  const runtime = await selectRuntime(projectPath);
 
-  if (spinner) {
-    spinner.setText(`Restarting ${service}...`);
-  }
+  spinner?.setText?.(`Restarting ${service}...`);
 
-  if (hasDockerCompose) {
-    // Use Docker Compose restart (zero downtime if configured correctly)
-    await runCommand('docker-compose', ['restart', service], {
-      cwd: projectPath,
-      timeout,
-      verbose,
-    });
-
+  if (runtime.kind === 'compose') {
+    await runInCompose(runtime.ctx, ['restart', service], { timeoutMs: timeout, verbose });
+    spinner?.stop?.();
     console.log(chalk.green(`✅ Service '${service}' restarted.`));
-  } else {
-    // Stop and start npm process
-    await stopNpmProcesses(projectPath, { timeout, verbose, spinner });
-
-    const services = await parseDockerCompose(projectPath);
-    const svcConfig = services.find(s => s.name === service);
-
-    if (svcConfig) {
-      await startServiceProcess(svcConfig, projectPath);
-      console.log(chalk.green(`✅ Service '${service}' restarted.`));
-    }
+    return;
   }
+
+  const configs = await detectServicesFromPackageJson(projectPath);
+  const svcConfig = configs.find(s => s.name === service);
+  if (!svcConfig || !svcConfig.command) {
+    throw new ServiceRuntimeError('SERVICES_NOT_FOUND', `Service '${service}' not found`, { service });
+  }
+
+  // Stop only this service's process group, then start it again.
+  const { records } = await readServiceRecords(projectPath);
+  const existing = records.find(r => r.name === service);
+  if (existing) {
+    const result = await stopServiceProcess(existing, { timeoutMs: timeout });
+    if (result.outcome === 'unverifiable') {
+      throw new ServiceRuntimeError(
+        'SERVICES_STOP_FAILED',
+        `Could not verify that pid ${existing.pid} is service '${service}'; not signalling it.`
+      );
+    }
+    await removeServiceState(projectPath, service);
+    // The group can be reported gone while its exiting threads still hold the
+    // listening socket; give the port a moment so the start-time "port in use"
+    // check does not race the old process. A port that stays taken still fails there.
+    if (svcConfig.port !== undefined) await waitForPortRelease(svcConfig.port, Math.min(timeout, 5000));
+  }
+
+  const record = await startServiceProcess(
+    {
+      name: svcConfig.name,
+      command: svcConfig.command,
+      cwd: svcConfig.working_dir || projectPath,
+      env: svcConfig.environment,
+      port: svcConfig.port,
+      healthUrl: svcConfig.healthUrl,
+    },
+    { projectPath, readyTimeoutMs: svcConfig.readyTimeoutMs ?? timeout, aliveMs }
+  );
+  spinner?.stop?.();
+  console.log(
+    chalk.green(`✅ Service '${service}' restarted.`),
+    chalk.gray(`(PID: ${record.pid}, ready: ${describeReadiness(record)})`)
+  );
 }
 
 /**
@@ -933,7 +1308,7 @@ export async function servicesRestart(
  * @param service - Name of the service to scale.
  * @param replicas - Target number of service instances.
  * @param options - Optional configuration for timeout, verbosity, and spinner.
- * @returns Resolves when the service has been scaled.
+ * @returns Resolves when the service has been scaled; throws when Docker Compose is unavailable.
  */
 export async function servicesScale(
   projectPath: string,
@@ -942,28 +1317,38 @@ export async function servicesScale(
   options: {
     timeout?: number;
     verbose?: boolean;
-    spinner?: { setText?: (msg?: string) => void };
+    spinner?: SpinnerLike;
   } = {}
 ): Promise<void> {
-  const { timeout = 60000, verbose = false, spinner } = options;
+  const { verbose = false, spinner } = options;
+  const timeout = parsePositiveMs(options.timeout, 60000);
 
-  const hasDockerCompose = await checkDockerComposeAvailable();
-
-  if (spinner) {
-    spinner.setText(`Scaling ${service} to ${replicas} instances...`);
+  if (!Number.isInteger(replicas) || replicas < 0) {
+    throw new ServiceRuntimeError(
+      'SERVICES_ERROR',
+      `Invalid replica count "${replicas}": expected a non-negative integer.`
+    );
   }
 
-  if (hasDockerCompose) {
-    await runCommand('docker-compose', ['up', '-d', '--scale', `${service}=${replicas}`], {
-      cwd: projectPath,
-      timeout,
-      verbose,
-    });
-
-    console.log(chalk.green(`✅ Service '${service}' scaled to ${replicas} instances.`));
-  } else {
-    console.log(chalk.yellow('Scaling is only supported with Docker Compose.'));
+  const runtime = await selectRuntime(projectPath);
+  if (runtime.kind !== 'compose') {
+    throw new ServiceRuntimeError(
+      'SERVICES_COMPOSE_UNAVAILABLE',
+      runtime.composeFile
+        ? composeUnavailableMessage(runtime.composeFile, `'${service}' cannot be scaled`)
+        : 'Scaling is only supported with Docker Compose; this project has no compose file.'
+    );
   }
+
+  spinner?.setText?.(`Scaling ${service} to ${replicas} instances...`);
+
+  await runInCompose(runtime.ctx, ['up', '-d', '--scale', `${service}=${replicas}`], {
+    timeoutMs: timeout,
+    verbose,
+  });
+
+  spinner?.stop?.();
+  console.log(chalk.green(`✅ Service '${service}' scaled to ${replicas} instances.`));
 }
 
 /**
@@ -973,7 +1358,7 @@ export async function servicesScale(
  * @param service - Name of the target service container.
  * @param command - Command and arguments to execute inside the container.
  * @param options - Optional configuration for interactive mode, verbosity, and spinner.
- * @returns Resolves when the command has finished executing.
+ * @returns Resolves when the command exited 0; throws on a non-zero exit or when Compose is unavailable.
  */
 export async function servicesExec(
   projectPath: string,
@@ -982,16 +1367,19 @@ export async function servicesExec(
   options: {
     interactive?: boolean;
     verbose?: boolean;
-    spinner?: { setText?: (msg?: string) => void };
+    spinner?: SpinnerLike;
   } = {}
 ): Promise<void> {
-  const { interactive = true, verbose = false } = options;
+  const { interactive = true } = options;
 
-  const hasDockerCompose = await checkDockerComposeAvailable();
-
-  if (!hasDockerCompose) {
-    console.log(chalk.yellow('Service exec is only supported with Docker Compose.'));
-    return;
+  const runtime = await selectRuntime(projectPath);
+  if (runtime.kind !== 'compose') {
+    throw new ServiceRuntimeError(
+      'SERVICES_COMPOSE_UNAVAILABLE',
+      runtime.composeFile
+        ? composeUnavailableMessage(runtime.composeFile, 'commands cannot be executed in containers')
+        : 'Service exec is only supported with Docker Compose; this project has no compose file.'
+    );
   }
 
   const args = ['exec'];
@@ -1000,12 +1388,13 @@ export async function servicesExec(
   }
   args.push(service, ...command);
 
-  await runCommand('docker-compose', args, {
-    cwd: projectPath,
-    timeout: 0,
-    verbose: true,
+  await runInCompose(runtime.ctx, args, {
+    timeoutMs: 0, // an exec runs until the command ends
+    stdio: 'inherit',
   });
 }
+
+// ─── inspect ─────────────────────────────────────────────────────────────────
 
 /**
  * Detailed inspection result for a single service, including status, ports, dependencies, and resource usage.
@@ -1040,7 +1429,8 @@ export interface ServiceInspection {
  *
  * @param projectPath - Absolute path to the project root directory.
  * @param serviceName - Name of the service to inspect.
- * @param options - Optional configuration for JSON output, verbosity, and spinner.
+ * @param options - Optional configuration for JSON output, verbosity, and spinner. With
+ *   `json: true` nothing is printed; the caller renders the returned inspection.
  * @returns A detailed inspection object for the requested service.
  */
 export async function servicesInspect(
@@ -1049,25 +1439,32 @@ export async function servicesInspect(
   options: {
     json?: boolean;
     verbose?: boolean;
-    spinner?: { setText?: (msg?: string) => void };
+    spinner?: SpinnerLike;
   } = {}
 ): Promise<ServiceInspection> {
-  const { json = false, verbose = false} = options;
+  const { json = false, verbose = false } = options;
 
-  // Parse service configurations
-  const services = await parseDockerCompose(projectPath);
+  const runtime = await selectRuntime(projectPath);
+
+  // Compose projects describe their services in the compose file; everything
+  // else uses package.json scripts.
+  const services =
+    runtime.kind === 'compose'
+      ? await parseComposeFile(runtime.ctx.file)
+      : await detectServicesFromPackageJson(projectPath);
   const graph = buildDependencyGraph(services);
 
   const service = services.find(s => s.name === serviceName);
   if (!service) {
-    throw new Error(`Service '${serviceName}' not found`);
+    throw new ServiceRuntimeError('SERVICES_NOT_FOUND', `Service '${serviceName}' not found`, {
+      service: serviceName,
+    });
   }
 
-  const hasDockerCompose = await checkDockerComposeAvailable();
   const inspection: ServiceInspection = {
     name: serviceName,
     status: 'unknown',
-    type: hasDockerCompose ? 'docker' : 'npm-script',
+    type: runtime.kind === 'compose' ? 'docker' : 'npm-script',
     ports: [],
     environment: service.environment || {},
     dependencies: service.depends_on || [],
@@ -1091,10 +1488,10 @@ export async function servicesInspect(
     }
   }
 
-  // Parse ports
+  // Parse ports: "[host-ip:]host:container[/proto]"
   if (service.ports) {
     for (const portMapping of service.ports) {
-      const match = portMapping.match(/(\d+):(\d+)\/?(tcp|udp)?/);
+      const match = String(portMapping).match(/^(?:[^:]+:)?(\d+):(\d+)(?:\/(tcp|udp))?$/);
       if (match) {
         inspection.ports.push({
           container: parseInt(match[2]),
@@ -1112,16 +1509,14 @@ export async function servicesInspect(
   }
 
   // Get detailed info from Docker if available
-  if (hasDockerCompose) {
-    await inspectDockerService(projectPath, serviceName, inspection, verbose);
+  if (runtime.kind === 'compose') {
+    await inspectDockerService(runtime.ctx, serviceName, inspection, verbose);
   } else {
     await inspectNpmService(projectPath, serviceName, inspection);
   }
 
   // Display results
-  if (json) {
-    console.log(JSON.stringify(inspection, null, 2));
-  } else {
+  if (!json) {
     displayInspection(inspection);
   }
 
@@ -1132,29 +1527,22 @@ export async function servicesInspect(
  * Inspect Docker service
  */
 async function inspectDockerService(
-  projectPath: string,
+  ctx: ComposeContext,
   serviceName: string,
   inspection: ServiceInspection,
   verbose: boolean
 ): Promise<void> {
   try {
     // Get container info
-    const psResult = await runCommand('docker-compose', ['ps', '-q', serviceName], {
-      cwd: projectPath,
-      capture: true,
-      silent: true,
-    });
+    const psResult = await runInCompose(ctx, ['ps', '-q', serviceName], { timeoutMs: 30000 });
 
-    const containerId = psResult.stdout.trim();
+    const containerId = psResult.stdout.trim().split('\n')[0];
 
     if (containerId) {
       inspection.status = 'running';
 
       // Get detailed container info
-      const inspectResult = await runCommand('docker', ['inspect', containerId], {
-        capture: true,
-        silent: true,
-      });
+      const inspectResult = await runCommand('docker', ['inspect', containerId], { timeoutMs: 30000 });
 
       try {
         const containers = JSON.parse(inspectResult.stdout);
@@ -1162,12 +1550,12 @@ async function inspectDockerService(
           const container = containers[0];
 
           // Get resource usage
-          const statsResult = await runCommand('docker', ['stats', containerId, '--no-stream', '--format', '{{json .}}'], {
-            capture: true,
-            silent: true,
-          });
-
           try {
+            const statsResult = await runCommand(
+              'docker',
+              ['stats', containerId, '--no-stream', '--format', '{{json .}}'],
+              { timeoutMs: 30000 }
+            );
             const stats = JSON.parse(statsResult.stdout);
             inspection.resources = {
               memory: {
@@ -1179,7 +1567,7 @@ async function inspectDockerService(
               },
             };
           } catch {
-            // Stats parsing failed
+            // Stats unavailable
           }
 
           // Get start time
@@ -1198,48 +1586,41 @@ async function inspectDockerService(
           }
         }
       } catch {
-        // Container inspect failed
+        // Container inspect output unusable
       }
     } else {
       inspection.status = 'stopped';
     }
-  } catch {
+  } catch (err) {
+    if (verbose) {
+      console.warn(chalk.yellow(`Could not query ${ctx.compose.label}: ${(err as Error).message}`));
+    }
     inspection.status = 'unknown';
   }
 }
 
 /**
- * Inspect npm script service
+ * Inspect process-mode service
  */
 async function inspectNpmService(
   projectPath: string,
   serviceName: string,
   inspection: ServiceInspection
 ): Promise<void> {
-  const pidFile = path.join(projectPath, '.re-shell', 'pids', `${serviceName}.pid`);
+  const { records } = await readServiceRecords(projectPath);
+  const record = records.find(r => r.name === serviceName);
 
-  try {
-    const pid = parseInt(await fs.readFile(pidFile, 'utf-8'));
+  if (!record) {
+    inspection.status = 'stopped';
+    return;
+  }
 
-    // Check if process is running
-    try {
-      process.kill(pid, 0);
-      inspection.status = 'running';
-      inspection.metadata.pid = pid;
-    } catch {
-      inspection.status = 'stopped';
-    }
-
-    // Get start time from log file
-    const logFile = path.join(projectPath, '.re-shell', 'logs', `${serviceName}.log`);
-    try {
-      const stats = await fs.stat(logFile);
-      inspection.metadata.startTime = stats.birthtime;
-    } catch {
-      // Log file doesn't exist
-    }
-  } catch {
-    inspection.status = 'unknown';
+  if (isRecordRunning(record)) {
+    inspection.status = 'running';
+    inspection.metadata.pid = record.pid;
+    inspection.metadata.startTime = new Date(record.startedAt);
+  } else {
+    inspection.status = 'stopped';
   }
 }
 
@@ -1299,7 +1680,6 @@ function displayInspection(inspection: ServiceInspection): void {
 
   // Health
   console.log(chalk.gray('\n💊 Health:'));
-  const healthIcon = inspection.health.status === 'healthy' ? '✅' : inspection.health.status === 'unhealthy' ? '❌' : '❓';
   const healthColor = inspection.health.status === 'healthy' ? chalk.green : inspection.health.status === 'unhealthy' ? chalk.red : chalk.gray;
   console.log(chalk.gray('   Status:'), healthColor(inspection.health.status));
 

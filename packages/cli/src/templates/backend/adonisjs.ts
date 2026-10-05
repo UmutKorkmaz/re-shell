@@ -32,67 +32,44 @@ export const adonisjsTemplate: BackendTemplate = {
     "migrate": "node ace migration:run",
     "migrate:rollback": "node ace migration:rollback",
     "migrate:fresh": "node ace migration:fresh",
-    "seed": "node ace db:seed",
-    "queue:listen": "node ace queue:listen",
-    "scheduler:run": "node ace scheduler:run"
+    "seed": "node ace db:seed"
   },
   "imports": {
     "#controllers/*": "./app/controllers/*.js",
+    "#exceptions/*": "./app/exceptions/*.js",
     "#models/*": "./app/models/*.js",
     "#services/*": "./app/services/*.js",
-    "#listeners/*": "./app/listeners/*.js",
-    "#events/*": "./app/events/*.js",
     "#validators/*": "./app/validators/*.js",
     "#middleware/*": "./app/middleware/*.js",
-    "#mailers/*": "./app/mailers/*.js",
-    "#exceptions/*": "./app/exceptions/*.js",
     "#policies/*": "./app/policies/*.js",
     "#abilities/*": "./app/abilities/*.js",
-    "#graphql/*": "./app/GraphQL/*.js",
-    "#start/*": "./start/*.js",
-    "#config/*": "./config/*.js",
-    "#database/*": "./database/*.js",
     "#providers/*": "./providers/*.js",
-    "#types/*": "./types/*.js"
+    "#database/*": "./database/*.js",
+    "#tests/*": "./tests/*.js",
+    "#start/*": "./start/*.js",
+    "#config/*": "./config/*.js"
   },
   "dependencies": {
     "@adonisjs/auth": "^9.2.4",
     "@adonisjs/bouncer": "^3.1.3",
     "@adonisjs/core": "^6.15.0",
     "@adonisjs/cors": "^2.2.1",
-    "@adonisjs/drive": "^3.0.0",
-    "@adonisjs/health": "^2.0.1",
     "@adonisjs/limiter": "^2.3.2",
     "@adonisjs/lucid": "^21.4.1",
-    "@adonisjs/mail": "^9.2.2",
-    "@adonisjs/redis": "^9.1.0",
-    "@adonisjs/session": "^7.5.0",
-    "@adonisjs/shield": "^8.1.1",
-    "@adonisjs/static": "^1.1.2",
-    "@adonisjs/transmit": "^1.0.2",
-    "@adonisjs/transmit-client": "^1.0.1",
-    "@adonisjs/vite": "^3.0.0",
     "@vinejs/vine": "^2.1.0",
-    "bullmq": "^5.31.1",
-    "edge.js": "^6.2.0",
     "luxon": "^3.5.0",
     "pg": "^8.13.1",
-    "reflect-metadata": "^0.2.2",
-    "@aws-sdk/client-s3": "^3.700.0",
-    "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1",
-    "graphql": "^16.10.0",
-    "@graphql-tools/schema": "^9.0.18"
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
-    "@adonisjs/assembler": "^7.10.0",
+    "@adonisjs/assembler": "^7.8.2",
     "@adonisjs/eslint-config": "^2.0.0-beta.8",
     "@adonisjs/prettier-config": "^1.4.0",
     "@adonisjs/tsconfig": "^1.4.0",
     "@japa/api-client": "^2.0.3",
     "@japa/assert": "^3.0.0",
-    "@japa/plugin-adonisjs": "^3.1.0",
-    "@japa/runner": "^3.2.0",
+    "@japa/plugin-adonisjs": "^3.0.2",
+    "@japa/runner": "^3.1.4",
     "@swc/core": "^1.9.3",
     "@types/luxon": "^3.4.2",
     "@types/node": "^22.10.2",
@@ -100,9 +77,8 @@ export const adonisjsTemplate: BackendTemplate = {
     "hot-hook": "^0.4.0",
     "pino-pretty": "^11.3.0",
     "prettier": "^3.4.2",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.3"
+    "ts-node-maintained": "^10.9.4",
+    "typescript": "~5.7.2"
   },
   "eslintConfig": {
     "extends": "@adonisjs/eslint-config/app"
@@ -114,27 +90,11 @@ export const adonisjsTemplate: BackendTemplate = {
     'tsconfig.json': `{
   "extends": "@adonisjs/tsconfig/tsconfig.app.json",
   "compilerOptions": {
-    "paths": {
-      "#controllers/*": ["./app/controllers/*.js"],
-      "#models/*": ["./app/models/*.js"],
-      "#services/*": ["./app/services/*.js"],
-      "#listeners/*": ["./app/listeners/*.js"],
-      "#events/*": ["./app/events/*.js"],
-      "#validators/*": ["./app/validators/*.js"],
-      "#middleware/*": ["./app/middleware/*.js"],
-      "#mailers/*": ["./app/mailers/*.js"],
-      "#exceptions/*": ["./app/exceptions/*.js"],
-      "#policies/*": ["./app/policies/*.js"],
-      "#abilities/*": ["./app/abilities/*.js"],
-      "#graphql/*": ["./app/GraphQL/*.js"],
-      "#start/*": ["./start/*.js"],
-      "#config/*": ["./config/*.js"],
-      "#database/*": ["./database/*.js"],
-      "#providers/*": ["./providers/*.js"],
-      "#types/*": ["./types/*.js"]
-    }
+    "rootDir": "./",
+    "outDir": "./build"
   }
-}`,
+}
+`,
 
     // AdonisJS configuration
     'adonisrc.ts': `import { defineConfig } from '@adonisjs/core/app'
@@ -143,56 +103,42 @@ export default defineConfig({
   commands: [
     () => import('@adonisjs/core/commands'),
     () => import('@adonisjs/lucid/commands'),
-    () => import('@adonisjs/mail/commands'),
     () => import('@adonisjs/bouncer/commands')],
-  
+
   providers: [
     () => import('@adonisjs/core/providers/app_provider'),
     () => import('@adonisjs/core/providers/hash_provider'),
-    () => import('@adonisjs/core/providers/edge_provider'),
+    {
+      file: () => import('@adonisjs/core/providers/repl_provider'),
+      environment: ['repl', 'test']},
     () => import('@adonisjs/core/providers/vinejs_provider'),
-    () => import('@adonisjs/core/providers/repl_provider'),
     () => import('@adonisjs/cors/cors_provider'),
     () => import('@adonisjs/lucid/database_provider'),
     () => import('@adonisjs/auth/auth_provider'),
-    () => import('@adonisjs/session/session_provider'),
-    () => import('@adonisjs/shield/shield_provider'),
-    () => import('@adonisjs/static/static_provider'),
-    () => import('@adonisjs/mail/mail_provider'),
-    () => import('@adonisjs/drive/drive_provider'),
-    () => import('@adonisjs/redis/redis_provider'),
     () => import('@adonisjs/bouncer/bouncer_provider'),
-    () => import('@adonisjs/limiter/limiter_provider'),
-    () => import('@adonisjs/health/health_provider'),
-    () => import('@adonisjs/transmit/transmit_provider'),
-    () => import('@adonisjs/vite/vite_provider'),
-    () => import('#providers/queue_provider'),
-    () => import('#providers/socket_provider')],
-  
+    () => import('@adonisjs/limiter/limiter_provider')],
+
   preloads: [
     () => import('#start/routes'),
-    () => import('#start/kernel'),
-    () => import('#start/events'),
-    () => import('#start/bouncer'),
-    () => import('#start/limiter'),
-    () => import('#start/validator'),
-    () => import('#start/socket')],
-  
+    () => import('#start/kernel')],
+
+  tests: {
+    suites: [
+      {
+        files: ['tests/unit/**/*.spec(.ts|.js)'],
+        name: 'unit',
+        timeout: 2000},
+      {
+        files: ['tests/functional/**/*.spec(.ts|.js)'],
+        name: 'functional',
+        timeout: 30000}],
+    forceExit: false},
+
   metaFiles: [
     {
-      pattern: 'resources/views/**/*.edge',
-      reloadServer: false},
-    {
       pattern: 'public/**',
-      reloadServer: false}],
-  
-  assetsBundler: false,
-  
-  hooks: {
-    onBuildCompleted: [],
-    onBuildStarting: [],
-    onDevServerStarted: [],
-    onSourceFileChanged: []}})`,
+      reloadServer: false}]})
+`,
 
     // Environment variables
     '.env.example': `TZ=UTC
@@ -200,57 +146,29 @@ PORT=3333
 HOST=localhost
 LOG_LEVEL=info
 APP_KEY=your-app-key-generate-with-node-ace-generate-key
+APP_NAME={{projectName}}
+NODE_ENV=development
 
 # Database
-DB_CONNECTION=pg
-PG_HOST=localhost
-PG_PORT=5432
-PG_USER=postgres
-PG_PASSWORD=postgres
-PG_DB_NAME={{projectName}}
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_DATABASE={{projectName}}
 
-# Redis
-REDIS_CONNECTION=main
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-REDIS_PASSWORD=
-
-# Session
-SESSION_DRIVER=redis
-
-# Mail
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-SMTP_FROM_EMAIL=noreply@example.com
-SMTP_FROM_NAME={{projectName}}
-
-# Drive
-DRIVE_DISK=local
-
-# S3 Configuration (optional)
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_DEFAULT_REGION=us-east-1
-AWS_BUCKET=
-AWS_ENDPOINT=
-
-# Auth
-ACCESS_TOKEN_MAX_AGE=30m
-REFRESH_TOKEN_MAX_AGE=30days`,
+# Rate limiter
+LIMITER_STORE=memory
+`,
 
     // Server entry point
-    'bin/server.ts': `#!/usr/bin/env node
-
-/*
+    'bin/server.ts': `/*
 |--------------------------------------------------------------------------
-| HTTP Server
+| HTTP server entrypoint
 |--------------------------------------------------------------------------
 |
-| The "server.ts" file is the entry point for starting the AdonisJS HTTP
+| The "server.ts" file is the entrypoint for starting the AdonisJS HTTP
 | server. Either you can run this file directly or use the "serve"
-| command to run this file and monitor file changes.
+| command to run this file and monitor file changes
 |
 */
 
@@ -279,20 +197,16 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
     app.booting(async () => {
       await import('#start/env')
     })
-    app.ready(async () => {
-      await import('#start/scheduler')
-    })
-    app.terminating(async () => {
-      const queue = await app.container.make('queue')
-      await queue.close()
-    })
+    app.listen('SIGTERM', () => app.terminate())
+    app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
   })
   .httpServer()
   .start()
   .catch((error) => {
     process.exitCode = 1
     prettyPrintError(error)
-  })`,
+  })
+`,
 
     // Routes configuration
     'start/routes.ts': `/*
@@ -306,70 +220,60 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
 
 import router from '@adonisjs/core/services/router'
 import { middleware } from '#start/kernel'
+import { authThrottle, throttle } from '#start/limiter'
+
+const AuthController = () => import('#controllers/auth_controller')
+const UsersController = () => import('#controllers/users_controller')
+const TodosController = () => import('#controllers/todos_controller')
+const HealthController = () => import('#controllers/health_controller')
 
 // Health check
-router.get('/health', '#controllers/health_controller.check')
+router.get('/health', [HealthController, 'check'])
 
-// GraphQL endpoint
-router.post('/graphql', '#controllers/graphql_controller.handle')
-router.get('/graphql', '#controllers/graphql_controller.handle') // GraphiQL-friendly GET fallback
+// API routes
+router
+  .group(() => {
+    // Authentication routes
+    router
+      .group(() => {
+        router.post('/register', [AuthController, 'register'])
+        router.post('/login', [AuthController, 'login'])
+        router.post('/logout', [AuthController, 'logout']).use(middleware.auth())
+        router.get('/me', [AuthController, 'me']).use(middleware.auth())
+        router.post('/forgot-password', [AuthController, 'forgotPassword'])
+        router.post('/reset-password/:token', [AuthController, 'resetPassword'])
+        router.get('/verify-email/:token', [AuthController, 'verifyEmail'])
+      })
+      .prefix('/auth')
+      .use(authThrottle)
 
-// API Routes
-router.group(() => {
-  // Authentication routes
-  router.group(() => {
-    router.post('/register', '#controllers/auth_controller.register')
-    router.post('/login', '#controllers/auth_controller.login')
-    router.post('/logout', '#controllers/auth_controller.logout').use(middleware.auth())
-    router.post('/refresh', '#controllers/auth_controller.refresh')
-    router.post('/forgot-password', '#controllers/auth_controller.forgotPassword')
-    router.post('/reset-password/:token', '#controllers/auth_controller.resetPassword')
-    router.get('/verify-email/:token', '#controllers/auth_controller.verifyEmail')
-  }).prefix('/auth')
+    // User routes
+    router
+      .group(() => {
+        router.get('/me', [UsersController, 'me'])
+        router.put('/me', [UsersController, 'updateProfile'])
+        router.put('/me/password', [UsersController, 'changePassword'])
+      })
+      .prefix('/users')
+      .use(middleware.auth())
 
-  // User routes
-  router.group(() => {
-    router.get('/me', '#controllers/users_controller.me')
-    router.put('/me', '#controllers/users_controller.updateProfile')
-    router.post('/me/avatar', '#controllers/users_controller.uploadAvatar')
-    router.put('/me/password', '#controllers/users_controller.changePassword')
+    // Todo routes
+    router
+      .group(() => {
+        router.get('/', [TodosController, 'index'])
+        router.post('/', [TodosController, 'store'])
+        router.get('/:id', [TodosController, 'show'])
+        router.put('/:id', [TodosController, 'update'])
+        router.delete('/:id', [TodosController, 'destroy'])
+        router.post('/:id/archive', [TodosController, 'archive'])
+        router.post('/:id/unarchive', [TodosController, 'unarchive'])
+      })
+      .prefix('/todos')
+      .use(middleware.auth())
   })
-    .prefix('/users')
-    .use(middleware.auth())
-
-  // Todo routes
-  router.group(() => {
-    router.get('/', '#controllers/todos_controller.index')
-    router.post('/', '#controllers/todos_controller.store')
-    router.get('/:id', '#controllers/todos_controller.show')
-    router.put('/:id', '#controllers/todos_controller.update')
-    router.delete('/:id', '#controllers/todos_controller.destroy')
-    router.post('/:id/archive', '#controllers/todos_controller.archive')
-    router.post('/:id/unarchive', '#controllers/todos_controller.unarchive')
-  })
-    .prefix('/todos')
-    .use(middleware.auth())
-
-  // Admin routes
-  router.group(() => {
-    router.get('/users', '#controllers/admin/users_controller.index')
-    router.get('/users/:id', '#controllers/admin/users_controller.show')
-    router.put('/users/:id', '#controllers/admin/users_controller.update')
-    router.delete('/users/:id', '#controllers/admin/users_controller.destroy')
-    router.get('/stats', '#controllers/admin/stats_controller.index')
-  })
-    .prefix('/admin')
-    .use([middleware.auth(), middleware.can('admin')])
-})
   .prefix('/api/v1')
-  .use(middleware.throttle())
-
-// WebSocket routes are handled in start/socket.ts
-
-// Web routes
-router.get('/', async ({ view }) => {
-  return view.render('pages/home')
-})`,
+  .use(throttle)
+`,
 
     // Kernel configuration
     'start/kernel.ts': `/*
@@ -377,8 +281,8 @@ router.get('/', async ({ view }) => {
 | HTTP kernel file
 |--------------------------------------------------------------------------
 |
-| The HTTP kernel file is used to define the middleware stack executed
-| by the HTTP server for each request.
+| The HTTP kernel file is used to register the middleware with the server
+| or the router.
 |
 */
 
@@ -392,23 +296,23 @@ import server from '@adonisjs/core/services/server'
 server.errorHandler(() => import('#exceptions/handler'))
 
 /**
- * The server middleware stack is executed for all HTTP requests
+ * The server middleware stack runs middleware on all the HTTP
+ * requests, even if there is no route registered for
+ * the request URL.
  */
 server.use([
-  () => import('@adonisjs/cors/cors_middleware'),
-  () => import('@adonisjs/shield/shield_middleware'),
-  () => import('@adonisjs/static/static_middleware'),
   () => import('#middleware/container_bindings_middleware'),
-  () => import('#middleware/force_json_response_middleware')])
+  () => import('#middleware/force_json_response_middleware'),
+  () => import('@adonisjs/cors/cors_middleware')])
 
 /**
- * The router middleware stack runs on specific routes or
- * group of routes based upon request
+ * The router middleware stack runs middleware on all the HTTP
+ * requests with a registered route.
  */
 router.use([
   () => import('@adonisjs/core/bodyparser_middleware'),
-  () => import('@adonisjs/session/session_middleware'),
-  () => import('@adonisjs/auth/initialize_auth_middleware')])
+  () => import('@adonisjs/auth/initialize_auth_middleware'),
+  () => import('#middleware/initialize_bouncer_middleware')])
 
 /**
  * Named middleware collection must be explicitly assigned to
@@ -416,116 +320,87 @@ router.use([
  */
 export const middleware = router.named({
   auth: () => import('#middleware/auth_middleware'),
-  guest: () => import('#middleware/guest_middleware'),
-  throttle: () => import('#middleware/throttle_middleware'),
-  can: () => import('#middleware/can_middleware')})`,
+  admin: () => import('#middleware/admin_middleware')})
+`,
 
     // Auth controller
     'app/controllers/auth_controller.ts': `import type { HttpContext } from '@adonisjs/core/http'
-import User from '#models/user'
-import { registerValidator, loginValidator, forgotPasswordValidator, resetPasswordValidator } from '#validators/auth'
-import mail from '@adonisjs/mail/services/main'
 import { DateTime } from 'luxon'
 import { randomBytes } from 'node:crypto'
-import hash from '@adonisjs/core/services/hash'
+import User from '#models/user'
+import {
+  registerValidator,
+  loginValidator,
+  forgotPasswordValidator,
+  resetPasswordValidator,
+} from '#validators/auth'
 
 export default class AuthController {
-  async register({ request, response, auth }: HttpContext) {
+  async register({ request, response }: HttpContext) {
     const data = await request.validateUsing(registerValidator)
-    
-    // Create verification token
-    const verificationToken = randomBytes(32).toString('hex')
-    
-    // Create user
+
     const user = await User.create({
       ...data,
-      verificationToken,
-      isEmailVerified: false})
+      verificationToken: randomBytes(32).toString('hex'),
+      isEmailVerified: false,
+      isActive: true,
+      role: 'user'})
 
-    // Send verification email
-    await mail.send((message) => {
-      message
-        .to(user.email)
-        .from('noreply@example.com')
-        .subject('Verify your email')
-        .htmlView('emails/verify', { user, token: verificationToken })
-    })
-
-    // Generate tokens
-    const token = await auth.use('api').generate(user)
+    const token = await User.accessTokens.create(user)
 
     return response.created({
       user: user.serialize(),
       token: token.toJSON()})
   }
 
-  async login({ request, response, auth }: HttpContext) {
+  async login({ request, response }: HttpContext) {
     const { email, password } = await request.validateUsing(loginValidator)
-    
-    try {
-      const user = await User.verifyCredentials(email, password)
-      
-      if (!user.isActive) {
-        return response.forbidden({ message: 'Account is inactive' })
-      }
 
-      const token = await auth.use('api').generate(user)
+    // Throws E_INVALID_CREDENTIALS (rendered as a 400) for unknown users or bad passwords
+    const user = await User.verifyCredentials(email, password)
 
-      return response.ok({
-        user: user.serialize(),
-        token: token.toJSON()})
-    } catch {
-      return response.unauthorized({ message: 'Invalid credentials' })
+    if (!user.isActive) {
+      return response.forbidden({ message: 'Account is inactive' })
     }
-  }
 
-  async logout({ auth, response }: HttpContext) {
-    await auth.use('api').revoke()
-    return response.ok({ message: 'Logged out successfully' })
-  }
-
-  async refresh({ auth, response }: HttpContext) {
-    await auth.use('api').check()
-    const user = auth.user!
-    const token = await auth.use('api').generate(user)
+    const token = await User.accessTokens.create(user)
 
     return response.ok({
       user: user.serialize(),
       token: token.toJSON()})
   }
 
+  async logout({ auth, response }: HttpContext) {
+    const user = auth.getUserOrFail()
+    const token = user.currentAccessToken
+    await User.accessTokens.delete(user, token.identifier)
+
+    return response.ok({ message: 'Logged out successfully' })
+  }
+
+  async me({ auth, response }: HttpContext) {
+    return response.ok(auth.getUserOrFail().serialize())
+  }
+
   async forgotPassword({ request, response }: HttpContext) {
     const { email } = await request.validateUsing(forgotPasswordValidator)
-    
+
     const user = await User.findBy('email', email)
-    if (!user) {
-      // Return success to prevent email enumeration
-      return response.ok({ message: 'If the email exists, a reset link has been sent' })
+    if (user) {
+      user.resetToken = randomBytes(32).toString('hex')
+      user.resetTokenExpiry = DateTime.now().plus({ hours: 1 })
+      await user.save()
+      // Deliver user.resetToken by email here (e.g. with @adonisjs/mail)
     }
 
-    // Generate reset token
-    const resetToken = randomBytes(32).toString('hex')
-    user.resetToken = resetToken
-    user.resetTokenExpiry = DateTime.now().plus({ hours: 1 })
-    await user.save()
-
-    // Send reset email
-    await mail.send((message) => {
-      message
-        .to(user.email)
-        .from('noreply@example.com')
-        .subject('Reset your password')
-        .htmlView('emails/reset-password', { user, token: resetToken })
-    })
-
+    // Same answer either way, to prevent email enumeration
     return response.ok({ message: 'If the email exists, a reset link has been sent' })
   }
 
   async resetPassword({ request, response, params }: HttpContext) {
     const { password } = await request.validateUsing(resetPasswordValidator)
-    const { token } = params
 
-    const user = await User.findBy('resetToken', token)
+    const user = await User.findBy('resetToken', params.token)
     if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < DateTime.now()) {
       return response.badRequest({ message: 'Invalid or expired reset token' })
     }
@@ -539,9 +414,7 @@ export default class AuthController {
   }
 
   async verifyEmail({ response, params }: HttpContext) {
-    const { token } = params
-
-    const user = await User.findBy('verificationToken', token)
+    const user = await User.findBy('verificationToken', params.token)
     if (!user) {
       return response.badRequest({ message: 'Invalid verification token' })
     }
@@ -552,14 +425,16 @@ export default class AuthController {
 
     return response.ok({ message: 'Email verified successfully' })
   }
-}`,
+}
+`,
 
     // User model
     'app/models/user.ts': `import { DateTime } from 'luxon'
 import hash from '@adonisjs/core/services/hash'
 import { compose } from '@adonisjs/core/helpers'
-import { BaseModel, column, hasMany, beforeSave } from '@adonisjs/lucid/orm'
+import { BaseModel, column, hasMany } from '@adonisjs/lucid/orm'
 import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
+import { DbAccessTokensProvider } from '@adonisjs/auth/access_tokens'
 import type { HasMany } from '@adonisjs/lucid/types/relations'
 import Todo from '#models/todo'
 
@@ -616,12 +491,11 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @hasMany(() => Todo)
   declare todos: HasMany<typeof Todo>
 
-  @beforeSave()
-  static async hashPassword(user: User) {
-    if (user.$dirty.password) {
-      user.password = await hash.make(user.password)
-    }
-  }
+  /**
+   * Opaque access tokens (see config/auth.ts). Passwords are hashed
+   * by the AuthFinder mixin before every save.
+   */
+  static accessTokens = DbAccessTokensProvider.forModel(User)
 
   serialize() {
     return {
@@ -782,30 +656,26 @@ import Todo from '#models/todo'
 import { createTodoValidator, updateTodoValidator } from '#validators/todo'
 
 export default class TodosController {
-  async index({ request, response, auth, bouncer }: HttpContext) {
-    const user = auth.user!
+  async index({ request, response, auth }: HttpContext) {
+    const user = auth.getUserOrFail()
     const page = request.input('page', 1)
     const limit = request.input('limit', 10)
     const status = request.input('status')
     const isArchived = request.input('is_archived', false)
 
-    const query = Todo.query()
-      .where('user_id', user.id)
-      .where('is_archived', isArchived)
+    const query = Todo.query().where('user_id', user.id).where('is_archived', isArchived)
 
     if (status) {
       query.where('status', status)
     }
 
-    const todos = await query
-      .orderBy('created_at', 'desc')
-      .paginate(page, limit)
+    const todos = await query.orderBy('created_at', 'desc').paginate(page, limit)
 
     return response.ok(todos)
   }
 
   async store({ request, response, auth }: HttpContext) {
-    const user = auth.user!
+    const user = auth.getUserOrFail()
     const data = await request.validateUsing(createTodoValidator)
 
     const todo = await Todo.create({
@@ -860,7 +730,8 @@ export default class TodosController {
 
     return response.ok(todo)
   }
-}`,
+}
+`,
 
     // Todo policy
     'app/policies/todo_policy.ts': `import User from '#models/user'
@@ -882,246 +753,47 @@ export default class TodoPolicy extends BasePolicy {
   }
 }`,
 
-    // Events configuration
-    'start/events.ts': `/*
-|--------------------------------------------------------------------------
-| Events
-|--------------------------------------------------------------------------
-|
-| This file is used to register events and their listeners
-|
-*/
-
-import emitter from '@adonisjs/core/services/emitter'
-import mail from '@adonisjs/mail/services/main'
-
-// User events
-emitter.on('user:registered', async (user) => {
-  // Send welcome email
-  await mail.send((message) => {
-    message
-      .to(user.email)
-      .from('noreply@example.com')
-      .subject('Welcome to {{projectName}}!')
-      .htmlView('emails/welcome', { user })
-  })
-})
-
-emitter.on('user:password-changed', async (user) => {
-  // Send password change notification
-  await mail.send((message) => {
-    message
-      .to(user.email)
-      .from('noreply@example.com')
-      .subject('Password Changed')
-      .htmlView('emails/password-changed', { user })
-  })
-})
-
-// Todo events
-emitter.on('todo:created', async (todo) => {
-  // Log or process new todo
-  console.log('New todo created:', todo.id)
-})
-
-emitter.on('todo:completed', async (todo) => {
-  // Send notification or update stats
-  console.log('Todo completed:', todo.id)
-})`,
-
-    // Queue provider
-    'providers/queue_provider.ts': `import { ApplicationService } from '@adonisjs/core/types'
-import { Queue, Worker } from 'bullmq'
-import redis from '@adonisjs/redis/services/main'
-
-export default class QueueProvider {
-  constructor(protected app: ApplicationService) {}
-
-  async ready() {
-    const connection = redis.connection('main').ioConnection
-
-    // Create queues
-    const emailQueue = new Queue('emails', { connection })
-    const notificationQueue = new Queue('notifications', { connection })
-    const reportQueue = new Queue('reports', { connection })
-
-    // Create workers
-    const emailWorker = new Worker('emails', async (job) => {
-      const { to, subject, template, data } = job.data
-      const mail = await this.app.container.make('mail')
-      
-      await mail.send((message) => {
-        message
-          .to(to)
-          .from('noreply@example.com')
-          .subject(subject)
-          .htmlView(template, data)
-      })
-    }, { connection })
-
-    const notificationWorker = new Worker('notifications', async (job) => {
-      // Process notifications
-      console.log('Processing notification:', job.data)
-    }, { connection })
-
-    const reportWorker = new Worker('reports', async (job) => {
-      // Generate reports
-      console.log('Generating report:', job.data)
-    }, { connection })
-
-    // Register with container
-    this.app.container.singleton('queue', () => ({
-      email: emailQueue,
-      notification: notificationQueue,
-      report: reportQueue,
-      close: async () => {
-        await emailWorker.close()
-        await notificationWorker.close()
-        await reportWorker.close()
-      }
-    }))
-  }
-}`,
-
-    // Socket provider
-    'providers/socket_provider.ts': `import { ApplicationService } from '@adonisjs/core/types'
-import { Server } from 'socket.io'
-import server from '@adonisjs/core/services/server'
-
-export default class SocketProvider {
-  constructor(protected app: ApplicationService) {}
-
-  async ready() {
-    const io = new Server(server.getNodeServer(), {
-      cors: {
-        origin: '*',
-        credentials: true}})
-
-    // Authentication middleware
-    io.use(async (socket, next) => {
-      const token = socket.handshake.auth.token
-      if (!token) {
-        return next(new Error('Authentication required'))
-      }
-
-      try {
-        // Verify token
-        const auth = await this.app.container.make('auth')
-        const user = await auth.use('api').authenticate()
-        socket.data.user = user
-        next()
-      } catch {
-        next(new Error('Invalid token'))
-      }
-    })
-
-    // Register with container
-    this.app.container.singleton('io', () => io)
-  }
-}`,
-
-    // Socket configuration
-    'start/socket.ts': `/*
-|--------------------------------------------------------------------------
-| WebSocket Routes
-|--------------------------------------------------------------------------
-|
-| This file is used to register WebSocket events and handlers
-|
-*/
-
-import { HttpContext } from '@adonisjs/core/http'
-import app from '@adonisjs/core/services/app'
-
-app.ready(async () => {
-  const io = await app.container.make('io')
-
-  io.on('connection', (socket) => {
-    const user = socket.data.user
-    console.log(\`User \${user.id} connected\`)
-
-    // Join user room
-    socket.join(\`user:\${user.id}\`)
-
-    // Handle events
-    socket.on('todo:create', async (data) => {
-      // Create todo and emit to user
-      io.to(\`user:\${user.id}\`).emit('todo:created', data)
-    })
-
-    socket.on('todo:update', async (data) => {
-      // Update todo and emit to user
-      io.to(\`user:\${user.id}\`).emit('todo:updated', data)
-    })
-
-    socket.on('disconnect', () => {
-      console.log(\`User \${user.id} disconnected\`)
-    })
-  })
-})`,
-
-    // Scheduler configuration
-    'start/scheduler.ts': `/*
-|--------------------------------------------------------------------------
-| Task Scheduler
-|--------------------------------------------------------------------------
-|
-| This file is used to register scheduled tasks
-|
-*/
-
-import scheduler from '@adonisjs/core/services/scheduler'
-import db from '@adonisjs/lucid/services/db'
-import logger from '@adonisjs/core/services/logger'
-
-// Clean up expired tokens every hour
-scheduler.run(async () => {
-  await db.from('users')
-    .whereNotNull('reset_token_expiry')
-    .where('reset_token_expiry', '<', new Date())
-    .update({
-      reset_token: null,
-      reset_token_expiry: null})
-  
-  logger.info('Cleaned up expired reset tokens')
-}).everyHour()
-
-// Generate daily reports
-scheduler.run(async () => {
-  const queue = await app.container.make('queue')
-  await queue.report.add('daily-report', {
-    type: 'daily',
-    date: new Date()})
-  
-  logger.info('Scheduled daily report generation')
-}).dailyAt('00:00')
-
-// Clean up old archived todos every week
-scheduler.run(async () => {
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-  await db.from('todos')
-    .where('is_archived', true)
-    .where('updated_at', '<', thirtyDaysAgo)
-    .delete()
-  
-  logger.info('Cleaned up old archived todos')
-}).weekly()`,
-
     // Config files
-    'config/app.ts': `import proxyAddr from 'proxy-addr'
-import { defineConfig } from '@adonisjs/core/app'
+    'config/app.ts': `import env from '#start/env'
+import app from '@adonisjs/core/services/app'
+import { Secret } from '@adonisjs/core/helpers'
+import { defineConfig } from '@adonisjs/core/http'
 
-export default defineConfig({
-  appKey: process.env.APP_KEY || '',
-  http: {
-    generateRequestId: true,
-    trustProxy: proxyAddr.compile('loopback')}})`,
+/**
+ * The app key is used for signing and encrypting values. It is loaded
+ * from the environment variables.
+ */
+export const appKey = new Secret(env.get('APP_KEY'))
+
+/**
+ * The configuration settings used by the HTTP server
+ */
+export const http = defineConfig({
+  generateRequestId: true,
+  allowMethodSpoofing: false,
+
+  /**
+   * Enabling async local storage will let you access HTTP context
+   * from anywhere inside your application.
+   */
+  useAsyncLocalStorage: false,
+
+  /**
+   * Manage cookies configuration. The settings for the session id cookie are
+   * defined inside the "config/session.ts" file.
+   */
+  cookie: {
+    domain: '',
+    path: '/',
+    maxAge: '2h',
+    httpOnly: true,
+    secure: app.inProduction,
+    sameSite: 'lax'}})
+`,
 
     'config/auth.ts': `import { defineConfig } from '@adonisjs/auth'
 import { tokensGuard, tokensUserProvider } from '@adonisjs/auth/access_tokens'
-import type { InferAuthEvents, Authenticators } from '@adonisjs/auth/types'
+import type { InferAuthenticators, Authenticators } from '@adonisjs/auth/types'
 
 const authConfig = defineConfig({
   default: 'api',
@@ -1133,207 +805,82 @@ const authConfig = defineConfig({
 
 export default authConfig
 
+/**
+ * Inferring types from the configured auth guards.
+ */
 declare module '@adonisjs/auth/types' {
-  interface Authenticators extends InferAuthenticators<typeof authConfig> {}
+  export interface Authenticators extends InferAuthenticators<typeof authConfig> {}
 }
 declare module '@adonisjs/core/types' {
-  interface EventsList extends InferAuthEvents<Authenticators> {}
-}`,
+  interface EventsList {
+    'auth:authentication_attempted': Authenticators
+  }
+}
+`,
 
-    'config/database.ts': `import { defineConfig } from '@adonisjs/lucid'
+    'config/database.ts': `import env from '#start/env'
+import { defineConfig } from '@adonisjs/lucid'
 
 const dbConfig = defineConfig({
-  connection: process.env.DB_CONNECTION || 'pg',
+  connection: 'postgres',
   connections: {
-    pg: {
+    postgres: {
       client: 'pg',
       connection: {
-        host: process.env.PG_HOST,
-        port: Number(process.env.PG_PORT),
-        user: process.env.PG_USER,
-        password: process.env.PG_PASSWORD,
-        database: process.env.PG_DB_NAME},
+        host: env.get('DB_HOST'),
+        port: env.get('DB_PORT'),
+        user: env.get('DB_USER'),
+        password: env.get('DB_PASSWORD', ''),
+        database: env.get('DB_DATABASE')},
       migrations: {
         naturalSort: true,
-        paths: ['database/migrations']},
-      healthCheck: true,
-      debug: false}}})
+        paths: ['database/migrations']}}}})
 
-export default dbConfig`,
+export default dbConfig
+`,
 
-    'config/mail.ts': `import { defineConfig, transports } from '@adonisjs/mail'
-
-const mailConfig = defineConfig({
-  default: 'smtp',
-  from: {
-    address: process.env.SMTP_FROM_EMAIL || 'noreply@example.com',
-    name: process.env.SMTP_FROM_NAME || '{{projectName}}'},
-  
-  mailers: {
-    smtp: transports.smtp({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT),
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USERNAME,
-        pass: process.env.SMTP_PASSWORD}})}})
-
-export default mailConfig
-
-declare module '@adonisjs/mail/types' {
-  export interface MailersList extends InferMailers<typeof mailConfig> {}
-}`,
-
-    'config/drive.ts': `import { defineConfig, services } from '@adonisjs/drive'
-
-const driveConfig = defineConfig({
-  default: process.env.DRIVE_DISK || 'local',
-  services: {
-    local: services.fs({
-      location: new URL('../uploads', import.meta.url),
-      serveFiles: true,
-      routeBasePath: '/uploads'}),
-    
-    s3: services.s3({
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!},
-      region: process.env.AWS_DEFAULT_REGION!,
-      bucket: process.env.AWS_BUCKET!,
-      endpoint: process.env.AWS_ENDPOINT})}})
-
-export default driveConfig
-
-declare module '@adonisjs/drive/types' {
-  export interface DriveDisks extends InferDisks<typeof driveConfig> {}
-}`,
-
-    'config/limiter.ts': `import { defineConfig, stores } from '@adonisjs/limiter'
+    'config/limiter.ts': `import env from '#start/env'
+import { defineConfig, stores } from '@adonisjs/limiter'
 
 const limiterConfig = defineConfig({
-  default: 'redis',
-  
+  default: env.get('LIMITER_STORE'),
+
   stores: {
-    redis: stores.redis({}),
+    /**
+     * Memory store is great for a single process. Use the database or
+     * redis store when running more than one instance.
+     */
     memory: stores.memory({})}})
 
 export default limiterConfig
 
 declare module '@adonisjs/limiter/types' {
   export interface LimitersList extends InferLimiters<typeof limiterConfig> {}
-}`,
-
-    // Health controller
-    'app/controllers/health_controller.ts': `import type { HttpContext } from '@adonisjs/core/http'
-import { HealthCheck } from '@adonisjs/health'
-import db from '@adonisjs/lucid/services/db'
-import redis from '@adonisjs/redis/services/main'
-
-export default class HealthController {
-  async check({ response }: HttpContext) {
-    const healthCheck = new HealthCheck()
-
-    // Database check
-    healthCheck.addChecker('database', async () => {
-      await db.rawQuery('SELECT 1')
-      return {
-        displayName: 'Database',
-        health: {
-          healthy: true}}
-    })
-
-    // Redis check
-    healthCheck.addChecker('redis', async () => {
-      await redis.ping()
-      return {
-        displayName: 'Redis',
-        health: {
-          healthy: true}}
-    })
-
-    // Memory check
-    healthCheck.addChecker('memory', async () => {
-      const used = process.memoryUsage()
-      const limit = 500 * 1024 * 1024 // 500MB
-      const healthy = used.heapUsed < limit
-
-      return {
-        displayName: 'Memory',
-        health: {
-          healthy,
-          message: healthy ? 'Memory usage is normal' : 'High memory usage'},
-        meta: {
-          heap_used: \`\${Math.round(used.heapUsed / 1024 / 1024)}MB\`,
-          heap_total: \`\${Math.round(used.heapTotal / 1024 / 1024)}MB\`}}
-    })
-
-    const report = await healthCheck.getReport()
-    const status = report.isHealthy() ? 200 : 503
-
-    return response.status(status).json(report)
-  }
-}`,
-
-    // GraphQL Schema
-    'app/GraphQL/Schema.ts': `import { makeExecutableSchema } from '@graphql-tools/schema'
-import { resolvers } from './Resolvers'
-
-const typeDefs = \`
-  type Query {
-    hello: String!
-    health: HealthStatus!
-  }
-
-  type HealthStatus {
-    status: String!
-    timestamp: String!
-  }
-\`
-
-export const schema = makeExecutableSchema({
-  typeDefs,
-  resolvers,
-})
-`,
-
-    // GraphQL Resolvers
-    'app/GraphQL/Resolvers/index.ts': `export const resolvers = {
-  Query: {
-    hello: () => 'Hello from AdonisJS GraphQL!',
-    health: () => ({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-    }),
-  },
 }
 `,
 
-    // GraphQL controller
-    'app/controllers/graphql_controller.ts': `import type { HttpContext } from '@adonisjs/core/http'
-import { graphql, GraphQLError } from 'graphql'
-import { schema } from '#graphql/Schema'
+    // Health controller
+    'app/controllers/health_controller.ts': `import type { HttpContext } from '@adonisjs/core/http'
+import db from '@adonisjs/lucid/services/db'
 
-export default class GraphQLController {
-  async handle({ request, response }: HttpContext) {
-    const query = request.input('query') ?? (request.body()?.query as string | undefined)
-    const variables = request.input('variables') ?? request.body()?.variables
-    const operationName = request.input('operationName') ?? request.body()?.operationName
-
-    if (!query) {
-      return response.badRequest({
-        errors: [new GraphQLError('Missing GraphQL query')].map((e) => e.toJSON())})
+export default class HealthController {
+  async check({ response }: HttpContext) {
+    let database = 'up'
+    try {
+      await db.rawQuery('select 1')
+    } catch {
+      database = 'down'
     }
 
-    const result = await graphql({
-      schema,
-      source: query,
-      variableValues: variables,
-      operationName,
-    })
-
-    return response.status(result.errors ? 400 : 200).json(result)
+    const healthy = database === 'up'
+    return response.status(healthy ? 200 : 503).send({
+      status: healthy ? 'healthy' : 'unhealthy',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      checks: { database }})
   }
-}`,
+}
+`,
 
     // Exception handler
     'app/exceptions/handler.ts': `import app from '@adonisjs/core/services/app'
@@ -1364,28 +911,45 @@ export default class HttpExceptionHandler extends ExceptionHandler {
 }`,
 
     // Test configuration
-    'tests/bootstrap.ts': `import { assert } from '@japa/assert'
+    'tests/bootstrap.ts': `import app from '@adonisjs/core/services/app'
+import testUtils from '@adonisjs/core/services/test_utils'
+import { assert } from '@japa/assert'
 import { apiClient } from '@japa/api-client'
 import { pluginAdonisJS } from '@japa/plugin-adonisjs'
 import type { Config } from '@japa/runner/types'
-import testUtils from '@adonisjs/core/services/test_utils'
 
-export const plugins: Config['microservices'] = [
-  assert(),
-  apiClient(),
-  pluginAdonisJS(testUtils)]
+/**
+ * This file is imported by the "bin/test.ts" entrypoint file
+ */
 
-export const runnerHooks: Config['runnerHooks'] = {
-  setup: [
-    () => testUtils.db().migrate(),
-    () => testUtils.db().seed()],
-  teardown: []}
+/**
+ * Configure Japa plugins in the plugins array.
+ * Learn more - https://japa.dev/docs/runner-config#plugins-optional
+ */
+export const plugins: Config['plugins'] = [assert(), apiClient(), pluginAdonisJS(app)]
 
+/**
+ * Configure lifecycle function to run before and after all the
+ * tests.
+ *
+ * The setup functions are executed before all the tests
+ * The teardown functions are executed after all the tests
+ */
+export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
+  setup: [() => testUtils.db().migrate()],
+  teardown: [],
+}
+
+/**
+ * Configure suites by tapping into the test suite instance.
+ * Learn more - https://japa.dev/docs/test-suites#lifecycle-hooks
+ */
 export const configureSuite: Config['configureSuite'] = (suite) => {
   if (['browser', 'functional', 'e2e'].includes(suite.name)) {
     return suite.setup(() => testUtils.httpServer().start())
   }
-}`,
+}
+`,
 
     // Docker configuration
     'Dockerfile': `# Build stage
@@ -1395,7 +959,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
@@ -1418,15 +982,13 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 COPY package*.json ./
 
 # Install production dependencies
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev && npm cache clean --force
 
 # Copy built application
 COPY --from=builder /app/build ./
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/resources ./resources
 
 # Create directories
-RUN mkdir -p uploads tmp && chown -R nodejs:nodejs uploads tmp
+RUN mkdir -p tmp && chown -R nodejs:nodejs tmp
 
 # Switch to non-root user
 USER nodejs
@@ -1436,7 +998,7 @@ EXPOSE 3333
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
-  CMD node ace health:check || exit 1
+  CMD node -e "fetch('http://127.0.0.1:3333/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 # Start application
 ENTRYPOINT ["dumb-init", "--"]
@@ -1452,24 +1014,20 @@ services:
       - "\${PORT:-3333}:3333"
     environment:
       - NODE_ENV=production
+      - PORT=3333
+      - HOST=0.0.0.0
+      - LOG_LEVEL=info
+      - APP_NAME={{projectName}}
       - APP_KEY=\${APP_KEY}
-      - DB_CONNECTION=pg
-      - PG_HOST=postgres
-      - PG_PORT=5432
-      - PG_USER=\${PG_USER:-postgres}
-      - PG_PASSWORD=\${PG_PASSWORD:-postgres}
-      - PG_DB_NAME=\${PG_DB_NAME:-{{projectName}}}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - SESSION_DRIVER=redis
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=\${PG_USER:-postgres}
+      - DB_PASSWORD=\${PG_PASSWORD:-postgres}
+      - DB_DATABASE=\${PG_DB_NAME:-{{projectName}}}
+      - LIMITER_STORE=memory
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./uploads:/app/uploads
-      - ./tmp:/app/tmp
     restart: unless-stopped
     networks:
       - app-network
@@ -1494,85 +1052,14 @@ services:
     networks:
       - app-network
 
-  redis:
-    image: redis:7-alpine
-    container_name: {{projectName}}-redis
-    command: redis-server --appendonly yes --requirepass \${REDIS_PASSWORD:-}
-    ports:
-      - "\${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - app-network
 
-  nginx:
-    image: nginx:alpine
-    container_name: {{projectName}}-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - app
-    restart: unless-stopped
-    networks:
-      - app-network
 
 volumes:
   postgres-data:
-  redis-data:
 
 networks:
   app-network:
     driver: bridge`,
-
-    // Edge template example
-    'resources/views/layouts/main.edge': `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ title || '{{projectName}}' }}</title>
-  @vite(['resources/css/app.css', 'resources/js/app.js'])
-</head>
-<body>
-  <header>
-    <nav>
-      <a href="/">{{projectName}}</a>
-    </nav>
-  </header>
-
-  <main>
-    @!section('content')
-  </main>
-
-  <footer>
-    <p>&copy; {{ new Date().getFullYear() }} {{projectName}}. All rights reserved.</p>
-  </footer>
-</body>
-</html>`,
-
-    'resources/views/pages/home.edge': `@layout('layouts/main')
-
-@section('content')
-  <div class="container">
-    <h1>Welcome to {{projectName}}</h1>
-    <p>Your AdonisJS application is ready!</p>
-    
-    <div class="links">
-      <a href="/api/v1/health">Health Check</a>
-      <a href="https://docs.adonisjs.com" target="_blank">Documentation</a>
-    </div>
-  </div>
-@end`,
 
     // README
     'README.md': `# {{projectName}}
@@ -1581,21 +1068,18 @@ Full-featured MVC application built with AdonisJS 6.
 
 ## Features
 
-- 🏗️ **MVC Architecture** with clear separation of concerns
-- 🔒 **Authentication System** with JWT tokens and session support
-- 📊 **Lucid ORM** with migrations and models
-- 🎨 **Edge Template Engine** for server-side rendering
-- 🛡️ **Authorization** with Bouncer policies
-- ✅ **Validation** with VineJS
-- 📬 **Event System** with listeners
-- 🔄 **Queue System** with Bull
-- 📧 **Mail System** with multiple drivers
-- 💾 **File Storage** with S3/local support
-- 🔌 **WebSocket Support** with Socket.IO
-- 🚦 **Rate Limiting** and throttling
-- 🧪 **Testing** with Japa
-- 🐳 **Docker** configuration
-- 🏥 **Health Checks** and monitoring
+- **MVC architecture** with controllers, models, validators and policies
+- **Access token authentication** (\`@adonisjs/auth\`, opaque tokens stored in \`auth_access_tokens\`)
+- **Lucid ORM** with PostgreSQL migrations and models
+- **Authorization** with Bouncer policies (\`app/policies\`) and an \`admin\` middleware
+- **Validation** with VineJS
+- **Rate limiting** with \`@adonisjs/limiter\` (memory store)
+- **Testing** with Japa (\`node ace test\`)
+- **Docker** configuration
+- **Health check** at \`/health\`
+
+Mail, queues, WebSockets, file storage and GraphQL are not part of this template; add the
+matching \`@adonisjs/*\` packages (\`node ace add @adonisjs/mail\`, ...) when you need them.
 
 ## Getting Started
 
@@ -1603,7 +1087,6 @@ Full-featured MVC application built with AdonisJS 6.
 
 - Node.js 20+
 - PostgreSQL
-- Redis
 
 ### Installation
 
@@ -1666,14 +1149,11 @@ app/
 ├── services/       # Business logic
 ├── validators/     # Request validators
 ├── middleware/     # HTTP middleware
-├── listeners/      # Event listeners
-├── mailers/       # Email templates
 ├── policies/      # Authorization policies
 └── exceptions/    # Custom exceptions
 
 config/            # Configuration files
 database/          # Migrations and seeds
-resources/         # Views and assets
 start/            # Application bootstrapping
 tests/            # Test files
 \`\`\`
@@ -1684,13 +1164,585 @@ tests/            # Test files
 - \`node ace build\` - Build for production
 - \`node ace migration:run\` - Run migrations
 - \`node ace db:seed\` - Seed database
-- \`node ace queue:listen\` - Start queue worker
-- \`node ace scheduler:run\` - Run scheduled tasks
 - \`node ace list\` - List all commands
 
 ## License
 
 MIT
+`,
+
+    'ace.js': `/*
+|--------------------------------------------------------------------------
+| JavaScript entrypoint for running ace commands
+|--------------------------------------------------------------------------
+|
+| DO NOT MODIFY THIS FILE AS IT WILL BE OVERRIDDEN DURING THE BUILD
+| PROCESS.
+|
+| See docs.adonisjs.com/guides/typescript-build-process#creating-production-build
+|
+| Since, we cannot run TypeScript source code using "node" binary, we need
+| a JavaScript entrypoint to run ace commands.
+|
+| This file registers the "ts-node-maintained/register/esm" hook with the Node.js module system
+| and then imports the "bin/console.ts" file.
+|
+*/
+
+/**
+ * Register hook to process TypeScript files using ts-node-maintained
+ */
+import 'ts-node-maintained/register/esm'
+
+/**
+ * Import ace console entrypoint
+ */
+await import('./bin/console.js')
+`,
+
+    'app/controllers/users_controller.ts': `import type { HttpContext } from '@adonisjs/core/http'
+import hash from '@adonisjs/core/services/hash'
+import { changePasswordValidator, updateProfileValidator } from '#validators/user'
+
+export default class UsersController {
+  async me({ auth, response }: HttpContext) {
+    return response.ok(auth.getUserOrFail().serialize())
+  }
+
+  async updateProfile({ auth, request, response }: HttpContext) {
+    const user = auth.getUserOrFail()
+    const data = await request.validateUsing(updateProfileValidator)
+
+    user.merge(data)
+    await user.save()
+
+    return response.ok(user.serialize())
+  }
+
+  async changePassword({ auth, request, response }: HttpContext) {
+    const user = auth.getUserOrFail()
+    const { currentPassword, newPassword } = await request.validateUsing(changePasswordValidator)
+
+    if (!(await hash.verify(user.password, currentPassword))) {
+      return response.badRequest({ message: 'Current password is incorrect' })
+    }
+
+    user.password = newPassword
+    await user.save()
+
+    return response.ok({ message: 'Password changed successfully' })
+  }
+}
+`,
+
+    'app/middleware/admin_middleware.ts': `import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+
+/**
+ * Only lets authenticated users with the "admin" role through.
+ * Register it after the "auth" middleware.
+ */
+export default class AdminMiddleware {
+  async handle({ auth, response }: HttpContext, next: NextFn) {
+    if (auth.user?.role !== 'admin') {
+      return response.forbidden({ message: 'Administrator access required' })
+    }
+    return next()
+  }
+}
+`,
+
+    'app/middleware/auth_middleware.ts': `import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+import type { Authenticators } from '@adonisjs/auth/types'
+
+/**
+ * Auth middleware is used authenticate HTTP requests and deny
+ * access to unauthenticated users.
+ */
+export default class AuthMiddleware {
+  async handle(
+    ctx: HttpContext,
+    next: NextFn,
+    options: {
+      guards?: (keyof Authenticators)[]
+    } = {}
+  ) {
+    await ctx.auth.authenticateUsing(options.guards)
+    return next()
+  }
+}
+`,
+
+    'app/middleware/container_bindings_middleware.ts': `import { Logger } from '@adonisjs/core/logger'
+import { HttpContext } from '@adonisjs/core/http'
+import { NextFn } from '@adonisjs/core/types/http'
+
+/**
+ * The "ContainerBindingsMiddleware" binds "classes" to their "values"
+ * inside the container for a given HTTP request. The bindings are
+ * scoped to the request and removed when it ends.
+ */
+export default class ContainerBindingsMiddleware {
+  handle(ctx: HttpContext, next: NextFn) {
+    ctx.containerResolver.bindValue(HttpContext, ctx)
+    ctx.containerResolver.bindValue(Logger, ctx.logger)
+
+    return next()
+  }
+}
+`,
+
+    'app/middleware/force_json_response_middleware.ts': `import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+
+/**
+ * Updates the "Accept" header to always accept "application/json" so that
+ * errors and validation failures are rendered as JSON.
+ */
+export default class ForceJsonResponseMiddleware {
+  async handle({ request }: HttpContext, next: NextFn) {
+    const headers = request.headers()
+    headers.accept = 'application/json'
+
+    return next()
+  }
+}
+`,
+
+    'app/middleware/initialize_bouncer_middleware.ts': `import { Bouncer } from '@adonisjs/bouncer'
+import type { HttpContext } from '@adonisjs/core/http'
+import type { NextFn } from '@adonisjs/core/types/http'
+import { abilities, policies } from '#start/bouncer'
+
+/**
+ * Init bouncer middleware is used to create a bouncer instance
+ * during an HTTP request
+ */
+export default class InitializeBouncerMiddleware {
+  async handle(ctx: HttpContext, next: NextFn) {
+    /**
+     * Create bouncer instance for the ongoing HTTP request.
+     * We will pull the user from the HTTP context.
+     */
+    ctx.bouncer = new Bouncer(
+      () => ctx.auth.user || null,
+      abilities,
+      policies
+    ).setContainerResolver(ctx.containerResolver)
+
+    return next()
+  }
+}
+
+declare module '@adonisjs/core/http' {
+  export interface HttpContext {
+    bouncer: Bouncer<
+      Exclude<HttpContext['auth']['user'], undefined>,
+      typeof abilities,
+      typeof policies
+    >
+  }
+}
+`,
+
+    'app/validators/todo.ts': `import vine from '@vinejs/vine'
+import { DateTime } from 'luxon'
+
+export const createTodoValidator = vine.compile(
+  vine.object({
+    title: vine.string().trim().minLength(1).maxLength(255),
+    description: vine.string().trim().optional(),
+    status: vine.enum(['pending', 'in_progress', 'completed'] as const).optional(),
+    priority: vine.enum(['low', 'medium', 'high'] as const).optional(),
+    dueDate: vine.date().transform((value) => DateTime.fromJSDate(value)).optional(),
+    tags: vine.array(vine.string().trim()).optional()})
+)
+
+export const updateTodoValidator = vine.compile(
+  vine.object({
+    title: vine.string().trim().minLength(1).maxLength(255).optional(),
+    description: vine.string().trim().optional(),
+    status: vine.enum(['pending', 'in_progress', 'completed'] as const).optional(),
+    priority: vine.enum(['low', 'medium', 'high'] as const).optional(),
+    dueDate: vine.date().transform((value) => DateTime.fromJSDate(value)).optional(),
+    tags: vine.array(vine.string().trim()).optional()})
+)
+`,
+
+    'app/validators/user.ts': `import vine from '@vinejs/vine'
+
+export const updateProfileValidator = vine.compile(
+  vine.object({
+    name: vine.string().trim().minLength(2).maxLength(100).optional(),
+    phone: vine.string().trim().maxLength(30).nullable().optional(),
+    avatar: vine.string().trim().url().nullable().optional()})
+)
+
+export const changePasswordValidator = vine.compile(
+  vine.object({
+    currentPassword: vine.string(),
+    newPassword: vine.string().minLength(8).maxLength(100)})
+)
+`,
+
+    'bin/console.ts': `/*
+|--------------------------------------------------------------------------
+| Ace entry point
+|--------------------------------------------------------------------------
+|
+| The "console.ts" file is the entrypoint for booting the AdonisJS
+| command-line application.
+|
+*/
+
+import 'reflect-metadata'
+import { Ignitor, prettyPrintError } from '@adonisjs/core'
+
+/**
+ * URL to the application root. AdonisJS need it to resolve
+ * paths to file and directories for scaffolding commands
+ */
+const APP_ROOT = new URL('../', import.meta.url)
+
+/**
+ * The importer is used to import files in context of the
+ * application.
+ */
+const IMPORTER = (filePath: string) => {
+  if (filePath.startsWith('./') || filePath.startsWith('../')) {
+    return import(new URL(filePath, APP_ROOT).href)
+  }
+  return import(filePath)
+}
+
+new Ignitor(APP_ROOT, { importer: IMPORTER })
+  .tap((app) => {
+    app.booting(async () => {
+      await import('#start/env')
+    })
+    app.listen('SIGTERM', () => app.terminate())
+    app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
+  })
+  .ace()
+  .handle(process.argv.splice(2))
+  .catch((error) => {
+    process.exitCode = 1
+    prettyPrintError(error)
+  })
+`,
+
+    'bin/test.ts': `/*
+|--------------------------------------------------------------------------
+| Test runner entrypoint
+|--------------------------------------------------------------------------
+|
+| The "test.ts" file is the entrypoint for running tests using Japa.
+|
+| Either you can run this file directly or use the "test"
+| command to run this file and monitor file changes.
+|
+*/
+
+process.env.NODE_ENV = 'test'
+
+import 'reflect-metadata'
+import { Ignitor, prettyPrintError } from '@adonisjs/core'
+import { configure, processCLIArgs, run } from '@japa/runner'
+
+/**
+ * URL to the application root. AdonisJS need it to resolve
+ * paths to file and directories for scaffolding commands
+ */
+const APP_ROOT = new URL('../', import.meta.url)
+
+/**
+ * The importer is used to import files in context of the
+ * application.
+ */
+const IMPORTER = (filePath: string) => {
+  if (filePath.startsWith('./') || filePath.startsWith('../')) {
+    return import(new URL(filePath, APP_ROOT).href)
+  }
+  return import(filePath)
+}
+
+new Ignitor(APP_ROOT, { importer: IMPORTER })
+  .tap((app) => {
+    app.booting(async () => {
+      await import('#start/env')
+    })
+    app.listen('SIGTERM', () => app.terminate())
+    app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
+  })
+  .testRunner()
+  .configure(async (app) => {
+    const { runnerHooks, ...config } = await import('../tests/bootstrap.js')
+
+    processCLIArgs(process.argv.splice(2))
+    configure({
+      ...app.rcFile.tests,
+      ...config,
+      ...{
+        setup: runnerHooks.setup,
+        teardown: runnerHooks.teardown.concat([() => app.terminate()])},
+    })
+  })
+  .run(() => run())
+  .catch((error) => {
+    process.exitCode = 1
+    prettyPrintError(error)
+  })
+`,
+
+    'config/bodyparser.ts': `import { defineConfig } from '@adonisjs/core/bodyparser'
+
+const bodyParserConfig = defineConfig({
+  /**
+   * The bodyparser middleware will parse the request body
+   * for the following HTTP methods.
+   */
+  allowedMethods: ['POST', 'PUT', 'PATCH', 'DELETE'],
+
+  /**
+   * Config for the "application/x-www-form-urlencoded"
+   * content-type parser
+   */
+  form: {
+    convertEmptyStringsToNull: true,
+    types: ['application/x-www-form-urlencoded']},
+
+  /**
+   * Config for the JSON parser
+   */
+  json: {
+    convertEmptyStringsToNull: true,
+    types: [
+      'application/json',
+      'application/json-patch+json',
+      'application/vnd.api+json',
+      'application/csp-report']},
+
+  /**
+   * Config for the "multipart/form-data" content-type parser.
+   * File uploads are handled by the multipart parser.
+   */
+  multipart: {
+    autoProcess: true,
+    convertEmptyStringsToNull: true,
+    processManually: [],
+    limit: '20mb',
+    types: ['multipart/form-data']}})
+
+export default bodyParserConfig
+`,
+
+    'config/cors.ts': `import { defineConfig } from '@adonisjs/cors'
+
+/**
+ * Configuration options to tweak the CORS policy. The following
+ * options are documented on the official documentation website.
+ *
+ * https://docs.adonisjs.com/guides/security/cors
+ */
+const corsConfig = defineConfig({
+  enabled: true,
+  origin: true,
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  headers: true,
+  exposeHeaders: [],
+  credentials: true,
+  maxAge: 90})
+
+export default corsConfig
+`,
+
+    'config/hash.ts': `import { defineConfig, drivers } from '@adonisjs/core/hash'
+
+const hashConfig = defineConfig({
+  default: 'scrypt',
+
+  list: {
+    scrypt: drivers.scrypt({
+      cost: 16384,
+      blockSize: 8,
+      parallelization: 1,
+      maxMemory: 33554432})}})
+
+export default hashConfig
+
+/**
+ * Inferring types for the list of hashers you have configured
+ * in your application.
+ */
+declare module '@adonisjs/core/types' {
+  export interface HashersList extends InferHashers<typeof hashConfig> {}
+}
+`,
+
+    'config/logger.ts': `import env from '#start/env'
+import app from '@adonisjs/core/services/app'
+import { defineConfig, targets } from '@adonisjs/core/logger'
+
+const loggerConfig = defineConfig({
+  default: 'app',
+
+  /**
+   * The loggers object can be used to define multiple loggers.
+   * By default, we configure only one logger (named "app").
+   */
+  loggers: {
+    app: {
+      enabled: true,
+      name: env.get('APP_NAME'),
+      level: env.get('LOG_LEVEL'),
+      transport: {
+        targets: targets()
+          .pushIf(!app.inProduction, targets.pretty())
+          .pushIf(app.inProduction, targets.file({ destination: 1 }))
+          .toArray()}}}})
+
+export default loggerConfig
+
+/**
+ * Inferring types for the list of loggers you have configured
+ * in your application.
+ */
+declare module '@adonisjs/core/types' {
+  export interface LoggersList extends InferLoggers<typeof loggerConfig> {}
+}
+`,
+
+    'database/migrations/1734567890122_create_access_tokens_table.ts': `import { BaseSchema } from '@adonisjs/lucid/schema'
+
+export default class extends BaseSchema {
+  protected tableName = 'auth_access_tokens'
+
+  async up() {
+    this.schema.createTable(this.tableName, (table) => {
+      table.increments('id')
+      table
+        .integer('tokenable_id')
+        .notNullable()
+        .unsigned()
+        .references('id')
+        .inTable('users')
+        .onDelete('CASCADE')
+
+      table.string('type').notNullable()
+      table.string('name').nullable()
+      table.string('hash').notNullable()
+      table.text('abilities').notNullable()
+      table.timestamp('created_at')
+      table.timestamp('updated_at')
+      table.timestamp('last_used_at').nullable()
+      table.timestamp('expires_at').nullable()
+    })
+  }
+
+  async down() {
+    this.schema.dropTable(this.tableName)
+  }
+}
+`,
+
+    'start/bouncer.ts': `/*
+|--------------------------------------------------------------------------
+| Bouncer abilities and policies
+|--------------------------------------------------------------------------
+|
+| Policies are registered here so that "bouncer.with('TodoPolicy')" can
+| lazily import them.
+|
+*/
+
+/**
+ * Delete the following ability to start from
+ * scratch
+ */
+export const abilities = {}
+
+export const policies = {
+  TodoPolicy: () => import('#policies/todo_policy')}
+`,
+
+    'start/env.ts': `/*
+|--------------------------------------------------------------------------
+| Environment variables service
+|--------------------------------------------------------------------------
+|
+| The \`Env.create\` method creates an instance of the Env service. The
+| service validates the environment variables and also cast values
+| to JavaScript data types.
+|
+*/
+
+import { Env } from '@adonisjs/core/env'
+
+export default await Env.create(new URL('../', import.meta.url), {
+  NODE_ENV: Env.schema.enum(['development', 'production', 'test'] as const),
+  PORT: Env.schema.number(),
+  APP_KEY: Env.schema.string(),
+  APP_NAME: Env.schema.string(),
+  HOST: Env.schema.string({ format: 'host' }),
+  LOG_LEVEL: Env.schema.string(),
+
+  /*
+  |----------------------------------------------------------
+  | Variables for configuring database connection
+  |----------------------------------------------------------
+  */
+  DB_HOST: Env.schema.string({ format: 'host' }),
+  DB_PORT: Env.schema.number(),
+  DB_USER: Env.schema.string(),
+  DB_PASSWORD: Env.schema.string.optional(),
+  DB_DATABASE: Env.schema.string(),
+
+  /*
+  |----------------------------------------------------------
+  | Variables for configuring the limiter package
+  |----------------------------------------------------------
+  */
+  LIMITER_STORE: Env.schema.enum(['memory'] as const),
+})
+`,
+
+    'start/limiter.ts': `/*
+|--------------------------------------------------------------------------
+| Define HTTP limiters
+|--------------------------------------------------------------------------
+|
+| The "limiter.define" method creates an HTTP middleware to apply rate
+| limits on a route or a group of routes.
+|
+*/
+
+import limiter from '@adonisjs/limiter/services/main'
+
+export const throttle = limiter.define('global', () => {
+  return limiter.allowRequests(100).every('1 minute')
+})
+
+export const authThrottle = limiter.define('auth', () => {
+  return limiter.allowRequests(10).every('1 minute')
+})
+`,
+
+    'tests/functional/auth.spec.ts': `import { test } from '@japa/runner'
+
+test.group('Auth', () => {
+  test('rejects a todo listing without a token', async ({ client }) => {
+    const response = await client.get('/api/v1/todos')
+
+    response.assertStatus(401)
+  })
+
+  test('validates the registration payload', async ({ client }) => {
+    const response = await client.post('/api/v1/auth/register').json({ email: 'not-an-email' })
+
+    response.assertStatus(422)
+  })
+})
 `
   }
 };

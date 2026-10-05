@@ -3,6 +3,7 @@ import prompts from 'prompts';
 import { validateConfigFile, validateGlobalConfig, validateProjectConfig, ValidationResult } from '../utils/validation';
 import { configManager } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
+import { fail, ok } from '../utils/json-output';
 
 
 /**
@@ -72,7 +73,7 @@ async function validateSpecificFile(filePath: string, options: ValidateCommandOp
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
+    ok(result);
   } else {
     displayValidationResult(result, filePath, options);
   }
@@ -87,7 +88,7 @@ async function validateGlobalConfiguration(options: ValidateCommandOptions, spin
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
+    ok(result);
   } else {
     displayValidationResult(result, 'Global Configuration', options);
   }
@@ -99,6 +100,10 @@ async function validateProjectConfiguration(options: ValidateCommandOptions, spi
   const projectConfig = await configManager.loadProjectConfig();
   if (!projectConfig) {
     if (spinner) spinner.fail(chalk.red('No project configuration found'));
+    if (options.json) {
+      fail('NOT_FOUND', 'No project configuration found. Initialize a project first.');
+      return;
+    }
     console.log(chalk.yellow('⚠️  No project configuration found. Initialize a project first.'));
     return;
   }
@@ -108,7 +113,7 @@ async function validateProjectConfiguration(options: ValidateCommandOptions, spi
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
+    ok(result);
   } else {
     displayValidationResult(result, 'Project Configuration', options);
   }
@@ -126,10 +131,10 @@ async function validateAllConfigurations(options: ValidateCommandOptions, spinne
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify({
+    ok({
       global: globalResult,
       project: projectResult
-    }, null, 2));
+    });
   } else {
     console.log(chalk.cyan('\n🔍 Configuration Validation Report'));
     console.log(chalk.gray('═'.repeat(50)));

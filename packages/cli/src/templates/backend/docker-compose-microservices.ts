@@ -482,7 +482,7 @@ services:
     volumes:
       - ./docker/nginx/ssl:/etc/letsencrypt
       - ./docker/certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait \\$\\!; done;'"
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $$!; done;'"
 
   # ============ DEVELOPMENT TOOLS ============
   

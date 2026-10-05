@@ -37,16 +37,16 @@ export const foaltsTemplate: BackendTemplate = {
   "scripts": {
     "build": "foal rmdir build && tsc",
     "start": "node ./build/index.js",
-    "dev": "npm run build && concurrently -r "tsc -w" "supervisor -w ./build,./config -e js,yml,json --no-restart-on error ./build/index.js"",
+    "dev": "npm run build && concurrently -r \\"tsc -w\\" \\"supervisor -w ./build,./config -e js,yml,json --no-restart-on error ./build/index.js\\"",
     "build:test": "foal rmdir build && tsc -p tsconfig.test.json",
-    "start:test": "mocha --file "./build/test.js" "./build/**/*.spec.js"",
+    "start:test": "mocha --file \\"./build/test.js\\" \\"./build/**/*.spec.js\\"",
     "test": "npm run build:test && npm run start:test",
     "migrations": "foal run-script build/scripts/migrate",
     "makemigrations": "foal run-script build/scripts/create-migration",
     "revertmigration": "foal run-script build/scripts/revert-migration",
     "lint": "eslint --ext .ts src",
     "lint:fix": "eslint --ext .ts --fix src",
-    "format": "prettier --write "src/**/*.ts"",
+    "format": "prettier --write \\"src/**/*.ts\\"",
     "generate:openapi": "foal generate openapi",
     "generate:graphql-schema": "foal run-script build/scripts/generate-graphql-schema",
     "docker:build": "docker build -t {{projectName}} .",
@@ -63,14 +63,13 @@ export const foaltsTemplate: BackendTemplate = {
     "@foal/socket.io": "^4.2.0",
     "@foal/cli": "^4.2.0",
     "@foal/swagger": "^4.2.0",
-    "@foal/ajv": "^4.2.0",
+    "@foal/ajv": "^0.5.0",
     "@foal/redis": "^4.2.0",
     "@foal/aws-s3": "^4.2.0",
     "typeorm": "~0.3.17",
     "sqlite3": "^5.1.6",
     "pg": "^8.11.3",
     "mysql2": "^3.6.5",
-    "caching": "^4.6.10",
     "class-validator": "^0.14.0",
     "class-transformer": "^0.5.1",
     "graphql": "^16.8.1",
@@ -90,7 +89,8 @@ export const foaltsTemplate: BackendTemplate = {
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.7",
     "bull": "^4.12.0",
-    "@types/bull": "^4.10.0"
+    "@types/bull": "^4.10.0",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.4",
@@ -127,6 +127,8 @@ export const foaltsTemplate: BackendTemplate = {
     "outDir": "./build",
     "rootDir": "./src",
     "strict": true,
+    "strictPropertyInitialization": false,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -142,8 +144,8 @@ export const foaltsTemplate: BackendTemplate = {
     "strictFunctionTypes": true,
     "noImplicitThis": true,
     "alwaysStrict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "moduleResolution": "node",
@@ -165,8 +167,11 @@ export const foaltsTemplate: BackendTemplate = {
 
     // Main application entry
     'src/index.ts': `// FoalTS
-import { createApp } from '@foal/core';
-import { createConnection } from 'typeorm';
+import { Config, createApp } from '@foal/core';
+import compression from 'compression';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 
 // App
 import { AppController } from './app/app.controller';
@@ -175,8 +180,20 @@ import { dataSource } from './db';
 async function main() {
   // Initialize the database connection
   await dataSource.initialize();
-  
-  const app = await createApp(AppController);
+
+  const app = await createApp(AppController, {
+    // Express middleware that runs before every Foal route
+    preMiddlewares: [
+      helmet({ contentSecurityPolicy: false }), // the GraphQL playground needs inline scripts
+      cors({ origin: Config.get('settings.cors.origin', 'string', '*'), credentials: true }),
+      compression(),
+      rateLimit({
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 100, // limit each IP to 100 requests per window
+        message: 'Too many requests from this IP'
+      })
+    ]
+  });
 
   const port = process.env.PORT || 3001;
   app.listen(port, () => {
@@ -190,83 +207,68 @@ main()
   .catch(err => {
     console.error(err);
     process.exit(1);
-  });`,
+  });
+`,
 
     // Test setup
     'src/test.ts': `// Test setup file
-import { createConnection, getConnection } from 'typeorm';
+import { dataSource } from './db';
 
-export const testDataSource = {
-  type: 'sqlite',
-  database: ':memory:',
-  dropSchema: true,
-  entities: ['build/app/**/*.entity.js'],
-  migrations: ['build/migrations/*.js'],
-  synchronize: true};
-
+// config/test.yml selects an in-memory SQLite database
 before(async () => {
-  await createConnection(testDataSource as DataSourceOptions);
+  await dataSource.initialize();
 });
 
 after(async () => {
-  await getConnection().close();
-});`,
+  await dataSource.destroy();
+});
+`,
 
     // Database configuration
-    'src/db.ts': `import { DataSource } from 'typeorm';
-import { config } from '@foal/core';
+    'src/db.ts': `import { Config } from '@foal/core';
+import { DataSource } from 'typeorm';
+
+const type = Config.get('database.type', 'string', 'sqlite') as 'sqlite' | 'postgres';
 
 export const dataSource = new DataSource({
-  type: config.get('database.type') as DataSourceType,
-  
+  type,
+
   // Common options
-  database: config.get('database.database'),
-  synchronize: config.get('database.synchronize'),
-  logging: config.get('database.logging'),
-  
-  // Additional options based on database type
-  ...(config.get('database.type') === 'postgres' && {
-    host: config.get('database.host'),
-    port: config.get('database.port'),
-    username: config.get('database.username'),
-    password: config.get('database.password')}),
-  
+  database: Config.get('database.database', 'string', './db.sqlite3'),
+  synchronize: Config.get('database.synchronize', 'boolean', false),
+  dropSchema: Config.get('database.dropSchema', 'boolean', false),
+  logging: Config.get('database.logging', 'boolean', false),
+
+  // Additional options for networked databases
+  ...(type === 'postgres' && {
+    host: Config.get('database.host', 'string', 'localhost'),
+    port: Config.get('database.port', 'number', 5432),
+    username: Config.get('database.username', 'string'),
+    password: Config.get('database.password', 'string')
+  }),
+
   entities: ['build/app/**/*.entity.js'],
-  migrations: ['build/migrations/*.js'],
-  cli: {
-    migrationsDir: 'src/migrations'
-  }
-});`,
+  migrations: ['build/migrations/*.js']
+});
+`,
 
     // Main App Controller
     'src/app/app.controller.ts': `import {
   controller,
   IAppController,
   Get,
-  render,
   dependency,
-  Config,
   ApiInfo,
   ApiServer,
   HttpResponseOK
 } from '@foal/core';
-import { createConnection } from 'typeorm';
-import { join } from 'path';
 
 // Controllers
 import { AuthController } from './controllers/auth.controller';
-import { UserController } from './controllers/user.controller';
-import { TodoController } from './controllers/todo.controller';
 import { ApiController } from './controllers/api.controller';
 import { GraphQLController } from './controllers/graphql.controller';
 import { WebSocketController } from './controllers/websocket.controller';
 
-// Hooks
-import { JWTRequired } from '@foal/jwt';
-import helmet from 'helmet';
-import cors from 'cors';
-import compression from 'compression';
-import rateLimit from 'express-rate-limit';
 
 // Services
 import { SchedulerService } from './services/scheduler.service';
@@ -300,32 +302,6 @@ export class AppController implements IAppController {
     this.scheduler.start();
   }
 
-  // Apply global middlewares
-  @Get('*')
-  applyMiddlewares(ctx: any) {
-    // Security headers
-    ctx.request.use(helmet({
-      contentSecurityPolicy: false, // Disable for GraphQL playground
-    }));
-    
-    // CORS
-    ctx.request.use(cors({
-      origin: Config.get('cors.origin', '*'),
-      credentials: true
-    }));
-    
-    // Compression
-    ctx.request.use(compression());
-    
-    // Rate limiting
-    const limiter = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // limit each IP to 100 requests per windowMs
-      message: 'Too many requests from this IP'
-    });
-    ctx.request.use(limiter);
-  }
-
   @Get('/')
   index() {
     return new HttpResponseOK({
@@ -348,7 +324,7 @@ export class AppController implements IAppController {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      environment: Config.get('env', 'development')
+      environment: process.env.NODE_ENV ?? 'development'
     });
   }
 }
@@ -389,10 +365,10 @@ export class ApiController {
   HttpResponseBadRequest,
   Post,
   ValidateBody,
-  ApiOperation,
+  ApiOperationDescription,
+  ApiOperationSummary,
   ApiResponse,
-  dependency,
-  Config
+  dependency
 } from '@foal/core';
 import { getSecretOrPublicKey } from '@foal/jwt';
 import { sign } from 'jsonwebtoken';
@@ -430,10 +406,8 @@ export class AuthController {
 
   @Post('/register')
   @ValidateBody(registerSchema)
-  @ApiOperation({
-    summary: 'Register a new user',
-    description: 'Create a new user account with email verification'
-  })
+  @ApiOperationSummary('Register a new user')
+  @ApiOperationDescription('Create a new user account with email verification')
   @ApiResponse(201, { description: 'User registered successfully' })
   @ApiResponse(400, { description: 'Validation error or user already exists' })
   async register(ctx: Context) {
@@ -452,8 +426,8 @@ export class AuthController {
       // Generate JWT token
       const token = sign(
         { id: user.id, email: user.email },
-        getSecretOrPublicKey(),
-        { expiresIn: '7d' }
+        await getSecretOrPublicKey(),
+        { expiresIn: '7d', subject: user.id }
       );
 
       return new HttpResponseOK({
@@ -464,19 +438,17 @@ export class AuthController {
         },
         token
       });
-    } catch (error: unknown) {
+    } catch (error) {
       return new HttpResponseBadRequest({
-        message: error.message
+        message: (error as Error).message
       });
     }
   }
 
   @Post('/login')
   @ValidateBody(credentialsSchema)
-  @ApiOperation({
-    summary: 'Login user',
-    description: 'Authenticate user and return JWT token'
-  })
+  @ApiOperationSummary('Login user')
+  @ApiOperationDescription('Authenticate user and return JWT token')
   @ApiResponse(200, { description: 'Login successful' })
   @ApiResponse(401, { description: 'Invalid credentials' })
   async login(ctx: Context) {
@@ -493,8 +465,8 @@ export class AuthController {
     // Generate JWT token
     const token = sign(
       { id: user.id, email: user.email, role: user.role },
-      getSecretOrPublicKey(),
-      { expiresIn: '7d' }
+      await getSecretOrPublicKey(),
+      { expiresIn: '7d', subject: user.id }
     );
 
     return new HttpResponseOK({
@@ -509,10 +481,8 @@ export class AuthController {
   }
 
   @Post('/verify-email/:token')
-  @ApiOperation({
-    summary: 'Verify email address',
-    description: 'Verify user email using verification token'
-  })
+  @ApiOperationSummary('Verify email address')
+  @ApiOperationDescription('Verify user email using verification token')
   async verifyEmail(ctx: Context) {
     const { token } = ctx.request.params;
 
@@ -521,9 +491,9 @@ export class AuthController {
       return new HttpResponseOK({
         message: 'Email verified successfully'
       });
-    } catch (error: unknown) {
+    } catch (error) {
       return new HttpResponseBadRequest({
-        message: error.message
+        message: (error as Error).message
       });
     }
   }
@@ -536,10 +506,8 @@ export class AuthController {
     },
     required: ['email']
   })
-  @ApiOperation({
-    summary: 'Request password reset',
-    description: 'Send password reset email to user'
-  })
+  @ApiOperationSummary('Request password reset')
+  @ApiOperationDescription('Send password reset email to user')
   async forgotPassword(ctx: Context) {
     const { email } = ctx.request.body;
 
@@ -550,9 +518,9 @@ export class AuthController {
       return new HttpResponseOK({
         message: 'Password reset email sent'
       });
-    } catch (error: unknown) {
+    } catch (error) {
       return new HttpResponseBadRequest({
-        message: error.message
+        message: (error as Error).message
       });
     }
   }
@@ -565,10 +533,8 @@ export class AuthController {
     },
     required: ['password']
   })
-  @ApiOperation({
-    summary: 'Reset password',
-    description: 'Reset user password using reset token'
-  })
+  @ApiOperationSummary('Reset password')
+  @ApiOperationDescription('Reset user password using reset token')
   async resetPassword(ctx: Context) {
     const { token } = ctx.request.params;
     const { password } = ctx.request.body;
@@ -578,9 +544,9 @@ export class AuthController {
       return new HttpResponseOK({
         message: 'Password reset successfully'
       });
-    } catch (error: unknown) {
+    } catch (error) {
       return new HttpResponseBadRequest({
-        message: error.message
+        message: (error as Error).message
       });
     }
   }
@@ -591,23 +557,23 @@ export class AuthController {
   Context,
   Delete,
   Get,
+  HttpResponseBadRequest,
   HttpResponseOK,
   HttpResponseNotFound,
   HttpResponseForbidden,
   Patch,
-  UserRequired,
   ValidateBody,
   ValidatePathParam,
   ValidateQueryParam,
-  ApiOperation,
+  ApiOperationDescription,
+  ApiOperationSummary,
   ApiResponse,
-  dependency,
-  Hook
+  dependency
 } from '@foal/core';
 import { JWTRequired } from '@foal/jwt';
-import { fetchUser } from '@foal/typeorm';
 
 import { User } from '../entities/user.entity';
+import { findUserById } from '../utils/find-user';
 import { UserService } from '../services/user.service';
 
 const userUpdateSchema = {
@@ -619,17 +585,14 @@ const userUpdateSchema = {
   additionalProperties: false
 };
 
-@Hook(JWTRequired())
-@Hook(fetchUser(User))
+@JWTRequired({ user: findUserById })
 export class UserController {
   @dependency
   userService: UserService;
 
   @Get('/me')
-  @ApiOperation({
-    summary: 'Get current user',
-    description: 'Get the authenticated user profile'
-  })
+  @ApiOperationSummary('Get current user')
+  @ApiOperationDescription('Get the authenticated user profile')
   @ApiResponse(200, {
     description: 'Current user profile',
     content: {
@@ -640,7 +603,6 @@ export class UserController {
       }
     }
   })
-  @UserRequired()
   async getMe(ctx: Context<User>) {
     return new HttpResponseOK({
       id: ctx.user.id,
@@ -657,11 +619,8 @@ export class UserController {
   @ValidateQueryParam('page', { type: 'integer', minimum: 1 }, { required: false })
   @ValidateQueryParam('limit', { type: 'integer', minimum: 1, maximum: 100 }, { required: false })
   @ValidateQueryParam('search', { type: 'string' }, { required: false })
-  @ApiOperation({
-    summary: 'Get all users',
-    description: 'Get paginated list of users (admin only)'
-  })
-  @UserRequired()
+  @ApiOperationSummary('Get all users')
+  @ApiOperationDescription('Get paginated list of users (admin only)')
   async getAllUsers(ctx: Context<User>) {
     // Check if user is admin
     if (ctx.user.role !== 'admin') {
@@ -685,11 +644,8 @@ export class UserController {
 
   @Get('/:id')
   @ValidatePathParam('id', { type: 'string' })
-  @ApiOperation({
-    summary: 'Get user by ID',
-    description: 'Get a specific user by their ID'
-  })
-  @UserRequired()
+  @ApiOperationSummary('Get user by ID')
+  @ApiOperationDescription('Get a specific user by their ID')
   async getUserById(ctx: Context<User>) {
     const { id } = ctx.request.params;
 
@@ -713,11 +669,8 @@ export class UserController {
   @Patch('/:id')
   @ValidatePathParam('id', { type: 'string' })
   @ValidateBody(userUpdateSchema)
-  @ApiOperation({
-    summary: 'Update user',
-    description: 'Update user profile'
-  })
-  @UserRequired()
+  @ApiOperationSummary('Update user')
+  @ApiOperationDescription('Update user profile')
   async updateUser(ctx: Context<User>) {
     const { id } = ctx.request.params;
 
@@ -749,11 +702,8 @@ export class UserController {
 
   @Delete('/:id')
   @ValidatePathParam('id', { type: 'string' })
-  @ApiOperation({
-    summary: 'Delete user',
-    description: 'Delete a user (admin only)'
-  })
-  @UserRequired()
+  @ApiOperationSummary('Delete user')
+  @ApiOperationDescription('Delete a user (admin only)')
   async deleteUser(ctx: Context<User>) {
     const { id } = ctx.request.params;
 
@@ -780,11 +730,8 @@ export class UserController {
     },
     required: ['currentPassword', 'newPassword']
   })
-  @ApiOperation({
-    summary: 'Change password',
-    description: 'Change the current user password'
-  })
-  @UserRequired()
+  @ApiOperationSummary('Change password')
+  @ApiOperationDescription('Change the current user password')
   async changePassword(ctx: Context<User>) {
     const { currentPassword, newPassword } = ctx.request.body;
 
@@ -798,9 +745,9 @@ export class UserController {
       return new HttpResponseOK({
         message: 'Password changed successfully'
       });
-    } catch (error: unknown) {
+    } catch (error) {
       return new HttpResponseBadRequest({
-        message: error.message
+        message: (error as Error).message
       });
     }
   }
@@ -816,19 +763,18 @@ export class UserController {
   HttpResponseNotFound,
   Patch,
   Post,
-  UserRequired,
   ValidateBody,
   ValidatePathParam,
   ValidateQueryParam,
-  ApiOperation,
+  ApiOperationDescription,
+  ApiOperationSummary,
   ApiResponse,
-  dependency,
-  Hook
+  dependency
 } from '@foal/core';
 import { JWTRequired } from '@foal/jwt';
-import { fetchUser } from '@foal/typeorm';
 
 import { User } from '../entities/user.entity';
+import { findUserById } from '../utils/find-user';
 import { TodoService } from '../services/todo.service';
 
 const todoSchema = {
@@ -855,9 +801,7 @@ const todoUpdateSchema = {
   additionalProperties: false
 };
 
-@Hook(JWTRequired())
-@Hook(fetchUser(User))
-@UserRequired()
+@JWTRequired({ user: findUserById })
 export class TodoController {
   @dependency
   todoService: TodoService;
@@ -867,10 +811,8 @@ export class TodoController {
   @ValidateQueryParam('limit', { type: 'integer', minimum: 1, maximum: 100 }, { required: false })
   @ValidateQueryParam('status', { enum: ['pending', 'in_progress', 'completed'] }, { required: false })
   @ValidateQueryParam('priority', { enum: ['low', 'medium', 'high'] }, { required: false })
-  @ApiOperation({
-    summary: 'Get all todos',
-    description: 'Get paginated list of user todos with optional filtering'
-  })
+  @ApiOperationSummary('Get all todos')
+  @ApiOperationDescription('Get paginated list of user todos with optional filtering')
   async getAllTodos(ctx: Context<User>) {
     const { page = 1, limit = 10, status, priority } = ctx.request.query;
 
@@ -887,10 +829,8 @@ export class TodoController {
 
   @Get('/:id')
   @ValidatePathParam('id', { type: 'string' })
-  @ApiOperation({
-    summary: 'Get todo by ID',
-    description: 'Get a specific todo by its ID'
-  })
+  @ApiOperationSummary('Get todo by ID')
+  @ApiOperationDescription('Get a specific todo by its ID')
   async getTodoById(ctx: Context<User>) {
     const { id } = ctx.request.params;
 
@@ -907,10 +847,8 @@ export class TodoController {
 
   @Post('/')
   @ValidateBody(todoSchema)
-  @ApiOperation({
-    summary: 'Create todo',
-    description: 'Create a new todo item'
-  })
+  @ApiOperationSummary('Create todo')
+  @ApiOperationDescription('Create a new todo item')
   @ApiResponse(201, { description: 'Todo created successfully' })
   async createTodo(ctx: Context<User>) {
     const todoData = {
@@ -926,10 +864,8 @@ export class TodoController {
   @Patch('/:id')
   @ValidatePathParam('id', { type: 'string' })
   @ValidateBody(todoUpdateSchema)
-  @ApiOperation({
-    summary: 'Update todo',
-    description: 'Update an existing todo'
-  })
+  @ApiOperationSummary('Update todo')
+  @ApiOperationDescription('Update an existing todo')
   async updateTodo(ctx: Context<User>) {
     const { id } = ctx.request.params;
 
@@ -953,10 +889,8 @@ export class TodoController {
 
   @Delete('/:id')
   @ValidatePathParam('id', { type: 'string' })
-  @ApiOperation({
-    summary: 'Delete todo',
-    description: 'Delete a todo item'
-  })
+  @ApiOperationSummary('Delete todo')
+  @ApiOperationDescription('Delete a todo item')
   async deleteTodo(ctx: Context<User>) {
     const { id } = ctx.request.params;
 
@@ -985,10 +919,8 @@ export class TodoController {
     },
     required: ['ids']
   })
-  @ApiOperation({
-    summary: 'Bulk delete todos',
-    description: 'Delete multiple todos at once'
-  })
+  @ApiOperationSummary('Bulk delete todos')
+  @ApiOperationDescription('Delete multiple todos at once')
   async bulkDelete(ctx: Context<User>) {
     const { ids } = ctx.request.body;
 
@@ -1012,10 +944,8 @@ export class TodoController {
     },
     required: ['ids', 'updates']
   })
-  @ApiOperation({
-    summary: 'Bulk update todos',
-    description: 'Update multiple todos at once'
-  })
+  @ApiOperationSummary('Bulk update todos')
+  @ApiOperationDescription('Update multiple todos at once')
   async bulkUpdate(ctx: Context<User>) {
     const { ids, updates } = ctx.request.body;
 
@@ -1085,13 +1015,13 @@ export class WebSocketController extends SocketIOController {
   @EventName('join-room')
   async joinRoom(ctx: WebsocketContext, payload: { roomId: string }) {
     ctx.socket.join(payload.roomId);
-    return new WebsocketResponse('room-joined', { roomId: payload.roomId });
+    return new WebsocketResponse({ event: 'room-joined', roomId: payload.roomId });
   }
 
   @EventName('leave-room')
   async leaveRoom(ctx: WebsocketContext, payload: { roomId: string }) {
     ctx.socket.leave(payload.roomId);
-    return new WebsocketResponse('room-left', { roomId: payload.roomId });
+    return new WebsocketResponse({ event: 'room-left', roomId: payload.roomId });
   }
 
   @EventName('todo-update')
@@ -1238,7 +1168,7 @@ export class Todo {
 }`,
 
     // Auth Service
-    'src/app/services/auth.service.ts': `import { hashPassword, verifyPassword } from '@foal/password';
+    'src/app/services/auth.service.ts': `import { hashPassword, verifyPassword } from '@foal/core';
 import { generateToken } from '@foal/core';
 import { User } from '../entities/user.entity';
 import { dataSource } from '../../db';
@@ -1264,7 +1194,7 @@ export class AuthService {
     const hashedPassword = await hashPassword(data.password);
 
     // Generate verification token
-    const verificationToken = generateToken();
+    const verificationToken = await generateToken();
 
     // Create user
     const user = this.userRepository.create({
@@ -1322,7 +1252,7 @@ export class AuthService {
     }
 
     // Generate reset token
-    const resetToken = generateToken();
+    const resetToken = await generateToken();
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 1); // 1 hour expiry
 
@@ -1359,7 +1289,7 @@ export class AuthService {
     // User Service
     'src/app/services/user.service.ts': `import { dataSource } from '../../db';
 import { User } from '../entities/user.entity';
-import { hashPassword, verifyPassword } from '@foal/password';
+import { hashPassword, verifyPassword } from '@foal/core';
 
 export class UserService {
   private userRepository = dataSource.getRepository(User);
@@ -1520,7 +1450,7 @@ export class TodoService {
 
   async deleteTodo(id: string, userId: string) {
     const result = await this.todoRepository.delete({ id, userId });
-    return result.affected > 0;
+    return (result.affected ?? 0) > 0;
   }
 
   async bulkDelete(ids: string[], userId: string) {
@@ -1551,7 +1481,7 @@ export class EmailService {
     this.transporter = nodemailer.createTransport({
       host: Config.get('email.host'),
       port: Config.get('email.port'),
-      secure: Config.get('email.secure', false),
+      secure: Config.get('email.secure', 'boolean', false),
       auth: {
         user: Config.get('email.user'),
         pass: Config.get('email.pass')
@@ -1985,7 +1915,7 @@ export async function main() {
 import { dataSource } from '../db';
 import { User } from '../app/entities/user.entity';
 import { Todo } from '../app/entities/todo.entity';
-import { hashPassword } from '@foal/password';
+import { hashPassword } from '@foal/core';
 
 export async function main() {
   await dataSource.initialize();
@@ -2338,28 +2268,15 @@ networks:
     // Test files
     'src/app/controllers/auth.controller.spec.ts': `import { strictEqual } from 'assert';
 import { createApp } from '@foal/core';
-import { createConnection, getConnection } from 'typeorm';
-import * as request from 'supertest';
+import request from 'supertest';
 
 import { AppController } from '../app.controller';
-import { User } from '../entities/user.entity';
 
 describe('AuthController', () => {
   let app: any;
 
   before(async () => {
-    await createConnection({
-      type: 'sqlite',
-      database: ':memory:',
-      entities: [User],
-      synchronize: true,
-      dropSchema: true
-    });
     app = await createApp(AppController);
-  });
-
-  after(async () => {
-    await getConnection().close();
   });
 
   describe('POST /auth/register', () => {
@@ -2586,6 +2503,14 @@ See \`.env.example\` for all available environment variables.
 
 ## License
 
-MIT`
+MIT`,
+
+    'src/app/utils/find-user.ts': `import { dataSource } from '../../db';
+import { User } from '../entities/user.entity';
+
+/** Loads the authenticated user for @JWTRequired / @UseSessions (the id comes from the token's \`sub\` claim). */
+export const findUserById = (id: string | number) =>
+  dataSource.getRepository(User).findOneBy({ id: String(id) });
+`
   }
 };

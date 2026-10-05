@@ -1,10 +1,24 @@
 # Re-Shell Master Plan (HISTORICAL — superseded by the Ultimate Plan)
 
-> **Status: implemented through Phase 8.** The four binding decisions in §2 were made by the
-> owner and executed; the repos described in §0 have since been consolidated into the **single
-> pnpm monorepo** at `re-shell-cli` (`packages/cli` + `packages/ui` + `packages/contracts` +
-> `apps/web`), all on the `@re-shell/*` scope. This file is kept as the **historical audit
-> record** of the original three-repo reality and the disposition decisions.
+> **Status: historical. Do not use it as the current plan or the current state.** The four
+> binding decisions in §2 were made by the owner and executed; the repos described in §0 have
+> since been consolidated into the **single pnpm monorepo** (`UmutKorkmaz/re-shell`: `packages/cli`,
+> `packages/contracts`, `packages/mcp`, `packages/ui`, `packages/control-plane`, `apps/web`,
+> `apps/vscode-extension`, `site`), all on the `@re-shell/*` scope. Package names, command
+> counts and statuses written below are from 2026-06 and are out of date; current status is in
+> [`ROADMAP.md`](./ROADMAP.md) and [`STABILITY.md`](./STABILITY.md). This file is kept as the
+> **historical audit record** of the original three-repo reality and the disposition decisions.
+>
+> **Open questions (§9), resolved:** `@re-shell/core` and the `Re-Shell/core` submodule were
+> **dropped** (superseded by shadcn React); the emitted SDK packages were **not created** and
+> templates no longer reference unpublished `@re-shell/*` packages; the health engine is the
+> **lightweight** one (`workspace health`; `doctor` is a separate gate); runtime fields are
+> provided by the separate `workspace status` command (live status) while `summary`/`graph`
+> stay static; `templates list` is a top-level command; `@re-shell/contracts` is published to
+> npm on its own. The marketplace is the **npm keyword** (`reshell-plugin`) and legacy plugin
+> manifests are still accepted (see the resolved table at the top of
+> [`RE_SHELL_ULTIMATE_PLAN.md`](./RE_SHELL_ULTIMATE_PLAN.md)). The `services-link/validate/unlink`
+> placeholders became `service link`, `service validate` and `service unlink`.
 >
 > **Canonical plan:** see [`docs/RE_SHELL_ULTIMATE_PLAN.md`](./RE_SHELL_ULTIMATE_PLAN.md),
 > which supersedes this draft and folds in the adversarial-verification corrections. For the

@@ -1,13 +1,16 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+// Single source of truth for the site origin/base and repo URL (shared with the
+// CLI, which uses the same constants for the schema $id and the links it prints).
+import { REPO_URL, SITE_BASE_PATH, SITE_ORIGIN } from '../packages/cli/src/constants/brand.ts';
 
-const GITHUB_REPO = 'https://github.com/UmutKorkmaz/re-shell';
+const GITHUB_REPO = REPO_URL;
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://umutkorkmaz.github.io',
-  base: '/re-shell',
+  site: SITE_ORIGIN,
+  base: SITE_BASE_PATH,
   output: 'static',
   trailingSlash: 'ignore',
   integrations: [
@@ -15,7 +18,7 @@ export default defineConfig({
       title: 'Re-Shell',
       tagline: 'Full-stack platform: microfrontends + microservices, one CLI.',
       description:
-        'Re-Shell unites microfrontends and polyglot microservices under one CLI — 205 templates across 36 languages, a hardened web dashboard, and a typed JSON contract.',
+        'Re-Shell unites microfrontends and polyglot microservices under one CLI — 208 templates across 36 languages, a hardened web dashboard, and a typed JSON contract.',
       logo: {
         src: './src/assets/logo.svg',
         alt: 'Re-Shell',
@@ -57,13 +60,16 @@ export default defineConfig({
             { label: 'doctor & analyze', slug: 'cli/doctor-analyze' },
             { label: 'completion', slug: 'cli/completion' },
             { label: 'ai', slug: 'cli/ai' },
+            { label: 'ui', slug: 'cli/ui' },
             { label: 'agents (AGENTS.md)', slug: 'cli/agents' },
             { label: 'api', slug: 'cli/api' },
             { label: 'service & bridge', slug: 'cli/service-bridge' },
+            { label: 'pkg, debug & refactor', slug: 'cli/pkg-debug-refactor' },
             { label: 'k8s / Helm / GitOps', slug: 'cli/k8s-helm-gitops' },
             { label: 'cloud', slug: 'cli/cloud' },
             { label: 'observe', slug: 'cli/observe' },
             { label: 'security', slug: 'cli/security' },
+            { label: 'audit trail & compliance', slug: 'cli/security-audit' },
             { label: 'data', slug: 'cli/data' },
             { label: 'collab & learn', slug: 'cli/collab-learn' },
             { label: 'plugin', slug: 'cli/plugin' },
@@ -76,9 +82,13 @@ export default defineConfig({
             { label: 'JSON Contract', slug: 'contract/json-contract' },
             { label: 'Dashboard', slug: 'dashboard/overview' },
             { label: 'Assistant Panel', slug: 'dashboard/assistant' },
+            { label: 'Themes & white-label', slug: 'dashboard/themes-white-label' },
             { label: 'Template Catalog', slug: 'templates/catalog' },
             { label: 'Compatibility Matrix', slug: 'templates/matrix' },
             { label: 'MCP Server (AI agents)', slug: 'integrations/mcp' },
+            { label: 'Collaboration', slug: 'integrations/collaboration' },
+            { label: 'VS Code extension', slug: 'integrations/vscode' },
+            { label: 'Desktop app', slug: 'integrations/desktop' },
           ],
         },
         {
@@ -87,6 +97,7 @@ export default defineConfig({
             { label: 'Monorepo', slug: 'architecture/monorepo' },
             { label: 'Contracts Package', slug: 'architecture/contracts-package' },
             { label: 'Secure Hub', slug: 'architecture/secure-hub' },
+            { label: 'Control Plane', slug: 'architecture/control-plane' },
           ],
         },
         {

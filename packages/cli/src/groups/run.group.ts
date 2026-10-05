@@ -19,6 +19,7 @@ import {
   CACHE_SECRET_ENV,
 } from '../utils/cache-config';
 import { RemoteCache, createHttpCacheTransport } from '../utils/cache-store';
+import { parseResourceFlags, ResourceOptionError } from '../resources/governor';
 
 /**
  * Parse the `--concurrency` option. Returns undefined for missing/invalid input
@@ -58,6 +59,11 @@ export function registerRunGroup(program: Command): void {
     .argument('<task>', 'Task/script name to run, e.g. build or test')
     .option('--affected', 'Only run for packages affected by current changes')
     .option('--concurrency <n>', 'Max parallel tasks (default: CPU count)')
+    .option(
+      '--max-memory <mb>',
+      'Pause starting new tasks while this process exceeds <mb> MB RSS or system free memory is critically low'
+    )
+    .option('--rate-limit <n>', 'Start at most <n> tasks per second (token bucket)')
     .option('--filter <pkg...>', 'Restrict to specific package name(s)')
     .option('--json', 'Output the run summary as a JSON envelope')
     .option(
@@ -92,6 +98,22 @@ export function registerRunGroup(program: Command): void {
 
           const concurrency = parseConcurrency(options.concurrency);
           const filter = parseFilter(options.filter);
+
+          // Resource governor: invalid values are an explicit error, never a silent default.
+          let governor;
+          try {
+            governor = parseResourceFlags({
+              maxMemory: options.maxMemory,
+              rateLimit: options.rateLimit,
+            }).governor;
+          } catch (error) {
+            if (spinner) spinner.stop();
+            if (error instanceof ResourceOptionError) {
+              emitError(options.json, error.message, { task });
+              return;
+            }
+            throw error;
+          }
 
           // Discover the workspace once; reuse for both --filter validation and
           // --affected resolution so we never call discoverWorkspace twice.
@@ -131,6 +153,7 @@ export function registerRunGroup(program: Command): void {
             affectedPackages,
             continueOnError: Boolean(options.continue),
             cacheConfig,
+            ...(governor ? { governor } : {}),
             onOutput: options.json
               ? undefined
               : line => process.stdout.write(line + '\n'),
@@ -164,6 +187,14 @@ export function registerRunGroup(program: Command): void {
           } else {
             if (spinner) spinner.stop();
             renderHuman(result.task, result.results, result.concurrency);
+            const rs = result.resourceStats;
+            if (rs && (rs.throttledByRate > 0 || rs.pausedByMemory > 0)) {
+              console.log(
+                chalk.gray(
+                  `  resource limits: delayed task starts ${rs.throttledByRate}x by --rate-limit, ${rs.pausedByMemory}x by --max-memory backpressure\n`
+                )
+              );
+            }
           }
 
           if (result.hadFailure) process.exitCode = 1;

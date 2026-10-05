@@ -2,13 +2,20 @@ import { defineConfig, devices } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
 
 /**
- * Playwright config for the dashboard <-> hub round-trip E2E.
+ * Playwright config for the dashboard <-> hub round-trip E2E and the axe
+ * accessibility audit.
  *
- * The `webServer` builds the dashboard (with the hub URL + token baked in),
- * starts the token-protected, loopback-only hub against a fixture monorepo (which
- * spawns the REAL built re-shell CLI), and serves the built dashboard via
- * `vite preview`. The spec then drives the live UI and asserts the SSE + WS
- * transports actually round-trip through the secure hub.
+ * The `webServer` builds the dashboard (with the hub URL + token baked in, into a
+ * throwaway directory, never apps/web/dist), starts the token-protected,
+ * loopback-only hub against a fixture monorepo (which spawns the REAL built
+ * re-shell CLI), and serves the built dashboard via `vite preview`. The specs
+ * then drive the live UI and assert the SSE + WS transports actually round-trip
+ * through the secure hub.
+ *
+ * Two projects share that stack and map to the two CI gates:
+ *   - `chromium`: the functional core-flow specs  (`playwright test --project=chromium`)
+ *   - `a11y`:     the axe-core WCAG audit         (`playwright test --project=a11y`)
+ * A bare `playwright test` runs both.
  */
 
 // Fixed test ports + a per-run token shared by build, hub, and the dashboard
@@ -22,10 +29,13 @@ const BASE_URL = `http://127.0.0.1:${PREVIEW_PORT}`;
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.spec.ts',
-  // The stack build can take a while on a cold cache; jobs stream real CLI
-  // output, so allow generous per-test time without masking genuine hangs.
-  timeout: 60_000,
-  expect: { timeout: 15_000 },
+  // The 2000-node graph spec needs its own stack: playwright.graph.config.ts.
+  testIgnore: '**/graph-scale.spec.ts',
+  // Every screen read and job spawns the REAL CLI (a cold node start plus, for
+  // the template/command catalogs, a 100-350 KB JSON payload), which takes
+  // seconds on a busy runner. Allow generous time without masking genuine hangs.
+  timeout: 90_000,
+  expect: { timeout: 30_000 },
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
@@ -39,6 +49,17 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      // A project-level testIgnore replaces the top-level one, so repeat graph-scale
+      // here: it needs its own 2001-node stack (playwright.graph.config.ts).
+      testIgnore: ['**/accessibility.spec.ts', '**/graph-scale.spec.ts'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'a11y',
+      testMatch: '**/accessibility.spec.ts',
+      // axe walks every node of the screen; the Templates screen renders the whole
+      // 200+ card catalog, which takes minutes (not seconds) on a loaded runner.
+      timeout: 300_000,
       use: { ...devices['Desktop Chrome'] },
     },
   ],

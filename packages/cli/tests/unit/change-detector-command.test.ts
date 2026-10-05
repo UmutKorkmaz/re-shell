@@ -5,6 +5,7 @@ import * as fsReal from 'fs';
 import { manageChangeDetector } from '../../src/commands/change-detector';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/change-detector.ts — the `change-detector` command group
 // (762 lines): scan / status / stats / check / clear / watch / compare /
 // interactive dispatch. The ChangeDetector engine is mocked (its own 23-test
@@ -149,9 +150,7 @@ describe('change-detector — command', () => {
 
     it('emits the raw result as JSON in json mode', async () => {
       await manageChangeDetector({ scan: true, path: tmpDir, json: true });
-      const parsed = JSON.parse(
-        logSpy.mock.calls.map(c => c.map(String).join('')).join('')
-      );
+      const parsed = jsonData();
       expect(parsed.totalChanges).toBe(3);
       expect(parsed.added).toEqual(['src/new-file.ts', 'src/other.ts']);
     });
@@ -196,9 +195,7 @@ describe('change-detector — command', () => {
 
     it('emits the status envelope as JSON in json mode', async () => {
       await manageChangeDetector({ status: true, path: tmpDir, json: true });
-      const parsed = JSON.parse(
-        logSpy.mock.calls.map(c => c.map(String).join('')).join('')
-      );
+      const parsed = jsonData();
       expect(parsed.path).toBe(tmpDir);
       expect(parsed.cacheEnabled).toBe(true);
       expect(parsed.stats.cacheSize).toBe(12);
@@ -231,9 +228,7 @@ describe('change-detector — command', () => {
 
     it('emits cacheStats + lastScan as JSON in json mode', async () => {
       await manageChangeDetector({ stats: true, path: tmpDir, json: true });
-      const parsed = JSON.parse(
-        logSpy.mock.calls.map(c => c.map(String).join('')).join('')
-      );
+      const parsed = jsonData();
       expect(parsed.cacheStats.cacheSize).toBe(12);
       expect(parsed.lastScan.totalChanges).toBe(3);
     });
@@ -286,9 +281,7 @@ describe('change-detector — command', () => {
 
     it('emits the file analysis as JSON in json mode', async () => {
       await manageChangeDetector({ check: 'src/a.ts', path: tmpDir, json: true });
-      const parsed = JSON.parse(
-        logSpy.mock.calls.map(c => c.map(String).join('')).join('')
-      );
+      const parsed = jsonData();
       expect(parsed.file).toBe('src/a.ts');
       expect(parsed.hasChanged).toBe(false);
     });

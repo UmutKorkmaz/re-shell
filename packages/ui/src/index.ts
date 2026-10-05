@@ -1,5 +1,4 @@
-import './styles/globals.css';
-
+export * from './components/primitives';
 export * from './components/re-shell';
 export * from './components/ui';
 export * from './contracts';

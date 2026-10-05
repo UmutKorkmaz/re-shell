@@ -19,8 +19,8 @@ many packages, apps, and services. `re-shell init` lays one down with:
 - A dependency graph engine with cycle detection and topology health checks.
 
 The [`workspace`](/re-shell/cli/workspace/) command group is your control panel:
-`summary`, `health`, `graph`, `drift`, `policy`, and the Nx/Turbo importer
-(`migrate-monorepo`).
+`summary`, `health`, `graph` (and `graph diff`), live `status`, `drift`, `policy`, and
+the Nx/Turbo importer (`migrate-monorepo`).
 
 ```bash
 re-shell workspace summary --json   # root, packageManager, workspaces, graph, health
@@ -34,7 +34,7 @@ Re-Shell deliberately spans both halves of the stack from one tool:
 - **Microfrontends** — Module-Federation frontends in React, Vue, Svelte, and
   Angular. Add them with `re-shell add`, list them with `re-shell list`, and
   serve them with `re-shell serve`.
-- **Microservices** — polyglot backends across 36 languages (Node, Python, Go,
+- **Microservices** — polyglot backends across 35 languages (Node, Python, Go,
   Rust, .NET, Java, PHP, Ruby, and many more). Scaffold them from the
   [template catalog](/re-shell/templates/catalog/) or with
   [`generate backend`](/re-shell/cli/generate/).
@@ -46,12 +46,12 @@ backend.
 ```bash
 re-shell create storefront --microfrontend --framework react-ts
 re-shell generate backend orders --framework fastapi --language python
-re-shell service bridge generate   # typed cross-language client between them
+re-shell service link web orders   # a typed client of `orders`, generated from its own spec, inside `web`
 ```
 
 ## The JSON contract
 
-Every command that accepts `--json` emits a single-line envelope:
+Every command that accepts `--json` emits exactly one envelope on stdout:
 
 ```json
 { "ok": true, "data": { "...": "..." }, "warnings": [] }

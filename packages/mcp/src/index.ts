@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createRequire } from 'node:module';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -7,6 +8,10 @@ import { resolveCli, runJsonCommand, type CliInvocation } from './cli.js';
 import { getActiveTools, isWriteEnabled, type ToolDefinition } from './tools.js';
 import { RESOURCES } from './resources.js';
 import { PROMPTS } from './prompts.js';
+import { isMainEntry } from './entry.js';
+
+/** The server reports the package's own version (dist/ and src/ both sit next to package.json). */
+const PACKAGE_VERSION = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
 
 /**
  * We always return one pretty-printed JSON text block as the tool result;
@@ -86,7 +91,7 @@ const scaffoldNameSchema = z
 export function buildMcpServer(invocation: CliInvocation): McpServer {
   const server = new McpServer({
     name: '@re-shell/mcp',
-    version: '0.1.0',
+    version: PACKAGE_VERSION,
   });
 
   // ── Tools ───────────────────────────────────────────────────────────────────
@@ -253,19 +258,9 @@ async function main(): Promise<void> {
 
 // Entry-point guard: only start the stdio server when this module IS the entry
 // point. Importing buildMcpServer in a test (or as a library) must NOT spawn the
-// transport or resolve the CLI.
-import { fileURLToPath } from 'node:url';
-import nodePath from 'node:path';
-function isMainEntry(): boolean {
-  if (!process.argv[1]) return false;
-  try {
-    return nodePath.resolve(process.argv[1]) === nodePath.resolve(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
-}
-
-if (isMainEntry()) {
+// transport or resolve the CLI. The comparison is by real path so the installed
+// `re-shell-mcp` bin symlink counts as the entry (see ./entry.ts).
+if (isMainEntry(process.argv[1], import.meta.url)) {
   main().catch((err) => {
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(`[re-shell-mcp] Fatal: ${message}\n`);

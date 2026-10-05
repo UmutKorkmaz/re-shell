@@ -387,6 +387,273 @@ export const aiPlanResponseSchema = z.object({
 export type AiPlanResponse = z.infer<typeof aiPlanResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// AI command interface (`re-shell ai ...`)
+//
+// `ai <prompt>` resolves a natural-language prompt to a vetted `re-shell`
+// command through a pluggable provider (Anthropic, an OpenAI-compatible/local
+// LLM, or the always-available offline parser). The response is either a
+// RESOLVED command or a CLARIFYING question; it never executes anything
+// (`executed` is always false in machine output). Every resolved argv has been
+// validated against the live command catalogue and the shell-inert allow-list,
+// and refers only to REAL workspace nodes.
+//
+// The companion subcommands (`ai suggest`, `ai session`, `ai cache`,
+// `ai config`) each have their own response shape below.
+// ---------------------------------------------------------------------------
+
+export const aiProviderNameSchema = z.enum(['anthropic', 'openai-compatible', 'offline']);
+export type AiProviderName = z.infer<typeof aiProviderNameSchema>;
+
+/** A real workspace node a resolved command refers to. */
+export const aiWorkspaceNodeRefSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  kind: z.string(),
+});
+export type AiWorkspaceNodeRef = z.infer<typeof aiWorkspaceNodeRefSchema>;
+
+/** One ranked, vetted command candidate. `argv` excludes the `re-shell` binary. */
+export const aiIntentCandidateSchema = z.object({
+  path: z.string(),
+  description: z.string(),
+  argv: z.array(z.string()),
+  confidence: z.number(),
+  destructive: z.boolean(),
+  supportsJson: z.boolean(),
+  supportsDryRun: z.boolean(),
+  // Real workspace nodes the argv targets (present when a workspace was found).
+  nodes: z.array(aiWorkspaceNodeRefSchema).optional(),
+  // Required positionals the argv does not supply yet.
+  missingArgs: z.array(z.string()).optional(),
+});
+export type AiIntentCandidate = z.infer<typeof aiIntentCandidateSchema>;
+
+/** Where an answer came from. */
+export const aiResolutionSourceSchema = z.enum(['offline', 'llm', 'cache', 'clarification']);
+export type AiResolutionSource = z.infer<typeof aiResolutionSourceSchema>;
+
+/** Provenance + diagnostics shared by both response branches. */
+const aiIntentMetaShape = {
+  // The provider that actually produced the answer (offline after a fallback).
+  provider: aiProviderNameSchema,
+  // The provider that was configured.
+  requestedProvider: aiProviderNameSchema,
+  model: z.string().optional(),
+  source: aiResolutionSourceSchema,
+  // True when the answer came from the semantic cache.
+  cached: z.boolean(),
+  cache: z.object({ similarity: z.number(), hits: z.number() }).optional(),
+  // True when a resolved result's confidence is below the low-confidence bar.
+  lowConfidence: z.boolean(),
+  // Present when a provider failed and the offline parser answered instead.
+  fallback: z
+    .object({ from: aiProviderNameSchema, kind: z.string(), message: z.string() })
+    .optional(),
+  // Present when a session was used or created.
+  session: z.object({ id: z.string(), turn: z.number(), pending: z.boolean() }).optional(),
+  workspace: z.object({
+    root: z.string(),
+    inWorkspace: z.boolean(),
+    nodes: z.number(),
+    fingerprint: z.string(),
+  }),
+  usage: z
+    .object({
+      inputTokens: z.number().optional(),
+      outputTokens: z.number().optional(),
+      latencyMs: z.number().optional(),
+    })
+    .optional(),
+  // Machine output never executes anything.
+  executed: z.literal(false),
+};
+
+/** A confident resolution. */
+export const aiIntentResolvedSchema = z.object({
+  needsClarification: z.literal(false),
+  resolved: aiIntentCandidateSchema,
+  confidence: z.number(),
+  alternatives: z.array(aiIntentCandidateSchema),
+  explanation: z.string().optional(),
+  ...aiIntentMetaShape,
+});
+export type AiIntentResolved = z.infer<typeof aiIntentResolvedSchema>;
+
+/** A clarifying question with the candidates the user can pick from. */
+export const aiIntentClarifySchema = z.object({
+  needsClarification: z.literal(true),
+  reason: z.string(),
+  question: z.string(),
+  candidates: z.array(aiIntentCandidateSchema),
+  ...aiIntentMetaShape,
+});
+export type AiIntentClarify = z.infer<typeof aiIntentClarifySchema>;
+
+/** Envelope payload for `ai <prompt> --json`. */
+export const aiIntentResponseSchema = z.discriminatedUnion('needsClarification', [
+  aiIntentResolvedSchema,
+  aiIntentClarifySchema,
+]);
+export type AiIntentResponse = z.infer<typeof aiIntentResponseSchema>;
+
+/** One autocomplete suggestion. */
+export const aiSuggestionSchema = z.object({
+  text: z.string(),
+  kind: z.enum(['history', 'node', 'command']),
+  confidence: z.number(),
+  // True when confidence is below the low-confidence bar.
+  lowConfidence: z.boolean(),
+  argv: z.array(z.string()),
+  description: z.string().optional(),
+});
+export type AiSuggestion = z.infer<typeof aiSuggestionSchema>;
+
+/** Envelope payload for `ai suggest <partial> --json`. */
+export const aiSuggestResponseSchema = z.object({
+  partial: z.string(),
+  suggestions: z.array(aiSuggestionSchema),
+});
+export type AiSuggestResponse = z.infer<typeof aiSuggestResponseSchema>;
+
+/** One recorded session turn. */
+export const aiSessionTurnSchema = z.object({
+  at: z.string(),
+  prompt: z.string(),
+  kind: z.enum(['resolved', 'clarify', 'cancelled']),
+  argv: z.array(z.string()).optional(),
+  confidence: z.number().optional(),
+  question: z.string().optional(),
+  candidates: z.array(z.object({ argv: z.array(z.string()), confidence: z.number() })).optional(),
+  provider: z.string(),
+  source: z.string(),
+});
+export type AiSessionTurn = z.infer<typeof aiSessionTurnSchema>;
+
+/** A clarification awaiting the user's answer. */
+export const aiPendingClarificationSchema = z.object({
+  question: z.string(),
+  reason: z.string(),
+  candidates: z.array(aiIntentCandidateSchema),
+  originalPrompt: z.string(),
+  askedAt: z.string(),
+});
+export type AiPendingClarification = z.infer<typeof aiPendingClarificationSchema>;
+
+/** A full persisted session. */
+export const aiSessionSchema = z.object({
+  version: z.literal(1),
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  workspaceFingerprint: z.string(),
+  turns: z.array(aiSessionTurnSchema),
+  pending: aiPendingClarificationSchema.optional(),
+});
+export type AiSession = z.infer<typeof aiSessionSchema>;
+
+/** One row of `ai session list`. */
+export const aiSessionSummarySchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  turns: z.number(),
+  pending: z.boolean(),
+  lastPrompt: z.string().optional(),
+});
+export type AiSessionSummary = z.infer<typeof aiSessionSummarySchema>;
+
+/** Envelope payload for `ai session list --json`. */
+export const aiSessionListResponseSchema = z.object({
+  directory: z.string(),
+  sessions: z.array(aiSessionSummarySchema),
+});
+export type AiSessionListResponse = z.infer<typeof aiSessionListResponseSchema>;
+
+/** Envelope payload for `ai session show <id> --json`. */
+export const aiSessionShowResponseSchema = z.object({ session: aiSessionSchema });
+export type AiSessionShowResponse = z.infer<typeof aiSessionShowResponseSchema>;
+
+/** Envelope payload for `ai session clear --json`. */
+export const aiSessionClearResponseSchema = z.object({
+  removed: z.number(),
+  ids: z.array(z.string()),
+});
+export type AiSessionClearResponse = z.infer<typeof aiSessionClearResponseSchema>;
+
+/** Envelope payload for `ai cache stats --json`. */
+export const aiCacheStatsResponseSchema = z.object({
+  path: z.string(),
+  entries: z.number(),
+  expired: z.number(),
+  bytes: z.number(),
+  hits: z.number(),
+  misses: z.number(),
+  hitRate: z.number(),
+  oldestAt: z.string().nullable(),
+  newestAt: z.string().nullable(),
+  ttlSeconds: z.number(),
+  maxEntries: z.number(),
+  threshold: z.number(),
+  byProvider: z.record(z.string(), z.number()),
+});
+export type AiCacheStatsResponse = z.infer<typeof aiCacheStatsResponseSchema>;
+
+/** Envelope payload for `ai cache clear --json`. */
+export const aiCacheClearResponseSchema = z.object({ removed: z.number() });
+export type AiCacheClearResponse = z.infer<typeof aiCacheClearResponseSchema>;
+
+/** Where a config value came from. */
+export const aiConfigSourceSchema = z.enum(['override', 'env', 'config', 'auto', 'default']);
+
+/**
+ * The redacted view of the provider configuration. The API key is NEVER present:
+ * only whether one is set and which source supplied it.
+ */
+export const aiConfigViewSchema = z.object({
+  provider: aiProviderNameSchema,
+  model: z.string().optional(),
+  baseUrl: z.string().optional(),
+  apiKey: z.object({
+    set: z.boolean(),
+    source: z.union([aiConfigSourceSchema, z.literal('unset')]),
+  }),
+  timeoutMs: z.number(),
+  cache: z.boolean(),
+  cacheTtlSeconds: z.number(),
+  sources: z.object({
+    provider: aiConfigSourceSchema,
+    model: aiConfigSourceSchema,
+    baseUrl: aiConfigSourceSchema,
+    apiKey: z.union([aiConfigSourceSchema, z.literal('unset')]),
+    timeoutMs: aiConfigSourceSchema,
+  }),
+});
+export type AiConfigView = z.infer<typeof aiConfigViewSchema>;
+
+/** Envelope payload for `ai config show --json`. */
+export const aiConfigShowResponseSchema = z.object({
+  config: aiConfigViewSchema,
+  // Keys persisted in the global config (never their secret values).
+  persistedKeys: z.array(z.string()),
+  file: z.string(),
+});
+export type AiConfigShowResponse = z.infer<typeof aiConfigShowResponseSchema>;
+
+/** Envelope payload for `ai config get <key> --json` and `set`/`unset`. */
+export const aiConfigValueResponseSchema = z.object({
+  key: z.string(),
+  // Redacted for secrets; null when unset.
+  value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+  secret: z.boolean(),
+  set: z.boolean(),
+  // For `get`: where the effective value comes from (env > config > default).
+  source: z.string().optional(),
+  // The persisted global config file this key lives in.
+  file: z.string(),
+});
+export type AiConfigValueResponse = z.infer<typeof aiConfigValueResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // Agent-readiness docs
 //
 // `re-shell agents init|sync|check` make a repo "agent-ready by construction":
@@ -472,16 +739,35 @@ export const sseEventSchema = z.object({
 export type SseEvent = z.infer<typeof sseEventSchema>;
 
 /**
- * A message sent FROM the browser client TO the hub over the `/jobs` WebSocket.
- * Browsers may only ever supply a stable `commandId` + opaque `params`; never a
- * raw command/argv. The hub resolves these against its allow-listed registry.
+ * A job-control message sent FROM the browser client TO the hub over the `/jobs`
+ * WebSocket. Browsers may only ever supply a stable `commandId` + opaque
+ * `params`; never a raw command/argv. The hub resolves these against its
+ * allow-listed registry.
  */
-export const wsClientMessageSchema = z.object({
+export const wsJobMessageSchema = z.object({
   type: z.enum(['start', 'cancel']),
   id: z.string(),
   commandId: z.string().optional(),
   params: z.unknown().optional(),
 });
+export type WsJobMessage = z.infer<typeof wsJobMessageSchema>;
+
+/**
+ * The first-message authentication handshake. A client that could not present
+ * the per-launch session token on the WebSocket upgrade (via the
+ * `Sec-WebSocket-Protocol` header) must send `{ type: 'auth', token }` before
+ * any other message; the hub closes the socket with a policy violation otherwise.
+ */
+export const wsAuthMessageSchema = z.object({
+  type: z.literal('auth'),
+  token: z.string(),
+});
+export type WsAuthMessage = z.infer<typeof wsAuthMessageSchema>;
+
+/**
+ * Every message a client may send to the hub over the `/jobs` WebSocket.
+ */
+export const wsClientMessageSchema = z.union([wsJobMessageSchema, wsAuthMessageSchema]);
 export type WsClientMessage = z.infer<typeof wsClientMessageSchema>;
 
 /**
@@ -1247,14 +1533,73 @@ export type ApiVerifyResponse = z.infer<typeof apiVerifyResponseSchema>;
 // These schemas describe the durable --json run log + outcome.
 // ---------------------------------------------------------------------------
 
-/** Why the fix loop terminated. */
+/**
+ * Why the fix loop terminated.
+ *
+ * `report-only` (R-3): no fix applier (AI provider) was available, so the
+ * gates were evaluated and reported but no fix was attempted.
+ * `provider-error` (R-3): the AI provider failed; the loop stopped and rolled back.
+ */
 export const fixLoopOutcomeSchema = z.enum([
   'pr-ready',
   'no-progress',
   'bounded-out',
   'already-green',
+  'report-only',
+  'provider-error',
 ]);
 export type FixLoopOutcome = z.infer<typeof fixLoopOutcomeSchema>;
+
+/** Kind of a CI gate. Tests are ALWAYS locked. */
+export const fixCiGateKindSchema = z.enum(['typecheck', 'test', 'lint', 'build', 'custom']);
+export type FixCiGateKind = z.infer<typeof fixCiGateKindSchema>;
+
+/** One structured failure parsed from a gate's output (tsc, vitest/jest, eslint, generic). */
+export const fixCiFailingEntrySchema = z.object({
+  gate: z.string(),
+  /** Workspace-relative file path when parseable. */
+  file: z.string().optional(),
+  line: z.number().optional(),
+  column: z.number().optional(),
+  /** Diagnostic code (e.g. TS2322, an eslint rule id) when parseable. */
+  code: z.string().optional(),
+  message: z.string(),
+});
+export type FixCiFailingEntry = z.infer<typeof fixCiFailingEntrySchema>;
+
+/** The result of running one gate as a real child process. */
+export const fixCiGateResultSchema = z.object({
+  name: z.string(),
+  kind: fixCiGateKindSchema,
+  /** Locked gates can never be skipped and must pass. */
+  locked: z.boolean(),
+  /** The argv that was executed (no shell). */
+  command: z.array(z.string()),
+  passed: z.boolean(),
+  /** Process exit code; null when killed (timeout) or when spawning failed. */
+  exitCode: z.number().nullable(),
+  timedOut: z.boolean(),
+  durationMs: z.number(),
+  failing: z.array(fixCiFailingEntrySchema),
+});
+export type FixCiGateResult = z.infer<typeof fixCiGateResultSchema>;
+
+/** Diffstat + validation verdict for the patch proposed in one iteration. */
+export const fixCiPatchSchema = z.object({
+  /** True when the patch passed validation and was applied to the work tree. */
+  accepted: z.boolean(),
+  files: z.array(
+    z.object({ path: z.string(), additions: z.number(), deletions: z.number() })
+  ),
+  filesChanged: z.number(),
+  additions: z.number(),
+  deletions: z.number(),
+  /** Why the patch was rejected (validation / does not apply); absent when accepted. */
+  rejectedReason: z.string().optional(),
+  /** Short model-provided explanation of the change. */
+  explanation: z.string().optional(),
+});
+export type FixCiPatch = z.infer<typeof fixCiPatchSchema>;
 
 /** One iteration in the durable fix-loop log. */
 export const fixLoopIterationSchema = z.object({
@@ -1276,14 +1621,35 @@ export const fixLoopIterationSchema = z.object({
       failingGates: z.array(z.string()),
     })
     .optional(),
+  /** Per-gate detail at the start of the iteration (R-3 real evaluator). */
+  gateResultsBefore: z.array(fixCiGateResultSchema).optional(),
+  /** Per-gate detail after the patch was applied. */
+  gateResultsAfter: z.array(fixCiGateResultSchema).optional(),
+  /** The patch proposed this iteration, with its diffstat. */
+  patch: fixCiPatchSchema.optional(),
+  /** True when this iteration's patch was reverted (rejected, regressed, or run ended red). */
+  rolledBack: z.boolean().optional(),
 });
 export type FixLoopIteration = z.infer<typeof fixLoopIterationSchema>;
+
+/** The pull request opened for a green run, or why none was. */
+export const fixCiPrSchema = z.object({
+  url: z.string(),
+  branch: z.string(),
+  base: z.string(),
+});
+export type FixCiPr = z.infer<typeof fixCiPrSchema>;
 
 /**
  * Envelope payload for `re-shell fix --ci --json`: the loop `outcome`, the
  * durable per-iteration `iterations`, whether `gatesPassed`, the `appliedFixes`,
  * a human `summary`, whether a `prOpened` was attempted (only under
  * `--no-dry-run` AND `pr-ready`; never auto-merged), and any `warnings`.
+ *
+ * R-3 additions (all optional so legacy producers stay valid): the final
+ * `verdict`, the fix `branch`, the `pr` (null when none was opened), the
+ * `manualSteps` printed when a PR could not be opened automatically, and the
+ * gate definitions that were used.
  */
 export const fixCiResponseSchema = z.object({
   outcome: fixLoopOutcomeSchema,
@@ -1298,6 +1664,34 @@ export const fixCiResponseSchema = z.object({
   /** The PR URL when one was opened, else "". */
   prUrl: z.string(),
   warnings: z.array(z.string()),
+  /** Final verdict: `green` only when every gate passed at the end. */
+  verdict: z.enum(['green', 'red']).optional(),
+  /** The AI provider used as fix applier; null in report-only mode. */
+  provider: z.string().nullable().optional(),
+  /** Branch the work was done on (null when no branch was created). */
+  branch: z.string().nullable().optional(),
+  /** Branch the run started from. */
+  baseBranch: z.string().nullable().optional(),
+  /** The opened PR, or null (dry-run, gh unavailable, gates red). */
+  pr: fixCiPrSchema.nullable().optional(),
+  /** Exact manual steps when a green run could not open a PR automatically. */
+  manualSteps: z.array(z.string()).optional(),
+  /** Where the gate definitions came from and what they were. */
+  gates: z
+    .object({
+      source: z.string(),
+      definitions: z.array(
+        z.object({
+          name: z.string(),
+          kind: fixCiGateKindSchema,
+          locked: z.boolean(),
+          command: z.array(z.string()),
+        })
+      ),
+    })
+    .optional(),
+  /** Final gate results (after the last evaluation). */
+  finalGates: z.array(fixCiGateResultSchema).optional(),
 });
 export type FixCiResponse = z.infer<typeof fixCiResponseSchema>;
 
@@ -1426,3 +1820,428 @@ export const uiTestResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 export type UiTestResponse = z.infer<typeof uiTestResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Kubernetes rollback / CRD / operator / service-mesh generators (P9-D)
+//
+// `re-shell k8s rollback` talks to a real cluster (kubectl / helm); the CRD,
+// operator and mesh generators are pure, workspace-driven file generators. The
+// payloads below are what each command emits under `data` with `--json`.
+// ---------------------------------------------------------------------------
+
+/** How a rollback was performed. */
+export const k8sRollbackMethodSchema = z.enum(['kubectl', 'helm']);
+export type K8sRollbackMethod = z.infer<typeof k8sRollbackMethodSchema>;
+
+/** Stable machine-readable reason carried in `error.details.reason` when a rollback fails. */
+export const k8sRollbackFailureReasonSchema = z.enum([
+  'INVALID_ARGUMENT',
+  'TOOL_MISSING',
+  'CLUSTER_UNREACHABLE',
+  'NOT_FOUND',
+  'NOT_HELM_MANAGED',
+  'NO_PREVIOUS_REVISION',
+  'REVISION_NOT_FOUND',
+  'COMMAND_FAILED',
+  'ROLLOUT_FAILED',
+]);
+export type K8sRollbackFailureReason = z.infer<typeof k8sRollbackFailureReasonSchema>;
+
+/**
+ * Envelope payload for `re-shell k8s rollback --json`. `rolledBack` is true only
+ * when the undo was applied AND the workload became ready again; a dry-run
+ * reports the planned command with `rolledBack: false`.
+ */
+export const k8sRollbackResponseSchema = z.object({
+  service: z.string(),
+  namespace: z.string(),
+  method: k8sRollbackMethodSchema,
+  /** Helm release name when `method` is `helm`. */
+  release: z.string().optional(),
+  dryRun: z.boolean(),
+  /** Revision that was live before the rollback (null when unknown). */
+  fromRevision: z.number().nullable(),
+  /** Revision the rollback returns to. */
+  toRevision: z.number(),
+  /** Revision live after the rollback (null for a dry-run). */
+  currentRevision: z.number().nullable(),
+  /** The mutating command that was (or, for a dry-run, would be) executed. */
+  command: z.array(z.string()),
+  rolledBack: z.boolean(),
+  output: z.string(),
+  rolloutStatus: z.string().optional(),
+});
+export type K8sRollbackResponse = z.infer<typeof k8sRollbackResponseSchema>;
+
+/** Identity of the generated ReShellWorkspace CRD. */
+export const k8sCrdIdentitySchema = z.object({
+  /** `<plural>.<group>`, the CRD's metadata.name. */
+  name: z.string(),
+  group: z.string(),
+  version: z.string(),
+  kind: z.string(),
+  plural: z.string(),
+  singular: z.string(),
+  scope: z.enum(['Namespaced', 'Cluster']),
+});
+export type K8sCrdIdentity = z.infer<typeof k8sCrdIdentitySchema>;
+
+/** One rendered manifest of a generator (CRD, sample CR, mesh resource). */
+export const k8sGeneratedManifestSchema = z.object({
+  kind: z.string(),
+  name: z.string(),
+  /** Path relative to the output directory. */
+  path: z.string(),
+  yaml: z.string(),
+});
+export type K8sGeneratedManifest = z.infer<typeof k8sGeneratedManifestSchema>;
+
+/** Outcome of an external verification tool (kubectl/go): `ran` is false when it was unavailable. */
+export const k8sToolCheckSchema = z.object({
+  ran: z.boolean(),
+  ok: z.boolean().optional(),
+  detail: z.string().optional(),
+});
+export type K8sToolCheck = z.infer<typeof k8sToolCheckSchema>;
+
+/** Envelope payload for `re-shell k8s crd --json`. */
+export const k8sCrdResponseSchema = z.object({
+  crd: k8sCrdIdentitySchema,
+  manifests: z.array(k8sGeneratedManifestSchema),
+  written: z.array(z.string()),
+  /** `kubectl apply --dry-run=server` outcome when a cluster is reachable. */
+  kubectl: k8sToolCheckSchema,
+});
+export type K8sCrdResponse = z.infer<typeof k8sCrdResponseSchema>;
+
+/** Envelope payload for `re-shell k8s mesh --json`. */
+export const k8sMeshResponseSchema = z.object({
+  mesh: z.enum(['istio', 'linkerd']),
+  namespace: z.string(),
+  mtls: z.boolean(),
+  trafficManagement: z.boolean(),
+  manifests: z.array(k8sGeneratedManifestSchema),
+  /** Generated documentation files (README with injection + multi-cluster notes). */
+  docs: z.array(z.object({ path: z.string(), content: z.string() })),
+  written: z.array(z.string()),
+});
+export type K8sMeshResponse = z.infer<typeof k8sMeshResponseSchema>;
+
+/** Envelope payload for `re-shell k8s operator --json`. */
+export const k8sOperatorResponseSchema = z.object({
+  /** Go module path of the scaffold. */
+  module: z.string(),
+  crd: k8sCrdIdentitySchema,
+  files: z.array(z.object({ path: z.string(), bytes: z.number() })),
+  written: z.array(z.string()),
+  /** Result of the optional `--verify` `go build` (ran:false when not requested). */
+  build: k8sToolCheckSchema,
+});
+export type K8sOperatorResponse = z.infer<typeof k8sOperatorResponseSchema>;
+// create  (`re-shell create [--dry-run] [--json]`)  — P9-H2 (S-D)
+//
+// `create` scaffolds a project in one of six modes. `--dry-run` renders the
+// exact file set the real run would write (via a throwaway directory) and, when
+// the target already exists, classifies each file against what is on disk:
+// added / modified / unchanged, with a unified diff for modified files. The real
+// (non-dry-run) `--json` run reports what was written plus the next steps.
+// ---------------------------------------------------------------------------
+
+/** Scaffold modes `create` resolves a request into. `skeleton` is an empty workspace (`--template blank`). */
+export const createModeSchema = z.enum([
+  'frontend',
+  'backend',
+  'fullstack',
+  'microfrontend',
+  'polyglot',
+  'skeleton',
+]);
+export type CreateMode = z.infer<typeof createModeSchema>;
+
+/** How a scaffolded file compares to what already exists at the target. */
+export const scaffoldFileStatusSchema = z.enum(['added', 'modified', 'unchanged']);
+export type ScaffoldFileStatus = z.infer<typeof scaffoldFileStatusSchema>;
+
+/** What the scaffold WOULD do to the file (retained from the clean dry-run payload). */
+export const scaffoldFileActionSchema = z.enum(['create', 'overwrite', 'unchanged']);
+export type ScaffoldFileAction = z.infer<typeof scaffoldFileActionSchema>;
+
+/** One file in a dry-run: where it goes, how big it is, and how it compares to disk. */
+export const scaffoldFileSchema = z.object({
+  /** Path relative to the payload's `root`, always forward-slashed. */
+  path: z.string(),
+  /** Size of the rendered file in bytes (UTF-8). */
+  bytes: z.number(),
+  /** `create` when the file does not exist yet, `overwrite` when it differs, else `unchanged`. */
+  action: scaffoldFileActionSchema,
+  /** `added` / `modified` / `unchanged` relative to the existing target. */
+  status: scaffoldFileStatusSchema,
+  /** Unified diff (existing -> scaffolded). Present only for `modified` text files. */
+  diff: z.string().optional(),
+});
+export type ScaffoldFile = z.infer<typeof scaffoldFileSchema>;
+
+/** Counts of files per {@link ScaffoldFileStatus}. */
+export const scaffoldDryRunSummarySchema = z.object({
+  added: z.number(),
+  modified: z.number(),
+  unchanged: z.number(),
+});
+export type ScaffoldDryRunSummary = z.infer<typeof scaffoldDryRunSummarySchema>;
+
+/**
+ * Envelope payload for `re-shell create --dry-run --json`: the resolved `mode`,
+ * the absolute `root` every file `path` is relative to, whether the target
+ * directory already exists (`targetExists`), the exact `files` the real run
+ * would write (each classified against disk, with a `diff` when modified), a
+ * short `previews` head per file, per-status `summary` counts, and `notes`
+ * describing defaults that were applied. Nothing is written.
+ */
+export const createDryRunResponseSchema = z.object({
+  project: z.string(),
+  mode: createModeSchema,
+  /** Primary template id (backend template for backend/fullstack, else the frontend framework). */
+  templateId: z.string().optional(),
+  frontend: z.string().optional(),
+  backend: z.string().optional(),
+  dryRun: z.literal(true),
+  root: z.string(),
+  targetExists: z.boolean(),
+  files: z.array(scaffoldFileSchema),
+  totalBytes: z.number(),
+  previews: z.record(z.string(), z.string()),
+  summary: scaffoldDryRunSummarySchema,
+  notes: z.array(z.string()),
+});
+export type CreateDryRunResponse = z.infer<typeof createDryRunResponseSchema>;
+
+/**
+ * Envelope payload for a real `re-shell create --json` run: the resolved `mode`,
+ * the absolute `root`/`projectPath`, whether the output is a bare `skeleton`
+ * (nothing runnable yet), every `files` path written (relative to `root`), the
+ * honest `nextSteps`, and `notes` describing defaults that were applied.
+ */
+export const createResponseSchema = z.object({
+  project: z.string(),
+  mode: createModeSchema,
+  dryRun: z.literal(false),
+  root: z.string(),
+  projectPath: z.string(),
+  skeleton: z.boolean(),
+  files: z.array(z.string()),
+  nextSteps: z.array(z.string()),
+  notes: z.array(z.string()),
+});
+export type CreateResponse = z.infer<typeof createResponseSchema>;
+// service bridge  (`re-shell service link|unlink|validate`, `service bridge ...`)
+// — P9-B cross-language service bridge
+// ---------------------------------------------------------------------------
+
+export const bridgeProtocolSchema = z.enum(['rest', 'grpc', 'graphql']);
+export type BridgeProtocolName = z.infer<typeof bridgeProtocolSchema>;
+
+export const bridgeClientLanguageSchema = z.enum(['ts', 'python', 'go']);
+export type BridgeClientLanguage = z.infer<typeof bridgeClientLanguageSchema>;
+
+/** A generated file (relative path + content + kind). */
+export const bridgeArtifactSchema = z.object({
+  path: z.string(),
+  kind: z.string(),
+  content: z.string(),
+});
+export type BridgeArtifactPayload = z.infer<typeof bridgeArtifactSchema>;
+
+/** Outcome of one toolchain verification step (tsc / py_compile / mypy / go build). */
+export const bridgeVerifyResultSchema = z.object({
+  language: bridgeClientLanguageSchema,
+  tool: z.string(),
+  status: z.enum(['passed', 'failed', 'skipped']),
+  detail: z.string().optional(),
+});
+export type BridgeVerifyResult = z.infer<typeof bridgeVerifyResultSchema>;
+
+/** Outcome of compiling protobuf stubs for the Python / Go gRPC clients. */
+export const bridgeStubResultSchema = z.object({
+  language: z.enum(['python', 'go']),
+  status: z.enum(['generated', 'skipped', 'failed']),
+  detail: z.string(),
+});
+export type BridgeStubResult = z.infer<typeof bridgeStubResultSchema>;
+
+/**
+ * `service bridge generate --json`: spec-driven (`contractSource: 'spec'`, with
+ * `spec`, `languages`, optional `verification`) or the default
+ * health/echo/config contract (`contractSource: 'default'`).
+ */
+export const bridgeGenerateResponseSchema = z.object({
+  protocol: bridgeProtocolSchema,
+  service: z.string(),
+  contractSource: z.enum(['spec', 'default']).optional(),
+  spec: z
+    .object({
+      path: z.string(),
+      sha256: z.string(),
+      title: z.string(),
+      version: z.string().optional(),
+      operations: z.number(),
+      models: z.number(),
+    })
+    .optional(),
+  languages: z.array(bridgeClientLanguageSchema).optional(),
+  artifacts: z.array(bridgeArtifactSchema),
+  written: z.array(z.string()),
+  tsCheck: z.object({ ran: z.boolean(), ok: z.boolean().optional(), detail: z.string().optional() }),
+  verification: z.array(bridgeVerifyResultSchema).optional(),
+  stubs: z.array(bridgeStubResultSchema).optional(),
+});
+export type BridgeGenerateResponse = z.infer<typeof bridgeGenerateResponseSchema>;
+
+/** `service link --json`. */
+export const bridgeLinkResponseSchema = z.object({
+  consumer: z.string(),
+  provider: z.string(),
+  protocol: bridgeProtocolSchema,
+  languages: z.array(bridgeClientLanguageSchema),
+  spec: z.string(),
+  client: z.string(),
+  contractSha256: z.string(),
+  operations: z.number(),
+  files: z.array(z.string()),
+  written: z.boolean(),
+  config: z.string(),
+  dependsOnAdded: z.boolean(),
+  stubs: z.array(bridgeStubResultSchema),
+});
+export type BridgeLinkResponse = z.infer<typeof bridgeLinkResponseSchema>;
+
+/** A recorded link (`services.<consumer>.links[]` in the v2 workspace config). */
+export const bridgeServiceLinkSchema = z.object({
+  service: z.string(),
+  protocol: bridgeProtocolSchema,
+  spec: z.string(),
+  client: z.string(),
+  languages: z.array(bridgeClientLanguageSchema).optional(),
+  contractSha256: z.string().optional(),
+});
+export type BridgeServiceLink = z.infer<typeof bridgeServiceLinkSchema>;
+
+/** `service unlink --json`. */
+export const bridgeUnlinkResponseSchema = z.object({
+  consumer: z.string(),
+  provider: z.string(),
+  removed: z.array(bridgeServiceLinkSchema),
+  clientRemoved: z.array(z.string()),
+  config: z.string(),
+});
+export type BridgeUnlinkResponse = z.infer<typeof bridgeUnlinkResponseSchema>;
+
+export const bridgeChangeSeveritySchema = z.enum(['breaking', 'dangerous', 'non-breaking']);
+export type BridgeChangeSeverity = z.infer<typeof bridgeChangeSeveritySchema>;
+
+/** One classified contract change. */
+export const bridgeContractChangeSchema = z.object({
+  severity: bridgeChangeSeveritySchema,
+  code: z.string(),
+  path: z.string(),
+  message: z.string(),
+});
+export type BridgeContractChange = z.infer<typeof bridgeContractChangeSchema>;
+
+/** `service validate --json` (ok:true even when invalid; exit code 1 signals the verdict). */
+export const bridgeValidateResponseSchema = z.object({
+  valid: z.boolean(),
+  config: z.string(),
+  services: z.number(),
+  links: z.array(
+    z.object({
+      consumer: z.string(),
+      provider: z.string(),
+      protocol: bridgeProtocolSchema,
+      spec: z.string(),
+      client: z.string(),
+      status: z.enum(['ok', 'stale', 'broken']),
+      changes: z.array(bridgeContractChangeSchema),
+    })
+  ),
+  cycles: z.array(z.array(z.string())),
+  issues: z.array(
+    z.object({
+      severity: z.enum(['error', 'warning']),
+      code: z.string(),
+      message: z.string(),
+      consumer: z.string().optional(),
+      provider: z.string().optional(),
+    })
+  ),
+});
+export type BridgeValidateResponse = z.infer<typeof bridgeValidateResponseSchema>;
+
+const bridgeContractRefSchema = z.object({
+  path: z.string(),
+  sha256: z.string(),
+  title: z.string(),
+  version: z.string().optional(),
+});
+
+/** `service bridge diff --json` (ok:true even when breaking; exit code 1 signals the verdict). */
+export const bridgeDiffResponseSchema = z.object({
+  protocol: bridgeProtocolSchema,
+  base: bridgeContractRefSchema,
+  head: bridgeContractRefSchema,
+  strict: z.boolean(),
+  compatible: z.boolean(),
+  pass: z.boolean(),
+  summary: z.object({ breaking: z.number(), dangerous: z.number(), nonBreaking: z.number() }),
+  changes: z.array(bridgeContractChangeSchema),
+});
+export type BridgeDiffResponse = z.infer<typeof bridgeDiffResponseSchema>;
+
+/** `service bridge mock --json` (emitted once the mock server is listening). */
+export const bridgeMockResponseSchema = z.object({
+  host: z.string(),
+  protocols: z.array(bridgeProtocolSchema),
+  baseUrl: z.string().optional(),
+  graphqlUrl: z.string().optional(),
+  grpcAddress: z.string().optional(),
+  httpPort: z.number().optional(),
+  grpcPort: z.number().optional(),
+  specs: z.array(z.object({ path: z.string(), protocol: bridgeProtocolSchema, title: z.string(), operations: z.number() })),
+});
+export type BridgeMockResponse = z.infer<typeof bridgeMockResponseSchema>;
+
+/** `service bridge gateway --json`. */
+export const bridgeGatewayResponseSchema = z.object({
+  mode: z.enum(['federation', 'stitch']),
+  subgraphs: z.array(z.object({ name: z.string(), url: z.string().optional(), types: z.number(), rootFields: z.array(z.string()) })),
+  supergraphSdl: z.string().optional(),
+  gatewaySdl: z.string(),
+  artifacts: z.array(bridgeArtifactSchema),
+  written: z.array(z.string()),
+});
+export type BridgeGatewayResponse = z.infer<typeof bridgeGatewayResponseSchema>;
+
+/** `service bridge async --json`. */
+export const bridgeAsyncResponseSchema = z.object({
+  service: z.string(),
+  transport: z.enum(['kafka', 'redis-streams']).nullable(),
+  languages: z.array(z.enum(['ts', 'python'])),
+  messages: z.array(z.object({ name: z.string(), channel: z.string(), currentVersion: z.number(), versions: z.array(z.number()) })),
+  artifacts: z.array(bridgeArtifactSchema),
+  written: z.array(z.string()),
+  verification: z.array(bridgeVerifyResultSchema).optional(),
+  initialized: z.string().optional(),
+});
+export type BridgeAsyncResponse = z.infer<typeof bridgeAsyncResponseSchema>;
+
+/** `service bridge transform --json`. */
+export const bridgeTransformResponseSchema = z.object({
+  from: z.enum(['json', 'protobuf', 'avro', 'msgpack']),
+  to: z.enum(['json', 'protobuf', 'avro', 'msgpack']),
+  bytes: z.number(),
+  output: z.string().optional(),
+  outputBase64: z.string().optional(),
+  value: z.unknown(),
+  steps: z.array(z.string()),
+  written: z.string().optional(),
+});
+export type BridgeTransformResponse = z.infer<typeof bridgeTransformResponseSchema>;

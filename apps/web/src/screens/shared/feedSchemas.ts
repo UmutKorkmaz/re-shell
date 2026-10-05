@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  graphNodeWireSchema,
+  templateWireSchema,
+  workspaceGraphWireSchema,
+} from '@re-shell/contracts';
 
 /**
  * Web-side zod schemas for the hub feeds whose stdout shape differs from the
@@ -6,10 +11,15 @@ import { z } from 'zod';
  *
  * The contracts package types (`WorkspaceApp`, `TemplateSummary`) describe the
  * RICH internal model. The CLI's `--json` projections that the hub forwards are
- * deliberately narrower (see `buildContractGraph` and `toTemplateSummary`), so
- * we validate against the EXACT wire shape here. Validating the real envelope
- * keeps unknown/partial data from crashing the screens while still failing fast
- * on a genuinely malformed feed.
+ * deliberately narrower (see `buildContractGraph` and `toTemplateSummary`), and
+ * their EXACT shapes are the `*WireSchema` exports of `@re-shell/contracts` (the
+ * schemas the CLI conformance suite validates real output against).
+ *
+ * The graph and template feeds below are DERIVED from those wire schemas: every
+ * field name and type comes from the contract, and this file only adds the
+ * dashboard's tolerance (a missing optional collection defaults to empty so the
+ * screens never throw on a sparse node), while a genuinely malformed feed still
+ * fails fast.
  */
 
 // ---------------------------------------------------------------------------
@@ -22,15 +32,18 @@ import { z } from 'zod';
  * node name. `.catch`/`.default` keep a slightly-off node from failing the
  * whole feed.
  */
-export const graphNodeSchema = z.object({
-  name: z.string(),
+export const graphNodeSchema = graphNodeWireSchema.extend({
   path: z.string().default(''),
   framework: z.string().nullable().default(null),
   dependencies: z.array(z.string()).default([]),
+  // Additive fields the CLI now emits (P9-L). Optional with no default, so an
+  // older CLI's payload parses to exactly the same shape as before.
+  type: z.string().optional(),
+  language: z.string().nullable().optional(),
 });
 export type GraphNode = z.infer<typeof graphNodeSchema>;
 
-export const workspaceGraphSchema = z.object({
+export const workspaceGraphSchema = workspaceGraphWireSchema.extend({
   apps: z.array(graphNodeSchema).default([]),
   services: z.array(graphNodeSchema).default([]),
 });
@@ -48,23 +61,17 @@ export interface KindedGraphNode extends GraphNode {
 // ---------------------------------------------------------------------------
 
 /**
- * The template summary as the CLI actually emits it (NOT the richer contracts
- * `templateSummarySchema`): no `domain`/`tier`/`command`/`database` fields, and
- * `tags`/`features` are optional. Missing collections default to empty so the
- * grid never throws on a sparse template.
+ * The template summary as the CLI actually emits it (`templateWireSchema`, NOT the
+ * richer contracts domain `templateSummarySchema`): no `domain`/`tier`/`command`/
+ * `database` fields, and `tags`/`features` are optional. Missing collections
+ * default to empty so the grid never throws on a sparse template.
  */
-export const templateFeedSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  displayName: z.string().optional(),
+export const templateFeedSchema = templateWireSchema.extend({
   description: z.string().default(''),
   language: z.string().default('unknown'),
   framework: z.string().default('unknown'),
-  version: z.string().optional(),
   tags: z.array(z.string()).default([]),
   features: z.array(z.string()).default([]),
-  port: z.number().optional(),
-  fileCount: z.number().optional(),
 });
 export type TemplateFeed = z.infer<typeof templateFeedSchema>;
 

@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { createAsyncCommand, withTimeout, processManager } from '../../utils/error-handler';
 import { createSpinner, flushOutput } from '../../utils/spinner';
 import chalk from 'chalk';
+import { fail } from '../../utils/json-output';
 
 import { manageConfigDiff } from '../../commands/config-diff';
 
@@ -27,6 +28,10 @@ export function registerDiffGroup(config: Command): void {
     .action(
       createAsyncCommand(async (options) => {
         if (!options.left || !options.right) {
+          if (options.json) {
+            fail('USAGE_ERROR', 'Both --left and --right sources are required');
+            return;
+          }
           console.log(chalk.red('Error: Both --left and --right sources are required'));
           process.exit(1);
         }
@@ -59,6 +64,10 @@ export function registerDiffGroup(config: Command): void {
     .action(
       createAsyncCommand(async (options) => {
         if (!options.left || !options.right) {
+          if (options.json) {
+            fail('USAGE_ERROR', 'Both --left and --right sources are required');
+            return;
+          }
           console.log(chalk.red('Error: Both --left and --right sources are required'));
           process.exit(1);
         }
@@ -85,6 +94,10 @@ export function registerDiffGroup(config: Command): void {
     .action(
       createAsyncCommand(async (options) => {
         if (!options.left || !options.right) {
+          if (options.json) {
+            fail('USAGE_ERROR', 'Both --left (config) and --right (diff) are required');
+            return;
+          }
           console.log(chalk.red('Error: Both --left (config) and --right (diff) are required'));
           process.exit(1);
         }

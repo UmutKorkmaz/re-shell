@@ -43,12 +43,12 @@ export const aspnetAutoMapperTemplate: BackendTemplate = {
 </Project>`,
 
     // Program.cs
-    'Program.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Services;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Profiles;
-using {{serviceName}}.Validators;
+    'Program.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Profiles;
+using {{projectNamePascal}}.Validators;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 using FluentValidation;
@@ -187,7 +187,7 @@ app.Run();`,
     // Models/User.cs
     'Models/User.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class User
 {
@@ -233,7 +233,7 @@ public class User
     'Models/Product.cs': `using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class Product
 {
@@ -275,7 +275,7 @@ public class Product
     'Models/Order.cs': `using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class Order
 {
@@ -315,7 +315,7 @@ public class Order
     'Models/OrderItem.cs': `using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public class OrderItem
 {
@@ -346,7 +346,7 @@ public class OrderItem
     // DTOs/UserDtos.cs
     'DTOs/UserDtos.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.DTOs;
+namespace {{projectNamePascal}}.DTOs;
 
 public class UserDto
 {
@@ -432,7 +432,7 @@ public class UserSummaryDto
     // DTOs/ProductDtos.cs
     'DTOs/ProductDtos.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.DTOs;
+namespace {{projectNamePascal}}.DTOs;
 
 public class ProductDto
 {
@@ -515,7 +515,7 @@ public class ProductSummaryDto
     // DTOs/OrderDtos.cs
     'DTOs/OrderDtos.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.DTOs;
+namespace {{projectNamePascal}}.DTOs;
 
 public class OrderDto
 {
@@ -597,10 +597,10 @@ public class OrderSummaryDto
 
     // Profiles/UserProfile.cs
     'Profiles/UserProfile.cs': `using AutoMapper;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Profiles;
+namespace {{projectNamePascal}}.Profiles;
 
 /// <summary>
 /// AutoMapper profile for User entity mappings
@@ -639,10 +639,10 @@ public class UserProfile : Profile
 
     // Profiles/ProductProfile.cs
     'Profiles/ProductProfile.cs': `using AutoMapper;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Profiles;
+namespace {{projectNamePascal}}.Profiles;
 
 /// <summary>
 /// AutoMapper profile for Product entity mappings
@@ -677,10 +677,10 @@ public class ProductProfile : Profile
 
     // Profiles/OrderProfile.cs
     'Profiles/OrderProfile.cs': `using AutoMapper;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Profiles;
+namespace {{projectNamePascal}}.Profiles;
 
 /// <summary>
 /// AutoMapper profile for Order entity mappings
@@ -744,9 +744,9 @@ public class OrderProfile : Profile
 
     // Validators/CreateUserDtoValidator.cs
     'Validators/CreateUserDtoValidator.cs': `using FluentValidation;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Validators;
+namespace {{projectNamePascal}}.Validators;
 
 public class CreateUserDtoValidator : AbstractValidator<CreateUserDto>
 {
@@ -794,9 +794,9 @@ public class CreateUserDtoValidator : AbstractValidator<CreateUserDto>
 
     // Validators/CreateProductDtoValidator.cs
     'Validators/CreateProductDtoValidator.cs': `using FluentValidation;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Validators;
+namespace {{projectNamePascal}}.Validators;
 
 public class CreateProductDtoValidator : AbstractValidator<CreateProductDto>
 {
@@ -846,9 +846,9 @@ public class CreateProductDtoValidator : AbstractValidator<CreateProductDto>
 
     // Validators/CreateOrderDtoValidator.cs
     'Validators/CreateOrderDtoValidator.cs': `using FluentValidation;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Validators;
+namespace {{projectNamePascal}}.Validators;
 
 public class CreateOrderDtoValidator : AbstractValidator<CreateOrderDto>
 {
@@ -891,9 +891,9 @@ public class CreateOrderItemDtoValidator : AbstractValidator<CreateOrderItemDto>
 
     // Data/ApplicationDbContext.cs
     'Data/ApplicationDbContext.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data;
+namespace {{projectNamePascal}}.Data;
 
 public class ApplicationDbContext : DbContext
 {
@@ -1013,9 +1013,9 @@ public class ApplicationDbContext : DbContext
 }`,
 
     // Services/IUserService.cs
-    'Services/IUserService.cs': `using {{serviceName}}.DTOs;
+    'Services/IUserService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IUserService
 {
@@ -1033,12 +1033,12 @@ public interface IUserService
     // Services/UserService.cs
     'Services/UserService.cs': `using Microsoft.EntityFrameworkCore;
 using AutoMapper;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 using BCrypt.Net;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class UserService : IUserService
 {
@@ -1181,9 +1181,9 @@ public class UserService : IUserService
 }`,
 
     // Services/IProductService.cs
-    'Services/IProductService.cs': `using {{serviceName}}.DTOs;
+    'Services/IProductService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IProductService
 {
@@ -1200,11 +1200,11 @@ public interface IProductService
     // Services/ProductService.cs
     'Services/ProductService.cs': `using Microsoft.EntityFrameworkCore;
 using AutoMapper;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class ProductService : IProductService
 {
@@ -1328,9 +1328,9 @@ public class ProductService : IProductService
 }`,
 
     // Services/IOrderService.cs
-    'Services/IOrderService.cs': `using {{serviceName}}.DTOs;
+    'Services/IOrderService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IOrderService
 {
@@ -1347,11 +1347,11 @@ public interface IOrderService
     // Services/OrderService.cs
     'Services/OrderService.cs': `using Microsoft.EntityFrameworkCore;
 using AutoMapper;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class OrderService : IOrderService
 {
@@ -1539,7 +1539,7 @@ public class OrderService : IOrderService
 }`,
 
     // Services/IAuthService.cs
-    'Services/IAuthService.cs': `namespace {{serviceName}}.Services;
+    'Services/IAuthService.cs': `namespace {{projectNamePascal}}.Services;
 
 public interface IAuthService
 {
@@ -1553,10 +1553,10 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using {{serviceName}}.Data;
+using {{projectNamePascal}}.Data;
 using BCrypt.Net;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class AuthService : IAuthService
 {
@@ -1646,10 +1646,10 @@ public class AuthService : IAuthService
     // Controllers/UsersController.cs
     'Controllers/UsersController.cs': `using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using {{serviceName}}.Services;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Users management controller
@@ -1804,10 +1804,10 @@ public class UsersController : ControllerBase
     // Controllers/ProductsController.cs
     'Controllers/ProductsController.cs': `using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using {{serviceName}}.Services;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Products management controller
@@ -1975,10 +1975,10 @@ public class ProductsController : ControllerBase
     // Controllers/OrdersController.cs
     'Controllers/OrdersController.cs': `using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using {{serviceName}}.Services;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Orders management controller
@@ -2145,10 +2145,10 @@ public class OrdersController : ControllerBase
 
     // Controllers/AuthController.cs
     'Controllers/AuthController.cs': `using Microsoft.AspNetCore.Mvc;
-using {{serviceName}}.Services;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Controllers;
+namespace {{projectNamePascal}}.Controllers;
 
 /// <summary>
 /// Authentication controller

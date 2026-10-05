@@ -436,20 +436,24 @@ Page-load stagger: apply `animation-delay` increments (`[--d:0ms]` → 40ms step
 
 ## 6. Anti-Slop Checklist (verify before merge)
 
-- [ ] NO flat gray-on-white — every surface sits on the elevation stack with a hairline + inner top highlight.
-- [ ] NO default shadcn look — colors migrated to OKLCH tokens, radius tightened, fonts swapped to grotesk/mono/Inter.
-- [ ] NO uniform cards — Overview is bento with mixed spans; padding varies by panel role (dense vs hero vs log).
-- [ ] NO centered marketing hero — every screen is a working tool surface with clear left-aligned hierarchy.
-- [ ] NO decorative-gradient-as-UI — depth comes from elevation + shadow + hairline, not background gradients.
-- [ ] ONE accent only (signal lime) used SEMANTICALLY (primary action, active nav, focus, key data, live) — no rainbow.
-- [ ] Distinct status colors (healthy/warn/critical/info) each with matching subtle glow on badges/graph.
-- [ ] Mono for ALL numbers/paths/commands/logs with `tabular-nums`; grotesk for titles + uppercase tracked labels.
-- [ ] Designed hover/focus/active states everywhere (hover-lift/glow, signal focus ring, active nav indicator).
-- [ ] Motion is purposeful (stagger-in, live pulse, log-flash, node transitions) and fully disabled under `prefers-reduced-motion`.
-- [ ] Dense scan-friendly tables (compact rows, eyebrow headers); copy-CLI affordance styled as a terminal chip.
-- [ ] Refined light companion (cool paper + ink + darkened lime), intentional — NOT pastel.
-- [ ] Looks like a real product screenshot (Vercel/Linear/Grafana-grade), typed, no `any`.
-- [ ] Data flow, hub hooks, transport, and command logic UNCHANGED — presentation only; existing tests stay GREEN.
+Status as of the current tree. `[x]` means the code proves it (evidence in parentheses);
+`[ ]` means it is subjective or was not audited, with the reason. Nothing is ticked on the
+strength of a screenshot.
+
+- [x] NO flat gray-on-white — every surface sits on the elevation stack with a hairline + inner top highlight. (`--bg-0..3`, `--hairline-top` and `shadow-elev-1..3` in `packages/ui/src/styles/globals.css` and `tailwind.config.ts`)
+- [x] NO default shadcn look — colors migrated to OKLCH tokens, radius tightened, fonts swapped to grotesk/mono/Inter. (OKLCH tokens (`packages/ui/src/styles/globals.css`) with a `@supports not (color: oklch(...))` hex fallback; `--radius: 0.625rem`; self-hosted `fonts.css`; contrast of the tokens is asserted in `src/styles/tokens.test.ts`)
+- [x] NO uniform cards — Overview is bento with mixed spans; padding varies by panel role (dense vs hero vs log). (`apps/web/src/screens/OverviewScreen.tsx`: a 12-column grid with `col-span-3/4/6/8` and `row-span-2`)
+- [ ] NO centered marketing hero — every screen is a working tool surface with clear left-aligned hierarchy. (Subjective; not mechanically checkable. No hero component exists, but the Overview has one centered empty-state block.)
+- [x] NO decorative-gradient-as-UI — depth comes from elevation + shadow + hairline, not background gradients. (The only gradient in `packages/ui` and `apps/web` is the `.skeleton` loading shimmer.)
+- [ ] ONE accent only (signal lime) used SEMANTICALLY (primary action, active nav, focus, key data, live) — no rainbow. (There is a single accent token, `--signal`, which white-label config can override; that it is used only semantically was not audited screen by screen.)
+- [x] Distinct status colors (healthy/warn/critical/info) each with matching subtle glow on badges/graph. (`--status-*` and `--status-*-glow` tokens; both themes contrast-checked)
+- [ ] Mono for ALL numbers/paths/commands/logs with `tabular-nums`; grotesk for titles + uppercase tracked labels. (The mechanism exists: `Text` `numeric` variant and `.re-shell-mono`; not audited for every number in every screen.)
+- [ ] Designed hover/focus/active states everywhere (hover-lift/glow, signal focus ring, active nav indicator). (A global `:focus-visible` ring uses `--ring`, and the a11y suite checks keyboard focus; the `hover-lift` utility named in section 3 was not implemented, so "everywhere" is not met.)
+- [x] Motion is purposeful (stagger-in, live pulse, log-flash, node transitions) and fully disabled under `prefers-reduced-motion`. (`animate-stagger-in`, `animate-pulse-live`, `animate-log-flash` in use in `toast.tsx` and `job-log-panel.tsx`; the reduced-motion block is asserted by `tokens.test.ts`)
+- [ ] Dense scan-friendly tables (compact rows, eyebrow headers); copy-CLI affordance styled as a terminal chip. (The `cli-chip` class exists and is used in the top bar and graph toolbar; table density was not audited.)
+- [x] Refined light companion (cool paper + ink + darkened lime), intentional — NOT pastel. (A full light theme exists with its own hex fallback; contrast is verified for both themes. "Not pastel" is a design judgement.)
+- [ ] Looks like a real product screenshot (Vercel/Linear/Grafana-grade), typed, no `any`. (Subjective. For the "typed" part: no `any` occurs in non-test, non-story source under `packages/ui/src` and `apps/web/src`.)
+- [ ] Data flow, hub hooks, transport, and command logic UNCHANGED — presentation only; existing tests stay GREEN. (A constraint of the original restyle task, not a property that can be re-checked now. The suites run in CI and pass on PR #395.)
 
 ---
 

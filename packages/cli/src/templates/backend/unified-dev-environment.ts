@@ -66,6 +66,9 @@ export const unifiedDevEnvironmentTemplate: BackendTemplate = {
     "compression": "^1.7.4",
     "socket.io": "^4.7.2",
     "chokidar": "^3.5.3",
+    "axios": "^1.6.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "vite": "^5.0.0",
     "ws": "^8.14.0"
   },
@@ -75,6 +78,8 @@ export const unifiedDevEnvironmentTemplate: BackendTemplate = {
     "@types/compression": "^1.7.2",
     "@types/node": "^20.5.0",
     "@types/ws": "^8.5.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "typescript": "^5.1.6",
     "ts-node": "^10.9.1",
     "tsx": "^4.0.0",
@@ -93,6 +98,7 @@ export const unifiedDevEnvironmentTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -196,13 +202,13 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Initialize hot reload manager
+// Hot reload manager and file watcher (the server starts listening once both are initialized)
 const hotReloadManager = new HotReloadManager(io);
-await hotReloadManager.initialize();
-
-// Initialize file watcher
 const fileWatcher = new FileWatcher(hotReloadManager);
-await fileWatcher.initialize();
+const servicesReady = (async () => {
+  await hotReloadManager.initialize();
+  await fileWatcher.initialize();
+})();
 
 // Routes
 app.use('/api', apiRoutes);
@@ -232,10 +238,13 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Start server
 const PORT = process.env.PORT || {{port}};
-httpServer.listen(PORT, () => {
+servicesReady.then(() => httpServer.listen(PORT, () => {
   console.log(\`🚀 Unified Dev Server running on port \${PORT}\`);
   console.log(\`📡 WebSocket server ready for hot-reload\`);
   console.log(\`📁 Watching for file changes...\`);
+})).catch((err) => {
+  console.error('Failed to initialise services:', err);
+  process.exit(1);
 });
 
 // Graceful shutdown
@@ -253,7 +262,7 @@ process.on('SIGTERM', async () => {
     'src/server/hot-reload-manager.ts': `// Hot Reload Manager
 // Manages hot-reload functionality for both frontend and backend
 
-import { Server as SocketIOServer } from 'socket.io';
+import { Server } from 'socket.io';
 import { EventEmitter } from 'events';
 import chokidar from 'chokidar';
 
@@ -264,7 +273,7 @@ export interface ReloadEvent {
 }
 
 export class HotReloadManager extends EventEmitter {
-  private io: Server as SocketIOServer;
+  private io: Server;
   private clients: Set<string> = new Set();
   private reloadHistory: ReloadEvent[] = [];
   private maxHistorySize = 100;
@@ -503,7 +512,7 @@ export class FileWatcher {
   }
 
   getWatchedCount(): number {
-    return this.watcher?.getWatched().length || 0;
+    return Object.keys(this.watcher?.getWatched() ?? {}).length;
   }
 
   getWatchedPaths(): string[] {
@@ -525,7 +534,7 @@ export class FileWatcher {
     'src/server/routes/api.routes.ts': `// API Routes with hot-reload support
 import { Router } from 'express';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * @swagger
@@ -607,7 +616,7 @@ import { HotReloadManager } from '../hot-reload-manager';
 import { FileWatcher } from '../file-watcher';
 
 export function devToolsRoutes(hotReloadManager: HotReloadManager, fileWatcher: FileWatcher): Router {
-  const router = Router();
+  const router: Router = Router();
 
   // Get hot-reload status
   router.get('/status', (req, res) => {

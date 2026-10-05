@@ -1,12 +1,19 @@
-// `re-shell fix --ci` — autonomous CI fixer command (issue #18).
+// `re-shell fix --ci` — autonomous CI fixer command (issue #18, R-3).
 //
-// Wires the pure fix-loop engine to injected evaluators + a fix applier.
-// Without an evaluator, the command fails explicitly instead of claiming green gates.
-// The loop drives remediation to green behind LOCKED gates (tests must pass),
-// enforces a bounded budget + a rollback boundary, and opens a PR only after
-// gates pass AND --no-dry-run is set. Merge/push to a protected branch stays
-// human-controlled — the loop NEVER auto-merges. Dry-run (the default) only
-// reports what the loop WOULD do.
+// Real mode (default): detects/loads the workspace gates, runs them as real
+// child processes, and — when an AI provider is configured — asks it for
+// validated unified-diff patches, applying and re-evaluating them on a new
+// `re-shell/fix-ci-<timestamp>` branch (see ../fix-ci/). Without a provider the
+// command is REPORT-ONLY: it reports the failing gates honestly and exits
+// non-zero. It exits non-zero unless the gates end green.
+//
+// Injected mode (tests): when `evaluate` is supplied, the pure fix-loop engine
+// is driven by the injected evaluator/applier/PR opener.
+//
+// Safety contract (both modes): locked gates (tests) must pass, the iteration
+// budget is bounded, a rollback boundary undoes failed work, a PR is opened
+// only after gates pass AND --no-dry-run, and the loop NEVER merges or pushes
+// to a protected/base branch — that stays human-controlled.
 
 import chalk from 'chalk';
 import { ok, fail } from '../utils/json-output';
@@ -19,7 +26,11 @@ import {
   type FixApplier,
   type FixLoopRun,
 } from '../utils/fix-loop-engine';
-import type { FixCiResponse } from '@re-shell/contracts';
+import type { ErrorCode, FixCiResponse } from '@re-shell/contracts';
+import { runRealFixCi } from '../fix-ci/loop';
+import { resolveProvider, type FixProvider } from '../fix-ci/provider';
+import type { PrOpener } from '../fix-ci/pr';
+import { FixCiError } from '../fix-ci/types';
 
 /**
  * Options accepted by the `fix --ci` command.
@@ -42,7 +53,23 @@ export interface FixCiOptions {
   maxIterations?: number;
   /** Working directory override (tests). */
   cwd?: string;
-  /** Injectable gate evaluator. Required until a real CLI adapter is available. */
+  /** Allow starting with uncommitted changes (they are never touched or committed). */
+  allowDirty?: boolean;
+  /** Gate names to skip (unlocked gates only). */
+  skipGates?: string[];
+  /** Model override for the AI provider. */
+  model?: string;
+  /**
+   * Injectable fix provider. `undefined` resolves one from the environment
+   * (ANTHROPIC_API_KEY); `null` forces report-only mode.
+   */
+  provider?: FixProvider | null;
+  /** Injectable PR opener for the real loop (defaults to git push + gh). */
+  openPr?: PrOpener;
+  /**
+   * Injectable gate evaluator (tests). When absent the REAL evaluator runs the
+   * workspace's gates as child processes.
+   */
   evaluate?: GateEvaluator;
   /** Injectable fix applier (tests). When absent, a no-op stub is used. */
   applyFix?: FixApplier;
@@ -78,10 +105,7 @@ function defaultApplier(): FixApplier {
 export async function runFixCi(options: FixCiOptions): Promise<void> {
   const json = Boolean(options.json);
   if (!options.evaluate) {
-    emitFixCiError(
-      json,
-      'CI verification not run: no real gate evaluator is wired. The CI fixer is currently unsupported without an evaluator.'
-    );
+    await runRealFixCiCommand(options);
     return;
   }
   const dryRun = !options.noDryRun;
@@ -150,6 +174,54 @@ export async function runFixCi(options: FixCiOptions): Promise<void> {
 }
 
 /**
+ * The REAL path: real gates as child processes, an AI fix applier when a
+ * provider is configured (report-only otherwise), git branch + rollback, and
+ * PR opening only under --no-dry-run. Exit code is non-zero unless gates end green.
+ */
+async function runRealFixCiCommand(options: FixCiOptions): Promise<void> {
+  const json = Boolean(options.json);
+  const dryRun = !options.noDryRun;
+  try {
+    const provider =
+      options.provider !== undefined ? options.provider : resolveProvider({ model: options.model });
+    const payload = await runRealFixCi({
+      cwd: options.cwd ?? process.cwd(),
+      maxIterations: options.maxIterations,
+      dryRun,
+      allowDirty: options.allowDirty,
+      skipGates: options.skipGates,
+      provider,
+      openPr: options.openPr,
+    });
+    if (payload.verdict === 'green') {
+      if (json) {
+        ok(payload, payload.warnings);
+      } else {
+        renderHuman(payload, dryRun);
+      }
+      return;
+    }
+    // Red: never ok:true. The full run log rides in error.details.
+    if (json) {
+      fail(
+        payload.outcome === 'report-only' ? 'FIX_CI_NO_PROVIDER' : 'FIX_CI_GATES_RED',
+        payload.summary,
+        payload as unknown as Record<string, unknown>
+      );
+    } else {
+      renderHuman(payload, dryRun);
+      process.exitCode = 1;
+    }
+  } catch (err) {
+    if (err instanceof FixCiError) {
+      emitFixCiError(json, err.message, err.code, err.details);
+    } else {
+      emitFixCiError(json, err instanceof Error ? err.message : String(err));
+    }
+  }
+}
+
+/**
  * Emit a FIX_CI_ERROR envelope (json) or red message + non-zero exit.
  *
  * Used by the command's top-level error path to surface failures in a form
@@ -161,9 +233,14 @@ export async function runFixCi(options: FixCiOptions): Promise<void> {
  * @param message - Human-readable error description to surface to the caller.
  * @returns Nothing; output is a side effect (stdout/stderr / exit code).
  */
-export function emitFixCiError(json: boolean, message: string): void {
+export function emitFixCiError(
+  json: boolean,
+  message: string,
+  code: ErrorCode = 'FIX_CI_ERROR',
+  details?: Record<string, unknown>
+): void {
   if (json) {
-    fail('FIX_CI_ERROR', message);
+    fail(code, message, details);
   } else {
     process.stderr.write(chalk.red(`\n✗ ${message}\n`));
     process.exitCode = 1;
@@ -201,11 +278,33 @@ function renderHuman(payload: FixCiResponse, dryRun: boolean): void {
     }
   }
 
+  if (payload.branch) {
+    process.stdout.write(chalk.gray(`  branch: ${payload.branch}${payload.baseBranch ? ` (from ${payload.baseBranch})` : ''}\n`));
+  }
+  if (!payload.gatesPassed && payload.finalGates) {
+    for (const gate of payload.finalGates.filter(g => !g.passed)) {
+      process.stdout.write(
+        chalk.red(`\n  ✗ ${gate.name}`) + chalk.gray(` (${gate.kind}${gate.locked ? ', locked' : ''}) ${gate.command.join(' ')}\n`)
+      );
+      for (const f of gate.failing.slice(0, 15)) {
+        const loc = f.file ? `${f.file}${f.line !== undefined ? `:${f.line}` : ''}  ` : '';
+        process.stdout.write(`      ${loc}${f.code ? `${f.code} ` : ''}${f.message.split('\n')[0]}\n`);
+      }
+      if (gate.failing.length > 15) {
+        process.stdout.write(chalk.gray(`      ... and ${gate.failing.length - 15} more\n`));
+      }
+    }
+  }
+  if (payload.manualSteps && payload.manualSteps.length > 0) {
+    process.stdout.write(chalk.yellow('\n  No PR was opened automatically. Manual steps:\n'));
+    for (const step of payload.manualSteps) process.stdout.write(`    ${step}\n`);
+  }
+
   if (payload.prOpened && payload.prUrl) {
     process.stdout.write(chalk.green(`\n  PR opened: ${payload.prUrl}\n`));
-  } else if (!dryRun && payload.outcome === 'pr-ready') {
+  } else if (!dryRun && payload.outcome === 'pr-ready' && !payload.manualSteps) {
     process.stdout.write(chalk.gray('\n  Gates green; no PR opener wired.\n'));
-  } else if (dryRun) {
+  } else if (dryRun && (payload.outcome === 'pr-ready' || payload.outcome === 'already-green')) {
     process.stdout.write(chalk.gray('\n  Dry run: use --no-dry-run to open a PR after gates pass.\n'));
   }
 

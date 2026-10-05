@@ -1,6 +1,10 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { forwardPolymorphic, type PolymorphicProps } from "@/lib/polymorphic";
+
+/** Elements a card title may render as, so the document outline never skips a level. */
+export type HeadingElement = 'h2' | 'h3' | 'h4' | 'div';
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
@@ -30,20 +34,27 @@ const CardHeader = React.forwardRef<
 ));
 CardHeader.displayName = "CardHeader";
 
-const CardTitle = React.forwardRef<
-  HTMLHeadingElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h3
-    ref={ref}
-    data-slot="card-title"
-    className={cn(
-      "font-display text-[0.9375rem] font-semibold leading-tight tracking-tight",
-      className,
-    )}
-    {...props}
-  />
-));
+export type CardTitleProps<C extends React.ElementType = "h2"> = PolymorphicProps<C>;
+
+/**
+ * Card heading. Renders an `h2` by default (a card is a page section, directly
+ * below the screen's `h1`); pass `as="h3"` (or `"div"`) when the card is nested
+ * deeper so the document outline never skips a level.
+ */
+const CardTitle = forwardPolymorphic<"h2">(({ as, className, ...props }, ref) => {
+  const Component: React.ElementType = as ?? "h2";
+  return (
+    <Component
+      ref={ref}
+      data-slot="card-title"
+      className={cn(
+        "font-display text-[0.9375rem] font-semibold leading-tight tracking-tight",
+        className,
+      )}
+      {...props}
+    />
+  );
+}, "CardTitle");
 CardTitle.displayName = "CardTitle";
 
 const CardDescription = React.forwardRef<

@@ -10,6 +10,7 @@ import {
 import { importProject, exportProject, backupProject, restoreProject } from '../commands/migrate-project';
 import { generateCICDConfig, generateDeployConfig } from '../commands/cicd';
 import { manageDevMode } from '../commands/dev-mode';
+import { enableJsonMode, fail, ok } from '../utils/json-output';
 
 /**
  * Registers the `tools` command group on the given CLI program.
@@ -37,7 +38,7 @@ export function registerToolsGroup(program: Command): void {
 
           if (options.json) {
             const analysis = await analyzeProject();
-            console.log(JSON.stringify(analysis, null, 2));
+            ok(analysis);
           } else {
             await showProjectAnalysis();
           }
@@ -54,9 +55,7 @@ export function registerToolsGroup(program: Command): void {
     .action(
       createAsyncCommand(async (options) => {
         if (options.json) {
-          const { enableJsonMode } = await import('../utils/json-output');
-          const restoreJson = enableJsonMode();
-          process.stdout.write(JSON.stringify({
+          ok({
             mode: 'dry-run',
             description: 'Preview changes without applying them',
             examples: [
@@ -64,8 +63,7 @@ export function registerToolsGroup(program: Command): void {
               're-shell profile create my-profile --dry-run',
               're-shell create my-app --dry-run --verbose --impact'
             ]
-          }, null, 2) + '\n');
-          restoreJson();
+          });
         } else {
           console.log(chalk.cyan.bold('\n🔍 Dry-Run Mode\n'));
           console.log(chalk.gray('This command previews changes without applying them.\n'));
@@ -88,23 +86,27 @@ export function registerToolsGroup(program: Command): void {
         await withTimeout(async () => {
           const { analyzeServices, generateAutoWiringConfig, showInjectionRecommendations } = await import('../utils/dependency-injection');
 
-          const restoreJson = options.json ? (await import('../utils/json-output')).enableJsonMode() : () => {};
-          const graph = await analyzeServices();
-          restoreJson();
+          // Analysis may log; under --json keep that off stdout so the single
+          // envelope below is the only thing a consumer reads.
+          const restoreJson = options.json ? enableJsonMode() : () => {};
+          try {
+            const graph = await analyzeServices();
 
-          if (options.output) {
-            await generateAutoWiringConfig(graph, options.output);
-          }
+            if (options.output) {
+              await generateAutoWiringConfig(graph, options.output);
+            }
 
-          if (!options.json) {
-            await showInjectionRecommendations(graph);
-          } else {
-            const jsonGraph = {
-              nodes: Array.from(graph.nodes.entries()).map(([name, service]) => [name, service]),
-              edges: Array.from(graph.edges.entries()).map(([service, deps]) => [service, Array.from(deps)]),
-              cycles: graph.cycles,
-            };
-            process.stdout.write(JSON.stringify(jsonGraph, null, 2) + '\n');
+            if (!options.json) {
+              await showInjectionRecommendations(graph);
+            } else {
+              ok({
+                nodes: Array.from(graph.nodes.entries()).map(([name, service]) => [name, service]),
+                edges: Array.from(graph.edges.entries()).map(([service, deps]) => [service, Array.from(deps)]),
+                cycles: graph.cycles,
+              });
+            }
+          } finally {
+            restoreJson();
           }
         }, 30000);
       })
@@ -649,7 +651,7 @@ export function registerToolsGroup(program: Command): void {
         const detected = await detectProjectFramework(pathToCheck);
 
         if (options.json) {
-          console.log(JSON.stringify(detected, null, 2));
+          ok(detected);
           return;
         }
 
@@ -688,7 +690,7 @@ export function registerToolsGroup(program: Command): void {
           : frameworks;
 
         if (options.json) {
-          console.log(JSON.stringify(filtered, null, 2));
+          ok(filtered);
           return;
         }
 
@@ -973,10 +975,21 @@ export function registerToolsGroup(program: Command): void {
         processManager.addCleanup(() => spinner.stop());
         flushOutput();
 
+        // Environment problems (no runtime / daemon down) are failures: under
+        // --json they are an error envelope, and the exit code is non-zero either way.
+        const failDetect = (message: string): void => {
+          spinner.fail(chalk.red(message));
+          if (options.json) {
+            fail('COMMAND_ERROR', message);
+          } else {
+            process.exitCode = 1;
+          }
+        };
+
         try {
           const runtime = await detectContainerRuntime();
           if (!runtime) {
-            spinner.fail(chalk.red('No container runtime found'));
+            failDetect('No container runtime found');
             return;
           }
 
@@ -999,14 +1012,14 @@ export function registerToolsGroup(program: Command): void {
           try {
             containers = await manager.detectContainers();
           } catch {
-            spinner.fail(chalk.red('Docker is not available. Please start Docker Desktop and try again.'));
+            failDetect('Docker is not available. Please start Docker Desktop and try again.');
             return;
           }
 
           spinner.stop();
 
           if (options.json) {
-            console.log(JSON.stringify(containers, null, 2));
+            ok(containers);
             return;
           }
 

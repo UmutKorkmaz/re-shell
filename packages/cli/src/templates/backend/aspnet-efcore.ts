@@ -39,19 +39,19 @@ export const aspnetEFCoreTemplate: BackendTemplate = {
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
   </ItemGroup>
 
 </Project>`,
 
     // Program.cs
-    'Program.cs': `using {{serviceName}}.Data;
-using {{serviceName}}.Services;
-using {{serviceName}}.Models;
-using {{serviceName}}.DTOs;
-using {{serviceName}}.Profiles;
-using {{serviceName}}.Validators;
-using {{serviceName}}.Infrastructure;
+    'Program.cs': `using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Services;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Profiles;
+using {{projectNamePascal}}.Validators;
+using {{projectNamePascal}}.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 using FluentValidation;
@@ -111,10 +111,10 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 });
 
 // Configure AutoMapper
-builder.Services.AddAutoMapper(typeof(UserProfile), typeof(ProductProfile), typeof(OrderProfile));
+builder.Services.AddAutoMapper(typeof(CategoryProfile));
 
 // Configure FluentValidation
-builder.Services.AddValidatorsFromAssemblyContaining<CreateUserDtoValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<CategoryDtoValidator>();
 
 // Configure Swagger/OpenAPI
 builder.Services.AddSwaggerGen(c =>
@@ -191,10 +191,6 @@ builder.Services.AddAuthentication(options =>
 });
 
 // Register application services
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IProductService, ProductService>();
-builder.Services.AddScoped<IOrderService, OrderService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 
@@ -242,7 +238,7 @@ public partial class Program { }`,
     'Models/User.cs': `using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Index(nameof(Email), IsUnique = true)]
 [Index(nameof(CreatedAt))]
@@ -294,7 +290,7 @@ public class User : BaseEntity
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Index(nameof(Name))]
 [Index(nameof(CategoryId))]
@@ -359,7 +355,7 @@ public class Product : BaseEntity
     'Models/Category.cs': `using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Index(nameof(Name), IsUnique = true)]
 [Index(nameof(ParentCategoryId))]
@@ -395,7 +391,7 @@ public class Category : BaseEntity
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Index(nameof(OrderNumber), IsUnique = true)]
 [Index(nameof(UserId))]
@@ -485,7 +481,7 @@ public class Order : BaseEntity
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Index(nameof(OrderId))]
 [Index(nameof(ProductId))]
@@ -526,7 +522,7 @@ public class OrderItem : BaseEntity
     // Models/BaseEntity.cs
     'Models/BaseEntity.cs': `using System.ComponentModel.DataAnnotations;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 public abstract class BaseEntity
 {
@@ -545,13 +541,16 @@ public abstract class BaseEntity
     
     [Timestamp]
     public byte[]? RowVersion { get; set; }
+
+    // Soft delete flag, honoured by the global query filters in ApplicationDbContext
+    public bool IsDeleted { get; set; }
 }`,
 
     // Models/UserRole.cs
     'Models/UserRole.cs': `using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Index(nameof(UserId), nameof(Role), IsUnique = true)]
 public class UserRole : BaseEntity
@@ -578,7 +577,7 @@ public class UserRole : BaseEntity
     'Models/ProductTag.cs': `using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Index(nameof(ProductId), nameof(Tag), IsUnique = true)]
 public class ProductTag : BaseEntity
@@ -598,7 +597,7 @@ public class ProductTag : BaseEntity
     'Models/ProductImage.cs': `using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Index(nameof(ProductId))]
 public class ProductImage : BaseEntity
@@ -625,7 +624,7 @@ public class ProductImage : BaseEntity
     'Models/OrderStatusHistory.cs': `using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Index(nameof(OrderId))]
 [Index(nameof(CreatedAt))]
@@ -656,7 +655,7 @@ public class OrderStatusHistory : BaseEntity
     'Models/AuditLog.cs': `using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-namespace {{serviceName}}.Models;
+namespace {{projectNamePascal}}.Models;
 
 [Index(nameof(UserId))]
 [Index(nameof(EntityType))]
@@ -699,10 +698,10 @@ public class AuditLog : BaseEntity
 
     // Data/ApplicationDbContext.cs
     'Data/ApplicationDbContext.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Models;
-using {{serviceName}}.Data.Configurations;
+using {{projectNamePascal}}.Models;
+using {{projectNamePascal}}.Data.Configurations;
 
-namespace {{serviceName}}.Data;
+namespace {{projectNamePascal}}.Data;
 
 public class ApplicationDbContext : DbContext
 {
@@ -889,9 +888,9 @@ public static class ApplicationDbContextExtensions
     // Data/Configurations/UserConfiguration.cs
     'Data/Configurations/UserConfiguration.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data.Configurations;
+namespace {{projectNamePascal}}.Data.Configurations;
 
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
@@ -959,9 +958,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
     // Data/Configurations/ProductConfiguration.cs
     'Data/Configurations/ProductConfiguration.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data.Configurations;
+namespace {{projectNamePascal}}.Data.Configurations;
 
 public class ProductConfiguration : IEntityTypeConfiguration<Product>
 {
@@ -1050,9 +1049,9 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
     // Data/Configurations/CategoryConfiguration.cs
     'Data/Configurations/CategoryConfiguration.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data.Configurations;
+namespace {{projectNamePascal}}.Data.Configurations;
 
 public class CategoryConfiguration : IEntityTypeConfiguration<Category>
 {
@@ -1103,9 +1102,9 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
     // Data/Configurations/OrderConfiguration.cs
     'Data/Configurations/OrderConfiguration.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data.Configurations;
+namespace {{projectNamePascal}}.Data.Configurations;
 
 public class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
@@ -1226,9 +1225,9 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
     // Data/Configurations/OrderItemConfiguration.cs
     'Data/Configurations/OrderItemConfiguration.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data.Configurations;
+namespace {{projectNamePascal}}.Data.Configurations;
 
 public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
 {
@@ -1287,9 +1286,9 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
     // Data/Configurations/UserRoleConfiguration.cs
     'Data/Configurations/UserRoleConfiguration.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data.Configurations;
+namespace {{projectNamePascal}}.Data.Configurations;
 
 public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
 {
@@ -1322,9 +1321,9 @@ public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
     // Data/Configurations/ProductTagConfiguration.cs
     'Data/Configurations/ProductTagConfiguration.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data.Configurations;
+namespace {{projectNamePascal}}.Data.Configurations;
 
 public class ProductTagConfiguration : IEntityTypeConfiguration<ProductTag>
 {
@@ -1357,9 +1356,9 @@ public class ProductTagConfiguration : IEntityTypeConfiguration<ProductTag>
     // Data/Configurations/ProductImageConfiguration.cs
     'Data/Configurations/ProductImageConfiguration.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data.Configurations;
+namespace {{projectNamePascal}}.Data.Configurations;
 
 public class ProductImageConfiguration : IEntityTypeConfiguration<ProductImage>
 {
@@ -1394,9 +1393,9 @@ public class ProductImageConfiguration : IEntityTypeConfiguration<ProductImage>
     // Data/Configurations/OrderStatusHistoryConfiguration.cs
     'Data/Configurations/OrderStatusHistoryConfiguration.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data.Configurations;
+namespace {{projectNamePascal}}.Data.Configurations;
 
 public class OrderStatusHistoryConfiguration : IEntityTypeConfiguration<OrderStatusHistory>
 {
@@ -1438,9 +1437,9 @@ public class OrderStatusHistoryConfiguration : IEntityTypeConfiguration<OrderSta
     // Data/Configurations/AuditLogConfiguration.cs
     'Data/Configurations/AuditLogConfiguration.cs': `using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Data.Configurations;
+namespace {{projectNamePascal}}.Data.Configurations;
 
 public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
 {
@@ -1502,7 +1501,7 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
 }`,
 
     // Infrastructure/IMigrationService.cs
-    'Infrastructure/IMigrationService.cs': `namespace {{serviceName}}.Infrastructure;
+    'Infrastructure/IMigrationService.cs': `namespace {{projectNamePascal}}.Infrastructure;
 
 public interface IMigrationService
 {
@@ -1518,9 +1517,9 @@ public interface IMigrationService
 
     // Infrastructure/MigrationService.cs
     'Infrastructure/MigrationService.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Data;
+using {{projectNamePascal}}.Data;
 
-namespace {{serviceName}}.Infrastructure;
+namespace {{projectNamePascal}}.Infrastructure;
 
 public class MigrationService : IMigrationService
 {
@@ -1667,7 +1666,7 @@ public class MigrationService : IMigrationService
 }`,
 
     // Infrastructure/IDatabaseSeeder.cs
-    'Infrastructure/IDatabaseSeeder.cs': `namespace {{serviceName}}.Infrastructure;
+    'Infrastructure/IDatabaseSeeder.cs': `namespace {{projectNamePascal}}.Infrastructure;
 
 public interface IDatabaseSeeder
 {
@@ -1681,11 +1680,11 @@ public interface IDatabaseSeeder
 
     // Infrastructure/DatabaseSeeder.cs
     'Infrastructure/DatabaseSeeder.cs': `using Microsoft.EntityFrameworkCore;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
 using BCrypt.Net;
 
-namespace {{serviceName}}.Infrastructure;
+namespace {{projectNamePascal}}.Infrastructure;
 
 public class DatabaseSeeder : IDatabaseSeeder
 {
@@ -1730,7 +1729,7 @@ public class DatabaseSeeder : IDatabaseSeeder
                 {
                     Name = "John Doe",
                     Email = "john.doe@example.com",
-                    PasswordHash = BCrypt.HashPassword("Password123!"),
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!"),
                     PhoneNumber = "+1234567890",
                     DateOfBirth = new DateTime(1990, 1, 15),
                     Address = "123 Main St",
@@ -1745,7 +1744,7 @@ public class DatabaseSeeder : IDatabaseSeeder
                 {
                     Name = "Jane Smith",
                     Email = "jane.smith@example.com",
-                    PasswordHash = BCrypt.HashPassword("Password123!"),
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!"),
                     PhoneNumber = "+1234567891",
                     DateOfBirth = new DateTime(1985, 5, 22),
                     Address = "456 Oak Ave",
@@ -1760,7 +1759,7 @@ public class DatabaseSeeder : IDatabaseSeeder
                 {
                     Name = "Admin User",
                     Email = "admin@example.com",
-                    PasswordHash = BCrypt.HashPassword("AdminPass123!"),
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("AdminPass123!"),
                     PhoneNumber = "+1234567892",
                     DateOfBirth = new DateTime(1980, 3, 10),
                     Address = "789 Admin Blvd",
@@ -2063,9 +2062,9 @@ public class DatabaseSeeder : IDatabaseSeeder
 }`,
 
     // Services/ICategoryService.cs
-    'Services/ICategoryService.cs': `using {{serviceName}}.DTOs;
+    'Services/ICategoryService.cs': `using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface ICategoryService
 {
@@ -2079,10 +2078,10 @@ public interface ICategoryService
     // Services/CategoryService.cs
     'Services/CategoryService.cs': `using Microsoft.EntityFrameworkCore;
 using AutoMapper;
-using {{serviceName}}.Data;
-using {{serviceName}}.DTOs;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.DTOs;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class CategoryService : ICategoryService
 {
@@ -2146,9 +2145,9 @@ public class CategoryService : ICategoryService
 }`,
 
     // Services/IAuditService.cs
-    'Services/IAuditService.cs': `using {{serviceName}}.Models;
+    'Services/IAuditService.cs': `using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public interface IAuditService
 {
@@ -2160,10 +2159,10 @@ public interface IAuditService
     // Services/AuditService.cs
     'Services/AuditService.cs': `using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
-using {{serviceName}}.Data;
-using {{serviceName}}.Models;
+using {{projectNamePascal}}.Data;
+using {{projectNamePascal}}.Models;
 
-namespace {{serviceName}}.Services;
+namespace {{projectNamePascal}}.Services;
 
 public class AuditService : IAuditService
 {
@@ -2234,7 +2233,38 @@ public class AuditService : IAuditService
 }`,
 
     // Stubs for other required files...
-    'DTOs/CategoryDtos.cs': `namespace {{serviceName}}.DTOs;
+    'Profiles/CategoryProfile.cs': `using AutoMapper;
+using {{projectNamePascal}}.DTOs;
+using {{projectNamePascal}}.Models;
+
+namespace {{projectNamePascal}}.Profiles;
+
+public class CategoryProfile : Profile
+{
+    public CategoryProfile()
+    {
+        CreateMap<Category, CategoryDto>().ReverseMap();
+    }
+}
+`,
+
+    'Validators/CategoryDtoValidator.cs': `using FluentValidation;
+using {{projectNamePascal}}.DTOs;
+
+namespace {{projectNamePascal}}.Validators;
+
+public class CategoryDtoValidator : AbstractValidator<CategoryDto>
+{
+    public CategoryDtoValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Description).MaximumLength(1000);
+        RuleFor(x => x.SortOrder).GreaterThanOrEqualTo(0);
+    }
+}
+`,
+
+    'DTOs/CategoryDtos.cs': `namespace {{projectNamePascal}}.DTOs;
 
 public class CategoryDto
 {

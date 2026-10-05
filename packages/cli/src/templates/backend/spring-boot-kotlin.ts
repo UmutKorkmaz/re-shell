@@ -19,7 +19,7 @@ export const springBootKotlinTemplate: BackendTemplate = {
 
 plugins {
     id("org.springframework.boot") version "3.2.0"
-    id("io.spring.depend-management") version "1.1.4"
+    id("io.spring.dependency-management") version "1.1.4"
     kotlin("jvm") version "1.9.21"
     kotlin("plugin.spring") version "1.9.21"
     kotlin("plugin.jpa") version "1.9.21"
@@ -111,7 +111,7 @@ spring.graphql.path=/graphql
 `,
 
     // Main application
-    'src/main/kotlin/{{projectPackage}}/{{projectNamePascal}}Application.kt': `package {{projectPackage}}
+    'src/main/kotlin/{{packagePath}}/{{projectNamePascal}}Application.kt': `package {{projectPackage}}
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
@@ -125,28 +125,31 @@ fun main(args: Array<String>) {
 `,
 
     // Config
-    'src/main/kotlin/{{projectPackage}}/config/JwtConfig.kt': `package {{projectPackage}}.config
+    'src/main/kotlin/{{packagePath}}/config/JwtConfig.kt': `package {{projectPackage}}.config
 
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import io.jsonwebtoken.JwtParserBuilder
+import io.jsonwebtoken.JwtParser
+import io.jsonwebtoken.Jwts
+import io.jsonwebtoken.security.Keys
 
 @Configuration
 class JwtConfig(
-    @Value("\${app.jwt.secret}") private val secret: String,
-    @Value("\${app.jwt.expiration}") private val expiration: Long
+    @Value("\\\${app.jwt.secret}") private val secret: String,
+    @Value("\\\${app.jwt.expiration}") private val expiration: Long
 ) {
     @Bean
-    fun jwtParser(): JwtParserBuilder =
-        JwtParserBuilder()
-            .setSigningKey(secret)
-            .setAllowedClockSkewSeconds(30)
+    fun jwtParser(): JwtParser =
+        Jwts.parser()
+            .verifyWith(Keys.hmacShaKeyFor(secret.toByteArray()))
+            .clockSkewSeconds(30)
+            .build()
 }
 `,
 
     // Security config
-    'src/main/kotlin/{{projectPackage}}/config/SecurityConfig.kt': `package {{projectPackage}}.config
+    'src/main/kotlin/{{packagePath}}/config/SecurityConfig.kt': `package {{projectPackage}}.config
 
 import {{projectPackage}}.security.JwtAuthenticationFilter
 import {{projectPackage}}.security.JwtAuthenticationEntryPoint
@@ -191,7 +194,7 @@ class SecurityConfig(
 `,
 
     // Models
-    'src/main/kotlin/{{projectPackage}}/models/User.kt': `package {{projectPackage}}.models
+    'src/main/kotlin/{{packagePath}}/models/User.kt': `package {{projectPackage}}.models
 
 import jakarta.persistence.*
 import java.time.Instant
@@ -251,7 +254,7 @@ data class AuthResponse(
 )
 `,
 
-    'src/main/kotlin/{{projectPackage}}/models/Product.kt': `package {{projectPackage}}.models
+    'src/main/kotlin/{{packagePath}}/models/Product.kt': `package {{projectPackage}}.models
 
 import jakarta.persistence.*
 import java.time.Instant
@@ -298,7 +301,7 @@ data class UpdateProductRequest(
 `,
 
     // Repository
-    'src/main/kotlin/{{projectPackage}}/repository/UserRepository.kt': `package {{projectPackage}}.repository
+    'src/main/kotlin/{{packagePath}}/repository/UserRepository.kt': `package {{projectPackage}}.repository
 
 import {{projectPackage}}.models.User
 import {{projectPackage}}.models.Role
@@ -313,7 +316,7 @@ interface UserRepository : JpaRepository<User, Long> {
 }
 `,
 
-    'src/main/kotlin/{{projectPackage}}/repository/ProductRepository.kt': `package {{projectPackage}}.repository
+    'src/main/kotlin/{{packagePath}}/repository/ProductRepository.kt': `package {{projectPackage}}.repository
 
 import {{projectPackage}}.models.Product
 import org.springframework.data.jpa.repository.JpaRepository
@@ -324,7 +327,7 @@ interface ProductRepository : JpaRepository<Product, Long>
 `,
 
     // Security
-    'src/main/kotlin/{{projectPackage}}/security/JwtService.kt': `package {{projectPackage}}.security
+    'src/main/kotlin/{{packagePath}}/security/JwtService.kt': `package {{projectPackage}}.security
 
 import {{projectPackage}}.models.User
 import io.jsonwebtoken.*
@@ -336,32 +339,29 @@ import java.util.*
 
 @Service
 class JwtService(
-    @Value("\${app.jwt.secret}") private val secret: String,
-    @Value("\${app.jwt.expiration}") private val expiration: Long
+    @Value("\\\${app.jwt.secret}") private val secret: String,
+    @Value("\\\${app.jwt.expiration}") private val expiration: Long
 ) {
     private val key = Keys.hmacShaKeyFor(secret.toByteArray())
 
     fun generateToken(user: User): String {
-        val claims = Jwts.claims()
-            .setSubject(user.id.toString())
+        return Jwts.builder()
+            .subject(user.id.toString())
             .claim("email", user.email)
             .claim("role", user.role.name)
-            .setIssuedAt(Date())
-            .setExpiration(Date(System.currentTimeMillis() + expiration))
-
-        return Jwts.builder()
-            .setClaims(claims)
+            .issuedAt(Date())
+            .expiration(Date(System.currentTimeMillis() + expiration))
             .signWith(key)
             .compact()
     }
 
     fun extractClaims(token: String): Claims? {
         return try {
-            Jwts.parserBuilder()
-                .setSigningKey(key)
+            Jwts.parser()
+                .verifyWith(key)
                 .build()
-                .parseClaimsJws(token)
-                .body
+                .parseSignedClaims(token)
+                .payload
         } catch (e: Exception) {
             null
         }
@@ -371,7 +371,7 @@ class JwtService(
 }
 `,
 
-    'src/main/kotlin/{{projectPackage}}/security/JwtAuthenticationFilter.kt': `package {{projectPackage}}.security
+    'src/main/kotlin/{{packagePath}}/security/JwtAuthenticationFilter.kt': `package {{projectPackage}}.security
 
 import {{projectPackage}}.security.UserDetailsServiceImpl
 import jakarta.servlet.FilterChain
@@ -419,7 +419,7 @@ class JwtAuthenticationFilter(
 }
 `,
 
-    'src/main/kotlin/{{projectPackage}}/security/JwtAuthenticationEntryPoint.kt': `package {{projectPackage}}.security
+    'src/main/kotlin/{{packagePath}}/security/JwtAuthenticationEntryPoint.kt': `package {{projectPackage}}.security
 
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -444,11 +444,12 @@ class JwtAuthenticationEntryPoint : AuthenticationEntryPoint {
 }
 `,
 
-    'src/main/kotlin/{{projectPackage}}/security/UserDetailsServiceImpl.kt': `package {{projectPackage}}.security
+    'src/main/kotlin/{{packagePath}}/security/UserDetailsServiceImpl.kt': `package {{projectPackage}}.security
 
 import {{projectPackage}}.models.User
 import {{projectPackage}}.repository.UserRepository
-import org.springframework.security.core.userdetails.User
+import org.springframework.security.core.authority.SimpleGrantedAuthority
+import org.springframework.security.core.userdetails.User as SpringUser
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.core.userdetails.UsernameNotFoundException
@@ -464,13 +465,13 @@ class UserDetailsServiceImpl(
         val user = userRepository.findById(userId)
             .orElseThrow { UsernameNotFoundException("User not found") }
 
-        return User(user.email, "", user.role.name, mutableListOf())
+        return SpringUser(user.email, "", listOf(SimpleGrantedAuthority("ROLE_\${user.role.name}")))
     }
 }
 `,
 
     // Controllers
-    'src/main/kotlin/{{projectPackage}}/controllers/AuthController.kt': `package {{projectPackage}}.controllers
+    'src/main/kotlin/{{packagePath}}/controllers/AuthController.kt': `package {{projectPackage}}.controllers
 
 import {{projectPackage}}.models.*
 import {{projectPackage}}.repository.UserRepository
@@ -519,7 +520,7 @@ class AuthController(
 }
 `,
 
-    'src/main/kotlin/{{projectPackage}}/controllers/ProductController.kt': `package {{projectPackage}}.controllers
+    'src/main/kotlin/{{packagePath}}/controllers/ProductController.kt': `package {{projectPackage}}.controllers
 
 import {{projectPackage}}.models.*
 import {{projectPackage}}.repository.ProductRepository
@@ -545,8 +546,8 @@ class ProductController(
     @GetMapping("/{id}")
     fun getProduct(@PathVariable id: Long): ResponseEntity<Map<String, Any>> {
         val product = productRepository.findById(id)
-        return product.map { ResponseEntity.ok(mapOf("product" to it)) }
-            .orElse(ResponseEntity.notFound())
+        return product.map { ResponseEntity.ok<Map<String, Any>>(mapOf("product" to it)) }
+            .orElse(ResponseEntity.notFound().build<Map<String, Any>>())
     }
 
     @PostMapping
@@ -578,8 +579,8 @@ class ProductController(
                 updatedAt = java.time.Instant.now()
             )
             productRepository.save(updated)
-            ResponseEntity.ok(mapOf("product" to updated))
-        }.orElse(ResponseEntity.notFound())
+            ResponseEntity.ok<Map<String, Any>>(mapOf("product" to updated))
+        }.orElse(ResponseEntity.notFound().build<Map<String, Any>>())
     }
 
     @DeleteMapping("/{id}")
@@ -587,9 +588,9 @@ class ProductController(
     fun deleteProduct(@PathVariable id: Long): ResponseEntity<Void> {
         return if (productRepository.existsById(id)) {
             productRepository.deleteById(id)
-            ResponseEntity.noContent()
+            ResponseEntity.noContent().build<Void>()
         } else {
-            ResponseEntity.notFound()
+            ResponseEntity.notFound().build<Void>()
         }
     }
 }
@@ -608,7 +609,7 @@ type HealthStatus {
 `,
 
     // GraphQL query controller
-    'src/main/kotlin/{{projectPackage}}/graphql/QueryController.kt': `package {{projectPackage}}.graphql
+    'src/main/kotlin/{{packagePath}}/graphql/QueryController.kt': `package {{projectPackage}}.graphql
 
 import org.springframework.graphql.data.method.annotation.QueryMapping
 import org.springframework.stereotype.Controller
@@ -634,12 +635,13 @@ data class HealthStatus(
 `,
 
     // Services
-    'src/main/kotlin/{{projectPackage}}/services/AuthService.kt': `package {{projectPackage}}.services
+    'src/main/kotlin/{{packagePath}}/services/AuthService.kt': `package {{projectPackage}}.services
 
 import {{projectPackage}}.models.RegisterRequest
 import {{projectPackage}}.models.User
 import {{projectPackage}}.repository.UserRepository
 import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.stereotype.Service
 import java.time.Instant
 
 @Service
@@ -720,7 +722,7 @@ services:
 `,
 
     // Tests
-    'src/test/kotlin/{{projectPackage}}/{{projectNamePascal}}ApplicationTests.kt': `package {{projectPackage}}
+    'src/test/kotlin/{{packagePath}}/{{projectNamePascal}}ApplicationTests.kt': `package {{projectPackage}}
 
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest

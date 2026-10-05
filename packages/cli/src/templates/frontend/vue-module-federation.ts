@@ -140,7 +140,6 @@ export class VueModuleFederationTemplate extends BaseTemplate {
       },
       devDependencies: {
         '@vue/cli-service': '~5.0.0',
-        '@vue/cli-plugin-webpack': '~5.0.0',
         'webpack': '^5.89.0',
         'vue-loader': '^17.4.0',
         'vue-template-compiler': '^2.7.0',
@@ -159,7 +158,7 @@ module.exports = defineConfig({
   configureWebpack: {
     plugins: [
       new ModuleFederationPlugin({
-        name: '${this.context.normalizedName}',
+        name: '${this.context.normalizedName.replace(/[^A-Za-z0-9_$]/g, '_')}',
         filename: 'remoteEntry.js',
         exposes: {
           './Counter': './src/components/Counter',
@@ -205,7 +204,7 @@ module.exports = {
 
   plugins: [
     new ModuleFederationPlugin({
-      name: '${this.context.normalizedName}',
+      name: '${this.context.normalizedName.replace(/[^A-Za-z0-9_$]/g, '_')}',
       filename: 'remoteEntry.js',
       exposes: {
         './Counter': './src/components/Counter',

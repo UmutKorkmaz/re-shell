@@ -261,7 +261,7 @@ our $product_id = 3;
 
 sub init {
     print "📦 Database initialized\\n";
-    print "👤 Default admin: admin@example.com / admin123\\n";
+    print "👤 Default admin: admin\\@example.com / admin123\\n";
 }
 
 sub find_user_by_email {

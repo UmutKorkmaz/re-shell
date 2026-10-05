@@ -319,6 +319,8 @@ import io.vertx.micrometer.PrometheusScrapingHandler;
 import io.vertx.pgclient.PgPool;
 import io.vertx.redis.client.Redis;
 import io.vertx.redis.client.RedisOptions;
+import io.vertx.redis.client.Command;
+import io.vertx.redis.client.Request;
 import org.flywaydb.core.Flyway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -419,7 +421,7 @@ public class MainVerticle extends AbstractVerticle {
                 });
                 
                 healthChecks.register("caching", promise -> {
-                    redis.ping(ar -> {
+                    redis.send(Request.cmd(Command.PING)).onComplete(ar -> {
                         if (ar.succeeded()) {
                             promise.complete();
                         } else {
@@ -511,13 +513,11 @@ public class DbConfig {
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.vertx.codegen.annotations.DataObject;
 import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.Set;
 
-@DataObject
 public class User {
     
     private Long id;
@@ -778,6 +778,10 @@ public class UserService {
     
     public Future<User> findByUsername(String username) {
         return userRepository.findByUsername(username);
+    }
+
+    public Future<User> findByEmail(String email) {
+        return userRepository.findByEmail(email);
     }
     
     public Future<List<User>> findAll(int limit, int offset) {
@@ -1396,8 +1400,8 @@ public class GraphQLProvider {
 
         RuntimeWiring runtimeWiring = RuntimeWiring.newRuntimeWiring()
             .type("Query", typeWiring -> typeWiring
-                .dataFetcher("hello", new StaticDataFetcher<>("Hello from Vert.x GraphQL!"))
-                .dataFetcher("health", new StaticDataFetcher<>("UP")))
+                .dataFetcher("hello", new StaticDataFetcher("Hello from Vert.x GraphQL!"))
+                .dataFetcher("health", new StaticDataFetcher("UP")))
             .build();
 
         SchemaGenerator schemaGenerator = new SchemaGenerator();

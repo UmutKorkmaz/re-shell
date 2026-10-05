@@ -1,14 +1,13 @@
 [package]
 name = "re-shell-desktop"
 version = "1.0.0"
-description = "Tauri desktop shell wrapping the Re-Shell dashboard (apps/web)."
+description = "Tauri desktop shell for the Re-Shell dashboard (apps/web). Owns the local hub-server."
 authors = ["Umut Korkmaz"]
 edition = "2021"
 rust-version = "1.77.2"
 
-# ENV-LIMITED SCAFFOLD: this manifest is structurally valid but NOT built here.
-# Building/signing requires the Rust + Tauri toolchain (cargo present, tauri CLI
-# absent in this environment). See docs/desktop.md.
+# See docs/desktop.md for the architecture, the build/sign workflow and what has
+# been verified.
 
 [lib]
 name = "re_shell_desktop_lib"
@@ -18,9 +17,15 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.0.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.0.0", features = [] }
-serde = { version = "1.0", features = ["derive"] }
+# webview-data-url: the startup-failure page is a data: URL (static, scriptless).
+tauri = { version = "2.0.0", features = ["webview-data-url"] }
 serde_json = "1.0"
+# OS CSPRNG for the per-launch hub session token.
+getrandom = "0.3"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+# Smaller release binaries for the bundles.
+strip = true

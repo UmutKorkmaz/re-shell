@@ -1,4 +1,5 @@
 import { Command, Option, Argument } from 'commander';
+import { ensureFullCommandTree } from '../lazy-commands';
 
 /**
  * A single declared argument for a catalog entry.
@@ -52,6 +53,13 @@ export interface CommandCatalogEntry {
   supportsDryRun: boolean;
   /** Whether the command may cause data loss or irreversible side effects. */
   destructive: boolean;
+  /**
+   * Present (and `true`) only for entries emitted with `includeHidden`: the
+   * command is hidden from `--help` (for example a deprecated alias stub).
+   */
+  hidden?: boolean;
+  /** Present only on deprecated alias stubs: the command path that replaces it. */
+  replacedBy?: string;
 }
 
 /**
@@ -158,22 +166,119 @@ function buildEntry(command: Command, path: string): CommandCatalogEntry {
   };
 }
 
-function walk(command: Command, parentPath: string, out: CommandCatalogEntry[]): void {
-  for (const child of command.commands) {
-    if (isHelpCommand(child)) {
-      continue;
-    }
+/**
+ * Replacement path for each deprecated alias stub. Populated by
+ * {@link markDeprecatedAlias} (called from `src/aliases.ts`) so the catalog can
+ * tell a deprecated stub from a genuinely hidden command without parsing its
+ * description.
+ */
+const deprecatedAliasTargets = new WeakMap<Command, string>();
 
-    const path = parentPath ? `${parentPath} ${child.name()}` : child.name();
+/**
+ * Record that `command` is a deprecated alias stub superseded by `replacement`.
+ *
+ * @param command - The deprecated stub.
+ * @param replacement - The command path that replaces it (e.g. `config diff`).
+ */
+export function markDeprecatedAlias(command: Command, replacement: string): void {
+  deprecatedAliasTargets.set(command, replacement);
+}
 
-    if (isRunnable(child)) {
-      out.push(buildEntry(child, path));
-    }
+/**
+ * One reachable command in the live Commander tree, as visited by
+ * {@link walkCommandTree}.
+ */
+export interface CommandTreeNode {
+  /** Space-delimited command path from the program root (e.g. `workspace graph`). */
+  path: string;
+  /** The Commander command itself. */
+  command: Command;
+  /** Hidden from `--help`, directly or because an ancestor is hidden. */
+  hidden: boolean;
+  /** Whether the command has its own action handler (can actually be run). */
+  runnable: boolean;
+  /** Replacement path when this is a deprecated alias stub. */
+  replacedBy?: string;
+}
 
-    if (child.commands.length > 0) {
-      walk(child, path, out);
+/** Options for {@link walkCommandTree}. */
+export interface WalkCommandTreeOptions {
+  /** Also visit commands hidden from `--help`. Defaults to `false`. */
+  includeHidden?: boolean;
+}
+
+/**
+ * Walk every command Commander can actually dispatch to, depth-first, parents
+ * before children, in registration order.
+ *
+ * This is the single traversal behind both the command catalog
+ * (`commands list --json`) and shell completion, so the two can never disagree
+ * about what the CLI offers.
+ *
+ * Commander resolves `argv` against the *first* registered sibling matching a
+ * name or alias, so a later sibling with an already-claimed name is unreachable
+ * (a shadow). Shadows are skipped (and not descended into): listing them would
+ * advertise commands the CLI will never run, which is how a deprecated alias
+ * registered beside a new command used to appear twice in the catalog.
+ *
+ * @param program - The root Commander program.
+ * @param visit - Called once per reachable command.
+ * @param options - Traversal options.
+ */
+export function walkCommandTree(
+  program: Command,
+  visit: (node: CommandTreeNode) => void,
+  options: WalkCommandTreeOptions = {}
+): void {
+  const includeHidden = options.includeHidden === true;
+
+  const walk = (parent: Command, parentPath: string, parentHidden: boolean): void => {
+    const visible = new Set<Command>(parent.createHelp().visibleCommands(parent));
+    const claimed = new Set<string>();
+
+    for (const child of parent.commands) {
+      if (isHelpCommand(child)) {
+        continue;
+      }
+
+      const names = [child.name(), ...child.aliases()];
+      if (claimed.has(child.name())) {
+        continue; // shadowed by an earlier sibling: unreachable
+      }
+      names.forEach(name => claimed.add(name));
+
+      const hidden = parentHidden || !visible.has(child);
+      if (hidden && !includeHidden) {
+        continue;
+      }
+
+      const path = parentPath ? `${parentPath} ${child.name()}` : child.name();
+      const replacedBy = deprecatedAliasTargets.get(child);
+      visit({
+        path,
+        command: child,
+        hidden,
+        runnable: isRunnable(child),
+        ...(replacedBy ? { replacedBy } : {}),
+      });
+
+      if (child.commands.length > 0) {
+        walk(child, path, hidden);
+      }
     }
-  }
+  };
+
+  walk(program, '', false);
+}
+
+/** Options for {@link buildCommandCatalog}. */
+export interface BuildCommandCatalogOptions {
+  /**
+   * Include commands hidden from `--help` (deprecated alias stubs and the like).
+   * They are flagged `hidden: true` (and `replacedBy` when deprecated). Defaults
+   * to `false`: hidden commands are not part of the advertised surface.
+   */
+  includeHidden?: boolean;
 }
 
 /**
@@ -181,14 +286,40 @@ function walk(command: Command, parentPath: string, out: CommandCatalogEntry[]):
  * flat catalog of every runnable command, with accurate args, flags, and
  * derived metadata (JSON/dry-run support, destructiveness).
  *
+ * Only commands the CLI can actually dispatch to are listed: shadowed
+ * duplicates are dropped and, unless `includeHidden` is set, so are commands
+ * hidden from `--help` (the deprecated flat-name aliases).
+ *
  * Entries are returned sorted by `path` for stable, diff-friendly output.
  *
  * @param program - The root Commander program to inspect.
+ * @param options - Catalog options.
  * @returns A sorted array of catalog entries, one per runnable command.
  */
-export function buildCommandCatalog(program: Command): CommandCatalogEntry[] {
+export function buildCommandCatalog(
+  program: Command,
+  options: BuildCommandCatalogOptions = {}
+): CommandCatalogEntry[] {
+  // Command groups are loaded lazily; the catalog must describe the whole tree.
+  ensureFullCommandTree(program);
   const out: CommandCatalogEntry[] = [];
-  walk(program, '', out);
+  walkCommandTree(
+    program,
+    node => {
+      if (!node.runnable) {
+        return;
+      }
+      const entry = buildEntry(node.command, node.path);
+      if (node.hidden) {
+        entry.hidden = true;
+      }
+      if (node.replacedBy) {
+        entry.replacedBy = node.replacedBy;
+      }
+      out.push(entry);
+    },
+    { includeHidden: options.includeHidden }
+  );
   out.sort((a, b) => a.path.localeCompare(b.path));
   return out;
 }

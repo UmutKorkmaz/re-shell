@@ -1,0 +1,120 @@
+# Polyglot fixture workspace (pkg / debug / refactor tests)
+name: polyglot-demo
+version: 2.0.0
+description: Polyglot fixture workspace
+variables:
+  LOG_LEVEL: info
+
+services:
+  # Frontend
+  web:
+    name: web
+    type: frontend
+    language: typescript
+    framework: react
+    path: services/web
+    port: 3000
+    env:
+      API_URL: http://api:4000
+    dependsOn:
+      - api
+
+  api:
+    name: api
+    type: backend
+    language: typescript
+    framework: express
+    path: services/api
+    port: 4000
+    env:
+      NODE_ENV: production
+      BILLING_URL: http://billing:8081 # billing over the compose network
+      ANALYTICS_URL: http://analytics:8000
+    dependsOn:
+      - billing
+      - analytics
+
+  billing:
+    name: billing
+    type: backend
+    language: java
+    framework: spring-boot
+    path: services/billing
+    port: 8081
+    env:
+      SPRING_PROFILES_ACTIVE: prod
+
+  analytics:
+    name: analytics
+    type: backend
+    language: python
+    framework: fastapi
+    path: services/analytics
+    port: 8000
+    env:
+      BILLING_URL: http://billing:8081
+    dependsOn: [billing]
+
+  gateway:
+    name: gateway
+    type: backend
+    language: go
+    framework: gin
+    path: services/gateway
+    port: 8080
+    env:
+      API_URL: http://api:4000
+    dependsOn:
+      - api
+
+  edge:
+    name: edge
+    type: backend
+    language: go
+    framework: gin
+    path: services/edge
+    port: 8082
+    dependsOn:
+      - gateway
+
+  mailer:
+    name: mailer
+    type: worker
+    language: ruby
+    framework: rails
+    path: services/mailer
+    port: 3001
+
+  search:
+    name: search
+    type: backend
+    language: rust
+    framework: axum
+    path: services/search
+    port: 7700
+
+  indexer:
+    name: indexer
+    type: worker
+    language: rust
+    framework: axum
+    path: services/indexer
+    port: 7701
+    dependsOn:
+      - search
+
+  reports:
+    name: reports
+    type: backend
+    language: php
+    framework: laravel
+    path: services/reports
+    port: 8090
+
+  ledger:
+    name: ledger
+    type: backend
+    language: csharp
+    framework: aspnet-core
+    path: services/ledger
+    port: 5100

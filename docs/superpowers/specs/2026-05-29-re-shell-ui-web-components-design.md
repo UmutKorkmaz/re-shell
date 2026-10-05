@@ -2,7 +2,13 @@
 
 ## Status
 
-Draft — awaiting user review before implementation.
+**SUPERSEDED. Not implemented, and not going to be.** This was a draft proposal that was never
+approved. The owner decided the UI is **shadcn React** (`@re-shell/ui`), and the Web Components
+layer was retired: the repository has no custom-element layer, and CI fails if `<re-shell-`
+elements appear in `apps/web/src`. The dashboard is a React app; the hub transport described
+below survives in `apps/web/src/hub-server.ts` and `@re-shell/contracts`. See
+[`docs/RE_SHELL_ULTIMATE_PLAN.md`](../../RE_SHELL_ULTIMATE_PLAN.md) (historical, decision 1) and
+[`docs/ROADMAP.md`](../../ROADMAP.md) for the current state. Kept for provenance only.
 
 ---
 

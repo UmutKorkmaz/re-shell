@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "User",
+  "namespace": "demo",
+  "fields": [
+    { "name": "id", "type": "string" },
+    { "name": "name", "type": "string" },
+    { "name": "mandatory", "type": "string" }
+  ]
+}

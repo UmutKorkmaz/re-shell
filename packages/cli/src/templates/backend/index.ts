@@ -92,6 +92,8 @@ import { alephDenoTemplate } from './aleph-deno';
 // Bun
 import { elysiaBunTemplate } from './elysia-bun';
 import { honoTemplate } from './hono';
+import { bunServeTemplate } from './bun-serve';
+import { trpcBunTemplate } from './trpc-bun';
 // Elixir
 import { phoenixTemplate } from './phoenix';
 import { plugExTemplate } from './plug-ex';
@@ -103,6 +105,7 @@ import { amberCrTemplate } from './amber-cr';
 // Zig
 import { zigHttpTemplate } from './zig-http';
 import { zapZigTemplate } from './zap-zig';
+import { stdHttpZigTemplate } from './std-http-zig';
 // Nim
 import { jesterTemplate } from './jester';
 import { prologueNimTemplate } from './prologue-nim';
@@ -148,9 +151,6 @@ import { grainTemplate } from './grain';
 // Mojo
 import { mojoTemplate } from './mojo';
 import { mojoFastapiTemplate } from './mojo-fastapi';
-import { carbonTemplate } from './carbon';
-import { valeTemplate } from './vale';
-import { rocTemplate } from './roc';
 import { ballerinaTemplate } from './ballerina';
 import { unisonTemplate } from './unison';
 // Perl
@@ -192,7 +192,6 @@ import { cppHttplibTemplate } from './cpp-httplib';
 import { pistacheTemplate } from './pistache';
 import { beastTemplate } from './beast';
 import { vaporTemplate } from './vapor';
-import { perfectTemplate } from './perfect';
 import { kituraTemplate } from './kitura';
 import { hummingbirdTemplate } from './hummingbird';
 import { shelfTemplate } from './shelf';
@@ -413,7 +412,6 @@ export const backendTemplates: Record<string, BackendTemplate> = {
   'pistache': pistacheTemplate,
   'beast': beastTemplate,
   'vapor': vaporTemplate,
-  'perfect': perfectTemplate,
   'kitura': kituraTemplate,
   'hummingbird': hummingbirdTemplate,
   'shelf': shelfTemplate,
@@ -435,6 +433,8 @@ export const backendTemplates: Record<string, BackendTemplate> = {
   // Bun
   'elysia-bun': elysiaBunTemplate,
   'hono': honoTemplate,
+  'bun-serve': bunServeTemplate,
+  'trpc-bun': trpcBunTemplate,
   // Elixir
   'phoenix': phoenixTemplate,
   'plug-ex': plugExTemplate,
@@ -446,6 +446,7 @@ export const backendTemplates: Record<string, BackendTemplate> = {
   // Zig
   'zig-http': zigHttpTemplate,
   'zap-zig': zapZigTemplate,
+  'std-http-zig': stdHttpZigTemplate,
   // Nim
   'jester': jesterTemplate,
   'prologue-nim': prologueNimTemplate,
@@ -491,9 +492,6 @@ export const backendTemplates: Record<string, BackendTemplate> = {
   // Mojo
   'mojo': mojoTemplate,
   'mojo-fastapi': mojoFastapiTemplate,
-  'carbon': carbonTemplate,
-  'vale': valeTemplate,
-  'roc': rocTemplate,
   'ballerina': ballerinaTemplate,
   'unison': unisonTemplate,
   // Perl
@@ -567,7 +565,6 @@ export { cppHttplibTemplate } from './cpp-httplib';
 export { pistacheTemplate } from './pistache';
 export { beastTemplate } from './beast';
 export { vaporTemplate } from './vapor';
-export { perfectTemplate } from './perfect';
 export { kituraTemplate } from './kitura';
 export { hummingbirdTemplate } from './hummingbird';
 export { shelfTemplate } from './shelf';
@@ -626,6 +623,8 @@ export { alephDenoTemplate } from './aleph-deno';
 // Bun
 export { elysiaBunTemplate } from './elysia-bun';
 export { honoTemplate } from './hono';
+export { bunServeTemplate } from './bun-serve';
+export { trpcBunTemplate } from './trpc-bun';
 // Elixir
 export { phoenixTemplate } from './phoenix';
 export { plugExTemplate } from './plug-ex';
@@ -637,6 +636,7 @@ export { amberCrTemplate } from './amber-cr';
 // Zig
 export { zigHttpTemplate } from './zig-http';
 export { zapZigTemplate } from './zap-zig';
+export { stdHttpZigTemplate } from './std-http-zig';
 // Nim
 export { jesterTemplate } from './jester';
 export { prologueNimTemplate } from './prologue-nim';
@@ -682,12 +682,6 @@ export { grainTemplate } from './grain';
 // Mojo
 export { mojoTemplate } from './mojo';
 export { mojoFastapiTemplate } from './mojo-fastapi';
-// Carbon
-export { carbonTemplate } from './carbon';
-// Vale
-export { valeTemplate } from './vale';
-// Roc
-export { rocTemplate } from './roc';
 // Ballerina
 export { ballerinaTemplate } from './ballerina';
 // Unison

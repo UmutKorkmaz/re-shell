@@ -43,6 +43,30 @@ jobs:
       - name: Build site
         run: pnpm --filter @re-shell/site run build
 
+      # Every internal /re-shell/... link (and #anchor) in the site sources must
+      # resolve to a page in the build.
+      - name: Check internal links
+        run: node scripts/check-site-links.mjs
+
+      # The workspace.yaml v2 JSON Schema is served from the site. Fail the build
+      # (before anything is deployed) if it was not emitted or its $id is not the
+      # URL it will be served from.
+      - name: Verify workspace schema was emitted
+        run: |
+          set -euo pipefail
+          file=site/dist/schemas/workspace-v2.json
+          test -s "$file" || { echo "::error::$file was not emitted by the site build"; exit 1; }
+          id=$(jq -r '."$id"' "$file")
+          # The site root (origin + base) as the build itself resolved it, read
+          # back from the sitemap, so nothing here retypes the URL.
+          root=$(grep -o '<loc>[^<]*</loc>' site/dist/sitemap-index.xml | head -1 | sed -E 's#</?loc>##g; s#/sitemap-[0-9]+\.xml$##')
+          expected="$root/schemas/workspace-v2.json"
+          if [ -z "$root" ] || [ "$id" != "$expected" ]; then
+            echo "::error::schema \$id is '$id', expected '$expected'"
+            exit 1
+          fi
+          jq -e '.required == ["name","version","services"]' "$file" > /dev/null
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
@@ -64,3 +88,33 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # Post-deploy: fetch the schema from the live site and check its $id, so a
+      # broken Pages deploy (404, stale artifact, wrong base path) is caught here
+      # rather than by users whose IDE silently stops validating. Only meaningful
+      # for the upstream site: a fork deploys to a different origin.
+      - name: Verify deployed workspace schema
+        if: github.repository == 'UmutKorkmaz/re-shell'
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          url="${PAGE_URL%/}/schemas/workspace-v2.json"
+          # Pages can take a short while to serve a fresh deployment.
+          ok=0
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl --fail --silent --show-error --location "$url" --output schema.json; then
+              ok=1
+              break
+            fi
+            echo "attempt $attempt: $url not available yet"
+            sleep 15
+          done
+          [ "$ok" = 1 ] || { echo "::error::could not fetch $url"; exit 1; }
+          id=$(jq -r '."$id"' schema.json)
+          if [ "$id" != "$url" ]; then
+            echo "::error::deployed schema \$id is '$id', expected '$url'"
+            exit 1
+          fi
+          jq -e '.required == ["name","version","services"]' schema.json > /dev/null
+          echo "Deployed schema OK: $url"

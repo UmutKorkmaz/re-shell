@@ -22,6 +22,7 @@ re-shell api --help
 | `gateway` | | API gateway integration for supported backend frameworks. |
 | `analytics` | | API analytics and monitoring. |
 | `client` | | Generate type-safe API clients from OpenAPI specifications. |
+| `verify` | | Verify a spec against a baseline: report backward-incompatible changes and the impacted consumers. |
 
 ## Examples
 
@@ -39,6 +40,13 @@ re-shell api client
 re-shell api validation
 re-shell api gateway
 ```
+
+`api verify` compares the current spec with a baseline (`--baseline <dir>` or
+`--baseline-spec <path>`) and lists the breaking changes and the services that consume
+them (`--api <name>` picks the producer; `--spec` overrides discovery; `--json` for the
+envelope). For a contract diff between any two OpenAPI, `.proto` or GraphQL files, and a
+non-zero exit on breaking changes, see
+[`service bridge diff`](/re-shell/cli/service-bridge/#service-bridge-diff).
 
 > **Tip.** Nested `--version` flags resolve correctly — for example
 > `re-shell api openapi generate --version 0.25.1` sets the spec version rather

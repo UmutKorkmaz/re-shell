@@ -1,11 +1,14 @@
 import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import { randomBytes } from 'crypto';
 import * as fs from 'fs';
+import * as http from 'http';
 import * as path from 'path';
 import chalk from 'chalk';
 import { GENERATED_PKG_SCOPE, RECOGNIZED_PKG_SCOPES } from '../utils/scope';
 import { processManager } from '../utils/error-handler';
+import { ok } from '../utils/json-output';
 import { startStaticServer, type StaticServer } from '../utils/ui-static-server';
+import { loadWhiteLabel } from '../utils/ui-brand';
 
 // Recognized package names for the standalone UI app. Includes the legacy
 // scope so already-installed dashboards still resolve.
@@ -42,6 +45,8 @@ export interface UiCommandOptions {
   json?: boolean;
   /** When true, open the dashboard in the default browser after launch. */
   open?: boolean;
+  /** Max ms to wait for the hub's GET /health to succeed. Defaults to 15000. Not a CLI flag. */
+  hubReadyTimeoutMs?: number;
 }
 
 /**
@@ -75,7 +80,7 @@ export interface UiLaunchPlan {
   args: string[];
   /** Full dashboard URL (host + port). */
   url: string;
-  /** Full hub URL (host + hub port). */
+  /** Full hub URL. Always loopback (127.0.0.1) + hub port, independent of the dashboard host. */
   hubUrl: string;
   /** Port the hub server listens on. */
   hubPort: string;
@@ -95,6 +100,8 @@ function generateHubToken(): string {
   return randomBytes(32).toString('hex');
 }
 
+/** The hub only ever listens on (and accepts Host headers for) the loopback interface. */
+const HUB_LOOPBACK_HOST = '127.0.0.1';
 const WEB_APP_RELATIVE_PATHS = ['apps/web', 'apps/dashboard'];
 const PACKAGE_MANAGERS = new Set(['pnpm', 'npm', 'yarn', 'bun']);
 
@@ -315,7 +322,10 @@ export function createUiLaunchPlan(options: UiCommandOptions = {}): UiLaunchPlan
   const hubPort = String(parseInt(port) + 1);
   const workspace = path.resolve(options.workspace || process.cwd());
   const url = `http://${host}:${port}`;
-  const hubUrl = `http://${host}:${hubPort}`;
+  // The hub binds 127.0.0.1 only and its WebSocket Host check rejects any other
+  // name, so the hub URL is pinned to loopback no matter which --host the
+  // dashboard itself binds (e.g. 0.0.0.0).
+  const hubUrl = `http://${HUB_LOOPBACK_HOST}:${hubPort}`;
   const cliPath = process.argv[1] ? path.resolve(process.argv[1]) : 're-shell';
   const hubToken = generateHubToken();
 
@@ -398,6 +408,46 @@ export function createUiLaunchPlan(options: UiCommandOptions = {}): UiLaunchPlan
 
 // Grace period the hub gets to drain on SIGTERM before we escalate to SIGKILL.
 const HUB_DRAIN_MS = 3000;
+/** Default time the hub gets to answer GET /health after it is spawned. */
+const HUB_READY_TIMEOUT_MS = 15000;
+/**
+ * A hub exit is only reported as a crash after this delay, so a Ctrl+C that the
+ * terminal delivers to the hub and to this CLI at the same moment is handled as
+ * the orderly shutdown it is.
+ */
+const HUB_EXIT_GRACE_MS = 300;
+/** Delay before opening the browser on the vite dev server, which has no readiness probe. */
+const VITE_OPEN_DELAY_MS = 1500;
+const HUB_POLL_INTERVAL_MS = 100;
+const HUB_REQUEST_TIMEOUT_MS = 1500;
+/** Extra time, after SIGKILL, to observe the hub actually going away. */
+const HUB_KILL_WAIT_MS = 2000;
+/** Max time to wait for the static dashboard server to release its port. */
+const STATIC_CLOSE_WAIT_MS = 1500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/** How a spawned child ended. `error` is set when it could not be spawned at all. */
+interface ChildExit {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  error?: Error;
+}
+
+/** Handle on the spawned hub process with exit tracking independent of ChildProcess flags. */
+interface HubHandle {
+  child: ChildProcess;
+  /** Resolves (never rejects) once the hub has exited or failed to spawn. */
+  exited: Promise<ChildExit>;
+  hasExited(): boolean;
+  /** Recent hub stdout/stderr, for failure diagnostics. */
+  output(): string;
+  /** Mark the upcoming exit as deliberate so it is not reported as a crash. */
+  markStopping(): void;
+  isStopping(): boolean;
+}
 
 /**
  * Resolve the compiled, dependency-free hub bundle. The CLI spawns this with
@@ -435,31 +485,51 @@ function ensureHubBundle(uiRoot: string, packageManager: string): string | null 
 }
 
 /**
- * Tear down the spawned hub child: SIGTERM for a graceful drain, then SIGKILL
- * if it has not exited within the grace window. Idempotent and safe to call
- * from multiple signal handlers and the normal-exit path.
+ * Signal the hub to stop: SIGTERM for a graceful drain, then SIGKILL if it has
+ * not exited within the grace window. Idempotent, synchronous and safe to call
+ * from signal handlers and process-manager cleanup; use {@link stopHub} to also
+ * wait for the exit.
  */
-function teardownHub(hub: ChildProcess | null): void {
-  if (!hub || hub.killed || hub.exitCode !== null) {
+function signalHub(hub: HubHandle | null): void {
+  if (!hub || hub.hasExited()) {
     return;
   }
-  hub.kill('SIGTERM');
+  hub.markStopping();
+  try {
+    hub.child.kill('SIGTERM');
+  } catch {
+    // already gone
+  }
   const escalate = setTimeout(() => {
-    if (hub.exitCode === null && !hub.killed) {
-      hub.kill('SIGKILL');
+    if (!hub.hasExited()) {
+      try {
+        hub.child.kill('SIGKILL');
+      } catch {
+        // already gone
+      }
     }
   }, HUB_DRAIN_MS);
   // Do not keep the event loop alive solely for the escalation timer.
   escalate.unref();
-  hub.once('exit', () => clearTimeout(escalate));
+  void hub.exited.then(() => clearTimeout(escalate));
+}
+
+/** Stop the hub and wait until it has really exited (so its port is released). */
+async function stopHub(hub: HubHandle | null): Promise<void> {
+  if (!hub) {
+    return;
+  }
+  signalHub(hub);
+  await Promise.race([hub.exited, sleep(HUB_DRAIN_MS + HUB_KILL_WAIT_MS)]);
 }
 
 /**
  * Spawn the bundled hub server with plain `node`. The hub hard-pins itself to
  * 127.0.0.1 and reads its port + per-launch token from the environment; no host
- * override is forwarded. Returns the child, or null when no bundle is available.
+ * override is forwarded. Spawn errors and exits are tracked on the returned
+ * handle so callers can fail instead of carrying on without a hub.
  */
-function spawnHub(plan: UiLaunchPlan, hubBundlePath: string): ChildProcess {
+function spawnHub(plan: UiLaunchPlan, hubBundlePath: string): HubHandle {
   const hubEnv = {
     ...process.env,
     RE_SHELL_WORKSPACE: plan.workspace,
@@ -471,153 +541,455 @@ function spawnHub(plan: UiLaunchPlan, hubBundlePath: string): ChildProcess {
     VITE_RE_SHELL_UI_PORT: plan.env.VITE_RE_SHELL_UI_PORT
   };
 
-  const hubProcess = spawn('node', [hubBundlePath], {
+  const child = spawn('node', [hubBundlePath], {
     cwd: path.dirname(hubBundlePath),
     stdio: ['ignore', 'pipe', 'pipe'],
     env: hubEnv
   });
 
-  hubProcess.stdout?.on('data', (data: Buffer) => {
+  let recent = '';
+  const remember = (data: Buffer | string): void => {
+    recent = (recent + data.toString()).slice(-4000);
+  };
+
+  child.stdout?.on('data', (data: Buffer) => {
+    remember(data);
     process.stdout.write(data);
   });
-  hubProcess.stderr?.on('data', (data: Buffer) => {
+  child.stderr?.on('data', (data: Buffer) => {
+    remember(data);
     process.stderr.write(data);
   });
-  hubProcess.on('error', err => {
-    console.warn(chalk.yellow(`Hub server failed to start: ${err.message}`));
+
+  let exitInfo: ChildExit | null = null;
+  let stopping = false;
+  const exited = new Promise<ChildExit>(resolve => {
+    child.once('exit', (code: number | null, signal: NodeJS.Signals | null) => {
+      if (!exitInfo) {
+        exitInfo = { code, signal };
+        resolve(exitInfo);
+      }
+    });
+    child.once('error', (error: Error) => {
+      if (!exitInfo) {
+        exitInfo = { code: null, signal: null, error };
+        resolve(exitInfo);
+      }
+    });
   });
 
-  return hubProcess;
+  return {
+    child,
+    exited,
+    hasExited: () => exitInfo !== null,
+    output: () => recent.trim(),
+    markStopping: () => {
+      stopping = true;
+    },
+    isStopping: () => stopping
+  };
+}
+
+function describeExit(exit: ChildExit): string {
+  if (exit.error) {
+    return `failed to start: ${exit.error.message}`;
+  }
+  return exit.signal ? `was killed by ${exit.signal}` : `exited with code ${exit.code}`;
+}
+
+/**
+ * One authenticated probe of the hub: GET /health with the per-launch token.
+ * True only for a 200 whose JSON body reports `status: "ok"`, so something else
+ * that happens to listen on the port (and does not know the token) never counts.
+ */
+function probeHub(plan: UiLaunchPlan): Promise<boolean> {
+  return new Promise(resolve => {
+    const request = http.get(
+      {
+        host: HUB_LOOPBACK_HOST,
+        port: Number(plan.hubPort),
+        path: '/health',
+        headers: {
+          'X-Re-Shell-UI-Hub-Token': plan.hubToken,
+          Accept: 'application/json'
+        },
+        agent: false,
+        timeout: HUB_REQUEST_TIMEOUT_MS
+      },
+      response => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk: string) => {
+          body += chunk;
+        });
+        response.on('end', () => {
+          if (response.statusCode !== 200) {
+            resolve(false);
+            return;
+          }
+          try {
+            resolve(JSON.parse(body).status === 'ok');
+          } catch {
+            resolve(false);
+          }
+        });
+        response.on('error', () => resolve(false));
+      }
+    );
+    request.on('timeout', () => {
+      request.destroy();
+      resolve(false);
+    });
+    request.on('error', () => resolve(false));
+  });
+}
+
+/**
+ * Wait until the hub answers `GET /health` with the launch token, failing fast
+ * and explicitly if it exits (for example because its port is in use), cannot be
+ * spawned, or does not come up in time. Readiness must be seen twice with the
+ * hub still alive in between, so a stray listener on the port cannot pass for it.
+ */
+async function waitForHubReady(
+  plan: UiLaunchPlan,
+  hub: HubHandle,
+  timeoutMs: number
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let cancelled = false;
+
+  const poll = (async (): Promise<'ready' | 'timeout'> => {
+    let confirmed = false;
+    while (!cancelled) {
+      if (await probeHub(plan)) {
+        if (confirmed) {
+          return 'ready';
+        }
+        confirmed = true;
+      } else {
+        confirmed = false;
+        if (Date.now() >= deadline) {
+          return 'timeout';
+        }
+      }
+      await sleep(HUB_POLL_INTERVAL_MS);
+    }
+    return 'timeout';
+  })();
+
+  const outcome = await Promise.race([poll, hub.exited]);
+  cancelled = true;
+
+  if (outcome === 'ready' && !hub.hasExited()) {
+    return;
+  }
+
+  const exit = outcome === 'ready' || outcome === 'timeout' ? undefined : outcome;
+  const finalExit = exit ?? (hub.hasExited() ? await hub.exited : undefined);
+
+  if (finalExit) {
+    const output = hub.output();
+    const portHint = /EADDRINUSE|already in use/i.test(output)
+      ? ` Port ${plan.hubPort} (the dashboard port + 1) is already in use; choose another --port.`
+      : '';
+    throw new Error(
+      `Hub server ${describeExit(finalExit)} before it became ready on ${plan.hubUrl}.${portHint}` +
+        (output ? `\nHub output:\n${output}` : '')
+    );
+  }
+
+  throw new Error(
+    `Hub server did not become ready on ${plan.hubUrl} within ${timeoutMs}ms (GET /health with the session token never succeeded).`
+  );
+}
+
+/** Why the dashboard + hub are being shut down. */
+type StopReason =
+  | { kind: 'signal'; signal: NodeJS.Signals }
+  | { kind: 'static-closed' }
+  | { kind: 'dashboard-exit'; exit: ChildExit }
+  | { kind: 'hub-exit'; exit: ChildExit };
+
+/**
+ * Wait for the first reason to stop: SIGINT/SIGTERM to this CLI, the dashboard
+ * process or static server ending, or the hub dying underneath a running
+ * dashboard. Listeners are removed by `dispose`.
+ */
+function superviseUntilStop(parts: {
+  hub: HubHandle | null;
+  dashboard?: ChildProcess;
+  staticServer?: StaticServer;
+}): { promise: Promise<StopReason>; dispose: () => void } {
+  let settle: (reason: StopReason) => void = () => undefined;
+  const promise = new Promise<StopReason>(resolve => {
+    settle = resolve;
+  });
+
+  const onSigint = (): void => settle({ kind: 'signal', signal: 'SIGINT' });
+  const onSigterm = (): void => settle({ kind: 'signal', signal: 'SIGTERM' });
+  process.once('SIGINT', onSigint);
+  process.once('SIGTERM', onSigterm);
+
+  const { hub, dashboard, staticServer } = parts;
+
+  let hubExitTimer: NodeJS.Timeout | undefined;
+  if (hub) {
+    void hub.exited.then(exit => {
+      if (!hub.isStopping()) {
+        hubExitTimer = setTimeout(() => settle({ kind: 'hub-exit', exit }), HUB_EXIT_GRACE_MS);
+      }
+    });
+  }
+  if (dashboard) {
+    dashboard.once('exit', (code: number | null, signal: NodeJS.Signals | null) =>
+      settle({ kind: 'dashboard-exit', exit: { code, signal } })
+    );
+    dashboard.once('error', (error: Error) =>
+      settle({ kind: 'dashboard-exit', exit: { code: null, signal: null, error } })
+    );
+  }
+  if (staticServer) {
+    staticServer.server.once('close', () => settle({ kind: 'static-closed' }));
+  }
+
+  return {
+    promise,
+    dispose: () => {
+      process.removeListener('SIGINT', onSigint);
+      process.removeListener('SIGTERM', onSigterm);
+      if (hubExitTimer) {
+        clearTimeout(hubExitTimer);
+      }
+    }
+  };
+}
+
+/**
+ * Turn the reason the launcher stopped into the command outcome: an orderly
+ * stop (signal, dashboard exited 0, server closed) returns - setting the
+ * conventional 128+signal exit code for signals - while a dead hub or a failing
+ * dashboard throws so the command exits non-zero with a clear message.
+ */
+function resolveStopReason(reason: StopReason, hub: HubHandle | null): void {
+  switch (reason.kind) {
+    case 'signal':
+      process.exitCode = reason.signal === 'SIGINT' ? 130 : 143;
+      return;
+    case 'static-closed':
+      return;
+    case 'hub-exit': {
+      const output = hub?.output();
+      throw new Error(
+        `Hub server ${describeExit(reason.exit)} while the dashboard was running; the dashboard has been shut down.` +
+          (output ? `\nHub output:\n${output}` : '')
+      );
+    }
+    case 'dashboard-exit': {
+      const { exit } = reason;
+      if (exit.error) {
+        throw exit.error;
+      }
+      // The terminal delivers Ctrl+C to the whole foreground group, so the
+      // dashboard often exits on the very signal that is stopping us.
+      if (exit.signal === 'SIGINT' || exit.signal === 'SIGTERM') {
+        process.exitCode = exit.signal === 'SIGINT' ? 130 : 143;
+        return;
+      }
+      if (exit.signal) {
+        throw new Error(`Re-Shell UI exited with signal ${exit.signal}`);
+      }
+      if (exit.code && exit.code !== 0) {
+        throw new Error(`Re-Shell UI exited with code ${exit.code}`);
+      }
+      return;
+    }
+  }
+}
+
+/** Ask a child to terminate (SIGTERM, then SIGKILL) and wait for it to be gone. */
+async function stopChild(child: ChildProcess | null): Promise<void> {
+  if (!child || child.exitCode != null || child.signalCode != null) {
+    return;
+  }
+  const gone = new Promise<void>(resolve => {
+    child.once('exit', () => resolve());
+  });
+  try {
+    child.kill('SIGTERM');
+  } catch {
+    return;
+  }
+  const escalate = setTimeout(() => {
+    try {
+      child.kill('SIGKILL');
+    } catch {
+      // already gone
+    }
+  }, HUB_DRAIN_MS);
+  escalate.unref();
+  await Promise.race([gone, sleep(HUB_DRAIN_MS + HUB_KILL_WAIT_MS)]);
+  clearTimeout(escalate);
+}
+
+/** Close the static dashboard server, dropping keep-alive connections that would hold it open. */
+async function closeStaticServer(staticServer: StaticServer | null): Promise<void> {
+  if (!staticServer) {
+    return;
+  }
+  const closing = staticServer.close();
+  (staticServer.server as http.Server & { closeAllConnections?: () => void }).closeAllConnections?.();
+  await Promise.race([closing, sleep(STATIC_CLOSE_WAIT_MS)]);
 }
 
 /**
  * Static mode: serve the prebuilt SPA bundled into the CLI (dist/dashboard) via
  * the dependency-light static server, with the per-launch hub url + token
  * injected into index.html at request time, plus the bundled hub. No Vite, no
- * apps/web source. Resolves only when interrupted/terminated.
+ * apps/web source.
+ *
+ * The hub must be answering `GET /health` before the dashboard is served; if it
+ * exits early, never becomes ready, or dies later, the dashboard is torn down and
+ * the command fails. Resolves only when interrupted/terminated or when the
+ * dashboard server closes.
  */
-async function launchStatic(plan: UiLaunchPlan): Promise<void> {
+async function launchStatic(plan: UiLaunchPlan, hubReadyTimeoutMs: number): Promise<void> {
   const dashboardDir = plan.dashboardDir;
   if (!dashboardDir) {
     throw new Error('Static launch mode requires a bundled dashboard directory.');
   }
 
-  if (plan.open) {
-    setTimeout(() => openBrowser(plan.url), 1500);
+  // Resolve the white-label config BEFORE anything is spawned: an invalid config fails the
+  // launch with the reasons instead of silently serving the default brand.
+  const { brand, file: brandFile, customised } = loadWhiteLabel(plan.workspace);
+  if (customised) {
+    console.log(chalk.gray(`  White-label: ${brand.productName}${brandFile ? ` (${brandFile})` : ' (environment)'}`));
   }
 
-  const hubProcess: ChildProcess | null = plan.hubBundlePath
-    ? spawnHub(plan, plan.hubBundlePath)
-    : null;
-  if (!hubProcess) {
+  const hub = plan.hubBundlePath ? spawnHub(plan, plan.hubBundlePath) : null;
+  if (!hub) {
     console.log(chalk.yellow('  Hub server bundle unavailable - launching without the hub'));
   }
 
-  const host = plan.env.VITE_RE_SHELL_UI_HOST;
-  const port = Number(plan.env.VITE_RE_SHELL_UI_PORT);
-  const staticServer: StaticServer = await startStaticServer({
-    rootDir: dashboardDir,
-    host,
-    port,
-    hubUrl: plan.hubUrl,
-    hubToken: plan.hubToken
+  let staticServer: StaticServer | null = null;
+  // Synchronous last-resort cleanup (uncaught exception / unhandled rejection paths).
+  processManager.addCleanup(() => {
+    signalHub(hub);
+    void staticServer?.close();
   });
 
-  let closed = false;
-  const teardown = (): void => {
-    if (!closed) {
-      closed = true;
-      void staticServer.close();
+  let reason: StopReason;
+  try {
+    if (hub) {
+      await waitForHubReady(plan, hub, hubReadyTimeoutMs);
+      console.log(chalk.green(`  Hub ready at ${plan.hubUrl}`));
     }
-    teardownHub(hubProcess);
-  };
-  processManager.addCleanup(teardown);
 
-  await new Promise<void>(resolve => {
-    const onSignal = (signal: NodeJS.Signals): void => {
-      teardown();
-      setTimeout(() => process.exit(signal === 'SIGINT' ? 130 : 143), 50).unref();
-      resolve();
-    };
-    process.once('SIGINT', () => onSignal('SIGINT'));
-    process.once('SIGTERM', () => onSignal('SIGTERM'));
-    staticServer.server.once('close', () => resolve());
-  });
+    staticServer = await startStaticServer({
+      rootDir: dashboardDir,
+      host: plan.env.VITE_RE_SHELL_UI_HOST,
+      port: Number(plan.env.VITE_RE_SHELL_UI_PORT),
+      hubUrl: plan.hubUrl,
+      hubToken: plan.hubToken,
+      brand
+    });
+
+    if (plan.open) {
+      openBrowser(plan.url);
+    }
+
+    const supervision = superviseUntilStop({ hub, staticServer });
+    try {
+      reason = await supervision.promise;
+    } finally {
+      supervision.dispose();
+    }
+  } finally {
+    await closeStaticServer(staticServer);
+    await stopHub(hub);
+  }
+
+  resolveStopReason(reason, hub);
 }
 
 /**
  * Vite-dev mode: run the apps/web Vite dev server from the monorepo source plus
  * the on-demand-built hub bundle. The dashboard SPA reads the hub url + token
  * from VITE_* vars at serve time.
+ *
+ * As in static mode the hub must be ready before the dashboard starts, and an
+ * early or later hub exit tears the dashboard down and fails the command.
  */
-async function launchViteDev(plan: UiLaunchPlan): Promise<void> {
-  if (plan.open) {
-    setTimeout(() => openBrowser(plan.url), 1500);
-  }
-
+async function launchViteDev(plan: UiLaunchPlan, hubReadyTimeoutMs: number): Promise<void> {
   // The hub is a single, dependency-free esbuild bundle run with plain `node`.
   // It is built on demand when missing from the monorepo checkout.
   const hubBundlePath = ensureHubBundle(plan.uiRoot, plan.packageManager);
-  const hubProcess: ChildProcess | null = hubBundlePath ? spawnHub(plan, hubBundlePath) : null;
-  if (!hubProcess) {
+  const hub = hubBundlePath ? spawnHub(plan, hubBundlePath) : null;
+  if (!hub) {
     console.log(chalk.yellow('  Hub server bundle unavailable - launching without the hub'));
   }
 
-  // Lifecycle safety: ensure the hub is always torn down, whether the parent
-  // exits normally, is interrupted, or terminated. Registered with the CLI's
-  // process manager AND directly on SIGINT/SIGTERM so no path leaves an orphan
-  // (neither the hub nor the dashboard dev server).
+  // Lifecycle safety: ensure the hub and dashboard are always torn down,
+  // whether the parent exits normally, is interrupted, or terminated.
   let dashboardProcess: ChildProcess | null = null;
-  const teardown = (): void => {
+  processManager.addCleanup(() => {
     if (dashboardProcess && dashboardProcess.exitCode === null && !dashboardProcess.killed) {
       dashboardProcess.kill('SIGTERM');
     }
-    teardownHub(hubProcess);
-  };
-  processManager.addCleanup(teardown);
+    signalHub(hub);
+  });
 
-  const onSignal = (signal: NodeJS.Signals): void => {
-    teardown();
-    // Re-raise default behaviour after children have been signalled so the CLI
-    // itself exits with the conventional 128 + signal number. Defer the exit a
-    // tick so the SIGTERMs are delivered before we go.
-    setTimeout(() => process.exit(signal === 'SIGINT' ? 130 : 143), 50).unref();
-  };
-  const sigintHandler = (): void => onSignal('SIGINT');
-  const sigtermHandler = (): void => onSignal('SIGTERM');
-  process.once('SIGINT', sigintHandler);
-  process.once('SIGTERM', sigtermHandler);
-
+  let reason: StopReason;
+  let openTimer: NodeJS.Timeout | undefined;
   try {
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn(plan.command, plan.args, {
-        cwd: plan.appPath,
-        stdio: 'inherit',
-        env: {
-          ...process.env,
-          ...plan.env
-        }
-      });
-      dashboardProcess = child;
+    if (hub) {
+      await waitForHubReady(plan, hub, hubReadyTimeoutMs);
+      console.log(chalk.green(`  Hub ready at ${plan.hubUrl}`));
+    }
 
-      child.on('error', reject);
-      child.on('exit', (code, signal) => {
-        if (signal) {
-          reject(new Error(`Re-Shell UI exited with signal ${signal}`));
-          return;
-        }
-        if (code && code !== 0) {
-          reject(new Error(`Re-Shell UI exited with code ${code}`));
-          return;
-        }
-        resolve();
-      });
+    dashboardProcess = spawn(plan.command, plan.args, {
+      cwd: plan.appPath,
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        ...plan.env
+      }
     });
+
+    if (plan.open) {
+      openTimer = setTimeout(() => openBrowser(plan.url), VITE_OPEN_DELAY_MS);
+    }
+
+    const supervision = superviseUntilStop({ hub, dashboard: dashboardProcess });
+    try {
+      reason = await supervision.promise;
+    } finally {
+      supervision.dispose();
+    }
   } finally {
-    process.removeListener('SIGINT', sigintHandler);
-    process.removeListener('SIGTERM', sigtermHandler);
-    teardown();
+    if (openTimer) {
+      clearTimeout(openTimer);
+    }
+    await stopChild(dashboardProcess);
+    await stopHub(hub);
   }
+
+  resolveStopReason(reason, hub);
+}
+
+/** Placeholder printed instead of the hub token when nothing is launched. */
+export const REDACTED_TOKEN = '<redacted>';
+
+/**
+ * Copy of a launch plan that is safe to print or log: the hub token (and the
+ * env vars that carry it) are replaced by {@link REDACTED_TOKEN}. A plan that
+ * is only printed (`--json`, `--dry-run`) is never launched, so its token would
+ * authenticate nothing; redacting it keeps tokens out of CI logs and transcripts.
+ */
+export function redactLaunchPlan(plan: UiLaunchPlan): UiLaunchPlan {
+  const env = Object.fromEntries(
+    Object.entries(plan.env).map(([key, value]) => [key, value === plan.hubToken ? REDACTED_TOKEN : value])
+  );
+  return { ...plan, hubToken: REDACTED_TOKEN, env };
 }
 
 /**
@@ -631,7 +1003,7 @@ export async function launchUi(options: UiCommandOptions = {}): Promise<void> {
   const plan = createUiLaunchPlan(options);
 
   if (options.json) {
-    console.log(JSON.stringify(plan, null, 2));
+    ok(redactLaunchPlan(plan));
     return;
   }
 
@@ -648,7 +1020,7 @@ export async function launchUi(options: UiCommandOptions = {}): Promise<void> {
     }
     console.log(`  Dashboard: ${plan.url}`);
     console.log(`  Hub: ${plan.hubUrl} (loopback-only, token-protected)`);
-    console.log(`  Hub token: ${plan.hubToken}`);
+    console.log(`  Hub token: ${REDACTED_TOKEN} (generated fresh for each launch)`);
     return;
   }
 
@@ -660,10 +1032,12 @@ export async function launchUi(options: UiCommandOptions = {}): Promise<void> {
   console.log(`  Workspace: ${plan.workspace}`);
   console.log(`  UI root: ${plan.uiRoot}`);
 
+  const hubReadyTimeoutMs = options.hubReadyTimeoutMs ?? HUB_READY_TIMEOUT_MS;
+
   if (plan.mode === 'static') {
-    await launchStatic(plan);
+    await launchStatic(plan, hubReadyTimeoutMs);
     return;
   }
 
-  await launchViteDev(plan);
+  await launchViteDev(plan, hubReadyTimeoutMs);
 }

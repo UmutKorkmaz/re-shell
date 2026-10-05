@@ -5,19 +5,26 @@ import {
   fail,
   jsonError,
   jsonSuccess,
-  createJsonWriter,
   emitJson,
   enableJsonMode,
-  isJsonMode,
   isJsonModeActive,
 } from '../../src/utils/json-output';
 
 describe('json-output', () => {
   let writeSpy: ReturnType<typeof vi.spyOn>;
+  let errSpy: ReturnType<typeof vi.spyOn>;
   let written: string[];
+  let errWritten: string[];
 
   beforeEach(() => {
     written = [];
+    errWritten = [];
+    errSpy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        errWritten.push(typeof chunk === 'string' ? chunk : chunk.toString());
+        return true;
+      }) as unknown as ReturnType<typeof vi.spyOn>;
     process.exitCode = undefined;
     writeSpy = vi
       .spyOn(process.stdout, 'write')
@@ -29,6 +36,7 @@ describe('json-output', () => {
 
   afterEach(() => {
     writeSpy.mockRestore();
+    errSpy.mockRestore();
     process.exitCode = undefined;
   });
 
@@ -126,39 +134,6 @@ describe('json-output', () => {
     });
   });
 
-  describe('createJsonWriter()', () => {
-    it('forwards written chunks to the real stdout', async () => {
-      const writer = createJsonWriter();
-      await new Promise<void>((resolve, reject) => {
-        writer.write('{"hello":true}', (err) => (err ? reject(err) : resolve()));
-      });
-      expect(written.join('')).toContain('{"hello":true}');
-    });
-  });
-
-  describe('isJsonMode()', () => {
-    it('detects --json in argv', () => {
-      const original = process.argv;
-      process.argv = ['node', 'cli', '--json'];
-      expect(isJsonMode()).toBe(true);
-      process.argv = original;
-    });
-
-    it('detects --json-output in argv', () => {
-      const original = process.argv;
-      process.argv = ['node', 'cli', '--json-output'];
-      expect(isJsonMode()).toBe(true);
-      process.argv = original;
-    });
-
-    it('returns false when no json flag is present', () => {
-      const original = process.argv;
-      process.argv = ['node', 'cli', 'workspace', 'list'];
-      expect(isJsonMode()).toBe(false);
-      process.argv = original;
-    });
-  });
-
   describe('enableJsonMode()', () => {
     afterEach(() => {
       // Guard: ensure stdout.write is the spy again even if a test path fails to
@@ -188,6 +163,12 @@ describe('json-output', () => {
       expect(out).not.toContain('{"json":1}');
       expect(out).not.toContain('binary-ish');
       expect(out).not.toContain('line1');
+      // ...and none of it was dropped: it all went to stderr instead.
+      const err = errWritten.join('');
+      expect(err).toContain('plain noise');
+      expect(err).toContain('{"json":1}');
+      expect(err).toContain('binary-ish');
+      expect(err).toContain('line1\nline2');
       // Exactly the emitted envelope reached stdout.
       expect(out).toBe('{"ok":true,"data":{"sanctioned":true},"warnings":[]}\n');
     });
@@ -229,25 +210,25 @@ describe('json-output', () => {
       }
       const out = written.join('');
       expect(out).not.toContain('still suppressed');
+      expect(errWritten.join('')).toContain('still suppressed');
       expect(out).toBe('{"ok":true,"data":{"nested":true},"warnings":[]}\n');
       expect(isJsonModeActive()).toBe(false);
     });
 
-    it('routes console.error to stderr and silences console.log/warn', () => {
-      const stderrSpy = vi
-        .spyOn(process.stderr, 'write')
-        .mockImplementation(() => true) as unknown as ReturnType<typeof vi.spyOn>;
+    it('keeps console.warn/console.error on stderr and redirects (never drops) stdout writes', () => {
       const restore = enableJsonMode();
       try {
-        console.log('should be silent');
-        console.warn('also silent');
+        console.warn('a warning');
         console.error('real', 'failure');
+        process.stdout.write('library chatter');
       } finally {
         restore();
       }
-      const stderrOut = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
-      expect(stderrOut).toContain('real failure');
-      stderrSpy.mockRestore();
+      // vitest owns the global console, so only the direct write is observable on
+      // the spied streams here; the CLI-level behavior (console.log -> stderr) is
+      // covered by tests/integration/json-hygiene-cli.test.ts.
+      expect(errWritten.join('')).toContain('library chatter');
+      expect(written.join('')).toBe('');
     });
   });
 });

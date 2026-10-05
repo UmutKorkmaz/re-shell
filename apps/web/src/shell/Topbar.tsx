@@ -1,14 +1,9 @@
 import * as React from 'react';
 import { Button, cn } from '@re-shell/ui';
 import { Moon, Sun, Wifi, WifiOff } from 'lucide-react';
-import type { ScreenDef } from './screens';
 import { useSettings } from '../settings/useSettings';
 import { useEnvelopeQuery } from '../screens/shared/useEnvelopeQuery';
 import { summaryFeedSchema, type SummaryFeed } from '../screens/shared/summaryFeed';
-
-interface TopbarProps {
-  current: ScreenDef;
-}
 
 function workspaceName(root: string): string {
   const trimmed = root.replace(/[\\/]+$/, '');
@@ -17,12 +12,13 @@ function workspaceName(root: string): string {
 }
 
 /**
- * Top workspace bar: identifies the active workspace + package manager from the
- * (deduped) `workspace.summary` read, surfaces hub reachability as a status dot,
- * and hosts the theme toggle. Reads only — no new data flow, the query key is
- * shared with Overview so TanStack returns the cached value.
+ * Top workspace bar (the page `banner`): identifies the active workspace + package manager from
+ * the (deduped) `workspace.summary` read, surfaces hub reachability as a live status, and hosts
+ * the theme toggle. Reads only: the query key is shared with Overview so TanStack returns the
+ * cached value. The page's single `<h1>` is the ACTIVE SCREEN's name and lives in `<main>`
+ * (App.tsx), so the workspace name here is plain text, not a heading.
  */
-export function Topbar({ current }: TopbarProps): React.ReactElement {
+export function Topbar(): React.ReactElement {
   const { data, error, envelopeError, isLoading } = useEnvelopeQuery(
     'workspace.summary',
     summaryFeedSchema
@@ -36,10 +32,10 @@ export function Topbar({ current }: TopbarProps): React.ReactElement {
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-border bg-bg-0/85 px-4 py-3 backdrop-blur-md lg:px-8">
       <div className="min-w-0">
-        <div className="label-eyebrow">{current.label}</div>
-        <h1 className="truncate font-display text-lg font-bold tracking-tight">
-          {data ? workspaceName(data.root) : current.label}
-        </h1>
+        <p className="label-eyebrow">Workspace</p>
+        <p className="truncate font-mono text-sm font-medium tracking-tight" data-testid="workspace-name">
+          {data ? workspaceName(data.root) : 'detecting…'}
+        </p>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -71,13 +67,18 @@ const STATUS_META: Record<
   offline: { label: 'Hub offline', dot: 'bg-critical shadow-glow-critical', text: 'text-critical', Icon: WifiOff },
 };
 
+/**
+ * Hub reachability. The status text is REAL text inside the live region (visually hidden on
+ * narrow screens, never `display: none`), so a change from "Connecting" to "Hub online" or "Hub
+ * offline" is announced; the dot and icon are decoration and the colour is never the only signal.
+ */
 function HubStatusDot({ status }: { status: HubStatus }): React.ReactElement {
   const meta = STATUS_META[status];
   return (
     <span
       className="inline-flex items-center gap-2 rounded-md border border-border bg-bg-1 px-2.5 py-1.5 shadow-elev-1"
       role="status"
-      aria-label={meta.label}
+      data-hub-status={status}
     >
       <span aria-hidden className="relative grid place-items-center">
         <span
@@ -89,7 +90,7 @@ function HubStatusDot({ status }: { status: HubStatus }): React.ReactElement {
         />
       </span>
       <meta.Icon className={cn('size-3.5', meta.text)} aria-hidden />
-      <span className={cn('hidden font-display text-xs font-medium sm:inline', meta.text)}>
+      <span className={cn('sr-only font-display text-xs font-medium sm:not-sr-only', meta.text)}>
         {meta.label}
       </span>
     </span>
@@ -108,7 +109,7 @@ function ThemeToggle(): React.ReactElement {
       aria-pressed={isDark}
       onClick={() => updateSettings({ theme: isDark ? 'light' : 'dark' })}
     >
-      {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      {isDark ? <Sun className="size-4" aria-hidden="true" /> : <Moon className="size-4" aria-hidden="true" />}
     </Button>
   );
 }

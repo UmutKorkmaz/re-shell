@@ -27,6 +27,8 @@ export interface WorkspaceConfig {
   };
   deployment?: Record<string, unknown>;
   monitoring?: Record<string, unknown>;
+  /** Workspace-wide Kubernetes defaults (see `kubernetesConfig` in the schema). */
+  kubernetes?: Record<string, unknown>;
 }
 
 /**
@@ -57,6 +59,8 @@ export interface ServiceConfig {
   scaling?: Record<string, unknown>;
   resources?: Record<string, unknown>;
   healthCheck?: Record<string, unknown>;
+  /** Per-service Kubernetes overrides (see `kubernetesConfig` in the schema). */
+  kubernetes?: Record<string, unknown>;
   routes?: Record<string, unknown>[];
   middleware?: Record<string, unknown>[];
   features?: string[];

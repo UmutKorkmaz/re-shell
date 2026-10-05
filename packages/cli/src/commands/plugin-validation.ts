@@ -13,6 +13,7 @@ import {
   createValidationSchema
 } from '../utils/plugin-command-validation';
 import { createPluginCommandRegistry, PluginCommandContext } from '../utils/plugin-command-registry';
+import { ok } from '../utils/json-output';
 
 /** Options for the plugin command validation commands. */
 interface ValidationCommandOptions {
@@ -103,7 +104,7 @@ export async function testCommandValidation(
     spinner.stop();
 
     if (json) {
-      console.log(JSON.stringify({
+      ok({
         command: commandName,
         valid: result.valid,
         errors: result.errors,
@@ -111,7 +112,7 @@ export async function testCommandValidation(
         info: result.info,
         transformedArgs: result.transformedArgs,
         transformedOptions: result.transformedOptions
-      }, null, 2));
+      });
       return;
     }
 
@@ -276,7 +277,7 @@ export async function listValidationRules(
         description: ruleDescriptions[name as keyof typeof ruleDescriptions] || 'No description available',
         type: ValidationRuleType.CUSTOM
       }));
-      console.log(JSON.stringify(rules, null, 2));
+      ok(rules);
       return;
     }
 
@@ -359,7 +360,7 @@ export async function listTransformations(
         description: transformationDescriptions[name as keyof typeof transformationDescriptions] || 'No description available',
         type: TransformationType.CUSTOM
       }));
-      console.log(JSON.stringify(transformations, null, 2));
+      ok(transformations);
       return;
     }
 
@@ -444,7 +445,7 @@ export async function showCommandValidationSchema(
     };
 
     if (json) {
-      console.log(JSON.stringify(mockSchema, null, 2));
+      ok(mockSchema);
       return;
     }
 
@@ -501,7 +502,7 @@ export async function showValidationStats(
     const stats = validator.getValidationStats();
 
     if (json) {
-      console.log(JSON.stringify(stats, null, 2));
+      ok(stats);
       return;
     }
 
@@ -622,7 +623,7 @@ export async function generateValidationTemplate(
     }
 
     if (json) {
-      console.log(JSON.stringify(template, null, 2));
+      ok(template);
       return;
     }
 

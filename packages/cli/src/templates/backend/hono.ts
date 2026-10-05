@@ -21,6 +21,8 @@ export const honoTemplate: BackendTemplate = {
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "typecheck": "tsc --noEmit",
     "test": "bun test",
     "lint": "eslint src",
     "format": "prettier --write src"
@@ -90,26 +92,21 @@ export const honoTemplate: BackendTemplate = {
 }
 `,
 
-    // Main entry point
-    'src/index.ts': `import { serve } from 'bun';
-import { Hono } from 'hono';
+    // Application (routes + middleware). Kept separate from the server entry so
+    // tests can call app.request() in-process without binding a port.
+    'src/app.ts': `import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import { config } from './config';
-import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 import { rateLimiter } from './middleware/rate-limiter';
-import { db } from './db';
 import { authRoutes } from './routes/auth';
 import { userRoutes } from './routes/users';
 import { productRoutes } from './routes/products';
 import { yoga } from './graphql/yoga';
 
-// Initialize database
-await db.initialize();
-
-const app = new Hono<{ Variables: { userId: string } }>();
+export const app = new Hono<{ Variables: { userId: string } }>();
 
 // Global middleware
 app.use('*', logger());
@@ -129,6 +126,7 @@ app.get('/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
     version: '1.0.0'});
 });
 
@@ -150,19 +148,40 @@ app.get('/', (c) => {
     endpoints: {
       health: '/health',
       api: '/api/v1',
-      graphql: '/graphql',
-      docs: '/api/v1/docs'}});
+      graphql: '/graphql'}});
 });
 
-// Start server
-const port = config.port;
-console.log(\`🚀 Server running at http://localhost:\${port}\`);
-console.log(\`📚 API docs at http://localhost:\${port}/api/v1/docs\`);
-console.log(\`🔮 GraphQL endpoint at http://localhost:\${port}/graphql\`);
+// Unknown routes: JSON 404, registered last so it never shadows a route above.
+app.notFound((c) => c.json({ error: 'Not Found', path: c.req.path }, 404));
+`,
 
-export default {
-  port,
-  fetch: app.fetch};
+    // Main entry point
+    'src/index.ts': `import { app } from './app';
+import { config } from './config';
+import { db } from './db';
+
+// Initialize the (in-memory) database before accepting requests.
+await db.initialize();
+
+const server = Bun.serve({
+  port: config.port,
+  fetch: app.fetch});
+
+console.log(\`🚀 Server running at http://localhost:\${server.port}\`);
+console.log(\`🔮 GraphQL endpoint at http://localhost:\${server.port}/graphql\`);
+
+// Graceful shutdown: stop accepting connections, let in-flight requests finish,
+// then exit 0 so process managers and containers see a clean stop.
+let shuttingDown = false;
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(\`\${signal} received: shutting down\`);
+  await server.stop();
+  process.exit(0);
+};
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 `,
 
     // Configuration
@@ -258,22 +277,31 @@ class InMemoryDatabase {
     users: [],
     products: []};
 
+  private initialized = false;
+
   async initialize() {
+    if (this.initialized) return;
+    this.initialized = true;
     console.log('📦 Using in-memory database');
     console.log('✅ Database initialized');
 
-    // Create admin user if no users exist
-    if (this.data.users.length === 0) {
-      const adminPassword = await Bun.password.hash('admin123');
+    // Seed an admin user if none exist. The well-known development credentials
+    // are only used outside production; in production set ADMIN_EMAIL and
+    // ADMIN_PASSWORD, otherwise no admin is created.
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+    const adminPlainPassword =
+      process.env.ADMIN_PASSWORD || (config.environment === 'production' ? undefined : 'admin123');
+    if (this.data.users.length === 0 && adminPlainPassword) {
+      const adminPassword = await Bun.password.hash(adminPlainPassword);
       this.data.users.push({
         id: '1',
-        email: 'admin@example.com',
+        email: adminEmail,
         password: adminPassword,
         name: 'Admin User',
         role: 'admin',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()});
-      console.log('👤 Default admin user created (admin@example.com / admin123)');
+      console.log(\`👤 Admin user created (\${adminEmail})\`);
     }
 
     // Add sample products
@@ -740,6 +768,10 @@ RATE_LIMIT_WINDOW=60000
 
 # Database
 DB_PATH=./data/db.json
+
+# Seeded admin user (required in production, optional in development)
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=
 `,
 
     // Dockerfile
@@ -780,21 +812,21 @@ services:
     restart: unless-stopped
 `,
 
-    // Tests
+    // Tests (in-process: no server or port needed)
     'src/index.test.ts': `import { describe, expect, it, beforeAll } from 'bun:test';
+import { app } from './app';
+import { db } from './db';
 
 describe('{{projectName}} API', () => {
-  const baseUrl = 'http://localhost:3000';
   let authToken: string;
 
   beforeAll(async () => {
-    // Wait for server to be ready
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await db.initialize();
   });
 
   describe('Health Check', () => {
     it('should return healthy status', async () => {
-      const response = await fetch(\`\${baseUrl}/health\`);
+      const response = await app.request('/health');
       expect(response.status).toBe(200);
 
       const body = await response.json();
@@ -802,9 +834,22 @@ describe('{{projectName}} API', () => {
     });
   });
 
+  describe('GraphQL', () => {
+    it('should answer a __typename query', async () => {
+      const response = await app.request('/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: '{__typename}' })});
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.data.__typename).toBe('Query');
+    });
+  });
+
   describe('Authentication', () => {
     it('should register a new user', async () => {
-      const response = await fetch(\`\${baseUrl}/api/v1/auth/register\`, {
+      const response = await app.request('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -820,7 +865,7 @@ describe('{{projectName}} API', () => {
     });
 
     it('should login existing user', async () => {
-      const response = await fetch(\`\${baseUrl}/api/v1/auth/login\`, {
+      const response = await app.request('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -833,7 +878,7 @@ describe('{{projectName}} API', () => {
     });
 
     it('should reject invalid credentials', async () => {
-      const response = await fetch(\`\${baseUrl}/api/v1/auth/login\`, {
+      const response = await app.request('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -842,11 +887,18 @@ describe('{{projectName}} API', () => {
 
       expect(response.status).toBe(401);
     });
+
+    it('should return the current user for a valid token', async () => {
+      const response = await app.request('/api/v1/users/me', {
+        headers: { Authorization: \`Bearer \${authToken}\` }});
+
+      expect(response.status).toBe(200);
+    });
   });
 
   describe('Products', () => {
     it('should list all products', async () => {
-      const response = await fetch(\`\${baseUrl}/api/v1/products\`);
+      const response = await app.request('/api/v1/products');
       expect(response.status).toBe(200);
 
       const body = await response.json();
@@ -855,12 +907,17 @@ describe('{{projectName}} API', () => {
     });
 
     it('should get product by ID', async () => {
-      const response = await fetch(\`\${baseUrl}/api/v1/products/1\`);
+      const response = await app.request('/api/v1/products/1');
       expect(response.status).toBe(200);
 
       const body = await response.json();
       expect(body.product).toBeDefined();
       expect(body.product.id).toBe('1');
+    });
+
+    it('should answer unknown routes with a JSON 404', async () => {
+      const response = await app.request('/nope');
+      expect(response.status).toBe(404);
     });
   });
 });
@@ -921,6 +978,8 @@ Hono is one of the fastest web frameworks:
 \`\`\`bash
 bun run dev      # Run with hot reload
 bun run start    # Run in production
+bun run build    # Bundle to dist/ (bun build)
+bun run typecheck # Type-check with tsc
 bun run test     # Run tests
 bun run lint     # Lint code
 bun run format   # Format code
@@ -949,11 +1008,16 @@ bun run format   # Format code
 - \`PUT /api/v1/products/:id\` - Update product (admin only)
 - \`DELETE /api/v1/products/:id\` - Delete product (admin only)
 
+### GraphQL
+- \`POST /graphql\` - GraphQL endpoint (GraphiQL on GET)
+
 ## Default Credentials
 
-A default admin user is created automatically:
+Outside production a development admin user is created automatically:
 - Email: \`admin@example.com\`
 - Password: \`admin123\`
+
+In production no default admin exists: set \`ADMIN_EMAIL\` and \`ADMIN_PASSWORD\` to seed one.
 
 ## Project Structure
 
@@ -961,8 +1025,9 @@ A default admin user is created automatically:
 src/
 ├── config.ts              # Configuration
 ├── db.ts                  # Database layer
-├── index.ts               # Entry point
-├── index.test.ts          # Tests
+├── app.ts                 # Hono app (routes + middleware)
+├── index.ts               # Server entry point (Bun.serve + graceful shutdown)
+├── index.test.ts          # Tests (in-process via app.request)
 ├── middleware/
 │   ├── auth.ts           # Authentication
 │   ├── error-handler.ts  # Error handling

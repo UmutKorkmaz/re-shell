@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { manageDevMode } from '../../src/commands/dev-mode';
+import { DevProfileError, manageDevMode } from '../../src/commands/dev-mode';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/dev-mode.ts — the `dev` command (start/stop/restart/status/
 // interactive/default). The command is orchestration over configWatcher +
 // setupConfigHotReload + processManager + resolveProfile; we mock all of those
@@ -64,8 +65,9 @@ let logSpy: ReturnType<typeof vi.spyOn>;
 function logged(): string {
   return logSpy.mock.calls.map(a => a.join(' ')).join('\n');
 }
-function loggedJson(find: (s: string) => boolean): any {
-  return JSON.parse(logSpy.mock.calls.map(a => a.join('')).find(find)!);
+function loggedJson(_find?: (s: string) => boolean): any {
+  // --json results are now one envelope on stdout; return its data.
+  return jsonData();
 }
 
 beforeEach(() => {
@@ -101,11 +103,17 @@ describe('dev-mode — start', () => {
     expect(logged()).toContain('Development mode active');
   });
 
-  it('reports and returns when the requested profile is not found', async () => {
+  it('fails explicitly (does not silently succeed) when the requested profile is not found', async () => {
     mocks.resolveProfile.mockResolvedValue(null);
-    await manageDevMode({ start: true, profile: 'ghost' });
-    expect(logged()).toContain('Profile "ghost" not found');
+    const error = await manageDevMode({ start: true, profile: 'ghost' }).catch(e => e);
+    expect(error).toBeInstanceOf(DevProfileError);
+    expect(error.code).toBe('DEV_PROFILE_ERROR');
+    expect(error.message).toContain('Profile "ghost" not found');
+    // The hint points at the command that really exists.
+    expect(error.message).toContain('re-shell config profile list');
+    expect(error.message).not.toContain('"re-shell profile list"');
     expect(mocks.setupConfigHotReload).not.toHaveBeenCalled();
+    expect(mocks.keepRunning).not.toHaveBeenCalled();
   });
 
   it('applies a found profile and starts with its services', async () => {

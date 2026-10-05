@@ -21,31 +21,32 @@ export const saturnFsTemplate: BackendTemplate = {
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>1591</NoWarn>  <!-- Disable missing XML comment warnings -->
+    <NoWarn>$(NoWarn);1591;FS3370</NoWarn>
   </PropertyGroup>
 
+  <!-- F# compiles files in the order listed here -->
   <ItemGroup>
-    <Compile Include="Controllers/*.fs" />
-    <Compile Include="GraphQL/*.fs" />
-    <Compile Include="Models/*.fs" />
-    <Compile Include="Services/*.fs" />
-    <Compile Include="Views/*.fs" />
+    <Compile Include="Models/Models.fs" />
+    <Compile Include="Services/Services.fs" />
+    <Compile Include="GraphQL/Schema.fs" />
+    <Compile Include="GraphQL/Resolver.fs" />
+    <Compile Include="Controllers/HomeController.fs" />
+    <Compile Include="Controllers/AuthController.fs" />
+    <Compile Include="Controllers/UserController.fs" />
+    <Compile Include="Controllers/ProductController.fs" />
+    <Compile Include="Controllers/GraphQLController.fs" />
+    <Compile Include="Views/Views.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Saturn" Version="0.15.0" />
-    <PackageReference Include="Saturn.Azure.Functions" Version="0.15.0" />
+    <PackageReference Include="Saturn" Version="0.16.1" />
     <PackageReference Include="Giraffe" Version="6.0.0" />
-    <PackageReference Include="Thoth.Json.Giraffe" Version="6.0.0" />
-    <PackageReference Include="JWT" Version="10.0.0" />
+    <PackageReference Include="FSharp.SystemTextJson" Version="1.3.13" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="6.35.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="TaskBuilder.fs" Version="2.1.0" />
-    <PackageReference Include="FSharp.Data.GraphQL.Server" Version="0.0.16" />
   </ItemGroup>
 
 </Project>
@@ -54,73 +55,85 @@ export const saturnFsTemplate: BackendTemplate = {
     // Program entry point
     'Program.fs': `module {{projectNamePascal}}.Program
 
+open System
+open System.Text.Json
+open System.Text.Json.Serialization
 open Saturn
 open Giraffe
-open Microsoft.AspNetCore.Builder
 open Microsoft.Extensions.DependencyInjection
-open Microsoft.Extensions.Hosting
-open Microsoft.Extensions.Logging
-open System
+open Controllers
+open Services
 
-module Controllers =
-    open Controllers
-    open HomeController
-    open AuthController
-    open UserController
-    open ProductController
+let private jsonOptions =
+    let options = JsonSerializerOptions(PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true)
+    options.Converters.Add(JsonFSharpConverter(JsonFSharpOptions.Default().WithSkippableOptionFields()))
+    options
 
-module Views =
-    open Views
+let authRouter =
+    router {
+        post "/register" authController.Register
+        post "/login" authController.Login
+        get "/me" authController.Me
+        post "/me" authController.Me
+    }
+
+let userRouter =
+    router {
+        get "" userController.ListAll
+        getf "/%s" userController.Get
+        deletef "/%s" userController.Delete
+    }
+
+let productRouter =
+    router {
+        get "" productController.ListAll
+        getf "/%s" productController.Get
+        post "" productController.Create
+        putf "/%s" productController.Update
+        deletef "/%s" productController.Delete
+    }
+
+let apiRouter =
+    router {
+        get "/health" healthController.Health
+        forward "/auth" authRouter
+        forward "/users" userRouter
+        forward "/products" productRouter
+    }
 
 let webApp =
-    choose [
-        // GraphQL endpoint (FSharp.Data.GraphQL)
-        post "/graphql" Controllers.graphqlController.GraphQL
-        subRoute "/api/v1" (choose [
-            get "/health" Controllers.healthController.Health
-            // Auth routes
-            post "/auth/register" Controllers.authController.Register
-            post "/auth/login" Controllers.authController.Login
-            post "/auth/me" Controllers.authController.Me
-            // User routes
-            get "/users" Controllers.userController.List
-            get "/users/:id" Controllers.userController.Get
-            delete "/users/:id" Controllers.userController.Delete
-            // Product routes
-            get "/products" Controllers.productController.List
-            get "/products/:id" Controllers.productController.Get
-            post "/products" Controllers.productController.Create
-            put "/products/:id" Controllers.productController.Update
-            delete "/products/:id" Controllers.productController.Delete
-        ])
-        setStatusCode 404 >=> text "Not Found"
-    ]
-
-let configureApp (app: IApplicationBuilder) =
-    app.UseCors("AllowAll")
-       .UseGiraffe(webApp)
-       .UseStaticFiles()
-       .UseGiraffeControllers()
+    router {
+        not_found_handler (setStatusCode 404 >=> json {| error = "Not Found" |})
+        get "/health" healthController.Health
+        // GraphQL endpoint
+        post "/graphql" graphqlController.GraphQL
+        forward "/api/v1" apiRouter
+    }
 
 let configureServices (services: IServiceCollection) =
     services
-        .AddCors()
-        .AddGiraffe()
-        .AddSingleton<Giraffe.Serialization.Json.ISerializer, Thoth.Json.Giraffe.ThothSerializer>()
-        .AddSingleton<Services.IAuthService, Services.AuthService>()
-        .AddSingleton<Services.IDatabase, Services.Database>()
-    |> ignore
+        .AddSingleton<Json.ISerializer>(SystemTextJson.Serializer(jsonOptions))
+        .AddSingleton<IAuthService, AuthService>()
+        .AddSingleton<IDatabase, Database>()
+
+let app =
+    application {
+        use_router webApp
+        url (
+            match Environment.GetEnvironmentVariable "ASPNETCORE_URLS" with
+            | null | "" -> "http://0.0.0.0:5000/"
+            | urls -> urls
+        )
+        use_cors "AllowAll" (fun policy -> policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod() |> ignore)
+        use_jwt_authentication JwtSettings.secret JwtSettings.issuer
+        service_config configureServices
+        memory_cache
+        use_gzip
+    }
 
 [<EntryPoint>]
-let main args =
-    let builder = WebApplication.CreateBuilder(args)
-    configureServices builder.Services
-    configureApp builder |> ignore
-
-    printfn "🚀 Server running at http://localhost:5000"
-    printfn "📚 API docs: http://localhost:5000/api/v1/health"
-
-    builder.Run()
+let main _ =
+    run app
     0
 `,
 
@@ -128,47 +141,84 @@ let main args =
     'Controllers/HomeController.fs': `namespace Controllers
 
 open Giraffe
-open Microsoft.AspNetCore.Http
 
 module healthController =
     let Health: HttpHandler =
         fun next ctx ->
-            task {
-                return! json ({| status = "healthy"; timestamp = System.DateTime.Now.ToString("o"); version = "1.0.0" |}) next ctx
-            }
+            json ({| status = "healthy"; timestamp = System.DateTime.UtcNow.ToString("o"); version = "1.0.0" |}) next ctx
+
+/// Helpers shared by the controllers.
+module Guards =
+    open System.Security.Claims
+    open Microsoft.AspNetCore.Authentication.JwtBearer
+    open Microsoft.AspNetCore.Http
+
+    /// Requires a valid bearer token.
+    let requireUser: HttpHandler =
+        requiresAuthentication (challenge JwtBearerDefaults.AuthenticationScheme)
+
+    /// Requires a valid bearer token whose role claim is "admin".
+    let requireAdmin: HttpHandler =
+        requireUser
+        >=> fun next (ctx: HttpContext) ->
+                if ctx.User.IsInRole "admin" || ctx.User.HasClaim("role", "admin") then
+                    next ctx
+                else
+                    (setStatusCode 403 >=> json {| error = "Admin role required" |}) next ctx
+
+    let claimValue (ctx: HttpContext) (types: string list) =
+        types
+        |> List.tryPick (fun t -> ctx.User.FindFirst t |> Option.ofObj |> Option.map (fun c -> c.Value))
+        |> Option.defaultValue ""
 `,
 
     // Controllers - GraphQL (FSharp.Data.GraphQL)
     'Controllers/GraphQLController.fs': `namespace Controllers
 
+open System.Text.Json
 open Giraffe
-open Microsoft.AspNetCore.Http
-open System.Threading.Tasks
-open GraphQL.Schema
 open GraphQL.Resolver
 
 module graphqlController =
+    /// Minimal GraphQL endpoint: Query { hello: String!, health: String! }.
+    /// Resolves the top-level fields named in the query text.
     let GraphQL: HttpHandler =
         fun next ctx ->
             task {
-                // Minimal GraphQL endpoint: Query { hello: String!, health: String! }
-                let body = {| data = {| hello = helloResolver(); health = healthResolver() |} |}
-                return! json body next ctx
+                let! body = ctx.ReadBodyFromRequestAsync()
+
+                let query =
+                    try
+                        use doc = JsonDocument.Parse(body)
+                        match doc.RootElement.TryGetProperty "query" with
+                        | true, q -> q.GetString()
+                        | _ -> ""
+                    with :? JsonException -> ""
+
+                let data = System.Collections.Generic.Dictionary<string, string>()
+                if query.Contains "hello" then data["hello"] <- helloResolver ()
+                if query.Contains "health" then data["health"] <- healthResolver ()
+
+                if data.Count = 0 then
+                    return!
+                        (setStatusCode 400
+                         >=> json {| errors = [ {| message = "Query must select hello and/or health" |} ] |})
+                            next ctx
+                else
+                    return! json {| data = data |} next ctx
             }
 `,
 
     // GraphQL schema (FSharp.Data.GraphQL)
     'GraphQL/Schema.fs': `module GraphQL.Schema
 
-// GraphQL schema definition: Query { hello: String!, health: String! }
-// In a full implementation this would be defined via FSharp.Data.GraphQL
-// type providers / Define.Query.
-let schema = \"\"\"
+// GraphQL schema served by POST /graphql: Query { hello: String!, health: String! }
+let schema = """
 type Query {
   hello: String!
   health: String!
 }
-\"\"\"
+"""
 `,
 
     // GraphQL resolvers (FSharp.Data.GraphQL)
@@ -188,32 +238,28 @@ let healthResolver () : string =
     'Controllers/AuthController.fs': `namespace Controllers
 
 open Giraffe
-open Microsoft.AspNetCore.Http
 open System
-open System.Threading.Tasks
-open Thoth.Json.Giraffe
 open Services
 
 module authController =
     let Register: HttpHandler =
         fun next ctx ->
             task {
-                let db = ctx.GetService<Services.IDatabase>()
-                let authService = ctx.GetService<Services.IAuthService>()
+                let db = ctx.GetService<IDatabase>()
+                let authService = ctx.GetService<IAuthService>()
 
                 let! userData = ctx.BindJsonAsync<Models.RegisterInput>()
 
                 // Check if user exists
                 match db.FindUserByEmail(userData.Email) with
                 | Some _ ->
-                    ctx.SetStatusCode(409)
-                    return! json ({| error = "Email already registered" |}) next ctx
+                    return! (setStatusCode 409 >=> json {| error = "Email already registered" |}) next ctx
                 | None ->
                     let hashedPassword = BCrypt.Net.BCrypt.HashPassword(userData.Password)
                     let now = DateTime.UtcNow
 
-                    let user = {
-                        Models.User.Id = Guid.NewGuid().ToString()
+                    let user: Models.User = {
+                        Id = Guid.NewGuid().ToString()
                         Email = userData.Email
                         Password = hashedPassword
                         Name = userData.Name
@@ -222,188 +268,148 @@ module authController =
                         UpdatedAt = now
                     }
 
-                    db.CreateUser(user) |> ignore
+                    db.CreateUser(user)
 
                     let token = authService.GenerateToken(user)
 
-                    ctx.SetStatusCode(201)
-                    return! json ({| token = token; user = {| id = user.Id; email = user.Email; name = user.Name; role = user.Role |} |}) next ctx
+                    return!
+                        (setStatusCode 201
+                         >=> json {| token = token; user = {| id = user.Id; email = user.Email; name = user.Name; role = user.Role |} |})
+                            next ctx
             }
 
     let Login: HttpHandler =
         fun next ctx ->
             task {
-                let db = ctx.GetService<Services.IDatabase>()
-                let authService = ctx.GetService<Services.IAuthService>()
+                let db = ctx.GetService<IDatabase>()
+                let authService = ctx.GetService<IAuthService>()
 
                 let! loginData = ctx.BindJsonAsync<Models.LoginInput>()
 
                 match db.FindUserByEmail(loginData.Email) with
                 | None ->
-                    ctx.SetStatusCode(401)
-                    return! json ({| error = "Invalid credentials" |}) next ctx
+                    return! (setStatusCode 401 >=> json {| error = "Invalid credentials" |}) next ctx
                 | Some user ->
                     if not (BCrypt.Net.BCrypt.Verify(loginData.Password, user.Password)) then
-                        ctx.SetStatusCode(401)
-                        return! json ({| error = "Invalid credentials" |}) next ctx
+                        return! (setStatusCode 401 >=> json {| error = "Invalid credentials" |}) next ctx
                     else
                         let token = authService.GenerateToken(user)
-                        return! json ({| token = token; user = {| id = user.Id; email = user.Email; name = user.Name; role = user.Role |} |}) next ctx
+                        return! json {| token = token; user = {| id = user.Id; email = user.Email; name = user.Name; role = user.Role |} |} next ctx
             }
 
+    /// Returns the identity carried by the bearer token.
     let Me: HttpHandler =
-        fun next ctx ->
-            task {
-                // In production: verify JWT and get user from claims
-                // For now, return dummy user
-                return! json ({| userId = "1"; email = "user@example.com"; role = "user" |}) next ctx
-            }
+        Guards.requireUser
+        >=> fun next ctx ->
+                let userId = Guards.claimValue ctx [ "sub"; System.Security.Claims.ClaimTypes.NameIdentifier ]
+                let email = Guards.claimValue ctx [ "email"; System.Security.Claims.ClaimTypes.Email ]
+                let role = Guards.claimValue ctx [ "role"; System.Security.Claims.ClaimTypes.Role ]
+                json {| userId = userId; email = email; role = role |} next ctx
 `,
 
     // Controllers - User
     'Controllers/UserController.fs': `namespace Controllers
 
 open Giraffe
-open Microsoft.AspNetCore.Http
-open System
-open System.Threading.Tasks
 open Services
 
 module userController =
-    let List: HttpHandler =
-        fun next ctx ->
-            task {
-                let db = ctx.GetService<Services.IDatabase>()
+    let private toResponse (u: Models.User) =
+        {| id = u.Id; email = u.Email; name = u.Name; role = u.Role |}
 
-                // In production: check admin role
-                let users = db.GetUsers()
-                let userResponses = users |> List.map (fun u -> {| id = u.Id; email = u.Email; name = u.Name; role = u.Role |})
+    let ListAll: HttpHandler =
+        Guards.requireAdmin
+        >=> fun next ctx ->
+                let db = ctx.GetService<IDatabase>()
+                let users = db.GetUsers() |> List.map toResponse
+                json {| users = users; count = List.length users |} next ctx
 
-                return! json ({| users = userResponses; count = List.length userResponses |}) next ctx
-            }
-
-    let Get: HttpHandler =
-        fun next ctx ->
-            task {
-                let db = ctx.GetService<Services.IDatabase>()
-                let id = ctx.GetRouteValue("id") :?> string
+    let Get (id: string) : HttpHandler =
+        Guards.requireAdmin
+        >=> fun next ctx ->
+                let db = ctx.GetService<IDatabase>()
 
                 match db.FindUserById(id) with
-                | Some user ->
-                        let userResponse = {| id = user.Id; email = user.Email; name = user.Name; role = user.Role |}
-                        return! json ({| user = userResponse |}) next ctx
-                    | None ->
-                        ctx.SetStatusCode(404)
-                        return! json ({| error = "User not found" |}) next ctx
-            }
+                | Some user -> json {| user = toResponse user |} next ctx
+                | None -> (setStatusCode 404 >=> json {| error = "User not found" |}) next ctx
 
-    let Delete: HttpHandler =
-        fun next ctx ->
-            task {
-                let db = ctx.GetService<Services.IDatabase>()
-                let id = ctx.GetRouteValue("id") :?> string
+    let Delete (id: string) : HttpHandler =
+        Guards.requireAdmin
+        >=> fun next ctx ->
+                let db = ctx.GetService<IDatabase>()
 
-                let deleted = db.DeleteUser(id)
-
-                if deleted then
-                    ctx.SetStatusCode(204)
-                    return! Next.next ctx
+                if db.DeleteUser(id) then
+                    setStatusCode 204 next ctx
                 else
-                    ctx.SetStatusCode(404)
-                    return! json ({| error = "User not found" |}) next ctx
-            }
+                    (setStatusCode 404 >=> json {| error = "User not found" |}) next ctx
 `,
 
     // Controllers - Product
     'Controllers/ProductController.fs': `namespace Controllers
 
 open Giraffe
-open Microsoft.AspNetCore.Http
 open System
-open System.Threading.Tasks
 open Services
 
 module productController =
-    let List: HttpHandler =
+    let ListAll: HttpHandler =
         fun next ctx ->
-            task {
-                let db = ctx.GetService<Services.IDatabase>()
+            let db = ctx.GetService<IDatabase>()
+            let products = db.GetProducts()
+            json {| products = products; count = List.length products |} next ctx
 
-                let products = db.GetProducts()
-
-                return! json ({| products = products; count = List.length products |}) next ctx
-            }
-
-    let Get: HttpHandler =
+    let Get (id: string) : HttpHandler =
         fun next ctx ->
-            task {
-                let db = ctx.GetService<Services.IDatabase>()
-                let id = ctx.GetRouteValue("id") :?> string
+            let db = ctx.GetService<IDatabase>()
 
-                match db.FindProductById(id) with
-                | Some product ->
-                        return! json ({| product = product |}) next ctx
-                    | None ->
-                        ctx.SetStatusCode(404)
-                        return! json ({| error = "Product not found" |}) next ctx
-            }
+            match db.FindProductById(id) with
+            | Some product -> json {| product = product |} next ctx
+            | None -> (setStatusCode 404 >=> json {| error = "Product not found" |}) next ctx
 
     let Create: HttpHandler =
-        fun next ctx ->
-            task {
-                let db = ctx.GetService<Services.IDatabase>()
+        Guards.requireAdmin
+        >=> fun next ctx ->
+                task {
+                    let db = ctx.GetService<IDatabase>()
+                    let! productData = ctx.BindJsonAsync<Models.CreateProductInput>()
+                    let now = DateTime.UtcNow
 
-                let! productData = ctx.BindJsonAsync<Models.CreateProductInput>()
+                    let product: Models.Product = {
+                        Id = Guid.NewGuid().ToString()
+                        Name = productData.Name
+                        Description = productData.Description
+                        Price = productData.Price
+                        Stock = productData.Stock
+                        CreatedAt = now
+                        UpdatedAt = now
+                    }
 
-                let now = DateTime.UtcNow
+                    db.CreateProduct(product)
 
-                let product = {
-                    Models.Product.Id = Guid.NewGuid().ToString()
-                    Name = productData.Name
-                    Description = productData.Description
-                    Price = productData.Price
-                    Stock = productData.Stock
-                    CreatedAt = now
-                    UpdatedAt = now
+                    return! (setStatusCode 201 >=> json {| product = product |}) next ctx
                 }
 
-                db.CreateProduct(product) |> ignore
+    let Update (id: string) : HttpHandler =
+        Guards.requireAdmin
+        >=> fun next ctx ->
+                task {
+                    let db = ctx.GetService<IDatabase>()
+                    let! updateData = ctx.BindJsonAsync<Models.UpdateProductInput>()
 
-                ctx.SetStatusCode(201)
-                return! json ({| product = product |}) next ctx
-            }
+                    match db.UpdateProduct(id, updateData) with
+                    | Some product -> return! json {| product = product |} next ctx
+                    | None -> return! (setStatusCode 404 >=> json {| error = "Product not found" |}) next ctx
+                }
 
-    let Update: HttpHandler =
-        fun next ctx ->
-            task {
-                let db = ctx.GetService<Services.IDatabase>()
-                let id = ctx.GetRouteValue("id") :?> string
+    let Delete (id: string) : HttpHandler =
+        Guards.requireAdmin
+        >=> fun next ctx ->
+                let db = ctx.GetService<IDatabase>()
 
-                let! updateData = ctx.BindJsonAsync<Models.UpdateProductInput>()
-
-                match db.UpdateProduct(id, updateData) with
-                | Some product ->
-                        return! json ({| product = product |}) next ctx
-                    | None ->
-                        ctx.SetStatusCode(404)
-                        return! json ({| error = "Product not found" |}) next ctx
-            }
-
-    let Delete: HttpHandler =
-        fun next ctx ->
-            task {
-                let db = ctx.GetService<Services.IDatabase>()
-                let id = ctx.GetRouteValue("id") :?> string
-
-                let deleted = db.DeleteProduct(id)
-
-                if deleted then
-                    ctx.SetStatusCode(204)
-                    return! Next.next ctx
+                if db.DeleteProduct(id) then
+                    setStatusCode 204 next ctx
                 else
-                    ctx.SetStatusCode(404)
-                    return! json ({| error = "Product not found" |}) next ctx
-            }
+                    (setStatusCode 404 >=> json {| error = "Product not found" |}) next ctx
 `,
 
     // Models
@@ -461,9 +467,21 @@ type UpdateProductInput = {
     'Services/Services.fs': `namespace Services
 
 open System
-open JWT.Algorithms
-open JWT.Builder
+open System.IdentityModel.Tokens.Jwt
+open System.Security.Claims
 open Microsoft.IdentityModel.Tokens
+open Models
+
+module JwtSettings =
+    let private fromEnv (name: string) (fallback: string) =
+        match Environment.GetEnvironmentVariable name with
+        | null | "" -> fallback
+        | value -> value
+
+    /// Signing key, override with the JWT_SECRET environment variable (at least 16 characters).
+    let secret = fromEnv "JWT_SECRET" "change-this-secret-in-production"
+    let issuer = "{{projectName}}"
+    let audience = "{{projectName}}"
 
 type IAuthService =
     abstract member GenerateToken: User -> string
@@ -471,35 +489,40 @@ type IAuthService =
 type AuthService() =
     interface IAuthService with
         member this.GenerateToken(user: User) =
-            let secret = "change-this-secret-in-production"
-            let key = SymmetricSecurityKey(Text.Encoding.UTF8.GetBytes(secret))
+            let key = SymmetricSecurityKey(Text.Encoding.UTF8.GetBytes(JwtSettings.secret))
             let credentials = SigningCredentials(key, SecurityAlgorithms.HmacSha256)
 
-            let token = JwtBuilder()
-                .WithSubject(user.Id)
-                .WithClaim("email", user.Email)
-                .WithClaim("role", user.Role)
-                .WithExpiresAt(DateTime.UtcNow.AddDays(7.0))
-                .WithIssuer("{{projectName}}")
-                .WithAudience("{{projectName}}")
-                .WithSigningCredentials(credentials)
-                .Encode()
+            let claims =
+                [ Claim(JwtRegisteredClaimNames.Sub, user.Id)
+                  Claim("email", user.Email)
+                  Claim("role", user.Role) ]
 
-            token
+            let token =
+                JwtSecurityToken(
+                    issuer = JwtSettings.issuer,
+                    audience = JwtSettings.audience,
+                    claims = claims,
+                    expires = Nullable(DateTime.UtcNow.AddDays(7.0)),
+                    signingCredentials = credentials
+                )
+
+            JwtSecurityTokenHandler().WriteToken(token)
 
 type IDatabase =
     abstract member FindUserByEmail: string -> User option
     abstract member FindUserById: string -> User option
-    abstract member GetUsers: User list
+    abstract member GetUsers: unit -> User list
     abstract member CreateUser: User -> unit
     abstract member DeleteUser: string -> bool
     abstract member FindProductById: string -> Product option
-    abstract member GetProducts: Product list
+    abstract member GetProducts: unit -> Product list
     abstract member CreateProduct: Product -> unit
-    abstract member UpdateProduct: string -> UpdateProductInput -> Product option
+    abstract member UpdateProduct: string * UpdateProductInput -> Product option
     abstract member DeleteProduct: string -> bool
 
+/// In-memory store. Replace with a real database for production use.
 type Database() =
+    let sync = obj ()
     let mutable users: Map<string, User> = Map.empty
     let mutable products: Map<string, Product> = Map.empty
 
@@ -540,67 +563,72 @@ type Database() =
         products <- products.Add(product1.Id, product1)
         products <- products.Add(product2.Id, product2)
 
-        printfn "📦 Database initialized"
-        printfn "👤 Default admin user: admin@example.com / admin123"
-        printfn "📦 Sample products created"
+        printfn "Database initialized"
+        printfn "Default admin user: admin@example.com / admin123"
+        printfn "Sample products created"
 
     interface IDatabase with
         member this.FindUserByEmail(email) =
-            users.Values |> Seq.tryFind (fun u -> u.Email = email)
+            lock sync (fun () -> users.Values |> Seq.tryFind (fun u -> u.Email = email))
 
         member this.FindUserById(id) =
-            users.TryFind(id) |> Option.map (fun u -> { u with Password = "" })
+            lock sync (fun () -> users.TryFind(id) |> Option.map (fun u -> { u with Password = "" }))
 
         member this.GetUsers() =
-            users.Values |> Seq.map (fun u -> { u with Password = "" }) |> List.ofSeq
+            lock sync (fun () -> users.Values |> Seq.map (fun u -> { u with Password = "" }) |> List.ofSeq)
 
         member this.CreateUser(user) =
-            users <- users.Add(user.Id, user)
+            lock sync (fun () -> users <- users.Add(user.Id, user))
 
         member this.DeleteUser(id) =
-            match users.ContainsKey(id) with
-            | true -> users <- users.Remove(id); true
-            | false -> false
+            lock sync (fun () ->
+                if users.ContainsKey(id) then
+                    users <- users.Remove(id)
+                    true
+                else
+                    false)
 
         member this.FindProductById(id) =
-            products.TryFind(id)
+            lock sync (fun () -> products.TryFind(id))
 
         member this.GetProducts() =
-            products.Values |> List.ofSeq
+            lock sync (fun () -> products.Values |> List.ofSeq)
 
         member this.CreateProduct(product) =
-            products <- products.Add(product.Id, product)
+            lock sync (fun () -> products <- products.Add(product.Id, product))
 
         member this.UpdateProduct(id, updateData) =
-            match products.TryFind(id) with
-            | Some existing ->
-                let updated = {
-                    existing with
-                        Name = defaultArg updateData.Name existing.Name
-                        Description = defaultArg updateData.Description existing.Description
-                        Price = defaultArg updateData.Price existing.Price
-                        Stock = defaultArg updateData.Stock existing.Stock
-                        UpdatedAt = DateTime.UtcNow
-                }
-                products <- products.Add(id, updated)
-                Some updated
-            | None -> None
+            lock sync (fun () ->
+                match products.TryFind(id) with
+                | Some existing ->
+                    let updated = {
+                        existing with
+                            Name = defaultArg updateData.Name existing.Name
+                            Description = (match updateData.Description with Some _ as d -> d | None -> existing.Description)
+                            Price = defaultArg updateData.Price existing.Price
+                            Stock = defaultArg updateData.Stock existing.Stock
+                            UpdatedAt = DateTime.UtcNow
+                    }
+                    products <- products.Add(id, updated)
+                    Some updated
+                | None -> None)
 
         member this.DeleteProduct(id) =
-            match products.ContainsKey(id) with
-            | true -> products <- products.Remove(id); true
-            | false -> false
+            lock sync (fun () ->
+                if products.ContainsKey(id) then
+                    products <- products.Remove(id)
+                    true
+                else
+                    false)
 `,
 
     // Views
     'Views/Views.fs': `namespace Views
 
-open Giraffe
-
 module Views =
     // View helpers can be added here if needed
     // For now, we're using JSON API responses only
-    let ()
+    let apiOnly = true
 `,
 
     // Configuration
@@ -797,7 +825,7 @@ A functional REST API built with Saturn web framework for F#.
 ### Authentication
 - \`POST /api/v1/auth/register\` - Register new user
 - \`POST /api/v1/auth/login\` - Login user
-- \`POST /api/v1/auth/me\` - Get current user
+- \`GET /api/v1/auth/me\` - Get current user (bearer token required; \`POST\` also accepted)
 
 ### Products
 - \`GET /api/v1/products\` - List all products

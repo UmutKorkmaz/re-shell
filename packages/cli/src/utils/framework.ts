@@ -123,7 +123,7 @@ export const SUPPORTED_FRAMEWORKS: Record<string, FrameworkConfig> = {
       'vite': '^4.4.0',
       '@vitejs/plugin-vue': '^4.0.0',
       'typescript': '^5.0.0',
-      'vue-tsc': '^1.8.0',
+      'vue-tsc': '^2.2.0',
       'eslint': '^8.44.0',
       'vitest': '^0.34.3'
     },
@@ -1296,7 +1296,6 @@ export const SUPPORTED_FRAMEWORKS: Record<string, FrameworkConfig> = {
     },
     devDependencies: {
       '@vue/cli-service': '~5.0.0',
-      '@vue/cli-plugin-webpack': '~5.0.0',
       'webpack': '^5.89.0',
       'vue-loader': '^17.4.0',
       'vue-template-compiler': '^2.7.0',
@@ -1376,7 +1375,6 @@ export const SUPPORTED_FRAMEWORKS: Record<string, FrameworkConfig> = {
     devDependencies: {
       '@module-federation/utilities': '^3.0.0',
       '@tsconfig/svelte': '^5.0.0',
-      '@types/svelte': '^3.24.0',
       'cross-env': '^7.0.3',
       'css-loader': '^6.8.0',
       'eslint': '^8.56.0',

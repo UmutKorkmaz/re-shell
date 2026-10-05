@@ -6,6 +6,7 @@ import { manageConfigDiff } from '../../src/commands/config-diff';
 import { ConfigDiffer } from '../../src/utils/config-diff';
 import { ValidationError } from '../../src/utils/error-handler';
 
+import { jsonData } from '../utils/stdout-json';
 // Covers src/commands/config-diff.ts — the `config-diff` command group
 // (748 lines): diff / merge / apply / interactive / default status dispatch.
 // The ConfigDiffer engine is mocked (utils config-diff has its own coverage);
@@ -182,9 +183,7 @@ describe('config-diff — command', () => {
 
       await manageConfigDiff({ diff: true, left, right, json: true });
 
-      const parsed = JSON.parse(
-        logSpy.mock.calls.map(c => c.map(String).join('')).join('')
-      );
+      const parsed = jsonData();
       expect(parsed.summary.total).toBe(3);
     });
 

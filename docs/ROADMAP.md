@@ -1,178 +1,245 @@
 # Re-Shell Roadmap
 
-> Consolidated from the legacy `re-shell` umbrella repo's planning artifacts
-> (`CLI_IMPLEMENTATION_TODO.md`, `UI_IMPLEMENTATION_TODO.md`, `CLI_FUTURE_PLANS.txt`)
-> during the W8 archive/salvage of that repo. This is the single forward-looking
-> roadmap for the **`re-shell-cli` monorepo** (`packages/cli` + `packages/ui` +
-> `packages/contracts` + `apps/web`). The legacy umbrella is archived read-only;
-> see [`legacy/`](./legacy/) for the salvaged design references.
+> The single forward-looking roadmap for the **`re-shell` monorepo**. It was
+> consolidated from the legacy umbrella repo's planning artifacts
+> (`CLI_IMPLEMENTATION_TODO.md`, `UI_IMPLEMENTATION_TODO.md`, `CLI_FUTURE_PLANS.txt`;
+> see [`legacy/`](./legacy/)) and then rewritten against the code. Every status
+> below was checked against the source tree or the built CLI
+> (`node packages/cli/dist/index.js ...`), and says how.
+>
+> Companion documents: [`STABILITY.md`](./STABILITY.md) (release gates and the
+> stability backlog), [`CLI-CONTRACTS.md`](./CLI-CONTRACTS.md) (generated CLI
+> envelopes), [`control-plane.md`](./control-plane.md), [`desktop.md`](./desktop.md).
+
+## Snapshot (this commit)
+
+| Fact | Value | Checked with |
+|------|-------|--------------|
+| `@re-shell/cli` | `0.31.0` (`0.30.1` is the last published version) | `packages/cli/package.json`, `node packages/cli/dist/index.js --version` |
+| `@re-shell/contracts` / `@re-shell/mcp` / `@re-shell/ui` | `0.3.0` / `0.2.0` / `0.6.0` (published: `0.2.0` / `0.1.0` / `0.5.0`) | each `package.json`, `npm view <pkg> versions` |
+| Not published | `@re-shell/control-plane` `0.1.0` (private), `@re-shell/dashboard` `0.1.0` (private), VS Code extension `re-shell` `0.3.0` (private, `.vsix` only) | `package.json` `private: true` |
+| Registered CLI commands | **585** command paths in **46** top-level commands | `commands list --json` (`.data.length`) |
+| Backend templates | **204** across **35** languages | `templates list --json` (`.data.length`, distinct `language`) |
+| Dashboard screens | **11** | `apps/web/src/shell/screens.ts` |
+| Startup (lazy command loading) | `--version` about 44 ms, `--help` about 102 ms median over 10 runs on the development VM; before lazy loading `--help` took about 2.6 s | `node scripts/bench-startup.mjs`; R-1b measurements below |
+
+Nothing in this repository has been published or deployed by the work below.
+"Pending first CI run" means the workflow or template exists and was linted or run in part
+locally, but no hosted CI run has executed it yet. Every workflow has run and passed on
+GitHub on pull request [#395](https://github.com/UmutKorkmaz/re-shell/pull/395) (commit
+`3a06508`), including all 19 jobs of `template-health` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)).
 
 ## Status legend
 
-- **MVP-done** — shipped in the current monorepo (CLI is at `0.29.0`).
-- **DONE+tested** — Phase 9 feature implemented AND verified by unit/integration tests in this wave.
-- **SCAFFOLD/SPEC** — code structure and types are present, but live-environment requirements (network, running cluster, LLM backend, Rust toolchain) make the feature env-limited; unit tests pass with controlled doubles.
-- **post-MVP-planned** — carried forward as a real, scoped intention.
-- **DROPPED** — explicitly removed from scope (speculative / out of mission).
+- **DONE+tested**: implemented in source and covered by automated tests that run
+  in CI (or by a script that was run for real). The "Verified" column names them.
+- **DONE (env-limited: ...)**: implemented and tested, except for the part named
+  in the parentheses, which needs something this development environment did not
+  have (a live cluster, a signing certificate, an API key, public hosting, ...).
+  The unverified part is never claimed as verified.
+- **PARTIAL (...)**: part of the feature exists; the parentheses say what is
+  missing.
+- **PLANNED**: a real, scoped intention with no implementation yet.
+- **DROPPED**: removed from scope on purpose (section 5).
+
+Test counts are deliberately not quoted here; run the suites for current numbers
+(`STABILITY.md` lists the commands and what was run for this document).
 
 ---
 
 ## 1. CLI platform
 
-### Foundation & core infrastructure
+### Foundation and core infrastructure
 
-| Feature | Status |
-|---------|--------|
-| Global config (`~/.re-shell/config.yaml`) + schema validation, presets, env overrides, migration | MVP-done |
-| Project config (`.re-shell/config.yaml`) with inheritance, cascading, templating, diff/merge, backup/restore, hot-reload | MVP-done |
-| Declarative `re-shell.workspaces.yaml` schema, dependency graph engine, cycle detection, topology health | MVP-done |
-| Workspace state persistence/caching, backup/restore, migration, conflict detection | MVP-done |
-| File watching + content-hash change detection, change-impact analysis, incremental rebuild, debouncing, cross-platform fallbacks | MVP-done |
-| Plugin architecture: registration/discovery, lifecycle, hooks API, dependency resolution, sandboxing, marketplace foundation | MVP-done |
-| Command extension system: plugin command registration, middleware, conflict resolution, auto-docs, caching | MVP-done |
-| Startup optimization (<100ms; ~43ms achieved), lazy loading, tree shaking, startup cache, regression tests | MVP-done |
-| Resource management: cleanup/leak prevention, memory monitoring, concurrency + rate limiting, priority queue | MVP-done |
-| Group command architecture (`config` / `tools` / `workspace` / `templates` groups) | MVP-done |
-| `doctor`, `analyze`, `completion` commands wired and reachable | MVP-done |
+| Feature | Status | Verified |
+|---------|--------|----------|
+| Global config (`~/.re-shell/config.yaml`), presets, env overrides, migration (`config ...`) | DONE+tested | `tests/unit/config.test.ts`, `unified-config.test.ts`, `groups-config-tools-k8s-data.test.ts` |
+| Project config with inheritance, templates, diff/merge, backup/restore (`config project\|template\|diff\|backup\|restore\|unified ...`) | DONE+tested | `tests/unit/project-config.test.ts`, `workspace-config.test.ts`, `config-diff.test.ts`, `config-backup.test.ts` |
+| Declarative `re-shell.workspaces.yaml` (schema v2), dependency graph engine, cycle detection, topology health | DONE+tested | `dependency-graph-engine.test.ts`, `workspace-schema.test.ts`, `workspace-graph.test.ts` |
+| Workspace state, backup, conflict detection, change detection, impact analysis, incremental builds (`workspace state\|backup\|conflict\|changes\|impact\|ibuild ...`) | DONE+tested | `change-impact-analyzer.test.ts`, `incremental-build*.test.ts` |
+| Plugin architecture: discovery, lifecycle, hooks, dependency resolution, command extension | DONE+tested | `plugin-*.test.ts` (see P9-F) |
+| **Startup**: lazy command-group loading (`src/command-manifest.ts`, `src/lazy-commands.ts`) | DONE+tested | Deterministic guard `tests/integration/startup-time.test.ts` (asserts which group modules load) and `tests/unit/command-manifest.test.ts`. **Measured, not a promise**: R-1b, under load, `--help` median 228 ms after vs 2620 ms before (eager loading, same harness: 1809 ms). Re-measured at this commit on an idle VM, 10 runs: `--version` 44 ms, `--help` 102 ms, `templates list --json` 306 ms, `workspace --help` 428 ms. The earlier "under 100 ms, about 43 ms" claim was true only for `--version`; `--help` and group commands are slower and depend on the machine. |
+| **Resource governor**: `run --max-memory <mb> --rate-limit <n>`, `workspace ibuild build --max-memory --rate-limit`; token bucket, priority queue with aging, memory monitor, async pool | DONE+tested | `tests/unit/resources.test.ts`, `resource-lifecycle.test.ts`, `async-pool.test.ts`; `tests/integration/run-resources-cli.test.ts` |
+| Group command architecture (`config`, `tools`, `workspace`, `templates`, `service`, `k8s`, ...) | DONE+tested | `commands list --json` shows 46 top-level commands |
+| `doctor` (a gate: `ok:true` with `healthy`/`summary`, exit 1 when unhealthy), `analyze`, `completion` (generated from the live tree: `completion --print`) | DONE+tested | `tests/contract-conformance.test.ts`, `integration/json-hygiene-cli.test.ts`, `unit/completion*.test.ts` |
+| Single-envelope `--json` contract: `COMMAND_ERROR` / `USAGE_ERROR`, incidental output on stderr, `--version` prints only the version, EPIPE handled | DONE+tested | `tests/integration/json-hygiene-cli.test.ts`, `tests/unit/json-mode-isolation.test.ts` |
+| Compliance audit trail: every state-changing command is appended to `.re-shell/audit/audit.jsonl` (hash-chained; secrets redacted; opt out with `RE_SHELL_AUDIT=0` or `audit.enabled: false`); `security audit verify` checks the chain and exits 1 on tampering | DONE+tested | `audit-log-chain.test.ts`, `audit-classify.test.ts` (walks the real command catalog), `integration/audit-cli.test.ts` |
+| `security compliance report --framework soc2\|iso27001`: maps audit evidence, policy-check results and config to controls and states which controls have no evidence (`--strict` exits non-zero) | DONE+tested | `audit-compliance.test.ts`. The mapping is a self-assessment aid, not an audit or a certification. |
 
-### Universal microservices / backend templates
+### Universal microservices and backend templates
 
-| Feature | Status |
-|---------|--------|
-| Backend framework template registry (Node, Python, Rust, Java, .NET, PHP, Go, Ruby, emerging langs) — large shipped catalog | MVP-done |
-| Docker / service orchestration generation, compose output | MVP-done |
-| API contract management (OpenAPI/GraphQL), type-safe client generation scaffolds | MVP-done |
-| Database integration templates + migration support | MVP-done |
-| Full-stack feature creation across frameworks (`create-feature`) | MVP-done |
-| Expand emerging-language coverage (Deno, Bun, Kotlin, Scala, Crystal, Zig, Elixir, Nim) to parity | post-MVP-planned |
-| Cross-language service bridge (gRPC/REST/GraphQL federation, polyglot client gen) — salvaged refs in `legacy/salvage-refs/` | post-MVP-planned |
+| Feature | Status | Verified |
+|---------|--------|----------|
+| Backend template registry: **204 templates, 35 languages** (Node, Python, Rust, Java, .NET, PHP, Go, Ruby, C++, Swift, Kotlin, Scala, Elixir, Zig, Nim, ...) | DONE+tested (registry shape, placeholder substitution, scaffold) | `templates list --json`; `unit/backend-template-registry.test.ts`, `template-engine.test.ts` |
+| Every placeholder is substituted, including in file paths | DONE+tested | `54af757 fix(cli): substitute every template placeholder, in file paths too` and its tests |
+| Emerging-runtime parity: at least 3 templates each for Deno, Bun, Kotlin, Scala, Crystal, Zig, Elixir, Nim | DONE+tested | `backend-template-registry.test.ts` `PARITY_GROUPS` (3 to 4 each); `bun-serve`, `trpc-bun`, `std-http-zig` were added for parity |
+| Generated projects install, build and boot | DONE: **all 204 templates pass on hosted CI** ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171), commit `3a06508`); 4 infeasible templates were removed (see STABILITY.md) | `scripts/scaffold-test-templates.sh` lists 204 templates in eighteen toolchain groups and builds each with its own toolchain; the `template-health` workflow runs every group plus `scripts/boot-test-templates.mjs` (8 Node/Bun templates booted, `/health` and clean SIGTERM) on every push. 172 passed at commit `3207b9f` and all 204 pass at `3a06508`. Of the 32 newly wired, 14 were built locally with their real toolchain (`kemal`, `lucky-cr`, `amber-cr`, `vweb`, `vex-v`, `odin-http`, `jennet-pony`, `mojo`, `mojo-fastapi`, `aleph-deno`, `crow`, `jester`, `prologue-nim`, `happyx-nim`) and 18 could not be built locally (`hummingbird`, `kitura`, `genie-jl`, `oxygen-jl`, `dream-ocaml`, `opium-ocaml`, `compojure`, `luminus-clj`, `reitit-clj`, `pedestal-clj`, `plug-ex`, `nerves-ex`, `wisp`, `zap-zig`, `red-http`, `grain`, `ballerina`, `unison`); the hosted runs of the 32 found and fixed `ballerina`, `unison`, `red-http`, `kitura` and `nerves-ex` defects and pinned `zap-zig`'s dependency hash, and all 32 now pass. The 4 infeasible templates were removed: `perfect` (PerfectNet does not compile against OpenSSL 3), `roc` (no stable release; its platform needs an unverifiable content-hash pin), `carbon` (no released version, no networking) and `vale` (archived, last compiler a 2022 alpha, no networking). The nim group runs Nim 2.0.x because `happyx` does not resolve with Nim 2.2.12 and nimble 0.24.1. Laravel is now Laravel 13 and its health check runs `artisan route:list` and its PHPUnit suite. |
+| Docker / compose generation, API contract management (OpenAPI/GraphQL), database templates | DONE+tested | `generate`, `api ...` group tests |
+| `create` is non-interactive for every mode (`--gateway --services --remotes --force --template blank`), a bare `create` is a react-ts frontend, unknown templates fail with `TEMPLATE_NOT_FOUND`, `--type` accepts only `app\|package\|lib\|tool`, `services/*` globs and a `service` workspace type | DONE+tested | `tests/integration/create-headless-*.test.ts`, `unit/create-noninteractive.test.ts` |
 
 ### Workspace graph intelligence
 
-| Feature | Status |
-|---------|--------|
-| Workspace graph generation + `workspace graph --json` topology shape | MVP-done |
-| Workspace health (`workspace health --json`) with scored checks | MVP-done |
-| Multi-environment profiles (`profile`, `profile-env`, `profile-sync`, `profile-version`) | MVP-done |
-| Interactive terminal graph explorer scaling to thousands of nodes (pan/zoom, real-time) | post-MVP-planned |
-| Profile optimization recommendations from usage patterns (heuristic, non-speculative) | post-MVP-planned |
+| Feature | Status | Verified |
+|---------|--------|----------|
+| `workspace graph --json`, `workspace health --json`, `workspace summary --json` | DONE+tested | wire schemas + `contract-conformance.test.ts` |
+| `config profile ...` (create, activate, show, diff, sync, export/import, history, analytics, ...). The names are **`config profile <verb>`**; there are no top-level `profile-*` commands | DONE+tested | `profile-*.test.ts`; `commands list --json` |
+| Profile insights and optimization computed from **recorded activation history** (`config profile insights\|optimize`) | DONE+tested | `profile-history-insights.test.ts`, `profile-optimize.test.ts`, `integration/profile-insights-cli.test.ts` |
+| `dev --profile <name>` (inheritance and overrides resolved; unknown profiles are an explicit error) | DONE+tested | `dev-profile.test.ts`, `integration/dev-profile-cli.test.ts` |
+| Graph explorer, terminal and browser (see P9-L) | DONE+tested | see P9-L |
 
 ### AI-assisted development
 
-| Feature | Status |
-|---------|--------|
-| Optional LLM-assisted command translation / code generation behind a provider abstraction | post-MVP-planned |
-| Architecture analysis (security/performance/scalability heuristics) | post-MVP-planned |
-
-> Scope discipline: AI assistance is an **optional, provider-abstracted** layer, not a
-> rewrite of the CLI. No always-on telemetry, no mandatory cloud dependency.
+| Feature | Status | Verified |
+|---------|--------|----------|
+| Provider-abstracted command resolver `ai <prompt>` (see P9-A) | DONE (env-limited: no live LLM call was made; no API key) | see P9-A |
+| `analyze --type bundle\|dependencies\|performance\|security\|scalability\|architecture\|all` and `--fail-on critical\|high\|medium\|low\|info`: real analysis of the workspace graph and manifests; `--fail-on` exits non-zero at or above the severity | DONE+tested | `unit/analyze-engine.test.ts`, `analyze-real-data.test.ts`, `integration/analyze-cli.test.ts`; `analyze --help` |
+| `fix --ci`: gate evaluator, validated LLM patches, rollback, PR flow (report-only without `ANTHROPIC_API_KEY`; dry-run unless `--no-dry-run`) | DONE (env-limited: no live LLM call, no push or PR opened here) | `tests/integration/fix-ci-cli.test.ts`, `contracts/src/fix-ci.test.ts`; `fix --help` |
 
 ### Polyglot integration
 
-| Feature | Status |
-|---------|--------|
-| Universal cross-language service communication protocols | post-MVP-planned |
-| Unified package-manager abstraction (npm/pip/cargo/maven/nuget/composer/gem) | post-MVP-planned |
-| Cross-language debugging / refactoring | post-MVP-planned |
+| Feature | Status | Verified |
+|---------|--------|----------|
+| `pkg add\|remove\|install\|list\|outdated`: one command across npm/pnpm/yarn, pip/poetry, cargo, maven, dotnet, composer, bundler, go (`--service`, `--path`, `--ecosystem`, `--dry-run`, `--json`) | DONE+tested (native tools are invoked; only the ones installed locally can run) | `unit/pkg-*.test.ts`, `integration/pkg-cli.test.ts` |
+| `debug config`: VS Code `launch.json` (node, python, go, rust, java, php, ruby, dotnet) with a compound configuration plus a docker-compose debug override | DONE+tested (generates configuration; attaching a debugger was not exercised) | `unit/debug-config.test.ts`, `integration/debug-refactor-cli.test.ts` |
+| `refactor rename-service <old> <new>`: workspace config, compose files, k8s/helm manifests, package manifests, references in other services and the directory; `--dry-run` prints a unified diff; refuses a dirty git tree without `--force` | DONE+tested | `unit/refactor-rename.test.ts`, `refactor-rollback.test.ts` |
+| Cross-language service bridge | DONE+tested (see P9-B) | see P9-B |
 
 ### Enterprise platform
 
-| Feature | Status |
-|---------|--------|
-| Kubernetes manifest generation + GitOps integration | post-MVP-planned |
-| Multi-cloud deployment targets (AWS/Azure/GCP) | post-MVP-planned |
-| Compliance reporting (audit trails) | post-MVP-planned |
-| Real-time WebRTC pair-programming / live collaboration | post-MVP-planned |
+| Feature | Status | Verified |
+|---------|--------|----------|
+| Kubernetes, Helm, GitOps generation, rollback, CRD, operator, mesh | DONE (env-limited: Flux/Argo CD sync only in CI) | see P9-D |
+| `cloud iac generate --provider aws\|azure\|gcp` (Terraform: ECS Fargate, Azure Container Apps, Cloud Run) and `cloud iac validate <dir>` (`terraform fmt -check`, `init -backend=false`, `validate`; fails unless they really ran) | DONE+tested (terraform validation runs in CI; the `iac-validate` workflow passes on PR #395) | `unit/iac-generate.test.ts`, `integration/iac-cli.test.ts` |
+| `cloud deploy`: checks credentials first, `init`+`plan` by default, `apply` only with `--yes` | DONE (env-limited: needs real cloud credentials; never run against a real account here, never faked) | `unit/iac-deploy.test.ts` |
+| Legacy `cloud aws\|azure\|gcp\|hybrid\|multi\|...` generators and `cloud iac scaffold <name>` (standalone Terraform/Pulumi tooling) | DONE (generators; they write files and call no cloud API) | `groups-ai-cloud-learn.test.ts` |
+| Compliance reporting (audit trail, `security compliance report`) | DONE+tested | see section 1, foundation |
+| Real-time collaboration | DONE (env-limited: no TURN server) | see P9-N |
 
 ---
 
 ## 2. UI / dashboard
 
-| Feature | Status |
-|---------|--------|
-| Single shadcn-React component system in `packages/ui` (Web Components layer retired) | MVP-done |
-| `@re-shell/contracts` authoritative TS + zod contract shapes shared by CLI and UI | MVP-done |
-| Dashboard app (`apps/web`) + token-authed hub-server: SSE `/events`, WS `/jobs`, 127.0.0.1 bind | MVP-done |
-| `re-shell ui` launcher | MVP-done |
-| Advanced type system (polymorphic `as` props, discriminated variants, branded CSS units) | MVP-done |
-| Design-system tokens + theming | MVP-done |
-| Accessibility excellence (WCAG 2.1 AA across components, keyboard, screen-reader, focus mgmt) | post-MVP-planned |
-| Performance budgets + bundle optimization for the component library | post-MVP-planned |
-| Component dev tooling (docs site, playground, codegen) | post-MVP-planned |
-| Enterprise UI features (theming marketplace, white-label) | post-MVP-planned |
-| AI-assisted UI generation | post-MVP-planned |
+| Feature | Status | Verified |
+|---------|--------|----------|
+| Single shadcn-React component system in `packages/ui` (Web Components layer retired) | DONE+tested | CI guard `no custom elements in apps/web/src` |
+| `@re-shell/contracts` exact wire schemas + adapters shared by CLI, hub, MCP and UI | DONE+tested | `packages/contracts` tests; `tests/contract-conformance.test.ts`; `docs/CLI-CONTRACTS.md` is generated and checked (`gen-cli-contracts.mjs --check`) |
+| Dashboard (`apps/web`, 11 screens) over the token-authed hub (SSE `/events`, WS `/jobs`, 127.0.0.1) | DONE+tested | `apps/web` unit and hub tests; Playwright `chromium` project |
+| `re-shell ui` launcher fails if the hub is not healthy; the hub URL is pinned to 127.0.0.1 | DONE+tested | `unit/ui-launch.test.ts`, `integration/ui-lifecycle-cli.test.ts` |
+| **Accessibility, WCAG 2.1 AA**: skip link, focus management, live regions, OKLCH contrast verified from the real tokens in both themes, `prefers-reduced-motion` | DONE+tested | `packages/ui` `a11y.test.tsx` and `tokens.test.ts` (vitest-axe); `apps/web/e2e/accessibility.spec.ts` (axe, the `a11y` Playwright project and `accessibility.yml`). Passed locally when merged (83 specs); the `accessibility` workflow and the `ci.yml` `e2e` job pass on PR #395. axe finds a subset of WCAG problems; this is not a manual audit. |
+| **Code splitting with enforced gzip budgets** | DONE+tested | `scripts/perf-budget.mjs` with `apps/web/perf-budgets.json` and `packages/ui/perf-budgets.json`; CI runs `pnpm --filter @re-shell/ui run budget` and `pnpm --filter @re-shell/dashboard run budget` |
+| **Storybook 9** with play-function stories and a real `ui test` runner (interaction + a11y + visual, both themes, `--gate a11y,visual`; an empty run or missing Storybook is `UI_TEST_ERROR`, never a pass) | DONE+tested (the `storybook` CI job passes on PR #395, with baselines rendered in CI's Chromium) | `unit/ui-test*.test.ts`, `integration/ui-test-*.test.ts`; CI job `storybook` |
+| `ui component new`, `ui generate` (AI provider if configured, offline template generator otherwise; output is typechecked), `ui theme install\|list\|search\|remove` (npm keyword `reshell-theme`) | DONE+tested | `unit/ui-component.test.ts`, `ui-generate.test.ts`, `ui-theme.test.ts`, `integration/ui-generate-typecheck.test.ts`. Theme search against the live npm registry was not exercised. |
+| White-label: `re-shell.whitelabel.json` (or `.re-shell/whitelabel.json`, or `RE_SHELL_WHITE_LABEL_FILE`) and `RE_SHELL_BRAND_NAME/_TAGLINE/_LOGO/_FAVICON/_ACCENT`, applied at build time and at `re-shell ui` serve time | DONE+tested | `unit/ui-brand.test.ts`, `contracts/src/brand-html.test.ts`, `ui-theme.test.ts`; Playwright white-label spec |
+| Polymorphic `Box`/`Text`/`Stack` (`as` prop, element-accurate props and refs), branded `Px`/`Rem`/`Percent` units, discriminated variant props | DONE+tested (this was previously listed as shipped while the types were not polymorphic; it is true now) | `packages/ui/src/types/*.test-d.tsx` (`expectTypeOf` + `@ts-expect-error`) |
+| Design-system leftovers (tokens, elevation, motion, hex fallback) and the design checklist | DONE+tested for the mechanically checkable items | `docs/design/dashboard-design.md` section 6 shows which items are ticked and why |
+| Tauri desktop app | DONE (env-limited: unsigned; macOS/Windows built only in CI) | see P9-K |
 
 ---
 
-## 3. Phase 9 — Post-MVP Feature Status
+## 3. Phase 9 status (P9-A to P9-N)
 
-This section records the honest delivery status for every Phase 9 feature (P9-A through P9-K) as of Wave 9d (2026-06-08). Each row states what was verified and HOW it was verified.
+Each row says what exists, what proved it, and what could not be verified.
 
 | ID | Feature | Status | Verified HOW |
-|----|---------|--------|-------------|
-| **P9-A** | **AI/NLP Offline Command Interface** | **DONE+tested** | `ai.group.ts` registers `re-shell ai <prompt...>` with `--json/--run/--explain`. Offline intent parser (`ai-intent.ts`) resolves prompts to catalog-vetted argv with confidence scores; `needsClarification:true` on no-match. Smoke: `ai "list templates as json" --json` returns resolved spec; `ai "do something vague" --json` returns `needsClarification:true`. Unit tests: 17 tests in `tests/unit/ai-intent.test.ts` (all green). Safety: spawns `re-shell` without `shell:true`; never auto-executes. LLM backend: NOT wired (offline-only; pluggable model abstraction is post-MVP). |
-| **P9-B** | **Cross-Language Service Bridge (gRPC/REST/GraphQL)** | **DONE+tested** | `service bridge generate` command registered in `service.group.ts`; `bridge-generate.ts` produces typed client scaffolds for gRPC, REST, GraphQL; `typeCheckTsClient()` validates generated TS against installed tsc. Unit tests: 20 tests in `tests/unit/bridge-generate.test.ts` (all green). Async transport (Kafka/Redis Streams, circuit breakers, distributed tracing) and cross-language mock servers are SCAFFOLD — types and stubs exist; no live broker/cluster in CI. |
-| **P9-C** | **workspace.yaml v2 + JSON Schema + IDE Autocomplete** | **DONE+tested** | `workspace-v2.schema.json` is the canonical schema; `schema-generator.ts` publishes it with VSCode/IntelliJ/Vim/Emacs config generation. `config schema validate` enforces v2 via AJV. `workspace migrate` (Nx/Turbo importer, P9-E below). JSON Schema `$id` targets `schemas.umutkorkmaz.dev` (owned origin). Unit tests: 10 tests in `tests/unit/schema-generator.test.ts` (all green); integration: `tests/integration/schema-validate.test.ts` (2 tests). IDE resolution of `$schema`: SCAFFOLD/SPEC (requires a running TLS server at the $id origin; not deployed). |
-| **P9-D** | **K8s/Helm/GitOps Generation** | **DONE+tested** | `k8s generate` produces Deployment, Service, HPA, NetworkPolicy manifests from workspace v2 config. `k8s helm generate` produces a Helm chart. `k8s gitops generate --tool argocd|flux` produces ArgoCD Application or Flux GitRepository+Kustomization manifests. All three write files to `--out <dir>` with `--dry-run` support. Unit tests: 13 tests `k8s-generate.test.ts`; 13 tests `helm-generate.test.ts`; 11 tests `gitops-generate.test.ts` (all green). Live `kubectl apply` / `helm lint` / kind-cluster deploy: NOT RUN (no live cluster in CI; manifests are syntactically valid YAML). |
-| **P9-E** | **Nx/Turbo Monorepo Importer** | **DONE+tested** | `workspace migrate` / `workspace migrate-monorepo` reads Nx (`nx.json` + `project.json`) and Turborepo (`turbo.json` + workspace globs) and emits `re-shell.workspaces.yaml` v2. Unit tests: 7 tests `tests/unit/migrate-monorepo.test.ts`; integration: 3 tests `tests/integration/migrate-monorepo.test.ts` (all green using fixture workspaces). |
-| **P9-F** | **Plugin Marketplace / Registry** | **DONE+tested (CI-mocked) / SCAFFOLD/SPEC (live-network)** | `plugin-installer.ts` (`installPluginFromIdentifier`) is a REAL installer: classifies source as npm/git/local, resolves and validates manifest, registers in `.re-shell/plugins/registry.json` — NO `setTimeout` simulation. `PluginMarketplace` / `RegistryClient` connect to the real npm registry (keyword `reshell-plugin`) with injected-fetch for testability. `verifyRegistrySignature` is implemented against the npm key API. Unit tests: 17 tests `plugin-install.test.ts`; 17 tests `plugin-marketplace.test.ts` — all CI-mocked (no live network in CI). Signature verification config (`verifySignatures: true`) is no longer hardcoded. Live-network install against a published npm package: BEST-EFFORT (requires network; not asserted in CI). |
-| **P9-G** | **Policy Packs + Dependency Drift** | **DONE+tested** | `policy-engine.ts` evaluates declarative policy packs (zod-validated rules: `required-scripts`, `no-dependency-drift`, `no-circular-deps`, `license-conformance`); built-in `recommended` and `baseline` packs. `workspace policy check` command. `dependency-drift.ts` scans all workspace `package.json` files and reports version mismatches. Unit tests: 13 tests `tests/unit/workspace-policy.test.ts` with compliant + violating fixture workspaces. Readiness score is derived deterministically. Policy distribution via marketplace: SCAFFOLD (depends on live P9-F network path). |
-| **P9-H** | **Template Compatibility Matrix + Dry-Run Visual Diff** | **DONE+tested** | `template-matrix.ts` builds a full compat grid from the ~219-template registry (languages, frameworks, databases, caches, deploy targets, features). `templates matrix` command with `--json` emits the grid. `computeBackendDryRun()` in `template-dry-run.ts` renders a scaffold to a throwaway tmp dir and returns the file set + per-file preview without touching the workspace. `create --dry-run` flag in the top-level command. Unit tests: 4 tests `template-matrix.test.ts`; 6 tests `template-dry-run.test.ts`; integration: 4 tests `template-matrix-dryrun.test.ts` (all green). |
-| **P9-I** | **VS Code Extension Bridge** | **DONE+tested (compiled + unit) / SCAFFOLD/SPEC (VS Code host launch)** | `apps/vscode-extension` is a full TypeScript package (`@re-shell/vscode@0.1.0`). Pure core layer (`src/core/`) implements catalog parsing, command building, hub request shaping, and allow-list gating — all tested without the VS Code host. `extension.ts` wires the tree view + command palette. Compiles to `dist/extension.js` (551 kB bundle via esbuild). Unit tests: 28 tests across `command-builder.test.ts`, `hub-client.test.ts`, `catalog.test.ts` (all green). VS Code host launch (`@vscode/test-electron`) is NOT RUN — it downloads VS Code binaries, which is blocked in this env. |
-| **P9-J** | **Hosted Control Plane** | **SCAFFOLD/SPEC (env-limited)** | `packages/control-plane` (`@re-shell/control-plane`) provides typed tenant/workspace model, token/session auth, RBAC authz checks, and allow-listed command proxy handlers — all pure in-memory logic. Unit tests: 42 tests across `errors.test.ts`, `auth.test.ts`, `tenant.test.ts`, `authz.test.ts`, `api.test.ts` (all green). NOT a running server (no HTTP router); NOT backed by a database; NOT deployed. Multi-user/team dashboard + remote agent deploy requires a production hosting environment. |
-| **P9-K** | **Desktop / Tauri Packaging** | **SCAFFOLD/SPEC (env-limited)** | `apps/web` includes `src-tauri/` with `tauri.conf.json`, `Cargo.toml`, icons, and capabilities config. `pnpm tauri:build` is wired in `apps/web/package.json`. Rust toolchain (`cargo 1.94.1`) IS present on this machine. Tauri CLI is NOT installed globally (`tauri: NOT FOUND`); `tauri:build` is NOT run in CI. The Tauri build/sign/notarize pipeline requires platform-specific code-signing credentials and a Tauri CLI install. Status: Tauri config + src-tauri scaffold exists, React dashboard compiles, but no desktop binary was produced or verified. |
+|----|---------|--------|--------------|
+| **P9-A** | **AI command interface.** `re-shell ai <prompt...>` with providers Anthropic (default model `claude-opus-5-5`), OpenAI-compatible (any `/v1` server, e.g. a local model) and an offline parser used as the fallback (`--no-fallback` to fail instead). `ai config show\|get\|set\|unset` (persisted under `ai:` in `~/.re-shell/config.yaml`; `apiKey` is never printed), `ai session list\|show\|clear` and `--session/--continue` (`.re-shell/ai/sessions`, git-ignored), `ai cache stats\|clear` and `--no-cache` (semantic cache), `ai suggest`, `ai create` (dry-run scaffold plan). Flags `--provider --offline --no-cache --no-fallback --run --explain --json`. Programmatic API: `@re-shell/cli/ai`. Nothing is ever auto-run; resolved argv is vetted against the command catalog and spawned without a shell. | DONE (env-limited: no live LLM call; the Anthropic and OpenAI-compatible providers were tested against local fake servers, never against a real API key) | `unit/ai-*.test.ts`, `groups-ai-cloud-learn.test.ts`, `integration/ai-cli.test.ts`, `ai-create-cli.test.ts`, `tests/live` (skipped without a key) |
+| **P9-B** | **Cross-language service bridge.** `service link\|unlink\|validate` (spec-driven: derive the contract from the provider's own OpenAPI/.proto/GraphQL SDL, generate typed TS, Python and Go clients, record the dependency); `service bridge generate` (`--grpc\|--rest\|--graphql`, `--verify`), `bridge gateway` (Apollo Federation 2 composition run for real, or schema stitching), `bridge async` (Kafka and Redis Streams producers/consumers for TS and Python, correlation IDs, `traceparent`, upcasters, circuit breaker, retry, dead letters), `bridge transform` (JSON, Protobuf, Avro, MessagePack with schema evolution), `bridge diff` (breaking/dangerous/non-breaking, exits 1 on breaking), `bridge mock` (REST, GraphQL, gRPC from specs) | DONE+tested (the Redis and Kafka round trips need Docker; see Verified) | `unit/bridge-*.test.ts`, `integration/bridge-cli.test.ts`, `bridge-async-redis.test.ts` (real `redis:7` container, round trip across TS and Python) and `bridge-async-kafka.test.ts` (real `apache/kafka` container); both start containers and **skip when Docker is unavailable**, and both passed locally in the P9-B workstream, `bridge-e2e-clients.test.ts` (generated clients against the mock server, including Go gRPC). The async transport and cross-language mocks are no longer scaffolds. |
+| **P9-C** | **workspace.yaml v2 and JSON Schema.** The schema is built from `packages/cli/src/schemas/workspace-v2.schema.json` and served by the docs site at `https://umutkorkmaz.github.io/re-shell/schemas/workspace-v2.json` (`site/src/pages/schemas/workspace-v2.json.ts`; `$id` and every `$schema` modeline use `src/constants/brand.ts`). Every workspace writer emits a valid v2 file. `config schema generate\|publish\|validate`; IDE configs for VS Code, IntelliJ, Vim, Emacs | DONE+tested (live URL not reachable from this environment; the Pages workflow verifies the deployed file after each deploy) | `unit/schema-generator.test.ts`, `workspace-writers-schema.test.ts`, `brand-urls.test.ts` (endpoint output equals the canonical schema), `integration/workspace-writers-cli.test.ts`, `schema-validate.test.ts`, `pages.yml` post-deploy check |
+| **P9-D** | **Kubernetes, Helm, GitOps.** Hardened manifests (defaults: `runAsNonRoot`, read-only root filesystem, all capabilities dropped, `RuntimeDefault` seccomp, plus a PodDisruptionBudget; probes and resources come from the workspace config), `k8s generate`, `k8s helm generate`, `k8s gitops generate --tool argocd\|flux` (Flux defaults to a **HelmRelease** with `--source helm`), `k8s rollback <service>` (kubectl or Helm), workspace-driven `k8s crd\|operator\|mesh` (the old script generators are behind `--legacy`) | DONE (env-limited: Flux/Argo CD sync only in CI) | `unit/k8s-*.test.ts`, `helm-generate.test.ts`, `gitops-generate.test.ts`, `integration/k8s-cli.test.ts`. `scripts/k8s-live-check.sh` against a local k3s cluster: steps 1-8 (generate, helm lint/template, kubeconform, apply under Pod Security `restricted`, rollback, Helm release rollback, CRD, Go operator) ran locally during development. Step 9 (Flux sync of the HelmRelease) needs registry egress this environment blocks; it runs in the `k8s-live` workflow (kind), which passes on PR #395. Argo CD is not installed there: its Application manifest is validated with kubeconform only. |
+| **P9-E** | **Nx / Turbo importer.** **`workspace migrate-monorepo --from nx\|turbo`** reads `nx.json` + `project.json` or `turbo.json` + workspace globs and writes `re-shell.workspaces.yaml` v2. (`workspace migrate` is a different command: it migrates a re-shell workspace config between schema versions, default target `2.0.0`.) | DONE+tested | `unit/migrate-monorepo.test.ts`, `integration/migrate-monorepo.test.ts` (fixture Nx and Turbo workspaces) |
+| **P9-F** | **Plugin marketplace.** Real `plugin install` (local path, git URL, npm; `--pin`, `--dry-run`), `uninstall` (files, registry entry, hooks, commands; `--purge`), `update` (`--check`, respects pins), `validate <path>` (manifest, entry, engines, dependencies, security scan, size), `pin\|unpin`, `review add\|list` (team reviews in `.re-shell/plugin-reviews.json`), `search` over the npm keyword `reshell-plugin`, ratings from npms.io with a downloads-based fallback. The workspace registry is **`.re-shell/plugins.json`**. Registry signature verification is opt-in (`--verify`) | DONE+tested (CI-mocked; live registry is env-limited) | `unit/plugin-installer*.test.ts`, `plugin-uninstaller.test.ts`, `plugin-updater.test.ts`, `plugin-validator.test.ts`, `plugin-ratings.test.ts`, `plugin-reviews.test.ts`, `plugin-store.test.ts`, `integration/plugin-lifecycle-cli.test.ts` (against a fake npm registry with real tarballs). No claim is made about installs from the live npm registry. |
+| **P9-G** | **Policy packs and drift.** `workspace policy check\|search\|install\|list\|remove` (built-in packs `recommended` and `baseline`; installable packs under `.re-shell/policy-packs`, npm keyword `reshell-policy-pack`). **Rule types: `required-files`, `required-scripts`, `dependency-constraints`, `naming`, `min-node`, `license`.** `workspace drift` reports version mismatches across workspaces | DONE+tested | `unit/policy-engine.test.ts`, `policy-pack-commands.test.ts`, `policy-pack-marketplace.test.ts`, `workspace-policy.test.ts` |
+| **P9-H** | **Template matrix and dry-run diffs.** `templates matrix` (204-row compatibility grid), `templates apply <id>` (dry-run file preview), `create --dry-run` (with `--json`: the exact file set with per-file previews and diffs; never prompts) | DONE+tested | `unit/template-matrix.test.ts`, `template-dry-run.test.ts`, `integration/template-matrix-dryrun.test.ts`, `create-headless-json-dryrun.test.ts` |
+| **P9-I** | **VS Code extension** (`apps/vscode-extension`, package `re-shell` `0.3.0`): Projects, Commands and Templates views, **Build Command**, **Run via Hub**, status bar health; packaged as a `.vsix` (`pnpm --filter re-shell run package`) | DONE (env-limited: the VS Code **host** test was not run here, `update.code.visualstudio.com` is blocked; it runs in the `vscode-extension` workflow, which passes on PR #395, including the real VS Code host tests) | Unit and real-hub integration suites (built CLI + built hub, no editor); `scripts/verify-vsix.mjs` on the packaged `.vsix`. Not published to the Marketplace. |
+| **P9-J** | **Hosted control plane** (`packages/control-plane`): HTTP/SSE server, signed JWTs with key rotation, SQLite store, tenant isolation, remote workers that run the allow-listed CLI, team policy sync, append-only audit, Dockerfile and Compose | DONE+tested, **not deployed** (single node; no OIDC; no public hosting; no external security review) | `packages/control-plane` suites including end-to-end runs with the built CLI; Docker images built and `/healthz` checked locally once. Details and limits: [`control-plane.md`](./control-plane.md). |
+| **P9-K** | **Desktop (Tauri).** The app owns its hub (free 127.0.0.1 port, per-launch token, stdin-close orphan protection); Linux `.deb`, `.rpm` and `.AppImage` built and smoke-tested under Xvfb here | DONE (env-limited: unsigned; signed builds only via CI secrets and never verified with real certificates; macOS and Windows bundles built only in the `desktop` workflow, which passes on PR #395) | `cargo test --locked` and `scripts/smoke-linux.sh`; see [`desktop.md`](./desktop.md) for exactly what was run |
+| **P9-L** | **Workspace graph explorer.** Search, filters (URL state), shortest dependency paths, cycle highlighting, six exports (PNG, SVG, PDF, Mermaid, D3 JSON, JSON), graph diff, live status, 2000+ nodes with virtualization. CLI: `workspace graph diff --base --head`, `workspace status` (running/stopped/unhealthy/unknown with the reason; remote probes need `--allow-remote-probes`), `workspace explore` (terminal explorer, TTY only), `workspace graph --interactive` | DONE+tested | `unit/workspace-status.test.ts`, `workspace-graph-command.test.ts`, `graph-explorer-*.test.*`, `integration/workspace-graph-cli.test.ts`; `contracts/src/graph*.test.ts`; Playwright `e2e/graph-scale.spec.ts` (generated 2001-workspace repo, real hub and CLI: render, search, filter, paths, diff and export budgets). The scale spec passed locally when merged and runs in CI (`playwright.graph.config.ts`) and passes on PR #395. |
+| **P9-M** | **Multi-environment profiles.** `dev --profile <name>`, `config profile ...` (see section 1) | DONE+tested | `dev-profile*.test.ts`, `integration/dev-profile-cli.test.ts` |
+| **P9-N** | **Real-time collaboration.** Shared sessions on the control plane: shared console (`collab session start\|join\|list\|run\|handover\|cancel\|end`), operational-transform shared editing, WebRTC data channels with a server relay fallback, team analytics, audit; dashboard **Collaboration** screen | DONE (env-limited: no TURN server is shipped or deployed; WebRTC links are host-candidate only unless `CONTROL_PLANE_ICE_SERVERS` is set; control plane not deployed) | `contracts/src/ot.test.ts`, control-plane `collab` suites and `e2e/collab.e2e.test.ts` (real worker + built CLI), `cli/tests/integration/collab-session-cli.test.ts`, Playwright `apps/web/e2e/collab.spec.ts` (two browser contexts, real data channel and relay fallback). The older `collab webrtc-sharing\|operational-transform\|...` commands are code generators that talk to no server. See [`control-plane.md`](./control-plane.md) section 14. |
 
 ### Phase 9 summary
 
-| Status | Features |
-|--------|---------|
-| DONE+tested | P9-A (ai-offline), P9-B (bridge-generation), P9-C (schema-v2+importer), P9-D (k8s/helm/gitops GENERATION), P9-E (nx/turbo importer), P9-G (policy+drift), P9-H (matrix+dry-run-diff) |
-| DONE+tested (CI-mocked) / SCAFFOLD (live-network) | P9-F (plugin marketplace: real installer + mocked-network tests; live npm install is best-effort) |
-| DONE+tested (compiled+unit) / SCAFFOLD (host launch) | P9-I (vscode-extension: pure core tested; VS Code host launch blocked) |
-| SCAFFOLD/SPEC (env-limited) | P9-J (control-plane: pure logic tested; no live server/DB/deploy), P9-K (tauri: config+scaffold exists; no binary produced) |
+| Status | Items |
+|--------|-------|
+| DONE+tested | P9-B (broker round trips need Docker), P9-C, P9-E, P9-F, P9-G, P9-H, P9-L, P9-M |
+| DONE (env-limited) | P9-A (no live LLM), P9-D (Flux/Argo sync in CI), P9-I (VS Code host test in CI), P9-K (unsigned), P9-N (no TURN) |
+| DONE+tested, not deployed | P9-J |
 
 ---
 
-## 4. Explicitly DROPPED (out of scope)
+## 4. Other items verified in this wave
 
-These appeared in the legacy "Future Vision / Next-Generation" sections and are
-**not** part of the Re-Shell roadmap. They are recorded here only so the decision
-is explicit and not silently re-introduced.
-
-- **Quantum computing integration** (quantum algorithm templates, hybrid classical-quantum orchestration, quantum-safe crypto layer). DROPPED.
-- **Blockchain / Web3** (smart-contract templates, dApp workflows, cross-chain interop). DROPPED.
-- **VR/AR / immersive development environments** (spatial code organization, 3D architecture visualization, gesture coding). DROPPED.
-- **Neural / "natural-language-as-primary-interface" / voice-command coding** as a core platform pillar. DROPPED (a narrow, optional, provider-abstracted AI assist remains — see §1 and P9-A).
-
-Rationale: these are speculative, mission-divergent, and would dilute the CLI's
-actual value proposition (polyglot workspace + microfrontend tooling with a typed
-CLI↔UI contract).
+| Item | Status | Verified |
+|------|--------|----------|
+| `service run up\|down\|health\|logs\|...`: hardened supervision (`SERVICES_*` error codes, `--alive-ms`, JSON pid files, `re-shell.services.<script>` metadata in `package.json`; `health` exits non-zero when nothing is running or any service is down) | DONE+tested | `unit/service-process.test.ts`, `services-runtime.test.ts`, `integration/service-run-cli.test.ts` |
+| `@re-shell/mcp`: bin fixed (realpath), `@re-shell/cli` dependency declared, `RE_SHELL_BIN` no longer required, server reports its package version | DONE+tested | `packages/mcp/tests/stdio.test.ts`, `package.test.ts`; `scripts/pack-smoke.mjs` runs an MCP handshake against the packed tarballs |
+| Clean-install smoke: pack contracts, cli, mcp; install the tarballs outside the repo; check `--version`, `--help`, `templates list --json`, `ui --dry-run --json` and an MCP handshake | DONE+tested | `node scripts/pack-smoke.mjs`; CI job `pack-smoke` (passes on PR #395) |
+| Dashboard bundled into the CLI tarball by `prepack` | DONE+tested | `pack-smoke.mjs` |
+| Performance budgets | DONE+tested | section 2 |
 
 ---
 
-## 5. New packages and commands added in Wave 9d
+## 5. Explicitly DROPPED (out of scope)
 
-### New workspace packages
+Recorded so the decision stays explicit and is not silently re-introduced:
 
-| Package | Location | Role |
-|---------|----------|------|
-| `@re-shell/vscode` | `apps/vscode-extension` | VS Code extension (P9-I): tree view + command palette wired to the local hub via typed pure core layer. Compiles to `dist/extension.js`. |
-| `@re-shell/control-plane` | `packages/control-plane` | Control-plane scaffold (P9-J): typed tenant model, token auth, RBAC authz, allow-listed command proxy — pure in-memory, no server. |
+- **Quantum computing integration.** DROPPED.
+- **Blockchain / Web3** (smart-contract templates, dApp workflows, cross-chain). DROPPED.
+- **VR/AR / immersive development environments.** DROPPED.
+- **Neural / voice-command coding** as a core pillar. DROPPED (the optional, provider-abstracted `ai` layer remains, P9-A).
 
-### Key new CLI commands (Wave 9d additions)
+Rationale: speculative and mission-divergent. The value proposition is a polyglot
+workspace plus microfrontend toolkit with a typed CLI-to-UI contract.
 
-| Command | Group | Feature |
-|---------|-------|---------|
-| `ai <prompt...>` | top-level | P9-A: offline NL→command resolver |
-| `k8s generate` | k8s | P9-D: K8s manifests from workspace v2 |
-| `k8s helm generate` | k8s | P9-D: Helm chart generation |
-| `k8s gitops generate` | k8s | P9-D: ArgoCD/Flux GitOps manifests |
-| `templates list` | templates | P9-C/H: list registered templates |
-| `templates matrix` | templates | P9-H: full compat matrix |
-| `workspace migrate` | workspace | P9-E: Nx/Turbo → re-shell.workspaces.yaml |
-| `workspace drift` | workspace | P9-G: dependency drift detection |
-| `workspace policy check` | workspace | P9-G: policy pack evaluation |
-| `service bridge generate` | service | P9-B: cross-language client scaffold |
-| `commands list` | commands | catalog introspection (543 total commands) |
+## 6. Remaining items (external or credential-bound only)
 
-Total registered commands at CLI 0.29.0: **543**.
+Everything left depends on something outside this repository's development
+environment. None of it is claimed as done.
+
+| Item | Needs |
+|------|-------|
+| VS Code extension host test (`@vscode/test-electron`) | Network access to `update.code.visualstudio.com` (runs in CI) |
+| Signed and notarized desktop builds | Apple and Windows signing secrets in the repository (workflow is secret-driven and builds unsigned without them) |
+| Flux and Argo CD sync against a live cluster | Registry egress (Flux runs in the `k8s-live` workflow); Argo CD is validated by schema only |
+| `cloud deploy` against a real account | Cloud credentials |
+| Live LLM calls (`ai`, `ui generate`, `fix --ci`) | An API key or a local OpenAI-compatible server |
+| Redis and Kafka round-trip tests | Docker (they start containers and skip without it) |
+| Public hosting of the control plane | A deployment target, TLS and a security review |
+| WebRTC across symmetric NATs | A TURN server |
+| Hosted runs on `main` of `ci.yml`, `vscode-extension`, `k8s-live`, `iac-validate`, `desktop` (all pass on PR #395 at `3207b9f`) | A merge |
+| Catalog-wide template verification counts | Done in `STABILITY.md`: all 204 passing on hosted CI, the 4 infeasible templates removed |
+
+## 7. Packages
+
+| Package | Location | Name | Version | Role |
+|---------|----------|------|---------|------|
+| cli | `packages/cli` | `@re-shell/cli` | 0.31.0 | The published CLI, templates, hub launcher, bundled dashboard |
+| contracts | `packages/contracts` | `@re-shell/contracts` | 0.3.0 | zod schemas: wire layer, adapters, domain models, hub transport, command registry, OT, graph, theme/white-label |
+| mcp | `packages/mcp` | `@re-shell/mcp` | 0.2.0 | Stdio MCP server (read-only tools, resources, prompts) |
+| ui | `packages/ui` | `@re-shell/ui` | 0.6.0 | shadcn-React component library, Storybook 9 |
+| control-plane | `packages/control-plane` | `@re-shell/control-plane` | 0.1.0 (private) | Multi-tenant HTTP/SSE control plane, workers, collaboration |
+| web | `apps/web` | `@re-shell/dashboard` | 0.1.0 (private) | Dashboard (11 screens), hub-server, Tauri shell (`src-tauri`) |
+| vscode-extension | `apps/vscode-extension` | `re-shell` | 0.3.0 (private) | VS Code extension |
+| site | `site` | `@re-shell/site` | 0.0.0 (private) | Documentation site (Astro Starlight) and the hosted workspace schema |
+
+`experimental/` holds only a README. The control plane graduated out of it into
+`packages/control-plane`; nothing else lives there and nothing in it is built.
+
+## 8. Corrections to earlier statements
+
+The previous version of this file overstated or misstated the following. They are
+corrected above; this list exists so the corrections are visible.
+
+| Earlier claim | Reality |
+|---------------|---------|
+| "Startup under 100 ms; about 43 ms achieved" | About 44 ms is `--version` only. `--help` is about 100 ms (idle VM) to 230 ms (under load) after lazy loading, and was about 2.6 s before. Group commands take several hundred ms. |
+| "543 commands at CLI 0.29.0", "CLI is at 0.29.0" | 585 command paths at 0.31.0 (`commands list --json`). |
+| "About 219 templates" | 204 backend templates (`templates list --json`). |
+| Profiles are `profile`, `profile-env`, `profile-sync`, `profile-version` | They are `config profile <verb>` (`config profile env ...`, `config profile sync`, ...). |
+| Policy rules `required-scripts`, `no-dependency-drift`, `no-circular-deps`, `license-conformance` | The rule types are `required-files`, `required-scripts`, `dependency-constraints`, `naming`, `min-node`, `license`. Drift is a separate command (`workspace drift`). |
+| "`workspace migrate` / `workspace migrate-monorepo` reads Nx and Turbo" | Only `workspace migrate-monorepo` does. `workspace migrate` migrates a re-shell workspace config between schema versions. |
+| Plugin registry at `.re-shell/plugins/registry.json` | `.re-shell/plugins.json`. |
+| Schema `$id` at `schemas.umutkorkmaz.dev` | The hosted URL is `https://umutkorkmaz.github.io/re-shell/schemas/workspace-v2.json`. |
+| Polymorphic `as` props and branded units "MVP-done" | They were not accurate then; they are implemented and type-tested now. |
+| Async transport, mock servers, AI providers, k8s live validation, control plane server, desktop binary: "SCAFFOLD" | Implemented; see section 3 for what is and is not verified. |
+| `@re-shell/vscode@0.1.0` | The package is named `re-shell`, version 0.3.0. |

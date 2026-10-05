@@ -27,6 +27,17 @@ import { RetryPolicy } from './retry-policy';
 import { ServiceDiscovery } from './service-discovery';
 import { RequestTransformer } from './transformer';
 import { LoadBalancer } from './load-balancer';
+import {
+  ServiceMeshError,
+  CircuitBreakerState,
+  LoadBalancingStrategy,
+  type ServiceMeshConfig,
+  type ServiceRequest,
+  type ServiceResponse,
+  type ServiceEndpoint,
+  type CircuitBreakerConfig,
+  type RetryConfig,
+} from './types';
 
 export {
   ServiceMeshClient,
@@ -35,6 +46,9 @@ export {
   ServiceDiscovery,
   RequestTransformer,
   LoadBalancer,
+  ServiceMeshError,
+  CircuitBreakerState,
+  LoadBalancingStrategy,
 };
 
 // Convenience export for default client
@@ -49,7 +63,6 @@ export type {
   ServiceEndpoint,
   CircuitBreakerConfig,
   RetryConfig,
-  LoadBalancingStrategy,
 };
 `,
 
@@ -57,7 +70,7 @@ export type {
 
 export interface ServiceMeshConfig {
   baseURL?: string;
-  serviceMeshURL?: string; // Istio/Likerd control plane
+  serviceMeshURL?: string; // Istio/Linkerd control plane
   defaultTimeout?: number;
   enableCircuitBreaker?: boolean;
   enableRetry?: boolean;
@@ -108,13 +121,20 @@ export interface ServiceEndpoint {
   weight: number;
 }
 
-export interface ServiceMeshError extends Error {
+export class ServiceMeshError extends Error {
   service?: string;
-  code: string;
   status?: number;
   retried?: boolean;
   circuitBreakerOpen?: boolean;
-  originalError?: Error;
+  serviceEndpoint?: string;
+  originalError?: unknown;
+
+  constructor(message: string, public code: string) {
+    super(message);
+    this.name = 'ServiceMeshError';
+    // Keep instanceof working when compiled to ES5-style classes
+    Object.setPrototypeOf(this, ServiceMeshError.prototype);
+  }
 }
 
 export enum CircuitBreakerState {
@@ -137,6 +157,7 @@ export interface RetryConfig {
   backoffMultiplier: number;
   retryableErrors: string[];
   retryableStatuses: number[];
+  onRetry?: (attempt: number, error: ServiceMeshError) => void;
 }
 
 export enum LoadBalancingStrategy {
@@ -151,7 +172,8 @@ export enum LoadBalancingStrategy {
     'service-mesh-client/client.ts': `// Service Mesh Client
 // Main client for frontend-backend communication through service mesh
 
-import { fetch } from 'whatwg-fetch';
+// Polyfills fetch for older browsers; modern runtimes use their built-in fetch
+import 'whatwg-fetch';
 import { ServiceDiscovery } from './service-discovery';
 import { CircuitBreaker } from './circuit-breaker';
 import { RetryPolicy } from './retry-policy';
@@ -163,6 +185,7 @@ import {
   ServiceResponse,
   ServiceMeshError,
   ServiceEndpoint,
+  LoadBalancingStrategy,
 } from './types';
 
 export class ServiceMeshClient {
@@ -197,7 +220,7 @@ export class ServiceMeshClient {
         retryableErrors: ['NETWORK_ERROR', 'TIMEOUT'],
         retryableStatuses: [408, 429, 500, 502, 503, 504],
       },
-      loadBalancingStrategy: config.loadBalancingStrategy || 'ROUND_ROBIN' as 'ROUND_ROBIN' | 'LEAST_CONNECTIONS' | 'RANDOM',
+      loadBalancingStrategy: config.loadBalancingStrategy || LoadBalancingStrategy.ROUND_ROBIN,
       transformRequest: config.transformRequest || ((r) => r),
       transformResponse: config.transformResponse || ((r) => r),
       onError: config.onError || (() => {}),
@@ -208,8 +231,11 @@ export class ServiceMeshClient {
 
     this.serviceDiscovery = new ServiceDiscovery(this.config);
     this.circuitBreakers = new Map();
-    this.retryPolicy = new RetryPolicy(this.config);
-    this.loadBalancer = new LoadBalancer(this.config);
+    this.retryPolicy = new RetryPolicy({
+      ...this.config.retryConfig,
+      onRetry: this.config.onRetry,
+    });
+    this.loadBalancer = new LoadBalancer(this.config.loadBalancingStrategy);
     this.requestTransformer = new RequestTransformer(this.config);
     this.metrics = new Map();
   }
@@ -270,7 +296,7 @@ export class ServiceMeshClient {
       const executeWithRetry = async (): Promise<ServiceResponse<T>> => {
         const executeRequest = async (): Promise<ServiceResponse<T>> => {
           const response = await fetch(url, options);
-          const data = await response.json().catch(() => response.text());
+          const data = (await response.json().catch(() => response.text())) as T;
           const duration = Date.now() - startTime;
 
           return {
@@ -801,7 +827,7 @@ export class ServiceDiscovery {
     try {
       // Query Istio/Likerd service registry
       const response = await fetch(\`\${this.config.serviceMeshURL}/v1/services/\${service}\`);
-      const services = await response.json();
+      const services = (await response.json()) as Array<Record<string, any>>;
 
       const endpoints: ServiceEndpoint[] = services.map((s: any) => ({
         service,
@@ -1042,14 +1068,17 @@ Frontend SDK for seamless communication with backend services through a service 
 
 ## Installation
 
+The SDK is generated into this project: its source is in \`service-mesh-client/\` and the root \`package.json\` is the local, unscoped package \`service-mesh-client\` (it is not published to npm). Build it here, and consume it from a frontend in the same workspace:
+
 \`\`\`bash
-npm install @re-shell/service-mesh-client
+npm run build
+pnpm add service-mesh-client@workspace:*   # in the consuming app
 \`\`\`
 
 ## Quick Start
 
 \`\`\`typescript
-import { createServiceMeshClient } from '@re-shell/service-mesh-client';
+import { createServiceMeshClient } from 'service-mesh-client';
 
 const client = createServiceMeshClient({
   baseURL: 'https://api.example.com',
@@ -1160,7 +1189,7 @@ const response = await client.request({
 ### React
 
 \`\`\`typescript
-import { createServiceMeshClient } from '@re-shell/service-mesh-client';
+import { createServiceMeshClient } from 'service-mesh-client';
 import { useEffect, useState } from 'react';
 
 const client = createServiceMeshClient({
@@ -1204,7 +1233,7 @@ function UsersList() {
 ### Vue
 
 \`\`\`typescript
-import { createServiceMeshClient } from '@re-shell/service-mesh-client';
+import { createServiceMeshClient } from 'service-mesh-client';
 import { ref, onMounted } from 'vue';
 
 const client = createServiceMeshClient({
@@ -1284,6 +1313,7 @@ MIT
     "outDir": "./dist",
     "rootDir": "./",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

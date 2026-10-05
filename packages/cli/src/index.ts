@@ -2,7 +2,12 @@
 
 // Start performance tracking
 import { mark, isVersionRequest, getFromCache, setCache } from './startup-optimizer';
+import { installEpipeHandler } from './utils/epipe';
 mark('startup-begin');
+
+// A reader that closes the pipe early (`re-shell ... --json | head -c 100`) must
+// end the process quietly, not with an uncaught EPIPE stack trace.
+installEpipeHandler();
 
 // Only force color in interactive terminals and never override NO_COLOR.
 const shouldForceColor =
@@ -43,21 +48,12 @@ if (typeof packageVersion === 'string') {
   }
 }
 
-// Fast path for version requests
+// Fast path for version requests. stdout carries exactly the version line: the
+// ASCII banner is decoration for an interactive terminal and has no place in
+// output a script may capture (`VERSION=$(re-shell --version)`).
 if (isVersionRequest()) {
   mark('version-fast-path');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const chalk = require('chalk');
-  console.log(chalk.cyan(`
-██████╗ ███████╗           ███████╗██╗  ██╗███████╗██╗     ██╗
-██╔══██╗██╔════╝           ██╔════╝██║  ██║██╔════╝██║     ██║
-██████╔╝█████╗  ████████╗  ███████╗███████║█████╗  ██║     ██║
-██╔══██╗██╔══╝  ╚═══════╝  ╚════██║██╔══██║██╔══╝  ██║     ██║
-██║  ██║███████╗           ███████║██║  ██║███████╗███████╗███████╗
-╚═╝  ╚═╝╚══════╝           ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
-                                v${version}
-`));
-  console.log(version);
+  process.stdout.write(`${version}\n`);
   process.exit(0);
 }
 
@@ -73,56 +69,41 @@ import chalk from 'chalk';
 // Utilities
 import { createSpinner, flushOutput } from './utils/spinner';
 
-// Standalone command handlers
-import { initMonorepo } from './commands/init';
-import { createProject } from './commands/create';
-import { enableJsonMode, ok, fail } from './utils/json-output';
-import { computeBackendDryRun, isBackendTemplate } from './utils/template-dry-run';
-import { addMicrofrontend } from './commands/add';
-import { removeMicrofrontend } from './commands/remove';
-import { listMicrofrontends } from './commands/list';
-import { buildMicrofrontend } from './commands/build';
-import { serveMicrofrontend } from './commands/serve';
-import { launchTUI } from './commands/tui';
-import { launchUi } from './commands/ui';
-import { runDoctorCheck } from './commands/doctor';
-import { runProjectAnalysis } from './commands/analyze';
-import { installCompletion } from './commands/completion';
+import {
+  enableJsonMode,
+  ok,
+  fail,
+  failFromError,
+  getEmittedEnvelopeCount,
+  isJsonModeActive,
+} from './utils/json-output';
+import { installJsonModeHook, installJsonUsageErrors } from './utils/json-mode-hook';
 
-// Command group registrations
-import { registerWorkspaceGroup } from './groups/workspace.group';
-import { registerConfigGroup } from './groups/config.group';
-import { registerGenerateGroup } from './groups/generate.group';
-import { registerQualityGroup } from './groups/quality.group';
-import { registerApiGroup } from './groups/api.group';
-import { registerPluginGroup } from './groups/plugin.group';
-import { registerServiceGroup } from './groups/service.group';
-import { registerToolsGroup } from './groups/tools.group';
-import { registerK8sGroup } from './groups/k8s.group';
-import { registerCloudGroup } from './groups/cloud.group';
-import { registerObserveGroup } from './groups/observe.group';
-import { registerSecurityGroup } from './groups/security.group';
-import { registerCollabGroup } from './groups/collab.group';
-import { registerLearnGroup } from './groups/learn.group';
-import { registerDataGroup } from './groups/data.group';
-import { registerTemplatesGroup } from './groups/templates.group';
-import { registerCommandsGroup } from './groups/commands.group';
-import { registerAiGroup } from './groups/ai.group';
-import { registerFindGroup } from './groups/find.group';
-import { registerAgentsGroup } from './groups/agents.group';
-import { registerRunGroup } from './groups/run.group';
-import { registerCacheGroup } from './groups/cache.group';
-import { registerDevGroup } from './groups/dev.group';
-import { registerScorecardGroup } from './groups/scorecard.group';
-import { registerReleaseGroup } from './groups/release.group';
-import { registerMigrateGroup } from './groups/migrate.group';
-import { registerCatalogGroup } from './groups/catalog.group';
-import { registerFederationGroup } from './groups/federation.group';
-import { registerApiVerifyGroup } from './groups/api-verify.group';
-import { registerFixCiGroup } from './groups/fix-ci.group';
-import { registerBoundariesGroup } from './groups/boundaries.group';
-import { registerEnvGroup } from './groups/env.group';
-import { registerUiTestGroup } from './groups/ui-test.group';
+// Standalone command handlers. They are loaded on first call (not at startup)
+// so `re-shell --help` / `--version` / any single command only pay for the
+// modules it actually runs. The `typeof import(...)` annotations keep the
+// signatures type-checked against the real modules.
+/* eslint-disable @typescript-eslint/no-var-requires */
+const initMonorepo: typeof import('./commands/init').initMonorepo = (...a) => require('./commands/init').initMonorepo(...a);
+const createProject: typeof import('./commands/create').createProject = (...a) => require('./commands/create').createProject(...a);
+const computeBackendDryRun: typeof import('./utils/template-dry-run').computeBackendDryRun = (...a) => require('./utils/template-dry-run').computeBackendDryRun(...a);
+const isBackendTemplate: typeof import('./utils/template-dry-run').isBackendTemplate = (...a) => require('./utils/template-dry-run').isBackendTemplate(...a);
+const addMicrofrontend: typeof import('./commands/add').addMicrofrontend = (...a) => require('./commands/add').addMicrofrontend(...a);
+const removeMicrofrontend: typeof import('./commands/remove').removeMicrofrontend = (...a) => require('./commands/remove').removeMicrofrontend(...a);
+const listMicrofrontends: typeof import('./commands/list').listMicrofrontends = (...a) => require('./commands/list').listMicrofrontends(...a);
+const buildMicrofrontend: typeof import('./commands/build').buildMicrofrontend = (...a) => require('./commands/build').buildMicrofrontend(...a);
+const serveMicrofrontend: typeof import('./commands/serve').serveMicrofrontend = (...a) => require('./commands/serve').serveMicrofrontend(...a);
+const launchTUI: typeof import('./commands/tui').launchTUI = (...a) => require('./commands/tui').launchTUI(...a);
+const launchUi: typeof import('./commands/ui').launchUi = (...a) => require('./commands/ui').launchUi(...a);
+const runDoctorCheck: typeof import('./commands/doctor').runDoctorCheck = (...a) => require('./commands/doctor').runDoctorCheck(...a);
+const runProjectAnalysis: typeof import('./commands/analyze').runProjectAnalysis = (...a) => require('./commands/analyze').runProjectAnalysis(...a);
+const isCreateError = (e: unknown): e is import('./commands/create').CreateError =>
+  e instanceof require('./commands/create').CreateError;
+/* eslint-enable @typescript-eslint/no-var-requires */
+
+// Command groups are registered lazily from ./command-manifest (see lazy-commands.ts).
+import { registerLazyGroups } from './lazy-commands';
+import { installAuditHooks } from './audit/session';
 import { registerAliases } from './aliases';
 
 mark('core-imports-done');
@@ -165,13 +146,21 @@ setupStreamErrorHandlers();
 const program = new Command();
 mark('program-created');
 
+// `--json` hygiene as a property of the command tree: any command run with
+// --json gets stdout reserved for exactly one envelope (see json-mode-hook.ts).
+installJsonModeHook(program);
+
 checkUpdate();
 mark('update-check-deferred');
 
-// Display banner for main command
+// Display the banner for the bare command and for --help, but only to an
+// interactive terminal: never for --version (stdout is just the version line),
+// never alongside --json, and never when stdout is piped or redirected.
 if (
-  process.argv.length <= 2 ||
-  (process.argv.length === 3 && ['-h', '--help', '-V', '--version'].includes(process.argv[2]))
+  process.stdout.isTTY &&
+  !process.argv.includes('--json') &&
+  (process.argv.length <= 2 ||
+    (process.argv.length === 3 && ['-h', '--help'].includes(process.argv[2])))
 ) {
   console.log(getBanner());
 }
@@ -183,6 +172,10 @@ program
   )
   .enablePositionalOptions()
   .version(version);
+
+// Compliance audit trail: one central preAction hook records every state-changing
+// command (see src/audit/classify.ts) to .re-shell/audit/audit.jsonl.
+installAuditHooks(program);
 
 // ─── Standalone commands ─────────────────────────────────────────────────────
 
@@ -255,10 +248,13 @@ program
   .option('-t, --team <team>', 'Team name')
   .option('-o, --org <organization>', 'Organization name', 're-shell')
   .option('-d, --description <description>', 'Project description')
-  .option('--template <template>', 'Template to use (react, react-ts)', 'react-ts')
+  .option(
+    '--template <template>',
+    'Backend template id (express, fastapi, ...), frontend framework (react-ts, vue, ...), architecture template (mern, ...) or "blank" for an empty workspace [default: react-ts frontend]'
+  )
   .option(
     '--framework <framework>',
-    'Frontend framework to use (react|react-ts|vue|vue-ts|svelte|svelte-ts)'
+    'Frontend framework to use (react|react-ts|vue|vue-ts|svelte|svelte-ts|next|angular|...); see `templates list`'
   )
   .option('--frontend <framework>', 'Frontend framework (alias for --framework)')
   .option(
@@ -267,107 +263,111 @@ program
   )
   .option(
     '--db <database>',
-    'Database ORM (prisma, typeorm, mongoose, none)',
-    'none'
+    'Database ORM (prisma, typeorm, mongoose, none) [default: none]'
   )
-  .option('--fullstack', 'Create full-stack project with both frontend and backend')
+  .option('--fullstack', 'Create full-stack project with both frontend and backend (default backend: express)')
   .option(
     '--polyglot',
     'Create polyglot microservices project with services in multiple languages'
+  )
+  .option('--gateway <framework>', 'Polyglot API gateway (express|fastify|nestjs|traefik|kong) [default: express]')
+  .option(
+    '--services <list>',
+    'Polyglot services as name:framework,name:framework [default: typescript-service-1:express,python-service-2:fastapi]'
   )
   .option(
     '--microfrontend',
     'Create microfrontend project with Module Federation setup'
   )
+  .option(
+    '--remotes <list>',
+    'Microfrontend remotes as name[:framework],... [default: remote-1 (react)]; --framework sets the shell [default: react-ts]'
+  )
   .option('--type <type>', 'Workspace type (app|package|lib|tool) - monorepo only')
   .option('--port <port>', 'Development server port [default: 5173]')
-  .option('--route <route>', 'Route path (for apps)')
+  .option('--route <route>', 'Route path (for apps) [default: /<name>]')
   .option('--package-manager <pm>', 'Package manager to use (npm, yarn, pnpm)', 'pnpm')
   .option('--dry-run', 'Preview changes without applying them')
   .option('--verbose', 'Show detailed dry-run output')
-  .option('--json', 'Output as JSON (with --dry-run, emits the exact file set)')
+  .option(
+    '--json',
+    'Output as JSON (with --dry-run, emits the exact file set with per-file previews; never prompts)'
+  )
   .option('-y, --yes', 'Use defaults and skip prompts (non-interactive; auto-enabled when stdin is not a TTY)')
+  .option('--force', 'Overwrite files in an existing target directory and continue past compatibility warnings')
+  .addHelpText(
+    'after',
+    `
+Non-interactive use:
+  Every prompt has a default that is used with --yes, --json, --dry-run, or when
+  stdin is not a TTY, so \`create\` never waits on input. Defaults: frontend
+  react-ts, backend express (with --fullstack), route /<name>, port 5173.
+  A condition that needs a human decision (an incompatible stack, an existing
+  target) fails with a non-zero exit instead; pass --force to proceed.
+
+Examples:
+  re-shell create web --frontend react-ts            # frontend app at apps/web
+  re-shell create api --backend express              # just the API
+  re-shell create shop --fullstack --db prisma       # API + frontend
+  re-shell create hub --microfrontend --remotes cart,search:vue
+  re-shell create platform --polyglot --services users:fastapi,orders:express
+  re-shell create ws --template blank                # empty workspace skeleton
+  re-shell create web --frontend react-ts --dry-run --json
+`
+  )
   .action(
     createAsyncCommand(async (name, options) => {
-      // Dry-run visual diff: when --dry-run targets a known backend template,
-      // compute the EXACT set of files the scaffold WOULD produce without
-      // writing anything. --json emits the machine-readable envelope.
-      const candidateTemplateId = options.backend || options.template || options.framework;
-      if (options.dryRun && candidateTemplateId && isBackendTemplate(candidateTemplateId)) {
-        const restoreJson = options.json ? enableJsonMode() : () => {};
-        try {
-          const result = await computeBackendDryRun(candidateTemplateId, {
-            projectName: name,
-            db: options.db && options.db !== 'none' ? options.db : undefined,
-            org: options.org,
-            team: options.team,
-            description: options.description,
-            port: options.port,
-          });
+      const jsonMode = Boolean(options.json);
+      // --json reserves stdout for the envelope, so it must never prompt.
+      const restoreJson = jsonMode ? enableJsonMode() : () => {};
+      const spinner = jsonMode ? undefined : createSpinner('Creating Re-Shell project...').start();
 
-          if (options.json) {
-            ok({
-              project: name,
-              templateId: result.templateId,
-              dryRun: true,
-              files: result.files,
-              totalBytes: result.totalBytes,
-              previews: result.previews,
-            });
-            return;
-          }
-
-          console.log(
-            chalk.cyan.bold(`\n🔍 Dry run: ${result.templateId} → "${name}"\n`)
-          );
-          console.log(
-            chalk.gray(
-              `Would create ${result.files.length} files (${result.totalBytes} bytes). Nothing written.\n`
-            )
-          );
-          for (const file of result.files) {
-            console.log(
-              `  ${chalk.green('+')} ${chalk.bold(file.path)} ${chalk.gray(`(${file.bytes}b)`)}`
-            );
-          }
-          console.log();
-          return;
-        } catch (error) {
-          if (options.json) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            fail('TEMPLATE_DRY_RUN_ERROR', message, { template: candidateTemplateId });
-            return;
-          }
-          throw error;
-        } finally {
-          restoreJson();
+      try {
+        if (spinner) {
+          processManager.addCleanup(() => spinner.stop());
+          flushOutput();
         }
-      }
 
-      // Handle backward compatibility: if template is provided but not framework, map it
-      if (options.template && !options.framework && !options.frontend) {
-        options.framework = options.template;
-      }
-      // Handle frontend alias
-      if (options.frontend && !options.framework) {
-        options.framework = options.frontend;
-      }
-      // Auto-detect fullstack if both backend and frontend are specified
-      if (options.backend && options.framework && !options.fullstack) {
-        options.fullstack = true;
-      }
-      const spinner = createSpinner('Creating Re-Shell project...').start();
-      processManager.addCleanup(() => spinner.stop());
-      flushOutput();
+        const result = await withTimeout(async () => {
+          return createProject(name, {
+            ...options,
+            yes: options.yes || jsonMode,
+            isProject: true,
+            spinner,
+          });
+        }, 180000); // 3 minute timeout
 
-      await withTimeout(async () => {
-        await createProject(name, { ...options, isProject: true, spinner });
-      }, 180000); // 3 minute timeout
+        if (jsonMode) {
+          if (result.status === 'cancelled') {
+            fail('CREATE_ERROR', 'Cancelled before anything was written.');
+          } else {
+            ok(result.response);
+          }
+          return;
+        }
 
-      if (options.dryRun) {
-        spinner.succeed(chalk.green(`Dry run completed for "${name}"`));
-      } else {
-        spinner.succeed(chalk.green(`Re-Shell project "${name}" created successfully!`));
+        if (!spinner) return;
+        if (result.status === 'dry-run') {
+          spinner.succeed(chalk.green(`Dry run completed for "${name}"`));
+        } else if (result.status === 'created') {
+          spinner.succeed(chalk.green(`Re-Shell project "${name}" created successfully!`));
+        } else {
+          spinner.stop();
+        }
+      } catch (error) {
+        if (spinner) spinner.stop();
+        if (jsonMode) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          if (isCreateError(error)) {
+            fail(error.code, message, error.details);
+          } else {
+            fail(options.dryRun ? 'TEMPLATE_DRY_RUN_ERROR' : 'CREATE_ERROR', message);
+          }
+          return;
+        }
+        throw error; // createAsyncCommand prints it and exits non-zero
+      } finally {
+        restoreJson();
       }
     })
   );
@@ -563,7 +563,8 @@ program
   .command('analyze')
   .description('Analyze project bundles, dependencies, performance, and security')
   .option('--workspace <name>', 'Analyze a specific workspace only')
-  .option('--type <type>', 'Analysis type (bundle|dependencies|performance|security|all)', 'all')
+  .option('--type <type>', 'Analysis type (bundle|dependencies|performance|security|scalability|architecture|all)', 'all')
+  .option('--fail-on <severity>', 'Exit non-zero when a finding at or above this severity exists (critical|high|medium|low|info)')
   .option('--output <file>', 'Save analysis results to a file')
   .option('--verbose', 'Show detailed breakdown')
   .option('--json', 'Output results as JSON')
@@ -585,56 +586,18 @@ program
     })
   );
 
-// Completion command - install shell completion scripts
-program
-  .command('completion')
-  .description('Install shell completion scripts')
-  .option('--shell <shell>', 'Target shell (bash|zsh)', 'bash')
-  .action(
-    createAsyncCommand(async (options) => {
-      await installCompletion({ shell: options.shell });
-    })
-  );
-
 // ─── Command groups ───────────────────────────────────────────────────────────
 
-registerWorkspaceGroup(program);
-registerConfigGroup(program);
-registerGenerateGroup(program);
-registerQualityGroup(program);
-registerApiGroup(program);
-registerPluginGroup(program);
-registerServiceGroup(program);
-registerToolsGroup(program);
-registerK8sGroup(program);
-registerCloudGroup(program);
-registerObserveGroup(program);
-registerSecurityGroup(program);
-registerCollabGroup(program);
-registerLearnGroup(program);
-registerDataGroup(program);
-registerTemplatesGroup(program);
-registerCommandsGroup(program);
-registerAiGroup(program);
-registerFindGroup(program);
-registerAgentsGroup(program);
-registerRunGroup(program);
-registerCacheGroup(program);
-registerDevGroup(program);
-registerScorecardGroup(program);
-registerReleaseGroup(program);
-registerMigrateGroup(program);
-registerCatalogGroup(program);
-registerFederationGroup(program);
-registerApiVerifyGroup(program);
-registerFixCiGroup(program);
-registerBoundariesGroup(program);
-registerEnvGroup(program);
-registerUiTestGroup(program);
+// One manifest entry per group: see src/command-manifest.ts. Only the group argv selects is loaded.
+registerLazyGroups(program, process.argv.slice(2));
 
 // ─── Backward-compatibility aliases (hidden from --help) ──────────────────────
 
 registerAliases(program);
+
+// With --json, Commander's own parse failures (missing option/argument, unknown
+// option or command) become a USAGE_ERROR envelope instead of empty stdout.
+installJsonUsageErrors(program);
 
 // ─── Parse and execute ────────────────────────────────────────────────────────
 
@@ -682,5 +645,10 @@ program.parseAsync(process.argv).then(() => {
   }
 }).catch((err) => {
   console.error(err.message || err);
+  // Under --json a failure is an envelope on stdout too (and exit code 1), not
+  // only a line on stderr.
+  if (isJsonModeActive() && getEmittedEnvelopeCount() === 0) {
+    failFromError(err);
+  }
   exitAfterFlush(1);
 });

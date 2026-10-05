@@ -153,7 +153,6 @@ export class SvelteModuleFederationTemplate extends BaseTemplate {
       devDependencies: {
         '@module-federation/utilities': '^3.0.0',
         '@tsconfig/svelte': '^5.0.0',
-        '@types/svelte': '^3.24.0',
         'cross-env': '^7.0.3',
         'css-loader': '^6.8.0',
         'eslint': '^8.56.0',
@@ -226,7 +225,7 @@ module.exports = {
 
   plugins: [
     new ModuleFederationPlugin({
-      name: '${normalizedName}',
+      name: '${normalizedName.replace(/[^A-Za-z0-9_$]/g, '_')}',
       filename: 'remoteEntry.js',
       exposes: {
         './Counter': './src/components/Counter.svelte',

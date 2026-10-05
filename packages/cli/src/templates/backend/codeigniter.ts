@@ -24,10 +24,10 @@ export const codeigniterTemplate: BackendTemplate = {
   "require": {
     "php": "^8.1",
     "codeigniter4/framework": "^4.4",
-    "firebase/php-jwt": "^6.10",
+    "firebase/php-jwt": "^7.0",
     "vlucas/phpdotenv": "^5.6",
     "guzzlehttp/guzzle": "^7.8",
-    "webonyx/graphql-php": "^14.11",
+    "webonyx/graphql-php": "^15.0",
     "monolog/monolog": "^3.5",
     "ramsey/uuid": "^4.7",
     "fakerphp/faker": "^1.23"
@@ -102,7 +102,7 @@ database.default.port = 3306
 # JWT
 #--------------------------------------------------------------------
 
-JWT_SECRET_KEY = your-secret-key-here
+JWT_SECRET_KEY = change-me-to-a-random-string-of-at-least-32-characters
 JWT_TIME_TO_LIVE = 3600
 JWT_ALGORITHM = HS256
 
@@ -301,7 +301,7 @@ class JWTFilter implements FilterInterface
 
         try {
             $token = str_replace('Bearer ', '', $authHeader);
-            $key = env('JWT_SECRET_KEY', 'your-secret-key');
+            $key = env('JWT_SECRET_KEY', 'change-me-to-a-random-string-of-at-least-32-characters');
             $algorithm = env('JWT_ALGORITHM', 'HS256');
             
             $decoded = JWT::decode($token, new Key($key, $algorithm));
@@ -343,17 +343,21 @@ class Filters extends BaseConfig
         'honeypot' => Honeypot::class,
         'invalidchars' => InvalidChars::class,
         'secureheaders' => SecureHeaders::class,
-        'jwt' => JWTFilter::class];
+        'jwt' => JWTFilter::class,
+    ];
 
     public array $globals = [
         'before' => [
             // 'honeypot',
             // 'csrf',
-            // 'invalidchars'],
+            // 'invalidchars',
+        ],
         'after' => [
             'toolbar',
             // 'honeypot',
-            'secureheaders']];
+            'secureheaders',
+        ],
+    ];
 
     public array $methods = [];
 
@@ -626,7 +630,7 @@ class AuthController extends BaseController
 
     private function generateToken($user)
     {
-        $key = env('JWT_SECRET_KEY', 'your-secret-key');
+        $key = env('JWT_SECRET_KEY', 'change-me-to-a-random-string-of-at-least-32-characters');
         $algorithm = env('JWT_ALGORITHM', 'HS256');
         $ttl = env('JWT_TIME_TO_LIVE', 3600);
 

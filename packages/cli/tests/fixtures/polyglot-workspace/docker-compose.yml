@@ -1,0 +1,87 @@
+# Compose stack for the polyglot demo
+services:
+  web:
+    build: ./services/web
+    ports:
+      - "3000:3000"
+    environment:
+      API_URL: http://api:4000
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: api
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      BILLING_URL: http://billing:8081
+      ANALYTICS_URL: http://analytics:8000
+    depends_on:
+      billing:
+        condition: service_started
+      analytics:
+        condition: service_started
+    volumes:
+      - ./services/api/src:/app/src
+    networks:
+      default:
+        aliases:
+          - api.internal
+
+  billing:
+    build: ./services/billing
+    image: acme/billing:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://billing:8081/actuator/health"]
+      interval: 30s
+
+  analytics:
+    build: ./services/analytics
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      BILLING_URL: http://billing:8081
+    depends_on:
+      - billing
+    links:
+      - billing:billing-svc
+
+  gateway:
+    build: ./services/gateway
+    command: ["./gateway", "--port", "8080"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+
+  edge:
+    build: ./services/edge
+    depends_on:
+      - gateway
+
+  mailer:
+    build: ./services/mailer
+    environment:
+      RAILS_ENV: production
+
+  search:
+    build: ./services/search
+    command: ["./search"]
+
+  reports:
+    build: ./services/reports
+
+  ledger:
+    build: ./services/ledger
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: example

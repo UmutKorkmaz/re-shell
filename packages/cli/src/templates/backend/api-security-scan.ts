@@ -31,6 +31,7 @@ export const apiSecurityScanTemplate: BackendTemplate = {
   },
   "dependencies": {
     "express": "^4.18.2",
+    "http-errors": "^2.0.0",
     "helmet": "^7.1.0",
     "express-rate-limit": "^7.1.5",
     "express-slow-down": "^2.0.1",
@@ -1164,7 +1165,7 @@ console.log(JSON.stringify(routeScan.summary, null, 2));
  */
 
 import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 
 function checkDependencies() {
@@ -1231,8 +1232,6 @@ function checkEnvFiles() {
   console.log('Checking environment files...');
 
   try {
-    const { existsSync } = await import('fs');
-
     if (existsSync('.env')) {
       console.log('WARNING: .env file detected - ensure it is not committed to git');
     }
@@ -1255,7 +1254,6 @@ function checkSecrets() {
   console.log('Checking for exposed secrets...');
 
   try {
-    const { readdirSync, readFileSync } = await import('fs');
 
     const files = readdirSync('.', { withFileTypes: true })
       .filter(f => f.isFile() && (f.name.endsWith('.js') || f.name.endsWith('.ts') || f.name.endsWith('.json')))

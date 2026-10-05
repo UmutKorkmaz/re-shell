@@ -3,6 +3,11 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { z } from 'zod';
 import { getWorkspaces, type WorkspaceInfo } from './monorepo';
+import {
+  findInstalledPack,
+  verifyInstalledPack,
+  type InstalledPackRecord,
+} from './policy-pack-store';
 
 /**
  * Declarative policy-pack engine (P9-G1).
@@ -60,12 +65,32 @@ const dependencyConstraintsRuleSchema = z.object({
     .min(1),
 });
 
-/** Rule: every workspace package name must match this regex. */
+/** Longest `naming` pattern a pack may carry (packs can come from third parties). */
+const MAX_PATTERN_LENGTH = 512;
+
+/** True when `pattern` is a bounded, compilable regular expression. */
+function isUsablePattern(pattern: string): boolean {
+  if (pattern.length > MAX_PATTERN_LENGTH) return false;
+  try {
+    new RegExp(pattern);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Rule: every workspace package name must match this regex. The pattern is
+ * checked at load time, so a pack with an invalid or oversized regex is rejected
+ * when it is installed instead of crashing a later `policy check`.
+ */
 const namingRuleSchema = z.object({
   id: z.string(),
   type: z.literal('naming'),
   severity: z.enum(['error', 'warning']).default('error'),
-  pattern: z.string(),
+  pattern: z
+    .string()
+    .refine(isUsablePattern, { message: `must be a valid regular expression of at most ${MAX_PATTERN_LENGTH} characters` }),
 });
 
 /** Rule: root package.json engines.node must be present and >= minNode. */
@@ -229,6 +254,32 @@ export const BUILTIN_PACKS: Record<string, PolicyPack> = {
 };
 
 /**
+ * Parse and validate policy pack text (YAML or JSON) against
+ * {@link policyPackSchema}.
+ *
+ * @param raw - The pack file contents (YAML is a superset of JSON, so both work).
+ * @param label - Where the text came from, for error messages.
+ * @returns The validated policy pack.
+ * @throws Error when the text is not parseable or fails schema validation.
+ */
+export function parsePolicyPack(raw: string, label: string): PolicyPack {
+  let parsed: unknown;
+  try {
+    parsed = yaml.load(raw); // yaml.load also parses JSON; js-yaml's default schema is safe (no code execution)
+  } catch (error) {
+    throw new Error(
+      `Invalid policy pack ${label}: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`
+    );
+  }
+  const result = policyPackSchema.safeParse(parsed);
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    throw new Error(`Invalid policy pack ${label}: ${issue.path.join('.')} ${issue.message}`);
+  }
+  return result.data;
+}
+
+/**
  * Load and validate a policy pack from a YAML or JSON file.
  *
  * The file is parsed (YAML is a superset of JSON, so both formats are
@@ -243,36 +294,82 @@ export async function loadPolicyPack(filePath: string): Promise<PolicyPack> {
   if (!(await fs.pathExists(resolved))) {
     throw new Error(`Policy pack not found: ${filePath}`);
   }
-  const raw = await fs.readFile(resolved, 'utf8');
-  const parsed: unknown = yaml.load(raw); // yaml.load also parses JSON
-  const result = policyPackSchema.safeParse(parsed);
-  if (!result.success) {
-    const issue = result.error.issues[0];
-    throw new Error(
-      `Invalid policy pack ${filePath}: ${issue.path.join('.')} ${issue.message}`
-    );
-  }
-  return result.data;
+  return parsePolicyPack(await fs.readFile(resolved, 'utf8'), filePath);
+}
+
+/** Where a resolved pack came from. */
+export type ResolvedPackSource = 'builtin' | 'installed' | 'file';
+
+/** A resolved pack plus where it came from. */
+export interface ResolvedPolicyPack {
+  pack: PolicyPack;
+  source: ResolvedPackSource;
+  /** Install record for packs resolved from `.re-shell/policy-packs`. */
+  installed?: InstalledPackRecord;
 }
 
 /**
- * Resolve a pack from either a built-in name or a file path.
+ * Resolve a pack reference and report where it came from.
  *
  * Resolution order:
- * 1. If `packRef` is omitted, returns the built-in `recommended` pack.
- * 2. If `packRef` matches a key in {@link BUILTIN_PACKS}, returns that pack.
- * 3. Otherwise treats `packRef` as a file path and loads it via
- *    {@link loadPolicyPack}.
+ * 1. No reference: the built-in `recommended` pack.
+ * 2. A built-in pack name (`recommended`, `baseline`).
+ * 3. A pack installed in the workspace (`.re-shell/policy-packs`), by pack name
+ *    or by the package it came from. Its file is checked against the sha256
+ *    recorded at install time and re-validated.
+ * 4. A path to a YAML/JSON pack file.
  *
- * @param packRef - Built-in pack name (`"recommended"` or `"baseline"`) or a
- *   file path. If omitted, defaults to `"recommended"`.
- * @returns The resolved and validated policy pack.
- * @throws Error when `packRef` is a file path that is missing or invalid.
+ * @param packRef - Built-in name, installed pack/package name, or file path.
+ * @param rootPath - Workspace root holding `.re-shell/policy-packs` (default: cwd).
+ * @throws Error when nothing matches, the file is invalid, or an installed pack
+ *   was modified after install.
  */
-export async function resolvePolicyPack(packRef?: string): Promise<PolicyPack> {
-  if (!packRef) return BUILTIN_PACKS.recommended;
-  if (BUILTIN_PACKS[packRef]) return BUILTIN_PACKS[packRef];
-  return loadPolicyPack(packRef);
+export async function resolvePolicyPackWithSource(
+  packRef?: string,
+  rootPath: string = process.cwd()
+): Promise<ResolvedPolicyPack> {
+  if (!packRef) return { pack: BUILTIN_PACKS.recommended, source: 'builtin' };
+  if (Object.prototype.hasOwnProperty.call(BUILTIN_PACKS, packRef)) {
+    return { pack: BUILTIN_PACKS[packRef], source: 'builtin' };
+  }
+
+  const installed = await findInstalledPack(rootPath, packRef);
+  if (installed) {
+    await verifyInstalledPack(installed);
+    return {
+      pack: await loadPolicyPack(installed.filePath),
+      source: 'installed',
+      installed: installed.record,
+    };
+  }
+
+  const resolved = path.resolve(rootPath, packRef);
+  if (!(await fs.pathExists(resolved)) && !(await fs.pathExists(path.resolve(packRef)))) {
+    throw new Error(
+      `Policy pack not found: ${packRef} (not a built-in pack, not installed in .re-shell/policy-packs, and not a file)`
+    );
+  }
+  return {
+    pack: await loadPolicyPack((await fs.pathExists(resolved)) ? resolved : packRef),
+    source: 'file',
+  };
+}
+
+/**
+ * Resolve a pack from a built-in name, an installed pack, or a file path.
+ * See {@link resolvePolicyPackWithSource} for the resolution order.
+ *
+ * @param packRef - Built-in pack name (`"recommended"` or `"baseline"`), an
+ *   installed pack name, or a file path. If omitted, defaults to `"recommended"`.
+ * @param rootPath - Workspace root (default: cwd).
+ * @returns The resolved and validated policy pack.
+ * @throws Error when `packRef` matches nothing, or the pack is missing/invalid.
+ */
+export async function resolvePolicyPack(
+  packRef?: string,
+  rootPath?: string
+): Promise<PolicyPack> {
+  return (await resolvePolicyPackWithSource(packRef, rootPath)).pack;
 }
 
 async function readJsonSafe<T>(filePath: string): Promise<T | null> {

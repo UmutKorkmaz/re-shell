@@ -22,7 +22,7 @@ export const koaTemplate: BackendTemplate = {
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon",
-    "build": "tsc",
+    "build": "tsc && tsc-alias -p tsconfig.json",
     "start": "node dist/index.js",
     "start:prod": "cross-env NODE_ENV=production node dist/index.js",
     "lint": "eslint src --ext .ts",
@@ -121,6 +121,7 @@ export const koaTemplate: BackendTemplate = {
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsc-alias": "^1.8.10",
     "cross-env": "^7.0.3",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
@@ -278,15 +279,13 @@ app.use(bodyParser({
   }
 }));
 
-// Rate limiting — Redis-backed when REDIS_URL is set, in-memory otherwise.
-app.use(ratelimit({
-  driver: config.redis.url ? 'redis' : 'memory',
-  // koa-ratelimit's bundled typings target an ioredis v4 client; the ioredis v5
-  // client used here is API-compatible at runtime (v4 legacy helpers removed).
-  db: config.redis.url ? (redis as any) : new Map(),
+// Rate limiting. Redis-backed when REDIS_URL is set, in-memory otherwise. While
+// Redis is unreachable the limiter fails open to the in-memory store instead of
+// failing every request with a 500 (or, with a command queue, hanging them).
+const rateLimitOptions = {
   duration: 60000, // 1 minute
   errorMessage: 'Too many requests, please try again later.',
-  id: (ctx) => ctx.ip,
+  id: (ctx: Koa.Context) => ctx.ip,
   headers: {
     remaining: 'Rate-Limit-Remaining',
     reset: 'Rate-Limit-Reset',
@@ -294,7 +293,16 @@ app.use(ratelimit({
   },
   max: 100,
   disableHeader: false
-}));
+};
+const memoryLimiter = ratelimit({ ...rateLimitOptions, driver: 'memory', db: new Map() });
+// koa-ratelimit's bundled typings target an ioredis v4 client; the ioredis v5
+// client used here is API-compatible at runtime (v4 legacy helpers removed).
+const redisLimiter = config.redis.url
+  ? ratelimit({ ...rateLimitOptions, driver: 'redis', db: redis as any })
+  : null;
+app.use((ctx, next) =>
+  redisLimiter && redis.status === 'ready' ? redisLimiter(ctx, next) : memoryLimiter(ctx, next)
+);
 
 // Session
 app.use(session(sessionConfig, app));
@@ -356,48 +364,74 @@ app.use(async (ctx) => {
 // Initialize WebSocket
 initializeWebSocket(io);
 
-// Graceful shutdown
-const gracefulShutdown = async () => {
-  Logger.info('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    Logger.info('HTTP server closed');
-  });
+// Graceful shutdown: stop accepting connections, then release backing
+// services. Every step is best-effort so a never-connected Redis/DB cannot turn
+// a clean shutdown into a crash trace.
+let shuttingDown = false;
+// Bound each step: a connection attempt that is still pending (for example to a
+// database host that drops packets instead of refusing) must not hold the
+// process open until the force-exit below.
+const settleWithin = (work: Promise<unknown>, ms: number) =>
+  Promise.race([
+    work.catch(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, ms).unref())
+  ]);
+const gracefulShutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  Logger.info(\`\${signal} received: shutting down\`);
 
-  // Close database connections
-  await closeDatabase();
+  const forceExit = setTimeout(() => {
+    Logger.error('Graceful shutdown timed out, forcing exit');
+    process.exit(1);
+  }, 10000);
+  forceExit.unref();
 
-  // Guard the redis quit: on a fresh scaffold with no Redis reachable,
-  // quitting a never-connected client throws (ClientClosedError) and
-  // would crash the shutdown path.
-  if (redis.status === 'ready') {
-    await redis.quit().catch(() => undefined);
+  try {
+    // io.close() also closes the HTTP server it is attached to.
+    await settleWithin(new Promise<void>((resolve) => io.close(() => resolve())), 3000);
+    await settleWithin(apolloServer.stop(), 2000);
+    await settleWithin(closeDatabase(), 2000);
+    // quit() on a client that never connected throws, so only quit a ready one.
+    if (redis.status === 'ready') {
+      await settleWithin(redis.quit(), 1000);
+    } else {
+      redis.disconnect();
+    }
+    Logger.info('Shutdown complete');
+    process.exit(0);
+  } catch (error) {
+    Logger.error('Error during shutdown:', error);
+    process.exit(1);
   }
-  process.exit(0);
 };
 
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => void gracefulShutdown('SIGINT'));
 
 // Start server
 const startServer = async () => {
   try {
-    // Connect to database
-    await connectDatabase();
-
     // Start Apollo Server — the /graphql gate registered in the middleware
     // stack above picks the handler up from here.
     await apolloServer.start();
     apolloHandler = koaMiddleware(apolloServer);
 
-    // Start server
-    server.listen(config.port, () => {
-      Logger.info(\`🚀 Server is running on port \${config.port}\`);
-      Logger.info(\`🔧 Environment: \${config.env}\`);
-      if (!config.isProduction) {
-        Logger.info(\`📚 API Documentation: http://localhost:\${config.port}/swagger\`);
-        Logger.info(\`🩺 GraphQL endpoint: http://localhost:\${config.port}/graphql\`);
-      }
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(config.port, () => resolve());
     });
+    Logger.info(\`🚀 Server is running on port \${config.port}\`);
+    Logger.info(\`🔧 Environment: \${config.env}\`);
+    if (!config.isProduction) {
+      Logger.info(\`📚 API Documentation: http://localhost:\${config.port}/swagger\`);
+      Logger.info(\`🩺 GraphQL endpoint: http://localhost:\${config.port}/graphql\`);
+    }
+
+    // The database connects in the background AFTER the server is listening.
+    // A missing database is logged and tolerated; it never delays or blocks
+    // startup. Routes that need it fail per-request instead.
+    void connectDatabase();
   } catch (error) {
     Logger.error('Failed to start server:', error);
     process.exit(1);
@@ -435,7 +469,9 @@ export const config = {
       database: process.env.DB_NAME || '{{projectName}}'
     },
     pool: {
-      min: 2,
+      // min 0: no connections are opened until the first query, so a missing
+      // database never produces background connection errors.
+      min: 0,
       max: 10
     },
     migrations: {
@@ -516,29 +552,33 @@ import { Logger } from '@utils/logger';
 
 let knex: Knex;
 
-export const connectDatabase = async () => {
+// Knex connects lazily, so the models are bound to it up front: once the
+// database becomes reachable, DB-backed routes start working without a restart.
+// The connection test below only reports status; it never throws, so a fresh
+// scaffold with no database still boots and serves non-DB routes.
+export const connectDatabase = async (): Promise<boolean> => {
   try {
-    knex = knexFactory({
-      client: config.database.client,
-      connection: config.database.connection,
-      pool: config.database.pool,
-      migrations: config.database.migrations,
-      seeds: config.database.seeds,
-      debug: config.isDevelopment
-    });
+    if (!knex) {
+      knex = knexFactory({
+        client: config.database.client,
+        connection: config.database.connection,
+        // Fail fast instead of waiting on the 60s default pool timeout.
+        pool: config.database.pool,
+        acquireConnectionTimeout: 5000,
+        migrations: config.database.migrations,
+        seeds: config.database.seeds,
+        debug: config.isDevelopment
+      });
+      Model.knex(knex);
+    }
 
-    // Test connection
     await knex.raw('SELECT 1');
-    
-    // Bind Objection.js models to Knex instance
-    Model.knex(knex);
-    
     Logger.info('Database connected successfully');
+    return true;
   } catch (error) {
-    // Don't crash the whole server when the database isn't reachable (e.g. a
-    // fresh scaffold with no DB running yet). The API still boots and serves
-    // non-DB routes; DB-backed routes will error per-request instead.
-    Logger.warn('Database connection failed — starting anyway without a DB. Set DATABASE_URL and ensure the DB server is reachable.');
+    Logger.warn('Database connection failed - continuing without a DB. Check the DB_* settings and that the database server is reachable.');
+    Logger.warn(error instanceof Error ? error.message : String(error));
+    return false;
   }
 };
 
@@ -2103,11 +2143,12 @@ import { Logger } from '@utils/logger';
 
 export const redis = config.redis.url
   ? new Redis(config.redis.url, {
-      retryStrategy: (times) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
-      },
-      maxRetriesPerRequest: 3
+      // Back off up to 10s between attempts and fail commands immediately while
+      // disconnected, so an unreachable Redis never delays startup or requests.
+      retryStrategy: (times) => Math.min(times * 500, 10000),
+      enableOfflineQueue: false,
+      connectTimeout: 2000,
+      maxRetriesPerRequest: 1
     })
   : new Redis({
       host: config.redis.host,
@@ -2124,8 +2165,17 @@ redis.on('connect', () => {
   Logger.info('Redis connected');
 });
 
+// Log the first failure and the recovery, not every reconnect attempt.
+let redisDown = false;
 redis.on('error', (error) => {
-  Logger.error('Redis error:', error);
+  if (!redisDown) {
+    redisDown = true;
+    Logger.warn(\`Redis unavailable (\${error.message}) - continuing without it; will keep retrying in the background.\`);
+  }
+});
+redis.on('ready', () => {
+  if (redisDown) Logger.info('Redis connection restored');
+  redisDown = false;
 });`,
 
     // WebSocket (Socket.IO) wiring — matches initializeWebSocket(io) in index.ts.

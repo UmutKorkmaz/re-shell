@@ -127,8 +127,8 @@ export function registerSchemaGroup(config: Command): void {
           const outputDir = options.outputDir;
           await fs.ensureDir(outputDir);
 
-          // Always emit the canonical v2 IDE schema (with owned $id) so the
-          // generated IDE configs have a real schema file to point at.
+          // Always emit a local copy of the canonical v2 IDE schema (hosted $id) so the
+          // project has an offline reference; the IDE configs point at the hosted URL.
           await fs.writeJson(
             path.join(outputDir, 're-shell-workspace.schema.json'),
             getIdeSchema(),
@@ -137,7 +137,7 @@ export function registerSchemaGroup(config: Command): void {
           console.log(chalk.green('✅ v2 JSON Schema generated'));
 
           if (options.ide === 'all' || options.ide === 'vscode') {
-            const vscodeConfig = generateVSCodeConfig('./schemas/re-shell-workspace.schema.json');
+            const vscodeConfig = generateVSCodeConfig();
             await fs.writeFile(path.join(outputDir, 'vscode-settings.json'), vscodeConfig);
             console.log(chalk.green('✅ VSCode settings generated'));
           }

@@ -3,6 +3,7 @@ import prompts from 'prompts';
 import { configManager, ProjectConfig } from '../utils/config';
 import { ProgressSpinner } from '../utils/spinner';
 import { ValidationError } from '../utils/error-handler';
+import { fail, ok } from '../utils/json-output';
 
 /**
  * Options for the project configuration command.
@@ -86,8 +87,8 @@ async function initializeProjectConfig(options: ProjectConfigCommandOptions, spi
       template: globalConfig.defaultTemplate,
       workspaces: {
         root: '.',
-        patterns: ['apps/*', 'packages/*', 'libs/*'],
-        types: ['app', 'package', 'lib']
+        patterns: ['apps/*', 'packages/*', 'libs/*', 'services/*'],
+        types: ['app', 'package', 'lib', 'service']
       }
     }
   );
@@ -108,13 +109,17 @@ async function showProjectConfiguration(options: ProjectConfigCommandOptions, sp
   if (spinner) spinner.stop();
 
   if (!config.project) {
+    if (options.json) {
+      fail('NOT_FOUND', 'No project configuration found. Run `re-shell config project init` to create one.');
+      return;
+    }
     console.log(chalk.yellow('⚠️  No project configuration found.'));
     console.log(chalk.gray('Run `re-shell project-config init` to create one.'));
     return;
   }
 
   if (options.json) {
-    console.log(JSON.stringify({
+    ok({
       project: config.project,
       merged: config.merged,
       inheritedFrom: {
@@ -122,7 +127,7 @@ async function showProjectConfiguration(options: ProjectConfigCommandOptions, sp
         framework: config.global.defaultFramework,
         template: config.global.defaultTemplate
       }
-    }, null, 2));
+    });
   } else {
     console.log(chalk.cyan('\n🏗️  Project Configuration'));
     console.log(chalk.gray('═'.repeat(50)));
@@ -149,6 +154,9 @@ async function getProjectConfigValue(key: string, options: ProjectConfigCommandO
   
   if (!config.project) {
     if (spinner) spinner.fail(chalk.red('No project configuration found'));
+    if (options.json) {
+      fail('NOT_FOUND', 'No project configuration found');
+    }
     return;
   }
   
@@ -157,7 +165,11 @@ async function getProjectConfigValue(key: string, options: ProjectConfigCommandO
   if (spinner) spinner.stop();
 
   if (options.json) {
-    console.log(JSON.stringify({ [key]: value }, null, 2));
+    if (value === undefined) {
+      fail('NOT_FOUND', `Configuration key '${key}' not found`, { key });
+    } else {
+      ok({ [key]: value });
+    }
   } else {
     if (value !== undefined) {
       console.log(chalk.cyan(`${key}:`), value);

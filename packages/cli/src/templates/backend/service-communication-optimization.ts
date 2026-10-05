@@ -64,15 +64,16 @@ export const serviceCommunicationOptimizationTemplate: BackendTemplate = {
     "lru-cache": "^10.0.0",
     "axios-retry": "^3.9.0",
     "opossum": "^8.1.0",
-    "p-limit": "^5.0.0",
-    "quick-lru": "^6.1.0"
+    "p-limit": "^3.1.0",
+    "quick-lru": "^5.1.1"
   },
   "devDependencies": {
     "@types/express": "^4.17.17",
     "@types/cors": "^2.8.13",
     "@types/compression": "^1.7.2",
     "@types/node": "^20.5.0",
-    "@types/node-cache": "^5.1.0",
+    "@types/node-cache": "^4.2.5",
+    "@types/opossum": "^8.1.0",
     "@types/lru-cache": "^7.10.0",
     "typescript": "^5.1.6",
     "ts-node": "^10.9.1"
@@ -87,6 +88,7 @@ export const serviceCommunicationOptimizationTemplate: BackendTemplate = {
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -130,9 +132,11 @@ const cacheManager = new AdaptiveCacheManager();
 const poolManager = new ConnectionPoolManager();
 const commManager = new ServiceCommunicationManager(cacheManager, poolManager);
 
-await cacheManager.initialize();
-await poolManager.initialize();
-await commManager.initialize();
+const managersReady = Promise.all([
+  cacheManager.initialize(),
+  poolManager.initialize(),
+  commManager.initialize(),
+]);
 
 // Make managers available globally
 app.set('cacheManager', cacheManager);
@@ -172,10 +176,13 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Start server
 const PORT = process.env.PORT || {{port}};
-app.listen(PORT, () => {
+managersReady.then(() => app.listen(PORT, () => {
   console.log(\`🚀 Service Communication Server running on port \${PORT}\`);
   console.log(\`📊 Adaptive caching enabled\`);
   console.log(\`🔗 Connection pooling active\`);
+})).catch((err) => {
+  console.error('Failed to initialise managers:', err);
+  process.exit(1);
 });
 
 // Graceful shutdown
@@ -191,11 +198,11 @@ process.on('SIGTERM', async () => {
     'src/communication/adaptive-cache-manager.ts': `// Adaptive Cache Manager
 // Multi-tier caching with adaptive strategies
 
-import { EventEmitter } from 'event-emitter';
+import { EventEmitter } from 'events';
 import NodeCache from 'node-cache';
 import LRU from 'lru-cache';
 import Redis from 'ioredis';
-import { QuickLRU } from 'quick-lru';
+import QuickLRU from 'quick-lru';
 
 export interface CacheEntry<T> {
   value: T;
@@ -442,6 +449,7 @@ export class AdaptiveCacheManager extends EventEmitter {
 
 import { EventEmitter } from 'events';
 import axios, { AxiosInstance } from 'axios';
+import axiosRetry from 'axios-retry';
 
 export interface PoolConfig {
   maxConnections: number;
@@ -510,14 +518,15 @@ export class ConnectionPoolManager extends EventEmitter {
 
     const instance = axios.create({
       timeout: 30000,
-      // Retry configuration
-      'axios-retry': {
-        retries: config.maxRetries,
-        retryDelay: config.retryDelay,
-        retryCondition: (error: any) => {
-          // Retry on network errors or 5xx errors
-          return !error.response || error.response.status >= 500;
-        },
+    });
+
+    // Retry configuration
+    axiosRetry(instance, {
+      retries: config.maxRetries,
+      retryDelay: () => config.retryDelay,
+      retryCondition: (error: any) => {
+        // Retry on network errors or 5xx errors
+        return !error.response || error.response.status >= 500;
       },
     });
 
@@ -697,7 +706,7 @@ export interface CallResult<T> {
 export class ServiceCommunicationManager extends EventEmitter {
   private cacheManager: AdaptiveCacheManager;
   private poolManager: ConnectionPoolManager;
-  private circuitBreakers: Map<string, CircuitBreaker> = new Map();
+  private circuitBreakers: Map<string, CircuitBreaker<[() => Promise<any>], any>> = new Map();
   private requestQueue: Map<string, pLimit.Limit> = new Map();
   private stats: Map<string, { calls: number; errors: number; avgDuration: number }> = new Map();
   private initialized = false;
@@ -729,7 +738,8 @@ export class ServiceCommunicationManager extends EventEmitter {
     ];
 
     for (const service of services) {
-      const breaker = new CircuitBreaker({
+      // The breaker's action runs the call it is fired with (see breaker.fire below)
+      const breaker = new CircuitBreaker(async (call: () => Promise<any>) => call(), {
         timeout: 10000,
         errorThresholdPercentage: 50,
         resetTimeout: 30000,
@@ -834,7 +844,7 @@ export class ServiceCommunicationManager extends EventEmitter {
         cached: false,
         duration: Date.now() - startTime,
       };
-    } catch (error: unknown) {
+    } catch (error: any) {
       // Update error stats
       if (serviceStats) {
         serviceStats.errors++;
@@ -923,7 +933,7 @@ export class ServiceCommunicationManager extends EventEmitter {
     'src/routes/api.routes.ts': `// API Routes
 import { Router } from 'express';
 
-const router = Router();
+const router: Router = Router();
 
 router.get('/health', (req, res) => {
   res.json({
@@ -983,7 +993,7 @@ export function serviceRoutes(commManager: ServiceCommunicationManager): Router 
         res.status(500).json({ error: result.error });
       }
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -995,7 +1005,7 @@ export function serviceRoutes(commManager: ServiceCommunicationManager): Router 
       const results = await commManager.batchCall(calls);
       res.json({ results });
     } catch (error: unknown) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -1079,7 +1089,7 @@ export function cacheRoutes(cacheManager: AdaptiveCacheManager): Router {
     'src/routes/metrics.routes.ts': `// Metrics Routes
 import { Router } from 'express';
 import { ServiceCommunicationManager } from '../communication/service-communication-manager';
-import { ConnectionPoolManager } from '../connection-pool-manager';
+import { ConnectionPoolManager } from '../communication/connection-pool-manager';
 
 export function metricsRoutes(
   commManager: ServiceCommunicationManager
