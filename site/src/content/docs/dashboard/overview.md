@@ -116,7 +116,7 @@ Live output streams to the browser over **SSE** (`/events`) and a **WebSocket**
 | --- | --- |
 | **Overview** | Bento dashboard: a hero workspace metric, status tiles, recent-jobs strip, and a health mini-summary. |
 | **Workspace Graph** | The graph explorer ([below](#the-workspace-graph-explorer)). |
-| **Templates** | Browse the [208-template catalog](/re-shell/templates/catalog/), filter by language/framework, and preview a scaffold. |
+| **Templates** | Browse the [204-template catalog](/re-shell/templates/catalog/), filter by language/framework, and preview a scaffold. |
 | **Command Builder** | A two-pane form that builds an allow-listed command and shows a live, copyable preview. |
 | **Assistant** | Plain-language requests mapped to a single allow-listed hub command. See [Assistant Panel](/re-shell/dashboard/assistant/). |
 | **Jobs & Logs** | A jobs table plus a streaming log console; output arrives live over SSE/WS. |

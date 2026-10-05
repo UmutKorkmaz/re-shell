@@ -17,7 +17,7 @@ release gates are in
 | CLI | `0.31.0` in the tree; **`0.30.1` is the last published version** |
 | Other packages | contracts `0.3.0` (published `0.2.0`), mcp `0.2.0` (published `0.1.0`), ui `0.6.0` (published `0.5.0`) |
 | Commands | **585** command paths in **46** top-level commands (`re-shell commands list --json`) |
-| Backend templates | **208** across **36** languages and **173** frameworks (`re-shell templates list --json`) |
+| Backend templates | **204** across **35** languages and **169** frameworks (`re-shell templates list --json`) |
 | Dashboard | **11** screens |
 | Startup | Lazy command loading: `--version` about 45 ms, `--help` about 100 ms (median of 10 runs on the development VM; `--help` took about 2.6 s before). Measured, machine-dependent. The older "under 100 ms, about 43 ms" claim was true only for `--version`. |
 
@@ -47,8 +47,8 @@ health ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171))
 | `pkg`, `debug config`, `refactor rename-service` | DONE+tested |
 | `cloud iac generate\|validate`, `cloud deploy` | DONE (env-limited: `cloud deploy` needs real credentials and was never run against an account; Terraform validation runs in CI) |
 | `fix --ci` | DONE (env-limited: no live LLM call) |
-| Backend template registry: 208 templates, every placeholder substituted (including in file paths), at least 3 templates per emerging runtime (Deno, Bun, Kotlin, Scala, Crystal, Zig, Elixir, Nim) | DONE+tested |
-| Generated projects install, build and boot | **204 of the 208 templates build with their own toolchain in hosted CI** ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)), and 8 Node/Bun templates boot. Of the 32 added last, 14 were also built locally with their real toolchain and 18 could not be. 4 are infeasible (`perfect`, `roc`, `carbon`, `vale`). See the [catalog page](/re-shell/templates/catalog/#verification) |
+| Backend template registry: 204 templates, every placeholder substituted (including in file paths), at least 3 templates per emerging runtime (Deno, Bun, Kotlin, Scala, Crystal, Zig, Elixir, Nim) | DONE+tested |
+| Generated projects install, build and boot | **All 204 templates build with their own toolchain in hosted CI** ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)), and 8 Node/Bun templates boot. Of the 32 added last, 14 were also built locally with their real toolchain and 18 could not be. 4 infeasible templates (`perfect`, `roc`, `carbon`, `vale`) were removed. See the [catalog page](/re-shell/templates/catalog/#verification) |
 | `create` non-interactive in every mode, honest skeletons, dry-run diffs | DONE+tested |
 
 ## UI / dashboard
@@ -95,7 +95,6 @@ Everything left depends on something outside the development environment:
 - Public hosting of the control plane (a deployment target, TLS, a security review).
 - WebRTC across symmetric NATs (a TURN server).
 - Hosted runs of those workflows on `main` after the merge; they already pass on pull request #395.
-- The 4 infeasible templates (`perfect`, `roc`, `carbon`, `vale`), which need a usable toolchain first.
 
 ## Explicitly dropped
 

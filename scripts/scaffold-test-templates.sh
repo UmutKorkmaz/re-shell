@@ -149,7 +149,7 @@ GROUP_DENO=(
 )
 
 # Swift (SwiftPM, Swift 6.2 or newer): Hummingbird 2 and Kitura 3. Vapor builds in
-# core. Perfect is not listed: its network layer does not compile against OpenSSL 3.
+# core.
 GROUP_SWIFT=(
   hummingbird kitura
 )
@@ -190,14 +190,12 @@ GROUP_SYSTEMS=(
   vweb vex-v odin-http jennet-pony
 )
 
-# Grain, Ballerina and Unison. Roc is not listed: it has no stable release and its
-# platform must be pinned by a content hash that cannot be verified here.
+# Grain, Ballerina and Unison.
 GROUP_EXOTIC=(
   grain ballerina unison
 )
 
-# Mojo (compiler from PyPI) and Red (32-bit toolchain). Carbon and Vale are not
-# listed: neither has a released toolchain that can build an HTTP server.
+# Mojo (compiler from PyPI) and Red (32-bit toolchain).
 GROUP_EXOTICB=(
   mojo mojo-fastapi red-http
 )

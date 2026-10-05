@@ -172,7 +172,7 @@ Run outside any workspace and you get the error branch with a non-zero exit.
 
 ### `templates list --json`
 
-Every scaffolding template (208 at this version). The payload is about 95 KB.
+Every scaffolding template (204 at this version). The payload is about 95 KB.
 
 ```json
 {
@@ -213,7 +213,7 @@ A quick shell consumer with `jq`:
 
 ```bash
 re-shell workspace health --json | jq '.data.status'
-re-shell templates list --json   | jq '.data | length'   # 208
+re-shell templates list --json   | jq '.data | length'   # 204
 ```
 
 ## See also

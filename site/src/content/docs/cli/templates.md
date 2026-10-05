@@ -3,7 +3,7 @@ title: "templates"
 description: "Discover, inspect, and apply framework templates."
 ---
 
-The `templates` group is your window into the **208-template, 36-language**
+The `templates` group is your window into the **204-template, 35-language**
 catalog. It lists templates, shows details for one, renders a compatibility
 matrix, and previews exactly what a scaffold would produce — all without writing
 files.
@@ -42,7 +42,7 @@ re-shell templates list --json
 ```
 
 ```
-📋 Templates (208)
+📋 Templates (204)
 
   ● express [typescript] express
     Fast, unopinionated, minimalist web framework for Node.js ...
@@ -95,10 +95,10 @@ re-shell templates matrix --json
 ```
 
 ```
-📊 Template compatibility matrix (208)
+📊 Template compatibility matrix (204)
 
 Languages: ballerina, clojure, cpp, crystal, csharp, dart, ... typescript, unison, v, zig
-Frameworks: 173
+Frameworks: 169
 Databases: couchbase, couchdb, elasticsearch, generic-sql, ... sqlite
 Caches: in-memory, memcached, redis
 Deployment: ci-cd, docker, kubernetes, serverless

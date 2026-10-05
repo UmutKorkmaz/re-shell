@@ -80,7 +80,7 @@ re-shell create api --backend express
 Add `--dry-run --json` to `create` to get the file set with per-file previews
 and diffs as a JSON envelope, with nothing written.
 
-Browse all 208 templates across 36 languages with
+Browse all 204 templates across 35 languages with
 [`templates list`](/re-shell/cli/templates/), or read the
 [Template Catalog](/re-shell/templates/catalog/).
 
@@ -157,7 +157,7 @@ audit, uncommitted git changes, a workspace missing build configuration files).
 
 - [Core Concepts](/re-shell/getting-started/concepts/): the mental model.
 - [CLI Reference](/re-shell/cli/overview/): every command group.
-- [Template Catalog](/re-shell/templates/catalog/): all 208 templates.
+- [Template Catalog](/re-shell/templates/catalog/): all 204 templates.
 - [Dashboard](/re-shell/dashboard/overview/): the 11 screens in depth.
 - [AI](/re-shell/cli/ai/), [service bridge](/re-shell/cli/service-bridge/),
   [Kubernetes](/re-shell/cli/k8s-helm-gitops/): the larger features.

@@ -6,7 +6,7 @@ This is the documentation index for the **single pnpm monorepo** at
 
 | Directory | Package | Role |
 |-----------|---------|------|
-| `packages/cli` | `@re-shell/cli` | The published CLI and engine: 585 command paths, 208 backend templates, `re-shell ui` launcher, bundled dashboard. |
+| `packages/cli` | `@re-shell/cli` | The published CLI and engine: 585 command paths, 204 backend templates, `re-shell ui` launcher, bundled dashboard. |
 | `packages/contracts` | `@re-shell/contracts` | zod schemas shared by everything: exact `--json` wire schemas and adapters, domain models, hub transport, command registry, OT, graph, theme and white-label. |
 | `packages/mcp` | `@re-shell/mcp` | Stdio MCP server exposing Re-Shell's read-only JSON commands as agent tools, resources and prompts. |
 | `packages/ui` | `@re-shell/ui` | shadcn-React component library (the single UI system), Storybook 9. |

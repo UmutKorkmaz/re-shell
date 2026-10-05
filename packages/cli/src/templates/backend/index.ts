@@ -151,9 +151,6 @@ import { grainTemplate } from './grain';
 // Mojo
 import { mojoTemplate } from './mojo';
 import { mojoFastapiTemplate } from './mojo-fastapi';
-import { carbonTemplate } from './carbon';
-import { valeTemplate } from './vale';
-import { rocTemplate } from './roc';
 import { ballerinaTemplate } from './ballerina';
 import { unisonTemplate } from './unison';
 // Perl
@@ -195,7 +192,6 @@ import { cppHttplibTemplate } from './cpp-httplib';
 import { pistacheTemplate } from './pistache';
 import { beastTemplate } from './beast';
 import { vaporTemplate } from './vapor';
-import { perfectTemplate } from './perfect';
 import { kituraTemplate } from './kitura';
 import { hummingbirdTemplate } from './hummingbird';
 import { shelfTemplate } from './shelf';
@@ -416,7 +412,6 @@ export const backendTemplates: Record<string, BackendTemplate> = {
   'pistache': pistacheTemplate,
   'beast': beastTemplate,
   'vapor': vaporTemplate,
-  'perfect': perfectTemplate,
   'kitura': kituraTemplate,
   'hummingbird': hummingbirdTemplate,
   'shelf': shelfTemplate,
@@ -497,9 +492,6 @@ export const backendTemplates: Record<string, BackendTemplate> = {
   // Mojo
   'mojo': mojoTemplate,
   'mojo-fastapi': mojoFastapiTemplate,
-  'carbon': carbonTemplate,
-  'vale': valeTemplate,
-  'roc': rocTemplate,
   'ballerina': ballerinaTemplate,
   'unison': unisonTemplate,
   // Perl
@@ -573,7 +565,6 @@ export { cppHttplibTemplate } from './cpp-httplib';
 export { pistacheTemplate } from './pistache';
 export { beastTemplate } from './beast';
 export { vaporTemplate } from './vapor';
-export { perfectTemplate } from './perfect';
 export { kituraTemplate } from './kitura';
 export { hummingbirdTemplate } from './hummingbird';
 export { shelfTemplate } from './shelf';
@@ -691,12 +682,6 @@ export { grainTemplate } from './grain';
 // Mojo
 export { mojoTemplate } from './mojo';
 export { mojoFastapiTemplate } from './mojo-fastapi';
-// Carbon
-export { carbonTemplate } from './carbon';
-// Vale
-export { valeTemplate } from './vale';
-// Roc
-export { rocTemplate } from './roc';
 // Ballerina
 export { ballerinaTemplate } from './ballerina';
 // Unison

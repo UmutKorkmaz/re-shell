@@ -18,7 +18,7 @@
 ## What is in the box
 
 - **585 command paths** in 46 top-level commands (`re-shell commands list --json`).
-- **208 backend templates across 36 languages** plus frontend, microfrontend and
+- **204 backend templates across 35 languages** plus frontend, microfrontend and
   architecture templates (`re-shell templates list --json`).
 - A **local dashboard** (`re-shell ui`): 11 screens over a token-authed hub bound to `127.0.0.1`.
 - A **typed JSON contract**: every machine-readable command prints one

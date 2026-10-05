@@ -1,10 +1,10 @@
 ---
 title: "Template Catalog"
-description: "The full catalog of 208 backend templates across 36 languages and 173 frameworks, grouped by language with the real per-language counts."
+description: "The full catalog of 204 backend templates across 35 languages and 169 frameworks, grouped by language with the real per-language counts."
 ---
 
-Re-Shell ships **208 backend templates** spanning **36 languages** and
-**173 frameworks**. Every template is a scaffoldable service with sensible
+Re-Shell ships **204 backend templates** spanning **35 languages** and
+**169 frameworks**. Every template is a scaffoldable service with sensible
 defaults (routing, validation, Docker, testing, and more). How much of the
 catalog has been built and booted is stated in
 [Verification](#verification) below. Browse and preview
@@ -12,7 +12,7 @@ them entirely offline with the [`templates`](/re-shell/cli/templates/) command
 group, or visually in the [dashboard](/re-shell/dashboard/overview/).
 
 ```bash
-re-shell templates list                  # all 208
+re-shell templates list                  # all 204
 re-shell templates list --language rust  # filter by language
 re-shell templates show express          # details for one
 re-shell templates apply express --name billing   # dry-run preview
@@ -31,9 +31,9 @@ re-shell templates apply express --name billing   # dry-run preview
 | TypeScript | 76 |
 | JavaScript | 21 |
 | C# | 12 |
-| C++ | 7 |
 | Python | 7 |
 | Go | 6 |
+| C++ | 5 |
 | Clojure | 4 |
 | Haskell | 4 |
 | Java | 4 |
@@ -42,7 +42,6 @@ re-shell templates apply express --name billing   # dry-run preview
 | PHP | 4 |
 | ReScript | 4 |
 | Rust | 4 |
-| Swift | 4 |
 | Crystal | 3 |
 | Dart | 3 |
 | Elixir | 3 |
@@ -51,6 +50,7 @@ re-shell templates apply express --name billing   # dry-run preview
 | Perl | 3 |
 | Ruby | 3 |
 | Scala | 3 |
+| Swift | 3 |
 | Zig | 3 |
 | Julia | 2 |
 | Mojo | 2 |
@@ -62,13 +62,12 @@ re-shell templates apply express --name billing   # dry-run preview
 | Odin | 1 |
 | Pony | 1 |
 | Red | 1 |
-| Roc | 1 |
 | Unison | 1 |
-| **Total** | **208** |
+| **Total** | **204** |
 
 ## Frameworks (selected)
 
-173 frameworks are represented. A sampling across ecosystems:
+169 frameworks are represented. A sampling across ecosystems:
 
 - **TypeScript / JavaScript** — Express, Fastify, NestJS, Koa, Hono, Elysia,
   AdonisJS, FeathersJS, LoopBack, Restify, Sails.js, Ts.ED, Middy, Moleculer,
@@ -85,11 +84,11 @@ re-shell templates apply express --name billing   # dry-run preview
 - **PHP** — Laravel 13, Symfony, Slim, CodeIgniter.
 - **Haskell / OCaml / F#** — Yesod, Servant, Scotty, Spock, Dream, Opium,
   Giraffe, Suave, Saturn.
-- **Swift / Julia / Clojure** — Vapor, Hummingbird 2, Kitura 3, Perfect; Genie,
+- **Swift / Julia / Clojure** — Vapor, Hummingbird 2, Kitura 3; Genie,
   Oxygen; Compojure, Luminus, Reitit, Pedestal.
 - **Nim / Crystal** — Jester, Prologue, HappyX; Kemal, Lucky, Amber.
 - **Systems and emerging** — Zap (Zig), Crow (C++), `veb` and Vex (V), Odin, Jennet
-  (Pony), Red, Mojo (and Mojo + FastAPI), Grain, Ballerina, Unison, Roc.
+  (Pony), Red, Mojo (and Mojo + FastAPI), Grain, Ballerina, Unison.
 - **Deno** — Oak, Fresh, and a Hono + React server-rendered app (`aleph-deno`).
 - **Infrastructure** — Docker, Docker Compose, Kubernetes, Nginx, Traefik,
   HAProxy, Envoy, Istio, Linkerd, Consul, Vault, Kong, Redis, PostgreSQL,
@@ -193,7 +192,7 @@ every push and pull request:
   reachable, waits for `/health`, probes a functional route and requires a clean
   exit on SIGTERM.
 
-**Where the catalog stands (0.31.0):** the build script lists **204 of the 208**
+**Where the catalog stands (0.31.0):** the build script lists **all 204**
 templates, and **all 204 pass in the hosted `template-health` run** (PR #395, commit
 `3a06508`; [run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171), 19 jobs). They differ in what was also verified locally:
 
@@ -204,7 +203,7 @@ templates, and **all 204 pass in the hosted `template-health` run** (PR #395, co
   18 could not be built locally because their toolchain could not be downloaded here, so
   their first real build was the hosted run. It found and fixed defects in `ballerina`,
   `unison`, `red-http`, `kitura` and `nerves-ex`; all 32 pass.
-- **4 are infeasible** and are left out of the script (below).
+- **4 infeasible templates were removed** (below).
 
 Lua templates are checked for syntax only, Dart templates are analyzed but their tests
 are not run, and the 18 configuration templates (service mesh, proxies, compose and
@@ -233,19 +232,17 @@ The Nim group runs **Nim 2.0.x** because `happyx` does not resolve with Nim 2.2.
 nimble 0.24.1. `laravel` is now **Laravel 13**; its template-health check boots the app
 (`php artisan route:list`) and runs its PHPUnit suite (`php artisan test`).
 
-### Infeasible templates
+### Removed templates
 
-These four are registered, scaffoldable and covered by the registry and placeholder
-tests, but no build is attempted, and they are **not** counted as built:
+Four templates could not produce a working project and were removed, so every
+registered template is built in hosted CI:
 
-| Template | Why it cannot be built |
+| Template | Why it was removed |
 | --- | --- |
 | `perfect` (Swift) | PerfectNet calls `SSL_get_peer_certificate`, which is only a function-like macro in OpenSSL 3 that Swift's Clang importer cannot import; Perfect-Net has been unmaintained since 2020. |
 | `roc` | Roc has no stable release, and its platform must be pinned by a content-hash URL that could not be verified. |
 | `carbon` | There is no released version (only experimental nightlies) and no networking. |
 | `vale` | The project is archived, the last compiler is a 2022 alpha, and there is no networking. |
-
-Treat these four as starting points to review, not as projects known to build.
 
 ## See also
 

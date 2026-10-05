@@ -1,6 +1,6 @@
 ---
 title: "Compatibility Matrix"
-description: "The full language / framework / database / cache / deployment-target / feature grid across all 208 templates."
+description: "The full language / framework / database / cache / deployment-target / feature grid across all 204 templates."
 ---
 
 `re-shell templates matrix` builds a **compatibility grid** across every template:
@@ -14,10 +14,10 @@ re-shell templates matrix --json
 ```
 
 ```
-📊 Template compatibility matrix (208)
+📊 Template compatibility matrix (204)
 
 Languages: ballerina, clojure, cpp, crystal, csharp, dart, ... typescript, unison, v, zig
-Frameworks: 173
+Frameworks: 169
 Databases: couchbase, couchdb, elasticsearch, generic-sql, ... sqlite
 Caches: in-memory, memcached, redis
 Deployment: ci-cd, docker, kubernetes, serverless
@@ -34,16 +34,16 @@ Deployment: ci-cd, docker, kubernetes, serverless
 
 ## Facets
 
-### Languages (36)
+### Languages (35)
 
 ballerina, clojure, cpp, crystal, csharp, dart, elixir, fsharp, gleam, go, grain,
 haskell, java, javascript, julia, kotlin, lua, mojo, nim, ocaml, odin, perl, php,
-pony, python, red, rescript, roc, ruby, rust, scala, swift, typescript, unison,
+pony, python, red, rescript, ruby, rust, scala, swift, typescript, unison,
 v, zig.
 
-### Frameworks (173)
+### Frameworks (169)
 
-173 frameworks across web, RPC, messaging, and infrastructure — from Express,
+169 frameworks across web, RPC, messaging, and infrastructure — from Express,
 FastAPI, Spring Boot, Actix-Web, Gin, Phoenix, and Laravel to gRPC, GraphQL,
 Kubernetes, Nginx, Istio, Kong, and Vault. Run `re-shell templates matrix` for the
 complete current list, or see the [catalog](/re-shell/templates/catalog/).
@@ -94,8 +94,8 @@ re-shell templates matrix --json > matrix.json
       }
     ],
     "facets": {
-      "languages": ["...36..."],
-      "frameworks": ["...173..."],
+      "languages": ["...35..."],
+      "frameworks": ["...169..."],
       "databases": ["...11..."],
       "caches": ["in-memory", "memcached", "redis"],
       "deploymentTargets": ["ci-cd", "docker", "kubernetes", "serverless"],
