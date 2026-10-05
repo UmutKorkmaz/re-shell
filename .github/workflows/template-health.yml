@@ -315,10 +315,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Older releases ship ucm-linux.tar.gz, newer ones ucm-linux-x64.tar.gz: take whichever the latest release has.
-          asset="$(gh release view --repo unisonweb/unison --json assets --jq '.assets[].name' | grep -E '^ucm-linux(-x64)?\.tar\.gz$' | head -n 1)"
-          if [ -z "$asset" ]; then echo "no Linux x64 ucm archive in the latest unisonweb/unison release" >&2; exit 1; fi
-          gh release download --repo unisonweb/unison --pattern "$asset" --dir "$RUNNER_TEMP"
+          # Pinned to release/1.5.0, the release these templates were verified against on hosted CI
+          # (ucm printed "unison version: release/1.5.0"). Bump it deliberately, with a green run.
+          # Older releases ship ucm-linux.tar.gz, newer ones ucm-linux-x64.tar.gz: take whichever this release has.
+          unison_tag="release/1.5.0"
+          asset="$(gh release view "$unison_tag" --repo unisonweb/unison --json assets --jq '.assets[].name' | grep -E '^ucm-linux(-x64)?\.tar\.gz$' | head -n 1)"
+          if [ -z "$asset" ]; then echo "no Linux x64 ucm archive in unisonweb/unison $unison_tag" >&2; exit 1; fi
+          gh release download "$unison_tag" --repo unisonweb/unison --pattern "$asset" --dir "$RUNNER_TEMP"
           mkdir -p "$RUNNER_TEMP/ucm"
           tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP/ucm"
           ucm_bin="$(find "$RUNNER_TEMP/ucm" -name ucm \( -type f -o -type l \) | head -n 1)"
@@ -344,12 +347,13 @@ jobs:
           # Every Red binary, View or not, links libgdk_pixbuf-2.0.so.0 for the image! datatype
           # (runtime/platform/image-gdk.reds), so the i386 gdk-pixbuf is required to even start one.
           # The stable Linux toolchain is the dl/linux/red-toolchain-NNN file linked from the download
-          # page (red-toolchain-066 when this was written); red-cli/red-view are consoles that cannot compile.
+          # page; red-cli/red-view are consoles that cannot compile. Pinned to red-toolchain-066, the
+          # build verified on hosted CI (the run printed ".../dl/linux/red-toolchain-066"). The download
+          # page is no longer scraped for the newest build; bump the number deliberately, with a green run.
           sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libc6:i386 libcurl4t64:i386 libgdk-pixbuf-2.0-0:i386
-          red_file=$(curl -fsSL https://static.red-lang.org/download.html | grep -oE 'dl/linux/red-toolchain-[0-9]{3}\b' | head -n 1 || true)
-          red_file=${red_file:-dl/linux/red-toolchain-066}
+          red_file=dl/linux/red-toolchain-066
           echo "Red toolchain: https://static.red-lang.org/$red_file"
           mkdir -p "$HOME/red-bin"
           curl -fsSL "https://static.red-lang.org/$red_file" -o "$HOME/red-bin/red"
