@@ -32,6 +32,7 @@ const CatalogScreen = React.lazy(() => import('./screens/CatalogScreen').then((m
 const CollaborationScreen = React.lazy(() =>
   import('./screens/CollaborationScreen').then((m) => ({ default: m.CollaborationScreen }))
 );
+const AdministrationScreen = React.lazy(() => import('./screens/AdministrationScreen').then((m) => ({ default: m.AdministrationScreen })));
 const SettingsScreen = React.lazy(() => import('./screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen })));
 
 function renderScreen(screen: ScreenDef, navigate: (next: ScreenId) => void): React.ReactElement {
@@ -56,6 +57,8 @@ function renderScreen(screen: ScreenDef, navigate: (next: ScreenId) => void): Re
       return <CatalogScreen />;
     case 'collab':
       return <CollaborationScreen />;
+    case 'admin':
+      return <AdministrationScreen />;
     case 'settings':
       return <SettingsScreen />;
     default:

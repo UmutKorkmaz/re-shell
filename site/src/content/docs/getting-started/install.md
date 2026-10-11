@@ -37,12 +37,10 @@ pnpm add -g @re-shell/cli
 bun add -g @re-shell/cli
 ```
 
-> **Which version you get.** The last version published to npm is **0.30.1**. The
-> source tree is at **0.31.0**, which has not been published yet. Everything on
-> this site describes the 0.31.0 tree; commands and flags marked as new in the
-> [changelog](https://github.com/UmutKorkmaz/re-shell/blob/main/packages/cli/CHANGELOG.md)
-> "Unreleased" section are not in 0.30.1. To use them today, build from the
-> repository (see [Monorepo](/re-shell/architecture/monorepo/)).
+> **Which version you get.** npm serves **0.31.0**, published on October 5, 2026
+> in [v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
+> (registry checked October 11, 2026). This site describes that CLI version.
+> Install `@re-shell/cli@0.31.0` to pin it; future source changes need a later release.
 
 ## Verify the installation
 
@@ -86,10 +84,10 @@ See [`completion`](/re-shell/cli/completion/) for details (including
 
 | Package | In this tree | Last published | Role |
 | --- | --- | --- | --- |
-| `@re-shell/cli` | `0.31.0` | `0.30.1` | The CLI and the bundled dashboard launcher. |
-| `@re-shell/contracts` | `0.3.0` | `0.2.0` | The typed `{ ok, data, warnings }` JSON contract: wire schemas, adapters, hub transport. |
-| `@re-shell/ui` | `0.6.0` | `0.5.0` | The React component system the dashboard is built from. |
-| `@re-shell/mcp` | `0.2.0` | `0.1.0` | The MCP server for AI agents ([MCP](/re-shell/integrations/mcp/)). |
+| `@re-shell/cli` | `0.31.0` | `0.31.0` | The CLI and the bundled dashboard launcher. |
+| `@re-shell/contracts` | `0.3.0` | `0.3.0` | The typed `{ ok, data, warnings }` JSON contract: wire schemas, adapters, hub transport. |
+| `@re-shell/ui` | `0.6.0` | `0.6.0` | The React component system the dashboard is built from. |
+| `@re-shell/mcp` | `0.2.0` | `0.2.0` | The MCP server for AI agents ([MCP](/re-shell/integrations/mcp/)). |
 
 Not published: the hosted [control plane](/re-shell/architecture/control-plane/)
 (`@re-shell/control-plane`, private), the dashboard app, the

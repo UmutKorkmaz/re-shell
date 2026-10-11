@@ -6,7 +6,7 @@ component layer. There is no Web Components surface.
 
 > Part of the [Re-Shell monorepo](https://github.com/UmutKorkmaz/re-shell). See
 > [`/docs`](../../docs) for the documentation index. Version in this tree: **0.6.0**
-> (published: 0.5.0).
+> (published: 0.6.0).
 
 ## Install
 
@@ -14,9 +14,10 @@ component layer. There is no Web Components surface.
 pnpm add @re-shell/ui
 ```
 
-Peer dependencies: `react` and `react-dom` (`^18.2.0 || ^19.0.0`).
-`@tanstack/react-query` (`^5`) is an **optional** peer — only required if you use the
-hub data hooks (`useHubQuery`, `useJob`).
+Peer dependencies: `react` and `react-dom` (`^18.2.0 || ^19.0.0`), and
+`@tanstack/react-query` (`^5`). React Query is required because the root and hooks
+entries export `useHubQuery`. npm installs these peers automatically; package
+managers configured to skip peer installation must add them explicitly.
 
 ## Usage
 
@@ -172,6 +173,7 @@ pnpm --filter @re-shell/ui build
 pnpm --filter @re-shell/ui typecheck
 pnpm --filter @re-shell/ui dev        # vite build --watch
 pnpm --filter @re-shell/ui test       # unit + a11y + type-level tests
+pnpm --filter @re-shell/ui test:package # fresh tarball install, ESM/CJS + Vite env checks
 pnpm --filter @re-shell/ui budget     # size budgets + tree-shake probes (after build)
 pnpm --filter @re-shell/ui tokens:fallback  # regenerate the OKLCH-less hex fallback
 pnpm --filter @re-shell/ui shadcn     # shadcn CLI

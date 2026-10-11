@@ -13,6 +13,7 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
 
 export interface Identity {
   userId: string;
+  platformAdmin?: boolean;
   tenants: Array<{ tenantId: string; role: string }>;
 }
 
@@ -43,6 +44,8 @@ export interface ControlPlaneProviderProps {
   fetchImpl?: typeof fetch;
   /** Connect immediately with the stored settings when they are complete. */
   autoConnect?: boolean;
+  /** Administration can connect a platform operator before the first tenant exists. */
+  allowTenantlessPlatformAdmin?: boolean;
 }
 
 function describe(error: unknown): string {
@@ -58,6 +61,7 @@ export function ControlPlaneProvider({
   children,
   fetchImpl,
   autoConnect = true,
+  allowTenantlessPlatformAdmin = false,
 }: ControlPlaneProviderProps): React.ReactElement {
   const [settings, setSettings] = React.useState<ConnectionSettings>(() => loadConnectionSettings());
   const [status, setStatus] = React.useState<ConnectionStatus>('disconnected');
@@ -103,11 +107,12 @@ export function ControlPlaneProvider({
     setStatus('connecting');
     const next = new ControlPlaneClient({ baseUrl: url.url, token: settings.token.trim(), fetch: fetchImpl });
     try {
-      const me = await next.me();
+      const me: Identity = await next.me();
       if (attempt.current !== mine) return;
       let tenant = settings.tenant.trim();
       if (tenant === '') {
-        if (me.tenants.length === 1) tenant = me.tenants[0].tenantId;
+        if (allowTenantlessPlatformAdmin && me.platformAdmin === true && me.tenants.length === 0) tenant = '';
+        else if (me.tenants.length === 1) tenant = me.tenants[0].tenantId;
         else {
           throw new Error(
             me.tenants.length === 0
@@ -116,11 +121,11 @@ export function ControlPlaneProvider({
           );
         }
       }
-      if (!me.tenants.some((t) => t.tenantId === tenant)) {
+      if (!(tenant === '' && allowTenantlessPlatformAdmin && me.platformAdmin === true) && !me.tenants.some((t) => t.tenantId === tenant)) {
         throw new Error(`This token is not a member of tenant "${tenant}".`);
       }
       setIdentity(me);
-      setTenantId(tenant);
+      setTenantId(tenant || null);
       setClient(next);
       setStatus('connected');
     } catch (cause) {
@@ -131,7 +136,7 @@ export function ControlPlaneProvider({
       setStatus('error');
       setError(describe(cause));
     }
-  }, [settings.url, settings.token, settings.tenant, fetchImpl]);
+  }, [settings.url, settings.token, settings.tenant, fetchImpl, allowTenantlessPlatformAdmin]);
 
   const autoRan = React.useRef(false);
   React.useEffect(() => {

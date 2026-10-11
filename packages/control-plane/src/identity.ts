@@ -34,6 +34,8 @@ export interface IdentityOptions {
   audience?: string;
   /** Unix-ms clock (injected in tests). */
   now?: () => number;
+  /** Persistent deny-list shared by all server instances using this database. */
+  revocations?: { isRevoked(issuer: string, jti: string, now: number): boolean };
 }
 
 export interface IssuedToken {
@@ -44,15 +46,25 @@ export interface IssuedToken {
   jti: string;
 }
 
-function resolveOptions(options: IdentityOptions): Required<Omit<IdentityOptions, 'keyRing'>> & {
-  keyRing: JwtKeyRing;
+function resolveOptions(options: IdentityOptions): Pick<IdentityOptions, 'keyRing' | 'revocations'> & {
+  issuer: string; audience: string; now: () => number;
 } {
   return {
     keyRing: options.keyRing,
     issuer: options.issuer ?? DEFAULT_ISSUER,
     audience: options.audience ?? DEFAULT_AUDIENCE,
     now: options.now ?? Date.now,
+    revocations: options.revocations,
   };
+}
+
+function revoked(options: ReturnType<typeof resolveOptions>, claims: JwtClaims): boolean {
+  try {
+    return options.revocations?.isRevoked(claims.iss, claims.jti, options.now()) ?? false;
+  } catch {
+    // An unavailable deny-list cannot turn a revoked credential into a session.
+    return true;
+  }
 }
 
 function ttlOrThrow(ttlSeconds: number, max: number): number {
@@ -120,7 +132,7 @@ export class JwtSessionResolver implements SessionResolver {
       now: this.options.now(),
     });
     // A worker token must never authenticate as a user, and vice versa.
-    if (!verified.ok || verified.claims.kind !== 'user') {
+    if (!verified.ok || verified.claims.kind !== 'user' || revoked(this.options, verified.claims)) {
       return undefined;
     }
     const userId = verified.claims.sub;
@@ -154,7 +166,7 @@ export class WorkerTokenVerifier {
       audience: this.options.audience,
       now: this.options.now(),
     });
-    if (!verified.ok || verified.claims.kind !== 'worker' || !verified.claims.ten) {
+    if (!verified.ok || verified.claims.kind !== 'worker' || !verified.claims.ten || revoked(this.options, verified.claims)) {
       return undefined;
     }
     if (!verified.claims.sub.startsWith('worker:')) {

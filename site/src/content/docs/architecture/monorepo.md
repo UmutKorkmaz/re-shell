@@ -12,10 +12,10 @@ process boundary are defined once and shared everywhere. Repository:
 
 | Package | Version | Role |
 | --- | --- | --- |
-| **`@re-shell/cli`** (`packages/cli`) | `0.31.0` in tree; [`0.30.1`](https://www.npmjs.com/package/@re-shell/cli) published | The CLI you install globally. Bundles the dashboard SPA, the hub server and the template registry. |
-| **`@re-shell/contracts`** (`packages/contracts`) | `0.3.0` in tree; `0.2.0` published | The single source of truth: zod schemas and types for every shape that crosses a process boundary: CLI wire payloads and adapters, hub transport, the command allow-list, collaboration, graph, theme and white-label. |
-| **`@re-shell/mcp`** (`packages/mcp`) | `0.2.0` in tree; `0.1.0` published | The [MCP server](/re-shell/integrations/mcp/) for AI agents. |
-| **`@re-shell/ui`** (`packages/ui`) | `0.6.0` in tree; `0.5.0` published | The shadcn-based React component system (tokens, primitives, domain components), with Storybook 9. |
+| **`@re-shell/cli`** (`packages/cli`) | `0.31.0` (published) | The CLI you install globally. Bundles the dashboard SPA, the hub server and the template registry. |
+| **`@re-shell/contracts`** (`packages/contracts`) | `0.3.0` (published) | The single source of truth: zod schemas and types for every shape that crosses a process boundary: CLI wire payloads and adapters, hub transport, the command allow-list, collaboration, graph, theme and white-label. |
+| **`@re-shell/mcp`** (`packages/mcp`) | `0.2.0` (published) | The [MCP server](/re-shell/integrations/mcp/) for AI agents. |
+| **`@re-shell/ui`** (`packages/ui`) | `0.6.0` (published) | The shadcn-based React component system (tokens, primitives, domain components), with Storybook 9. |
 | **`@re-shell/control-plane`** (`packages/control-plane`) | `0.1.0`, private | The hosted [control plane](/re-shell/architecture/control-plane/) with collaboration. Not deployed. |
 | **`@re-shell/dashboard`** (`apps/web`) | `0.1.0`, private | The React dashboard (11 screens) that `re-shell ui` serves, the hub server, and the Tauri [desktop app](/re-shell/integrations/desktop/) shell. |
 | **`re-shell`** (`apps/vscode-extension`) | `0.3.0`, private | The [VS Code extension](/re-shell/integrations/vscode/), built as a `.vsix`. |

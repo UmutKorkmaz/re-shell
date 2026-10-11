@@ -13,6 +13,7 @@ export type AuditDecision = 'allow' | 'deny';
 /** Every action the control plane audits. Closed so a typo cannot create a new kind. */
 export type AuditAction =
   | 'auth.failed'
+  | 'auth.token.revoked'
   | 'me.read'
   | 'workspaces.list'
   | 'command.authorize'

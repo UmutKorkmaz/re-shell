@@ -9,7 +9,8 @@ import { loadKeyRing, loadServeConfig, loadWorkerToken, reloadKeyRing } from './
 import { migrate, LATEST_SCHEMA_VERSION } from './db/migrations.js';
 import { SqliteTenantStore } from './db/sqlite-store.js';
 import { openDatabase } from './db/sqlite.js';
-import { JwtSessionResolver, WorkerTokenVerifier } from './identity.js';
+import { JwtSessionResolver, WorkerTokenVerifier, issueUserToken } from './identity.js';
+import { SqliteTokenRevocations } from './db/sqlite-revocations.js';
 import { JwtKeyRing, generateSecret } from './jwt.js';
 import { authenticate } from './auth.js';
 
@@ -295,5 +296,36 @@ describe('configuration loading', () => {
     expect(loadWorkerToken({}).ok).toBe(false);
     fs.writeFileSync(file, '\n');
     expect(loadWorkerToken({ CONTROL_PLANE_WORKER_TOKEN_FILE: file }).ok).toBe(false);
+  });
+});
+
+describe('revoke-token', () => {
+  it('persists revocation and audits it without exposing the token', async () => {
+    const keyRing = new JwtKeyRing({ k1: SECRET });
+    const issued = issueUserToken({ keyRing }, { userId: 'alice' });
+    const file = path.join(tmp, 'token');
+    const database = path.join(tmp, 'revocations.sqlite');
+    fs.writeFileSync(file, issued.token);
+    const a = io({ CONTROL_PLANE_JWT_KEYS: KEYS, CONTROL_PLANE_DB: database });
+    expect(await main(['revoke-token', '--token-file', file], a)).toBe(0);
+    expect(a.out + a.err).not.toContain(issued.token);
+    expect(JSON.parse(a.out).data.revoked).toBe(true);
+    const db = openDatabase(database);
+    try {
+      expect(new SqliteTokenRevocations(db).isRevoked('re-shell-control-plane', issued.jti, Date.now())).toBe(true);
+      expect(db.prepare("SELECT action FROM audit_log WHERE action = 'auth.token.revoked'").get()).toBeDefined();
+    } finally { db.close(); }
+  });
+
+  it('refuses invalid or flag-supplied credentials without modifying the database', async () => {
+    const file = path.join(tmp, 'token');
+    const database = path.join(tmp, 'revocations.sqlite');
+    fs.writeFileSync(file, 'invalid');
+    const a = io({ CONTROL_PLANE_JWT_KEYS: KEYS, CONTROL_PLANE_DB: database });
+    expect(await main(['revoke-token', '--token-file', file], a)).toBe(1);
+    expect(fs.existsSync(database)).toBe(false);
+    const b = io({ CONTROL_PLANE_JWT_KEYS: KEYS });
+    expect(await main(['revoke-token', '--token', 'do-not-log-this'], b)).toBe(1);
+    expect(b.out + b.err).not.toContain('do-not-log-this');
   });
 });

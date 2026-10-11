@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { ControlPlaneResult, fail, ok } from './errors.js';
 import { DEFAULT_AUDIENCE, DEFAULT_ISSUER } from './identity.js';
 import { JwtKeyRing } from './jwt.js';
+import { OidcJwks, type OidcOptions } from './oidc.js';
 import type { ServerLimits } from './http/server.js';
 
 /**
@@ -22,6 +23,8 @@ import type { ServerLimits } from './http/server.js';
  *   CONTROL_PLANE_JWT_KEYS_FILE         path to that same JSON (e.g. a mounted secret)
  *   CONTROL_PLANE_JWT_ACTIVE_KID        overrides activeKid
  *   CONTROL_PLANE_JWT_ISSUER/_AUDIENCE  token iss/aud           (defaults: re-shell-control-plane)
+ *   CONTROL_PLANE_OIDC_ISSUER/_AUDIENCE external JWT access-token trust (optional)
+ *   CONTROL_PLANE_OIDC_JWKS_FILE        pinned public RS256 JWKS (reload with SIGHUP)
  *   CONTROL_PLANE_PLATFORM_ADMINS       comma-separated user ids allowed to create tenants
  *   CONTROL_PLANE_CORS_ORIGINS          comma-separated exact origins (never "*")
  *   CONTROL_PLANE_TRUST_PROXY           "1" when behind a reverse proxy you control
@@ -42,6 +45,8 @@ export interface ServeConfig {
   keyRing: JwtKeyRing;
   issuer: string;
   audience: string;
+  /** Optional external JWT access-token issuer with operator-pinned public keys. */
+  oidc?: OidcOptions;
   platformAdmins: string[];
   corsOrigins: string[];
   trustProxy: boolean;
@@ -158,6 +163,8 @@ export function loadServeConfig(env: Env): ControlPlaneResult<ServeConfig> {
   if (!keyRing.ok) {
     return keyRing;
   }
+  const oidc = loadOidcConfig(env);
+  if (!oidc.ok) return oidc;
   const port = intVar(env, 'CONTROL_PLANE_PORT', 0, 65535);
   if (!port.ok) return port;
 
@@ -206,6 +213,7 @@ export function loadServeConfig(env: Env): ControlPlaneResult<ServeConfig> {
     keyRing: keyRing.data,
     issuer: env.CONTROL_PLANE_JWT_ISSUER || DEFAULT_ISSUER,
     audience: env.CONTROL_PLANE_JWT_AUDIENCE || DEFAULT_AUDIENCE,
+    oidc: oidc.data,
     platformAdmins: list(env.CONTROL_PLANE_PLATFORM_ADMINS),
     corsOrigins,
     trustProxy: flag(env.CONTROL_PLANE_TRUST_PROXY),
@@ -213,6 +221,47 @@ export function loadServeConfig(env: Env): ControlPlaneResult<ServeConfig> {
     limits,
     iceServers: iceServers.data,
   });
+}
+
+/** OIDC is opt-in, and partial trust configuration prevents startup. */
+export function loadOidcConfig(env: Env): ControlPlaneResult<OidcOptions | undefined> {
+  const issuer = env.CONTROL_PLANE_OIDC_ISSUER;
+  const audience = env.CONTROL_PLANE_OIDC_AUDIENCE;
+  const file = env.CONTROL_PLANE_OIDC_JWKS_FILE;
+  if (issuer === undefined && audience === undefined && file === undefined) return ok(undefined);
+  if (!issuer || !audience || !file || audience.trim() !== audience || audience.length > 1024) {
+    return configError('OIDC requires CONTROL_PLANE_OIDC_ISSUER, CONTROL_PLANE_OIDC_AUDIENCE and CONTROL_PLANE_OIDC_JWKS_FILE.');
+  }
+  try {
+    const url = new URL(issuer);
+    const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) || url.username || url.password ||
+        url.search || url.hash || issuer.length > 2048 || issuer.trim() !== issuer ||
+        issuer === (env.CONTROL_PLANE_JWT_ISSUER || DEFAULT_ISSUER)) {
+      return configError('OIDC issuer must be an HTTPS issuer URL (HTTP loopback is allowed for local staging), distinct from the internal issuer.');
+    }
+    return ok({ issuer, audience, jwks: new OidcJwks(readOidcJwks(file)) });
+  } catch {
+    return configError('Cannot load OIDC trust configuration; check issuer and the pinned public RS256 JWKS file.');
+  }
+}
+
+function readOidcJwks(file: string): unknown {
+  const raw = fs.readFileSync(file);
+  if (raw.length > 1024 * 1024) throw new Error('OIDC JWKS file is too large.');
+  return JSON.parse(raw.toString('utf8'));
+}
+
+/** SIGHUP key rotation: invalid replacement leaves the currently trusted keys intact. */
+export function reloadOidcJwks(options: OidcOptions | undefined, env: Env): ControlPlaneResult<string[]> {
+  if (!options) return ok([]);
+  if (!env.CONTROL_PLANE_OIDC_JWKS_FILE) return configError('No OIDC JWKS file configured.');
+  try {
+    options.jwks.reload(readOidcJwks(env.CONTROL_PLANE_OIDC_JWKS_FILE));
+    return ok(options.jwks.kids);
+  } catch {
+    return configError('OIDC key reload failed; keeping current public keys.');
+  }
 }
 
 /**

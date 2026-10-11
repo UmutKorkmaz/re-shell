@@ -12,10 +12,11 @@ built on top of it. The npm packages are published under the `@re-shell/*` scope
 Documentation site: <https://umutkorkmaz.github.io/re-shell/>. Repository docs:
 [`docs/README.md`](./docs/README.md).
 
-> **Versions.** The tree is at `@re-shell/cli` **0.31.0**; the last version published
-> to npm is **0.30.1**, so `npm i -g @re-shell/cli` installs the older one until a
-> release is cut. Nothing in this repository has been published or deployed by the
-> work described here. See [`docs/ROADMAP.md`](./docs/ROADMAP.md) for what is verified.
+> **Published release.** [v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
+> was published on October 5, 2026. npm serves CLI **0.31.0**, contracts **0.3.0**,
+> MCP **0.2.0** and UI **0.6.0** (registry checked October 11, 2026).
+> VS Code Marketplace publication, signed desktop distribution and hosted control-plane
+> deployment remain separate steps. See [`docs/ROADMAP.md`](./docs/ROADMAP.md).
 
 ## Packages
 
@@ -26,7 +27,7 @@ Documentation site: <https://umutkorkmaz.github.io/re-shell/>. Repository docs:
 | [`packages/mcp`](./packages/mcp) | `@re-shell/mcp` | 0.2.0 | Stdio MCP server: read-only tools, resources and prompts over the CLI's JSON commands. |
 | [`packages/ui`](./packages/ui) | `@re-shell/ui` | 0.6.0 | shadcn-React component library (the single UI system), Storybook 9. |
 | [`packages/control-plane`](./packages/control-plane) | `@re-shell/control-plane` | 0.1.0 (private) | Hosted multi-tenant control plane: HTTP/SSE, SQLite, workers, team policy sync, audit, collaboration. Implemented and tested; **not deployed**. |
-| [`apps/web`](./apps/web) | `@re-shell/dashboard` | 0.1.0 (private) | The React dashboard (11 screens), the token-authed hub-server, and the Tauri desktop shell (`src-tauri`). |
+| [`apps/web`](./apps/web) | `@re-shell/dashboard` | 0.1.0 (private) | The React dashboard (12 screens), the token-authed hub-server, and the Tauri desktop shell (`src-tauri`). |
 | [`apps/vscode-extension`](./apps/vscode-extension) | `re-shell` | 0.3.0 (private) | VS Code extension, shipped as a `.vsix` (not on the Marketplace). |
 | [`site`](./site) | `@re-shell/site` | private | Documentation site (Astro Starlight) and the hosted `workspace-v2.json` schema. |
 
@@ -46,7 +47,7 @@ npx pnpm@9.15.9 -r build
 # Run the CLI from the built workspace package
 node packages/cli/dist/index.js --help
 
-# ...or use the published CLI globally (0.30.1 until the next release)
+# ...or use the published CLI globally (0.31.0)
 npm install -g @re-shell/cli
 re-shell --help
 
@@ -118,3 +119,12 @@ be built locally (see [`docs/STABILITY.md`](./docs/STABILITY.md)).
 The CLI is released under the Apache-2.0 License; the other packages (contracts, MCP,
 UI, control plane, dashboard, VS Code extension) are MIT. See each package's metadata
 and the [LICENSE](./LICENSE) file.
+
+### Unreleased hardening candidate
+
+The next development candidate adds Node-safe UI package root imports, an
+Administration dashboard, pinned-JWKS bearer SSO, persistent token revocation,
+HTTP metrics, native desktop workspace selection/recovery, bundled Node, and
+configured signed updates. These changes are not included in the published
+v0.31.0 artifacts until a new release is cut. Marketplace/signing credentials,
+live identity-provider checks and Docker staging proof remain separate gates.

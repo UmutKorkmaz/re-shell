@@ -33,6 +33,12 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/vscode-extension.yml'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the verified VSIX to the VS Code Marketplace (main only)'
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -147,3 +153,65 @@ jobs:
           path: apps/vscode-extension/*.vsix
           if-no-files-found: error
           retention-days: 30
+
+  publish:
+    name: Publish verified VSIX to Marketplace
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    needs: package
+    timeout-minutes: 15
+    environment: vscode-marketplace
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install publishing tool
+        run: pnpm install --frozen-lockfile
+
+      - name: Download tested VSIX
+        uses: actions/download-artifact@v4
+        with:
+          name: re-shell-vscode-extension
+          path: apps/vscode-extension
+
+      - name: Verify downloaded VSIX
+        run: node apps/vscode-extension/scripts/verify-vsix.mjs
+
+      - name: Publish the exact verified artifact
+        working-directory: apps/vscode-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo 'VSCE_PAT must be configured for the umutkorkmaz Marketplace publisher.' >&2
+            exit 1
+          fi
+          VSIX_PATH=$(node -p '`${require("./package.json").name}-${require("./package.json").version}.vsix`')
+          pnpm exec vsce publish --packagePath "$VSIX_PATH"
+
+      - name: Verify public Marketplace version
+        working-directory: apps/vscode-extension
+        run: |
+          EXTENSION_ID=$(node -p '`${require("./package.json").publisher}.${require("./package.json").name}`')
+          EXTENSION_VERSION=$(node -p 'require("./package.json").version')
+          for ATTEMPT in 1 2 3 4 5; do
+            if pnpm exec vsce show "$EXTENSION_ID" --json > marketplace.json && \
+              node -e 'const fs = require("node:fs"); const listing = JSON.parse(fs.readFileSync("marketplace.json", "utf8")); if (!listing?.versions?.some(v => v.version === process.argv[1])) process.exit(1)' "$EXTENSION_VERSION"; then
+              echo "Verified Marketplace version $EXTENSION_ID@$EXTENSION_VERSION"
+              exit 0
+            fi
+            if [ "$ATTEMPT" -lt 5 ]; then sleep 10; fi
+          done
+          echo "Published artifact is not yet visible as $EXTENSION_ID@$EXTENSION_VERSION; verify the public listing before retrying publication." >&2
+          exit 1

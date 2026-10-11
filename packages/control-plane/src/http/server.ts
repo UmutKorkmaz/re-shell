@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 
 import type { IceServerConfig } from '@re-shell/contracts';
@@ -76,10 +77,12 @@ import {
   workerFinishJob,
 } from '../jobs.js';
 import { ControlPlaneDeps, authorizeTenantAudited, validate } from '../pipeline.js';
+import { CompositeSessionResolver, OidcSessionResolver, type OidcOptions } from '../oidc.js';
 import { buildPolicySnapshot } from '../policy.js';
 import { TenantAdminStore, idSchema } from '../tenant.js';
 import { TokenBucketLimiter, bearerToken, clientAddress, readJsonBody } from './limits.js';
 import { Router } from './router.js';
+import { HttpMetrics } from './telemetry.js';
 import { SseStream, openSse } from './sse.js';
 
 /**
@@ -155,6 +158,7 @@ export interface ControlPlaneServerOptions {
   /** STUN/TURN servers handed to session participants. Empty (default) = host candidates only. */
   iceServers?: readonly IceServerConfig[];
   identity: IdentityOptions;
+  oidc?: OidcOptions;
   events?: EventBus;
   /** User ids allowed to create tenants. */
   platformAdmins?: readonly string[];
@@ -215,6 +219,7 @@ interface RouteDef {
 const UNAUTHENTICATED_MESSAGE = 'Authentication required.';
 
 export function createControlPlaneServer(options: ControlPlaneServerOptions): ControlPlaneServer {
+  const metrics = new HttpMetrics();
   const limits: ServerLimits = { ...DEFAULT_LIMITS, ...options.limits };
   const clock = options.now ?? Date.now;
   const events = options.events ?? new EventBus();
@@ -222,10 +227,11 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
   const corsOrigins = new Set(options.corsOrigins ?? []);
   const trustProxy = options.trustProxy ?? false;
 
-  const sessions: SessionResolver = new JwtSessionResolver(
-    { ...options.identity, now: options.identity.now ?? clock },
-    options.store
-  );
+  const identity = { ...options.identity, now: options.identity.now ?? clock };
+  const sessions: SessionResolver = new CompositeSessionResolver([
+    new JwtSessionResolver(identity, options.store),
+    ...(options.oidc ? [new OidcSessionResolver(options.oidc, options.store, identity)] : []),
+  ]);
   const workerVerifier = new WorkerTokenVerifier({
     ...options.identity,
     now: options.identity.now ?? clock,
@@ -541,6 +547,32 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
       headers: baseHeaders(ctx.cors),
       ...(maxBufferedBytes !== undefined ? { maxBufferedBytes } : {}),
     });
+    const send = stream.send.bind(stream);
+    const stillAuthorized = (): boolean => {
+      try {
+        if (ctx.principal) {
+          const fresh = sessions.resolve(ctx.token ?? '');
+          const tenant = ctx.params.tenantId;
+          return !!fresh && fresh.expiresAt > clock() && fresh.principal.userId === ctx.principal.userId &&
+            (!tenant || (fresh.principal.tenantRoles[tenant] !== undefined &&
+              fresh.principal.tenantRoles[tenant] === ctx.principal.tenantRoles[tenant]));
+        }
+        const fresh = workerVerifier.verify(ctx.token);
+        return !!fresh && fresh.workerId === ctx.worker?.workerId && fresh.tenantId === ctx.worker?.tenantId;
+      } catch { return false; }
+    };
+    const guard = (): boolean => {
+      if (stream.closed) return false;
+      if (stillAuthorized()) return true;
+      const expired = ctx.expiresAt !== undefined && clock() >= ctx.expiresAt;
+      send(expired ? 'expired' : 'revoked', { reason: expired ? 'token-expired' : 'credential-or-access-revoked' });
+      stream.close();
+      return false;
+    };
+    stream.send = (event, data, id) => guard() && send(event, data, id);
+    const recheck = setInterval(guard, 1_000);
+    recheck.unref();
+    stream.onClose(() => clearInterval(recheck));
     liveStreams.add(stream);
     stream.onClose(() => {
       liveStreams.delete(stream);
@@ -550,7 +582,7 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     if (ctx.expiresAt !== undefined) {
       const ms = Math.max(0, ctx.expiresAt - clock());
       const timer = setTimeout(() => {
-        stream.send('expired', { reason: 'token-expired' });
+        send('expired', { reason: 'token-expired' });
         stream.close();
       }, Math.min(ms, 2 ** 31 - 1));
       timer.unref();
@@ -825,9 +857,25 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
   });
 
   route('GET', {
+    pattern: '/metrics',
+    auth: 'user',
+    run: (ctx) => {
+      if (!ctx.principal || !options.platformAdmins?.includes(ctx.principal.userId)) {
+        sendError(ctx, 'FORBIDDEN', 'Platform administrator access required.');
+        return;
+      }
+      ctx.res.writeHead(200, { ...baseHeaders(ctx.cors), 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+      ctx.res.end(metrics.render());
+    },
+  });
+
+  route('GET', {
     pattern: '/me',
     auth: 'user',
-    run: userHandler(whoAmI, adminDeps, (ctx) => ok({ token: tokenOf(ctx) })),
+    run: userHandler((deps, input) => {
+      const result = whoAmI(deps, input);
+      return result.ok ? ok({ ...result.data, platformAdmin: options.platformAdmins?.includes(result.data.userId) ?? false }) : result;
+    }, adminDeps, (ctx) => ok({ token: tokenOf(ctx) })),
   });
 
   route('POST', {
@@ -1166,6 +1214,9 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const started = clock();
+    const requestId = randomUUID();
+    res.setHeader('X-Request-ID', requestId);
+    let metricRoute = 'unmatched';
     const cors = corsHeadersFor(req);
     const ip = clientAddress(req, trustProxy);
     const url = new URL(req.url ?? '/', 'http://control-plane.invalid');
@@ -1173,11 +1224,13 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     const pre: Pick<Ctx, 'res' | 'cors'> = { res, cors };
 
     res.on('finish', () => {
+      metrics.record(method, metricRoute, res.statusCode, clock() - started);
       log({
+        requestId,
         ts: started,
         ms: clock() - started,
         method,
-        path: url.pathname,
+        path: metricRoute,
         status: res.statusCode,
       });
     });
@@ -1234,6 +1287,7 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     }
 
     const { route: def, params } = lookup.match;
+    metricRoute = def.pattern;
     const ctx: Ctx = {
       req,
       res,
@@ -1264,8 +1318,14 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
         def.body === 'worker' ? limits.workerBodyBytes : limits.bodyBytes
       );
       if (!parsed.ok) {
-        // Do not keep reading an oversized/garbled upload on this connection.
-        res.setHeader('Connection', 'close');
+        // Discard without buffering. Immediate Connection: close can cause a
+        // TCP reset while the client is uploading and erase the 413 response.
+        // Give the response a bounded flush window, then close this connection.
+        req.resume();
+        const socket = req.socket;
+        const closeTimer = setTimeout(() => socket.destroy(), 1_000);
+        closeTimer.unref();
+        socket.once('close', () => clearTimeout(closeTimer));
         sendError(ctx, parsed.code, parsed.message);
         return;
       }

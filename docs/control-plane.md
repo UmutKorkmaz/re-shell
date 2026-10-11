@@ -431,7 +431,7 @@ the `-wal`/`-shm` files or `VACUUM INTO`; `/data` is the only state.
 | Identity provider: signed tokens, rotation             | **Done** (HS256 JWT issued by this service's own CLI). **Not done:** OIDC/SSO federation |
 | Persistent tenant store with isolation                 | **Done** on SQLite (code-level isolation). **Not done:** Postgres / row-level security |
 | Per-tenant execution workers                           | **Done** (long-poll workers, shared registry, containment) |
-| Observability & audit                                  | **Done:** append-only audit + JSON request logs. **Not done:** metrics/tracing |
+| Observability & audit                                  | **Done:** append-only audit + JSON request logs. **Done:** platform-admin Prometheus metrics and request correlation IDs. Distributed tracing is not implemented. |
 | Deployment                                             | **Done:** Dockerfile + Compose, image built and `/healthz` checked locally. **Not done:** any real hosting |
 
 ## 13. Remaining limits
@@ -450,10 +450,10 @@ Be honest about these before exposing it:
   dropped by anyone with raw database access; ship the log to external immutable
   storage if that is in your threat model. Audit and job output grow without a
   retention policy.
-- **Identity is self-issued.** Tokens are minted by the operator's CLI with a
-  shared HS256 key; there is no OIDC/SSO, no password or session login, and no
-  per-token revocation list (remove memberships, or rotate the key to revoke a
-  worker token).
+- **Identity.** Tokens are minted by the operator's CLI with a
+  shared HS256 key; optional pinned-JWKS bearer SSO is now supported (see [OIDC.md](./OIDC.md)).
+  Persistent token revocation applies to internal users, workers and external
+  bearer tokens. Browser login/PKCE is not implemented.
 - **`node:sqlite` is experimental** in Node 22 (it prints an `ExperimentalWarning`
   at start-up) and requires Node ≥ 22.13.
 - **Workers are trusted hosts.** A worker runs the CLI as its own OS user in a
@@ -464,8 +464,8 @@ Be honest about these before exposing it:
 - **`policyPack` is a reference only**; the control plane does not fetch or
   evaluate packs.
 - **The dashboard covers collaboration only.** The Collaboration screen (§14.8)
-  consumes the session and analytics API; tenant/policy/member administration
-  and the audit log still have no UI (use the API or the CLI).
+  consumes the session and analytics API; tenant/policy/member administration and audit records now have an Administration
+  screen using the same API. Its connection uses an explicitly supplied bearer token.
 - **Not externally reviewed or load-tested.** The security properties above are
   covered by tests in this repository, not by an independent audit.
 
@@ -743,3 +743,38 @@ analytics panel. The control plane must list the dashboard's origin in
 * **Output in a snapshot is bounded** (2 MiB); older output is available through
   `GET …/events`.
 * Sessions are never expired automatically; end them (owner/admin).
+
+## Local hardening and staging (development candidate)
+
+`revoke-token --token-file <file>` validates one token using configured local keys
+or the pinned external JWKS, persists its revocation identifier in the same SQLite
+file as `serve`, and records the action atomically. No bearer is stored or printed.
+Internal token issuance honors the configured issuer and audience. SIGHUP reloads
+both signing keys and pinned external public keys without discarding working keys
+on a malformed replacement. Existing HTTP event streams revalidate before each
+application event and every second, including membership/role changes.
+
+`GET /metrics` requires a configured platform administrator. Prometheus counters
+and response-duration summaries use registered route patterns rather than tenant,
+workspace or user identifiers. Responses carry a server-generated X-Request-ID.
+This is request correlation, not an OpenTelemetry deployment or distributed trace.
+
+Compose now drops all capabilities, disables privilege escalation, limits CPU,
+memory and processes, uses read-only container roots and an internal worker network.
+Only the data/workspace volumes and bounded temporary filesystem are writable.
+These are container boundaries for the whole worker; container-per-job isolation
+is still absent. Worker external egress requires an explicit network override.
+The control plane also joins an API bridge so Docker Desktop can publish its
+loopback port; that service has outbound network access.
+
+Prepare private configuration with `node scripts/stage-control-plane.mjs --prepare`.
+With a responsive Docker engine, `--up` builds a unique disposable Compose project,
+boots a tenant and worker, and requires a real successful `doctor` job. It prints
+a private staging directory and project name, never tokens. Stop that project with
+`--down <stage-directory>`; the generated credential files remain private for
+inspection and can then be removed. The host port is loopback-only.
+
+Pinned OIDC public keys require a Compose override mounting the JWKS file read-only
+and passing CONTROL_PLANE_OIDC_ISSUER, CONTROL_PLANE_OIDC_AUDIENCE and
+CONTROL_PLANE_OIDC_JWKS_FILE. The base stack intentionally has no implicit IdP.
+Local Node API/browser tests are separate from a completed Docker staging run.

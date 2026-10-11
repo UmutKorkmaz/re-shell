@@ -132,7 +132,7 @@ describe('authentication (no oracle)', () => {
   it('a user token authenticates /me and lists current memberships', async () => {
     const me = await h.request('GET', '/me', { token: h.userToken('alice') });
     expect(me.status).toBe(200);
-    expect(me.json.data).toEqual({ userId: 'alice', tenants: [{ tenantId: 'acme', role: 'admin' }] });
+    expect(me.json.data).toEqual({ userId: 'alice', platformAdmin: false, tenants: [{ tenantId: 'acme', role: 'admin' }] });
   });
 });
 

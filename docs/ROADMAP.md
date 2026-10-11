@@ -15,15 +15,18 @@
 
 | Fact | Value | Checked with |
 |------|-------|--------------|
-| `@re-shell/cli` | `0.31.0` (`0.30.1` is the last published version) | `packages/cli/package.json`, `node packages/cli/dist/index.js --version` |
-| `@re-shell/contracts` / `@re-shell/mcp` / `@re-shell/ui` | `0.3.0` / `0.2.0` / `0.6.0` (published: `0.2.0` / `0.1.0` / `0.5.0`) | each `package.json`, `npm view <pkg> versions` |
+| `@re-shell/cli` | `0.31.0` (published) | `packages/cli/package.json`, `node packages/cli/dist/index.js --version` |
+| `@re-shell/contracts` / `@re-shell/mcp` / `@re-shell/ui` | `0.3.0` / `0.2.0` / `0.6.0` (all published) | each `package.json`, npm registry `latest` checked 2026-10-11 |
 | Not published | `@re-shell/control-plane` `0.1.0` (private), `@re-shell/dashboard` `0.1.0` (private), VS Code extension `re-shell` `0.3.0` (private, `.vsix` only) | `package.json` `private: true` |
 | Registered CLI commands | **585** command paths in **46** top-level commands | `commands list --json` (`.data.length`) |
 | Backend templates | **204** across **35** languages | `templates list --json` (`.data.length`, distinct `language`) |
 | Dashboard screens | **11** | `apps/web/src/shell/screens.ts` |
 | Startup (lazy command loading) | `--version` about 44 ms, `--help` about 102 ms median over 10 runs on the development VM; before lazy loading `--help` took about 2.6 s | `node scripts/bench-startup.mjs`; R-1b measurements below |
 
-Nothing in this repository has been published or deployed by the work below.
+The four npm packages were published in [v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
+on 2026-10-05 at `bf6587b`; the [publish workflow](https://github.com/UmutKorkmaz/re-shell/actions/runs/37273442085)
+succeeded. npm `latest` was checked on 2026-10-11. This establishes package publication;
+it does not establish Marketplace distribution, desktop signing or control-plane deployment.
 "Pending first CI run" means the workflow or template exists and was linted or run in part
 locally, but no hosted CI run has executed it yet. Every workflow has run and passed on
 GitHub on pull request [#395](https://github.com/UmutKorkmaz/re-shell/pull/395) (commit
@@ -191,10 +194,13 @@ Recorded so the decision stays explicit and is not silently re-introduced:
 Rationale: speculative and mission-divergent. The value proposition is a polyglot
 workspace plus microfrontend toolkit with a typed CLI-to-UI contract.
 
-## 6. Remaining items (external or credential-bound only)
+## 6. Remaining development and external verification
 
-Everything left depends on something outside this repository's development
-environment. None of it is claimed as done.
+The unreleased hardening candidate adds clean-install UI regression checks, desktop
+workspace selection/runtime recovery, pinned OIDC verification, persistent revocation,
+administration and HTTP metrics. See [development status](./DEVELOPMENT_STATUS.md)
+for current evidence and the remaining development and distribution gates. External
+dependencies below are not claimed as complete.
 
 | Item | Needs |
 |------|-------|
@@ -206,7 +212,7 @@ environment. None of it is claimed as done.
 | Redis and Kafka round-trip tests | Docker (they start containers and skip without it) |
 | Public hosting of the control plane | A deployment target, TLS and a security review |
 | WebRTC across symmetric NATs | A TURN server |
-| Hosted runs on `main` of `ci.yml`, `vscode-extension`, `k8s-live`, `iac-validate`, `desktop` (all pass on PR #395 at `3207b9f`) | A merge |
+| VS Code Marketplace publication | Publisher `umutkorkmaz` access and publishing credentials; opt-in `VS Code Extension` workflow on `main` after test and VSIX gates. The gallery returned no `umutkorkmaz.re-shell` listing on 2026-10-11. |
 | Catalog-wide template verification counts | Done in `STABILITY.md`: all 204 passing on hosted CI, the 4 infeasible templates removed |
 
 ## 7. Packages
@@ -218,7 +224,7 @@ environment. None of it is claimed as done.
 | mcp | `packages/mcp` | `@re-shell/mcp` | 0.2.0 | Stdio MCP server (read-only tools, resources, prompts) |
 | ui | `packages/ui` | `@re-shell/ui` | 0.6.0 | shadcn-React component library, Storybook 9 |
 | control-plane | `packages/control-plane` | `@re-shell/control-plane` | 0.1.0 (private) | Multi-tenant HTTP/SSE control plane, workers, collaboration |
-| web | `apps/web` | `@re-shell/dashboard` | 0.1.0 (private) | Dashboard (11 screens), hub-server, Tauri shell (`src-tauri`) |
+| web | `apps/web` | `@re-shell/dashboard` | 0.1.0 (private) | Dashboard (12 screens in the candidate), hub-server, Tauri shell (`src-tauri`) |
 | vscode-extension | `apps/vscode-extension` | `re-shell` | 0.3.0 (private) | VS Code extension |
 | site | `site` | `@re-shell/site` | 0.0.0 (private) | Documentation site (Astro Starlight) and the hosted workspace schema |
 

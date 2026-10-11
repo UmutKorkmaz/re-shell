@@ -8,9 +8,10 @@
  * from the repo's node_modules is on the resolution path. This script reproduces
  * that from a real packed tarball and exercises the installed result:
  *
- *   1. `pnpm pack` @re-shell/contracts, @re-shell/cli and @re-shell/mcp into a temp dir
+ *   1. `pnpm pack` contracts, ui, cli and mcp into a temp dir
  *      (the cli's `prepack` hook builds the dashboard bundle into the tarball).
- *   2. `npm install` the three tarballs into a FRESH directory outside the repo.
+ *   2. Install UI + contracts separately to check peer resolution and ESM/CJS/Vite.
+ *      `npm install` all four tarballs into a FRESH directory outside the repo.
  *   3. Run the installed binaries and assert on their real output:
  *        - `re-shell --version`            stdout is EXACTLY the package version
  *        - `re-shell --help`               exit 0
@@ -32,6 +33,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { verifyUiPackage } from '../packages/ui/scripts/pack-smoke.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const isWindows = process.platform === 'win32';
@@ -43,6 +45,7 @@ const KEEP = args.has('--keep') || process.env.PACK_SMOKE_KEEP === '1';
 /** Packages under test, in dependency order (contracts first). */
 const PACKAGES = [
   { name: '@re-shell/contracts', dir: 'packages/contracts' },
+  { name: '@re-shell/ui', dir: 'packages/ui' },
   { name: '@re-shell/cli', dir: 'packages/cli' },
   { name: '@re-shell/mcp', dir: 'packages/mcp' },
 ];
@@ -313,6 +316,14 @@ async function main() {
   const cliTarball = packed['@re-shell/cli'].tarball;
   const mcpTarball = packed['@re-shell/mcp'].tarball;
 
+  await check('packed UI clean install supports ESM, CommonJS and consuming Vite env', () =>
+    verifyUiPackage({
+      uiTarball: packed['@re-shell/ui'].tarball,
+      contractsTarball: packed['@re-shell/contracts'].tarball,
+      workDir,
+    })
+  );
+
   // ---- Tarball content checks (what npm would actually publish) -----------
   await check('cli tarball contains the dashboard bundle (dist/dashboard)', () => {
     const entries = listTarball(cliTarball);
@@ -363,7 +374,7 @@ async function main() {
     JSON.stringify({ name: 're-shell-pack-smoke-install', version: '0.0.0', private: true }, null, 2)
   );
   let installed = false;
-  await check('npm install of the three tarballs into a fresh directory', () => {
+  await check('npm install of the four tarballs into a fresh directory', () => {
     const tarballs = PACKAGES.map((pkg) => packed[pkg.name].tarball);
     runOrThrow('npm', ['install', '--no-audit', '--no-fund', '--loglevel=error', ...tarballs], {
       cwd: installDir,

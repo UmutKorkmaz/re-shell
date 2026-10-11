@@ -86,6 +86,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
+    "test:package": "node scripts/pack-smoke.mjs",
     "clean": "rm -rf dist",
     "shadcn": "shadcn",
     "prepack": "pnpm run build",
@@ -109,11 +110,6 @@
     "@tanstack/react-query": "^5.0.0",
     "react": "^18.2.0 || ^19.0.0",
     "react-dom": "^18.2.0 || ^19.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@tanstack/react-query": {
-      "optional": true
-    }
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

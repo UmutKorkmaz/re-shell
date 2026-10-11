@@ -9,3 +9,7 @@
 
 # Generated per CI run (signing overrides); never committed.
 /tauri.signing.conf.json
+
+# Verified runtime downloaded at build time (see scripts/prepare-node.mjs).
+/runtime/
+/binaries/
