@@ -14,7 +14,7 @@ describe('toScreenId', () => {
 
   it('falls back to DEFAULT_SCREEN for an unknown value', () => {
     expect(toScreenId('evil')).toBe(DEFAULT_SCREEN);
-    expect(toScreenId('admin')).toBe(DEFAULT_SCREEN);
+    expect(toScreenId('unsupported-screen')).toBe(DEFAULT_SCREEN);
     expect(toScreenId('')).toBe(DEFAULT_SCREEN);
   });
 
