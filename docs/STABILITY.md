@@ -1,14 +1,21 @@
 # Stability Work
 
-## October 12, 2026 release candidate
+## October 12, 2026 source verification
 
-CLI **0.32.0**, contracts **0.3.1**, UI **0.6.1** and MCP **0.3.0** are prepared
-for publication. No new-version npm or GitHub publication is claimed here. CLI and
+This record covers CLI **0.32.0**, contracts **0.3.1**, UI **0.6.1** and MCP **0.3.0**.
+Check [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) and the
+[npm CLI package](https://www.npmjs.com/package/@re-shell/cli) for publication status. CLI and
 MCP now require Node **22.13.0+**. Current evidence and remaining work are recorded
 in [development status](./DEVELOPMENT_STATUS.md): workspace build, 11/11 fresh packed
 checks and 380 control-plane tests in 30 files pass. Browser S256 PKCE is verified
 in a real browser against a local protocol fixture; Docker API/worker staging passes.
 Live external IdP, cloud-account and LLM checks remain incomplete.
+
+The release build measures 44.6 KiB gzip for the app-entry chunks and 144.3 KiB
+for entry plus initial vendors. Browser sign-in and updated schema/UI dependencies
+raise the previous limits: entry 44 → 46 KiB, initial total 138 → 148 KiB, Radix
+17 → 18 KiB (measured 17.3) and Zod 22 → 28 KiB (measured 26.7). These are
+explicit release budget changes; the size checks remain enforced.
 
 Dependency updates reduce the production workspace audit from 80 findings to zero.
 A fresh packed npm consumer still reports six moderate findings attributable to
@@ -257,7 +264,7 @@ The catalog is now 204 templates across 35 languages (Roc has no remaining templ
 
 ## What remains, and why it is external
 
-The October 12 candidate implements clean-install UI root-import checks, desktop
+The October 12 release contents include clean-install UI root-import checks, desktop
 usability, pinned external identity and browser S256 PKCE, revocation and administration. Its verification and remaining
 development are recorded in [development status](./DEVELOPMENT_STATUS.md). The
 external prerequisites below remain separate.

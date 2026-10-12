@@ -4,12 +4,12 @@
     {
       "name": "initial JS: app entry",
       "match": "assets/index-*.js",
-      "maxGzipBytes": 45056
+      "maxGzipBytes": 47104
     },
     {
       "name": "initial JS: entry + vendor chunks loaded on first paint",
       "match": "assets/{index,vendor-react,vendor-query,vendor-radix,vendor-zod}-*.js",
-      "maxGzipBytes": 141312
+      "maxGzipBytes": 151552
     },
     {
       "name": "vendor-react",
@@ -24,12 +24,12 @@
     {
       "name": "vendor-radix",
       "match": "assets/vendor-radix-*.js",
-      "maxGzipBytes": 17408
+      "maxGzipBytes": 18432
     },
     {
       "name": "vendor-zod",
       "match": "assets/vendor-zod-*.js",
-      "maxGzipBytes": 22528
+      "maxGzipBytes": 28672
     },
     {
       "name": "React Flow (Workspace Graph only)",

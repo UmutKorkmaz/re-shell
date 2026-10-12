@@ -1,10 +1,11 @@
-# October 12, 2026 hardening release candidate
+# October 12, 2026 hardening source verification
 
-The prepared npm versions are CLI **0.32.0**, contracts **0.3.1**, MCP **0.3.0**
-and UI **0.6.1**. GitHub and npm publication are pending; local version changes
-are not publication proof. The previous published release is CLI 0.31.0,
-contracts 0.3.0, MCP 0.2.0 and UI 0.6.0, released October 5, 2026.
-The candidate changes are not contained in those older artifacts.
+This record covers CLI **0.32.0**, contracts **0.3.1**, MCP **0.3.0** and UI **0.6.1**.
+Check [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) and the
+[npm CLI package](https://www.npmjs.com/package/@re-shell/cli) for publication status;
+local source and version checks are not publication proof. The October 5, 2026
+release contained CLI 0.31.0, contracts 0.3.0, MCP 0.2.0 and UI 0.6.0.
+The changes verified here are not contained in those older artifacts.
 
 CLI and MCP now require **Node.js 22.13.0+**. The control plane uses `node:sqlite`
 and needs the same floor. Full workspace builds and typechecks pass; the fresh
@@ -12,8 +13,8 @@ four-tarball release smoke passes **11/11** checks outside the monorepo.
 
 | Work | Implemented | Verification and remaining gates |
 |---|---|---|
-| UI package imports | Safe Vite environment reads, required React Query peer, packed ESM/CommonJS/hooks/SSR and consuming-Vite regression smoke | 318 UI tests and all 11 clean-package checks pass, including installed CLI/dashboard resolution and the nine-tool MCP handshake. Publish UI 0.6.1 to distribute the fixes. |
-| Release documentation | Candidate versions, historical publication and explicit distribution boundaries | Documentation command, generated-contract and site-link checks; historical CI links describe their exact older commits. New-version publication remains pending. |
+| UI package imports | Safe Vite environment reads, required React Query peer, packed ESM/CommonJS/hooks/SSR and consuming-Vite regression smoke | 318 UI tests and all 11 clean-package checks pass, including installed CLI/dashboard resolution and the nine-tool MCP handshake. The fixes belong to UI 0.6.1; check npm for distribution status. |
+| Release documentation | Release contents, historical publication and explicit distribution boundaries | Documentation command, generated-contract and site-link checks; historical CI links describe their exact older commits. Publication status is recorded by GitHub releases and npm. |
 | Desktop | Workspace picker, packaged Node runtime, hub recovery and opt-in updater | Native macOS picker cancellation, persisted workspace switch, hub crash/banner/restart recovery and unconfigured-updater sheet verified. Independent Rust review, check, strict clippy, formatting and 42 tests pass. Signed distribution and installed Windows/Linux verification remain. |
 | Hosted identity and browser sign-in | Pinned RS256 JWKS, issuer/audience/time validation, database-owned roles, atomic key reload, durable token revocation and public-client authorization code with S256 PKCE | All 380 control-plane tests in 30 files pass. Actual browser sign-in and local HTTP code/PKCE exchange, replay rejection, JWT verification and SQLite membership pass. Live external IdP compatibility, provider refresh and logout remain unverified. |
 | Administration and metrics | Tenant/member/policy/audit UI, platform-admin metrics and request correlation | Real Node API/browser checks at desktop/tablet/mobile sizes and last-admin protection. Distributed tracing remains. |
@@ -62,4 +63,4 @@ signing requires a Developer ID Application identity/notarization credentials fo
 macOS, Windows signing credentials and the updater signing key. The available
 Apple Development/Distribution identities are not public macOS Developer ID
 signing identities. No signed desktop release has been produced. GitHub/npm
-publication of the four candidate packages remains an independent final step.
+publication status of the four packages is recorded by their release and registry entries.

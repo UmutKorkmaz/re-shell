@@ -12,9 +12,10 @@ built on top of it. The npm packages are published under the `@re-shell/*` scope
 Documentation site: <https://umutkorkmaz.github.io/re-shell/>. Repository docs:
 [`docs/README.md`](./docs/README.md).
 
-> **October 12 release candidate.** This tree prepares CLI **0.32.0**, contracts
-> **0.3.1**, MCP **0.3.0** and UI **0.6.1**. Publication is pending; version changes
-> and local checks are not npm or GitHub publication proof.
+> **v0.32.0 release contents.** This tree contains CLI **0.32.0**, contracts
+> **0.3.1**, MCP **0.3.0** and UI **0.6.1**. Check
+> [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) and the
+> [npm CLI registry](https://www.npmjs.com/package/@re-shell/cli) for publication status.
 > The previous [v0.31.0 release](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
 > was published on October 5, 2026 (CLI 0.31.0, contracts 0.3.0, MCP 0.2.0, UI 0.6.0).
 > See [`docs/DEVELOPMENT_STATUS.md`](./docs/DEVELOPMENT_STATUS.md) for current evidence.
@@ -41,7 +42,7 @@ Documentation site: <https://umutkorkmaz.github.io/re-shell/>. Repository docs:
 ## Quickstart
 
 The CLI, dashboard hub, MCP server and control plane require **Node.js 22.13.0 or newer**
-in this candidate. The previously published CLI 0.31.0 had a lower declared Node floor.
+in this release. The previously published CLI 0.31.0 had a lower declared Node floor.
 
 ```bash
 # Install workspace dependencies (pinned pnpm)
@@ -53,7 +54,7 @@ npx pnpm@9.15.9 -r build
 # Run the CLI from the built workspace package
 node packages/cli/dist/index.js --help
 
-# ...or use the published CLI globally (0.31.0)
+# ...or install the latest published CLI globally (see npm for the current version)
 npm install -g @re-shell/cli
 re-shell --help
 
@@ -126,9 +127,9 @@ The CLI is released under the Apache-2.0 License; the other packages (contracts,
 UI, control plane, dashboard, VS Code extension) are MIT. See each package's metadata
 and the [LICENSE](./LICENSE) file.
 
-### October 12 hardening release candidate
+### v0.32.0 hardening changes
 
-The candidate adds Node-safe UI root imports, an Administration dashboard,
+This release includes Node-safe UI root imports, an Administration dashboard,
 pinned-JWKS bearer identity, browser authorization-code sign-in with S256 PKCE,
 persistent token revocation, HTTP metrics, native desktop workspace selection/recovery,
 bundled Node and an opt-in signed updater. Fresh workspace builds and all 11

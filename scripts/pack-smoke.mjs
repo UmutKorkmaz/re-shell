@@ -29,7 +29,7 @@
  *     --keep      keep the temp directory (it is always kept when a check fails)
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -452,9 +452,9 @@ async function main() {
         throw new Error(`stdout is not JSON (${error.message}): ${JSON.stringify(result.stdout.slice(0, 200))}`);
       }
       assert(plan.mode === 'static', `expected mode "static" (bundled dashboard), got "${plan.mode}"`);
-      const dashboardDir = path.resolve(plan.dashboardDir ?? '');
+      const dashboardDir = realpathSync(plan.dashboardDir ?? '');
       assert(
-        dashboardDir.startsWith(path.resolve(installedCli) + path.sep),
+        dashboardDir.startsWith(realpathSync(installedCli) + path.sep),
         `dashboardDir ${plan.dashboardDir} is not inside the installed @re-shell/cli (${installedCli})`
       );
       assert(existsSync(path.join(dashboardDir, 'index.html')), `${dashboardDir}/index.html does not exist`);

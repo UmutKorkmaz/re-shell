@@ -15,8 +15,8 @@
 
 | Fact | Value | Checked with |
 |------|-------|--------------|
-| `@re-shell/cli` | `0.32.0` (2026-10-12 candidate; publication pending) | `packages/cli/package.json`, `node packages/cli/dist/index.js --version` |
-| `@re-shell/contracts` / `@re-shell/mcp` / `@re-shell/ui` | `0.3.1` / `0.3.0` / `0.6.1` (candidate; publication pending) | each `package.json`; previous published versions were `0.3.0` / `0.2.0` / `0.6.0` |
+| `@re-shell/cli` | `0.32.0` (release contents) | `packages/cli/package.json`, `node packages/cli/dist/index.js --version` |
+| `@re-shell/contracts` / `@re-shell/mcp` / `@re-shell/ui` | `0.3.1` / `0.3.0` / `0.6.1` (release contents) | each `package.json`; previous published versions were `0.3.0` / `0.2.0` / `0.6.0` |
 | Not published | `@re-shell/control-plane` `0.1.0` (private), `@re-shell/dashboard` `0.1.0` (private), VS Code extension `re-shell` `0.3.0` (private, `.vsix` only) | `package.json` `private: true` |
 | Registered CLI commands | **585** command paths in **46** top-level commands | `commands list --json` (`.data.length`) |
 | Backend templates | **204** across **35** languages | `templates list --json` (`.data.length`, distinct `language`) |
@@ -32,7 +32,7 @@ locally, but no hosted CI run has executed it yet. Every workflow has run and pa
 GitHub on pull request [#395](https://github.com/UmutKorkmaz/re-shell/pull/395) (commit
 `3a06508`), including all 19 jobs of `template-health` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)).
 
-## October 12 candidate verification
+## October 12 source verification
 
 Current hardening evidence is in [development status](./DEVELOPMENT_STATUS.md):
 workspace build and 11/11 fresh package checks pass; the control plane passes 380
@@ -44,7 +44,10 @@ still reports six moderate findings from one upstream UUID advisory, and the
 31 development-tool findings remain unresolved.
 
 The feature tables retain older source/CI evidence where stated. They do not claim
-that the newly changed candidate has already passed all hosted CI or been published.
+that these source changes have already passed all hosted CI or been published.
+
+For current publication status, see [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases)
+and the [npm CLI package](https://www.npmjs.com/package/@re-shell/cli).
 
 ## Status legend
 
@@ -210,7 +213,7 @@ workspace plus microfrontend toolkit with a typed CLI-to-UI contract.
 
 ## 6. Remaining development and external verification
 
-The unreleased hardening candidate adds clean-install UI regression checks, desktop
+The v0.32.0 release contents include clean-install UI regression checks, desktop
 workspace selection/runtime recovery, pinned OIDC verification and browser S256 PKCE,
 persistent revocation, administration and HTTP metrics. See [development status](./DEVELOPMENT_STATUS.md)
 for current evidence and the remaining development and distribution gates. External
@@ -233,12 +236,12 @@ dependencies below are not claimed as complete.
 
 | Package | Location | Name | Version | Role |
 |---------|----------|------|---------|------|
-| cli | `packages/cli` | `@re-shell/cli` | 0.32.0 (candidate) | The published CLI, templates, hub launcher, bundled dashboard |
-| contracts | `packages/contracts` | `@re-shell/contracts` | 0.3.1 (candidate) | zod schemas: wire layer, adapters, domain models, hub transport, command registry, OT, graph, theme/white-label |
-| mcp | `packages/mcp` | `@re-shell/mcp` | 0.3.0 (candidate) | Stdio MCP server (read-only tools, resources, prompts) |
-| ui | `packages/ui` | `@re-shell/ui` | 0.6.1 (candidate) | shadcn-React component library, Storybook 9 |
+| cli | `packages/cli` | `@re-shell/cli` | 0.32.0 | The published CLI, templates, hub launcher, bundled dashboard |
+| contracts | `packages/contracts` | `@re-shell/contracts` | 0.3.1 | zod schemas: wire layer, adapters, domain models, hub transport, command registry, OT, graph, theme/white-label |
+| mcp | `packages/mcp` | `@re-shell/mcp` | 0.3.0 | Stdio MCP server (read-only tools, resources, prompts) |
+| ui | `packages/ui` | `@re-shell/ui` | 0.6.1 | shadcn-React component library, Storybook 9 |
 | control-plane | `packages/control-plane` | `@re-shell/control-plane` | 0.1.0 (private) | Multi-tenant HTTP/SSE control plane, workers, collaboration |
-| web | `apps/web` | `@re-shell/dashboard` | 0.1.0 (private) | Dashboard (12 screens in the candidate), hub-server, Tauri shell (`src-tauri`) |
+| web | `apps/web` | `@re-shell/dashboard` | 0.1.0 (private) | Dashboard (12 screens in this release), hub-server, Tauri shell (`src-tauri`) |
 | vscode-extension | `apps/vscode-extension` | `re-shell` | 0.3.0 (private) | VS Code extension |
 | site | `site` | `@re-shell/site` | 0.0.0 (private) | Documentation site (Astro Starlight) and the hosted workspace schema |
 
