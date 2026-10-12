@@ -61,3 +61,6 @@ export {
 } from './worker/containment.js';
 export { parseSse, openSseStream, SseHttpError } from './sse-client.js';
 export type { SseMessage } from './sse-client.js';
+
+export { oidcUserId, verifyOidcToken, OidcJwks } from './oidc.js';
+export type { OidcOptions } from './oidc.js';

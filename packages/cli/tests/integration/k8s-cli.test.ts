@@ -131,18 +131,30 @@ describe('k8s commands (built CLI)', () => {
   });
 
   it('k8s rollback without a reachable cluster exits non-zero with ok:false (never a fake success)', () => {
-    const { stdout, status } = runCli(
-      ['k8s', 'rollback', 'api', '--json', '--timeout', '5'],
-      FIXTURE,
-      { KUBECONFIG: path.join(os.tmpdir(), 'nonexistent-kubeconfig-for-test') }
-    );
-    expect(status).toBe(1);
-    const env = parseSingleLine(stdout);
-    expect(jsonResponseSchema(k8sRollbackResponseSchema).safeParse(env).success).toBe(true);
-    const error = (env as { ok: boolean; error: { code: string; details: { reason: string } } });
-    expect(error.ok).toBe(false);
-    expect(error.error.code).toBe('K8S_ROLLBACK_ERROR');
-    expect(['TOOL_MISSING', 'CLUSTER_UNREACHABLE', 'COMMAND_FAILED']).toContain(error.error.details.reason);
+    const isolated = fs.mkdtempSync(path.join(os.tmpdir(), 'rs-k8s-unreachable-'));
+    const kubeconfig = path.join(isolated, 'config.json');
+    fs.writeFileSync(kubeconfig, JSON.stringify({
+      apiVersion: 'v1', kind: 'Config',
+      clusters: [{ name: 'unreachable', cluster: { server: 'http://127.0.0.1:1' } }],
+      contexts: [{ name: 'unreachable', context: { cluster: 'unreachable', user: 'test' } }],
+      'current-context': 'unreachable', users: [{ name: 'test', user: {} }],
+    }));
+    try {
+      const { stdout, status } = runCli(
+        ['k8s', 'rollback', 'api', '--json', '--timeout', '5'],
+        FIXTURE,
+        { KUBECONFIG: kubeconfig }
+      );
+      expect(status).toBe(1);
+      const env = parseSingleLine(stdout);
+      expect(jsonResponseSchema(k8sRollbackResponseSchema).safeParse(env).success).toBe(true);
+      const error = (env as { ok: boolean; error: { code: string; details: { reason: string } } });
+      expect(error.ok).toBe(false);
+      expect(error.error.code).toBe('K8S_ROLLBACK_ERROR');
+      expect(['TOOL_MISSING', 'CLUSTER_UNREACHABLE', 'COMMAND_FAILED']).toContain(error.error.details.reason);
+    } finally {
+      fs.rmSync(isolated, { recursive: true, force: true });
+    }
   });
 
   it('k8s rollback validates its arguments (INVALID_ARGUMENT, exit 1)', () => {

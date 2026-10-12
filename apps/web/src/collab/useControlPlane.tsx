@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { ControlPlaneClient, ControlPlaneError } from '@re-shell/contracts';
+import { beginSso, completeSso, isSsoCallback, cleanSsoCallbackUrl } from './browser-sso';
 
 import {
   checkControlPlaneUrl,
@@ -13,11 +14,13 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
 
 export interface Identity {
   userId: string;
+  platformAdmin?: boolean;
   tenants: Array<{ tenantId: string; role: string }>;
 }
 
 interface ControlPlaneContextValue {
   settings: ConnectionSettings;
+  tokenInMemory: boolean;
   updateSettings: (patch: Partial<ConnectionSettings>) => void;
   status: ConnectionStatus;
   error: string | null;
@@ -29,6 +32,7 @@ interface ControlPlaneContextValue {
   /** Non-null once connected. */
   client: ControlPlaneClient | null;
   connect: () => Promise<void>;
+  signIn: () => Promise<void>;
   /** Drop the live connection (stored settings stay). */
   disconnect: () => void;
   /** Disconnect AND erase the stored token. */
@@ -43,6 +47,8 @@ export interface ControlPlaneProviderProps {
   fetchImpl?: typeof fetch;
   /** Connect immediately with the stored settings when they are complete. */
   autoConnect?: boolean;
+  /** Administration can connect a platform operator before the first tenant exists. */
+  allowTenantlessPlatformAdmin?: boolean;
 }
 
 function describe(error: unknown): string {
@@ -58,6 +64,7 @@ export function ControlPlaneProvider({
   children,
   fetchImpl,
   autoConnect = true,
+  allowTenantlessPlatformAdmin = false,
 }: ControlPlaneProviderProps): React.ReactElement {
   const [settings, setSettings] = React.useState<ConnectionSettings>(() => loadConnectionSettings());
   const [status, setStatus] = React.useState<ConnectionStatus>('disconnected');
@@ -67,11 +74,17 @@ export function ControlPlaneProvider({
   const [client, setClient] = React.useState<ControlPlaneClient | null>(null);
   const [tenantId, setTenantId] = React.useState<string | null>(null);
   const attempt = React.useRef(0);
+  const volatileSsoToken = React.useRef<string | null>(null);
 
   const updateSettings = React.useCallback((patch: Partial<ConnectionSettings>): void => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
-      saveConnectionSettings(next);
+      // A prior manual Remember choice is not consent to persist a newly issued SSO credential.
+      if (patch.token !== undefined || patch.rememberToken === true) volatileSsoToken.current = null;
+      if (volatileSsoToken.current !== null && next.token === volatileSsoToken.current) {
+        const stored = loadConnectionSettings();
+        saveConnectionSettings({ ...next, token: stored.token, rememberToken: stored.rememberToken });
+      } else saveConnectionSettings(next);
       return next;
     });
   }, []);
@@ -85,29 +98,30 @@ export function ControlPlaneProvider({
     setError(null);
   }, []);
 
-  const connect = React.useCallback(async (): Promise<void> => {
+  const connectWithSettings = React.useCallback(async (connection: ConnectionSettings): Promise<void> => {
     const mine = ++attempt.current;
     setError(null);
-    const url = checkControlPlaneUrl(settings.url);
+    const url = checkControlPlaneUrl(connection.url);
     if (!url.ok) {
       setStatus('error');
       setError(url.message);
       return;
     }
-    if (settings.token.trim() === '') {
+    if (connection.token.trim() === '') {
       setStatus('error');
       setError('Enter a bearer token.');
       return;
     }
     setWarning(url.warning ?? null);
     setStatus('connecting');
-    const next = new ControlPlaneClient({ baseUrl: url.url, token: settings.token.trim(), fetch: fetchImpl });
+    const next = new ControlPlaneClient({ baseUrl: url.url, token: connection.token.trim(), fetch: fetchImpl });
     try {
-      const me = await next.me();
+      const me: Identity = await next.me();
       if (attempt.current !== mine) return;
-      let tenant = settings.tenant.trim();
+      let tenant = connection.tenant.trim();
       if (tenant === '') {
-        if (me.tenants.length === 1) tenant = me.tenants[0].tenantId;
+        if (allowTenantlessPlatformAdmin && me.platformAdmin === true && me.tenants.length === 0) tenant = '';
+        else if (me.tenants.length === 1) tenant = me.tenants[0].tenantId;
         else {
           throw new Error(
             me.tenants.length === 0
@@ -116,11 +130,11 @@ export function ControlPlaneProvider({
           );
         }
       }
-      if (!me.tenants.some((t) => t.tenantId === tenant)) {
+      if (!(tenant === '' && allowTenantlessPlatformAdmin && me.platformAdmin === true) && !me.tenants.some((t) => t.tenantId === tenant)) {
         throw new Error(`This token is not a member of tenant "${tenant}".`);
       }
       setIdentity(me);
-      setTenantId(tenant);
+      setTenantId(tenant || null);
       setClient(next);
       setStatus('connected');
     } catch (cause) {
@@ -131,22 +145,66 @@ export function ControlPlaneProvider({
       setStatus('error');
       setError(describe(cause));
     }
-  }, [settings.url, settings.token, settings.tenant, fetchImpl]);
+  }, [fetchImpl, allowTenantlessPlatformAdmin]);
+
+  const connect = React.useCallback(() => connectWithSettings(settings), [connectWithSettings, settings]);
+  const signInBusy = React.useRef(false);
+  const signIn = React.useCallback(async (): Promise<void> => {
+    if (signInBusy.current) return;
+    signInBusy.current = true;
+    setError(null);
+    setStatus('connecting');
+    try {
+      if (volatileSsoToken.current === null) saveConnectionSettings(settings);
+      else {
+        const stored = loadConnectionSettings();
+        saveConnectionSettings({ ...settings, token: stored.token, rememberToken: stored.rememberToken });
+      }
+      const destination = await beginSso({ controlPlaneUrl: settings.url, href: window.location.href,
+        storage: window.sessionStorage, fetchImpl });
+      window.location.assign(destination);
+    } catch (cause) {
+      setStatus('error');
+      setError(describe(cause));
+    } finally { signInBusy.current = false; }
+  }, [settings, fetchImpl]);
 
   const autoRan = React.useRef(false);
   React.useEffect(() => {
-    if (autoRan.current || !autoConnect) return;
+    if (autoRan.current) return;
     autoRan.current = true;
-    if (settings.url.trim() !== '' && settings.token.trim() !== '') {
-      void connect();
+    if (isSsoCallback(window.location.href)) {
+      const callbackHref = window.location.href;
+      // Clear response parameters before even accessing storage: its getter may throw.
+      window.history.replaceState(null, '', cleanSsoCallbackUrl(callbackHref));
+      const mine = ++attempt.current;
+      setStatus('connecting');
+      void (async () => completeSso({ controlPlaneUrl: settings.url, href: callbackHref, storage: window.sessionStorage,
+        replaceUrl: (url) => window.history.replaceState(null, '', url), fetchImpl }))().then(async (result) => {
+          if (attempt.current !== mine) return;
+          // Sign-in itself keeps the access token in memory. Remembering remains an explicit user choice.
+          const next = { ...settings, token: result.accessToken, rememberToken: false };
+          volatileSsoToken.current = result.accessToken;
+          setSettings(next);
+          await connectWithSettings(next);
+        }).catch((cause: unknown) => {
+          if (attempt.current !== mine) return;
+          setStatus('error');
+          setError(describe(cause));
+        });
+      return;
     }
-  }, [autoConnect, connect, settings.url, settings.token]);
+    if (autoConnect && settings.url.trim() !== '' && settings.token.trim() !== '') void connect();
+  }, [autoConnect, connect, connectWithSettings, fetchImpl, settings]);
 
   const role = identity && tenantId ? (identity.tenants.find((t) => t.tenantId === tenantId)?.role ?? null) : null;
+
+  const tokenInMemory = volatileSsoToken.current !== null && settings.token === volatileSsoToken.current;
 
   const value = React.useMemo<ControlPlaneContextValue>(
     () => ({
       settings,
+      tokenInMemory,
       updateSettings,
       status,
       error,
@@ -156,6 +214,7 @@ export function ControlPlaneProvider({
       role,
       client,
       connect,
+      signIn,
       disconnect,
       forgetToken: () => {
         clearConnectionToken();
@@ -163,7 +222,7 @@ export function ControlPlaneProvider({
         disconnect();
       },
     }),
-    [settings, updateSettings, status, error, warning, identity, tenantId, role, client, connect, disconnect]
+    [settings, tokenInMemory, updateSettings, status, error, warning, identity, tenantId, role, client, connect, signIn, disconnect]
   );
 
   return <ControlPlaneContext.Provider value={value}>{children}</ControlPlaneContext.Provider>;

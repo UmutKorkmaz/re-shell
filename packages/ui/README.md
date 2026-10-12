@@ -5,8 +5,10 @@ UI system** for the monorepo — `apps/web` consumes it instead of building a pa
 component layer. There is no Web Components surface.
 
 > Part of the [Re-Shell monorepo](https://github.com/UmutKorkmaz/re-shell). See
-> [`/docs`](../../docs) for the documentation index. Version in this tree: **0.6.0**
-> (published: 0.5.0).
+> [`/docs`](../../docs) for the documentation index. Version in this tree: **0.6.1**
+> (October 12, 2026 release contents). Check the
+> [npm package](https://www.npmjs.com/package/@re-shell/ui) for publication status.
+> The October 5 release was **0.6.0**.
 
 ## Install
 
@@ -14,9 +16,10 @@ component layer. There is no Web Components surface.
 pnpm add @re-shell/ui
 ```
 
-Peer dependencies: `react` and `react-dom` (`^18.2.0 || ^19.0.0`).
-`@tanstack/react-query` (`^5`) is an **optional** peer — only required if you use the
-hub data hooks (`useHubQuery`, `useJob`).
+Peer dependencies: `react` and `react-dom` (`^18.2.0 || ^19.0.0`), and
+`@tanstack/react-query` (`^5`). React Query is required because the root and hooks
+entries export `useHubQuery`. npm installs these peers automatically; package
+managers configured to skip peer installation must add them explicitly.
 
 ## Usage
 
@@ -36,6 +39,12 @@ import { Button } from '@re-shell/ui/components/ui/button';
 import { Box, Stack, Text } from '@re-shell/ui/components/primitives';
 import { px, rem } from '@re-shell/ui/lib';
 ```
+
+Root, hooks and component entry points are verified from a fresh tarball install in
+ESM and CommonJS consumers, an SSR render and a consuming Vite build. Version 0.6.1
+handles missing `import.meta.env` in plain Node without losing Vite environment values.
+These fixes and the required React Query peer declaration are part of 0.6.1;
+they are not contained in the October 5 release of 0.6.0.
 
 ## Exports
 
@@ -172,6 +181,7 @@ pnpm --filter @re-shell/ui build
 pnpm --filter @re-shell/ui typecheck
 pnpm --filter @re-shell/ui dev        # vite build --watch
 pnpm --filter @re-shell/ui test       # unit + a11y + type-level tests
+pnpm --filter @re-shell/ui test:package # fresh tarball install, ESM/CJS + Vite env checks
 pnpm --filter @re-shell/ui budget     # size budgets + tree-shake probes (after build)
 pnpm --filter @re-shell/ui tokens:fallback  # regenerate the OKLCH-less hex fallback
 pnpm --filter @re-shell/ui shadcn     # shadcn CLI

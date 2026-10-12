@@ -30,9 +30,11 @@
   },
   "dependencies": {
     "@re-shell/contracts": "workspace:*",
+    "jsonwebtoken": "^9.0.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.13.0",
     "@vitest/coverage-v8": "^2.1.0",
     "typescript": "^5.0.0",

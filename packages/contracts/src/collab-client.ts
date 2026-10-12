@@ -127,7 +127,7 @@ export class ControlPlaneClient {
     );
   }
 
-  me(): Promise<{ userId: string; tenants: Array<{ tenantId: string; role: string }> }> {
+  me(): Promise<{ userId: string; platformAdmin?: boolean; tenants: Array<{ tenantId: string; role: string }> }> {
     return this.call('GET', '/me');
   }
 

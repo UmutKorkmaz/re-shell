@@ -214,3 +214,29 @@ The `VS Code Extension` GitHub Actions workflow
 (`.github/workflows/vscode-extension.yml`) runs the build, unit tests,
 integration tests and the host tests under `xvfb-run -a`, then packages the
 `.vsix` and uploads it as the `re-shell-vscode-extension` artifact.
+
+## Marketplace release
+
+The public Marketplace gallery returned no `umutkorkmaz.re-shell` listing on
+October 11, 2026. Packaging and editor tests do not establish publication.
+The npm `NPM_TOKEN` cannot publish a VS Code extension.
+
+1. Confirm access to the `umutkorkmaz` publisher in
+   [Marketplace publisher management](https://marketplace.visualstudio.com/manage/publishers/).
+2. Configure `VSCE_PAT` as a GitHub Actions secret for that publisher, with the
+   Marketplace **Manage** scope. Keep the value out of files and workflow inputs.
+   See the [official publishing guide](https://code.visualstudio.com/api/working-with-extensions/publishing-extension).
+   Microsoft recommends Entra ID with workload identity federation; global Azure
+   DevOps PATs retire on December 1, 2026. The current workflow uses `VSCE_PAT`, so
+   migrate its authentication before that deadline.
+3. Configure the `vscode-marketplace` GitHub environment for `main` and any
+   release approvals your team requires.
+4. Run **VS Code Extension** on `main` with **publish** checked. Ordinary pushes,
+   pull requests and manual runs with the default input only test and package.
+   The publication job waits for unit, integration and real editor-host tests,
+   downloads their packaged VSIX and verifies it again before publishing that
+   exact artifact. It then checks the public Marketplace version.
+
+The extension has its own version (`0.3.0`), independent of CLI `0.31.0`.
+If that extension version is already published, choose a new extension version
+before another publication; do not replace a published version.

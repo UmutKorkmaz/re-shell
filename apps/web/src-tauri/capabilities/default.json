@@ -2,6 +2,6 @@
   "$schema": "https://schema.tauri.app/capability/2",
   "identifier": "default",
   "description": "Minimal capability set for the Re-Shell desktop window. Only core window APIs are enabled; the dashboard reaches the local hub over HTTP/WS the same way it does in the browser.",
-  "windows": ["main"],
+  "windows": ["main", "main-recovery-*"],
   "permissions": ["core:default"]
 }

@@ -417,6 +417,9 @@ export interface ProcInfo {
 }
 
 const HAS_PROC = !IS_WINDOWS && fs.existsSync('/proc/self/stat');
+// macOS has no /proc fallback. Inspect with the trusted system utility even
+// when a service deliberately restricts PATH (for example, a node-only runtime).
+const PS_COMMAND = process.platform === 'darwin' ? '/bin/ps' : 'ps';
 let cachedBootId: string | undefined;
 
 function bootId(): string {
@@ -449,7 +452,7 @@ export function parseProcStat(content: string): ProcInfo | null {
 }
 
 function readProcInfoViaPs(pid: number): ProcInfo | null {
-  const result = spawnSync('ps', ['-o', 'pid=,ppid=,pgid=,stat=,lstart=', '-p', String(pid)], {
+  const result = spawnSync(PS_COMMAND, ['-o', 'pid=,ppid=,pgid=,stat=,lstart=', '-p', String(pid)], {
     encoding: 'utf8',
     env: { ...process.env, LC_ALL: 'C' },
   });
@@ -500,7 +503,7 @@ export function listGroupMembers(pgid: number): number[] {
     return members;
   }
 
-  const result = spawnSync('ps', ['-A', '-o', 'pid=,pgid=,stat='], {
+  const result = spawnSync(PS_COMMAND, ['-A', '-o', 'pid=,pgid=,stat='], {
     encoding: 'utf8',
     env: { ...process.env, LC_ALL: 'C' },
   });

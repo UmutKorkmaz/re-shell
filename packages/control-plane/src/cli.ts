@@ -5,20 +5,26 @@ import { ControlPlaneResult, fail, ok } from './errors.js';
 import {
   Env,
   loadKeyRing,
+  loadOidcConfig,
+  reloadOidcJwks,
   loadServeConfig,
   loadWorkerToken,
   reloadKeyRing,
 } from './config.js';
 import { migrate } from './db/migrations.js';
 import { SqliteTenantStore } from './db/sqlite-store.js';
-import { openDatabase } from './db/sqlite.js';
+import { SqliteTokenRevocations } from './db/sqlite-revocations.js';
+import { SqliteAuditLog } from './db/sqlite-audit.js';
+import { openDatabase, transaction } from './db/sqlite.js';
 import {
   USER_TOKEN_DEFAULT_TTL,
   WORKER_TOKEN_DEFAULT_TTL,
   issueUserToken,
   issueWorkerToken,
 } from './identity.js';
-import { generateSecret } from './jwt.js';
+import { generateSecret, verifyJwt } from './jwt.js';
+import { DEFAULT_ISSUER, DEFAULT_AUDIENCE } from './identity.js';
+import { verifyOidcToken } from './oidc.js';
 import { startRuntime } from './runtime.js';
 import { roleSchema } from './auth.js';
 import { idSchema } from './tenant.js';
@@ -116,6 +122,8 @@ Commands:
       --kid <id>              Key id (default: key-<date>)
       --raw                   Print only the key file JSON
   migrate                     Apply database migrations (CONTROL_PLANE_DB)
+  revoke-token --token-file <file>
+                              Revoke one verified user or worker token (same DB as serve)
 `;
 
 function print(io: CliIo, result: ControlPlaneResult<unknown>): number {
@@ -176,7 +184,7 @@ function cmdIssueToken(parsed: Parsed, io: CliIo): number {
     io.stderr(`${keyRing.error.message}\n`);
     return print(io, keyRing);
   }
-  const identity = { keyRing: keyRing.data };
+  const identity = { keyRing: keyRing.data, issuer: io.env.CONTROL_PLANE_JWT_ISSUER ?? DEFAULT_ISSUER, audience: io.env.CONTROL_PLANE_JWT_AUDIENCE ?? DEFAULT_AUDIENCE };
   const raw = parsed.flags.get('raw') === true;
   const emit = (data: Record<string, unknown>, token: string, warnings: string[] = []): number => {
     if (raw) {
@@ -243,6 +251,53 @@ function cmdIssueToken(parsed: Parsed, io: CliIo): number {
   }
 }
 
+function cmdRevokeToken(parsed: Parsed, io: CliIo): number {
+  if (parsed.flags.has('token') || parsed.flags.has('secret')) {
+    return configFail(io, 'Secrets are never accepted as flags; use --token-file.');
+  }
+  const file = str(parsed, 'token-file');
+  if (!file) return configFail(io, 'Revocation requires --token-file <file>.');
+  const ring = loadKeyRing(io.env);
+  if (!ring.ok) return print(io, ring);
+  try {
+    if (fs.statSync(file).size > 16_384) return configFail(io, 'Invalid token file.');
+    const token = fs.readFileSync(file, 'utf8').trim();
+    const now = Date.now();
+    const verified = verifyJwt(token, ring.data, {
+      issuer: io.env.CONTROL_PLANE_JWT_ISSUER ?? DEFAULT_ISSUER,
+      audience: io.env.CONTROL_PLANE_JWT_AUDIENCE ?? DEFAULT_AUDIENCE,
+      now,
+    });
+    let revocation: { issuer: string; id: string; expiresAt: number; kind: string; subject: string; tenantId: string | null };
+    if (verified.ok) {
+      revocation = { issuer: verified.claims.iss, id: verified.claims.jti, expiresAt: verified.claims.exp * 1000,
+        kind: verified.claims.kind, subject: verified.claims.sub, tenantId: verified.claims.ten ?? null };
+    } else {
+      const oidc = loadOidcConfig(io.env);
+      if (!oidc.ok) return print(io, oidc);
+      const external = oidc.data ? verifyOidcToken(token, oidc.data, now) : undefined;
+      if (!external) return print(io, fail('UNAUTHENTICATED', 'Invalid bearer token.'));
+      revocation = { issuer: external.issuer, id: external.revocationId, expiresAt: external.expiresAt,
+        kind: 'oidc', subject: external.userId, tenantId: null };
+    }
+    const db = openDatabase(io.env.CONTROL_PLANE_DB ?? './control-plane.db');
+    try {
+      migrate(db);
+      transaction(db, () => {
+        new SqliteTokenRevocations(db).revoke(revocation.issuer, revocation.id, revocation.expiresAt, now);
+        new SqliteAuditLog(db).record({
+          ts: now, userId: null, tenantId: revocation.tenantId,
+          action: 'auth.token.revoked', decision: 'allow',
+          detail: { jti: revocation.id, kind: revocation.kind, subject: revocation.subject },
+        });
+      });
+      return print(io, ok({ revoked: true, jti: revocation.id, expiresAt: revocation.expiresAt }));
+    } finally { db.close(); }
+  } catch {
+    return configFail(io, 'Unable to revoke token; check token file and database access.');
+  }
+}
+
 async function cmdServe(io: CliIo): Promise<number> {
   const config = loadServeConfig(io.env);
   if (!config.ok) {
@@ -260,6 +315,9 @@ async function cmdServe(io: CliIo): Promise<number> {
 
   const onHup = (): void => {
     const reloaded = reloadKeyRing(config.data.keyRing, io.env);
+    const oidcReloaded = reloadOidcJwks(config.data.oidc, io.env);
+    if (!oidcReloaded.ok) log({ level: 'error', message: 'OIDC key reload failed; keeping current keys', error: oidcReloaded.error.message });
+    else if (config.data.oidc) log({ level: 'info', message: 'reloaded OIDC public keys', kids: oidcReloaded.data });
     log(reloaded.ok ? { level: 'info', message: 'reloaded signing keys', kids: reloaded.data } : { level: 'error', message: 'key reload failed; keeping current keys', error: reloaded.error.message });
   };
   process.on('SIGHUP', onHup);
@@ -358,6 +416,8 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
       return cmdWorker(parsed, io);
     case 'issue-token':
       return cmdIssueToken(parsed, io);
+    case 'revoke-token':
+      return cmdRevokeToken(parsed, io);
     case 'gen-key':
       return cmdGenKey(parsed, io);
     case 'migrate':

@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import fg from 'fast-glob';
+import fg from './file-glob';
 import type { Command } from 'commander';
 import { buildCommandCatalog } from './command-catalog';
 import type { AgentsPackageInput, AgentsWorkspaceInput } from './agents-doc';

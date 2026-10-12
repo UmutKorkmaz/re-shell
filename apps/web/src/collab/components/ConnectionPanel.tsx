@@ -8,6 +8,7 @@ import { Field, InlineError, Panel } from './shared';
 
 export interface ConnectionPanelProps {
   settings: ConnectionSettings;
+  tokenInMemory?: boolean;
   status: ConnectionStatus;
   error: string | null;
   warning: string | null;
@@ -16,6 +17,7 @@ export interface ConnectionPanelProps {
   role: string | null;
   onChange: (patch: Partial<ConnectionSettings>) => void;
   onConnect: () => void;
+  onSignIn?: () => void;
   onDisconnect: () => void;
   onForgetToken: () => void;
 }
@@ -79,7 +81,9 @@ export function ConnectionPanel(props: ConnectionPanelProps): React.ReactElement
           id="collab-token"
           label="Bearer token"
           hint={
-            settings.rememberToken
+            props.tokenInMemory
+              ? 'SSO token stays in this page; sign in again after reload, or explicitly choose Remember.'
+              : settings.rememberToken
               ? 'Stored on this device until you forget it.'
               : 'Kept for this tab only (sessionStorage); cleared when the tab closes.'
           }
@@ -127,6 +131,10 @@ export function ConnectionPanel(props: ConnectionPanelProps): React.ReactElement
           <Button type="submit" data-testid="collab-connect" disabled={status === 'connecting' || !ice.ok}>
             {connected ? 'Reconnect' : 'Connect'}
           </Button>
+          {props.onSignIn ? (
+            <Button type="button" variant="outline" data-testid="collab-sign-in" disabled={status === 'connecting' || !settings.url.trim()}
+              onClick={props.onSignIn}>Sign in with SSO</Button>
+          ) : null}
           {connected ? (
             <Button type="button" variant="outline" data-testid="collab-disconnect" onClick={props.onDisconnect}>
               Disconnect

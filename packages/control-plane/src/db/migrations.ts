@@ -220,6 +220,20 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX collab_runs_time_idx ON collab_runs (tenant_id, queued_at);
     `,
   },
+  {
+    version: 4,
+    name: 'token-revocation',
+    sql: `
+      CREATE TABLE revoked_tokens (
+        issuer TEXT NOT NULL,
+        jti TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        revoked_at INTEGER NOT NULL,
+        PRIMARY KEY (issuer, jti)
+      ) STRICT;
+      CREATE INDEX revoked_tokens_expiry_idx ON revoked_tokens (expires_at);
+    `,
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

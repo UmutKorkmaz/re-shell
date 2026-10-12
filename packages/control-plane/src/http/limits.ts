@@ -99,7 +99,7 @@ export function readJsonBody(req: IncomingMessage, limitBytes: number): Promise<
           code: 'PAYLOAD_TOO_LARGE',
           message: `Request body exceeds ${limitBytes} bytes.`,
         });
-        // Stop buffering; the connection is closed after the response.
+        // Stop buffering; the handler drains the body with a bounded cutoff for incomplete uploads.
         req.pause();
         return;
       }

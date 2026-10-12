@@ -195,6 +195,25 @@ impl Hub {
         Err(last_err.unwrap_or_else(|| HubError::Io("could not allocate a hub port".into())))
     }
 
+    /// Replace a stopped hub without widening the webview's port-pinned CSP.
+    /// The caller must stop the previous process first. Always rotate its token.
+    pub fn restart_on_port(opts: &HubOptions, port: u16) -> Result<Hub, HubError> {
+        if !opts.bundle.is_file() {
+            return Err(HubError::BundleMissing {
+                searched: vec![opts.bundle.clone()],
+            });
+        }
+        if !opts.workspace.is_dir() {
+            return Err(HubError::WorkspaceMissing(opts.workspace.clone()));
+        }
+        if port == 0 {
+            return Err(HubError::Io(
+                "cannot restart a hub without its original port".into(),
+            ));
+        }
+        Self::start_on_port(opts, &generate_token()?, port)
+    }
+
     fn start_on_port(opts: &HubOptions, token: &str, port: u16) -> Result<Hub, HubError> {
         let log: LogTail = Arc::new(Mutex::new(VecDeque::new()));
         let mut command = build_command(opts, token, port);
@@ -589,6 +608,51 @@ pub fn resolve_node(search: &NodeSearch) -> Result<PathBuf, HubError> {
     Err(HubError::NodeNotFound { searched })
 }
 
+/// Prefer the packaged runtime, while preserving the explicit override's
+/// exclusive semantics. A damaged packaged runtime is an installation error,
+/// rather than a reason to silently execute a different system Node.
+pub fn resolve_desktop_node(
+    search: &NodeSearch,
+    bundled: Option<&Path>,
+) -> Result<PathBuf, HubError> {
+    if search.override_path.is_some() {
+        return resolve_node(search);
+    }
+    if let Some(bundled) = bundled {
+        if is_executable_file(bundled) {
+            return Ok(bundled.to_path_buf());
+        }
+        return Err(HubError::NodeUnusable {
+            path: bundled.to_path_buf(),
+            reason:
+                "the bundled runtime is missing or is not an executable file; reinstall Re-Shell"
+                    .into(),
+        });
+    }
+    resolve_node(search)
+}
+
+/// Last successfully opened workspace. Explicit CLI/environment values still win.
+pub fn load_workspace(home: Option<&Path>) -> Option<PathBuf> {
+    let contents =
+        fs::read_to_string(home?.join(".re-shell").join("desktop-workspace.json")).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&contents).ok()?;
+    let path = PathBuf::from(value.get("workspace")?.as_str()?);
+    path.is_dir().then_some(path)
+}
+
+pub fn save_workspace(directory: &Path, workspace: &Path) -> Result<(), std::io::Error> {
+    fs::create_dir_all(directory)?;
+    let workspace = workspace.to_str().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "workspace path cannot be remembered because it is not UTF-8",
+        )
+    })?;
+    let contents = serde_json::json!({"workspace": workspace}).to_string();
+    fs::write(directory.join("desktop-workspace.json"), contents)
+}
+
 /// Common Node.js install locations that GUI launchers do not put on `PATH`.
 pub fn default_node_dirs(home: Option<&Path>) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = Vec::new();
@@ -631,7 +695,7 @@ fn newest_nvm_bin(home: &Path) -> Option<PathBuf> {
         let Some(version) = parse_node_version(&name.to_string_lossy()) else {
             continue;
         };
-        if best.as_ref().map_or(true, |(v, _)| version > *v) {
+        if best.as_ref().is_none_or(|(v, _)| version > *v) {
             best = Some((version, entry.path().join("bin")));
         }
     }
@@ -939,6 +1003,71 @@ mod tests {
         )
         .unwrap();
         assert_eq!(resolve_node(&search).unwrap(), b.join("node"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn desktop_prefers_bundled_node_and_keeps_explicit_override_exclusive() {
+        let dir = temp_dir("desktop-node");
+        let sidecar = dir.join("re-shell-node");
+        make_executable(&sidecar);
+        let system = dir.join("system");
+        fs::create_dir_all(&system).unwrap();
+        make_executable(&system.join("node"));
+        let mut search = NodeSearch {
+            override_path: None,
+            path_var: Some(std::env::join_paths([&system]).unwrap()),
+            extra_dirs: vec![],
+        };
+        assert_eq!(
+            resolve_desktop_node(&search, Some(&sidecar)).unwrap(),
+            sidecar
+        );
+        search.override_path = Some(dir.join("missing-node").into_os_string());
+        assert!(matches!(
+            resolve_desktop_node(&search, Some(&sidecar)),
+            Err(HubError::NodeUnusable { .. })
+        ));
+        search.override_path = None;
+        fs::set_permissions(
+            &sidecar,
+            std::os::unix::fs::PermissionsExt::from_mode(0o644),
+        )
+        .unwrap();
+        assert!(matches!(
+            resolve_desktop_node(&search, Some(&sidecar)),
+            Err(HubError::NodeUnusable { .. })
+        ));
+        fs::remove_file(&sidecar).unwrap();
+        // A required packaged runtime must not silently use this valid system Node.
+        assert!(matches!(
+            resolve_desktop_node(&search, Some(&sidecar)),
+            Err(HubError::NodeUnusable { .. })
+        ));
+        // Only the development caller may explicitly permit system fallback.
+        assert_eq!(
+            resolve_desktop_node(&search, None).unwrap(),
+            system.join("node")
+        );
+        search.override_path = Some(system.join("node").into_os_string());
+        assert_eq!(
+            resolve_desktop_node(&search, Some(&sidecar)).unwrap(),
+            system.join("node")
+        );
+    }
+
+    #[test]
+    fn remembered_workspace_requires_existing_directory_and_valid_json() {
+        let home = temp_dir("remembered-workspace");
+        let workspace = home.join("project");
+        fs::create_dir_all(&workspace).unwrap();
+        assert_eq!(load_workspace(Some(&home)), None);
+        save_workspace(&home.join(".re-shell"), &workspace).unwrap();
+        assert_eq!(load_workspace(Some(&home)), Some(workspace.clone()));
+        fs::remove_dir(&workspace).unwrap();
+        assert_eq!(load_workspace(Some(&home)), None);
+        fs::write(home.join(".re-shell/desktop-workspace.json"), "invalid").unwrap();
+        assert_eq!(load_workspace(Some(&home)), None);
     }
 
     #[test]

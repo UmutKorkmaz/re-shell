@@ -17,6 +17,14 @@ services:
       target: control-plane
     image: re-shell/control-plane:local
     restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 768m
+    cpus: 1.0
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
     environment:
       # Required. JSON {"activeKid": "...", "keys": {"<kid>": "<base64 secret>"}};
       # produce one with `docker run --rm re-shell/control-plane:local gen-key --raw`.
@@ -34,6 +42,9 @@ services:
       CONTROL_PLANE_ICE_SERVERS: ${CONTROL_PLANE_ICE_SERVERS:-}
     volumes:
       - control-plane-data:/data
+    networks:
+      - default
+      - api
     ports:
       # Loopback only by default; put a TLS-terminating proxy in front to expose it.
       - "127.0.0.1:${CONTROL_PLANE_PUBLISH_PORT:-8787}:8787"
@@ -57,6 +68,14 @@ services:
     # A worker with no/invalid token or tenant exits with a JSON CONFIG_ERROR /
     # UNAUTHENTICATED envelope (non-zero); a few retries, then it stays stopped.
     restart: on-failure:3
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 2.0
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
     depends_on:
       control-plane:
         condition: service_healthy
@@ -73,3 +92,10 @@ services:
 
 volumes:
   control-plane-data:
+
+# Workers remain on the internal network. The API bridge permits loopback
+# publishing on Docker Desktop; only the control plane is connected to it.
+networks:
+  default:
+    internal: true
+  api:

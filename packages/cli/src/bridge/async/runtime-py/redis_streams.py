@@ -10,7 +10,7 @@ import os
 import socket
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 try:
     import redis
@@ -90,7 +90,8 @@ class RedisStreamsTransport:
 
         def deliveries(entry_id: str) -> int:
             try:
-                rows = self._client.xpending_range(channel, group, entry_id, entry_id, 1)
+                # redis-py shares command annotations with its async client; this client is synchronous.
+                rows = cast(List[Dict[str, Any]], self._client.xpending_range(channel, group, entry_id, entry_id, 1))
                 return int(rows[0]["times_delivered"]) if rows else 1
             except Exception:  # noqa: BLE001
                 return 1
@@ -122,7 +123,7 @@ class RedisStreamsTransport:
                         continue
                     if (time.monotonic() - last_claim) * 1000 >= max(500, self._claim_idle_ms / 2):
                         last_claim = time.monotonic()
-                        claimed = reader.xautoclaim(channel, group, self._consumer, self._claim_idle_ms, "0-0", count=self._batch)
+                        claimed = cast(List[Any], reader.xautoclaim(channel, group, self._consumer, self._claim_idle_ms, "0-0", count=self._batch))
                         handle([(i, f) for i, f in claimed[1]], False)
                     entries = _entries(reader.xreadgroup(group, self._consumer, {channel: ">"}, count=self._batch, block=self._block_ms))
                     if entries:
@@ -132,7 +133,7 @@ class RedisStreamsTransport:
                         break
                     self._on_error(error)
                     time.sleep(0.25)
-            reader.close()
+            cast(Callable[[], None], reader.close)()
 
         thread = threading.Thread(target=loop, daemon=True)
         thread.start()
@@ -149,4 +150,4 @@ class RedisStreamsTransport:
             s.set()
         for t in self._threads:
             t.join(timeout=self._block_ms / 1000.0 + 2)
-        self._client.close()
+        cast(Callable[[], None], self._client.close)()

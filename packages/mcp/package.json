@@ -1,6 +1,6 @@
 {
   "name": "@re-shell/mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Stdio MCP server exposing Re-Shell's read-only JSON commands as agent tools.",
   "license": "MIT",
   "author": "Umut Korkmaz",
@@ -43,7 +43,7 @@
     "lint": "echo 'mcp: no linter configured'"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@re-shell/cli": "workspace:^",
     "@re-shell/contracts": "workspace:^",
     "zod": "^4.4.3"
@@ -54,7 +54,7 @@
     "vitest": "^0.34.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.13.0"
   },
   "publishConfig": {
     "access": "public"

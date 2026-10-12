@@ -1,12 +1,46 @@
 # Stability Work
 
-This is the stability status as of 2026-10-04, at CLI `0.31.0` (not published; `0.30.1`
-is the last published version, and a published version is never reused). It
+## October 12, 2026 source verification
+
+This record covers CLI **0.32.0**, contracts **0.3.1**, UI **0.6.1** and MCP **0.3.0**.
+Check [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) and the
+[npm CLI package](https://www.npmjs.com/package/@re-shell/cli) for publication status. CLI and
+MCP now require Node **22.13.0+**. Current evidence and remaining work are recorded
+in [development status](./DEVELOPMENT_STATUS.md): workspace build, 11/11 fresh packed
+checks and 384 control-plane tests in 30 files pass. Browser S256 PKCE is verified
+in a real browser against a local protocol fixture; Docker API/worker staging passes.
+Live external IdP, cloud-account and LLM checks remain incomplete.
+
+The release build measures 44.6 KiB gzip for the app-entry chunks and 144.3 KiB
+for entry plus initial vendors. Browser sign-in and updated schema/UI dependencies
+raise the previous limits: entry 44 → 46 KiB, initial total 138 → 148 KiB, Radix
+17 → 18 KiB (measured 17.3) and Zod 22 → 28 KiB (measured 26.7). These are
+explicit release budget changes; the size checks remain enforced.
+
+Dependency updates reduce the production workspace audit from 80 findings to zero.
+A fresh packed npm consumer still reports six moderate findings attributable to
+UUID advisory [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq)
+through Apollo dependencies; this is not a security-clean consumer release. The
+advisory affects UUID v3()/v5()/v6() output-buffer handling; reviewed Apollo calls use v1()/v4(). That
+limits the observed reachable path without clearing the advisory. Development-tool
+audits still report 31 findings (7 critical, 6 high, 16 moderate, 2 low).
+
+Marketplace and signed desktop publication are deferred. Public control-plane
+hosting is outside the selected local Docker staging scope.
+
+## Historical v0.31.0 stability batch
+
+Release status refreshed 2026-10-11: CLI `0.31.0`, contracts `0.3.0`, MCP `0.2.0`
+and UI `0.6.0` are published on npm, with [GitHub release v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
+on 2026-10-05 and a successful [publish run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37273442085)
+at `bf6587b`. A published version is never reused. The verification tables below retain
+the 2026-10-04 stability batch evidence; they are not a fresh exhaustive audit. This document
 supersedes the historical implementation checklists for the stability batch, not the
 product's long-term roadmap ([`ROADMAP.md`](./ROADMAP.md)). Changes on a branch are
 not published-release proof.
 
-**The release is not declared ready.** Everything in the Next Batch below is
+**The npm release is published.** Marketplace publication, signed desktop distribution
+and public control-plane deployment remain incomplete. Everything in the Next Batch below is
 implemented. Every workflow has **run and passed on GitHub** on pull request
 [#395](https://github.com/UmutKorkmaz/re-shell/pull/395), on commit `3207b9f`:
 `ci.yml` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37205769225): build and
@@ -225,12 +259,15 @@ The catalog is now 204 templates across 35 languages (Roc has no remaining templ
 | Build, typecheck and focused plus relevant broad/interactive suites pass on the exact candidate | **PARTIAL** | Build and the suites listed in Current Verification passed here (see the table). The interactive suite did not run on this machine; it runs in CI. Every workflow passes on hosted CI at commit `3a06508` (PR #395), including the later template-health changes. |
 | Unsupported commands cannot return verified-success claims | **Met for the commands that were unsupported** | `fix --ci`, `ui test`, `plugin update`, `plugin validate` are now real; the stricter `UI_TEST_ERROR`/`FIX_CI_ERROR` failure paths remain. Gates (`doctor`, `analyze --fail-on`, `security audit verify`, `service validate`) exit non-zero on failure. `cloud deploy` never fakes a deployment. This is not an exhaustive audit of the 585 command paths: many generator commands write starter files and say nothing about running. |
 | Required generated-project install/build/boot checks pass; skips and external prerequisites stay explicit | **Met on hosted CI for all 204 templates** ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171), commit `3a06508`) | All 204 templates build with their own toolchain in CI and eight Node/Bun backends boot (Next Batch item 1). Of the 32 added last, 14 were also built locally with their real toolchain and 18 could not be. The 4 infeasible templates (`perfect`, `roc`, `carbon`, `vale`) were removed, with their reasons above. |
-| Dashboard browser checks and clean-package smoke pass before a release is declared ready; a passing build or CI run alone is insufficient | **Met on hosted CI at `3207b9f`** | Browser checks passed locally, clean-package smoke passed in this pass, and on PR #395 the `accessibility` job ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37205769229)) and the `ci.yml` jobs `e2e`, `storybook` and `pack-smoke` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37205769225)) pass. A release is still not declared ready: nothing is published. |
-| Reviewed commits, version changes and release notes describe the work only; publication, deployment and optional scaffold promotion are separate actions | **Met, nothing published** | Versions bumped (cli 0.31.0, contracts 0.3.0, mcp 0.2.0, ui 0.6.0); the CHANGELOG has an `Unreleased` section; nothing was published or deployed. |
+| Dashboard browser checks and clean-package smoke pass before a release is declared ready; a passing build or CI run alone is insufficient | **Met on hosted CI at `3207b9f`** | Browser checks passed locally, clean-package smoke passed in this pass, and on PR #395 the `accessibility` job ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37205769229)) and the `ci.yml` jobs `e2e`, `storybook` and `pack-smoke` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37205769225)) pass. The subsequent npm publication is verified by the release and publish run linked above. |
+| Reviewed commits, version changes and release notes describe the work only; publication, deployment and optional scaffold promotion are separate actions | **Published npm packages** | CLI 0.31.0, contracts 0.3.0, MCP 0.2.0 and UI 0.6.0 were published on 2026-10-05. Marketplace, signed desktop and public control-plane deployment are still outstanding. |
 
 ## What remains, and why it is external
 
-Everything left needs something outside the repository or its development environment.
+The October 12 release contents include clean-install UI root-import checks, desktop
+usability, pinned external identity and browser S256 PKCE, revocation and administration. Its verification and remaining
+development are recorded in [development status](./DEVELOPMENT_STATUS.md). The
+external prerequisites below remain separate.
 
 | Item | Needs |
 |------|-------|
@@ -241,7 +278,7 @@ Everything left needs something outside the repository or its development enviro
 | Live LLM calls (`ai`, `ui generate`, `fix --ci`) | An API key or a local OpenAI-compatible server (`tests/live` skips without one) |
 | Public hosting of the control plane | A deployment target, TLS termination and an external security review; see [`control-plane.md`](./control-plane.md) |
 | WebRTC across symmetric NATs | A TURN server (none is shipped or deployed) |
-| Hosted runs of `ci.yml`, `vscode-extension`, `k8s-live`, `iac-validate` and `desktop` on `main` after the merge | Done on PR #395 at `3207b9f`; these workflows are not triggered by pushes to other branches, so they re-run on the pull request and on the merge |
+| VS Code Marketplace publication | Publisher `umutkorkmaz` access and publishing credentials. The opt-in `VS Code Extension` workflow publishes only after tests and VSIX verification. No gallery listing was returned on 2026-10-11. |
 | Building `vapor`, `phoenix` and the 18 newly wired templates that could not be built locally | Their toolchains or registries (Swift, Julia, opam, Clojars, hex, Gleam, Zig dependencies from GitHub, Red, Grain, Ballerina, Unison) |
 
 ## Scope notes

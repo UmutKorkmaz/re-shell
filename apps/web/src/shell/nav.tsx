@@ -10,6 +10,7 @@ import {
   Settings as SettingsIcon,
   SquareTerminal,
   Users,
+  Shield,
   Workflow,
 } from 'lucide-react';
 import type { ScreenId } from './screens';
@@ -57,7 +58,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
   },
   {
     label: 'Team',
-    items: [{ id: 'collab', icon: Users }],
+    items: [{ id: 'collab', icon: Users }, { id: 'admin', icon: Shield }],
   },
   {
     label: 'System',

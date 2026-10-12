@@ -16,7 +16,6 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Re-Shell',
-      tagline: 'Full-stack platform: microfrontends + microservices, one CLI.',
       description:
         'Re-Shell unites microfrontends and polyglot microservices under one CLI — 208 templates across 36 languages, a hardened web dashboard, and a typed JSON contract.',
       logo: {

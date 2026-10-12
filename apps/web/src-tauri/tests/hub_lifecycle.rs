@@ -7,9 +7,12 @@
 //! claimed without them.
 
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Write};
+#[cfg(target_os = "linux")]
+use std::io::{BufRead, BufReader};
+use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::path::PathBuf;
+#[cfg(target_os = "linux")]
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -100,6 +103,7 @@ fn wait_until(timeout: Duration, mut condition: impl FnMut() -> bool) -> bool {
 
 /// True while the process exists and is not a zombie (Linux; elsewhere we rely
 /// on the port being closed).
+#[cfg(target_os = "linux")]
 fn process_running(pid: u32) -> bool {
     match fs::read_to_string(format!("/proc/{pid}/stat")) {
         Ok(stat) => stat
@@ -433,4 +437,23 @@ fn missing_inputs_fail_explicitly_before_anything_is_spawned() {
         other => panic!("expected NodeUnusable, got {other:?}"),
     }
     let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn replacement_keeps_csp_port_and_rejects_previous_token() {
+    let workspace = temp_dir("recovery");
+    let mut opts = options(real_bundle(), workspace.clone());
+    let mut previous = Hub::start(&opts).unwrap();
+    let port = previous.port();
+    let old_token = previous.token().to_string();
+    previous.stop(Duration::from_secs(5));
+    let new_workspace = workspace.join("next");
+    fs::create_dir_all(&new_workspace).unwrap();
+    opts.workspace = new_workspace;
+    let mut replacement = Hub::restart_on_port(&opts, port).unwrap();
+    assert_eq!(replacement.port(), port);
+    assert_ne!(replacement.token(), old_token);
+    assert_eq!(probe_health(port, Some(&old_token)), Some(401));
+    assert_eq!(probe_health(port, Some(replacement.token())), Some(200));
+    replacement.stop(Duration::from_secs(5));
 }

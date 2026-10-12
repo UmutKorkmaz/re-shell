@@ -6,7 +6,7 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import fg from 'fast-glob';
+import fg from '../utils/file-glob';
 import * as YAML from 'yaml';
 import type {
   DeclaredDependency,

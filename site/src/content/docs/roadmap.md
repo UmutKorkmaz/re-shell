@@ -14,14 +14,18 @@ release gates are in
 
 | Fact | Value |
 | --- | --- |
-| CLI | `0.31.0` in the tree; **`0.30.1` is the last published version** |
-| Other packages | contracts `0.3.0` (published `0.2.0`), mcp `0.2.0` (published `0.1.0`), ui `0.6.0` (published `0.5.0`) |
+| CLI | `0.31.0` in the tree and on npm |
+| Other packages | contracts `0.3.0`, mcp `0.2.0`, ui `0.6.0` (all published) |
 | Commands | **585** command paths in **46** top-level commands (`re-shell commands list --json`) |
 | Backend templates | **204** across **35** languages and **169** frameworks (`re-shell templates list --json`) |
 | Dashboard | **11** screens |
 | Startup | Lazy command loading: `--version` about 45 ms, `--help` about 100 ms (median of 10 runs on the development VM; `--help` took about 2.6 s before). Measured, machine-dependent. The older "under 100 ms, about 43 ms" claim was true only for `--version`. |
 
-Nothing has been published or deployed by this work. Every workflow (`ci.yml`, VS Code
+The four npm packages were published on 2026-10-05 in
+[v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0); the
+[publish workflow](https://github.com/UmutKorkmaz/re-shell/actions/runs/37273442085)
+succeeded. The registry was checked 2026-10-11. Marketplace publication, desktop signing
+and public control-plane hosting remain incomplete. Every workflow (`ci.yml`, VS Code
 extension, k8s-live, IaC validation, desktop, template health, accessibility) has run and
 passed on GitHub on pull request #395 (commit `3a06508`), including all 19 jobs of template
 health ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)).
@@ -84,7 +88,8 @@ health ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171))
 
 ## Remaining items
 
-Everything left depends on something outside the development environment:
+Development priorities include UI root-import regression checks, desktop usability and
+hosted control-plane hardening. External prerequisites:
 
 - The VS Code host test (network access to download VS Code; runs in CI).
 - Signed and notarized desktop builds (signing secrets in the repository).
@@ -94,7 +99,7 @@ Everything left depends on something outside the development environment:
 - Broker round-trip tests (Docker).
 - Public hosting of the control plane (a deployment target, TLS, a security review).
 - WebRTC across symmetric NATs (a TURN server).
-- Hosted runs of those workflows on `main` after the merge; they already pass on pull request #395.
+- VS Code Marketplace publication (publisher access and publishing credentials; opt-in CI publication after tests and VSIX verification).
 
 ## Explicitly dropped
 

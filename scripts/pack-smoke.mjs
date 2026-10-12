@@ -8,9 +8,10 @@
  * from the repo's node_modules is on the resolution path. This script reproduces
  * that from a real packed tarball and exercises the installed result:
  *
- *   1. `pnpm pack` @re-shell/contracts, @re-shell/cli and @re-shell/mcp into a temp dir
+ *   1. `pnpm pack` contracts, ui, cli and mcp into a temp dir
  *      (the cli's `prepack` hook builds the dashboard bundle into the tarball).
- *   2. `npm install` the three tarballs into a FRESH directory outside the repo.
+ *   2. Install UI + contracts separately to check peer resolution and ESM/CJS/Vite.
+ *      `npm install` all four tarballs into a FRESH directory outside the repo.
  *   3. Run the installed binaries and assert on their real output:
  *        - `re-shell --version`            stdout is EXACTLY the package version
  *        - `re-shell --help`               exit 0
@@ -28,10 +29,11 @@
  *     --keep      keep the temp directory (it is always kept when a check fails)
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { verifyUiPackage } from '../packages/ui/scripts/pack-smoke.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const isWindows = process.platform === 'win32';
@@ -43,6 +45,7 @@ const KEEP = args.has('--keep') || process.env.PACK_SMOKE_KEEP === '1';
 /** Packages under test, in dependency order (contracts first). */
 const PACKAGES = [
   { name: '@re-shell/contracts', dir: 'packages/contracts' },
+  { name: '@re-shell/ui', dir: 'packages/ui' },
   { name: '@re-shell/cli', dir: 'packages/cli' },
   { name: '@re-shell/mcp', dir: 'packages/mcp' },
 ];
@@ -313,6 +316,14 @@ async function main() {
   const cliTarball = packed['@re-shell/cli'].tarball;
   const mcpTarball = packed['@re-shell/mcp'].tarball;
 
+  await check('packed UI clean install supports ESM, CommonJS and consuming Vite env', () =>
+    verifyUiPackage({
+      uiTarball: packed['@re-shell/ui'].tarball,
+      contractsTarball: packed['@re-shell/contracts'].tarball,
+      workDir,
+    })
+  );
+
   // ---- Tarball content checks (what npm would actually publish) -----------
   await check('cli tarball contains the dashboard bundle (dist/dashboard)', () => {
     const entries = listTarball(cliTarball);
@@ -363,7 +374,7 @@ async function main() {
     JSON.stringify({ name: 're-shell-pack-smoke-install', version: '0.0.0', private: true }, null, 2)
   );
   let installed = false;
-  await check('npm install of the three tarballs into a fresh directory', () => {
+  await check('npm install of the four tarballs into a fresh directory', () => {
     const tarballs = PACKAGES.map((pkg) => packed[pkg.name].tarball);
     runOrThrow('npm', ['install', '--no-audit', '--no-fund', '--loglevel=error', ...tarballs], {
       cwd: installDir,
@@ -441,9 +452,9 @@ async function main() {
         throw new Error(`stdout is not JSON (${error.message}): ${JSON.stringify(result.stdout.slice(0, 200))}`);
       }
       assert(plan.mode === 'static', `expected mode "static" (bundled dashboard), got "${plan.mode}"`);
-      const dashboardDir = path.resolve(plan.dashboardDir ?? '');
+      const dashboardDir = realpathSync(plan.dashboardDir ?? '');
       assert(
-        dashboardDir.startsWith(path.resolve(installedCli) + path.sep),
+        dashboardDir.startsWith(realpathSync(installedCli) + path.sep),
         `dashboardDir ${plan.dashboardDir} is not inside the installed @re-shell/cli (${installedCli})`
       );
       assert(existsSync(path.join(dashboardDir, 'index.html')), `${dashboardDir}/index.html does not exist`);
@@ -482,6 +493,17 @@ async function main() {
   log(`${results.length - failed.length}/${results.length} checks passed`);
   for (const result of failed) {
     log(`  FAILED: ${result.name}`);
+  }
+
+  // Export only artifacts that passed every clean-install check. The release
+  // workflow publishes these same bytes rather than packing the source again.
+  if (failed.length === 0 && process.env.PACK_SMOKE_ARTIFACTS_DIR) {
+    const destination = path.resolve(process.env.PACK_SMOKE_ARTIFACTS_DIR);
+    mkdirSync(destination, { recursive: true });
+    for (const { tarball } of Object.values(packed)) {
+      copyFileSync(tarball, path.join(destination, path.basename(tarball)));
+    }
+    log(`Exported verified tarballs to ${destination}`);
   }
 
   if (failed.length === 0 && !KEEP) {

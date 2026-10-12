@@ -12,21 +12,26 @@ built on top of it. The npm packages are published under the `@re-shell/*` scope
 Documentation site: <https://umutkorkmaz.github.io/re-shell/>. Repository docs:
 [`docs/README.md`](./docs/README.md).
 
-> **Versions.** The tree is at `@re-shell/cli` **0.31.0**; the last version published
-> to npm is **0.30.1**, so `npm i -g @re-shell/cli` installs the older one until a
-> release is cut. Nothing in this repository has been published or deployed by the
-> work described here. See [`docs/ROADMAP.md`](./docs/ROADMAP.md) for what is verified.
+> **v0.32.0 release contents.** This tree contains CLI **0.32.0**, contracts
+> **0.3.1**, MCP **0.3.0** and UI **0.6.1**. Check
+> [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) and the
+> [npm CLI registry](https://www.npmjs.com/package/@re-shell/cli) for publication status.
+> The previous [v0.31.0 release](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
+> was published on October 5, 2026 (CLI 0.31.0, contracts 0.3.0, MCP 0.2.0, UI 0.6.0).
+> See [`docs/DEVELOPMENT_STATUS.md`](./docs/DEVELOPMENT_STATUS.md) for current evidence.
+> VS Code Marketplace publication and signed desktop distribution are deferred;
+> the selected control-plane deployment scope is local Docker staging.
 
 ## Packages
 
 | Path | Name | Version | Role |
 |------|------|---------|------|
-| [`packages/cli`](./packages/cli) | `@re-shell/cli` | 0.31.0 | The published CLI: 585 command paths in 46 top-level commands, 204 backend templates across 35 languages, the `re-shell ui` launcher and the bundled dashboard. |
-| [`packages/contracts`](./packages/contracts) | `@re-shell/contracts` | 0.3.0 | zod schemas shared by everything: exact `--json` **wire** schemas and the adapters to the UI models, the envelope and `ErrorCode` vocabulary, hub transport, command registry, OT, graph, theme and white-label. |
-| [`packages/mcp`](./packages/mcp) | `@re-shell/mcp` | 0.2.0 | Stdio MCP server: read-only tools, resources and prompts over the CLI's JSON commands. |
-| [`packages/ui`](./packages/ui) | `@re-shell/ui` | 0.6.0 | shadcn-React component library (the single UI system), Storybook 9. |
-| [`packages/control-plane`](./packages/control-plane) | `@re-shell/control-plane` | 0.1.0 (private) | Hosted multi-tenant control plane: HTTP/SSE, SQLite, workers, team policy sync, audit, collaboration. Implemented and tested; **not deployed**. |
-| [`apps/web`](./apps/web) | `@re-shell/dashboard` | 0.1.0 (private) | The React dashboard (11 screens), the token-authed hub-server, and the Tauri desktop shell (`src-tauri`). |
+| [`packages/cli`](./packages/cli) | `@re-shell/cli` | 0.32.0 | The CLI: 585 command paths in 46 top-level commands, 204 backend templates across 35 languages, the `re-shell ui` launcher and the bundled dashboard. |
+| [`packages/contracts`](./packages/contracts) | `@re-shell/contracts` | 0.3.1 | zod schemas shared by everything: exact `--json` **wire** schemas and the adapters to the UI models, the envelope and `ErrorCode` vocabulary, hub transport, command registry, OT, graph, theme and white-label. |
+| [`packages/mcp`](./packages/mcp) | `@re-shell/mcp` | 0.3.0 | Stdio MCP server: read-only tools, resources and prompts over the CLI's JSON commands. |
+| [`packages/ui`](./packages/ui) | `@re-shell/ui` | 0.6.1 | shadcn-React component library (the single UI system), Storybook 9. |
+| [`packages/control-plane`](./packages/control-plane) | `@re-shell/control-plane` | 0.1.0 (private) | Hosted multi-tenant control plane: HTTP/SSE, SQLite, workers, team policy sync, audit, collaboration. Implemented and tested in local Docker staging; **not publicly hosted**. |
+| [`apps/web`](./apps/web) | `@re-shell/dashboard` | 0.1.0 (private) | The React dashboard (12 screens), the token-authed hub-server, and the Tauri desktop shell (`src-tauri`). |
 | [`apps/vscode-extension`](./apps/vscode-extension) | `re-shell` | 0.3.0 (private) | VS Code extension, shipped as a `.vsix` (not on the Marketplace). |
 | [`site`](./site) | `@re-shell/site` | private | Documentation site (Astro Starlight) and the hosted `workspace-v2.json` schema. |
 
@@ -35,6 +40,9 @@ Documentation site: <https://umutkorkmaz.github.io/re-shell/>. Repository docs:
 > There is **no Web Components surface**. shadcn-React in `packages/ui` is the one UI system.
 
 ## Quickstart
+
+The CLI, dashboard hub, MCP server and control plane require **Node.js 22.13.0 or newer**
+in this release. The previously published CLI 0.31.0 had a lower declared Node floor.
 
 ```bash
 # Install workspace dependencies (pinned pnpm)
@@ -46,7 +54,7 @@ npx pnpm@9.15.9 -r build
 # Run the CLI from the built workspace package
 node packages/cli/dist/index.js --help
 
-# ...or use the published CLI globally (0.30.1 until the next release)
+# ...or install the latest published CLI globally (see npm for the current version)
 npm install -g @re-shell/cli
 re-shell --help
 
@@ -76,7 +84,7 @@ Helper scripts in [`scripts/`](./scripts) (run from the root after `pnpm -r buil
 | Script | What it does |
 |--------|--------------|
 | `node packages/cli/scripts/gen-cli-contracts.mjs [--check]` | Regenerates `docs/CLI-CONTRACTS.md` from the built CLI and the wire schemas (`--check` fails on drift; CI runs it). |
-| `node scripts/pack-smoke.mjs` | Packs contracts, cli and mcp, installs the tarballs in a clean directory outside the repo, and checks `--version`, `--help`, `templates list --json`, `ui --dry-run --json` and an MCP handshake. |
+| `node scripts/pack-smoke.mjs` | Packs contracts, ui, cli and mcp, installs the tarballs in a clean directory outside the repo, and checks `--version`, `--help`, `templates list --json`, `ui --dry-run --json` and an MCP handshake. |
 | `node scripts/check-doc-commands.mjs` | Checks every `re-shell ...` command written in the docs against the built CLI's catalog. |
 | `node scripts/perf-budget.mjs` | Enforces gzip budgets on built assets (used by the `budget` scripts of `@re-shell/ui` and `@re-shell/dashboard`). |
 | `node scripts/boot-test-templates.mjs` | Scaffolds, installs, builds, boots and probes generated Node/Bun backends. |
@@ -118,3 +126,16 @@ be built locally (see [`docs/STABILITY.md`](./docs/STABILITY.md)).
 The CLI is released under the Apache-2.0 License; the other packages (contracts, MCP,
 UI, control plane, dashboard, VS Code extension) are MIT. See each package's metadata
 and the [LICENSE](./LICENSE) file.
+
+### v0.32.0 hardening changes
+
+This release includes Node-safe UI root imports, an Administration dashboard,
+pinned-JWKS bearer identity, browser authorization-code sign-in with S256 PKCE,
+persistent token revocation, HTTP metrics, native desktop workspace selection/recovery,
+bundled Node and an opt-in signed updater. Fresh workspace builds and all 11
+clean-package smoke checks pass; local browser/protocol-fixture SSO and local Docker
+API/worker gates pass. These changes are not in the published v0.31.0 artifacts.
+Live external IdP, cloud-account and LLM validation remain incomplete. Dependency
+updates clear the production workspace audit; a fresh npm consumer still reports
+six moderate findings from one upstream UUID advisory. Development-tool advisories
+also remain; see [development status](./docs/DEVELOPMENT_STATUS.md).

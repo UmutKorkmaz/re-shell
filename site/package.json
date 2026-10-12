@@ -11,11 +11,11 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.34.3",
+    "@astrojs/starlight": "^0.42.6",
     "@fontsource/inter": "^5.2.5",
     "@fontsource/jetbrains-mono": "^5.2.5",
     "@fontsource/space-grotesk": "^5.2.5",
-    "astro": "^5.8.0",
-    "sharp": "^0.34.1"
+    "astro": "^7.3.8",
+    "sharp": "^0.35.5"
   }
 }

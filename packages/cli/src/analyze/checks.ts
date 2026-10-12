@@ -7,7 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
-import fg from 'fast-glob';
+import fg from '../utils/file-glob';
 import { isSecretName, SECRET_VALUE_PATTERNS } from '../audit/redact';
 import { posix } from './model';
 import type {

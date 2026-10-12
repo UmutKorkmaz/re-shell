@@ -15,12 +15,12 @@
 //   <cacheRoot>/<K[0:2]>/<K>/files.sig     HMAC over the canonical file digest
 //
 // Zero new deps: hashing/HMAC via node:crypto, fs via fs-extra, globbing via
-// fast-glob (all already in the CLI).
+// glob (all already in the CLI).
 
 import * as path from 'path';
 import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import * as fs from 'fs-extra';
-import fg from 'fast-glob';
+import fg from './file-glob';
 import { stableStringify } from './cache-key';
 
 /** A single captured output artifact: its package-relative path + content. */

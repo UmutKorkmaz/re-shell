@@ -4,6 +4,7 @@ import { SqliteCollabStore } from './db/sqlite-collab.js';
 import { SqliteAuditLog } from './db/sqlite-audit.js';
 import { SqliteJobStore } from './db/sqlite-jobs.js';
 import { SqliteTenantStore } from './db/sqlite-store.js';
+import { SqliteTokenRevocations } from './db/sqlite-revocations.js';
 import { DatabaseSync, openDatabase } from './db/sqlite.js';
 import { ControlPlaneServer, ListenInfo, createControlPlaneServer } from './http/server.js';
 
@@ -44,7 +45,10 @@ export async function startRuntime(
     jobs,
     collab,
     iceServers: config.iceServers,
-    identity: { keyRing: config.keyRing, issuer: config.issuer, audience: config.audience },
+    identity: { keyRing: config.keyRing, issuer: config.issuer, audience: config.audience,
+      revocations: new SqliteTokenRevocations(db) },
+    oidc: config.oidc,
+    oidcBrowser: config.oidcBrowser,
     platformAdmins: config.platformAdmins,
     corsOrigins: config.corsOrigins,
     trustProxy: config.trustProxy,

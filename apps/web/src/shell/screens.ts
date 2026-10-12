@@ -21,6 +21,7 @@ export type ScreenId =
   | 'scorecard'
   | 'catalog'
   | 'collab'
+  | 'admin'
   | 'settings';
 
 export const SCREENS: readonly ScreenDef[] = [
@@ -52,6 +53,7 @@ export const SCREENS: readonly ScreenDef[] = [
     description:
       'Pair live on the hosted control plane: a shared console, presence with direct WebRTC links, a shared editor and team analytics.',
   },
+  { id: 'admin', label: 'Administration', description: 'Manage hosted tenants, members, team policy and audit history.' },
   { id: 'settings', label: 'Settings', description: 'Hub connection and dashboard preferences.' },
 ];
 

@@ -13,7 +13,7 @@ plane are separate and optional.
 
 | Requirement | Version | Notes |
 | --- | --- | --- |
-| Node.js | **18 or newer** | The CLI, the dashboard hub and the MCP server run on Node 18+. The control plane needs **22.13+** (it uses `node:sqlite`). |
+| Node.js | **22.13.0 or newer** | Required by the CLI 0.32.0 and MCP 0.3.0 release and the control plane (`node:sqlite`). Use this floor for the dashboard hub too. The previous CLI 0.31.0 declared Node 18+. |
 | Package manager | npm, yarn, pnpm, or bun | `pnpm` is the default for generated monorepos. |
 | Git | optional | Recommended; `re-shell init` initializes a repo unless you pass `--no-git`. |
 
@@ -37,18 +37,19 @@ pnpm add -g @re-shell/cli
 bun add -g @re-shell/cli
 ```
 
-> **Which version you get.** The last version published to npm is **0.30.1**. The
-> source tree is at **0.31.0**, which has not been published yet. Everything on
-> this site describes the 0.31.0 tree; commands and flags marked as new in the
-> [changelog](https://github.com/UmutKorkmaz/re-shell/blob/main/packages/cli/CHANGELOG.md)
-> "Unreleased" section are not in 0.30.1. To use them today, build from the
-> repository (see [Monorepo](/re-shell/architecture/monorepo/)).
+> **Which version you get.** Global installation selects the latest published
+> [npm CLI version](https://www.npmjs.com/package/@re-shell/cli).
+> This source tree describes **0.32.0**; check
+> [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) for release status.
+> The October 5 release was **0.31.0**, still the latest when checked October 11.
+> To pin a version, use `@re-shell/cli@<version>` after confirming it exists on npm,
+> or [build this checkout](/re-shell/architecture/monorepo/).
 
 ## Verify the installation
 
 ```bash
 re-shell --version
-# prints only the version, for example: 0.31.0
+# prints only the installed version, for example: 0.32.0
 ```
 
 ```bash
@@ -84,12 +85,12 @@ See [`completion`](/re-shell/cli/completion/) for details (including
 
 ## The packages
 
-| Package | In this tree | Last published | Role |
+| Package | In this tree | Published as of October 11, 2026 | Role |
 | --- | --- | --- | --- |
-| `@re-shell/cli` | `0.31.0` | `0.30.1` | The CLI and the bundled dashboard launcher. |
-| `@re-shell/contracts` | `0.3.0` | `0.2.0` | The typed `{ ok, data, warnings }` JSON contract: wire schemas, adapters, hub transport. |
-| `@re-shell/ui` | `0.6.0` | `0.5.0` | The React component system the dashboard is built from. |
-| `@re-shell/mcp` | `0.2.0` | `0.1.0` | The MCP server for AI agents ([MCP](/re-shell/integrations/mcp/)). |
+| `@re-shell/cli` | `0.32.0` | `0.31.0` | The CLI and the bundled dashboard launcher. |
+| `@re-shell/contracts` | `0.3.1` | `0.3.0` | The typed `{ ok, data, warnings }` JSON contract: wire schemas, adapters, hub transport. |
+| `@re-shell/ui` | `0.6.1` | `0.6.0` | The React component system the dashboard is built from. |
+| `@re-shell/mcp` | `0.3.0` | `0.2.0` | The MCP server for AI agents ([MCP](/re-shell/integrations/mcp/)). |
 
 Not published: the hosted [control plane](/re-shell/architecture/control-plane/)
 (`@re-shell/control-plane`, private), the dashboard app, the

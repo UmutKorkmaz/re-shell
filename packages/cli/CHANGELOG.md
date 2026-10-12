@@ -5,13 +5,42 @@ All notable changes to the `@re-shell/cli` package will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] (0.31.0)
+## [0.32.0] - 2026-10-12
 
-Everything below is in the source tree at `0.31.0` and **has not been published**; the last
-published version is `0.30.1`. "Verified" notes say what was run; nothing here was
-deployed. Items marked *(env-limited)* are implemented and tested but depend on something
-the development environment lacked (a cluster, credentials, an API key, Docker, a
-signing certificate, network access to a download), which the entry names.
+Release contents; publication status is recorded by the GitHub release and npm. Companion versions:
+contracts 0.3.1, UI 0.6.1 and MCP 0.3.0. The private control plane and dashboard,
+Marketplace extension and signed desktop builds are separate distribution surfaces.
+
+### Added
+- Dashboard browser sign-in using operator-pinned authorization-code endpoints and S256 PKCE, five-minute single-use state, issuer/redirect binding and callback history cleanup. Verified in a real browser against a local HTTP protocol fixture; live external provider compatibility remains unverified.
+- Pinned RS256/JWKS bearer identity, database-owned tenant roles, atomic key rotation and durable access-token revocation in the private control plane.
+- Administration dashboard for tenants, membership, policy and audit; platform-admin metrics and request correlation.
+- Desktop workspace selection/persistence, bundled Node runtime, hub crash recovery and opt-in signed updater. Native macOS picker/recovery checks pass; signed distribution remains deferred.
+
+### Fixed
+- UI root and hooks imports work in plain Node ESM/CommonJS and SSR, while preserving Vite environment settings. React Query is declared as a required peer dependency. Fresh tarball consumer/Vite smoke checks cover the fix.
+- Replaced vulnerable file-discovery dependencies with a patched `glob` adapter that preserves negative patterns, depth limits and symlink controls, without changing the registered command surface.
+- Dependency updates and scoped overrides clear the workspace production audit. Fresh packed npm installation still reports six moderate findings from upstream UUID advisory GHSA-w5hq-g745-h8pq via Apollo; reviewed Apollo UUID calls use v1()/v4(), whereas the advisory concerns v3()/v5()/v6() output-buffer handling. Development-tool findings remain unresolved.
+
+- Rejected HTTP bodies no longer reset later keep-alive requests; incomplete uploads retain a bounded cutoff. Packaged desktop startup reports a missing required Node sidecar instead of silently selecting system Node.
+
+### Changed
+- CLI 0.32.0 and MCP 0.3.0 require Node.js **22.13.0 or newer**.
+- Fresh release smoke checks install all four npm tarballs outside the workspace and check UI consumption, CLI/dashboard resolution and the MCP handshake. All 11 checks pass locally.
+- Publication automation verifies packed artifacts before npm publishing and publishes those same tarball bytes.
+- Generated Python Redis adapters pass strict typing with redis-py 5.2; template dependency pinning supports GNU and macOS BSD sed. Kubernetes failure tests use an explicitly unreachable API endpoint.
+
+### Verification and remaining gates
+- Full workspace build passes; the control plane passes 384 tests in 30 files. Local Docker API/worker acceptance and real browser/protocol-fixture sign-in pass. These checks do not establish public hosting or live external identity-provider interoperability.
+- Live Ollama cloud-provider validation returned HTTP 402; account-backed LLM validation remains incomplete. Real cloud deployment, TURN and live Argo CD validation remain unverified.
+- VS Code Marketplace and signed desktop publication are deferred. Distributed tracing, multi-node database/broker operation and job-specific worker sandboxes remain future work. Development-tool audit reports 31 findings (7 critical, 6 high, 16 moderate, 2 low).
+
+## [0.31.0] - 2026-10-05
+
+Published as [v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0),
+with contracts 0.3.0, MCP 0.2.0 and UI 0.6.0. The verification notes below describe
+the development and hosted-CI evidence for that release, not a fresh rerun for
+0.32.0. Items marked *(env-limited)* identify checks that were incomplete then.
 
 ### Added
 

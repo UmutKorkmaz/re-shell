@@ -75,23 +75,25 @@ interface ViteEnv {
  * indirected object (e.g. `const e = import.meta.env; e.VITE_X`) defeats that
  * static replacement and leaves the value `undefined` in the production bundle,
  * which would make every dashboard connect token-less and get a 401 from the
- * hub. The `typeof import.meta` guard keeps this safe under non-Vite runtimes
- * (e.g. the vitest/node test env), where `import.meta.env` may be absent.
+ * hub. Non-Vite runtimes have no env object, so the guarded reads return an
+ * empty object instead.
  */
 function readViteEnv(): ViteEnv {
-  // Guard the whole `import.meta.env` object for non-Vite runtimes (vitest/node),
-  // where it may be absent. Cast to a possibly-undefined view for the check only.
-  const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env;
-  if (env === undefined) {
+  // Do not read the bare env object: Vite synthesizes it at module scope from
+  // our preserved VITE_* expressions, before a runtime guard can execute.
+  // Keeping only direct member reads avoids that synthesis and lets the
+  // consuming Vite build inline them. In Node (including Rollup's CJS output),
+  // missing import.meta.env throws here and falls back to explicit/runtime config.
+  try {
+    return {
+      VITE_RE_SHELL_UI_HUB_TOKEN: import.meta.env.VITE_RE_SHELL_UI_HUB_TOKEN,
+      VITE_RE_SHELL_UI_HUB_URL: import.meta.env.VITE_RE_SHELL_UI_HUB_URL,
+      VITE_RE_SHELL_UI_HOST: import.meta.env.VITE_RE_SHELL_UI_HOST,
+      VITE_RE_SHELL_UI_PORT: import.meta.env.VITE_RE_SHELL_UI_PORT,
+    };
+  } catch {
     return {};
   }
-  // Direct `import.meta.env.VITE_*` accesses so Vite inlines each at build time.
-  return {
-    VITE_RE_SHELL_UI_HUB_TOKEN: import.meta.env.VITE_RE_SHELL_UI_HUB_TOKEN,
-    VITE_RE_SHELL_UI_HUB_URL: import.meta.env.VITE_RE_SHELL_UI_HUB_URL,
-    VITE_RE_SHELL_UI_HOST: import.meta.env.VITE_RE_SHELL_UI_HOST,
-    VITE_RE_SHELL_UI_PORT: import.meta.env.VITE_RE_SHELL_UI_PORT,
-  };
 }
 
 /**
