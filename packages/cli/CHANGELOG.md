@@ -22,6 +22,8 @@ Marketplace extension and signed desktop builds are separate distribution surfac
 - Replaced vulnerable file-discovery dependencies with a patched `glob` adapter that preserves negative patterns, depth limits and symlink controls, without changing the registered command surface.
 - Dependency updates and scoped overrides clear the workspace production audit. Fresh packed npm installation still reports six moderate findings from upstream UUID advisory GHSA-w5hq-g745-h8pq via Apollo; reviewed Apollo UUID calls use v1()/v4(), whereas the advisory concerns v3()/v5()/v6() output-buffer handling. Development-tool findings remain unresolved.
 
+- Rejected HTTP bodies no longer reset later keep-alive requests; incomplete uploads retain a bounded cutoff. Packaged desktop startup reports a missing required Node sidecar instead of silently selecting system Node.
+
 ### Changed
 - CLI 0.32.0 and MCP 0.3.0 require Node.js **22.13.0 or newer**.
 - Fresh release smoke checks install all four npm tarballs outside the workspace and check UI consumption, CLI/dashboard resolution and the MCP handshake. All 11 checks pass locally.
@@ -29,7 +31,7 @@ Marketplace extension and signed desktop builds are separate distribution surfac
 - Generated Python Redis adapters pass strict typing with redis-py 5.2; template dependency pinning supports GNU and macOS BSD sed. Kubernetes failure tests use an explicitly unreachable API endpoint.
 
 ### Verification and remaining gates
-- Full workspace build passes; the control plane passes 380 tests in 30 files. Local Docker API/worker acceptance and real browser/protocol-fixture sign-in pass. These checks do not establish public hosting or live external identity-provider interoperability.
+- Full workspace build passes; the control plane passes 384 tests in 30 files. Local Docker API/worker acceptance and real browser/protocol-fixture sign-in pass. These checks do not establish public hosting or live external identity-provider interoperability.
 - Live Ollama cloud-provider validation returned HTTP 402; account-backed LLM validation remains incomplete. Real cloud deployment, TURN and live Argo CD validation remain unverified.
 - VS Code Marketplace and signed desktop publication are deferred. Distributed tracing, multi-node database/broker operation and job-specific worker sandboxes remain future work. Development-tool audit reports 31 findings (7 critical, 6 high, 16 moderate, 2 low).
 

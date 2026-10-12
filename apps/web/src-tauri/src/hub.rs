@@ -619,15 +619,15 @@ pub fn resolve_desktop_node(
         return resolve_node(search);
     }
     if let Some(bundled) = bundled {
-        if bundled.exists() {
-            if is_executable_file(bundled) {
-                return Ok(bundled.to_path_buf());
-            }
-            return Err(HubError::NodeUnusable {
-                path: bundled.to_path_buf(),
-                reason: "the bundled runtime is not an executable file".into(),
-            });
+        if is_executable_file(bundled) {
+            return Ok(bundled.to_path_buf());
         }
+        return Err(HubError::NodeUnusable {
+            path: bundled.to_path_buf(),
+            reason:
+                "the bundled runtime is missing or is not an executable file; reinstall Re-Shell"
+                    .into(),
+        });
     }
     resolve_node(search)
 }
@@ -1039,6 +1039,17 @@ mod tests {
             Err(HubError::NodeUnusable { .. })
         ));
         fs::remove_file(&sidecar).unwrap();
+        // A required packaged runtime must not silently use this valid system Node.
+        assert!(matches!(
+            resolve_desktop_node(&search, Some(&sidecar)),
+            Err(HubError::NodeUnusable { .. })
+        ));
+        // Only the development caller may explicitly permit system fallback.
+        assert_eq!(
+            resolve_desktop_node(&search, None).unwrap(),
+            system.join("node")
+        );
+        search.override_path = Some(system.join("node").into_os_string());
         assert_eq!(
             resolve_desktop_node(&search, Some(&sidecar)).unwrap(),
             system.join("node")

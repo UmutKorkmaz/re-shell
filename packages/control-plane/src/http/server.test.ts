@@ -262,6 +262,73 @@ describe('strict boundary validation', () => {
     expect(status).toBe(413);
   });
 
+  it.each([
+    { name: 'invalid JSON', raw: '{nope', type: 'application/json', status: 400 },
+    { name: 'unsupported content type', raw: '{"commandId":"doctor"}', type: 'text/plain', status: 415 },
+    { name: 'fully discarded chunked oversize', raw: 'x'.repeat(80 * 1024), type: 'application/json', status: 413 },
+  ])('keeps a reusable socket after $name while the next request is uploading', async ({ raw, type, status }) => {
+    const { Agent, request } = await import('node:http');
+    const agent = new Agent({ keepAlive: true, maxSockets: 1 });
+    const url = new URL(h.url);
+    let firstSocket: import('node:net').Socket | undefined;
+    const headers = { Authorization: `Bearer ${token()}`, 'Content-Type': type, 'Transfer-Encoding': 'chunked' };
+    try {
+      const firstStatus = await new Promise<number>((resolve, reject) => {
+        const req = request({ host: url.hostname, port: url.port, method: 'POST',
+          path: '/tenants/acme/workspaces/main/commands', agent, headers }, (res) => {
+          res.resume(); res.once('end', () => resolve(res.statusCode!));
+        });
+        req.once('socket', (socket) => { firstSocket = socket; });
+        req.once('error', reject); req.end(raw);
+      });
+      expect(firstStatus).toBe(status);
+      const nextStatus = await new Promise<number>((resolve, reject) => {
+        const req = request({ host: url.hostname, port: url.port, method: 'POST',
+          path: '/tenants/acme/workspaces/main/commands', agent,
+          headers: { ...headers, 'Content-Type': 'application/json' } }, (res) => {
+          res.resume(); res.once('end', () => resolve(res.statusCode!));
+        });
+        req.once('socket', (socket) => {
+          if (socket !== firstSocket) reject(new Error('The error response unexpectedly closed its reusable socket.'));
+        });
+        req.write('{"commandId":"doctor","params":{');
+        // A stale rejection timer must not reset this distinct request after one second.
+        const finishUpload = setTimeout(() => req.end('}}'), 1_200);
+        req.once('error', (error) => { clearTimeout(finishUpload); reject(error); });
+      });
+      expect(nextStatus).toBe(202);
+    } finally { agent.destroy(); }
+  });
+
+  it('flushes 413 and bounds an oversized upload that never finishes', async () => {
+    const { Agent, request } = await import('node:http');
+    const agent = new Agent({ keepAlive: true, maxSockets: 1 });
+    const url = new URL(h.url);
+    try {
+      const response = await new Promise<{ status: number; code: string }>((resolve, reject) => {
+        let status: number | undefined;
+        let text = '';
+        const req = request({ host: url.hostname, port: url.port, method: 'POST',
+          path: '/tenants/acme/workspaces/main/commands', agent,
+          headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' } }, (res) => {
+          status = res.statusCode;
+          res.on('data', (chunk: Buffer) => { text += chunk.toString(); });
+        });
+        const deadline = setTimeout(() => { req.destroy(); reject(new Error('Incomplete upload was not bounded.')); }, 5_000);
+        req.once('socket', (socket) => socket.once('close', () => {
+          clearTimeout(deadline);
+          if (status === undefined) reject(new Error('Socket closed before the 413 response.'));
+          else {
+            try { resolve({ status, code: JSON.parse(text).error.code }); } catch (error) { reject(error); }
+          }
+        }));
+        req.on('error', () => undefined); // Expected when the server cuts off this unfinished upload.
+        req.write('x'.repeat(80 * 1024)); // Deliberately do not end the chunked request.
+      });
+      expect(response).toEqual({ status: 413, code: 'PAYLOAD_TOO_LARGE' });
+    } finally { agent.destroy(); }
+  });
+
   it('requires application/json and an object body', async () => {
     const text = await post(undefined, { rawBody: '{"commandId":"doctor"}', headers: { 'Content-Type': 'text/plain' } });
     expect(text.status).toBe(415);

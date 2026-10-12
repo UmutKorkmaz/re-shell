@@ -38,11 +38,11 @@ apps/web/src-tauri/
 
 1. **Find Node.js.** `RE_SHELL_NODE` (exclusive when set), then the packaged
    `re-shell-node` sidecar beside the desktop executable. Debug builds may use
-   the staged sidecar in `src-tauri/binaries`. Without a sidecar, fall back to
-   `PATH`, then the
-   usual install directories that GUI launchers leave off `PATH` (Homebrew,
-   `/usr/local/bin`, Volta, the newest nvm, `Program Files\nodejs`). `node
-   --version` must be **18 or newer**.
+   the staged sidecar in `src-tauri/binaries`, then fall back to `PATH` and usual
+   install directories that GUI launchers leave off `PATH` (Homebrew,
+   `/usr/local/bin`, Volta, the newest nvm, `Program Files\nodejs`). Release
+   builds report an installation error when the required packaged sidecar is
+   missing or unusable. Use **Node 22.13.0 or newer** with CLI 0.32.0.
 2. **Find the hub bundle.** `RE_SHELL_HUB_BUNDLE` (exclusive when set), then
    `hub/hub-server.js` in the app's resource directory (the dashboard build's
    `dist/hub-server.js` is bundled there by `tauri.conf.json`), then, in debug

@@ -1332,14 +1332,23 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
         def.body === 'worker' ? limits.workerBodyBytes : limits.bodyBytes
       );
       if (!parsed.ok) {
-        // Discard without buffering. Immediate Connection: close can cause a
-        // TCP reset while the client is uploading and erase the 413 response.
-        // Give the response a bounded flush window, then close this connection.
-        req.resume();
+        // Drain without buffering. Immediate Connection: close during an upload
+        // can reset the socket before the client receives its 413 response.
+        // Bound incomplete uploads, but cancel once drained so a later request
+        // on the same keep-alive socket is not closed by this request's timer.
         const socket = req.socket;
-        const closeTimer = setTimeout(() => socket.destroy(), 1_000);
-        closeTimer.unref();
-        socket.once('close', () => clearTimeout(closeTimer));
+        if (!req.complete && !socket.destroyed) {
+          const cancelClose = (): void => {
+            clearTimeout(closeTimer);
+            req.off('end', cancelClose);
+            socket.off('close', cancelClose);
+          };
+          const closeTimer = setTimeout(() => { cancelClose(); socket.destroy(); }, 1_000);
+          closeTimer.unref();
+          req.once('end', cancelClose);
+          socket.once('close', cancelClose);
+        }
+        req.resume();
         sendError(ctx, parsed.code, parsed.message);
         return;
       }

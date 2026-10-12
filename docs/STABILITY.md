@@ -7,7 +7,7 @@ Check [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) and th
 [npm CLI package](https://www.npmjs.com/package/@re-shell/cli) for publication status. CLI and
 MCP now require Node **22.13.0+**. Current evidence and remaining work are recorded
 in [development status](./DEVELOPMENT_STATUS.md): workspace build, 11/11 fresh packed
-checks and 380 control-plane tests in 30 files pass. Browser S256 PKCE is verified
+checks and 384 control-plane tests in 30 files pass. Browser S256 PKCE is verified
 in a real browser against a local protocol fixture; Docker API/worker staging passes.
 Live external IdP, cloud-account and LLM checks remain incomplete.
 

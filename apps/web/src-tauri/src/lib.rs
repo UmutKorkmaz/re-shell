@@ -70,8 +70,16 @@ fn hub_options(context: &tauri::Context<tauri::Wry>) -> Result<HubOptions, HubEr
         "re-shell-node"
     };
     let packaged_node = std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(|dir| dir.join(sidecar_name)));
+        .map_err(|error| HubError::Io(format!("could not locate the desktop executable: {error}")))
+        .and_then(|path| {
+            path.parent()
+                .map(|dir| dir.join(sidecar_name))
+                .ok_or_else(|| {
+                    HubError::Io(
+                        "the desktop executable has no directory for its bundled runtime".into(),
+                    )
+                })
+        });
     let dev_node = if cfg!(debug_assertions) {
         Some(
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -85,7 +93,7 @@ fn hub_options(context: &tauri::Context<tauri::Wry>) -> Result<HubOptions, HubEr
     } else {
         None
     };
-    let node_path = packaged_node.filter(|path| path.exists()).or(dev_node);
+    let node_path = select_node_path(packaged_node, dev_node)?;
     let node = hub::resolve_desktop_node(&NodeSearch::from_env(), node_path.as_deref())?;
     let version = hub::check_node_version(&node)?;
     println!("[desktop] using Node.js {version} at {}", node.display());
@@ -125,6 +133,21 @@ fn hub_options(context: &tauri::Context<tauri::Wry>) -> Result<HubOptions, HubEr
         ready_timeout: HUB_READY_TIMEOUT,
         bind_attempts: HUB_BIND_ATTEMPTS,
     })
+}
+
+/// Release builds require their installed sidecar path. Development builds
+/// may use a staged sidecar or system Node when neither sidecar exists.
+fn select_node_path(
+    packaged: Result<PathBuf, HubError>,
+    dev_fallback: Option<PathBuf>,
+) -> Result<Option<PathBuf>, HubError> {
+    match dev_fallback {
+        Some(dev) => Ok(packaged
+            .ok()
+            .filter(|path| path.exists())
+            .or_else(|| dev.exists().then_some(dev))),
+        None => packaged.map(Some),
+    }
 }
 
 /// The Vite dev server URL, only meaningful in debug builds (`tauri dev`).
@@ -635,6 +658,33 @@ mod lifecycle_tests {
             updating: AtomicBool::new(false),
             update_installing: AtomicBool::new(false),
         }
+    }
+
+    #[test]
+    fn release_keeps_missing_sidecar_path_for_explicit_failure() {
+        let missing = PathBuf::from("/nonexistent-re-shell-runtime/re-shell-node");
+        assert_eq!(
+            select_node_path(Ok(missing.clone()), None).unwrap(),
+            Some(missing)
+        );
+    }
+
+    #[test]
+    fn release_propagates_sidecar_path_derivation_failure() {
+        assert!(
+            matches!(select_node_path(Err(HubError::Io("executable unavailable".into())), None),
+            Err(HubError::Io(message)) if message == "executable unavailable")
+        );
+    }
+
+    #[test]
+    fn development_can_fall_back_when_sidecars_and_executable_path_are_missing() {
+        assert!(select_node_path(
+            Err(HubError::Io("executable unavailable".into())),
+            Some(PathBuf::from("/nonexistent-re-shell-runtime/staged-node"))
+        )
+        .unwrap()
+        .is_none());
     }
 
     #[test]
