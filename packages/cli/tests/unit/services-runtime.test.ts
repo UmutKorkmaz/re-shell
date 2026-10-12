@@ -15,6 +15,7 @@ import {
 } from '../../src/commands/services';
 import {
   pidFilePath,
+  listGroupMembers,
   readProcInfo,
   readServiceRecords,
   type ServiceProcessRecord,
@@ -110,6 +111,24 @@ async function rejection(promise: Promise<unknown>): Promise<ServiceRuntimeError
 }
 
 describePosix('servicesUp - runtime selection and exit codes', () => {
+  it('retains kernel identity with a restricted PATH and ignores a shadowed ps utility', () => {
+    const initial = readProcInfo(process.pid);
+    expect(initial).not.toBeNull();
+    const dir = noDockerPath();
+    const marker = path.join(dir, 'untrusted-ps-invoked');
+    fs.writeFileSync(path.join(dir, 'ps'),
+      `#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(marker)}, 'invoked');\n`,
+      { mode: 0o755 });
+
+    expect(readProcInfo(process.pid)).toMatchObject({
+      pid: process.pid,
+      pgid: initial!.pgid,
+      startTime: initial!.startTime,
+    });
+    expect(listGroupMembers(initial!.pgid)).toContain(process.pid);
+    expect(fs.existsSync(marker)).toBe(false);
+  });
+
   it('takes the package.json script path when no docker binary exists (and really starts it)', async () => {
     noDockerPath();
     const port = await getFreePort();

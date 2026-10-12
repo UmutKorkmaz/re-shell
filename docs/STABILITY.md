@@ -1,5 +1,28 @@
 # Stability Work
 
+## October 12, 2026 release candidate
+
+CLI **0.32.0**, contracts **0.3.1**, UI **0.6.1** and MCP **0.3.0** are prepared
+for publication. No new-version npm or GitHub publication is claimed here. CLI and
+MCP now require Node **22.13.0+**. Current evidence and remaining work are recorded
+in [development status](./DEVELOPMENT_STATUS.md): workspace build, 11/11 fresh packed
+checks and 380 control-plane tests in 30 files pass. Browser S256 PKCE is verified
+in a real browser against a local protocol fixture; Docker API/worker staging passes.
+Live external IdP, cloud-account and LLM checks remain incomplete.
+
+Dependency updates reduce the production workspace audit from 80 findings to zero.
+A fresh packed npm consumer still reports six moderate findings attributable to
+UUID advisory [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq)
+through Apollo dependencies; this is not a security-clean consumer release. The
+advisory affects UUID v3()/v5()/v6() output-buffer handling; reviewed Apollo calls use v1()/v4(). That
+limits the observed reachable path without clearing the advisory. Development-tool
+audits still report 31 findings (7 critical, 6 high, 16 moderate, 2 low).
+
+Marketplace and signed desktop publication are deferred. Public control-plane
+hosting is outside the selected local Docker staging scope.
+
+## Historical v0.31.0 stability batch
+
 Release status refreshed 2026-10-11: CLI `0.31.0`, contracts `0.3.0`, MCP `0.2.0`
 and UI `0.6.0` are published on npm, with [GitHub release v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
 on 2026-10-05 and a successful [publish run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37273442085)
@@ -234,8 +257,8 @@ The catalog is now 204 templates across 35 languages (Roc has no remaining templ
 
 ## What remains, and why it is external
 
-The unreleased candidate implements clean-install UI root-import checks, desktop
-usability and part of hosted control-plane hardening. Its verification and remaining
+The October 12 candidate implements clean-install UI root-import checks, desktop
+usability, pinned external identity and browser S256 PKCE, revocation and administration. Its verification and remaining
 development are recorded in [development status](./DEVELOPMENT_STATUS.md). The
 external prerequisites below remain separate.
 

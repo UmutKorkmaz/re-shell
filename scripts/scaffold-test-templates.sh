@@ -546,7 +546,10 @@ verify_zig() {
         NATIVE_REASON="zig fetch printed no package hash for $url"
         return 1
       fi
-      sed -i "s|^\( *\)\(\.url = \"$url\",\)\$|\1\2\n\1.hash = \"$hash\",|" build.zig.zon
+      # A literal escaped newline works with both BSD and GNU sed; -i differs between them.
+      sed "s|^\( *\)\(\.url = \"$url\",\)\$|\1\2\\
+\1.hash = \"$hash\",|" build.zig.zon > "$TMP_DIR/$TPL-zig-zon.txt" || return 1
+      cp "$TMP_DIR/$TPL-zig-zon.txt" build.zig.zon || return 1
       echo "    hash: $hash ($url)"
       fetched="$fetched $url=$hash"
     done < <(sed -n 's/^ *\.url = "\([^"]*\)",$/\1/p' build.zig.zon)

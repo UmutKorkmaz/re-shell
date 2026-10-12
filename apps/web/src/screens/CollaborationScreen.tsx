@@ -110,7 +110,7 @@ function CollaborationContent(): React.ReactElement {
   return (
     <div className="stagger-children screen-enter grid gap-4" data-testid="collab-screen">
       <ConnectionPanel
-        settings={cp.settings}
+        settings={cp.settings} tokenInMemory={cp.tokenInMemory}
         status={cp.status}
         error={cp.error}
         warning={cp.warning}
@@ -118,7 +118,7 @@ function CollaborationContent(): React.ReactElement {
         tenantId={tenantId}
         role={cp.role}
         onChange={cp.updateSettings}
-        onConnect={() => void cp.connect()}
+        onConnect={() => void cp.connect()} onSignIn={() => void cp.signIn()}
         onDisconnect={cp.disconnect}
         onForgetToken={cp.forgetToken}
       />

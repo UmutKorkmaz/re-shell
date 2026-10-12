@@ -29,7 +29,7 @@
  *     --keep      keep the temp directory (it is always kept when a check fails)
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -493,6 +493,17 @@ async function main() {
   log(`${results.length - failed.length}/${results.length} checks passed`);
   for (const result of failed) {
     log(`  FAILED: ${result.name}`);
+  }
+
+  // Export only artifacts that passed every clean-install check. The release
+  // workflow publishes these same bytes rather than packing the source again.
+  if (failed.length === 0 && process.env.PACK_SMOKE_ARTIFACTS_DIR) {
+    const destination = path.resolve(process.env.PACK_SMOKE_ARTIFACTS_DIR);
+    mkdirSync(destination, { recursive: true });
+    for (const { tarball } of Object.values(packed)) {
+      copyFileSync(tarball, path.join(destination, path.basename(tarball)));
+    }
+    log(`Exported verified tarballs to ${destination}`);
   }
 
   if (failed.length === 0 && !KEEP) {

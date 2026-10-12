@@ -5,8 +5,8 @@ UI system** for the monorepo — `apps/web` consumes it instead of building a pa
 component layer. There is no Web Components surface.
 
 > Part of the [Re-Shell monorepo](https://github.com/UmutKorkmaz/re-shell). See
-> [`/docs`](../../docs) for the documentation index. Version in this tree: **0.6.0**
-> (published: 0.6.0).
+> [`/docs`](../../docs) for the documentation index. Version in this tree: **0.6.1**
+> (October 12, 2026 candidate; publication pending). The previous npm release is **0.6.0**.
 
 ## Install
 
@@ -37,6 +37,12 @@ import { Button } from '@re-shell/ui/components/ui/button';
 import { Box, Stack, Text } from '@re-shell/ui/components/primitives';
 import { px, rem } from '@re-shell/ui/lib';
 ```
+
+Root, hooks and component entry points are verified from a fresh tarball install in
+ESM and CommonJS consumers, an SSR render and a consuming Vite build. The candidate
+handles missing `import.meta.env` in plain Node without losing Vite environment values.
+These fixes and the required React Query peer declaration need the 0.6.1 release;
+they are not established by the already-published 0.6.0 artifact.
 
 ## Exports
 

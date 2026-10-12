@@ -13,7 +13,7 @@ plane are separate and optional.
 
 | Requirement | Version | Notes |
 | --- | --- | --- |
-| Node.js | **18 or newer** | The CLI, the dashboard hub and the MCP server run on Node 18+. The control plane needs **22.13+** (it uses `node:sqlite`). |
+| Node.js | **22.13.0 or newer** | Required by the CLI 0.32.0 and MCP 0.3.0 candidate and the control plane (`node:sqlite`). Use this floor for the dashboard hub too. The previous CLI 0.31.0 declared Node 18+. |
 | Package manager | npm, yarn, pnpm, or bun | `pnpm` is the default for generated monorepos. |
 | Git | optional | Recommended; `re-shell init` initializes a repo unless you pass `--no-git`. |
 
@@ -39,8 +39,10 @@ bun add -g @re-shell/cli
 
 > **Which version you get.** npm serves **0.31.0**, published on October 5, 2026
 > in [v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
-> (registry checked October 11, 2026). This site describes that CLI version.
-> Install `@re-shell/cli@0.31.0` to pin it; future source changes need a later release.
+> (registry checked October 11, 2026). The October 12 source tree prepares
+> **0.32.0**; publication is pending. Candidate fixes require that release or a
+> [build from this checkout](/re-shell/architecture/monorepo/).
+> Install `@re-shell/cli@0.31.0` to pin the previous published release.
 
 ## Verify the installation
 
@@ -84,10 +86,10 @@ See [`completion`](/re-shell/cli/completion/) for details (including
 
 | Package | In this tree | Last published | Role |
 | --- | --- | --- | --- |
-| `@re-shell/cli` | `0.31.0` | `0.31.0` | The CLI and the bundled dashboard launcher. |
-| `@re-shell/contracts` | `0.3.0` | `0.3.0` | The typed `{ ok, data, warnings }` JSON contract: wire schemas, adapters, hub transport. |
-| `@re-shell/ui` | `0.6.0` | `0.6.0` | The React component system the dashboard is built from. |
-| `@re-shell/mcp` | `0.2.0` | `0.2.0` | The MCP server for AI agents ([MCP](/re-shell/integrations/mcp/)). |
+| `@re-shell/cli` | `0.32.0` (candidate) | `0.31.0` | The CLI and the bundled dashboard launcher. |
+| `@re-shell/contracts` | `0.3.1` (candidate) | `0.3.0` | The typed `{ ok, data, warnings }` JSON contract: wire schemas, adapters, hub transport. |
+| `@re-shell/ui` | `0.6.1` (candidate) | `0.6.0` | The React component system the dashboard is built from. |
+| `@re-shell/mcp` | `0.3.0` (candidate) | `0.2.0` | The MCP server for AI agents ([MCP](/re-shell/integrations/mcp/)). |
 
 Not published: the hosted [control plane](/re-shell/architecture/control-plane/)
 (`@re-shell/control-plane`, private), the dashboard app, the

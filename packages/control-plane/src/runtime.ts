@@ -48,6 +48,7 @@ export async function startRuntime(
     identity: { keyRing: config.keyRing, issuer: config.issuer, audience: config.audience,
       revocations: new SqliteTokenRevocations(db) },
     oidc: config.oidc,
+    oidcBrowser: config.oidcBrowser,
     platformAdmins: config.platformAdmins,
     corsOrigins: config.corsOrigins,
     trustProxy: config.trustProxy,

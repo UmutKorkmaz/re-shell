@@ -15,12 +15,12 @@
 
 | Fact | Value | Checked with |
 |------|-------|--------------|
-| `@re-shell/cli` | `0.31.0` (published) | `packages/cli/package.json`, `node packages/cli/dist/index.js --version` |
-| `@re-shell/contracts` / `@re-shell/mcp` / `@re-shell/ui` | `0.3.0` / `0.2.0` / `0.6.0` (all published) | each `package.json`, npm registry `latest` checked 2026-10-11 |
+| `@re-shell/cli` | `0.32.0` (2026-10-12 candidate; publication pending) | `packages/cli/package.json`, `node packages/cli/dist/index.js --version` |
+| `@re-shell/contracts` / `@re-shell/mcp` / `@re-shell/ui` | `0.3.1` / `0.3.0` / `0.6.1` (candidate; publication pending) | each `package.json`; previous published versions were `0.3.0` / `0.2.0` / `0.6.0` |
 | Not published | `@re-shell/control-plane` `0.1.0` (private), `@re-shell/dashboard` `0.1.0` (private), VS Code extension `re-shell` `0.3.0` (private, `.vsix` only) | `package.json` `private: true` |
 | Registered CLI commands | **585** command paths in **46** top-level commands | `commands list --json` (`.data.length`) |
 | Backend templates | **204** across **35** languages | `templates list --json` (`.data.length`, distinct `language`) |
-| Dashboard screens | **11** | `apps/web/src/shell/screens.ts` |
+| Dashboard screens | **12** (includes Administration) | `apps/web/src/shell/screens.ts` |
 | Startup (lazy command loading) | `--version` about 44 ms, `--help` about 102 ms median over 10 runs on the development VM; before lazy loading `--help` took about 2.6 s | `node scripts/bench-startup.mjs`; R-1b measurements below |
 
 The four npm packages were published in [v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
@@ -31,6 +31,20 @@ it does not establish Marketplace distribution, desktop signing or control-plane
 locally, but no hosted CI run has executed it yet. Every workflow has run and passed on
 GitHub on pull request [#395](https://github.com/UmutKorkmaz/re-shell/pull/395) (commit
 `3a06508`), including all 19 jobs of `template-health` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)).
+
+## October 12 candidate verification
+
+Current hardening evidence is in [development status](./DEVELOPMENT_STATUS.md):
+workspace build and 11/11 fresh package checks pass; the control plane passes 380
+checks in 30 test files. Browser S256 PKCE sign-in passes local browser and real
+HTTP protocol-fixture checks. Local Docker staging passes the API and worker-job
+gates. Those results do not establish a live external IdP or public hosting.
+The production workspace dependency audit is clean; fresh packed npm consumption
+still reports six moderate findings from one upstream UUID advisory, and the
+31 development-tool findings remain unresolved.
+
+The feature tables retain older source/CI evidence where stated. They do not claim
+that the newly changed candidate has already passed all hosted CI or been published.
 
 ## Status legend
 
@@ -154,7 +168,7 @@ Each row says what exists, what proved it, and what could not be verified.
 | **P9-G** | **Policy packs and drift.** `workspace policy check\|search\|install\|list\|remove` (built-in packs `recommended` and `baseline`; installable packs under `.re-shell/policy-packs`, npm keyword `reshell-policy-pack`). **Rule types: `required-files`, `required-scripts`, `dependency-constraints`, `naming`, `min-node`, `license`.** `workspace drift` reports version mismatches across workspaces | DONE+tested | `unit/policy-engine.test.ts`, `policy-pack-commands.test.ts`, `policy-pack-marketplace.test.ts`, `workspace-policy.test.ts` |
 | **P9-H** | **Template matrix and dry-run diffs.** `templates matrix` (204-row compatibility grid), `templates apply <id>` (dry-run file preview), `create --dry-run` (with `--json`: the exact file set with per-file previews and diffs; never prompts) | DONE+tested | `unit/template-matrix.test.ts`, `template-dry-run.test.ts`, `integration/template-matrix-dryrun.test.ts`, `create-headless-json-dryrun.test.ts` |
 | **P9-I** | **VS Code extension** (`apps/vscode-extension`, package `re-shell` `0.3.0`): Projects, Commands and Templates views, **Build Command**, **Run via Hub**, status bar health; packaged as a `.vsix` (`pnpm --filter re-shell run package`) | DONE (env-limited: the VS Code **host** test was not run here, `update.code.visualstudio.com` is blocked; it runs in the `vscode-extension` workflow, which passes on PR #395, including the real VS Code host tests) | Unit and real-hub integration suites (built CLI + built hub, no editor); `scripts/verify-vsix.mjs` on the packaged `.vsix`. Not published to the Marketplace. |
-| **P9-J** | **Hosted control plane** (`packages/control-plane`): HTTP/SSE server, signed JWTs with key rotation, SQLite store, tenant isolation, remote workers that run the allow-listed CLI, team policy sync, append-only audit, Dockerfile and Compose | DONE+tested, **not deployed** (single node; no OIDC; no public hosting; no external security review) | `packages/control-plane` suites including end-to-end runs with the built CLI; Docker images built and `/healthz` checked locally once. Details and limits: [`control-plane.md`](./control-plane.md). |
+| **P9-J** | **Hosted control plane** (`packages/control-plane`): HTTP/SSE server, signed JWTs with key rotation, SQLite store, tenant isolation, remote workers that run the allow-listed CLI, team policy sync, append-only audit, Dockerfile and Compose | DONE+tested in local Docker staging (single node; pinned OIDC and browser S256 PKCE implemented; no public hosting; live external IdP unverified) | `packages/control-plane` suites including end-to-end runs with the built CLI; Docker images built and `/healthz` checked locally once. Details and limits: [`control-plane.md`](./control-plane.md). |
 | **P9-K** | **Desktop (Tauri).** The app owns its hub (free 127.0.0.1 port, per-launch token, stdin-close orphan protection); Linux `.deb`, `.rpm` and `.AppImage` built and smoke-tested under Xvfb here | DONE (env-limited: unsigned; signed builds only via CI secrets and never verified with real certificates; macOS and Windows bundles built only in the `desktop` workflow, which passes on PR #395) | `cargo test --locked` and `scripts/smoke-linux.sh`; see [`desktop.md`](./desktop.md) for exactly what was run |
 | **P9-L** | **Workspace graph explorer.** Search, filters (URL state), shortest dependency paths, cycle highlighting, six exports (PNG, SVG, PDF, Mermaid, D3 JSON, JSON), graph diff, live status, 2000+ nodes with virtualization. CLI: `workspace graph diff --base --head`, `workspace status` (running/stopped/unhealthy/unknown with the reason; remote probes need `--allow-remote-probes`), `workspace explore` (terminal explorer, TTY only), `workspace graph --interactive` | DONE+tested | `unit/workspace-status.test.ts`, `workspace-graph-command.test.ts`, `graph-explorer-*.test.*`, `integration/workspace-graph-cli.test.ts`; `contracts/src/graph*.test.ts`; Playwright `e2e/graph-scale.spec.ts` (generated 2001-workspace repo, real hub and CLI: render, search, filter, paths, diff and export budgets). The scale spec passed locally when merged and runs in CI (`playwright.graph.config.ts`) and passes on PR #395. |
 | **P9-M** | **Multi-environment profiles.** `dev --profile <name>`, `config profile ...` (see section 1) | DONE+tested | `dev-profile*.test.ts`, `integration/dev-profile-cli.test.ts` |
@@ -166,7 +180,7 @@ Each row says what exists, what proved it, and what could not be verified.
 |--------|-------|
 | DONE+tested | P9-B (broker round trips need Docker), P9-C, P9-E, P9-F, P9-G, P9-H, P9-L, P9-M |
 | DONE (env-limited) | P9-A (no live LLM), P9-D (Flux/Argo sync in CI), P9-I (VS Code host test in CI), P9-K (unsigned), P9-N (no TURN) |
-| DONE+tested, not deployed | P9-J |
+| DONE+tested in local Docker staging; no public hosting | P9-J |
 
 ---
 
@@ -197,8 +211,8 @@ workspace plus microfrontend toolkit with a typed CLI-to-UI contract.
 ## 6. Remaining development and external verification
 
 The unreleased hardening candidate adds clean-install UI regression checks, desktop
-workspace selection/runtime recovery, pinned OIDC verification, persistent revocation,
-administration and HTTP metrics. See [development status](./DEVELOPMENT_STATUS.md)
+workspace selection/runtime recovery, pinned OIDC verification and browser S256 PKCE,
+persistent revocation, administration and HTTP metrics. See [development status](./DEVELOPMENT_STATUS.md)
 for current evidence and the remaining development and distribution gates. External
 dependencies below are not claimed as complete.
 
@@ -219,10 +233,10 @@ dependencies below are not claimed as complete.
 
 | Package | Location | Name | Version | Role |
 |---------|----------|------|---------|------|
-| cli | `packages/cli` | `@re-shell/cli` | 0.31.0 | The published CLI, templates, hub launcher, bundled dashboard |
-| contracts | `packages/contracts` | `@re-shell/contracts` | 0.3.0 | zod schemas: wire layer, adapters, domain models, hub transport, command registry, OT, graph, theme/white-label |
-| mcp | `packages/mcp` | `@re-shell/mcp` | 0.2.0 | Stdio MCP server (read-only tools, resources, prompts) |
-| ui | `packages/ui` | `@re-shell/ui` | 0.6.0 | shadcn-React component library, Storybook 9 |
+| cli | `packages/cli` | `@re-shell/cli` | 0.32.0 (candidate) | The published CLI, templates, hub launcher, bundled dashboard |
+| contracts | `packages/contracts` | `@re-shell/contracts` | 0.3.1 (candidate) | zod schemas: wire layer, adapters, domain models, hub transport, command registry, OT, graph, theme/white-label |
+| mcp | `packages/mcp` | `@re-shell/mcp` | 0.3.0 (candidate) | Stdio MCP server (read-only tools, resources, prompts) |
+| ui | `packages/ui` | `@re-shell/ui` | 0.6.1 (candidate) | shadcn-React component library, Storybook 9 |
 | control-plane | `packages/control-plane` | `@re-shell/control-plane` | 0.1.0 (private) | Multi-tenant HTTP/SSE control plane, workers, collaboration |
 | web | `apps/web` | `@re-shell/dashboard` | 0.1.0 (private) | Dashboard (12 screens in the candidate), hub-server, Tauri shell (`src-tauri`) |
 | vscode-extension | `apps/vscode-extension` | `re-shell` | 0.3.0 (private) | VS Code extension |

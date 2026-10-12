@@ -14,9 +14,13 @@
     "overrides": {
       "@types/react": "18.3.31",
       "@types/react-dom": "18.3.7",
-      "hono": "^4.12.25",
+      "hono": "^4.13.7",
       "form-data": "^4.0.6",
-      "protobufjs": "^7.6.3"
+      "protobufjs": "^7.6.3",
+      "http-cache-semantics": "^4.3.0",
+      "uuid@<11.1.1": "^11.1.1",
+      "postcss-selector-parser@<7.1.6": "^7.1.6",
+      "vite@>=8.0.0>esbuild": "^0.28.1"
     }
   }
 }

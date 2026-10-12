@@ -3,7 +3,7 @@ import * as fsReal from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import * as zlib from 'zlib';
-import fg from 'fast-glob';
+import fg from '../utils/file-glob';
 import { execSync } from 'child_process';
 import { findMonorepoRoot } from '../utils/monorepo';
 import { analyzeWorkspace, discoverPackages, ANALYSIS_TYPES, SEVERITY_ORDER, isAnalysisType } from '../analyze';

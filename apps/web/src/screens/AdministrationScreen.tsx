@@ -23,9 +23,9 @@ export function AdministrationScreen({ fetchImpl }: { fetchImpl?: typeof fetch }
 function AdministrationContent(): React.ReactElement {
   const cp = useControlPlane();
   return <div className="screen-enter grid gap-4" data-testid="admin-screen">
-    <ConnectionPanel settings={cp.settings} status={cp.status} error={cp.error} warning={cp.warning}
+    <ConnectionPanel settings={cp.settings} tokenInMemory={cp.tokenInMemory} status={cp.status} error={cp.error} warning={cp.warning}
       identity={cp.identity} tenantId={cp.tenantId} role={cp.role} onChange={cp.updateSettings}
-      onConnect={() => void cp.connect()} onDisconnect={cp.disconnect} onForgetToken={cp.forgetToken} />
+      onConnect={() => void cp.connect()} onSignIn={() => void cp.signIn()} onDisconnect={cp.disconnect} onForgetToken={cp.forgetToken} />
     {cp.status === 'connected' && cp.client ? <ConnectedAdministration client={cp.client} tenantId={cp.tenantId}
       role={cp.role} platformAdmin={cp.identity?.platformAdmin === true} onReconnect={cp.connect} /> : null}
   </div>;

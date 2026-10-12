@@ -1,3 +1,4 @@
+import type { OidcBrowserConfig } from '../config.js';
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
@@ -159,6 +160,7 @@ export interface ControlPlaneServerOptions {
   iceServers?: readonly IceServerConfig[];
   identity: IdentityOptions;
   oidc?: OidcOptions;
+  oidcBrowser?: OidcBrowserConfig;
   events?: EventBus;
   /** User ids allowed to create tenants. */
   platformAdmins?: readonly string[];
@@ -853,6 +855,18 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
         return;
       }
       sendJson(ctx, 200, ok({ status: 'ok', version: options.version ?? '0.1.0' }));
+    },
+  });
+
+  route('GET', {
+    pattern: '/auth/oidc',
+    auth: 'none',
+    run: (ctx) => {
+      if (!options.oidcBrowser) {
+        sendError(ctx, 'NOT_FOUND', 'Browser sign-in is not configured on this control plane.');
+        return;
+      }
+      sendJson(ctx, 200, ok(options.oidcBrowser));
     },
   });
 

@@ -47,6 +47,8 @@ export interface ServeConfig {
   audience: string;
   /** Optional external JWT access-token issuer with operator-pinned public keys. */
   oidc?: OidcOptions;
+  /** Public browser client settings, pinned by the operator. Never contains a secret. */
+  oidcBrowser?: OidcBrowserConfig;
   platformAdmins: string[];
   corsOrigins: string[];
   trustProxy: boolean;
@@ -165,6 +167,8 @@ export function loadServeConfig(env: Env): ControlPlaneResult<ServeConfig> {
   }
   const oidc = loadOidcConfig(env);
   if (!oidc.ok) return oidc;
+  const browser = loadOidcBrowserConfig(env, oidc.data);
+  if (!browser.ok) return browser;
   const port = intVar(env, 'CONTROL_PLANE_PORT', 0, 65535);
   if (!port.ok) return port;
 
@@ -214,6 +218,7 @@ export function loadServeConfig(env: Env): ControlPlaneResult<ServeConfig> {
     issuer: env.CONTROL_PLANE_JWT_ISSUER || DEFAULT_ISSUER,
     audience: env.CONTROL_PLANE_JWT_AUDIENCE || DEFAULT_AUDIENCE,
     oidc: oidc.data,
+    oidcBrowser: browser.data,
     platformAdmins: list(env.CONTROL_PLANE_PLATFORM_ADMINS),
     corsOrigins,
     trustProxy: flag(env.CONTROL_PLANE_TRUST_PROXY),
@@ -322,4 +327,58 @@ export function loadWorkerToken(env: Env, tokenFile?: string): ControlPlaneResul
   return configError(
     'No worker token configured. Set CONTROL_PLANE_WORKER_TOKEN or CONTROL_PLANE_WORKER_TOKEN_FILE (issue one with `re-shell-control-plane issue-token --worker`).'
   );
+}
+
+
+export interface OidcBrowserConfig {
+  issuer: string;
+  clientId: string;
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  redirectUris: string[];
+  scope: string;
+  /** Provider supports RFC 9207 authorization-response issuer identification. */
+  requireResponseIssuer: boolean;
+}
+
+function browserUrl(raw: string): URL {
+  const url = new URL(raw);
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) ||
+      url.username || url.password || url.hash || raw.trim() !== raw || raw.length > 2048) {
+    throw new Error('Browser OIDC URLs require HTTPS (HTTP loopback staging is allowed), without credentials or fragments.');
+  }
+  return url;
+}
+
+/** Explicit client/endpoints/redirect allowlist; no request-derived discovery or secrets. */
+export function loadOidcBrowserConfig(env: Env, oidc?: OidcOptions): ControlPlaneResult<OidcBrowserConfig | undefined> {
+  const names = ['CLIENT_ID', 'AUTHORIZATION_ENDPOINT', 'TOKEN_ENDPOINT', 'REDIRECT_URIS', 'SCOPE', 'REQUIRE_RESPONSE_ISSUER'];
+  if (names.every((name) => env[`CONTROL_PLANE_OIDC_${name}`] === undefined)) return ok(undefined);
+  try {
+    const clientId = env.CONTROL_PLANE_OIDC_CLIENT_ID;
+    const authorizationEndpoint = env.CONTROL_PLANE_OIDC_AUTHORIZATION_ENDPOINT;
+    const tokenEndpoint = env.CONTROL_PLANE_OIDC_TOKEN_ENDPOINT;
+    const redirectUris = list(env.CONTROL_PLANE_OIDC_REDIRECT_URIS);
+    const scope = env.CONTROL_PLANE_OIDC_SCOPE ?? 'openid';
+    const requireIssuer = env.CONTROL_PLANE_OIDC_REQUIRE_RESPONSE_ISSUER;
+    if (!oidc || !clientId || clientId.length > 256 || /[\s\u0000-\u001f\u007f]/.test(clientId) ||
+        !authorizationEndpoint || !tokenEndpoint || redirectUris.length === 0 || redirectUris.length > 16 ||
+        !/^[\x21\x23-\x5b\x5d-\x7e]+(?: [\x21\x23-\x5b\x5d-\x7e]+)*$/.test(scope) || scope.length > 1024 ||
+        (requireIssuer !== undefined && !['true', 'false', '1', '0'].includes(requireIssuer))) throw new Error('Incomplete browser client settings.');
+    for (const endpoint of [authorizationEndpoint, tokenEndpoint]) {
+      if (browserUrl(endpoint).search) throw new Error('Endpoint queries are not allowed.');
+    }
+    for (const redirect of redirectUris) {
+      const url = browserUrl(redirect);
+      if (url.href !== redirect || ['code', 'state', 'error', 'iss', 'access_token', 'id_token'].some((key) => url.searchParams.has(key))) {
+        throw new Error('Redirect URLs must be exact canonical URLs without OAuth response parameters.');
+      }
+      if (!list(env.CONTROL_PLANE_CORS_ORIGINS).includes(url.origin)) throw new Error('Redirect origins must be allowed by CONTROL_PLANE_CORS_ORIGINS.');
+    }
+    return ok({ issuer: oidc.issuer, clientId, authorizationEndpoint, tokenEndpoint, redirectUris,
+      scope, requireResponseIssuer: requireIssuer === undefined ? true : flag(requireIssuer) });
+  } catch {
+    return configError('Invalid browser OIDC configuration. Configure trust, client ID, HTTPS endpoints, exact redirect URLs and their CORS origins.');
+  }
 }

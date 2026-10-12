@@ -22,7 +22,7 @@
 import * as path from 'path';
 import { createHash } from 'crypto';
 import * as fs from 'fs-extra';
-import fg from 'fast-glob';
+import fg from './file-glob';
 
 /** Reads the sha256 of a single file as a lowercase hex string. */
 async function hashFile(absPath: string): Promise<string> {
@@ -102,7 +102,7 @@ export interface CacheKeyInput {
  *  Has no effect when `inputs` is explicitly provided.
  * @returns A promise resolving to an array of absolute file paths, sorted by their
  *  package-relative POSIX path for cross-platform determinism.
- * @throws {Error} If the underlying `fast-glob` read or filesystem access fails
+ * @throws {Error} If the underlying glob read or filesystem access fails
  *  (e.g. `packageDir` does not exist or is unreadable).
  */
 export async function resolveInputFiles(
@@ -125,11 +125,11 @@ export async function resolveInputFiles(
     followSymbolicLinks: false,
     ignore,
   });
-  // fast-glob already returns POSIX-relative paths; sort for determinism.
+  // The file collector returns POSIX-relative paths; sort for determinism.
   return matches.sort((a, b) => a.localeCompare(b)).map(rel => path.join(root, rel));
 }
 
-/** Normalise a glob to forward slashes (fast-glob requires POSIX globs). */
+/** Normalise a glob to forward slashes (the file collector requires POSIX globs). */
 function normalizeGlob(glob: string): string {
   return glob.split(path.sep).join('/');
 }

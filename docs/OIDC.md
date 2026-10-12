@@ -1,8 +1,8 @@
-# External bearer identity for the control plane
+# OIDC browser sign-in and external bearer identity
 
 The control plane accepts RS256 JWT access tokens from one configured OIDC issuer alongside existing internal HS256 user and worker tokens. External tokens authenticate users; worker endpoints require internal worker credentials. Tenant membership and roles stay in the local database. External roles, groups and tenant claims grant no access.
 
-This is API bearer SSO. Browser authorization-code/PKCE login, discovery, refresh-token management and provider logout remain separate work. Tests use locally generated RSA keys and signed fixtures; they do not prove a live provider login.
+The dashboard supports an operator-configured public-client authorization-code flow with S256 PKCE. Manual bearer connections remain available. Discovery, refresh-token management and provider logout are separate work. Tests and the local protocol fixture do not prove a live external provider login.
 
 ## Configure trust
 
@@ -46,4 +46,43 @@ Revoking one access token does not revoke other tokens, refresh tokens or the pr
 
 ## Verification scope
 
-The OIDC suite covers signed fixtures, foreign issuer/audience/algorithm, tampering, expiry/future claims, key-source headers, public-key validation, overlapping and retired keys, failed atomic reload, membership-only roles, fingerprint revocation, real HTTP coexistence with internal credentials, and runtime SQLite revocation wiring. Selecting and validating a live IdP and browser login remains separate integration work.
+The OIDC suite covers signed fixtures, foreign issuer/audience/algorithm, tampering, expiry/future claims, key-source headers, public-key validation, overlapping and retired keys, failed atomic reload, membership-only roles, fingerprint revocation, real HTTP coexistence with internal credentials, and runtime SQLite revocation wiring. A separate browser suite exercises S256/state, issuer and redirect binding, expiry, single-use transactions, callback cleanup, access-token-only handling, blocked storage, and the React callback under StrictMode. A real loopback HTTP protocol fixture exercises code exchange, PKCE mismatch and replay rejection, followed by `/me` through real JWT verification and SQLite membership. Selecting and validating a live external IdP remains separate integration work.
+
+
+## Enable browser sign-in
+
+Register a **public SPA/browser client** with the provider. Enable authorization code and S256 PKCE, exact redirects, and token-endpoint CORS for the dashboard origin. No client secret belongs in this application. Configure an access token for the API audience above; an ID token is not accepted as the API credential.
+
+In addition to pinned issuer/JWKS/API audience, configure:
+
+```dotenv
+CONTROL_PLANE_OIDC_CLIENT_ID=re-shell-dashboard
+CONTROL_PLANE_OIDC_AUTHORIZATION_ENDPOINT=https://id.example.com/authorize
+CONTROL_PLANE_OIDC_TOKEN_ENDPOINT=https://id.example.com/token
+CONTROL_PLANE_OIDC_REDIRECT_URIS=https://dashboard.example.com/
+CONTROL_PLANE_CORS_ORIGINS=https://dashboard.example.com
+CONTROL_PLANE_OIDC_SCOPE=openid re-shell-api
+CONTROL_PLANE_OIDC_REQUIRE_RESPONSE_ISSUER=true
+```
+
+Endpoints are explicit operator settings; no token/request-controlled discovery is performed. HTTPS is required except HTTP loopback staging. Redirect URLs must be canonical, exact, without fragments or OAuth response parameters; their origins must also be in the control plane CORS allowlist. Comma-separated redirects permit multiple registered dashboard URLs. Do not use wildcards. Partial or invalid browser settings fail startup. `/auth/oidc` exposes public settings with `Cache-Control: no-store`, never signing keys or a secret.
+
+The default requires the provider's RFC 9207 `iss` authorization-response parameter to match the pinned issuer. If a selected provider does not support that parameter, the operator can explicitly set `CONTROL_PLANE_OIDC_REQUIRE_RESPONSE_ISSUER=false`; a supplied `iss` is still checked, state and PKCE remain required, and the API still verifies issuer/audience/signature. Validate provider compatibility before enabling this exception.
+
+Open Administration or Collaboration, enter the control plane URL and optional tenant, then choose **Sign in with SSO**. The browser generates independent 256-bit state/verifier values and sends an S256 challenge. A five-minute transaction in tab storage binds the issuer, public client, endpoints, exact callback, control plane and return screen. The callback consumes that transaction before exchanging its code, checks state/issuer/redirect/configuration, and removes OAuth response parameters from browser history. Callback history is scrubbed even when the browser denies storage access; the failure is shown so the user can retry.
+
+Only the bearer **access token** is passed to `/me`; ID and refresh tokens are ignored. Sign-in itself keeps the access token in the active page's memory and does not replace stored manual tokens or enable the Remember option. Unrelated URL, tenant and ICE edits do not persist the SSO token. The current Remember checkbox starts unchecked even if a previous manual token was remembered; explicitly checking it, or explicitly editing the token field, uses the existing token-storage behavior. On expiry, sign in again. Forget token clears the active connection and stored manual token; it is not provider logout.
+
+## Local protocol staging
+
+After building `@re-shell/control-plane`, run the dashboard on loopback, then:
+
+```sh
+node scripts/stage-browser-sso.mjs --dashboard-url http://127.0.0.1:5173/
+```
+
+The script starts an isolated loopback IdP **protocol fixture** and control-plane API with in-memory SQLite, ephemeral signing keys, one `sso-stage` tenant and mapped staging Alice membership. It prints public URLs and the mapped user ID, never a token or private key. Enter its control-plane URL in the dashboard and sign in; the fixture displays **Continue as staging Alice**. SIGINT/SIGTERM closes its own servers and removes its temporary public-JWKS directory. Existing Docker projects are untouched.
+
+This fixture intentionally has no real user authentication. It validates the implemented redirect/code/PKCE/JWT/membership path and is not a deployable identity provider. Docker control-plane staging and external provider checks remain distinct evidence.
+
+Protocol references: [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636.html), [OAuth 2.0 Security BCP / RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html), and [authorization-response issuer identification / RFC 9207](https://www.rfc-editor.org/rfc/rfc9207.html).
