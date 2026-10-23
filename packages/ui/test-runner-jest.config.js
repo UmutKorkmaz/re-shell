@@ -5,7 +5,7 @@
 // (offline CI images, sandboxes). The viewport is fixed so screenshots are stable.
 import { getJestConfig } from '@storybook/test-runner';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
 
 const base = getJestConfig();
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
