@@ -21,6 +21,7 @@ Companion packages: contracts 0.3.2, UI 0.7.0 and MCP 0.3.1. Publication is reco
 - Serialize stale worker-owner recovery and bind release to its lock generation. Scrub Docker setup details from tenant-visible errors and remove anonymous volumes belonging to owned job containers.
 - Preserve the project's framework when running `ui test`, including ESM configurations and older Storybook loaders under strict pnpm layouts.
 - Keep collaboration clients and pending document edits intact during SSO renewal; publish renewed credentials only after identity and tenant validation.
+- Keep template catalog filters and cards within the mobile viewport.
 
 Signed desktop and Marketplace publication remain deferred; public hosting and multi-node operation are outside this local staging release.
 
