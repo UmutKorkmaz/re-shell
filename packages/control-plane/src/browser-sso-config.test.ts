@@ -25,7 +25,16 @@ describe('operator-pinned browser client config', () => {
       { CONTROL_PLANE_OIDC_AUTHORIZATION_ENDPOINT: 'https://user:secret@id.example/auth' }, { CONTROL_PLANE_OIDC_AUTHORIZATION_ENDPOINT: 'https://id.example/auth?client_secret=bad' },
       { CONTROL_PLANE_OIDC_REDIRECT_URIS: 'https://unknown.example/' }, { CONTROL_PLANE_OIDC_REDIRECT_URIS: 'https://dashboard.example/#fragment' },
       { CONTROL_PLANE_OIDC_REDIRECT_URIS: 'https://dashboard.example/?state=bad' }, { CONTROL_PLANE_OIDC_SCOPE: 'openid\nadmin' },
-      { CONTROL_PLANE_OIDC_REQUIRE_RESPONSE_ISSUER: 'maybe' } ]) expect(loadOidcBrowserConfig({ ...env, ...patch }, oidc).ok, JSON.stringify(patch)).toBe(false);
+      { CONTROL_PLANE_OIDC_REQUIRE_RESPONSE_ISSUER: 'maybe' },
+      { CONTROL_PLANE_OIDC_REVOCATION_ENDPOINT: 'http://evil.example/revoke' },
+      { CONTROL_PLANE_OIDC_END_SESSION_ENDPOINT: 'https://id.example/logout?post_logout_redirect_uri=https://evil.example' },
+      { CONTROL_PLANE_OIDC_REVOCATION_ENDPOINT: '' } ]) expect(loadOidcBrowserConfig({ ...env, ...patch }, oidc).ok, JSON.stringify(patch)).toBe(false);
+  });
+  it('pins optional public-client revocation and end-session endpoints', () => {
+    expect(loadOidcBrowserConfig({ ...env, CONTROL_PLANE_OIDC_REVOCATION_ENDPOINT: 'https://id.example/revoke',
+      CONTROL_PLANE_OIDC_END_SESSION_ENDPOINT: 'https://id.example/logout' }, oidc)).toMatchObject({ ok: true, data: {
+        revocationEndpoint: 'https://id.example/revoke', endSessionEndpoint: 'https://id.example/logout' } });
+    expect(loadOidcBrowserConfig({ CONTROL_PLANE_OIDC_END_SESSION_ENDPOINT: 'https://id.example/logout' }, oidc).ok).toBe(false);
   });
   it('returns an actionable error when browser sign-in is disabled', async () => {
     const h = await startHarness(); try { expect((await h.request('GET', '/auth/oidc')).status).toBe(404); } finally { await h.close(); }

@@ -12,25 +12,25 @@ built on top of it. The npm packages are published under the `@re-shell/*` scope
 Documentation site: <https://umutkorkmaz.github.io/re-shell/>. Repository docs:
 [`docs/README.md`](./docs/README.md).
 
-> **v0.32.0 release contents.** This tree contains CLI **0.32.0**, contracts
-> **0.3.1**, MCP **0.3.0** and UI **0.6.1**. Check
+> **v0.33.0 release line.** This tree contains source versions CLI **0.33.0**,
+> contracts **0.3.2**, MCP **0.3.1** and UI **0.7.0**. The previous release line
+> used CLI **0.32.0**, contracts **0.3.1**, MCP **0.3.0** and UI **0.6.1**. Check
 > [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) and the
 > [npm CLI registry](https://www.npmjs.com/package/@re-shell/cli) for publication status.
-> The previous [v0.31.0 release](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
-> was published on October 5, 2026 (CLI 0.31.0, contracts 0.3.0, MCP 0.2.0, UI 0.6.0).
+> Building or testing this checkout does not publish a package.
 > See [`docs/DEVELOPMENT_STATUS.md`](./docs/DEVELOPMENT_STATUS.md) for current evidence.
 > VS Code Marketplace publication and signed desktop distribution are deferred;
 > the selected control-plane deployment scope is local Docker staging.
 
 ## Packages
 
-| Path | Name | Version | Role |
+| Path | Name | Source version | Role |
 |------|------|---------|------|
-| [`packages/cli`](./packages/cli) | `@re-shell/cli` | 0.32.0 | The CLI: 585 command paths in 46 top-level commands, 204 backend templates across 35 languages, the `re-shell ui` launcher and the bundled dashboard. |
-| [`packages/contracts`](./packages/contracts) | `@re-shell/contracts` | 0.3.1 | zod schemas shared by everything: exact `--json` **wire** schemas and the adapters to the UI models, the envelope and `ErrorCode` vocabulary, hub transport, command registry, OT, graph, theme and white-label. |
-| [`packages/mcp`](./packages/mcp) | `@re-shell/mcp` | 0.3.0 | Stdio MCP server: read-only tools, resources and prompts over the CLI's JSON commands. |
-| [`packages/ui`](./packages/ui) | `@re-shell/ui` | 0.6.1 | shadcn-React component library (the single UI system), Storybook 9. |
-| [`packages/control-plane`](./packages/control-plane) | `@re-shell/control-plane` | 0.1.0 (private) | Hosted multi-tenant control plane: HTTP/SSE, SQLite, workers, team policy sync, audit, collaboration. Implemented and tested in local Docker staging; **not publicly hosted**. |
+| [`packages/cli`](./packages/cli) | `@re-shell/cli` | 0.33.0 | The CLI: 585 command paths in 46 top-level commands, 204 backend templates across 35 languages, the `re-shell ui` launcher and the bundled dashboard. |
+| [`packages/contracts`](./packages/contracts) | `@re-shell/contracts` | 0.3.2 | zod schemas shared by everything: exact `--json` **wire** schemas and the adapters to the UI models, the envelope and `ErrorCode` vocabulary, hub transport, command registry, OT, graph, theme and white-label. |
+| [`packages/mcp`](./packages/mcp) | `@re-shell/mcp` | 0.3.1 | Stdio MCP server: read-only tools, resources and prompts over the CLI's JSON commands. |
+| [`packages/ui`](./packages/ui) | `@re-shell/ui` | 0.7.0 | shadcn-React component library (the single UI system), Storybook 10.6. |
+| [`packages/control-plane`](./packages/control-plane) | `@re-shell/control-plane` | 0.2.0 (private) | Hosted multi-tenant control plane: HTTP/SSE, SQLite, workers, team policy sync, audit, collaboration. Implemented and tested in local Docker staging; **not publicly hosted**. |
 | [`apps/web`](./apps/web) | `@re-shell/dashboard` | 0.1.0 (private) | The React dashboard (12 screens), the token-authed hub-server, and the Tauri desktop shell (`src-tauri`). |
 | [`apps/vscode-extension`](./apps/vscode-extension) | `re-shell` | 0.3.0 (private) | VS Code extension, shipped as a `.vsix` (not on the Marketplace). |
 | [`site`](./site) | `@re-shell/site` | private | Documentation site (Astro Starlight) and the hosted `workspace-v2.json` schema. |
@@ -42,7 +42,7 @@ Documentation site: <https://umutkorkmaz.github.io/re-shell/>. Repository docs:
 ## Quickstart
 
 The CLI, dashboard hub, MCP server and control plane require **Node.js 22.13.0 or newer**
-in this release. The previously published CLI 0.31.0 had a lower declared Node floor.
+in this release line and the previous CLI 0.32.0 release line.
 
 ```bash
 # Install workspace dependencies (pinned pnpm)
@@ -54,8 +54,8 @@ npx pnpm@9.15.9 -r build
 # Run the CLI from the built workspace package
 node packages/cli/dist/index.js --help
 
-# ...or install the latest published CLI globally (see npm for the current version)
-npm install -g @re-shell/cli
+# ...or install the CLI selected by npm's published latest tag
+npm install -g @re-shell/cli@latest
 re-shell --help
 
 # Launch the local dashboard (React app + token-authed hub on 127.0.0.1)
@@ -75,7 +75,7 @@ Run from the repo root:
 npx pnpm@9.15.9 -r build       # build all packages
 npx pnpm@9.15.9 -r test        # run every package's vitest suite
 npx pnpm@9.15.9 -r typecheck   # typecheck all packages
-npx pnpm@9.15.9 -r lint        # lint all packages
+npx pnpm@9.15.9 lint           # lint workspace source
 npx pnpm@9.15.9 --filter @re-shell/site build   # build the docs site
 ```
 
@@ -94,11 +94,13 @@ Helper scripts in [`scripts/`](./scripts) (run from the root after `pnpm -r buil
 
 ## CI
 
-The workflows live in `.github/workflows/`. Every workflow (`ci.yml`, `vscode-extension`,
-`k8s-live`, `iac-validate`, `desktop`, `template-health`, `accessibility`) passes on GitHub
-on pull request #395 (run on commit `3a06508`), including all 19 jobs of
+The workflows live in `.github/workflows/`. The historical workflows (`ci.yml`, `vscode-extension`,
+`k8s-live`, `iac-validate`, `desktop`, `template-health`, `accessibility`) passed on GitHub
+on pull request #395 (commit `3a06508`), including all 19 jobs of
 `template-health` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)). All 204 templates pass there; 18 of them could not
-be built locally (see [`docs/STABILITY.md`](./docs/STABILITY.md)).
+be built locally (see [`docs/STABILITY.md`](./docs/STABILITY.md)). Those runs do not
+verify every later source revision; local evidence is tracked in
+[`docs/DEVELOPMENT_STATUS.md`](./docs/DEVELOPMENT_STATUS.md).
 
 | Workflow | Runs on | Gates |
 |----------|---------|-------|
@@ -127,15 +129,23 @@ The CLI is released under the Apache-2.0 License; the other packages (contracts,
 UI, control plane, dashboard, VS Code extension) are MIT. See each package's metadata
 and the [LICENSE](./LICENSE) file.
 
-### v0.32.0 hardening changes
+### v0.33.0 release-line changes
 
-This release includes Node-safe UI root imports, an Administration dashboard,
-pinned-JWKS bearer identity, browser authorization-code sign-in with S256 PKCE,
-persistent token revocation, HTTP metrics, native desktop workspace selection/recovery,
-bundled Node and an opt-in signed updater. Fresh workspace builds and all 11
-clean-package smoke checks pass; local browser/protocol-fixture SSO and local Docker
-API/worker gates pass. These changes are not in the published v0.31.0 artifacts.
-Live external IdP, cloud-account and LLM validation remain incomplete. Dependency
-updates clear the production workspace audit; a fresh npm consumer still reports
-six moderate findings from one upstream UUID advisory. Development-tool advisories
-also remain; see [development status](./docs/DEVELOPMENT_STATUS.md).
+This release line adds browser SSO renewal/rotation and logout, OTLP HTTP tracing,
+SQLite snapshot/restore tooling, per-job Docker mode, forced-TURN verification,
+and dependency/build-tool updates. Node-safe UI root imports, Administration,
+pinned-JWKS identity, browser PKCE, persistent token revocation and desktop recovery
+were introduced in the earlier hardening work.
+
+Local TURN, per-job Docker, separate API/worker tracing/restore, control-plane and
+dashboard suites pass. Eight actual OpenAI-compatible network AI tests pass through
+Ollama; Anthropic remains skipped. Full/production workspace audits and a clean
+four-package npm consumer production audit report zero findings. The final clean
+package smoke passes 13/13, and the full CLI run passes 8,518 tests with 53 skipped.
+Scoped CLI coverage passes 8,104 tests with 34 skipped and meets every unchanged
+80% threshold, including 84.23% branch coverage. The genuine Keycloak 26.4.0 login, proactive rotation,
+latest-token revocation and logout lifecycle passes against the frozen production
+dashboard. See the [CI workflow](https://github.com/UmutKorkmaz/re-shell/actions/workflows/ci.yml)
+for hosted checks and the release/registry links above for publication evidence.
+See [development status](./docs/DEVELOPMENT_STATUS.md) for exact evidence and limits.
+Local verification and package publication are separate actions.

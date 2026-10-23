@@ -35,7 +35,10 @@ export interface IdentityOptions {
   /** Unix-ms clock (injected in tests). */
   now?: () => number;
   /** Persistent deny-list shared by all server instances using this database. */
-  revocations?: { isRevoked(issuer: string, jti: string, now: number): boolean };
+  revocations?: {
+    isRevoked(issuer: string, jti: string, now: number): boolean;
+    revoke?(issuer: string, jti: string, expiresAt: number, now: number): void;
+  };
 }
 
 export interface IssuedToken {

@@ -244,26 +244,17 @@ describe('groups — api / plugin / workspace registration', () => {
   let stdoutSpy: ReturnType<typeof vi.spyOn>;
   let tempRoot: string;
   let realCwd: string;
-  let cwdSpy: ReturnType<typeof vi.spyOn>;
   let exitCodeBefore: string | number | undefined;
 
-  // Several api.group actions write companion files to hardcoded relative
-  // paths ('./prometheus.yml', 'mock-server.ts', 'webpack.config.js', ...).
-  // A process.cwd spy does NOT redirect fs writes (Node resolves relatives
-  // against the worker's real cwd), so those tests capture the real cwd
-  // upfront and scrub the strays here.
-  const RELATIVE_STRAYS = [
-    'prometheus.yml', 'grafana-dashboard.json', 'alerts.yml', 'docker-compose.yml',
-    'mock-server.ts', 'mock-server.package.json', 'webpack.config.js',
-    'rollup.config.js', 'vite.config.ts',
-  ];
-
+  // Use the fork's actual cwd so all relative writes stay in its disposable
+  // workspace. Never delete similarly named files from the repository.
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(tsClient.validateSpec).mockReturnValue({ valid: true, errors: [] });
     exitCodeBefore = process.exitCode;
     realCwd = process.cwd();
-    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'groups-apw-'));
-    cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(tempRoot);
+    tempRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'groups-apw-')));
+    process.chdir(tempRoot);
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     stdoutSpy = vi
       .spyOn(process.stdout, 'write')
@@ -273,14 +264,11 @@ describe('groups — api / plugin / workspace registration', () => {
   afterEach(() => {
     stdoutSpy.mockRestore();
     logSpy.mockRestore();
-    cwdSpy.mockRestore();
+    process.chdir(realCwd);
     process.exitCode = exitCodeBefore;
     vi.restoreAllMocks();
     fs.rmSync(tempRoot, { recursive: true, force: true });
-    for (const stray of RELATIVE_STRAYS) {
-      const file = path.join(realCwd, stray);
-      if (fs.existsSync(file)) fs.unlinkSync(file);
-    }
+
   });
 
   function output(): string {
@@ -382,9 +370,9 @@ describe('groups — api / plugin / workspace registration', () => {
       const gen = generatorFixture();
       vi.mocked(openapiGen.createOpenAPIGenerator).mockResolvedValue(gen as never);
       const writeSpec = vi.fn().mockResolvedValue(undefined);
-      vi.mocked(openapiGen.OpenAPIGenerator).mockImplementation((() => ({
-        writeSpec,
-      })) as never);
+      vi.mocked(openapiGen.OpenAPIGenerator).mockImplementation(function () {
+        return { writeSpec };
+      } as never);
       const program = programWith(registerApiGroup);
       await program.parseAsync([
         'node', 're-shell', 'api', 'openapi', 'generate', tempRoot,
@@ -421,9 +409,9 @@ describe('groups — api / plugin / workspace registration', () => {
     });
 
     it('openapi annotate renders framework annotations', async () => {
-      vi.mocked(openapiGen.OpenAPIGenerator).mockImplementation((() => ({
-        generateAnnotatedCode: vi.fn(() => '// annotated express route'),
-      })) as never);
+      vi.mocked(openapiGen.OpenAPIGenerator).mockImplementation(function () {
+        return { generateAnnotatedCode: vi.fn(() => '// annotated express route') };
+      } as never);
       const program = programWith(registerApiGroup);
       await program.parseAsync([
         'node', 're-shell', 'api', 'openapi', 'annotate', 'express',
@@ -728,13 +716,11 @@ describe('groups — api / plugin / workspace registration', () => {
       expect(config.dashboard).toBe(true);
       expect(config.alerts).toHaveLength(1);
       expect(fs.readFileSync(analyticsFile, 'utf-8')).toContain('analytics middleware');
-      // The companion files are hardcoded to './<name>' so they land in the
-      // REAL cwd (the cwd spy cannot redirect fs writes); they are scrubbed in
-      // afterEach.
-      expect(fs.existsSync(path.join(realCwd, 'prometheus.yml'))).toBe(true);
-      expect(fs.existsSync(path.join(realCwd, 'grafana-dashboard.json'))).toBe(true);
-      expect(fs.existsSync(path.join(realCwd, 'alerts.yml'))).toBe(true);
-      expect(fs.existsSync(path.join(realCwd, 'docker-compose.yml'))).toBe(true);
+      // Companion paths are relative to the disposable workspace cwd.
+      expect(fs.existsSync(path.join(tempRoot, 'prometheus.yml'))).toBe(true);
+      expect(fs.existsSync(path.join(tempRoot, 'grafana-dashboard.json'))).toBe(true);
+      expect(fs.existsSync(path.join(tempRoot, 'alerts.yml'))).toBe(true);
+      expect(fs.existsSync(path.join(tempRoot, 'docker-compose.yml'))).toBe(true);
     });
 
     it('client generate writes the client + framework extras from a real spec', async () => {
@@ -811,9 +797,7 @@ describe('groups — api / plugin / workspace registration', () => {
       expect(frameworkSdk.generateFrameworkSdkBundle).toHaveBeenCalledWith(expect.anything(), { framework: 'react' });
       expect(frameworkSdk.generateBundleConfig).toHaveBeenCalledWith('webpack');
       expect(fs.existsSync(sdkFile)).toBe(true);
-      // The bundler config path is hardcoded relative ('webpack.config.js') →
-      // real cwd; scrubbed in afterEach.
-      expect(fs.existsSync(path.join(realCwd, 'webpack.config.js'))).toBe(true);
+      expect(fs.existsSync(path.join(tempRoot, 'webpack.config.js'))).toBe(true);
       expect(output()).toContain('Framework SDK generated!');
     });
   });

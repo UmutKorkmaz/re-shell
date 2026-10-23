@@ -3,7 +3,7 @@ import { ToastProvider } from '@re-shell/ui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsProvider } from '../settings/useSettings';
 import { ThemePackProvider } from '../theme/useThemePacks';
-import { loadSettings } from '../settings/settings-store';
+import { DEFAULT_SETTINGS, loadSettings, saveSettings } from '../settings/settings-store';
 import { SettingsScreen } from './SettingsScreen';
 
 const writeTextMock = vi.fn().mockResolvedValue(undefined);
@@ -80,6 +80,43 @@ describe('SettingsScreen', () => {
 
     expect(screen.getByText(/Port must be between/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Save settings/i })).toBeDisabled();
+  });
+
+  it('recovers null saved preferences into editable defaults', () => {
+    window.localStorage.setItem('re-shell.dashboard.settings.v1', 'null');
+    renderScreen();
+    expect(screen.getByLabelText(/Daemon port/i)).toHaveValue('3333');
+    expect(screen.getByRole('switch', { name: /Safety mode/i })).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.change(screen.getByLabelText(/Daemon port/i), { target: { value: '4445' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save settings/i }));
+    expect(loadSettings()).toEqual({ ...DEFAULT_SETTINGS, daemonPort: 4445 });
+  });
+
+  it('reset discards an invalid draft and restores safe persisted defaults', () => {
+    saveSettings({
+      ...DEFAULT_SETTINGS, workspacePath: '/tmp/custom-workspace', cliBinaryPath: '/opt/re-shell',
+      daemonPort: 4444, telemetryOptIn: true, theme: 'light', safetyMode: false,
+    });
+    renderScreen();
+    expect(screen.getByLabelText(/Workspace path/i)).toHaveValue('/tmp/custom-workspace');
+    expect(screen.getByRole('switch', { name: /Telemetry/i })).toHaveAttribute('aria-checked', 'true');
+    expect(document.documentElement).toHaveClass('light');
+
+    fireEvent.change(screen.getByLabelText(/Daemon port/i), { target: { value: 'not-a-port' } });
+    expect(screen.getByText('Port must be a whole number.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Save settings/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Reset to defaults/i }));
+
+    expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
+    expect(screen.getByLabelText(/Workspace path/i)).toHaveValue('');
+    expect(screen.getByLabelText(/CLI binary path/i)).toHaveValue('re-shell');
+    expect(screen.getByLabelText(/Daemon port/i)).toHaveValue('3333');
+    expect(screen.getByRole('switch', { name: /Telemetry/i })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('switch', { name: /Safety mode/i })).toHaveAttribute('aria-checked', 'true');
+    expect(document.documentElement).toHaveClass('dark');
+    expect(screen.queryByText('Port must be a whole number.')).toBeNull();
+    expect(screen.getByRole('button', { name: /Save settings/i })).toBeEnabled();
   });
 
   it('safety-mode toggle is readable by the destructive gate', () => {

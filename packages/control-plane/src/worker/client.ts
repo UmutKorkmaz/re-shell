@@ -1,4 +1,6 @@
 import type { ClaimedJob } from '../jobs.js';
+import { SpanKind, SpanStatusCode, type Span } from '@opentelemetry/api';
+import { currentTraceParent, type Tracing } from '../tracing.js';
 
 /**
  * HTTP client for the worker side of the protocol (`/worker/*`). Every call
@@ -37,7 +39,8 @@ export class WorkerClient {
   constructor(
     baseUrl: string,
     private readonly token: string,
-    private readonly fetchImpl: typeof fetch = fetch
+    private readonly fetchImpl: typeof fetch = fetch,
+    private readonly tracing?: Tracing
   ) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
   }
@@ -48,7 +51,19 @@ export class WorkerClient {
     body: unknown,
     signal?: AbortSignal
   ): Promise<WorkerCallResult<T>> {
+    const run = async (span?: Span): Promise<WorkerCallResult<T>> => {
+      const result = await this.request<T>(method, path, body, signal, span);
+      if (result.kind !== 'ok') span?.setStatus({ code: SpanStatusCode.ERROR });
+      return result;
+    };
+    // IDs and arbitrary paths never become span names/attributes.
+    const route = path.replace(/\/jobs\/[^/]+\//, '/jobs/:jobId/');
+    return this.tracing ? this.tracing.run(`${method} ${route}`, { 'http.request.method': method, 'http.route': route }, run, undefined, SpanKind.CLIENT) : run();
+  }
+
+  private async request<T>(method: string, path: string, body: unknown, signal?: AbortSignal, span?: Span): Promise<WorkerCallResult<T>> {
     let response: Response;
+    const parent = currentTraceParent();
     try {
       response = await this.fetchImpl(`${this.baseUrl}${path}`, {
         method,
@@ -56,6 +71,7 @@ export class WorkerClient {
           Authorization: `Bearer ${this.token}`,
           'Content-Type': 'application/json',
           Accept: 'application/json',
+          ...(parent ? { traceparent: parent } : {}),
         },
         body: JSON.stringify(body),
         signal,
@@ -67,6 +83,7 @@ export class WorkerClient {
       return { kind: 'retry', reason: error instanceof Error ? error.message : String(error) };
     }
 
+    span?.setAttribute('http.response.status_code', response.status);
     let json: unknown;
     try {
       json = await response.json();

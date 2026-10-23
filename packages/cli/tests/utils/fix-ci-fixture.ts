@@ -1,6 +1,6 @@
 // Fixture git repos for the `fix --ci` tests. Each fixture is a REAL git repo
 // with a REAL TypeScript project whose gates run the real tsc and vitest
-// (resolved through a node_modules symlink to this package's own install).
+// (resolved through absolute entrypoints in this package's own install).
 
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
@@ -31,7 +31,12 @@ export const FILES = {
       name: 'fixture',
       version: '1.0.0',
       private: true,
-      scripts: { typecheck: 'tsc --noEmit -p tsconfig.json', test: 'vitest run' },
+      // pnpm's .bin shell shims contain paths relative to their original
+      // directory. A node_modules directory symlink does not relocate them.
+      scripts: {
+        typecheck: `node ${JSON.stringify(path.join(CLI_ROOT, 'node_modules/typescript/bin/tsc'))} --noEmit -p tsconfig.json`,
+        test: `node ${JSON.stringify(path.join(CLI_ROOT, 'node_modules/vitest/vitest.mjs'))} run`,
+      },
     },
     null,
     2

@@ -209,6 +209,22 @@ describe('running jobs', () => {
     expect(stdoutOf(done, 'stderr')).toBe('scorecard failed\n');
   });
 
+  it('bounds output and terminates a noisy job with an explicit error', async () => {
+    startWorker({ runner: { outputFlushMs: 20, heartbeatMs: 300, killGraceMs: 100, maxOutputChars: 2048 } });
+    const done = await waitForJob((await submit('commands.list')).json.data.job.id);
+    expect(done.job).toMatchObject({ status: 'failed', errorCode: 'OUTPUT_LIMIT' });
+    expect(done.output.chunks.reduce((total, chunk) => total + chunk.data.length, 0)).toBeLessThanOrEqual(2048);
+  });
+
+  it('fails closed before claims when the isolated daemon is unavailable', async () => {
+    const job = (await submit('doctor')).json.data.job;
+    const worker = startWorker({ runner: { isolation: { mode: 'docker', host: `unix://${path.join(tmp, 'no-daemon.sock')}`, image: `sha256:${'a'.repeat(64)}`, workerId: 'unavailable', cpus: 1, memoryMb: 128, pids: 64, uid: 1000, gid: 1000 } } });
+    await worker.done();
+    expect(worker.fatal).toContain('isolation/startup failed');
+    const result = await h.request('GET', `/tenants/acme/jobs/${job.id}`, { token: h.userToken('alice') });
+    expect(result.json.data.job.status).toBe('queued');
+  });
+
   it('handles large output across many posts without loss or reordering', async () => {
     startWorker();
     const done = await waitForJob((await submit('commands.list')).json.data.job.id);

@@ -1,50 +1,11 @@
 import type { Config } from 'tailwindcss';
 import tailwindcssAnimate from 'tailwindcss-animate';
 
-type OpacityContext = { opacityValue?: string };
-
-/**
- * A theme colour backed by a CSS custom property. Tailwind cannot apply an
- * opacity modifier (`bg-healthy/10`, `border-warn/40`, `text-foreground/90`) to a
- * bare `var(--x)`, which silently dropped those classes from the stylesheet. The
- * tokens are full colour values (OKLCH or hex), so the modifier is expressed with
- * `color-mix`, which keeps the unmodified form a plain `var()`.
- */
-const token =
-  (name: string) =>
-  ({ opacityValue }: OpacityContext): string =>
-    opacityValue === undefined || opacityValue === '1' || opacityValue.startsWith('var(--tw-')
-      ? `var(--${name})`
-      : `color-mix(in srgb, var(--${name}) calc(${opacityValue} * 100%), transparent)`;
-
-/**
- * Component-layer utilities from globals.css that apps use by class name. Tailwind
- * only emits an `@layer components` rule when its class appears in `content`, and
- * a library build scans only its own sources, so consumers' use of these classes
- * (the dashboard shell uses "cli-chip", "label-eyebrow", ...) must be safelisted.
- */
-const componentClasses = [
-  'surface',
-  'surface-raised',
-  'surface-pop',
-  'hairline',
-  'label-eyebrow',
-  'cli-chip',
-  'status-badge',
-  'status-healthy',
-  'status-warn',
-  'status-critical',
-  'status-info',
-  're-shell-grid',
-  're-shell-mono',
-  'skeleton',
-  'stagger-children',
-  'screen-enter'
-];
+// Tailwind v4 applies alpha modifiers directly to full CSS color values.
+const token = (name: string): string => `var(--${name})`;
 
 const config: Config = {
-  safelist: componentClasses,
-  darkMode: ['class'],
+  darkMode: 'class',
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     container: {

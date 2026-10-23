@@ -34,6 +34,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint all source packages
+        run: pnpm run lint
+
       # ── Build ──────────────────────────────────────────────────────────────
       - name: Build all packages
         run: pnpm -r run build
@@ -101,7 +104,7 @@ jobs:
       # ── Coverage (per-package 80% gate, scoped) ───────────────────────────
       - name: Coverage packages/cli
         working-directory: packages/cli
-        run: npx vitest run --coverage
+        run: pnpm run test:coverage
 
       - name: Coverage packages/ui
         working-directory: packages/ui

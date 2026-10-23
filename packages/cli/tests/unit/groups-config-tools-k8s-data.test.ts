@@ -256,7 +256,9 @@ vi.mock('../../src/utils/dev-env-setup', () => {
   return {
     createDevEnv: vi.fn(async () => manager),
     detectContainerRuntime: vi.fn(async () => 'docker'),
-    DevEnvManager: vi.fn(() => manager),
+    DevEnvManager: vi.fn(function () {
+      return manager;
+    }),
     getServicePorts: vi.fn(() => ({ api: 3000 })),
   };
 });

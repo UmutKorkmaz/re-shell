@@ -124,12 +124,12 @@ waits for it to be healthy (and fails if it is not), and opens the browser.
 re-shell ui
 ```
 
-This opens `http://127.0.0.1:3333` with **11 screens**: Overview, Workspace Graph,
+This opens `http://127.0.0.1:3333` with **12 screens**: Overview, Workspace Graph,
 Templates, Command Builder, Assistant, Jobs & Logs, Health, Scorecard, Catalog,
-Collaboration and Settings. The dashboard talks to the CLI over a hardened local
+Collaboration, Administration and Settings. The dashboard talks to the CLI over a hardened local
 hub (see [Dashboard](/re-shell/dashboard/overview/) and the
 [Secure Hub](/re-shell/architecture/secure-hub/) architecture). The Collaboration
-screen needs a running [control plane](/re-shell/architecture/control-plane/).
+and Administration screens need a running [control plane](/re-shell/architecture/control-plane/).
 
 Preview the launch plan without starting anything:
 
@@ -158,6 +158,6 @@ audit, uncommitted git changes, a workspace missing build configuration files).
 - [Core Concepts](/re-shell/getting-started/concepts/): the mental model.
 - [CLI Reference](/re-shell/cli/overview/): every command group.
 - [Template Catalog](/re-shell/templates/catalog/): all 204 templates.
-- [Dashboard](/re-shell/dashboard/overview/): the 11 screens in depth.
+- [Dashboard](/re-shell/dashboard/overview/): the 12 screens in depth.
 - [AI](/re-shell/cli/ai/), [service bridge](/re-shell/cli/service-bridge/),
   [Kubernetes](/re-shell/cli/k8s-helm-gitops/): the larger features.

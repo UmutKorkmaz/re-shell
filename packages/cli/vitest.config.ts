@@ -3,6 +3,8 @@ import { resolve } from 'path';
 
 export default defineConfig({
   test: {
+    // Bound concurrent child processes on developer machines and shared CI runners.
+    maxWorkers: 4,
     globals: true,
     environment: 'node',
     // The interactive PTY/ink tests are timing-sensitive under CI's slower TTY
@@ -16,10 +18,7 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/dist/**'],
     // Interactive tests use process.chdir() into os.tmpdir() workspaces, which is
     // not supported inside worker_threads. Run them in the child_process pool.
-    poolMatchGlobs: [
-      ['**/tests/interactive/**', 'child_process'],
-      ['**/tests/integration/plugin-create-cli.test.ts', 'child_process'],
-    ],
+    pool: 'forks',
     // Coverage decision: SCOPED + FAST.
     // - Scoped: the CLI still carries ~144k lines slated for deletion next wave,
     //   so `include` is restricted to the live/contract surface that the web hub
@@ -31,7 +30,6 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'text-summary', 'json', 'html'],
-      all: true,
       include: [
         'src/utils/json-output.ts',
         'src/utils/command-catalog.ts',

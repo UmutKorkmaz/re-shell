@@ -86,7 +86,7 @@ function TemplatesContent({ templates }: { templates: TemplateFeed[] }): React.R
     setFilters(Object.fromEntries(FILTER_KEYS.map((k) => [k, ''])));
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
       {/* Filter rail — sticky, dense, distinct from the card grid. */}
       <aside className="lg:sticky lg:top-6 lg:self-start">
         <div className="surface flex flex-col">
@@ -123,7 +123,7 @@ function TemplatesContent({ templates }: { templates: TemplateFeed[] }): React.R
       </aside>
 
       {/* Result grid + count header. */}
-      <section className="grid auto-rows-min gap-4">
+      <section className="grid grid-cols-1 auto-rows-min gap-4">
         <div className="flex items-center justify-between">
           <h2 className="inline-flex items-center gap-2 font-display text-base font-semibold tracking-tight">
             <LayoutGrid className="size-4 text-signal" />
@@ -152,7 +152,7 @@ function TemplatesContent({ templates }: { templates: TemplateFeed[] }): React.R
             }
           />
         ) : (
-          <div className="stagger-children grid auto-rows-min gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          <div className="stagger-children grid grid-cols-1 auto-rows-min gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {filtered.map((template) => (
               <TemplateCard key={template.id} template={template} onShowDetails={showDetails} />
             ))}

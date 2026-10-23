@@ -158,8 +158,8 @@ function buildPrerequisites() {
   // bundle run in its `prepack` hook during `pnpm pack`.
   log('Building contracts, ui and mcp (pass --no-build to skip)...');
   runOrThrow(
-    'pnpm',
-    ['--filter', '@re-shell/contracts', '--filter', '@re-shell/ui', '--filter', '@re-shell/mcp', 'build'],
+    'corepack',
+    ['pnpm', '--filter', '@re-shell/contracts', '--filter', '@re-shell/ui', '--filter', '@re-shell/mcp', 'build'],
     { cwd: repoRoot, stdio: 'inherit', timeout: 15 * 60_000 }
   );
 }
@@ -172,7 +172,7 @@ function packAll(packDir) {
     log(`Packing ${pkg.name}@${manifest.version} (pnpm pack runs the package's prepack hook)...`);
     // `pnpm pack`, not `npm pack`: only pnpm rewrites workspace: specifiers to the
     // real versions in the tarball's package.json, as `pnpm publish` does.
-    runOrThrow('pnpm', ['pack', '--pack-destination', packDir], {
+    runOrThrow('corepack', ['pnpm', 'pack', '--pack-destination', packDir], {
       cwd,
       stdio: ['ignore', 'inherit', 'inherit'],
       timeout: 15 * 60_000,
@@ -396,6 +396,44 @@ async function main() {
     const reShellMcp = path.join(binDir, isWindows ? 're-shell-mcp.cmd' : 're-shell-mcp');
     const installedCli = path.join(installDir, 'node_modules', '@re-shell', 'cli');
     const cli = (cliArgs) => run(reShell, cliArgs, { cwd: installDir, env: cleanEnv(), input: '' });
+
+    await check('clean npm consumer has no production audit findings', () => {
+      const result = run('npm', ['audit', '--omit=dev', '--json'], {
+        cwd: installDir, env: cleanEnv(), timeout: 120_000,
+      });
+      writeFileSync(path.join(workDir, 'consumer-audit.json'), result.stdout);
+      const report = JSON.parse(result.stdout);
+      assert(!report.error, `npm audit failed: ${JSON.stringify(report.error)}`);
+      assert(result.status === 0 && report.metadata?.vulnerabilities?.total === 0,
+        `consumer vulnerabilities: ${JSON.stringify(report.metadata?.vulnerabilities)}; report: ${path.join(workDir, 'consumer-audit.json')}`);
+      return '0 vulnerabilities';
+    });
+
+    await check('installed Apollo bundle composes entities and rejects invalid federation', () => {
+      const script = String.raw`
+        const assert = require('node:assert/strict');
+        const { generateGateway, BridgeGatewayError } = require(${JSON.stringify(path.join(installedCli, 'dist/bridge/gateway.js'))});
+        const manifest = require(${JSON.stringify(path.join(installedCli, 'dist/vendor/apollo-composition.manifest.json'))});
+        assert.equal(manifest.uuid, '11.1.1');
+        assert.deepEqual(manifest.external, ['graphql']);
+        const graphs = JSON.parse(process.argv[1]);
+        const result = generateGateway(graphs, 'federation');
+        assert.match(result.supergraphSdl, /enum join__Graph/);
+        assert.match(result.supergraphSdl, /type Product[\s\S]*join__type/);
+        assert.ok(result.supergraphSdl.includes('reviews: [Review!]!'));
+        assert.throws(() => generateGateway([graphs[0], {
+          name: 'pricing', url: 'http://localhost:4003/graphql',
+          sdl: 'extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"]) type Product @key(fields: "id") { id: ID! price: String! }'
+        }], 'federation'), (error) => error instanceof BridgeGatewayError && error.errors.some(e => e.code === 'INVALID_FIELD_SHARING'));
+      `;
+      const graphs = ['products', 'reviews'].map((name, index) => ({
+        name, url: `http://localhost:${4001 + index}/graphql`,
+        sdl: readFileSync(path.join(repoRoot, 'packages/cli/tests/fixtures/bridge-gateway', `${name}.graphql`), 'utf8'),
+      }));
+      runOrThrow(process.execPath, ['-e', script, JSON.stringify(graphs)], { cwd: installDir, env: cleanEnv() });
+      assert(!existsSync(path.join(installDir, 'node_modules/@apollo/composition')), 'Apollo must ship only as the reviewed bundle');
+      return `Apollo ${readJson(path.join(installedCli, 'dist/vendor/apollo-composition.manifest.json')).version}, UUID 11.1.1, shared graphql`;
+    });
 
     // [depends on the CLI fix: no banner on stdout for --version]
     await check('re-shell --version prints exactly the package version', () => {

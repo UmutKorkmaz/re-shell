@@ -60,7 +60,7 @@ export function WorkspaceSummaryPanel({
         {workspace.git ? (
           <>
             <Separator className="my-4" />
-            <div className="flex flex-wrap items-center gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 text-sm leading-5">
               <GitBranch className="size-4 text-muted-foreground" />
               <span className="font-mono text-[0.8125rem] tabular-nums">{workspace.git.branch ?? 'unknown'}</span>
               <Badge variant={workspace.git.dirty ? 'warn' : 'healthy'}>

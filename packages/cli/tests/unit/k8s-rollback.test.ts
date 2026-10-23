@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { jsonResponseSchema, k8sRollbackResponseSchema } from '@re-shell/contracts';
 
 import {
@@ -582,9 +585,19 @@ describe('k8s-rollback: command layer', () => {
   });
 
   it('without a cluster the real kubectl path fails explicitly (no simulated success)', async () => {
-    // Default runner against an unreachable API server (or a missing kubectl).
+    // An absent kubeconfig falls back to localhost:8080, which may belong to
+    // another application. Use an explicit owned context at a closed port.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 're-shell-kube-unreachable-'));
     const previous = process.env.KUBECONFIG;
-    process.env.KUBECONFIG = '/nonexistent/kubeconfig-for-test';
+    const config = path.join(dir, 'config');
+    fs.writeFileSync(config, JSON.stringify({
+      apiVersion: 'v1', kind: 'Config',
+      clusters: [{ name: 'unreachable', cluster: { server: 'https://127.0.0.1:1', 'insecure-skip-tls-verify': true } }],
+      contexts: [{ name: 'unreachable', context: { cluster: 'unreachable', user: 'fixture' } }],
+      users: [{ name: 'fixture', user: {} }],
+      'current-context': 'unreachable',
+    }), { mode: 0o600 });
+    process.env.KUBECONFIG = config;
     try {
       const env = await captureEnvelope<{ ok: boolean; error: { details: { reason: string } } }>(() =>
         runK8sRollback({ service: 'api', json: true })
@@ -595,6 +608,7 @@ describe('k8s-rollback: command layer', () => {
     } finally {
       if (previous === undefined) delete process.env.KUBECONFIG;
       else process.env.KUBECONFIG = previous;
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });

@@ -1,6 +1,12 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Compile shared tokens/components and dashboard utilities in one Tailwind pass. */
+@import '../../../packages/ui/src/styles/globals.css';
+@source './';
+@source '../../../packages/ui/src';
+
+/* Preserve the shared border-color contract during the v4 migration. */
+@layer base {
+  *, ::before, ::after { border-color: var(--border); }
+}
 
 :root {
   font-synthesis: none;

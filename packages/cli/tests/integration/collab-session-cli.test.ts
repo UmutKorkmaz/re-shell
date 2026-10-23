@@ -150,7 +150,7 @@ beforeAll(async () => {
 
   const workerToken = (await token('--worker', '--worker-id', 'cli-worker', '--tenant', 'acme')) as string;
   const worker = spawnProc(
-    [CP_BIN, 'worker', '--tenant', 'acme', '--workspace-root', workspaceRoot, '--url', url, '--cli-bin', CLI],
+    [CP_BIN, 'worker', '--mode', 'process', '--tenant', 'acme', '--workspace-root', workspaceRoot, '--url', url, '--cli-bin', CLI],
     { CONTROL_PLANE_WORKER_TOKEN: workerToken }
   );
   procs.push(worker);

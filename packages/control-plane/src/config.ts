@@ -9,6 +9,7 @@ import { DEFAULT_AUDIENCE, DEFAULT_ISSUER } from './identity.js';
 import { JwtKeyRing } from './jwt.js';
 import { OidcJwks, type OidcOptions } from './oidc.js';
 import type { ServerLimits } from './http/server.js';
+import { loadTracingOptions, type TracingOptions } from './tracing.js';
 
 /**
  * Configuration comes from the ENVIRONMENT (and files the environment points
@@ -39,6 +40,7 @@ import type { ServerLimits } from './http/server.js';
 export type Env = Readonly<Record<string, string | undefined>>;
 
 export interface ServeConfig {
+  tracing?: TracingOptions;
   host: string;
   port: number;
   dbPath: string;
@@ -161,6 +163,8 @@ export function reloadKeyRing(ring: JwtKeyRing, env: Env): ControlPlaneResult<st
 }
 
 export function loadServeConfig(env: Env): ControlPlaneResult<ServeConfig> {
+  const tracing = loadTracingOptions(env);
+  if (!tracing.ok) return tracing;
   const keyRing = loadKeyRing(env);
   if (!keyRing.ok) {
     return keyRing;
@@ -211,6 +215,7 @@ export function loadServeConfig(env: Env): ControlPlaneResult<ServeConfig> {
   if (!iceServers.ok) return iceServers;
 
   return ok({
+    tracing: tracing.data,
     host: env.CONTROL_PLANE_HOST || '127.0.0.1',
     port: port.data ?? 8787,
     dbPath: path.resolve(env.CONTROL_PLANE_DB || './control-plane.db'),
@@ -335,6 +340,8 @@ export interface OidcBrowserConfig {
   clientId: string;
   authorizationEndpoint: string;
   tokenEndpoint: string;
+  revocationEndpoint?: string;
+  endSessionEndpoint?: string;
   redirectUris: string[];
   scope: string;
   /** Provider supports RFC 9207 authorization-response issuer identification. */
@@ -353,30 +360,36 @@ function browserUrl(raw: string): URL {
 
 /** Explicit client/endpoints/redirect allowlist; no request-derived discovery or secrets. */
 export function loadOidcBrowserConfig(env: Env, oidc?: OidcOptions): ControlPlaneResult<OidcBrowserConfig | undefined> {
-  const names = ['CLIENT_ID', 'AUTHORIZATION_ENDPOINT', 'TOKEN_ENDPOINT', 'REDIRECT_URIS', 'SCOPE', 'REQUIRE_RESPONSE_ISSUER'];
+  const names = ['CLIENT_ID', 'AUTHORIZATION_ENDPOINT', 'TOKEN_ENDPOINT', 'REDIRECT_URIS', 'SCOPE', 'REQUIRE_RESPONSE_ISSUER', 'REVOCATION_ENDPOINT', 'END_SESSION_ENDPOINT'];
   if (names.every((name) => env[`CONTROL_PLANE_OIDC_${name}`] === undefined)) return ok(undefined);
   try {
     const clientId = env.CONTROL_PLANE_OIDC_CLIENT_ID;
     const authorizationEndpoint = env.CONTROL_PLANE_OIDC_AUTHORIZATION_ENDPOINT;
     const tokenEndpoint = env.CONTROL_PLANE_OIDC_TOKEN_ENDPOINT;
+    const revocationEndpoint = env.CONTROL_PLANE_OIDC_REVOCATION_ENDPOINT;
+    const endSessionEndpoint = env.CONTROL_PLANE_OIDC_END_SESSION_ENDPOINT;
     const redirectUris = list(env.CONTROL_PLANE_OIDC_REDIRECT_URIS);
     const scope = env.CONTROL_PLANE_OIDC_SCOPE ?? 'openid';
     const requireIssuer = env.CONTROL_PLANE_OIDC_REQUIRE_RESPONSE_ISSUER;
+    // OAuth identifiers must reject whitespace and control characters.
+    // eslint-disable-next-line no-control-regex
     if (!oidc || !clientId || clientId.length > 256 || /[\s\u0000-\u001f\u007f]/.test(clientId) ||
         !authorizationEndpoint || !tokenEndpoint || redirectUris.length === 0 || redirectUris.length > 16 ||
         !/^[\x21\x23-\x5b\x5d-\x7e]+(?: [\x21\x23-\x5b\x5d-\x7e]+)*$/.test(scope) || scope.length > 1024 ||
         (requireIssuer !== undefined && !['true', 'false', '1', '0'].includes(requireIssuer))) throw new Error('Incomplete browser client settings.');
-    for (const endpoint of [authorizationEndpoint, tokenEndpoint]) {
+    for (const endpoint of [authorizationEndpoint, tokenEndpoint, revocationEndpoint, endSessionEndpoint].filter((value): value is string => value !== undefined)) {
       if (browserUrl(endpoint).search) throw new Error('Endpoint queries are not allowed.');
     }
     for (const redirect of redirectUris) {
       const url = browserUrl(redirect);
-      if (url.href !== redirect || ['code', 'state', 'error', 'iss', 'access_token', 'id_token'].some((key) => url.searchParams.has(key))) {
+      if (url.href !== redirect || ['code', 'state', 'error', 'error_description', 'error_uri', 'iss', 'access_token', 'id_token', 'refresh_token', 'token_type', 'expires_in', 'session_state'].some((key) => url.searchParams.has(key))) {
         throw new Error('Redirect URLs must be exact canonical URLs without OAuth response parameters.');
       }
       if (!list(env.CONTROL_PLANE_CORS_ORIGINS).includes(url.origin)) throw new Error('Redirect origins must be allowed by CONTROL_PLANE_CORS_ORIGINS.');
     }
     return ok({ issuer: oidc.issuer, clientId, authorizationEndpoint, tokenEndpoint, redirectUris,
+      ...(revocationEndpoint === undefined ? {} : { revocationEndpoint }),
+      ...(endSessionEndpoint === undefined ? {} : { endSessionEndpoint }),
       scope, requireResponseIssuer: requireIssuer === undefined ? true : flag(requireIssuer) });
   } catch {
     return configError('Invalid browser OIDC configuration. Configure trust, client ID, HTTPS endpoints, exact redirect URLs and their CORS origins.');

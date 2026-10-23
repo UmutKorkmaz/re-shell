@@ -1,6 +1,6 @@
 ---
 title: "Dashboard"
-description: "re-shell ui: the bundled web dashboard, its launch modes, the hardened local hub, the 11 screens and the workspace graph explorer."
+description: "re-shell ui: the bundled web dashboard, its launch modes, the hardened local hub, the 12 screens and the workspace graph explorer."
 ---
 
 `re-shell ui` launches a **local web dashboard**: a control surface for the same
@@ -110,7 +110,7 @@ Live output streams to the browser over **SSE** (`/events`) and a **WebSocket**
 `WsClientMessage`, `WsServerMessage`). Full design:
 [Secure Hub](/re-shell/architecture/secure-hub/).
 
-## The 11 screens
+## The 12 screens
 
 | Screen | What it does |
 | --- | --- |
@@ -123,7 +123,8 @@ Live output streams to the browser over **SSE** (`/events`) and a **WebSocket**
 | **Health** | The scored health roll-up and per-check rows, grouped by severity. |
 | **Scorecard** | Weighted production-readiness grades per service and a monorepo rollup. |
 | **Catalog** | The software catalog auto-discovered from the workspace graph, with Backstage interop. |
-| **Collaboration** | Shared console, presence with WebRTC links, shared editor and team analytics on a [control plane](/re-shell/integrations/collaboration/). Needs a running control plane; none is deployed. |
+| **Collaboration** | Shared console, presence with WebRTC links, shared editor and team analytics on a [control plane](/re-shell/integrations/collaboration/). Needs a running control plane; public hosting is not configured. |
+| **Administration** | Tenant, member and policy management, audit records and platform-admin metrics through the authenticated [control plane](/re-shell/architecture/control-plane/). Supports manual bearer or configured browser SSO. |
 | **Settings** | Hub connection, theme and dashboard preferences. |
 
 The list lives in `apps/web/src/shell/screens.ts`. Screens are code-split and each

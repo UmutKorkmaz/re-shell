@@ -1,4 +1,6 @@
-# Re-Shell hosted control plane + one execution worker.
+# Re-Shell control plane. Trusted process worker is opt-in local development.
+# Isolated staging uses the host orchestrator: docs/job-isolation.md.
+# No Docker host socket is mounted into either service.
 #
 # Run from this directory:   docker compose up --build
 # All configuration comes from the environment (an `.env` file next to this one
@@ -60,6 +62,7 @@ services:
       start_period: 10s
 
   worker:
+    profiles: [development]
     build:
       context: ../..
       dockerfile: packages/control-plane/Dockerfile
@@ -80,6 +83,7 @@ services:
       control-plane:
         condition: service_healthy
     environment:
+      CONTROL_PLANE_WORKER_MODE: process
       CONTROL_PLANE_URL: http://control-plane:8787
       # The tenant this worker serves; must match the worker token's tenant.
       CONTROL_PLANE_TENANT: ${CONTROL_PLANE_TENANT:-}

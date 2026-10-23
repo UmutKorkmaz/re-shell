@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DEFAULT_WHITE_LABEL, resolveWhiteLabel } from '@re-shell/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -85,9 +85,8 @@ describe('App shell accessibility', () => {
     // Back/forward restore the previous screen and move focus again.
     await act(async () => {
       window.history.back();
-      await new Promise((resolve) => setTimeout(resolve, 20));
     });
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Overview');
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Overview'));
     expect(screen.getByRole('heading', { level: 1 })).toHaveFocus();
   });
 

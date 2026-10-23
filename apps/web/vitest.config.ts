@@ -22,6 +22,8 @@ export default defineConfig({
     },
   },
   test: {
+    // Bound concurrent child processes on developer machines and shared CI runners.
+    maxWorkers: 4,
     environment: 'node',
     globals: true,
     include: ['tests/**/*.test.ts'],

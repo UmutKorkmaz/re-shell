@@ -1,3 +1,4 @@
+import { cpuUsage } from 'node:process';
 import { describe, expect, it } from 'vitest';
 import { reachableFrom, shortestDependencyPath } from '@re-shell/contracts';
 import { buildGraphSpec, describeSpec } from '../../../e2e/fixtures/graph-fixture.mjs';
@@ -102,24 +103,46 @@ describe('2000-node fixture', () => {
   });
 
   it('scales roughly linearly: 8000 nodes costs far less than 16x of 2000', () => {
-    const measure = (n: number): number => {
-      const data = buildGraphData(feedFromSpec(n));
-      const display = displayFromData(data);
-      const t = performance.now();
-      buildFlow(
+    // Prepare both inputs before sampling so fixture allocation cannot skew one size.
+    const smallGraph = displayFromData(buildGraphData(feedFromSpec(2000)));
+    const largeGraph = displayFromData(buildGraphData(feedFromSpec(8000)));
+    const measure = (display: ReturnType<typeof displayFromData>): number => {
+      const started = cpuUsage();
+      const flow = buildFlow(
         display,
         computeLayout(display.index, COMPACT_LAYOUT),
         { matches: null, hide: false, selected: null, upstream: new Set(), downstream: new Set(), path: null, showCycles: true, statusOf: () => 'unknown', reasonOf: () => undefined, portOf: () => undefined },
         createFlowCache(),
         () => () => undefined
       );
-      return performance.now() - t;
+      const elapsed = cpuUsage(started);
+      expect(flow.nodes).toHaveLength(display.model.nodes.length);
+      expect(flow.edges).toHaveLength(display.model.edges.length);
+      return (elapsed.user + elapsed.system) / 1000;
     };
-    const best = (n: number): number => Math.min(measure(n), measure(n), measure(n));
-    measure(500); // warm up
-    const small = Math.max(best(2000), 5);
-    const large = best(8000);
-    // Linear would be ~4x; best-of-3 absorbs scheduler noise. Quadratic would be 16x.
-    expect(large / small).toBeLessThan(11);
+    for (let i = 0; i < 2; i++) {
+      measure(smallGraph);
+      measure(largeGraph);
+    }
+    const samples = { small: [] as number[], large: [] as number[] };
+    for (let i = 0; i < 6; i++) {
+      // Alternate which size runs first to balance JIT and garbage-collection effects.
+      if (i % 2 === 0) {
+        samples.small.push(measure(smallGraph));
+        samples.large.push(measure(largeGraph));
+      } else {
+        samples.large.push(measure(largeGraph));
+        samples.small.push(measure(smallGraph));
+      }
+    }
+    const median = (values: number[]): number => {
+      const sorted = [...values].sort((a, b) => a - b);
+      return (sorted[2] + sorted[3]) / 2;
+    };
+    const small = Math.max(median(samples.small), 5);
+    const large = median(samples.large);
+    // CPU time excludes host descheduling; the wall-time budgets above stay unchanged.
+    // Every sample still creates a fresh layout/cache. Linear is ~4x; quadratic is 16x.
+    expect(large / small, `CPU samples in ms: ${JSON.stringify(samples)}`).toBeLessThan(11);
   });
 });

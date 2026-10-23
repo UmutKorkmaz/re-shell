@@ -17,6 +17,13 @@ function git(cwd: string, args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
+function repoRelativePath(repoRoot: string, abs: string): string {
+  // Resolve directory aliases (including macOS /var -> /private/var), but not
+  // the final component: a symlink itself must be tracked/moved, not its target.
+  const canonical = path.join(fs.realpathSync(path.dirname(abs)), path.basename(abs));
+  return path.relative(fs.realpathSync(repoRoot), canonical);
+}
+
 /** Describe the git state of `dir` (not a repo / git missing => inRepo:false). */
 export function gitInfo(dir: string): GitInfo {
   try {
@@ -33,7 +40,7 @@ export function gitInfo(dir: string): GitInfo {
 /** True when `abs` (file or directory) has tracked content in the repo. */
 export function isTracked(repoRoot: string, abs: string): boolean {
   try {
-    const out = git(repoRoot, ['ls-files', '--', path.relative(repoRoot, abs)]);
+    const out = git(repoRoot, ['ls-files', '--', repoRelativePath(repoRoot, abs)]);
     return out.trim().length > 0;
   } catch {
     return false;
@@ -49,7 +56,7 @@ export type MoveMethod = 'git-mv' | 'fs-rename';
 export function moveWithGit(repoRoot: string | undefined, from: string, to: string): MoveMethod {
   fs.mkdirSync(path.dirname(to), { recursive: true });
   if (repoRoot && isTracked(repoRoot, from)) {
-    git(repoRoot, ['mv', '--', path.relative(repoRoot, from), path.relative(repoRoot, to)]);
+    git(repoRoot, ['mv', '--', repoRelativePath(repoRoot, from), repoRelativePath(repoRoot, to)]);
     return 'git-mv';
   }
   fs.renameSync(from, to);

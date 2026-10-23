@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { createRequire } from 'module';
 import {
   StorybookRunError,
   assertToolingInstalled,
@@ -207,6 +208,11 @@ describe('runStorybookTests orchestration (with a stand-in test-storybook binary
     for (const dep of ['axe-playwright', 'jest-image-snapshot']) fs.mkdirSync(path.join(dir, 'node_modules', dep), { recursive: true });
     const bin = path.join(dir, 'node_modules', '.bin', 'test-storybook');
     fs.writeFileSync(bin, `#!/usr/bin/env node\n${body}\n`, { mode: 0o755 });
+    fs.writeFileSync(path.join(dir, '.storybook', 'main.js'), 'module.exports = { framework: { name: "@storybook/vue3-vite", options: {} } };\n');
+    const common = path.join(dir, 'node_modules', 'storybook');
+    fs.mkdirSync(common);
+    fs.writeFileSync(path.join(common, 'package.json'), JSON.stringify({ name: 'storybook', exports: { './internal/common': './common.cjs' } }));
+    fs.writeFileSync(path.join(common, 'common.cjs'), 'exports.serverRequire = async (file) => require(file + ".js");\n');
     return dir;
   }
 
@@ -223,6 +229,9 @@ describe('runStorybookTests orchestration (with a stand-in test-storybook binary
     const args = process.argv.slice(2);
     const arg = (n) => args[args.indexOf(n) + 1];
     const url = arg('--url');
+    const main = require(path.join(arg('--config-dir'), 'main.js'));
+    const frameworkName = typeof main.framework === 'string' ? main.framework : main.framework?.name;
+    frameworkName.includes('vite'); // The metadata check performed by test-runner 0.26.
     require('http').get(url + '/index.json', (res) => {
       let body = ''; res.on('data', (c) => (body += c)); res.on('end', () => {
         const entries = Object.values(JSON.parse(body).entries);
@@ -230,7 +239,7 @@ describe('runStorybookTests orchestration (with a stand-in test-storybook binary
         const assertionResults = entries.map((e) => ({ ancestorTitles: [e.title, e.name], title: 'play-test', status: 'passed', failureMessages: [] }));
         for (const e of entries) fs.writeFileSync(path.join(out, e.id + '.json'), JSON.stringify({ id: e.id, a11y: [], visual: [], createdBaselines: 1 }));
         fs.writeFileSync(arg('--outputFile'), JSON.stringify({ testResults: [{ assertionResults }] }));
-        fs.writeFileSync(path.join(process.env.CAPTURE, 'argv.json'), JSON.stringify({ args, hooks: fs.existsSync(path.join(arg('--config-dir'), 'test-runner.js')), main: fs.existsSync(path.join(arg('--config-dir'), 'main.js')), snapshots: process.env.RE_SHELL_UI_TEST_SNAPSHOTS, ci: process.env.CI }));
+        fs.writeFileSync(path.join(process.env.CAPTURE, 'argv.json'), JSON.stringify({ args, framework: main.framework, hooks: fs.existsSync(path.join(arg('--config-dir'), 'test-runner.js')), hookPackageType: JSON.parse(fs.readFileSync(path.join(arg('--config-dir'), 'package.json'), 'utf8')).type, main: fs.existsSync(path.join(arg('--config-dir'), 'main.js')), snapshots: process.env.RE_SHELL_UI_TEST_SNAPSHOTS, ci: process.env.CI }));
       });
     });
   `;
@@ -259,13 +268,81 @@ describe('runStorybookTests orchestration (with a stand-in test-storybook binary
       expect(seen.args).not.toContain('--ci');
       expect(seen.ci).toBe('true');
       expect(seen.hooks).toBe(true);
+      expect(seen.hookPackageType).toBe('commonjs');
       expect(seen.main).toBe(true);
+      expect(seen.framework).toBe('@storybook/vue3-vite');
       expect(seen.snapshots).toBe(path.join(dir, '__image_snapshots__'));
       // Temp config dir is cleaned up afterwards.
       expect(fs.readdirSync(path.join(dir, 'node_modules', '.cache', 're-shell'))).toEqual([]);
     } finally {
       delete process.env.CAPTURE;
     }
+  });
+
+  it.each([
+    { framework: '@storybook/vue3-vite', legacy: false },
+    { framework: { name: '@storybook/sveltekit', options: { builder: { viteConfigPath: './vite.custom.ts' } } }, legacy: true },
+  ])('preserves the configured framework with the legacy loader=$legacy', async ({ framework, legacy }) => {
+    const capture = path.join(root, 'capture');
+    fs.mkdirSync(capture);
+    const dir = projectWithFakeRunner(FAKE);
+    // Config logging must not corrupt the metadata returned by the loader.
+    fs.writeFileSync(path.join(dir, '.storybook', 'main.js'), `
+      console.log('loading project config');
+      module.exports = ${JSON.stringify({ framework })};
+      if (typeof module.exports.framework === 'object') {
+        module.exports.framework.options.configure = () => {};
+        module.exports.framework.options.owner = module.exports;
+      }
+    `);
+    if (legacy) {
+      fs.rmSync(path.join(dir, 'node_modules', 'storybook'), { recursive: true });
+      // pnpm keeps the runner's legacy loader in its own dependency tree, without
+      // exposing @storybook/core-common at the workspace's node_modules root.
+      const dependencies = path.join(dir, 'node_modules', '.pnpm', 'legacy-runner', 'node_modules');
+      const runner = path.join(dependencies, '@storybook', 'test-runner');
+      fs.mkdirSync(runner, { recursive: true });
+      fs.writeFileSync(path.join(runner, 'index.js'), 'module.exports = {};\n');
+      fs.mkdirSync(path.join(dir, 'node_modules', '@storybook'), { recursive: true });
+      fs.symlinkSync(runner, path.join(dir, 'node_modules', '@storybook', 'test-runner'), 'dir');
+      const common = path.join(dependencies, '@storybook', 'core-common');
+      fs.mkdirSync(common, { recursive: true });
+      fs.writeFileSync(path.join(common, 'index.js'), 'exports.serverRequire = (file) => require(file + ".js");\n');
+      expect(() => createRequire(path.join(dir, 'package.json')).resolve('@storybook/core-common')).toThrow(/Cannot find module/);
+    }
+    const stories = staticDir([{ id: 'ui-a--one', title: 'UI/A', name: 'One' }]);
+    process.env.CAPTURE = capture;
+    try {
+      const run = await runStorybookTests({ workspace: root, staticDir: stories, ci: true });
+      expect(run.results).toMatchObject([{ interaction: true, a11y: true, visual: true }]);
+      expect(JSON.parse(fs.readFileSync(path.join(capture, 'argv.json'), 'utf8')).framework).toBe(
+        typeof framework === 'string' ? framework : framework.name
+      );
+    } finally {
+      delete process.env.CAPTURE;
+    }
+  });
+
+  it('reports a project configuration error before running tests and cleans up the temporary config', async () => {
+    const dir = projectWithFakeRunner('throw new Error("test runner must not execute");');
+    fs.writeFileSync(path.join(dir, '.storybook', 'main.js'), 'throw new Error("broken workspace configuration");\n');
+    const stories = staticDir([{ id: 'ui-a--one', title: 'UI/A', name: 'One' }]);
+    await expect(runStorybookTests({ workspace: root, staticDir: stories })).rejects.toMatchObject({
+      name: 'StorybookRunError',
+      message: expect.stringMatching(/could not load Storybook framework/),
+      details: { tail: expect.stringContaining('broken workspace configuration') },
+    });
+    expect(fs.readdirSync(path.join(dir, 'node_modules', '.cache', 're-shell'))).toEqual([]);
+  });
+
+  it('rejects missing framework metadata instead of substituting a renderer', async () => {
+    const dir = projectWithFakeRunner('throw new Error("test runner must not execute");');
+    fs.writeFileSync(path.join(dir, '.storybook', 'main.js'), 'module.exports = { framework: { options: {} } };\n');
+    const stories = staticDir([{ id: 'ui-a--one', title: 'UI/A', name: 'One' }]);
+    await expect(runStorybookTests({ workspace: root, staticDir: stories })).rejects.toMatchObject({
+      name: 'StorybookRunError',
+      details: { tail: expect.stringContaining('does not declare a framework name') },
+    });
   });
 
   it('fails explicitly when the runner exits without producing a result', async () => {

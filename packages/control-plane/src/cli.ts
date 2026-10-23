@@ -29,6 +29,8 @@ import { startRuntime } from './runtime.js';
 import { roleSchema } from './auth.js';
 import { idSchema } from './tenant.js';
 import { Worker } from './worker/worker.js';
+import { loadWorkerIsolation } from './worker/config.js';
+import { loadTracingOptions, Tracing } from './tracing.js';
 
 /**
  * `re-shell-control-plane` command line.
@@ -356,18 +358,26 @@ async function cmdWorker(parsed: Parsed, io: CliIo): Promise<number> {
     return configFail(io, '--concurrency must be an integer between 1 and 99.');
   }
 
+  let isolation;
+  try { isolation = loadWorkerIsolation(io.env, str(parsed, 'mode')); }
+  catch (error) { return configFail(io, error instanceof Error ? error.message : String(error)); }
   const log = logLine(io);
+  const traceConfig = loadTracingOptions(io.env);
+  if (!traceConfig.ok) return configFail(io, traceConfig.error.message);
+  const tracing = traceConfig.data ? new Tracing({ ...traceConfig.data, serviceName: 're-shell-worker' }) : undefined;
   const worker = new Worker({
+    tracing,
     controlPlaneUrl: url,
     token: token.data,
     tenantId: tenant.data,
     workspaceRoot: root,
     cliBin: str(parsed, 'cli-bin') ?? io.env.RE_SHELL_CLI_BIN ?? 're-shell',
     concurrency,
+    runner: { isolation },
     logger: log,
   });
   worker.start();
-  log({ level: 'info', message: 'worker started', tenantId: tenant.data, workspaceRoot: path.resolve(root), concurrency });
+  log({ level: 'info', message: 'worker started', tenantId: tenant.data, workspaceRoot: path.resolve(root), concurrency, mode: isolation.mode });
 
   const stopped = worker.done().then(() => 'stopped' as const);
   const signalled = waitForShutdown(io).then(() => 'signal' as const);
@@ -377,8 +387,10 @@ async function cmdWorker(parsed: Parsed, io: CliIo): Promise<number> {
     await worker.stop();
   }
   if (worker.fatal) {
-    return print(io, fail('UNAUTHENTICATED', worker.fatal));
+    await tracing?.close().catch(() => log({ level: 'warn', message: 'trace exporter shutdown failed' }));
+    return print(io, fail(worker.fatalCode, worker.fatal));
   }
+  await tracing?.close().catch(() => log({ level: 'warn', message: 'trace exporter shutdown failed' }));
   return 0;
 }
 

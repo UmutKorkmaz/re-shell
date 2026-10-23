@@ -1,10 +1,12 @@
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
+import { SpanStatusCode, type Span } from '@opentelemetry/api';
 
 import { resolveCommand } from '@re-shell/contracts/command-registry';
 
 import type { ClaimedJob } from '../jobs.js';
 import type { PolicySnapshot } from '../policy.js';
+import type { Tracing } from '../tracing.js';
 import type { FinishBody, OutputChunk, WorkerClient } from './client.js';
 import {
   childEnvironment,
@@ -12,6 +14,7 @@ import {
   resolveCliInvocation,
   resolveWorkspaceDir,
 } from './containment.js';
+import { IsolationSetupError, startIsolatedJob, validateIsolation, type Isolation, type IsolatedProcess } from './isolation.js';
 
 /**
  * Runs ONE claimed job: re-checks policy, builds argv from the SHARED allow-list
@@ -24,8 +27,13 @@ import {
  */
 
 export interface RunnerOptions {
+  tracing?: Tracing;
   /** Directory whose subdirectories are the tenant's workspaces (`<root>/<workspaceId>`). */
   workspaceRoot: string;
+  /** Process mode is for trusted local development; Docker never falls back. */
+  isolation?: Isolation;
+  /** Total decoded output retained across pending/in-flight batches. */
+  maxOutputChars: number;
   /** Path to the re-shell CLI JS entry, or a command name on PATH. */
   cliBin: string;
   /** How often buffered output is pushed to the control plane. */
@@ -43,6 +51,7 @@ export interface RunnerOptions {
 }
 
 export const DEFAULT_RUNNER_OPTIONS: Omit<RunnerOptions, 'workspaceRoot' | 'cliBin'> = {
+  maxOutputChars: 4 * 1024 * 1024,
   outputFlushMs: 100,
   heartbeatMs: 15_000,
   jobTimeoutMs: 10 * 60_000,
@@ -62,7 +71,8 @@ export type RunOutcome =
   /** The control plane says the job is no longer ours; nothing was (or will be) reported. */
   | { kind: 'abandoned' }
   /** The worker token was rejected; the worker must stop. */
-  | { kind: 'unauthenticated' };
+  | { kind: 'unauthenticated' }
+  | { kind: 'isolation-failed' };
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -84,7 +94,24 @@ export async function runJob(
   hooks: RunnerHooks,
   shutdown: AbortSignal
 ): Promise<RunOutcome> {
+  const run = async (span?: Span): Promise<RunOutcome> => {
+    const outcome = await executeJob(claim, client, options, hooks, shutdown, span);
+    if (outcome.kind !== 'reported' || outcome.status !== 'finished') span?.setStatus({ code: SpanStatusCode.ERROR });
+    return outcome;
+  };
+  return options.tracing ? options.tracing.run('re-shell.job.execute', { 're_shell.command': claim.job.commandId }, run, claim.job.traceParent) : run();
+}
+
+async function executeJob(
+  claim: ClaimedJob,
+  client: WorkerClient,
+  options: RunnerOptions,
+  hooks: RunnerHooks,
+  shutdown: AbortSignal,
+  span?: Span
+): Promise<RunOutcome> {
   const { job } = claim;
+  const beganAt = Date.now();
 
   const finishWithoutSpawn = async (errorCode: string, errorMessage: string): Promise<RunOutcome> => {
     hooks.log({ level: 'warn', message: 'job rejected before spawn', jobId: job.id, errorCode });
@@ -95,6 +122,12 @@ export async function runJob(
         ? { kind: 'abandoned' }
         : { kind: 'reported', status: 'failed-before-spawn' };
   };
+
+  const positiveIntegers = [options.jobTimeoutMs, options.killGraceMs, options.outputFlushMs, options.heartbeatMs, options.maxPostChars, options.maxPostChunks, options.maxOutputChars];
+  if (positiveIntegers.some((value) => !Number.isSafeInteger(value) || value < 1) || options.maxPostChunks > 256 || options.maxPostChars > 48 * 1024) {
+    return finishWithoutSpawn('INVALID_WORKER_CONFIG', 'Runner limits must be positive integers within the output protocol bounds.');
+  }
+  if (shutdown.aborted) return finishWithoutSpawn('WORKER_SHUTDOWN', 'The worker stopped before this job started.');
 
   // 1. Defense in depth: enforce the (newest known) policy locally as well.
   if (!effectiveFor(claim, hooks).includes(job.commandId)) {
@@ -122,13 +155,25 @@ export async function runJob(
   const argv = [...prefix, ...resolved.args];
   const posix = process.platform !== 'win32';
 
-  type Termination = 'cancel' | 'timeout' | 'shutdown' | 'gone';
+  type Termination = 'cancel' | 'timeout' | 'shutdown' | 'gone' | 'output-limit';
   let termination: Termination | undefined;
   let unauthenticated = false;
   let spawnError: Error | undefined;
   let outputLost = false;
 
-  const child = spawn(binary, argv, {
+  let isolated: IsolatedProcess | undefined;
+  try {
+    validateIsolation(options.isolation ?? { mode: 'process' });
+    if (options.isolation?.mode === 'docker') isolated = await startIsolatedJob(options.isolation, job.tenantId, options.workspaceRoot, workspace.dir, cwd, resolved.args, shutdown, beganAt + options.jobTimeoutMs);
+  } catch (error) {
+    if (error instanceof IsolationSetupError && error.fatal) {
+      hooks.log({ level: 'error', message: 'container setup cleanup unconfirmed', jobId: job.id, error: error.message });
+      return { kind: 'isolation-failed' };
+    }
+    hooks.log({ level: 'error', message: 'isolated job setup failed', jobId: job.id, error: error instanceof Error ? error.message : String(error) });
+    return finishWithoutSpawn(error instanceof IsolationSetupError ? error.code : 'ISOLATION_FAILED', 'Isolated job setup failed. Check the worker logs.');
+  }
+  const child = isolated?.child ?? spawn(binary, argv, {
     cwd,
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -151,7 +196,8 @@ export async function runJob(
   const terminate = (reason: Termination): void => {
     if (termination) return;
     termination = reason;
-    signalGroup('SIGTERM');
+    if (isolated) void isolated.terminate().catch((error) => hooks.log({ level: 'error', message: 'container termination failed; final cleanup will retry', jobId: job.id, error: String(error) }));
+    else signalGroup('SIGTERM');
     killTimer = setTimeout(() => signalGroup('SIGKILL'), options.killGraceMs);
     killTimer.unref();
   };
@@ -159,6 +205,9 @@ export async function runJob(
   // ---- output pipeline -------------------------------------------------------
   const decoders = { stdout: new StringDecoder('utf8'), stderr: new StringDecoder('utf8') };
   let pending: OutputChunk[] = [];
+  let receivedChars = 0;
+  let heartbeatQueued = false;
+  const delivery = new AbortController();
   let posting: Promise<void> = Promise.resolve();
   let lastPost = Date.now();
 
@@ -195,7 +244,8 @@ export async function runJob(
 
   const sendOutput = async (chunks: OutputChunk[]): Promise<void> => {
     for (let attempt = 0; attempt < 6; attempt += 1) {
-      const result = await client.postOutput(job.id, chunks);
+      if (delivery.signal.aborted) { outputLost = true; return; }
+      const result = await client.postOutput(job.id, chunks, AbortSignal.any([delivery.signal, AbortSignal.timeout(5000)]));
       lastPost = Date.now();
       if (result.kind === 'ok') {
         if (result.data.cancelRequested) terminate('cancel');
@@ -236,6 +286,12 @@ export async function runJob(
     if (text.length === 0) {
       return;
     }
+    const available = Math.max(0, options.maxOutputChars - receivedChars);
+    const overflow = text.length > available;
+    text = text.slice(0, available);
+    receivedChars += text.length;
+    if (overflow) { outputLost = true; terminate('output-limit'); }
+    if (text.length === 0) return;
     // Coalesce adjacent output from the same stream: a chatty CLI emits many
     // tiny writes and the control plane bounds chunks per request.
     const last = pending[pending.length - 1];
@@ -254,12 +310,13 @@ export async function runJob(
     }
   }, options.outputFlushMs);
   const heartbeatTimer = setInterval(() => {
-    if (Date.now() - lastPost >= options.heartbeatMs) {
+    if (!heartbeatQueued && Date.now() - lastPost >= options.heartbeatMs) {
       // An empty output post extends the lease and learns about cancels.
-      posting = posting.then(() => sendOutput([]));
+      heartbeatQueued = true;
+      posting = posting.then(() => sendOutput([])).finally(() => { heartbeatQueued = false; });
     }
   }, Math.max(250, Math.floor(options.heartbeatMs / 3)));
-  const timeoutTimer = setTimeout(() => terminate('timeout'), options.jobTimeoutMs);
+  const timeoutTimer = setTimeout(() => terminate('timeout'), Math.max(1, options.jobTimeoutMs - (Date.now() - beganAt)));
   const onShutdown = (): void => terminate('shutdown');
   if (shutdown.aborted) {
     onShutdown();
@@ -288,14 +345,29 @@ export async function runJob(
   clearInterval(flushTimer);
   clearInterval(heartbeatTimer);
   clearTimeout(timeoutTimer);
-  if (killTimer) clearTimeout(killTimer);
+  if (killTimer) {
+    // A direct child can exit on TERM while descendants ignore it.
+    if (!isolated && termination) signalGroup('SIGKILL');
+    clearTimeout(killTimer);
+  }
   shutdown.removeEventListener('abort', onShutdown);
 
+  let cleanupFailed = false;
+  if (isolated) {
+    try { await isolated.cleanup(); }
+    catch (error) { cleanupFailed = true; hooks.log({ level: 'error', message: 'container cleanup unconfirmed; stopping worker', jobId: job.id, error: String(error) }); }
+  }
+
+  // A failed/unreachable control plane must not hold shutdown open for every
+  // buffered batch. The final result has its own bounded delivery budget.
+  const drainTimer = setTimeout(() => delivery.abort(), 5000);
   push('stdout', decoders.stdout.end());
   push('stderr', decoders.stderr.end());
   await flush();
   await posting;
+  clearTimeout(drainTimer);
 
+  if (cleanupFailed) return { kind: 'isolation-failed' };
   if (termination === 'gone' || unauthenticated) {
     return unauthenticated ? { kind: 'unauthenticated' } : { kind: 'abandoned' };
   }
@@ -304,6 +376,8 @@ export async function runJob(
   let body: FinishBody;
   if (spawnError) {
     body = { exitCode: null, errorCode: 'SPAWN_FAILED', errorMessage: spawnError.message.slice(0, 500) };
+  } else if (termination === 'output-limit') {
+    body = { exitCode: null, errorCode: 'OUTPUT_LIMIT', errorMessage: `Job output exceeded ${options.maxOutputChars} characters and was stopped.` };
   } else if (termination === 'cancel') {
     body = { exitCode: null, signal: exit.signal, errorCode: 'CANCELED', canceled: true };
   } else if (termination === 'timeout') {
@@ -330,6 +404,7 @@ export async function runJob(
     body.errorMessage = 'Some job output could not be delivered to the control plane.';
   }
 
+  if (body.exitCode !== 0 || body.errorCode || outputLost) span?.setStatus({ code: SpanStatusCode.ERROR });
   const reported = await postExitWithRetry(client, job.id, body);
   hooks.log({ level: 'info', message: 'job finished', jobId: job.id, exitCode: body.exitCode, errorCode: body.errorCode });
   if (reported === 'unauthenticated') return { kind: 'unauthenticated' };
@@ -342,13 +417,14 @@ async function postExitWithRetry(
   jobId: string,
   body: FinishBody
 ): Promise<'ok' | 'gone' | 'unauthenticated'> {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const result = await client.postExit(jobId, body);
+  const deadline = Date.now() + 15_000;
+  for (let attempt = 0; attempt < 8 && Date.now() < deadline; attempt += 1) {
+    const result = await client.postExit(jobId, body, AbortSignal.timeout(Math.max(1, Math.min(5000, deadline - Date.now()))));
     if (result.kind === 'ok') return 'ok';
     if (result.kind === 'job-gone') return 'gone';
     if (result.kind === 'unauthenticated') return 'unauthenticated';
     if (result.kind === 'rejected') return 'gone';
-    await sleep(Math.min(250 * 2 ** attempt, 5000));
+    await sleep(Math.max(0, Math.min(250 * 2 ** attempt, 5000, deadline - Date.now())));
   }
   return 'gone';
 }

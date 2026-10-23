@@ -14,6 +14,8 @@ export default defineConfig({
     }
   },
   test: {
+    // Bound concurrent child processes on developer machines and shared CI runners.
+    maxWorkers: 4,
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
@@ -31,7 +33,6 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'text-summary', 'json', 'html'],
-      all: true,
       include: [
         'src/assistant/**',
         'src/components/**',

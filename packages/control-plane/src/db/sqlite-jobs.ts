@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { DatabaseSync, Row, StatementSync, transaction } from './sqlite.js';
+import { currentTraceParent } from '../tracing.js';
 
 /**
  * Durable job queue + output log.
@@ -17,6 +18,7 @@ export type JobStream = 'stdout' | 'stderr';
 export const TERMINAL_STATUSES: ReadonlySet<JobStatus> = new Set(['succeeded', 'failed', 'canceled']);
 
 export interface Job {
+  traceParent?: string;
   id: string;
   tenantId: string;
   workspaceId: string;
@@ -67,6 +69,7 @@ export interface CompleteInput {
 
 function jobFromRow(row: Row): Job {
   return {
+    ...(typeof row.trace_parent === 'string' ? { traceParent: row.trace_parent } : {}),
     id: String(row.id),
     tenantId: String(row.tenant_id),
     workspaceId: String(row.workspace_id),
@@ -89,7 +92,7 @@ function jobFromRow(row: Row): Job {
 
 const COLUMNS = `id, tenant_id, workspace_id, command_id, params, requested_by, status, exit_code,
   error_code, error_message, worker_id, cancel_requested, output_bytes, output_truncated,
-  created_at, started_at, finished_at`;
+  created_at, started_at, finished_at, trace_parent`;
 
 export class SqliteJobStore {
   private readonly s: Record<string, StatementSync>;
@@ -97,8 +100,8 @@ export class SqliteJobStore {
   constructor(private readonly db: DatabaseSync) {
     this.s = {
       insert: db.prepare(
-        `INSERT INTO jobs (id, tenant_id, workspace_id, command_id, params, requested_by, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'queued', ?)`
+        `INSERT INTO jobs (id, tenant_id, workspace_id, command_id, params, requested_by, status, created_at, trace_parent)
+         VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?)`
       ),
       countQueued: db.prepare(
         "SELECT COUNT(*) AS n FROM jobs WHERE tenant_id = ? AND status = 'queued'"
@@ -164,7 +167,8 @@ export class SqliteJobStore {
         input.commandId,
         JSON.stringify(input.params),
         input.requestedBy,
-        input.now
+        input.now,
+        currentTraceParent() ?? null
       );
       return this.mustGet(input.tenantId, id);
     });

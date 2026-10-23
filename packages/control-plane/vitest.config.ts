@@ -2,6 +2,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Bound concurrent child processes on developer machines and shared CI runners.
+    maxWorkers: 4,
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts'],
@@ -13,7 +15,6 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'text-summary'],
-      all: true,
       include: ['src/**/*.ts'],
       exclude: [
         'src/**/*.test.ts',

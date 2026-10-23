@@ -37,7 +37,6 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'text-summary', 'json', 'html'],
-      all: true,
       include: ['src/screens/**', 'src/hub/**', 'src/settings/**'],
       exclude: ['**/*.test.ts', '**/*.test.tsx', '**/*.d.ts'],
       thresholds: {

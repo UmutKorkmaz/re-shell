@@ -1,7 +1,7 @@
 import type { StorybookConfig } from '@storybook/react-vite';
 
 /**
- * Storybook 9 for @re-shell/ui.
+ * Storybook 10 for @re-shell/ui.
  *
  * - Stories live next to the components (`src/**\/*.stories.tsx`).
  * - `@storybook/addon-a11y` runs axe on every story (panel + `a11y.test: 'error'`).

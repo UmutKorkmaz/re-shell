@@ -8,7 +8,7 @@
     "build:dist": "pnpm --filter @re-shell/cli run build:dist",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint"
+    "lint": "eslint packages/*/src apps/*/src --quiet"
   },
   "pnpm": {
     "overrides": {
@@ -22,5 +22,11 @@
       "postcss-selector-parser@<7.1.6": "^7.1.6",
       "vite@>=8.0.0>esbuild": "^0.28.1"
     }
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "typescript-eslint": "^8.72.0",
+    "eslint-plugin-react-hooks": "^7.1.1"
   }
 }

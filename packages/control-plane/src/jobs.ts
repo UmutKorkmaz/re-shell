@@ -276,6 +276,7 @@ export interface WorkerJobDeps {
 /** What a worker receives when it claims a job. */
 export interface ClaimedJob {
   job: {
+    traceParent?: string;
     id: string;
     tenantId: string;
     workspaceId: string;
@@ -435,6 +436,7 @@ function tryClaimOne(deps: WorkerJobDeps, worker: WorkerIdentity): ClaimedJob | 
         workspaceId: claimed.workspaceId,
         commandId: claimed.commandId,
         params: claimed.params,
+        ...(claimed.traceParent ? { traceParent: claimed.traceParent } : {}),
       },
       policy: {
         policyVersion: snapshot?.policyVersion ?? 0,

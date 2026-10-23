@@ -1,6 +1,6 @@
 {
   "name": "@re-shell/control-plane",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Hosted multi-tenant control plane for Re-Shell: authenticated HTTP/SSE API, SQLite persistence, signed-token identity, append-only audit, team policy sync and remote execution workers that run the allow-listed Re-Shell CLI.",
   "license": "MIT",
@@ -26,19 +26,23 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "echo 'control-plane: no linter configured'"
+    "lint": "eslint src --quiet"
   },
   "dependencies": {
     "@re-shell/contracts": "workspace:*",
     "jsonwebtoken": "^9.0.2",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@opentelemetry/api": "~1.9.1",
+    "@opentelemetry/sdk-trace-base": "^2.12.0",
+    "@opentelemetry/resources": "^2.12.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.223.0"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.13.0",
-    "@vitest/coverage-v8": "^2.1.0",
+    "@vitest/coverage-v8": "^4.1.12",
     "typescript": "^5.0.0",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=22.13.0"
