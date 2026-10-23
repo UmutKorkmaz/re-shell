@@ -239,6 +239,41 @@ function tail(output: string, lines = 25): string {
   return output.replace(/\u001b\[[0-9;]*m/g, '').split('\n').slice(-lines).join('\n');
 }
 
+/** Resolve the project's framework with its own Storybook loader (including TS/ESM configs). */
+async function loadStorybookFramework(project: StorybookProject, outputFile: string, timeoutMs: number): Promise<string> {
+  // Run outside Jest and this CommonJS CLI: modern Storybook loads asynchronously,
+  // while older runners require a synchronous main.js. Write metadata to a file so
+  // console output from the project's config cannot corrupt the CLI JSON envelope.
+  const source = `
+    (async () => {
+      let commonPath;
+      try { commonPath = require.resolve('storybook/internal/common'); }
+      catch (error) {
+        if (!['MODULE_NOT_FOUND', 'ERR_PACKAGE_PATH_NOT_EXPORTED'].includes(error.code)) throw error;
+        const runnerRequire = require('module').createRequire(require.resolve('@storybook/test-runner'));
+        try { commonPath = runnerRequire.resolve('storybook/internal/common'); }
+        catch (error) {
+          if (!['MODULE_NOT_FOUND', 'ERR_PACKAGE_PATH_NOT_EXPORTED'].includes(error.code)) throw error;
+          commonPath = runnerRequire.resolve('@storybook/core-common');
+        }
+      }
+      const common = await import(require('url').pathToFileURL(commonPath).href);
+      const serverRequire = common.serverRequire ?? common.default?.serverRequire;
+      const config = await serverRequire(${JSON.stringify(path.join(project.configDir, 'main'))});
+      const framework = typeof config?.framework === 'string' ? config.framework : config?.framework?.name;
+      if (typeof framework !== 'string' || !framework.trim()) {
+        throw new Error('Storybook main configuration does not declare a framework name');
+      }
+      require('fs').writeFileSync(${JSON.stringify(outputFile)}, JSON.stringify(framework), { mode: 0o600 });
+    })().catch((error) => { console.error(error); process.exitCode = 1; });
+  `;
+  const loaded = await exec(process.execPath, ['--eval', source], { cwd: project.projectDir, timeoutMs });
+  if (loaded.code !== 0 || !fs.existsSync(outputFile)) {
+    throw new StorybookRunError(`could not load Storybook framework from ${project.configDir}`, { tail: tail(loaded.output) });
+  }
+  return JSON.parse(fs.readFileSync(outputFile, 'utf8')) as string;
+}
+
 // ---------------------------------------------------------------------------
 // 5. collection (pure)
 // ---------------------------------------------------------------------------
@@ -441,10 +476,14 @@ export async function runStorybookTests(options: StorybookRunOptions): Promise<S
       throw new StorybookRunError(`${baseUrl}/index.json lists no stories; nothing to test`);
     }
 
+    // Keep the conventional .js names recognized by older Storybook versions,
+    // while making their CommonJS format explicit to Jest in ESM workspaces.
+    fs.writeFileSync(path.join(hooksDir, 'package.json'), '{"type":"commonjs"}\n');
     fs.writeFileSync(path.join(hooksDir, UI_TEST_HOOKS_FILENAME), UI_TEST_HOOKS_SOURCE);
     // The runner insists on a Storybook `main` in its config dir even in index-json
     // mode (where the story list comes from the served index.json instead).
-    fs.writeFileSync(path.join(hooksDir, 'main.js'), 'module.exports = { stories: ["./*.stories.js"] };\n');
+    const framework = await loadStorybookFramework(project, path.join(workDir, 'framework.json'), timeoutMs);
+    fs.writeFileSync(path.join(hooksDir, 'main.js'), `module.exports = ${JSON.stringify({ stories: ['./*.stories.js'], framework })};\n`);
     const jestOut = path.join(workDir, 'jest.json');
     const snapshotDir = path.join(project.projectDir, '__image_snapshots__');
     const args = [
