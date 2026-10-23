@@ -1,4 +1,6 @@
 import path from 'node:path';
+import type { Tracing } from '../tracing.js';
+import { prepareIsolation, validateIsolation } from './isolation.js';
 
 import type { PolicySnapshot } from '../policy.js';
 import { SseHttpError, openSseStream } from '../sse-client.js';
@@ -14,6 +16,7 @@ import { DEFAULT_RUNNER_OPTIONS, RunnerOptions, runJob } from './runner.js';
  */
 
 export interface WorkerOptions {
+  tracing?: Tracing;
   /** Control plane base URL, e.g. https://cp.example.com */
   controlPlaneUrl: string;
   /** Worker bearer token (from `re-shell-control-plane issue-token --worker`). */
@@ -67,18 +70,22 @@ export class Worker {
   private latestPolicy: PolicySnapshot | undefined;
   private syncedWaiters: Array<() => void> = [];
   private fatalReason: string | undefined;
+  private fatalErrorCode: 'CONFIG_ERROR' | 'UNAUTHENTICATED' = 'UNAUTHENTICATED';
   private running = false;
 
   /** Jobs this worker has finished reporting (test/diagnostic counter). */
   completed = 0;
 
   constructor(private readonly options: WorkerOptions) {
-    this.client = new WorkerClient(options.controlPlaneUrl, options.token, options.fetch);
+    if (options.concurrency !== undefined && (!Number.isInteger(options.concurrency) || options.concurrency < 1 || options.concurrency > 99)) throw new Error('Worker concurrency must be between 1 and 99.');
+    validateIsolation(options.runner?.isolation ?? { mode: 'process' });
+    this.client = new WorkerClient(options.controlPlaneUrl, options.token, options.fetch, options.tracing);
     this.runnerOptions = {
       ...DEFAULT_RUNNER_OPTIONS,
       ...options.runner,
       workspaceRoot: path.resolve(options.workspaceRoot),
       cliBin: options.cliBin,
+      tracing: options.tracing ?? options.runner?.tracing,
     };
   }
 
@@ -91,6 +98,8 @@ export class Worker {
   get fatal(): string | undefined {
     return this.fatalReason;
   }
+
+  get fatalCode(): 'CONFIG_ERROR' | 'UNAUTHENTICATED' { return this.fatalErrorCode; }
 
   private log(entry: Record<string, unknown>): void {
     this.options.logger?.({ component: 'worker', tenantId: this.options.tenantId, ...entry });
@@ -127,11 +136,26 @@ export class Worker {
       return;
     }
     this.running = true;
-    this.loops.push(this.policyLoop());
-    const slots = Math.max(1, this.options.concurrency ?? 1);
-    for (let slot = 0; slot < slots; slot += 1) {
-      this.loops.push(this.claimLoop(slot));
+    this.loops.push(this.run());
+  }
+
+  private async run(): Promise<void> {
+    let release: (() => void) | undefined;
+    const tasks: Promise<void>[] = [];
+    try {
+      if (this.runnerOptions.isolation?.mode === 'docker') {
+        release = await prepareIsolation(this.runnerOptions.isolation, this.options.tenantId, this.runnerOptions.workspaceRoot);
+      }
+      if (this.stopController.signal.aborted) return;
+      tasks.push(this.policyLoop());
+      const slots = Math.max(1, this.options.concurrency ?? 1);
+      for (let slot = 0; slot < slots; slot += 1) tasks.push(this.claimLoop(slot));
+      await Promise.all(tasks);
+    } catch (error) {
+      this.fail(`worker isolation/startup failed: ${error instanceof Error ? error.message : String(error)}`, 'CONFIG_ERROR');
+      await Promise.allSettled(tasks);
     }
+    finally { release?.(); }
   }
 
   /** Resolves when the worker has stopped (after `stop()` or a fatal error). */
@@ -145,11 +169,12 @@ export class Worker {
     await this.done();
   }
 
-  private fail(reason: string): void {
+  private fail(reason: string, code: 'CONFIG_ERROR' | 'UNAUTHENTICATED' = 'UNAUTHENTICATED'): void {
     if (this.fatalReason) {
       return;
     }
     this.fatalReason = reason;
+    this.fatalErrorCode = code;
     this.log({ level: 'error', message: 'fatal', reason });
     this.emit({ type: 'fatal', reason });
     this.stopController.abort();
@@ -253,6 +278,10 @@ export class Worker {
       );
       this.completed += 1;
       this.emit({ type: 'job.finished', jobId: claim.job.id, outcome: outcome.kind });
+      if (outcome.kind === 'isolation-failed') {
+        this.fail('Container cleanup could not be confirmed; operator recovery required.', 'CONFIG_ERROR');
+        return;
+      }
       if (outcome.kind === 'unauthenticated') {
         this.fail('control plane rejected the worker token while reporting a job');
         return;

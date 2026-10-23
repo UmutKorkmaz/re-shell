@@ -172,8 +172,13 @@ describe('team policy sync', () => {
   });
 
   it('ends a stream when its token expires', async () => {
+    await h.close();
+    let now = Date.now();
+    h = await startHarness({ seed: STANDARD_SEED, now: () => now });
     const short = await tap(h.userToken('vera', 1));
     await short.waitForEvent('snapshot');
+    // Expire after subscription; slow CI cannot expire it before the handshake.
+    now += 2_000;
     await short.waitForEvent('expired', 1, 4000);
     await short.waitForEnd();
   });

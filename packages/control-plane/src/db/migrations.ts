@@ -234,6 +234,11 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX revoked_tokens_expiry_idx ON revoked_tokens (expires_at);
     `,
   },
+  {
+    version: 5,
+    name: 'job-trace-context',
+    sql: 'ALTER TABLE jobs ADD COLUMN trace_parent TEXT;',
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

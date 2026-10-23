@@ -4,6 +4,8 @@ export interface BrowserSsoConfig {
   clientId: string;
   authorizationEndpoint: string;
   tokenEndpoint: string;
+  revocationEndpoint?: string;
+  endSessionEndpoint?: string;
   redirectUris: string[];
   scope: string;
   requireResponseIssuer: boolean;
@@ -20,7 +22,7 @@ interface Transaction {
 }
 export const SSO_TRANSACTION_KEY = 're-shell.dashboard.oidc.transaction.v1';
 const MAX_AGE = 5 * 60_000;
-const OAUTH_PARAMS = ['code', 'state', 'iss', 'error', 'error_description', 'error_uri', 'access_token', 'id_token', 'token_type'];
+const OAUTH_PARAMS = ['code', 'state', 'iss', 'error', 'error_description', 'error_uri', 'access_token', 'id_token', 'refresh_token', 'token_type', 'expires_in', 'session_state'];
 
 function secureUrl(raw: string): URL {
   const url = new URL(raw);
@@ -38,13 +40,15 @@ export function validateSsoConfig(value: unknown): BrowserSsoConfig {
     throw new Error('Invalid browser sign-in configuration.');
   }
   secureUrl(c.issuer);
-  for (const endpoint of [c.authorizationEndpoint, c.tokenEndpoint]) if (secureUrl(endpoint).search) throw new Error('Invalid sign-in endpoint.');
+  for (const endpoint of [c.authorizationEndpoint, c.tokenEndpoint, c.revocationEndpoint, c.endSessionEndpoint].filter((value): value is string => value !== undefined)) if (secureUrl(endpoint).search) throw new Error('Invalid sign-in endpoint.');
   for (const redirect of c.redirectUris) {
     if (typeof redirect !== 'string' || secureUrl(redirect).href !== redirect || OAUTH_PARAMS.some((key) => new URL(redirect).searchParams.has(key))) {
       throw new Error('Invalid sign-in redirect allowlist.');
     }
   }
   return { issuer: c.issuer, clientId: c.clientId, authorizationEndpoint: c.authorizationEndpoint, tokenEndpoint: c.tokenEndpoint,
+    ...(c.revocationEndpoint === undefined ? {} : { revocationEndpoint: c.revocationEndpoint }),
+    ...(c.endSessionEndpoint === undefined ? {} : { endSessionEndpoint: c.endSessionEndpoint }),
     redirectUris: [...c.redirectUris], scope: c.scope, requireResponseIssuer: c.requireResponseIssuer };
 }
 function baseUrl(raw: string): string {
@@ -58,8 +62,20 @@ async function jsonRequest(url: string, fetchImpl: typeof fetch, options: Reques
   try {
     const response = await fetchImpl(url, { ...options, credentials: 'omit', redirect: 'error', cache: 'no-store', signal: controller.signal });
     if (!response.ok) throw new Error('Sign-in request was rejected. Check the provider and control plane configuration.');
-    const text = await response.text();
-    if (text.length > 65_536) throw new Error('Sign-in response is too large.');
+    const reader = response.body?.getReader();
+    let text = '';
+    if (reader) {
+      const decoder = new TextDecoder(); let bytes = 0;
+      try {
+        while (true) {
+          const part = await reader.read(); if (part.done) break;
+          bytes += part.value.byteLength;
+          if (bytes > 65_536) { await reader.cancel(); throw new Error('Sign-in response is too large.'); }
+          text += decoder.decode(part.value, { stream: true });
+        }
+        text += decoder.decode();
+      } finally { reader.releaseLock(); }
+    }
     try { return JSON.parse(text); } catch { throw new Error('The sign-in service returned invalid JSON.'); }
   } finally { clearTimeout(timer); }
 }
@@ -130,7 +146,7 @@ export async function beginSso(input: {
 }
 export async function completeSso(input: {
   controlPlaneUrl: string; href: string; storage: Storage; replaceUrl: (url: string) => void; fetchImpl?: typeof fetch; now?: number;
-}): Promise<{ accessToken: string; controlPlaneUrl: string }> {
+}): Promise<{ accessToken: string; controlPlaneUrl: string; session: BrowserSsoSession }> {
   const current = new URL(input.href);
   let transaction: Transaction | undefined;
   try {
@@ -160,18 +176,111 @@ export async function completeSso(input: {
   }
   if (response.searchParams.has('error')) throw new Error('The identity provider declined sign-in. Start again when ready.');
   const code = response.searchParams.get('code');
-  if (!code || code.length > 4096 || response.searchParams.has('access_token') || response.searchParams.has('id_token')) throw new Error('Expected an authorization code, without tokens in the URL.');
+  if (!code || code.length > 4096 || ['access_token', 'id_token', 'refresh_token', 'token_type', 'expires_in'].some((param) => response.searchParams.has(param))) throw new Error('Expected an authorization code, without tokens in the URL.');
   const fetchImpl = input.fetchImpl ?? fetch;
   const config = await loadSsoConfig(transaction.controlPlaneUrl, fetchImpl);
   if (JSON.stringify(config) !== JSON.stringify(transaction.config)) throw new Error('Sign-in configuration changed. Start again.');
   const result = await jsonRequest(config.tokenEndpoint, fetchImpl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'authorization_code', client_id: config.clientId, redirect_uri: transaction.redirectUri,
       code, code_verifier: transaction.verifier }).toString() });
-  const token = result as { access_token?: unknown; token_type?: unknown } | null;
-  if (!token || typeof token.access_token !== 'string' || !token.access_token || token.access_token.length > 16_384 ||
-      /[\s\u0000-\u001f\u007f]/.test(token.access_token) || typeof token.token_type !== 'string' || token.token_type.toLowerCase() !== 'bearer') {
+  const token = parseTokens(result, now);
+  return { accessToken: token.accessToken, controlPlaneUrl: transaction.controlPlaneUrl,
+    session: new BrowserSsoSession(config, transaction.controlPlaneUrl, transaction.redirectUri, token, fetchImpl) };
+}
+
+interface Tokens { accessToken: string; refreshToken?: string; expiresAt?: number }
+function credential(value: unknown): value is string {
+  // OAuth credentials must not contain whitespace or control characters.
+  // eslint-disable-next-line no-control-regex
+  return typeof value === 'string' && value.length > 0 && value.length <= 16_384 && !/[\s\u0000-\u001f\u007f]/.test(value);
+}
+function parseTokens(value: unknown, now: number): Tokens {
+  const token = value as { access_token?: unknown; refresh_token?: unknown; token_type?: unknown; expires_in?: unknown } | null;
+  if (!token || !credential(token.access_token) || typeof token.token_type !== 'string' || token.token_type.toLowerCase() !== 'bearer') {
     throw new Error('The identity provider did not return a bearer access token.');
   }
-  // ID and refresh tokens are deliberately ignored, never returned or stored.
-  return { accessToken: token.access_token, controlPlaneUrl: transaction.controlPlaneUrl };
+  if (token.refresh_token !== undefined && !credential(token.refresh_token)) throw new Error('Invalid refresh credential response.');
+  if ((token.expires_in !== undefined || token.refresh_token !== undefined) &&
+      (typeof token.expires_in !== 'number' || !Number.isSafeInteger(token.expires_in) || token.expires_in < 1 || token.expires_in > 86_400)) {
+    throw new Error('Invalid access token expiry.');
+  }
+  return { accessToken: token.access_token, ...(typeof token.refresh_token === 'string' ? { refreshToken: token.refresh_token } : {}),
+    ...(typeof token.expires_in === 'number' ? { expiresAt: now + token.expires_in * 1000 } : {}) };
+}
+
+/** Credentials live only in this page. Never serialize this session or retain ID tokens. */
+export class BrowserSsoSession {
+  #tokens: Tokens;
+  #closed = false;
+  #signingOut = false;
+  #refreshing: Promise<string> | undefined;
+  constructor(readonly config: BrowserSsoConfig, readonly controlPlaneUrl: string, readonly redirectUri: string,
+    tokens: Tokens, private readonly fetchImpl: typeof fetch) {
+    const pinned = validateSsoConfig(config);
+    Object.freeze(pinned.redirectUris);
+    this.config = Object.freeze(pinned);
+    this.#tokens = tokens;
+  }
+  get expiresAt(): number | undefined { return this.#tokens.expiresAt; }
+  get accessToken(): string { return this.#tokens.accessToken; }
+  get canRefresh(): boolean { return !this.#closed && !this.#signingOut && this.#tokens.refreshToken !== undefined; }
+  /** Single-flight avoids refresh-token reuse under concurrent callers; failure requires new sign-in. */
+  refresh(now = Date.now()): Promise<string> {
+    if (this.#refreshing) return this.#refreshing;
+    if (this.#closed || this.#signingOut || !this.#tokens.refreshToken) return Promise.reject(new Error('Sign in again to renew this session.'));
+    const refreshToken = this.#tokens.refreshToken;
+    this.#refreshing = (async () => {
+      try {
+        const config = await loadSsoConfig(this.controlPlaneUrl, this.fetchImpl);
+        if (JSON.stringify(config) !== JSON.stringify(this.config)) throw new Error('Sign-in configuration changed. Start again.');
+        if (this.#closed) throw new Error('The sign-in session was closed.');
+        const result = await jsonRequest(config.tokenEndpoint, this.fetchImpl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ grant_type: 'refresh_token', client_id: config.clientId, refresh_token: refreshToken }).toString() });
+        const next = parseTokens(result, now);
+        if (!next.expiresAt) throw new Error('Invalid access token expiry.');
+        if (this.#closed) throw new Error('The sign-in session was closed.');
+        // RFC 6749 permits omission of a replacement refresh token; retain the current one then.
+        this.#tokens = { ...next, refreshToken: next.refreshToken ?? refreshToken };
+        return next.accessToken;
+      } catch {
+        this.close();
+        throw new Error('Session renewal failed. Sign in again.');
+      } finally { this.#refreshing = undefined; }
+    })();
+    return this.#refreshing;
+  }
+  close(): void { this.#closed = true; this.#tokens = { accessToken: '' }; }
+  /** Local cleanup always succeeds; provider revocation failure is surfaced separately. */
+  async signOut(revokeLocalAccess?: (accessToken: string) => Promise<void>): Promise<string | undefined> {
+    this.#signingOut = true;
+    const previous = this.#tokens;
+    // A rotating grant already in flight must settle before revoking its latest credential.
+    await this.#refreshing?.catch(() => undefined);
+    const tokens = this.#tokens.accessToken ? this.#tokens : previous;
+    this.close();
+    let failed = false;
+    if (revokeLocalAccess && tokens.accessToken) {
+      try { await revokeLocalAccess(tokens.accessToken); } catch { failed = true; }
+    }
+    if (this.config.revocationEndpoint) {
+      // Native browser fetch rejects a BrowserSsoSession receiver.
+      const fetchImpl = this.fetchImpl;
+      for (const [token, hint] of [[tokens.refreshToken, 'refresh_token'], [tokens.accessToken, 'access_token']] as const) {
+        if (!token) continue;
+        const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 20_000);
+        try {
+          const response = await fetchImpl(this.config.revocationEndpoint, { method: 'POST', credentials: 'omit', redirect: 'error', cache: 'no-store', signal: controller.signal,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: this.config.clientId, token, token_type_hint: hint }).toString() });
+          await response.body?.cancel();
+          if (!response.ok) throw new Error('Provider revocation failed.');
+        } catch { failed = true; }
+        finally { clearTimeout(timer); }
+      }
+    }
+    if (failed) throw new Error('Local credentials cleared; server or provider revocation failed. Sign out at the provider and ask the operator to revoke remaining access.');
+    if (!this.config.endSessionEndpoint) return undefined;
+    const url = new URL(this.config.endSessionEndpoint);
+    url.search = new URLSearchParams({ client_id: this.config.clientId, post_logout_redirect_uri: this.redirectUri }).toString();
+    return url.href;
+  }
 }

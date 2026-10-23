@@ -1,11 +1,13 @@
 # Hosted Control Plane (P9-J)
 
-> **Status: implemented and tested, packaged for deployment, NOT deployed.**
+**Last updated:** 2026-10-23. Source version: private control plane **0.2.0**.
+
+> **Status: implemented, verified in local staging, not publicly hosted.**
 > `packages/control-plane` (`@re-shell/control-plane`) is a real, runnable
 > multi-tenant service: an authenticated HTTP/SSE API, a SQLite-backed tenant
 > store, signed-token identity with key rotation, an append-only audit trail,
 > team policy sync, and remote execution workers that run the allow-listed
-> Re-Shell CLI. It is built and tested in CI and ships a Dockerfile and a
+> Re-Shell CLI. It has CI build/test gates and ships a Dockerfile and a
 > Compose file. It has **not** been deployed to any public host, has had no
 > external security review, and is single-node by design — see
 > [Remaining limits](#13-remaining-limits) before putting it on a network.
@@ -19,10 +21,10 @@ and trusts the loopback boundary. The control plane generalizes that model to a
 
 | Concern            | Local hub                      | Control plane                                              |
 | ------------------ | ------------------------------ | ---------------------------------------------------------- |
-| Identity           | Implicit (loopback owner)      | Signed bearer tokens (HS256 JWT, `kid` rotation, expiry)   |
+| Identity           | Implicit (loopback owner)      | Internal HS256 tokens; pinned RS256 OIDC and browser PKCE, renewal and logout |
 | Tenancy            | One implicit workspace root    | Many tenants, each owning many workspaces and members      |
 | Command allow-list | `command-registry` (static)    | Same registry ∩ tenant ceiling ∩ workspace grant (live)    |
-| Execution          | Spawns the CLI in-process      | Authorizes, queues a job, a **worker** spawns the CLI      |
+| Execution          | Spawns the CLI in-process      | Authorizes and queues; a **worker** runs the CLI in explicit process or per-job Docker mode |
 | Collaboration      | None                           | Shared workspaces, roles, live team-policy sync (SSE); **shared terminal sessions, OT editing, WebRTC pairing, team analytics (§14)** |
 | Trust boundary     | localhost                      | Network: authn + authz + rate limits + audit on every call |
 
@@ -73,10 +75,11 @@ plane never builds argv and never spawns anything itself.
 | `collab.ts`, `collab-hub.ts` | Collaboration handlers (sessions, console, documents, signaling, analytics); live fan-out, presence and the job→console bridge (§14) |
 | `policy.ts`, `events.ts`    | `PolicySnapshot`; in-process tenant event bus                                      |
 | `audit.ts`                  | Append-only audit contract + in-memory log                                         |
-| `jwt.ts`, `identity.ts`     | Strict HS256 JWT, key ring, `JwtSessionResolver`, worker token verifier            |
+| `jwt.ts`, `identity.ts`, `oidc.ts` | Internal HS256 key ring, pinned RS256 OIDC, token revocation and worker verification |
 | `db/*`                      | `node:sqlite` helpers, migrations, SQLite stores (tenants, audit, jobs, collaboration) |
 | `http/*`                    | `node:http` server, router, rate limiter + body reader, SSE                        |
-| `worker/*`                  | Worker loop, job runner, filesystem containment, HTTP client                       |
+| `worker/*`                  | Worker loop, job runner, filesystem containment, per-job Docker isolation, HTTP client |
+| `tracing.ts`                | Opt-in OTLP HTTP JSON tracing across API, queued jobs and workers |
 | `config.ts`, `runtime.ts`, `cli.ts`, `bin.ts` | Env config, wiring, `re-shell-control-plane` command line         |
 
 ## 3. Multi-tenant model
@@ -121,7 +124,7 @@ tenant predicate from a query fails them).
 
 ## 4. Identity
 
-- **Tokens** are compact JWTs signed with **HS256** via `node:crypto`. Header
+- **Internal tokens** are compact JWTs signed with **HS256** via `node:crypto`. Header
   may contain only `alg`/`typ`/`kid`; `alg` must be exactly `HS256` (no `none`,
   no algorithm confusion); `kid` selects the key; `iss`, `aud`, `sub`, `iat`,
   `exp`, `jti` and a `kind` (`user` | `worker`) are required; comparison is
@@ -145,9 +148,17 @@ tenant predicate from a query fails them).
   (max 90 d).
 - **No hardcoded secrets.** Keys come from the environment or a file the
   environment points at. Secrets are never accepted as command-line flags.
-- **Revocation.** Remove a user's memberships to cut access at once. There is no
-  per-token denylist: revoking a single worker token means rotating the key (see
-  limits).
+- **OIDC and browser SSO.** Optional pinned RS256 public keys verify external
+  access tokens against an explicit issuer/audience; roles still come only from
+  local membership. Browser sign-in uses authorization code with S256 PKCE,
+  memory-only refresh tokens, access-token renewal/rotation and explicit logout.
+  Provider compatibility is a separate integration gate; see [OIDC](./OIDC.md).
+- **Revocation.** Remove a user's memberships for immediate tenant access removal.
+  `revoke-token --token-file <file>` persists revocation for an individual internal
+  user/worker token or external bearer token. Browser SSO logout revokes the exact
+  access-token fingerprint through `POST /auth/oidc/logout`; configured provider
+  revocation/logout is separate from that durable API denial. Revocations share
+  the API's SQLite database and existing streams revalidate periodically.
 
 ### Bootstrap: the first admin
 
@@ -235,7 +246,7 @@ Edge protections, all exercised by `http/server.test.ts`:
    the shared registry (unknown command / bad params → `400`), then authorizes
    tenant membership + `operator` role + workspace isolation + the allow-list
    intersection, **records the decision**, and queues a durable job (`202`).
-2. A worker (`re-shell-control-plane worker --tenant T --workspace-root DIR`)
+2. A worker (`re-shell-control-plane worker --mode process --tenant T --workspace-root DIR`)
    authenticates with a worker token bound to `T` and long-polls
    `POST /worker/claim`. **At claim time the server re-authorizes**: the tenant
    ceiling, the workspace grant and the requester's role are read again, so a
@@ -249,10 +260,13 @@ Edge protections, all exercised by `http/server.test.ts`:
 4. The worker maps the workspace id to `<workspace-root>/<id>` and requires the
    *real path* to be a directory inside the real root (symlinks that leave the
    root are refused); the optional `cwd` param must stay inside that directory.
-5. It spawns the CLI **without a shell** (`shell: false`, argv array; a JS entry
-   runs under the worker's Node) with a **scrubbed environment** (small
-   allow-list: `PATH`, `HOME`, `LANG`, …; no `CONTROL_PLANE_*`, so a child never
-   sees the worker token), in its own process group.
+5. In explicit **process mode**, it spawns the CLI **without a shell**
+   (`shell: false`, argv array; a JS entry runs under the worker's Node) with a
+   **scrubbed environment** and its own process group. This is trusted local
+   execution. **Docker mode** creates a separate non-root container per job with
+   a pinned image, one workspace bind, no network and fixed CPU/memory/pids limits;
+   `/usr/bin/env -i` also clears image-baked credentials. It never falls back to a
+   host process. See [job isolation](./job-isolation.md) for setup and recovery.
 6. stdout/stderr are decoded as UTF-8 (multi-byte safe), batched and POSTed to
    `/worker/jobs/:id/output` (stored with a 4 MiB per-job cap and a `truncated`
    flag); every post doubles as a heartbeat. The final exit code (or
@@ -384,15 +398,18 @@ docker run --rm re-shell/control-plane:local gen-key --raw      # paste into CON
 docker compose run --rm control-plane issue-token --user alice --tenant acme --role admin --raw   # bootstrap admin
 docker compose run --rm control-plane issue-token --worker --worker-id w1 --tenant acme --raw     # → CONTROL_PLANE_WORKER_TOKEN
 mkdir -p workspaces/demo                   # one directory per workspace id
-docker compose up -d
+docker compose --profile development up -d
 curl -fsS http://127.0.0.1:8787/healthz
 ```
 
 ## 10. What is tested
 
-`pnpm --filter @re-shell/control-plane test` (vitest; at the 2026-10-03 run: 349 tests in
-25 files, 93.1% line coverage, gated at 80%; CI runs it after the build because the
-end-to-end suites need the built CLI):
+The October 23 full control-plane run passes **402** tests and skips **7** optional
+tests. Coverage is **89.85%** statements, **84.09%** branches, **93.32%** functions
+and **91.73%** lines. The configured CI gate remains 80%; hosted results are in the
+[CI workflow](https://github.com/UmutKorkmaz/re-shell/actions/workflows/ci.yml). The test command is
+`pnpm --filter @re-shell/control-plane test`; end-to-end suites require the built
+CLI. The suite covers:
 
 - **Isolation / authz / API** against both stores (parameterized); admin writes,
   policy versions, last-admin guard; migrations (fresh, partial, newer-than-build,
@@ -420,19 +437,22 @@ end-to-end suites need the built CLI):
 
 SQLite via `node:sqlite` (Node ≥ 22.13; WAL, foreign keys, busy timeout).
 Migrations are forward-only, transactional, recorded in `schema_migrations`, and
-refuse a database newer than the binary. Back up by copying the database with
-the `-wal`/`-shm` files or `VACUUM INTO`; `/data` is the only state.
+refuse a database newer than the binary. Use the consistent `VACUUM INTO` snapshot
+script rather than copying a live `.db` alone. Preserve the original database
+and sidecars together for offline rollback; see [snapshot and restore](./observability.md).
+Database state is under `/data`; workspaces and key/configuration files need
+separate backups.
 
 ## 12. How the original spec items landed
 
 | Original outline item (§6 of the scaffold)             | Status |
 | ------------------------------------------------------ | ------ |
 | HTTP edge, status mapping, rate limit, headers         | **Done** (`node:http`; CSRF n/a, bearer-only) |
-| Identity provider: signed tokens, rotation             | **Done** (HS256 JWT issued by this service's own CLI). **Not done:** OIDC/SSO federation |
+| Identity provider: signed tokens, rotation             | **Implemented:** internal HS256, pinned RS256 bearer OIDC, browser S256 PKCE, renewal/rotation and logout. Full genuine Keycloak 26.4.0 lifecycle passes locally against the frozen production dashboard, with 39 SSO regression tests passing; see [OIDC](./OIDC.md). |
 | Persistent tenant store with isolation                 | **Done** on SQLite (code-level isolation). **Not done:** Postgres / row-level security |
-| Per-tenant execution workers                           | **Done** (long-poll workers, shared registry, containment) |
-| Observability & audit                                  | **Done:** append-only audit + JSON request logs. **Done:** platform-admin Prometheus metrics and request correlation IDs. Distributed tracing is not implemented. |
-| Deployment                                             | **Done:** Dockerfile + Compose, image built and `/healthz` checked locally. **Not done:** any real hosting |
+| Per-tenant execution workers                           | **Implemented:** long-poll workers, shared registry, containment and explicit process/per-job Docker modes. See [job isolation](./job-isolation.md). |
+| Observability & audit                                  | **Implemented:** append-only audit, JSON logs, admin Prometheus metrics, request IDs and opt-in OTLP HTTP JSON across API/job/worker boundaries. Local transport and WAL restore proof passed; see [observability](./observability.md). |
+| Deployment                                             | **Verified locally:** Dockerfile/Compose staging, authenticated API and actual worker jobs. Public hosting was not requested; multi-node hosting is outside scope. |
 
 ## 13. Remaining limits
 
@@ -450,22 +470,28 @@ Be honest about these before exposing it:
   dropped by anyone with raw database access; ship the log to external immutable
   storage if that is in your threat model. Audit and job output grow without a
   retention policy.
-- **Identity.** Tokens are minted by the operator's CLI with a
-  shared HS256 key; optional pinned-JWKS bearer SSO is now supported (see [OIDC.md](./OIDC.md)).
-  Persistent token revocation applies to internal users, workers and external
-  bearer tokens. Browser login/PKCE is not implemented.
+- **Identity provider scope.** Internal HS256 tokens and optional pinned-JWKS
+  OIDC are supported, with durable individual-token revocation. Browser PKCE,
+  renewal/rotation and logout are implemented. The genuine Keycloak 26.4.0
+  lifecycle passes locally, including latest-token provider revocation, unexpired
+  API JWT denial and fresh password login. Other providers and public hosting
+  require separate validation. Provider-wide session invalidation requires the
+  configured provider endpoints/controls. See [OIDC](./OIDC.md).
 - **`node:sqlite` is experimental** in Node 22 (it prints an `ExperimentalWarning`
   at start-up) and requires Node ≥ 22.13.
-- **Workers are trusted hosts.** A worker runs the CLI as its own OS user in a
-  directory you mount; it is containment-checked and env-scrubbed, not
-  sandboxed (no container-per-job, no seccomp, no network policy). Run workers
-  in isolated containers/VMs. In-flight jobs are not interrupted by a policy
-  change (queued jobs are re-checked at claim time).
+- **Worker mode and trust.** Process mode runs the CLI with the worker's host
+  permissions and is not a sandbox. Docker mode enforces per-job container,
+  mount/network/environment/resource boundaries through a dedicated trusted local
+  daemon; jobs still share a Linux kernel. The orchestrator's daemon authority is
+  privileged, and hostile multi-tenant production isolation is not established.
+  In-flight jobs are not interrupted by a policy change (queued jobs are
+  re-checked at claim time). See [job isolation](./job-isolation.md).
 - **`policyPack` is a reference only**; the control plane does not fetch or
   evaluate packs.
-- **The dashboard covers collaboration only.** The Collaboration screen (§14.8)
-  consumes the session and analytics API; tenant/policy/member administration and audit records now have an Administration
-  screen using the same API. Its connection uses an explicitly supplied bearer token.
+- **Dashboard scope.** Collaboration consumes the session and analytics API;
+  Administration manages tenants, policy, members and audit records. Both use
+  the same authenticated API. Manual bearer and configured browser SSO connections
+  are supported.
 - **Not externally reviewed or load-tested.** The security properties above are
   covered by tests in this repository, not by an independent audit.
 
@@ -735,8 +761,10 @@ analytics panel. The control plane must list the dashboard's origin in
   but is **not** compacted or expired: a session is capped at 200 000 events, a
   job at 4 MiB of output). Do not run commands whose output must not be retained.
 * **WebRTC is a mesh** (one link per peer, at most 8). Behind symmetric NATs a
-  direct link needs a TURN server, which this repository does not ship or deploy;
-  the relay fallback covers that case at server cost. Remote cursors are shared
+  direct link needs a configured TURN server; the local integration script
+  verifies forced TURN relay separately from the control-plane relay fallback.
+  A local pass does not establish every NAT/provider configuration. The fallback
+  covers unavailable WebRTC at server cost. Remote cursors are shared
   as raw offsets and are not transformed against later edits.
 * **Plain text only.** No rich text, no per-document ACLs (any operator in the
   session may edit), no presence typing indicators.
@@ -744,7 +772,7 @@ analytics panel. The control plane must list the dashboard's origin in
   `GET …/events`.
 * Sessions are never expired automatically; end them (owner/admin).
 
-## Local hardening and staging (development candidate)
+## Local hardening and staging for this release line
 
 `revoke-token --token-file <file>` validates one token using configured local keys
 or the pinned external JWKS, persists its revocation identifier in the same SQLite
@@ -757,13 +785,19 @@ application event and every second, including membership/role changes.
 `GET /metrics` requires a configured platform administrator. Prometheus counters
 and response-duration summaries use registered route patterns rather than tenant,
 workspace or user identifiers. Responses carry a server-generated X-Request-ID.
-This is request correlation, not an OpenTelemetry deployment or distributed trace.
+Opt-in OpenTelemetry tracing exports OTLP HTTP JSON from the API and worker;
+job trace context survives SQLite queueing and restore. Local separate-process
+transport and recovery checks passed. Collector/backend production delivery is
+not established; see [observability](./observability.md).
 
 Compose now drops all capabilities, disables privilege escalation, limits CPU,
 memory and processes, uses read-only container roots and an internal worker network.
 Only the data/workspace volumes and bounded temporary filesystem are writable.
-These are container boundaries for the whole worker; container-per-job isolation
-is still absent. Worker external egress requires an explicit network override.
+The Compose worker is a trusted process-mode development profile; those service
+limits are not per-job isolation. Per-job Docker mode instead uses a host
+orchestrator with an explicit local daemon and the separate `job` image target;
+no service mounts a host Docker socket. See [job isolation](./job-isolation.md).
+Process-mode Compose worker external egress requires an explicit network override.
 The control plane also joins an API bridge so Docker Desktop can publish its
 loopback port; that service has outbound network access.
 

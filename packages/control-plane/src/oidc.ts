@@ -89,6 +89,8 @@ export function verifyOidcToken(
     });
     if (typeof payload === 'string') return undefined;
     const { iss, sub, iat, exp } = payload;
+    // Reject control characters in externally supplied subject identifiers.
+    // eslint-disable-next-line no-control-regex
     if (iss !== options.issuer || typeof sub !== 'string' || !sub || sub.length > 1024 || /[\u0000-\u001f\u007f]/.test(sub)) return undefined;
     if (!Number.isSafeInteger(iat) || !Number.isSafeInteger(exp) || iat === undefined || exp === undefined ||
         iat > Math.floor(now / 1000) || exp <= iat || !Number.isSafeInteger(exp * 1000)) return undefined;

@@ -11,40 +11,67 @@
 > stability backlog), [`CLI-CONTRACTS.md`](./CLI-CONTRACTS.md) (generated CLI
 > envelopes), [`control-plane.md`](./control-plane.md), [`desktop.md`](./desktop.md).
 
-## Snapshot (this commit)
+## October 23, 2026 release-line snapshot
 
 | Fact | Value | Checked with |
 |------|-------|--------------|
-| `@re-shell/cli` | `0.32.0` (release contents) | `packages/cli/package.json`, `node packages/cli/dist/index.js --version` |
-| `@re-shell/contracts` / `@re-shell/mcp` / `@re-shell/ui` | `0.3.1` / `0.3.0` / `0.6.1` (release contents) | each `package.json`; previous published versions were `0.3.0` / `0.2.0` / `0.6.0` |
-| Not published | `@re-shell/control-plane` `0.1.0` (private), `@re-shell/dashboard` `0.1.0` (private), VS Code extension `re-shell` `0.3.0` (private, `.vsix` only) | `package.json` `private: true` |
+| `@re-shell/cli` | `0.33.0` source; previous release line `0.32.0` | `packages/cli/package.json`, `node packages/cli/dist/index.js --version` |
+| `@re-shell/contracts` / `@re-shell/mcp` / `@re-shell/ui` | `0.3.2` / `0.3.1` / `0.7.0` source | each `package.json`; previous release line `0.3.1` / `0.3.0` / `0.6.1` |
+| Private packages | `@re-shell/control-plane` `0.2.0`, `@re-shell/dashboard` `0.1.0`, VS Code extension `re-shell` `0.3.0` (`.vsix` artifact) | `package.json` `private: true` |
 | Registered CLI commands | **585** command paths in **46** top-level commands | `commands list --json` (`.data.length`) |
 | Backend templates | **204** across **35** languages | `templates list --json` (`.data.length`, distinct `language`) |
 | Dashboard screens | **12** (includes Administration) | `apps/web/src/shell/screens.ts` |
 | Startup (lazy command loading) | `--version` about 44 ms, `--help` about 102 ms median over 10 runs on the development VM; before lazy loading `--help` took about 2.6 s | `node scripts/bench-startup.mjs`; R-1b measurements below |
 
-The four npm packages were published in [v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
+Historical publication: the four npm packages were published in [v0.31.0](https://github.com/UmutKorkmaz/re-shell/releases/tag/v0.31.0)
 on 2026-10-05 at `bf6587b`; the [publish workflow](https://github.com/UmutKorkmaz/re-shell/actions/runs/37273442085)
 succeeded. npm `latest` was checked on 2026-10-11. This establishes package publication;
 it does not establish Marketplace distribution, desktop signing or control-plane deployment.
 "Pending first CI run" means the workflow or template exists and was linted or run in part
-locally, but no hosted CI run has executed it yet. Every workflow has run and passed on
+locally, but no hosted CI run has executed it yet. Historical workflows ran and passed on
 GitHub on pull request [#395](https://github.com/UmutKorkmaz/re-shell/pull/395) (commit
 `3a06508`), including all 19 jobs of `template-health` ([run](https://github.com/UmutKorkmaz/re-shell/actions/runs/37245729171)).
 
-## October 12 source verification
+## October 23 local verification
 
-Current hardening evidence is in [development status](./DEVELOPMENT_STATUS.md):
-workspace build and 11/11 fresh package checks pass; the control plane passes 380
-checks in 30 test files. Browser S256 PKCE sign-in passes local browser and real
-HTTP protocol-fixture checks. Local Docker staging passes the API and worker-job
-gates. Those results do not establish a live external IdP or public hosting.
-The production workspace dependency audit is clean; fresh packed npm consumption
-still reports six moderate findings from one upstream UUID advisory, and the
-31 development-tool findings remain unresolved.
+Current evidence is in [development status](./DEVELOPMENT_STATUS.md): contracts
+329, UI-package 318, MCP 73, control-plane 402 (7 skipped), and dashboard hub/UI
+52/400 tests pass. UI-package/dashboard/control-plane line coverage is
+95.29%/90.34%/91.73%. All seven configured typecheck targets and root ESLint pass.
+All 7 real Docker checks pass on the fresh minimal CLI 0.33.0 job image, and all
+8 tracing/WAL recovery checks also pass on actual Node 22.13.0. Twelve core browser flows pass;
+both collaboration E2Es pass in Chrome 155. The bundled Chromium 156 direct ICE
+limitation also reproduces in an independent raw WebRTC probe. Four viewport
+captures report no page errors or horizontal overflow.
 
-The feature tables retain older source/CI evidence where stated. They do not claim
-that these source changes have already passed all hosted CI or been published.
+Eight actual network AI tests pass through Ollama's OpenAI-compatible
+`gemma4:31b-cloud`, without offline fallback; eight Anthropic tests skip. Actual
+local Keycloak 26.4.0 lifecycle passes against the frozen production dashboard:
+login, PKCE/issuer/callback/API audience and membership, proactive rotation,
+latest-token provider revocation and logout. The API JWT changes from 200 to 401
+while still unexpired; fresh login requires a password and independent consumed
+refresh-token replay returns 400. All 39 SSO regression tests pass. Other providers
+and public SSO hosting remain separate validation scopes.
+
+Full/production workspace audits and a clean four-package npm consumer production audit
+report zero findings in their respective scopes. The final full CLI run passes
+8,518 tests with 53 skipped (441 files pass, 4 skip). The scoped coverage run has
+8,104 passed / 34 skipped, with 394 files passing and one skipped. Coverage is
+92.27% statements, 84.23% branches, 90.05% functions and 93.53% lines; all unchanged
+80% thresholds pass. The final fresh four-tarball smoke passes **13/13**, including
+installed Apollo entity composition/conflict rejection, CLI 0.33.0 with 204
+templates and the dashboard bundle, MCP 0.3.1 initialization with nine tools and
+UI ESM/CommonJS/SSR/consuming-Vite checks. UI/dashboard size budgets and all 776
+documented-command checks pass locally.
+Hosted execution results are recorded by the
+[CI workflow](https://github.com/UmutKorkmaz/re-shell/actions/workflows/ci.yml).
+The new local-staging workflow requires real Keycloak, TURN, Docker and
+OTLP/recovery checks. Local builds and tests do not publish packages.
+
+The feature tables retain older source/CI evidence where stated; those results
+apply to their linked revisions. Release/registry entries establish publication.
+Marketplace and signed desktop distribution are deferred; local Docker staging is
+the selected hosting scope and multi-node adoption is outside this release.
 
 For current publication status, see [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases)
 and the [npm CLI package](https://www.npmjs.com/package/@re-shell/cli).
@@ -62,8 +89,8 @@ and the [npm CLI package](https://www.npmjs.com/package/@re-shell/cli).
 - **PLANNED**: a real, scoped intention with no implementation yet.
 - **DROPPED**: removed from scope on purpose (section 5).
 
-Test counts are deliberately not quoted here; run the suites for current numbers
-(`STABILITY.md` lists the commands and what was run for this document).
+Counts above are dated local results; run the suites for later numbers.
+`DEVELOPMENT_STATUS.md` records pending gates and their exact evidence boundaries.
 
 ---
 
@@ -111,9 +138,9 @@ Test counts are deliberately not quoted here; run the suites for current numbers
 
 | Feature | Status | Verified |
 |---------|--------|----------|
-| Provider-abstracted command resolver `ai <prompt>` (see P9-A) | DONE (env-limited: no live LLM call was made; no API key) | see P9-A |
+| Provider-abstracted command resolver `ai <prompt>` (see P9-A) | Eight live OpenAI-compatible tests pass; Anthropic remains unverified | see P9-A |
 | `analyze --type bundle\|dependencies\|performance\|security\|scalability\|architecture\|all` and `--fail-on critical\|high\|medium\|low\|info`: real analysis of the workspace graph and manifests; `--fail-on` exits non-zero at or above the severity | DONE+tested | `unit/analyze-engine.test.ts`, `analyze-real-data.test.ts`, `integration/analyze-cli.test.ts`; `analyze --help` |
-| `fix --ci`: gate evaluator, validated LLM patches, rollback, PR flow (report-only without `ANTHROPIC_API_KEY`; dry-run unless `--no-dry-run`) | DONE (env-limited: no live LLM call, no push or PR opened here) | `tests/integration/fix-ci-cli.test.ts`, `contracts/src/fix-ci.test.ts`; `fix --help` |
+| `fix --ci`: gate evaluator, validated LLM patches, rollback, PR flow (report-only without `ANTHROPIC_API_KEY`; dry-run unless `--no-dry-run`) | 31 targeted regression tests pass; a live provider-driven `fix --ci` patch/push/PR is not established by the separate AI resolver checks | `tests/integration/fix-ci-cli.test.ts`, `contracts/src/fix-ci.test.ts`; `fix --help` |
 
 ### Polyglot integration
 
@@ -133,7 +160,7 @@ Test counts are deliberately not quoted here; run the suites for current numbers
 | `cloud deploy`: checks credentials first, `init`+`plan` by default, `apply` only with `--yes` | DONE (env-limited: needs real cloud credentials; never run against a real account here, never faked) | `unit/iac-deploy.test.ts` |
 | Legacy `cloud aws\|azure\|gcp\|hybrid\|multi\|...` generators and `cloud iac scaffold <name>` (standalone Terraform/Pulumi tooling) | DONE (generators; they write files and call no cloud API) | `groups-ai-cloud-learn.test.ts` |
 | Compliance reporting (audit trail, `security compliance report`) | DONE+tested | see section 1, foundation |
-| Real-time collaboration | DONE (env-limited: no TURN server) | see P9-N |
+| Real-time collaboration | Both collaboration E2Es pass in Chrome 155; actual local forced TURN relay passes separately. Public NAT/provider compatibility remains unverified. | see P9-N |
 
 ---
 
@@ -162,7 +189,7 @@ Each row says what exists, what proved it, and what could not be verified.
 
 | ID | Feature | Status | Verified HOW |
 |----|---------|--------|--------------|
-| **P9-A** | **AI command interface.** `re-shell ai <prompt...>` with providers Anthropic (default model `claude-opus-5-5`), OpenAI-compatible (any `/v1` server, e.g. a local model) and an offline parser used as the fallback (`--no-fallback` to fail instead). `ai config show\|get\|set\|unset` (persisted under `ai:` in `~/.re-shell/config.yaml`; `apiKey` is never printed), `ai session list\|show\|clear` and `--session/--continue` (`.re-shell/ai/sessions`, git-ignored), `ai cache stats\|clear` and `--no-cache` (semantic cache), `ai suggest`, `ai create` (dry-run scaffold plan). Flags `--provider --offline --no-cache --no-fallback --run --explain --json`. Programmatic API: `@re-shell/cli/ai`. Nothing is ever auto-run; resolved argv is vetted against the command catalog and spawned without a shell. | DONE (env-limited: no live LLM call; the Anthropic and OpenAI-compatible providers were tested against local fake servers, never against a real API key) | `unit/ai-*.test.ts`, `groups-ai-cloud-learn.test.ts`, `integration/ai-cli.test.ts`, `ai-create-cli.test.ts`, `tests/live` (skipped without a key) |
+| **P9-A** | **AI command interface.** `re-shell ai <prompt...>` with providers Anthropic (default model `claude-opus-5-5`), OpenAI-compatible (any `/v1` server, e.g. a local model) and an offline parser used as the fallback (`--no-fallback` to fail instead). `ai config show\|get\|set\|unset` (persisted under `ai:` in `~/.re-shell/config.yaml`; `apiKey` is never printed), `ai session list\|show\|clear` and `--session/--continue` (`.re-shell/ai/sessions`, git-ignored), `ai cache stats\|clear` and `--no-cache` (semantic cache), `ai suggest`, `ai create` (dry-run scaffold plan). Flags `--provider --offline --no-cache --no-fallback --run --explain --json`. Programmatic API: `@re-shell/cli/ai`. Nothing is ever auto-run; resolved argv is vetted against the command catalog and spawned without a shell. | Eight actual OpenAI-compatible network tests pass with Ollama `gemma4:31b-cloud`, without offline fallback; eight Anthropic tests skip | `unit/ai-*.test.ts`, `groups-ai-cloud-learn.test.ts`, `integration/ai-cli.test.ts`, `ai-create-cli.test.ts`, `tests/live` (skipped without a key) |
 | **P9-B** | **Cross-language service bridge.** `service link\|unlink\|validate` (spec-driven: derive the contract from the provider's own OpenAPI/.proto/GraphQL SDL, generate typed TS, Python and Go clients, record the dependency); `service bridge generate` (`--grpc\|--rest\|--graphql`, `--verify`), `bridge gateway` (Apollo Federation 2 composition run for real, or schema stitching), `bridge async` (Kafka and Redis Streams producers/consumers for TS and Python, correlation IDs, `traceparent`, upcasters, circuit breaker, retry, dead letters), `bridge transform` (JSON, Protobuf, Avro, MessagePack with schema evolution), `bridge diff` (breaking/dangerous/non-breaking, exits 1 on breaking), `bridge mock` (REST, GraphQL, gRPC from specs) | DONE+tested (the Redis and Kafka round trips need Docker; see Verified) | `unit/bridge-*.test.ts`, `integration/bridge-cli.test.ts`, `bridge-async-redis.test.ts` (real `redis:7` container, round trip across TS and Python) and `bridge-async-kafka.test.ts` (real `apache/kafka` container); both start containers and **skip when Docker is unavailable**, and both passed locally in the P9-B workstream, `bridge-e2e-clients.test.ts` (generated clients against the mock server, including Go gRPC). The async transport and cross-language mocks are no longer scaffolds. |
 | **P9-C** | **workspace.yaml v2 and JSON Schema.** The schema is built from `packages/cli/src/schemas/workspace-v2.schema.json` and served by the docs site at `https://umutkorkmaz.github.io/re-shell/schemas/workspace-v2.json` (`site/src/pages/schemas/workspace-v2.json.ts`; `$id` and every `$schema` modeline use `src/constants/brand.ts`). Every workspace writer emits a valid v2 file. `config schema generate\|publish\|validate`; IDE configs for VS Code, IntelliJ, Vim, Emacs | DONE+tested (live URL not reachable from this environment; the Pages workflow verifies the deployed file after each deploy) | `unit/schema-generator.test.ts`, `workspace-writers-schema.test.ts`, `brand-urls.test.ts` (endpoint output equals the canonical schema), `integration/workspace-writers-cli.test.ts`, `schema-validate.test.ts`, `pages.yml` post-deploy check |
 | **P9-D** | **Kubernetes, Helm, GitOps.** Hardened manifests (defaults: `runAsNonRoot`, read-only root filesystem, all capabilities dropped, `RuntimeDefault` seccomp, plus a PodDisruptionBudget; probes and resources come from the workspace config), `k8s generate`, `k8s helm generate`, `k8s gitops generate --tool argocd\|flux` (Flux defaults to a **HelmRelease** with `--source helm`), `k8s rollback <service>` (kubectl or Helm), workspace-driven `k8s crd\|operator\|mesh` (the old script generators are behind `--legacy`) | DONE (env-limited: Flux/Argo CD sync only in CI) | `unit/k8s-*.test.ts`, `helm-generate.test.ts`, `gitops-generate.test.ts`, `integration/k8s-cli.test.ts`. `scripts/k8s-live-check.sh` against a local k3s cluster: steps 1-8 (generate, helm lint/template, kubeconform, apply under Pod Security `restricted`, rollback, Helm release rollback, CRD, Go operator) ran locally during development. Step 9 (Flux sync of the HelmRelease) needs registry egress this environment blocks; it runs in the `k8s-live` workflow (kind), which passes on PR #395. Argo CD is not installed there: its Application manifest is validated with kubeconform only. |
@@ -171,18 +198,18 @@ Each row says what exists, what proved it, and what could not be verified.
 | **P9-G** | **Policy packs and drift.** `workspace policy check\|search\|install\|list\|remove` (built-in packs `recommended` and `baseline`; installable packs under `.re-shell/policy-packs`, npm keyword `reshell-policy-pack`). **Rule types: `required-files`, `required-scripts`, `dependency-constraints`, `naming`, `min-node`, `license`.** `workspace drift` reports version mismatches across workspaces | DONE+tested | `unit/policy-engine.test.ts`, `policy-pack-commands.test.ts`, `policy-pack-marketplace.test.ts`, `workspace-policy.test.ts` |
 | **P9-H** | **Template matrix and dry-run diffs.** `templates matrix` (204-row compatibility grid), `templates apply <id>` (dry-run file preview), `create --dry-run` (with `--json`: the exact file set with per-file previews and diffs; never prompts) | DONE+tested | `unit/template-matrix.test.ts`, `template-dry-run.test.ts`, `integration/template-matrix-dryrun.test.ts`, `create-headless-json-dryrun.test.ts` |
 | **P9-I** | **VS Code extension** (`apps/vscode-extension`, package `re-shell` `0.3.0`): Projects, Commands and Templates views, **Build Command**, **Run via Hub**, status bar health; packaged as a `.vsix` (`pnpm --filter re-shell run package`) | DONE (env-limited: the VS Code **host** test was not run here, `update.code.visualstudio.com` is blocked; it runs in the `vscode-extension` workflow, which passes on PR #395, including the real VS Code host tests) | Unit and real-hub integration suites (built CLI + built hub, no editor); `scripts/verify-vsix.mjs` on the packaged `.vsix`. Not published to the Marketplace. |
-| **P9-J** | **Hosted control plane** (`packages/control-plane`): HTTP/SSE server, signed JWTs with key rotation, SQLite store, tenant isolation, remote workers that run the allow-listed CLI, team policy sync, append-only audit, Dockerfile and Compose | DONE+tested in local Docker staging (single node; pinned OIDC and browser S256 PKCE implemented; no public hosting; live external IdP unverified) | `packages/control-plane` suites including end-to-end runs with the built CLI; Docker images built and `/healthz` checked locally once. Details and limits: [`control-plane.md`](./control-plane.md). |
+| **P9-J** | **Hosted control plane** (`packages/control-plane`): HTTP/SSE server, signed JWTs with key rotation, SQLite store, tenant isolation, remote workers that run the allow-listed CLI, team policy sync, append-only audit, Dockerfile and Compose | Local Docker/API/worker, tracing and recovery checks pass. The genuine Keycloak 26.4.0 login/renewal/rotation/revocation/logout lifecycle passes on the frozen production dashboard. Single node; no public hosting. | `packages/control-plane` suites including end-to-end runs with the built CLI; actual local Keycloak script, 39 SSO regression tests and earlier Docker staging proof. Details and limits: [`control-plane.md`](./control-plane.md). |
 | **P9-K** | **Desktop (Tauri).** The app owns its hub (free 127.0.0.1 port, per-launch token, stdin-close orphan protection); Linux `.deb`, `.rpm` and `.AppImage` built and smoke-tested under Xvfb here | DONE (env-limited: unsigned; signed builds only via CI secrets and never verified with real certificates; macOS and Windows bundles built only in the `desktop` workflow, which passes on PR #395) | `cargo test --locked` and `scripts/smoke-linux.sh`; see [`desktop.md`](./desktop.md) for exactly what was run |
 | **P9-L** | **Workspace graph explorer.** Search, filters (URL state), shortest dependency paths, cycle highlighting, six exports (PNG, SVG, PDF, Mermaid, D3 JSON, JSON), graph diff, live status, 2000+ nodes with virtualization. CLI: `workspace graph diff --base --head`, `workspace status` (running/stopped/unhealthy/unknown with the reason; remote probes need `--allow-remote-probes`), `workspace explore` (terminal explorer, TTY only), `workspace graph --interactive` | DONE+tested | `unit/workspace-status.test.ts`, `workspace-graph-command.test.ts`, `graph-explorer-*.test.*`, `integration/workspace-graph-cli.test.ts`; `contracts/src/graph*.test.ts`; Playwright `e2e/graph-scale.spec.ts` (generated 2001-workspace repo, real hub and CLI: render, search, filter, paths, diff and export budgets). The scale spec passed locally when merged and runs in CI (`playwright.graph.config.ts`) and passes on PR #395. |
 | **P9-M** | **Multi-environment profiles.** `dev --profile <name>`, `config profile ...` (see section 1) | DONE+tested | `dev-profile*.test.ts`, `integration/dev-profile-cli.test.ts` |
-| **P9-N** | **Real-time collaboration.** Shared sessions on the control plane: shared console (`collab session start\|join\|list\|run\|handover\|cancel\|end`), operational-transform shared editing, WebRTC data channels with a server relay fallback, team analytics, audit; dashboard **Collaboration** screen | DONE (env-limited: no TURN server is shipped or deployed; WebRTC links are host-candidate only unless `CONTROL_PLANE_ICE_SERVERS` is set; control plane not deployed) | `contracts/src/ot.test.ts`, control-plane `collab` suites and `e2e/collab.e2e.test.ts` (real worker + built CLI), `cli/tests/integration/collab-session-cli.test.ts`, Playwright `apps/web/e2e/collab.spec.ts` (two browser contexts, real data channel and relay fallback). The older `collab webrtc-sharing\|operational-transform\|...` commands are code generators that talk to no server. See [`control-plane.md`](./control-plane.md) section 14. |
+| **P9-N** | **Real-time collaboration.** Shared sessions on the control plane: shared console (`collab session start\|join\|list\|run\|handover\|cancel\|end`), operational-transform shared editing, WebRTC data channels with a server relay fallback, team analytics, audit; dashboard **Collaboration** screen | Both collaboration E2Es pass in Chrome 155, including P2P and server fallback. Actual forced TURN relay passes separately in two contexts. Public NAT/provider compatibility remains unverified; local staging only. | `contracts/src/ot.test.ts`, control-plane `collab` suites and `e2e/collab.e2e.test.ts` (real worker + built CLI), `cli/tests/integration/collab-session-cli.test.ts`, Playwright `apps/web/e2e/collab.spec.ts` (two browser contexts, real data channel and relay fallback). The older `collab webrtc-sharing\|operational-transform\|...` commands are code generators that talk to no server. See [`control-plane.md`](./control-plane.md) section 14. |
 
 ### Phase 9 summary
 
 | Status | Items |
 |--------|-------|
 | DONE+tested | P9-B (broker round trips need Docker), P9-C, P9-E, P9-F, P9-G, P9-H, P9-L, P9-M |
-| DONE (env-limited) | P9-A (no live LLM), P9-D (Flux/Argo sync in CI), P9-I (VS Code host test in CI), P9-K (unsigned), P9-N (no TURN) |
+| DONE (env-limited) | P9-A (OpenAI-compatible live tests pass; Anthropic skips), P9-D (Flux/Argo sync in historical CI), P9-I (VS Code host test in historical CI), P9-K (unsigned), P9-N (local P2P/TURN pass; public NAT unverified) |
 | DONE+tested in local Docker staging; no public hosting | P9-J |
 
 ---
@@ -213,7 +240,7 @@ workspace plus microfrontend toolkit with a typed CLI-to-UI contract.
 
 ## 6. Remaining development and external verification
 
-The v0.32.0 release contents include clean-install UI regression checks, desktop
+The previous v0.32.0 release line introduced clean-install UI regression checks, desktop
 workspace selection/runtime recovery, pinned OIDC verification and browser S256 PKCE,
 persistent revocation, administration and HTTP metrics. See [development status](./DEVELOPMENT_STATUS.md)
 for current evidence and the remaining development and distribution gates. External
@@ -234,13 +261,13 @@ dependencies below are not claimed as complete.
 
 ## 7. Packages
 
-| Package | Location | Name | Version | Role |
+| Package | Location | Name | Source version | Role |
 |---------|----------|------|---------|------|
-| cli | `packages/cli` | `@re-shell/cli` | 0.32.0 | The published CLI, templates, hub launcher, bundled dashboard |
-| contracts | `packages/contracts` | `@re-shell/contracts` | 0.3.1 | zod schemas: wire layer, adapters, domain models, hub transport, command registry, OT, graph, theme/white-label |
-| mcp | `packages/mcp` | `@re-shell/mcp` | 0.3.0 | Stdio MCP server (read-only tools, resources, prompts) |
-| ui | `packages/ui` | `@re-shell/ui` | 0.6.1 | shadcn-React component library, Storybook 9 |
-| control-plane | `packages/control-plane` | `@re-shell/control-plane` | 0.1.0 (private) | Multi-tenant HTTP/SSE control plane, workers, collaboration |
+| cli | `packages/cli` | `@re-shell/cli` | 0.33.0 | CLI, templates, hub launcher, bundled dashboard |
+| contracts | `packages/contracts` | `@re-shell/contracts` | 0.3.2 | zod schemas: wire layer, adapters, domain models, hub transport, command registry, OT, graph, theme/white-label |
+| mcp | `packages/mcp` | `@re-shell/mcp` | 0.3.1 | Stdio MCP server (read-only tools, resources, prompts) |
+| ui | `packages/ui` | `@re-shell/ui` | 0.7.0 | shadcn-React component library, Storybook 10.6 |
+| control-plane | `packages/control-plane` | `@re-shell/control-plane` | 0.2.0 (private) | Multi-tenant HTTP/SSE control plane, workers, collaboration |
 | web | `apps/web` | `@re-shell/dashboard` | 0.1.0 (private) | Dashboard (12 screens in this release), hub-server, Tauri shell (`src-tauri`) |
 | vscode-extension | `apps/vscode-extension` | `re-shell` | 0.3.0 (private) | VS Code extension |
 | site | `site` | `@re-shell/site` | 0.0.0 (private) | Documentation site (Astro Starlight) and the hosted workspace schema |

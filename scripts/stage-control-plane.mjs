@@ -48,7 +48,9 @@ const keys = JSON.stringify({ activeKid: 'stage', keys: { stage: randomBytes(32)
 let environment = `CONTROL_PLANE_JWT_KEYS='${keys}'\nCONTROL_PLANE_PLATFORM_ADMINS=stage-admin\nCONTROL_PLANE_TENANT=stage\nCONTROL_PLANE_PUBLISH_PORT=${port}\nCONTROL_PLANE_WORKSPACES_DIR=${JSON.stringify(path.dirname(workspace))}\n`;
 writeFileSync(envFile, environment, { mode: 0o600 });
 writeFileSync(path.join(directory, 'stage.json'), JSON.stringify({ project, port }, null, 2), { mode: 0o600 });
-const base = ['compose', '-p', project, '--env-file', envFile, '-f', composeFile];
+// This older whole-worker smoke is explicitly trusted development. Per-job
+// isolation is exercised by test-job-isolation.mjs against a dedicated daemon.
+const base = ['compose', '--profile', 'development', '-p', project, '--env-file', envFile, '-f', composeFile];
 docker([...base, 'config', '--quiet'], true);
 console.log('Prepared private staging configuration:', directory);
 console.log('Project:', project, 'loopback URL:', `http://127.0.0.1:${port}`);

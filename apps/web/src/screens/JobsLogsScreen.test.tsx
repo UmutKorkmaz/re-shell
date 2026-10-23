@@ -171,6 +171,8 @@ describe('JobsLogsScreen', () => {
 
 describe('JobsLogsScreen master / detail jobs table', () => {
   beforeEach(() => {
+    startMock.mockClear();
+    cancelMock.mockClear();
     useJobMock.mockReturnValue(jobState());
     Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
   });

@@ -26,11 +26,13 @@ vi.mock('../../src/utils/workspace-schema', () => ({
   loadWorkspaceDefinition: mocks.loadWorkspaceDefinition,
   saveWorkspaceDefinition: mocks.saveWorkspaceDefinition,
   createDefaultWorkspaceDefinition: mocks.createDefaultWorkspaceDefinition,
-  WorkspaceSchemaValidator: vi.fn(() => ({
-    validateDefinition: mocks.validateDefinition,
-    validateWorkspaceStructure: mocks.validateWorkspaceStructure,
-    autoDetectWorkspaces: mocks.autoDetectWorkspaces,
-  })),
+  WorkspaceSchemaValidator: vi.fn(function () {
+    return {
+      validateDefinition: mocks.validateDefinition,
+      validateWorkspaceStructure: mocks.validateWorkspaceStructure,
+      autoDetectWorkspaces: mocks.autoDetectWorkspaces,
+    };
+  }),
 }));
 vi.mock('prompts', () => ({ default: mocks.prompts }));
 

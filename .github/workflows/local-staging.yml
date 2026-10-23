@@ -1,0 +1,41 @@
+name: Local Docker integration
+
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.22.3'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build integration artifacts
+        run: pnpm -r build
+      - name: Install test browser
+        run: pnpm --filter @re-shell/dashboard exec playwright install --with-deps chromium
+      - name: Real identity provider login, refresh and logout
+        run: node scripts/test-keycloak-sso.mjs
+      - name: Real TURN relay and peer messages
+        run: node scripts/test-turn-relay.mjs
+      - name: Build minimal job image
+        run: docker build --file packages/control-plane/Dockerfile --target job --tag re-shell/job:ci .
+      - name: Real per-job Docker boundaries and cleanup
+        run: |
+          export CONTROL_PLANE_DOCKER_HOST=unix:///var/run/docker.sock
+          export CONTROL_PLANE_JOB_IMAGE="$(docker image inspect --format '{{.Id}}' re-shell/job:ci)"
+          node scripts/test-job-isolation.mjs
+      - name: Durable queue recovery and actual OTLP export
+        run: pnpm --filter @re-shell/control-plane exec vitest run src/e2e/operations.e2e.test.ts --maxWorkers=2

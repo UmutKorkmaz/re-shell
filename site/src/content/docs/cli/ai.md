@@ -45,11 +45,14 @@ that errors (timeout, bad key, malformed answer) falls back to the offline parse
 with a warning, unless you pass `--no-fallback`. A key from `ANTHROPIC_API_KEY` is
 never sent to a non-Anthropic server.
 
-**What was and was not verified.** The provider code is covered by tests against
-local fake servers, and the offline path is exercised end to end by the built CLI.
-No call to a live Anthropic or OpenAI-compatible server was made while writing this
-documentation, because no key was available; the `tests/live` suite exists for that
-and skips itself without a key or base URL.
+**What was and was not verified.** Provider tests use local fake servers, and the
+offline path is exercised end to end by the built CLI. On October 23, 2026, **8**
+actual network tests passed through the existing Ollama OpenAI-compatible
+configuration with `gemma4:31b-cloud`, without offline fallback. **8** Anthropic
+tests skipped; that provider remains unverified. The earlier quota/billing-only
+results no longer describe the OpenAI-compatible check. The `tests/live` suite
+requires configured provider access; one provider/model passing does not verify
+every supported endpoint or account.
 
 ### Configure
 

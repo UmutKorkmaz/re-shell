@@ -14,7 +14,7 @@ import { jsonResponseSchema, pkgResponseSchema } from '@re-shell/contracts';
  */
 
 const CLI_PATH = path.resolve(process.cwd(), 'dist/index.js');
-const SCRATCH = fs.mkdtempSync(path.join(os.tmpdir(), 'rs-pkg-int-'));
+const SCRATCH = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'rs-pkg-int-')));
 
 function which(tool: string): boolean {
   return (process.env.PATH ?? '')

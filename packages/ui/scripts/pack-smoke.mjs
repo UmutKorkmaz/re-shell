@@ -114,7 +114,7 @@ function main() {
   const workDir = mkdtempSync(path.join(os.tmpdir(), 're-shell-ui-pack-smoke-'));
   try {
     if (!process.argv.includes('--no-build')) {
-      run('pnpm', ['--filter', '@re-shell/contracts', '--filter', '@re-shell/ui', 'build'], repoRoot);
+      run('corepack', ['pnpm', '--filter', '@re-shell/contracts', '--filter', '@re-shell/ui', 'build'], repoRoot);
     }
     const packsDir = path.join(workDir, 'packs');
     mkdirSync(packsDir);
@@ -123,7 +123,7 @@ function main() {
       const cwd = path.join(repoRoot, 'packages', name);
       const { version } = JSON.parse(readFileSync(path.join(cwd, 'package.json')));
       // Prerequisites were built above; --no-build likewise uses existing dist.
-      run('pnpm', ['--config.ignore-scripts=true', 'pack', '--pack-destination', packsDir], cwd);
+      run('corepack', ['pnpm', '--config.ignore-scripts=true', 'pack', '--pack-destination', packsDir], cwd);
       tarballs[name] = path.join(packsDir, `re-shell-${name}-${version}.tgz`);
     }
     console.log(`[ui-pack-smoke] PASS ${verifyUiPackage({ uiTarball: tarballs.ui, contractsTarball: tarballs.contracts, workDir })}`);

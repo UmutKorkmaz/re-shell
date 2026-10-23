@@ -3,7 +3,7 @@ title: MCP Server (AI agents)
 description: Expose Re-Shell's typed JSON commands to AI agents via the Model Context Protocol, read-only by default.
 ---
 
-`@re-shell/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that turns Re-Shell's machine-readable commands into **typed, validated tools**, plus read-only resources and prompts, for AI agents. Version in this tree: `0.2.0` (last published: `0.1.0`).
+`@re-shell/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that turns Re-Shell's machine-readable commands into **typed, validated tools**, plus read-only resources and prompts, for AI agents. The source version for this release line is **0.3.1**; the previous line used **0.3.0**. Check the [npm package](https://www.npmjs.com/package/@re-shell/mcp) and [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) for publication evidence. Building or testing source does not publish it.
 
 Because every Re-Shell data command emits a stable `{ ok, data, warnings }` / `{ ok, error }` envelope, defined once in `@re-shell/contracts`, it maps cleanly onto MCP tools an agent can call to inspect and reason about a workspace. Each result is validated against the **exact wire schema** the contract publishes for that command before the agent sees it.
 
@@ -28,7 +28,7 @@ Each wraps the corresponding `re-shell ... --json` command. Write tools are **on
 ## Run it
 
 ```bash
-npx @re-shell/mcp
+npx @re-shell/mcp@latest
 ```
 
 `@re-shell/cli` is a **declared dependency** of the package, so a standalone install is enough: you do **not** need to set `RE_SHELL_BIN`. The `re-shell-mcp` bin resolves symlinks, so it starts correctly through `node_modules/.bin` the way `npx` runs it. Wire it into an MCP client:
@@ -38,7 +38,7 @@ npx @re-shell/mcp
   "mcpServers": {
     "re-shell": {
       "command": "npx",
-      "args": ["-y", "@re-shell/mcp"]
+      "args": ["-y", "@re-shell/mcp@latest"]
     }
   }
 }

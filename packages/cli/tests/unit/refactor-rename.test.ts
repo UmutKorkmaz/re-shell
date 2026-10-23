@@ -11,6 +11,7 @@ import { buildContext } from '../../src/refactor/context';
 import { editYamlScalars } from '../../src/refactor/yaml-edit';
 import { renameImageRepo, rewriteCompose } from '../../src/refactor/structural';
 import { caseVariants, renameInName, SERVICE_NAME_PATTERN } from '../../src/refactor/names';
+import { gitInfo, isTracked, moveWithGit } from '../../src/refactor/git';
 import { renderFileDiff } from '../../src/refactor/diff';
 import { refactorRenameServiceResponseSchema } from '@re-shell/contracts';
 
@@ -221,6 +222,46 @@ describe('diff rendering', () => {
   });
 });
 
+describe('git moves through directory aliases', () => {
+  function aliasFor(dir: string): string {
+    const holder = fs.mkdtempSync(path.join(os.tmpdir(), 'rs-refactor-alias-'));
+    dirs.push(holder);
+    const alias = path.join(holder, 'workspace');
+    fs.symlinkSync(dir, alias, 'dir');
+    return alias;
+  }
+
+  it('uses canonical repository-relative paths for aliased roots, sources and new destination parents', () => {
+    const dir = copyFixture({ git: true });
+    const root = fs.realpathSync(dir);
+    const alias = aliasFor(root);
+    expect(gitInfo(alias).toplevel).toBe(root);
+    expect(isTracked(root, path.join(alias, 'services/billing/pom.xml'))).toBe(true);
+    expect(isTracked(alias, path.join(root, 'services/billing/pom.xml'))).toBe(true);
+    expect(moveWithGit(alias, path.join(root, 'services/billing'), path.join(alias, 'relocated/services/payments'))).toBe('git-mv');
+    expect(git(root, 'ls-files', '--', 'relocated/services/payments/pom.xml').trim()).toBe('relocated/services/payments/pom.xml');
+    expect(fs.existsSync(path.join(root, 'services/billing'))).toBe(false);
+  });
+
+  it.each([false, true])('moves a tracked symlink itself through an aliased parent (dangling=%s)', (dangling) => {
+    const dir = copyFixture({ git: true });
+    const root = fs.realpathSync(dir);
+    const alias = aliasFor(root);
+    const target = path.join(path.dirname(alias), 'outside.txt');
+    if (!dangling) fs.writeFileSync(target, 'external target must not move');
+    fs.symlinkSync(target, path.join(root, 'billing-link'));
+    git(root, 'add', '--', 'billing-link');
+
+    expect(moveWithGit(root, path.join(alias, 'billing-link'), path.join(alias, 'links/payments-link'))).toBe('git-mv');
+    const moved = path.join(root, 'links/payments-link');
+    expect(fs.lstatSync(moved).isSymbolicLink()).toBe(true);
+    expect(fs.readlinkSync(moved)).toBe(target);
+    expect(git(root, 'ls-files', '--', 'links/payments-link').trim()).toBe('links/payments-link');
+    expect(fs.existsSync(target)).toBe(!dangling);
+    if (!dangling) expect(fs.readFileSync(target, 'utf8')).toBe('external target must not move');
+  });
+});
+
 describe('rename-service on the polyglot fixture: billing -> payments (java)', () => {
   it('dry run changes nothing on disk and reports a complete plan + unified diff', () => {
     const dir = copyFixture();
@@ -296,7 +337,7 @@ describe('rename-service on the polyglot fixture: billing -> payments (java)', (
     expect(ws.services.map(s => s.name)).not.toContain('billing');
     expect(ws.services.find(s => s.name === 'api')!.config.dependsOn).toEqual(['payments', 'analytics']);
     expect(ws.services.find(s => s.name === 'api')!.config.env).toMatchObject({ PAYMENTS_URL: 'http://payments:8081' });
-    expect(ws.services.find(s => s.name === 'payments')!.dir).toBe(path.join(fs.realpathSync(dir), 'services', 'payments'));
+    expect(fs.realpathSync(ws.services.find(s => s.name === 'payments')!.dir)).toBe(path.join(fs.realpathSync(dir), 'services', 'payments'));
 
     // comments and formatting survive
     const yml = read(dir, 're-shell.workspaces.yaml');

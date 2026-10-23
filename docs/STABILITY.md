@@ -1,32 +1,73 @@
 # Stability Work
 
-## October 12, 2026 source verification
+## October 23, 2026 release-line verification
 
-This record covers CLI **0.32.0**, contracts **0.3.1**, UI **0.6.1** and MCP **0.3.0**.
-Check [GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) and the
-[npm CLI package](https://www.npmjs.com/package/@re-shell/cli) for publication status. CLI and
-MCP now require Node **22.13.0+**. Current evidence and remaining work are recorded
-in [development status](./DEVELOPMENT_STATUS.md): workspace build, 11/11 fresh packed
-checks and 384 control-plane tests in 30 files pass. Browser S256 PKCE is verified
-in a real browser against a local protocol fixture; Docker API/worker staging passes.
-Live external IdP, cloud-account and LLM checks remain incomplete.
+This release line's source versions are CLI **0.33.0**, contracts **0.3.2**,
+UI **0.7.0**, MCP **0.3.1** and private control plane **0.2.0**. The previous
+release line used CLI **0.32.0**, contracts **0.3.1**, UI **0.6.1** and MCP
+**0.3.0**. Check
+[GitHub releases](https://github.com/UmutKorkmaz/re-shell/releases) and the
+[npm CLI package](https://www.npmjs.com/package/@re-shell/cli) for publication status;
+local builds and tests do not publish packages.
+CLI, dashboard hub, MCP and control plane require Node **22.13.0+**; local checks
+use **22.22.3**.
 
-The release build measures 44.6 KiB gzip for the app-entry chunks and 144.3 KiB
-for entry plus initial vendors. Browser sign-in and updated schema/UI dependencies
-raise the previous limits: entry 44 → 46 KiB, initial total 138 → 148 KiB, Radix
-17 → 18 KiB (measured 17.3) and Zod 22 → 28 KiB (measured 26.7). These are
-explicit release budget changes; the size checks remain enforced.
+[Development status](./DEVELOPMENT_STATUS.md) records the fresh local evidence:
+contracts 329, UI-package 318, MCP 73, control-plane 402 (7 skipped), dashboard
+hub 52 and dashboard UI 400 tests across 40 files pass. UI-package coverage is
+93.55% statements / 83.73% branches / 96.64% functions / 95.29% lines; dashboard
+coverage is 88.97% / 81.64% / 83.70% / 90.34% respectively. Control-plane coverage is 89.85%
+statements, 84.09% branches, 93.32% functions and 91.73% lines. All 7 real
+per-job Docker checks pass on the fresh minimal CLI 0.33.0 job image. The 8
+tracing/WAL restore checks also pass on actual Node 22.13.0. All seven configured
+typecheck targets and root ESLint pass locally. Chrome 155 passes both
+collaboration E2Es; bundled Chromium passes 12 core flows but its direct ICE
+limitation also reproduces in an independent raw WebRTC probe. Local forced TURN
+relay passes separately. Four viewport captures report no page errors/overflow.
 
-Dependency updates reduce the production workspace audit from 80 findings to zero.
-A fresh packed npm consumer still reports six moderate findings attributable to
-UUID advisory [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq)
-through Apollo dependencies; this is not a security-clean consumer release. The
-advisory affects UUID v3()/v5()/v6() output-buffer handling; reviewed Apollo calls use v1()/v4(). That
-limits the observed reachable path without clearing the advisory. Development-tool
-audits still report 31 findings (7 critical, 6 high, 16 moderate, 2 low).
+Eight actual OpenAI-compatible network AI tests pass using Ollama
+`gemma4:31b-cloud` without offline fallback; eight Anthropic tests skip. Actual
+Keycloak 26.4.0 passes the full genuine provider lifecycle against the frozen
+production dashboard: password/PKCE login, issuer/callback/audience/membership,
+proactive rotation, latest-token provider revocation and logout. The API JWT is
+accepted before sign-out and denied while still unexpired afterward; new login
+requires a password and consumed-refresh replay returns 400 in an independent
+fresh session. All 39 SSO regression tests pass, including the reviewed native
+browser fetch sign-out fix. This is local proof for that provider configuration.
+
+Fresh full/production workspace audits and the production audit of a clean npm
+installation of all four packed source packages report **zero findings** in
+their respective scopes.
+Earlier UUID/Apollo and development-tool reports are historical counts; the
+current API result is not proof that an advisory was withdrawn or that every
+execution path is secure. This release line bundles reviewed Apollo 2.14.4 and UUID
+11.1.1 while keeping `graphql` external.
+
+The final full CLI run passes 8,518 tests with 53 skipped: 441 files pass and 4
+skip. The final scoped CLI coverage run passes 8,104 tests with 34 skipped across
+394 passing files and one skipped file. Coverage is 92.27% statements, 84.23%
+branches, 90.05% functions and 93.53% lines; every unchanged 80% threshold passes.
+Final fresh four-tarball
+smoke passes **13/13**, including installed Apollo entity composition/conflict
+rejection, CLI 0.33.0 and 204 templates, dashboard bundling, MCP 0.3.1 with nine
+tools and UI ESM/CommonJS/SSR/consuming-Vite checks. UI/dashboard size budgets pass;
+776 documented commands across 71 files validate with zero errors/flag warnings.
+The [CI workflow](https://github.com/UmutKorkmaz/re-shell/actions/workflows/ci.yml)
+records hosted execution results; release and registry entries above establish
+publication. The new local-staging workflow requires actual Keycloak, TURN,
+Docker and OTLP/recovery checks.
 
 Marketplace and signed desktop publication are deferred. Public control-plane
-hosting is outside the selected local Docker staging scope.
+hosting is outside the selected local Docker staging scope; multi-node adoption
+is outside this release.
+
+### Historical October 12 build budget
+
+The earlier release build measured 44.6 KiB gzip for app-entry chunks and 144.3 KiB
+for entry plus initial vendors. Browser sign-in and schema/UI dependencies raised
+that batch's limits: entry 44 → 46 KiB, initial total 138 → 148 KiB, Radix
+17 → 18 KiB (measured 17.3) and Zod 22 → 28 KiB (measured 26.7). These are dated
+measurements, separate from this release line's fresh size-budget checks.
 
 ## Historical v0.31.0 stability batch
 
@@ -125,7 +166,7 @@ advisories), so the hosted run is the authoritative result.
   patches validated before they touch the tree (no test, config or CI edits, no
   suppression directives), rollback, and a PR flow. Without `ANTHROPIC_API_KEY` it is
   report-only and claims no fix; without `--ci` it still fails with `FIX_CI_ERROR`.
-  *(env-limited: no live LLM call has been made.)*
+  *(That historical batch did not verify a live provider-driven `fix --ci` call.)*
 - `ui test` is now **real**: it runs Storybook interaction, a11y and visual tests and
   gates on them. No Storybook, an empty run or an invalid gate configuration is
   `UI_TEST_ERROR`, never a pass.

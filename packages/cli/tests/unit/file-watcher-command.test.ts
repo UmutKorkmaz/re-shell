@@ -305,9 +305,8 @@ describe('file-watcher — command', () => {
 
     it('reports the empty state when no rules exist', async () => {
       await manageFileWatcher({ start: true, workspaceFile });
-      const watcher = mocks.startWorkspaceWatcher.mock
-        .results[0] as unknown as { value: FakeWatcher };
-      watcher.value.propagationRules.clear();
+      const watcher = await mocks.startWorkspaceWatcher.mock.results[0].value as FakeWatcher;
+      watcher.propagationRules.clear();
       logSpy.mockClear();
       await manageFileWatcher({ rules: true });
       expect(output()).toContain('No propagation rules configured');
@@ -338,9 +337,8 @@ describe('file-watcher — command', () => {
       const out = output();
       expect(out).toContain('Propagation rule added successfully!');
       expect(out).toContain('Rule ID: rule-2');
-      const watcher = mocks.startWorkspaceWatcher.mock
-        .results[0] as unknown as { value: FakeWatcher };
-      expect(watcher.value.addPropagationRule).toHaveBeenCalledWith(
+      const watcher = await mocks.startWorkspaceWatcher.mock.results[0].value as FakeWatcher;
+      expect(watcher.addPropagationRule).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'rule-2', actionType: 'run-tests' })
       );
     });
@@ -371,9 +369,8 @@ describe('file-watcher — command', () => {
 
     it('warns for unknown rules', async () => {
       await manageFileWatcher({ start: true, workspaceFile });
-      const watcher = mocks.startWorkspaceWatcher.mock
-        .results[0] as unknown as { value: FakeWatcher };
-      watcher.value.removePropagationRule.mockReturnValueOnce(false);
+      const watcher = await mocks.startWorkspaceWatcher.mock.results[0].value as FakeWatcher;
+      watcher.removePropagationRule.mockReturnValueOnce(false);
       logSpy.mockClear();
       await manageFileWatcher({ removeRule: 'ghost' });
       expect(output()).toContain('Rule not found');

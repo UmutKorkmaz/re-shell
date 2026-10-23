@@ -18,6 +18,7 @@ export interface ConnectionPanelProps {
   onChange: (patch: Partial<ConnectionSettings>) => void;
   onConnect: () => void;
   onSignIn?: () => void;
+  onSignOut?: () => void;
   onDisconnect: () => void;
   onForgetToken: () => void;
 }
@@ -40,7 +41,7 @@ export function ConnectionPanel(props: ConnectionPanelProps): React.ReactElement
       testId="collab-connection"
       icon={<Plug className="size-3.5 text-signal" />}
       title="Control plane"
-      description="The hosted control plane that shares sessions between teammates. Your token never leaves this browser except as an Authorization header to this URL."
+      description="The hosted control plane that shares sessions between teammates. Access tokens authenticate this control plane; SSO renewal and logout also contact your configured identity provider."
       actions={
         <Badge variant={STATUS_VARIANT[status]} data-testid="collab-status">
           {connected && identity ? `connected as ${identity.userId}` : status}
@@ -135,6 +136,7 @@ export function ConnectionPanel(props: ConnectionPanelProps): React.ReactElement
             <Button type="button" variant="outline" data-testid="collab-sign-in" disabled={status === 'connecting' || !settings.url.trim()}
               onClick={props.onSignIn}>Sign in with SSO</Button>
           ) : null}
+          {props.onSignOut ? <Button type="button" variant="outline" data-testid="collab-sign-out" onClick={props.onSignOut}>Sign out of SSO</Button> : null}
           {connected ? (
             <Button type="button" variant="outline" data-testid="collab-disconnect" onClick={props.onDisconnect}>
               Disconnect

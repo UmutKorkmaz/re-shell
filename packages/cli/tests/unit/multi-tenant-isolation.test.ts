@@ -37,6 +37,9 @@ describe('generateTypeScriptMultiTenant', () => {
   it('generates TS code with project name', () => {
     const ts = generateTypeScriptMultiTenant(config);
     expect(ts).toContain('mti-app');
+    // Requests and limits must be siblings; a discarded generated closing brace
+    // previously left the emitted TypeScript syntactically invalid.
+    expect(ts).toContain("memory: '32Gi',\n          },\n          limits:");
   });
 });
 

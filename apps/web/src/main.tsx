@@ -8,7 +8,6 @@ import { SettingsProvider } from './settings/useSettings';
 import { ThemePackProvider } from './theme/useThemePacks';
 // Fonts are a separate stylesheet (real, hashed woff2 files fetched on demand), not inlined CSS.
 import '@re-shell/ui/fonts.css';
-import '@re-shell/ui/styles.css';
 import './styles.css';
 
 const queryClient = new QueryClient({

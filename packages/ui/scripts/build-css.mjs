@@ -14,13 +14,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 
 const postcss = require('postcss');
-const tailwindcss = require('tailwindcss');
+const tailwindcss = require('@tailwindcss/postcss');
 const autoprefixer = require('autoprefixer');
 
 const input = resolve(root, 'src/styles/globals.css');
 const output = resolve(root, 'dist/index.css');
 
-const result = await postcss([tailwindcss({ config: resolve(root, 'tailwind.config.ts') }), autoprefixer()]).process(
+const result = await postcss([tailwindcss({ base: root }), autoprefixer()]).process(
   readFileSync(input, 'utf8'),
   { from: input, to: output }
 );

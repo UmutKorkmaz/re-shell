@@ -7,7 +7,7 @@
 //               schema + a gateway server that delegates to the subgraphs over HTTP.
 //               Conflicting root fields / field types are rejected up front.
 
-import { composeServices } from '@apollo/composition';
+import { composeServices } from './apollo-composition';
 import { buildHTTPExecutor } from '@graphql-tools/executor-http';
 import { stitchSchemas } from '@graphql-tools/stitch';
 import { GraphQLError, isObjectType, parse, printSchema, type GraphQLSchema } from 'graphql';

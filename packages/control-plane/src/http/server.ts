@@ -1,6 +1,7 @@
 import type { OidcBrowserConfig } from '../config.js';
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import type { AddressInfo } from 'node:net';
 
 import type { IceServerConfig } from '@re-shell/contracts';
@@ -78,12 +79,13 @@ import {
   workerFinishJob,
 } from '../jobs.js';
 import { ControlPlaneDeps, authorizeTenantAudited, validate } from '../pipeline.js';
-import { CompositeSessionResolver, OidcSessionResolver, type OidcOptions } from '../oidc.js';
+import { CompositeSessionResolver, OidcSessionResolver, verifyOidcToken, type OidcOptions } from '../oidc.js';
 import { buildPolicySnapshot } from '../policy.js';
 import { TenantAdminStore, idSchema } from '../tenant.js';
 import { TokenBucketLimiter, bearerToken, clientAddress, readJsonBody } from './limits.js';
 import { Router } from './router.js';
 import { HttpMetrics } from './telemetry.js';
+import { Tracing } from '../tracing.js';
 import { SseStream, openSse } from './sse.js';
 
 /**
@@ -151,6 +153,7 @@ export const DEFAULT_LIMITS: ServerLimits = {
 };
 
 export interface ControlPlaneServerOptions {
+  tracing?: Tracing;
   store: TenantAdminStore;
   audit: AuditSink & AuditReader;
   jobs: SqliteJobStore;
@@ -870,6 +873,30 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     },
   });
 
+  route('POST', {
+    pattern: '/auth/oidc/logout',
+    auth: 'user',
+    run: (ctx) => {
+      const verified = options.oidc && ctx.token ? verifyOidcToken(ctx.token, options.oidc, clock()) : undefined;
+      if (!verified || verified.userId !== ctx.principal?.userId) {
+        sendError(ctx, 'UNAUTHENTICATED', UNAUTHENTICATED_MESSAGE);
+        return;
+      }
+      if (!identity.revocations?.revoke) {
+        sendError(ctx, 'SERVICE_UNAVAILABLE', 'Persistent sign-out is not configured.');
+        return;
+      }
+      try {
+        identity.revocations.revoke(verified.issuer, verified.revocationId, verified.expiresAt, clock());
+      } catch {
+        sendError(ctx, 'SERVICE_UNAVAILABLE', 'Persistent sign-out is unavailable.');
+        return;
+      }
+      ctx.res.writeHead(204, baseHeaders(ctx.cors));
+      ctx.res.end();
+    },
+  });
+
   route('GET', {
     pattern: '/metrics',
     auth: 'user',
@@ -1230,6 +1257,9 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     const started = clock();
     const requestId = randomUUID();
     res.setHeader('X-Request-ID', requestId);
+    const span = requestSpans.get(req);
+    const context = span?.spanContext();
+    if (context) res.setHeader('Traceparent', `00-${context.traceId}-${context.spanId}-${(context.traceFlags & 1).toString(16).padStart(2, '0')}`);
     let metricRoute = 'unmatched';
     const cors = corsHeadersFor(req);
     const ip = clientAddress(req, trustProxy);
@@ -1237,17 +1267,27 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     const method = (req.method ?? 'GET').toUpperCase();
     const pre: Pick<Ctx, 'res' | 'cors'> = { res, cors };
 
-    res.on('finish', () => {
+    let completed = false;
+    const complete = (): void => {
+      if (completed) return;
+      completed = true;
       metrics.record(method, metricRoute, res.statusCode, clock() - started);
+      span?.updateName(`${method} ${metricRoute}`);
+      span?.setAttributes({ 'http.request.method': method, 'http.route': metricRoute, 'http.response.status_code': res.statusCode });
+      if (res.statusCode >= 500 || !res.writableFinished) span?.setStatus({ code: SpanStatusCode.ERROR });
+      span?.end();
       log({
         requestId,
+        ...(context ? { traceId: context.traceId, spanId: context.spanId } : {}),
         ts: started,
         ms: clock() - started,
         method,
         path: metricRoute,
         status: res.statusCode,
       });
-    });
+    };
+    res.once('finish', complete);
+    res.once('close', complete);
 
     // CORS preflight: answer for allowed origins only; never reaches auth.
     if (method === 'OPTIONS') {
@@ -1260,7 +1300,7 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
       res.writeHead(204, {
         ...baseHeaders(cors),
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Authorization, Content-Type, Last-Event-ID',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, Last-Event-ID, Traceparent',
         'Access-Control-Max-Age': '600',
       });
       res.end();
@@ -1360,8 +1400,13 @@ export function createControlPlaneServer(options: ControlPlaneServerOptions): Co
     await def.run(ctx, body);
   }
 
+  const requestSpans = new WeakMap<http.IncomingMessage, ReturnType<typeof trace.getSpan>>();
   const server = http.createServer({ maxHeaderSize: 16 * 1024 }, (req, res) => {
-    handle(req, res).catch((error: unknown) => {
+    const span = options.tracing?.start('HTTP', SpanKind.SERVER, typeof req.headers.traceparent === 'string' ? req.headers.traceparent : undefined);
+    if (span) requestSpans.set(req, span);
+    const run = (): Promise<void> => handle(req, res);
+    (span && options.tracing ? options.tracing.within(span, run) : run()).catch((error: unknown) => {
+      span?.setStatus({ code: SpanStatusCode.ERROR });
       log({
         level: 'error',
         message: 'unhandled request error',

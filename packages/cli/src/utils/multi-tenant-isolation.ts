@@ -678,7 +678,7 @@ export function generateTypeScriptMultiTenant(config: TenantConfig): string {
   code += '          requests: {\n';
   code += '            cpu: \'16\',\n';
   code += '            memory: \'32Gi\',\n';
-  code+'          },\n';
+  code += '          },\n';
   code += '          limits: {\n';
   code += '            cpu: \'32\',\n';
   code += '            memory: \'64Gi\',\n';

@@ -121,7 +121,7 @@ test.beforeAll(async ({}, testInfo) => {
 
   const workerToken = await token('--worker', '--worker-id', 'pw-worker', '--tenant', 'acme');
   const worker = spawnProc(
-    [CP_BIN, 'worker', '--tenant', 'acme', '--workspace-root', workspaceRoot, '--url', controlPlaneUrl, '--cli-bin', CLI_BIN],
+    [CP_BIN, 'worker', '--mode', 'process', '--tenant', 'acme', '--workspace-root', workspaceRoot, '--url', controlPlaneUrl, '--cli-bin', CLI_BIN],
     { CONTROL_PLANE_WORKER_TOKEN: workerToken }
   );
   procs.push(worker);
@@ -235,17 +235,18 @@ test('two users open a WebRTC data channel, share a console and a document', asy
   const editorB = bob.getByTestId('collab-editor');
   await editorA.fill('Runbook\n');
   await expect(editorB).toHaveValue('Runbook\n');
+  // Control+Home/End leave the caret unchanged on macOS. Place both cursors
+  // at the intended opposite boundaries before the concurrent keystrokes.
+  const macKeyboard = await alice.evaluate(() => navigator.platform.startsWith('Mac'));
+  await editorA.click();
+  await alice.keyboard.press(macKeyboard ? 'Meta+ArrowUp' : 'Control+Home');
+  await editorB.click();
+  await bob.keyboard.press(macKeyboard ? 'Meta+ArrowDown' : 'Control+End');
+  expect(await editorA.evaluate((el: HTMLTextAreaElement) => el.selectionStart)).toBe(0);
+  expect(await editorB.evaluate((el: HTMLTextAreaElement) => el.selectionStart)).toBe('Runbook\n'.length);
   await Promise.all([
-    (async () => {
-      await editorA.click();
-      await alice.keyboard.press('Control+Home');
-      await alice.keyboard.type('alice-wrote-first ');
-    })(),
-    (async () => {
-      await editorB.click();
-      await bob.keyboard.press('Control+End');
-      await bob.keyboard.type('bob-wrote-last');
-    })(),
+    alice.keyboard.type('alice-wrote-first '),
+    bob.keyboard.type('bob-wrote-last'),
   ]);
   await expect(async () => {
     const [a, b] = [await editorA.inputValue(), await editorB.inputValue()];

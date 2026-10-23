@@ -62,6 +62,7 @@ export function resolveWorkspaceDir(workspaceRoot: string, workspaceId: string):
     workspaceId.length === 0 ||
     workspaceId === '.' ||
     workspaceId === '..' ||
+    workspaceId === '.re-shell-workers' ||
     /[\\/\0]/.test(workspaceId)
   ) {
     return { ok: false, reason: 'Workspace id is not a plain directory name.' };

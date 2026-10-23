@@ -5,6 +5,23 @@ All notable changes to the `@re-shell/cli` package will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0] - 2026-10-23
+
+Companion packages: contracts 0.3.2, UI 0.7.0 and MCP 0.3.1. Publication is recorded by GitHub/npm after release checks pass.
+
+### Added
+- Memory-only browser SSO refresh rotation, expiry handling, explicit provider sign-out and durable API access-token revocation. Renewal preserves mounted collaboration and administration state; Remember opt-outs remain effective across pending requests.
+- Explicit per-job Docker worker mode with pinned images, exact workspace mounts, no job network, non-root execution, resource/output limits, bounded cancellation and scoped orphan cleanup. Process mode now requires an explicit operator choice at the worker CLI.
+- Opt-in OpenTelemetry HTTP/job traces across the durable SQLite queue and worker processes, with bounded redacted exporter warnings. WAL-consistent snapshot tooling and tested offline restore/rollback procedures are documented.
+- Reproducible local Keycloak, TURN relay, isolated-worker and recovery checks, with a dedicated Docker integration CI workflow.
+
+### Fixed
+- Bundle the vetted Apollo composition implementation with patched UUID dependencies while keeping GraphQL external, so npm consumers receive the tested dependency graph.
+- Upgrade the Vitest/Vite/Storybook/Tailwind development stack and restore an enforced TypeScript lint gate. Compile dashboard and shared UI styles in one pass to preserve CSS budgets.
+- Serialize stale worker-owner recovery and bind release to its lock generation. Scrub Docker setup details from tenant-visible errors and remove anonymous volumes belonging to owned job containers.
+
+Signed desktop and Marketplace publication remain deferred; public hosting and multi-node operation are outside this local staging release.
+
 ## [0.32.0] - 2026-10-12
 
 Release contents; publication status is recorded by the GitHub release and npm. Companion versions:

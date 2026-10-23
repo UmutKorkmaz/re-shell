@@ -118,7 +118,7 @@ function CollaborationContent(): React.ReactElement {
         tenantId={tenantId}
         role={cp.role}
         onChange={cp.updateSettings}
-        onConnect={() => void cp.connect()} onSignIn={() => void cp.signIn()}
+        onConnect={() => void cp.connect()} onSignIn={() => void cp.signIn()} onSignOut={cp.ssoSession ? () => void cp.signOut() : undefined}
         onDisconnect={cp.disconnect}
         onForgetToken={cp.forgetToken}
       />

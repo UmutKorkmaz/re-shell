@@ -7,6 +7,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [react()],
   test: {
+    // Bound concurrent child processes on developer machines and shared CI runners.
+    maxWorkers: 4,
     environment: 'jsdom',
     globals: true,
     include: ['src/**/*.test.tsx', 'src/**/*.test.ts'],

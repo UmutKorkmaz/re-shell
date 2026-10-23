@@ -2,7 +2,7 @@
 
 The control plane accepts RS256 JWT access tokens from one configured OIDC issuer alongside existing internal HS256 user and worker tokens. External tokens authenticate users; worker endpoints require internal worker credentials. Tenant membership and roles stay in the local database. External roles, groups and tenant claims grant no access.
 
-The dashboard supports an operator-configured public-client authorization-code flow with S256 PKCE. Manual bearer connections remain available. Discovery, refresh-token management and provider logout are separate work. Tests and the local protocol fixture do not prove a live external provider login.
+The dashboard supports an operator-configured public-client authorization-code flow with S256 PKCE. Manual bearer connections remain available. It renews short-lived access tokens using provider refresh tokens held only in page memory, and supports operator-pinned revocation and provider logout. Discovery remains disabled. The protocol fixture is distinct from the isolated real Keycloak integration described below.
 
 ## Configure trust
 
@@ -46,7 +46,7 @@ Revoking one access token does not revoke other tokens, refresh tokens or the pr
 
 ## Verification scope
 
-The OIDC suite covers signed fixtures, foreign issuer/audience/algorithm, tampering, expiry/future claims, key-source headers, public-key validation, overlapping and retired keys, failed atomic reload, membership-only roles, fingerprint revocation, real HTTP coexistence with internal credentials, and runtime SQLite revocation wiring. A separate browser suite exercises S256/state, issuer and redirect binding, expiry, single-use transactions, callback cleanup, access-token-only handling, blocked storage, and the React callback under StrictMode. A real loopback HTTP protocol fixture exercises code exchange, PKCE mismatch and replay rejection, followed by `/me` through real JWT verification and SQLite membership. Selecting and validating a live external IdP remains separate integration work.
+The OIDC suite covers signed fixtures, foreign issuer/audience/algorithm, tampering, expiry/future claims, key-source headers, public-key validation, overlapping and retired keys, failed atomic reload, membership-only roles, fingerprint revocation, real HTTP coexistence with internal credentials, and runtime SQLite revocation wiring. A separate browser suite exercises S256/state, issuer and redirect binding, expiry, single-use transactions, callback cleanup, access-token-only handling, blocked storage, and the React callback under StrictMode. A real loopback HTTP protocol fixture exercises code exchange, PKCE mismatch and replay rejection, followed by `/me` through real JWT verification and SQLite membership. The optional real Keycloak integration below exercises an actual provider in local Docker; a passing local run does not establish compatibility with a different provider or a production deployment.
 
 
 ## Enable browser sign-in
@@ -59,6 +59,8 @@ In addition to pinned issuer/JWKS/API audience, configure:
 CONTROL_PLANE_OIDC_CLIENT_ID=re-shell-dashboard
 CONTROL_PLANE_OIDC_AUTHORIZATION_ENDPOINT=https://id.example.com/authorize
 CONTROL_PLANE_OIDC_TOKEN_ENDPOINT=https://id.example.com/token
+CONTROL_PLANE_OIDC_REVOCATION_ENDPOINT=https://id.example.com/revoke
+CONTROL_PLANE_OIDC_END_SESSION_ENDPOINT=https://id.example.com/logout
 CONTROL_PLANE_OIDC_REDIRECT_URIS=https://dashboard.example.com/
 CONTROL_PLANE_CORS_ORIGINS=https://dashboard.example.com
 CONTROL_PLANE_OIDC_SCOPE=openid re-shell-api
@@ -71,7 +73,15 @@ The default requires the provider's RFC 9207 `iss` authorization-response parame
 
 Open Administration or Collaboration, enter the control plane URL and optional tenant, then choose **Sign in with SSO**. The browser generates independent 256-bit state/verifier values and sends an S256 challenge. A five-minute transaction in tab storage binds the issuer, public client, endpoints, exact callback, control plane and return screen. The callback consumes that transaction before exchanging its code, checks state/issuer/redirect/configuration, and removes OAuth response parameters from browser history. Callback history is scrubbed even when the browser denies storage access; the failure is shown so the user can retry.
 
-Only the bearer **access token** is passed to `/me`; ID and refresh tokens are ignored. Sign-in itself keeps the access token in the active page's memory and does not replace stored manual tokens or enable the Remember option. Unrelated URL, tenant and ICE edits do not persist the SSO token. The current Remember checkbox starts unchecked even if a previous manual token was remembered; explicitly checking it, or explicitly editing the token field, uses the existing token-storage behavior. On expiry, sign in again. Forget token clears the active connection and stored manual token; it is not provider logout.
+Only the bearer **access token** is passed to the API. ID tokens are discarded. Refresh tokens are held in page memory only; they are never returned through the connection settings, serialized, or written to either browser store. The provider must return a bearer access token and a numeric `expires_in` between 1 and 86,400 seconds when issuing refresh tokens. Requests time out after 20 seconds; JSON responses are limited to 64 KiB while reading.
+
+Sign-in keeps the access token in page memory and leaves a previous stored manual token unchanged. Unrelated URL, tenant and ICE edits do not persist SSO credentials. The current Remember checkbox starts unchecked even when a previous manual token was remembered. Explicitly checking it permits storing the current and subsequently rotated **access tokens** on this device. Unchecking it returns the SSO access token to page memory and erases its stored copy. Explicitly editing the bearer-token field switches to manual credential handling and ends automatic SSO renewal. Reloading loses refresh credentials, including when an access token was explicitly remembered; a remembered access token can reconnect until it expires, then requires sign-in.
+
+While connected, the dashboard renews before access-token expiry with a single in-flight refresh grant. A rotated refresh token replaces the previous one; if a provider omits the replacement, the existing refresh token is retained according to RFC 6749. Configure provider refresh-token rotation and reuse detection for public clients. Renewal rechecks the pinned issuer/client/endpoints/redirect configuration before sending credentials. Rejected, malformed or failed renewal ends the active session and asks for sign-in. Disconnect pauses renewal while retaining the SSO lifecycle in page memory so reconnect can resume it. Forget clears the local SSO lifecycle and stored tokens. Both are local actions and do not terminate the provider login.
+
+**Sign out of SSO** immediately clears local credentials, waits for any rotating grant already in flight, then revokes the latest access-token fingerprint through `POST /auth/oidc/logout`. This denies that API JWT immediately using the local revocation store. If a revocation endpoint is configured, the dashboard also requests provider revocation of the latest refresh and access tokens as a public client, with no secret. If an end-session endpoint is configured, it redirects there with `client_id` and the exact registered `post_logout_redirect_uri`; the provider may require confirmation because no ID token is retained or supplied as a hint. Register the same exact callback as an allowed post-logout redirect at the provider, and enable browser CORS for its token and revocation endpoints.
+
+Provider endpoints are optional; without them, API/local cleanup still occurs but provider-wide logout is unavailable and the UI explains that limit. API/provider revocation failures remain visible after local cleanup; they never claim provider-wide success. Provider revocation alone does not make an offline JWT verifier aware of revocation: this control plane's fingerprint deny list covers the exact access token submitted on sign-out. Other access tokens, other devices and the provider account require the provider's administration/session controls or local membership removal. Disconnect retains refresh credentials only in page memory; Forget discards them without remotely revoking them. Use Sign out of SSO for the configured API/provider revocation and logout flow.
 
 ## Local protocol staging
 
@@ -86,3 +96,38 @@ The script starts an isolated loopback IdP **protocol fixture** and control-plan
 This fixture intentionally has no real user authentication. It validates the implemented redirect/code/PKCE/JWT/membership path and is not a deployable identity provider. Docker control-plane staging and external provider checks remain distinct evidence.
 
 Protocol references: [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636.html), [OAuth 2.0 Security BCP / RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html), and [authorization-response issuer identification / RFC 9207](https://www.rfc-editor.org/rfc/rfc9207.html).
+
+## Isolated real-provider integration (local Docker)
+
+**October 23 local result:** the final script passes the complete genuine provider
+lifecycle with official Keycloak **26.4.0** and the frozen production dashboard.
+The check covers password login, S256 PKCE, issuer/callback binding, API audience
+and tenant membership, proactive browser refresh/rotation and no issued credentials
+in browser storage with Remember disabled. Revocation of the exact latest refresh
+and access tokens returns **200** at the provider, followed by the logout redirect.
+The same API JWT returns **200 before** sign-out and **401 after** while still
+unexpired, establishing revocation rather than an expiry-only denial. A subsequent
+sign-in requires a password. A separate fresh authenticated session rejects replay
+of a consumed refresh token with **400**. The native-browser fetch sign-out fix
+also has a failing-before/passing-after regression; all **39** SSO tests pass and
+the native-browser fix was reviewed. The final provider script passes again after
+the renewal-version fix, with cleanup confirmed. Regressions include three renewal
+cycles returning the same access-token string and Remember changes during pending
+requests. This local result is specific to the named image and configuration,
+separate from other providers and production hosting.
+
+The reproducible integration uses an actual versioned official Keycloak container, a public SPA client with required S256, rotation/reuse rejection, a real password login in Chromium, and the actual dashboard and SQLite-backed API. It creates a unique container name, binds only a random loopback port, imports an ephemeral realm with a random password, and removes only its own container and temporary files. It does not use cloud credentials or existing Docker projects.
+
+Install the repository dependencies and browser, and build the workspace dependencies first, using Node 22.22.3 and the pinned pnpm version:
+
+```sh
+corepack pnpm --filter @re-shell/contracts build
+corepack pnpm --filter @re-shell/ui build
+corepack pnpm --filter @re-shell/control-plane build
+corepack pnpm --filter @re-shell/dashboard exec playwright install chromium
+node scripts/test-keycloak-sso.mjs
+```
+
+The script uses `quay.io/keycloak/keycloak:26.4.0` by default; `RE_SHELL_KEYCLOAK_IMAGE` permits an explicit official version tag/digest. It prints a credential-free PASS record only after real authentication, access-token API identity/membership, proactive renewal and refresh rotation, consumed refresh replay rejection, browser storage checks, latest-credential provider revocation, API rejection after sign-out, provider logout and a new authentication prompt pass. Runtime/provider/browser failures exit nonzero. If Docker is unavailable, the default is a nonzero `KEYCLOAK_INTEGRATION_UNAVAILABLE`; `--allow-skip` makes this an explicitly optional skipped run and never emits PASS. A successful local run is evidence for this exact provider image and local configuration only.
+
+Keycloak references: [official container guide](https://www.keycloak.org/server/containers) and [OIDC endpoint documentation](https://www.keycloak.org/securing-apps/oidc-layers). OAuth references for the lifecycle: [refresh grants (RFC 6749)](https://www.rfc-editor.org/rfc/rfc6749.html#section-6), [revocation (RFC 7009)](https://www.rfc-editor.org/rfc/rfc7009.html) and [RP-Initiated Logout](https://openid.net/specs/openid-connect-rpinitiated-1_0.html).

@@ -8,11 +8,14 @@ people on the same team join a **session** in a workspace, watch and drive one s
 console, edit a shared document, see each other's presence, and get team analytics.
 
 > **What exists and what does not.** All of it is implemented and tested against a real
-> control plane, worker and the built CLI. **No control plane is deployed**, so you run
-> your own (see [Control Plane](/re-shell/architecture/control-plane/)), and **no TURN
-> server is shipped or deployed**: direct WebRTC links work between peers that can
-> reach each other, and otherwise the relay fallback carries the messages through the
-> server. Full detail:
+> control plane, worker and the built CLI. The selected deployment scope is local
+> Docker staging; public hosting is not configured. Run your own
+> [control plane](/re-shell/architecture/control-plane/). An actual local coturn check
+> verifies forced TURN relay in two browser contexts, relay candidates at both ends,
+> bidirectional application pings and zero control-plane fallback sends. Public
+> NAT/provider compatibility remains unverified; unavailable WebRTC uses the server
+> relay fallback. See the [local integration check](https://github.com/UmutKorkmaz/re-shell/blob/main/docs/local-integrations.md).
+> Full detail:
 > [`docs/control-plane.md` section 14](https://github.com/UmutKorkmaz/re-shell/blob/main/docs/control-plane.md).
 
 ## The session model

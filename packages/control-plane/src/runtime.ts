@@ -7,6 +7,7 @@ import { SqliteTenantStore } from './db/sqlite-store.js';
 import { SqliteTokenRevocations } from './db/sqlite-revocations.js';
 import { DatabaseSync, openDatabase } from './db/sqlite.js';
 import { ControlPlaneServer, ListenInfo, createControlPlaneServer } from './http/server.js';
+import { Tracing } from './tracing.js';
 
 /**
  * Wires a {@link ServeConfig} into a running control plane: opens + migrates the
@@ -38,8 +39,10 @@ export async function startRuntime(
   const audit = new SqliteAuditLog(db);
   const jobs = new SqliteJobStore(db);
   const collab = new SqliteCollabStore(db);
+  const tracing = config.tracing ? new Tracing(config.tracing, undefined, logger) : undefined;
 
   const server = createControlPlaneServer({
+    tracing,
     store,
     audit,
     jobs,
@@ -64,6 +67,7 @@ export async function startRuntime(
   try {
     listening = await server.listen(config.port, config.host);
   } catch (error) {
+    await tracing?.close().catch(() => logger({ level: 'warn', message: 'trace exporter shutdown failed' }));
     db.close();
     throw error;
   }
@@ -78,6 +82,7 @@ export async function startRuntime(
     listening,
     async close() {
       await server.close();
+      await tracing?.close().catch(() => logger({ level: 'warn', message: 'trace exporter shutdown failed' }));
       try {
         db.close();
       } catch {

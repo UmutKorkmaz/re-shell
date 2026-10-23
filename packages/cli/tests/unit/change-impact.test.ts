@@ -26,13 +26,15 @@ vi.mock('../../src/utils/change-impact-analyzer', () => ({
   ChangeImpactAnalyzer: class {},
 }));
 vi.mock('../../src/utils/spinner', () => ({
-  ProgressSpinner: vi.fn().mockImplementation(() => ({
-    start: vi.fn(),
-    setText: vi.fn(),
-    stop: vi.fn(),
-    succeed: vi.fn(),
-    fail: vi.fn(),
-  })),
+  ProgressSpinner: vi.fn().mockImplementation(function () {
+    return {
+      start: vi.fn(),
+      setText: vi.fn(),
+      stop: vi.fn(),
+      succeed: vi.fn(),
+      fail: vi.fn(),
+    };
+  }),
 }));
 
 let projectDir: string;

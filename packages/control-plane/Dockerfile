@@ -16,12 +16,13 @@
 #
 # Targets
 #   control-plane  the HTTP/SSE server (+ the `issue-token`/`gen-key`/`migrate` tools)
-#   worker         an execution worker: control-plane bin + the re-shell CLI
+#   worker         trusted local development worker (process mode; no daemon socket)
+#   job            isolated per-job runtime (CLI only, no control-plane credentials)
 #
 # All configuration is read from CONTROL_PLANE_* environment variables at run
 # time; nothing secret is baked into an image.
 
-ARG NODE_VERSION=22
+ARG NODE_VERSION=22.22.3
 
 # ---------------------------------------------------------------------------
 # build: install the workspace subset, compile, and `pnpm deploy` two
@@ -39,7 +40,7 @@ WORKDIR /repo
 
 RUN --mount=type=secret,id=cacert,required=false \
     if [ -f /run/secrets/cacert ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/cacert; fi; \
-    npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}"
+    corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
 
 # Build context is filtered by Dockerfile.dockerignore (no node_modules, dist, site, ...).
 COPY . .
@@ -100,7 +101,8 @@ RUN if [ -n "${WORKER_APT_PACKAGES}" ]; then \
     fi
 ENV NODE_ENV=production \
     RE_SHELL_CLI_BIN=/opt/re-shell/dist/index.js \
-    CONTROL_PLANE_WORKSPACE_ROOT=/workspaces
+    CONTROL_PLANE_WORKSPACE_ROOT=/workspaces \
+    CONTROL_PLANE_WORKER_MODE=process
 WORKDIR /app
 COPY --from=build --chown=node:node /out/control-plane/ /app/
 COPY --from=build --chown=node:node /out/re-shell-cli/ /opt/re-shell/
@@ -110,3 +112,15 @@ VOLUME ["/workspaces"]
 USER node
 ENTRYPOINT ["node", "/app/dist/bin.js"]
 CMD ["worker"]
+
+# ---------------------------------------------------------------------------
+# job: one CLI invocation per container, launched by a host-side orchestrator.
+# No daemon client/socket or control-plane code/token is present.
+# ---------------------------------------------------------------------------
+FROM node:${NODE_VERSION}-bookworm-slim AS job
+ENV NODE_ENV=production HOME=/tmp CI=1 NO_COLOR=1 FORCE_COLOR=0
+COPY --from=build --chown=node:node /out/re-shell-cli/ /opt/re-shell/
+USER node
+WORKDIR /workspace
+ENTRYPOINT ["node", "/opt/re-shell/dist/index.js"]
+CMD ["doctor", "--json"]

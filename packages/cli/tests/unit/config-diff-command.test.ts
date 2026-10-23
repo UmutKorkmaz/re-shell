@@ -36,7 +36,9 @@ vi.mock('../../src/utils/config-diff', () => {
     generateDiffReport: mocks.generateDiffReport,
   };
   return {
-    ConfigDiffer: vi.fn(() => instance),
+    ConfigDiffer: vi.fn(function () {
+      return instance;
+    }),
     configDiffer: instance,
     MergeStrategies: {
       leftWins: vi.fn(() => ({ arrayMerge: 'replace', conflictResolution: 'left' })),

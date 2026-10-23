@@ -165,7 +165,7 @@ describe('re-shell-control-plane (built bin, real processes)', () => {
       (await runToEnd(['issue-token', '--worker', '--worker-id', 'bin-worker', '--tenant', 'acme'], env)).stdout
     ).data.token as string;
     const worker = run(
-      ['worker', '--tenant', 'acme', '--workspace-root', workspaceRoot, '--url', url, '--cli-bin', CLI_BIN],
+      ['worker', '--mode', 'process', '--tenant', 'acme', '--workspace-root', workspaceRoot, '--url', url, '--cli-bin', CLI_BIN],
       { CONTROL_PLANE_WORKER_TOKEN: workerToken }
     );
     procs.push(worker);
@@ -217,7 +217,7 @@ describe('re-shell-control-plane (built bin, real processes)', () => {
 
   it('a worker with a bad token exits non-zero with ok:false', async () => {
     const { proc: server, url } = await startServer();
-    const worker = run(['worker', '--tenant', 'acme', '--workspace-root', workspaceRoot, '--url', url], {
+    const worker = run(['worker', '--mode', 'process', '--tenant', 'acme', '--workspace-root', workspaceRoot, '--url', url], {
       CONTROL_PLANE_WORKER_TOKEN: 'not.a.token',
     });
     procs.push(worker);

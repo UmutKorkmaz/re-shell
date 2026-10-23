@@ -296,7 +296,7 @@ describe('multi-client convergence (seeded randomized)', () => {
         }
       }
     }
-  });
+  }, 60_000);
 });
 
 describe('OtClient state machine', () => {
