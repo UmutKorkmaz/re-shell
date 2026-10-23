@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { resolveCommand } from '@re-shell/contracts/command-registry';
 import { STANDARD_SEED, startHarness, type Harness } from '../test-support/harness.js';
@@ -112,8 +113,28 @@ suite('real Docker per-job isolation', () => {
     // Two-file context, no RUN instructions, no downloaded code. A COPY layer
     // avoids Docker Desktop's slow export of a modified stopped container.
     fs.writeFileSync(path.join(context, 'Dockerfile'), `FROM ${baseTag}\nCOPY probe.cjs /opt/re-shell/dist/index.js\n`);
-    await dockerCommand(config, ['build', '--pull=false', '--network=none', '--label', `io.re-shell.test-fixture=${fixtureId}`,
-      '--tag', fixtureTag, context], 120_000);
+    // Buildx writes client state; give only this fixture build private config.
+    // Worker/cleanup commands retain the production scrubbed environment.
+    const dockerConfig = path.join(tmp, 'docker-build-config');
+    fs.mkdirSync(dockerConfig, { mode: 0o700 });
+    // Docker Desktop bundles its plugin beside the real CLI executable. Locate
+    // that installed binary without reading the user's Docker configuration.
+    const dockerBin = (process.env.PATH ?? '').split(path.delimiter).map((dir) => path.join(dir, 'docker')).find((file) => fs.existsSync(file));
+    const buildx = dockerBin && path.resolve(path.dirname(fs.realpathSync(dockerBin)), '../cli-plugins/docker-buildx');
+    if (buildx && fs.existsSync(buildx)) {
+      fs.accessSync(buildx, fs.constants.X_OK);
+      const plugins = path.join(dockerConfig, 'cli-plugins');
+      fs.mkdirSync(plugins, { mode: 0o700 });
+      fs.symlinkSync(fs.realpathSync(buildx), path.join(plugins, 'docker-buildx'));
+    }
+    await new Promise<void>((resolve, reject) => {
+      execFile('docker', ['--host', config.host, 'buildx', 'build', '--load', '--pull=false', '--network=none', '--label', `io.re-shell.test-fixture=${fixtureId}`,
+        '--tag', fixtureTag, context], { env: { PATH: process.env.PATH, HOME: tmp, DOCKER_CONFIG: dockerConfig, LANG: 'C' },
+        timeout: 120_000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 }, (error, _stdout, stderr) => {
+        if (error) reject(new Error(`Docker fixture build failed: ${String(stderr || error.message).slice(0, 500)}`));
+        else resolve();
+      });
+    });
     fixtureImage = await dockerCommand(config, ['image', 'inspect', '--format', '{{.Id}}', fixtureTag]);
     expect(fixtureImage).toMatch(/^sha256:[a-f0-9]{64}$/);
   }, 180_000);
