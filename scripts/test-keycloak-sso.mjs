@@ -40,6 +40,33 @@ function checked(category, verify) {
     throw error;
   }
 }
+function observeProviderGrants({ dashboardOrigin, tokenEndpoint, clientId, bindingName }) {
+  if (location.origin !== dashboardOrigin) return;
+  const nativeFetch = globalThis.fetch;
+  const record = globalThis[bindingName];
+  globalThis.fetch = async function (...args) {
+    // Preserve native transport, CORS, arguments and receiver validation. Clone
+    // inside the browser: CDP can lose bodies after the client consumes a stream.
+    const response = await Reflect.apply(nativeFetch, this, args);
+    const options = args[1];
+    if (response.url !== tokenEndpoint || !response.ok || options?.method?.toUpperCase() !== 'POST') return response;
+    const requestBody = options.body;
+    const request = new URLSearchParams(typeof requestBody === 'string' ? requestBody
+      : requestBody instanceof URLSearchParams ? requestBody.toString() : '');
+    if (request.get('client_id') !== clientId || !['authorization_code', 'refresh_token'].includes(request.get('grant_type'))) return response;
+    try {
+      const body = await response.clone().json();
+      // Delivery finishes before the product receives its original Response, so
+      // connected UI state is also a barrier for the in-memory grant observation.
+      await record({ kind: 'grant', status: response.status, request: request.toString(), body });
+    } catch (error) {
+      await record({ kind: 'failure', error: ['Error', 'TypeError', 'SyntaxError', 'TimeoutError'].includes(error?.name) ? error.name : 'OtherError',
+        failureKind: error?.name === 'SyntaxError' ? 'invalid-json' : 'token-observation-failed', method: 'POST' });
+      throw new Error('Provider grant observation failed');
+    }
+    return response;
+  };
+}
 async function cleanup() {
   const failures = [];
   for (const action of [() => browser?.close(), () => runtime?.close(), () => closeDashboard?.(), () => {
@@ -136,12 +163,28 @@ try {
     if (!text.startsWith('[vite]')) return;
     viteEvents.push(text.includes('page reload') ? 'page-reload' : text.includes('hot updated') ? 'hot-update' : 'dev-client');
   });
-  const grants = []; const revocations = []; const captures = [];
+  const grants = []; const revocations = [];
   let captureFailed = false;
-  const flushCaptures = async () => {
-    await Promise.all(captures);
+  const assertCaptures = () => {
     checked('provider-grant-observation', () => assert.equal(captureFailed, false, 'Could not observe a successful provider grant'));
   };
+  const bindingName = `__reShellGrant_${randomUUID().replaceAll('-', '')}`;
+  await page.exposeBinding(bindingName, ({ frame }, capture) => {
+    checked('provider-grant-source', () => assert.equal(frame === page.mainFrame() && new URL(frame.url()).origin === dashboardOrigin, true));
+    if (capture.kind === 'failure') {
+      captureFailed = true;
+      captureFailures.push({ error: capture.error, kind: capture.failureKind, method: capture.method });
+      return;
+    }
+    checked('captured-grant-http-status', () => assert.equal(capture.status, 200));
+    const { body } = capture;
+    const request = new URLSearchParams(capture.request);
+    grantShapes.push({ hasRefreshToken: typeof body.refresh_token === 'string', hasExpiry: Number.isSafeInteger(body.expires_in),
+      ...(Number.isSafeInteger(body.expires_in) ? { expiresInSeconds: body.expires_in } : {}),
+      authorizationCodeGrant: request.get('grant_type') === 'authorization_code' });
+    grants.push({ body, request });
+  });
+  await page.addInitScript(observeProviderGrants, { dashboardOrigin, tokenEndpoint: `${endpoints}/token`, clientId: 're-shell-dashboard', bindingName });
   page.on('response', (response) => {
     const url = new URL(response.url());
     if (url.origin === providerOrigin || url.origin === new URL(runtime.listening.url).origin) {
@@ -151,23 +194,6 @@ try {
         : url.pathname.endsWith('/auth') ? 'provider-authorization'
         : url.pathname === '/me' ? 'api-identity' : url.pathname === '/auth/oidc' ? 'api-sso-config' : undefined;
       if (category) { responseStatuses.push({ category, status: response.status() }); if (responseStatuses.length > 24) responseStatuses.shift(); }
-    }
-    if (response.url() === `${endpoints}/token` && response.ok()) {
-      captures.push(response.json().then((body) => {
-        grantShapes.push({ hasRefreshToken: typeof body.refresh_token === 'string', hasExpiry: Number.isSafeInteger(body.expires_in),
-          ...(Number.isSafeInteger(body.expires_in) ? { expiresInSeconds: body.expires_in } : {}),
-          authorizationCodeGrant: new URLSearchParams(response.request().postData() ?? '').get('grant_type') === 'authorization_code' });
-        grants.push({ body, request: new URLSearchParams(response.request().postData() ?? '') });
-      }).catch((error) => {
-        captureFailed = true;
-        const message = String(error?.message ?? '');
-        const method = response.request().method();
-        captureFailures.push({ error: ['Error', 'TypeError', 'SyntaxError', 'TimeoutError'].includes(error?.name) ? error.name : 'OtherError',
-          kind: /No resource with given identifier|No data found|could not load body/i.test(message) ? 'response-body-unavailable'
-            : /Unexpected end of JSON/i.test(message) ? 'empty-or-truncated-json'
-            : error?.name === 'SyntaxError' ? 'invalid-json' : 'token-observation-failed',
-          method: ['POST', 'OPTIONS', 'GET'].includes(method) ? method : 'other' });
-      }));
     }
     if (response.url() === `${endpoints}/revoke`) {
       const request = new URLSearchParams(response.request().postData() ?? '');
@@ -189,7 +215,7 @@ try {
   await page.getByTestId('collab-status').filter({ hasText: `connected as ${mappedUser}` }).waitFor();
   assert.equal(new URL(page.url()).searchParams.has('code'), false);
   await page.waitForFunction(() => document.querySelector('[data-testid="collab-token"]')?.value?.length > 0);
-  await flushCaptures();
+  assertCaptures();
   assert.equal(grants.length, 1);
   assert.equal(grants[0].request.get('grant_type'), 'authorization_code');
   assert.match(grants[0].request.get('code_verifier'), /^[A-Za-z0-9_-]{43}$/);
@@ -199,7 +225,7 @@ try {
   const initialRefresh = grants[0].body.refresh_token;
   await page.waitForResponse((response) => response.url() === `${endpoints}/token` && response.request().postData()?.includes('grant_type=refresh_token'), { timeout: 45_000 });
   await page.waitForFunction((first) => document.querySelector('[data-testid="collab-token"]')?.value !== first, grants[0].body.access_token);
-  await flushCaptures();
+  assertCaptures();
   assert.equal(grants.length >= 2, true);
   assert.equal(grants[1].request.get('grant_type'), 'refresh_token');
   assert.notEqual(grants[1].body.refresh_token, initialRefresh);
@@ -252,8 +278,7 @@ try {
   phase = 'separate-session-refresh-replay';
   await page.locator('#username').fill('local-alice');
   await page.locator('#password').fill(password);
-  // Arm before submit: a connected UI does not guarantee Node has finished
-  // observing the new token response. Match this login's request and body directly.
+  // Arm before submit, then match this exact login's code to the browser capture.
   const freshCodeResponse = page.waitForResponse((response) => {
     const request = response.request();
     const body = new URLSearchParams(request.postData() ?? '');
@@ -266,11 +291,14 @@ try {
   const response = await freshCodeResponse;
   checked('fresh-code-http-status', () => assert.equal(response.status(), 200));
   await response.finished();
-  const fresh = { body: await response.json(), request: new URLSearchParams(response.request().postData() ?? '') };
-  checked('fresh-code-grant-kind', () => assert.equal(fresh.request.get('grant_type'), 'authorization_code'));
-  checked('fresh-code-refresh-credential', () => assert.equal(typeof fresh.body.refresh_token === 'string' && fresh.body.refresh_token.length > 0, true));
+  const freshRequest = new URLSearchParams(response.request().postData() ?? '');
+  checked('fresh-code-grant-kind', () => assert.equal(freshRequest.get('grant_type'), 'authorization_code'));
+  checked('fresh-code-credential', () => assert.ok(freshRequest.get('code')));
   await page.getByTestId('collab-status').filter({ hasText: `connected as ${mappedUser}` }).waitFor();
-  await flushCaptures();
+  assertCaptures();
+  const fresh = grants.find(({ request }) => request.get('grant_type') === 'authorization_code' && request.get('code') === freshRequest.get('code'));
+  checked('fresh-code-grant-captured', () => assert.ok(fresh));
+  checked('fresh-code-refresh-credential', () => assert.equal(typeof fresh.body.refresh_token === 'string' && fresh.body.refresh_token.length > 0, true));
   phase = 'separate-session-refresh-consume';
   const rotated = await fetch(`${endpoints}/token`, { method: 'POST', signal: AbortSignal.timeout(5000), body: new URLSearchParams({
     grant_type: 'refresh_token', client_id: 're-shell-dashboard', refresh_token: fresh.body.refresh_token }) });
