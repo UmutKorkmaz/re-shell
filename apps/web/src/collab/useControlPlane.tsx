@@ -62,6 +62,40 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+interface CredentialCell {
+  value: string;
+  validation?: Promise<void>;
+  cancelValidation?: () => void;
+}
+
+/** A stream or deduplicated OT send can safely wait for an in-progress renewal. */
+function renewableRequest(baseUrl: string, input: RequestInfo | URL, init?: RequestInit): boolean {
+  // The contracts client sends URL strings and replayable string bodies. Do not
+  // broaden this to Request streams or arbitrary mutations.
+  if (typeof input !== 'string') return false;
+  const base = new URL(baseUrl);
+  const url = new URL(input);
+  if (url.origin !== base.origin || !url.pathname.startsWith(`${base.pathname.replace(/\/$/, '')}/`)) return false;
+  const path = url.pathname.slice(base.pathname.replace(/\/$/, '').length);
+  const sessionPath = '/tenants/[^/]+/sessions/[^/]+';
+  if ((init?.method ?? 'GET') === 'GET') return new RegExp(`^${sessionPath}/stream$`).test(path);
+  if (init?.method !== 'POST' || !new RegExp(`^${sessionPath}/docs/[^/]+/ops$`).test(path) || url.search || typeof init.body !== 'string') return false;
+  try {
+    const body = JSON.parse(init.body) as { clientId?: unknown; clientSeq?: unknown };
+    return typeof body.clientId === 'string' && body.clientId.length > 0 && Number.isSafeInteger(body.clientSeq) && Number(body.clientSeq) > 0;
+  } catch { return false; }
+}
+
+async function withAbort<T>(pending: Promise<T>, signal?: AbortSignal | null): Promise<T> {
+  if (signal?.aborted) throw signal.reason;
+  if (!signal) return pending;
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener('abort', abort, { once: true });
+    void pending.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+  });
+}
+
 export function ControlPlaneProvider({
   children,
   fetchImpl,
@@ -83,6 +117,17 @@ export function ControlPlaneProvider({
   settingsRef.current = settings;
   const identityRef = React.useRef(identity);
   identityRef.current = identity;
+  // Each published connection owns its credential; settings and an unvalidated
+  // refresh result must never change a live client's Authorization header.
+  const connectedClient = React.useRef<{ client: ControlPlaneClient; tokenCell: CredentialCell } | null>(null);
+  const clearClient = React.useCallback((): void => {
+    if (connectedClient.current) {
+      connectedClient.current.tokenCell.value = '';
+      connectedClient.current.tokenCell.cancelValidation?.();
+    }
+    connectedClient.current = null;
+    setClient(null);
+  }, []);
 
   const updateSettings = React.useCallback((patch: Partial<ConnectionSettings>): void => {
     setSettings((prev) => {
@@ -90,6 +135,7 @@ export function ControlPlaneProvider({
       if ((patch.url !== undefined && patch.url !== prev.url) || (patch.token !== undefined && patch.token !== prev.token)) {
         session.current?.close(); session.current = null;
         attempt.current += 1;
+        connectedClient.current?.tokenCell.cancelValidation?.();
       }
       if (session.current && patch.rememberToken === false && patch.token === undefined) {
         volatileSsoToken.current = next.token;
@@ -109,15 +155,16 @@ export function ControlPlaneProvider({
 
   const disconnect = React.useCallback((): void => {
     attempt.current += 1;
-    setClient(null);
+    clearClient();
     setIdentity(null);
     setTenantId(null);
     setStatus('disconnected');
     setError(null);
-  }, []);
+  }, [clearClient]);
 
   const connectWithSettings = React.useCallback(async (connection: ConnectionSettings): Promise<void> => {
     const mine = ++attempt.current;
+    clearClient();
     setError(null);
     const url = checkControlPlaneUrl(connection.url);
     if (!url.ok) {
@@ -132,7 +179,34 @@ export function ControlPlaneProvider({
     }
     setWarning(url.warning ?? null);
     setStatus('connecting');
-    const next = new ControlPlaneClient({ baseUrl: url.url, token: connection.token.trim(), fetch: fetchImpl });
+    const tokenCell: CredentialCell = { value: connection.token.trim() };
+    const liveFetch: typeof fetch = async (input, init) => {
+      const usedAuthorization = new Headers(init?.headers).get('Authorization');
+      const response = await (fetchImpl ?? fetch)(input, init);
+      const currentConnection = () => {
+        const currentUrl = checkControlPlaneUrl(settingsRef.current.url);
+        return attempt.current === mine && connectedClient.current?.tokenCell === tokenCell &&
+          tokenCell.value !== '' && currentUrl.ok && currentUrl.url === url.url;
+      };
+      if (response.status !== 401 || !renewableRequest(url.url, input, init) || !currentConnection()) return response;
+      try {
+        if (usedAuthorization === `Bearer ${tokenCell.value}` && tokenCell.validation) {
+          await withAbort(tokenCell.validation, init?.signal);
+        }
+        if (init?.signal?.aborted) throw init.signal.reason;
+      } catch (cause) {
+        await response.body?.cancel();
+        throw cause;
+      }
+      if (!currentConnection() || usedAuthorization === `Bearer ${tokenCell.value}`) return response;
+      await response.body?.cancel();
+      if (init?.signal?.aborted) throw init.signal.reason;
+      if (!currentConnection()) return response;
+      const headers = new Headers(init?.headers);
+      headers.set('Authorization', `Bearer ${tokenCell.value}`);
+      return (fetchImpl ?? fetch)(input, { ...init, headers });
+    };
+    const next = new ControlPlaneClient({ baseUrl: url.url, token: () => tokenCell.value, fetch: liveFetch });
     try {
       const me: Identity = await next.me();
       if (attempt.current !== mine) return;
@@ -153,17 +227,18 @@ export function ControlPlaneProvider({
       }
       setIdentity(me);
       setTenantId(tenant || null);
+      connectedClient.current = { client: next, tokenCell };
       setClient(next);
       setStatus('connected');
     } catch (cause) {
       if (attempt.current !== mine) return;
-      setClient(null);
+      clearClient();
       setIdentity(null);
       setTenantId(null);
       setStatus('error');
       setError(describe(cause));
     }
-  }, [fetchImpl, allowTenantlessPlatformAdmin]);
+  }, [fetchImpl, allowTenantlessPlatformAdmin, clearClient]);
 
   const connect = React.useCallback(async (): Promise<void> => {
     const active = session.current;
@@ -182,13 +257,13 @@ export function ControlPlaneProvider({
         active.close(); session.current = null;
         clearConnectionToken(); volatileSsoToken.current = null;
         setSettings((current) => ({ ...current, token: '', rememberToken: false }));
-        setClient(null); setIdentity(null); setTenantId(null);
+        clearClient(); setIdentity(null); setTenantId(null);
         setStatus('error'); setError(describe(cause));
         return;
       }
     }
     await connectWithSettings(connection);
-  }, [connectWithSettings]);
+  }, [connectWithSettings, clearClient]);
   const signInBusy = React.useRef(false);
   const signIn = React.useCallback(async (): Promise<void> => {
     if (signInBusy.current) return;
@@ -244,22 +319,32 @@ export function ControlPlaneProvider({
 
   React.useEffect(() => {
     const active = session.current;
-    if (!active || status !== 'connected' || active.expiresAt === undefined) return;
+    const connected = connectedClient.current;
+    if (!active || !connected || status !== 'connected' || active.expiresAt === undefined) return;
     let cancelled = false;
+    let cancelValidation: (() => void) | undefined;
     const mine = attempt.current;
     const lifetime = active.expiresAt - Date.now();
     const delay = Math.max(0, lifetime - (active.canRefresh ? Math.min(30_000, Math.max(100, lifetime / 5)) : 0));
     const timer = setTimeout(() => {
+      const validationController = new AbortController();
+      let finishValidation!: () => void;
+      const validation = new Promise<void>((resolve) => { finishValidation = resolve; });
+      connected.tokenCell.validation = validation;
+      const validationTimer = setTimeout(() => validationController.abort(), 20_000);
+      cancelValidation = () => { clearTimeout(validationTimer); validationController.abort(); finishValidation(); };
+      connected.tokenCell.cancelValidation = cancelValidation;
       void (async () => {
         try {
           if (!active.canRefresh) throw new Error('The SSO access token expired. Sign in again.');
-          const accessToken = await active.refresh();
+          const accessToken = await withAbort(active.refresh(), validationController.signal);
           if (cancelled || attempt.current !== mine || session.current !== active) return;
           const current = settingsRef.current;
-          if (current.url.replace(/\/+$/, '') !== active.controlPlaneUrl) return;
+          const checked = checkControlPlaneUrl(current.url);
+          if (!checked.ok || checked.url !== active.controlPlaneUrl) return;
           const nextClient = new ControlPlaneClient({ baseUrl: active.controlPlaneUrl, token: accessToken, fetch: fetchImpl });
-          const me: Identity = await nextClient.me();
-          if (cancelled || attempt.current !== mine || session.current !== active) return;
+          const me = await withAbort(nextClient.call<Identity>('GET', '/me', undefined, validationController.signal), validationController.signal);
+          if (cancelled || attempt.current !== mine || session.current !== active || connectedClient.current !== connected) return;
           if (me.userId !== identityRef.current?.userId || (tenantId && !me.tenants.some((tenant) => tenant.tenantId === tenantId))) {
             throw new Error('Session identity or tenant membership changed. Sign in again.');
           }
@@ -270,9 +355,10 @@ export function ControlPlaneProvider({
           // Explicit Remember applies to rotated access tokens only; refresh credentials never reach storage.
           if (latest.rememberToken) saveConnectionSettings(next);
           volatileSsoToken.current = latest.rememberToken ? null : accessToken;
-          // Swap the validated client without disconnecting mounted collaboration/admin state.
+          // Preserve the client, its stream and queued OT edits. Only publish
+          // the probed token to this connection after identity/membership validation.
+          connected.tokenCell.value = accessToken;
           setIdentity(me);
-          setClient(nextClient);
           setSettings(next);
           // A provider may reuse an access token while extending its expiry.
           // Reschedule only after validation and the token update commit.
@@ -283,13 +369,20 @@ export function ControlPlaneProvider({
           if (loadConnectionSettings().token === settingsRef.current.token) clearConnectionToken();
           volatileSsoToken.current = null;
           setSettings((current) => ({ ...current, token: '', rememberToken: false }));
-          setClient(null); setIdentity(null); setTenantId(null);
+          clearClient(); setIdentity(null); setTenantId(null);
           setStatus('error'); setError(describe(cause));
+        } finally {
+          clearTimeout(validationTimer);
+          finishValidation();
+          if (connected.tokenCell.validation === validation) {
+            connected.tokenCell.validation = undefined;
+            connected.tokenCell.cancelValidation = undefined;
+          }
         }
       })();
     }, Math.min(delay, 2_147_483_647));
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [settings.token, renewalVersion, status, fetchImpl, tenantId]);
+    return () => { cancelled = true; clearTimeout(timer); cancelValidation?.(); };
+  }, [settings.token, renewalVersion, status, fetchImpl, tenantId, clearClient]);
 
   const signOut = React.useCallback(async (): Promise<void> => {
     const active = session.current;
