@@ -28,10 +28,18 @@ let closeDashboard; let runtime; let browser; let page; let started = false;
 let dashboardOrigin; let providerOrigin;
 const responseStatuses = [];
 const grantShapes = [];
+const captureFailures = [];
 const navigationKinds = [];
 const viteEvents = [];
 const checks = [];
 let phase = 'provider-startup';
+function checked(category, verify) {
+  try { verify(); }
+  catch (error) {
+    if (error instanceof assert.AssertionError) error.diagnosticCategory = category;
+    throw error;
+  }
+}
 async function cleanup() {
   const failures = [];
   for (const action of [() => browser?.close(), () => runtime?.close(), () => closeDashboard?.(), () => {
@@ -130,7 +138,10 @@ try {
   });
   const grants = []; const revocations = []; const captures = [];
   let captureFailed = false;
-  const flushCaptures = async () => { await Promise.all(captures); assert.equal(captureFailed, false, 'Could not observe a successful provider grant'); };
+  const flushCaptures = async () => {
+    await Promise.all(captures);
+    checked('provider-grant-observation', () => assert.equal(captureFailed, false, 'Could not observe a successful provider grant'));
+  };
   page.on('response', (response) => {
     const url = new URL(response.url());
     if (url.origin === providerOrigin || url.origin === new URL(runtime.listening.url).origin) {
@@ -147,7 +158,16 @@ try {
           ...(Number.isSafeInteger(body.expires_in) ? { expiresInSeconds: body.expires_in } : {}),
           authorizationCodeGrant: new URLSearchParams(response.request().postData() ?? '').get('grant_type') === 'authorization_code' });
         grants.push({ body, request: new URLSearchParams(response.request().postData() ?? '') });
-      }).catch(() => { captureFailed = true; }));
+      }).catch((error) => {
+        captureFailed = true;
+        const message = String(error?.message ?? '');
+        const method = response.request().method();
+        captureFailures.push({ error: ['Error', 'TypeError', 'SyntaxError', 'TimeoutError'].includes(error?.name) ? error.name : 'OtherError',
+          kind: /No resource with given identifier|No data found|could not load body/i.test(message) ? 'response-body-unavailable'
+            : /Unexpected end of JSON/i.test(message) ? 'empty-or-truncated-json'
+            : error?.name === 'SyntaxError' ? 'invalid-json' : 'token-observation-failed',
+          method: ['POST', 'OPTIONS', 'GET'].includes(method) ? method : 'other' });
+      }));
     }
     if (response.url() === `${endpoints}/revoke`) {
       const request = new URLSearchParams(response.request().postData() ?? '');
@@ -230,23 +250,39 @@ try {
   // Keycloak detaches the client session after reuse detection. Test replay in
   // a new authenticated session so it cannot invalidate the earlier logout proof.
   phase = 'separate-session-refresh-replay';
-  const priorGrants = grants.length;
   await page.locator('#username').fill('local-alice');
   await page.locator('#password').fill(password);
+  // Arm before submit: a connected UI does not guarantee Node has finished
+  // observing the new token response. Match this login's request and body directly.
+  const freshCodeResponse = page.waitForResponse((response) => {
+    const request = response.request();
+    const body = new URLSearchParams(request.postData() ?? '');
+    return response.url() === `${endpoints}/token` && request.method() === 'POST'
+      && body.get('client_id') === 're-shell-dashboard' && body.get('grant_type') === 'authorization_code';
+  });
+  void freshCodeResponse.catch(() => {});
   await page.locator('#kc-login').click();
+  phase = 'separate-session-code-response';
+  const response = await freshCodeResponse;
+  checked('fresh-code-http-status', () => assert.equal(response.status(), 200));
+  await response.finished();
+  const fresh = { body: await response.json(), request: new URLSearchParams(response.request().postData() ?? '') };
+  checked('fresh-code-grant-kind', () => assert.equal(fresh.request.get('grant_type'), 'authorization_code'));
+  checked('fresh-code-refresh-credential', () => assert.equal(typeof fresh.body.refresh_token === 'string' && fresh.body.refresh_token.length > 0, true));
   await page.getByTestId('collab-status').filter({ hasText: `connected as ${mappedUser}` }).waitFor();
   await flushCaptures();
-  const fresh = grants.slice(priorGrants).find(({ request }) => request.get('grant_type') === 'authorization_code');
-  assert.ok(fresh, 'Fresh authenticated session did not issue a code grant');
+  phase = 'separate-session-refresh-consume';
   const rotated = await fetch(`${endpoints}/token`, { method: 'POST', signal: AbortSignal.timeout(5000), body: new URLSearchParams({
     grant_type: 'refresh_token', client_id: 're-shell-dashboard', refresh_token: fresh.body.refresh_token }) });
-  assert.equal(rotated.status, 200, 'Fresh session refresh token could not be consumed');
+  checked('fresh-refresh-http-status', () => assert.equal(rotated.status, 200, 'Fresh session refresh token could not be consumed'));
+  phase = 'separate-session-refresh-rotation';
   const rotatedGrant = await rotated.json();
-  assert.equal(typeof rotatedGrant.refresh_token, 'string');
-  assert.notEqual(rotatedGrant.refresh_token, fresh.body.refresh_token);
+  checked('fresh-rotated-credential', () => assert.equal(typeof rotatedGrant.refresh_token, 'string'));
+  checked('fresh-rotated-credential-distinct', () => assert.notEqual(rotatedGrant.refresh_token, fresh.body.refresh_token));
+  phase = 'separate-session-refresh-replay';
   const reused = await fetch(`${endpoints}/token`, { method: 'POST', signal: AbortSignal.timeout(5000), body: new URLSearchParams({
     grant_type: 'refresh_token', client_id: 're-shell-dashboard', refresh_token: fresh.body.refresh_token }) });
-  assert.equal(reused.status, 400, 'Consumed rotating refresh token was reusable'); await reused.body?.cancel();
+  checked('fresh-consumed-credential-rejected', () => assert.equal(reused.status, 400, 'Consumed rotating refresh token was reusable')); await reused.body?.cancel();
   checks.push('separate fresh session rejects a consumed rotating refresh token without contaminating logout evidence');
   console.log(JSON.stringify({ result: 'PASS', provider: image, dashboard: 'frozen production build in owned temporary folder', scope: 'isolated local Docker only', checks }));
 } catch (error) {
@@ -271,6 +307,8 @@ try {
       hasCallbackCode: new URL(location.href).searchParams.has('code'), hasCallbackError: new URL(location.href).searchParams.has('error'),
     }), { dashboardOrigin, providerOrigin });
   } catch { /* A closed browser has no UI diagnostic. */ }
-  console.error(`KEYCLOAK_INTEGRATION_FAILED: ${JSON.stringify({ phase, error: error?.name ?? 'UnknownError', ui, responseStatuses, grantShapes, navigationKinds, viteEvents })}`);
+  console.error(`KEYCLOAK_INTEGRATION_FAILED: ${JSON.stringify({ phase, error: error?.name ?? 'UnknownError',
+    ...(error instanceof assert.AssertionError ? { assertion: error.diagnosticCategory ?? 'unclassified' } : {}),
+    ui, responseStatuses, grantShapes, captureFailures, navigationKinds, viteEvents })}`);
   process.exitCode = 1;
 } finally { await cleanup(); }
